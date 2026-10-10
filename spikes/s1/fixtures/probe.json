@@ -1,0 +1,7 @@
+{
+  "modelId": "scripted",
+  "steps": [
+    { "toolCalls": [{ "name": "bash", "args": { "command": "echo probe" }, "id": "probe-1" }] },
+    { "text": "probe done" }
+  ]
+}

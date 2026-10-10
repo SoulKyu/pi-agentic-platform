@@ -1,0 +1,10 @@
+{
+  "modelId": "scripted",
+  "steps": [
+    { "text": "reply one" },
+    { "text": "reply two" },
+    { "text": "reply three" },
+    { "toolCalls": [{ "name": "bash", "args": { "command": "echo probe" }, "id": "probe-1" }] },
+    { "text": "probe done" }
+  ]
+}

@@ -1,0 +1,377 @@
+{
+  "forkToReadyMs": 646,
+  "readyRssMb": 156,
+  "navigate": {
+    "cancelled": false
+  },
+  "navigateRecords": [
+    "response:q4"
+  ],
+  "branched": true,
+  "panel": {
+    "firstLines": [
+      "> alpha",
+      "  beta"
+    ],
+    "notice": "panel:beta",
+    "response": {
+      "disposition": "handled"
+    },
+    "records": [
+      "custom_render",
+      "custom_render",
+      "custom_close",
+      "extension_ui_request",
+      "response:panel"
+    ]
+  },
+  "afterRunRssMb": 157,
+  "probe:policy-first": {
+    "probeLog": [
+      {
+        "handler": "pap-policy",
+        "command": "echo probe"
+      },
+      {
+        "handler": "mutator",
+        "command": "echo probe"
+      }
+    ],
+    "extensionPaths": [
+      "<inline:pap-policy>",
+      "<inline:s1-mutator>",
+      "<inline:s1-panel>"
+    ],
+    "sessionFileLog": [
+      {
+        "after": "ready",
+        "bytes": null
+      },
+      {
+        "after": "message_start:assistant",
+        "bytes": 7151,
+        "entries": [
+          "session",
+          "model_change",
+          "thinking_level_change",
+          "message:system",
+          "message:user"
+        ]
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 7616
+      },
+      {
+        "after": "message_start:assistant",
+        "bytes": 7805
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 8267
+      },
+      {
+        "after": "message_start:assistant",
+        "bytes": 8458
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 8922
+      },
+      {
+        "after": "message_start:assistant",
+        "bytes": 9113
+      },
+      {
+        "after": "tool_execution_start",
+        "bytes": 9629
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 9900
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 10365
+      }
+    ]
+  },
+  "shutdownMs": 12,
+  "probe:policy-last": {
+    "probeLog": [
+      {
+        "handler": "mutator",
+        "command": "echo probe"
+      },
+      {
+        "handler": "pap-policy",
+        "command": "echo probe # mutated-by-s1"
+      }
+    ],
+    "extensionPaths": [
+      "<inline:s1-mutator>",
+      "<inline:pap-policy>",
+      "<inline:s1-panel>"
+    ],
+    "sessionFileLog": [
+      {
+        "after": "ready",
+        "bytes": null
+      },
+      {
+        "after": "message_start:assistant",
+        "bytes": 7153,
+        "entries": [
+          "session",
+          "model_change",
+          "thinking_level_change",
+          "message:system",
+          "message:user"
+        ]
+      },
+      {
+        "after": "tool_execution_start",
+        "bytes": 7672
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 7943
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 8408
+      }
+    ]
+  },
+  "probe:override-last": {
+    "probeLog": [
+      {
+        "handler": "mutator",
+        "command": "echo probe"
+      },
+      {
+        "handler": "pap-policy",
+        "command": "echo probe # mutated-by-s1"
+      }
+    ],
+    "extensionPaths": [
+      "<inline:s1-mutator>",
+      "<inline:s1-panel>",
+      "<inline:pap-policy>"
+    ],
+    "sessionFileLog": [
+      {
+        "after": "ready",
+        "bytes": null
+      },
+      {
+        "after": "message_start:assistant",
+        "bytes": 7153,
+        "entries": [
+          "session",
+          "model_change",
+          "thinking_level_change",
+          "message:system",
+          "message:user"
+        ]
+      },
+      {
+        "after": "tool_execution_start",
+        "bytes": 7672
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 7943
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 8408
+      }
+    ]
+  },
+  "probe:policy-first+builtins": {
+    "probeLog": [
+      {
+        "handler": "pap-policy",
+        "command": "echo probe"
+      },
+      {
+        "handler": "mutator",
+        "command": "echo probe"
+      }
+    ],
+    "extensionPaths": [
+      "<inline:1>",
+      "<inline:2>",
+      "<inline:3>",
+      "<inline:pap-policy>",
+      "<inline:s1-mutator>",
+      "<inline:s1-panel>"
+    ],
+    "sessionFileLog": [
+      {
+        "after": "ready",
+        "bytes": null
+      },
+      {
+        "after": "message_start:assistant",
+        "bytes": 7153,
+        "entries": [
+          "session",
+          "model_change",
+          "thinking_level_change",
+          "message:system",
+          "message:user"
+        ]
+      },
+      {
+        "after": "tool_execution_start",
+        "bytes": 7672
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 7943
+      },
+      {
+        "after": "turn_end:assistant",
+        "bytes": 8408
+      }
+    ]
+  },
+  "sessionFile": {
+    "reopen:open": {
+      "existsAtReady": false,
+      "existsAfterShutdown": false,
+      "createdFile": "/sessions/--tmp-pap-s1-yWLyYL--/2026-10-10T14-03-56-156Z_01a12620-a57c-77a2-9367-f6889878b9b6.jsonl",
+      "reopenedFile": "/sessions/--tmp-pap-s1-yWLyYL--/2026-10-10T14-03-56-156Z_01a12620-a57c-77a2-9367-f6889878b9b6.jsonl",
+      "sameSessionFile": true,
+      "sameSessionId": false,
+      "headerIdIsOriginal": false,
+      "log": [
+        {
+          "after": "ready",
+          "bytes": null
+        },
+        {
+          "after": "message_start:assistant",
+          "bytes": 7153,
+          "entries": [
+            "session",
+            "model_change",
+            "thinking_level_change",
+            "message:system",
+            "message:user"
+          ]
+        },
+        {
+          "after": "tool_execution_start",
+          "bytes": 7672
+        },
+        {
+          "after": "turn_end:assistant",
+          "bytes": 7943
+        },
+        {
+          "after": "turn_end:assistant",
+          "bytes": 8408
+        }
+      ]
+    },
+    "reopen:create-with-id": {
+      "existsAtReady": false,
+      "existsAfterShutdown": false,
+      "createdFile": "/sessions/--tmp-pap-s1-bErNMG--/2026-10-10T14-03-57-499Z_01a12620-aabb-75a6-b900-1f6ab9d69751.jsonl",
+      "reopenedFile": "/sessions/--tmp-pap-s1-bErNMG--/2026-10-10T14-03-58-156Z_01a12620-aabb-75a6-b900-1f6ab9d69751.jsonl",
+      "sameSessionFile": false,
+      "sameSessionId": true,
+      "headerIdIsOriginal": true,
+      "log": [
+        {
+          "after": "ready",
+          "bytes": null
+        },
+        {
+          "after": "message_start:assistant",
+          "bytes": 7153,
+          "entries": [
+            "session",
+            "model_change",
+            "thinking_level_change",
+            "message:system",
+            "message:user"
+          ]
+        },
+        {
+          "after": "tool_execution_start",
+          "bytes": 7672
+        },
+        {
+          "after": "turn_end:assistant",
+          "bytes": 7943
+        },
+        {
+          "after": "turn_end:assistant",
+          "bytes": 8408
+        }
+      ]
+    }
+  },
+  "readySamples": [
+    {
+      "host": "main",
+      "forkToReadyMs": 649,
+      "importedAtMs": 614,
+      "readyMs": 30,
+      "rssMb": 156
+    },
+    {
+      "host": "policy-last",
+      "forkToReadyMs": 655,
+      "importedAtMs": 619,
+      "readyMs": 33,
+      "rssMb": 155
+    },
+    {
+      "host": "override-last",
+      "forkToReadyMs": 650,
+      "importedAtMs": 616,
+      "readyMs": 30,
+      "rssMb": 155
+    },
+    {
+      "host": "policy-first+builtins",
+      "forkToReadyMs": 656,
+      "importedAtMs": 619,
+      "readyMs": 33,
+      "rssMb": 155
+    },
+    {
+      "host": "never-prompted/open",
+      "forkToReadyMs": 644,
+      "importedAtMs": 610,
+      "readyMs": 31,
+      "rssMb": 154
+    },
+    {
+      "host": "reopen/open",
+      "forkToReadyMs": 648,
+      "importedAtMs": 613,
+      "readyMs": 31,
+      "rssMb": 156
+    },
+    {
+      "host": "never-prompted/create-with-id",
+      "forkToReadyMs": 654,
+      "importedAtMs": 620,
+      "readyMs": 31,
+      "rssMb": 155
+    },
+    {
+      "host": "reopen/create-with-id",
+      "forkToReadyMs": 647,
+      "importedAtMs": 612,
+      "readyMs": 31,
+      "rssMb": 156
+    }
+  ]
+}
