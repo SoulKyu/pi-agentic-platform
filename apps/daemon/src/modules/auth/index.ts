@@ -5,7 +5,7 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { readCookie, SESSION_COOKIE } from "./cookies.ts";
+import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
 import { mountAuthRoutes } from "./http.ts";
 import { createAuthService } from "./service.ts";
 import { createSetupToken } from "./setup-token.ts";
@@ -42,8 +42,9 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     throttle: createThrottle(deps.clock),
     setupToken: createSetupToken(store.countUsers() === 0),
   });
+  const secureByConfig = cookieNeedsSecure(deps.publicOrigin);
   return {
-    mount: (app) => mountAuthRoutes(app, { service, passkeysAvailable: false }),
+    mount: (app) => mountAuthRoutes(app, { service, passkeysAvailable: false, secureByConfig }),
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
     setupUrl: () => service.setupUrl(),
   };

@@ -47,14 +47,14 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-async function boot(tls: boolean): Promise<void> {
+async function boot(tls: boolean, publicOrigin = tls ? HTTPS_ORIGIN : HTTP_ORIGIN): Promise<void> {
   secure = tls;
   const origins = new Set([HTTP_ORIGIN, HTTPS_ORIGIN]);
   auth = createAuthModule({
     db,
     clock: createFakeClock(),
     logger: silentLogger,
-    publicOrigin: tls ? HTTPS_ORIGIN : HTTP_ORIGIN,
+    publicOrigin,
     allowedOrigins: origins,
   });
   const files = { cert: join(dir, "cert.pem"), key: join(dir, "key.pem") };
@@ -156,6 +156,17 @@ describe("auth over a real socket", () => {
     expect(foreign.status).toBe(200);
     expect(cookieOf(foreign)).toContain("Secure");
     expect(cookieOf(foreign)).toContain("HttpOnly");
+  });
+
+  it("keeps Secure on a plain-http loopback request when the public origin is https", async () => {
+    await boot(false, HTTPS_ORIGIN);
+    const first = await setup();
+    expect(first.status).toBe(201);
+    const value = cookieOf(first).split(";")[0] ?? "";
+    expect(cookieOf(first)).toContain("Secure");
+    expect(cookieOf(await login())).toContain("Secure");
+    const out = await send("/auth/logout", {}, { cookie: value });
+    expect(cookieOf(out)).toContain("Secure");
   });
 
   it("sets Secure when the daemon itself serves TLS, even on a loopback host", async () => {

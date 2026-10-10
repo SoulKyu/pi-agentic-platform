@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cookieNeedsSecure, readCookie } from "./cookies.ts";
+import { cookieNeedsSecure, readCookie, sessionCookieAttributes } from "./cookies.ts";
 
 describe("cookie Secure policy", () => {
   it("is omitted only for plain-http loopback hosts", () => {
@@ -31,6 +31,23 @@ describe("cookie Secure policy", () => {
 
   it("fails closed on a URL it cannot read", () => {
     expect(cookieNeedsSecure("not a url")).toBe(true);
+  });
+});
+
+describe("session cookie attributes", () => {
+  it("are HttpOnly, SameSite=Strict, path / and never carry a Domain", () => {
+    const attributes = sessionCookieAttributes("http://localhost:7777/auth/login", false);
+    expect(attributes).toEqual({ httpOnly: true, secure: false, sameSite: "Strict", path: "/" });
+  });
+
+  it("stay Secure on a plain-http loopback request when the public origin is https (R24b)", () => {
+    const publicSecure = cookieNeedsSecure("https://pap.example.net");
+    expect(publicSecure).toBe(true);
+    expect(sessionCookieAttributes("http://127.0.0.1:7777/auth/login", publicSecure).secure).toBe(true);
+    expect(
+      sessionCookieAttributes("http://127.0.0.1:7777/auth/login", cookieNeedsSecure("http://localhost:7777"))
+        .secure,
+    ).toBe(false);
   });
 });
 

@@ -7,7 +7,7 @@ import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { createHttpApp } from "../../kernel/http/app.ts";
-import { createLogger } from "../../kernel/logger.ts";
+import { createLogger, type Logger } from "../../kernel/logger.ts";
 import { AUTH_MIGRATIONS, createAuthModule, type AuthModule } from "./index.ts";
 
 const ORIGIN = "http://localhost:7777";
@@ -28,11 +28,20 @@ let auth: AuthModule;
 let app: Hono;
 let lines: string[];
 let clock: FakeClock;
+let logger: Logger;
+const appOf = (module: AuthModule): Hono =>
+  createHttpApp({
+    allowedOrigins: ORIGINS,
+    staticRoot: null,
+    logger,
+    mount: (a) => module.mount(a),
+    wsProbe: (c) => c.json({}),
+  });
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "pap-auth-http-"));
   lines = [];
   clock = createFakeClock();
-  const logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
+  logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
   db = migrate({
     dbPath: join(dir, "s.db"),
     backupsDir: join(dir, "b"),
@@ -42,13 +51,7 @@ beforeEach(() => {
   }).db;
   lines.length = 0;
   auth = createAuthModule({ db, clock, logger, publicOrigin: ORIGIN, allowedOrigins: ORIGINS });
-  app = createHttpApp({
-    allowedOrigins: ORIGINS,
-    staticRoot: null,
-    logger,
-    mount: (a) => auth.mount(a),
-    wsProbe: (c) => c.json({}),
-  });
+  app = appOf(auth);
 });
 afterEach(() => {
   db.close();
@@ -56,8 +59,14 @@ afterEach(() => {
 });
 
 const socketAt = (address: string) => ({ incoming: { socket: { remoteAddress: address } } });
-const post = (path: string, body: unknown, headers: Record<string, string> = {}, env?: object) =>
-  app.request(
+const postTo = (
+  target: Hono,
+  path: string,
+  body: unknown,
+  headers: Record<string, string> = {},
+  env?: object,
+) =>
+  target.request(
     path,
     {
       method: "POST",
@@ -66,6 +75,8 @@ const post = (path: string, body: unknown, headers: Record<string, string> = {},
     },
     env,
   );
+const post = (path: string, body: unknown, headers: Record<string, string> = {}, env?: object) =>
+  postTo(app, path, body, headers, env);
 const token = () => new URL(auth.setupUrl() ?? "http://x").hash.replace("#token=", "");
 const cookieOf = (response: Response) => (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
 const setup = () => post("/auth/setup", { token: token(), ...owner });
@@ -91,6 +102,7 @@ describe("auth routes", () => {
     for (const attribute of ["HttpOnly", "SameSite=Strict", "Path=/", "Max-Age=2592000"]) {
       expect(cookie).toContain(attribute);
     }
+    expect(cookie).not.toContain("Domain=");
     const value = cookieOf(response);
     expect(auth.authenticateCookieHeader(value)?.userId).toBeTruthy();
     const status = await (await app.request("/auth/status", { headers: { cookie: value } })).json();
@@ -114,10 +126,40 @@ describe("auth routes", () => {
       expect(set.includes("Secure"), `${base} login: ${set}`).toBe(secure);
       expect(set, base).toContain("HttpOnly");
       expect(set, base).toContain("SameSite=Strict");
+      expect(set, base).not.toContain("Domain=");
       const out = await post(`${base}/auth/logout`, {}, { cookie: cookieOf(login) });
       const cleared = out.headers.get("set-cookie") ?? "";
       expect(cleared.includes("Secure"), `${base} logout: ${cleared}`).toBe(secure);
       expect(cleared, base).toContain("Max-Age=0");
+      expect(cleared, base).not.toContain("Domain=");
+    }
+  });
+
+  it("keeps Secure on plain-http loopback requests when the public origin is https (R24b)", async () => {
+    await setup();
+    const proxied = appOf(
+      createAuthModule({
+        db,
+        clock,
+        logger,
+        publicOrigin: "https://pap.example.net",
+        allowedOrigins: ORIGINS,
+      }),
+    );
+    for (const base of ["http://127.0.0.1:7777", "http://localhost:7777", "http://[::1]:7777"]) {
+      const login = await postTo(proxied, `${base}/auth/login`, owner);
+      expect(login.status, base).toBe(200);
+      const value = cookieOf(login);
+      const status = await proxied.request(`${base}/auth/status`, { headers: { cookie: value } });
+      const out = await postTo(proxied, `${base}/auth/logout`, {}, { cookie: value });
+      const cookies = [login, status, out].map((response) => response.headers.get("set-cookie") ?? "");
+      for (const cookie of cookies) {
+        expect(cookie, base).toContain("Secure");
+        expect(cookie, base).toContain("HttpOnly");
+        expect(cookie, base).toContain("SameSite=Strict");
+      }
+      expect(cookies[1], base).toContain("Max-Age=2592000");
+      expect(cookies[2], base).toContain("Max-Age=0");
     }
   });
 
@@ -154,6 +196,46 @@ describe("auth routes", () => {
     expect(out.status).toBe(204);
     expect(out.headers.get("set-cookie")).toContain("Max-Age=0");
     expect(auth.authenticateCookieHeader(value)).toBeNull();
+  });
+
+  it("answers 403 to an auth POST without an Origin, with a foreign one, or with null", async () => {
+    for (const path of ["/auth/setup", "/auth/login", "/auth/logout"]) {
+      for (const origin of [
+        undefined,
+        "http://evil.example",
+        "https://pap.example.net.evil.example",
+        "null",
+      ]) {
+        const headers: Record<string, string> = { "content-type": "application/json" };
+        if (origin) headers.origin = origin;
+        const response = await app.request(path, { method: "POST", headers, body: JSON.stringify(owner) });
+        expect([response.status, await response.json()], `${path} ${origin}`).toEqual([
+          403,
+          { error: { code: "forbidden" } },
+        ]);
+        expect(response.headers.get("set-cookie"), `${path} ${origin}`).toBeNull();
+      }
+    }
+    expect(db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c).toBe(0);
+  });
+
+  it("offers no setup URL and refuses setup after a restart over a database that has an owner", async () => {
+    const secret = token();
+    expect((await setup()).status).toBe(201);
+    const restarted = createAuthModule({ db, clock, logger, publicOrigin: ORIGIN, allowedOrigins: ORIGINS });
+    expect(restarted.setupUrl()).toBeNull();
+    const target = appOf(restarted);
+    for (const candidate of [secret, "never-issued"]) {
+      const response = await postTo(target, "/auth/setup", {
+        token: candidate,
+        ...owner,
+        username: "second",
+      });
+      expect([response.status, await response.json()]).toEqual([401, { error: { code: "unauthenticated" } }]);
+      await clock.advance(2000);
+    }
+    expect(db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c).toBe(1);
+    expect((await target.request("/auth/status")).headers.get("set-cookie")).toBeNull();
   });
 
   it("validates input with a fixed 400 that never echoes it", async () => {
@@ -205,6 +287,29 @@ describe("auth routes", () => {
     expect((await miss("ghost-a", "7.7.7.7", "10.0.0.1")).status).toBe(401);
     expect((await miss("ghost-b", "8.8.8.8", "10.0.0.1")).status).toBe(429);
     expect((await miss("ghost-c", "7.7.7.7", "10.0.0.2")).status).toBe(401);
+  });
+
+  it("logs failures with the socket address and the delay, never the username or password", async () => {
+    const name = "grace.hopper";
+    const guess = "super-secret-guess-123";
+    expect((await post("/auth/setup", { token: token(), username: name, password: PASSWORD })).status).toBe(
+      201,
+    );
+    await clock.advance(2000);
+    const attempt = () => post("/auth/login", { username: name, password: guess }, {}, socketAt("10.0.0.9"));
+    expect((await attempt()).status).toBe(401);
+    expect((await attempt()).status).toBe(429);
+    const entries = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    expect(entries.map((entry) => entry.msg)).toEqual([
+      "owner_created",
+      "auth_login_failed",
+      "auth_throttled",
+    ]);
+    expect(entries.slice(1).map((entry) => [entry.ip, entry.retryAfterMs])).toEqual([
+      ["10.0.0.9", 1000],
+      ["10.0.0.9", 1000],
+    ]);
+    for (const secret of [name, guess, PASSWORD]) expect(lines.join(""), secret).not.toContain(secret);
   });
 
   it("leaves 404 for GET and POST on unknown auth paths", async () => {

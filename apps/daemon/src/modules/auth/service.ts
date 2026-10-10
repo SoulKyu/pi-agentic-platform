@@ -12,6 +12,9 @@ import type { Throttle } from "./throttle.ts";
 const SLIDE_AFTER_MS = 24 * 3600 * 1000;
 const MAX_COOKIE_LENGTH = 128;
 const MAX_USER_AGENT_LENGTH = 256;
+// A throttled client may retry every few milliseconds: one log line per address and window, not one per request.
+const THROTTLE_LOG_WINDOW_MS = 10_000;
+const MAX_THROTTLE_LOG_KEYS = 1000;
 const OWNER_PERMISSIONS: ReadonlySet<Permission> = new Set(ALL_PERMISSIONS);
 
 export class RateLimitedError extends PapError {
@@ -61,9 +64,19 @@ export interface AuthService {
 export function createAuthService(deps: AuthServiceDeps): AuthService {
   // Hashed up front, so even the first sign-in with an unknown name takes as long as any other.
   void dummyHash().catch(() => undefined);
-  const guard = (keys: string[]) => {
+  // Security events carry the socket address and the delay in force, never a username, a password or a token:
+  // people type one into the other's field, and a log is read by more eyes than a database.
+  const lastThrottleLog = new Map<string, number>();
+  const guard = (keys: string[], ip: string) => {
     const wait = deps.throttle.retryAfterMs(keys);
-    if (wait > 0) throw new RateLimitedError(wait);
+    if (wait <= 0) return;
+    const now = deps.clock.now();
+    if (now - (lastThrottleLog.get(ip) ?? -Infinity) >= THROTTLE_LOG_WINDOW_MS) {
+      if (lastThrottleLog.size >= MAX_THROTTLE_LOG_KEYS) lastThrottleLog.clear();
+      lastThrottleLog.set(ip, now);
+      deps.logger.warn("auth_throttled", { ip, retryAfterMs: wait });
+    }
+    throw new RateLimitedError(wait);
   };
   const startSession = (userId: string, userAgent: string | undefined): StartedSession => {
     const cookieValue = randomToken(32);
@@ -100,9 +113,13 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     },
     async setup(input) {
       const keys = [`ip:${input.ip}`];
-      guard(keys);
+      guard(keys, input.ip);
       if (deps.store.countUsers() > 0 || !deps.setupToken.verify(input.token)) {
         deps.throttle.fail(keys);
+        deps.logger.warn("auth_setup_failed", {
+          ip: input.ip,
+          retryAfterMs: deps.throttle.retryAfterMs(keys),
+        });
         throw new PapError("unauthenticated");
       }
       if (!isAcceptablePassword(input.password)) throw new PapError("bad_request");
@@ -120,17 +137,26 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       }
       deps.setupToken.consume();
       deps.throttle.succeed(keys);
-      deps.logger.info("owner_created", { username: input.username });
+      deps.logger.info("owner_created", { userId: id });
       return startSession(id, input.userAgent);
     },
     async login(input) {
       const keys = [`ip:${input.ip}`, `user:${input.username.toLowerCase()}`];
-      guard(keys);
+      guard(keys, input.ip);
       // Counted before the slow hash, so parallel guesses queue behind the first instead of all passing the guard.
       deps.throttle.fail(keys);
       const user = deps.store.findUserByName(input.username);
-      const valid = await verifyPassword(input.password, user?.passwordHash ?? (await dummyHash()));
-      if (!user || !valid) throw new PapError("unauthenticated");
+      // An unknown name is verified against the dummy hash; if even that cannot be computed it is a plain mismatch,
+      // never an error that a known name would not produce.
+      const stored = user?.passwordHash ?? (await dummyHash().catch(() => ""));
+      const valid = await verifyPassword(input.password, stored);
+      if (!user || !valid) {
+        deps.logger.warn("auth_login_failed", {
+          ip: input.ip,
+          retryAfterMs: deps.throttle.retryAfterMs(keys),
+        });
+        throw new PapError("unauthenticated");
+      }
       deps.throttle.succeed(keys);
       return startSession(user.id, input.userAgent);
     },

@@ -9,17 +9,25 @@ const LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "
 // R24: Secure unless the request is plain http to a loopback host, where Safari/WebKit would drop it.
 // The URL is the one the socket and Host header built: no forwarded header is consulted (R72), and an
 // unreadable URL is treated as not loopback.
-export function cookieNeedsSecure(requestUrl: string): boolean {
+export function cookieNeedsSecure(url: string): boolean {
   try {
-    const { protocol, hostname } = new URL(requestUrl);
+    const { protocol, hostname } = new URL(url);
     return protocol !== "http:" || !LOOPBACK_HOSTS.has(hostname);
   } catch {
     return true;
   }
 }
 
-export function sessionCookieAttributes(requestUrl: string): CookieOptions {
-  return { httpOnly: true, secure: cookieNeedsSecure(requestUrl), sameSite: "Strict", path: "/" };
+// R24b: the configured public origin counts too. A proxy that terminates TLS may rewrite Host to a loopback
+// name, which would make the request look like plain loopback http while the browser is on https.
+// `secureByConfig` is cookieNeedsSecure(publicOrigin), computed once at startup.
+export function sessionCookieAttributes(requestUrl: string, secureByConfig: boolean): CookieOptions {
+  return {
+    httpOnly: true,
+    secure: secureByConfig || cookieNeedsSecure(requestUrl),
+    sameSite: "Strict",
+    path: "/",
+  };
 }
 
 export function readCookie(header: string | undefined, name: string): string | undefined {

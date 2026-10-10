@@ -1,6 +1,7 @@
 import { randomBytes, scrypt as scryptCallback, timingSafeEqual, type ScryptOptions } from "node:crypto";
 
-const PARAMS = { N: 2 ** 15, r: 8, p: 1, maxmem: 64 * 1024 * 1024 } as const;
+// OWASP floor for scrypt: N=2^15, r=8, p=3. Every hash stores its own parameters, so older p=1 hashes keep verifying.
+const PARAMS = { N: 2 ** 15, r: 8, p: 3, maxmem: 64 * 1024 * 1024 } as const;
 const KEY_LENGTH = 64;
 // Decision 34: at least 12 characters, counted after normalisation, so an accented letter is one character however it is typed.
 const MIN_PASSWORD_LENGTH = 12;
@@ -48,8 +49,16 @@ export async function verifyPassword(password: string, stored: string): Promise<
 }
 
 // Verified against when the account does not exist, so an unknown name costs the same time as a wrong password.
-let dummy: Promise<string> | null = null;
-export function dummyHash(): Promise<string> {
-  dummy ??= hashPassword("pap-dummy-password-for-timing");
-  return dummy;
+// Computed once; a failure is forgotten so that it cannot turn every later unknown name into an error.
+export function createDummyHash(hash: () => Promise<string>): () => Promise<string> {
+  let cached: Promise<string> | null = null;
+  return () => {
+    cached ??= hash().catch((error: unknown) => {
+      cached = null;
+      throw error;
+    });
+    return cached;
+  };
 }
+
+export const dummyHash = createDummyHash(() => hashPassword("pap-dummy-password-for-timing"));

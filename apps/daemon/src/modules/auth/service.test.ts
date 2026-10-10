@@ -2,19 +2,27 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PapError } from "@pap/contracts";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { sha256Hex } from "../../kernel/ids.ts";
-import { silentLogger } from "../../kernel/logger.ts";
+import { createLogger } from "../../kernel/logger.ts";
 import { AUTH_MIGRATIONS } from "./index.ts";
+import { dummyHash, verifyPassword } from "./passwords.ts";
 import { createAuthService, RateLimitedError, type AuthService } from "./service.ts";
 import { createSetupToken } from "./setup-token.ts";
 import { createAuthStore } from "./store.ts";
 import { createThrottle } from "./throttle.ts";
 
+// Both calls go through to the real implementation; the spies only record who verifies what.
+vi.mock("./passwords.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./passwords.ts")>();
+  return { ...actual, verifyPassword: vi.fn(actual.verifyPassword), dummyHash: vi.fn(actual.dummyHash) };
+});
+
 const DAY = 24 * 3600 * 1000;
+let lines: string[];
 let dir: string;
 let db: Db;
 let clock: FakeClock;
@@ -22,17 +30,20 @@ let service: AuthService;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "pap-auth-"));
   clock = createFakeClock();
+  lines = [];
+  const logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
   db = migrate({
     dbPath: join(dir, "s.db"),
     backupsDir: join(dir, "b"),
     sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS],
     clock,
-    logger: silentLogger,
+    logger,
   }).db;
+  lines.length = 0;
   service = createAuthService({
     store: createAuthStore(db),
     clock,
-    logger: silentLogger,
+    logger,
     publicOrigin: "http://localhost:7777",
     throttle: createThrottle(clock),
     setupToken: createSetupToken(true),
@@ -58,6 +69,8 @@ const loginInput = (password: string, ip = "10.0.0.1", username = "owner") => ({
   ip,
   userAgent: undefined,
 });
+const events = (name: string): Record<string, unknown>[] =>
+  lines.map((line) => JSON.parse(line) as Record<string, unknown>).filter((entry) => entry.msg === name);
 const count = (table: string) => db.get<{ c: number }>(`SELECT count(*) AS c FROM ${table}`)?.c;
 
 describe("auth service", () => {
@@ -85,6 +98,9 @@ describe("auth service", () => {
       service.setup(setupInput(token, "two")),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const loser = results.find((r) => r.status === "rejected");
+    expect(loser?.reason).toBeInstanceOf(PapError);
+    expect((loser?.reason as PapError).code).toBe("conflict");
     expect(count("users")).toBe(1);
   });
 
@@ -130,6 +146,29 @@ describe("auth service", () => {
       (wrong as PapError).code,
       (wrong as PapError).message,
     ]);
+  });
+
+  it("verifies an unknown account against the dummy hash, and a known one against its own", async () => {
+    await service.setup(setupInput(tokenOf(service.setupUrl())));
+    const stored = db.get<{ password_hash: string }>("SELECT password_hash FROM users")?.password_hash;
+    vi.mocked(verifyPassword).mockClear();
+    await expect(service.login(loginInput("some-guess-123", "10.0.0.2", "ghost"))).rejects.toMatchObject({
+      code: "unauthenticated",
+    });
+    expect(verifyPassword).toHaveBeenCalledTimes(1);
+    expect(verifyPassword).toHaveBeenLastCalledWith("some-guess-123", await dummyHash());
+    expect(await dummyHash()).not.toBe(stored);
+    await service.login(loginInput(PASSWORD, "10.0.0.3"));
+    expect(verifyPassword).toHaveBeenCalledTimes(2);
+    expect(verifyPassword).toHaveBeenLastCalledWith(PASSWORD, stored);
+  });
+
+  it("still answers unauthenticated for an unknown account when the dummy hash cannot be computed", async () => {
+    await service.setup(setupInput(tokenOf(service.setupUrl())));
+    vi.mocked(dummyHash).mockRejectedValueOnce(new Error("scrypt failed"));
+    const failure = await service.login(loginInput(PASSWORD, "10.0.0.2", "ghost")).catch((e: unknown) => e);
+    expect(failure).toBeInstanceOf(PapError);
+    expect((failure as PapError).code).toBe("unauthenticated");
   });
 
   it("lets only one of several parallel guesses reach the password check", async () => {
@@ -189,5 +228,62 @@ describe("auth service", () => {
     expect(service.authenticate("not-a-session")).toBeNull();
     service.logout(undefined);
     expect(count("auth_sessions")).toBe(1);
+  });
+
+  describe("security log", () => {
+    const keysOf = (entry: Record<string, unknown> | undefined) => Object.keys(entry ?? {}).sort();
+
+    it("records a failed sign-in with the address and the delay in force, nothing else", async () => {
+      await service.setup(setupInput(tokenOf(service.setupUrl())));
+      await clock.advance(2000);
+      lines.length = 0;
+      await service.login(loginInput("guess-one-123", "10.0.0.1", "ghost")).catch(() => undefined);
+      await clock.advance(1000);
+      await service.login(loginInput("guess-two-123", "10.0.0.1", "owner")).catch(() => undefined);
+      const failed = events("auth_login_failed");
+      expect(failed.map((entry) => [entry.ip, entry.retryAfterMs])).toEqual([
+        ["10.0.0.1", 1000],
+        ["10.0.0.1", 2000],
+      ]);
+      expect(keysOf(failed[0])).toEqual(["ip", "level", "msg", "retryAfterMs", "time"]);
+      expect(failed[0]?.level).toBe("warn");
+    });
+
+    it("records a failed setup, and a throttled attempt at most once every ten seconds per address", async () => {
+      await service.setup({ ...setupInput("wrong-token-value"), ip: "10.0.0.5" }).catch(() => undefined);
+      expect(events("auth_setup_failed").map((entry) => [entry.ip, entry.retryAfterMs])).toEqual([
+        ["10.0.0.5", 1000],
+      ]);
+      const bad = (password: string) =>
+        service.login(loginInput(password, "10.0.0.1", "ghost")).catch((e: unknown) => e);
+      await bad("guess-one-123");
+      expect(await bad("guess-two-123")).toBeInstanceOf(RateLimitedError);
+      expect(await bad("guess-two-123")).toBeInstanceOf(RateLimitedError);
+      expect(events("auth_throttled")).toHaveLength(1);
+      expect(keysOf(events("auth_throttled")[0])).toEqual(["ip", "level", "msg", "retryAfterMs", "time"]);
+      expect(events("auth_throttled")[0]).toMatchObject({ ip: "10.0.0.1", retryAfterMs: 1000 });
+      await clock.advance(10_000);
+      await bad("guess-three-123");
+      expect(await bad("guess-four-123")).toBeInstanceOf(RateLimitedError);
+      expect(events("auth_throttled")).toHaveLength(2);
+    });
+
+    it("never writes a username, a password or a token, on any path", async () => {
+      const url = service.setupUrl();
+      const secrets = ["ada.lovelace", "ghost.typed-a-password", PASSWORD, "guess-one-123", tokenOf(url)];
+      const setupAs = { ...setupInput("wrong-token-value", "ada.lovelace"), ip: "10.0.0.5" };
+      await service.setup(setupAs).catch(() => undefined);
+      await clock.advance(2000);
+      await service.setup({ ...setupAs, token: tokenOf(url) });
+      await service
+        .login(loginInput("guess-one-123", "10.0.0.1", "ghost.typed-a-password"))
+        .catch(() => undefined);
+      await service
+        .login(loginInput("guess-one-123", "10.0.0.1", "ghost.typed-a-password"))
+        .catch(() => undefined);
+      await service.login(loginInput(PASSWORD, "10.0.0.7", "ada.lovelace")).catch(() => undefined);
+      expect(lines.length).toBeGreaterThan(3);
+      for (const secret of secrets) expect(lines.join(""), secret).not.toContain(secret);
+    });
   });
 });

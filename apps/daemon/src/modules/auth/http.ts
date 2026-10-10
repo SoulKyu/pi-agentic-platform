@@ -1,6 +1,6 @@
 import { getConnInfo } from "@hono/node-server/conninfo";
 import { PapError, type ErrorCode } from "@pap/contracts";
-import type { Context, Hono } from "hono";
+import type { Context, Hono, Next } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
@@ -44,9 +44,15 @@ export function errorResponse(c: Context, error: unknown): Response {
 export const sessionCookie = (c: Context): string | undefined =>
   readCookie(c.req.header("cookie"), SESSION_COOKIE);
 
+// Set per request by the middleware of mountAuthRoutes. Only an explicit false allows a cookie without Secure,
+// so a route mounted without it fails closed.
+const SECURE_BY_CONFIG = "secureByConfig";
+const cookieAttributes = (c: Context) =>
+  sessionCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false);
+
 export function setSessionCookie(c: Context, session: StartedSession): void {
   setCookie(c, SESSION_COOKIE, session.cookieValue, {
-    ...sessionCookieAttributes(c.req.url),
+    ...cookieAttributes(c),
     maxAge: session.maxAgeSeconds,
   });
 }
@@ -77,9 +83,13 @@ async function startSessionFrom<T>(
   }
 }
 
-export function mountAuthRoutes(app: Hono, deps: { service: AuthService; passkeysAvailable: boolean }): void {
+export function mountAuthRoutes(
+  app: Hono,
+  deps: { service: AuthService; passkeysAvailable: boolean; secureByConfig: boolean },
+): void {
   const client = (c: Context) => ({ ip: clientIp(c), userAgent: c.req.header("user-agent") });
-  app.use("/auth/*", async (c, next) => {
+  app.use("/auth/*", async (c: Context, next: Next) => {
+    c.set(SECURE_BY_CONFIG, deps.secureByConfig);
     c.header("cache-control", "no-store");
     await next();
   });
@@ -101,7 +111,7 @@ export function mountAuthRoutes(app: Hono, deps: { service: AuthService; passkey
   );
   app.post("/auth/logout", (c) => {
     deps.service.logout(sessionCookie(c));
-    deleteCookie(c, SESSION_COOKIE, sessionCookieAttributes(c.req.url));
+    deleteCookie(c, SESSION_COOKIE, cookieAttributes(c));
     return c.body(null, 204);
   });
 }
