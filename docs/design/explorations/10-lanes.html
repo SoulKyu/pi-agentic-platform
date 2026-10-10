@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 8 · Lanes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; --leg1:#A78BFA; --leg2:#FB923C; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 1000px; }
+  .cap { margin: 24px 0 8px; font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: #52525b; }
+
+  .app { border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 10px 40px rgba(0,0,0,.12);
+         background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); display: grid; grid-template-columns: 48px 1fr; position: relative;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0; }
+  .av { width: 28px; height: 28px; border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--ui); position: relative; background: var(--bg); flex: none; }
+  .av b { position: absolute; top: -6px; right: -7px; background: var(--attn); color: #fff; font: 700 9px/14px var(--ui); min-width: 14px; height: 14px; border-radius: 7px; text-align: center; padding: 0 3px; }
+  .av .dot { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--side); background: var(--ai); }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .top { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--side); }
+  .ws { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; border: 1px solid var(--border-strong); padding: 2px 7px; border-radius: 2px; }
+  .sp { flex: 1; }
+  .kbd { font: 600 10px var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 5px; }
+  .tabs { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; padding: 0 8px; }
+  .tabs span { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); }
+  .tabs span.on { color: var(--text); border-color: var(--ai); background: var(--surface2); }
+  .chip { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.run { color: var(--ai); border-color: #A78BFA88; }
+  .chip.ok { color: var(--ok); border-color: #34D39966; }
+  .chip.att { color: var(--attn); border-color: #EC489988; }
+  .chip.mut { color: var(--muted); border-color: var(--border-strong); }
+  .chip.hum { color: var(--human); border-color: #FB923C88; }
+  .btn { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 9px; height: 24px; display: inline-flex; align-items: center; border-radius: 2px; border: 1px solid var(--border-strong); color: var(--text); white-space: nowrap; gap: 5px; }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .btn.ai { color: var(--ai); border-color: #A78BFA66; }
+  .lh { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .lh .t { font: 800 16px var(--ui); }
+  .lh .br { font: 11.5px var(--mono); color: var(--muted); }
+  .lh .br b { color: var(--text); font-weight: 500; }
+  .panes { display: grid; grid-template-columns: 1fr 1.25fr; min-height: 560px; }
+  .pane { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-width: 0; }
+  .pane:last-child { border-right: none; }
+  .ph { height: 30px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; padding: 0 10px; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  .ph .on { color: var(--text); box-shadow: inset 0 -2px 0 var(--ai); padding: 7px 2px; }
+  .stream { padding: 12px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .u { align-self: flex-end; max-width: 85%; background: #FB923C1A; border: 1px solid #FB923C66; color: #FED7AA; padding: 6px 10px; border-radius: 3px; font-size: 13.5px; }
+  .a { border-left: 2px solid var(--ai); padding-left: 10px; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+  .a .n { font: 600 10px var(--mono); color: var(--ai); text-transform: uppercase; letter-spacing: .1em; }
+  .a code, .rev code { font: 11.5px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: 2px; }
+  .tool { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; font: 11.5px var(--mono); padding: 5px 8px; color: var(--muted); }
+  .tool i { font-style: normal; font-weight: 600; color: var(--ai); margin-right: 6px; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+  .banner { border: 1px solid #FB923C88; background: #FB923C14; border-radius: 3px; padding: 7px 10px; display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+  .banner small { display: block; font: 600 9.5px var(--mono); color: var(--human); text-transform: uppercase; letter-spacing: .1em; }
+  .comp { margin: 0 12px 12px; border: 1px solid var(--human); border-radius: 3px; padding: 8px 10px; background: var(--surface); color: var(--muted); font-size: 13px; }
+
+  .rev { display: grid; grid-template-columns: 200px 1fr; flex: 1; min-height: 0; }
+  .files { border-right: 1px solid var(--border); padding: 8px; display: flex; flex-direction: column; gap: 3px; background: var(--side); }
+  .files .scope { display: flex; gap: 3px; margin-bottom: 6px; }
+  .files .scope span { flex: 1; text-align: center; font: 600 9.5px var(--mono); text-transform: uppercase; padding: 3px 0; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); }
+  .files .scope span.on { color: var(--text); border-color: var(--ai); background: var(--surface2); }
+  .prog { font: 10.5px var(--mono); color: var(--muted); display: flex; justify-content: space-between; margin: 2px 0 4px; }
+  .pbar { height: 3px; background: var(--surface2); margin-bottom: 6px; }
+  .pbar i { display: block; height: 100%; width: 40%; background: var(--ok); }
+  .f { display: grid; grid-template-columns: 14px 1fr auto; gap: 6px; align-items: center; font: 11px var(--mono); padding: 3px 4px; border-radius: 2px; }
+  .f.on { background: var(--surface2); box-shadow: inset 2px 0 0 var(--ai); }
+  .f .cb { width: 11px; height: 11px; border: 1px solid var(--border-strong); border-radius: 1px; }
+  .f .cb.y { background: var(--ok); border-color: var(--ok); }
+  .f .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .f .d { font-size: 10px; } .f .d .p { color: var(--ok); } .f .d .m { color: var(--err); }
+  .diff { font: 11.5px/1.65 var(--mono); padding: 6px 0; overflow: hidden; }
+  .ln { display: grid; grid-template-columns: 34px 14px 1fr; padding: 0 10px 0 0; }
+  .ln .no { color: #5D5577; text-align: right; padding-right: 8px; }
+  .ln.add { background: #34D39914; } .ln.add .s { color: var(--ok); }
+  .ln.del { background: #F8717114; } .ln.del .s { color: var(--err); }
+  .ln.cm { background: #FB923C10; box-shadow: inset 2px 0 0 var(--human); }
+  .comment { margin: 4px 10px 4px 48px; border: 1px solid #FB923C88; border-radius: 3px; background: var(--surface); padding: 7px 9px; font: 12.5px/1.5 var(--ui); }
+  .comment small { display: block; font: 600 9.5px var(--mono); color: var(--human); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 2px; }
+  .sendbar { border-top: 1px solid var(--border); padding: 8px 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .changes { border-top: 1px solid var(--border); padding: 8px 10px; display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; background: var(--side); }
+  .msg { border: 1px solid var(--border-strong); border-radius: 2px; padding: 5px 8px; font: 12px var(--mono); color: var(--text); background: var(--bg); }
+
+  /* compare */
+  .cmp { padding: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .cl { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; display: flex; flex-direction: column; }
+  .cl.win { border-color: var(--human); outline: 1px solid var(--human); }
+  .cl .h { padding: 8px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .cl .h b { font: 700 13px var(--ui); }
+  .cl .h span { font: 10.5px var(--mono); color: var(--muted); }
+  .cl .b { padding: 8px 10px; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; font-size: 12.5px; }
+  .cl .b span:nth-child(even) { font: 12px var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+  .cl .sum { padding: 8px 10px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--muted); flex: 1; }
+  .cl .ft { padding: 8px 10px; border-top: 1px solid var(--border); display: flex; gap: 6px; }
+  .cmphead { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
+  .cmphead .q { flex: 1; font-size: 13px; }
+  .cmphead .q small { display: block; font: 600 9.5px var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+
+  /* new lane dialog */
+  .dlgwrap { padding: 26px; display: grid; place-items: center; background: #0A0910CC; }
+  .dlg { width: 560px; border: 1px solid var(--border-strong); background: var(--side); border-radius: 3px; }
+  .dlg .h { padding: 10px 14px; border-bottom: 1px solid var(--border); font: 800 15px var(--ui); display: flex; }
+  .dlg .h span { margin-left: auto; font: 600 10px var(--mono); color: var(--muted); }
+  .dlg .b { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .fld label { display: block; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-bottom: 4px; }
+  .in { border: 1px solid var(--border-strong); background: var(--bg); border-radius: 2px; padding: 6px 9px; font-size: 13px; }
+  .in.focus { border-color: var(--human); outline: 2px solid var(--human); outline-offset: 1px; }
+  .issue { border: 1px solid var(--border-strong); border-radius: 2px; padding: 8px 10px; background: var(--surface); font-size: 12.5px; }
+  .issue small { display: block; font: 10.5px var(--mono); color: var(--muted); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .trust { border: 1px dashed #EC489988; border-radius: 2px; padding: 8px 10px; font-size: 12.5px; }
+  .trust small { display: block; font: 600 9.5px var(--mono); color: var(--attn); text-transform: uppercase; letter-spacing: .1em; }
+  .trust code { font: 11px var(--mono); }
+  .dlg .f2 { padding: 10px 14px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; align-items: center; }
+  .dlg .f2 .note { margin-right: auto; font-size: 11.5px; color: var(--muted); }
+
+  .ask { margin-top: 26px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .ask .r b { width: 100%; font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: .06em; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="pi2" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="currentColor"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--leg1)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--leg2)"/></symbol>
+</defs></svg>
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 8 : les lanes</h1>
+    <p>Une lane = une branche + un worktree + ses sessions (Lots A et B de pi-web, nourris par Orca et T3). On retrouve les trois moments clés : <b>travailler et reviewer</b> dans le cockpit, <b>comparer</b> un même prompt lancé sur plusieurs lanes (Lanes+), et <b>créer</b> une lane depuis une issue.</p>
+  </div>
+
+  <div class="cap">1 · Une lane dans le cockpit : chat + review</div>
+  <div class="app">
+    <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av">AT<i class="dot"></i></div><div class="av" style="--c:var(--attn)">SC<b>1</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+    <div class="main">
+      <div class="top"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B</span><span class="sp"></span><span class="kbd">Inbox 1</span><span class="kbd">⌘K</span></div>
+      <div class="tabs"><span><i style="font-style:normal;color:var(--ai)">AT</i> Atlas</span><span class="on">feat/checkpoints ●</span><span>fix/webhook-dedup</span><span>+</span></div>
+      <div class="lh"><span class="t">Per-turn checkpoints</span><span class="chip hum">in review</span><span class="br"><b>pi/feat-checkpoints</b> → main · ↑3 · +214 −38</span><span class="chip ok">PR #91 · checks ✓</span><span class="sp"></span><span class="btn">Setup log</span><span class="btn">New session here</span><span class="btn">Archive</span></div>
+      <div class="panes">
+        <div class="pane">
+          <div class="ph"><span class="on">Chat</span><span>· Atlas · sonnet-5.5</span></div>
+          <div class="stream">
+            <div class="u">Make restore undoable and bound to the conversation.</div>
+            <div class="a"><span class="n">Atlas · turn 4</span>Restore now captures <code>refs/pi/checkpoints/&lt;lane&gt;/undo</code> first, then restores the target tree.<div class="tool"><i>bash</i>go test ./internal/lanes/... · ok 0.62s</div></div>
+            <div class="banner"><div style="flex:1"><small>Checkpoint · turn 2</small>Files differ from this point of the conversation.</div><span class="btn">Undo</span><span class="btn pri">Restore files</span></div>
+          </div>
+          <div class="comp">Steer Atlas…</div>
+        </div>
+        <div class="pane">
+          <div class="ph"><span class="on">Review</span><span>Changes</span><span>Terminal</span><span class="sp"></span><span>⊞</span></div>
+          <div class="rev">
+            <div class="files">
+              <div class="scope"><span>Branch</span><span class="on">Turn 4</span></div>
+              <div class="prog"><span>Seen 2 / 5</span><span>3 comments</span></div><div class="pbar"><i></i></div>
+              <div class="f"><span class="cb y"></span><span class="n">lanes/checkpoint.go</span><span class="d"><span class="p">+48</span> <span class="m">−9</span></span></div>
+              <div class="f on"><span class="cb"></span><span class="n">lanes/restore.go</span><span class="d"><span class="p">+31</span> <span class="m">−4</span></span></div>
+              <div class="f"><span class="cb y"></span><span class="n">lanes/git.go</span><span class="d"><span class="p">+12</span></span></div>
+              <div class="f"><span class="cb"></span><span class="n">web/LaneReview.tsx</span><span class="d"><span class="p">+77</span> <span class="m">−20</span></span></div>
+              <div class="f"><span class="cb"></span><span class="n">docs/lanes.md</span><span class="d"><span class="p">+9</span></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;min-width:0">
+              <div class="diff">
+                <div class="ln"><span class="no">40</span><span class="s"> </span><span>func RestoreCheckpoint(cwd, commit string) error {</span></div>
+                <div class="ln add"><span class="no">41</span><span class="s">+</span><span>  if err := Capture(cwd, undoRef(cwd)); err != nil {</span></div>
+                <div class="ln add cm"><span class="no">42</span><span class="s">+</span><span>    return fmt.Errorf("capture undo: %w", err)</span></div>
+                <div class="comment"><small>You · ligne 42</small>Wrap with the lane id so the log tells which lane failed.</div>
+                <div class="ln add"><span class="no">43</span><span class="s">+</span><span>  }</span></div>
+                <div class="ln del"><span class="no">44</span><span class="s">−</span><span>  exec("git", "checkout", commit, "--", ".")</span></div>
+                <div class="ln add"><span class="no">44</span><span class="s">+</span><span>  return restoreTree(cwd, commit)</span></div>
+                <div class="ln"><span class="no">45</span><span class="s"> </span><span>}</span></div>
+              </div>
+              <div class="sendbar">3 commentaires prêts<span class="sp"></span><span class="btn">Nouvelle session</span><span class="btn pri">Envoyer à Atlas</span></div>
+              <div class="changes"><span class="msg">feat(lanes): undoable restore bound to the conversation</span><span style="display:flex;gap:6px"><span class="btn ai">✦ Suggest</span><span class="btn">Commit</span><span class="btn pri">Push ↑3</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap">2 · Comparer un prompt lancé sur 3 lanes (Lanes+ · fan-out)</div>
+  <div class="app">
+    <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av">AT</div><div class="av" style="--c:#6B6485">LG</div></div>
+    <div class="main">
+      <div class="cmphead"><div class="q"><small>Fan-out · 3 lanes · lancé il y a 18 min</small>« Replace the LRU cache with a TTL-aware one, keep the public API »</div><span class="btn">Relancer</span><span class="btn">Fermer les perdantes</span></div>
+      <div class="cmp">
+        <div class="cl win"><div class="h"><b>A · sonnet-5.5</b><span>pi/ttl-cache-a</span><span class="sp"></span><span class="chip ok">tests ✓</span></div>
+          <div class="b"><span>Diff</span><span>+142 −61</span><span>Fichiers</span><span>4</span><span>Durée</span><span>6m40</span><span>Coût</span><span>$0.38</span></div>
+          <div class="sum">Wraps the existing LRU, adds expiry on read and a janitor goroutine. Public API unchanged.</div>
+          <div class="ft"><span class="btn">Voir le diff</span><span class="sp"></span><span class="btn pri">Choisir · PR</span></div></div>
+        <div class="cl"><div class="h"><b>B · opus-5.5</b><span>pi/ttl-cache-b</span><span class="sp"></span><span class="chip ok">tests ✓</span></div>
+          <div class="b"><span>Diff</span><span>+310 −198</span><span>Fichiers</span><span>9</span><span>Durée</span><span>11m02</span><span>Coût</span><span>$1.92</span></div>
+          <div class="sum">Rewrites the cache with sharded maps. Faster, but changes two exported types.</div>
+          <div class="ft"><span class="btn">Voir le diff</span><span class="sp"></span><span class="btn">Choisir</span></div></div>
+        <div class="cl"><div class="h"><b>C · gpt-5</b><span>pi/ttl-cache-c</span><span class="sp"></span><span class="chip att">tests ✗ 2</span></div>
+          <div class="b"><span>Diff</span><span>+98 −40</span><span>Fichiers</span><span>3</span><span>Durée</span><span>4m15</span><span>Coût</span><span>$0.22</span></div>
+          <div class="sum">Minimal change, but expiry is not applied on write. Two tests fail.</div>
+          <div class="ft"><span class="btn">Voir le diff</span><span class="sp"></span><span class="btn">Choisir</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap">3 · Nouvelle lane depuis une issue (Lanes+ · issue → lane)</div>
+  <div class="app"><div class="rail"></div><div class="dlgwrap">
+    <div class="dlg">
+      <div class="h">Nouvelle lane<span>⌘⇧L</span></div>
+      <div class="b">
+        <div class="fld"><label>Issue ou description</label><div class="in focus">https://github.com/guix/infra/issues/412</div></div>
+        <div class="issue"><b>#412 · HighMemory on api pods after 1.18</b><small>github · guix/infra · opened 2 days ago · label: bug</small></div>
+        <div class="two">
+          <div class="fld"><label>Branche</label><div class="in" style="font-family:var(--mono);font-size:12px">pi/fix-412-high-memory</div></div>
+          <div class="fld"><label>Depuis</label><div class="in" style="font-family:var(--mono);font-size:12px">origin/main</div></div>
+        </div>
+        <div class="two">
+          <div class="fld"><label>Agent et modèle</label><div class="in">Atlas · sonnet-5.5 · high</div></div>
+          <div class="fld"><label>Fan-out</label><div class="in">1 lane <span style="color:var(--muted)">(jusqu'à 4 modèles)</span></div></div>
+        </div>
+        <div class="trust"><small>Script de setup · nouveau contenu</small><code>.pi/project.yaml</code> a changé depuis ta dernière validation (<code>pnpm install</code> → <code>pnpm install &amp;&amp; make seed</code>). Le script tournera dans le worktree.</div>
+      </div>
+      <div class="f2"><span class="note">GitHub · Linear · GitLab · Gitea</span><span class="btn">Annuler</span><span class="btn">Valider le script</span><span class="btn pri">Créer la lane</span></div>
+    </div>
+  </div></div>
+
+  <div class="ask">
+    <h3>Ton avis</h3>
+    <p>Valide l'ensemble ou coche ce que tu veux changer.</p>
+    <div class="r"><b>Global</b><div class="opt" data-choice="r8-ok" onclick="this.classList.toggle('selected')">OK tel quel</div></div>
+    <div class="r"><b>Review</b>
+      <div class="opt" data-choice="r8-review-unified" onclick="this.classList.toggle('selected')">Diff unifié (comme montré)</div>
+      <div class="opt" data-choice="r8-review-split" onclick="this.classList.toggle('selected')">Diff côte à côte</div>
+      <div class="opt" data-choice="r8-review-toggle" onclick="this.classList.toggle('selected')">Les deux, au choix</div>
+    </div>
+    <div class="r"><b>Comparaison</b>
+      <div class="opt" data-choice="r8-compare-cards" onclick="this.classList.toggle('selected')">Colonnes (comme montré)</div>
+      <div class="opt" data-choice="r8-compare-table" onclick="this.classList.toggle('selected')">Tableau comparatif</div>
+      <div class="opt" data-choice="r8-compare-ai-summary" onclick="this.classList.toggle('selected')">Ajouter un verdict IA suggéré</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

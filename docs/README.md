@@ -36,6 +36,7 @@ Status: design phase (specs A, C, D written; DESIGN.md in progress). HTML pages 
 - [design/explorations/07-type-density.html](design/explorations/07-type-density.html): round 5, type scale and two densities. **Compact default, density user-selectable.**
 - [design/explorations/08-settings-appearance.html](design/explorations/08-settings-appearance.html): round 6, Settings › Appearance (per account vs per device, role-token theme editor with AA check).
 - [design/explorations/09-agent-space-inbox.html](design/explorations/09-agent-space-inbox.html): round 7, agent thread + status panel + Inbox drawer. **Validated as shown.**
+- [design/explorations/10-lanes.html](design/explorations/10-lanes.html): round 8, lane cockpit + review, fan-out compare, new lane from issue. **Validated as shown.**
 
 ## Research
 - [research/pi-web-inventory.md](research/pi-web-inventory.md): every pi-web feature (D01–D22), source of the matrix rows.
