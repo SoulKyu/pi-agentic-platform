@@ -1,0 +1,7 @@
+{
+  "modelId": "scripted",
+  "steps": [
+    { "toolCalls": [{ "name": "codemode", "id": "cm-heavy", "args": { "code": "const chunks = [];\ntry {\n  while (true) chunks.push(new Uint8Array(1 << 20).fill(chunks.length & 255));\n} catch (error) {\n  return { chunksMiB: chunks.length, error: String(error) };\n}" } }] },
+    { "text": "done" }
+  ]
+}

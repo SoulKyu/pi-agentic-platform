@@ -1,0 +1,855 @@
+{
+  "node": "v24.14.1",
+  "totalMemMb": 19995,
+  "samples": 10,
+  "codemodeSmall": {
+    "idleRss": {
+      "median": 156,
+      "p95": 157,
+      "min": 154,
+      "max": 157
+    },
+    "idlePss": {
+      "median": 102,
+      "p95": 104,
+      "min": 101,
+      "max": 104
+    },
+    "peakWhilePromptRss": {
+      "median": 189,
+      "p95": 190,
+      "min": 184,
+      "max": 190
+    },
+    "peakWhilePromptPss": {
+      "median": 134,
+      "p95": 135,
+      "min": 130,
+      "max": 135
+    },
+    "afterPromptRss": {
+      "median": 178,
+      "p95": 186,
+      "min": 177,
+      "max": 186
+    },
+    "afterPromptPss": {
+      "median": 125,
+      "p95": 132,
+      "min": 124,
+      "max": 132
+    },
+    "afterPromptPeakRss": {
+      "median": 190,
+      "p95": 191,
+      "min": 188,
+      "max": 191
+    },
+    "forkToReadyMs": {
+      "median": 655,
+      "p95": 674,
+      "min": 648,
+      "max": 674
+    },
+    "grandchildrenMax": 0,
+    "toolRuns": [
+      {
+        "name": "read",
+        "isError": false,
+        "head": "hello from the worker's cwd\n"
+      },
+      {
+        "name": "codemode",
+        "isError": false,
+        "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+      },
+      {
+        "name": "tool_search",
+        "isError": false,
+        "head": "No matching tools found."
+      }
+    ],
+    "raw": [
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 186,
+          "hwmMb": 191,
+          "anonMb": 127,
+          "fileMb": 59,
+          "pssMb": 132,
+          "privateMb": 127
+        },
+        "peak": {
+          "rssMb": 190,
+          "pssMb": 135
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 661
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 178,
+          "hwmMb": 190,
+          "anonMb": 120,
+          "fileMb": 59,
+          "pssMb": 125,
+          "privateMb": 120
+        },
+        "peak": {
+          "rssMb": 189,
+          "pssMb": 134
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 655
+      },
+      {
+        "idle": {
+          "rssMb": 154,
+          "hwmMb": 154,
+          "anonMb": 96,
+          "fileMb": 58,
+          "pssMb": 101,
+          "privateMb": 96
+        },
+        "afterPrompt": {
+          "rssMb": 178,
+          "hwmMb": 190,
+          "anonMb": 119,
+          "fileMb": 59,
+          "pssMb": 124,
+          "privateMb": 119
+        },
+        "peak": {
+          "rssMb": 189,
+          "pssMb": 134
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 652
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 178,
+          "hwmMb": 190,
+          "anonMb": 120,
+          "fileMb": 59,
+          "pssMb": 125,
+          "privateMb": 120
+        },
+        "peak": {
+          "rssMb": 189,
+          "pssMb": 134
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 657
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 179,
+          "hwmMb": 190,
+          "anonMb": 120,
+          "fileMb": 59,
+          "pssMb": 125,
+          "privateMb": 120
+        },
+        "peak": {
+          "rssMb": 185,
+          "pssMb": 131
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 650
+      },
+      {
+        "idle": {
+          "rssMb": 154,
+          "hwmMb": 154,
+          "anonMb": 96,
+          "fileMb": 58,
+          "pssMb": 101,
+          "privateMb": 96
+        },
+        "afterPrompt": {
+          "rssMb": 177,
+          "hwmMb": 188,
+          "anonMb": 119,
+          "fileMb": 59,
+          "pssMb": 124,
+          "privateMb": 119
+        },
+        "peak": {
+          "rssMb": 184,
+          "pssMb": 130
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 655
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 178,
+          "hwmMb": 190,
+          "anonMb": 119,
+          "fileMb": 59,
+          "pssMb": 124,
+          "privateMb": 119
+        },
+        "peak": {
+          "rssMb": 189,
+          "pssMb": 134
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 674
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 178,
+          "hwmMb": 189,
+          "anonMb": 119,
+          "fileMb": 59,
+          "pssMb": 124,
+          "privateMb": 119
+        },
+        "peak": {
+          "rssMb": 184,
+          "pssMb": 131
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 648
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 186,
+          "hwmMb": 191,
+          "anonMb": 127,
+          "fileMb": 59,
+          "pssMb": 132,
+          "privateMb": 127
+        },
+        "peak": {
+          "rssMb": 186,
+          "pssMb": 132
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 654
+      },
+      {
+        "idle": {
+          "rssMb": 157,
+          "hwmMb": 157,
+          "anonMb": 99,
+          "fileMb": 58,
+          "pssMb": 104,
+          "privateMb": 99
+        },
+        "afterPrompt": {
+          "rssMb": 180,
+          "hwmMb": 191,
+          "anonMb": 121,
+          "fileMb": 59,
+          "pssMb": 126,
+          "privateMb": 122
+        },
+        "peak": {
+          "rssMb": 188,
+          "pssMb": 135
+        },
+        "toolRuns": [
+          {
+            "name": "read",
+            "isError": false,
+            "head": "hello from the worker's cwd\n"
+          },
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.1 seconds\nOutput:\n|{\"found\":4,\"tools\":4,\"note\":\"hello from the worker's cwd\\n\"}"
+          },
+          {
+            "name": "tool_search",
+            "isError": false,
+            "head": "No matching tools found."
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 652
+      }
+    ]
+  },
+  "codemodeHeavy": {
+    "idleRss": {
+      "median": 156,
+      "p95": 156,
+      "min": 155,
+      "max": 156
+    },
+    "idlePss": {
+      "median": 103,
+      "p95": 103,
+      "min": 102,
+      "max": 103
+    },
+    "peakWhilePromptRss": {
+      "median": 438,
+      "p95": 446,
+      "min": 427,
+      "max": 446
+    },
+    "peakWhilePromptPss": {
+      "median": 376,
+      "p95": 387,
+      "min": 370,
+      "max": 387
+    },
+    "afterPromptRss": {
+      "median": 179,
+      "p95": 186,
+      "min": 178,
+      "max": 186
+    },
+    "afterPromptPss": {
+      "median": 126,
+      "p95": 132,
+      "min": 125,
+      "max": 132
+    },
+    "afterPromptPeakRss": {
+      "median": 439,
+      "p95": 445,
+      "min": 438,
+      "max": 445
+    },
+    "forkToReadyMs": {
+      "median": 654,
+      "p95": 665,
+      "min": 640,
+      "max": 665
+    },
+    "grandchildrenMax": 0,
+    "toolRuns": [
+      {
+        "name": "codemode",
+        "isError": false,
+        "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+      }
+    ],
+    "raw": [
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 99
+        },
+        "afterPrompt": {
+          "rssMb": 180,
+          "hwmMb": 439,
+          "anonMb": 121,
+          "fileMb": 59,
+          "pssMb": 126,
+          "privateMb": 121
+        },
+        "peak": {
+          "rssMb": 433,
+          "pssMb": 371
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 665
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 179,
+          "hwmMb": 439,
+          "anonMb": 121,
+          "fileMb": 59,
+          "pssMb": 126,
+          "privateMb": 121
+        },
+        "peak": {
+          "rssMb": 431,
+          "pssMb": 379
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.4 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 654
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 180,
+          "hwmMb": 439,
+          "anonMb": 121,
+          "fileMb": 59,
+          "pssMb": 126,
+          "privateMb": 121
+        },
+        "peak": {
+          "rssMb": 440,
+          "pssMb": 370
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 654
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 179,
+          "hwmMb": 439,
+          "anonMb": 121,
+          "fileMb": 59,
+          "pssMb": 126,
+          "privateMb": 121
+        },
+        "peak": {
+          "rssMb": 439,
+          "pssMb": 371
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 662
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 179,
+          "hwmMb": 438,
+          "anonMb": 120,
+          "fileMb": 59,
+          "pssMb": 125,
+          "privateMb": 120
+        },
+        "peak": {
+          "rssMb": 427,
+          "pssMb": 372
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 652
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 178,
+          "hwmMb": 438,
+          "anonMb": 120,
+          "fileMb": 59,
+          "pssMb": 125,
+          "privateMb": 120
+        },
+        "peak": {
+          "rssMb": 438,
+          "pssMb": 383
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 655
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 179,
+          "hwmMb": 438,
+          "anonMb": 120,
+          "fileMb": 59,
+          "pssMb": 125,
+          "privateMb": 120
+        },
+        "peak": {
+          "rssMb": 429,
+          "pssMb": 376
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 640
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 186,
+          "hwmMb": 445,
+          "anonMb": 127,
+          "fileMb": 59,
+          "pssMb": 132,
+          "privateMb": 127
+        },
+        "peak": {
+          "rssMb": 446,
+          "pssMb": 376
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 652
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 186,
+          "hwmMb": 445,
+          "anonMb": 127,
+          "fileMb": 59,
+          "pssMb": 132,
+          "privateMb": 127
+        },
+        "peak": {
+          "rssMb": 441,
+          "pssMb": 387
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 647
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 179,
+          "hwmMb": 439,
+          "anonMb": 121,
+          "fileMb": 59,
+          "pssMb": 126,
+          "privateMb": 121
+        },
+        "peak": {
+          "rssMb": 431,
+          "pssMb": 378
+        },
+        "toolRuns": [
+          {
+            "name": "codemode",
+            "isError": false,
+            "head": "Script completed\nWall time 0.3 seconds\nOutput:\n|{\"chunksMiB\":255,\"error\":\"InternalError: out of memory\"}"
+          }
+        ],
+        "grandchildren": 0,
+        "forkToReadyMs": 648
+      }
+    ]
+  }
+}

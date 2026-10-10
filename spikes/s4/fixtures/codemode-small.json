@@ -1,0 +1,8 @@
+{
+  "modelId": "scripted",
+  "steps": [
+    { "toolCalls": [{ "name": "codemode", "id": "cm-small", "args": { "code": "const found = await searchTools('read a file');\nconst note = await tools.read({ path: 'note.txt' });\nreturn { found: found.length, tools: ALL_TOOLS.length, note };" } }] },
+    { "toolCalls": [{ "name": "tool_search", "id": "ts-small", "args": { "query": "read a file" } }] },
+    { "text": "done" }
+  ]
+}

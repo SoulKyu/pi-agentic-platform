@@ -1,5 +1,5 @@
 import { fork, type ChildProcess } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { totalmem, tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -12,9 +12,11 @@ const STEP_TIMEOUT_MS = 20_000;
 const SHUTDOWN_TIMEOUT_MS = 5000;
 const KILL_GRACE_MS = 2000;
 const host = fileURLToPath(new URL("../s1/host.ts", import.meta.url));
-const script = fileURLToPath(new URL("../s1/fixtures/scenario.json", import.meta.url));
+const here = (path: string) => fileURLToPath(new URL(path, import.meta.url));
+const script = here("../s1/fixtures/scenario.json");
 
-type Msg = { type: string; error?: unknown };
+type Msg = { type: string; error?: unknown; toolName?: string; isError?: boolean; result?: { content?: Array<{ text?: string }> } };
+interface WorkerOptions { script?: string; codemodeActive?: boolean }
 interface Worker { child: ChildProcess; pid: number; root: string; forkToReadyMs: number }
 
 // Every forked child lives here until it has exited; the cleanup paths below walk this set.
@@ -54,9 +56,14 @@ function waitFor(child: ChildProcess, type: string): Promise<Msg> {
   });
 }
 
-async function spawnWorker(builtins: boolean): Promise<Worker> {
+async function spawnWorker(builtins: boolean, options: WorkerOptions = {}): Promise<Worker> {
   const root = mkdtempSync(join(tmpdir(), "pap-s4-"));
   roots.add(root);
+  if (options.codemodeActive) {
+    // codemode and tool_search are registered inactive by their built-in extensions: defaultTools activates them
+    writeFileSync(join(root, "settings.json"), JSON.stringify({ defaultTools: ["+codemode", "+tool_search"] }));
+    writeFileSync(join(root, "note.txt"), "hello from the worker's cwd\n");
+  }
   const forkedAt = performance.now();
   const child = fork(host, [], {
     cwd: root,
@@ -68,7 +75,7 @@ async function spawnWorker(builtins: boolean): Promise<Worker> {
   const worker = { child, pid: child.pid ?? 0, root, forkToReadyMs: 0 };
   try {
     const ready = waitFor(child, "ready");
-    child.send({ type: "init", cwd: root, agentDir: root, script, order: "policy-last", builtins });
+    child.send({ type: "init", cwd: root, agentDir: root, script: options.script ?? script, order: "policy-last", builtins });
     await ready;
     worker.forkToReadyMs = Math.round(performance.now() - forkedAt);
     return worker;
@@ -105,17 +112,37 @@ function memory(pid: number) {
 }
 const descendants = (pid: number) => readFileSync(`/proc/${pid}/task/${pid}/children`, "utf8").trim().split(/\s+/).filter(Boolean).length;
 
-async function sample(builtins: boolean) {
-  const worker = await spawnWorker(builtins);
+// Highest RSS and PSS seen while the prompt runs, polled every 20 ms plus once at the end (best effort: VmHWM is the exact RSS peak, the kernel keeps no peak PSS).
+function watchPeak(pid: number) {
+  const peak = { rssMb: 0, pssMb: 0 };
+  const poll = () => {
+    try {
+      const now = memory(pid);
+      peak.rssMb = Math.max(peak.rssMb, now.rssMb);
+      peak.pssMb = Math.max(peak.pssMb, now.pssMb);
+    } catch { /* worker already gone */ }
+  };
+  const timer = setInterval(poll, 20);
+  return () => { clearInterval(timer); poll(); return peak; };
+}
+
+async function sample(builtins: boolean, options: WorkerOptions = {}) {
+  const worker = await spawnWorker(builtins, options);
   try {
     await sleep(SETTLE_MS);
     const idle = memory(worker.pid);
     const grandchildren = descendants(worker.pid);
+    const toolRuns: Array<{ name?: string; isError?: boolean; head: string }> = [];
+    worker.child.on("message", (record: Msg) => {
+      if (record.type === "tool_execution_end") toolRuns.push({ name: record.toolName, isError: record.isError, head: (record.result?.content ?? []).map((item) => item.text ?? "").join("|").slice(0, 400) });
+    });
+    const stopWatching = options.codemodeActive ? watchPeak(worker.pid) : () => undefined;
+    let peak: { rssMb: number; pssMb: number } | undefined;
     const settled = waitFor(worker.child, "agent_settled");
     worker.child.send({ type: "prompt", id: "p", message: "one" });
-    await settled;
+    await settled.finally(() => { peak = stopWatching(); });
     await sleep(SETTLE_MS);
-    return { idle, afterPrompt: memory(worker.pid), grandchildren, forkToReadyMs: worker.forkToReadyMs };
+    return { idle, afterPrompt: memory(worker.pid), peak, toolRuns, grandchildren, forkToReadyMs: worker.forkToReadyMs };
   } finally {
     await release(worker);
   }
@@ -137,9 +164,18 @@ async function concurrent(count: number, builtins: boolean) {
 const pick = (values: number[], q: number) => [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.floor(values.length * q))] ?? 0;
 const stat = (values: number[]) => ({ median: pick(values, 0.5), p95: pick(values, 0.95), min: Math.min(...values), max: Math.max(...values) });
 
+// Discarded first worker: page cache and V8 code cache, so the numbers that follow are warm-cache.
+async function warmUp(builtins: boolean, options: WorkerOptions = {}) {
+  try {
+    await sample(builtins, options);
+  } catch (error) {
+    console.error(`warm-up sample failed (discarded): ${String(error)}`);
+  }
+}
+
 async function main() {
   const report: { [key: string]: unknown } = { node: process.version, totalMemMb: Math.round(totalmem() / 1048576), samples: SAMPLES };
-  await sample(false).catch(() => undefined); // discarded warm-up: page cache, V8 code cache; the numbers below are warm-cache
+  await warmUp(false);
   for (const builtins of [false, true]) {
     const runs = [];
     for (let i = 0; i < SAMPLES; i++) runs.push(await sample(builtins));
@@ -162,8 +198,34 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
 }
 
+// `node measure.ts codemode`: built-ins with codemode and tool_search active, and one scripted codemode call per worker.
+async function mainCodemode() {
+  const report: { [key: string]: unknown } = { node: process.version, totalMemMb: Math.round(totalmem() / 1048576), samples: SAMPLES };
+  await warmUp(true, { codemodeActive: true, script: here("./fixtures/codemode-small.json") });
+  for (const [name, fixture] of [["codemodeSmall", "codemode-small.json"], ["codemodeHeavy", "codemode-heavy.json"]] as const) {
+    const options = { codemodeActive: true, script: here(`./fixtures/${fixture}`) };
+    const runs = [];
+    for (let i = 0; i < SAMPLES; i++) runs.push(await sample(true, options));
+    const col = (pickRun: (run: (typeof runs)[number]) => number) => runs.map(pickRun);
+    report[name] = {
+      idleRss: stat(col((run) => run.idle.rssMb)),
+      idlePss: stat(col((run) => run.idle.pssMb)),
+      peakWhilePromptRss: stat(col((run) => run.peak?.rssMb ?? Number.NaN)),
+      peakWhilePromptPss: stat(col((run) => run.peak?.pssMb ?? Number.NaN)),
+      afterPromptRss: stat(col((run) => run.afterPrompt.rssMb)),
+      afterPromptPss: stat(col((run) => run.afterPrompt.pssMb)),
+      afterPromptPeakRss: stat(col((run) => run.afterPrompt.hwmMb)),
+      forkToReadyMs: stat(col((run) => run.forkToReadyMs)),
+      grandchildrenMax: Math.max(...col((run) => run.grandchildren)),
+      toolRuns: runs[0]?.toolRuns,
+      raw: runs,
+    };
+  }
+  console.log(JSON.stringify(report, null, 2));
+}
+
 try {
-  await main();
+  await (process.argv[2] === "codemode" ? mainCodemode() : main());
 } finally {
   await terminateAll();
 }
