@@ -9,6 +9,10 @@ Status: design phase complete (specs A, C, D and [DESIGN.md](../DESIGN.md) writt
 - [specs/2026-10-10-D-clean-start.md](specs/2026-10-10-D-clean-start.md): clean start, cutover, risks.
 - [../DESIGN.md](../DESIGN.md): spec B, the Night Control design system (tokens, type, density, logo, layout, components, screens, voice, a11y, customization).
 
+## Plans
+- [plans/2026-10-10-m0-m1-spikes-skeleton.md](plans/2026-10-10-m0-m1-spikes-skeleton.md): M0 (8 spikes S1–S8) + M1 walking skeleton (Tasks 9–27), TDD, task by task.
+- [plans/roadmap.md](plans/roadmap.md): milestones M2–M13 covering D01–D22 and the v1 additions.
+
 ## Decisions
 - [research/decisions-log.md](research/decisions-log.md): every decision taken during brainstorming, numbered.
 
