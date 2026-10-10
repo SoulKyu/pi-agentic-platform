@@ -1,6 +1,6 @@
 # DESIGN.md: pap design system ("Night Control")
 
-Status: v1 · Date: 2026-10-10 · Spec B of pi-agentic-platform.
+Status: v1, **validated by the product owner on 2026-10-10** · Spec B of pi-agentic-platform.
 
 This document is the source of truth for anything visual. It was built with the product owner over ten visual rounds; the illustrated history is in [docs/design/explorations/](docs/design/explorations/) (pages 01–12) and the numbered decisions are in [docs/research/decisions-log.md](docs/research/decisions-log.md) (11, 25–32). Implementation lives in `packages/ui` (spec C §7).
 
