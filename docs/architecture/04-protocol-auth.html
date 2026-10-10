@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 4 · Protocole client et auth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 960px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .src { font: 10.5px var(--mono); color: var(--muted); margin-top: 6px; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  pre { font: 12px/1.6 var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 12px 14px; white-space: pre; overflow-x: auto; }
+  pre i { color: var(--muted); font-style: normal; }
+  pre b { color: var(--ai); font-weight: 600; }
+  pre u { color: var(--human); text-decoration: none; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  td code { white-space: nowrap; }
+  .flow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .flow div { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 10px 12px; position: relative; font-size: 12.5px; }
+  .flow div b { display: block; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--human); margin-bottom: 4px; }
+  .flow div::after { content: "→"; position: absolute; right: -10px; top: 40%; font: 600 13px var(--mono); color: var(--muted); }
+  .flow div:last-child::after { content: none; }
+  .warn { border-color: var(--attn); } .warn .lbl { color: var(--attn); }
+  .ask { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask .lbl { color: var(--attn); }
+  .ask .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 4 / 9</div>
+  <h1>Protocole client et auth</h1>
+  <p class="lead">Un seul WebSocket porte tout le domaine : requêtes typées et flux avec reprise par curseur. HTTP ne sert que ce qui doit rester HTTP : assets, auth, uploads, webhooks, métriques. Chaque méthode déclare sa permission dans les contrats, et un oubli est une erreur de type.</p>
+
+  <h2>1 · Contrats : une méthode = une déclaration</h2>
+  <div class="grid2">
+<pre><i>// packages/contracts/src/rpc/sessions.ts</i>
+export const prompt = <b>defineMethod</b>({
+  name: <u>'sessions.prompt'</u>,
+  permission: <u>'sessions:operate'</u>,   <i>// obligatoire</i>
+  idempotent: true,                    <i>// commandId requis</i>
+  params: z.object({
+    sessionId: SessionId,
+    message: z.string().max(120_000),
+    images: z.array(ImageRef).max(20).optional(),
+    behavior: z.enum(['steer', 'followUp']).optional(),
+  }),
+  result: z.object({ runId: RunId, disposition: Disposition }),
+  errors: ['session_not_found', 'capacity_reached', 'busy'],
+});
+
+<i>// apps/daemon : Record&lt;MethodName, Handler&gt;</i>
+<i>// méthode sans handler / sans permission = erreur de compilation</i></pre>
+    <div class="box">
+      <ul class="tight">
+        <li><b>zod</b> est la seule source du schéma. Le client a un proxy typé (<code>rpc.sessions.prompt(…)</code>), le serveur une table de handlers exhaustive.</li>
+        <li>Un handler décode, appelle une seule méthode de service et mappe une erreur typée. Une exception ne fait échouer que sa propre requête, jamais le socket (règle T3 <code>disableFatalDefects</code>).</li>
+        <li>Les mutations portent un <code>commandId</code> généré par le client. La table <code>receipts</code> renvoie le même résultat en cas de doublon, sans rejouer d'effet de bord. Une mutation n'est jamais rejouée automatiquement à la reconnexion.</li>
+        <li>Les erreurs ont un <b>code stable et un message fixe</b>, sans contenu utilisateur ni secret dans le message (règle T3).</li>
+      </ul>
+      <span class="src">T3 contracts/rpc.ts + RpcAuthorization.ts · Orca rpc-method-permission.ts</span>
+    </div>
+  </div>
+
+  <h2>2 · Le socket /ws</h2>
+  <table>
+    <tr><th style="width:190px">Frame</th><th>Forme</th><th style="width:40%">Règle</th></tr>
+    <tr><td>requête / réponse</td><td><code>{id, method, params, commandId?}</code> → <code>{id, ok, result | error{code}}</code></td><td>1 MiB max par message. La corrélation se fait par <code>id</code> client.</td></tr>
+    <tr><td>flux</td><td><code>subscribe.session{sessionId, after?}</code> → <code>{sub, seq, event}</code>… · <code>unsubscribe{sub}</code></td><td>Les événements inconnus sont ignorés mais le curseur avance (décodage tolérant, T3).</td></tr>
+    <tr><td>terminal</td><td>frames binaires : en-tête <code>streamId + seq</code> puis octets bruts</td><td>Pas de JSON pour les octets d'un PTY (Orca). Ack de flux pour le contrôle de débit.</td></tr>
+    <tr><td>hello</td><td><code>?proto=1</code> à l'upgrade → <code>{protocol, capabilities[], serverVersion}</code></td><td>Protocole différent : HTTP 426, et la SPA affiche « Nouvelle version, recharger ». Comme le daemon sert la SPA, seuls les onglets ouverts depuis longtemps sont concernés.</td></tr>
+    <tr><td>keepalive</td><td>ping client toutes les 5 s ; ping serveur toutes les 15 s</td><td>Sans aucune frame pendant 15 s, le pair est considéré mort.</td></tr>
+  </table>
+  <div class="grid3" style="margin-top:12px">
+    <div class="box"><span class="lbl">Flux v1</span>
+      <ul class="tight">
+        <li><code>subscribe.shell</code> : résumés de la sidebar (running, non lus, à traiter)</li>
+        <li><code>subscribe.session</code> : transcript, run, dialogues, panneaux custom</li>
+        <li><code>subscribe.lane</code>, <code>subscribe.vcs{cwd}</code> : statut git poussé, plus de polling</li>
+        <li><code>subscribe.terminal</code>, <code>subscribe.inbox</code>, <code>subscribe.health</code></li>
+      </ul></div>
+    <div class="box"><span class="lbl">Reprise (curseur)</span>
+      <ul class="tight">
+        <li>Le client envoie <code>after = dernier seq vu</code>. Si l'écart fait au plus 128 événements et 1 MiB, il est rejoué. Sinon, snapshot.</li>
+        <li>Le snapshot est borné : environ 75 dernières lignes, le message partiel en cours et les dialogues en attente. L'historique plus ancien se charge par pages (<code>sessions.history{before}</code>).</li>
+        <li>Deltas regroupés toutes les 50 ms. Les gros outputs d'outils ne passent pas dans le flux : on les charge à la demande (<code>sessions.toolOutput</code>).</li>
+      </ul><span class="src">T3 ThreadStream.ts · performance-regressions.md</span></div>
+    <div class="box"><span class="lbl">Superviseur de connexion (client)</span>
+      <ul class="tight">
+        <li>Un seul propriétaire des retries. Backoff exponentiel avec jitter plafonné à 30 s, remis à zéro après une connexion stable.</li>
+        <li>Au retour au premier plan ou quand le réseau revient : on <b>sonde</b> la session avant de reconnecter. Les événements « offline » sont souvent faux, surtout sur iOS.</li>
+        <li>État et curseur sont gardés 5 min en mémoire. Au-delà, snapshot.</li>
+      </ul><span class="src">T3 client-runtime/connection/supervisor.ts</span></div>
+  </div>
+
+  <h2>3 · Auth (décision 10)</h2>
+  <div class="flow">
+    <div><b>1 · premier démarrage</b>Le daemon affiche dans son log une URL de setup à usage unique (jeton aléatoire). Personne d'autre sur le réseau ne peut s'approprier l'instance.</div>
+    <div><b>2 · compte owner</b>Mot de passe (<code>crypto.scrypt</code> de Node) et passkey WebAuthn (<code>@simplewebauthn/server</code>). Le passkey devient la connexion par défaut.</div>
+    <div><b>3 · session navigateur</b>Cookie <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite=Strict</code>, id opaque stocké haché. Durée 30 jours glissants, révocable dans « Appareils connectés ».</div>
+    <div><b>4 · autres appelants</b>Jetons API <code>pap_…</code> hachés, avec permissions et expiration, pour le CLI et les scripts. Webhooks : secret par trigger (+ HMAC optionnel). <code>/metrics</code> : bearer dédié.</div>
+  </div>
+  <div class="grid3" style="margin-top:12px">
+    <div class="box"><span class="lbl">Permissions</span>
+      <ul class="tight">
+        <li>Format <code>domaine:read|operate|admin</code> (sessions, lanes, agents, automation, settings, security…).</li>
+        <li>v1 : l'owner a tout. Un jeton API reçoit un sous-ensemble. Les futurs rôles d'équipe ne seront que des ensembles de permissions, donc pas de refonte.</li>
+        <li>L'identité de l'appelant est fixée par le transport, jamais lue dans les paramètres (Orca).</li>
+      </ul></div>
+    <div class="box"><span class="lbl">Défenses</span>
+      <ul class="tight">
+        <li>Contrôle de l'<code>Origin</code> à l'upgrade WS et sur chaque POST, en plus de SameSite=Strict, contre le CSRF.</li>
+        <li>Throttle des tentatives de login par IP et par compte, avec backoff (pi-web <code>auth-throttle</code>).</li>
+        <li>Les en-têtes <code>X-Forwarded-*</code> ne sont pris en compte que si <code>trustProxy</code> est configuré.</li>
+      </ul></div>
+    <div class="box warn"><span class="lbl">Exposition réseau</span>
+      <ul class="tight">
+        <li><b>Écoute sur 127.0.0.1 par défaut.</b> <code>--host 0.0.0.0</code> doit être explicite.</li>
+        <li>Les passkeys, la PWA et Web Push exigent HTTPS (sauf localhost). Accès distant via Tailscale serve ou un reverse proxy (Caddy, Traefik), documenté. Option <code>--tls-cert/--tls-key</code> pour fournir son propre certificat.</li>
+        <li>Pas d'ACME intégré en v1 : le proxy ou Tailscale le fait mieux.</li>
+      </ul></div>
+  </div>
+
+  <h2>4 · HTTP restant</h2>
+  <table>
+    <tr><th style="width:280px">Route</th><th>Rôle</th><th style="width:200px">Auth</th></tr>
+    <tr><td><code>GET /</code>, <code>/assets/*</code>, <code>/sw.js</code></td><td>SPA, PWA, service worker</td><td>public (aucune donnée)</td></tr>
+    <tr><td><code>/auth/*</code></td><td>setup, login mot de passe et passkey, logout, appareils</td><td>throttlé</td></tr>
+    <tr><td><code>POST /upload</code>, <code>GET /files/*</code></td><td>pièces jointes, téléchargements, aperçus (liste d'autorisations pi-web conservée)</td><td>cookie ou jeton + permission</td></tr>
+    <tr><td><code>POST /hooks/:triggerId</code></td><td>webhooks (Alertmanager, Grafana, brut), 64 Ko max, flux plafonné</td><td>secret du trigger</td></tr>
+    <tr><td><code>GET /metrics</code>, <code>GET /healthz</code></td><td>Prometheus, sonde de vie</td><td>bearer / public minimal</td></tr>
+  </table>
+  <p class="small" style="margin-top:10px">Choix techniques : <b>Hono</b> + <code>@hono/node-server</code> pour la dizaine de routes HTTP (aucune dépendance transitive ; <code>serveStatic</code>, <code>secureHeaders</code> et cookies testés ; tests de routes en mémoire via <code>app.request()</code>), <code>ws</code> pour le WebSocket (l'upgrade reste hors de Hono), <code>zod</code> pour les contrats, <code>@simplewebauthn/server</code> pour WebAuthn. On ne réimplémente pas de crypto.</p>
+
+  <div class="ask">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s4-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s4-http-framework" onclick="this.classList.toggle('selected')">Framework HTTP (Hono/Fastify)</div>
+      <div class="opt" data-choice="s4-passkey-only" onclick="this.classList.toggle('selected')">Passkey seul, sans mot de passe</div>
+      <div class="opt" data-choice="s4-acme" onclick="this.classList.toggle('selected')">TLS ACME intégré</div>
+      <div class="opt" data-choice="s4-bind-all" onclick="this.classList.toggle('selected')">0.0.0.0 par défaut</div>
+      <div class="opt" data-choice="s4-session-ttl" onclick="this.classList.toggle('selected')">Autre durée de session</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
