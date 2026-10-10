@@ -88,10 +88,73 @@ describe("loadConfig", () => {
     expect(defaultMaxWorkers(2_048)).toBe(4);
   });
 
+  it("treats an empty PAP_HOME or PI_CODING_AGENT_DIR as unset", () => {
+    const config = loadConfig({ ...base, env: { PAP_HOME: "", PI_CODING_AGENT_DIR: "" } });
+    expect([config.home, config.piAgentDir]).toEqual(["/home/u/.pap", "/home/u/.pi/agent"]);
+  });
+
+  it("expands a leading ~ like Pi does and keeps absolute paths", () => {
+    const tilde = loadConfig({ ...base, env: { PAP_HOME: "~/pap", PI_CODING_AGENT_DIR: "~/agent" } });
+    expect([tilde.home, tilde.piAgentDir]).toEqual(["/home/u/pap", "/home/u/agent"]);
+    expect(loadConfig({ ...base, env: { PAP_HOME: "~", PI_CODING_AGENT_DIR: "~" } }).home).toBe("/home/u");
+    const absolute = loadConfig({ ...base, env: { PAP_HOME: "/srv/pap", PI_CODING_AGENT_DIR: "/srv/pi" } });
+    expect([absolute.home, absolute.piAgentDir]).toEqual(["/srv/pap", "/srv/pi"]);
+  });
+
+  it("rejects a relative PAP_HOME or PI_CODING_AGENT_DIR", () => {
+    for (const env of [
+      { PAP_HOME: "data" },
+      { PAP_HOME: "./data" },
+      { PI_CODING_AGENT_DIR: "agent" },
+      { PAP_HOME: "~other/x" },
+    ]) {
+      expect(() => loadConfig({ ...base, env })).toThrow(ConfigError);
+    }
+  });
+
+  it("rejects an empty or malformed --host instead of binding every interface", () => {
+    const bad = [
+      ["--host", ""],
+      ["--host="],
+      ["--host", "   "],
+      ["--host", "a/b"],
+      ["--host", "evil.com:80"],
+      ["--host", "a@b"],
+      ["--host", "a b"],
+    ];
+    for (const argv of bad) expect(() => loadConfig({ ...base, argv })).toThrow(ConfigError);
+  });
+
+  it("lowercases the host, so LOCALHOST is loopback", () => {
+    const config = loadConfig({ ...base, argv: ["--host", "LOCALHOST"] });
+    expect([config.host, config.publicOrigin]).toEqual(["localhost", "http://localhost:7777"]);
+    expect(loadConfig({ ...base, argv: ["--host", "Pap.Example.COM"] }).publicOrigin).toBe(
+      "http://pap.example.com:7777",
+    );
+  });
+
+  it("accepts bracketed and bare IPv6 hosts and brackets them in origins", () => {
+    const loopback = loadConfig({ ...base, argv: ["--host", "[::1]"] });
+    expect([loopback.host, loopback.publicOrigin]).toEqual(["::1", "http://localhost:7777"]);
+    expect(loopback.allowedOrigins.has("http://[::1]:7777")).toBe(true);
+    const global = loadConfig({ ...base, argv: ["--host", "2001:db8::1"] });
+    expect([global.host, global.publicOrigin]).toEqual(["2001:db8::1", "http://[2001:db8::1]:7777"]);
+    expect(global.allowedOrigins.has("http://localhost:7777")).toBe(false);
+  });
+
+  it("keeps an explicit wildcard host and publishes a localhost origin for it", () => {
+    for (const host of ["0.0.0.0", "::"]) {
+      const config = loadConfig({ ...base, argv: ["--host", host] });
+      expect([config.host, config.publicOrigin]).toEqual([host, "http://localhost:7777"]);
+    }
+  });
+
   it("never echoes a rejected value in an error message", () => {
     const secret = "s3cr3t-value";
     const attempts: Partial<ConfigInput>[] = [
       { argv: ["--port", secret] },
+      { argv: ["--host", `a/${secret}`] },
+      { argv: [`--host=${secret}:80`] },
       { argv: [`--bogus=${secret}`] },
       { argv: [secret] },
       { env: { PAP_PUBLIC_ORIGIN: `https://owner:${secret}@` } },
@@ -100,6 +163,8 @@ describe("loadConfig", () => {
       { env: { PAP_MAX_WORKERS: secret } },
       { env: { PAP_MIN_FREE_MEM_MB: secret } },
       { env: { PAP_LOG_LEVEL: secret } },
+      { env: { PAP_HOME: secret } },
+      { env: { PI_CODING_AGENT_DIR: secret } },
     ];
     for (const attempt of attempts) {
       const failure = (() => {

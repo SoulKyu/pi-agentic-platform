@@ -9,6 +9,9 @@ export interface Clock {
   sleep(ms: number): Promise<void>;
 }
 
+// Node clamps a delay above 2^31 - 1 ms (about 24.8 days) to 1 ms, so a 30-day expiry would fire at once.
+export const MAX_TIMER_MS = 2 ** 31 - 1;
+
 export function createSystemClock(): Clock {
   const timers = new Map<number, NodeJS.Timeout>();
   let nextId = 1;
@@ -16,12 +19,20 @@ export function createSystemClock(): Clock {
     now: () => Date.now(),
     setTimeout(fn, ms) {
       const id = nextId++;
-      const timer = setTimeout(() => {
-        timers.delete(id);
-        fn();
-      }, ms);
-      timer.unref();
-      timers.set(id, timer);
+      // Long delays run as a chain of hops; only the hop that is armed is tracked, so clear stops the chain.
+      const arm = (remaining: number): void => {
+        const timer = setTimeout(
+          () => {
+            if (remaining > MAX_TIMER_MS) return arm(remaining - MAX_TIMER_MS);
+            timers.delete(id);
+            fn();
+          },
+          Math.min(remaining, MAX_TIMER_MS),
+        );
+        timer.unref();
+        timers.set(id, timer);
+      };
+      arm(ms);
       return { id };
     },
     clearTimeout(handle) {

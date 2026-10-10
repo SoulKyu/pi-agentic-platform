@@ -46,6 +46,8 @@ export interface ConfigInput {
   readonly staticRoot: string | null;
 }
 
+const BAD_HOST_CHARS = /[\s/\\@?#]/;
+
 const isLoopback = (host: string) => host === "127.0.0.1" || host === "localhost" || host === "::1";
 const isWildcard = (host: string) => host === "0.0.0.0" || host === "::";
 
@@ -57,7 +59,7 @@ export function loadConfig(input: ConfigInput): Config {
   const values = parseFlags(input.argv);
   const dev = values.dev === true;
   const devId = dev ? createHash("sha256").update(realpathSync(input.cwd)).digest("hex").slice(0, 8) : null;
-  const host = values.host ?? DEFAULT_HOST;
+  const host = values.host === undefined ? DEFAULT_HOST : parseHost(values.host);
   const port =
     values.port !== undefined
       ? parsePort(values.port)
@@ -73,24 +75,33 @@ export function loadConfig(input: ConfigInput): Config {
   const local = isLoopback(host) || isWildcard(host);
   const publicOrigin = input.env.PAP_PUBLIC_ORIGIN
     ? parseOrigin(input.env.PAP_PUBLIC_ORIGIN)
-    : `${scheme}://${local ? "localhost" : host}:${port}`;
+    : originOf(scheme, local ? "localhost" : host, port);
   const allowedOrigins = new Set([publicOrigin]);
   if (local)
-    for (const name of ["localhost", "127.0.0.1", "[::1]"]) allowedOrigins.add(`${scheme}://${name}:${port}`);
+    for (const name of ["localhost", "127.0.0.1", "::1"]) allowedOrigins.add(originOf(scheme, name, port));
   if (dev) allowedOrigins.add(VITE_DEV_ORIGIN);
   const script = input.env.PAP_TEST_PROVIDER_SCRIPT;
   if (script !== undefined && !isAbsolute(script))
     throw new ConfigError("PAP_TEST_PROVIDER_SCRIPT must be an absolute path");
   return {
-    home:
-      input.env.PAP_HOME ?? (devId ? join(input.homedir, ".pap-dev", devId) : join(input.homedir, ".pap")),
+    home: directoryFrom(
+      input.env.PAP_HOME,
+      "PAP_HOME",
+      input.homedir,
+      devId ? join(input.homedir, ".pap-dev", devId) : join(input.homedir, ".pap"),
+    ),
     host,
     port,
     dev,
     tls,
     publicOrigin,
     allowedOrigins,
-    piAgentDir: input.env.PI_CODING_AGENT_DIR ?? join(input.homedir, ".pi", "agent"),
+    piAgentDir: directoryFrom(
+      input.env.PI_CODING_AGENT_DIR,
+      "PI_CODING_AGENT_DIR",
+      input.homedir,
+      join(input.homedir, ".pi", "agent"),
+    ),
     piHostEntry: input.piHostEntry,
     piHostExecArgv: input.piHostExecArgv,
     testProviderScript: script ?? null,
@@ -104,6 +115,34 @@ export function loadConfig(input: ConfigInput): Config {
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),
   };
 }
+
+// Empty means unset and a leading ~ expands, exactly as Pi's getAgentDir() does, so pap and Pi always
+// agree on the directory they share. A relative path would land wherever the process was started.
+function directoryFrom(raw: string | undefined, name: string, homedir: string, fallback: string): string {
+  if (raw === undefined || raw === "") return fallback;
+  const expanded = raw === "~" ? homedir : raw.startsWith("~/") ? join(homedir, raw.slice(2)) : raw;
+  if (!isAbsolute(expanded)) throw new ConfigError(`${name} must be an absolute path`);
+  return expanded;
+}
+
+const HOST_ERROR = "--host must be a host name or an IP address";
+
+// The returned host is what the listener binds, so an empty one (which Node reads as "all interfaces")
+// is refused: exposing every interface takes an explicit 0.0.0.0 or ::. IPv6 comes back without brackets.
+function parseHost(raw: string): string {
+  const bare = raw.startsWith("[") && raw.endsWith("]") ? raw.slice(1, -1) : raw;
+  if (bare === "" || BAD_HOST_CHARS.test(bare)) throw new ConfigError(HOST_ERROR);
+  try {
+    return new URL(`http://${bracketed(bare)}`).hostname.replace(/^\[|\]$/g, "");
+  } catch {
+    throw new ConfigError(HOST_ERROR);
+  }
+}
+
+const bracketed = (host: string): string => (host.includes(":") ? `[${host}]` : host);
+
+const originOf = (scheme: string, host: string, port: number): string =>
+  new URL(`${scheme}://${bracketed(host)}:${port}`).origin;
 
 function parseFlags(argv: readonly string[]) {
   try {
