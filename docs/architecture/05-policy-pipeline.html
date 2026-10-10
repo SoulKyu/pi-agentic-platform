@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 5 · Pipeline de politiques et outils plateforme</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .src { font: 10.5px var(--mono); color: var(--muted); margin-top: 6px; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+
+  /* pipeline */
+  .pipe { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .stage { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 9px 10px; position: relative; min-height: 132px; }
+  .stage .num { font: 600 10.5px var(--mono); color: var(--muted); }
+  .stage .n { font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+  .stage p { font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .stage .who { position: absolute; right: 8px; top: 8px; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 0 5px; border-radius: var(--r); border: 1px solid var(--border-strong); color: var(--muted); }
+  .stage.block { border-color: #EC489977; } .stage.block .n { color: var(--attn); }
+  .stage.ask { border-color: #FB923C88; } .stage.ask .n { color: var(--human); }
+  .stage.exec { border-color: var(--ai); } .stage.exec .n { color: var(--ai); }
+  .stage.out .n { color: var(--ok); } .stage.out { border-color: #34D39977; }
+  .new { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #1B0D00; background: var(--human); padding: 0 5px; border-radius: var(--r); margin-left: 4px; }
+  .rowlbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 14px 0 6px; }
+  .audit { margin-top: 8px; border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 8px 12px; font-size: 12.5px; color: var(--muted); }
+  .audit b { color: var(--text); font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; margin-right: 6px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.allow { color: var(--ok); border: 1px solid #34D39966; }
+  .v.ask { color: var(--human); border: 1px solid #FB923C88; }
+  .v.block { color: var(--attn); border: 1px solid #EC489988; }
+  .v.pol { color: var(--ai); border: 1px solid #A78BFA88; }
+
+  .card { border: 1px solid #EC48998C; background: #EC48991A; border-radius: var(--r); padding: 12px 14px; }
+  .card small { display: block; font: 600 10px var(--mono); color: var(--attn); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; }
+  .card .btns { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .card .btns span { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 5px 10px; border-radius: 2px; border: 1px solid var(--border-strong); }
+  .card .btns span.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+
+  .warn { border-color: var(--attn); } .warn .lbl { color: var(--attn); }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .ask-box .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 5 / 9</div>
+  <h1>Pipeline de politiques et outils plateforme</h1>
+  <p class="lead">Toutes les politiques de pi-web (denylist, egress, sandbox, coffre, masquage, audit, isolation du contenu non fiable) deviennent une extension <code>pap-policy</code> chargée en premier dans <code>pi-host</code>, avant les extensions de l'utilisateur. Le daemon reste la source de vérité des règles : il les compile, les envoie au démarrage du worker et à chaud via <code>policy_update</code>. Règle absolue : une erreur d'évaluation bloque l'appel, jamais l'inverse.</p>
+
+  <h2>1 · Le trajet d'un appel d'outil</h2>
+  <div class="rowlbl">Avant exécution · hook tool_call</div>
+  <div class="pipe">
+    <div class="stage"><span class="who">daemon</span><div class="num">00</div><div class="n">Exposition</div><p>Preset (none, read-only, default, full, Chat only), codemode, tool-search, exposition MCP. Un outil non exposé n'existe pas pour le modèle.</p></div>
+    <div class="stage block"><span class="who">worker</span><div class="num">01</div><div class="n">Commandes</div><p>bash / powershell comparés aux regex de la denylist de l'agent (presets pi-web), y compris dans les appels imbriqués de codemode.</p></div>
+    <div class="stage block"><span class="who">worker</span><div class="num">02</div><div class="n">Egress</div><p>URLs extraites des arguments, appels imbriqués compris, comparées à <code>web_allow_hosts</code>. MCP read-only pour les sessions read-only.</p></div>
+    <div class="stage ask"><span class="who">worker</span><div class="num">03</div><div class="n">Approbation</div><p>Catégorie de l'appel × mode (décision 14) × contexte « contaminé ». Si nécessaire : carte dans le chat, ou push pour un run sans humain.</p></div>
+    <div class="stage block"><span class="who">worker</span><div class="num">04</div><div class="n">Garde-fous</div><p>Run guard : 5 appels identiques, 150 appels, 60 tours. Budget quotidien de l'agent (tokens et coût). Au-delà : abort avec raison.</p></div>
+  </div>
+  <div class="rowlbl">Exécution &amp; après · hook tool_result</div>
+  <div class="pipe" style="grid-template-columns: repeat(3, 1fr)">
+    <div class="stage exec"><span class="who">OS</span><div class="num">05</div><div class="n">Sandbox</div><p>bash dans bwrap selon le profil (<code>sandbox</code>, <code>sandbox_network</code>). Le worker est dans son scope systemd (MemoryMax, TasksMax). Lecture et recherche des tâches isolées limitées au home de l'agent.</p></div>
+    <div class="stage out"><span class="who">worker</span><div class="num">06</div><div class="n">Masquage</div><p>Les valeurs exactes des secrets de l'agent (8 caractères et plus) deviennent <code>[SECRET:NOM]</code> avant d'entrer dans le contexte. Seulement contre les fuites accidentelles.</p></div>
+    <div class="stage out"><span class="who">worker</span><div class="num">07</div><div class="n">Clôture <span class="new">nouveau</span></div><p>Le résultat d'un outil externe (web, MCP tiers, flux, webhook) est encadré comme non fiable, et la session est marquée <b>contaminée</b> pour la suite du run.</p></div>
+  </div>
+  <div class="audit"><b>Audit</b>Chaque étape émet une ligne : appel, arguments masqués, décision (allow, block, approve, deny) et raison. Jamais le résultat. Écriture en append-only dans la table <code>audit</code>, consultable par agent (pi-web).</div>
+
+  <h2>2 · Catégories et décisions</h2>
+  <table>
+    <tr><th style="width:150px">Catégorie</th><th>Exemples</th><th style="width:170px">Session interactive<br>(auto-accept edits)</th><th style="width:210px">Run sans humain<br>(trigger, tâche)</th></tr>
+    <tr><td><b>read</b></td><td><code>read</code> <code>grep</code> <code>find</code> <code>ls</code>, MCP <code>readOnlyHint</code></td><td><span class="v allow">allow</span></td><td><span class="v allow">allow</span> dans les chemins permis</td></tr>
+    <tr><td><b>edit</b></td><td><code>edit</code> <code>write</code> dans le cwd ou le worktree</td><td><span class="v allow">allow</span></td><td><span class="v allow">allow</span> dans les chemins permis</td></tr>
+    <tr><td><b>exec</b></td><td><code>bash</code> <code>powershell</code></td><td><span class="v ask">ask</span></td><td><span class="v pol">politique</span> denylist + sandbox, sinon bloqué</td></tr>
+    <tr><td><b>network</b></td><td>outils avec URL, <code>web_fetch</code></td><td><span class="v ask">ask</span></td><td><span class="v pol">politique</span> allowlist d'hôtes seulement</td></tr>
+    <tr><td><b>external write</b></td><td><code>git push</code>, création de PR, MCP non read-only, envois</td><td><span class="v ask">ask</span></td><td><span class="v ask">ask par push</span> ; sans réponse au délai : <span class="v block">deny</span></td></tr>
+    <tr><td><b>contaminé + exfiltration</b> <span class="new">nouveau</span></td><td>tout appel network ou external write après qu'un contenu non fiable est entré dans le contexte</td><td><span class="v ask">ask</span> même si une règle « toujours » existe</td><td><span class="v ask">ask par push</span>, sinon <span class="v block">deny</span></td></tr>
+  </table>
+  <p class="small" style="margin-top:8px">Le « contaminé » rend dynamique le contrôle de la lethal trifecta de pi-web : la feuille de permissions montre le risque statique, le pipeline coupe le troisième côté (l'exfiltration) au moment où les deux autres sont réunis.</p>
+
+  <div class="grid2" style="margin-top:14px">
+    <div>
+      <div class="card"><small>Approbation · Atlas · exec</small>
+        <div style="font-size:13px">Run <code>pnpm install --frozen-lockfile</code> in <code>feat/checkpoints</code>?</div>
+        <div class="btns"><span>Deny</span><span>Allow always (this project)</span><span>Allow for session</span><span class="pri">Allow once</span></div>
+      </div>
+      <p class="small" style="margin-top:8px">Quatre réponses (T3) : <b>once</b>, <b>session</b> (en mémoire du worker), <b>always</b> (règle enregistrée par projet ou par agent, visible et révocable dans Réglages), <b>deny</b> avec raison renvoyée au modèle. Sans « always », le mode auto-accept edits deviendrait vite pénible.</p>
+    </div>
+    <div class="box"><span class="lbl">Profils de politique (choisis par le daemon, jamais par le worker)</span>
+      <ul class="tight">
+        <li><b>interactive</b> : session d'un utilisateur. Mode d'approbation, règles « always » du projet, denylist globale optionnelle.</li>
+        <li><b>agent-thread</b> : thread de confiance d'un agent long-terme. Profil de l'agent (sandbox, egress, denylist, coffre), outils <code>agent.*</code> autorisés.</li>
+        <li><b>isolated-task</b> : run d'un trigger. Allowlist d'outils fermée par trigger (pi-web), chemins limités au home, contenu du déclencheur clôturé, aucun outil <code>agent.*</code> sensible.</li>
+      </ul></div>
+  </div>
+
+  <h2>3 · Outils plateforme (platform_call)</h2>
+  <table>
+    <tr><th style="width:170px">Op</th><th>Rôle</th><th style="width:220px">Appelants autorisés</th><th style="width:150px">Exfiltration ?</th></tr>
+    <tr><td><code>agent.notify</code></td><td>push vers l'utilisateur</td><td>agent-thread</td><td>non (vers toi)</td></tr>
+    <tr><td><code>agent.approve</code></td><td>demande oui/non avec push, réponse <code>approved | denied</code></td><td>agent-thread</td><td>non</td></tr>
+    <tr><td><code>agent.delegate</code></td><td>file une tâche à un agent qui l'accepte (refus si contaminé, pi-web D14)</td><td>agent-thread</td><td><b>oui</b> : la contamination se propage</td></tr>
+    <tr><td><code>agent.remind</code></td><td>rappel ponctuel sur son propre thread</td><td>agent-thread</td><td>non</td></tr>
+    <tr><td><code>lane.note</code></td><td>note sur la lane courante</td><td>sessions de lane</td><td>non</td></tr>
+    <tr><td><code>secret.request</code> <span class="new">nouveau</span></td><td>demande un secret à l'utilisateur ; la valeur va au coffre, seule une référence à usage unique entre dans le contexte (T3)</td><td>interactive, agent-thread</td><td>non</td></tr>
+    <tr><td><code>audit.append</code></td><td>lignes d'audit du pipeline</td><td>tous (interne)</td><td>—</td></tr>
+  </table>
+  <p class="small" style="margin-top:8px">Chaque op déclare ses appelants, sa permission et son caractère exfiltrant dans <code>contracts</code>. Une op non déclarée n'existe pas (pattern T3 McpToolAccess).</p>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="box warn"><span class="lbl">Limite assumée (v1)</span>
+      <p style="font-size:13px">L'allowlist d'hôtes contrôle les outils qui portent une URL. Un <code>bash</code> avec réseau autorisé peut joindre n'importe quel hôte : la vraie barrière, c'est bwrap sans réseau (<code>sandbox_network: false</code>). Un proxy d'egress par agent (allowlist appliquée au niveau réseau) part en roadmap.</p></div>
+    <div class="box"><span class="lbl">Compatibilité extensions</span>
+      <p style="font-size:13px"><code>pap-policy</code> passe en premier et ne peut pas être contournée par une extension utilisateur : un seul <code>block</code> suffit à bloquer. Les extensions de l'utilisateur gardent le même <code>ctx</code> que dans le CLI (principe pi-web).</p></div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s5-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s5-no-taint" onclick="this.classList.toggle('selected')">Pas de règle « contaminé »</div>
+      <div class="opt" data-choice="s5-bash-allow-interactive" onclick="this.classList.toggle('selected')">bash sans demande en interactif</div>
+      <div class="opt" data-choice="s5-egress-proxy-v1" onclick="this.classList.toggle('selected')">Proxy d'egress dès v1</div>
+      <div class="opt" data-choice="s5-push-timeout" onclick="this.classList.toggle('selected')">Préciser le délai des push</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

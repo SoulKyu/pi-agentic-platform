@@ -11,6 +11,7 @@ Status: design phase (specs not yet written). HTML pages open directly in a brow
 - [architecture/02-session-lifecycle.html](architecture/02-session-lifecycle.html): worker states, daemon ⇄ pi-host protocol, run and containment rules, platform calls, failure cases.
 - [architecture/03-persistence.html](architecture/03-persistence.html): data owners (Pi / SQLite / files), SQLite rules, transcripts never duplicated, retention and backup.
 - [architecture/04-protocol-auth.html](architecture/04-protocol-auth.html): typed contracts, the /ws socket, cursor resume, auth (setup URL, passkeys, tokens), network exposure, remaining HTTP routes (Hono).
+- [architecture/05-policy-pipeline.html](architecture/05-policy-pipeline.html): the tool-call pipeline (denylist, egress, approval, taint, guards, sandbox, redaction, fencing, audit), approval categories, policy profiles, platform ops.
 
 ## Design (DESIGN.md in progress)
 - [design/explorations/01-brand-directions.html](design/explorations/01-brand-directions.html): round 1, four directions (Graphite, Paper & Ink, Mission Control, Aurora).
