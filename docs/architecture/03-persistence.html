@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 3 · Persistance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 960px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .src { font: 10.5px var(--mono); color: var(--muted); margin-top: 6px; display: block; }
+
+  .owners { display: grid; grid-template-columns: 1fr 1.6fr 1fr; gap: 12px; }
+  .owners .box { border-style: dashed; }
+  .owners .pi { border-color: var(--muted); }
+  .owners .db { border-style: solid; border-color: var(--ai); }
+  .owners .fs { border-color: var(--human); }
+  .owners .db .lbl { color: var(--ai); } .owners .fs .lbl { color: var(--human); }
+  ul.files { list-style: none; display: grid; gap: 4px; }
+  ul.files li { font: 11.5px var(--mono); }
+  ul.files li span { color: var(--muted); font-family: var(--ui); font-size: 12px; }
+  .tables { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+  .tables div { border: 1px solid var(--border); background: var(--bg); border-radius: var(--r); padding: 6px 8px; }
+  .tables b { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ai); display: block; }
+  .tables span { font: 11px var(--mono); color: var(--text); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+
+  .warn { border-color: var(--attn); }
+  .warn .lbl { color: var(--attn); }
+
+  .ask { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask .lbl { color: var(--attn); }
+  .ask .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 3 / 9</div>
+  <h1>Persistance</h1>
+  <p class="lead">Trois propriétaires, jamais de copie : Pi garde ses transcripts et sa config, la plateforme met son état dans un seul fichier SQLite, et ce qui doit rester fichier (secrets, homes d'agents, worktrees) reste fichier. Ça remplace la vingtaine de fichiers JSON + verrous de pi-web.</p>
+
+  <h2>1 · Qui possède quoi</h2>
+  <div class="owners">
+    <div class="box pi"><span class="lbl">Pi · ~/.pi/agent · lu sur place</span>
+      <ul class="files">
+        <li>sessions/**/*.jsonl <span>transcripts, source de vérité des messages</span></li>
+        <li>models.json · auth.json · settings.json <span>édités via les helpers du SDK, comme pi-web</span></li>
+        <li>extensions/ · skills/ · prompts/</li>
+        <li>pi-mem0 <span>son propre store ; la plateforme lit ses snapshots et écrit ses fichiers de décision (pi-web)</span></li>
+      </ul></div>
+    <div class="box db"><span class="lbl">pap · ~/.pap/state.db · SQLite (node:sqlite, WAL)</span>
+      <div class="tables">
+        <div><b>sessions</b><span>index : chemin Pi, cwd, projet, lane, agent, titre, pin, archive, settle/snooze</span></div>
+        <div><b>session_events</b><span>bornes de run, approbations, appels plateforme, erreurs · curseur client</span></div>
+        <div><b>session_search</b><span>FTS5 sur le texte des transcripts, alimenté par offset</span></div>
+        <div><b>projects · lanes</b><span>groupes, ordre, lanes A+B, review state</span></div>
+        <div><b>agents · tasks · triggers</b><span>profils, threads, file, déclencheurs, journal de tirs</span></div>
+        <div><b>outbox · receipts</b><span>effets durables, idempotence des commandes</span></div>
+        <div><b>runs</b><span>registre FinOps : tokens, coût provider, coût équivalent API</span></div>
+        <div><b>audit</b><span>append-only (triggers SQL anti UPDATE/DELETE)</span></div>
+        <div><b>users · passkeys · tokens</b><span>auth (décision 10), appareils</span></div>
+        <div><b>settings</b><span>réglages plateforme global / projet / agent</span></div>
+        <div><b>push_subs</b><span>abonnements Web Push</span></div>
+        <div><b>schema_migrations</b><span>migrations appliquées par module</span></div>
+      </div></div>
+    <div class="box fs"><span class="lbl">pap · ~/.pap · fichiers</span>
+      <ul class="files">
+        <li>secrets/ <span>0700 / 0600 : coffres par agent, clé VAPID, clé de signature des sessions. Jamais en base.</span></li>
+        <li>agents/&lt;name&gt;/ <span>home : MEMORY.md versionné (git), prompts/, config MCP de l'agent</span></li>
+        <li>attachments/ <span>réclamés par session, nettoyés à la suppression</span></li>
+        <li>worktrees/ <span>chemin configurable</span></li>
+        <li>logs/ · traces/ <span>NDJSON rotatifs ; runs.jsonl exporté pour Loki</span></li>
+        <li>backups/ <span>snapshots avant migration</span></li>
+      </ul></div>
+  </div>
+
+  <h2>2 · Règles SQLite</h2>
+  <div class="grid3">
+    <div class="box"><span class="lbl">Moteur</span>
+      <ul class="tight">
+        <li><code>node:sqlite</code> intégré à Node 24 : aucun module natif, ce qui garde le binaire SEA simple (T3 et Orca font pareil).</li>
+        <li>Réglages : WAL, <code>synchronous=FULL</code>, <code>busy_timeout=5000</code>, <code>foreign_keys=ON</code>, <code>journal_size_limit=32 MiB</code>.</li>
+        <li>Un seul écrivain, le daemon. Transactions courtes, car l'API est synchrone et bloque l'event loop. La recherche FTS lourde passe dans un worker thread.</li>
+      </ul></div>
+    <div class="box"><span class="lbl">Propriété &amp; migrations</span>
+      <ul class="tight">
+        <li>Chaque module possède ses tables, et seul son <code>store.ts</code> y écrit. Les autres modules passent par son API.</li>
+        <li>Migrations SQL en avance seule, par module (<code>modules/&lt;m&gt;/migrations/NNNN_*.sql</code>), ordonnées par horodatage.</li>
+        <li>Entre deux versions mineures, uniquement des changements additifs (règle Orca). Une base plus récente que le binaire s'ouvre en lecture seule.</li>
+        <li>Snapshot de <code>db + wal + shm</code> avant chaque migration : c'est le rollback (T3).</li>
+      </ul></div>
+    <div class="box"><span class="lbl">Préparer les équipes</span>
+      <ul class="tight">
+        <li>Les entités racines (projects, sessions, agents, triggers, lanes) portent <code>owner_id</code> et <code>workspace_id</code> (décision 1). En v1 : un owner, un workspace <code>default</code>.</li>
+        <li>SQL standard partout sauf FTS5. Postgres n'est pas prévu : à réévaluer quand les équipes arrivent, et la couche store le permet.</li>
+      </ul></div>
+  </div>
+
+  <h2>3 · Transcripts : ne jamais dupliquer Pi</h2>
+  <div class="grid2">
+    <div class="box">
+      <ul class="tight">
+        <li>Une session est identifiée par son <b>chemin de fichier Pi</b> (comme T3 et Orca), plus l'uuid de l'en-tête. Une session lancée depuis le CLI <code>pi</code> apparaît aussi dans la plateforme.</li>
+        <li>Un <b>scanner</b> (fs watch sur <code>~/.pi/agent/sessions</code> + réconciliation périodique) tient l'index <code>sessions</code> et alimente <code>session_search</code>. Il lit par offset en octets, donc chaque fichier n'est relu qu'à partir de là où il s'était arrêté.</li>
+        <li>Session froide : le daemon lit le transcript en lecture seule avec les helpers du SDK (comme pi-web aujourd'hui), sans lancer de worker. Session chaude : <code>get_entries{since}</code> avec un curseur durable.</li>
+        <li><code>session_events</code> ne stocke que ce que Pi n'a pas (runs, approbations, appels plateforme, erreurs). Les deltas de tokens ne sont jamais persistés, seulement diffusés.</li>
+      </ul></div>
+    <div class="box warn"><span class="lbl">À vérifier au spike</span>
+      <ul class="tight">
+        <li>FTS5 est-il compilé dans le SQLite embarqué de Node 24 ? Orca s'en sert via <code>node:sqlite</code>, donc probable, mais à prouver. Sinon : <code>better-sqlite3</code> (module natif, au prix d'un packaging plus lourd).</li>
+        <li>Coût du scan initial sur un gros <code>~/.pi/agent/sessions</code> : il doit tourner en arrière-plan sans bloquer le démarrage.</li>
+      </ul></div>
+  </div>
+
+  <h2>4 · Rétention &amp; sauvegarde</h2>
+  <table>
+    <tr><th>Donnée</th><th>Rétention</th><th>Pourquoi</th></tr>
+    <tr><td><code>runs</code></td><td>illimitée (quelques centaines d'octets par run)</td><td>Historique FinOps. Exporté aussi en <code>logs/runs.jsonl</code> pour promtail / Alloy → Loki (guide pi-web conservé).</td></tr>
+    <tr><td><code>session_events</code></td><td>30 jours après la fin du run</td><td>Ne sert qu'à la reprise par curseur et au détail des runs récents. Le transcript complet reste dans Pi.</td></tr>
+    <tr><td><code>outbox</code> réglé</td><td>7 jours ; les échecs sont gardés jusqu'à résolution</td><td>Règle T3 : un effet en échec bloque le nettoyage de ce qu'il touche.</td></tr>
+    <tr><td><code>audit</code></td><td>12 mois, puis purge explicite par mois via <code>pap audit prune</code></td><td>Append-only : seule une commande d'admin tracée supprime, jamais l'app.</td></tr>
+    <tr><td>journal des triggers</td><td>500 tirs par trigger (pi-web)</td><td>Debug des déclencheurs.</td></tr>
+    <tr><td>logs / traces</td><td>rotation 10 MiB × 10</td><td>Borné sur un petit VPS.</td></tr>
+  </table>
+  <p class="small" style="margin-top:10px"><code>pap backup</code> : backup en ligne de SQLite plus une archive de <code>~/.pap</code>, sans les worktrees ni les attachments s'il le faut. Pas de planificateur intégré : timer systemd documenté, sur le modèle GitOps et cron de ton infra. <code>pap restore</code> pour la reprise.</p>
+
+  <div class="ask">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s3-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s3-secrets-encrypted-db" onclick="this.classList.toggle('selected')">Secrets chiffrés en base</div>
+      <div class="opt" data-choice="s3-postgres" onclick="this.classList.toggle('selected')">Prévoir Postgres dès v1</div>
+      <div class="opt" data-choice="s3-retention" onclick="this.classList.toggle('selected')">Autres durées de rétention</div>
+      <div class="opt" data-choice="s3-audit-files" onclick="this.classList.toggle('selected')">Audit en fichiers (comme pi-web)</div>
+      <div class="opt" data-choice="s3-builtin-backup" onclick="this.classList.toggle('selected')">Backup planifié intégré</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
