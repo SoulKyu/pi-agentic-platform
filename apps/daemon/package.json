@@ -8,7 +8,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build": "tsc -p tsconfig.build.json",
+    "build": "tsc -p tsconfig.build.json && node --disable-warning=ExperimentalWarning ../../scripts/copy-sql.ts",
     "dev": "node --disable-warning=ExperimentalWarning --conditions=development --watch src/main.ts serve --dev"
   },
   "dependencies": {
