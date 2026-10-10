@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 9 · Packaging et release</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .src { font: 10.5px var(--mono); color: var(--muted); margin-top: 6px; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  .ch { border-top: 3px solid var(--ai); }
+  .ch.c2 { border-top-color: var(--human); } .ch.c3 { border-top-color: var(--ok); }
+  .ch .t { font: 700 15px var(--ui); margin-bottom: 2px; }
+  .ch pre { font: 11.5px/1.6 var(--mono); background: var(--bg); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; margin: 8px 0; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .tier { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .tier.t1 { color: var(--ok); border: 1px solid #34D39966; }
+  .tier.t2 { color: var(--human); border: 1px solid #FB923C88; }
+  .tier.t3 { color: var(--muted); border: 1px solid var(--border-strong); }
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .steps div { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 9px 10px; font-size: 12.5px; }
+  .steps div b { display: block; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ai); margin-bottom: 3px; }
+  .steps div.rb b { color: var(--attn); }
+  .warn { border-color: var(--attn); } .warn .lbl { color: var(--attn); }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .ask-box .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 9 / 9</div>
+  <h1>Packaging et release</h1>
+  <p class="lead">Trois canaux (décision 8), un seul artefact applicatif : le daemon, la SPA et <code>pi-host</code> construits une fois, puis emballés trois fois. Aucune télémétrie. La vérification de mise à jour peut être désactivée.</p>
+
+  <h2>1 · Les trois canaux</h2>
+  <div class="grid3">
+    <div class="box ch"><div class="t">Archive autonome</div><span class="lbl">« binaire natif » · Linux / macOS</span>
+<pre>curl -fsSL https://…/install.sh | sh
+pap service install</pre>
+      <ul class="tight">
+        <li>Un tar.gz par plateforme : Node 24 épinglé, l'app et ses <code>node_modules</code> de prod, un lanceur <code>pap</code>. Aucun Node requis sur l'hôte.</li>
+        <li>Installé dans <code>~/.local/share/pap/versions/&lt;v&gt;</code>, avec un lien <code>~/.local/bin/pap</code>.</li>
+        <li>SHA256SUMS signés (cosign keyless).</li>
+      </ul></div>
+    <div class="box ch c2"><div class="t">Image conteneur</div><span class="lbl">OCI · amd64 + arm64</span>
+<pre>docker run -p 127.0.0.1:7777:7777 \
+  -v pap:/home/pap/.pap -v pi:/home/pap/.pi \
+  -v ~/code:/work ghcr.io/…/pap</pre>
+      <ul class="tight">
+        <li>Base <code>node:24-bookworm-slim</code> avec git, gh, bubblewrap, openssh-client et tini. Utilisateur non-root <code>pap</code>.</li>
+        <li>Signée avec cosign, avec SBOM (syft) et provenance SLSA (buildx).</li>
+        <li>Exemple <code>compose.yaml</code> fourni. Helm plus tard, avec les équipes.</li>
+      </ul></div>
+    <div class="box ch c3"><div class="t">npm</div><span class="lbl">pour qui a déjà Node 24</span>
+<pre>npx pi-agentic-platform serve
+npm i -g pi-agentic-platform</pre>
+      <ul class="tight">
+        <li>Même app, qui s'appuie sur le Node de l'hôte. Binaire <code>pap</code>.</li>
+        <li><code>node-pty</code> : prebuilds, et le postinstall de pi-web (<code>prepare-terminal</code>) est conservé.</li>
+        <li>Publication avec provenance npm (OIDC, comme T3).</li>
+      </ul></div>
+  </div>
+  <div class="box warn" style="margin-top:12px"><span class="lbl">Pourquoi pas un binaire SEA unique (comme T3)</span>
+    <p style="font-size:13px">Deux raisons. <code>node-pty</code> est un module natif, et un SEA ne l'embarque pas proprement. Surtout, le SDK Pi charge les extensions de l'utilisateur depuis de vrais fichiers, qui importent le paquet Pi. Une archive avec Node et de vrais <code>node_modules</code> évite ces deux pièges, et c'est ce que fait Orca pour son daemon headless. On pourra revoir la question au spike.</p></div>
+
+  <h2>2 · Plateformes</h2>
+  <table>
+    <tr><th style="width:200px">Plateforme</th><th style="width:110px">Niveau</th><th>Ce qui marche, ce qui manque</th></tr>
+    <tr><td>Linux x64 / arm64</td><td><span class="tier t1">tier 1</span></td><td>Tout : bwrap, scopes systemd, service systemd user. Testé en CI et en e2e.</td></tr>
+    <tr><td>Conteneur</td><td><span class="tier t1">tier 1</span></td><td>Tout, sauf les scopes systemd (on utilise les limites du conteneur). bwrap demande que l'hôte autorise les user namespaces, sinon voir la règle ci-dessous.</td></tr>
+    <tr><td>macOS arm64</td><td><span class="tier t2">tier 2</span></td><td>Service launchd. Pas de bwrap ni de systemd : la sandbox n'est pas disponible.</td></tr>
+    <tr><td>Windows</td><td><span class="tier t3">via WSL2</span></td><td>Documenté via WSL2 (Linux tier 1). Pas de build Windows natif en v1, donc l'interrupteur PowerShell de pi-web n'est pas repris.</td></tr>
+  </table>
+  <p class="small" style="margin-top:8px"><b style="color:var(--attn)">Règle fail closed :</b> si le profil d'un agent exige la sandbox et que bwrap n'est pas utilisable (macOS, conteneur sans userns), l'agent <b>refuse de démarrer</b> avec une raison claire. Il ne tourne jamais sans sandbox en silence. <code>pap doctor</code> l'annonce dès l'installation.</p>
+
+  <h2>3 · Mise à jour (archive autonome)</h2>
+  <div class="steps">
+    <div><b>1 · Télécharger</b>Version du canal (<code>stable</code> ou <code>next</code>), vérification de la signature et du SHA256.</div>
+    <div><b>2 · Préparer</b>Décompression à côté, dans <code>versions/&lt;v&gt;</code>. Rien n'est écrasé.</div>
+    <div><b>3 · Basculer</b>Snapshot de la base (section 3), lien <code>current</code>, redémarrage du service.</div>
+    <div><b>4 · Vérifier</b><code>/healthz</code> doit répondre « prêt » dans les 60 s (migrations passées, récupération faite).</div>
+    <div class="rb"><b>5 · Sinon, retour</b>Lien vers l'ancienne version, restauration du snapshot, redémarrage. <code>pap rollback</code> à la main aussi.</div>
+  </div>
+  <p class="small" style="margin-top:8px">Version simplifiée du « trial, commit, rollback » de T3. Conteneur : on change de tag, et le snapshot reste dans le volume. npm : <code>npm i -g …@latest</code>. Dans l'app, un bandeau « mise à jour disponible » reprend pi-web, et le bouton de mise à jour n'existe que pour l'archive autonome.</p>
+
+  <h2>4 · Release</h2>
+  <div class="grid2">
+    <div class="box">
+      <ul class="tight">
+        <li>Canaux <code>stable</code> et <code>next</code> (pré-release). Pas de nightly public en v1.</li>
+        <li><b>release-please</b> : les Conventional Commits produisent le changelog et la PR de release, et le tag déclenche les builds des trois canaux.</li>
+        <li>Chaque release épingle une version du SDK Pi. Le job compat de nuit (section 8) indique quand la monter.</li>
+      </ul></div>
+    <div class="box">
+      <ul class="tight">
+        <li><b>Service</b> : <code>pap service install</code> écrit une unit systemd user (avec un conseil pour <code>loginctl enable-linger</code>) ou un plist launchd. <code>Restart=on-failure</code>. Les workers vivent dans leurs propres scopes.</li>
+        <li><b>Zéro télémétrie</b>. La seule requête sortante de la plateforme est la vérification de version, désactivable (<code>PAP_UPDATE_CHECK=0</code>).</li>
+      </ul></div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s9-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s9-windows-native" onclick="this.classList.toggle('selected')">Windows natif en v1</div>
+      <div class="opt" data-choice="s9-homebrew" onclick="this.classList.toggle('selected')">Ajouter Homebrew / apt</div>
+      <div class="opt" data-choice="s9-nightly" onclick="this.classList.toggle('selected')">Canal nightly public</div>
+      <div class="opt" data-choice="s9-registry" onclick="this.classList.toggle('selected')">Autre registre que ghcr.io</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

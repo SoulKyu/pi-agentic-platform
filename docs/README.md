@@ -15,6 +15,7 @@ Status: design phase (specs not yet written). HTML pages open directly in a brow
 - [architecture/06-automation-outbox.html](architecture/06-automation-outbox.html): trigger → gates → one transaction → runner → end, the outbox and its replay classes, boot recovery, webhook / precheck / feed / quota details.
 - [architecture/07-frontend.html](architecture/07-frontend.html): front layers, library choices (tiptap composer, CodeMirror, TanStack Router, zustand, Radix), what is kept from pi-web, web folder layout.
 - [architecture/08-testing-quality.html](architecture/08-testing-quality.html): test levels, the scripted Pi provider, security tests, blocking quality gates, CI pipeline, dev isolation and repo conventions.
+- [architecture/09-packaging-release.html](architecture/09-packaging-release.html): three channels (archive, OCI image, npm), platform tiers, fail-closed sandbox rule, update with auto-rollback, release process.
 
 ## Design (DESIGN.md in progress)
 - [design/explorations/01-brand-directions.html](design/explorations/01-brand-directions.html): round 1, four directions (Graphite, Paper & Ink, Mission Control, Aurora).
