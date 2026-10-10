@@ -38,6 +38,7 @@ Status: design phase (specs A, C, D written; DESIGN.md in progress). HTML pages 
 - [design/explorations/09-agent-space-inbox.html](design/explorations/09-agent-space-inbox.html): round 7, agent thread + status panel + Inbox drawer. **Validated as shown.**
 - [design/explorations/10-lanes.html](design/explorations/10-lanes.html): round 8, lane cockpit + review, fan-out compare, new lane from issue. **Validated as shown.**
 - [design/explorations/11-automation.html](design/explorations/11-automation.html): round 9, trigger editor + dry-run + fire journal, global tasks board. **Validated as shown.**
+- [design/explorations/12-mobile-system.html](design/explorations/12-mobile-system.html): round 10, mobile PWA screens + setup, login, ⌘K, states. **Validated as shown.**
 
 ## Research
 - [research/pi-web-inventory.md](research/pi-web-inventory.md): every pi-web feature (D01–D22), source of the matrix rows.

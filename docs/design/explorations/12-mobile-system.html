@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 10 · Mobile et écrans système</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; --leg1:#A78BFA; --leg2:#FB923C; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 1000px; }
+  .cap { margin: 26px 0 10px; font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: #52525b; }
+  .grid-m { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .phone { width: 100%; max-width: 290px; height: 590px; margin: 0 auto; background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); border-radius: 30px; border: 7px solid #18181b; overflow: hidden; display: flex; flex-direction: column; position: relative;
+           background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 20px 20px; }
+  .phone .sb { height: 26px; display: flex; justify-content: space-between; padding: 6px 18px 0; font: 600 11px var(--ui); }
+  .phone .mh { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .phone .mh .t { font: 700 14px var(--ui); }
+  .phone .mh .s { font: 10.5px var(--mono); color: var(--muted); }
+  .phone .mb { flex: 1; padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; }
+  .nav { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); background: var(--side); padding-bottom: 12px; }
+  .nav span { font: 600 9px var(--mono); text-transform: uppercase; text-align: center; padding: 9px 0 6px; color: var(--muted); }
+  .nav span.on { color: var(--ai); box-shadow: inset 0 2px 0 var(--ai); }
+  .nav span b { display: inline-block; background: var(--attn); color: #fff; border-radius: 7px; font-size: 8.5px; padding: 0 4px; margin-left: 2px; }
+  .cap2 { text-align: center; font-size: 12.5px; color: #52525b; margin-top: 8px; }
+  .av { width: 28px; height: 28px; border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--ui); position: relative; background: var(--bg); flex: none; }
+  .chip { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.run { color: var(--ai); border-color: #A78BFA88; } .chip.ok { color: var(--ok); border-color: #34D39966; } .chip.att { color: var(--attn); border-color: #EC489988; } .chip.ext { color: var(--attn); border-color: #EC489988; border-style: dashed; } .chip.mut { color: var(--muted); border-color: var(--border-strong); }
+  .btn { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 10px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 2px; border: 1px solid var(--border-strong); color: var(--text); white-space: nowrap; }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .btn.big { height: 44px; font-size: 11.5px; flex: 1; }
+  .push { margin: 6px 8px 0; background: #2A2638EE; border-radius: 14px; padding: 9px 11px; font-size: 12px; display: grid; grid-template-columns: 26px 1fr; gap: 8px; }
+  .push b { font: 700 12px var(--ui); }
+  .push small { display: block; color: var(--muted); font-size: 11px; }
+  .approve { border: 1px solid #EC48998C; background: #EC48991A; border-radius: 3px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .approve small { font: 600 9.5px var(--mono); color: var(--attn); text-transform: uppercase; letter-spacing: .1em; }
+  .approve .q { font: 700 15px var(--ui); }
+  .approve code, .mb code { font: 11px var(--mono); background: var(--surface2); padding: 1px 4px; border-radius: 2px; }
+  .ctx { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; padding: 8px; font: 11px/1.5 var(--mono); color: var(--muted); }
+  .a { border-left: 2px solid var(--ai); padding-left: 9px; font-size: 13px; }
+  .a small { display: block; font: 600 9.5px var(--mono); color: var(--ai); text-transform: uppercase; letter-spacing: .1em; }
+  .u { align-self: flex-end; max-width: 85%; background: #FB923C1A; border: 1px solid #FB923C66; color: #FED7AA; padding: 6px 9px; border-radius: 3px; font-size: 13px; }
+  .comp { border: 1px solid var(--human); border-radius: 3px; padding: 9px 10px; background: var(--surface); color: var(--muted); font-size: 13px; margin: 0 12px 8px; min-height: 44px; display: flex; align-items: center; justify-content: space-between; }
+  .comp .send { width: 30px; height: 30px; background: var(--human); color: #1B0D00; border-radius: 2px; display: grid; place-items: center; font-weight: 800; }
+  .row { display: grid; grid-template-columns: 28px 1fr auto; gap: 9px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+  .row small { display: block; font: 10.5px var(--mono); color: var(--muted); }
+  .seg { display: flex; border: 1px solid var(--border-strong); border-radius: 2px; overflow: hidden; }
+  .seg span { flex: 1; text-align: center; font: 600 9.5px var(--mono); text-transform: uppercase; padding: 6px 0; color: var(--muted); border-right: 1px solid var(--border-strong); }
+  .seg span:last-child { border-right: none; } .seg span.on { color: var(--text); background: var(--surface2); box-shadow: inset 0 -2px 0 var(--ai); }
+  .diff { font: 10.5px/1.6 var(--mono); border: 1px solid var(--border); border-radius: 2px; overflow: hidden; }
+  .diff div { padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .diff .p { background: #34D39914; color: var(--ok); } .diff .m { background: #F8717114; color: var(--err); }
+
+  /* system screens */
+  .grid-s { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .scr { background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); border-radius: 12px; overflow: hidden; min-height: 330px; box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 10px 30px rgba(0,0,0,.1); position: relative;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .center { display: grid; place-items: center; min-height: 330px; padding: 20px; }
+  .box { width: 340px; border: 1px solid var(--border-strong); background: var(--side); border-radius: 3px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+  .box .lk { display: flex; align-items: center; gap: 10px; }
+  .box .lk .w { font: 800 22px var(--ui); letter-spacing: -.02em; }
+  .box .lk .tg { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); margin-left: auto; }
+  .box h3 { font: 800 16px var(--ui); }
+  .box p { font-size: 12.5px; color: var(--muted); }
+  .in { border: 1px solid var(--border-strong); background: var(--bg); border-radius: 2px; padding: 8px 10px; font-size: 13px; color: var(--muted); }
+  .steps { display: flex; gap: 6px; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  .steps span.on { color: var(--ai); }
+  .or { display: flex; align-items: center; gap: 8px; font: 600 9.5px var(--mono); color: var(--muted); text-transform: uppercase; }
+  .or::before, .or::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .pal { position: absolute; top: 34px; left: 50%; transform: translateX(-50%); width: 520px; border: 1px solid var(--border-strong); background: var(--side); border-radius: 3px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+  .pal .q { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; font-size: 14px; }
+  .pal .q .caret { width: 1px; height: 16px; background: var(--human); }
+  .pal .g { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 8px 12px 3px; }
+  .pal .it { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; padding: 6px 12px; font-size: 12.5px; align-items: center; }
+  .pal .it.on { background: var(--surface2); box-shadow: inset 2px 0 0 var(--ai); }
+  .pal .it small { display: block; font: 10.5px var(--mono); color: var(--muted); }
+  .pal .it mark { background: #FB923C33; color: var(--text); padding: 0 1px; }
+  .pal .ic { width: 22px; height: 22px; border: 1px solid var(--border-strong); border-radius: 2px; display: grid; place-items: center; font: 600 10px var(--mono); color: var(--muted); }
+  .kbd { font: 600 9.5px var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 5px; }
+  .states { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .st { border-radius: 3px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; }
+  .st small { display: block; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+  .st.crash { border: 1px solid #F8717188; background: #F8717114; } .st.crash small { color: var(--err); }
+  .st.cap { border: 1px solid var(--border-strong); background: var(--surface); } .st.cap small { color: var(--muted); }
+  .st.off { border: 1px dashed var(--border-strong); } .st.off small { color: var(--muted); }
+  .st.toast { border: 1px solid var(--border-strong); background: var(--side); box-shadow: 0 8px 24px rgba(0,0,0,.4); align-self: flex-end; width: 330px; }
+  .empty { border: 1px dashed var(--border-strong); border-radius: 3px; padding: 18px; text-align: center; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .empty h4 { font: 800 15px var(--ui); }
+  .empty p { font-size: 12.5px; color: var(--muted); max-width: 360px; }
+  .sp { flex: 1; }
+
+  .ask { margin-top: 26px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .ask .r b { width: 100%; font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: .06em; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="pi2" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="currentColor"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--leg1)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--leg2)"/></symbol>
+</defs></svg>
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 10 : mobile et écrans système</h1>
+    <p>Dernier round avant d'écrire DESIGN.md. Sur mobile : une approbation arrivée par push, le thread d'un agent, la review d'une lane, l'Inbox. Côté système : le premier démarrage, le login, la palette ⌘K et les états (crash, capacité, hors-ligne, vide, toast d'annulation). Même grammaire Night Control, cibles tactiles de 44 px.</p>
+  </div>
+
+  <div class="cap">1 · Mobile (PWA)</div>
+  <div class="grid-m">
+    <div><div class="phone">
+      <div class="sb"><span>14:06</span><span>●●● 5G</span></div>
+      <div class="push"><div class="av" style="width:26px;height:26px;font-size:10px">AT</div><div><b>Atlas · approbation</b><small>Open PR fix/lru-ttl-zero on infra/api ?</small></div></div>
+      <div class="mb" style="margin-top:6px">
+        <div class="approve"><small>Approval · external write · contenu externe</small><div class="q">Ouvrir la PR <code>fix/lru-ttl-zero</code> sur <code>infra/api</code> ?</div>
+          <div class="ctx">+38 −6 · 2 fichiers<br>déclenché par webhook prod-alerts<br>tests : ok (14 s)</div>
+          <div style="display:flex;gap:8px"><span class="btn big">Refuser</span><span class="btn big pri">Autoriser</span></div>
+          <span class="btn" style="height:36px">Autoriser pour la session</span></div>
+        <div class="a"><small>Atlas · 14:02</small>The api pod has been above 90% memory for 10 minutes…</div>
+      </div>
+      <div class="nav"><span>Agents</span><span>Work</span><span>Lists</span><span class="on">Inbox<b>2</b></span></div>
+    </div><div class="cap2">Approbation depuis un push</div></div>
+
+    <div><div class="phone">
+      <div class="sb"><span>14:08</span><span>●●● 5G</span></div>
+      <div class="mh"><div class="av">AT</div><div><div class="t">Atlas</div><div class="s">working · $1.84 aujourd'hui</div></div><span class="sp"></span><span class="chip ext">externe</span></div>
+      <div class="mb">
+        <div class="u">Go, but don't merge. Ping me when CI is green.</div>
+        <div class="a"><small>Atlas · 14:06</small>PR #92 opened. CI running, I'll notify you.</div>
+        <div class="ctx" style="border-style:solid">⏱ remind 16:00 « check CI » <span style="float:right;color:var(--human)">Annuler</span></div>
+      </div>
+      <div style="display:flex;gap:6px;padding:0 12px 6px;overflow:hidden"><span class="chip mut" style="text-transform:none;font-size:10.5px">/postmortem</span><span class="chip mut" style="text-transform:none;font-size:10.5px">/weekly-report</span></div>
+      <div class="comp">Message Atlas…<span class="send">↑</span></div>
+      <div class="nav"><span class="on">Agents</span><span>Work</span><span>Lists</span><span>Inbox</span></div>
+    </div><div class="cap2">Thread d'agent</div></div>
+
+    <div><div class="phone">
+      <div class="sb"><span>14:20</span><span>●●● 5G</span></div>
+      <div class="mh"><div><div class="t">feat/checkpoints</div><div class="s">in review · ↑3 · PR #91 ✓</div></div></div>
+      <div class="mb">
+        <div class="seg"><span>Chat</span><span class="on">Review</span><span>Term</span></div>
+        <div style="font:10.5px var(--mono);color:var(--muted)">Turn 4 · Seen 2 / 5 · 1 commentaire</div>
+        <div class="row"><span class="chip ok" style="padding:0 4px">✓</span><div>lanes/checkpoint.go<small>+48 −9</small></div><span></span></div>
+        <div class="row" style="border-bottom:none"><span class="chip mut" style="padding:0 4px">·</span><div>lanes/restore.go<small>+31 −4</small></div><span></span></div>
+        <div class="diff"><div class="p">+ if err := Capture(cwd, undoRef(cwd)); …</div><div class="p">+   return fmt.Errorf("capture undo: %w")</div><div class="m">− exec("git", "checkout", commit)</div><div class="p">+ return restoreTree(cwd, commit)</div></div>
+        <div style="display:flex;gap:8px"><span class="btn big">Commenter</span><span class="btn big pri">Envoyer à Atlas</span></div>
+      </div>
+      <div class="nav"><span>Agents</span><span class="on">Work</span><span>Lists</span><span>Inbox</span></div>
+    </div><div class="cap2">Review d'une lane</div></div>
+
+    <div><div class="phone">
+      <div class="sb"><span>14:30</span><span>●●● 5G</span></div>
+      <div class="mh"><div class="t">Inbox</div><span class="sp"></span><span class="btn">Tout lire</span></div>
+      <div class="mb" style="gap:0">
+        <div class="row" style="background:#EC48990F;box-shadow:inset 2px 0 0 var(--attn);padding-left:6px"><div class="av" style="--c:var(--attn)">SC</div><div><b>Scout</b> · approbation<small>push staging · 4 min</small></div><span class="btn">Ouvrir</span></div>
+        <div class="row"><div class="av" style="--c:#6B6485">LG</div><div><b>Ledger</b> · tâche terminée<small>Monthly cost report · $0.31</small></div><span></span></div>
+        <div class="row"><div class="av">AT</div><div><b>Atlas</b> · réponse<small>PR #92 opened · 14:06</small></div><span></span></div>
+        <div class="row"><div class="av">AT</div><div><b>Atlas</b> · digest heures calmes<small>3 tâches cette nuit · $0.44</small></div><span></span></div>
+      </div>
+      <div class="nav"><span>Agents</span><span>Work</span><span>Lists</span><span class="on">Inbox<b>1</b></span></div>
+    </div><div class="cap2">Inbox</div></div>
+  </div>
+
+  <div class="cap">2 · Écrans système</div>
+  <div class="grid-s">
+    <div class="scr"><div class="center"><div class="box">
+      <div class="lk"><svg width="30" height="30" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><span class="w">pap</span><span class="tg">premier démarrage</span></div>
+      <div class="steps"><span class="on">1 · compte</span><span>→</span><span>2 · passkey</span><span>→</span><span>3 · Pi</span></div>
+      <h3>Crée le compte owner</h3>
+      <p>Ce lien de setup est à usage unique et vient du log du daemon. Personne d'autre ne peut s'approprier cette instance.</p>
+      <div class="in">Nom d'utilisateur</div><div class="in">Mot de passe (récupération)</div>
+      <span class="btn pri" style="height:36px">Continuer · créer un passkey</span>
+    </div></div></div>
+
+    <div class="scr"><div class="center"><div class="box">
+      <div class="lk"><svg width="30" height="30" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><span class="w">pap</span><span class="tg">pap.home.arpa</span></div>
+      <span class="btn pri" style="height:40px">Se connecter avec un passkey</span>
+      <div class="or">ou</div>
+      <div class="in">Nom d'utilisateur</div><div class="in">Mot de passe</div>
+      <span class="btn" style="height:34px">Se connecter</span>
+      <p style="font-size:11.5px">Après 5 essais, attente progressive (throttle par IP et par compte).</p>
+    </div></div></div>
+
+    <div class="scr" style="min-height:360px">
+      <div style="height:34px;border-bottom:1px solid var(--border);background:var(--side)"></div>
+      <div class="pal">
+        <div class="q"><span style="color:var(--muted)">⌘K</span><span>restore che</span><span class="caret"></span><span class="sp"></span><span class="kbd">›</span><span style="font-size:11px;color:var(--muted)">actions</span></div>
+        <div class="g">Lanes</div>
+        <div class="it on"><span class="ic">⑂</span><div>feat/checkpoints<small>pi-agentic · in review · PR #91</small></div><span class="kbd">↵</span></div>
+        <div class="g">Sessions</div>
+        <div class="it"><span class="ic">≡</span><div>Make <mark>restore</mark> undoable…<small>feat/checkpoints · Atlas · hier</small></div><span class="kbd">⌘2</span></div>
+        <div class="g">Recherche dans les transcripts (FTS5)</div>
+        <div class="it"><span class="ic">“</span><div>« …<mark>restore</mark> captures refs/pi/<mark>checkpoints</mark>/undo first… »<small>Atlas · turn 4 · il y a 2 h</small></div><span></span></div>
+        <div class="g">Actions</div>
+        <div class="it"><span class="ic">›</span><div>Restore files to this point<small>lane courante</small></div><span class="kbd">⌘⇧R</span></div>
+      </div>
+    </div>
+
+    <div class="scr" style="min-height:360px"><div class="states">
+      <div class="st crash"><div style="flex:1"><small>Agent process killed · out of memory</small>Le worker d'Atlas a dépassé MemoryMax (2 GB). Le run est interrompu, le transcript est intact.</div><span class="btn">Détails</span><span class="btn pri">Relancer</span></div>
+      <div class="st cap"><div style="flex:1"><small>Capacité atteinte · 6 / 6 workers</small>Session non démarrée. Ferme une session inactive ou augmente le plafond dans Réglages › Santé.</div><span class="btn">Réglages</span></div>
+      <div class="st off"><div style="flex:1"><small>Reconnexion…</small>Le daemon ne répond plus. Nouvelle tentative dans 8 s. Tes brouillons restent sur l'appareil.</div><span class="btn">Réessayer</span></div>
+      <div class="empty"><h4>Aucun agent pour l'instant</h4><p>Un agent long-terme a son propre thread, sa mémoire, son budget et ses triggers. Commence par un agent d'astreinte ou de veille.</p><span class="btn pri">Créer un agent</span></div>
+      <div class="st toast"><div style="flex:1"><small>Lane archivée</small>chore/deps-bump</div><span class="btn">Annuler</span></div>
+    </div></div>
+  </div>
+
+  <div class="ask">
+    <h3>Ton avis</h3>
+    <p>Valide l'ensemble ou coche ce que tu veux changer.</p>
+    <div class="r"><b>Global</b><div class="opt" data-choice="r10-ok" onclick="this.classList.toggle('selected')">OK tel quel</div></div>
+    <div class="r"><b>Mobile</b>
+      <div class="opt" data-choice="r10-push-actions" onclick="this.classList.toggle('selected')">Boutons Autoriser / Refuser directement dans la notification push</div>
+      <div class="opt" data-choice="r10-mobile-nav-labels" onclick="this.classList.toggle('selected')">Revoir les libellés de la nav mobile</div>
+    </div>
+    <div class="r"><b>Système</b>
+      <div class="opt" data-choice="r10-passkey-only" onclick="this.classList.toggle('selected')">Masquer le mot de passe derrière « autre méthode »</div>
+      <div class="opt" data-choice="r10-onboarding-tour" onclick="this.classList.toggle('selected')">Ajouter une visite guidée au premier lancement</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
