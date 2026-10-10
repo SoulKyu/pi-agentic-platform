@@ -1,0 +1,40 @@
+/* Test fixture: Task 24's E1 token subset (docs/plans/2026-10-10-m0-m1-spikes-skeleton.md, Task 24 step 4),
+   night values only. The real file is packages/ui/src/tokens.css. */
+@theme inline {
+  --color-bg: var(--pap-bg);
+  --color-panel: var(--pap-panel);
+  --color-line: var(--pap-line);
+  --color-fg: var(--pap-fg);
+  --color-muted: var(--pap-muted);
+  --color-agent: var(--pap-agent);
+  --color-agent-fill: var(--pap-agent-fill);
+  --color-human: var(--pap-human);
+  --color-human-fill: var(--pap-human-fill);
+  --color-on-fill: var(--pap-on-fill);
+  --color-attention: var(--pap-attention);
+  --color-ok: var(--pap-ok);
+  --color-error: var(--pap-error);
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-label: 0.6875rem;
+  --text-ui: 0.8125rem;
+  --text-chat: 0.875rem;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+}
+
+:root {
+  --pap-bg: #110f18;
+  --pap-panel: #1a1724;
+  --pap-line: #2d2840;
+  --pap-fg: #f2effa;
+  --pap-muted: #9c95b5;
+  --pap-agent: #a78bfa;
+  --pap-agent-fill: #a78bfa;
+  --pap-human: #fb923c;
+  --pap-human-fill: #fb923c;
+  --pap-on-fill: #110f18;
+  --pap-attention: #ec4899;
+  --pap-ok: #34d399;
+  --pap-error: #f87171;
+}

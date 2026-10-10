@@ -1,0 +1,24 @@
+{
+  "tailwind": "4.3.3",
+  "classesUsed": 28,
+  "generated": 28,
+  "missing": [],
+  "controlGenerated": false,
+  "cssBytes": 8311,
+  "aboveSafari164InGeneratedCss": {
+    "nativeNesting": false,
+    "lightDark": false,
+    "fieldSizing": false,
+    "textBalance": false
+  },
+  "rendered": {
+    "agentRule": true,
+    "youRule": true,
+    "headerElement": true,
+    "actionHasScreenReaderLabel": true,
+    "actionIsTypeButton": true,
+    "branchIsGroup": true,
+    "branchLabels": true,
+    "branchHiddenWhenSingle": true
+  }
+}

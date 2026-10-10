@@ -1,0 +1,2348 @@
+{
+  "commit": "6a9d5b1822ffb10bba4bd97175f01edd7d8651cd",
+  "summary": {
+    "shadcnSemanticColourNames": {
+      "muted-foreground": 101,
+      "muted": 35,
+      "background": 18,
+      "foreground": 25,
+      "border": 5,
+      "accent": 7,
+      "accent-foreground": 1,
+      "popover-foreground": 3,
+      "secondary": 6,
+      "card": 3,
+      "ring": 1,
+      "destructive": 10,
+      "primary": 6,
+      "primary-foreground": 2
+    },
+    "components": 49,
+    "importingAiSdk": 12,
+    "importingNext": 0,
+    "aiValueImports": 0,
+    "usingUseChat": 0,
+    "cnCallsTotal": 314,
+    "withRawPaletteClasses": 9,
+    "withRawColourLiterals": 1,
+    "withArbitraryValues": 18,
+    "withArbitraryVariants": 5
+  },
+  "dependencyLicences": {
+    "@radix-ui/react-use-controllable-state": "MIT",
+    "@rive-app/react-webgl2": "MIT",
+    "@streamdown/cjk": "Apache-2.0",
+    "@streamdown/code": "Apache-2.0",
+    "@streamdown/math": "Apache-2.0",
+    "@streamdown/mermaid": "Apache-2.0",
+    "@xyflow/react": "MIT",
+    "ai": "Apache-2.0",
+    "ansi-to-react": "BSD-3-Clause",
+    "class-variance-authority": "Apache-2.0",
+    "katex": "MIT",
+    "lucide-react": "ISC",
+    "media-chrome": "MIT",
+    "motion": "MIT",
+    "nanoid": "MIT",
+    "react": "MIT",
+    "react-dom": "MIT",
+    "react-jsx-parser": "MIT",
+    "shiki": "MIT",
+    "streamdown": "Apache-2.0",
+    "tokenlens": "MIT",
+    "use-stick-to-bottom": "MIT"
+  },
+  "files": {
+    "agent": {
+      "lines": 142,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "Tool"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 7,
+      "next": [],
+      "shadcnPrimitives": [
+        "accordion",
+        "badge"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "muted"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "artifact": {
+      "lines": 149,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 8,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "tooltip"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background",
+        "muted",
+        "muted-foreground",
+        "foreground",
+        "foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "attachments": {
+      "lines": 427,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "FileUIPart",
+        "SourceDocumentUIPart"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 8,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "hover-card"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "border",
+        "accent",
+        "accent-foreground",
+        "accent",
+        "accent",
+        "muted-foreground",
+        "muted",
+        "background",
+        "muted",
+        "muted-foreground",
+        "background",
+        "background",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 3,
+        "examples": [
+          "[&>svg]:size-3",
+          "[&>svg]:size-2",
+          "[&>svg]:size-4"
+        ]
+      },
+      "aboveSafari164": []
+    },
+    "audio-player": {
+      "lines": 232,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "Experimental_SpeechResult as SpeechResult"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 6,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "button-group"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "media-chrome/react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "canvas": {
+      "lines": 27,
+      "useClient": false,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 0,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "@xyflow/react",
+        "@xyflow/react/dist/style.css"
+      ],
+      "heavy": [
+        "@xyflow/react"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "chain-of-thought": {
+      "lines": 223,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 8,
+      "next": [],
+      "shadcnPrimitives": [
+        "badge",
+        "collapsible"
+      ],
+      "radix": [
+        "@radix-ui/react-use-controllable-state"
+      ],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "foreground",
+        "foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "border",
+        "muted-foreground",
+        "popover-foreground",
+        "muted",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 6,
+        "examples": [
+          "data-[state=closed]",
+          "data-[state=open]",
+          "max-h-[22rem]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "checkpoint": {
+      "lines": 72,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 2,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "separator",
+        "tooltip"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "code-block": {
+      "lines": 563,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 10,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "select"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react",
+        "shiki"
+      ],
+      "heavy": [
+        "shiki"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "background",
+        "foreground",
+        "muted",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 5,
+        "examples": [
+          "bg-[var(--shiki-dark-bg)]",
+          "text-[var(--shiki-dark)]",
+          "before:content-[counter(line)]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "commit": {
+      "lines": 459,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 21,
+      "next": [],
+      "shadcnPrimitives": [
+        "avatar",
+        "button",
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 12,
+        "examples": [
+          "text-green-600",
+          "text-green-400",
+          "text-red-600",
+          "text-red-400",
+          "text-yellow-600",
+          "text-yellow-400"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background",
+        "muted-foreground",
+        "muted",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "confirmation": {
+      "lines": 170,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "ToolUIPart"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 3,
+      "next": [],
+      "shadcnPrimitives": [
+        "alert",
+        "button"
+      ],
+      "radix": [],
+      "thirdParty": [],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "connection": {
+      "lines": 29,
+      "useClient": false,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 0,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "@xyflow/react"
+      ],
+      "heavy": [
+        "@xyflow/react"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 1,
+        "examples": [
+          "\"#fff"
+        ]
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "context": {
+      "lines": 410,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "LanguageModelUsage"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 8,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "hover-card",
+        "progress"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "tokenlens"
+      ],
+      "heavy": [
+        "tokenlens"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "muted",
+        "secondary",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "controls": {
+      "lines": 19,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "@xyflow/react"
+      ],
+      "heavy": [
+        "@xyflow/react"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "card"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 4,
+        "examples": [
+          "[&>button]:rounded-md",
+          "[&>button]:border-none",
+          "[&>button]:bg-transparent",
+          "[&>button]:hover"
+        ]
+      },
+      "aboveSafari164": []
+    },
+    "conversation": {
+      "lines": 169,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "UIMessage"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 5,
+      "next": [],
+      "shadcnPrimitives": [
+        "button"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react",
+        "use-stick-to-bottom"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "background",
+        "muted",
+        "background",
+        "muted"
+      ],
+      "arbitraryValues": {
+        "count": 2,
+        "examples": [
+          "left-[50%]",
+          "translate-x-[-50%]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "edge": {
+      "lines": 144,
+      "useClient": false,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 0,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "@xyflow/react"
+      ],
+      "heavy": [
+        "@xyflow/react"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "ring"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "environment-variables": {
+      "lines": 325,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 11,
+      "next": [],
+      "shadcnPrimitives": [
+        "badge",
+        "button",
+        "switch"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background",
+        "muted-foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "file-tree": {
+      "lines": 305,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 8,
+      "next": [],
+      "shadcnPrimitives": [
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 2,
+        "examples": [
+          "text-blue-500"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background",
+        "muted",
+        "muted",
+        "muted-foreground",
+        "muted",
+        "muted",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "image": {
+      "lines": 25,
+      "useClient": false,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "Experimental_GeneratedImage"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "inline-citation": {
+      "lines": 297,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 12,
+      "next": [],
+      "shadcnPrimitives": [
+        "badge",
+        "carousel",
+        "hover-card"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "accent",
+        "secondary",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "jsx-preview": {
+      "lines": 311,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 3,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react",
+        "react-jsx-parser"
+      ],
+      "heavy": [
+        "react-jsx-parser"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "destructive",
+        "destructive",
+        "destructive"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "message": {
+      "lines": 361,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "UIMessage"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 9,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "button-group",
+        "tooltip"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "@streamdown/cjk",
+        "@streamdown/code",
+        "@streamdown/math",
+        "@streamdown/mermaid",
+        "lucide-react",
+        "streamdown"
+      ],
+      "heavy": [
+        "@streamdown/cjk",
+        "@streamdown/code",
+        "@streamdown/math",
+        "@streamdown/mermaid",
+        "streamdown"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "secondary",
+        "foreground",
+        "foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 8,
+        "examples": [
+          "max-w-[95%]",
+          "group-[.is-user]",
+          "group-[.is-assistant]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 6,
+        "examples": [
+          "[&>div]:pb-0",
+          "[&>*:not(:first-child)]:rounded-l-md",
+          "[&>*:not(:last-child)]:rounded-r-md",
+          "[&>*:first-child]:mt-0",
+          "[&>*:last-child]:mb-0"
+        ]
+      },
+      "aboveSafari164": []
+    },
+    "mic-selector": {
+      "lines": 376,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 3,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "command",
+        "popover"
+      ],
+      "radix": [
+        "@radix-ui/react-use-controllable-state"
+      ],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "model-selector": {
+      "lines": 214,
+      "useClient": false,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 5,
+      "next": [],
+      "shadcnPrimitives": [
+        "command",
+        "dialog"
+      ],
+      "radix": [],
+      "thirdParty": [],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background",
+        "foreground"
+      ],
+      "arbitraryValues": {
+        "count": 1,
+        "examples": [
+          ":data-[slot=command-input-wrapper]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 5,
+        "examples": [
+          "[&>img]:rounded-full",
+          "[&>img]:bg-background",
+          "[&>img]:p-px",
+          "[&>img]:ring-1",
+          "[&>img]:bg-foreground"
+        ]
+      },
+      "aboveSafari164": []
+    },
+    "node": {
+      "lines": 72,
+      "useClient": false,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 4,
+      "next": [],
+      "shadcnPrimitives": [
+        "card"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "@xyflow/react"
+      ],
+      "heavy": [
+        "@xyflow/react"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "secondary",
+        "secondary"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "open-in-chat": {
+      "lines": 371,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "dropdown-menu"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 1,
+        "examples": [
+          "w-[240px]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "package-info": {
+      "lines": 240,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 9,
+      "next": [],
+      "shadcnPrimitives": [
+        "badge"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 20,
+        "examples": [
+          "bg-blue-100",
+          "text-blue-700",
+          "bg-blue-900/30",
+          "text-blue-400",
+          "bg-red-100",
+          "text-red-700"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "foreground",
+        "background",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "panel": {
+      "lines": 16,
+      "useClient": false,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "@xyflow/react"
+      ],
+      "heavy": [
+        "@xyflow/react"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "card"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "persona": {
+      "lines": 307,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "@rive-app/react-webgl2"
+      ],
+      "heavy": [
+        "@rive-app/react-webgl2"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "plan": {
+      "lines": 148,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 4,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "card",
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": [
+        "text-balance (Safari 17.5)"
+      ]
+    },
+    "prompt-input": {
+      "lines": 1464,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "ChatStatus",
+        "FileUIPart",
+        "SourceDocumentUIPart"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 26,
+      "next": [],
+      "shadcnPrimitives": [
+        "command",
+        "dropdown-menu",
+        "hover-card",
+        "input-group",
+        "select",
+        "spinner",
+        "tooltip"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react",
+        "nanoid"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "accent",
+        "foreground",
+        "accent",
+        "foreground",
+        "muted-foreground",
+        "accent"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": [
+        "field-sizing (Safari 26)"
+      ]
+    },
+    "question": {
+      "lines": 329,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 7,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "textarea"
+      ],
+      "radix": [],
+      "thirdParty": [],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "queue": {
+      "lines": 275,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 15,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "collapsible",
+        "scroll-area"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "foreground",
+        "muted",
+        "muted",
+        "muted-foreground",
+        "muted",
+        "border",
+        "background"
+      ],
+      "arbitraryValues": {
+        "count": 2,
+        "examples": [
+          "max-w-[100px]",
+          "group-data-[state=closed]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "reasoning": {
+      "lines": 227,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 4,
+      "next": [],
+      "shadcnPrimitives": [
+        "collapsible"
+      ],
+      "radix": [
+        "@radix-ui/react-use-controllable-state"
+      ],
+      "thirdParty": [
+        "@streamdown/cjk",
+        "@streamdown/code",
+        "@streamdown/math",
+        "@streamdown/mermaid",
+        "lucide-react",
+        "streamdown"
+      ],
+      "heavy": [
+        "@streamdown/cjk",
+        "@streamdown/code",
+        "@streamdown/math",
+        "@streamdown/mermaid",
+        "streamdown"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 5,
+        "examples": [
+          "data-[state=closed]",
+          "data-[state=open]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "sandbox": {
+      "lines": 133,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "ToolUIPart"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 8,
+      "next": [],
+      "shadcnPrimitives": [
+        "collapsible",
+        "tabs"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "border",
+        "muted-foreground",
+        "primary",
+        "foreground"
+      ],
+      "arbitraryValues": {
+        "count": 10,
+        "examples": [
+          "group-data-[state=open]",
+          "data-[state=closed]",
+          "data-[state=open]",
+          "data-[state=active]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "schema-display": {
+      "lines": 472,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 14,
+      "next": [],
+      "shadcnPrimitives": [
+        "badge",
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 34,
+        "examples": [
+          "bg-red-100",
+          "text-red-700",
+          "bg-red-900/30",
+          "text-red-400",
+          "bg-green-100",
+          "text-green-700"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "background",
+        "muted"
+      ],
+      "arbitraryValues": {
+        "count": 4,
+        "examples": [
+          "group-data-[state=open]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "shimmer": {
+      "lines": 78,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "motion/react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 1,
+        "examples": [
+          "bg-[length:250%_100%,auto]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "snippet": {
+      "lines": 146,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 3,
+      "next": [],
+      "shadcnPrimitives": [
+        "input-group"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "sources": {
+      "lines": 78,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 3,
+      "next": [],
+      "shadcnPrimitives": [
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "primary"
+      ],
+      "arbitraryValues": {
+        "count": 5,
+        "examples": [
+          "data-[state=closed]",
+          "data-[state=open]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "speech-input": {
+      "lines": 324,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "spinner"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 3,
+        "examples": [
+          "border-red-400/30",
+          "text-white"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "destructive",
+        "destructive",
+        "primary",
+        "primary-foreground",
+        "primary",
+        "primary-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "stack-trace": {
+      "lines": 529,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 13,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "collapsible"
+      ],
+      "radix": [
+        "@radix-ui/react-use-controllable-state"
+      ],
+      "thirdParty": [
+        "lucide-react",
+        "ErrorType: message"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background",
+        "muted",
+        "destructive",
+        "destructive",
+        "foreground",
+        "muted-foreground",
+        "muted",
+        "primary",
+        "muted-foreground",
+        "foreground",
+        "muted-foreground",
+        "foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 4,
+        "examples": [
+          "data-[state=closed]",
+          "data-[state=open]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "suggestion": {
+      "lines": 58,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 2,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "scroll-area"
+      ],
+      "radix": [],
+      "thirdParty": [],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "task": {
+      "lines": 88,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 5,
+      "next": [],
+      "shadcnPrimitives": [
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "secondary",
+        "foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "foreground",
+        "popover-foreground",
+        "muted"
+      ],
+      "arbitraryValues": {
+        "count": 6,
+        "examples": [
+          "group-data-[state=open]",
+          "data-[state=closed]",
+          "data-[state=open]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "terminal": {
+      "lines": 274,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 8,
+      "next": [],
+      "shadcnPrimitives": [
+        "button"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "ansi-to-react",
+        "lucide-react"
+      ],
+      "heavy": [
+        "ansi-to-react"
+      ],
+      "rawPaletteClasses": {
+        "count": 12,
+        "examples": [
+          "border-zinc-800",
+          "text-zinc-400",
+          "bg-zinc-800",
+          "text-zinc-100",
+          "bg-zinc-100",
+          "bg-zinc-950"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "test-results": {
+      "lines": 497,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 18,
+      "next": [],
+      "shadcnPrimitives": [
+        "badge",
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 34,
+        "examples": [
+          "bg-green-100",
+          "text-green-700",
+          "bg-green-900/30",
+          "text-green-400",
+          "bg-red-100",
+          "text-red-700"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "background",
+        "muted",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 1,
+        "examples": [
+          "group-data-[state=open]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "tool": {
+      "lines": 174,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "DynamicToolUIPart",
+        "ToolUIPart"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 6,
+      "next": [],
+      "shadcnPrimitives": [
+        "badge",
+        "collapsible"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 5,
+        "examples": [
+          "text-yellow-600",
+          "text-blue-600",
+          "text-green-600",
+          "text-orange-600",
+          "text-red-600"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "popover-foreground",
+        "muted-foreground",
+        "muted",
+        "muted-foreground",
+        "destructive",
+        "destructive",
+        "muted",
+        "foreground"
+      ],
+      "arbitraryValues": {
+        "count": 6,
+        "examples": [
+          "group-data-[state=open]",
+          "data-[state=closed]",
+          "data-[state=open]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 1,
+        "examples": [
+          "[&_table]:w-full"
+        ]
+      },
+      "aboveSafari164": []
+    },
+    "toolbar": {
+      "lines": 17,
+      "useClient": false,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 1,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [],
+      "thirdParty": [
+        "@xyflow/react"
+      ],
+      "heavy": [
+        "@xyflow/react"
+      ],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "background"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "transcription": {
+      "lines": 126,
+      "useClient": true,
+      "aiSdk": [
+        "ai"
+      ],
+      "aiSdkTypeNames": [
+        "Experimental_TranscriptionResult as TranscriptionResult"
+      ],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 2,
+      "next": [],
+      "shadcnPrimitives": [],
+      "radix": [
+        "@radix-ui/react-use-controllable-state"
+      ],
+      "thirdParty": [],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "primary",
+        "muted-foreground",
+        "muted-foreground",
+        "foreground"
+      ],
+      "arbitraryValues": {
+        "count": 0,
+        "examples": []
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "voice-selector": {
+      "lines": 525,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 11,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "command",
+        "dialog",
+        "spinner"
+      ],
+      "radix": [
+        "@radix-ui/react-use-controllable-state"
+      ],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 0,
+        "examples": []
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "muted-foreground",
+        "border"
+      ],
+      "arbitraryValues": {
+        "count": 1,
+        "examples": [
+          ":data-[slot=command-input-wrapper]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    },
+    "web-preview": {
+      "lines": 282,
+      "useClient": true,
+      "aiSdk": [],
+      "aiSdkTypeNames": [],
+      "aiValueImports": 0,
+      "useChat": false,
+      "cnCalls": 7,
+      "next": [],
+      "shadcnPrimitives": [
+        "button",
+        "collapsible",
+        "input",
+        "tooltip"
+      ],
+      "radix": [],
+      "thirdParty": [
+        "lucide-react"
+      ],
+      "heavy": [],
+      "rawPaletteClasses": {
+        "count": 1,
+        "examples": [
+          "text-yellow-600"
+        ]
+      },
+      "rawColourLiterals": {
+        "count": 0,
+        "examples": []
+      },
+      "shadcnSemanticColours": [
+        "card",
+        "foreground",
+        "muted",
+        "muted",
+        "muted-foreground",
+        "destructive",
+        "foreground",
+        "muted-foreground"
+      ],
+      "arbitraryValues": {
+        "count": 10,
+        "examples": [
+          "data-[state=closed]",
+          "data-[state=open]",
+          "data-[side=bottom]",
+          "data-[side=left]",
+          "data-[side=right]",
+          "data-[side=top]"
+        ]
+      },
+      "arbitraryVariants": {
+        "count": 0,
+        "examples": []
+      },
+      "aboveSafari164": []
+    }
+  }
+}

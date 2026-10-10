@@ -1,0 +1,7 @@
+apps/docs/components/geistdocs/message-metadata.tsx
+apps/docs/content/components/(chatbot)/message.mdx
+packages/elements/__tests__/message.test.tsx
+packages/elements/src/message.tsx
+packages/examples/src/message.tsx
+skills/ai-elements/references/message.md
+skills/ai-elements/scripts/message.tsx
