@@ -45,6 +45,7 @@ export default defineConfig(
       "max-lines": ["error", { max: 400, skipBlankLines: false, skipComments: false }],
       "@eslint-community/eslint-comments/require-description": "error",
       "@eslint-community/eslint-comments/no-unlimited-disable": "error",
+      "@eslint-community/eslint-comments/no-restricted-disable": ["error", "max-lines", "boundaries/*"],
     },
   },
   {

@@ -1,10 +1,12 @@
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { ESLint, RuleTester } from "eslint";
 import { describe, expect, it } from "vitest";
 import tseslint from "typescript-eslint";
 import pap from "./pap-plugin.js";
+
+const repoRoot = resolve(import.meta.dirname, "..");
 
 RuleTester.describe = describe;
 RuleTester.it = it;
@@ -43,13 +45,19 @@ tester.run("zustand-selector", pap.rules["zustand-selector"], {
   invalid: [{ code: "const all = useSessionStore();", errors: [{ messageId: "selector" }] }],
 });
 
+const linesOf = (count) => Array.from({ length: count }, (_, i) => `export const v${i} = ${i};`).join("\n");
+
 describe("repository gates", () => {
-  const eslint = new ESLint({ cwd: process.cwd() });
+  const eslint = new ESLint({ cwd: repoRoot });
 
   it("rejects a file over 400 lines", async () => {
-    const code = Array.from({ length: 401 }, (_, i) => `export const v${i} = ${i};`).join("\n");
-    const [result] = await eslint.lintText(code, { filePath: "packages/contracts/src/too-long.ts" });
+    const [result] = await eslint.lintText(linesOf(401), { filePath: "packages/contracts/src/too-long.ts" });
     expect(result?.messages.map((m) => m.ruleId)).toContain("max-lines");
+  });
+
+  it("accepts a file of exactly 400 lines", async () => {
+    const [result] = await eslint.lintText(linesOf(400), { filePath: "packages/contracts/src/at-limit.ts" });
+    expect(result?.messages.map((m) => m.ruleId)).not.toContain("max-lines");
   });
 
   it("rejects an eslint-disable without a reason", async () => {
@@ -57,6 +65,14 @@ describe("repository gates", () => {
     const [result] = await eslint.lintText(code, { filePath: "packages/contracts/src/disable.ts" });
     expect(result?.messages.map((m) => m.ruleId)).toContain(
       "@eslint-community/eslint-comments/require-description",
+    );
+  });
+
+  it("rejects a reasoned eslint-disable of max-lines", async () => {
+    const code = "/* eslint-disable max-lines -- legacy parser */\nexport const a = 1;\n";
+    const [result] = await eslint.lintText(code, { filePath: "packages/contracts/src/limit-off.ts" });
+    expect(result?.messages.map((m) => m.ruleId)).toContain(
+      "@eslint-community/eslint-comments/no-restricted-disable",
     );
   });
 
@@ -70,11 +86,13 @@ describe("repository gates", () => {
 });
 
 describe("module boundaries", () => {
-  const repoConfig = resolve("eslint.config.js");
+  const repoConfig = join(repoRoot, "eslint.config.js");
   const fixture = {
     "apps/daemon/src/modules/a/index.ts": "export const fromA = 1;\n",
     "apps/daemon/src/modules/b/index.ts": "export const fromB = 2;\n",
     "apps/daemon/src/modules/b/internal.ts": "export const secret = 3;\n",
+    "packages/ui/package.json": '{ "name": "@pap/ui", "type": "module", "exports": "./src/index.ts" }\n',
+    "packages/ui/src/index.ts": "export const Button = 4;\n",
   };
 
   async function boundaryRulesFor(importPath) {
@@ -84,6 +102,8 @@ describe("module boundaries", () => {
         await mkdir(dirname(join(root, path)), { recursive: true });
         await writeFile(join(root, path), content);
       }
+      await mkdir(join(root, "node_modules/@pap"), { recursive: true });
+      await symlink(join(root, "packages/ui"), join(root, "node_modules/@pap/ui"), "dir");
       const eslint = new ESLint({ cwd: root, overrideConfigFile: repoConfig });
       const filePath = join(root, "apps/daemon/src/modules/a/service.ts");
       const [result] = await eslint.lintText(`import "${importPath}";\n`, { filePath });
@@ -100,5 +120,9 @@ describe("module boundaries", () => {
   it("allows a module importing another module's index file", async () => {
     expect(await boundaryRulesFor("../b/index.ts")).toEqual([]);
     expect(await boundaryRulesFor("../b")).toEqual([]);
+  });
+
+  it("rejects a daemon module importing @pap/ui across packages", async () => {
+    expect(await boundaryRulesFor("@pap/ui")).toContain("boundaries/element-types");
   });
 });
