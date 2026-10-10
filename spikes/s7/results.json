@@ -1,0 +1,156 @@
+{
+  "requiresTrustEmpty": false,
+  "requiresTrustWithExtensions": true,
+  "decisionBeforeSet": null,
+  "decision": true,
+  "files": [
+    "trust.json"
+  ],
+  "entriesInAgentDirAfterGet": [
+    "trust.json"
+  ],
+  "fileMode": "664",
+  "contents": {
+    "trust.json": "{\n  \"<tmp>/project-main\": true\n}\n"
+  },
+  "requiresTrust": {
+    "empty folder": false,
+    "AGENTS.md only": false,
+    "bare .pi": false,
+    ".pi/settings.json": true,
+    ".pi/mcp.json": true,
+    ".pi/extensions": true,
+    ".pi/skills": true,
+    ".pi/prompts": true,
+    ".pi/themes": true,
+    ".pi/SYSTEM.md": true,
+    ".pi/APPEND_SYSTEM.md": true,
+    ".agents/skills in the folder": true,
+    ".agents/skills in a parent folder": true,
+    "~/.agents/skills with the home folder as cwd": false
+  },
+  "lookups": [
+    {
+      "step": "no decision",
+      "parent": null,
+      "child": null,
+      "childEntryPath": null,
+      "file": null
+    },
+    {
+      "step": "parent trusted",
+      "parent": true,
+      "child": true,
+      "childEntryPath": "<tmp>/tree",
+      "file": "{\n  \"<tmp>/tree\": true\n}\n"
+    },
+    {
+      "step": "child distrusted",
+      "parent": true,
+      "child": false,
+      "childEntryPath": "<tmp>/tree/a/b",
+      "file": "{\n  \"<tmp>/tree\": true,\n  \"<tmp>/tree/a/b\": false\n}\n"
+    },
+    {
+      "step": "child decision removed",
+      "parent": true,
+      "child": true,
+      "childEntryPath": "<tmp>/tree",
+      "file": "{\n  \"<tmp>/tree\": true\n}\n"
+    },
+    {
+      "step": "parent decision removed",
+      "parent": null,
+      "child": null,
+      "childEntryPath": null,
+      "file": "{}\n"
+    }
+  ],
+  "symlinkKeyIsRealPath": true,
+  "failures": {
+    "unparsableJson": {
+      "error": "Failed to read trust store <tmp>/agent-bad-json/trust.json: Expected property name or '}' in JSON at position 1 (line 1 column 2)",
+      "ms": 0
+    },
+    "arrayInsteadOfObject": {
+      "error": "Invalid trust store <tmp>/agent-array/trust.json: expected an object",
+      "ms": 0
+    },
+    "stringValue": {
+      "error": "Invalid trust store <tmp>/agent-string/trust.json: value for \"<tmp>/project-main\" must be true, false, or null",
+      "ms": 0
+    },
+    "lockHeldByAnotherProcess": {
+      "error": "Lock file is already being held",
+      "ms": 179
+    },
+    "agentDirMissing": {
+      "value": null,
+      "ms": 0,
+      "agentDirCreatedByGet": true
+    },
+    "agentDirReadOnly": {
+      "error": "EACCES: permission denied, mkdir '<tmp>/agent-readonly/trust.json.lock'",
+      "ms": 0
+    },
+    "getLeavesFileUntouched": {
+      "mtimeUnchanged": true,
+      "entriesAfterGet": [
+        "trust.json"
+      ]
+    }
+  },
+  "gate": {
+    "no-gate-sdk-default": {
+      "isProjectTrusted": true,
+      "loadedExtensions": [
+        "<tmp>/gate-no-gate-sdk-default/.pi/extensions/marker.js"
+      ],
+      "factoryRuns": 1
+    },
+    "resolve-no-decision": {
+      "resolve": true,
+      "isProjectTrusted": false,
+      "loadedExtensions": [],
+      "factoryRuns": 0
+    },
+    "resolve-trusted": {
+      "resolve": true,
+      "trustDecision": true,
+      "isProjectTrusted": true,
+      "loadedExtensions": [
+        "<tmp>/gate-resolve-trusted/.pi/extensions/marker.js"
+      ],
+      "factoryRuns": 1
+    },
+    "resolve-distrusted": {
+      "resolve": true,
+      "trustDecision": false,
+      "isProjectTrusted": false,
+      "loadedExtensions": [],
+      "factoryRuns": 0
+    },
+    "settings-untrusted-no-resolver": {
+      "settingsProjectTrusted": false,
+      "isProjectTrusted": false,
+      "loadedExtensions": [],
+      "factoryRuns": 0
+    }
+  },
+  "late": {
+    "resolver-only-when-resources-exist": {
+      "hardened": false,
+      "isProjectTrustedAfterReload": true,
+      "loadedExtensions": [
+        "<tmp>/late-resolver-only-when-resources-exist/.pi/extensions/marker.js"
+      ],
+      "factoryRuns": 1
+    },
+    "projectTrusted-false-and-resolver-always": {
+      "hardened": true,
+      "isProjectTrustedAfterReload": false,
+      "loadedExtensions": [],
+      "factoryRuns": 0
+    }
+  }
+}

@@ -1,0 +1,50 @@
+[
+  {
+    "case": "no trust.json, defaultProjectTrust unset",
+    "extensionFactoryRan": false,
+    "trustFileUnchangedByCli": true,
+    "trustFileAfter": null,
+    "exitCode": 1,
+    "stderrFirstLine": "No API key found for the selected model."
+  },
+  {
+    "case": "trust.json written by ProjectTrustStore: project true",
+    "extensionFactoryRan": true,
+    "trustFileUnchangedByCli": true,
+    "trustFileAfter": "{\n  \"<tmp>/project-1\": true\n}\n",
+    "exitCode": 1,
+    "stderrFirstLine": "No API key found for the selected model."
+  },
+  {
+    "case": "trust.json written by ProjectTrustStore: project false",
+    "extensionFactoryRan": false,
+    "trustFileUnchangedByCli": true,
+    "trustFileAfter": "{\n  \"<tmp>/project-2\": false\n}\n",
+    "exitCode": 1,
+    "stderrFirstLine": "No API key found for the selected model."
+  },
+  {
+    "case": "no trust.json, --approve",
+    "extensionFactoryRan": true,
+    "trustFileUnchangedByCli": true,
+    "trustFileAfter": null,
+    "exitCode": 1,
+    "stderrFirstLine": "No API key found for the selected model."
+  },
+  {
+    "case": "trust.json project true, --no-approve",
+    "extensionFactoryRan": false,
+    "trustFileUnchangedByCli": true,
+    "trustFileAfter": "{\n  \"<tmp>/project-4\": true\n}\n",
+    "exitCode": 1,
+    "stderrFirstLine": "No API key found for the selected model."
+  },
+  {
+    "case": "no trust.json, settings defaultProjectTrust always",
+    "extensionFactoryRan": true,
+    "trustFileUnchangedByCli": true,
+    "trustFileAfter": null,
+    "exitCode": 1,
+    "stderrFirstLine": "No API key found for the selected model."
+  }
+]
