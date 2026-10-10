@@ -10,6 +10,12 @@ onlyBuiltDependencies: []
 # macOS-only optional file watcher; its node-gyp build is acknowledged and never run.
 # Import resolver for ESLint: its native binding ships as an optional dependency and
 # imports resolve without the postinstall check, so the script is acknowledged and never run.
+# Pi SDK transitive dependencies: their install scripts only validate or fetch what the packages already
+# ship (esbuild binaries come from optional packages; spikes S1-S7 ran the SDK without these scripts), so
+# they are acknowledged and never run.
 ignoredBuiltDependencies:
+  - "@google/genai"
+  - esbuild
   - fsevents
+  - protobufjs
   - unrs-resolver
