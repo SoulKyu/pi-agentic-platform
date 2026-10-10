@@ -136,6 +136,7 @@ async function boot(init: Init): Promise<void> {
   send({ type: "ready", sessionFile: session.sessionFile, sessionId: session.sessionId, piVersion: VERSION, importedAtMs: Math.round(started), readyMs: Math.round(performance.now() - started), rssMb: rssMb() });
 }
 
+process.on("disconnect", () => process.exit(0)); // parent gone or IPC closed: never outlive it
 process.on("message", (raw: Inbound) => {
   if (raw.type === "init") { boot(raw).catch((error: unknown) => send({ type: "boot_error", error: String(error) })); return; }
   if (raw.type === "custom_input") { panels.get(raw.id)?.(raw.data); return; }

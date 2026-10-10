@@ -1,0 +1,535 @@
+{
+  "node": "v24.14.1",
+  "totalMemMb": 19995,
+  "samples": 10,
+  "baseline": {
+    "idleRss": {
+      "median": 155,
+      "p95": 157,
+      "min": 153,
+      "max": 157
+    },
+    "idlePss": {
+      "median": 102,
+      "p95": 104,
+      "min": 100,
+      "max": 104
+    },
+    "afterPromptRss": {
+      "median": 156,
+      "p95": 157,
+      "min": 154,
+      "max": 157
+    },
+    "afterPromptPss": {
+      "median": 103,
+      "p95": 104,
+      "min": 101,
+      "max": 104
+    },
+    "afterPromptPrivate": {
+      "median": 98,
+      "p95": 99,
+      "min": 96,
+      "max": 99
+    },
+    "afterPromptPeakRss": {
+      "median": 156,
+      "p95": 157,
+      "min": 154,
+      "max": 157
+    },
+    "afterPromptRssAnon": {
+      "median": 98,
+      "p95": 99,
+      "min": 96,
+      "max": 99
+    },
+    "afterPromptRssFile": {
+      "median": 58,
+      "p95": 58,
+      "min": 58,
+      "max": 58
+    },
+    "forkToReadyMs": {
+      "median": 652,
+      "p95": 664,
+      "min": 644,
+      "max": 664
+    },
+    "grandchildrenMax": 0,
+    "raw": [
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 664
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 650
+      },
+      {
+        "idle": {
+          "rssMb": 154,
+          "hwmMb": 154,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 101,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 645
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 647
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 644
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 652
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 652
+      },
+      {
+        "idle": {
+          "rssMb": 153,
+          "hwmMb": 153,
+          "anonMb": 95,
+          "fileMb": 58,
+          "pssMb": 100,
+          "privateMb": 95
+        },
+        "afterPrompt": {
+          "rssMb": 154,
+          "hwmMb": 154,
+          "anonMb": 96,
+          "fileMb": 58,
+          "pssMb": 101,
+          "privateMb": 96
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 660
+      },
+      {
+        "idle": {
+          "rssMb": 157,
+          "hwmMb": 157,
+          "anonMb": 99,
+          "fileMb": 58,
+          "pssMb": 104,
+          "privateMb": 99
+        },
+        "afterPrompt": {
+          "rssMb": 157,
+          "hwmMb": 157,
+          "anonMb": 99,
+          "fileMb": 58,
+          "pssMb": 104,
+          "privateMb": 99
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 663
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 657
+      }
+    ]
+  },
+  "builtins": {
+    "idleRss": {
+      "median": 156,
+      "p95": 157,
+      "min": 154,
+      "max": 157
+    },
+    "idlePss": {
+      "median": 102,
+      "p95": 104,
+      "min": 101,
+      "max": 104
+    },
+    "afterPromptRss": {
+      "median": 156,
+      "p95": 157,
+      "min": 155,
+      "max": 157
+    },
+    "afterPromptPss": {
+      "median": 103,
+      "p95": 104,
+      "min": 102,
+      "max": 104
+    },
+    "afterPromptPrivate": {
+      "median": 98,
+      "p95": 99,
+      "min": 97,
+      "max": 99
+    },
+    "afterPromptPeakRss": {
+      "median": 156,
+      "p95": 157,
+      "min": 155,
+      "max": 157
+    },
+    "afterPromptRssAnon": {
+      "median": 98,
+      "p95": 99,
+      "min": 97,
+      "max": 99
+    },
+    "afterPromptRssFile": {
+      "median": 58,
+      "p95": 58,
+      "min": 58,
+      "max": 58
+    },
+    "forkToReadyMs": {
+      "median": 661,
+      "p95": 673,
+      "min": 653,
+      "max": 673
+    },
+    "grandchildrenMax": 0,
+    "raw": [
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 657
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 661
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 664
+      },
+      {
+        "idle": {
+          "rssMb": 157,
+          "hwmMb": 157,
+          "anonMb": 99,
+          "fileMb": 58,
+          "pssMb": 104,
+          "privateMb": 99
+        },
+        "afterPrompt": {
+          "rssMb": 157,
+          "hwmMb": 157,
+          "anonMb": 99,
+          "fileMb": 58,
+          "pssMb": 104,
+          "privateMb": 99
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 673
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 668
+      },
+      {
+        "idle": {
+          "rssMb": 154,
+          "hwmMb": 154,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 101,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 664
+      },
+      {
+        "idle": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "afterPrompt": {
+          "rssMb": 155,
+          "hwmMb": 155,
+          "anonMb": 97,
+          "fileMb": 58,
+          "pssMb": 102,
+          "privateMb": 97
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 661
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 661
+      },
+      {
+        "idle": {
+          "rssMb": 157,
+          "hwmMb": 157,
+          "anonMb": 99,
+          "fileMb": 58,
+          "pssMb": 104,
+          "privateMb": 99
+        },
+        "afterPrompt": {
+          "rssMb": 157,
+          "hwmMb": 157,
+          "anonMb": 99,
+          "fileMb": 58,
+          "pssMb": 104,
+          "privateMb": 99
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 661
+      },
+      {
+        "idle": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "afterPrompt": {
+          "rssMb": 156,
+          "hwmMb": 156,
+          "anonMb": 98,
+          "fileMb": 58,
+          "pssMb": 103,
+          "privateMb": 98
+        },
+        "grandchildren": 0,
+        "forkToReadyMs": 653
+      }
+    ]
+  },
+  "concurrentIdleBuiltins": {
+    "workers": 4,
+    "sumRssMb": 625,
+    "sumPssMb": 407,
+    "sumPrivateMb": 393,
+    "perWorkerPssMb": [
+      102,
+      101,
+      102,
+      102
+    ]
+  }
+}
