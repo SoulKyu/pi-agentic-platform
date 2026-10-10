@@ -1,0 +1,19 @@
+{
+  "name": "@pap/pi-host",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/main.ts",
+      "default": "./dist/main.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@pap/contracts": "workspace:*"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "pi-agentic-platform",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.14 <25"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "corepack pnpm -r --parallel run typecheck && tsc -p tsconfig.json",
+    "knip": "knip",
+    "test:unit": "vitest run --project unit",
+    "test:int": "vitest run --project integration",
+    "build": "corepack pnpm -r run build",
+    "e2e": "playwright test",
+    "budgets": "node --disable-warning=ExperimentalWarning scripts/check-budgets.ts"
+  },
+  "packageManager": "pnpm@10.34.6+sha512.7e1ae66a83a9143c118cc1944f37cc4f2b8acddeda4b001cfa78908f6e46e45e15292739ca6c9d026426cc757e9318cc98c5551d6a16c165097b0028ba87b4e6",
+  "devDependencies": {
+    "@types/node": "24.13.6",
+    "prettier": "3.9.9",
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
+  }
+}

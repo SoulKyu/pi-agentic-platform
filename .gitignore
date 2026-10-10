@@ -2,3 +2,9 @@
 .worktrees/
 node_modules/
 spikes/**/dist-*/
+dist/
+coverage/
+test-results/
+playwright-report/
+e2e/.state/
+*.tsbuildinfo

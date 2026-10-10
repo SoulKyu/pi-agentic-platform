@@ -1,0 +1,9 @@
+pnpm-lock.yaml
+docs/
+spikes/
+**/dist/
+coverage/
+playwright-report/
+test-results/
+DESIGN.md
+*.html
