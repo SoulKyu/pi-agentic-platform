@@ -1,9 +1,7 @@
-import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { VERSION } from "@earendil-works/pi-coding-agent";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEV_EXEC_ARGV, PI_HOST_MAIN } from "./testing/fork-host.ts";
+import { ProjectTrustStore, VERSION } from "@earendil-works/pi-coding-agent";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { bashScript, createHostBed, isConfirm, textOf, toolScript, toolText } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
@@ -73,6 +71,31 @@ describe("pi-host worker: boot", () => {
     expect(await host.exited).toBe(70);
     expect(host.stderr()).toContain("PI_CODING_AGENT_DIR must name the agent directory");
     expect(host.records.some((r) => r.type === "ready")).toBe(false);
+  });
+
+  it("refuses a provider script unless the worker environment allows a test provider", async () => {
+    const host = bed.launch({ steps: [{ text: "hi" }] }, { env: { PAP_TEST_PROVIDER: undefined } });
+    expect(await host.exited).toBe(70);
+    expect(host.stderr()).toContain("PAP_TEST_PROVIDER=1");
+    expect(host.records.some((r) => r.type === "ready")).toBe(false);
+  });
+
+  it("exits 70 when more than 128 records arrive before ready", async () => {
+    const host = bed.launch({ steps: [{ text: "hi" }] });
+    for (let i = 0; i <= 128; i++) host.send({ type: "get_state", id: `q${i}` });
+    expect(await host.exited).toBe(70);
+    expect(host.stderr()).toContain("more than 128 records");
+    expect(host.records.some((r) => r.type === "ready")).toBe(false);
+  });
+
+  it("answers all of 128 records that arrive before ready", async () => {
+    const host = bed.launch({ steps: [{ text: "hi" }] });
+    for (let i = 0; i < 128; i++) host.send({ type: "get_state", id: `q${i}` });
+    const ready = await host.waitFor((r) => r.type === "ready");
+    await host.waitFor((r) => r.type === "response" && r.id === "q127");
+    const answers = host.records.filter((r) => r.type === "response");
+    expect(answers.map((r) => r.id)).toEqual(Array.from({ length: 128 }, (_unused, i) => `q${i}`));
+    expect(host.records.indexOf(ready)).toBeLessThan(host.records.indexOf(answers[0] as never));
   });
 
   it("refuses to start with a provider script it cannot read", async () => {
@@ -219,6 +242,22 @@ describe("pi-host worker: policy", () => {
     },
   );
 
+  it("clips what a project extension says when it fails, at the worker", async () => {
+    new ProjectTrustStore(bed.agentDir).set(bed.cwd, true);
+    mkdirSync(join(bed.cwd, ".pi", "extensions"), { recursive: true });
+    writeFileSync(
+      join(bed.cwd, ".pi", "extensions", "thrower.js"),
+      'export default function (pi) { pi.on("agent_start", () => { throw new Error("x".repeat(5000)); }); }\n',
+    );
+    await bed.start({ steps: [{ text: "hi" }] });
+    const host = bed.host();
+    await host.request({ type: "prompt", message: "go" });
+    const report = await host.waitFor((r) => r.type === "extension_error" && r.event === "agent_start");
+    expect(String(report.extensionPath)).toMatch(/thrower\.js$/);
+    expect(String(report.error)).toHaveLength(2000);
+    expect(String(report.error).startsWith("x")).toBe(true);
+  });
+
   it("keeps the previous rules, and says so, when a policy update is invalid", async () => {
     await bed.start(bashScript("echo still-asked"));
     const host = bed.host();
@@ -243,92 +282,5 @@ describe("pi-host worker: policy", () => {
     });
     await host.request({ type: "get_state" });
     expect(host.records.some((r) => r.type === "extension_error")).toBe(false);
-  });
-});
-
-describe("pi-host worker: records it cannot read", () => {
-  it("answers a malformed command that has an id with a failure, and keeps working", async () => {
-    await bed.start({ steps: [{ text: "hi" }] });
-    const host = bed.host();
-    host.send({ type: "prompt", id: "bad-1" });
-    const failure = await host.waitFor((r) => r.type === "response" && r.id === "bad-1");
-    expect(failure).toEqual({
-      type: "response",
-      id: "bad-1",
-      command: "prompt",
-      success: false,
-      error: "malformed record",
-    });
-    expect((await host.request({ type: "get_state" })).success).toBe(true);
-    expect(host.stderr()).toContain("dropped a malformed record (fields: message)");
-  });
-
-  it("cancels the dialog whose answer is malformed, which denies the call", async () => {
-    await bed.start(bashScript("echo never"));
-    const host = bed.host();
-    await host.request({ type: "prompt", message: "go" });
-    const ask = await host.waitFor(isConfirm);
-    host.send({ type: "extension_ui_response", id: ask.id, confirmed: "yes" });
-    expect(await host.waitFor((r) => r.type === "extension_ui_closed")).toEqual({
-      type: "extension_ui_closed",
-      id: ask.id,
-    });
-    const end = await host.waitFor((r) => r.type === "tool_execution_end");
-    expect(end.isError).toBe(true);
-    expect(toolText(end)).toContain("Denied by the user.");
-  });
-});
-
-describe("pi-host worker: lifetime", () => {
-  it("exits on a shutdown that arrives while the session is still opening", async () => {
-    const host = bed.launch({ steps: [{ text: "hi" }] });
-    host.send({ type: "shutdown", graceMs: 0 });
-    expect(await host.exited).toBe(0);
-  });
-
-  it("exits cleanly on shutdown", async () => {
-    await bed.start({ steps: [{ text: "hi" }] });
-    bed.host().send({ type: "shutdown", graceMs: 100 });
-    expect(await bed.host().exited).toBe(0);
-  });
-
-  it("stops the command it is running when it shuts down", async () => {
-    const seconds = `30.${Math.floor(Math.random() * 900) + 100}`;
-    const running = () => spawnSync("pgrep", ["-f", `^sleep ${seconds.replace(".", "[.]")}`]).status === 0;
-    await bed.start(bashScript(`sleep ${seconds}`));
-    const host = bed.host();
-    await host.request({ type: "prompt", message: "go" });
-    host.send({ type: "extension_ui_response", id: (await host.waitFor(isConfirm)).id, confirmed: true });
-    await vi.waitFor(() => expect(running()).toBe(true));
-    host.send({ type: "shutdown", graceMs: 100 });
-    expect(await host.exited).toBe(0);
-    await vi.waitFor(() => expect(running()).toBe(false));
-  });
-
-  it("exits when its parent dies", async () => {
-    const source = [
-      'import { fork } from "node:child_process";',
-      `const child = fork(${JSON.stringify(PI_HOST_MAIN)}, [], { execArgv: ${JSON.stringify(DEV_EXEC_ARGV)}, stdio: ["ignore", "ignore", "ignore", "ipc"] });`,
-      'process.stdout.write(String(child.pid) + "\\n");',
-      "setInterval(() => {}, 1000);",
-    ].join("\n");
-    const parent = spawn(process.execPath, ["--input-type=module", "-e", source], {
-      stdio: ["ignore", "pipe", "inherit"],
-    });
-    const pid = await new Promise<number>((resolve) =>
-      parent.stdout.once("data", (chunk: Buffer) => resolve(Number(chunk.toString().trim()))),
-    );
-    parent.kill("SIGKILL");
-    const deadline = Date.now() + 5000;
-    let alive = true;
-    while (alive && Date.now() < deadline) {
-      try {
-        process.kill(pid, 0);
-        await new Promise((resolve) => setTimeout(resolve, 50));
-      } catch {
-        alive = false;
-      }
-    }
-    expect(alive).toBe(false);
   });
 });

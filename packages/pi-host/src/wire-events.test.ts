@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toWireEvent } from "./wire-events.ts";
+import { toExtensionErrorRecord, toWireEvent } from "./wire-events.ts";
 
 describe("toWireEvent", () => {
   it("drops cumulative partials from message_update and keeps delta and usage", () => {
@@ -77,5 +77,24 @@ describe("toWireEvent", () => {
       type: "agent_settled",
       aborted: false,
     });
+  });
+});
+
+describe("toExtensionErrorRecord", () => {
+  it("carries the three fields as they are when they are short", () => {
+    expect(toExtensionErrorRecord({ extensionPath: "/p/x.js", event: "tool_call", error: "boom" })).toEqual({
+      type: "extension_error",
+      extensionPath: "/p/x.js",
+      event: "tool_call",
+      error: "boom",
+    });
+  });
+
+  it("clips every string at 2000 characters, whatever the extension sent", () => {
+    const long = "z".repeat(10_000);
+    const record = toExtensionErrorRecord({ extensionPath: long, event: long, error: long });
+    expect([record.extensionPath.length, record.event.length, record.error.length]).toEqual([
+      2000, 2000, 2000,
+    ]);
   });
 });

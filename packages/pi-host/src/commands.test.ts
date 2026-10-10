@@ -47,16 +47,54 @@ describe("handlePrompt", () => {
     ]);
   });
 
-  it("does not turn a late rejection into a second answer", async () => {
+  it("does not turn a late rejection into a second answer, but logs it", async () => {
     const sent: Outbound[] = [];
+    const logged: string[] = [];
     const prompt: PromptFn = (_text, options) => {
       (options?.preflightResult as (d: string) => void)("queued");
       return Promise.reject(new Error("late"));
     };
-    handlePrompt(asSession({ prompt }), { id: "p1", message: "go" }, (r) => sent.push(r));
+    handlePrompt(
+      asSession({ prompt }),
+      { id: "p1", message: "go" },
+      (r) => sent.push(r),
+      (line) => logged.push(line),
+    );
     await settle();
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ success: true, data: { disposition: "queued" } });
+    expect(logged).toEqual(["pi-host: prompt p1 failed after it was accepted: late\n"]);
+  });
+
+  it("bounds the log line of a late failure and keeps it to one line", async () => {
+    const logged: string[] = [];
+    const prompt: PromptFn = (_text, options) => {
+      (options?.preflightResult as (d: string) => void)("started");
+      return Promise.reject(new Error(`first\nforged: ${"y".repeat(5000)}`));
+    };
+    handlePrompt(
+      asSession({ prompt }),
+      { id: "p1", message: "go" },
+      () => {},
+      (line) => logged.push(line),
+    );
+    await settle();
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatch(/^pi-host: prompt p1 failed after it was accepted: first forged: y+\n$/);
+    expect(logged[0]?.length).toBeLessThanOrEqual(2100);
+  });
+
+  it("does not log a failure that the response already carried", async () => {
+    const logged: string[] = [];
+    const prompt: PromptFn = () => Promise.reject(new Error("early"));
+    handlePrompt(
+      asSession({ prompt }),
+      { id: "p1", message: "go" },
+      () => {},
+      (line) => logged.push(line),
+    );
+    await settle();
+    expect(logged).toEqual([]);
   });
 
   it("passes the streaming behaviour on only when it is set", () => {

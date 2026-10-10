@@ -11,6 +11,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { AuditEntry, InitRecord, PolicyRules } from "@pap/contracts";
+import { messageOf } from "./bounded.ts";
 import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./policy/extension.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
@@ -34,7 +35,6 @@ export interface OpenSessionDeps {
 }
 
 const TRUST_EXTENSION_PATH = "<pap:project-trust>";
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 2000);
 
 // Pi's own default is fail open (`projectTrusted: true`) and `reload()` never asks again, so pap decides here, and
 // every failure of the store (unreadable or corrupt file, a held lock, a read-only agent directory) means untrusted.
@@ -65,6 +65,9 @@ function requireAgentDirEnv(agentDir: string): void {
 export async function openSession(init: InitRecord, deps: OpenSessionDeps): Promise<AgentSession> {
   const { cwd, agentDir, papHome } = init;
   requireAgentDirEnv(agentDir);
+  if (init.testProviderScript && process.env.PAP_TEST_PROVIDER !== "1") {
+    throw new Error("a test provider script needs PAP_TEST_PROVIDER=1 in the worker environment");
+  }
   const scripted = init.testProviderScript ? await loadScriptedProvider(init.testProviderScript) : null;
   let modelRuntime: ModelRuntime | undefined;
   if (scripted) {

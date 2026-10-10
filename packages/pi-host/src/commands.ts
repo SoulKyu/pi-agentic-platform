@@ -1,13 +1,17 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import { logLineOf, messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 
 type Send = (record: Outbound) => void;
-const messageOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, 2000);
+const logToStderr = (line: string) => process.stderr.write(line);
+
+const clipId = (id: string) => id.slice(0, 64);
 
 export function handlePrompt(
   session: AgentSession,
   command: { id: string; message: string; streamingBehavior?: "steer" | "followUp" | undefined },
   send: Send,
+  log: (line: string) => void = logToStderr,
 ): void {
   let answered = false;
   const answer = (fields: Record<string, unknown>) => {
@@ -21,7 +25,12 @@ export function handlePrompt(
       preflightResult: (disposition) => answer({ success: true, data: { disposition } }),
     })
     .then(() => answer({ success: true, data: { disposition: "handled" } }))
-    .catch((error: unknown) => answer({ success: false, error: messageOf(error) }));
+    .catch((error: unknown) => {
+      // The daemon already has its answer, so a failure after it can only be logged.
+      if (answered)
+        log(`pi-host: prompt ${clipId(command.id)} failed after it was accepted: ${logLineOf(error)}\n`);
+      else answer({ success: false, error: messageOf(error) });
+    });
 }
 
 export async function handleAbort(session: AgentSession, command: { id: string }, send: Send): Promise<void> {

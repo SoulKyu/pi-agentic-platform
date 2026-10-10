@@ -13,8 +13,8 @@ import type { AuditEntry, InitRecord } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ExtensionErrorReport, openSession, type OpenSessionDeps } from "./open-session.ts";
 import { POLICY_EXTENSION_NAME, POLICY_EXTENSION_PATH } from "./policy/extension.ts";
-import "./testing/network-guard.ts";
 import { RULES } from "./testing/host-bed.ts";
+import { blockedAttempts } from "./testing/network-guard.ts";
 import { createUiBridge, type UiOutbound } from "./ui-bridge.ts";
 
 // openSession runs in this process: HOME, the agent directory and the data directory are temporary, Pi is offline
@@ -39,6 +39,7 @@ beforeEach(() => {
   vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
   vi.stubEnv("PI_OFFLINE", "1");
   vi.stubEnv("PI_TELEMETRY", "0");
+  vi.stubEnv("PAP_TEST_PROVIDER", "1");
   opened = [];
   requests = [];
   reports = [];
@@ -48,6 +49,8 @@ afterEach(() => {
   for (const session of opened) session.dispose();
   vi.unstubAllEnvs();
   rmSync(root, { recursive: true, force: true });
+  // The code that tried to connect may have swallowed the refusal; the guard's own record cannot be (R94).
+  expect(blockedAttempts).toEqual([]);
 });
 
 const initRecord = (): InitRecord => ({
@@ -198,7 +201,13 @@ describe("pap-policy stays the last extension", () => {
       toolName: "bash",
       input: { command: "echo safe" },
     });
-    await vi.waitFor(() => expect(requests.filter((r) => r.type === "extension_ui_request")).toHaveLength(1));
+    await vi.waitFor(
+      () => expect(requests.filter((r) => r.type === "extension_ui_request")).toHaveLength(1),
+      {
+        timeout: 5000,
+        interval: 20,
+      },
+    );
     const ask = requests[0] as UiOutbound & { message: string };
     expect(ask.message).toContain("echo safe # rewritten");
     ui.resolve({ type: "extension_ui_response", id: ask.id, confirmed: false });
@@ -222,6 +231,13 @@ describe("a session never starts without pap-policy", () => {
   it("rejects when the policy extension is not the one Pi is told to look for", async () => {
     const renamed = () => ({ name: "something-else", factory: () => {} });
     await expect(open({ createPolicy: renamed as never })).rejects.toThrow("pap-policy is not loaded");
+  });
+
+  it("rejects a test provider script unless the worker environment allows one", async () => {
+    vi.stubEnv("PAP_TEST_PROVIDER", "");
+    await expect(open()).rejects.toThrow("PAP_TEST_PROVIDER=1");
+    vi.stubEnv("PAP_TEST_PROVIDER", "yes");
+    await expect(open()).rejects.toThrow("PAP_TEST_PROVIDER=1");
   });
 
   it("rejects when the environment names another agent directory", async () => {

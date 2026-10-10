@@ -32,9 +32,10 @@ export const InitRecord = z.object({
   agentDir: AbsolutePath,
   /** The pap data directory ($PAP_HOME): the policy protects it like the Pi agent directory. */
   papHome: AbsolutePath,
-  sessionFile: z.string().optional(),
+  sessionFile: AbsolutePath.optional(),
   policy: z.unknown(),
-  testProviderScript: z.string().optional(),
+  /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */
+  testProviderScript: AbsolutePath.optional(),
 });
 export type InitRecord = z.infer<typeof InitRecord>;
 const PromptCommand = z.object({

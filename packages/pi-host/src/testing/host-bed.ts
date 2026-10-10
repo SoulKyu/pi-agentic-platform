@@ -14,6 +14,8 @@ export interface LaunchOptions {
   agentDirEnv?: string;
   /** Extra fields of the init record. */
   init?: Record<string, unknown>;
+  /** Worker environment entries added to (or, set to undefined, removed from) the defaults. */
+  env?: Record<string, string | undefined>;
 }
 
 export const bashScript = (command: string) => ({
@@ -52,6 +54,9 @@ export function createHostBed() {
       PI_CODING_AGENT_DIR: options.agentDirEnv ?? agentDir,
       PI_OFFLINE: "1",
       PI_TELEMETRY: "0",
+      PI_SKIP_VERSION_CHECK: "1",
+      PAP_TEST_PROVIDER: "1",
+      ...options.env,
     };
     current = forkHost(env, cwd);
     current.send({
@@ -81,10 +86,15 @@ export function createHostBed() {
       return current;
     },
     async dispose(): Promise<void> {
+      const stderr = current?.stderr() ?? "";
       current?.kill();
       await current?.exited;
       current = undefined;
       rmSync(root, { recursive: true, force: true });
+      // A connection the guard refused may have been swallowed by the code that tried it: the log still says so (R94).
+      const blocked = stderr.split("\n").filter((line) => line.startsWith("pap-network-guard: blocked"));
+      if (blocked.length > 0)
+        throw new Error(`the worker tried to reach the network:\n${blocked.join("\n")}`);
     },
   };
 }

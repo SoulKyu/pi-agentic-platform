@@ -1,4 +1,5 @@
 import type { AgentSessionEvent } from "@earendil-works/pi-coding-agent";
+import { clipText } from "./bounded.ts";
 
 export type WireEvent = { type: string } & Record<string, unknown>;
 
@@ -33,5 +34,21 @@ export function toWireEvent(event: AgentSessionEvent): WireEvent {
     type: "message_update",
     usage: raw.message?.usage,
     assistantMessageEvent: { ...rest, ...identity },
+  };
+}
+
+export interface ExtensionErrorFields {
+  readonly extensionPath: string;
+  readonly event: string;
+  readonly error: string;
+}
+
+/** The extension_error record, with every string clipped here, where the worker writes it (R66). */
+export function toExtensionErrorRecord(fields: ExtensionErrorFields) {
+  return {
+    type: "extension_error" as const,
+    extensionPath: clipText(fields.extensionPath),
+    event: clipText(fields.event),
+    error: clipText(fields.error),
   };
 }

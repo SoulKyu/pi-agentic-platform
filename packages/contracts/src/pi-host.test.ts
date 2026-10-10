@@ -70,6 +70,12 @@ describe("InitRecord", () => {
     },
   );
 
+  it.each(["sessionFile", "testProviderScript"])("holds %s to the same absolute-path rule", (field) => {
+    expect(InitRecord.safeParse({ ...init, [field]: "/abs/file" }).success).toBe(true);
+    expect(InitRecord.safeParse({ ...init, [field]: "relative/file" }).success).toBe(false);
+    expect(InitRecord.safeParse({ ...init, [field]: "" }).success).toBe(false);
+  });
+
   it("holds every path the policy judges to the same rule", () => {
     expect(InitRecord.safeParse({ ...init, cwd: "work" }).success).toBe(false);
     expect(InitRecord.safeParse({ ...init, agentDir: "agent" }).success).toBe(false);

@@ -9,14 +9,17 @@ Spec C §2.3, as amended by decision 34, lists `init{…}` as the first daemon �
 `init{cwd, agentDir, papHome, sessionFile?, policy, testProviderScript?}`
 
 - The worker needs its session file, directories and policy before it can send `ready`. The environment would leak them into every `bash` child, and argv would show them in `ps`, so they travel in a record. `policy` is the "rules sent at worker boot" of §5.1; `policy_update{rules}` stays the hot-reload path.
-- `cwd`, `agentDir` and `papHome` are absolute paths, checked by the contract. `agentDir` (the Pi agent directory) and `papHome` (the pap data directory, `$PAP_HOME`) are the two roots `pap-policy` protects: an edit under either asks, and a session directory that contains either gets no automatic edits. A relative path would be resolved against the worker's own working directory and protect the wrong place, so `papHome` is required, not optional.
+- `cwd`, `agentDir`, `papHome`, `sessionFile` and `testProviderScript` are absolute paths, checked by the contract. `agentDir` (the Pi agent directory) and `papHome` (the pap data directory, `$PAP_HOME`) are the two roots `pap-policy` protects: an edit under either asks, and a session directory that contains either gets no automatic edits. A relative path would be resolved against the worker's own working directory and protect the wrong place, so `papHome` is required, not optional. The daemon passes only session files it knows as `sessionFile`.
 - Fail fast, never wait: a malformed `init` or a `policy` that `PolicyRules` rejects makes the worker print the reason on stderr and exit with code 70 before it opens a session. The daemon sees a worker that failed to start, not one that is silent. A later `policy_update` with invalid rules keeps the previous rules and is reported as an `extension_error` for `<inline:pap-policy>`.
-- Records that arrive between `init` and `ready` are queued and handled, in order, right after `ready`. A `shutdown` is never queued. A malformed command that carries an `id` gets a failed `response`; a malformed `extension_ui_response` cancels its dialog.
-- `testProviderScript` exists only for tests: the daemon sends it when `PAP_TEST_PROVIDER_SCRIPT` is set and logs a warning at boot.
+- Records that arrive between `init` and `ready` are queued (at most 128; the 129th makes the worker exit 70) and handled, in order, right after `ready`. A `shutdown` is never queued. A malformed command that carries an `id` gets a failed `response`; a malformed `extension_ui_response` cancels its dialog; any record of type `shutdown`, well formed or not, shuts the worker down.
+- `shutdown{graceMs}`: the worker cancels its dialogs, asks the running agent to abort, waits for that for at most `graceMs` (2 s when the record does not parse), then disposes the session, which stops a running command, and exits 0.
+- A `prompt` is answered once, as soon as Pi has classified it. If Pi rejects it afterwards, the daemon already has its answer, so the failure goes to stderr as one bounded line (2000 characters at most) and nowhere else.
+- Every string the worker puts in an `extension_error` or a failed `response` is clipped to 2000 characters before it leaves the worker.
+- `testProviderScript` exists only for tests. The worker honours it only when its own environment also has `PAP_TEST_PROVIDER=1`, and exits 70 otherwise, so a stray field can never swap the model of a real session. The daemon sets the variable and sends the field only when `PAP_TEST_PROVIDER_SCRIPT` is set, and logs a warning at boot.
 
 ## Worker environment
 
-Pi derives its session directory from `PI_CODING_AGENT_DIR`, not from the `agentDir` it is handed. The worker environment built in Task 22 sets `PI_CODING_AGENT_DIR` to the same directory as `init.agentDir`, and the worker refuses to start when the two differ: a mismatch would write sessions where the init record does not say. `HOME` must be the user's home, because Pi reads user-level skills from it and the policy judges "the home directory" by it.
+Pi derives its session directory from `PI_CODING_AGENT_DIR`, not from the `agentDir` it is handed. The worker environment built in Task 22 sets `PI_CODING_AGENT_DIR` to the same directory as `init.agentDir`, and the worker refuses to start when the two differ: a mismatch would write sessions where the init record does not say. `HOME` must be the user's home, because Pi reads user-level skills from it and the policy judges "the home directory" by it. When the channel to the daemon closes, however the worker learns of it (the `disconnect` event, a `send` that finds the channel closed, or the `ERR_IPC_CHANNEL_CLOSED` error Node emits later), it disposes the session and exits 0, without a crash trace.
 
 ## Project trust
 
@@ -32,5 +35,5 @@ pap uses the shared Pi agent directory (decision 24), so `trust.json` is the one
 
 ## Consequences
 
-- The Task 22 worker environment must set `PI_CODING_AGENT_DIR`, and every `init` it sends must carry `papHome`.
+- The Task 22 worker environment must set `PI_CODING_AGENT_DIR`, and every `init` it sends must carry `papHome`. It sets `PAP_TEST_PROVIDER=1` only under test (when `PAP_TEST_PROVIDER_SCRIPT` is set).
 - A worker cannot run without `pap-policy`: `movePolicyLast` makes session creation fail when the policy extension did not load, and the policy stays last after `reload()`, after trust is granted and after Pi's built-in extensions load.
