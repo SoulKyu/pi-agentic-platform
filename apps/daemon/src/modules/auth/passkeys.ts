@@ -9,10 +9,12 @@ import {
 } from "@simplewebauthn/server";
 import type { Clock } from "../../kernel/clock.ts";
 import { randomToken } from "../../kernel/ids.ts";
+import { createLoginChallenges } from "./login-challenge.ts";
+import { sanitizeTransports } from "./passkey-store.ts";
 import type { AuthStore } from "./store.ts";
 
 const FLOW_TTL_MS = 5 * 60_000;
-// Per kind: an unauthenticated flood of login options must not evict an enrollment in progress.
+// Enrollment flows exist only for a signed-in caller who also gave the password, so 100 pending is plenty.
 const MAX_FLOWS = 100;
 
 export interface WebAuthnLib {
@@ -55,16 +57,16 @@ export interface PasskeyDeps {
 
 interface Flow {
   readonly challenge: string;
-  readonly userId: string | null;
+  readonly userId: string;
   readonly expiresAt: number;
 }
 
-// Pending ceremonies. A flow is gone after its first verify attempt, whatever the outcome, after five minutes,
-// and as the oldest once more than MAX_FLOWS wait.
+// Pending enrollments. A flow is gone after its first verify attempt, whatever the outcome, after five
+// minutes, and as the oldest once more than MAX_FLOWS wait. Sign-ins keep no such state (login-challenge.ts).
 function createFlows(clock: Clock) {
   const pending = new Map<string, Flow>();
   return {
-    remember(challenge: string, userId: string | null): string {
+    remember(challenge: string, userId: string): string {
       const now = clock.now();
       for (const [id, flow] of pending) if (flow.expiresAt <= now) pending.delete(id);
       while (pending.size >= MAX_FLOWS) {
@@ -76,7 +78,7 @@ function createFlows(clock: Clock) {
       pending.set(flowId, { challenge, userId, expiresAt: now + FLOW_TTL_MS });
       return flowId;
     },
-    take(flowId: string, userId: string | null): Flow {
+    take(flowId: string, userId: string): Flow {
       const flow = pending.get(flowId);
       pending.delete(flowId);
       if (!flow || flow.expiresAt <= clock.now() || flow.userId !== userId) {
@@ -86,6 +88,9 @@ function createFlows(clock: Clock) {
     },
   };
 }
+
+// What an authenticator reports as the user handle: the bytes registerOptions gave as user.id.
+const userHandleOf = (userId: string): string => Buffer.from(userId).toString("base64url");
 
 // The library's reasons (wrong origin, no user verification, counter regressed) stay out of responses and logs.
 async function attempt<T>(run: () => Promise<T>): Promise<T | null> {
@@ -101,7 +106,7 @@ export function createPasskeyService(deps: PasskeyDeps): PasskeyService {
   const lib = deps.lib ?? realLib;
   const origins = rpID === null ? [] : [...deps.allowedOrigins].filter((origin) => rpIdFor(origin) === rpID);
   const registrations = createFlows(deps.clock);
-  const logins = createFlows(deps.clock);
+  const logins = createLoginChallenges(deps.clock, FLOW_TTL_MS);
   const requireRp = (): string => {
     if (!rpID) throw new PapError("not_found");
     return rpID;
@@ -148,29 +153,38 @@ export function createPasskeyService(deps: PasskeyDeps): PasskeyService {
         userId,
         publicKey: credential.publicKey,
         counter: credential.counter,
-        transports: credential.transports ?? [],
+        transports: sanitizeTransports(credential.transports),
         createdAt: deps.clock.now(),
       });
     },
     async loginOptions() {
       const rp = requireRp();
+      const challenge = logins.issue();
       const options = await lib.generateAuthenticationOptions({
         rpID: rp,
         userVerification: "required",
         allowCredentials: [],
+        challenge: new Uint8Array(challenge),
       });
-      return { flowId: logins.remember(options.challenge, null), options };
+      return { flowId: challenge.toString("base64url"), options };
     },
     async loginVerify(flowId, response) {
       const rp = requireRp();
-      const flow = logins.take(flowId, null);
-      const id = (response as { id?: unknown } | null)?.id;
-      const passkey = typeof id === "string" ? deps.store.findPasskey(id) : undefined;
+      // The flow id is the challenge: taking it proves we issued it, and the library below checks that the
+      // authenticator signed exactly this one.
+      logins.take(flowId);
+      const sent = response as { id?: unknown; response?: { userHandle?: unknown } } | null;
+      const passkey = typeof sent?.id === "string" ? deps.store.findPasskey(sent.id) : undefined;
       if (!passkey) throw new PapError("unauthenticated");
+      // WebAuthn L2 7.2 step 6: a reported user handle must name the credential's own user.
+      const handle = sent?.response?.userHandle;
+      if (handle !== undefined && handle !== userHandleOf(passkey.userId)) {
+        throw new PapError("unauthenticated");
+      }
       const result = await attempt(() =>
         lib.verifyAuthenticationResponse({
           response: response as never,
-          expectedChallenge: flow.challenge,
+          expectedChallenge: flowId,
           expectedOrigin: origins,
           expectedRPID: rp,
           credential: {

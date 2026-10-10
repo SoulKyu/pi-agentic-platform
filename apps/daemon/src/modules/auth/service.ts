@@ -5,7 +5,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import { SESSION_TTL_MS } from "./cookies.ts";
 import { dummyHash, hashPassword, isAcceptablePassword, verifyPassword } from "./passwords.ts";
 import type { SetupToken } from "./setup-token.ts";
-import type { AuthStore } from "./store.ts";
+import type { AuthStore, UserRow } from "./store.ts";
 import type { Throttle } from "./throttle.ts";
 
 // A session's expiry is pushed forward at most once a day: a read is not a write on every request.
@@ -55,6 +55,8 @@ export interface AuthService {
   };
   setup(input: Credentials & { token: string }): Promise<StartedSession>;
   login(input: Credentials): Promise<StartedSession>;
+  /** Step-up for a signed-in caller: the account's password, checked and throttled exactly like a sign-in. */
+  confirmPassword(input: { userId: string; password: string; ip: string }): Promise<void>;
   logout(cookieValue: string | undefined): void;
   authenticate(cookieValue: string | undefined): (Caller & { username: string }) | null;
   startSession(userId: string, userAgent: string | undefined): StartedSession;
@@ -91,6 +93,27 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       userAgent: userAgent?.slice(0, MAX_USER_AGENT_LENGTH) ?? null,
     });
     return { cookieValue, maxAgeSeconds: SESSION_TTL_MS / 1000 };
+  };
+  // Sign-in and step-up end alike: guard, count the attempt before the slow hash, verify against the stored hash
+  // (an unknown name against the dummy one; if even that cannot be computed it is a plain mismatch, never an
+  // error that a known name would not produce).
+  const checkPassword = async (
+    keys: string[],
+    ip: string,
+    user: UserRow | undefined,
+    password: string,
+  ): Promise<UserRow> => {
+    guard(keys, ip);
+    // Counted before the slow hash, so parallel guesses queue behind the first instead of all passing the guard.
+    deps.throttle.fail(keys);
+    const stored = user?.passwordHash ?? (await dummyHash().catch(() => ""));
+    const valid = await verifyPassword(password, stored);
+    if (!user || !valid) {
+      deps.logger.warn("auth_login_failed", { ip, retryAfterMs: deps.throttle.retryAfterMs(keys) });
+      throw new PapError("unauthenticated");
+    }
+    deps.throttle.succeed(keys);
+    return user;
   };
   const authenticate = (cookieValue: string | undefined) => {
     if (!cookieValue || cookieValue.length > MAX_COOKIE_LENGTH) return null;
@@ -142,23 +165,18 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     },
     async login(input) {
       const keys = [`ip:${input.ip}`, `user:${input.username.toLowerCase()}`];
-      guard(keys, input.ip);
-      // Counted before the slow hash, so parallel guesses queue behind the first instead of all passing the guard.
-      deps.throttle.fail(keys);
-      const user = deps.store.findUserByName(input.username);
-      // An unknown name is verified against the dummy hash; if even that cannot be computed it is a plain mismatch,
-      // never an error that a known name would not produce.
-      const stored = user?.passwordHash ?? (await dummyHash().catch(() => ""));
-      const valid = await verifyPassword(input.password, stored);
-      if (!user || !valid) {
-        deps.logger.warn("auth_login_failed", {
-          ip: input.ip,
-          retryAfterMs: deps.throttle.retryAfterMs(keys),
-        });
-        throw new PapError("unauthenticated");
-      }
-      deps.throttle.succeed(keys);
+      const user = await checkPassword(
+        keys,
+        input.ip,
+        deps.store.findUserByName(input.username),
+        input.password,
+      );
       return startSession(user.id, input.userAgent);
+    },
+    async confirmPassword(input) {
+      const user = deps.store.findUserById(input.userId);
+      const keys = [`ip:${input.ip}`, `user:${(user?.username ?? "").toLowerCase()}`];
+      await checkPassword(keys, input.ip, user, input.password);
     },
     logout(cookieValue) {
       if (cookieValue) deps.store.deleteSession(sha256Hex(cookieValue));

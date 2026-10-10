@@ -1,14 +1,8 @@
-import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
-import type { Db } from "../../kernel/db/database.ts";
-import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
-import { createHttpApp } from "../../kernel/http/app.ts";
-import { createLogger, type Logger } from "../../kernel/logger.ts";
-import { AUTH_MIGRATIONS, createAuthModule, type AuthModule } from "./index.ts";
+import { createLogger } from "../../kernel/logger.ts";
+import type { AuthModule } from "./index.ts";
+import { createAuthTestBed, PASSWORD, setupTokenOf, type AuthTestBed } from "./testing/fixture.ts";
 
 const ORIGIN = "http://localhost:7777";
 const ORIGINS = new Set([
@@ -19,43 +13,17 @@ const ORIGINS = new Set([
   "http://pap.example.net:7777",
   "https://pap.example.net",
 ]);
-const PASSWORD = "correct horse battery staple";
 const owner = { username: "owner", password: PASSWORD };
 
-let dir: string;
-let db: Db;
+let bed: AuthTestBed;
 let auth: AuthModule;
 let app: Hono;
-let lines: string[];
-let clock: FakeClock;
-let logger: Logger;
-const appOf = (module: AuthModule): Hono =>
-  createHttpApp({
-    allowedOrigins: ORIGINS,
-    staticRoot: null,
-    logger,
-    mount: (a) => module.mount(a),
-    wsProbe: (c) => c.json({}),
-  });
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "pap-auth-http-"));
-  lines = [];
-  clock = createFakeClock();
-  logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
-  db = migrate({
-    dbPath: join(dir, "s.db"),
-    backupsDir: join(dir, "b"),
-    sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS],
-    clock,
-    logger,
-  }).db;
-  lines.length = 0;
-  auth = createAuthModule({ db, clock, logger, publicOrigin: ORIGIN, allowedOrigins: ORIGINS });
-  app = appOf(auth);
+  bed = createAuthTestBed();
+  ({ auth, app } = bed.start(ORIGIN, ORIGINS));
 });
 afterEach(() => {
-  db.close();
-  rmSync(dir, { recursive: true, force: true });
+  bed.dispose();
 });
 
 const socketAt = (address: string) => ({ incoming: { socket: { remoteAddress: address } } });
@@ -77,7 +45,7 @@ const postTo = (
   );
 const post = (path: string, body: unknown, headers: Record<string, string> = {}, env?: object) =>
   postTo(app, path, body, headers, env);
-const token = () => new URL(auth.setupUrl() ?? "http://x").hash.replace("#token=", "");
+const token = () => setupTokenOf(auth);
 const cookieOf = (response: Response) => (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
 const setup = () => post("/auth/setup", { token: token(), ...owner });
 
@@ -137,15 +105,7 @@ describe("auth routes", () => {
 
   it("keeps Secure on plain-http loopback requests when the public origin is https (R24b)", async () => {
     await setup();
-    const proxied = appOf(
-      createAuthModule({
-        db,
-        clock,
-        logger,
-        publicOrigin: "https://pap.example.net",
-        allowedOrigins: ORIGINS,
-      }),
-    );
+    const proxied = bed.start("https://pap.example.net", ORIGINS).app;
     for (const base of ["http://127.0.0.1:7777", "http://localhost:7777", "http://[::1]:7777"]) {
       const login = await postTo(proxied, `${base}/auth/login`, owner);
       expect(login.status, base).toBe(200);
@@ -184,7 +144,7 @@ describe("auth routes", () => {
   it("refuses a wrong setup token and a second setup with the same fixed 401", async () => {
     const wrong = await post("/auth/setup", { token: "not-the-token", ...owner });
     expect([wrong.status, await wrong.json()]).toEqual([401, { error: { code: "unauthenticated" } }]);
-    await clock.advance(1000);
+    await bed.clock.advance(1000);
     expect((await setup()).status).toBe(201);
     const again = await post("/auth/setup", { token: "anything", ...owner, username: "second" });
     expect(again.status).toBe(401);
@@ -216,15 +176,14 @@ describe("auth routes", () => {
         expect(response.headers.get("set-cookie"), `${path} ${origin}`).toBeNull();
       }
     }
-    expect(db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c).toBe(0);
+    expect(bed.db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c).toBe(0);
   });
 
   it("offers no setup URL and refuses setup after a restart over a database that has an owner", async () => {
     const secret = token();
     expect((await setup()).status).toBe(201);
-    const restarted = createAuthModule({ db, clock, logger, publicOrigin: ORIGIN, allowedOrigins: ORIGINS });
+    const { auth: restarted, app: target } = bed.start(ORIGIN, ORIGINS);
     expect(restarted.setupUrl()).toBeNull();
-    const target = appOf(restarted);
     for (const candidate of [secret, "never-issued"]) {
       const response = await postTo(target, "/auth/setup", {
         token: candidate,
@@ -232,9 +191,9 @@ describe("auth routes", () => {
         username: "second",
       });
       expect([response.status, await response.json()]).toEqual([401, { error: { code: "unauthenticated" } }]);
-      await clock.advance(2000);
+      await bed.clock.advance(2000);
     }
-    expect(db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c).toBe(1);
+    expect(bed.db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c).toBe(1);
     expect((await target.request("/auth/status")).headers.get("set-cookie")).toBeNull();
   });
 
@@ -271,7 +230,7 @@ describe("auth routes", () => {
     expect([declared.status, await declared.json()]).toEqual([413, { error: { code: "payload_too_large" } }]);
     const under = JSON.stringify({ username: "owner", password: "x".repeat(15 * 1024) });
     expect((await post("/auth/login", under)).status).toBe(400);
-    expect(lines.filter((line) => line.includes("http_error"))).toEqual([]);
+    expect(bed.lines.filter((line) => line.includes("http_error"))).toEqual([]);
   });
 
   it("keys the throttle on the socket address, not on forwarded headers", async () => {
@@ -295,11 +254,11 @@ describe("auth routes", () => {
     expect((await post("/auth/setup", { token: token(), username: name, password: PASSWORD })).status).toBe(
       201,
     );
-    await clock.advance(2000);
+    await bed.clock.advance(2000);
     const attempt = () => post("/auth/login", { username: name, password: guess }, {}, socketAt("10.0.0.9"));
     expect((await attempt()).status).toBe(401);
     expect((await attempt()).status).toBe(429);
-    const entries = lines.map((line) => JSON.parse(line) as Record<string, unknown>);
+    const entries = bed.lines.map((line) => JSON.parse(line) as Record<string, unknown>);
     expect(entries.map((entry) => entry.msg)).toEqual([
       "owner_created",
       "auth_login_failed",
@@ -309,7 +268,7 @@ describe("auth routes", () => {
       ["10.0.0.9", 1000],
       ["10.0.0.9", 1000],
     ]);
-    for (const secret of [name, guess, PASSWORD]) expect(lines.join(""), secret).not.toContain(secret);
+    for (const secret of [name, guess, PASSWORD]) expect(bed.lines.join(""), secret).not.toContain(secret);
   });
 
   it("leaves 404 for GET and POST on unknown auth paths", async () => {
@@ -322,7 +281,7 @@ describe("the one-time setup url", () => {
   it("is never in a response, an error or a log line, and printing it through the logger keeps it intact", async () => {
     const url = auth.setupUrl() ?? "";
     const secret = token();
-    expect(lines).toEqual([]);
+    expect(bed.lines).toEqual([]);
     const attempts = [
       () => app.request("/auth/status"),
       () => post("/auth/setup", { token: `${secret}x`, ...owner }),
@@ -333,13 +292,15 @@ describe("the one-time setup url", () => {
     ];
     for (const attempt of attempts) {
       expect(await (await attempt()).text()).not.toContain(secret);
-      await clock.advance(2000);
+      await bed.clock.advance(2000);
     }
-    expect(lines.join("")).not.toContain(secret);
-    expect(lines.join("")).not.toContain(PASSWORD);
+    expect(bed.lines.join("")).not.toContain(secret);
+    expect(bed.lines.join("")).not.toContain(PASSWORD);
 
     const printed: string[] = [];
-    createLogger({ level: "info", clock, write: (line) => printed.push(line) }).info("setup_url", { url });
+    createLogger({ level: "info", clock: bed.clock, write: (line) => printed.push(line) }).info("setup_url", {
+      url,
+    });
     expect(printed).toHaveLength(1);
     expect(JSON.parse(printed[0] ?? "{}")).toMatchObject({ msg: "setup_url", url });
     expect(url).toBe(`${ORIGIN}/setup#token=${secret}`);

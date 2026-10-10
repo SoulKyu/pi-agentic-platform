@@ -15,11 +15,35 @@ export interface PasskeyStore {
   updatePasskeyCounter(id: string, counter: number): void;
 }
 
+const KNOWN_TRANSPORTS: ReadonlySet<string> = new Set([
+  "usb",
+  "nfc",
+  "ble",
+  "hybrid",
+  "internal",
+  "smart-card",
+  "cable",
+]);
+
+/** Only the transports WebAuthn defines survive: a registration response is client input, and the column is read back into options. */
+export function sanitizeTransports(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const known = value.filter(
+    (item): item is string => typeof item === "string" && KNOWN_TRANSPORTS.has(item),
+  );
+  return [...new Set(known)];
+}
+
+function readTransports(raw: string): string[] {
+  try {
+    return sanitizeTransports(JSON.parse(raw));
+  } catch {
+    return [];
+  }
+}
+
 type RawPasskey = Omit<PasskeyRow, "transports"> & { transports: string };
-const toPasskey = (row: RawPasskey): PasskeyRow => ({
-  ...row,
-  transports: JSON.parse(row.transports) as string[],
-});
+const toPasskey = (row: RawPasskey): PasskeyRow => ({ ...row, transports: readTransports(row.transports) });
 const COLUMNS = "id, user_id AS userId, public_key AS publicKey, counter, transports";
 
 export function createPasskeyStore(db: Db): PasskeyStore {

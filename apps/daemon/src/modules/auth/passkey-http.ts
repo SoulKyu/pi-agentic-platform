@@ -7,10 +7,12 @@ import type { PasskeyService } from "./passkeys.ts";
 import { RateLimitedError, type AuthService } from "./service.ts";
 import type { Throttle } from "./throttle.ts";
 
+// A sign-in flow id is the 75-character challenge itself.
 const FlowBody = z.object({
-  flowId: z.string().min(1).max(64),
+  flowId: z.string().min(1).max(128),
   response: z.record(z.string(), z.unknown()),
 });
+const EnrollBody = z.object({ password: z.string().min(1).max(1024) });
 
 export interface PasskeyRouteDeps {
   readonly passkeys: PasskeyService;
@@ -47,7 +49,14 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
   app.post("/auth/passkey/register/options", async (c) => {
     const owner = caller(c);
     if (!owner) return unauthenticated(c);
+    // Nothing to enroll on an IP-address origin: do not spend a password attempt on it.
+    if (!deps.passkeys.available) return errorResponse(c, new PapError("not_found"));
+    const body = await readJson(c, EnrollBody);
+    if (!body) return badRequest(c);
     try {
+      // R83: a session alone must not add a credential that outlives it (a stolen cookie, ADR 0004). The
+      // password is checked like a sign-in, on the same throttle keys, before any flow exists.
+      await deps.auth.confirmPassword({ userId: owner.userId, password: body.password, ip: clientIp(c) });
       return c.json(await deps.passkeys.registerOptions(owner.userId));
     } catch (error) {
       return errorResponse(c, error);
@@ -60,6 +69,7 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
     if (!body) return badRequest(c);
     try {
       await throttled(c, deps, () => deps.passkeys.registerVerify(owner.userId, body.flowId, body.response));
+      deps.logger.info("auth_passkey_enrolled", { ip: clientIp(c) });
       return c.json({ ok: true });
     } catch (error) {
       return errorResponse(c, error);

@@ -10,12 +10,21 @@ export interface CeremonyOverrides {
   readonly userVerified?: boolean;
   /** The signature counter to report; by default one more than the last assertion. */
   readonly counter?: number;
+  /** The user handle to report (null: none) instead of the one given at enrollment. */
+  readonly userHandle?: string | null;
+  /** Transports the registration response claims. */
+  readonly transports?: unknown;
 }
 
 export interface SoftwareAuthenticator {
   readonly credentialId: string;
-  create(challenge: string, overrides?: CeremonyOverrides): Record<string, unknown>;
-  get(challenge: string, overrides?: CeremonyOverrides): Record<string, unknown>;
+  /** Answers a server's registration options (`challenge`, `user.id`) like navigator.credentials.create. */
+  create(
+    options: { challenge: string; user: { id: string } },
+    overrides?: CeremonyOverrides,
+  ): Record<string, unknown>;
+  /** Answers a server's authentication options (`challenge`) like navigator.credentials.get. */
+  get(options: { challenge: string }, overrides?: CeremonyOverrides): Record<string, unknown>;
 }
 
 const USER_PRESENT = 0x01;
@@ -47,6 +56,7 @@ export function createSoftwareAuthenticator(defaults: {
     ]),
   );
   let lastCounter = 0;
+  let enrolledHandle: string | undefined;
   const settings = (overrides: CeremonyOverrides = {}) => ({
     origin: overrides.origin ?? defaults.origin,
     rpId: overrides.rpId ?? defaults.rpId,
@@ -63,8 +73,9 @@ export function createSoftwareAuthenticator(defaults: {
   const id = credentialId.toString("base64url");
   return {
     credentialId: id,
-    create(challenge, overrides) {
+    create({ challenge, user }, overrides) {
       const { origin, rpId, userVerified } = settings(overrides);
+      enrolledHandle = user.id;
       const authData = Buffer.concat([
         header(rpId, userVerified, 0, true),
         Buffer.alloc(16),
@@ -85,12 +96,13 @@ export function createSoftwareAuthenticator(defaults: {
         response: {
           clientDataJSON: clientData("webauthn.create", challenge, origin).toString("base64url"),
           attestationObject: Buffer.from(isoCBOR.encode(attestation as never)).toString("base64url"),
-          transports: ["internal"],
+          transports: overrides?.transports ?? ["internal"],
         },
       };
     },
-    get(challenge, overrides) {
+    get({ challenge }, overrides) {
       const { origin, rpId, userVerified } = settings(overrides);
+      const userHandle = overrides?.userHandle === undefined ? enrolledHandle : overrides.userHandle;
       lastCounter = overrides?.counter ?? lastCounter + 1;
       const authData = header(rpId, userVerified, lastCounter, false);
       const data = clientData("webauthn.get", challenge, origin);
@@ -105,7 +117,7 @@ export function createSoftwareAuthenticator(defaults: {
           signature: sign("sha256", Buffer.concat([authData, sha256(data)]), privateKey).toString(
             "base64url",
           ),
-          userHandle: Buffer.from("user").toString("base64url"),
+          ...(userHandle ? { userHandle } : {}),
         },
       };
     },

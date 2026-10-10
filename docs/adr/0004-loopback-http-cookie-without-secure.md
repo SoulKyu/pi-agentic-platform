@@ -1,6 +1,6 @@
 # ADR 0004 — the session cookie omits Secure on plain-http loopback
 
-Status: accepted · Date: 2026-10-10 · Spec: C §4.4 · Rulings: R24, R24b
+Status: accepted · Date: 2026-10-10 · Spec: C §4.4 · Rulings: R24, R24b, R83
 
 Spec C §4.4 says the session cookie is `HttpOnly; Secure; SameSite=Strict`. The daemon serves plain HTTP on `127.0.0.1:7777` by default, and the M1 exit criterion includes a WebKit run against exactly that address. This ADR records the one case where `Secure` is left off and why nothing else is.
 
@@ -22,5 +22,5 @@ Spec C §4.4 says the session cookie is `HttpOnly; Secure; SameSite=Strict`. The
 
 - The default `pap serve` works in Safari and WebKit with no setup, and the WebKit end-to-end journey is deterministic.
 - A daemon configured with an https public origin always sets `Secure`, so a Host-rewriting proxy cannot downgrade the cookie. The price: Safari and WebKit lose the session when the same daemon is reached directly on `http://localhost:7777`, because the browser drops the `Secure` cookie there. Use the public https URL, or leave `PAP_PUBLIC_ORIGIN` unset for local work.
-- Cookies are not scoped to a port. Any server listening on localhost, on any port (a dev server running third-party npm code, for example), receives `pap_session` whether or not the cookie is `Secure`, because Chromium and Firefox send `Secure` cookies to `http://localhost` too. `HttpOnly` keeps page scripts away from the value, not other servers on the host. This is an accepted risk; sessions are revocable (logout) and expire after 30 days without use.
+- Cookies are not scoped to a port. Any server listening on localhost, on any port (a dev server running third-party npm code, for example), receives `pap_session` whether or not the cookie is `Secure`, because Chromium and Firefox send `Secure` cookies to `http://localhost` too. `HttpOnly` keeps page scripts away from the value, not other servers on the host. This is an accepted risk; sessions are revocable (logout) and expire after 30 days without use. What a stolen session cannot do is turn into something permanent: enrolling a passkey also asks for the password (R83), so a thief with only the cookie cannot add a credential that survives logout and expiry. Listing and removing passkeys and "sign out everywhere" are still roadmap.
 - Exposing the daemon on another interface with `--host 0.0.0.0` and no TLS gives non-loopback hosts a `Secure` cookie that a browser refuses to store over plain HTTP. That is intended: a session must not travel over an unencrypted non-loopback link, so the owner has to front it with TLS.
