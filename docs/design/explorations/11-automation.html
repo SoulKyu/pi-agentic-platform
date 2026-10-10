@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 9 · Automation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; --leg1:#A78BFA; --leg2:#FB923C; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 1000px; }
+  .cap { margin: 24px 0 8px; font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: #52525b; }
+  .app { border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 10px 40px rgba(0,0,0,.12);
+         background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); display: grid; grid-template-columns: 48px 1fr;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0; }
+  .av { width: 28px; height: 28px; border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--ui); position: relative; background: var(--bg); flex: none; }
+  .av.sm { width: 22px; height: 22px; font-size: 9px; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .top { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--side); }
+  .ws { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; border: 1px solid var(--border-strong); padding: 2px 7px; border-radius: 2px; }
+  .sp { flex: 1; }
+  .kbd { font: 600 10px var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 5px; }
+  .tabs { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; padding: 0 8px; }
+  .tabs span { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); }
+  .tabs span.on { color: var(--text); border-color: var(--ai); background: var(--surface2); }
+  .chip { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.run { color: var(--ai); border-color: #A78BFA88; }
+  .chip.ok { color: var(--ok); border-color: #34D39966; }
+  .chip.att { color: var(--attn); border-color: #EC489988; }
+  .chip.ext { color: var(--attn); border-color: #EC489988; border-style: dashed; }
+  .chip.mut { color: var(--muted); border-color: var(--border-strong); }
+  .chip.err { color: var(--err); border-color: #F8717188; }
+  .btn { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 9px; height: 24px; display: inline-flex; align-items: center; border-radius: 2px; border: 1px solid var(--border-strong); color: var(--text); white-space: nowrap; gap: 5px; }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .sw { width: 30px; height: 16px; border-radius: 2px; background: #A78BFA33; border: 1px solid var(--ai); position: relative; display: inline-block; vertical-align: middle; }
+  .sw i { position: absolute; top: 2px; left: 16px; width: 10px; height: 10px; background: var(--ai); border-radius: 1px; }
+  .sw.off { background: var(--surface2); border-color: var(--border-strong); } .sw.off i { left: 2px; background: var(--muted); }
+
+  .ed { display: grid; grid-template-columns: 1.15fr 1fr; min-height: 640px; }
+  .form { border-right: 1px solid var(--border); padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .fh { display: flex; align-items: center; gap: 10px; }
+  .fh .t { font: 800 17px var(--ui); }
+  .sect { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; }
+  .sect .sh { padding: 6px 10px; border-bottom: 1px solid var(--border); font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--ai); display: flex; }
+  .sect .sh span { margin-left: auto; color: var(--muted); font-weight: 500; letter-spacing: .04em; text-transform: none; font-family: var(--ui); }
+  .fr { display: grid; grid-template-columns: 150px 1fr; gap: 10px; padding: 7px 10px; border-bottom: 1px solid var(--border); align-items: center; font-size: 12.5px; }
+  .fr:last-child { border-bottom: none; }
+  .fr .k small { display: block; color: var(--muted); font-size: 11px; }
+  .in { border: 1px solid var(--border-strong); background: var(--bg); border-radius: 2px; padding: 4px 8px; font: 12px var(--mono); }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 2px; overflow: hidden; }
+  .seg span { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 4px 8px; border-right: 1px solid var(--border-strong); color: var(--muted); }
+  .seg span:last-child { border-right: none; }
+  .seg span.on { background: var(--surface2); color: var(--text); box-shadow: inset 0 -2px 0 var(--ai); }
+  .tools { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tools span { font: 11px var(--mono); border: 1px solid var(--border-strong); padding: 1px 6px; border-radius: 2px; }
+  .tools span.no { color: var(--muted); text-decoration: line-through; border-style: dashed; }
+  .url { display: flex; gap: 6px; align-items: center; }
+  .url .in { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  .dry { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; background: var(--side); }
+  .dry h3 { font: 800 15px var(--ui); display: flex; align-items: center; gap: 8px; }
+  .payload { font: 11.5px/1.55 var(--mono); background: var(--bg); border: 1px dashed var(--border-strong); border-radius: 2px; padding: 8px 10px; color: #D4CFE4; white-space: pre; overflow: hidden; }
+  .verdict { border: 1px solid #34D39966; background: #34D39912; border-radius: 3px; padding: 8px 10px; font-size: 12.5px; }
+  .verdict small { display: block; font: 600 9.5px var(--mono); color: var(--ok); text-transform: uppercase; letter-spacing: .1em; }
+  .kvs { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 12px; }
+  .kvs span:nth-child(odd) { color: var(--muted); font: 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .prompt { font: 11.5px/1.55 var(--mono); background: var(--bg); border: 1px solid var(--border-strong); border-radius: 2px; padding: 8px 10px; color: var(--text); white-space: pre-wrap; }
+  .prompt .fz { color: var(--attn); }
+  .note { font-size: 11.5px; color: var(--muted); }
+
+  .log { border-top: 1px solid var(--border); }
+  .log .lh { padding: 8px 16px; display: flex; gap: 8px; align-items: center; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--ai); border-bottom: 1px solid var(--border); }
+  .log .lh .f { margin-left: auto; display: flex; gap: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  td, th { padding: 6px 16px; border-bottom: 1px solid var(--border); text-align: left; }
+  th { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+  td.m { font: 11.5px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tr.coll td { color: var(--muted); font-style: italic; }
+
+  .board { padding: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .col { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; }
+  .col .ch { padding: 7px 10px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font: 700 13px var(--ui); }
+  .col .ch span { margin-left: auto; font: 600 10px var(--mono); color: var(--muted); }
+  .task { padding: 8px 10px; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; }
+  .task:last-child { border-bottom: none; }
+  .task small { display: block; font: 10.5px var(--mono); color: var(--muted); }
+  .bhead { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; align-items: center; }
+  .bhead b { font: 800 15px var(--ui); }
+
+  .ask { margin-top: 26px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .ask .r b { width: 100%; font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: .06em; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="pi2" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="currentColor"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--leg1)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--leg2)"/></symbol>
+</defs></svg>
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 9 : l'automation</h1>
+    <p>Les triggers appartiennent à un agent. Ils s'ouvrent en onglet depuis son panneau d'état, ou via ⌘K « trigger… ». L'écran clé est l'<b>éditeur avec dry-run à côté</b> : on voit exactement ce qui partirait, sans rien écrire. En dessous, le journal des tirs. Plus bas, le tableau global des tâches.</p>
+  </div>
+
+  <div class="cap">1 · Éditeur de trigger + dry-run + journal</div>
+  <div class="app">
+    <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC</div><div class="av" style="--c:#6B6485">LG</div></div>
+    <div class="main">
+      <div class="top"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B</span><span class="sp"></span><span class="kbd">Inbox</span><span class="kbd">⌘K</span></div>
+      <div class="tabs"><span>Atlas</span><span class="on">Atlas › prod-alerts</span><span>Tasks</span><span>+</span></div>
+      <div class="ed">
+        <div class="form">
+          <div class="fh"><div class="av sm">AT</div><span class="t">prod-alerts</span><span class="chip ext">webhook</span><span class="sw"><i></i></span><span style="font-size:12px;color:var(--muted)">activé</span><span class="sp"></span><span class="btn">Fire now</span><span class="btn pri">Enregistrer</span></div>
+          <div class="sect"><div class="sh">Source<span>Alertmanager</span></div>
+            <div class="fr"><div class="k">Type</div><div class="seg"><span>Schedule</span><span class="on">Webhook</span><span>Feed</span><span>Manuel</span></div></div>
+            <div class="fr"><div class="k">URL</div><div class="url"><span class="in">https://pap.home.arpa/hooks/trg_7Kp2…</span><span class="btn">Copier</span></div></div>
+            <div class="fr"><div class="k">Authentification<small>secret montré une seule fois</small></div><div style="display:flex;gap:8px;align-items:center"><span class="chip ok">secret ✓</span><span class="sw"><i></i></span><span style="font-size:12px">HMAC-SHA256</span><span class="sp"></span><span class="btn">Rotation</span></div></div>
+            <div class="fr"><div class="k">Format</div><div class="seg"><span>Brut</span><span class="on">Alertmanager</span><span>Grafana</span></div></div>
+            <div class="fr"><div class="k">Limites</div><span style="font:12px var(--mono);color:var(--muted)">64 KB · 60/min · 20 en file · dédup sur fingerprint</span></div>
+          </div>
+          <div class="sect"><div class="sh">Exécution<span>isolated-task</span></div>
+            <div class="fr"><div class="k">Cible</div><div class="seg"><span>Thread d'Atlas</span><span class="on">Tâche isolée</span></div></div>
+            <div class="fr"><div class="k">Outils autorisés<small>liste fermée</small></div><div class="tools"><span>read</span><span>grep</span><span>bash</span><span>kubectl-ro (MCP)</span><span class="no">write</span><span class="no">git push</span></div></div>
+            <div class="fr"><div class="k">Precheck<small>code 0 = tirer</small></div><span class="in">kubectl get pods -n prod -o name | grep -q api</span></div>
+            <div class="fr"><div class="k">Si interrompu</div><div class="seg"><span class="on">Ne pas relancer</span><span>Relancer</span></div></div>
+            <div class="fr"><div class="k">Budget du run</div><span style="font:12px var(--mono)">max 20 min · budget Atlas : $5/j</span></div>
+          </div>
+          <div class="sect"><div class="sh">Prompt<span>le payload est toujours clôturé</span></div>
+            <div style="padding:8px 10px"><div class="prompt">Investigate the alert below. Do not change production.
+Report root cause, impact and a proposed fix.
+<span class="fz">{{payload}}</span></div></div>
+          </div>
+        </div>
+        <div class="dry">
+          <h3>Dry-run <span class="chip mut">rien n'est écrit</span></h3>
+          <div class="payload">{"status":"firing","alerts":[{
+  "labels":{"alertname":"HighMemory",
+    "pod":"api-7f9c","namespace":"prod"},
+  "fingerprint":"9f2c1e…"}]}</div>
+          <div class="verdict"><small>Verdict · tirerait</small>1 tâche isolée pour Atlas · dédup : nouvelle empreinte · precheck : OK (exit 0, 0,4 s)</div>
+          <div class="kvs"><span>Outils</span><span>read, grep, bash, kubectl-ro</span><span>Profil</span><span>épinglé · v12 (inchangé)</span><span>Cwd</span><span>~/infra (confiance ✓)</span><span>Tokens</span><span>aucun (dry-run)</span></div>
+          <div class="prompt">Investigate the alert below. Do not change production.
+Report root cause, impact and a proposed fix.
+<span class="fz">&lt;untrusted source="alertmanager" id="f_3a9"&gt;
+[FIRING] HighMemory pod=api-7f9c ns=prod
+&lt;/untrusted&gt;</span></div>
+          <div class="note">Le payload est clôturé et ne peut pas fermer la clôture (id aléatoire). La session de la tâche démarre <b>contaminée</b> : toute écriture externe redemandera ton accord.</div>
+        </div>
+      </div>
+      <div class="log">
+        <div class="lh">Journal des tirs<span class="f"><span class="chip mut">tous</span><span class="chip ok">tirés</span><span class="chip att">refusés</span></span></div>
+        <table>
+          <tr><th>Quand</th><th>Verdict</th><th>Détail</th><th>Tâche</th><th>Durée</th><th>Coût</th></tr>
+          <tr><td class="m">14:01:12</td><td><span class="chip ok">fired</span></td><td>HighMemory · api-7f9c</td><td class="m">tsk_41 · done</td><td class="m">3m40</td><td class="m">$0.21</td></tr>
+          <tr><td class="m">13:58:03</td><td><span class="chip mut">dedup</span></td><td>même empreinte 9f2c1e</td><td class="m">—</td><td class="m">—</td><td class="m">—</td></tr>
+          <tr class="coll"><td class="m">09:00 → 13:00</td><td><span class="chip mut">precheck ×12</span></td><td>« no api pod » · 12 sauts identiques regroupés</td><td class="m">—</td><td class="m">—</td><td class="m">—</td></tr>
+          <tr><td class="m">03:12:44</td><td><span class="chip att">budget</span></td><td>budget du jour d'Atlas atteint</td><td class="m">—</td><td class="m">—</td><td class="m">—</td></tr>
+          <tr><td class="m">hier 23:40</td><td><span class="chip err">401</span></td><td>secret invalide · 3 tentatives non authentifiées</td><td class="m">—</td><td class="m">—</td><td class="m">—</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap">2 · Tableau global des tâches (onglet « Tasks »)</div>
+  <div class="app">
+    <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg></div>
+    <div class="main">
+      <div class="bhead"><b>Tasks</b><span class="chip run">2 en cours</span><span class="chip mut">3 en file</span><span class="sp"></span><span class="chip mut">Aujourd'hui</span><span class="btn">Pause globale</span></div>
+      <div class="board">
+        <div class="col"><div class="ch"><div class="av sm">AT</div>Atlas<span>2 slots · $1.84</span></div>
+          <div class="task"><span class="chip run">run</span><div>Investigate HighMemory<small>prod-alerts · 2m · isolated</small></div><span class="btn">Steer</span></div>
+          <div class="task"><span class="chip mut">queued</span><div>Weekly memory curation<small>dim. 09:00 · thread</small></div><span class="btn">Cancel</span></div>
+          <div class="task"><span class="chip ok">done</span><div>Nightly dependency check<small>02:03 · $0.12</small></div><span class="btn">Ouvrir</span></div></div>
+        <div class="col"><div class="ch"><div class="av sm" style="--c:var(--attn)">SC</div>Scout<span>1 slot · $0.40</span></div>
+          <div class="task"><span class="chip att">input</span><div>Reproduce leak in staging<small>delegate d'Atlas · attend ton accord</small></div><span class="btn pri">Répondre</span></div>
+          <div class="task"><span class="chip mut">queued</span><div>Scan k8s blog<small>feed · 3 entrées</small></div><span class="btn">Cancel</span></div></div>
+        <div class="col"><div class="ch"><div class="av sm" style="--c:#6B6485">LG</div>Ledger<span>0 slot · $0.31</span></div>
+          <div class="task"><span class="chip err">interrupted</span><div>Monthly cost report<small>redémarrage du daemon · non relancée</small></div><span class="btn">Relancer</span></div>
+          <div class="task"><span class="chip ok">done</span><div>Budget alert digest<small>08:00 · $0.05</small></div><span class="btn">Ouvrir</span></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ask">
+    <h3>Ton avis</h3>
+    <p>Valide l'ensemble ou coche ce que tu veux changer.</p>
+    <div class="r"><b>Global</b><div class="opt" data-choice="r9-ok" onclick="this.classList.toggle('selected')">OK tel quel</div></div>
+    <div class="r"><b>Éditeur</b>
+      <div class="opt" data-choice="r9-editor-wizard" onclick="this.classList.toggle('selected')">Assistant pas à pas pour créer un trigger</div>
+      <div class="opt" data-choice="r9-schedule-nl" onclick="this.classList.toggle('selected')">Planification en langage naturel (« tous les jours à 2h »)</div>
+    </div>
+    <div class="r"><b>Tâches</b>
+      <div class="opt" data-choice="r9-board-columns-agent" onclick="this.classList.toggle('selected')">Colonnes par agent (comme montré)</div>
+      <div class="opt" data-choice="r9-board-columns-state" onclick="this.classList.toggle('selected')">Colonnes par état (kanban)</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
