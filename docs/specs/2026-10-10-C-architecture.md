@@ -34,7 +34,7 @@ docs/{specs,architecture,design,adr,agents,research}
 
 ### 1.4 Anti-sprawl rules (CI-enforced, §8)
 
-1. One module per domain (D01–D21). A module imports only `contracts`, `kernel` and other modules' `index.ts`.
+1. One module per domain area: the 20 daemon modules of §1.1 cover D01–D21 (extension UI lives in `sessions`, mobile/PWA is web-only). A module imports only `contracts`, `kernel` and other modules' `index.ts`.
 2. 400 lines per file at most. No baseline, no exceptions.
 3. An RPC handler decodes the request, calls one service method and maps typed errors. Nothing else.
 4. Every RPC method declares a permission in `contracts`. A missing permission is a type error.
@@ -73,13 +73,13 @@ Pi's JSONL is the transcript. The worker is disposable; the session is not.
 | Direction | Origin | Records |
 |---|---|---|
 | daemon → worker | Pi RPC shapes | `prompt{message,images,streamingBehavior}` `abort` `compact` `get_state` `get_entries{since}` `get_tree` `fork` `clone` `set_model` `set_thinking_level` `set_session_name` `export_html` `get_session_stats` `get_commands` `get_available_models` `extension_ui_response` |
-| daemon → worker | pap | `navigate_tree{targetId}` `custom_input{id,data}` `platform_result{id,ok,result\|error}` `policy_update{rules}` `shutdown{graceMs}` |
+| daemon → worker | pap | `init{…}` (first record: session file, policy, env; ADR 0001) `navigate_tree{targetId}` `custom_input{id,data}` `platform_result{id,ok,result\|error}` `policy_update{rules}` `shutdown{graceMs}` |
 | worker → daemon | Pi RPC shapes | `response{id}`; events `agent_start` `message_*` `tool_execution_*` `turn_end` `agent_end` `agent_settled` `compaction_*` `auto_retry_*`; `extension_ui_request` (dialogs and decorations) `extension_error` |
-| worker → daemon | pap | `ready{sessionFile,piVersion}` `custom_render{id,lines}` `custom_close{id}` `platform_call{id,op,args}` `audit{entry}` `health{rssMb}` |
+| worker → daemon | pap | `ready{sessionFile,piVersion}` `custom_render{id,lines}` `custom_close{id}` `extension_ui_closed{id}` (ADR 0001) `platform_call{id,op,args}` `audit{entry}` `health{rssMb}` |
 
 ### 2.4 Run rules
 
-- **End of a run.** `agent_settled` is the only end signal. It is confirmed by `get_state` (not streaming, not compacting, queue empty), with 3 tries 100 ms apart, and new input cancels the probe.
+- **End of a run.** `agent_settled` is the only end signal. It is confirmed by `get_state` (not streaming, not compacting, queue empty), with 3 tries 100 ms apart, and new input cancels the probe. If the probe never sees Pi idle, the run stays open until the next `agent_settled`.
 - **Origin.** Each run records its origin: `user`, `trigger`, `task` or `extension`. Runs started by an extension are accepted and audited; T3 and Orca kill the session instead (decision 16).
 - **Steering.** A prompt sent during a run is delivered as `steer` or `followUp`, per user preference. The queue is capped at 128 messages and 32 MiB.
 - **Abort.** pap sends `abort`. If compaction is running, or the run has not settled within 5 s, the process is terminated.
@@ -129,7 +129,7 @@ Sources: `T3: provider-pi/src/server/{rpc,adapter}.ts, process/agentScope.ts, mc
 - Engine: `node:sqlite` (Node 24 built-in, no native module), WAL, `synchronous=FULL`, `busy_timeout=5000`, `foreign_keys=ON`, `journal_size_limit=32 MiB`.
 - **Single writer**: the daemon. Transactions stay short because the API is synchronous. Heavy FTS queries run in a worker thread.
 - **Tables are owned per module**, and only that module's `store.ts` writes to them.
-- **Migrations** are forward-only SQL files per module (`modules/<m>/migrations/NNNN_*.sql`), ordered by timestamp.
+- **Migrations** are forward-only SQL files per module (`modules/<m>/migrations/<YYYYMMDDHHmm>_<name>.sql`), applied in timestamp order across modules.
   - Changes between minor versions are additive only.
   - A database newer than the binary opens read-only.
   - `db + wal + shm` are snapshotted before every migration.
@@ -160,6 +160,7 @@ Tables:
 | `runs` | unlimited; also exported to `logs/runs.jsonl` for Loki |
 | `session_events` | 30 days after the run ends |
 | settled `outbox` rows | 7 days; failed rows are kept until resolved |
+| `receipts` | 7 days |
 | `audit` | 12 months, then `pap audit prune` by month (an append-only table with SQL triggers rejecting UPDATE and DELETE) |
 | trigger fire journal | 500 entries per trigger |
 | logs and traces | rotated at 10 MiB × 10 |
@@ -186,7 +187,7 @@ Sources: `T3: persistence/Sqlite.ts, EffectOutbox.ts, server-updates.md` · `Orc
 | request / response | `{id, method, params, commandId?}` → `{id, ok, result \| error{code}}`, 1 MiB per message |
 | subscriptions | `subscribe.<stream>{…, after?}` → `{sub, seq, event}`; `unsubscribe{sub}`. Unknown events are skipped but the cursor still advances |
 | terminal | binary frames with a `streamId + seq` header and raw bytes; acks give flow control |
-| hello | `?proto=1` on upgrade → `{protocol, capabilities[], serverVersion}`. A mismatch returns HTTP 426 and the SPA shows "new version, reload" |
+| hello | `?proto=1` on upgrade → `{protocol, capabilities[], serverVersion}`. Browsers cannot read the status of a failed upgrade, so the SPA first probes `GET /ws` over plain HTTP: on mismatch it answers 426 with `{protocol}` and the SPA shows "new version, reload" |
 | keepalive | client ping every 5 s, server ping every 15 s; a peer silent for 15 s is considered dead |
 
 Each handler failure fails only its own request, never the socket.
@@ -197,7 +198,7 @@ v1 streams: `shell` (sidebar summaries), `session`, `lane`, `vcs{cwd}`, `termina
 
 Resume:
 
-- The client sends `after`, the last `seq` it saw.
+- The client sends `after = {epoch, seq}`. `epoch` changes at every daemon start; a cursor from another epoch always gets a snapshot (ADR 0003).
 - The server replays the gap when it is at most 128 events and 1 MiB. Otherwise it sends a bounded snapshot: about the last 75 rows, the current partial message and pending dialogs.
 - Older history is paged with `sessions.history{before}`.
 - Deltas are coalesced every 50 ms. Large tool output stays off the stream and is fetched with `sessions.toolOutput`.
@@ -213,7 +214,7 @@ Client connection supervisor:
 
 - **First start**: the daemon logs a one-time setup URL with a random token, which creates the owner.
 - **Login**:
-  - password hashed with `crypto.scrypt`;
+  - password hashed with `crypto.scrypt`, 12 characters minimum;
   - WebAuthn passkeys with `@simplewebauthn/server` (the default login);
   - throttling per IP and per account.
 - **Browser session**: an opaque random id, stored hashed, in a cookie set `HttpOnly`, `Secure`, `SameSite=Strict`. It lasts 30 days, sliding, and can be revoked from "Connected devices".
@@ -223,7 +224,7 @@ Client connection supervisor:
 - **CSRF**: `Origin` is checked on the WS upgrade and on every POST, in addition to SameSite=Strict.
 - **`X-Forwarded-*`** headers are honoured only when `trustProxy` is configured.
 - **Exposure**:
-  - The daemon binds `127.0.0.1:7777` by default.
+  - The daemon binds `127.0.0.1:7777` by default. For loopback binds, the setup URL and the published origin use `localhost`, because WebAuthn rejects IP addresses as relying-party IDs; on an IP origin, passkeys are disabled with a clear message instead of failing.
   - Passkeys, the PWA and Web Push need HTTPS outside localhost. Remote access goes through Tailscale serve, a reverse proxy, or `--tls-cert/--tls-key`.
 
 ### 4.5 HTTP routes (Hono + `@hono/node-server`; `ws` handles the upgrade)
@@ -242,7 +243,7 @@ Sources: `T3: contracts/rpc.ts, RpcAuthorization.ts, ThreadStream.ts, client-run
 
 ### 5.1 The `pap-policy` extension
 
-- It is loaded first in `pi-host`, before user extensions, and cannot be bypassed: a single `block` blocks.
+- It is evaluated **last** in `pi-host`, after user extensions, so it judges the final tool input: placed first, a later extension could rewrite a call it already approved. It still cannot be bypassed, because a single `block` from any handler blocks (ADR 0002).
 - The daemon compiles the rules, sends them at worker boot and hot-reloads them with `policy_update`.
 - **Any evaluation error blocks** the call (fail closed).
 - Every stage writes an audit line: call, redacted arguments, decision and reason. Results are never recorded.
@@ -270,6 +271,7 @@ Sources: `T3: contracts/rpc.ts, RpcAuthorization.ts, ThreadStream.ts, client-run
 | network | URL tools, `web_fetch` | ask | host allowlist only |
 | external write | `git push`, PR creation, non-read-only MCP, sends | ask | ask by push; deny on timeout |
 | tainted + exfiltration-capable | any network or external write after untrusted content | ask, even when an "always" rule exists | ask by push, else deny |
+| unknown | a tool with no known category | ask | block |
 
 - An approval card offers four answers: **once**, **session** (held in worker memory), **always** (persisted in `approval_rules` per project or agent; visible and revocable in Settings) and **deny** (the reason is returned to the model).
 - Policy profiles are chosen by the daemon:
@@ -496,7 +498,7 @@ There is no Node SEA. node-pty is a native module, and Pi loads user extensions 
 - **release-please**: Conventional Commits produce the changelog and the release PR, and the tag builds all three channels.
 - The Pi SDK is pinned per release.
 - `pap service install` writes a systemd user unit (with a linger hint) or a launchd plist.
-- **Zero telemetry**. The only outbound request from pap itself is the update check, opt-out with `PAP_UPDATE_CHECK=0`.
+- **Zero telemetry**. The only outbound request from pap itself is the update check, opt-out with `PAP_UPDATE_CHECK=0`. Pi workers run with `PI_TELEMETRY=0`; Pi's model catalog refresh runs only on explicit user action.
 
 ## 10. Spikes before the implementation plan
 

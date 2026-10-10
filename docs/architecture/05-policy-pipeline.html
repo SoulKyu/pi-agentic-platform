@@ -72,7 +72,7 @@
 <div class="page">
   <div class="kicker">Spec C · Architecture · Section 5 / 9</div>
   <h1>Pipeline de politiques et outils plateforme</h1>
-  <p class="lead">Toutes les politiques de pi-web (denylist, egress, sandbox, coffre, masquage, audit, isolation du contenu non fiable) deviennent une extension <code>pap-policy</code> chargée en premier dans <code>pi-host</code>, avant les extensions de l'utilisateur. Le daemon reste la source de vérité des règles : il les compile, les envoie au démarrage du worker et à chaud via <code>policy_update</code>. Règle absolue : une erreur d'évaluation bloque l'appel, jamais l'inverse.</p>
+  <p class="lead">Toutes les politiques de pi-web (denylist, egress, sandbox, coffre, masquage, audit, isolation du contenu non fiable) deviennent une extension <code>pap-policy</code> évaluée en dernier dans <code>pi-host</code>, après les extensions de l'utilisateur, pour juger l'appel final (amendement, ADR 0002). Le daemon reste la source de vérité des règles : il les compile, les envoie au démarrage du worker et à chaud via <code>policy_update</code>. Règle absolue : une erreur d'évaluation bloque l'appel, jamais l'inverse.</p>
 
   <h2>1 · Le trajet d'un appel d'outil</h2>
   <div class="rowlbl">Avant exécution · hook tool_call</div>
@@ -136,7 +136,7 @@
     <div class="box warn"><span class="lbl">Limite assumée (v1)</span>
       <p style="font-size:13px">L'allowlist d'hôtes contrôle les outils qui portent une URL. Un <code>bash</code> avec réseau autorisé peut joindre n'importe quel hôte : la vraie barrière, c'est bwrap sans réseau (<code>sandbox_network: false</code>). Un proxy d'egress par agent (allowlist appliquée au niveau réseau) part en roadmap.</p></div>
     <div class="box"><span class="lbl">Compatibilité extensions</span>
-      <p style="font-size:13px"><code>pap-policy</code> passe en premier et ne peut pas être contournée par une extension utilisateur : un seul <code>block</code> suffit à bloquer. Les extensions de l'utilisateur gardent le même <code>ctx</code> que dans le CLI (principe pi-web).</p></div>
+      <p style="font-size:13px"><code>pap-policy</code> passe en dernier : elle voit l'appel tel qu'il sera exécuté, et ne peut pas être contournée, car un seul <code>block</code> suffit à bloquer. Les extensions de l'utilisateur gardent le même <code>ctx</code> que dans le CLI (principe pi-web).</p></div>
   </div>
 
   <div class="ask-box">
