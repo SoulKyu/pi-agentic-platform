@@ -1,0 +1,86 @@
+import { z } from "zod";
+import { defineMethod, type MethodDef } from "./define.ts";
+import { Cursor } from "./frames.ts";
+import { DialogResponse, SessionSummary } from "./streams.ts";
+
+const SessionId = z.string().min(1).max(128);
+const Ok = z.object({ ok: z.literal(true) });
+
+function catalogue<const T extends { readonly [K in keyof T]: MethodDef<K & string> }>(defs: T): T {
+  return defs;
+}
+
+export const methods = catalogue({
+  "system.ping": defineMethod({
+    name: "system.ping",
+    permission: "system:read",
+    idempotent: true,
+    params: z.object({}),
+    result: z.object({ now: z.number() }),
+    errors: [],
+  }),
+  unsubscribe: defineMethod({
+    name: "unsubscribe",
+    permission: "system:read",
+    idempotent: true,
+    params: z.object({ sub: z.string().min(1).max(64) }),
+    result: Ok,
+    errors: [],
+  }),
+  "sessions.create": defineMethod({
+    name: "sessions.create",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ cwd: z.string().min(1).max(4096) }),
+    result: z.object({ sessionId: SessionId }),
+    errors: ["invalid_cwd", "capacity", "worker_failed"],
+  }),
+  "sessions.list": defineMethod({
+    name: "sessions.list",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({}),
+    result: z.object({ sessions: z.array(SessionSummary) }),
+    errors: [],
+  }),
+  "sessions.prompt": defineMethod({
+    name: "sessions.prompt",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({
+      sessionId: SessionId,
+      text: z.string().min(1).max(200_000),
+      streamingBehavior: z.enum(["steer", "followUp"]).optional(),
+    }),
+    result: z.object({ disposition: z.enum(["started", "queued", "handled"]) }),
+    errors: ["not_found", "capacity", "worker_failed", "prompt_rejected"],
+  }),
+  "sessions.abort": defineMethod({
+    name: "sessions.abort",
+    permission: "sessions:operate",
+    idempotent: true,
+    params: z.object({ sessionId: SessionId }),
+    result: Ok,
+    errors: ["not_found"],
+  }),
+  "sessions.respondDialog": defineMethod({
+    name: "sessions.respondDialog",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({
+      sessionId: SessionId,
+      dialogId: z.string().min(1).max(128),
+      response: DialogResponse,
+    }),
+    result: Ok,
+    errors: ["not_found"],
+  }),
+  "subscribe.session": defineMethod({
+    name: "subscribe.session",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({ sessionId: SessionId, after: Cursor.optional() }),
+    result: z.object({ sub: z.string() }),
+    errors: ["not_found"],
+  }),
+});
