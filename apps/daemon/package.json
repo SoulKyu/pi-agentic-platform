@@ -1,0 +1,17 @@
+{
+  "name": "@pap/daemon",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "pap": "./dist/main.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "node --disable-warning=ExperimentalWarning --conditions=development --watch src/main.ts serve --dev"
+  },
+  "dependencies": {
+    "@pap/contracts": "workspace:*"
+  }
+}
