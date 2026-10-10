@@ -34,6 +34,7 @@ Status: design phase (specs A, C, D written; DESIGN.md in progress). HTML pages 
 - [design/explorations/05-shell-mix-ac.html](design/explorations/05-shell-mix-ac.html): round 3b, A×C mixes. **A×C · 2 chosen** (rail + cockpit, sidebar drawer).
 - [design/explorations/06-logo-wordmark.html](design/explorations/06-logo-wordmark.html): round 4, four marks. **L4 two legs + name `pap` chosen.**
 - [design/explorations/07-type-density.html](design/explorations/07-type-density.html): round 5, type scale and two densities. **Compact default, density user-selectable.**
+- [design/explorations/08-settings-appearance.html](design/explorations/08-settings-appearance.html): round 6, Settings › Appearance (per account vs per device, role-token theme editor with AA check).
 
 ## Research
 - [research/pi-web-inventory.md](research/pi-web-inventory.md): every pi-web feature (D01–D22), source of the matrix rows.

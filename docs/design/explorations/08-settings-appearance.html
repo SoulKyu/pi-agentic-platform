@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 6 · Réglages › Apparence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; --leg1:#A78BFA; --leg2:#FB923C; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 980px; }
+
+  .app { margin-top: 20px; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 10px 40px rgba(0,0,0,.12);
+         background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); display: grid; grid-template-columns: 48px 1fr; min-height: 760px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0; }
+  .av { width: 28px; height: 28px; border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--ui); position: relative; }
+  .av b { position: absolute; top: -6px; right: -7px; background: var(--attn); color: #fff; font: 700 9px/14px var(--ui); min-width: 14px; height: 14px; border-radius: 7px; text-align: center; padding: 0 3px; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .top { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--side); }
+  .ws { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; border: 1px solid var(--border-strong); padding: 2px 7px; border-radius: 2px; }
+  .sp { flex: 1; }
+  .kbd { font: 600 10px var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 5px; }
+  .tabs { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; padding: 0 8px; }
+  .tabs span { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); }
+  .tabs span.on { color: var(--text); border-color: var(--ai); background: var(--surface2); }
+
+  .settings { display: grid; grid-template-columns: 190px 1fr 330px; flex: 1; min-height: 0; }
+  .nav { border-right: 1px solid var(--border); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; background: var(--side); }
+  .nav .lbl { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 10px 8px 4px; }
+  .nav a { padding: 5px 8px; border-radius: 2px; color: var(--text); text-decoration: none; font-size: 13px; }
+  .nav a.on { background: var(--surface2); box-shadow: inset 2px 0 0 var(--ai); }
+  .nav a span { color: var(--muted); font-size: 11px; float: right; font-family: var(--mono); }
+  .form { padding: 18px 22px; display: flex; flex-direction: column; gap: 18px; overflow: hidden; }
+  .form h2 { font: 800 20px var(--ui); }
+  .form .sub { color: var(--muted); margin-top: -12px; font-size: 12.5px; }
+  .grp { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; }
+  .grp > .gh { padding: 8px 12px; border-bottom: 1px solid var(--border); font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--ai); display: flex; align-items: center; }
+  .grp > .gh .scope { margin-left: auto; color: var(--muted); font-weight: 500; letter-spacing: .06em; }
+  .row { display: grid; grid-template-columns: 170px 1fr; gap: 14px; padding: 9px 12px; border-bottom: 1px solid var(--border); align-items: center; }
+  .row:last-child { border-bottom: none; }
+  .row .k { font-size: 13px; }
+  .row .k small { display: block; color: var(--muted); font-size: 11.5px; }
+  .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: 2px; overflow: hidden; }
+  .seg span { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 5px 10px; border-right: 1px solid var(--border-strong); color: var(--muted); }
+  .seg span:last-child { border-right: none; }
+  .seg span.on { background: var(--surface2); color: var(--text); box-shadow: inset 0 -2px 0 var(--ai); }
+  .slider { display: flex; align-items: center; gap: 10px; font: 11px var(--mono); color: var(--muted); }
+  .slider .track { flex: 1; max-width: 220px; height: 2px; background: var(--border-strong); position: relative; }
+  .slider .track i { position: absolute; left: 0; top: 0; height: 2px; background: var(--ai); }
+  .slider .track b { position: absolute; top: -5px; width: 12px; height: 12px; background: var(--bg); border: 2px solid var(--ai); border-radius: 2px; }
+  .slider .v { color: var(--text); width: 46px; }
+  .sel { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border-strong); background: var(--bg); padding: 4px 10px; border-radius: 2px; font-size: 12.5px; }
+  .sel::after { content: "▾"; color: var(--muted); font-size: 10px; }
+  .sw { width: 30px; height: 16px; border-radius: 2px; background: var(--surface2); border: 1px solid var(--border-strong); position: relative; display: inline-block; vertical-align: middle; }
+  .sw.on { background: #A78BFA33; border-color: var(--ai); }
+  .sw i { position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; background: var(--muted); border-radius: 1px; }
+  .sw.on i { left: 16px; background: var(--ai); }
+  .themes { display: flex; gap: 8px; flex-wrap: wrap; }
+  .th { width: 112px; border: 1px solid var(--border-strong); border-radius: 3px; overflow: hidden; font-size: 11px; }
+  .th.on { border-color: var(--human); outline: 1px solid var(--human); }
+  .th .pv { height: 46px; display: grid; grid-template-columns: 14px 1fr; }
+  .th .pv span { display: block; }
+  .th .nm { padding: 4px 6px; display: flex; justify-content: space-between; color: var(--text); background: var(--surface); }
+  .th .nm em { font-style: normal; font: 600 9px var(--mono); color: var(--muted); }
+  .btns { display: flex; gap: 6px; margin-top: 8px; }
+  .btn { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 10px; height: 26px; display: inline-flex; align-items: center; border-radius: 2px; border: 1px solid var(--border-strong); color: var(--text); }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+
+  .tokens { border-left: 1px solid var(--border); padding: 18px 16px; display: flex; flex-direction: column; gap: 12px; background: var(--side); }
+  .tokens h3 { font: 800 15px var(--ui); }
+  .tok { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; font-size: 12px; }
+  .tok .c { width: 22px; height: 22px; border-radius: 2px; border: 1px solid var(--border-strong); }
+  .tok .n small { display: block; font: 10px var(--mono); color: var(--muted); }
+  .aa { font: 600 9.5px var(--mono); padding: 1px 5px; border-radius: 2px; }
+  .aa.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .aa.ko { color: var(--attn); border: 1px solid #EC489988; }
+  .prev { border: 1px solid var(--border-strong); border-radius: 3px; padding: 10px; background: var(--bg); display: flex; flex-direction: column; gap: 8px; }
+  .prev .u { align-self: flex-end; background: #FB923C1A; border: 1px solid #FB923C66; color: #FED7AA; padding: 4px 8px; border-radius: 3px; font-size: 12.5px; }
+  .prev .a { border-left: 2px solid var(--ai); padding-left: 8px; font-size: 13px; }
+  .prev .a small { display: block; font: 600 9.5px var(--mono); color: var(--ai); text-transform: uppercase; letter-spacing: .1em; }
+  .prev .appr { border: 1px solid #EC48998C; background: #EC48991A; border-radius: 3px; padding: 6px 8px; font-size: 12px; display: flex; align-items: center; }
+  .prev .appr .btn { margin-left: auto; height: 22px; }
+  .note { font-size: 11.5px; color: var(--muted); border-top: 1px dashed var(--border-strong); padding-top: 8px; }
+
+  .ask { margin-top: 26px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+  .legend { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .legend div { background: #fff; border: 1px solid #d4d4d8; border-radius: 10px; padding: 9px 12px; font-size: 12.5px; }
+  .legend b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #6d28d9; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="pi2" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="currentColor"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--leg1)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--leg2)"/></symbol>
+</defs></svg>
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 6 : Réglages › Apparence</h1>
+    <p>Ta demande : « tout doit être personnalisable facilement ». Voici l'écran qui le rend concret, dans le shell choisi (rail + cockpit). Chaque changement s'applique en direct dans l'aperçu, un bouton remet les valeurs par défaut, et un thème s'exporte ou s'importe en JSON (pattern T3). La règle qui protège la marque : <b>on peut tout changer, mais l'app signale toute couleur sous le contraste AA</b>.</p>
+    <div class="legend">
+      <div><b>Par appareil</b>Densité, tailles de texte, mouvement : ton téléphone et ton écran 27 pouces n'ont pas les mêmes besoins (stockage local au navigateur).</div>
+      <div><b>Par compte</b>Thèmes, polices, couleurs : suivent ton compte sur tous tes appareils (stockés côté serveur).</div>
+      <div><b>Partageable</b>Un thème = un fichier JSON de tokens. Export, import, et plus tard un thème d'équipe.</div>
+    </div>
+  </div>
+
+  <div class="app">
+    <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+    <div class="main">
+      <div class="top"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B</span><span class="sp"></span><span class="kbd">Inbox 2</span><span class="kbd">⌘K</span></div>
+      <div class="tabs"><span>feat/checkpoints ●</span><span class="on">Settings</span><span>+</span></div>
+      <div class="settings">
+        <div class="nav">
+          <div class="lbl">Personnel</div>
+          <a class="on" href="#">Apparence</a><a href="#">Raccourcis <span>JSON</span></a><a href="#">Notifications</a><a href="#">Langue</a><a href="#">Compte &amp; appareils</a>
+          <div class="lbl">Plateforme</div>
+          <a href="#">Modèles</a><a href="#">MCP</a><a href="#">Skills &amp; plugins</a><a href="#">Agents</a><a href="#">Automation</a><a href="#">Sécurité</a><a href="#">Santé</a>
+        </div>
+        <div class="form">
+          <h2>Apparence</h2>
+          <div class="sub">Les changements s'appliquent immédiatement. <span style="color:var(--human)">Réinitialiser</span></div>
+
+          <div class="grp"><div class="gh">Thème<span class="scope">compte</span></div>
+            <div class="row"><div class="k">Mode<small>suit l'OS par défaut</small></div><div class="seg"><span>Night</span><span>Day</span><span class="on">Système</span></div></div>
+            <div class="row" style="align-items:start"><div class="k">Thèmes<small>preset ou perso</small></div>
+              <div><div class="themes">
+                <div class="th on"><div class="pv"><span style="background:#14111D"></span><span style="background:#110F18;border-left:2px solid #A78BFA"></span></div><div class="nm">Night Control<em>défaut</em></div></div>
+                <div class="th"><div class="pv"><span style="background:#F3F1EC"></span><span style="background:#FAF9F6;border-left:2px solid #6D28D9"></span></div><div class="nm">Day · Papier<em>défaut</em></div></div>
+                <div class="th"><div class="pv"><span style="background:#000"></span><span style="background:#000;border-left:2px solid #C4B5FD"></span></div><div class="nm">High contrast<em>a11y</em></div></div>
+                <div class="th"><div class="pv"><span style="background:#0B1220"></span><span style="background:#0E1626;border-left:2px solid #38BDF8"></span></div><div class="nm">Mon thème<em>perso</em></div></div>
+              </div>
+              <div class="btns"><span class="btn pri">Dupliquer &amp; éditer</span><span class="btn">Importer JSON</span><span class="btn">Exporter</span></div></div></div>
+          </div>
+
+          <div class="grp"><div class="gh">Lecture &amp; densité<span class="scope">cet appareil</span></div>
+            <div class="row"><div class="k">Densité</div><div class="seg"><span class="on">Compact</span><span>Confort</span><span>Mixte</span></div></div>
+            <div class="row"><div class="k">Taille de l'interface</div><div class="slider"><div class="track"><i style="width:40%"></i><b style="left:38%"></b></div><span class="v">13 px</span></div></div>
+            <div class="row"><div class="k">Taille du chat</div><div class="slider"><div class="track"><i style="width:45%"></i><b style="left:43%"></b></div><span class="v">14 px</span></div></div>
+            <div class="row"><div class="k">Taille du code</div><div class="slider"><div class="track"><i style="width:35%"></i><b style="left:33%"></b></div><span class="v">12 px</span></div></div>
+          </div>
+
+          <div class="grp"><div class="gh">Typographie &amp; détails<span class="scope">compte</span></div>
+            <div class="row"><div class="k">Police d'interface</div><span class="sel">Manrope</span></div>
+            <div class="row"><div class="k">Police mono</div><span class="sel">JetBrains Mono</span></div>
+            <div class="row"><div class="k">Labels en majuscules<small>style HUD</small></div><span class="sw on"><i></i></span></div>
+            <div class="row"><div class="k">Grille de fond</div><span class="sw on"><i></i></span></div>
+            <div class="row"><div class="k">Mouvement<small>cet appareil</small></div><div class="seg"><span class="on">Système</span><span>Réduit</span><span>Aucun</span></div></div>
+          </div>
+        </div>
+
+        <div class="tokens">
+          <h3>Éditeur de thème · Mon thème</h3>
+          <div class="tok"><span class="c" style="background:#0E1626"></span><span class="n">Fond<small>--bg</small></span><span class="aa ok">AA</span></div>
+          <div class="tok"><span class="c" style="background:#38BDF8"></span><span class="n">Agent<small>--ai · rôle</small></span><span class="aa ok">AA 7.9</span></div>
+          <div class="tok"><span class="c" style="background:#FB923C"></span><span class="n">Toi / action<small>--human · rôle</small></span><span class="aa ok">AA 8.1</span></div>
+          <div class="tok"><span class="c" style="background:#7F1D1D"></span><span class="n">Attention<small>--attn · rôle</small></span><span class="aa ko">2.1 · trop sombre</span></div>
+          <div class="tok"><span class="c" style="background:#34D399"></span><span class="n">Succès<small>--ok</small></span><span class="aa ok">AA</span></div>
+          <div class="prev">
+            <div class="u">Add per-turn checkpoints.</div>
+            <div class="a"><small>Atlas</small>Capturing a hidden ref at each run boundary.</div>
+            <div class="appr">Push 3 commits? <span class="btn pri">Allow once</span></div>
+          </div>
+          <div class="note">On édite les <b>rôles</b> (agent, toi, attention, succès, erreur, fond, surfaces), pas 200 variables : les nuances (teintes, filets, versions jour) sont dérivées. Un rôle sous AA est signalé, et l'enregistrement demande une confirmation.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ask">
+    <h3>Qu'est-ce qui doit aussi être personnalisable ?</h3>
+    <p>Coche ce que tu veux en plus de ce qui est montré.</p>
+    <div class="r">
+      <div class="opt" data-choice="cust-ok-as-is" onclick="this.classList.toggle('selected')">C'est suffisant tel quel</div>
+      <div class="opt" data-choice="cust-rail-position" onclick="this.classList.toggle('selected')">Position du rail (gauche / droite)</div>
+      <div class="opt" data-choice="cust-avatar-style" onclick="this.classList.toggle('selected')">Style des avatars d'agents</div>
+      <div class="opt" data-choice="cust-tool-card-detail" onclick="this.classList.toggle('selected')">Niveau de détail des cartes d'outils</div>
+      <div class="opt" data-choice="cust-chat-width" onclick="this.classList.toggle('selected')">Largeur max du chat</div>
+      <div class="opt" data-choice="cust-custom-css" onclick="this.classList.toggle('selected')">CSS perso (avancé)</div>
+      <div class="opt" data-choice="cust-sync-all" onclick="this.classList.toggle('selected')">Tout synchroniser entre appareils</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
