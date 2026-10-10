@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 6 · Automation et outbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .src { font: 10.5px var(--mono); color: var(--muted); margin-top: 6px; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  .new { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #1B0D00; background: var(--human); padding: 0 5px; border-radius: var(--r); margin-left: 4px; }
+
+  /* flow */
+  .flow { display: grid; grid-template-columns: 1.1fr 24px 1fr 24px 1fr 24px 1fr 24px 1fr; align-items: stretch; }
+  .flow .ar { display: flex; align-items: center; justify-content: center; font: 600 14px var(--mono); color: var(--muted); }
+  .col { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 10px 11px; }
+  .col .n { font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+  .col ul { list-style: none; display: grid; gap: 4px; }
+  .col li { font-size: 12px; border-left: 2px solid var(--border-strong); padding-left: 7px; color: var(--text); }
+  .col li span { color: var(--muted); }
+  .col.src1 { border-color: #FB923C88; } .col.src1 .n { color: var(--human); } .col.src1 li { border-left-color: var(--human); }
+  .col.gate { border-color: #EC489988; } .col.gate .n { color: var(--attn); } .col.gate li { border-left-color: var(--attn); }
+  .col.tx { border-color: var(--ai); } .col.tx .n { color: var(--ai); } .col.tx li { border-left-color: var(--ai); }
+  .col.run .n { color: var(--ai); }
+  .col.end { border-color: #34D39988; } .col.end .n { color: var(--ok); } .col.end li { border-left-color: var(--ok); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  td code { white-space: nowrap; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.safe { color: var(--ok); border: 1px solid #34D39966; }
+  .v.bound { color: var(--attn); border: 1px solid #EC489988; }
+
+  .states { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  .states span { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border-radius: var(--r); border: 1px solid var(--border-strong); }
+  .states i { color: var(--muted); font-style: normal; font: 12px var(--mono); }
+  .states .t { border-color: #34D39966; color: var(--ok); }
+  .states .f { border-color: #F8717166; color: var(--err); }
+
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .ask-box .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 6 / 9</div>
+  <h1>Automation et outbox</h1>
+  <p class="lead">On garde tous les déclencheurs et garde-fous de pi-web : planification, webhooks, flux RSS/Atom, budget, heures calmes, garde de run. Ce qui change, c'est la mécanique. Les fichiers JSON de tâches et leurs verrous de claim sont remplacés par une seule transaction SQLite, qui écrit en une fois le tir, la tâche et l'effet à exécuter. Après un crash, chaque effet sait s'il peut être rejoué ou non.</p>
+
+  <h2>1 · D'un déclencheur à un run</h2>
+  <div class="flow">
+    <div class="col src1"><div class="n">Sources</div><ul>
+      <li>schedule <span>RRULE + fuseau (Orca)</span></li>
+      <li>webhook <span>brut / Alertmanager / Grafana</span></li>
+      <li>feed <span>RSS / Atom</span></li>
+      <li>manual <span>Fire + dry-run</span></li>
+      <li>agent.delegate / agent.remind</li>
+      <li>quota reset <span class="new">nouveau</span></li>
+    </ul></div>
+    <div class="ar">→</div>
+    <div class="col gate"><div class="n">Portes</div><ul>
+      <li>pause globale / agent</li>
+      <li>budget du jour</li>
+      <li>dédup <span>clé de tir</span></li>
+      <li>throttle webhook <span>60/min, 20 en file</span></li>
+      <li>precheck <span class="new">nouveau</span></li>
+    </ul></div>
+    <div class="ar">→</div>
+    <div class="col tx"><div class="n">1 transaction</div><ul>
+      <li>ligne de tir <span>journal</span></li>
+      <li>tâche <span>queued</span></li>
+      <li>outbox <span>task.start</span></li>
+      <li>réponse HTTP 202 <span>après commit</span></li>
+    </ul></div>
+    <div class="ar">→</div>
+    <div class="col run"><div class="n">Runner</div><ul>
+      <li>N slots <span>(réglage)</span></li>
+      <li>1 tâche à la fois par thread d'agent</li>
+      <li>tâches isolées en parallèle</li>
+      <li>plancher mémoire libre</li>
+      <li>1 seule deadline maxRunMs</li>
+    </ul></div>
+    <div class="ar">→</div>
+    <div class="col end"><div class="n">Fin</div><ul>
+      <li>état terminal <span>immuable</span></li>
+      <li>ligne <code>runs</code> <span>FinOps</span></li>
+      <li>push / digest <span>heures calmes</span></li>
+      <li>carte dans le thread</li>
+    </ul></div>
+  </div>
+  <div class="states" style="margin-top:12px">
+    <span>queued</span><i>→</i><span>running</span><i>→</i><span class="t">done</span><span class="f">failed</span><span class="f">cancelled</span><span class="f">interrupted</span>
+    <i style="margin-left:10px">· les états terminaux sont immuables (pi-web) · cancel d'une tâche = cancel de ses enfants en file</i>
+  </div>
+
+  <h2>2 · L'outbox</h2>
+  <div class="grid2">
+    <div class="box">
+      <ul class="tight">
+        <li>Table <code>outbox</code> : <code>kind</code>, <code>payload</code>, <code>status</code>, <code>attempts</code>, <code>next_at</code>, <code>lease_until</code>, <code>replay</code>.</li>
+        <li><b>Règle unique</b> : un changement d'état et l'effet qu'il implique sont écrits dans la même transaction. Il n'y a jamais d'effet sans état, ni d'état sans effet.</li>
+        <li>Un seul worker dans le daemon. Bail de 30 s, 5 tentatives avec backoff, puis l'effet passe en <code>failed</code>, visible dans Santé. Les effets réglés sont purgés après 7 jours.</li>
+        <li>Chaque effet est classé : <span class="v safe">replay-safe</span> (rejoué après un crash) ou <span class="v bound">process-bound</span> (retiré après un crash, jamais rejoué). Classification reprise de T3.</li>
+      </ul><span class="src">T3 EffectOutbox.ts / EffectWorker.ts, version allégée</span></div>
+    <table>
+      <tr><th>Effet</th><th style="width:120px">Classe</th></tr>
+      <tr><td><code>task.start</code> · <code>run.steer</code> · <code>run.abort</code></td><td><span class="v bound">process-bound</span></td></tr>
+      <tr><td><code>lane.setup</code> (scripts non idempotents)</td><td><span class="v bound">process-bound</span></td></tr>
+      <tr><td><code>push.send</code> · <code>digest.send</code></td><td><span class="v safe">replay-safe</span></td></tr>
+      <tr><td><code>feed.poll</code> · <code>title.generate</code></td><td><span class="v safe">replay-safe</span></td></tr>
+      <tr><td><code>checkpoint.capture</code> · <code>worktree.cleanup</code> · <code>attachment.cleanup</code></td><td><span class="v safe">replay-safe</span></td></tr>
+      <tr><td><code>memory.decision.write</code></td><td><span class="v safe">replay-safe</span></td></tr>
+      <tr><td><code>run.resume</code> (quota libéré) <span class="new">nouveau</span></td><td><span class="v safe">replay-safe</span> + reçu anti-doublon</td></tr>
+    </table>
+  </div>
+
+  <h2>3 · Démarrage du daemon : la récupération d'abord</h2>
+  <div class="grid3">
+    <div class="box"><span class="lbl">1 · Récupération</span>
+      <p style="font-size:13px">Les tâches encore <code>running</code> passent en <code>interrupted</code>. Les effets process-bound sous bail sont retirés, les effets replay-safe remis en file. Rien d'autre ne démarre avant la fin de cette étape (règle T3 « parked roots »).</p></div>
+    <div class="box"><span class="lbl">2 · Pas de rejeu automatique d'un run</span>
+      <p style="font-size:13px">Une tâche interrompue n'est <b>pas relancée</b> par défaut, car un run peut avoir déjà poussé, posté ou écrit. Le trigger peut l'activer (<code>retryOnInterrupt</code>). Sinon, bouton « Relancer » sur la carte.</p></div>
+    <div class="box"><span class="lbl">3 · Tirs manqués</span>
+      <p style="font-size:13px">Si le daemon était arrêté à l'heure d'un tir planifié, par défaut il est <b>sauté</b> et noté « missed » dans le journal (T3 : jamais de tir en retard). Option par trigger : <code>catchUp: once</code>, qui rattrape un seul tir dans une fenêtre de grâce (Orca).</p></div>
+  </div>
+
+  <h2>4 · Détails par source</h2>
+  <div class="grid3">
+    <div class="box"><span class="lbl">Webhook</span>
+      <ul class="tight">
+        <li>Secret dans un en-tête, comparé en temps constant (pi-web). Option <b>HMAC-SHA256</b> sur le corps brut (T3).</li>
+        <li>64 Ko maximum, lus en flux. Mapping Alertmanager / Grafana vers une ligne par alerte, et dédup sur les empreintes.</li>
+        <li>Réponses : <code>202 {taskId}</code>, <code>409 {reason}</code>, <code>429</code>. Les requêtes non authentifiées sont comptées, jamais journalisées en détail.</li>
+      </ul></div>
+    <div class="box"><span class="lbl">Precheck <span class="new">nouveau</span></span>
+      <ul class="tight">
+        <li>Commande lancée avant le tir, dans le home de l'agent, sous sandbox, avec 30 s maximum.</li>
+        <li>Code 0 : on tire. Code 1 : on saute, avec la raison notée. Autre code : erreur.</li>
+        <li>Sa sortie, plafonnée à 4 Ko, peut être injectée dans le prompt, clôturée comme non fiable.</li>
+        <li>Les sauts identiques consécutifs sont regroupés dans le journal (Orca), qui reste lisible.</li>
+      </ul></div>
+    <div class="box"><span class="lbl">Feed &amp; quota</span>
+      <ul class="tight">
+        <li>Feed : https seulement, redirections vérifiées, 10 s, 1 Mio, et au plus 10 entrées nouvelles clôturées par tâche (pi-web).</li>
+        <li>Quota provider atteint (<code>usage_limit</code> avec heure de reset) : le run passe en « limited », puis un effet <code>run.resume</code> est planifié à l'heure de reset (T3). Annulable.</li>
+        <li>Heures calmes : les runs tournent, les push sont regroupés dans le digest de fin (pi-web).</li>
+      </ul></div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s6-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s6-retry-default" onclick="this.classList.toggle('selected')">Relancer les interrompues par défaut</div>
+      <div class="opt" data-choice="s6-catchup-default" onclick="this.classList.toggle('selected')">Rattraper les tirs manqués par défaut</div>
+      <div class="opt" data-choice="s6-quiet-defer" onclick="this.classList.toggle('selected')">Différer les runs en heures calmes</div>
+      <div class="opt" data-choice="s6-agent-schedule-tool" onclick="this.classList.toggle('selected')">Outil pour que l'agent planifie lui-même</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
