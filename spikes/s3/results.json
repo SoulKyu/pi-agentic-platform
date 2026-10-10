@@ -1,0 +1,16 @@
+{
+  "node": "v24.14.1",
+  "sqliteVersion": "3.51.2",
+  "compileFts5": true,
+  "fts5": true,
+  "bm25": true,
+  "snippet": true,
+  "diacriticsFolded": true,
+  "strictTables": true,
+  "returning": true,
+  "wal": true,
+  "backupApi": true,
+  "index10kMs": 27,
+  "query10kMs": 1,
+  "error": null
+}
