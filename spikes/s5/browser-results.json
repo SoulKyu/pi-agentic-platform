@@ -1,0 +1,362 @@
+{
+  "chromium": "153.0.8010.12",
+  "results": {
+    "codemirror-syntax": {
+      "functional": {
+        "prompts": [
+          "Comment on after line 39",
+          "Comment on after line 43",
+          "Comment on before line 54"
+        ],
+        "listed": [
+          "after 39: check this addition",
+          "after 43: unchanged but relevant",
+          "before 54: why drop this timeout"
+        ],
+        "inlineCommentsRendered": 3,
+        "placement": [
+          {
+            "text": "check this addition",
+            "relativeToAnchor": "below the line"
+          },
+          {
+            "text": "unchanged but relevant",
+            "relativeToAnchor": "below the line"
+          },
+          {
+            "text": "why drop this timeout",
+            "relativeToAnchor": "below the line"
+          }
+        ],
+        "errors": [],
+        "runtimeJs": {
+          "requests": 1,
+          "gzipKb": 200.6
+        },
+        "tokens": {
+          "night": {
+            "addedBg": "rgba(52, 211, 153, 0.08)",
+            "deletedBg": "rgba(248, 113, 113, 0.08)",
+            "keyword": "rgb(167, 139, 250)",
+            "surfaceBg": "rgb(26, 23, 36)"
+          },
+          "day": {
+            "addedBg": "rgba(4, 120, 87, 0.08)",
+            "deletedBg": "rgba(220, 38, 38, 0.08)",
+            "keyword": "rgb(109, 40, 217)",
+            "surfaceBg": "rgb(255, 255, 255)"
+          },
+          "followsToken": {
+            "addedBg": true,
+            "deletedBg": true,
+            "keyword": true,
+            "surfaceBg": true
+          }
+        },
+        "css": {
+          "features": {},
+          "usesAdoptedStyleSheets": false,
+          "usesShadowDom": false
+        }
+      },
+      "scale": [
+        {
+          "lines": 2000,
+          "firstLineMs": 188,
+          "wallMs": 1630,
+          "domNodes": 5168,
+          "longTasks": 1,
+          "longTaskTotalMs": 61,
+          "longTaskMaxMs": 61,
+          "heapMb": 10
+        },
+        {
+          "lines": 10000,
+          "firstLineMs": 369,
+          "wallMs": 1817,
+          "domNodes": 23918,
+          "longTasks": 1,
+          "longTaskTotalMs": 170,
+          "longTaskMaxMs": 170,
+          "heapMb": 10
+        }
+      ]
+    },
+    "pierre": {
+      "functional": {
+        "prompts": [
+          "Comment on after line 39",
+          "Comment on after line 43",
+          "Comment on before line 54"
+        ],
+        "listed": [
+          "after 39: check this addition",
+          "after 43: unchanged but relevant",
+          "before 54: why drop this timeout"
+        ],
+        "inlineCommentsRendered": 3,
+        "placement": [
+          {
+            "text": "check this addition",
+            "relativeToAnchor": "below the line"
+          },
+          {
+            "text": "unchanged but relevant",
+            "relativeToAnchor": "below the line"
+          },
+          {
+            "text": "why drop this timeout",
+            "relativeToAnchor": "below the line"
+          }
+        ],
+        "errors": [],
+        "runtimeJs": {
+          "requests": 2,
+          "gzipKb": 229.5
+        },
+        "tokens": {
+          "night": {
+            "addedBg": "lab(9.86693 3.20199 -8.00743 / 0.815686)",
+            "deletedBg": "lab(9.65631 5.21978 -7.81684 / 0.815686)",
+            "keyword": "rgb(167, 139, 250)",
+            "surfaceBg": "rgb(26, 23, 36)"
+          },
+          "day": {
+            "addedBg": "lab(98.9283 -0.678038 0.18709 / 0.815686)",
+            "deletedBg": "lab(99.0142 1.32062 0.93752 / 0.815686)",
+            "keyword": "rgb(109, 40, 217)",
+            "surfaceBg": "rgb(255, 255, 255)"
+          },
+          "followsToken": {
+            "addedBg": true,
+            "deletedBg": true,
+            "keyword": true,
+            "surfaceBg": true
+          }
+        },
+        "css": {
+          "features": {
+            "@layer": {
+              "rules": 5,
+              "samples": [
+                "@layer base, theme, rendered, unsafe;",
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                "@layer theme, rendered, unsafe;"
+              ]
+            },
+            "color-mix()": {
+              "rules": 28,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                ":host",
+                "[data-file-info]"
+              ]
+            },
+            "light-dark()": {
+              "rules": 23,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                ":host",
+                "[data-line] span, [data-edit-prediction-suffix] span"
+              ]
+            },
+            "native CSS nesting": {
+              "rules": 59,
+              "samples": [
+                "[data-diff], [data-file]",
+                "[data-line], [data-no-newline]",
+                "&[data-decoration-bg]"
+              ]
+            },
+            "scrollbar-gutter": {
+              "rules": 9,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                ":host",
+                "@supports (-webkit-touch-callout:none) {\n  :host { --diffs-scrollbar-gutter-fall"
+              ]
+            },
+            "scrollbar-width/color": {
+              "rules": 4,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                "@supports ((-moz-appearance:none)) {\n  [data-code] { scrollbar-width: thin; scro",
+                "[data-code]"
+              ]
+            },
+            "subgrid": {
+              "rules": 4,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                "[data-gutter]",
+                "[data-content]"
+              ]
+            }
+          },
+          "usesAdoptedStyleSheets": true,
+          "usesShadowDom": true
+        }
+      },
+      "scale": [
+        {
+          "lines": 2000,
+          "firstLineMs": 1561,
+          "wallMs": 3002,
+          "domNodes": 11346,
+          "longTasks": 2,
+          "longTaskTotalMs": 1383,
+          "longTaskMaxMs": 1305,
+          "heapMb": 26
+        },
+        {
+          "lines": 10000,
+          "firstLineMs": 5508,
+          "wallMs": 6962,
+          "domNodes": 51421,
+          "longTasks": 3,
+          "longTaskTotalMs": 5371,
+          "longTaskMaxMs": 4475,
+          "heapMb": 82
+        }
+      ]
+    },
+    "pierre-worker": {
+      "functional": {
+        "prompts": [
+          "Comment on after line 39",
+          "Comment on after line 43",
+          "Comment on before line 54"
+        ],
+        "listed": [
+          "after 39: check this addition",
+          "after 43: unchanged but relevant",
+          "before 54: why drop this timeout"
+        ],
+        "inlineCommentsRendered": 3,
+        "placement": [
+          {
+            "text": "check this addition",
+            "relativeToAnchor": "below the line"
+          },
+          {
+            "text": "unchanged but relevant",
+            "relativeToAnchor": "below the line"
+          },
+          {
+            "text": "why drop this timeout",
+            "relativeToAnchor": "below the line"
+          }
+        ],
+        "errors": [],
+        "runtimeJs": {
+          "requests": 4,
+          "gzipKb": 824.2
+        },
+        "tokens": {
+          "night": {
+            "addedBg": "lab(9.86693 3.20199 -8.00743 / 0.815686)",
+            "deletedBg": "lab(9.65631 5.21978 -7.81684 / 0.815686)",
+            "keyword": "rgb(167, 139, 250)",
+            "surfaceBg": "rgb(26, 23, 36)"
+          },
+          "day": {
+            "addedBg": "lab(98.9283 -0.678038 0.18709 / 0.815686)",
+            "deletedBg": "lab(99.0142 1.32062 0.93752 / 0.815686)",
+            "keyword": "rgb(109, 40, 217)",
+            "surfaceBg": "rgb(255, 255, 255)"
+          },
+          "followsToken": {
+            "addedBg": true,
+            "deletedBg": true,
+            "keyword": true,
+            "surfaceBg": true
+          }
+        },
+        "css": {
+          "features": {
+            "@layer": {
+              "rules": 5,
+              "samples": [
+                "@layer base, theme, rendered, unsafe;",
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                "@layer theme, rendered, unsafe;"
+              ]
+            },
+            "color-mix()": {
+              "rules": 28,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                ":host",
+                "[data-file-info]"
+              ]
+            },
+            "light-dark()": {
+              "rules": 23,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                ":host",
+                "[data-line] span, [data-edit-prediction-suffix] span"
+              ]
+            },
+            "native CSS nesting": {
+              "rules": 59,
+              "samples": [
+                "[data-diff], [data-file]",
+                "[data-line], [data-no-newline]",
+                "&[data-decoration-bg]"
+              ]
+            },
+            "scrollbar-gutter": {
+              "rules": 9,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                ":host",
+                "@supports (-webkit-touch-callout:none) {\n  :host { --diffs-scrollbar-gutter-fall"
+              ]
+            },
+            "scrollbar-width/color": {
+              "rules": 4,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                "@supports ((-moz-appearance:none)) {\n  [data-code] { scrollbar-width: thin; scro",
+                "[data-code]"
+              ]
+            },
+            "subgrid": {
+              "rules": 4,
+              "samples": [
+                "@layer base {\n  :host { --diffs-font-fallback: \"SF Mono\", Monaco, Consolas, \"Ubu",
+                "[data-gutter]",
+                "[data-content]"
+              ]
+            }
+          },
+          "usesAdoptedStyleSheets": true,
+          "usesShadowDom": true
+        }
+      },
+      "scale": [
+        {
+          "lines": 2000,
+          "firstLineMs": 341,
+          "wallMs": 1781,
+          "domNodes": 11346,
+          "longTasks": 5,
+          "longTaskTotalMs": 318,
+          "longTaskMaxMs": 85,
+          "heapMb": 11
+        },
+        {
+          "lines": 10000,
+          "firstLineMs": 1209,
+          "wallMs": 2654,
+          "domNodes": 26621,
+          "longTasks": 3,
+          "longTaskTotalMs": 1013,
+          "longTaskMaxMs": 553,
+          "heapMb": 20
+        }
+      ]
+    }
+  }
+}

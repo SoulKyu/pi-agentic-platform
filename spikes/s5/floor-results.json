@@ -1,0 +1,32 @@
+{
+  "codemirror-syntax": {
+    "jsFiles": 1,
+    "found": {
+      "requestIdleCallback (absent in Safari)": {
+        "safari": "never",
+        "files": 1,
+        "matches": 2
+      }
+    }
+  },
+  "pierre": {
+    "jsFiles": 319,
+    "found": {
+      "RegExp v flag (unicodeSets)": {
+        "safari": "17.0",
+        "files": 1,
+        "matches": 5
+      }
+    }
+  },
+  "pierre-worker": {
+    "jsFiles": 320,
+    "found": {
+      "RegExp v flag (unicodeSets)": {
+        "safari": "17.0",
+        "files": 2,
+        "matches": 10
+      }
+    }
+  }
+}

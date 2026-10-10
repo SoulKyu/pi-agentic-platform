@@ -1,0 +1,75 @@
+/* DESIGN.md section 3 tokens (night and day subsets the diff view needs). Renderers read var(--token) only. */
+:root,
+:root[data-theme="night"] {
+  --bg: #110f18;
+  --bg-side: #14111d;
+  --surface: #1a1724;
+  --surface-2: #241f33;
+  --border: #2d2840;
+  --text: #f2effa;
+  --text-muted: #9c95b5;
+  --text-dim: #6b6485;
+  --agent: #a78bfa;
+  --you: #fb923c;
+  --you-tint: #fb923c1a;
+  --you-line: #fb923c66;
+  --you-text: #fed7aa;
+  --ok: #34d399;
+  --err: #f87171;
+  --diff-add: #34d39914;
+  --diff-del: #f8717114;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+:root[data-theme="day"] {
+  --bg: #faf9f6;
+  --bg-side: #f3f1ec;
+  --surface: #ffffff;
+  --surface-2: #eeebe4;
+  --border: #e2ded5;
+  --text: #1c1917;
+  --text-muted: #6b645a;
+  --text-dim: #a8a196;
+  --agent: #6d28d9;
+  --you: #c2410c;
+  --you-tint: #fff4ea;
+  --you-line: #fdba74;
+  --you-text: #431407;
+  --ok: #047857;
+  --err: #dc2626;
+  --diff-add: #04785714;
+  --diff-del: #dc262614;
+}
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.5 var(--font-mono);
+}
+h1 {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.review-comment {
+  margin: 2px 8px 2px 64px;
+  padding: 4px 8px;
+  border: 1px solid var(--you-line);
+  border-radius: 3px;
+  background: var(--you-tint);
+  color: var(--you-text);
+}
+/* Pierre reads its colours from its own custom properties: map them to the tokens, no raw colour. */
+diffs-container {
+  --diffs-bg-addition-override: var(--diff-add);
+  --diffs-bg-deletion-override: var(--diff-del);
+  --diffs-bg-context-override: var(--surface);
+  --diffs-bg-context-gutter-override: var(--bg-side);
+  --diffs-bg-buffer-override: var(--surface);
+  --diffs-bg-separator-override: var(--surface-2);
+  --diffs-addition-color-override: var(--ok);
+  --diffs-deletion-color-override: var(--err);
+  --diffs-modified-color-override: var(--agent);
+  --diffs-fg-number-override: var(--text-dim);
+}
