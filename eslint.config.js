@@ -12,8 +12,8 @@ const ELEMENTS = [
   { type: "ui", pattern: "packages/ui/src" },
   { type: "pi-host", pattern: "packages/pi-host/src" },
   { type: "kernel", pattern: "apps/daemon/src/kernel" },
+  { type: "daemon-testing", pattern: "apps/daemon/src/**/testing" },
   { type: "module", pattern: "apps/daemon/src/modules/*", capture: ["domain"] },
-  { type: "daemon-testing", pattern: "apps/daemon/src/testing" },
   { type: "daemon-root", pattern: "apps/daemon/src/*.ts", mode: "file" },
   { type: "web-runtime", pattern: "apps/web/src/runtime" },
   { type: "web-stores", pattern: "apps/web/src/stores" },
@@ -77,8 +77,8 @@ export default defineConfig(
             { from: "contracts", allow: ["contracts"] },
             { from: "ui", allow: ["ui"] },
             { from: "pi-host", allow: ["pi-host", "contracts"] },
-            { from: "kernel", allow: ["kernel", "contracts"] },
-            { from: "module", allow: ["contracts", "kernel", "module"] },
+            { from: "kernel", allow: ["kernel", "contracts", "daemon-testing"] },
+            { from: "module", allow: ["contracts", "kernel", "module", "daemon-testing"] },
             {
               from: "daemon-testing",
               allow: ["contracts", "kernel", "module", "daemon-root", "daemon-testing"],
@@ -130,6 +130,30 @@ export default defineConfig(
               allow: "**",
             },
           ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["apps/daemon/src/**/*.ts"],
+    ignores: ["**/*.test.ts", "**/testing/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["**/testing/*"],
+              message: "Test helpers are not part of the build: production daemon code must not import them.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportExpression[source.value=/(^|\\/)testing\\//]",
+          message: "Test helpers are not part of the build: production daemon code must not import them.",
         },
       ],
     },

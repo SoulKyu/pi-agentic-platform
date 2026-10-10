@@ -99,17 +99,65 @@ describe("repository gates", () => {
   });
 });
 
+describe("test helpers stay out of production daemon code", () => {
+  const eslint = new ESLint({ cwd: repoRoot });
+  const ruleIdsOf = async (code, filePath) => {
+    const [result] = await eslint.lintText(code, { filePath });
+    return result?.messages.map((m) => m.ruleId);
+  };
+
+  it.each([
+    ["a module file", "apps/daemon/src/modules/auth/service.ts", "./testing/fixture.ts"],
+    [
+      "a module file reaching a sibling folder",
+      "apps/daemon/src/modules/auth/service.ts",
+      "../../testing/free-port.ts",
+    ],
+    ["a kernel file", "apps/daemon/src/kernel/db/open.ts", "../../testing/free-port.ts"],
+    ["a root file", "apps/daemon/src/main.ts", "./testing/free-port.ts"],
+    ["a root file importing a nested helper", "apps/daemon/src/main.ts", "./testing/fixtures/approval.ts"],
+  ])("rejects %s importing a testing/ file", async (_name, filePath, source) => {
+    expect(await ruleIdsOf(`import "${source}";\n`, filePath)).toContain("no-restricted-imports");
+  });
+
+  it("rejects a type-only and a dynamic import of a testing/ file too", async () => {
+    const code =
+      'import type { X } from "./testing/fixture.ts";\nexport const load = () => import("./testing/fixture.ts");\n';
+    const ruleIds = await ruleIdsOf(code, "apps/daemon/src/modules/auth/service.ts");
+    expect(ruleIds).toContain("no-restricted-imports");
+    expect(ruleIds).toContain("no-restricted-syntax");
+  });
+
+  it("lets tests and the testing/ folders import helpers", async () => {
+    const code = 'import "./testing/fixture.ts";\nimport "./sibling.ts";\n';
+    expect(await ruleIdsOf(code, "apps/daemon/src/modules/auth/http.test.ts")).not.toContain(
+      "no-restricted-imports",
+    );
+    expect(await ruleIdsOf(code, "apps/daemon/src/modules/auth/testing/other.ts")).not.toContain(
+      "no-restricted-imports",
+    );
+  });
+
+  it("lets production code import ordinary siblings", async () => {
+    const code = 'import "./service.ts";\nimport "../b/index.ts";\nimport "./contesting/x.ts";\n';
+    expect(await ruleIdsOf(code, "apps/daemon/src/modules/auth/service.ts")).not.toContain(
+      "no-restricted-imports",
+    );
+  });
+});
+
 describe("module boundaries", () => {
   const repoConfig = join(repoRoot, "eslint.config.js");
   const fixture = {
     "apps/daemon/src/modules/a/index.ts": "export const fromA = 1;\n",
     "apps/daemon/src/modules/b/index.ts": "export const fromB = 2;\n",
     "apps/daemon/src/modules/b/internal.ts": "export const secret = 3;\n",
+    "apps/daemon/src/modules/b/testing/bed.ts": "export const bed = 5;\n",
     "packages/ui/package.json": '{ "name": "@pap/ui", "type": "module", "exports": "./src/index.ts" }\n',
     "packages/ui/src/index.ts": "export const Button = 4;\n",
   };
 
-  async function boundaryRulesFor(importPath) {
+  async function boundaryRulesFor(importPath, from = "apps/daemon/src/modules/a/service.ts") {
     const root = await mkdtemp(join(tmpdir(), "pap-boundaries-"));
     try {
       for (const [path, content] of Object.entries(fixture)) {
@@ -119,7 +167,7 @@ describe("module boundaries", () => {
       await mkdir(join(root, "node_modules/@pap"), { recursive: true });
       await symlink(join(root, "packages/ui"), join(root, "node_modules/@pap/ui"), "dir");
       const eslint = new ESLint({ cwd: root, overrideConfigFile: repoConfig });
-      const filePath = join(root, "apps/daemon/src/modules/a/service.ts");
+      const filePath = join(root, from);
       const [result] = await eslint.lintText(`import "${importPath}";\n`, { filePath });
       return result.messages.map((m) => m.ruleId).filter((id) => id?.startsWith("boundaries/"));
     } finally {
@@ -134,6 +182,22 @@ describe("module boundaries", () => {
   it("allows a module importing another module's index file", async () => {
     expect(await boundaryRulesFor("../b/index.ts")).toEqual([]);
     expect(await boundaryRulesFor("../b")).toEqual([]);
+  });
+
+  it("lets a module's test helper build on another module's test helper and public index", async () => {
+    const helper = "apps/daemon/src/modules/a/testing/bed.ts";
+    expect(await boundaryRulesFor("../../b/testing/bed.ts", helper)).toEqual([]);
+    expect(await boundaryRulesFor("../../b/index.ts", helper)).toEqual([]);
+    expect(await boundaryRulesFor("../../b/internal.ts", helper)).toContain("boundaries/entry-point");
+  });
+
+  it("holds the shared daemon testing folder to the same module entry points", async () => {
+    const harness = "apps/daemon/src/testing/harness.ts";
+    expect(await boundaryRulesFor("../modules/b/index.ts", harness)).toEqual([]);
+    expect(await boundaryRulesFor("../modules/b/testing/bed.ts", harness)).toEqual([]);
+    expect(await boundaryRulesFor("../modules/b/internal.ts", harness)).toContain("boundaries/entry-point");
+    const nested = "apps/daemon/src/testing/fixtures/seed.ts";
+    expect(await boundaryRulesFor("../../modules/b/internal.ts", nested)).toContain("boundaries/entry-point");
   });
 
   it("rejects a daemon module importing @pap/ui across packages", async () => {
