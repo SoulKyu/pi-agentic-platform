@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 5 · Typographie et densité</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 980px; }
+
+  /* lockup confirmation */
+  .lockup { margin-top: 18px; display: grid; grid-template-columns: 1fr 1fr; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .lockup > div { padding: 18px 22px; display: flex; align-items: center; gap: 16px; }
+  .lockup .n { background: #110F18; color: #F2EFFA; --leg1:#A78BFA; --leg2:#FB923C; }
+  .lockup .d { background: #FAF9F6; color: #1C1917; --leg1:#6D28D9; --leg2:#C2410C; }
+  .lockup .word { font: 800 30px var(--ui); letter-spacing: -.02em; }
+  .lockup .tag { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .12em; opacity: .55; margin-left: auto; }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 24px; }
+  .card { border-radius: 14px; overflow: hidden; background: #fff; cursor: pointer; outline: 3px solid transparent; outline-offset: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.08); }
+  .card:hover { outline-color: #a1a1aa; } .card.selected { outline-color: #2563eb; }
+  .head { padding: 14px 18px; border-bottom: 1px solid #e4e4e7; }
+  .head .l { font: 700 12px var(--mono); color: #6d28d9; }
+  .head h2 { font-size: 17px; margin-top: 2px; }
+  .head p { color: #52525b; font-size: 13px; margin-top: 2px; }
+
+  /* specimen app */
+  .app { background: var(--bg); color: var(--text); font-family: var(--ui); display: grid; grid-template-columns: var(--railw) 1fr;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: var(--gap2); padding: var(--gap2) 0; }
+  .av { width: var(--av); height: var(--av); border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 calc(var(--fs-ui) - 2px) var(--ui); position: relative; }
+  .av b { position: absolute; top: -6px; right: -7px; background: var(--attn); color: #fff; font: 700 9px/14px var(--ui); min-width: 14px; height: 14px; border-radius: 7px; text-align: center; padding: 0 3px; }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .top { height: var(--bar); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: var(--gap2); padding: 0 var(--gap3); background: var(--side); font-size: var(--fs-ui); }
+  .top .ws { font: 600 var(--fs-label) var(--mono); text-transform: uppercase; letter-spacing: .1em; border: 1px solid var(--border-strong); padding: 2px 7px; border-radius: 2px; }
+  .top .sp { flex: 1; }
+  .kbd { font: 600 var(--fs-label) var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 5px; }
+  .tabs { height: var(--bar); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; padding: 0 var(--gap2); }
+  .tabs span { font: 600 var(--fs-label) var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); }
+  .tabs span.on { color: var(--text); border-color: var(--ai); background: var(--surface2); }
+  .stream { padding: var(--gap3); display: flex; flex-direction: column; gap: var(--gap3); }
+  .u { align-self: flex-end; max-width: 80%; background: #FB923C1A; border: 1px solid #FB923C66; color: #FED7AA; padding: var(--gap1) var(--gap2); border-radius: 3px; font-size: var(--fs-body); line-height: var(--lh); }
+  .u small { display: block; font: 600 var(--fs-label) var(--mono); color: var(--human); text-transform: uppercase; letter-spacing: .1em; }
+  .a { border-left: 2px solid var(--ai); padding-left: var(--gap2); display: flex; flex-direction: column; gap: var(--gap1); }
+  .a .n { font: 600 var(--fs-label) var(--mono); color: var(--ai); text-transform: uppercase; letter-spacing: .1em; }
+  .a .meta { font: var(--fs-label) var(--mono); color: var(--muted); }
+  .prose { font-size: var(--fs-body); line-height: var(--lh); }
+  .prose code { font: calc(var(--fs-body) - 1.5px) var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: 2px; }
+  .tool { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; }
+  .tool .th { display: flex; gap: 8px; padding: var(--gap1) var(--gap2); font: var(--fs-code) var(--mono); border-bottom: 1px solid var(--border); align-items: center; }
+  .tool .th i { font-style: normal; font-weight: 600; font-size: var(--fs-label); text-transform: uppercase; letter-spacing: .1em; color: var(--ai); }
+  .tool .th .k { color: var(--muted); }
+  .tool pre { font: var(--fs-code)/1.6 var(--mono); padding: var(--gap1) var(--gap2); color: var(--muted); }
+  .tool pre b { color: var(--ok); font-weight: 500; }
+  .appr { border: 1px solid #EC48998C; background: #EC48991A; border-radius: 3px; padding: var(--gap2); display: flex; align-items: center; gap: var(--gap2); font-size: var(--fs-ui); }
+  .appr small { display: block; font: 600 var(--fs-label) var(--mono); color: var(--attn); text-transform: uppercase; letter-spacing: .1em; }
+  .btn { font: 600 var(--fs-label) var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 var(--gap2); height: var(--btn); display: inline-flex; align-items: center; border-radius: 2px; border: 1px solid var(--border-strong); color: var(--text); white-space: nowrap; }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .btn.focus { outline: 2px solid var(--human); outline-offset: 2px; }
+  .comp { margin: 0 var(--gap3) var(--gap3); border: 1px solid var(--human); border-radius: 3px; padding: var(--gap2); background: var(--surface); font-size: var(--fs-body); color: var(--muted); display: flex; flex-direction: column; gap: var(--gap2); }
+  .comp .row { display: flex; gap: 6px; align-items: center; }
+  .chip { font: var(--fs-label) var(--mono); border: 1px solid var(--border); padding: 1px 6px; border-radius: 2px; }
+  .chip.mention { color: var(--ai); border-color: #A78BFA66; }
+
+  .dense { --fs-ui:13px; --fs-body:14px; --fs-code:12px; --fs-label:10px; --lh:1.55; --gap1:4px; --gap2:8px; --gap3:12px; --bar:34px; --btn:26px; --av:28px; --railw:48px; }
+  .comfy { --fs-ui:14px; --fs-body:15px; --fs-code:12.5px; --fs-label:10.5px; --lh:1.65; --gap1:6px; --gap2:10px; --gap3:16px; --bar:40px; --btn:32px; --av:32px; --railw:56px; }
+
+  .tokens { padding: 14px 18px; font-size: 12.5px; color: #3f3f46; border-top: 1px solid #e4e4e7; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 18px; }
+  .tokens b { font: 600 11px var(--mono); color: #18181b; }
+
+  .scale { margin-top: 26px; background: #fff; border-radius: 14px; padding: 18px 22px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .scale h3 { font-size: 16px; margin-bottom: 4px; }
+  .scale > p { color: #52525b; font-size: 13px; margin-bottom: 12px; }
+  .spec { background: #110F18; color: #F2EFFA; border-radius: 10px; padding: 18px 22px; display: grid; gap: 10px; }
+  .spec div { display: grid; grid-template-columns: 210px 1fr; align-items: baseline; gap: 16px; }
+  .spec .k { font: 11px var(--mono); color: #9C95B5; }
+  .ask { margin-top: 26px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="pi2" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="currentColor"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--leg1)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--leg2)"/></symbol>
+</defs></svg>
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 5 : typographie et densité</h1>
+    <p>D'abord la confirmation de ton choix au round 4 (symbole « deux jambes » + <b>pap</b>). Ensuite la question du jour : la <b>densité</b>, c'est-à-dire la taille du texte, les espacements et la hauteur des contrôles. Même écran, mêmes polices (Manrope + JetBrains Mono), deux échelles.</p>
+  </div>
+
+  <div class="lockup">
+    <div class="n"><svg width="44" height="44" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><span class="word">pap</span><span class="tag">pi agentic platform</span></div>
+    <div class="d"><svg width="44" height="44" viewBox="0 0 32 32" style="color:#1C1917"><use href="#pi2"/></svg><span class="word">pap</span><span class="tag">pi agentic platform</span></div>
+  </div>
+
+  <div class="cards">
+    <!-- ================= Compact ================= -->
+    <section class="card" data-choice="density-compact" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">D1</span><h2>Compact</h2><p>UI 13 px, chat 14 px, pas de 4 px, contrôles de 26 px. Proche de Linear et de T3 : plus de contenu à l'écran, idéal pour le cockpit à panneaux.</p></div>
+      <div class="app dense" style="--leg1:#A78BFA;--leg2:#FB923C">
+        <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+        <div class="main">
+          <div class="top"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B</span><span class="sp"></span><span class="kbd">Inbox 2</span><span class="kbd">⌘K</span></div>
+          <div class="tabs"><span class="on">feat/checkpoints ●</span><span>fix/webhook</span><span>+</span></div>
+          <div class="stream">
+            <div class="u"><small>You</small>Add per-turn checkpoints to lanes and make restore undoable.</div>
+            <div class="a"><span class="n">Atlas <span class="meta">· 14:02 · thought 14s</span></span>
+              <div class="prose">I'll capture a hidden ref at each run boundary, then wire restore through <code>git restore --source</code>.</div>
+              <div class="tool"><div class="th"><i>bash</i><span class="k">go test ./internal/lanes/...</span></div><pre><b>ok</b>  lanes/checkpoint   0.41s</pre></div>
+              <div class="appr"><div style="flex:1"><small>Approval · exec</small>Push 3 commits to origin?</div><span class="btn">Deny</span><span class="btn pri focus">Allow once</span></div>
+            </div>
+          </div>
+          <div class="comp">Steer Atlas, @ a file, / for commands…<div class="row"><span class="chip mention">@lanes/checkpoint.ts</span><span class="chip">sonnet-5.5 · high</span></div></div>
+        </div>
+      </div>
+      <div class="tokens"><b>texte UI</b><span>13 px / 600 pour les titres</span><b>prose chat</b><span>14 px · interligne 1,55</span><b>code / outils</b><span>12 px JetBrains Mono</span><b>labels HUD</b><span>10 px mono MAJ · 0,1 em</span><b>espacements</b><span>4 · 8 · 12 · 16 · 24</span><b>contrôles</b><span>26 px (44 px au tactile)</span></div>
+    </section>
+
+    <!-- ================= Confort ================= -->
+    <section class="card" data-choice="density-comfy" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">D2</span><h2>Confort</h2><p>UI 14 px, chat 15 px, pas de 4 px plus généreux, contrôles de 32 px. Proche de pi-web aujourd'hui (chat à 15 px) : plus reposant pour de longues lectures de transcript.</p></div>
+      <div class="app comfy" style="--leg1:#A78BFA;--leg2:#FB923C">
+        <div class="rail"><svg width="28" height="28" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+        <div class="main">
+          <div class="top"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B</span><span class="sp"></span><span class="kbd">Inbox 2</span><span class="kbd">⌘K</span></div>
+          <div class="tabs"><span class="on">feat/checkpoints ●</span><span>fix/webhook</span><span>+</span></div>
+          <div class="stream">
+            <div class="u"><small>You</small>Add per-turn checkpoints to lanes and make restore undoable.</div>
+            <div class="a"><span class="n">Atlas <span class="meta">· 14:02 · thought 14s</span></span>
+              <div class="prose">I'll capture a hidden ref at each run boundary, then wire restore through <code>git restore --source</code>.</div>
+              <div class="tool"><div class="th"><i>bash</i><span class="k">go test ./internal/lanes/...</span></div><pre><b>ok</b>  lanes/checkpoint   0.41s</pre></div>
+              <div class="appr"><div style="flex:1"><small>Approval · exec</small>Push 3 commits to origin?</div><span class="btn">Deny</span><span class="btn pri focus">Allow once</span></div>
+            </div>
+          </div>
+          <div class="comp">Steer Atlas, @ a file, / for commands…<div class="row"><span class="chip mention">@lanes/checkpoint.ts</span><span class="chip">sonnet-5.5 · high</span></div></div>
+        </div>
+      </div>
+      <div class="tokens"><b>texte UI</b><span>14 px / 600 pour les titres</span><b>prose chat</b><span>15 px · interligne 1,65</span><b>code / outils</b><span>12,5 px JetBrains Mono</span><b>labels HUD</b><span>10,5 px mono MAJ · 0,1 em</span><b>espacements</b><span>6 · 10 · 16 · 24 · 32</span><b>contrôles</b><span>32 px (44 px au tactile)</span></div>
+    </section>
+  </div>
+
+  <div class="scale">
+    <h3>Échelle de titres (commune aux deux densités)</h3>
+    <p>Les titres restent en Manrope ExtraBold, les labels de structure en mono majuscule : c'est la grammaire Night Control.</p>
+    <div class="spec">
+      <div><span class="k">display · 28 / 800 / -0,02em</span><span style="font:800 28px var(--ui);letter-spacing:-.02em">Agents at work</span></div>
+      <div><span class="k">h1 · 20 / 800</span><span style="font:800 20px var(--ui)">Lane feat/checkpoints</span></div>
+      <div><span class="k">h2 · 16 / 700</span><span style="font:700 16px var(--ui)">Changes &amp; commit</span></div>
+      <div><span class="k">label · mono 10,5 / MAJ / 0,12em</span><span style="font:600 10.5px var(--mono);text-transform:uppercase;letter-spacing:.12em;color:#9C95B5">Approval needed</span></div>
+      <div><span class="k">nombres · tabulaires</span><span style="font:600 14px var(--mono);font-variant-numeric:tabular-nums">+214 −38 · 00:07 · $0.42</span></div>
+    </div>
+  </div>
+
+  <div class="ask">
+    <h3>Précisions</h3>
+    <p>Coche ce qui s'applique.</p>
+    <div class="r">
+      <div class="opt" data-choice="density-user-toggle" onclick="this.classList.toggle('selected')">Laisser choisir la densité dans Réglages</div>
+      <div class="opt" data-choice="density-mix" onclick="this.classList.toggle('selected')">Mixte : UI compacte + chat confort</div>
+      <div class="opt" data-choice="focus-orange" onclick="this.classList.toggle('selected')">Anneau de focus orange (toi) OK</div>
+      <div class="opt" data-choice="focus-violet" onclick="this.classList.toggle('selected')">Anneau de focus violet plutôt</div>
+      <div class="opt" data-choice="icons-lucide" onclick="this.classList.toggle('selected')">Icônes lucide (comme pi-web) OK</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
