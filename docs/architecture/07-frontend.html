@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 7 · Architecture du front</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .src { font: 10.5px var(--mono); color: var(--muted); margin-top: 6px; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+
+  .layers { display: grid; gap: 8px; }
+  .layer { display: grid; grid-template-columns: 210px 1fr 260px; border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); }
+  .layer > div { padding: 10px 12px; }
+  .layer > div:first-child { border-right: 1px solid var(--border); font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ai); }
+  .layer > div:last-child { border-left: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .layer > div:nth-child(2) { font-size: 13px; }
+  .layer.ui > div:first-child { color: var(--human); }
+  .layer.rt > div:first-child { color: var(--ok); }
+  .down { text-align: center; font: 600 11px var(--mono); color: var(--muted); }
+
+  pre.tree { font: 12px/1.65 var(--mono); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r); padding: 14px 16px; white-space: pre; overflow-x: auto; }
+  pre.tree b { color: var(--ai); font-weight: 600; }
+  pre.tree i { color: var(--muted); font-style: normal; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .keep { color: var(--ok); font: 600 10.5px var(--mono); text-transform: uppercase; }
+  .chg { color: var(--human); font: 600 10.5px var(--mono); text-transform: uppercase; }
+  .warn { border-color: var(--attn); } .warn .lbl { color: var(--attn); }
+
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .ask-box .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 7 / 9</div>
+  <h1>Architecture du front</h1>
+  <p class="lead">Une SPA React 19 servie par le daemon. Elle ne fait aucun rendu serveur et n'a pas de logique métier : elle affiche des flux et envoie des commandes. Le front reproduit la structure des modules du daemon, et toute l'apparence vit dans <code>packages/ui</code>, qui porte le design E1. Ce qu'on garde de pi-web, ce sont surtout ses détails d'ergonomie (mobile, raccourcis, Safari).</p>
+
+  <h2>1 · Couches</h2>
+  <div class="layers">
+    <div class="layer rt"><div>runtime</div><div>Superviseur de connexion, proxy RPC typé (généré depuis <code>contracts</code>), abonnements avec curseur, cache de 5 min. C'est le seul code qui touche au socket.</div><div>pattern T3 client-runtime, en version allégée</div></div>
+    <div class="down">↓ hooks <code>useSubscription('session', {id})</code> · <code>rpc.lanes.commit(…)</code></div>
+    <div class="layer"><div>stores</div><div>zustand : un store par flux (shell, session, lane, inbox, health), alimenté uniquement par le runtime. Les écritures optimistes (pin, archive, ordre) sont annulées sur erreur.</div><div>lint : sélecteur obligatoire, pas de lecture de store entière (règle Orca)</div></div>
+    <div class="down">↓</div>
+    <div class="layer"><div>features/&lt;domaine&gt;</div><div>Un dossier par module du daemon : sessions, lanes, agents, automation, files, git, terminal, mcp, models, settings… Composants d'écran + <b>view-models purs</b> testés sans DOM (comme les helpers client-safe de pi-web).</div><div>max 400 lignes par fichier, comme le daemon</div></div>
+    <div class="down">↓</div>
+    <div class="layer ui"><div>packages/ui</div><div>Tokens E1 Night / Day (variables CSS, Tailwind 4 <code>@theme</code>), primitives Radix possédées (style shadcn), composants IA : Message, AuthorGroup, Reasoning, ToolCard (bash, edit/diff, read, MCP, codemode), ApprovalCard, InputCard, CustomPanel, StatusBar, Composer.</div><div>lint : pas de couleur brute, pas de valeur arbitraire, pas de restyle d'une primitive (T3)</div></div>
+  </div>
+
+  <h2>2 · Choix de bibliothèques</h2>
+  <table>
+    <tr><th style="width:200px">Besoin</th><th style="width:260px">Choix</th><th>Pourquoi</th></tr>
+    <tr><td>Build</td><td>Vite + React 19 + React Compiler</td><td>Pas de Next.js : le SSR ne sert à rien ici, et pi-web rend déjà <code>/</code> entièrement côté client. Le compilateur évite les <code>memo</code> écrits à la main.</td></tr>
+    <tr><td>Routing</td><td>TanStack Router</td><td>Paramètres de recherche typés (<code>?agent=</code>, session, lane), découpage du code par route.</td></tr>
+    <tr><td>État</td><td>zustand</td><td>Utilisé par T3 et Orca, léger. Pas de TanStack Query : les données arrivent par les flux, pas par des GET.</td></tr>
+    <tr><td>Primitives</td><td>Radix (owned, style shadcn)</td><td>Continuité avec pi-web et compatible Safari 16.4. Composants IA inspirés d'AI Elements, recopiés puis restylés en E1 (licence à vérifier).</td></tr>
+    <tr><td>Transcript</td><td>@tanstack/react-virtual</td><td>Virtualisation sans opinion graphique, ancrage du scroll.</td></tr>
+    <tr><td>Markdown / code</td><td>pipeline de pi-web (remark-gfm + contournements Safari) + shiki chargé à la demande</td><td>Déjà durci par pi-web (bug de lookbehind sur iOS).</td></tr>
+    <tr><td>Éditeur de fichiers</td><td>CodeMirror 6</td><td>Décision 12 (édition). Plus léger que Monaco et utilisable sur mobile.</td></tr>
+    <tr><td>Diff</td><td>à trancher au spike : <code>@pierre/diffs</code> (T3) ou CodeMirror merge</td><td>Revue de lane (Lot B), commentaires par ligne.</td></tr>
+    <tr><td>Terminal</td><td>xterm.js + WebGL</td><td>Repris de pi-web, en frames binaires (section 4).</td></tr>
+    <tr><td>Composer</td><td>tiptap</td><td>Chips <code>@fichier</code>, <code>$skill</code>, <code>/commande</code>, <code>@Agent</code>, collage volumineux transformé en pièce jointe (T3). Chargé avec la route de session.</td></tr>
+    <tr><td>Palette</td><td>cmdk (déjà dans pi-web)</td><td>Cmd+K : sessions, agents, lanes, actions, recherche FTS5.</td></tr>
+  </table>
+
+  <h2>3 · Ce qu'on garde, ce qui change</h2>
+  <div class="grid2">
+    <div class="box"><span class="lbl">Repris de pi-web</span>
+      <ul class="tight">
+        <li><span class="keep">garde</span> Plancher Safari / iOS 16.4 (browserslist plus un test qui l'épingle). Une seule chunk illisible et c'est une page blanche.</li>
+        <li><span class="keep">garde</span> Hauteur du viewport et clavier mobile, bottom sheets, cibles tactiles de 44 px.</li>
+        <li><span class="keep">garde</span> Raccourcis : Esc stoppe l'agent, Ctrl+Alt+N, Alt+↑/↓ pour les agents non lus, Ctrl+Alt+1..9.</li>
+        <li><span class="keep">garde</span> Couche i18n interne, sans dépendance. <b>Langues v1 : en + fr</b> (zh-CN / zh-TW hérités de l'amont abandonnés).</li>
+        <li><span class="keep">garde</span> Brouillons locaux, son de fin de run, minimap du chat.</li>
+      </ul></div>
+    <div class="box"><span class="lbl">Nouveau</span>
+      <ul class="tight">
+        <li><span class="chg">change</span> Fichier de raccourcis JSON avec clauses <code>when</code> (T3) et un éditeur dans Réglages.</li>
+        <li><span class="chg">change</span> Service worker écrit à la main : push, <code>notificationclick</code>, shell en cache. Pas de Workbox tant que le hors-ligne complet n'est pas demandé.</li>
+        <li><span class="chg">change</span> Règles de délai de feedback d'Orca : rien sous 100 ms, désactivé jusqu'à 1 s, spinner jusqu'à 3 s, au-delà libellé d'étape. Annuler n'est jamais destructif.</li>
+        <li><span class="chg">change</span> Pas d'animation qui repeint en continu. <code>motion-reduce</code> partout.</li>
+        <li><span class="chg">change</span> Budget de bundle initial mesuré en CI (valeur fixée au spike). Éditeur, terminal, diff et shiki sont chargés à la demande.</li>
+      </ul></div>
+  </div>
+
+  <h2>4 · Layout du dossier web</h2>
+  <div class="grid2">
+<pre class="tree"><b>apps/web/src/</b>
+├─ <b>runtime/</b>       <i>socket, rpc, abonnements, curseurs</i>
+├─ <b>stores/</b>        <i>1 store zustand par flux</i>
+├─ <b>routes/</b>        <i>TanStack Router, minces</i>
+├─ <b>features/</b>
+│  ├─ sessions/   <i>Transcript, Composer…, *.vm.ts</i>
+│  ├─ lanes/      <i>LanePanel, Review, Changes…</i>
+│  ├─ agents/     <i>Rail, Inbox, Thread, Profile…</i>
+│  ├─ automation/ <i>Triggers, Tasks, FireLog…</i>
+│  └─ …           <i>1 par module du daemon</i>
+├─ <b>i18n/</b>          <i>couche interne de pi-web</i>
+└─ <b>sw.ts</b>          <i>service worker</i>
+<b>packages/ui/src/</b>
+├─ tokens.css     <i>E1 Night + Day</i>
+├─ primitives/    <i>Button, Dialog, Sheet, Menu…</i>
+└─ ai/            <i>Message, ToolCard, ApprovalCard…</i></pre>
+    <div class="box warn"><span class="lbl">Frontière avec DESIGN.md</span>
+      <p style="font-size:13px">Cette section fixe la mécanique : couches, bibliothèques, règles. Les écrans (shell, rail, sidebar, lane panel, thread d'agent, réglages), la typographie détaillée, l'espacement, les icônes et le wordmark vont dans <b>DESIGN.md</b>, construit avec toi en rounds visuels après la spec C. Le gallery <code>/dev/ui</code> de pi-web est conservé pour les primitives.</p></div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s7-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s7-lang-en-fr" onclick="this.classList.toggle('selected')">Langues v1 : en + fr</div>
+      <div class="opt" data-choice="s7-lang-keep-zh" onclick="this.classList.toggle('selected')">Garder zh-CN / zh-TW</div>
+      <div class="opt" data-choice="s7-base-ui" onclick="this.classList.toggle('selected')">Base UI au lieu de Radix</div>
+      <div class="opt" data-choice="s7-monaco" onclick="this.classList.toggle('selected')">Monaco au lieu de CodeMirror</div>
+      <div class="opt" data-choice="s7-tiptap-composer" onclick="this.classList.toggle('selected')">Composer riche (tiptap, chips)</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

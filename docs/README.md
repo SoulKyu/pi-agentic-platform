@@ -13,6 +13,7 @@ Status: design phase (specs not yet written). HTML pages open directly in a brow
 - [architecture/04-protocol-auth.html](architecture/04-protocol-auth.html): typed contracts, the /ws socket, cursor resume, auth (setup URL, passkeys, tokens), network exposure, remaining HTTP routes (Hono).
 - [architecture/05-policy-pipeline.html](architecture/05-policy-pipeline.html): the tool-call pipeline (denylist, egress, approval, taint, guards, sandbox, redaction, fencing, audit), approval categories, policy profiles, platform ops.
 - [architecture/06-automation-outbox.html](architecture/06-automation-outbox.html): trigger → gates → one transaction → runner → end, the outbox and its replay classes, boot recovery, webhook / precheck / feed / quota details.
+- [architecture/07-frontend.html](architecture/07-frontend.html): front layers, library choices (tiptap composer, CodeMirror, TanStack Router, zustand, Radix), what is kept from pi-web, web folder layout.
 
 ## Design (DESIGN.md in progress)
 - [design/explorations/01-brand-directions.html](design/explorations/01-brand-directions.html): round 1, four directions (Graphite, Paper & Ink, Mission Control, Aurora).
