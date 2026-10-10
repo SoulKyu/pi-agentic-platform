@@ -1,0 +1,21 @@
+# Brainstorming decisions log (pre-spec)
+
+Started 2026-10-10. Feeds spec A (product brief + feature matrix), B (DESIGN.md), C (architecture), D (migration).
+
+| # | Topic | Decision |
+|---|---|---|
+| 1 | Audience | Personal first, built to public-product standard (others install it); teams early on the roadmap. Data model carries `user_id` / `workspace_id` from day one, v1 = one owner. |
+| 2 | Drivers | Must fix codebase sprawl and reliability/isolation. Whitepaper approach: language chosen on merit, TS kept if best. Not drivers: Next.js friction, runtime footprint. |
+| 3 | Surfaces | Always-on server daemon + web UI / installable PWA (phone, push). No desktop shell in v1. |
+| 4 | Inspiration | Per feature (existing and future): compare pi-web vs Orca (stablyai/orca) vs T3 Code (pingdotgg/t3code), adopt what they do better, our way. Feature source = local pi-web fork only. |
+| 5 | Harness | Pi only, deep integration, no multi-harness adapter layer. |
+| 6 | Data continuity | Pi sessions read in place (`~/.pi/agent/sessions`); pi-web-specific state (agents, triggers, tasks, pins…) imported once by a migration command; pi-web runs until cutover. |
+| 7 | Backport | Lanes (`feat/lanes`, `pi-web-workspaces`, built by a Pi agent) Lots A+B are in scope; re-sync before specs C/D. |
+| 8 | Install channels | Container image, native package/binary, npm/npx. Helm later (teams). Node is a runtime dependency in every channel (Pi needs it). |
+| 9 | pi-web fate | Feature freeze after lanes Lot B; bugfixes only afterwards. |
+| 10 | Auth | Local accounts (1 owner in v1) + password + WebAuthn passkeys, session cookies, API tokens (webhooks/CLI). OIDC with teams. Network exposure (reverse proxy / Tailscale) left to the user. |
+| 11 | Brand direction | "Night Control" (E1): Mission Control grammar (colour = role, HUD mono uppercase labels, 2-3 px corners, 24 px background grid, outlined avatars, 2 px agent rule) with Aurora's flat colours and type (Manrope + JetBrains Mono). No gradients, no glow. Roles: violet = agent, orange = human / primary action, pink = needs attention, green = ok. Dark = E1 Night (`#110F18` bg, violet `#A78BFA`, orange `#FB923C`, pink `#EC4899`). Light = E1 Day Papier (`#FAF9F6` bg, warm stone greys, text/lines darkened for AA: violet `#6D28D9`, orange `#C2410C`, pink `#BE185D`; fills unchanged across modes). Mockups: `.superpowers/brainstorm/*/content/brand-directions-r1b.html`, `e1-light-r2.html`. |
+| 12 | v1 scope additions (from refs) | All four groups in v1: **Lanes+** (fan-out compare across N lanes, forges beyond GitHub, issue tracker → lane), **Sessions+** (settle/snooze, FTS5 search over all Pi sessions, auto-resume on provider quota reset), **Security+** (`request_secret` one-use refs, precheck gate on triggers), **File editing** in-app. See `feature-matrix.md` §3 Q3. |
+| 13 | Out of scope (stated, no objection) | Native mobile app, desktop shell, embedded browser / preview, SSH remote runtimes / multi-environment, vendor cloud relay, PTYs surviving daemon restart, Orca-style plugin host. |
+| 14 | Default approval mode | **Auto-accept edits**: read + file edits run without asking; bash, network, non-read-only MCP, push ask for approval. Orthogonal to tool presets; overridable per session and per agent. Unattended runs keep the per-agent policies (sandbox, egress, denylist) on top. |
+| 15 | Architecture approach | **A: TypeScript modular monolith + one `pi-host` worker per session.** Node 24 daemon (HTTP + one typed WS RPC, SQLite, outbox, auth, git, PTY) serving a React 19 + Vite SPA. Each session runs in a child process hosting the Pi SDK, speaking a JSONL protocol that is a superset of `pi --mode rpc` records (+ `navigate_tree`, `custom()`, platform calls). Policies and platform tools are in-process extensions of the worker calling back over stdio. Fallback per session to `pi --mode rpc` stays possible. Rejected: B (RPC child: loses navigate_tree/custom), C (Go: two runtimes, full rewrite, same losses as B). No Effect. |

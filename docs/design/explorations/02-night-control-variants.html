@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pi-agentic-platform · Round 1b · C × D sans dégradé</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e9e9ec; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .intro p { color: #52525b; margin-top: 6px; max-width: 920px; }
+  .rules { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 1100px; }
+  .rules div { background: #fff; border: 1px solid #d4d4d8; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+  .rules b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #71717a; margin-bottom: 2px; }
+
+  .cards { display: flex; flex-direction: column; gap: 28px; margin-top: 28px; }
+  .card { display: grid; grid-template-columns: 330px 1fr; border-radius: 16px; overflow: hidden; cursor: pointer;
+          outline: 3px solid transparent; outline-offset: 4px; transition: outline-color .15s; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.08); }
+  .card:hover { outline-color: #a1a1aa; }
+  .card.selected { outline-color: #2563eb; }
+
+  /* shared tokens: D colors, flat; roles from C */
+  .dE { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+        --ai:#A78BFA; --ai-ink:#110F18; --ai-tint:#A78BFA1F;
+        --human:#FB923C; --human-ink:#1B0D00; --human-tint:#FB923C1A;
+        --attn:#EC4899; --attn-ink:#fff; --attn-tint:#EC48991A;
+        --ok:#34D399; --err:#F87171;
+        --accent:var(--human); --accent-ink:var(--human-ink); --run:var(--ai);
+        --font-ui:'Manrope',sans-serif; --font-prose:'Manrope',sans-serif; --font-mono:'JetBrains Mono',monospace; --font-display:'Manrope',sans-serif; }
+  .e1 { --r-sm:2px; --r-av:3px; --r-msg:3px; --r-card:3px; --r-btn:2px; --r-comp:3px; }
+  .e2 { --r-sm:6px; --r-av:8px; --r-msg:10px; --r-card:8px; --r-btn:7px; --r-comp:10px; }
+
+  /* ---------- identity column ---------- */
+  .id { padding: 26px 24px; background: var(--surface); color: var(--text); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 18px; font-family: var(--font-ui); }
+  .id .letter { font: 600 11px var(--font-mono); color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+  .id .wordmark { display: flex; align-items: center; gap: 10px; }
+  .id .mark { width: 34px; height: 34px; display: grid; place-items: center; font: 800 19px var(--font-display); border-radius: var(--r-sm); }
+  .e1 .id .mark { border: 1.5px solid var(--ai); color: var(--ai); }
+  .e2 .id .mark { background: var(--ai); color: var(--ai-ink); }
+  .id .name { font: 800 20px/1.1 var(--font-display); letter-spacing: -.01em; }
+  .e1 .id .name { font: 600 16px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; }
+  .id .tag { font-size: 13.5px; color: var(--muted); }
+  .id h4 { font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 8px; }
+  .sw { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 18px; }
+  .sw div { height: 38px; border-radius: var(--r-sm); border: 1px solid var(--border); position: relative; }
+  .sw div span { position: absolute; bottom: -16px; left: 0; font: 9.5px var(--font-mono); color: var(--muted); white-space: nowrap; }
+  .roles { display: grid; gap: 6px; font-size: 12.5px; }
+  .roles div { display: flex; align-items: center; gap: 8px; }
+  .roles i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .type .d { font: 800 26px/1.1 var(--font-display); letter-spacing: -.02em; }
+  .e1 .type .d { font: 600 20px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+  .type .b { font: 14px/1.55 var(--font-prose); margin-top: 6px; }
+  .type .m { font: 12px var(--font-mono); color: var(--muted); margin-top: 6px; }
+  .refs { font-size: 12px; color: var(--muted); }
+  .refs b { color: var(--text); font-weight: 700; }
+  .traits { display: flex; flex-wrap: wrap; gap: 6px; }
+  .traits span { font: 11.5px var(--font-ui); padding: 2px 9px; border: 1px solid var(--border-strong); border-radius: 999px; }
+
+  /* ---------- app preview ---------- */
+  .app { background: var(--bg); color: var(--text); font: 13px/1.5 var(--font-ui); display: grid; grid-template-columns: 52px 214px 1fr; min-height: 580px; }
+  .e1 .app { background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { border-right: 1px solid var(--border); background: var(--side); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 12px; }
+  .rail .logo { width: 30px; height: 30px; border-radius: var(--r-sm); display: grid; place-items: center; font: 800 16px var(--font-display); margin-bottom: 6px; }
+  .e1 .rail .logo { border: 1.5px solid var(--ai); color: var(--ai); }
+  .e2 .rail .logo { background: var(--ai); color: var(--ai-ink); }
+  .av { width: 32px; height: 32px; border-radius: var(--r-av); display: grid; place-items: center; font: 700 11.5px var(--font-ui); position: relative; }
+  .e1 .av { border: 1.5px solid var(--c); color: var(--c); background: var(--bg); }
+  .e2 .av { background: color-mix(in srgb, var(--c) 22%, var(--surface)); color: var(--c); }
+  .av .dot { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--side); }
+  .av .badge { position: absolute; right: -7px; top: -6px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--attn); color: var(--attn-ink); font: 700 10px/12px var(--font-ui); text-align: center; padding: 0 4px; border: 2px solid var(--side); }
+  .side { border-right: 1px solid var(--border); background: var(--side); padding: 12px 10px; display: flex; flex-direction: column; gap: 4px; }
+  .sec { font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 10px 8px 4px; }
+  .item { padding: 6px 8px; border-radius: var(--r-sm); display: flex; flex-direction: column; gap: 3px; border: 1px solid transparent; }
+  .item.on { background: var(--surface2); }
+  .e1 .item.on { border-color: var(--border-strong); box-shadow: inset 2px 0 0 var(--ai); }
+  .e2 .item.on { box-shadow: inset 2px 0 0 var(--ai); }
+  .item .t { font-size: 12.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .e1 .item .t { font: 500 12px var(--font-mono); }
+  .item .s { font: 11px var(--font-mono); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font: 600 10px var(--font-mono); padding: 1px 6px; border-radius: var(--r-sm); line-height: 16px; text-transform: uppercase; letter-spacing: .06em; color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent); }
+  .e1 .chip { background: transparent; border: 1px solid color-mix(in srgb, var(--c) 60%, transparent); }
+  .chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+  .c-run { --c: var(--ai); } .c-attn { --c: var(--attn); } .c-ok { --c: var(--ok); } .c-hum { --c: var(--human); }
+
+  .chat { display: flex; flex-direction: column; min-width: 0; }
+  .ch { height: 46px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--bg); }
+  .ch .crumb { color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+  .ch .title { font: 700 13.5px var(--font-ui); }
+  .e1 .ch .title { font: 600 12px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+  .ch .sp { flex: 1; }
+  .ch .model { font: 11.5px var(--font-mono); color: var(--muted); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px 8px; }
+  .stream { flex: 1; padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 14px; }
+  .u { align-self: flex-end; max-width: 78%; padding: 9px 13px; border-radius: var(--r-msg); font-size: 13.5px; background: var(--human-tint); border: 1px solid color-mix(in srgb, var(--human) 40%, transparent); color: #FED7AA; }
+  .u .lbl { display: block; font: 600 10px var(--font-mono); color: var(--human); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 2px; }
+  .a { display: flex; gap: 10px; }
+  .a .body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 8px; position: relative; padding-left: 12px; }
+  .a .body::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 2px; background: var(--ai); }
+  .a .meta { font: 11px var(--font-mono); color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .a .name { color: var(--ai); font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+  .think { font: 12px var(--font-mono); color: var(--muted); }
+  .prose { font: 14px/1.6 var(--font-prose); }
+  .prose code { font: .84em var(--font-mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r-sm); }
+  .tool { border: 1px solid var(--border-strong); border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
+  .tool .th { display: flex; align-items: center; gap: 8px; padding: 7px 11px; font: 12px var(--font-mono); border-bottom: 1px solid var(--border); }
+  .tool .th .tg { font: 600 10px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--ai); }
+  .tool .th .k { color: var(--muted); }
+  .tool .th .sp { flex: 1; }
+  .tool pre { font: 11.5px/1.6 var(--font-mono); padding: 9px 11px; color: var(--muted); white-space: pre-wrap; }
+  .tool pre b { color: var(--text); font-weight: 500; }
+  .tool pre .ok { color: var(--ok); }
+  .bar { height: 2px; background: var(--border); position: relative; overflow: hidden; }
+  .bar::after { content: ""; position: absolute; inset: 0; width: 35%; background: var(--ai); animation: sl 1.4s ease-in-out infinite; }
+  @keyframes sl { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  @media (prefers-reduced-motion: reduce) { .bar::after { animation: none; } }
+  .appr { border-radius: var(--r-card); padding: 11px 13px; display: flex; align-items: center; gap: 12px; background: var(--attn-tint); border: 1px solid color-mix(in srgb, var(--attn) 55%, transparent); }
+  .appr .q { flex: 1; font-size: 13px; }
+  .appr .q small { display: block; font: 600 10px var(--font-mono); color: var(--attn); margin-bottom: 2px; text-transform: uppercase; letter-spacing: .1em; }
+  .appr code { font: .84em var(--font-mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r-sm); }
+  .btn { font: 700 12.5px var(--font-ui); padding: 6px 13px; border-radius: var(--r-btn); border: 1px solid var(--border-strong); background: transparent; color: var(--text); }
+  .btn.pri { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .e1 .btn { font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+  .comp { margin: 6px 16px 16px; border: 1px solid var(--border-strong); border-radius: var(--r-comp); background: var(--surface); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .comp:focus-within, .comp.focus { border-color: var(--human); }
+  .comp .ph { color: var(--muted); font-size: 13.5px; }
+  .comp .row { display: flex; align-items: center; gap: 8px; }
+  .comp .row .sp { flex: 1; }
+  .comp .pill { font: 11px var(--font-mono); color: var(--muted); border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--r-sm); }
+  .send { width: 30px; height: 30px; border-radius: var(--r-btn); background: var(--accent); color: var(--accent-ink); display: grid; place-items: center; font-weight: 800; }
+
+  .ask { margin-top: 32px; background: #fff; border: 1px solid #d4d4d8; border-radius: 16px; padding: 20px 24px; }
+  .ask h2 { font-size: 17px; }
+  .ask p { color: #52525b; margin: 4px 0 12px; }
+  .ask .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="intro">
+    <h1>Round 1b : C × D, sans dégradé ni lueur</h1>
+    <p>La grammaire de Mission Control (C) habillée des couleurs et de la typo d'Aurora (D) : Manrope + JetBrains Mono, nuit violette. Tous les aplats sont unis : aucun dégradé, aucun glow. Les deux variantes ne diffèrent que par l'intensité du côté "salle de contrôle".</p>
+    <div class="rules">
+      <div><b>Violet = l'agent</b>Filet à gauche de ce qu'il écrit, son nom, ce qui tourne (barre de progression).</div>
+      <div><b>Orange = toi</b>Tes messages, l'action principale, le focus du composer.</div>
+      <div><b>Rose = ton attention</b>Approbations, input attendu, badges non lus, échecs à traiter.</div>
+    </div>
+  </div>
+
+  <div class="cards">
+
+    <!-- ===================== E1 ===================== -->
+    <section class="card dE e1" data-choice="E1-night-control-strict" onclick="toggleSelect(this)">
+      <div class="id">
+        <div class="letter">E1 · Night Control (strict)</div>
+        <div class="wordmark"><div class="mark">π</div><div class="name">pi·agentic</div></div>
+        <div class="tag">C pur avec les couleurs de D : angles vifs (2–3 px), grille de fond, labels HUD en mono majuscule, avatars en contour.</div>
+        <div><h4>Palette</h4>
+          <div class="sw"><div style="background:#110F18"><span>night</span></div><div style="background:#241F33"><span>panel</span></div><div style="background:#A78BFA"><span>agent</span></div><div style="background:#FB923C"><span>human</span></div><div style="background:#EC4899"><span>attention</span></div></div>
+        </div>
+        <div class="type"><h4>Typo · Manrope / JetBrains Mono</h4><div class="d">Agents at work</div><div class="b">Prose en Manrope, structure en mono.</div><div class="m">$ pap lanes ls --status working</div></div>
+        <div class="refs"><b>Concepts C gardés :</b> rôles par couleur (Carbon for AI, sans la lumière), HUD, grille, filet IA. <b>Pris à D :</b> palette, Manrope.</div>
+        <div class="traits"><span>dark-only</span><span>HUD fort</span><span>radius 2–3</span><span>0 dégradé</span></div>
+      </div>
+      <div class="app">
+        <div class="rail"><div class="logo">π</div>
+          <div class="av" style="--c:#A78BFA">AT<i class="dot" style="background:#A78BFA"></i></div>
+          <div class="av" style="--c:#EC4899">SC<span class="badge">2</span></div>
+          <div class="av" style="--c:#6B6485">LG</div>
+        </div>
+        <div class="side">
+          <div class="sec">Lanes</div>
+          <div class="item on"><div class="t">feat/checkpoints</div><div class="s"><span class="chip c-run"><i></i>working</span>+214 −38</div></div>
+          <div class="item"><div class="t">fix/webhook-dedup</div><div class="s"><span class="chip c-ok"><i></i>review</span>PR #82</div></div>
+          <div class="item"><div class="t">chore/deps-bump</div><div class="s"><span class="chip c-attn"><i></i>setup failed</span></div></div>
+          <div class="sec">Sessions</div>
+          <div class="item"><div class="t">Triage Grafana alerts</div><div class="s">2h · Scout</div></div>
+          <div class="item"><div class="t">Weekly memory curation</div><div class="s">yesterday · Ledger</div></div>
+        </div>
+        <div class="chat">
+          <div class="ch"><span class="crumb">Lane /</span><span class="title">feat/checkpoints</span><span class="chip c-run"><i></i>Working</span><span class="sp"></span><span class="model">sonnet-5.5 · high</span></div>
+          <div class="stream">
+            <div class="u"><span class="lbl">You</span>Add per-turn checkpoints to lanes and make restore undoable.</div>
+            <div class="a"><div class="av" style="--c:#A78BFA">AT</div><div class="body">
+              <div class="meta"><span class="name">Atlas</span><span>14:02</span></div>
+              <div class="think">▸ thought for 14s</div>
+              <div class="prose">I'll capture a hidden ref at each run boundary, then wire restore through <code>git restore --source</code>. Starting with the capture helper.</div>
+              <div class="tool"><div class="th"><span class="tg">bash</span><span class="k">go test ./internal/lanes/...</span><span class="sp"></span><span class="k">00:07</span></div><div class="bar"></div>
+                <pre><span class="ok">ok</span>  lanes/checkpoint   0.41s
+<b>=== RUN</b>   TestRestoreUndo</pre></div>
+              <div class="appr"><div class="q"><small>Approval needed</small>Push 3 commits to <code>origin/feat/checkpoints</code>?</div><button class="btn">Deny</button><button class="btn pri">Approve</button></div>
+            </div></div>
+          </div>
+          <div class="comp focus"><div class="ph">Steer Atlas, @ a file, / for commands…</div><div class="row"><span class="pill">sonnet-5.5</span><span class="pill">tools: default</span><span class="sp"></span><div class="send">↑</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== E2 ===================== -->
+    <section class="card dE e2" data-choice="E2-night-control-soft" onclick="toggleSelect(this)">
+      <div class="id">
+        <div class="letter">E2 · Night Control (adouci)</div>
+        <div class="wordmark"><div class="mark">π</div><div class="name">pi agentic</div></div>
+        <div class="tag">Mêmes rôles et même palette, mais angles 6–10 px, pas de grille, avatars teintés pleins. Le HUD mono reste sur les labels, les titres repassent en Manrope.</div>
+        <div><h4>Palette</h4>
+          <div class="sw"><div style="background:#110F18"><span>night</span></div><div style="background:#241F33"><span>panel</span></div><div style="background:#A78BFA"><span>agent</span></div><div style="background:#FB923C"><span>human</span></div><div style="background:#EC4899"><span>attention</span></div></div>
+        </div>
+        <div class="type"><h4>Typo · Manrope / JetBrains Mono</h4><div class="d">Agents at work.</div><div class="b">Titres en Manrope 800, labels en mono.</div><div class="m">$ pap lanes ls --status working</div></div>
+        <div class="refs"><b>Concepts C gardés :</b> rôles par couleur, filet IA, labels mono. <b>Pris à D :</b> palette, Manrope, douceur des formes (modérée).</div>
+        <div class="traits"><span>dark-first</span><span>HUD léger</span><span>radius 6–10</span><span>0 dégradé</span></div>
+      </div>
+      <div class="app">
+        <div class="rail"><div class="logo">π</div>
+          <div class="av" style="--c:#A78BFA">AT<i class="dot" style="background:#A78BFA"></i></div>
+          <div class="av" style="--c:#EC4899">SC<span class="badge">2</span></div>
+          <div class="av" style="--c:#8F88A8">LG</div>
+        </div>
+        <div class="side">
+          <div class="sec">Lanes</div>
+          <div class="item on"><div class="t">feat/checkpoints</div><div class="s"><span class="chip c-run"><i></i>working</span>+214 −38</div></div>
+          <div class="item"><div class="t">fix/webhook-dedup</div><div class="s"><span class="chip c-ok"><i></i>review</span>PR #82</div></div>
+          <div class="item"><div class="t">chore/deps-bump</div><div class="s"><span class="chip c-attn"><i></i>setup failed</span></div></div>
+          <div class="sec">Sessions</div>
+          <div class="item"><div class="t">Triage Grafana alerts</div><div class="s">2h · Scout</div></div>
+          <div class="item"><div class="t">Weekly memory curation</div><div class="s">yesterday · Ledger</div></div>
+        </div>
+        <div class="chat">
+          <div class="ch"><span class="crumb">Lane /</span><span class="title">feat/checkpoints</span><span class="chip c-run"><i></i>Working</span><span class="sp"></span><span class="model">sonnet-5.5 · high</span></div>
+          <div class="stream">
+            <div class="u"><span class="lbl">You</span>Add per-turn checkpoints to lanes and make restore undoable.</div>
+            <div class="a"><div class="av" style="--c:#A78BFA">AT</div><div class="body">
+              <div class="meta"><span class="name">Atlas</span><span>14:02</span></div>
+              <div class="think">▸ thought for 14s</div>
+              <div class="prose">I'll capture a hidden ref at each run boundary, then wire restore through <code>git restore --source</code>. Starting with the capture helper.</div>
+              <div class="tool"><div class="th"><span class="tg">bash</span><span class="k">go test ./internal/lanes/...</span><span class="sp"></span><span class="k">00:07</span></div><div class="bar"></div>
+                <pre><span class="ok">ok</span>  lanes/checkpoint   0.41s
+<b>=== RUN</b>   TestRestoreUndo</pre></div>
+              <div class="appr"><div class="q"><small>Approval needed</small>Push 3 commits to <code>origin/feat/checkpoints</code>?</div><button class="btn">Deny</button><button class="btn pri">Approve</button></div>
+            </div></div>
+          </div>
+          <div class="comp focus"><div class="ph">Steer Atlas, @ a file, / for commands…</div><div class="row"><span class="pill">sonnet-5.5</span><span class="pill">tools: default</span><span class="sp"></span><div class="send">↑</div></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="ask">
+    <h2>Réglages rapides (optionnel)</h2>
+    <p>Coche ce que tu veux changer pour le round suivant.</p>
+    <div class="row">
+      <div class="opt" data-choice="tweak-ai-color-swap" onclick="this.classList.toggle('selected')">Agent en orange, toi en violet (inverser)</div>
+      <div class="opt" data-choice="tweak-attn-amber" onclick="this.classList.toggle('selected')">Attention en ambre plutôt que rose</div>
+      <div class="opt" data-choice="tweak-density-A" onclick="this.classList.toggle('selected')">Densité de A (plus compact)</div>
+      <div class="opt" data-choice="tweak-type-geist" onclick="this.classList.toggle('selected')">Essayer Geist à la place de Manrope</div>
+      <div class="opt" data-choice="tweak-light-mode" onclick="this.classList.toggle('selected')">Voir le mode clair</div>
+      <div class="opt" data-choice="tweak-grid-off" onclick="this.classList.toggle('selected')">E1 sans la grille</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

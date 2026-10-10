@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 1 · Vue d'ensemble</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 900px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; display: block; }
+  .t { font-weight: 700; font-size: 14.5px; }
+  .small { font-size: 12.5px; color: var(--muted); }
+  code, .m { font: 12px var(--mono); }
+  code { background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+
+  /* ---------- process diagram ---------- */
+  .diagram { display: grid; grid-template-columns: 210px 46px 1fr 46px 330px; align-items: stretch; gap: 0; }
+  .arrow { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font: 10px var(--mono); color: var(--muted); text-align: center; }
+  .arrow::before { content: ""; width: 100%; height: 0; border-top: 1.5px dashed var(--border-strong); }
+  .client { border-color: var(--human); }
+  .client .lbl { color: var(--human); }
+  .daemon { border-color: var(--ai); display: flex; flex-direction: column; gap: 10px; }
+  .daemon > .lbl { color: var(--ai); }
+  .layer { border: 1px solid var(--border); background: var(--bg); border-radius: var(--r); padding: 9px 11px; }
+  .layer .lbl { margin-bottom: 4px; }
+  .mods { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; margin-top: 4px; }
+  .mods span { font: 10.5px var(--mono); border: 1px solid var(--border); border-radius: var(--r); padding: 3px 5px; text-align: center; background: var(--surface); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kernel { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+  .kernel span { font: 10.5px var(--mono); border: 1px solid var(--border-strong); border-radius: var(--r); padding: 3px 7px; }
+  .children { display: flex; flex-direction: column; gap: 10px; }
+  .worker { border-color: var(--ai); }
+  .worker .stack { display: grid; gap: 4px; margin-top: 6px; }
+  .worker .stack div { font: 11px var(--mono); border-left: 2px solid var(--ai); padding: 2px 8px; background: var(--bg); }
+  .worker .stack div.user { border-left-color: var(--muted); }
+  .worker .stack div.pol { border-left-color: var(--attn); }
+  .x { font: 600 11px var(--mono); color: var(--ai); }
+  .disk { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; }
+  .disk .box { border-style: dashed; }
+  .disk ul { list-style: none; margin-top: 4px; }
+  .disk li { font: 11.5px var(--mono); padding: 2px 0; color: var(--text); }
+  .disk li span { color: var(--muted); }
+
+  /* ---------- layout + rules ---------- */
+  .two { display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; }
+  pre.tree { font: 12px/1.65 var(--mono); background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--r); padding: 14px 16px; white-space: pre; overflow-x: auto; }
+  pre.tree b { color: var(--ai); font-weight: 600; }
+  pre.tree i { color: var(--muted); font-style: normal; }
+  ol.rules { list-style: none; counter-reset: r; display: grid; gap: 8px; }
+  ol.rules li { counter-increment: r; border: 1px solid var(--border); background: var(--surface); border-radius: var(--r); padding: 9px 12px 9px 42px; position: relative; font-size: 13px; }
+  ol.rules li::before { content: counter(r, decimal-leading-zero); position: absolute; left: 12px; top: 9px; font: 600 11px var(--mono); color: var(--ai); }
+  ol.rules li b { font-weight: 700; }
+  .cli { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .cli div { border: 1px solid var(--border); background: var(--surface); border-radius: var(--r); padding: 8px 11px; }
+  .cli div code { background: none; padding: 0; color: var(--human); font-weight: 600; }
+  .cli div p { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+
+  .ask { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask .lbl { color: var(--attn); }
+  .ask .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt:hover { border-color: var(--muted); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 1 / 9</div>
+  <h1>Vue d'ensemble : process, repo, frontières</h1>
+  <p class="lead">Approche A : un daemon Node 24 unique, plus un process <code>pi-host</code> par session active. L'isolation vient des process, l'anti-sprawl vient de la structure. Le schéma est rendu avec le design validé (E1 Night).</p>
+
+  <h2>1 · Vue process</h2>
+  <div class="diagram">
+    <div class="box client">
+      <span class="lbl">Client</span>
+      <div class="t">Navigateur / PWA</div>
+      <p class="small" style="margin-top:6px">SPA React 19 + Vite, servie par le daemon (toujours à la même version). Service worker pour Web Push. Aucune logique métier.</p>
+    </div>
+    <div class="arrow">HTTPS<br>+ WS /ws</div>
+    <div class="box daemon">
+      <span class="lbl">pap serve · daemon Node 24 · 1 process</span>
+      <div class="layer"><span class="lbl">Transport</span>
+        <div class="small"><b style="color:var(--text)">HTTP</b> : assets, auth (passkeys), uploads, webhooks, <code>/metrics</code> · <b style="color:var(--text)">WS</b> : RPC typé + streams, permission obligatoire par méthode, reprise par curseur</div></div>
+      <div class="layer"><span class="lbl">Modules · 1 dossier par domaine</span>
+        <div class="mods">
+          <span>sessions</span><span>projects</span><span>lanes</span><span>files</span><span>git</span>
+          <span>terminal</span><span>models</span><span>tools</span><span>mcp</span><span>skills</span>
+          <span>subagents</span><span>agents</span><span>automation</span><span>memory</span><span>security</span>
+          <span>finops</span><span>notify</span><span>settings</span><span>auth</span><span>update</span>
+        </div></div>
+      <div class="layer"><span class="lbl">Kernel · seul code partagé</span>
+        <div class="kernel"><span>db (SQLite WAL)</span><span>outbox worker</span><span>scheduler</span><span>supervisor</span><span>exec (git/gh, sans shell)</span><span>pty</span><span>log + trace</span><span>config</span><span>clock</span></div></div>
+    </div>
+    <div class="arrow">stdio<br>JSONL</div>
+    <div class="children">
+      <div class="box worker">
+        <span class="lbl" style="color:var(--ai)">pi-host <span class="x">× N</span> · 1 par session active</span>
+        <div class="stack">
+          <div>Pi SDK · AgentSession</div>
+          <div class="pol">policy : approbation, egress, denylist, redaction, audit</div>
+          <div>outils plateforme : agent_*, lane_note, request_secret</div>
+          <div class="user">extensions / skills de l'utilisateur (~/.pi)</div>
+        </div>
+        <p class="small" style="margin-top:8px">Protocole = sur-ensemble de <code>pi --mode rpc</code> (+ navigate_tree, custom(), appels plateforme). Scope systemd (MemoryMax, oom_score_adj), bash via bwrap selon l'agent, libéré après 30 min idle.</p>
+      </div>
+      <div class="box">
+        <span class="lbl">Autres enfants</span>
+        <p class="small"><b style="color:var(--text)">PTY</b> (node-pty) pour les terminaux · <b style="color:var(--text)">git / gh</b> en execFile durci (règles lanes) · scripts de setup lanes</p>
+      </div>
+    </div>
+  </div>
+  <div class="disk">
+    <div class="box"><span class="lbl">~/.pi/agent · propriété de Pi, lu sur place</span>
+      <ul><li>sessions/**/*.jsonl <span>· transcripts, identité de session = chemin</span></li><li>models.json · auth.json · settings.json</li><li>extensions/ · skills/ · prompts/</li></ul></div>
+    <div class="box"><span class="lbl">~/.pap · propriété de la plateforme ($PAP_HOME)</span>
+      <ul><li>state.db <span>· SQLite WAL : tout l'état plateforme</span></li><li>agents/&lt;name&gt;/ <span>· homes des agents long-terme</span></li><li>secrets/ (0600) · attachments/ · worktrees/</li><li>logs/ · traces/ <span>· NDJSON rotatifs</span></li></ul></div>
+  </div>
+
+  <h2>2 · Layout du repo &amp; règles anti-sprawl</h2>
+  <div class="two">
+<pre class="tree"><b>pi-agentic-platform/</b>
+├─ <b>apps/</b>
+│  ├─ <b>daemon/</b>          <i>pap : CLI + serve, composition root</i>
+│  │  └─ src/
+│  │     ├─ <b>kernel/</b>     <i>db, outbox, scheduler, supervisor, exec…</i>
+│  │     ├─ <b>modules/</b>
+│  │     │  └─ sessions/  <i>index.ts (API publique)</i>
+│  │     │     ├─ service.ts   <i>logique</i>
+│  │     │     ├─ store.ts     <i>SQL</i>
+│  │     │     ├─ rpc.ts       <i>handlers</i>
+│  │     │     └─ *.test.ts
+│  │     └─ main.ts      <i>câblage uniquement</i>
+│  └─ <b>web/</b>             <i>SPA React + PWA</i>
+│     └─ src/features/&lt;domaine&gt;/  <i>miroir des modules</i>
+├─ <b>packages/</b>
+│  ├─ <b>contracts/</b>       <i>zod : catalogue RPC, events, erreurs</i>
+│  ├─ <b>pi-host/</b>         <i>worker de session + extensions policy</i>
+│  └─ <b>ui/</b>              <i>design system E1 : tokens, primitives,
+│                       composants IA (message, tool, approval)</i>
+└─ docs/  <i>DESIGN.md, specs/, adr/, agents/</i></pre>
+    <ol class="rules">
+      <li><b>Un module = un domaine</b> (D01–D21). Il n'expose que son <code>index.ts</code>. Ses imports possibles : <code>contracts</code>, <code>kernel</code>, et l'<code>index.ts</code> d'un autre module. Vérifié par lint en CI.</li>
+      <li><b>Plafond de 400 lignes par fichier</b>, en échec dur, sans baseline ni exception. T3 et Orca ont des fichiers de 12k lignes, c'est exactement ce qu'on évite.</li>
+      <li><b>Un handler RPC</b> décode, appelle une seule méthode de service et mappe une erreur typée. Aucune logique dans le transport (règle T3).</li>
+      <li><b>Chaque méthode RPC déclare sa permission</b> dans <code>contracts</code>. Un oubli est une erreur de type (T3/Orca).</li>
+      <li><b>Le front reflète les modules</b> : <code>features/&lt;domaine&gt;</code>. Les primitives de <code>ui</code> gèrent leur propre apparence. Pas de couleur brute, pas de valeur arbitraire (lint, règle T3).</li>
+      <li><b>Pas de 4ᵉ package</b> tant qu'un besoin réel n'apparaît pas. Les modules restent des dossiers plutôt que 20 packages npm : la frontière est assurée par le lint.</li>
+    </ol>
+  </div>
+
+  <h2>3 · Un seul binaire : pap</h2>
+  <div class="cli">
+    <div><code>pap serve</code><p>le daemon (port, host, PAP_HOME)</p></div>
+    <div><code>pap service install</code><p>unit systemd user / launchd (comme T3)</p></div>
+    <div><code>pap import pi-web</code><p>migration unique de l'état pi-web (décision 6)</p></div>
+    <div><code>pap doctor</code><p>Node, Pi, bwrap, systemd, git/gh, ports</p></div>
+    <div><code>pap trace summary</code><p>latences / erreurs depuis le fichier de trace</p></div>
+    <div><code>pap user add / passkey</code><p>compte owner, récupération d'accès</p></div>
+  </div>
+
+  <div class="ask">
+    <span class="lbl">Ta validation</span>
+    <div>Cette vue d'ensemble te va ? Clique ce que tu veux changer (ou rien), puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s1-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s1-modules-as-packages" onclick="this.classList.toggle('selected')">Modules en packages séparés</div>
+      <div class="opt" data-choice="s1-pty-out-of-daemon" onclick="this.classList.toggle('selected')">PTY hors du daemon</div>
+      <div class="opt" data-choice="s1-file-cap-different" onclick="this.classList.toggle('selected')">Autre plafond de lignes</div>
+      <div class="opt" data-choice="s1-cli-name" onclick="this.classList.toggle('selected')">Autre nom que pap</div>
+      <div class="opt" data-choice="s1-data-dir" onclick="this.classList.toggle('selected')">Autre dossier que ~/.pap</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

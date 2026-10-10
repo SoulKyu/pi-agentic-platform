@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pi-agentic-platform · Round 2 · E1 mode clair</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #d9d9de; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 940px; }
+  .rules { margin-top: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-width: 1180px; }
+  .rules div { background: #fff; border: 1px solid #c4c4cc; border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+  .rules b { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: #71717a; margin-bottom: 2px; }
+
+  .cards { display: flex; flex-direction: column; gap: 28px; margin-top: 28px; }
+  .card { display: grid; grid-template-columns: 330px 1fr; border-radius: 16px; overflow: hidden; cursor: pointer;
+          outline: 3px solid transparent; outline-offset: 4px; transition: outline-color .15s; box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 8px 30px rgba(0,0,0,.1); }
+  .card:hover { outline-color: #a1a1aa; }
+  .card.selected { outline-color: #2563eb; }
+  .ref-label { margin-top: 36px; font: 600 12px system-ui; text-transform: uppercase; letter-spacing: .08em; color: #52525b; }
+
+  /* ===== E1 geometry (shared by every mode) ===== */
+  .e1 { --r-sm:2px; --r-av:3px; --r-msg:3px; --r-card:3px; --r-btn:2px; --r-comp:3px;
+        --font-ui:'Manrope',sans-serif; --font-prose:'Manrope',sans-serif; --font-mono:'JetBrains Mono',monospace; --font-display:'Manrope',sans-serif; }
+
+  /* ===== dark (reference, unchanged from 1b) ===== */
+  .night { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5; --grid:#ffffff06;
+           --ai:#A78BFA; --ai-fill:#A78BFA; --ai-fill-ink:#110F18;
+           --human:#FB923C; --human-fill:#FB923C; --human-fill-ink:#1B0D00; --human-tint:#FB923C1A; --human-line:#FB923C66; --human-msg:#FED7AA;
+           --attn:#EC4899; --attn-fill:#EC4899; --attn-fill-ink:#fff; --attn-tint:#EC48991A; --attn-line:#EC48998C;
+           --ok:#34D399; --idle:#6B6485; }
+
+  /* ===== light L1: lavender day ===== */
+  .day-lav { --bg:#F6F5FA; --side:#EFEDF5; --surface:#FFFFFF; --surface2:#E9E6F2; --border:#DDD9E8; --border-strong:#C5BFD8; --text:#1A1625; --muted:#625B78; --grid:#1A162509;
+             --ai:#6D28D9; --ai-fill:#7C3AED; --ai-fill-ink:#FFFFFF;
+             --human:#C2410C; --human-fill:#FB923C; --human-fill-ink:#1B0D00; --human-tint:#FFF3E8; --human-line:#FDBA74; --human-msg:#431407;
+             --attn:#BE185D; --attn-fill:#DB2777; --attn-fill-ink:#fff; --attn-tint:#FDF0F6; --attn-line:#F9A8D4;
+             --ok:#047857; --idle:#9C95B5; }
+
+  /* ===== light L2: neutral paper day ===== */
+  .day-paper { --bg:#FAF9F6; --side:#F3F1EC; --surface:#FFFFFF; --surface2:#EEEBE4; --border:#E2DED5; --border-strong:#CFC9BC; --text:#1C1917; --muted:#6B645A; --grid:#1C19170A;
+               --ai:#6D28D9; --ai-fill:#7C3AED; --ai-fill-ink:#FFFFFF;
+               --human:#C2410C; --human-fill:#FB923C; --human-fill-ink:#1B0D00; --human-tint:#FFF4EA; --human-line:#FDBA74; --human-msg:#431407;
+               --attn:#BE185D; --attn-fill:#DB2777; --attn-fill-ink:#fff; --attn-tint:#FDF1F6; --attn-line:#F9A8D4;
+               --ok:#047857; --idle:#A8A196; }
+
+  /* ---------- identity column ---------- */
+  .id { padding: 26px 24px; background: var(--surface); color: var(--text); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 18px; font-family: var(--font-ui); }
+  .id .letter { font: 600 11px var(--font-mono); color: var(--muted); letter-spacing: .1em; text-transform: uppercase; }
+  .id .wordmark { display: flex; align-items: center; gap: 10px; }
+  .id .mark { width: 34px; height: 34px; display: grid; place-items: center; font: 800 19px var(--font-display); border-radius: var(--r-sm); border: 1.5px solid var(--ai); color: var(--ai); }
+  .id .name { font: 600 16px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; }
+  .id .tag { font-size: 13.5px; color: var(--muted); }
+  .id h4 { font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin-bottom: 8px; }
+  .sw { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 18px; }
+  .sw div { height: 38px; border-radius: var(--r-sm); border: 1px solid var(--border); position: relative; }
+  .sw div span { position: absolute; bottom: -16px; left: 0; font: 9.5px var(--font-mono); color: var(--muted); white-space: nowrap; }
+  .type .d { font: 600 20px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+  .type .b { font: 14px/1.55 var(--font-prose); margin-top: 6px; }
+  .type .m { font: 12px var(--font-mono); color: var(--muted); margin-top: 6px; }
+  .refs { font-size: 12px; color: var(--muted); }
+  .refs b { color: var(--text); font-weight: 700; }
+  .traits { display: flex; flex-wrap: wrap; gap: 6px; }
+  .traits span { font: 11.5px var(--font-ui); padding: 2px 9px; border: 1px solid var(--border-strong); border-radius: 999px; }
+
+  /* ---------- app preview ---------- */
+  .app { background: var(--bg); color: var(--text); font: 13px/1.5 var(--font-ui); display: grid; grid-template-columns: 52px 214px 1fr; min-height: 580px;
+         background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { border-right: 1px solid var(--border); background: var(--side); display: flex; flex-direction: column; align-items: center; padding: 12px 0; gap: 12px; }
+  .rail .logo { width: 30px; height: 30px; border-radius: var(--r-sm); display: grid; place-items: center; font: 800 16px var(--font-display); margin-bottom: 6px; border: 1.5px solid var(--ai); color: var(--ai); }
+  .av { width: 32px; height: 32px; border-radius: var(--r-av); display: grid; place-items: center; font: 700 11.5px var(--font-ui); position: relative; border: 1.5px solid var(--c); color: var(--c); background: var(--surface); }
+  .av-ai { --c: var(--ai); } .av-attn { --c: var(--attn); } .av-idle { --c: var(--idle); }
+  .av .dot { position: absolute; right: -3px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--side); background: var(--ai-fill); }
+  .av .badge { position: absolute; right: -7px; top: -6px; min-width: 16px; height: 16px; border-radius: 8px; background: var(--attn-fill); color: var(--attn-fill-ink); font: 700 10px/12px var(--font-ui); text-align: center; padding: 0 4px; border: 2px solid var(--side); }
+  .side { border-right: 1px solid var(--border); background: var(--side); padding: 12px 10px; display: flex; flex-direction: column; gap: 4px; }
+  .sec { font: 600 10.5px var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); padding: 10px 8px 4px; }
+  .item { padding: 6px 8px; border-radius: var(--r-sm); display: flex; flex-direction: column; gap: 3px; border: 1px solid transparent; }
+  .item.on { background: var(--surface); border-color: var(--border-strong); box-shadow: inset 2px 0 0 var(--ai); }
+  .night .item.on { background: var(--surface2); }
+  .item .t { font: 500 12px var(--font-mono); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .item .s { font: 11px var(--font-mono); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; font: 600 10px var(--font-mono); padding: 1px 6px; border-radius: var(--r-sm); line-height: 16px; text-transform: uppercase; letter-spacing: .06em; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); }
+  .chip i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: inline-block; }
+  .c-run { --c: var(--ai); } .c-attn { --c: var(--attn); } .c-ok { --c: var(--ok); }
+
+  .chat { display: flex; flex-direction: column; min-width: 0; }
+  .ch { height: 46px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--bg); }
+  .ch .crumb { color: var(--muted); font: 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+  .ch .title { font: 600 12px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; }
+  .ch .sp { flex: 1; }
+  .ch .model { font: 11.5px var(--font-mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 2px 8px; background: var(--surface); }
+  .night .ch .model { background: transparent; }
+  .stream { flex: 1; padding: 18px 18px 8px; display: flex; flex-direction: column; gap: 14px; }
+  .u { align-self: flex-end; max-width: 78%; padding: 9px 13px; border-radius: var(--r-msg); font-size: 13.5px; background: var(--human-tint); border: 1px solid var(--human-line); color: var(--human-msg); }
+  .u .lbl { display: block; font: 600 10px var(--font-mono); color: var(--human); text-transform: uppercase; letter-spacing: .1em; margin-bottom: 2px; }
+  .a { display: flex; gap: 10px; }
+  .a .body { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 8px; position: relative; padding-left: 12px; }
+  .a .body::before { content: ""; position: absolute; left: 0; top: 2px; bottom: 2px; width: 2px; background: var(--ai); }
+  .a .meta { font: 11px var(--font-mono); color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .a .name { color: var(--ai); font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; }
+  .think { font: 12px var(--font-mono); color: var(--muted); }
+  .prose { font: 14px/1.6 var(--font-prose); }
+  .prose code, .appr code { font: .84em var(--font-mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r-sm); }
+  .tool { border: 1px solid var(--border-strong); border-radius: var(--r-card); background: var(--surface); overflow: hidden; }
+  .tool .th { display: flex; align-items: center; gap: 8px; padding: 7px 11px; font: 12px var(--font-mono); border-bottom: 1px solid var(--border); }
+  .tool .th .tg { font: 600 10px var(--font-mono); text-transform: uppercase; letter-spacing: .1em; color: var(--ai); }
+  .tool .th .k { color: var(--muted); }
+  .tool .th .sp { flex: 1; }
+  .tool pre { font: 11.5px/1.6 var(--font-mono); padding: 9px 11px; color: var(--muted); white-space: pre-wrap; }
+  .tool pre b { color: var(--text); font-weight: 500; }
+  .tool pre .ok { color: var(--ok); }
+  .bar { height: 2px; background: var(--border); position: relative; overflow: hidden; }
+  .bar::after { content: ""; position: absolute; inset: 0; width: 35%; background: var(--ai-fill); animation: sl 1.4s ease-in-out infinite; }
+  @keyframes sl { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+  @media (prefers-reduced-motion: reduce) { .bar::after { animation: none; } }
+  .appr { border-radius: var(--r-card); padding: 11px 13px; display: flex; align-items: center; gap: 12px; background: var(--attn-tint); border: 1px solid var(--attn-line); }
+  .appr .q { flex: 1; font-size: 13px; }
+  .appr .q small { display: block; font: 600 10px var(--font-mono); color: var(--attn); margin-bottom: 2px; text-transform: uppercase; letter-spacing: .1em; }
+  .btn { font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: .08em; padding: 6px 13px; border-radius: var(--r-btn); border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); }
+  .night .btn { background: transparent; }
+  .btn.pri { background: var(--human-fill); color: var(--human-fill-ink); border-color: transparent; }
+  .comp { margin: 6px 16px 16px; border: 1px solid var(--human-line); border-radius: var(--r-comp); background: var(--surface); padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .night .comp { border-color: var(--human); }
+  .comp .ph { color: var(--muted); font-size: 13.5px; }
+  .comp .row { display: flex; align-items: center; gap: 8px; }
+  .comp .row .sp { flex: 1; }
+  .comp .pill { font: 11px var(--font-mono); color: var(--muted); border: 1px solid var(--border); padding: 2px 8px; border-radius: var(--r-sm); }
+  .send { width: 30px; height: 30px; border-radius: var(--r-btn); background: var(--human-fill); color: var(--human-fill-ink); display: grid; place-items: center; font-weight: 800; }
+
+  .ask { margin-top: 32px; background: #fff; border: 1px solid #c4c4cc; border-radius: 16px; padding: 20px 24px; }
+  .ask h2 { font-size: 17px; }
+  .ask p { color: #52525b; margin: 4px 0 12px; }
+  .ask .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="intro">
+    <h1>Round 2 : E1 Night Control en mode clair</h1>
+    <p>Même grammaire qu'E1 (angles 2–3 px, grille, HUD mono, avatars en contour, rôles par couleur). Seul le fond change, avec deux températures possibles. Sur fond clair, les teintes du texte et des filets sont assombries pour rester lisibles (contraste AA), mais les aplats (bouton principal, badges) gardent la même couleur qu'en sombre.</p>
+    <div class="rules">
+      <div><b>Violet = l'agent</b>Sombre #A78BFA → clair #6D28D9 (texte, filets) · aplat #7C3AED.</div>
+      <div><b>Orange = toi</b>Aplat #FB923C identique dans les deux modes, texte #C2410C sur clair.</div>
+      <div><b>Rose = ton attention</b>Sombre #EC4899 → clair #BE185D (texte) · aplat #DB2777.</div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <!-- ===================== L1 lavender ===================== -->
+    <section class="card e1 day-lav" data-choice="E1-light-lavender" onclick="toggleSelect(this)">
+      <div class="id">
+        <div class="letter">E1 · Day · Lavande</div>
+        <div class="wordmark"><div class="mark">π</div><div class="name">pi·agentic</div></div>
+        <div class="tag">Blanc légèrement teinté de violet : c'est le jumeau direct de la nuit, la marque reste cohérente quand tu changes de mode.</div>
+        <div><h4>Palette</h4>
+          <div class="sw"><div style="background:#F6F5FA"><span>day</span></div><div style="background:#E9E6F2"><span>panel</span></div><div style="background:#7C3AED"><span>agent</span></div><div style="background:#FB923C"><span>human</span></div><div style="background:#DB2777"><span>attention</span></div></div>
+        </div>
+        <div class="type"><h4>Typo · Manrope / JetBrains Mono</h4><div class="d">Agents at work</div><div class="b">Prose en Manrope, structure en mono.</div><div class="m">$ pap lanes ls --status working</div></div>
+        <div class="refs"><b>Teinte froide</b> : les gris tirent vers le violet de la marque (#625B78).</div>
+        <div class="traits"><span>clair</span><span>froid</span><span>grille 4 %</span></div>
+      </div>
+      <div class="app">
+        <div class="rail"><div class="logo">π</div>
+          <div class="av av-ai">AT<i class="dot"></i></div>
+          <div class="av av-attn">SC<span class="badge">2</span></div>
+          <div class="av av-idle">LG</div>
+        </div>
+        <div class="side">
+          <div class="sec">Lanes</div>
+          <div class="item on"><div class="t">feat/checkpoints</div><div class="s"><span class="chip c-run"><i></i>working</span>+214 −38</div></div>
+          <div class="item"><div class="t">fix/webhook-dedup</div><div class="s"><span class="chip c-ok"><i></i>review</span>PR #82</div></div>
+          <div class="item"><div class="t">chore/deps-bump</div><div class="s"><span class="chip c-attn"><i></i>setup failed</span></div></div>
+          <div class="sec">Sessions</div>
+          <div class="item"><div class="t">Triage Grafana alerts</div><div class="s">2h · Scout</div></div>
+          <div class="item"><div class="t">Weekly memory curation</div><div class="s">yesterday · Ledger</div></div>
+        </div>
+        <div class="chat">
+          <div class="ch"><span class="crumb">Lane /</span><span class="title">feat/checkpoints</span><span class="chip c-run"><i></i>Working</span><span class="sp"></span><span class="model">sonnet-5.5 · high</span></div>
+          <div class="stream">
+            <div class="u"><span class="lbl">You</span>Add per-turn checkpoints to lanes and make restore undoable.</div>
+            <div class="a"><div class="av av-ai">AT</div><div class="body">
+              <div class="meta"><span class="name">Atlas</span><span>14:02</span></div>
+              <div class="think">▸ thought for 14s</div>
+              <div class="prose">I'll capture a hidden ref at each run boundary, then wire restore through <code>git restore --source</code>. Starting with the capture helper.</div>
+              <div class="tool"><div class="th"><span class="tg">bash</span><span class="k">go test ./internal/lanes/...</span><span class="sp"></span><span class="k">00:07</span></div><div class="bar"></div>
+                <pre><span class="ok">ok</span>  lanes/checkpoint   0.41s
+<b>=== RUN</b>   TestRestoreUndo</pre></div>
+              <div class="appr"><div class="q"><small>Approval needed</small>Push 3 commits to <code>origin/feat/checkpoints</code>?</div><button class="btn">Deny</button><button class="btn pri">Approve</button></div>
+            </div></div>
+          </div>
+          <div class="comp"><div class="ph">Steer Atlas, @ a file, / for commands…</div><div class="row"><span class="pill">sonnet-5.5</span><span class="pill">tools: default</span><span class="sp"></span><div class="send">↑</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== L2 paper ===================== -->
+    <section class="card e1 day-paper" data-choice="E1-light-paper" onclick="toggleSelect(this)">
+      <div class="id">
+        <div class="letter">E1 · Day · Papier</div>
+        <div class="wordmark"><div class="mark">π</div><div class="name">pi·agentic</div></div>
+        <div class="tag">Blanc cassé neutre-chaud : moins "écran", plus reposant en journée longue. Le violet ressort davantage par contraste.</div>
+        <div><h4>Palette</h4>
+          <div class="sw"><div style="background:#FAF9F6"><span>day</span></div><div style="background:#EEEBE4"><span>panel</span></div><div style="background:#7C3AED"><span>agent</span></div><div style="background:#FB923C"><span>human</span></div><div style="background:#DB2777"><span>attention</span></div></div>
+        </div>
+        <div class="type"><h4>Typo · Manrope / JetBrains Mono</h4><div class="d">Agents at work</div><div class="b">Prose en Manrope, structure en mono.</div><div class="m">$ pap lanes ls --status working</div></div>
+        <div class="refs"><b>Teinte chaude</b> : les gris tirent vers la pierre (#6B645A).</div>
+        <div class="traits"><span>clair</span><span>chaud</span><span>grille 4 %</span></div>
+      </div>
+      <div class="app">
+        <div class="rail"><div class="logo">π</div>
+          <div class="av av-ai">AT<i class="dot"></i></div>
+          <div class="av av-attn">SC<span class="badge">2</span></div>
+          <div class="av av-idle">LG</div>
+        </div>
+        <div class="side">
+          <div class="sec">Lanes</div>
+          <div class="item on"><div class="t">feat/checkpoints</div><div class="s"><span class="chip c-run"><i></i>working</span>+214 −38</div></div>
+          <div class="item"><div class="t">fix/webhook-dedup</div><div class="s"><span class="chip c-ok"><i></i>review</span>PR #82</div></div>
+          <div class="item"><div class="t">chore/deps-bump</div><div class="s"><span class="chip c-attn"><i></i>setup failed</span></div></div>
+          <div class="sec">Sessions</div>
+          <div class="item"><div class="t">Triage Grafana alerts</div><div class="s">2h · Scout</div></div>
+          <div class="item"><div class="t">Weekly memory curation</div><div class="s">yesterday · Ledger</div></div>
+        </div>
+        <div class="chat">
+          <div class="ch"><span class="crumb">Lane /</span><span class="title">feat/checkpoints</span><span class="chip c-run"><i></i>Working</span><span class="sp"></span><span class="model">sonnet-5.5 · high</span></div>
+          <div class="stream">
+            <div class="u"><span class="lbl">You</span>Add per-turn checkpoints to lanes and make restore undoable.</div>
+            <div class="a"><div class="av av-ai">AT</div><div class="body">
+              <div class="meta"><span class="name">Atlas</span><span>14:02</span></div>
+              <div class="think">▸ thought for 14s</div>
+              <div class="prose">I'll capture a hidden ref at each run boundary, then wire restore through <code>git restore --source</code>. Starting with the capture helper.</div>
+              <div class="tool"><div class="th"><span class="tg">bash</span><span class="k">go test ./internal/lanes/...</span><span class="sp"></span><span class="k">00:07</span></div><div class="bar"></div>
+                <pre><span class="ok">ok</span>  lanes/checkpoint   0.41s
+<b>=== RUN</b>   TestRestoreUndo</pre></div>
+              <div class="appr"><div class="q"><small>Approval needed</small>Push 3 commits to <code>origin/feat/checkpoints</code>?</div><button class="btn">Deny</button><button class="btn pri">Approve</button></div>
+            </div></div>
+          </div>
+          <div class="comp"><div class="ph">Steer Atlas, @ a file, / for commands…</div><div class="row"><span class="pill">sonnet-5.5</span><span class="pill">tools: default</span><span class="sp"></span><div class="send">↑</div></div></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="ref-label">Référence : E1 Night (validé)</div>
+    <section class="card e1 night" data-choice="E1-night-reference" onclick="toggleSelect(this)">
+      <div class="id">
+        <div class="letter">E1 · Night</div>
+        <div class="wordmark"><div class="mark">π</div><div class="name">pi·agentic</div></div>
+        <div class="tag">La version sombre validée, pour comparer.</div>
+        <div><h4>Palette</h4>
+          <div class="sw"><div style="background:#110F18"><span>night</span></div><div style="background:#241F33"><span>panel</span></div><div style="background:#A78BFA"><span>agent</span></div><div style="background:#FB923C"><span>human</span></div><div style="background:#EC4899"><span>attention</span></div></div>
+        </div>
+        <div class="traits"><span>sombre</span><span>validé</span></div>
+      </div>
+      <div class="app">
+        <div class="rail"><div class="logo">π</div>
+          <div class="av av-ai">AT<i class="dot"></i></div>
+          <div class="av av-attn">SC<span class="badge">2</span></div>
+          <div class="av av-idle">LG</div>
+        </div>
+        <div class="side">
+          <div class="sec">Lanes</div>
+          <div class="item on"><div class="t">feat/checkpoints</div><div class="s"><span class="chip c-run"><i></i>working</span>+214 −38</div></div>
+          <div class="item"><div class="t">fix/webhook-dedup</div><div class="s"><span class="chip c-ok"><i></i>review</span>PR #82</div></div>
+          <div class="item"><div class="t">chore/deps-bump</div><div class="s"><span class="chip c-attn"><i></i>setup failed</span></div></div>
+          <div class="sec">Sessions</div>
+          <div class="item"><div class="t">Triage Grafana alerts</div><div class="s">2h · Scout</div></div>
+          <div class="item"><div class="t">Weekly memory curation</div><div class="s">yesterday · Ledger</div></div>
+        </div>
+        <div class="chat">
+          <div class="ch"><span class="crumb">Lane /</span><span class="title">feat/checkpoints</span><span class="chip c-run"><i></i>Working</span><span class="sp"></span><span class="model">sonnet-5.5 · high</span></div>
+          <div class="stream">
+            <div class="u"><span class="lbl">You</span>Add per-turn checkpoints to lanes and make restore undoable.</div>
+            <div class="a"><div class="av av-ai">AT</div><div class="body">
+              <div class="meta"><span class="name">Atlas</span><span>14:02</span></div>
+              <div class="think">▸ thought for 14s</div>
+              <div class="prose">I'll capture a hidden ref at each run boundary, then wire restore through <code>git restore --source</code>. Starting with the capture helper.</div>
+              <div class="tool"><div class="th"><span class="tg">bash</span><span class="k">go test ./internal/lanes/...</span><span class="sp"></span><span class="k">00:07</span></div><div class="bar"></div>
+                <pre><span class="ok">ok</span>  lanes/checkpoint   0.41s
+<b>=== RUN</b>   TestRestoreUndo</pre></div>
+              <div class="appr"><div class="q"><small>Approval needed</small>Push 3 commits to <code>origin/feat/checkpoints</code>?</div><button class="btn">Deny</button><button class="btn pri">Approve</button></div>
+            </div></div>
+          </div>
+          <div class="comp"><div class="ph">Steer Atlas, @ a file, / for commands…</div><div class="row"><span class="pill">sonnet-5.5</span><span class="pill">tools: default</span><span class="sp"></span><div class="send">↑</div></div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="ask">
+    <h2>Réglages du mode clair (optionnel)</h2>
+    <p>Coche ce que tu voudrais changer.</p>
+    <div class="row">
+      <div class="opt" data-choice="light-grid-off" onclick="this.classList.toggle('selected')">Clair sans grille</div>
+      <div class="opt" data-choice="light-panels-white" onclick="this.classList.toggle('selected')">Sidebar blanche (moins de contraste de zones)</div>
+      <div class="opt" data-choice="light-user-filled" onclick="this.classList.toggle('selected')">Message utilisateur plus marqué</div>
+      <div class="opt" data-choice="theme-follow-os" onclick="this.classList.toggle('selected')">Mode par défaut = suivre l'OS</div>
+      <div class="opt" data-choice="theme-dark-default" onclick="this.classList.toggle('selected')">Mode par défaut = sombre</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
