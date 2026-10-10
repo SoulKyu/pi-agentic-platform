@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 2 · Cycle de vie d'une session et protocole pi-host</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 940px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+
+  /* state machine */
+  .sm { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; align-items: start; }
+  .st { border: 1.5px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 10px 11px; min-height: 118px; position: relative; }
+  .st .n { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+  .st p { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .st.cold { border-color: var(--muted); }
+  .st.run { border-color: var(--ai); } .st.run .n { color: var(--ai); }
+  .st.idle .n { color: var(--ok); } .st.idle { border-color: var(--ok); }
+  .st.crash { border-color: var(--err); } .st.crash .n { color: var(--err); }
+  .st::after { content: "→"; position: absolute; right: -12px; top: 44px; font: 600 14px var(--mono); color: var(--muted); }
+  .st:last-child::after { content: none; }
+  .loops { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+  .loops div { font: 11.5px var(--mono); border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 7px 10px; color: var(--muted); }
+  .loops b { color: var(--text); font-weight: 600; }
+
+  /* protocol table */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  td code { white-space: nowrap; }
+  .tag { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 1px 6px; border-radius: var(--r); border: 1px solid; white-space: nowrap; }
+  .tag.pi { color: var(--muted); border-color: var(--border-strong); }
+  .tag.pap { color: var(--ai); border-color: #A78BFA88; }
+  .dir { font: 600 11px var(--mono); white-space: nowrap; }
+  .dir.down { color: var(--human); } .dir.up { color: var(--ai); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  .src { font: 10.5px var(--mono); color: var(--muted); }
+
+  .ev { display: grid; grid-template-columns: 200px 1fr; border-bottom: 1px solid var(--border); }
+  .ev:last-child { border-bottom: none; }
+  .ev div { padding: 9px 12px; font-size: 13px; }
+  .ev div:first-child { font: 600 11.5px var(--mono); color: var(--human); }
+
+  .ask { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask .lbl { color: var(--attn); }
+  .ask .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 2 / 9</div>
+  <h1>Cycle de vie d'une session et protocole pi-host</h1>
+  <p class="lead">Une session Pi active = un process <code>pi-host</code> (Node) qui embarque le SDK Pi. Le daemon le lance à la demande, le surveille, le libère quand il dort, et ne le ressuscite jamais tout seul après un crash. Le transcript reste le fichier JSONL de Pi : le worker est jetable, la session non.</p>
+
+  <h2>1 · États du worker</h2>
+  <div class="sm">
+    <div class="st cold"><div class="n">cold</div><p>Aucun process. La session existe (fichier Pi + ligne SQLite). État normal de la plupart des sessions.</p></div>
+    <div class="st"><div class="n">starting</div><p><code>fork(pi-host)</code> + scope systemd, ouverture du fichier de session, puis <code>ready</code> (chemin, version Pi).</p></div>
+    <div class="st idle"><div class="n">idle</div><p>Prêt. Accepte prompts, changement de modèle, navigation d'arbre, export.</p></div>
+    <div class="st run"><div class="n">running</div><p>Run en cours, de <code>agent_start</code> à <code>agent_settled</code> confirmé par sonde <code>get_state</code>.</p></div>
+    <div class="st"><div class="n">releasing</div><p>30 min idle, sans dialogue en attente, file vide, pas de travail de fond, alors <code>shutdown</code>.</p></div>
+    <div class="st cold"><div class="n">cold</div><p>Prochaine commande : relance paresseuse sur le même fichier de session.</p></div>
+  </div>
+  <div class="loops">
+    <div><b>idle ⇄ running</b> · prompt pendant un run = <code>steer</code> ou <code>followUp</code> (préférence) ; file plafonnée à 128 messages / 32 MiB</div>
+    <div><b>tout état → crashed → cold</b> · run terminé <code>interrupted</code> avec cause (OOM, signal, code de sortie, échec de spawn), dialogues annulés</div>
+    <div><b>abort</b> · <code>abort</code>, et si compaction en cours ou pas de settle en 5 s : arrêt du process (règle T3)</div>
+  </div>
+
+  <h2>2 · Protocole daemon ⇄ pi-host</h2>
+  <p class="small" style="margin-bottom:10px">Transport : canal IPC de Node (<code>child_process.fork</code>), qui découpe déjà les messages, d'où aucun parseur JSONL à écrire. stdout/stderr ne servent qu'aux logs : seuls les 8 derniers KiB sont gardés, jamais logués en entier (ils peuvent contenir des secrets). Les records reprennent les formes de <code>pi --mode rpc</code>. Pour basculer une session vers le vrai Pi RPC, il suffit de changer d'adaptateur de transport.</p>
+  <table>
+    <tr><th style="width:80px">Sens</th><th style="width:70px">Origine</th><th>Records</th><th style="width:38%">Rôle</th></tr>
+    <tr><td><span class="dir down">daemon → worker</span></td><td><span class="tag pi">Pi RPC</span></td><td><code>prompt</code> <code>abort</code> <code>compact</code> <code>get_state</code> <code>get_entries{since}</code> <code>get_tree</code> <code>fork</code> <code>clone</code> <code>set_model</code> <code>set_thinking_level</code> <code>set_session_name</code> <code>export_html</code> <code>get_session_stats</code> <code>get_commands</code> <code>get_available_models</code> <code>extension_ui_response</code></td><td>Repris tels quels, ce qui garantit la compatibilité avec le repli <code>pi --mode rpc</code>.</td></tr>
+    <tr><td><span class="dir down">daemon → worker</span></td><td><span class="tag pap">pap</span></td><td><code>navigate_tree{targetId}</code> <code>custom_input{id,data}</code> <code>platform_result{id}</code> <code>policy_update{rules}</code> <code>shutdown{graceMs}</code></td><td>Ce que le RPC de Pi n'offre pas : changement de branche dans la session, touches vers un panneau custom, réponses aux appels plateforme, politiques modifiées à chaud.</td></tr>
+    <tr><td><span class="dir up">worker → daemon</span></td><td><span class="tag pi">Pi RPC</span></td><td><code>response{id}</code> · événements <code>agent_start</code> <code>message_*</code> <code>tool_execution_*</code> <code>turn_end</code> <code>agent_end</code> <code>agent_settled</code> <code>compaction_*</code> <code>auto_retry_*</code> · <code>extension_ui_request</code> <code>extension_error</code></td><td>Flux de session standard. Les décorations (<code>notify</code>, <code>setStatus</code>, <code>setWidget</code>, <code>setTitle</code>) sont affichées, contrairement à T3 et Orca.</td></tr>
+    <tr><td><span class="dir up">worker → daemon</span></td><td><span class="tag pap">pap</span></td><td><code>ready{sessionFile,piVersion}</code> <code>custom_render{id,lines}</code> <code>custom_close{id}</code> <code>platform_call{id,op,args}</code> <code>audit{entry}</code> <code>health{rssMb}</code></td><td>Panneaux <code>ctx.ui.custom()</code> (rendu complet renvoyé à chaque changement, comme pi-web), appels des outils plateforme, journal d'audit, mémoire.</td></tr>
+  </table>
+
+  <h2>3 · Règles de run et d'isolation</h2>
+  <div class="grid3">
+    <div class="box"><span class="lbl">Fin de run</span>
+      <ul class="tight">
+        <li><code>agent_settled</code> est le seul signal de fin. <code>agent_end</code> ne suffit pas (retries, compaction).</li>
+        <li>Il est confirmé par <code>get_state</code> : pas de streaming, pas de compaction, file vide. Jusqu'à 3 essais à 100 ms, et une nouvelle entrée annule la sonde.</li>
+        <li>Chaque run porte son origine : <code>user</code>, <code>trigger</code>, <code>task</code> ou <code>extension</code>.</li>
+      </ul><p class="src">T3 adapter.ts · Orca rpc-idle-check.ts</p></div>
+    <div class="box"><span class="lbl">Confinement</span>
+      <ul class="tight">
+        <li>Si systemd user est présent : <code>systemd-run --user --scope</code> avec MemoryHigh, MemoryMax et TasksMax (réglages).</li>
+        <li>Au démarrage, le worker se met à <code>oom_score_adj=800</code> : le noyau tue un agent, pas le daemon.</li>
+        <li>Groupe de process dédié. Le worker surveille son parent et s'arrête si le daemon meurt.</li>
+        <li>Arrêt progressif : <code>shutdown</code>, puis 2 s, puis SIGTERM au groupe, puis 3 s, puis SIGKILL.</li>
+        <li>Le bash des agents passe par bwrap selon leur profil (pi-web).</li>
+      </ul><p class="src">T3 agentScope.ts · Orca provider-process-supervisor.ts</p></div>
+    <div class="box"><span class="lbl">Environnement &amp; capacité</span>
+      <ul class="tight">
+        <li>Session interactive : l'env du daemon moins <code>PAP_*</code> et les secrets plateforme.</li>
+        <li>Session d'agent : une liste blanche d'env plus le coffre de secrets de l'agent (pi-web).</li>
+        <li>Plafond de workers actifs et plancher de mémoire libre (réglages pi-web). Au-delà, refus explicite avec la raison, jamais de file silencieuse.</li>
+        <li>Le SDK Pi est épinglé dans <code>pi-host</code>. <code>pap doctor</code> signale un écart avec le CLI <code>pi</code> installé, puisque les fichiers de session sont partagés.</li>
+      </ul></div>
+  </div>
+
+  <h2>4 · Appels plateforme (outils agent_*, lane_note, request_secret)</h2>
+  <div class="grid2">
+    <div class="box">
+      <p style="font-size:13px">Un outil plateforme s'exécute dans le daemon, jamais dans le worker. Le worker envoie <code>platform_call{op,args}</code>. Le daemon identifie l'appelant grâce au type de session qu'il a lui-même lancée (session interactive, thread de confiance d'un agent, tâche isolée) et non grâce aux paramètres. Il vérifie que <code>op</code> est autorisé pour ce type d'appelant, exécute, puis répond <code>platform_result</code>.</p>
+      <p class="small" style="margin-top:8px">« Les paramètres choisissent la cible, l'appelant fixe les limites » (T3 McpToolAccess). Pas de jeton MCP à émettre : le canal IPC est privé au couple daemon-worker.</p>
+    </div>
+    <div class="box"><span class="lbl">Ops v1</span>
+      <ul class="tight">
+        <li><code>agent.notify</code> <code>agent.approve</code> <code>agent.delegate</code> <code>agent.remind</code> : threads de confiance seulement</li>
+        <li><code>lane.note</code> : sessions de lane</li>
+        <li><code>secret.request</code> : la valeur va dans le coffre, seule une référence à usage unique entre dans le transcript</li>
+        <li><code>audit.append</code> : tous les appelants, dans un journal append-only</li>
+      </ul></div>
+  </div>
+
+  <h2>5 · Ce qui se passe quand…</h2>
+  <div class="box" style="padding:0">
+    <div class="ev"><div>le worker crashe / OOM</div><div>Run en <code>interrupted</code> avec cause lisible (bannière : « Agent process killed: out of memory (MemoryMax 2 GB) »). Dialogues en attente annulés. Aucun redémarrage automatique : la prochaine commande relance le worker sur le même fichier.</div></div>
+    <div class="ev"><div>le daemon redémarre</div><div>Les workers s'arrêtent seuls (surveillance du parent). Au boot, les runs encore <code>running</code> passent en <code>interrupted</code>. Les tâches et triggers sont rejoués ou non selon l'outbox (section 6).</div></div>
+    <div class="ev"><div>le client se déconnecte</div><div>Aucun effet sur le worker. Au retour : reprise par curseur, et le message partiel en cours est renvoyé en snapshot (section 4).</div></div>
+    <div class="ev"><div>une extension lance un run</div><div>Accepté (intégration Pi profonde), attribué à l'origine <code>extension</code>, visible dans le transcript et audité. T3 et Orca tuent la session dans ce cas ; nous non, car tout passe par le daemon.</div></div>
+    <div class="ev"><div>Pi demande un dialogue</div><div>Carte d'approbation ou d'input dans le chat. Au plus 64 dialogues ou 8 MiB. Une méthode inconnue est annulée automatiquement. Après 60 s sans réponse et sans onglet ouvert : push (pi-web).</div></div>
+  </div>
+
+  <div class="ask">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s2-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s2-kill-unsolicited" onclick="this.classList.toggle('selected')">Tuer les runs non sollicités (comme T3/Orca)</div>
+      <div class="opt" data-choice="s2-auto-restart" onclick="this.classList.toggle('selected')">Redémarrage auto après crash</div>
+      <div class="opt" data-choice="s2-idle-timeout" onclick="this.classList.toggle('selected')">Autre délai d'idle que 30 min</div>
+      <div class="opt" data-choice="s2-jsonl-not-ipc" onclick="this.classList.toggle('selected')">JSONL stdio plutôt qu'IPC Node</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

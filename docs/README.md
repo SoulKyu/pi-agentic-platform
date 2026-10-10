@@ -8,6 +8,7 @@ Status: design phase (specs not yet written). HTML pages open directly in a brow
 
 ## Architecture (spec C, validated section by section)
 - [architecture/01-overview.html](architecture/01-overview.html): process view, repo layout, anti-sprawl rules, the `pap` binary.
+- [architecture/02-session-lifecycle.html](architecture/02-session-lifecycle.html): worker states, daemon ⇄ pi-host protocol, run and containment rules, platform calls, failure cases.
 
 ## Design (DESIGN.md in progress)
 - [design/explorations/01-brand-directions.html](design/explorations/01-brand-directions.html): round 1, four directions (Graphite, Paper & Ink, Mission Control, Aurora).
