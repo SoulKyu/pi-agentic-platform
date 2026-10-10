@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec C · Section 8 · Tests et quality gates</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .src { font: 10.5px var(--mono); color: var(--muted); margin-top: 6px; display: block; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  .new { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: #1B0D00; background: var(--human); padding: 0 5px; border-radius: var(--r); margin-left: 4px; }
+
+  .pyr { display: grid; gap: 6px; }
+  .tier { display: grid; grid-template-columns: 190px 1fr 280px; border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); }
+  .tier > div { padding: 10px 12px; font-size: 13px; }
+  .tier > div:first-child { border-right: 1px solid var(--border); font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .08em; }
+  .tier > div:last-child { border-left: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+  .tier.t1 > div:first-child { color: var(--ok); }
+  .tier.t2 > div:first-child { color: var(--ai); }
+  .tier.t3 > div:first-child { color: var(--human); }
+  .tier.t4 > div:first-child { color: var(--attn); }
+
+  .gates { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .gate { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 10px 11px; }
+  .gate .n { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ai); }
+  .gate p { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .gate.hard { border-color: #EC489988; } .gate.hard .n { color: var(--attn); }
+
+  .ci { display: flex; gap: 0; align-items: stretch; flex-wrap: nowrap; overflow-x: auto; }
+  .ci div { border: 1px solid var(--border-strong); background: var(--surface); padding: 8px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; white-space: nowrap; position: relative; margin-right: 18px; border-radius: var(--r); }
+  .ci div::after { content: "→"; position: absolute; right: -15px; top: 7px; color: var(--muted); }
+  .ci div:last-child::after { content: none; }
+  .ci div small { display: block; font: 11px var(--ui); text-transform: none; letter-spacing: 0; color: var(--muted); margin-top: 2px; }
+
+  .warn { border-color: var(--attn); } .warn .lbl { color: var(--attn); }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .ask-box .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec C · Architecture · Section 8 / 9</div>
+  <h1>Tests et quality gates</h1>
+  <p class="lead">Contre l'étalement du code, le levier est une CI qui refuse ce qui déborde, dès le premier commit. Contre la fragilité, ce sont des tests qui font tourner le vrai pipeline (SDK Pi, extensions, politiques, SQLite, git) avec un seul faux : le modèle. Pas de sleep dans les tests, pas d'objectif de couverture en pourcentage.</p>
+
+  <h2>1 · Les niveaux de tests</h2>
+  <div class="pyr">
+    <div class="tier t1"><div>Unitaires</div><div>Logique pure : évaluation des politiques (tables de cas), RRULE et tirs manqués, mapping Alertmanager / Grafana, masquage, chemins sûrs, view-models du front, décodage tolérant des événements.</div><div>Vitest, un seul runner pour daemon, pi-host et web. Rapide, à lancer à chaque sauvegarde.</div></div>
+    <div class="tier t2"><div>Intégration daemon</div><div>Vraie SQLite temporaire, vrais dépôts git temporaires (pattern lanes de pi-web), vrai <code>pi-host</code> avec le SDK Pi. L'outbox est vidée explicitement (« drain »), l'horloge est injectée par le kernel, aucune attente réelle.</div><div>Le cœur de la confiance : session, approbation, lane, trigger, crash du worker, récupération au boot.</div></div>
+    <div class="tier t3"><div>E2E navigateur</div><div>Playwright contre le daemon construit, sur <b>Chromium + WebKit</b> (le plancher Safari). Environ 15 parcours clés : setup de l'owner, passkey (authenticator virtuel), prompt → approbation → résultat, lane → commit → PR (<code>gh</code> simulé), webhook → run → inbox, reprise après coupure, viewport mobile.</div><div>Repris de <code>e2e/run.mjs</code> de pi-web, élargi à WebKit.</div></div>
+    <div class="tier t4"><div>Compat Pi <span class="new">nouveau</span></div><div>Job nocturne qui rejoue la suite d'intégration contre la <b>dernière</b> version du SDK Pi (on livre une version épinglée). Une casse amont est repérée avant la mise à jour, pas après.</div><div>Pattern Orca <code>pi-provider-runtime.yml</code>.</div></div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="box"><span class="lbl">Le seul faux : un provider scripté</span>
+      <p style="font-size:13px">Les tests enregistrent dans <code>pi-host</code> un <b>provider Pi scripté</b> (via l'API custom provider de Pi, <code>docs/custom-provider.md</code>). Il renvoie des réponses écrites d'avance : du texte, des appels d'outils, des erreurs de quota. Tout le reste est réel : SDK, extensions, <code>pap-policy</code>, bash dans bwrap, SQLite, git. Aucun appel réseau, aucun coût de tokens, résultats déterministes.</p>
+      <span class="src">plus fort que T3, qui rejoue des transcripts RPC au niveau de l'adaptateur · à valider au spike</span></div>
+    <div class="box"><span class="lbl">Tests ciblés sécurité</span>
+      <ul class="tight">
+        <li>Path traversal sur <code>/files</code> et sur le service statique.</li>
+        <li>Webhook : mauvais secret, HMAC faux, corps de 64 Ko + 1, rejeu de la clé de dédup.</li>
+        <li>Fail closed : une règle de politique invalide ou une exception doit donner un <b>block</b>.</li>
+        <li>Contamination : contenu externe, puis tentative d'exfiltration, doit déclencher une demande.</li>
+        <li>Origin falsifié à l'upgrade WS, cookie sans SameSite.</li>
+      </ul></div>
+  </div>
+
+  <h2>2 · Quality gates (CI, toutes bloquantes)</h2>
+  <div class="gates">
+    <div class="gate hard"><div class="n">400 lignes / fichier</div><p>ESLint <code>max-lines</code>, sans baseline ni exception. Un fichier qui déborde se découpe.</p></div>
+    <div class="gate hard"><div class="n">Frontières de modules</div><p><code>eslint-plugin-boundaries</code> : un module n'importe que <code>contracts</code>, <code>kernel</code> et l'<code>index.ts</code> d'un autre module.</p></div>
+    <div class="gate hard"><div class="n">Code mort</div><p><code>knip</code> : fichiers, exports et dépendances inutilisés font échouer la CI (T3).</p></div>
+    <div class="gate hard"><div class="n">Désactivation motivée</div><p>Tout <code>eslint-disable</code> doit porter une raison (règle <code>require-description</code>).</p></div>
+    <div class="gate"><div class="n">Typecheck</div><p><code>tsc --noEmit</code> strict sur tout le monorepo. Les permissions RPC exhaustives sont vérifiées ici.</p></div>
+    <div class="gate"><div class="n">Design system</div><p>Lint : pas de couleur brute, pas de valeur arbitraire, pas de restyle de primitive (T3).</p></div>
+    <div class="gate"><div class="n">Budgets</div><p>Bundle initial, payload d'ouverture de session, mémoire d'un worker idle. Mesurés et comparés à un seuil.</p></div>
+    <div class="gate"><div class="n">Supply chain</div><p>pnpm : versions épinglées, <code>minimumReleaseAge</code> de 3 jours (Orca), allowlist des builds natifs (node-pty), Renovate.</p></div>
+  </div>
+
+  <h2>3 · Pipeline CI</h2>
+  <div class="ci">
+    <div>install<small>pnpm, cache</small></div>
+    <div>lint + types<small>ESLint, tsc, knip</small></div>
+    <div>unit<small>Vitest</small></div>
+    <div>intégration<small>vrai pi-host, provider scripté</small></div>
+    <div>build<small>web + daemon + SEA</small></div>
+    <div>e2e<small>Chromium + WebKit</small></div>
+    <div>budgets<small>bundle, payload, RAM</small></div>
+  </div>
+  <p class="small" style="margin-top:8px">GitHub Actions par défaut (pi-web est sur GitHub). Une PR qui ne touche que la doc saute la matrice (Orca). Le job compat Pi tourne la nuit, hors du chemin des PR.</p>
+
+  <h2>4 · Un repo vivable pour les humains et les agents</h2>
+  <div class="grid3">
+    <div class="box"><span class="lbl">Isolation du dev <span class="new">nouveau</span></span>
+      <p style="font-size:13px"><code>pap serve --dev</code> utilise un <code>PAP_HOME</code> propre au worktree et un port dérivé de son chemin (T3). Plusieurs worktrees et agents peuvent tourner en parallèle sans se marcher dessus. C'est la fin des conflits de type <code>.next/dev/lock</code> de pi-web.</p></div>
+    <div class="box"><span class="lbl">AGENTS.md court</span>
+      <p style="font-size:13px">Au plus 150 lignes : commandes, règles, liens. Pas de carte de fichiers géante comme celle de pi-web : la structure est prévisible, puisque chaque domaine a son module. Les notes de conception restent dans <code>docs/agents/&lt;domaine&gt;.md</code> (pattern pi-web qui marche).</p></div>
+    <div class="box"><span class="lbl">Conventions</span>
+      <ul class="tight">
+        <li>Conventional Commits, rebase sur la cible avant chaque PR (ta règle globale).</li>
+        <li>ADR courts dans <code>docs/adr/</code> pour chaque écart avec la spec.</li>
+        <li>Prettier pour le format. Pas de pre-commit lourd : formatage seulement (T3).</li>
+      </ul></div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation</span>
+    <div>Cette section te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="s8-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="s8-gitlab-ci" onclick="this.classList.toggle('selected')">GitLab CI au lieu de GitHub</div>
+      <div class="opt" data-choice="s8-oxlint-biome" onclick="this.classList.toggle('selected')">oxlint / Biome plutôt qu'ESLint + Prettier</div>
+      <div class="opt" data-choice="s8-node-test" onclick="this.classList.toggle('selected')">node:test plutôt que Vitest</div>
+      <div class="opt" data-choice="s8-file-cap" onclick="this.classList.toggle('selected')">Revoir le plafond de 400</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
