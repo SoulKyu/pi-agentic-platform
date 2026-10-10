@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 7 · Espace d'un agent et Inbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; --leg1:#A78BFA; --leg2:#FB923C; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 1000px; }
+  .legend { margin-top: 14px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .legend div { background: #fff; border: 1px solid #d4d4d8; border-radius: 10px; padding: 9px 12px; font-size: 12.5px; }
+  .legend b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #6d28d9; margin-bottom: 2px; }
+  .cap { margin: 24px 0 8px; font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: #52525b; }
+
+  .app { border-radius: 12px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.1), 0 10px 40px rgba(0,0,0,.12);
+         background: var(--bg); color: var(--text); font: 13px/1.5 var(--ui); display: grid; grid-template-columns: 48px 1fr; min-height: 720px; position: relative;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .rail { background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0; }
+  .av { width: 28px; height: 28px; border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--ui); position: relative; background: var(--bg); flex: none; }
+  .av b { position: absolute; top: -6px; right: -7px; background: var(--attn); color: #fff; font: 700 9px/14px var(--ui); min-width: 14px; height: 14px; border-radius: 7px; text-align: center; padding: 0 3px; }
+  .av .dot { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--side); background: var(--ai); }
+  .rail .sel { box-shadow: -10px 0 0 -8px var(--ai); }
+  .main { display: flex; flex-direction: column; min-width: 0; }
+  .top { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--side); }
+  .ws { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; border: 1px solid var(--border-strong); padding: 2px 7px; border-radius: 2px; }
+  .sp { flex: 1; }
+  .kbd { font: 600 10px var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 5px; }
+  .kbd.hot { color: var(--attn); border-color: #EC489988; }
+  .tabs { height: 34px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 4px; padding: 0 8px; }
+  .tabs span { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); display: inline-flex; gap: 6px; align-items: center; }
+  .tabs span.on { color: var(--text); border-color: var(--ai); background: var(--surface2); }
+  .tabs .mini { width: 12px; height: 12px; border: 1.2px solid var(--ai); border-radius: 2px; font: 700 7px/10px var(--ui); color: var(--ai); text-align: center; }
+
+  .work { display: grid; grid-template-columns: 1fr 330px; flex: 1; min-height: 0; }
+  .thread { display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
+  .ahead { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+  .ahead .big { width: 36px; height: 36px; font-size: 13px; }
+  .ahead .nm { font: 800 16px var(--ui); }
+  .ahead .st { font: 11px var(--mono); color: var(--muted); }
+  .chip { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 2px; border: 1px solid; white-space: nowrap; }
+  .chip.run { color: var(--ai); border-color: #A78BFA88; }
+  .chip.taint { color: var(--attn); border-color: #EC489988; border-style: dashed; }
+  .chip.ok { color: var(--ok); border-color: #34D39966; }
+  .chip.mut { color: var(--muted); border-color: var(--border-strong); }
+  .btn { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 0 9px; height: 24px; display: inline-flex; align-items: center; border-radius: 2px; border: 1px solid var(--border-strong); color: var(--text); white-space: nowrap; }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .stream { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; overflow: hidden; }
+  .day { display: flex; align-items: center; gap: 10px; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+  .day::before, .day::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+  .grp { display: grid; grid-template-columns: 30px 1fr; gap: 10px; }
+  .grp .who { padding-top: 2px; }
+  .grp .body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .grp .hdr { font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; }
+  .grp .hdr span { color: var(--muted); font-weight: 500; margin-left: 6px; }
+  .grp.agent .hdr { color: var(--ai); }
+  .grp.agent .body { border-left: 2px solid var(--ai); padding-left: 10px; margin-left: -12px; }
+  .grp.you .hdr { color: var(--human); }
+  .youav { width: 28px; height: 28px; border: 1.5px solid var(--human); color: var(--human); border-radius: 3px; display: grid; place-items: center; font: 700 11px var(--ui); }
+  .prose { font-size: 14px; line-height: 1.55; }
+  .prose code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: 2px; }
+  .ev { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; padding: 7px 10px; display: flex; gap: 10px; align-items: center; font-size: 12.5px; }
+  .ev .k { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); white-space: nowrap; }
+  .ev .t { flex: 1; min-width: 0; }
+  .ev .t small { display: block; font: 10.5px var(--mono); color: var(--muted); }
+  .ev.ext { border-style: dashed; border-color: #EC489966; background: transparent; flex-direction: column; align-items: stretch; gap: 6px; }
+  .ev.ext .fence { font: 11.5px/1.5 var(--mono); color: #D4CFE4; background: #0C0A12; border: 1px dashed var(--border-strong); border-radius: 2px; padding: 6px 8px; }
+  .ev.ext .fence::before { content: "UNTRUSTED · alertmanager"; display: block; font: 600 9px var(--mono); letter-spacing: .1em; color: var(--attn); margin-bottom: 3px; }
+  .ev .row { display: flex; gap: 10px; align-items: center; }
+  .appr { border: 1px solid #EC48998C; background: #EC48991A; border-radius: 3px; padding: 8px 10px; display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+  .appr small { display: block; font: 600 9.5px var(--mono); color: var(--attn); text-transform: uppercase; letter-spacing: .1em; }
+  .pending { margin: 0 14px; border: 1px solid var(--border-strong); border-radius: 3px; padding: 6px 10px; display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--muted); }
+  .pending b { color: var(--text); font-weight: 600; }
+  .chipsbar { display: flex; gap: 6px; padding: 8px 14px 0; }
+  .chipsbar span { font: 11px var(--mono); border: 1px solid var(--border-strong); padding: 2px 8px; border-radius: 2px; color: var(--muted); }
+  .comp { margin: 8px 14px 14px; border: 1px solid var(--human); border-radius: 3px; padding: 9px 11px; background: var(--surface); color: var(--muted); font-size: 13.5px; display: flex; flex-direction: column; gap: 8px; }
+  .comp .row { display: flex; gap: 6px; align-items: center; }
+  .comp .m { font: 11px var(--mono); border: 1px solid #A78BFA66; color: var(--ai); padding: 1px 6px; border-radius: 2px; }
+  .comp .p { font: 11px var(--mono); border: 1px solid var(--border); padding: 1px 6px; border-radius: 2px; }
+
+  .panel { padding: 12px; display: flex; flex-direction: column; gap: 12px; background: var(--side); overflow: hidden; }
+  .card { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 3px; }
+  .card .ch { padding: 6px 10px; border-bottom: 1px solid var(--border); font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--ai); display: flex; }
+  .card .ch span { margin-left: auto; color: var(--muted); font-weight: 500; }
+  .card .cb { padding: 8px 10px; display: flex; flex-direction: column; gap: 6px; font-size: 12.5px; }
+  .kv { display: flex; justify-content: space-between; font-size: 12.5px; }
+  .kv span:last-child { font: 12px var(--mono); font-variant-numeric: tabular-nums; }
+  .bar { height: 4px; background: var(--surface2); border-radius: 1px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--ai); }
+  .li { display: flex; gap: 8px; align-items: center; font-size: 12.5px; }
+  .li .mono { font: 11px var(--mono); color: var(--muted); margin-left: auto; white-space: nowrap; }
+
+  /* inbox drawer */
+  .inbox { position: absolute; top: 34px; right: 0; width: 360px; bottom: 0; background: var(--side); border-left: 1px solid var(--border-strong); box-shadow: -18px 0 40px rgba(0,0,0,.45); display: flex; flex-direction: column; }
+  .inbox .ih { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .inbox .ih b { font: 800 15px var(--ui); }
+  .inbox .f { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .inbox .f span { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); }
+  .inbox .f span.on { color: var(--text); border-color: var(--ai); }
+  .it { display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .it .t { font-size: 12.5px; }
+  .it .t small { display: block; font: 10.5px var(--mono); color: var(--muted); margin-top: 2px; }
+  .it.need { background: #EC48990F; box-shadow: inset 2px 0 0 var(--attn); }
+
+  .ask { margin-top: 26px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .ask .r b { width: 100%; font-size: 12px; color: #71717a; text-transform: uppercase; letter-spacing: .06em; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs>
+  <symbol id="pi2" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="currentColor"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--leg1)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--leg2)"/></symbol>
+</defs></svg>
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 7 : l'espace d'un agent et l'Inbox</h1>
+    <p>Atlas, un agent long-terme, ouvert dans son onglet. À gauche, son thread de confiance, avec les groupes par auteur, les séparateurs de jour, les cartes d'événements, une approbation et la barre des requêtes en attente. À droite, son état : budget, tâches, triggers, mémoire. En dessous, l'Inbox ouverte depuis la barre haute. Le tout reprend pi-web (conversation view, AgentSpaceRight, InboxPanel), traduit dans la grammaire Night Control.</p>
+    <div class="legend">
+      <div><b>Cadre plein</b>Ce qui vient de la plateforme : tâche, trigger planifié, notification.</div>
+      <div><b>Cadre en pointillés rose</b>Contenu <b>non fiable</b>, clôturé : webhook, flux, web. La pointillé est la clôture visible.</div>
+      <div><b>Chip « contenu externe »</b>Le run est contaminé : toute action qui peut faire sortir des données redemandera ton accord (décision 19).</div>
+      <div><b>Rose plein</b>Ce qui attend ta réponse : approbation, badge, ligne d'Inbox.</div>
+    </div>
+  </div>
+
+  <div class="cap">1 · Thread d'Atlas + panneau d'état</div>
+  <div class="app">
+    <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av sel">AT<i class="dot"></i></div><div class="av" style="--c:var(--attn)">SC<b>1</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+    <div class="main">
+      <div class="top"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B</span><span class="sp"></span><span class="kbd hot">Inbox 2</span><span class="kbd">⌘K</span></div>
+      <div class="tabs"><span class="on"><i class="mini">AT</i>Atlas</span><span>feat/checkpoints ●</span><span>+</span></div>
+      <div class="work">
+        <div class="thread">
+          <div class="ahead"><div class="av big">AT<i class="dot"></i></div><div><div class="nm">Atlas</div><div class="st">SRE on-call · trusted thread · sonnet-5.5</div></div><span class="chip run">working</span><span class="chip taint">contenu externe</span><span class="sp"></span><span class="btn">Queue task</span><span class="btn">Pause</span></div>
+          <div class="stream">
+            <div class="day">Aujourd'hui</div>
+            <div class="ev"><span class="k">⏱ schedule</span><span class="t">Nightly dependency check<small>trigger nightly-deps · 02:00 · isolated task · done in 3m12s</small></span><span class="chip ok">done</span></div>
+            <div class="ev ext"><div class="row"><span class="k">⇢ webhook</span><span class="t">Alertmanager · 1 alert firing<small>trigger prod-alerts · 14:01 · fenced payload</small></span><span class="chip taint">untrusted</span></div>
+              <div class="fence">[FIRING] HighMemory pod=api-7f9c ns=prod value=93% for=10m</div></div>
+            <div class="grp agent"><div class="who"><div class="av">AT</div></div><div class="body"><div class="hdr">Atlas<span>14:02 · thought 9s</span></div>
+              <div class="prose">The <code>api</code> pod has been above 90% memory for 10 minutes. I found the leak candidate in <code>cache/lru.go</code>: the eviction never runs when TTL is 0. I prepared a fix and a rollout.</div>
+              <div class="appr"><div style="flex:1"><small>Approval · external write · contenu externe</small>Open PR <code>fix/lru-ttl-zero</code> on <code>infra/api</code>?</div><span class="btn">Deny</span><span class="btn">Session</span><span class="btn pri">Allow once</span></div>
+            </div></div>
+            <div class="grp you"><div class="who"><div class="youav">GL</div></div><div class="body"><div class="hdr">You<span>14:05</span></div><div class="prose">Go, but don't merge. Ping me when CI is green.</div></div></div>
+          </div>
+          <div class="pending"><b>2 requêtes en cours</b> · delegate → Scout « reproduce leak in staging » · remind 16:00 « check CI » <span class="sp"></span><span class="btn">Cancel</span></div>
+          <div class="chipsbar"><span>/postmortem</span><span>/weekly-report</span><span>/curate-memory</span></div>
+          <div class="comp">Message Atlas, @Agent to hand off, / for prompts…<div class="row"><span class="m">@Scout</span><span class="p">sonnet-5.5 · high</span></div></div>
+        </div>
+        <div class="panel">
+          <div class="card"><div class="ch">Aujourd'hui<span>budget</span></div><div class="cb">
+            <div class="kv"><span>Tokens</span><span>412k / 1.5M</span></div><div class="bar"><i style="width:27%"></i></div>
+            <div class="kv"><span>Coût</span><span>$1.84 / $5.00</span></div><div class="bar"><i style="width:37%;background:var(--human)"></i></div>
+            <div class="kv"><span style="color:var(--muted)">7 j · 30 j</span><span style="color:var(--muted)">$9.20 · $31.75</span></div></div></div>
+          <div class="card"><div class="ch">Tâches<span>3</span></div><div class="cb">
+            <div class="li"><span class="chip run">run</span>Investigate HighMemory<span class="mono">2m</span></div>
+            <div class="li"><span class="chip mut">queued</span>Weekly memory curation<span class="mono">sun 09:00</span></div>
+            <div class="li"><span class="chip ok">done</span>Nightly dependency check<span class="mono">02:03</span></div></div></div>
+          <div class="card"><div class="ch">Triggers<span>4</span></div><div class="cb">
+            <div class="li">⏱ nightly-deps<span class="mono">RRULE daily 02:00</span></div>
+            <div class="li">⇢ prod-alerts<span class="mono">webhook · HMAC</span></div>
+            <div class="li">◉ k8s-blog<span class="mono">feed · 6h</span></div></div></div>
+          <div class="card"><div class="ch">Mémoire<span>récente</span></div><div class="cb">
+            <div class="li" style="color:var(--muted)">« prod api uses a 2 GiB limit since Sept »</div>
+            <div class="li" style="color:var(--muted)">« Guix prefers PRs, never direct pushes »</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cap">2 · Inbox ouverte (tiroir à droite)</div>
+  <div class="app" style="min-height:420px">
+    <div class="rail"><svg width="26" height="26" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><div class="av">AT<i class="dot"></i></div><div class="av" style="--c:var(--attn)">SC<b>1</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+    <div class="main">
+      <div class="top"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B</span><span class="sp"></span><span class="kbd hot">Inbox 2</span><span class="kbd">⌘K</span></div>
+      <div class="tabs"><span><i class="mini">AT</i>Atlas</span><span class="on">feat/checkpoints ●</span><span>+</span></div>
+      <div style="padding:16px;color:var(--muted);font-size:12.5px">(lane en arrière-plan)</div>
+    </div>
+    <div class="inbox">
+      <div class="ih"><b>Inbox</b><span class="chip taint" style="border-style:solid">2 à traiter</span><span class="sp"></span><span class="btn">Tout lire</span></div>
+      <div class="f"><span class="on">Tout</span><span>À traiter</span><span>Réponses</span><span>Tâches</span></div>
+      <div class="it need"><div class="av" style="--c:var(--attn)">SC</div><div class="t"><b>Scout</b> demande une approbation : push vers <code style="font:11px var(--mono)">staging</code><small>approval · il y a 4 min · ouvre à l'entrée</small></div></div>
+      <div class="it need"><div class="av">AT</div><div class="t"><b>Atlas</b> attend ta réponse : PR <code style="font:11px var(--mono)">fix/lru-ttl-zero</code><small>approval · il y a 1 min</small></div></div>
+      <div class="it"><div class="av" style="--c:#6B6485">LG</div><div class="t"><b>Ledger</b> a terminé « Monthly cost report »<small>task done · $0.31 · ce matin</small></div></div>
+      <div class="it"><div class="av">AT</div><div class="t"><b>Atlas</b> a répondu dans son thread<small>reply · 14:02</small></div></div>
+    </div>
+  </div>
+
+  <div class="ask">
+    <h3>Ton avis</h3>
+    <p>Valide l'ensemble ou coche ce que tu veux changer.</p>
+    <div class="r"><b>Global</b>
+      <div class="opt" data-choice="r7-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+    </div>
+    <div class="r"><b>Cartes d'événements</b>
+      <div class="opt" data-choice="r7-events-cards" onclick="this.classList.toggle('selected')">Cartes (comme montré)</div>
+      <div class="opt" data-choice="r7-events-timeline" onclick="this.classList.toggle('selected')">Lignes de timeline compactes</div>
+    </div>
+    <div class="r"><b>Inbox</b>
+      <div class="opt" data-choice="r7-inbox-drawer" onclick="this.classList.toggle('selected')">Tiroir à droite (comme montré)</div>
+      <div class="opt" data-choice="r7-inbox-popover" onclick="this.classList.toggle('selected')">Popover sous le bouton</div>
+      <div class="opt" data-choice="r7-inbox-tab" onclick="this.classList.toggle('selected')">Onglet comme une lane</div>
+    </div>
+    <div class="r"><b>Panneau d'état</b>
+      <div class="opt" data-choice="r7-panel-right" onclick="this.classList.toggle('selected')">À droite, toujours visible</div>
+      <div class="opt" data-choice="r7-panel-pane" onclick="this.classList.toggle('selected')">Un panneau du cockpit (déplaçable, fermable)</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
