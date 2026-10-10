@@ -1,13 +1,13 @@
 # pi-agentic-platform docs
 
 Self-hosted agentic platform built on the Pi harness. Successor of the pi-web fork.
-Status: design phase (specs A, C, D written; DESIGN.md in progress). HTML pages open directly in a browser.
+Status: design phase complete (specs A, C, D and [DESIGN.md](../DESIGN.md) written); implementation plan in progress. HTML pages open directly in a browser.
 
 ## Specs (written, under review)
 - [specs/2026-10-10-A-product-scope.md](specs/2026-10-10-A-product-scope.md): product, audience, success criteria, v1 scope, defaults, non-goals, roadmap.
 - [specs/2026-10-10-C-architecture.md](specs/2026-10-10-C-architecture.md): consolidated architecture (sections 1–9) + spikes S1–S8.
 - [specs/2026-10-10-D-clean-start.md](specs/2026-10-10-D-clean-start.md): clean start, cutover, risks.
-- Spec B (DESIGN.md): in progress, visual rounds.
+- [../DESIGN.md](../DESIGN.md): spec B, the Night Control design system (tokens, type, density, logo, layout, components, screens, voice, a11y, customization).
 
 ## Decisions
 - [research/decisions-log.md](research/decisions-log.md): every decision taken during brainstorming, numbered.
@@ -26,7 +26,7 @@ Status: design phase (specs A, C, D written; DESIGN.md in progress). HTML pages 
 ## Migration (spec D)
 - [migration/01-clean-start.html](migration/01-clean-start.html): clean start (decision 24): no pi-web import, Pi shared, sessions indexed from pap install date, cutover steps.
 
-## Design (DESIGN.md in progress)
+## Design explorations (history behind DESIGN.md)
 - [design/explorations/01-brand-directions.html](design/explorations/01-brand-directions.html): round 1, four directions (Graphite, Paper & Ink, Mission Control, Aurora).
 - [design/explorations/02-night-control-variants.html](design/explorations/02-night-control-variants.html): round 1b, Mission Control × Aurora without gradients. **E1 (strict) chosen.**
 - [design/explorations/03-night-control-light.html](design/explorations/03-night-control-light.html): round 2, light mode. **Day · Papier chosen** (dark = E1 Night).

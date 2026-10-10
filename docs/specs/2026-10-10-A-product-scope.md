@@ -74,7 +74,7 @@ All 22 inventory domains. "Verdict" summarises the feature matrix; follow the li
 | D17 | Notifications | KEEP + ADOPT | Self-hosted Web Push, needs-input push, budget push, digest; Orca delivery rules (suppress when focused, mute, burst cooldown) |
 | D18 | Extension UI | KEEP | Dialogs, status bar, widgets, `ctx.ui.custom()` panels (possible because Pi runs in our own SDK worker) |
 | D19 | Mobile / PWA | KEEP + ADOPT | Safari/iOS 16.4 floor, mobile ergonomics; T3 connection-supervisor rules |
-| D20 | Settings & design system | ADAPT | New brand (Night Control, decision 11) → DESIGN.md (spec B) |
+| D20 | Settings & design system | ADAPT | New brand (Night Control) and full appearance customization → [DESIGN.md](../../DESIGN.md) |
 | D21 | Install & update | ADOPT | Archive / OCI / npm, service install, update with auto-rollback |
 | D22 | Lanes backport | KEEP | Same as D03 |
 
@@ -117,6 +117,6 @@ These are out of scope unless a later decision brings them back (decision 13):
 
 ## 8. Related specs
 
-- **Spec B, DESIGN.md**: brand, tokens, screens. In progress through visual rounds; the direction is decided (decision 11).
+- **[Spec B, DESIGN.md](../../DESIGN.md)**: brand, tokens, components, screens (decisions 11, 25–32).
 - **[Spec C, architecture](2026-10-10-C-architecture.md)**.
 - **[Spec D, clean start](2026-10-10-D-clean-start.md)**.
