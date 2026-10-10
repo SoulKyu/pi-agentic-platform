@@ -30,6 +30,8 @@ Status: design phase (specs A, C, D written; DESIGN.md in progress). HTML pages 
 - [design/explorations/01-brand-directions.html](design/explorations/01-brand-directions.html): round 1, four directions (Graphite, Paper & Ink, Mission Control, Aurora).
 - [design/explorations/02-night-control-variants.html](design/explorations/02-night-control-variants.html): round 1b, Mission Control × Aurora without gradients. **E1 (strict) chosen.**
 - [design/explorations/03-night-control-light.html](design/explorations/03-night-control-light.html): round 2, light mode. **Day · Papier chosen** (dark = E1 Night).
+- [design/explorations/04-shell-layouts.html](design/explorations/04-shell-layouts.html): round 3, three app layouts (rail + tabs, project tree, cockpit).
+- [design/explorations/05-shell-mix-ac.html](design/explorations/05-shell-mix-ac.html): round 3b, A×C mixes. **A×C · 2 chosen** (rail + cockpit, sidebar drawer).
 
 ## Research
 - [research/pi-web-inventory.md](research/pi-web-inventory.md): every pi-web feature (D01–D22), source of the matrix rows.

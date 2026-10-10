@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 3b · Mix A × C</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 980px; }
+  .keep { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; max-width: 980px; }
+  .keep div { background: #fff; border: 1px solid #d4d4d8; border-radius: 10px; padding: 9px 12px; font-size: 13px; }
+  .keep b { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: #6d28d9; margin-bottom: 2px; }
+  .cards { display: flex; flex-direction: column; gap: 28px; margin-top: 24px; }
+  .card { border-radius: 14px; overflow: hidden; background: #fff; cursor: pointer; outline: 3px solid transparent; outline-offset: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.08); }
+  .card:hover { outline-color: #a1a1aa; } .card.selected { outline-color: #2563eb; }
+  .head { padding: 16px 20px; display: flex; gap: 18px; align-items: baseline; border-bottom: 1px solid #e4e4e7; }
+  .head .l { font: 700 13px var(--mono); color: #6d28d9; white-space: nowrap; }
+  .head h2 { font-size: 18px; white-space: nowrap; }
+  .head p { color: #52525b; font-size: 13.5px; flex: 1; }
+  .body { display: grid; grid-template-columns: 1fr 210px; gap: 18px; padding: 18px 20px; align-items: start; }
+  .pc { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 16px; font-size: 13px; }
+  .pc h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #71717a; margin: 0 0 4px; }
+  .pc ul { padding-left: 16px; }
+  .pc li { margin: 2px 0; }
+  .pc .pro li::marker { color: #059669; } .pc .con li::marker { color: #db2777; }
+  .pc .how { background: #f4f4f5; border-radius: 8px; padding: 8px 10px; font-size: 12.5px; color: #3f3f46; }
+
+  .wf { background: var(--bg); color: var(--text); font: 10.5px/1.35 var(--ui); border-radius: 8px; overflow: hidden; height: 380px; display: grid;
+        background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 16px 16px; }
+  .pane { border-right: 1px solid var(--border); padding: 7px; display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; }
+  .pane.last { border-right: none; }
+  .side { background: var(--side); }
+  .lbl { font: 600 8.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 4px 0 2px; }
+  .row { border: 1px solid transparent; border-radius: 2px; padding: 3px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .row.on { background: var(--surface2); border-color: var(--border-strong); box-shadow: inset 2px 0 0 var(--ai); }
+  .c { font: 600 8px var(--mono); text-transform: uppercase; padding: 0 3px; border-radius: 2px; border: 1px solid; margin-left: 4px; }
+  .c.run { color: var(--ai); } .c.att { color: var(--attn); } .c.ok { color: var(--ok); }
+  .av { width: 24px; height: 24px; border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 9px var(--ui); position: relative; flex: none; }
+  .av b { position: absolute; top: -5px; right: -6px; background: var(--attn); color: #fff; font: 700 8px/12px var(--ui); min-width: 12px; height: 12px; border-radius: 6px; text-align: center; padding: 0 2px; }
+  .logo { width: 24px; height: 24px; border: 1.5px solid var(--ai); color: var(--ai); border-radius: 3px; display: grid; place-items: center; font: 800 12px var(--ui); flex: none; }
+  .msg-u { align-self: flex-end; background: #FB923C1A; border: 1px solid #FB923C66; color: #FED7AA; padding: 4px 7px; border-radius: 2px; max-width: 75%; }
+  .msg-a { border-left: 2px solid var(--ai); padding-left: 7px; display: flex; flex-direction: column; gap: 3px; }
+  .msg-a .n { font: 600 8.5px var(--mono); color: var(--ai); text-transform: uppercase; letter-spacing: .1em; }
+  .tool { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 2px; padding: 3px 6px; font: 9.5px var(--mono); color: var(--muted); }
+  .tool i { font-style: normal; color: var(--ai); font-weight: 600; margin-right: 4px; }
+  .appr { border: 1px solid #EC48998C; background: #EC48991A; border-radius: 2px; padding: 4px 6px; font-size: 9.5px; display: flex; gap: 6px; align-items: center; }
+  .appr .bt { margin-left: auto; background: var(--human); color: #1B0D00; font: 700 8px var(--mono); padding: 1px 5px; border-radius: 2px; }
+  .comp { margin-top: auto; border: 1px solid var(--human); border-radius: 2px; padding: 5px 7px; color: var(--muted); background: var(--surface); }
+  .tabs { display: flex; gap: 2px; align-items: center; }
+  .tabs span { font: 600 8.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 2px 6px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); white-space: nowrap; }
+  .tabs span.on { color: var(--text); border-color: var(--ai); background: var(--surface2); }
+  .tabs .x { color: var(--muted); margin-left: 3px; }
+  .term { background: #0B0A10; border: 1px solid var(--border); border-radius: 2px; padding: 4px 6px; font: 9px var(--mono); color: var(--ok); flex: 1; }
+  .diff { border: 1px solid var(--border); border-radius: 2px; font: 9px var(--mono); padding: 4px 6px; flex: 1; }
+  .diff .p { color: var(--ok); } .diff .m { color: #F87171; }
+  .bar { border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 4px 8px; background: var(--side); }
+  .ws { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; border: 1px solid var(--border-strong); padding: 2px 6px; border-radius: 2px; }
+  .sp { flex: 1; }
+  .kbd { font: 600 8.5px var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 4px; white-space: nowrap; }
+  .ph { font: 600 8px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 3px; }
+  .split-h { display: grid; grid-template-rows: 1fr 1fr; gap: 6px; min-height: 0; }
+  .drawer-hint { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ai); opacity: .5; }
+
+  .mob { width: 200px; height: 380px; background: var(--bg); color: var(--text); font: 10px/1.35 var(--ui); border-radius: 18px; border: 5px solid #27272a; overflow: hidden; display: flex; flex-direction: column; }
+  .mob .mh { padding: 7px 8px 5px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+  .mob .mh .t { font: 600 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .mob .mb { flex: 1; padding: 7px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+  .mob .nav { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); background: var(--side); }
+  .mob .nav span { font: 600 7.5px var(--mono); text-transform: uppercase; text-align: center; padding: 7px 0 9px; color: var(--muted); }
+  .mob .nav span.on { color: var(--ai); box-shadow: inset 0 2px 0 var(--ai); }
+  .mob .nav span b { display: inline-block; background: var(--attn); color: #fff; border-radius: 6px; font-size: 7px; padding: 0 3px; margin-left: 2px; }
+
+  .ask { margin-top: 30px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="intro">
+    <h1>Round 3b : mix A × C</h1>
+    <p>Deux façons de marier le rail d'agents et la sidebar de A avec l'espace de travail de C (lanes en onglets, panneaux découpables). Elles diffèrent sur un point : la sidebar est-elle <b>toujours là</b>, ou sort-elle en <b>tiroir</b> à la demande ?</p>
+    <div class="keep">
+      <div><b>Gardé de A</b>Rail vertical d'agents avec badges non lus, toujours visible : ton différenciateur reste au premier plan.</div>
+      <div><b>Gardé de C</b>Lanes et sessions ouvertes en onglets, zone centrale découpable (chat, terminal, diff côte à côte).</div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <!-- ================= M1 ================= -->
+    <section class="card" data-choice="shell-M1-rail-sidebar-split" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">A×C · 1</span><h2>Rail + sidebar + panneaux</h2><p>La base de A, mais le panneau droit fixe devient une zone découpable, et les éléments ouverts s'empilent en onglets au-dessus. La sidebar se replie en icônes avec <span style="font-family:var(--mono)">⌘B</span>.</p></div>
+      <div class="body">
+        <div class="wf" style="grid-template-columns: 38px 160px 1fr">
+          <div class="pane side" style="align-items:center;gap:8px"><div class="logo">π</div><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div><div class="av" style="--c:#6B6485">LG</div><div style="margin-top:auto" class="kbd">⌘K</div></div>
+          <div class="pane side"><div class="tabs"><span>Sessions</span><span class="on">Lanes</span><span>Files</span></div>
+            <div class="lbl">pi-agentic</div><div class="row on">feat/checkpoints<span class="c run">run</span></div><div class="row">fix/webhook-dedup<span class="c ok">pr</span></div><div class="row">chore/deps<span class="c att">!</span></div>
+            <div class="lbl">homelab</div><div class="row">ci/renovate</div><div class="row">main</div></div>
+          <div class="pane last" style="padding:0;gap:0">
+            <div class="bar tabs"><span class="on">feat/checkpoints ●<span class="x">×</span></span><span>fix/webhook-dedup<span class="x">×</span></span><span>Triage alerts<span class="x">×</span></span><span class="sp" style="border:none"></span><span style="border:none">⊞ split</span></div>
+            <div style="display:grid;grid-template-columns:1.25fr 1fr;flex:1;min-height:0">
+              <div class="pane"><div class="ph"><span>Chat</span><span>working</span></div>
+                <div class="msg-u">Add per-turn checkpoints…</div>
+                <div class="msg-a"><span class="n">Atlas</span>Capturing a hidden ref at each run boundary.<div class="tool"><i>bash</i>go test ./internal/lanes/...</div><div class="appr">Push 3 commits? <span class="bt">Approve</span></div></div>
+                <div class="comp">Steer Atlas…</div></div>
+              <div class="pane last split-h"><div style="display:flex;flex-direction:column;gap:3px;min-height:0"><div class="ph"><span>Terminal</span><span>×</span></div><div class="term">$ go test ./internal/lanes/...<br>ok lanes/checkpoint 0.41s</div></div>
+                <div style="display:flex;flex-direction:column;gap:3px;min-height:0"><div class="ph"><span>Diff · turn 4</span><span>×</span></div><div class="diff"><div class="p">+ captureCheckpoint(ref)</div><div class="m">- snapshot()</div><div class="p">+ restore(commit)</div></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="mob"><div class="mh"><span class="t">feat/checkpoints ▾</span></div>
+          <div class="mb"><div class="tabs"><span class="on">Chat</span><span>Term</span><span>Diff</span></div><div class="msg-u">Add per-turn…</div><div class="msg-a"><span class="n">Atlas</span>Capturing a hidden ref…<div class="tool"><i>bash</i>go test…</div></div><div class="appr">Push? <span class="bt">OK</span></div><div class="comp">Steer…</div></div>
+          <div class="nav"><span>Agents<b>2</b></span><span class="on">Lanes</span><span>Sessions</span><span>Inbox</span></div></div>
+        <div class="pc">
+          <div><h4>Pour</h4><ul class="pro"><li>Tout est visible : agents, chantiers, travail</li><li>Proche de pi-web, avec le gain des splits</li><li>Sidebar repliable sur les petits écrans</li></ul></div>
+          <div><h4>Contre</h4><ul class="con"><li>Toujours quatre zones sur un 13 pouces : la sidebar doit souvent être repliée</li><li>Onglets et sidebar montrent en partie la même chose</li></ul></div>
+          <div class="how">Les onglets en haut = ce qui est <b>ouvert</b> (lanes, sessions, thread d'agent). La sidebar = <b>tout</b>, avec filtre. Fermer un onglet ne supprime rien.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= M2 ================= -->
+    <section class="card" data-choice="shell-M2-rail-cockpit-drawer" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">A×C · 2</span><h2>Rail + cockpit, sidebar en tiroir</h2><p>Plus proche de C : à gauche, seulement le rail d'agents. Une barre haute pour changer de projet, les lanes en onglets, et tout le reste de l'écran pour les panneaux. La liste complète (sessions, lanes, fichiers) sort en tiroir avec <span style="font-family:var(--mono)">⌘B</span>.</p></div>
+      <div class="body">
+        <div class="wf" style="grid-template-columns: 38px 1fr">
+          <div class="pane side" style="align-items:center;gap:8px"><div class="logo">π</div><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div><div class="av" style="--c:#6B6485">LG</div><div style="margin-top:auto" class="kbd">⌘B</div></div>
+          <div class="pane last" style="padding:0;gap:0;position:relative">
+            <div class="bar"><span class="ws">pi-agentic ▾</span><span class="kbd">⌘B lanes &amp; sessions</span><span class="sp"></span><span class="kbd">Inbox 2</span><span class="kbd">⌘K</span></div>
+            <div class="bar tabs" style="background:var(--bg)"><span class="on">feat/checkpoints ●<span class="x">×</span></span><span>fix/webhook-dedup<span class="x">×</span></span><span>chore/deps !<span class="x">×</span></span><span>+</span><span class="sp" style="border:none"></span><span style="border:none">⊞ split</span></div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr;flex:1;min-height:0">
+              <div class="pane"><div class="ph"><span>Chat</span><span>working</span></div>
+                <div class="msg-u">Add per-turn checkpoints…</div>
+                <div class="msg-a"><span class="n">Atlas</span>Capturing a hidden ref at each run boundary.<div class="tool"><i>bash</i>go test ./internal/lanes/...</div><div class="appr">Push 3 commits? <span class="bt">Approve</span></div></div>
+                <div class="comp">Steer Atlas…</div></div>
+              <div class="pane last split-h"><div style="display:flex;flex-direction:column;gap:3px;min-height:0"><div class="ph"><span>Terminal</span><span>×</span></div><div class="term">$ go test ./internal/lanes/...<br>ok lanes/checkpoint 0.41s<br>=== RUN TestRestoreUndo</div></div>
+                <div style="display:flex;flex-direction:column;gap:3px;min-height:0"><div class="ph"><span>Diff · turn 4</span><span>×</span></div><div class="diff"><div class="p">+ captureCheckpoint(ref)</div><div class="m">- snapshot()</div><div class="p">+ restore(commit)</div></div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="mob"><div class="mh"><span class="t">pi-agentic ▾</span></div>
+          <div class="mb"><div class="tabs"><span class="on">checkpoints</span><span>webhook</span><span>+</span></div><div class="tabs"><span class="on">Chat</span><span>Term</span><span>Diff</span></div><div class="msg-u">Add per-turn…</div><div class="msg-a"><span class="n">Atlas</span>Capturing…</div><div class="appr">Push? <span class="bt">OK</span></div><div class="comp">Steer…</div></div>
+          <div class="nav"><span>Agents<b>2</b></span><span class="on">Work</span><span>Lists</span><span>Inbox</span></div></div>
+        <div class="pc">
+          <div><h4>Pour</h4><ul class="pro"><li>Espace de travail maximal, même sur un 13 pouces</li><li>Les agents restent visibles en permanence (le rail)</li><li>Une seule vérité pour « ce qui est ouvert » : les onglets</li></ul></div>
+          <div><h4>Contre</h4><ul class="con"><li>Retrouver une vieille session passe par le tiroir ou ⌘K</li><li>Plus éloigné de pi-web : petit temps d'adaptation</li></ul></div>
+          <div class="how">Le tiroir ⌘B peut prendre la forme de l'<b>arbre de B</b> (projet → lane → session), ce qui rejoint tes clics sur B au round précédent.</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="ask">
+    <h3>Précisions</h3>
+    <p>Coche ce qui s'applique, quel que soit ton choix.</p>
+    <div class="r">
+      <div class="opt" data-choice="mix-sidebar-tree-B" onclick="this.classList.toggle('selected')">Sidebar / tiroir en arbre (B)</div>
+      <div class="opt" data-choice="mix-sidebar-tabs-A" onclick="this.classList.toggle('selected')">Sidebar à onglets (A)</div>
+      <div class="opt" data-choice="mix-layout-persist" onclick="this.classList.toggle('selected')">Mémoriser la disposition des panneaux par lane</div>
+      <div class="opt" data-choice="mix-agent-thread-tab" onclick="this.classList.toggle('selected')">Le thread d'un agent s'ouvre en onglet</div>
+      <div class="opt" data-choice="mix-inbox-topbar" onclick="this.classList.toggle('selected')">Inbox dans la barre haute</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

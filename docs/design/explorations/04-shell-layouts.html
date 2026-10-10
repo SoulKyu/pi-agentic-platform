@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 3 · Disposition de l'app</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --side:#14111D; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 960px; }
+  .cards { display: flex; flex-direction: column; gap: 28px; margin-top: 26px; }
+  .card { border-radius: 14px; overflow: hidden; background: #fff; cursor: pointer; outline: 3px solid transparent; outline-offset: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.08); }
+  .card:hover { outline-color: #a1a1aa; } .card.selected { outline-color: #2563eb; }
+  .head { padding: 16px 20px; display: flex; gap: 18px; align-items: baseline; border-bottom: 1px solid #e4e4e7; }
+  .head .l { font: 700 13px var(--mono); color: #6d28d9; }
+  .head h2 { font-size: 18px; }
+  .head p { color: #52525b; font-size: 13.5px; flex: 1; }
+  .body { display: grid; grid-template-columns: 1fr 210px 300px; gap: 18px; padding: 18px 20px; align-items: start; }
+  .pc { font-size: 13px; }
+  .pc h4 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #71717a; margin: 0 0 4px; }
+  .pc ul { padding-left: 16px; margin-bottom: 10px; }
+  .pc li { margin: 2px 0; }
+  .pc .pro li::marker { color: #059669; } .pc .con li::marker { color: #db2777; }
+  .refs { font: 11.5px var(--mono); color: #71717a; }
+
+  /* ---------- wireframe kit (E1 Night) ---------- */
+  .wf { background: var(--bg); color: var(--text); font: 10.5px/1.35 var(--ui); border-radius: 8px; overflow: hidden; height: 340px; display: grid;
+        background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 16px 16px; }
+  .wf .pane { border-right: 1px solid var(--border); padding: 7px; display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; }
+  .wf .pane:last-child { border-right: none; }
+  .wf .side { background: var(--side); }
+  .lbl { font: 600 8.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 4px 0 2px; }
+  .row { border: 1px solid transparent; border-radius: 2px; padding: 3px 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+  .row.on { background: var(--surface2); border-color: var(--border-strong); box-shadow: inset 2px 0 0 var(--ai); }
+  .row .c { font: 600 8px var(--mono); text-transform: uppercase; padding: 0 3px; border-radius: 2px; border: 1px solid; margin-left: 4px; }
+  .c.run { color: var(--ai); } .c.att { color: var(--attn); } .c.ok { color: var(--ok); }
+  .av { width: 24px; height: 24px; border: 1.5px solid var(--c, var(--ai)); color: var(--c, var(--ai)); border-radius: 3px; display: grid; place-items: center; font: 700 9px var(--ui); position: relative; flex: none; }
+  .av b { position: absolute; top: -5px; right: -6px; background: var(--attn); color: #fff; font: 700 8px/12px var(--ui); min-width: 12px; height: 12px; border-radius: 6px; text-align: center; padding: 0 2px; }
+  .logo { width: 24px; height: 24px; border: 1.5px solid var(--ai); color: var(--ai); border-radius: 3px; display: grid; place-items: center; font: 800 12px var(--ui); flex: none; }
+  .msg-u { align-self: flex-end; background: #FB923C1A; border: 1px solid #FB923C66; color: #FED7AA; padding: 4px 7px; border-radius: 2px; max-width: 75%; }
+  .msg-a { border-left: 2px solid var(--ai); padding-left: 7px; display: flex; flex-direction: column; gap: 3px; }
+  .msg-a .n { font: 600 8.5px var(--mono); color: var(--ai); text-transform: uppercase; letter-spacing: .1em; }
+  .tool { border: 1px solid var(--border-strong); background: var(--surface); border-radius: 2px; padding: 3px 6px; font: 9.5px var(--mono); color: var(--muted); }
+  .tool i { font-style: normal; color: var(--ai); font-weight: 600; margin-right: 4px; }
+  .appr { border: 1px solid #EC48998C; background: #EC48991A; border-radius: 2px; padding: 4px 6px; font-size: 9.5px; display: flex; gap: 6px; align-items: center; }
+  .appr .bt { margin-left: auto; background: var(--human); color: #1B0D00; font: 700 8px var(--mono); padding: 1px 5px; border-radius: 2px; }
+  .comp { margin-top: auto; border: 1px solid var(--human); border-radius: 2px; padding: 5px 7px; color: var(--muted); background: var(--surface); }
+  .hdr { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--border); padding-bottom: 5px; margin-bottom: 2px; }
+  .hdr .t { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .hdr .sp { flex: 1; }
+  .tabs { display: flex; gap: 2px; }
+  .tabs span { font: 600 8.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 2px 5px; border: 1px solid var(--border); border-radius: 2px; color: var(--muted); }
+  .tabs span.on { color: var(--text); border-color: var(--ai); }
+  .term { background: #0B0A10; border: 1px solid var(--border); border-radius: 2px; padding: 4px 6px; font: 9px var(--mono); color: var(--ok); flex: 1; }
+  .diff { border: 1px solid var(--border); border-radius: 2px; font: 9px var(--mono); padding: 4px 6px; flex: 1; }
+  .diff .p { color: var(--ok); } .diff .m { color: #F87171; }
+  .topbar { grid-column: 1 / -1; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: var(--side); }
+  .topbar .ws { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; border: 1px solid var(--border-strong); padding: 2px 6px; border-radius: 2px; }
+  .topbar .sp { flex: 1; }
+  .kbd { font: 600 8.5px var(--mono); color: var(--muted); border: 1px solid var(--border-strong); border-radius: 2px; padding: 1px 4px; }
+
+  /* mobile */
+  .mob { width: 190px; height: 340px; background: var(--bg); color: var(--text); font: 10px/1.35 var(--ui); border-radius: 18px; border: 5px solid #27272a; overflow: hidden; display: flex; flex-direction: column; }
+  .mob .mh { padding: 7px 8px 5px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+  .mob .mh .t { font: 600 9px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .mob .mb { flex: 1; padding: 7px; display: flex; flex-direction: column; gap: 5px; overflow: hidden; }
+  .mob .nav { display: grid; grid-template-columns: repeat(4, 1fr); border-top: 1px solid var(--border); background: var(--side); }
+  .mob .nav span { font: 600 7.5px var(--mono); text-transform: uppercase; text-align: center; padding: 7px 0 9px; color: var(--muted); }
+  .mob .nav span.on { color: var(--ai); box-shadow: inset 0 2px 0 var(--ai); }
+  .mob .nav span b { display: inline-block; background: var(--attn); color: #fff; border-radius: 6px; font-size: 7px; padding: 0 3px; margin-left: 2px; }
+  .sheet { margin-top: auto; border-top: 1px solid var(--border-strong); background: var(--surface); border-radius: 8px 8px 0 0; padding: 6px; font-size: 9px; color: var(--muted); }
+
+  .ask { margin-top: 30px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 3 : la disposition de l'app</h1>
+    <p>Trois façons d'organiser le même contenu : agents long-terme, projets, lanes, sessions, transcript, fichiers/diff/terminal. Ce sont des wireframes en E1 Night, et la question porte sur la structure, pas sur la finition. À droite de chaque proposition, sa version mobile.</p>
+  </div>
+
+  <div class="cards">
+    <!-- ================= A ================= -->
+    <section class="card" data-choice="shell-A-rail-tabs" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">A</span><h2>Rail + sidebar à onglets</h2><p>La lignée pi-web : un rail vertical d'agents à gauche, une sidebar à onglets (Sessions, Lanes, Fichiers), le chat au centre, un panneau droit repliable.</p></div>
+      <div class="body">
+        <div class="wf" style="grid-template-columns: 38px 170px 1fr 180px">
+          <div class="pane side" style="align-items:center;gap:8px"><div class="logo">π</div><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+          <div class="pane side"><div class="tabs"><span>Sessions</span><span class="on">Lanes</span><span>Files</span></div>
+            <div class="lbl">pi-agentic</div><div class="row on">feat/checkpoints<span class="c run">run</span></div><div class="row">fix/webhook-dedup<span class="c ok">pr</span></div><div class="row">chore/deps<span class="c att">!</span></div>
+            <div class="lbl">homelab</div><div class="row">ci/renovate</div></div>
+          <div class="pane"><div class="hdr"><span class="t">feat/checkpoints</span><span class="c run" style="font:600 8px var(--mono);border:1px solid;padding:0 3px;border-radius:2px">working</span><span class="sp"></span><span class="kbd">⌘K</span></div>
+            <div class="msg-u">Add per-turn checkpoints…</div>
+            <div class="msg-a"><span class="n">Atlas</span>Capturing a hidden ref at each run boundary.<div class="tool"><i>bash</i>go test ./internal/lanes/...</div><div class="appr">Push 3 commits? <span class="bt">Approve</span></div></div>
+            <div class="comp">Steer Atlas…</div></div>
+          <div class="pane"><div class="tabs"><span class="on">Diff</span><span>Term</span><span>Status</span></div><div class="diff"><div class="p">+ captureCheckpoint(ref)</div><div class="m">- snapshot()</div><div class="p">+ restore(commit)</div></div></div>
+        </div>
+        <div class="mob"><div class="mh"><span class="t">feat/checkpoints</span></div>
+          <div class="mb"><div class="msg-u">Add per-turn…</div><div class="msg-a"><span class="n">Atlas</span>Capturing a hidden ref…<div class="tool"><i>bash</i>go test…</div></div><div class="appr">Push? <span class="bt">OK</span></div><div class="comp">Steer…</div></div>
+          <div class="nav"><span>Agents<b>2</b></span><span class="on">Lanes</span><span>Sessions</span><span>Files</span></div></div>
+        <div class="pc"><h4>Pour</h4><ul class="pro"><li>Tu connais déjà : migration mentale nulle</li><li>Agents toujours visibles, badges non lus en un coup d'œil</li><li>Le panneau droit garde le diff à côté du chat</li></ul>
+          <h4>Contre</h4><ul class="con"><li>Quatre colonnes : étroit sous 1280 px</li><li>Lanes et sessions séparées par des onglets alors qu'elles sont liées</li></ul>
+          <div class="refs">pi-web AgentRail + SessionSidebar</div></div>
+      </div>
+    </section>
+
+    <!-- ================= B ================= -->
+    <section class="card" data-choice="shell-B-project-tree" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">B</span><h2>Arbre par projet</h2><p>Une seule sidebar : agents épinglés en haut, puis chaque projet avec ses lanes, et les sessions rangées sous leur lane. Inspiration T3 Code. Panneau droit à onglets.</p></div>
+      <div class="body">
+        <div class="wf" style="grid-template-columns: 200px 1fr 180px">
+          <div class="pane side"><div style="display:flex;gap:6px;align-items:center;margin-bottom:2px"><div class="logo">π</div><span class="kbd" style="margin-left:auto">⌘K</span></div>
+            <div class="lbl">Agents</div><div style="display:flex;gap:5px"><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div><div class="av" style="--c:#6B6485">LG</div></div>
+            <div class="lbl">pi-agentic</div>
+            <div class="row on">▾ feat/checkpoints<span class="c run">run</span></div>
+            <div class="row" style="padding-left:16px;color:var(--muted)">◦ Add per-turn checkpoints</div>
+            <div class="row" style="padding-left:16px;color:var(--muted)">◦ Review restore flow</div>
+            <div class="row">▸ fix/webhook-dedup<span class="c ok">pr</span></div>
+            <div class="row">▸ chore/deps<span class="c att">!</span></div>
+            <div class="lbl">homelab</div><div class="row">▸ main · 3 sessions</div></div>
+          <div class="pane"><div class="hdr"><span class="t">pi-agentic / feat/checkpoints</span><span class="sp"></span></div>
+            <div class="msg-u">Add per-turn checkpoints…</div>
+            <div class="msg-a"><span class="n">Atlas</span>Capturing a hidden ref at each run boundary.<div class="tool"><i>bash</i>go test ./internal/lanes/...</div><div class="appr">Push 3 commits? <span class="bt">Approve</span></div></div>
+            <div class="comp">Steer Atlas…</div></div>
+          <div class="pane"><div class="tabs"><span class="on">Changes</span><span>Term</span><span>Files</span></div><div class="diff"><div class="p">+ captureCheckpoint(ref)</div><div class="m">- snapshot()</div><div class="p">+ restore(commit)</div></div></div>
+        </div>
+        <div class="mob"><div class="mh"><span class="t">Projects</span></div>
+          <div class="mb"><div class="lbl">Agents</div><div style="display:flex;gap:5px"><div class="av">AT</div><div class="av" style="--c:var(--attn)">SC<b>2</b></div></div><div class="lbl">pi-agentic</div><div class="row on">▾ feat/checkpoints<span class="c run">run</span></div><div class="row" style="padding-left:14px;color:var(--muted)">◦ Add per-turn…</div><div class="row">▸ fix/webhook</div><div class="lbl">homelab</div><div class="row">▸ main</div></div>
+          <div class="nav"><span class="on">Projects</span><span>Inbox<b>2</b></span><span>Tasks</span><span>More</span></div></div>
+        <div class="pc"><h4>Pour</h4><ul class="pro"><li>Un seul arbre : projet → lane → session, le lien est visible</li><li>Trois colonnes : respire mieux</li><li>Les agents restent présents, compacts</li></ul>
+          <h4>Contre</h4><ul class="con"><li>Arbre long avec beaucoup de projets (repli et filtre obligatoires)</li><li>Fichiers relégués dans le panneau droit</li></ul>
+          <div class="refs">T3 Sidebar (project groups, pinned) · pi-web project groups</div></div>
+      </div>
+    </section>
+
+    <!-- ================= C ================= -->
+    <section class="card" data-choice="shell-C-cockpit" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">C</span><h2>Cockpit à panneaux</h2><p>Une barre haute pour changer de projet et de lane, les lanes en onglets, une zone centrale découpable (chat, terminal, diff côte à côte). Les agents passent dans un tiroir « Inbox ». Inspiration Orca, la plus « salle de contrôle ».</p></div>
+      <div class="body">
+        <div class="wf" style="grid-template-columns: 1fr 1fr; grid-template-rows: 26px 20px 1fr">
+          <div class="topbar"><div class="logo" style="width:18px;height:18px;font-size:10px">π</div><span class="ws">pi-agentic ▾</span><span class="sp"></span><span class="kbd">Inbox 2</span><span class="kbd">⌘K</span></div>
+          <div style="grid-column:1/-1;display:flex;gap:2px;padding:2px 8px;border-bottom:1px solid var(--border);background:var(--side)" class="tabs"><span class="on">feat/checkpoints ●</span><span>fix/webhook-dedup</span><span>chore/deps !</span><span>+</span></div>
+          <div class="pane"><div class="msg-u">Add per-turn checkpoints…</div>
+            <div class="msg-a"><span class="n">Atlas</span>Capturing a hidden ref…<div class="tool"><i>bash</i>go test ./...</div><div class="appr">Push? <span class="bt">Approve</span></div></div><div class="comp">Steer Atlas…</div></div>
+          <div class="pane" style="gap:6px"><div class="term">$ go test ./internal/lanes/...<br>ok lanes/checkpoint 0.41s<br>=== RUN TestRestoreUndo</div><div class="diff"><div class="p">+ captureCheckpoint(ref)</div><div class="m">- snapshot()</div></div></div>
+        </div>
+        <div class="mob"><div class="mh"><span class="t">feat/checkpoints ▾</span></div>
+          <div class="mb"><div class="tabs"><span class="on">Chat</span><span>Term</span><span>Diff</span></div><div class="msg-u">Add per-turn…</div><div class="msg-a"><span class="n">Atlas</span>Capturing…</div><div class="appr">Push? <span class="bt">OK</span></div><div class="comp">Steer…</div></div>
+          <div class="nav"><span class="on">Lane</span><span>Inbox<b>2</b></span><span>Lanes</span><span>More</span></div></div>
+        <div class="pc"><h4>Pour</h4><ul class="pro"><li>Maximum d'espace pour le travail : chat, terminal et diff visibles ensemble</li><li>Les lanes en onglets : on bascule vite entre chantiers parallèles</li></ul>
+          <h4>Contre</h4><ul class="con"><li>Agents long-terme moins visibles (tiroir), alors que c'est ton différenciateur</li><li>Plus complexe à construire (splits, persistance de layout)</li><li>Mobile : seulement un panneau à la fois</li></ul>
+          <div class="refs">Orca tab groups + splits</div></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="ask">
+    <h3>Et quel que soit le choix…</h3>
+    <p>Coche ce que tu veux garder en plus, même si ça vient d'une autre option.</p>
+    <div class="r">
+      <div class="opt" data-choice="shell-mix-agent-rail" onclick="this.classList.toggle('selected')">Rail d'agents vertical (A)</div>
+      <div class="opt" data-choice="shell-mix-tree" onclick="this.classList.toggle('selected')">Arbre projet → lane → session (B)</div>
+      <div class="opt" data-choice="shell-mix-lane-tabs" onclick="this.classList.toggle('selected')">Lanes en onglets (C)</div>
+      <div class="opt" data-choice="shell-mix-splits" onclick="this.classList.toggle('selected')">Panneaux découpables (C)</div>
+      <div class="opt" data-choice="shell-mix-right-panel" onclick="this.classList.toggle('selected')">Panneau droit repliable (A/B)</div>
+      <div class="opt" data-choice="shell-mix-mobile-inbox" onclick="this.classList.toggle('selected')">Inbox dans la nav mobile</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
