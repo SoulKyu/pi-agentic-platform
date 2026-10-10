@@ -1,0 +1,316 @@
+STEP 1/7: FROM node:24-bookworm-slim
+STEP 2/7: RUN apt-get update   && apt-get install -y --no-install-recommends bubblewrap tini   && rm -rf /var/lib/apt/lists/*
+--> Using cache bfd42d0529553008d9928fddb7aa9332d2fa7767f5f2a4d3959f6c40e8673d5b
+--> bfd42d052955
+STEP 3/7: RUN useradd --create-home --uid 10001 pap
+--> Using cache 4ad330315c7de6fa4775f816474f81ccca01202a94a4503dcca169a82bf478dd
+--> 4ad330315c7d
+STEP 4/7: COPY --chown=pap:pap probe.sh /home/pap/probe.sh
+--> Using cache 9cdbaf16877b5e08fc1efb49ae5d9bf68a275886e1a616b45c5e6d09347a07a6
+--> 9cdbaf16877b
+STEP 5/7: USER pap
+--> Using cache 097a852a897876cb3a96fb7195a705956071865b85cf561c8992f9fbff7976dd
+--> 097a852a8978
+STEP 6/7: WORKDIR /home/pap
+--> Using cache b382a7a7bba0f5dc98c80ce20ab0a1b3b5a29fc3b51c52ace49a05153a936f36
+--> b382a7a7bba0
+STEP 7/7: ENTRYPOINT ["/usr/bin/tini", "--", "sh", "/home/pap/probe.sh"]
+--> Using cache 6f250c3eca322cb5cf96c183ad288ac704878168823fbc644a30429b505cce39
+COMMIT pap-s8
+--> 6f250c3eca32
+Successfully tagged localhost/pap-s8:latest
+6f250c3eca322cb5cf96c183ad288ac704878168823fbc644a30429b505cce39
+##### 0. host and runtime facts
+7.0.0-38-generic
+kernel.apparmor_restrict_unprivileged_userns = 1
+user.max_user_namespaces = 72113
+ubuntu:100000:65536
+podman version 5.7.0
+         0       1000          1
+         1     100000      65536
+    version: 'conmon version 2.1.13, commit: unknown'
+    version: "26.04"
+      version: aardvark-dns 1.16.0
+    version: netavark 1.16.1
+  ociRuntime:
+    name: crun
+    version: |-
+      crun version 1.21
+    version: |
+    apparmorEnabled: false
+    rootless: true
+    seccompEnabled: true
+    seccompProfilePath: /usr/share/containers/seccomp.json
+    version: |-
+[docker.io/library/node@sha256:51b1100cc2a83d370c6a60952e3f2989c8a43159d0e38586e090f3b3326efefd docker.io/library/node@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20]
+v24.21.0
+bubblewrap 0.8.0
+-rwxr-xr-x 1 root root 72080 Aug 14  2024 /usr/bin/bwrap
+##### D. the two decisive probe.sh cells, repeated twice
+=== repeat 1: podman run 
+PASS minimal: ok
+FAIL unshare-pid: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+PASS unshare-net: ok
+FAIL pi-web-profile: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+=== repeat 1: podman run --security-opt systempaths=unconfined
+PASS minimal: ok
+PASS unshare-pid: ok
+PASS unshare-net: ok
+PASS pi-web-profile: ok
+=== repeat 2: podman run 
+PASS minimal: ok
+FAIL unshare-pid: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+PASS unshare-net: ok
+FAIL pi-web-profile: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+=== repeat 2: podman run --security-opt systempaths=unconfined
+PASS minimal: ok
+PASS unshare-pid: ok
+PASS unshare-net: ok
+PASS pi-web-profile: ok
+##### A. extra option sets (probe.sh)
+=== podman run --security-opt systempaths=unconfined --cap-drop ALL --security-opt no-new-privileges
+PASS minimal: ok
+PASS unshare-pid: ok
+PASS unshare-net: ok
+PASS pi-web-profile: ok
+=== podman run --security-opt systempaths=unconfined --security-opt seccomp=unconfined
+PASS minimal: ok
+PASS unshare-pid: ok
+PASS unshare-net: ok
+PASS pi-web-profile: ok
+=== podman run --security-opt unmask=/proc/*
+PASS minimal: ok
+PASS unshare-pid: ok
+PASS unshare-net: ok
+PASS pi-web-profile: ok
+=== podman run --security-opt unmask=ALL
+PASS minimal: ok
+PASS unshare-pid: ok
+PASS unshare-net: ok
+PASS pi-web-profile: ok
+##### B. container-side checks as pap (inside.sh all)
+=== podman run 
+--- /proc mounts in the container
+0:62 / /proc rw,nosuid,nodev,noexec,relatime
+0:66 / /proc/acpi ro,relatime
+0:7 /null /proc/kcore ro,nosuid
+0:7 /null /proc/keys ro,nosuid
+0:7 /null /proc/latency_stats ro,nosuid
+0:67 / /proc/scsi ro,relatime
+0:7 /null /proc/timer_list ro,nosuid
+0:7 /null /proc/interrupts ro,nosuid
+0:62 /bus /proc/bus ro,nosuid,nodev,noexec,relatime
+0:62 /fs /proc/fs ro,nosuid,nodev,noexec,relatime
+0:62 /irq /proc/irq ro,nosuid,nodev,noexec,relatime
+0:62 /sys /proc/sys ro,nosuid,nodev,noexec,relatime
+0:62 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime
+--- minimal / unshare-net sandbox: pid ns and procfs superblock inside vs outside
+outside: pidns=pid:[4026532267] proc=0:62
+bwrap []: pidns=pid:[4026532267] proc=0:62 label=bwrap//&unpriv_bwrap (enforce)
+bwrap [--unshare-net]: pidns=pid:[4026532267] proc=0:62 label=bwrap//&unpriv_bwrap (enforce)
+--- unshare-pid without --proc: ok pid=2
+--- bwrap copy at /home/pap/bwrap-copy, minimal: ok label=crun (unconfined)
+--- bwrap copy at /home/pap/bwrap-copy, unshare-pid + proc: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+--- isolation of the pi-web profile (network false)
+bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+outer pidns: pid:[4026532267]
+--- identity: uid=10001(pap) gid=10001(pap) groups=10001(pap)  apparmor label: crun (unconfined)
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	00000000800405fb
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	2
+--- formerly masked paths, seen by this user outside bwrap (mnt = path is a mountpoint, i.e. overmounted by the runtime)
+/proc/kcore: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/keys: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/timer_list: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/timer_stats: absent
+/proc/sched_debug: absent
+/proc/latency_stats: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/interrupts: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/sysrq-trigger: --w------- nobody mnt=1 read-denied write-access-denied
+/proc/sys/kernel/domainname: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/kernel/core_pattern: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/vm/drop_caches: --w------- nobody mnt=0 read-denied write-access-denied
+/proc/acpi: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/proc/scsi: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/proc/asound: absent
+/proc/bus: dr-xr-xr-x nobody mnt=1 entries=2 [input pci ] write-access-denied
+/proc/fs: dr-xr-xr-x nobody mnt=1 entries=3 [ext4 jbd2 nfsd ] write-access-denied
+/proc/irq: dr-xr-xr-x nobody mnt=1 entries=17 [0 1 10 11 12 13 14 15 ] write-access-denied
+/proc/sys: dr-xr-xr-x nobody mnt=1 entries=8 [abi debug dev fs kernel net user vm ] write-access-denied
+/sys/firmware: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/sys/fs/selinux: absent
+/sys/devices/virtual/powercap: absent
+/sys/fs/cgroup: drwxr-xr-x root mnt=1 entries=50 [cgroup.controllers cgroup.events cgroup.freeze cgroup.kill cgroup.max.depth cgroup.max.descendants cgroup.pressure cgroup.procs ] write-access-denied
+=== podman run --security-opt systempaths=unconfined
+--- /proc mounts in the container
+0:62 / /proc rw,nosuid,nodev,noexec,relatime
+--- minimal / unshare-net sandbox: pid ns and procfs superblock inside vs outside
+outside: pidns=pid:[4026532267] proc=0:62
+bwrap []: pidns=pid:[4026532267] proc=0:62 label=bwrap//&unpriv_bwrap (enforce)
+bwrap [--unshare-net]: pidns=pid:[4026532267] proc=0:62 label=bwrap//&unpriv_bwrap (enforce)
+--- unshare-pid without --proc: ok pid=2
+--- bwrap copy at /home/pap/bwrap-copy, minimal: ok label=crun (unconfined)
+--- bwrap copy at /home/pap/bwrap-copy, unshare-pid + proc: ok
+--- isolation of the pi-web profile (network false)
+pids visible: 1 2 3 4 5 6 
+pidns inside: pid:[4026532278]
+net ifaces: lo 
+write /usr: touch: cannot touch '/usr/x': Read-only file system
+write /etc: touch: cannot touch '/etc/x': Read-only file system
+tmp contents: []
+home contents: [agent-home]
+agent-home writable: yes
+sandbox child: CapEff:	0000000000000000
+write access /proc/sys/kernel/domainname: denied
+outer pidns: pid:[4026532267]
+--- identity: uid=10001(pap) gid=10001(pap) groups=10001(pap)  apparmor label: crun (unconfined)
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	00000000800405fb
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	2
+--- formerly masked paths, seen by this user outside bwrap (mnt = path is a mountpoint, i.e. overmounted by the runtime)
+/proc/kcore: -r-------- nobody mnt=0 read-denied write-access-denied
+/proc/keys: -r--r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/timer_list: -r-------- nobody mnt=0 read-denied write-access-denied
+/proc/timer_stats: absent
+/proc/sched_debug: absent
+/proc/latency_stats: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/interrupts: -r--r--r-- nobody mnt=0 read-ok lines<=26 write-access-denied
+/proc/sysrq-trigger: --w------- nobody mnt=0 read-denied write-access-denied
+/proc/sys/kernel/domainname: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/kernel/core_pattern: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/vm/drop_caches: --w------- nobody mnt=0 read-denied write-access-denied
+/proc/acpi: dr-xr-xr-x nobody mnt=0 entries=1 [wakeup ] write-access-denied
+/proc/scsi: dr-xr-xr-x nobody mnt=0 entries=3 [device_info scsi sg ] write-access-denied
+/proc/asound: absent
+/proc/bus: dr-xr-xr-x nobody mnt=0 entries=2 [input pci ] write-access-denied
+/proc/fs: dr-xr-xr-x nobody mnt=0 entries=3 [ext4 jbd2 nfsd ] write-access-denied
+/proc/irq: dr-xr-xr-x nobody mnt=0 entries=17 [0 1 10 11 12 13 14 15 ] write-access-denied
+/proc/sys: dr-xr-xr-x nobody mnt=0 entries=8 [abi debug dev fs kernel net user vm ] write-access-denied
+/sys/firmware: drwxr-xr-x nobody mnt=0 entries=4 [acpi dmi efi memmap ] write-access-denied
+/sys/fs/selinux: absent
+/sys/devices/virtual/powercap: absent
+/sys/fs/cgroup: drwxr-xr-x root mnt=1 entries=50 [cgroup.controllers cgroup.events cgroup.freeze cgroup.kill cgroup.max.depth cgroup.max.descendants cgroup.pressure cgroup.procs ] write-access-denied
+=== podman run --cap-add SYS_ADMIN
+--- /proc mounts in the container
+0:62 / /proc rw,nosuid,nodev,noexec,relatime
+0:66 / /proc/acpi ro,relatime
+0:7 /null /proc/kcore ro,nosuid
+0:7 /null /proc/keys ro,nosuid
+0:7 /null /proc/latency_stats ro,nosuid
+0:67 / /proc/scsi ro,relatime
+0:7 /null /proc/timer_list ro,nosuid
+0:7 /null /proc/interrupts ro,nosuid
+0:62 /bus /proc/bus ro,nosuid,nodev,noexec,relatime
+0:62 /fs /proc/fs ro,nosuid,nodev,noexec,relatime
+0:62 /irq /proc/irq ro,nosuid,nodev,noexec,relatime
+0:62 /sys /proc/sys ro,nosuid,nodev,noexec,relatime
+0:62 /sysrq-trigger /proc/sysrq-trigger ro,nosuid,nodev,noexec,relatime
+--- minimal / unshare-net sandbox: pid ns and procfs superblock inside vs outside
+outside: pidns=pid:[4026532267] proc=0:62
+bwrap []: bwrap: Unexpected capabilities but not setuid, old file caps config?
+bwrap [--unshare-net]: bwrap: Unexpected capabilities but not setuid, old file caps config?
+--- unshare-pid without --proc: bwrap: Unexpected capabilities but not setuid, old file caps config?
+--- bwrap copy at /home/pap/bwrap-copy, minimal: bwrap: Unexpected capabilities but not setuid, old file caps config?
+--- bwrap copy at /home/pap/bwrap-copy, unshare-pid + proc: bwrap: Unexpected capabilities but not setuid, old file caps config?
+--- isolation of the pi-web profile (network false)
+bwrap: Unexpected capabilities but not setuid, old file caps config?
+outer pidns: pid:[4026532267]
+--- identity: uid=10001(pap) gid=10001(pap) groups=10001(pap)  apparmor label: crun (unconfined)
+CapPrm:	0000000000200000
+CapEff:	0000000000200000
+CapBnd:	00000000802405fb
+CapAmb:	0000000000200000
+NoNewPrivs:	0
+Seccomp:	2
+--- formerly masked paths, seen by this user outside bwrap (mnt = path is a mountpoint, i.e. overmounted by the runtime)
+/proc/kcore: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/keys: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/timer_list: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/timer_stats: absent
+/proc/sched_debug: absent
+/proc/latency_stats: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/interrupts: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/sysrq-trigger: --w------- nobody mnt=1 read-denied write-access-denied
+/proc/sys/kernel/domainname: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/kernel/core_pattern: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/vm/drop_caches: --w------- nobody mnt=0 read-denied write-access-denied
+/proc/acpi: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/proc/scsi: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/proc/asound: absent
+/proc/bus: dr-xr-xr-x nobody mnt=1 entries=2 [input pci ] write-access-denied
+/proc/fs: dr-xr-xr-x nobody mnt=1 entries=3 [ext4 jbd2 nfsd ] write-access-denied
+/proc/irq: dr-xr-xr-x nobody mnt=1 entries=17 [0 1 10 11 12 13 14 15 ] write-access-denied
+/proc/sys: dr-xr-xr-x nobody mnt=1 entries=8 [abi debug dev fs kernel net user vm ] write-access-denied
+/sys/firmware: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/sys/fs/selinux: absent
+/sys/devices/virtual/powercap: absent
+/sys/fs/cgroup: drwxr-xr-x root mnt=1 entries=50 [cgroup.controllers cgroup.events cgroup.freeze cgroup.kill cgroup.max.depth cgroup.max.descendants cgroup.pressure cgroup.procs ] write-access-denied
+##### C. masked-path exposure as container root (not the image user), inside.sh exposure
+=== podman run --user 0 
+--- identity: uid=0(root) gid=0(root) groups=0(root)  apparmor label: crun (unconfined)
+CapPrm:	00000000800405fb
+CapEff:	00000000800405fb
+CapBnd:	00000000800405fb
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	2
+--- formerly masked paths, seen by this user outside bwrap (mnt = path is a mountpoint, i.e. overmounted by the runtime)
+/proc/kcore: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/keys: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/timer_list: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/timer_stats: absent
+/proc/sched_debug: absent
+/proc/latency_stats: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/interrupts: crw-rw-rw- nobody mnt=1 read-ok lines<=0 write-access-OK
+/proc/sysrq-trigger: --w------- nobody mnt=1 read-denied write-access-denied
+/proc/sys/kernel/domainname: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/kernel/core_pattern: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/vm/drop_caches: --w------- nobody mnt=0 read-denied write-access-denied
+/proc/acpi: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/proc/scsi: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/proc/asound: absent
+/proc/bus: dr-xr-xr-x nobody mnt=1 entries=2 [input pci ] write-access-denied
+/proc/fs: dr-xr-xr-x nobody mnt=1 entries=3 [ext4 jbd2 nfsd ] write-access-denied
+/proc/irq: dr-xr-xr-x nobody mnt=1 entries=17 [0 1 10 11 12 13 14 15 ] write-access-denied
+/proc/sys: dr-xr-xr-x nobody mnt=1 entries=8 [abi debug dev fs kernel net user vm ] write-access-denied
+/sys/firmware: drwxrwxrwt root mnt=1 entries=0 [] write-access-denied
+/sys/fs/selinux: absent
+/sys/devices/virtual/powercap: absent
+/sys/fs/cgroup: drwxr-xr-x root mnt=1 entries=50 [cgroup.controllers cgroup.events cgroup.freeze cgroup.kill cgroup.max.depth cgroup.max.descendants cgroup.pressure cgroup.procs ] write-access-denied
+=== podman run --user 0 --security-opt systempaths=unconfined
+--- identity: uid=0(root) gid=0(root) groups=0(root)  apparmor label: crun (unconfined)
+CapPrm:	00000000800405fb
+CapEff:	00000000800405fb
+CapBnd:	00000000800405fb
+CapAmb:	0000000000000000
+NoNewPrivs:	0
+Seccomp:	2
+--- formerly masked paths, seen by this user outside bwrap (mnt = path is a mountpoint, i.e. overmounted by the runtime)
+/proc/kcore: -r-------- nobody mnt=0 read-denied write-access-denied
+/proc/keys: -r--r--r-- nobody mnt=0 read-ok lines<=8 write-access-denied
+/proc/timer_list: -r-------- nobody mnt=0 read-denied write-access-denied
+/proc/timer_stats: absent
+/proc/sched_debug: absent
+/proc/latency_stats: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/interrupts: -r--r--r-- nobody mnt=0 read-ok lines<=26 write-access-denied
+/proc/sysrq-trigger: --w------- nobody mnt=0 read-denied write-access-denied
+/proc/sys/kernel/domainname: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/kernel/core_pattern: -rw-r--r-- nobody mnt=0 read-ok lines<=1 write-access-denied
+/proc/sys/vm/drop_caches: --w------- nobody mnt=0 read-denied write-access-denied
+/proc/acpi: dr-xr-xr-x nobody mnt=0 entries=1 [wakeup ] write-access-denied
+/proc/scsi: dr-xr-xr-x nobody mnt=0 entries=3 [device_info scsi sg ] write-access-denied
+/proc/asound: absent
+/proc/bus: dr-xr-xr-x nobody mnt=0 entries=2 [input pci ] write-access-denied
+/proc/fs: dr-xr-xr-x nobody mnt=0 entries=3 [ext4 jbd2 nfsd ] write-access-denied
+/proc/irq: dr-xr-xr-x nobody mnt=0 entries=17 [0 1 10 11 12 13 14 15 ] write-access-denied
+/proc/sys: dr-xr-xr-x nobody mnt=0 entries=8 [abi debug dev fs kernel net user vm ] write-access-denied
+/sys/firmware: drwxr-xr-x nobody mnt=0 entries=4 [acpi dmi efi memmap ] write-access-denied
+/sys/fs/selinux: absent
+/sys/devices/virtual/powercap: absent
+/sys/fs/cgroup: drwxr-xr-x root mnt=1 entries=50 [cgroup.controllers cgroup.events cgroup.freeze cgroup.kill cgroup.max.depth cgroup.max.descendants cgroup.pressure cgroup.procs ] write-access-OK
