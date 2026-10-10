@@ -52,16 +52,62 @@ function within(root: string, target: string): boolean {
   return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
 }
 
+const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([".git", ".pi", ".agents", ".husky", ".vscode"]);
+const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([".envrc"]);
+
+// Files that run later, outside any approval: git hooks and config (core.fsmonitor), Pi settings
+// (shellCommandPrefix) and extensions, agent skills, hook managers, editor tasks, direnv.
+function hasProtectedName(relativePath: string): boolean {
+  const segments = relativePath
+    .split(sep)
+    .filter(Boolean)
+    .map((segment) => segment.normalize("NFC").toLowerCase());
+  return segments.some((s) => PROTECTED_SEGMENTS.has(s)) || PROTECTED_BASENAMES.has(segments.at(-1) ?? "");
+}
+
+export type ReviewReason =
+  "outside the session directory" | "protected path" | "session directory too broad for automatic edits";
+
+export interface EditReview {
+  readonly why: ReviewReason;
+  readonly target?: string;
+}
+
+export type EditCheck = { readonly auto: true } | { readonly auto: false; readonly review: EditReview };
+
 /**
- * Whether the file a tool call would write to is inside `cwd`. Both the literal reading of the path and
- * Pi's rewritten reading must stay inside once symlinks are resolved. Anything that is not a plain,
- * non-empty path string is outside.
+ * Whether an edit may run without asking. It may when the file it would write, symlinks followed, is inside
+ * `cwd`, is not a protected path, and `cwd` is not the home directory, a parent of it, or a parent of the
+ * agent directory. Both the literal reading of the path and Pi's rewritten reading are judged. Anything that
+ * is not a plain, non-empty path string asks. Otherwise the review says why, and where the write lands.
  */
-export async function isInsideCwd(path: unknown, cwd: string): Promise<boolean> {
-  if (typeof path !== "string" || path === "" || path.includes("\0")) return false;
-  const root = await realpath(cwd);
-  for (const spelling of new Set([path, asPiResolves(path)])) {
-    if (!within(root, await realTarget(resolve(cwd, spelling)))) return false;
+export async function checkEditTarget(path: unknown, cwd: string, agentDir: string): Promise<EditCheck> {
+  if (typeof path !== "string" || path === "" || path.includes("\0")) {
+    return { auto: false, review: { why: "outside the session directory" } };
   }
-  return true;
+  const home = homedir();
+  if (!home) throw new Error("the home directory is unknown");
+  const root = await realpath(cwd);
+  const lexicalRoot = resolve(cwd);
+  const agent = await realTarget(resolve(agentDir));
+  const tooBroad = within(root, await realTarget(resolve(home))) || within(root, agent);
+  let target: string | undefined;
+  let outside: string | undefined;
+  let protectedPath: string | undefined;
+  for (const spelling of new Set([path, asPiResolves(path)])) {
+    const lexical = resolve(cwd, spelling);
+    const real = await realTarget(lexical);
+    target ??= real;
+    if (!within(root, real)) outside ??= real;
+    const namedProtected =
+      (within(root, real) && hasProtectedName(relative(root, real))) ||
+      (within(lexicalRoot, lexical) && hasProtectedName(relative(lexicalRoot, lexical)));
+    if (within(agent, real) || namedProtected) protectedPath ??= real;
+  }
+  if (protectedPath) return { auto: false, review: { why: "protected path", target: protectedPath } };
+  if (outside) return { auto: false, review: { why: "outside the session directory", target: outside } };
+  if (tooBroad) {
+    return { auto: false, review: { why: "session directory too broad for automatic edits", target } };
+  }
+  return { auto: true };
 }
