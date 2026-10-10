@@ -1,0 +1,22 @@
+name: pi-compat
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  latest-pi-sdk:
+    runs-on: ubuntu-24.04
+    env:
+      PI_OFFLINE: "1"
+      PI_TELEMETRY: "0"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.14.x
+      - run: node --disable-warning=ExperimentalWarning scripts/pi-compat-bump.ts
+      - run: pnpm install --no-frozen-lockfile --config.minimum-release-age=0
+      - run: pnpm test:int

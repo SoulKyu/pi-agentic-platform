@@ -1,0 +1,12 @@
+name: setup
+description: pnpm, Node 24 and a frozen install
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 24.14.x
+        cache: pnpm
+    - run: pnpm install --frozen-lockfile
+      shell: bash

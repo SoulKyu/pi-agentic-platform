@@ -1,0 +1,13 @@
+{
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
+  "rangeStrategy": "pin",
+  "minimumReleaseAge": "3 days",
+  "packageRules": [
+    {
+      "matchPackageNames": ["@earendil-works/**"],
+      "groupName": "pi sdk",
+      "dependencyDashboardApproval": true
+    },
+    { "matchPackageNames": ["@types/node"], "allowedVersions": "<25" }
+  ]
+}

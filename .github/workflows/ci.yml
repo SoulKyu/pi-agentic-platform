@@ -1,0 +1,55 @@
+name: ci
+on:
+  pull_request:
+    paths-ignore: ["docs/**", "**/*.md"]
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**/*.md"]
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      # knip reports exports that later tasks wire up; it becomes blocking in Task 26 (ruling R5).
+      - run: pnpm knip
+        continue-on-error: true
+  unit:
+    needs: checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm test:unit
+  integration:
+    needs: unit
+    runs-on: ubuntu-24.04
+    env:
+      PI_OFFLINE: "1"
+      PI_TELEMETRY: "0"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm test:int
+  build:
+    needs: integration
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: |
+            apps/*/dist
+            packages/*/dist
+          retention-days: 3
