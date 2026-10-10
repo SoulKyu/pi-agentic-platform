@@ -49,6 +49,12 @@ describe("session cookie attributes", () => {
         .secure,
     ).toBe(false);
   });
+
+  it("stay Secure on a plain-http loopback request when the public origin is a plain-http non-loopback name", () => {
+    const publicSecure = cookieNeedsSecure("http://pap.lan:7777");
+    expect(publicSecure).toBe(true);
+    expect(sessionCookieAttributes("http://127.0.0.1:7777/auth/login", publicSecure).secure).toBe(true);
+  });
 });
 
 describe("readCookie", () => {

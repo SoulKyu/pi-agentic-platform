@@ -88,7 +88,7 @@ describe("auth routes", () => {
       setupRequired: true,
       authenticated: false,
       username: null,
-      passkeysAvailable: false,
+      passkeysAvailable: true,
     });
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("set-cookie")).toBeNull();

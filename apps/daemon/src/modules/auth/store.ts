@@ -1,4 +1,5 @@
 import type { Db } from "../../kernel/db/database.ts";
+import { createPasskeyStore, type PasskeyStore } from "./passkey-store.ts";
 
 export interface UserRow {
   readonly id: string;
@@ -22,7 +23,7 @@ export interface NewSession {
   readonly userAgent: string | null;
 }
 
-export interface AuthStore {
+export interface AuthStore extends PasskeyStore {
   countUsers(): number;
   insertFirstUser(user: { id: string; username: string; passwordHash: string; createdAt: number }): boolean;
   findUserByName(username: string): UserRow | undefined;
@@ -38,6 +39,7 @@ const USER_COLUMNS = "id, username, password_hash AS passwordHash";
 
 export function createAuthStore(db: Db): AuthStore {
   return {
+    ...createPasskeyStore(db),
     countUsers: () => db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c ?? 0,
     insertFirstUser: (user) =>
       db.run(

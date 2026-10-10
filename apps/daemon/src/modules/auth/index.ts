@@ -7,6 +7,8 @@ import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
 import { mountAuthRoutes } from "./http.ts";
+import { mountPasskeyRoutes } from "./passkey-http.ts";
+import { createPasskeyService } from "./passkeys.ts";
 import { createAuthService } from "./service.ts";
 import { createSetupToken } from "./setup-token.ts";
 import { createAuthStore } from "./store.ts";
@@ -34,17 +36,29 @@ export interface AuthModule {
 
 export function createAuthModule(deps: AuthModuleDeps): AuthModule {
   const store = createAuthStore(deps.db);
+  const logger = deps.logger.child({ module: "auth" });
   const service = createAuthService({
     store,
     clock: deps.clock,
-    logger: deps.logger.child({ module: "auth" }),
+    logger,
     publicOrigin: deps.publicOrigin,
     throttle: createThrottle(deps.clock),
     setupToken: createSetupToken(store.countUsers() === 0),
   });
+  const passkeys = createPasskeyService({
+    store,
+    clock: deps.clock,
+    publicOrigin: deps.publicOrigin,
+    allowedOrigins: deps.allowedOrigins,
+  });
+  // Separate from the password throttle: a lockout of one must never lock the other (R80).
+  const passkeyThrottle = createThrottle(deps.clock);
   const secureByConfig = cookieNeedsSecure(deps.publicOrigin);
   return {
-    mount: (app) => mountAuthRoutes(app, { service, passkeysAvailable: false, secureByConfig }),
+    mount: (app) => {
+      mountAuthRoutes(app, { service, passkeysAvailable: passkeys.available, secureByConfig });
+      mountPasskeyRoutes(app, { passkeys, auth: service, throttle: passkeyThrottle, logger });
+    },
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
     setupUrl: () => service.setupUrl(),
   };
