@@ -9,11 +9,11 @@
     "lint": "eslint . --max-warnings=0",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "corepack pnpm -r --parallel run typecheck && tsc -p tsconfig.json",
+    "typecheck": "pnpm -r --parallel run typecheck && tsc -p tsconfig.json",
     "knip": "knip",
     "test:unit": "vitest run --project unit",
     "test:int": "vitest run --project integration",
-    "build": "corepack pnpm -r run build",
+    "build": "pnpm -r run build",
     "e2e": "playwright test",
     "budgets": "node --disable-warning=ExperimentalWarning scripts/check-budgets.ts"
   },
