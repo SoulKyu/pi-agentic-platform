@@ -1,0 +1,8 @@
+{
+  "ignore": ["spikes/**", "docs/**"],
+  "ignoreExportsUsedInFile": true,
+  "workspaces": {
+    ".": { "entry": ["scripts/*.ts", "e2e/**/*.ts", "eslint/*.js"] },
+    "packages/pi-host": { "entry": ["src/main.ts", "src/testing/*.ts"] }
+  }
+}
