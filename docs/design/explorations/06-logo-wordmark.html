@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DESIGN · Round 4 · Logo et wordmark</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --night:#110F18; --night-side:#14111D; --night-border:#2D2840; --day:#FAF9F6; --day-side:#F3F1EC; --day-border:#E2DED5;
+          --ai:#A78BFA; --ai-day:#6D28D9; --human:#FB923C; --attn:#EC4899; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #e4e4e8; color: #18181b; font: 14px/1.5 system-ui, sans-serif; padding: 32px 24px 80px; }
+  .page { max-width: 1320px; margin: 0 auto; }
+  .intro h1 { font-size: 26px; font-weight: 700; }
+  .intro p { color: #3f3f46; margin-top: 6px; max-width: 980px; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 24px; }
+  .card { border-radius: 14px; overflow: hidden; background: #fff; cursor: pointer; outline: 3px solid transparent; outline-offset: 4px; box-shadow: 0 1px 2px rgba(0,0,0,.08), 0 8px 30px rgba(0,0,0,.08); }
+  .card:hover { outline-color: #a1a1aa; } .card.selected { outline-color: #2563eb; }
+  .head { padding: 14px 18px; border-bottom: 1px solid #e4e4e7; }
+  .head .l { font: 700 12px var(--mono); color: #6d28d9; }
+  .head h2 { font-size: 17px; margin-top: 2px; }
+  .head p { color: #52525b; font-size: 13px; margin-top: 2px; }
+  .stage { display: grid; grid-template-columns: 1fr 1fr; }
+  .stage > div { padding: 18px; display: flex; flex-direction: column; gap: 14px; align-items: flex-start; }
+  .n { background: var(--night); color: #F2EFFA; background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 16px 16px; }
+  .d { background: var(--day); color: #1C1917; background-image: linear-gradient(#1C19170A 1px, transparent 1px), linear-gradient(90deg, #1C19170A 1px, transparent 1px); background-size: 16px 16px; }
+  .big { display: flex; align-items: center; gap: 14px; }
+  .sizes { display: flex; align-items: flex-end; gap: 14px; }
+  .sizes span { font: 9.5px var(--mono); opacity: .6; display: block; text-align: center; margin-top: 3px; }
+  .tile { width: 64px; height: 64px; border-radius: 14px; display: grid; place-items: center; }
+  .tile.tn { background: var(--night); border: 1px solid #2D2840; }
+  .tile.td { background: var(--day); border: 1px solid #E2DED5; }
+  .bar { width: 100%; height: 34px; border: 1px solid; border-radius: 3px; display: flex; align-items: center; gap: 8px; padding: 0 10px; }
+  .n .bar { border-color: var(--night-border); background: var(--night-side); }
+  .d .bar { border-color: var(--day-border); background: var(--day-side); }
+  .bar .ws { margin-left: auto; font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; opacity: .6; }
+  .lab { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; opacity: .55; }
+  .why { padding: 12px 18px; font-size: 13px; color: #3f3f46; border-top: 1px solid #e4e4e7; }
+
+  /* wordmarks */
+  .wm1 { font: 600 15px var(--mono); text-transform: uppercase; letter-spacing: .14em; }
+  .wm2 { font: 600 15px var(--mono); letter-spacing: .02em; }
+  .wm3 { font: 700 16px var(--mono); }
+  .wm3 i { font-style: normal; font-weight: 500; opacity: .55; font-family: var(--ui); font-size: 12.5px; margin-left: 8px; letter-spacing: 0; }
+  .wm4 { font: 800 17px var(--ui); letter-spacing: -.02em; }
+  .dim { opacity: .5; }
+
+  .ask { margin-top: 30px; background: #fff; border: 1px solid #d4d4d8; border-radius: 14px; padding: 18px 22px; }
+  .ask h3 { font-size: 16px; } .ask p { color: #52525b; margin: 4px 0 10px; font-size: 13.5px; }
+  .ask .r { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ask .opt { border: 1px solid #d4d4d8; border-radius: 10px; padding: 7px 12px; font-size: 13px; cursor: pointer; user-select: none; }
+  .ask .opt.selected { background: #2563eb; border-color: #2563eb; color: #fff; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- π glyph, 32×32 grid, solid shapes -->
+    <symbol id="pi" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2"/><rect x="10.4" y="12" width="3.2" height="13"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z"/></symbol>
+    <!-- π with two-tone legs -->
+    <symbol id="pi2" viewBox="0 0 32 32"><rect x="6" y="9" width="20" height="3.2" fill="currentColor"/><rect x="10.4" y="12" width="3.2" height="13" fill="var(--leg1)"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--leg2)"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <div class="intro">
+    <h1>DESIGN.md · Round 4 : logo et wordmark</h1>
+    <p>Quatre identités pour une même idée : le π de Pi, dans la grammaire Night Control (couleurs plates, angles vifs, mono). Chacune est montrée en grand, aux tailles favicon (32 et 16 px), en icône PWA sur fond nuit et jour, et dans la barre haute. Le nom du projet et du dépôt reste <b>pi-agentic-platform</b>, la commande reste <b>pap</b> : la question porte sur ce qu'on <i>voit</i>.</p>
+  </div>
+
+  <div class="cards">
+    <!-- ================= L1 ================= -->
+    <section class="card" data-choice="logo-L1-frame" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">L1</span><h2>Cadre</h2><p>π plein dans un carré en contour, comme les avatars d'agents du rail. Wordmark en mono majuscule espacée.</p></div>
+      <div class="stage">
+        <div class="n">
+          <div class="big"><svg width="64" height="64" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#A78BFA" stroke-width="3"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#A78BFA"/></svg><span class="wm1">pi·agentic</span></div>
+          <div class="sizes"><div><svg width="32" height="32" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="3" fill="none" stroke="#A78BFA" stroke-width="2"/><use href="#pi" x="4" y="4" width="24" height="24" fill="#A78BFA"/></svg><span>32</span></div><div><svg width="16" height="16" viewBox="0 0 16 16"><rect x=".75" y=".75" width="14.5" height="14.5" rx="2" fill="none" stroke="#A78BFA" stroke-width="1.5"/><use href="#pi" x="1.5" y="1.5" width="13" height="13" fill="#A78BFA"/></svg><span>16</span></div>
+            <div><div class="tile tn"><svg width="44" height="44" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#A78BFA" stroke-width="3"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#A78BFA"/></svg></div><span>PWA</span></div></div>
+          <div class="bar"><svg width="20" height="20" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="3" fill="none" stroke="#A78BFA" stroke-width="2"/><use href="#pi" x="4" y="4" width="24" height="24" fill="#A78BFA"/></svg><span class="wm1" style="font-size:11px">pi·agentic</span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+        <div class="d">
+          <div class="big"><svg width="64" height="64" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#6D28D9" stroke-width="3"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#6D28D9"/></svg><span class="wm1">pi·agentic</span></div>
+          <div class="sizes"><div><div class="tile td"><svg width="44" height="44" viewBox="0 0 64 64"><rect x="2" y="2" width="60" height="60" rx="5" fill="none" stroke="#6D28D9" stroke-width="3"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#6D28D9"/></svg></div><span>PWA jour</span></div></div>
+          <div class="bar"><svg width="20" height="20" viewBox="0 0 32 32"><rect x="1" y="1" width="30" height="30" rx="3" fill="none" stroke="#6D28D9" stroke-width="2"/><use href="#pi" x="4" y="4" width="24" height="24" fill="#6D28D9"/></svg><span class="wm1" style="font-size:11px">pi·agentic</span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+      </div>
+      <div class="why">Le plus cohérent avec l'interface : le logo est le premier avatar du rail. Inconvénient : à 16 px, le cadre mange le π.</div>
+    </section>
+
+    <!-- ================= L2 ================= -->
+    <section class="card" data-choice="logo-L2-hud" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">L2</span><h2>Crochets HUD</h2><p>π encadré de quatre coins de visée, la signature Mission Control. Wordmark en mono minuscule.</p></div>
+      <div class="stage">
+        <div class="n">
+          <div class="big"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#A78BFA" stroke-width="3.5"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#F2EFFA" stroke="none"/></svg><span class="wm2">pi·agentic</span></div>
+          <div class="sizes"><div><svg width="32" height="32" viewBox="0 0 64 64" fill="none" stroke="#A78BFA" stroke-width="5"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="10" y="10" width="44" height="44" fill="#F2EFFA" stroke="none"/></svg><span>32</span></div><div><svg width="16" height="16" viewBox="0 0 64 64" fill="none" stroke="#A78BFA" stroke-width="7"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="8" y="8" width="48" height="48" fill="#F2EFFA" stroke="none"/></svg><span>16</span></div>
+            <div><div class="tile tn"><svg width="44" height="44" viewBox="0 0 64 64" fill="none" stroke="#A78BFA" stroke-width="3.5"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#F2EFFA" stroke="none"/></svg></div><span>PWA</span></div></div>
+          <div class="bar"><svg width="20" height="20" viewBox="0 0 64 64" fill="none" stroke="#A78BFA" stroke-width="5"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="10" y="10" width="44" height="44" fill="#F2EFFA" stroke="none"/></svg><span class="wm2" style="font-size:12px">pi·agentic</span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+        <div class="d">
+          <div class="big"><svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="#6D28D9" stroke-width="3.5"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#1C1917" stroke="none"/></svg><span class="wm2">pi·agentic</span></div>
+          <div class="sizes"><div><div class="tile td"><svg width="44" height="44" viewBox="0 0 64 64" fill="none" stroke="#6D28D9" stroke-width="3.5"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="12" y="12" width="40" height="40" fill="#1C1917" stroke="none"/></svg></div><span>PWA jour</span></div></div>
+          <div class="bar"><svg width="20" height="20" viewBox="0 0 64 64" fill="none" stroke="#6D28D9" stroke-width="5"><path d="M3 18V3h15M46 3h15v15M61 46v15H46M18 61H3V46"/><use href="#pi" x="10" y="10" width="44" height="44" fill="#1C1917" stroke="none"/></svg><span class="wm2" style="font-size:12px">pi·agentic</span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+      </div>
+      <div class="why">Le plus « salle de contrôle » : un π mis en joue, l'agent sous observation. Le π blanc reste lisible à 16 px.</div>
+    </section>
+
+    <!-- ================= L3 ================= -->
+    <section class="card" data-choice="logo-L3-pap" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">L3</span><h2>Monogramme pap_</h2><p>Le nom de la commande devient la marque : <b>pap</b> en mono suivi d'un curseur violet. Le π n'apparaît que dans le favicon.</p></div>
+      <div class="stage">
+        <div class="n">
+          <div class="big"><span class="wm3" style="font-size:40px;line-height:1">pap<span style="color:#A78BFA">_</span></span></div>
+          <div class="sizes"><div><svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="3" fill="#A78BFA"/><use href="#pi" x="3" y="3" width="26" height="26" fill="#110F18"/></svg><span>32</span></div><div><svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="3" fill="#A78BFA"/><use href="#pi" x="3" y="3" width="26" height="26" fill="#110F18"/></svg><span>16</span></div>
+            <div><div class="tile tn"><span class="wm3" style="font-size:20px">pap<span style="color:#A78BFA">_</span></span></div><span>PWA</span></div></div>
+          <div class="bar"><span class="wm3" style="font-size:14px">pap<span style="color:#A78BFA">_</span><i>pi agentic platform</i></span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+        <div class="d">
+          <div class="big"><span class="wm3" style="font-size:40px;line-height:1">pap<span style="color:#6D28D9">_</span></span></div>
+          <div class="sizes"><div><div class="tile td"><span class="wm3" style="font-size:20px">pap<span style="color:#6D28D9">_</span></span></div><span>PWA jour</span></div></div>
+          <div class="bar"><span class="wm3" style="font-size:14px">pap<span style="color:#6D28D9">_</span><i>pi agentic platform</i></span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+      </div>
+      <div class="why">Court, mémorisable, cohérent avec le CLI (<code>pap serve</code>). Risque : « pap » se lit mal hors contexte (et collision de nom à vérifier).</div>
+    </section>
+
+    <!-- ================= L4 ================= -->
+    <section class="card" data-choice="logo-L4-two-legs" onclick="toggleSelect(this)">
+      <div class="head"><span class="l">L4</span><h2>Deux jambes</h2><p>Le π raconte le produit : une jambe violette (l'agent), une jambe orange (toi), sous la même barre. Aplats, sans dégradé. Wordmark en Manrope 800.</p></div>
+      <div class="stage">
+        <div class="n" style="--leg1:#A78BFA;--leg2:#FB923C">
+          <div class="big"><svg width="64" height="64" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><span class="wm4">pi agentic</span></div>
+          <div class="sizes"><div><svg width="32" height="32" viewBox="0 0 32 32" style="color:#F2EFFA"><rect width="32" height="32" rx="3" fill="#1A1724"/><use href="#pi2"/></svg><span>32</span></div><div><svg width="16" height="16" viewBox="0 0 32 32" style="color:#F2EFFA"><rect width="32" height="32" rx="3" fill="#1A1724"/><use href="#pi2" x="-2" y="-2" width="36" height="36"/></svg><span>16</span></div>
+            <div><div class="tile tn"><svg width="44" height="44" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg></div><span>PWA</span></div></div>
+          <div class="bar"><svg width="20" height="20" viewBox="0 0 32 32" style="color:#F2EFFA"><use href="#pi2"/></svg><span class="wm4" style="font-size:13px">pi agentic</span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+        <div class="d" style="--leg1:#6D28D9;--leg2:#C2410C">
+          <div class="big"><svg width="64" height="64" viewBox="0 0 32 32" style="color:#1C1917"><use href="#pi2"/></svg><span class="wm4">pi agentic</span></div>
+          <div class="sizes"><div><div class="tile td"><svg width="44" height="44" viewBox="0 0 32 32" style="color:#1C1917"><use href="#pi2"/></svg></div><span>PWA jour</span></div></div>
+          <div class="bar"><svg width="20" height="20" viewBox="0 0 32 32" style="color:#1C1917"><use href="#pi2"/></svg><span class="wm4" style="font-size:13px">pi agentic</span><span class="ws">pi-agentic ▾</span></div>
+        </div>
+      </div>
+      <div class="why">Le seul qui porte le sens des rôles (violet = agent, orange = humain). Plus « produit », moins « console ». Deux couleurs à 16 px : un peu chargé.</div>
+    </section>
+  </div>
+
+  <div class="ask">
+    <h3>Nom affiché</h3>
+    <p>Indépendamment du symbole, quel nom veux-tu voir dans la barre, l'onglet du navigateur et l'icône PWA ?</p>
+    <div class="r">
+      <div class="opt" data-choice="name-pi-agentic-dot" onclick="this.classList.toggle('selected')">pi·agentic</div>
+      <div class="opt" data-choice="name-pi-agentic" onclick="this.classList.toggle('selected')">pi agentic</div>
+      <div class="opt" data-choice="name-pap" onclick="this.classList.toggle('selected')">pap</div>
+      <div class="opt" data-choice="name-full" onclick="this.classList.toggle('selected')">pi-agentic-platform</div>
+      <div class="opt" data-choice="name-other" onclick="this.classList.toggle('selected')">Autre (dis-le en terminal)</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
