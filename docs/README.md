@@ -17,6 +17,9 @@ Status: design phase (specs not yet written). HTML pages open directly in a brow
 - [architecture/08-testing-quality.html](architecture/08-testing-quality.html): test levels, the scripted Pi provider, security tests, blocking quality gates, CI pipeline, dev isolation and repo conventions.
 - [architecture/09-packaging-release.html](architecture/09-packaging-release.html): three channels (archive, OCI image, npm), platform tiers, fail-closed sandbox rule, update with auto-rollback, release process.
 
+## Migration (spec D)
+- [migration/01-clean-start.html](migration/01-clean-start.html): clean start (decision 24): no pi-web import, Pi shared, sessions indexed from pap install date, cutover steps.
+
 ## Design (DESIGN.md in progress)
 - [design/explorations/01-brand-directions.html](design/explorations/01-brand-directions.html): round 1, four directions (Graphite, Paper & Ink, Mission Control, Aurora).
 - [design/explorations/02-night-control-variants.html](design/explorations/02-night-control-variants.html): round 1b, Mission Control × Aurora without gradients. **E1 (strict) chosen.**

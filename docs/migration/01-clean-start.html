@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spec D · Départ propre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  .own { border-top: 3px solid var(--ai); } .own.pi { border-top-color: var(--muted); } .own.web { border-top-color: var(--attn); }
+  .own .t { font: 700 14.5px var(--ui); margin-bottom: 4px; }
+  .phases { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .ph { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 10px 11px; }
+  .ph .num { font: 600 10.5px var(--mono); color: var(--muted); }
+  .ph .n { font: 600 12px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--ai); margin: 2px 0 6px; }
+  .ph p { font-size: 12.5px; }
+  .ph p + p { margin-top: 6px; color: var(--muted); font-size: 12px; }
+  .ph.cut { border-color: var(--human); } .ph.cut .n { color: var(--human); }
+  .warn { border-color: var(--attn); } .warn .lbl { color: var(--attn); }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .ask-box .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; user-select: none; color: var(--text); }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Spec D · Migration (décision 24)</div>
+  <h1>Départ propre</h1>
+  <p class="lead">Aucun import depuis pi-web. pap démarre avec un <code>~/.pap</code> vide et recrée ses agents, triggers et lanes. Pi reste partagé : pas de re-login des providers, extensions et skills inchangés. pi-web n'est jamais touché, donc le rollback se résume à rouvrir pi-web.</p>
+
+  <h2>1 · Qui voit quoi</h2>
+  <div class="grid3">
+    <div class="box own"><div class="t">~/.pap · neuf</div>
+      <ul class="tight">
+        <li>Owner créé via l'URL de setup + passkey.</li>
+        <li>Agents, triggers, lanes, réglages, coûts : tout part de zéro.</li>
+        <li>Historique FinOps à partir du premier run dans pap.</li>
+      </ul></div>
+    <div class="box own pi"><div class="t">~/.pi/agent · partagé</div>
+      <ul class="tight">
+        <li>Comptes providers, <code>models.json</code>, <code>settings.json</code>, extensions, skills, subagents, mem0, <code>mcp.json</code> : réutilisés tels quels.</li>
+        <li>Sessions : pap n'indexe que celles <b>créées après son installation</b>, CLI <code>pi</code> compris. Les anciennes restent dans Pi et pi-web.</li>
+      </ul></div>
+    <div class="box own web"><div class="t">Fichiers propres à pi-web · ignorés</div>
+      <ul class="tight">
+        <li><code>pi-web-session-*.json</code>, <code>agent-ops/</code>, <code>agent-spaces/</code>, <code>agents-home/</code>, <code>agents-secrets/</code> : pap ne les lit jamais.</li>
+        <li>Les profils <code>.md</code> des agents long-terme de pi-web, rangés dans <code>~/.pi/agent/agents/</code>, sont vus par Pi comme des subagents. Une note de nettoyage le signale.</li>
+      </ul></div>
+  </div>
+
+  <h2>2 · Bascule</h2>
+  <div class="phases">
+    <div class="ph"><div class="num">0</div><div class="n">Gel</div><p>pi-web : lanes Lot B terminé, puis plus que des bugfixes (décision 9).</p></div>
+    <div class="ph"><div class="num">1</div><div class="n">Installation</div><p>pap installé à côté sur <code>127.0.0.1:7777</code>. Il démarre vide et devient l'outil des <b>nouvelles</b> sessions.</p><p>pi-web reste ouvert pour l'historique et les agents existants.</p></div>
+    <div class="ph"><div class="num">2</div><div class="n">Recréation</div><p>Tu recrées dans pap les agents et triggers que tu veux garder (formulaires + dry-run). Pour chaque webhook : nouvelle URL et nouveau secret dans Alertmanager ou Grafana.</p><p>Chaque trigger recréé dans pap est désactivé dans pi-web, pour ne jamais tirer deux fois.</p></div>
+    <div class="ph cut"><div class="num">3</div><div class="n">Arrêt de pi-web</div><p>Quand plus rien ne tourne dans pi-web : arrêt du service, et pap prend son host et son port (ou le reverse proxy pointe vers pap).</p><p>pi-web reste installé 30 jours, puis le repo est archivé. Nettoyage de <code>~/.pi/agent</code> à la main, avec une liste documentée.</p></div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="box warn"><span class="lbl">Risques restants</span>
+      <ul class="tight">
+        <li><b>Même session ouverte dans les deux apps</b> : pi-web voit aussi les nouvelles sessions de pap (fichiers Pi partagés), sans verrou. Pendant la cohabitation, ne pas reprendre dans pi-web une session de pap. pap avertit si un fichier change sans que son worker y ait écrit.</li>
+        <li><b>Double tir</b> d'un trigger recréé : évité par la règle de l'étape 2.</li>
+      </ul></div>
+    <div class="box"><span class="lbl">Ce que ça simplifie</span>
+      <ul class="tight">
+        <li>Pas de <code>pap import pi-web</code>, pas de rapport d'import, pas de fixtures du format pi-web à maintenir.</li>
+        <li>Pas de route alias pour les anciens webhooks.</li>
+        <li>Scan initial léger : seulement les sessions postérieures à l'installation.</li>
+        <li>Aucun format de pi-web ne contraint le design de pap.</li>
+      </ul></div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation</span>
+    <div>Cette version « départ propre » te va ? Clique ce que tu veux revoir, puis réponds en terminal.</div>
+    <div class="row">
+      <div class="opt" data-choice="d2-ok" onclick="this.classList.toggle('selected')">OK tel quel</div>
+      <div class="opt" data-choice="d2-hide-pi-web-agents" onclick="this.classList.toggle('selected')">Masquer les .md d'agents pi-web aux subagents</div>
+      <div class="opt" data-choice="d2-net-duration" onclick="this.classList.toggle('selected')">Autre durée de filet que 30 jours</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

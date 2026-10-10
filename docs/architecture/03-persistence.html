@@ -125,7 +125,7 @@
   <div class="grid2">
     <div class="box">
       <ul class="tight">
-        <li>Une session est identifiée par son <b>chemin de fichier Pi</b> (comme T3 et Orca), plus l'uuid de l'en-tête. Une session lancée depuis le CLI <code>pi</code> apparaît aussi dans la plateforme.</li>
+        <li>Une session est identifiée par son <b>chemin de fichier Pi</b> (comme T3 et Orca), plus l'uuid de l'en-tête. Une session lancée depuis le CLI <code>pi</code> apparaît aussi dans la plateforme, <b>à partir de la date d'installation de pap</b> : les sessions plus anciennes restent dans Pi et pi-web, sans être indexées (décision 24).</li>
         <li>Un <b>scanner</b> (fs watch sur <code>~/.pi/agent/sessions</code> + réconciliation périodique) tient l'index <code>sessions</code> et alimente <code>session_search</code>. Il lit par offset en octets, donc chaque fichier n'est relu qu'à partir de là où il s'était arrêté.</li>
         <li>Session froide : le daemon lit le transcript en lecture seule avec les helpers du SDK (comme pi-web aujourd'hui), sans lancer de worker. Session chaude : <code>get_entries{since}</code> avec un curseur durable.</li>
         <li><code>session_events</code> ne stocke que ce que Pi n'a pas (runs, approbations, appels plateforme, erreurs). Les deltas de tokens ne sont jamais persistés, seulement diffusés.</li>
