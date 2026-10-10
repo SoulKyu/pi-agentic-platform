@@ -1,6 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { HTTPException } from "hono/http-exception";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../clock.ts";
 import { createLogger, silentLogger } from "../logger.ts";
@@ -37,6 +38,9 @@ const build = (staticRoot: string | null = null) =>
     logger: silentLogger,
     mount: (app) => {
       app.post("/auth/echo", (c) => c.json({ ok: true }));
+      app.get("/throw/:status", (c) => {
+        throw new HTTPException(Number(c.req.param("status")) as 400, { message: "secret detail" });
+      });
     },
     wsProbe: (c) => c.json({ protocol: 1 }),
   });
@@ -91,6 +95,41 @@ describe("http app", () => {
 
   it("serves a symlink that stays inside the root", async () => {
     expect(await (await build(web).request("/assets/alias.js")).text()).toBe("console.log('pap')");
+  });
+
+  it("never lets a path under a reserved prefix fall through to the SPA", async () => {
+    const app = build(web);
+    const reserved = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/ws"];
+    for (const prefix of reserved) {
+      for (const path of [prefix, `${prefix}/`, `${prefix}/nothing`, `${prefix}/a/b`]) {
+        for (const method of ["GET", "HEAD"]) {
+          const response = await app.request(path, { method });
+          expect(response.status, `${method} ${path}`).toBe(path === "/ws" ? 200 : 404);
+        }
+      }
+      expect(await (await app.request(`${prefix}/nothing`)).json()).toEqual({ error: { code: "not_found" } });
+    }
+    for (const path of ["/auth%2Fnothing", "/api%2fx", "/%61uth/nothing"]) {
+      expect((await app.request(path)).status, path).toBe(404);
+    }
+    const post = await app.request("/api/nothing", { method: "POST", headers: { origin: ORIGIN } });
+    expect([post.status, await post.json()]).toEqual([404, { error: { code: "not_found" } }]);
+    for (const path of ["/authors", "/api-docs", "/files-x", "/ws2"]) {
+      expect(await (await app.request(path)).text(), path).toContain("<title>pap</title>");
+    }
+  });
+
+  it("maps a 413 or 400 HTTPException to its fixed code instead of a 500", async () => {
+    const app = build();
+    const body = async (status: number) => {
+      const response = await app.request(`/throw/${status}`);
+      const text = await response.text();
+      expect(text).not.toContain("secret detail");
+      return [response.status, JSON.parse(text)];
+    };
+    expect(await body(413)).toEqual([413, { error: { code: "payload_too_large" } }]);
+    expect(await body(400)).toEqual([400, { error: { code: "bad_request" } }]);
+    expect(await body(418)).toEqual([500, { error: { code: "internal" } }]);
   });
 
   it("answers 404 with a fixed body when there is no static root", async () => {

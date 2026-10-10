@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import type { Logger } from "../logger.ts";
 import { originGuard } from "./origin.ts";
@@ -14,6 +15,21 @@ export interface HttpAppOptions {
 
 const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 
+// Routes and WebSocket live under these prefixes: a miss is a 404, never index.html, so a typo in an
+// API path cannot be masked by the SPA fallback (R78).
+const RESERVED_PREFIXES = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/ws"];
+function isReserved(path: string): boolean {
+  const forms = [path];
+  try {
+    forms.push(decodeURIComponent(path));
+  } catch {
+    // An undecodable path is refused by the static handler anyway.
+  }
+  return forms.some((form) =>
+    RESERVED_PREFIXES.some((prefix) => form === prefix || form.startsWith(`${prefix}/`)),
+  );
+}
+
 // Scheme and client address come from the socket only: no X-Forwarded-* / Forwarded header is read (R72).
 export function createHttpApp(options: HttpAppOptions): Hono {
   const app = new Hono();
@@ -26,6 +42,7 @@ export function createHttpApp(options: HttpAppOptions): Hono {
     const serve = createStaticHandler(options.staticRoot);
     app.get("*", (c) => {
       const path = c.req.path;
+      if (isReserved(path)) return notFound(c);
       const hit = serve(path === "/" ? "/index.html" : path);
       if (hit) return hit;
       if (!isSpaRoute(path)) return notFound(c);
@@ -34,6 +51,13 @@ export function createHttpApp(options: HttpAppOptions): Hono {
   }
   app.notFound(notFound);
   app.onError((error, c) => {
+    // Body limits and malformed bodies surface as HTTPException; they are the client's mistake, not a 500 (R77).
+    if (error instanceof HTTPException && error.status === 413) {
+      return c.json({ error: { code: "payload_too_large" } }, 413);
+    }
+    if (error instanceof HTTPException && error.status === 400) {
+      return c.json({ error: { code: "bad_request" } }, 400);
+    }
     options.logger.error("http_error", { err: error, path: c.req.path });
     return c.json({ error: { code: "internal" } }, 500);
   });
