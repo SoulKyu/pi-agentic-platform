@@ -1,0 +1,52 @@
+STEP 1/7: FROM node:24-bookworm-slim
+STEP 2/7: RUN apt-get update   && apt-get install -y --no-install-recommends bubblewrap tini   && rm -rf /var/lib/apt/lists/*
+--> Using cache 3f391e362d3a3f8221b2f30d04d8140bd147e534350800c8df7ede63b8563fda
+--> 3f391e362d3a
+STEP 3/7: RUN useradd --create-home --uid 10001 pap
+--> Using cache cfe3830b7ffd4d9e3b6eab07d6fb9f87f7b6401a76a16ab53303dacd55ebe100
+--> cfe3830b7ffd
+STEP 4/7: COPY --chown=pap:pap probe.sh /home/pap/probe.sh
+--> Using cache e360619ef8272703c1fd503a0a9e71126a36665a8b693bcc49dbdddbb170df9e
+--> e360619ef827
+STEP 5/7: USER pap
+--> Using cache de8834620eff09e96e2df0f713ef65d96b11896c2f451c9b38de10db6344b564
+--> de8834620eff
+STEP 6/7: WORKDIR /home/pap
+--> Using cache 3c57db536420c4cf2531d67bc6900cad20ffbddf3df3848e594bb2d75ede0b1a
+--> 3c57db536420
+STEP 7/7: ENTRYPOINT ["/usr/bin/tini", "--", "sh", "/home/pap/probe.sh"]
+--> Using cache dbf0b2a40e02857ce88fe4d1a3278dbd9403f319b8052fe4fd5440fc24792577
+COMMIT pap-s8
+--> dbf0b2a40e02
+Successfully tagged localhost/pap-s8:latest
+dbf0b2a40e02857ce88fe4d1a3278dbd9403f319b8052fe4fd5440fc24792577
+=== podman run 
+PASS minimal: ok
+FAIL unshare-pid: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+PASS unshare-net: ok
+FAIL pi-web-profile: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+=== podman run --security-opt seccomp=unconfined
+PASS minimal: ok
+FAIL unshare-pid: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+PASS unshare-net: ok
+FAIL pi-web-profile: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+=== podman run --security-opt apparmor=unconfined
+PASS minimal: ok
+FAIL unshare-pid: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+PASS unshare-net: ok
+FAIL pi-web-profile: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+=== podman run --security-opt seccomp=unconfined --security-opt apparmor=unconfined
+PASS minimal: ok
+FAIL unshare-pid: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+PASS unshare-net: ok
+FAIL pi-web-profile: bwrap: Can't mount proc on /newroot/proc: Operation not permitted
+=== podman run --cap-add SYS_ADMIN
+FAIL minimal: bwrap: Unexpected capabilities but not setuid, old file caps config?
+FAIL unshare-pid: bwrap: Unexpected capabilities but not setuid, old file caps config?
+FAIL unshare-net: bwrap: Unexpected capabilities but not setuid, old file caps config?
+FAIL pi-web-profile: bwrap: Unexpected capabilities but not setuid, old file caps config?
+=== podman run --security-opt systempaths=unconfined
+PASS minimal: ok
+PASS unshare-pid: ok
+PASS unshare-net: ok
+PASS pi-web-profile: ok
