@@ -1,7 +1,13 @@
 # pi-agentic-platform docs
 
 Self-hosted agentic platform built on the Pi harness. Successor of the pi-web fork.
-Status: design phase (specs not yet written). HTML pages open directly in a browser.
+Status: design phase (specs A, C, D written; DESIGN.md in progress). HTML pages open directly in a browser.
+
+## Specs (written, under review)
+- [specs/2026-10-10-A-product-scope.md](specs/2026-10-10-A-product-scope.md): product, audience, success criteria, v1 scope, defaults, non-goals, roadmap.
+- [specs/2026-10-10-C-architecture.md](specs/2026-10-10-C-architecture.md): consolidated architecture (sections 1–9) + spikes S1–S8.
+- [specs/2026-10-10-D-clean-start.md](specs/2026-10-10-D-clean-start.md): clean start, cutover, risks.
+- Spec B (DESIGN.md): in progress, visual rounds.
 
 ## Decisions
 - [research/decisions-log.md](research/decisions-log.md): every decision taken during brainstorming, numbered.

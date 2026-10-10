@@ -66,6 +66,8 @@ Both refs are TypeScript on Node 24 with React 19 + Tailwind 4 + SQLite (`node:s
 
 ## 3. Open decisions for the user
 
+**All resolved:** Q1 → decision 15 (approach A, own SDK worker); Q2 → decision 14 (auto-accept edits); Q3 → decision 12 (all four groups in v1); Q4 → decision 13 (confirmed). See [decisions-log.md](decisions-log.md).
+
 | Q | Question | Options |
 |---|---|---|
 | Q1 | Pi process model (§2.1) | RPC child (refs) / own SDK worker / hybrid. Decide in spec C after the approaches step. |
