@@ -1,0 +1,8 @@
+{
+  "modelId": "scripted",
+  "steps": [
+    { "stopReason": "error", "errorMessage": "429 Too Many Requests: usage limit reached; resets at 2026-10-11T00:00:00Z" },
+    { "stopReason": "error", "errorMessage": "429 Too Many Requests: usage limit reached; resets at 2026-10-11T00:00:00Z" },
+    { "stopReason": "error", "errorMessage": "429 Too Many Requests: usage limit reached; resets at 2026-10-11T00:00:00Z" }
+  ]
+}

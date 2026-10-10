@@ -1,2 +1,4 @@
 .superpowers/
 .worktrees/
+node_modules/
+spikes/**/dist-*/
