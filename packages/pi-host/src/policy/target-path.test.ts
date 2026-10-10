@@ -280,3 +280,90 @@ describe("checkEditTarget: what a review reports", () => {
     expect(await check(undefined)).toEqual({ auto: false, review: { why: "outside the session directory" } });
   });
 });
+
+describe("checkEditTarget: the review names the file Pi writes, not the literal spelling", () => {
+  const piAgentDir = () => join(home, ".pi", "agent");
+
+  it("shows the home directory's agent extensions for ~/.pi/agent/extensions/x.ts", async () => {
+    const result = await checkEditTarget("~/.pi/agent/extensions/x.ts", cwd, piAgentDir());
+    expect(result).toEqual({
+      auto: false,
+      review: { why: "protected path", target: join(home, ".pi", "agent", "extensions", "x.ts") },
+    });
+  });
+
+  it.each([
+    ["~/.git/hooks/pre-commit", ".git/hooks/pre-commit"],
+    ["~/.envrc", ".envrc"],
+    ["@~/.envrc", ".envrc"],
+    ["~/.vscode/tasks.json", ".vscode/tasks.json"],
+  ])("shows the home directory for %s", async (path, underHome) => {
+    expect(await reviewOf(path)).toEqual({ why: "protected path", target: join(home, underHome) });
+  });
+
+  it("shows the home directory for a file URL", async () => {
+    expect(await reviewOf(`file://${join(home, ".envrc")}`)).toEqual({
+      why: "protected path",
+      target: join(home, ".envrc"),
+    });
+  });
+
+  it("shows the home directory for an ordinary file reached through ~", async () => {
+    expect(await reviewOf("~/notes.txt")).toEqual({
+      why: "outside the session directory",
+      target: join(home, "notes.txt"),
+    });
+  });
+
+  it("shows the home directory, not a folder named ~, when the session directory is the home directory", async () => {
+    expect(await reviewOf("~/.bashrc", home)).toEqual({
+      why: "session directory too broad for automatic edits",
+      target: join(home, ".bashrc"),
+    });
+  });
+});
+
+describe("checkEditTarget: where the session directory itself sits", () => {
+  it.each([".git", ".pi", ".agents", ".husky", ".vscode", ".GIT"])(
+    "%s as the session directory asks for every edit",
+    async (name) => {
+      const inside = join(base, "repo", name);
+      await mkdir(inside, { recursive: true });
+      expect(await reviewOf("hooks/post-checkout", inside)).toEqual({
+        why: "protected path",
+        target: join(inside, "hooks", "post-checkout"),
+      });
+    },
+  );
+
+  it("asks for every edit when the session directory is below a protected folder", async () => {
+    const inside = join(base, "repo", ".git", "modules", "sub");
+    await mkdir(inside, { recursive: true });
+    expect((await reviewOf("config", inside))?.why).toBe("protected path");
+  });
+
+  it("asks for every edit when the session directory is reached through a symlink into a protected folder", async () => {
+    await mkdir(join(base, "repo", ".pi"), { recursive: true });
+    await symlink(join(base, "repo", ".pi"), join(base, "pi-link"), "dir");
+    expect((await reviewOf("settings.json", join(base, "pi-link")))?.why).toBe("protected path");
+  });
+});
+
+describe("checkEditTarget: the agent directory is compared as spelled as well as resolved", () => {
+  it("protects a path under the agent directory that a symlink moves into the session directory", async () => {
+    await mkdir(join(cwd, "dotfiles-ext"), { recursive: true });
+    await symlink(join(cwd, "dotfiles-ext"), join(agentDir, "extensions"), "dir");
+    expect(await reviewOf(join(agentDir, "extensions", "evil.ts"))).toEqual({
+      why: "protected path",
+      target: join(cwd, "dotfiles-ext", "evil.ts"),
+    });
+  });
+
+  it("protects a path under an agent directory that is itself spelled through a symlink", async () => {
+    await symlink(agentDir, join(base, "agent-link"), "dir");
+    expect((await checkEditTarget(join(agentDir, "models.json"), cwd, join(base, "agent-link"))).auto).toBe(
+      false,
+    );
+    expect((await checkEditTarget(join(base, "agent-link", "models.json"), cwd, agentDir)).auto).toBe(false);
+  });
+});

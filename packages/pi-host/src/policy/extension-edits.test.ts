@@ -128,6 +128,25 @@ describe("pap-policy protected paths", () => {
     ]);
   });
 
+  it("shows the file Pi writes for a ~ path, not a folder named ~ in the session directory", async () => {
+    const home = join(bed.base, "home");
+    const h = harness({ confirm: async () => false });
+    await h.run("write", { path: "~/.pi/agent/extensions/evil.ts", content: "x" });
+    await h.run("write", { path: "@~/.envrc", content: "x" });
+    expect(h.asked.map(secondLine)).toEqual([
+      `→ ${join(home, ".pi", "agent", "extensions", "evil.ts")} (protected path)`,
+      `→ ${join(home, ".envrc")} (protected path)`,
+    ]);
+  });
+
+  it("asks before an edit of a protected folder reached through the session directory's own location", async () => {
+    const inside = join(bed.base, "repo", ".git");
+    await mkdir(inside, { recursive: true });
+    const h = harness({ cwd: inside, confirm: async () => false });
+    await h.run("write", { path: "hooks/post-checkout", content: "x" });
+    expect(secondLine(h.asked[0])).toBe(`→ ${join(inside, "hooks", "post-checkout")} (protected path)`);
+  });
+
   it("asks before an edit in the agent directory", async () => {
     const h = harness({ confirm: async () => false });
     await h.run("write", { path: join(bed.agentDir, "settings.json"), content: "{}" });

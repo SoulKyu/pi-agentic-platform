@@ -222,6 +222,13 @@ describe("pap-policy hardening", () => {
     ]);
   });
 
+  it("shows every field of a shell-named tool that is not the built-in one", async () => {
+    const h = harness({ isBuiltinTool: () => false });
+    await h.run("bash", { command: "status", env: { TOKEN: "x" } });
+    const json = '{"command":"status","env":{"TOKEN":"x"}}';
+    expect(h.asked).toEqual([`Allow this tool?|${json.length} characters, 1 line\nbash: ${json}`]);
+  });
+
   it("only takes the built-ins it was told about for their category", async () => {
     const h = harness({ isBuiltinTool: (name) => name === "read" });
     expect(await h.run("read", { path: "a.ts" })).toBeUndefined();

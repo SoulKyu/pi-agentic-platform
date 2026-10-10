@@ -3,8 +3,13 @@ import { describeCall, MAX_REVIEW_BYTES } from "./describe-call.ts";
 
 const char = (code: number) => String.fromCodePoint(code);
 const escaped = (code: number) => `\\u{${code.toString(16).toUpperCase().padStart(4, "0")}}`;
-const messageOf = (toolName: string, input: unknown, review?: Parameters<typeof describeCall>[2]) => {
-  const description = describeCall(toolName, input, review);
+type View = Parameters<typeof describeCall>[2];
+// A shell tool is the one whose call is shown as its command alone; the caller decides that from the category.
+const viewOf = (toolName: string, view: Partial<View> = {}): View => ({ exec: toolName === "bash", ...view });
+const descriptionOf = (toolName: string, input: unknown, view?: Partial<View>) =>
+  describeCall(toolName, input, viewOf(toolName, view));
+const messageOf = (toolName: string, input: unknown, review?: View["review"], exec?: boolean) => {
+  const description = descriptionOf(toolName, input, { review, ...(exec === undefined ? {} : { exec }) });
   if (!description.reviewable) throw new Error("expected a reviewable description");
   return description.message;
 };
@@ -44,29 +49,62 @@ describe("describeCall: the complete payload under a header", () => {
     ]);
   });
 
-  it("accepts a payload of exactly 32 KiB and refuses one byte more without describing it", () => {
+  it("measures the cap on the final dialog text: a command that fills it exactly is shown, one byte more is not", () => {
     expect(MAX_REVIEW_BYTES).toBe(32 * 1024);
-    expect(describeCall("bash", { command: "x".repeat(MAX_REVIEW_BYTES) }).reviewable).toBe(true);
-    expect(describeCall("bash", { command: "x".repeat(MAX_REVIEW_BYTES + 1) })).toEqual({
-      reviewable: false,
-    });
-    expect(describeCall("bash", { command: "x".repeat(40 * 1024) })).toEqual({ reviewable: false });
+    let size = MAX_REVIEW_BYTES;
+    while (Buffer.byteLength(`${size} characters, 1 line\nbash: `) + size > MAX_REVIEW_BYTES) size -= 1;
+    const fits = descriptionOf("bash", { command: "x".repeat(size) });
+    expect(fits.reviewable && Buffer.byteLength(fits.message)).toBe(MAX_REVIEW_BYTES);
+    expect(descriptionOf("bash", { command: "x".repeat(size + 1) })).toEqual({ reviewable: false });
+    expect(descriptionOf("bash", { command: "x".repeat(40 * 1024) })).toEqual({ reviewable: false });
   });
 
   it("measures the cap in UTF-8 bytes, not characters", () => {
-    expect(describeCall("bash", { command: "é".repeat(MAX_REVIEW_BYTES / 2) }).reviewable).toBe(true);
-    expect(describeCall("bash", { command: "é".repeat(MAX_REVIEW_BYTES / 2 + 1) }).reviewable).toBe(false);
+    expect(descriptionOf("bash", { command: "é".repeat(MAX_REVIEW_BYTES / 2 - 100) }).reviewable).toBe(true);
+    expect(descriptionOf("bash", { command: "é".repeat(MAX_REVIEW_BYTES / 2) }).reviewable).toBe(false);
+  });
+
+  it("refuses a payload whose escaped text is over the cap, though the raw payload is not", () => {
+    const controls = String.fromCharCode(1).repeat(MAX_REVIEW_BYTES);
+    expect(Buffer.byteLength(controls)).toBe(MAX_REVIEW_BYTES);
+    expect(descriptionOf("bash", { command: controls })).toEqual({ reviewable: false });
+    expect(descriptionOf("bash", { command: String.fromCharCode(1).repeat(3000) }).reviewable).toBe(true);
+  });
+
+  it("counts the destination line in the cap", () => {
+    const review = { why: "protected path", target: `/p/${"d".repeat(MAX_REVIEW_BYTES)}` } as const;
+    expect(descriptionOf("write", { path: "a" }, { review })).toEqual({ reviewable: false });
+  });
+
+  it("shows a payload that is mostly blank in full, because the markers keep the dialog short", () => {
+    const description = descriptionOf("bash", { command: `a${" ".repeat(100_000)}b` });
+    expect(description.reviewable && description.message).toBe(
+      "100002 characters, 1 line\nbash: a⟨100000 spaces⟩b",
+    );
+  });
+
+  it("refuses a payload far beyond anything reviewable without scanning it", () => {
+    expect(descriptionOf("bash", { command: " ".repeat(2 * 1024 * 1024) })).toEqual({ reviewable: false });
   });
 
   it("refuses a very long JSON payload too", () => {
-    expect(describeCall("write", { path: "a", content: "y".repeat(50_000) }).reviewable).toBe(false);
+    expect(descriptionOf("write", { path: "a", content: "y".repeat(50_000) }).reviewable).toBe(false);
+  });
+
+  it("shows the whole input of a tool that is not a shell, whatever its name or fields", () => {
+    const input = { command: "status", env: { TOKEN: "x" } };
+    const json = JSON.stringify(input);
+    expect(messageOf("bash", input, undefined, false)).toBe(
+      `${json.length} characters, 1 line\nbash: ${json}`,
+    );
+    expect(messageOf("bash", input, undefined, true)).toBe("6 characters, 1 line\nbash: status");
   });
 
   it("throws when the input cannot be described, so the caller blocks", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
-    expect(() => describeCall("some_tool", circular)).toThrow();
-    expect(() => describeCall("some_tool", () => 1)).toThrow();
+    expect(() => descriptionOf("some_tool", circular)).toThrow();
+    expect(() => descriptionOf("some_tool", () => 1)).toThrow();
   });
 });
 
@@ -84,6 +122,12 @@ describe("describeCall: characters that could spoof the text", () => {
     ["a C1 control", 0x85],
     ["a private-use character", 0xe000],
     ["an unassigned code point", 0x0378],
+    ["a Hangul filler", 0x3164],
+    ["a halfwidth Hangul filler", 0xffa0],
+    ["a combining grapheme joiner", 0x034f],
+    ["a variation selector", 0xfe0f],
+    ["a variation selector supplement", 0xe0100],
+    ["a soft hyphen", 0x00ad],
   ])("shows %s as a visible escape and counts it", (_name, code) => {
     const command = `echo a${char(code)}b`;
     expect(messageOf("bash", { command })).toBe(

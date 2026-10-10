@@ -56,9 +56,10 @@ const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([".git", ".pi", ".agents
 const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([".envrc"]);
 
 // Files that run later, outside any approval: git hooks and config (core.fsmonitor), Pi settings
-// (shellCommandPrefix) and extensions, agent skills, hook managers, editor tasks, direnv.
-function hasProtectedName(relativePath: string): boolean {
-  const segments = relativePath
+// (shellCommandPrefix) and extensions, agent skills, hook managers, editor tasks, direnv. The segments of the
+// whole absolute path count, so a session directory that itself sits in one of these folders is covered too.
+function hasProtectedName(absolutePath: string): boolean {
+  const segments = absolutePath
     .split(sep)
     .filter(Boolean)
     .map((segment) => segment.normalize("NFC").toLowerCase());
@@ -76,10 +77,11 @@ export interface EditReview {
 export type EditCheck = { readonly auto: true } | { readonly auto: false; readonly review: EditReview };
 
 /**
- * Whether an edit may run without asking. It may when the file it would write, symlinks followed, is inside
- * `cwd`, is not a protected path, and `cwd` is not the home directory, a parent of it, or a parent of the
- * agent directory. Both the literal reading of the path and Pi's rewritten reading are judged. Anything that
- * is not a plain, non-empty path string asks. Otherwise the review says why, and where the write lands.
+ * Whether an edit may run without asking. It may when the file Pi would write, symlinks followed, is inside
+ * `cwd`, no part of its path or of `cwd` is a protected name, it is not under the agent directory, and `cwd`
+ * is not the home directory, a parent of it, or a parent of the agent directory. The path is judged as Pi
+ * rewrites it and as it was spelled. Anything that is not a plain, non-empty path string asks. Otherwise the
+ * review says why, and where the write lands: always the file Pi writes.
  */
 export async function checkEditTarget(path: unknown, cwd: string, agentDir: string): Promise<EditCheck> {
   if (typeof path !== "string" || path === "" || path.includes("\0")) {
@@ -88,24 +90,23 @@ export async function checkEditTarget(path: unknown, cwd: string, agentDir: stri
   const home = homedir();
   if (!home) throw new Error("the home directory is unknown");
   const root = await realpath(cwd);
-  const lexicalRoot = resolve(cwd);
-  const agent = await realTarget(resolve(agentDir));
-  const tooBroad = within(root, await realTarget(resolve(home))) || within(root, agent);
+  const agentSpelled = resolve(agentDir);
+  const agentReal = await realTarget(agentSpelled);
+  const tooBroad = within(root, await realTarget(resolve(home))) || within(root, agentReal);
+  const inAgentDir = (candidate: string) => [agentSpelled, agentReal].some((dir) => within(dir, candidate));
   let target: string | undefined;
-  let outside: string | undefined;
-  let protectedPath: string | undefined;
-  for (const spelling of new Set([path, asPiResolves(path)])) {
+  let outside = false;
+  let protectedPath = false;
+  for (const spelling of new Set([asPiResolves(path), path])) {
     const lexical = resolve(cwd, spelling);
     const real = await realTarget(lexical);
     target ??= real;
-    if (!within(root, real)) outside ??= real;
-    const namedProtected =
-      (within(root, real) && hasProtectedName(relative(root, real))) ||
-      (within(lexicalRoot, lexical) && hasProtectedName(relative(lexicalRoot, lexical)));
-    if (within(agent, real) || namedProtected) protectedPath ??= real;
+    outside ||= !within(root, real);
+    protectedPath ||=
+      inAgentDir(real) || inAgentDir(lexical) || hasProtectedName(real) || hasProtectedName(lexical);
   }
-  if (protectedPath) return { auto: false, review: { why: "protected path", target: protectedPath } };
-  if (outside) return { auto: false, review: { why: "outside the session directory", target: outside } };
+  if (protectedPath) return { auto: false, review: { why: "protected path", target } };
+  if (outside) return { auto: false, review: { why: "outside the session directory", target } };
   if (tooBroad) {
     return { auto: false, review: { why: "session directory too broad for automatic edits", target } };
   }

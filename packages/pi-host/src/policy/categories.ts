@@ -2,7 +2,7 @@ import type { ToolCategory } from "@pap/contracts";
 
 const READ = new Set(["read", "grep", "find", "ls"]);
 const EDIT = new Set(["edit", "write"]);
-export const EXEC_TOOLS: ReadonlySet<string> = new Set(["bash", "powershell"]);
+const EXEC_TOOLS: ReadonlySet<string> = new Set(["bash", "powershell"]);
 const NETWORK = new Set(["web_fetch", "web_search", "fetch"]);
 
 export function toolCategory(toolName: string): ToolCategory {

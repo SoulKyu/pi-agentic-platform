@@ -104,7 +104,7 @@ export async function evaluateToolCall(
       record("block", decision === "block" ? (review?.why ?? "category blocked") : "no UI to ask");
       return { block: true, reason: `pap-policy blocked this ${category} call.` };
     }
-    const description = describeCall(event.toolName, event.input, review);
+    const description = describeCall(event.toolName, event.input, { exec: category === "exec", review });
     if (!description.reviewable) {
       record("block", "too long to review");
       return { block: true, reason: TOO_LONG_REASON };

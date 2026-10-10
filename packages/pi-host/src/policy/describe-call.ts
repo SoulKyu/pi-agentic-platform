@@ -1,16 +1,18 @@
-import { EXEC_TOOLS } from "./categories.ts";
 import type { EditReview } from "./target-path.ts";
 
 export const MAX_REVIEW_BYTES = 32 * 1024;
+// Bounds the work: whitespace collapses, so a long raw payload can still fit, but not an endless one.
+const MAX_RAW_BYTES = 32 * MAX_REVIEW_BYTES;
 
 export type CallDescription =
   { readonly reviewable: true; readonly message: string } | { readonly reviewable: false };
 
 // Whitespace runs longer than 32 characters collapse into a marker; every other character the eye cannot
-// see (controls except \n and \t, format, separator, private-use, unassigned, lone surrogates) is spelled out.
+// see (controls except \n and \t, format, separator, private-use, unassigned, default-ignorable, lone
+// surrogates) is spelled out.
 const LONG_BLANK_RUN = /[\p{Zs}\t\n]{33,}/u;
 const HIDDEN_OR_BLANK_RUN = new RegExp(
-  `${LONG_BLANK_RUN.source}|[\\p{Cc}\\p{Cf}\\p{Cs}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}]`,
+  `${LONG_BLANK_RUN.source}|[\\p{Cc}\\p{Cf}\\p{Cs}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}]`,
   "gu",
 );
 
@@ -36,26 +38,33 @@ function showHidden(text: string, counter: { hidden: number }): string {
   });
 }
 
-function payloadOf(toolName: string, input: unknown): string {
+function payloadOf(input: unknown, exec: boolean): string {
   const command = (input as { command?: unknown } | null)?.command;
-  if (EXEC_TOOLS.has(toolName) && typeof command === "string") return command;
+  if (exec && typeof command === "string") return command;
   const json = JSON.stringify(input ?? {});
   if (json === undefined) throw new TypeError("the tool input cannot be described");
   return json;
 }
 
+export interface CallView {
+  /** The call is a shell command of a built-in shell tool: show the command alone, not the whole input. */
+  readonly exec: boolean;
+  readonly review?: EditReview | undefined;
+}
+
 /**
  * The text of an approval dialog: a header (size, lines, hidden characters), where a write lands, then the
- * complete call. A payload above the review cap is not described: the caller must not ask about it.
+ * complete call. When that text, escapes included, is above the review cap it is not produced: the caller
+ * must not ask about the call.
  */
-export function describeCall(toolName: string, input: unknown, review?: EditReview): CallDescription {
-  const payload = payloadOf(toolName, input);
-  if (Buffer.byteLength(payload, "utf8") > MAX_REVIEW_BYTES) return { reviewable: false };
+export function describeCall(toolName: string, input: unknown, view: CallView): CallDescription {
+  const payload = payloadOf(input, view.exec);
+  if (Buffer.byteLength(payload, "utf8") > MAX_RAW_BYTES) return { reviewable: false };
   const counter = { hidden: 0 };
   const call = `${showHidden(toolName, counter)}: ${showHidden(payload, counter)}`;
-  const destination = review
+  const destination = view.review
     ? [
-        `→ ${review.target === undefined ? "unknown location" : showHidden(review.target, counter)} (${review.why})`,
+        `→ ${view.review.target === undefined ? "unknown location" : showHidden(view.review.target, counter)} (${view.review.why})`,
       ]
     : [];
   const header = [
@@ -63,5 +72,8 @@ export function describeCall(toolName: string, input: unknown, review?: EditRevi
     plural(payload.split("\n").length, "line"),
     ...(counter.hidden ? [`${plural(counter.hidden, "hidden character")} shown escaped`] : []),
   ].join(", ");
-  return { reviewable: true, message: [header, ...destination, call].join("\n") };
+  const message = [header, ...destination, call].join("\n");
+  return Buffer.byteLength(message, "utf8") > MAX_REVIEW_BYTES
+    ? { reviewable: false }
+    : { reviewable: true, message };
 }
