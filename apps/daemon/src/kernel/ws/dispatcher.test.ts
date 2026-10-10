@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../clock.ts";
 import type { ReceiptStore } from "../db/receipts.ts";
 import { silentLogger, type LogFields, type Logger } from "../logger.ts";
+import { sha256Hex } from "../ids.ts";
 import { canonicalJson, createDispatcher } from "./dispatcher.ts";
 import { systemHandlers } from "./system-handlers.ts";
 
@@ -34,6 +35,7 @@ function setup(overrides: Partial<ReceiptStore> = {}) {
       stored.set(`${userId}:${commandId}`, { method, result });
     },
     purge: () => 0,
+    readOnly: false,
     ...overrides,
   };
   const errors: Array<{ msg: string; fields: LogFields | undefined }> = [];
@@ -261,18 +263,25 @@ describe("dispatcher failures (R6)", () => {
     expect(errors.map((entry) => entry.msg)).toEqual(["rpc_dispatch_failed"]);
   });
 
-  it("answers internal and logs when the receipt store throws on save", async () => {
-    const { dispatch, errors } = setup({
+  it("still returns the result when the receipt cannot be saved, and logs the code only", async () => {
+    const {
+      dispatch,
+      create: handler,
+      errors,
+    } = setup({
       save: () => {
-        throw new Error("disk full");
+        throw Object.assign(new Error("disk full: /home/u/.pap/state.db"), { code: "ERR_SQLITE_ERROR" });
       },
     });
     expect(await dispatch(create(1, "cmd-0000000c"), ctx())).toEqual({
       id: 1,
-      ok: false,
-      error: { code: "internal" },
+      ok: true,
+      result: { sessionId: "s-1" },
     });
-    expect(errors).toHaveLength(1);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(errors).toEqual([
+      { msg: "receipt_save_failed", fields: { method: "sessions.create", code: "ERR_SQLITE_ERROR" } },
+    ]);
   });
 
   it("answers internal and logs when a handler throws, without leaking its message", async () => {
@@ -295,6 +304,39 @@ describe("dispatcher failures (R6)", () => {
       id: 1,
       ok: false,
       error: { code: "internal" },
+    });
+    expect(handler).not.toHaveBeenCalled();
+  });
+});
+
+describe("dispatcher on a read-only store", () => {
+  it("refuses a mutation before running its handler, without logging a failure", async () => {
+    const { dispatch, create: handler, errors, stored } = setup({ readOnly: true });
+    expect(await dispatch(create(1, "cmd-0000000f"), ctx())).toEqual({
+      id: 1,
+      ok: false,
+      error: { code: "read_only" },
+    });
+    expect(handler).not.toHaveBeenCalled();
+    expect(stored.size).toBe(0);
+    expect(errors).toEqual([]);
+  });
+
+  it("still serves read methods and replays a receipt it already holds", async () => {
+    const { dispatch, create: handler, stored } = setup({ readOnly: true });
+    stored.set("u1:cmd-00000011", {
+      method: "sessions.create",
+      result: { paramsHash: sha256Hex(canonicalJson({ cwd: "/tmp" })), result: { sessionId: "old" } },
+    });
+    expect(await dispatch({ id: 2, method: "system.ping", params: {} }, ctx())).toEqual({
+      id: 2,
+      ok: true,
+      result: { now: 5 },
+    });
+    expect(await dispatch(create(3, "cmd-00000011"), ctx())).toEqual({
+      id: 3,
+      ok: true,
+      result: { sessionId: "old" },
     });
     expect(handler).not.toHaveBeenCalled();
   });

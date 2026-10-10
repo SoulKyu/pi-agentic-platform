@@ -81,6 +81,6 @@ export const methods = catalogue({
     idempotent: true,
     params: z.object({ sessionId: SessionId, after: Cursor.optional() }),
     result: z.object({ sub: z.string() }),
-    errors: ["not_found"],
+    errors: ["not_found", "capacity"],
   }),
 });

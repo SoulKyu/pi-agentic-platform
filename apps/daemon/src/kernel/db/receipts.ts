@@ -7,6 +7,8 @@ export interface ReceiptStore {
   save(userId: string, commandId: string, method: string, result: unknown): void;
   /** Deletes receipts older than the retention window (spec C 3.4) and returns how many went. */
   purge(): number;
+  /** True when the database was written by a newer version: saving a receipt, or any mutation, cannot succeed. */
+  readonly readOnly: boolean;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -15,6 +17,7 @@ const PURGE_INTERVAL_MS = DAY_MS;
 
 export function createReceiptStore(db: Db, clock: Clock): ReceiptStore {
   return {
+    readOnly: db.readOnly,
     find(userId, commandId) {
       const row = db.get<{ method: string; result: string }>(
         "SELECT method, result FROM receipts WHERE user_id = $userId AND command_id = $commandId",

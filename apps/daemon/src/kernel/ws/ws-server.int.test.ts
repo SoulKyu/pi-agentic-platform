@@ -1,5 +1,6 @@
 import {
   ALL_PERMISSIONS,
+  PapError,
   type Caller,
   type Cursor,
   type HandlerContext,
@@ -14,7 +15,13 @@ import { silentLogger, type Logger } from "../logger.ts";
 import { createDispatcher, type Dispatch } from "./dispatcher.ts";
 import { createStreamHub, type StreamHub } from "./stream-hub.ts";
 import { systemHandlers } from "./system-handlers.ts";
-import { CLOSE_GRACE_MS, createWsServer, KEEPALIVE_MS, type WsServer } from "./ws-server.ts";
+import {
+  CLOSE_GRACE_MS,
+  createWsServer,
+  KEEPALIVE_MS,
+  MAX_SUBSCRIPTIONS,
+  type WsServer,
+} from "./ws-server.ts";
 
 const ORIGIN = "http://localhost:7777";
 const EXPLODING_ID = 666;
@@ -37,10 +44,19 @@ beforeEach(async () => {
     error: (msg) => logs.push({ level: "error", msg }),
     child: () => logger,
   };
-  hub = createStreamHub("epoch-1");
-  hub.registerSnapshot("session", (key) => ({ kind: "snapshot", key }));
+  hub = createStreamHub("epoch-1", clock);
+  hub.registerSnapshot("session", (key) => {
+    if (key === "missing") throw new PapError("not_found");
+    if (key === "broken") throw new Error("unreadable transcript");
+    return { kind: "snapshot", key };
+  });
   const handlers = {
     ...systemHandlers(clock),
+    // Opens a subscription, then fails: the prepared subscription must not outlive the error response.
+    "sessions.list": async (_params: unknown, ctx: HandlerContext) => {
+      ctx.openSubscription("session", "k", undefined);
+      throw new PapError("not_found");
+    },
     "subscribe.session": async (
       { sessionId, after }: { sessionId: string; after?: Cursor },
       ctx: HandlerContext,
@@ -48,7 +64,7 @@ beforeEach(async () => {
   } as unknown as HandlerTable;
   const inner = createDispatcher({
     handlers,
-    receipts: { find: () => null, save: () => {}, purge: () => 0 },
+    receipts: { find: () => null, save: () => {}, purge: () => 0, readOnly: false },
     logger: silentLogger,
   });
   // A dispatcher that itself rejects: the socket layer must still answer and survive (R6).
@@ -243,6 +259,70 @@ describe("/ws subscriptions", () => {
       ok: true,
       result: { now: 1 },
     });
+    client.socket.close();
+  });
+
+  it("answers the error and registers nothing when the snapshot cannot be built", async () => {
+    const client = await greeted();
+    const subscribe = (id: number, sessionId: string) =>
+      client.call({ id, method: "subscribe.session", params: { sessionId } });
+    expect(await subscribe(11, "missing")).toEqual({ id: 11, ok: false, error: { code: "not_found" } });
+    expect(await subscribe(12, "broken")).toEqual({ id: 12, ok: false, error: { code: "internal" } });
+    for (let n = 0; n < MAX_SUBSCRIPTIONS; n++) await subscribe(100 + n, "missing");
+    hub.publish("session", "missing", { n: 1 });
+    hub.publish("session", "broken", { n: 1 });
+    expect(await client.call({ id: 13, method: "system.ping", params: {} })).toEqual({
+      id: 13,
+      ok: true,
+      result: { now: 1 },
+    });
+    expect(hub.stats().subscriptions).toBe(0);
+    expect(await subscribe(14, "k")).toEqual({ id: 14, ok: true, result: { sub: "s1" } });
+    client.socket.close();
+  });
+
+  it("drops a subscription opened by a handler that then fails", async () => {
+    const client = await greeted();
+    expect(await client.call({ id: 15, method: "sessions.list", params: {} })).toEqual({
+      id: 15,
+      ok: false,
+      error: { code: "not_found" },
+    });
+    expect(hub.stats().subscriptions).toBe(0);
+    hub.publish("session", "k", { n: 1 });
+    expect(await client.call({ id: 16, method: "system.ping", params: {} })).toEqual({
+      id: 16,
+      ok: true,
+      result: { now: 1 },
+    });
+    client.socket.close();
+  });
+
+  it("allows 64 subscriptions per connection, then answers capacity until one is closed", async () => {
+    const client = await greeted();
+    for (let n = 1; n <= MAX_SUBSCRIPTIONS; n++) {
+      const params = { sessionId: `k${n}` };
+      expect(await client.call({ id: n, method: "subscribe.session", params })).toEqual({
+        id: n,
+        ok: true,
+        result: { sub: `s${n}` },
+      });
+      await client.next();
+    }
+    const extra = { method: "subscribe.session", params: { sessionId: "extra" } };
+    expect(await client.call({ id: 200, ...extra })).toEqual({
+      id: 200,
+      ok: false,
+      error: { code: "capacity" },
+    });
+    expect(hub.stats().subscriptions).toBe(MAX_SUBSCRIPTIONS);
+    await client.call({ id: 201, method: "unsubscribe", params: { sub: "s1" } });
+    expect(await client.call({ id: 202, ...extra })).toEqual({
+      id: 202,
+      ok: true,
+      result: { sub: `s${MAX_SUBSCRIPTIONS + 1}` },
+    });
+    await client.next();
     client.socket.close();
   });
 

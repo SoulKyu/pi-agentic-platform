@@ -47,6 +47,12 @@ export function canonicalJson(value: unknown): string {
   return JSON.stringify(value) ?? "null";
 }
 
+function errorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  if (typeof code === "string") return code;
+  return error instanceof Error ? error.name : "unknown";
+}
+
 function readReceipt(stored: unknown): ReceiptBody {
   const body = stored as Partial<ReceiptBody> | null;
   if (typeof body !== "object" || body === null || typeof body.paramsHash !== "string") {
@@ -71,20 +77,29 @@ export function createDispatcher(options: {
     ctx: HandlerContext,
     receipt: { commandId: string; paramsHash: string } | null,
   ): Promise<ResponseFrame> {
+    let result: unknown;
     try {
       const handler = handlers[def.name];
       if (!handler) return fail(id, "unknown_method");
-      const result = def.result.parse(await handler(params, ctx)) as unknown;
-      if (receipt) {
-        const body: ReceiptBody = { paramsHash: receipt.paramsHash, result };
-        options.receipts.save(ctx.caller.userId, receipt.commandId, def.name, body);
-      }
-      return ok(id, result);
+      result = def.result.parse(await handler(params, ctx)) as unknown;
     } catch (error) {
       if (error instanceof PapError) return fail(id, error.code);
       if (isReadOnlyError(error)) return fail(id, "read_only");
       options.logger.error("rpc_handler_failed", { method: def.name, err: error });
       return fail(id, "internal");
+    }
+    if (receipt)
+      remember(ctx.caller.userId, receipt.commandId, def.name, { paramsHash: receipt.paramsHash, result });
+    return ok(id, result);
+  }
+
+  // The effect has already happened: failing the response now would make the client retry the same
+  // commandId and run it again. So a failed save is logged (code only) and the result still goes out.
+  function remember(userId: string, commandId: string, method: string, body: ReceiptBody): void {
+    try {
+      options.receipts.save(userId, commandId, method, body);
+    } catch (error) {
+      options.logger.error("receipt_save_failed", { method, code: errorCode(error) });
     }
   }
 
@@ -103,6 +118,8 @@ export function createDispatcher(options: {
       const sameRequest = stored.method === frame.method && receipt.paramsHash === paramsHash;
       return sameRequest ? ok(frame.id, receipt.result) : fail(frame.id, "bad_request");
     }
+    // A mutation could not be recorded: refuse it before its handler gets to produce a side effect.
+    if (options.receipts.readOnly) return fail(frame.id, "read_only");
     const key = JSON.stringify([userId, commandId]);
     const running = inflight.get(key);
     if (running) {

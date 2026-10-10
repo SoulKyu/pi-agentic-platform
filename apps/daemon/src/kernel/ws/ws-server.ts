@@ -4,6 +4,7 @@ import type { Duplex } from "node:stream";
 import {
   CAPABILITIES,
   MAX_FRAME_BYTES,
+  PapError,
   PROTOCOL_VERSION,
   RequestFrame,
   type Caller,
@@ -15,13 +16,15 @@ import type { Clock, TimerHandle } from "../clock.ts";
 import { originAllowed } from "../http/origin.ts";
 import type { Logger } from "../logger.ts";
 import type { Dispatch } from "./dispatcher.ts";
-import type { StreamHub } from "./stream-hub.ts";
+import type { PreparedOpen, StreamHub } from "./stream-hub.ts";
 
 /** Server ping interval and the silence window after which a peer counts as dead (spec C 4.2). */
 export const KEEPALIVE_MS = 15_000;
 /** How long a closing server waits for a peer to answer the 1001 close before it cuts the socket. */
 export const CLOSE_GRACE_MS = 1_000;
 export const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
+/** Open subscriptions one connection may hold; the next one is answered `capacity`. */
+export const MAX_SUBSCRIPTIONS = 64;
 
 export interface WsServerOptions {
   readonly allowedOrigins: ReadonlySet<string>;
@@ -142,40 +145,51 @@ export function createWsServer(options: WsServerOptions): WsServer {
       }
     };
 
+    // Subscriptions of this connection, committed or still waiting for their response to go out.
+    const subs = new Set<string>();
+    const release = (sub: string): void => {
+      subs.delete(sub);
+      options.hub.close(connectionId, sub);
+    };
+
     const onText = async (text: string): Promise<void> => {
       let requestId: number | null = null;
       let answered = false;
+      let committed = false;
+      const prepared: Array<{ readonly sub: string; readonly open: PreparedOpen }> = [];
       try {
         const frame = decode(text, sendSafe);
         if (!frame) return;
         requestId = frame.id;
-        const afterResponse: Array<() => void> = [];
         const response = await options.dispatch(frame, {
           caller,
           connectionId,
+          // The replay or snapshot is built here, inside the handler, so a failure becomes this
+          // request's error response. Nothing reaches the client before the response does.
           openSubscription(stream: StreamName, key: string, after: Cursor | undefined) {
-            const sub = `s${++nextSub}`;
-            afterResponse.push(() => {
-              try {
-                options.hub.open({ connectionId, sub, stream, key, after, send: sendSafe });
-              } catch (error) {
-                options.logger.error("subscription_failed", { connectionId, stream, err: error });
-              }
-            });
+            if (subs.size >= MAX_SUBSCRIPTIONS) throw new PapError("capacity");
+            const sub = `s${nextSub + 1}`;
+            const open = options.hub.prepare({ connectionId, sub, stream, key, after, send: sendSafe });
+            nextSub++;
+            subs.add(sub);
+            prepared.push({ sub, open });
             return sub;
           },
-          closeSubscription(sub: string) {
-            options.hub.close(connectionId, sub);
-          },
+          closeSubscription: release,
         });
         send(response);
         answered = true;
         // The client learns its `sub` from the response, so the snapshot must come after it.
-        if (response.ok && ws.readyState === ws.OPEN) for (const open of afterResponse) open();
+        if (response.ok && ws.readyState === ws.OPEN) {
+          committed = true;
+          for (const { open } of prepared) open.commit();
+        }
       } catch (error) {
         options.logger.error("ws_message_failed", { connectionId, err: error });
         if (requestId !== null && !answered)
           sendSafe({ id: requestId, ok: false, error: { code: "internal" } });
+      } finally {
+        if (!committed) for (const { sub } of prepared) release(sub);
       }
     };
 

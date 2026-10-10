@@ -125,6 +125,8 @@ describe("receipt purge", () => {
     await clock.advance(30 * DAY);
     const reader = openDatabase(join(dir, "s.db"), { readOnly: true });
     expect(createReceiptStore(reader, clock).purge()).toBe(0);
+    expect(createReceiptStore(reader, clock).readOnly).toBe(true);
+    expect(createReceiptStore(db, clock).readOnly).toBe(false);
     expect(createReceiptStore(db, clock).find("u1", "cmd-00000001")).not.toBeNull();
     reader.close();
   });
