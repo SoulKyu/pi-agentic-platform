@@ -46,6 +46,12 @@ export default defineConfig(
       "@eslint-community/eslint-comments/require-description": "error",
       "@eslint-community/eslint-comments/no-unlimited-disable": "error",
       "@eslint-community/eslint-comments/no-restricted-disable": ["error", "max-lines", "boundaries/*"],
+      "@eslint-community/eslint-comments/no-use": [
+        "error",
+        {
+          allow: ["eslint-disable", "eslint-disable-next-line", "eslint-disable-line", "eslint-enable"],
+        },
+      ],
     },
   },
   {

@@ -76,6 +76,20 @@ describe("repository gates", () => {
     );
   });
 
+  it("rejects a reasoned eslint-disable of a boundaries rule", async () => {
+    const code = "/* eslint-disable boundaries/element-types -- x */\nexport const a = 1;\n";
+    const [result] = await eslint.lintText(code, { filePath: "apps/daemon/src/modules/a/service.ts" });
+    expect(result?.messages.map((m) => m.ruleId)).toContain(
+      "@eslint-community/eslint-comments/no-restricted-disable",
+    );
+  });
+
+  it("rejects an inline config comment that turns max-lines off", async () => {
+    const code = `/* eslint max-lines: "off" -- legacy parser */\n${linesOf(400)}`;
+    const [result] = await eslint.lintText(code, { filePath: "packages/contracts/src/inline-off.ts" });
+    expect(result?.messages.map((m) => m.ruleId)).toContain("@eslint-community/eslint-comments/no-use");
+  });
+
   it("flags raw colours in UI source but not in its tests", async () => {
     const code = 'export const c = "#A78BFA";\n';
     const [source] = await eslint.lintText(code, { filePath: "packages/ui/src/Button.tsx" });
