@@ -1,9 +1,19 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../clock.ts";
-import { silentLogger } from "../logger.ts";
+import { sha256Hex } from "../ids.ts";
+import { silentLogger, type Logger } from "../logger.ts";
 import { openDatabase } from "./database.ts";
 import { ensureInstallTimestamp } from "./meta.ts";
 import { KERNEL_MIGRATIONS, migrate, MigrationError, type MigrationSource } from "./migrate.ts";
@@ -40,7 +50,7 @@ describe("migrate", () => {
       "b/202601010002_two.sql",
       "a/202601010003_three.sql",
     ]);
-    expect(result.snapshotDir).toBeNull();
+    expect(result.snapshotPath).toBeNull();
     result.db.close();
   });
 
@@ -51,8 +61,8 @@ describe("migrate", () => {
     again.db.close();
     const later = migrate(options([source("a", { ...A1, ...A9 })]));
     expect(later.applied).toEqual(["a/202601010009_add.sql"]);
-    expect(later.snapshotDir).not.toBeNull();
-    expect(existsSync(join(later.snapshotDir ?? "", "state.db"))).toBe(true);
+    expect(later.snapshotPath).toMatch(/pre-migrate-.+\.db$/);
+    expect(existsSync(later.snapshotPath ?? "")).toBe(true);
     later.db.close();
   });
 
@@ -62,7 +72,7 @@ describe("migrate", () => {
     first.db.close();
     const later = migrate(options([source("a", { ...A1, ...A9 })]));
     later.db.close();
-    const copy = openDatabase(join(later.snapshotDir ?? "", "state.db"), { readOnly: true });
+    const copy = openDatabase(later.snapshotPath ?? "", { readOnly: true });
     expect(copy.all<{ id: number }>("SELECT id FROM a1")).toEqual([{ id: 7 }]);
     expect(copy.all<{ name: string }>("SELECT name FROM pragma_table_info('a1')").map((c) => c.name)).toEqual(
       ["id"],
@@ -82,6 +92,108 @@ describe("migrate", () => {
     const retried = migrate(options([later]));
     expect(retried.applied).toEqual(["a/202601010009_add.sql"]);
     retried.db.close();
+  });
+
+  it("snapshots a live WAL database consistently, rows not yet checkpointed included", () => {
+    const dbPath = join(root, "state.db");
+    const writer = migrate(options([source("a", A1)]));
+    writer.db.run("INSERT INTO a1 (id) VALUES (1)");
+    writer.db.run("INSERT INTO a1 (id) VALUES (2)");
+    const reader = openDatabase(dbPath);
+    reader.exec("BEGIN");
+    reader.get("SELECT count(*) AS c FROM a1");
+    writer.db.run("INSERT INTO a1 (id) VALUES (3)");
+    expect(statSync(`${dbPath}-wal`).size).toBeGreaterThan(0);
+    const later = migrate(options([source("a", { ...A1, ...A9 })]));
+    const copy = openDatabase(later.snapshotPath ?? "", { readOnly: true });
+    expect(copy.all("SELECT id FROM a1 ORDER BY id")).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
+    expect(copy.all<{ name: string }>("SELECT name FROM pragma_table_info('a1')").map((c) => c.name)).toEqual(
+      ["id"],
+    );
+    copy.close();
+    reader.exec("ROLLBACK");
+    reader.close();
+    writer.db.close();
+    later.db.close();
+  });
+
+  it("writes one private file into backups and nothing else", () => {
+    migrate(options([source("a", A1)])).db.close();
+    const later = migrate(options([source("a", { ...A1, ...A9 })]));
+    later.db.close();
+    expect(readdirSync(join(root, "backups"))).toEqual([basename(later.snapshotPath ?? "")]);
+    expect(statSync(later.snapshotPath ?? "").mode & 0o777).toBe(0o600);
+  });
+
+  it("removes the temporary snapshot when it cannot be completed", () => {
+    migrate(options([source("a", A1)])).db.close();
+    const stamp = new Date(1_700_000_000_000).toISOString().replace(/[:.]/g, "-");
+    const target = join(root, "backups", `pre-migrate-${stamp}.db`);
+    mkdirSync(join(target, "occupied"), { recursive: true });
+    expect(() => migrate(options([source("a", { ...A1, ...A9 })]))).toThrow(MigrationError);
+    expect(readdirSync(join(root, "backups"))).toEqual([basename(target)]);
+  });
+
+  it("refuses a migration file edited after it was applied", () => {
+    const a = source("a", A1);
+    migrate(options([a])).db.close();
+    writeFileSync(join(a.dir, "202601010001_one.sql"), "CREATE TABLE a1 (id INTEGER, marker_secret TEXT);");
+    const attempt = () => migrate(options([a]));
+    expect(attempt).toThrow(MigrationError);
+    expect(attempt).toThrow("migration file changed after it was applied: a/202601010001_one.sql");
+    expect(attempt).not.toThrow(/marker_secret/);
+  });
+
+  it("refuses a pending migration that sorts before an applied one", () => {
+    const a = source("a", { ...A1, ...A9 });
+    migrate(options([a])).db.close();
+    writeFileSync(join(a.dir, "202601010005_mid.sql"), "ALTER TABLE a1 ADD COLUMN mid TEXT;");
+    expect(() => migrate(options([a]))).toThrow(
+      "migration a/202601010005_mid.sql sorts before an applied migration",
+    );
+    rmSync(join(a.dir, "202601010005_mid.sql"));
+    const reopened = migrate(options([a]));
+    expect(reopened.applied).toEqual([]);
+    reopened.db.close();
+  });
+
+  it("refuses a pending migration that ties on stamp but sorts before an applied module", () => {
+    const b = source("b", { "202601010009_b.sql": "CREATE TABLE b9 (id INTEGER PRIMARY KEY) STRICT;" });
+    migrate(options([b])).db.close();
+    const a = source("a", { "202601010009_a.sql": "CREATE TABLE a9 (id INTEGER PRIMARY KEY) STRICT;" });
+    expect(() => migrate(options([b, a]))).toThrow(MigrationError);
+  });
+
+  it("orders migrations with the same stamp by module name and applies both", () => {
+    const b = source("b", { "202601010009_b.sql": "CREATE TABLE b9 (id INTEGER PRIMARY KEY) STRICT;" });
+    const a = source("a", { "202601010009_a.sql": "CREATE TABLE a9 (id INTEGER PRIMARY KEY) STRICT;" });
+    const result = migrate(options([b, a]));
+    expect(result.applied).toEqual(["a/202601010009_a.sql", "b/202601010009_b.sql"]);
+    result.db.close();
+  });
+
+  it("skips a migration another process applied while this one was starting", () => {
+    const a = source("a", A1);
+    migrate(options([a])).db.close();
+    const [file, sql] = Object.entries(A9)[0] ?? ["", ""];
+    writeFileSync(join(a.dir, file), sql);
+    const racing: Logger = {
+      ...silentLogger,
+      info: (msg) => {
+        if (msg !== "pre_migration_snapshot") return;
+        const other = openDatabase(join(root, "state.db"));
+        other.exec(sql);
+        other.run("INSERT INTO schema_migrations (id, checksum, applied_at) VALUES ($id, $sum, 1)", {
+          id: `a/${file}`,
+          sum: sha256Hex(sql),
+        });
+        other.close();
+      },
+    };
+    const result = migrate({ ...options([a]), logger: racing });
+    expect(result.applied).toEqual([]);
+    expect(result.db.all("SELECT id FROM schema_migrations")).toHaveLength(2);
+    result.db.close();
   });
 
   it("rolls back a failing migration and refuses to continue", () => {
@@ -108,7 +220,7 @@ describe("migrate", () => {
     migrate(options([source("a", A1), source("b", B2)])).db.close();
     const older = migrate(options([source("a", A1)]));
     expect(older.readOnly).toBe(true);
-    expect(older.snapshotDir).toBeNull();
+    expect(older.snapshotPath).toBeNull();
     expect(() => older.db.run("INSERT INTO a1 (id) VALUES (1)")).toThrow();
     older.db.close();
   });
