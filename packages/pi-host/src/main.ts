@@ -1,0 +1,10 @@
+import { runHost } from "./host.ts";
+import { createIpc } from "./ipc.ts";
+import { applyOomScore, startParentWatchdog } from "./watchdog.ts";
+
+applyOomScore(800);
+startParentWatchdog({ initialPpid: process.ppid, onOrphan: () => process.exit(1) });
+runHost(createIpc(process)).catch((error: unknown) => {
+  process.stderr.write(`pi-host: ${error instanceof Error ? error.message : String(error)}\n`);
+  process.exit(70);
+});

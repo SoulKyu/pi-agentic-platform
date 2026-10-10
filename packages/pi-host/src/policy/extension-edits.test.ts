@@ -153,6 +153,15 @@ describe("pap-policy protected paths", () => {
     expect(secondLine(h.asked[0])).toBe(`→ ${join(bed.agentDir, "settings.json")} (protected path)`);
   });
 
+  it("asks before an edit in pap's data directory and audits why", async () => {
+    const h = harness({ confirm: async () => false });
+    await h.run("write", { path: join(bed.papHome, "state.db"), content: "x" });
+    expect(secondLine(h.asked[0])).toBe(`→ ${join(bed.papHome, "state.db")} (protected path)`);
+    expect(h.audits).toEqual([
+      { toolCallId: "c1", tool: "write", category: "edit", decision: "denied", reason: "protected path" },
+    ]);
+  });
+
   it("asks before every edit when the session directory is the user's home", async () => {
     const home = join(bed.base, "home");
     const h = harness({ cwd: home, confirm: async () => false });

@@ -16,13 +16,14 @@ export interface HarnessOptions {
   isBuiltinTool?: (name: string) => boolean;
 }
 
-/** Temporary directories for a policy test: `cwd` is the session directory, `outside` and `agentDir` are not. */
+/** Temporary directories for a policy test: `cwd` is the session directory, `outside`, `agentDir` and `papHome` are not. */
 export async function createPolicyBed() {
   const base = await realpath(await mkdtemp(join(tmpdir(), "pap-policy-")));
   const cwd = join(base, "proj");
   const outside = join(base, "outside");
   const agentDir = join(base, "agent");
-  for (const dir of [join(cwd, "src"), outside, agentDir]) await mkdir(dir, { recursive: true });
+  const papHome = join(base, "pap");
+  for (const dir of [join(cwd, "src"), outside, agentDir, papHome]) await mkdir(dir, { recursive: true });
 
   function harness(options: HarnessOptions = {}) {
     const audits: AuditEntry[] = [];
@@ -45,11 +46,20 @@ export async function createPolicyBed() {
           rules: options.rules ?? (() => interactiveRules),
           audit: options.audit ?? ((entry) => audits.push(entry)),
           agentDir,
+          papHome,
           isBuiltinTool: options.isBuiltinTool ?? (() => true),
         },
       );
     return { audits, asked, run };
   }
 
-  return { base, cwd, outside, agentDir, harness, dispose: () => rm(base, { recursive: true, force: true }) };
+  return {
+    base,
+    cwd,
+    outside,
+    agentDir,
+    papHome,
+    harness,
+    dispose: () => rm(base, { recursive: true, force: true }),
+  };
 }

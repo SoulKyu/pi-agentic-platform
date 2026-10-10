@@ -3,10 +3,9 @@
   "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": { "entry": ["scripts/*.ts", "e2e/**/*.ts", "eslint/*.js"] },
-    // zod and @earendil-works/pi-ai are used from Task 20 (the worker); the brief adds them with the SDK in Task 19.
     "packages/pi-host": {
-      "entry": ["src/main.ts", "src/testing/*.ts"],
-      "ignoreDependencies": ["zod", "@earendil-works/pi-ai"]
+      "entry": ["src/testing/*.ts"],
+      "ignoreBinaries": ["pgrep", "rg", "fd"]
     },
     "apps/daemon": { "ignoreBinaries": ["openssl"] }
   }

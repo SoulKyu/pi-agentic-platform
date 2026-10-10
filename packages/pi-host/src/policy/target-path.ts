@@ -78,22 +78,31 @@ export type EditCheck = { readonly auto: true } | { readonly auto: false; readon
 
 /**
  * Whether an edit may run without asking. It may when the file Pi would write, symlinks followed, is inside
- * `cwd`, no part of its path or of `cwd` is a protected name, it is not under the agent directory, and `cwd`
- * is not the home directory, a parent of it, or a parent of the agent directory. The path is judged as Pi
- * rewrites it and as it was spelled. Anything that is not a plain, non-empty path string asks. Otherwise the
- * review says why, and where the write lands: always the file Pi writes.
+ * `cwd`, no part of its path or of `cwd` is a protected name, it is not under a protected root (the Pi agent
+ * directory and pap's data directory), and `cwd` is not the home directory, a parent of it, or a parent of a
+ * protected root. The path is judged as Pi rewrites it and as it was spelled. Anything that is not a plain,
+ * non-empty path string asks. Otherwise the review says why, and where the write lands: always the file Pi
+ * writes.
  */
-export async function checkEditTarget(path: unknown, cwd: string, agentDir: string): Promise<EditCheck> {
+export async function checkEditTarget(
+  path: unknown,
+  cwd: string,
+  protectedRoots: readonly string[],
+): Promise<EditCheck> {
   if (typeof path !== "string" || path === "" || path.includes("\0")) {
     return { auto: false, review: { why: "outside the session directory" } };
   }
   const home = homedir();
   if (!home) throw new Error("the home directory is unknown");
   const root = await realpath(cwd);
-  const agentSpelled = resolve(agentDir);
-  const agentReal = await realTarget(agentSpelled);
-  const tooBroad = within(root, await realTarget(resolve(home))) || within(root, agentReal);
-  const inAgentDir = (candidate: string) => [agentSpelled, agentReal].some((dir) => within(dir, candidate));
+  // Each root is compared as spelled and as resolved, so a symlink on either side cannot hide it.
+  const roots = await Promise.all(
+    protectedRoots.map(async (spelled) => [resolve(spelled), await realTarget(resolve(spelled))] as const),
+  );
+  const tooBroad =
+    within(root, await realTarget(resolve(home))) || roots.some(([, real]) => within(root, real));
+  const inProtectedRoot = (candidate: string) =>
+    roots.some((variants) => variants.some((dir) => within(dir, candidate)));
   let target: string | undefined;
   let outside = false;
   let protectedPath = false;
@@ -103,7 +112,10 @@ export async function checkEditTarget(path: unknown, cwd: string, agentDir: stri
     target ??= real;
     outside ||= !within(root, real);
     protectedPath ||=
-      inAgentDir(real) || inAgentDir(lexical) || hasProtectedName(real) || hasProtectedName(lexical);
+      inProtectedRoot(real) ||
+      inProtectedRoot(lexical) ||
+      hasProtectedName(real) ||
+      hasProtectedName(lexical);
   }
   if (protectedPath) return { auto: false, review: { why: "protected path", target } };
   if (outside) return { auto: false, review: { why: "outside the session directory", target } };

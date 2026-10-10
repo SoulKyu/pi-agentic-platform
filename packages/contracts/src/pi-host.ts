@@ -19,10 +19,19 @@ export const AuditEntry = z.object({
 export type AuditEntry = z.infer<typeof AuditEntry>;
 
 // daemon → worker
+// pap targets Linux, so an absolute path starts with "/". A relative path would be resolved against the
+// worker's own working directory, and the policy would then protect the wrong place.
+const AbsolutePath = z
+  .string()
+  .max(4096)
+  .refine((path) => path.startsWith("/") && !path.includes("\0"), "must be an absolute path");
+
 export const InitRecord = z.object({
   type: z.literal("init"),
-  cwd: z.string(),
-  agentDir: z.string(),
+  cwd: AbsolutePath,
+  agentDir: AbsolutePath,
+  /** The pap data directory ($PAP_HOME): the policy protects it like the Pi agent directory. */
+  papHome: AbsolutePath,
   sessionFile: z.string().optional(),
   policy: z.unknown(),
   testProviderScript: z.string().optional(),
@@ -104,15 +113,8 @@ const PapRecord = z.discriminatedUnion("type", [
   ExtensionErrorRecord,
 ]);
 const PiEventRecord = z.looseObject({ type: z.string() });
-const PAP_TYPES = new Set([
-  "ready",
-  "response",
-  "extension_ui_request",
-  "extension_ui_closed",
-  "audit",
-  "health",
-  "extension_error",
-]);
+// Derived, so a record added to PapRecord can never be forwarded as a Pi event by mistake.
+const PAP_TYPES: ReadonlySet<string> = new Set(PapRecord.options.map((option) => option.shape.type.value));
 
 export type WorkerRecord =
   z.infer<typeof PapRecord> | { type: "pi_event"; event: z.infer<typeof PiEventRecord> };

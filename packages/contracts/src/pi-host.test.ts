@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AuditEntry, DaemonToWorker, TOOL_CATEGORIES, parseWorkerRecord } from "./index.ts";
+import { AuditEntry, DaemonToWorker, InitRecord, TOOL_CATEGORIES, parseWorkerRecord } from "./index.ts";
 
 describe("worker records", () => {
   it("parses pap records strictly", () => {
@@ -35,6 +35,44 @@ describe("worker records", () => {
   it("rejects unknown daemon-to-worker records", () => {
     expect(DaemonToWorker.safeParse({ type: "rm_rf" }).success).toBe(false);
     expect(DaemonToWorker.safeParse({ type: "get_state", id: "r1" }).success).toBe(true);
+  });
+});
+
+describe("worker record routing", () => {
+  const PAP_RECORD_TYPES = [
+    "ready",
+    "response",
+    "extension_ui_request",
+    "extension_ui_closed",
+    "audit",
+    "health",
+    "extension_error",
+  ];
+
+  it.each(PAP_RECORD_TYPES)("never forwards a malformed %s as a Pi event", (type) => {
+    expect(parseWorkerRecord({ type })).toBeNull();
+  });
+});
+
+describe("InitRecord", () => {
+  const init = { type: "init", cwd: "/work", agentDir: "/agent", papHome: "/pap", policy: {} };
+
+  it("requires the pap data directory", () => {
+    expect(InitRecord.safeParse(init).success).toBe(true);
+    expect(InitRecord.safeParse({ ...init, papHome: undefined }).success).toBe(false);
+    expect(DaemonToWorker.safeParse({ ...init, papHome: undefined }).success).toBe(false);
+  });
+
+  it.each(["", "pap", "./pap", "~/.pap", "../pap", "/pap\0x"])(
+    "rejects %j as a pap data directory",
+    (papHome) => {
+      expect(InitRecord.safeParse({ ...init, papHome }).success).toBe(false);
+    },
+  );
+
+  it("holds every path the policy judges to the same rule", () => {
+    expect(InitRecord.safeParse({ ...init, cwd: "work" }).success).toBe(false);
+    expect(InitRecord.safeParse({ ...init, agentDir: "agent" }).success).toBe(false);
   });
 });
 

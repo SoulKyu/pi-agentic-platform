@@ -34,6 +34,8 @@ export interface PolicyConfig {
   audit(entry: AuditEntry): void;
   /** The Pi agent directory of the session: settings, extensions and credentials live there. */
   agentDir: string;
+  /** pap's data directory: the database, secrets and agent homes live there. */
+  papHome: string;
 }
 
 export interface PolicyDeps extends PolicyConfig {
@@ -61,14 +63,14 @@ async function decideCall(
   category: ToolCategory,
   rules: PolicyRules,
   ctx: PolicyContext,
-  agentDir: string,
+  protectedRoots: readonly string[],
 ): Promise<{ decision: Decision; review?: EditReview }> {
   if (category !== "edit") return { decision: decide(category, rules) };
   const target =
     typeof event.input === "object" && event.input !== null
       ? (event.input as { path?: unknown }).path
       : undefined;
-  const check = await checkEditTarget(target, ctx.cwd, agentDir);
+  const check = await checkEditTarget(target, ctx.cwd, protectedRoots);
   return check.auto
     ? { decision: decideEdit(rules, true) }
     : { decision: decideEdit(rules, false), review: check.review };
@@ -95,7 +97,7 @@ export async function evaluateToolCall(
       record("block", "no valid policy rules");
       return { block: true, reason: FAIL_CLOSED_REASON };
     }
-    const { decision, review } = await decideCall(event, category, rules, ctx, deps.agentDir);
+    const { decision, review } = await decideCall(event, category, rules, ctx, [deps.agentDir, deps.papHome]);
     if (decision === "allow") {
       record("allow");
       return undefined;

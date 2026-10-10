@@ -201,7 +201,13 @@ describe("pap-policy hardening", () => {
     const answer = evaluateToolCall(
       { toolCallId: "c1", toolName: "bash", input: { command: "ls" } },
       { hasUI: true, cwd, signal: controller.signal, ui: bridge.context },
-      { rules: () => rules, audit: (e) => audits.push(e), agentDir: bed.agentDir, isBuiltinTool: () => true },
+      {
+        rules: () => rules,
+        audit: (e) => audits.push(e),
+        agentDir: bed.agentDir,
+        papHome: bed.papHome,
+        isBuiltinTool: () => true,
+      },
     );
     await vi.waitFor(() => expect(bridge.pendingCount()).toBe(1));
     controller.abort();
@@ -255,6 +261,7 @@ describe("createPapPolicyExtension", () => {
       rules: () => rules,
       audit: (entry) => audits.push(entry),
       agentDir: bed.agentDir,
+      papHome: bed.papHome,
     });
     const handlers = new Map<
       string,
@@ -323,6 +330,7 @@ describe("createPapPolicyExtension", () => {
       rules: () => rules,
       audit: (entry) => audits.push(entry),
       agentDir: bed.agentDir,
+      papHome: bed.papHome,
     });
     let handler: ((event: unknown, ctx: unknown) => Promise<ToolCallEventResult | undefined>) | undefined;
     await extension.factory({

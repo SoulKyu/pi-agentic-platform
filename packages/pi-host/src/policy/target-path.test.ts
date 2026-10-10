@@ -8,9 +8,10 @@ let base: string;
 let cwd: string;
 let outside: string;
 let agentDir: string;
+let papHome: string;
 let home: string;
 
-const check = (path: unknown, from = cwd) => checkEditTarget(path, from, agentDir);
+const check = (path: unknown, from = cwd) => checkEditTarget(path, from, [agentDir, papHome]);
 const isAuto = async (path: unknown, from = cwd) => (await check(path, from)).auto;
 const reviewOf = async (path: unknown, from = cwd) => {
   const result = await check(path, from);
@@ -22,6 +23,7 @@ beforeEach(async () => {
   cwd = join(base, "proj");
   outside = join(base, "outside");
   agentDir = join(base, "agent");
+  papHome = join(base, "pap");
   home = join(base, "home");
   vi.stubEnv("HOME", home);
   await mkdir(join(cwd, "src"), { recursive: true });
@@ -29,6 +31,7 @@ beforeEach(async () => {
   await mkdir(join(base, "proj-evil"), { recursive: true });
   await mkdir(outside, { recursive: true });
   await mkdir(agentDir, { recursive: true });
+  await mkdir(papHome, { recursive: true });
   await mkdir(home, { recursive: true });
   await writeFile(join(cwd, "src", "a.ts"), "x");
   await writeFile(join(outside, "secret.txt"), "x");
@@ -215,7 +218,7 @@ describe("checkEditTarget: protected paths ask even inside the session directory
   it("protects everything inside the agent directory, wherever it sits", async () => {
     const inside = join(cwd, "state");
     expect((await check("state/auth.json", cwd)).auto).toBe(true);
-    const review = (await checkEditTarget("state/auth.json", cwd, inside)) as {
+    const review = (await checkEditTarget("state/auth.json", cwd, [inside, papHome])) as {
       auto: false;
       review: unknown;
     };
@@ -228,7 +231,7 @@ describe("checkEditTarget: protected paths ask even inside the session directory
 
   it("protects the agent directory even when it does not exist yet", async () => {
     const missing = join(cwd, "not", "yet");
-    expect((await checkEditTarget("not/yet/models.json", cwd, missing)).auto).toBe(false);
+    expect((await checkEditTarget("not/yet/models.json", cwd, [missing, papHome])).auto).toBe(false);
   });
 });
 
@@ -242,7 +245,7 @@ describe("checkEditTarget: a session directory that is too broad gets no automat
 
   it("asks for everything when the session directory contains the agent directory", async () => {
     expect((await reviewOf("proj/src/a.ts", base))?.why).toBe(tooBroad);
-    expect((await checkEditTarget("x.ts", agentDir, agentDir)).auto).toBe(false);
+    expect((await checkEditTarget("x.ts", agentDir, [agentDir, papHome])).auto).toBe(false);
   });
 
   it("asks for everything when the session directory is the filesystem root", async () => {
@@ -250,7 +253,9 @@ describe("checkEditTarget: a session directory that is too broad gets no automat
   });
 
   it("still calls the home directory's agent files protected", async () => {
-    expect(await checkEditTarget(".pi/agent/settings.json", home, join(home, ".pi", "agent"))).toEqual({
+    expect(
+      await checkEditTarget(".pi/agent/settings.json", home, [join(home, ".pi", "agent"), papHome]),
+    ).toEqual({
       auto: false,
       review: { why: "protected path", target: join(home, ".pi", "agent", "settings.json") },
     });
@@ -285,7 +290,7 @@ describe("checkEditTarget: the review names the file Pi writes, not the literal 
   const piAgentDir = () => join(home, ".pi", "agent");
 
   it("shows the home directory's agent extensions for ~/.pi/agent/extensions/x.ts", async () => {
-    const result = await checkEditTarget("~/.pi/agent/extensions/x.ts", cwd, piAgentDir());
+    const result = await checkEditTarget("~/.pi/agent/extensions/x.ts", cwd, [piAgentDir(), papHome]);
     expect(result).toEqual({
       auto: false,
       review: { why: "protected path", target: join(home, ".pi", "agent", "extensions", "x.ts") },
@@ -361,9 +366,11 @@ describe("checkEditTarget: the agent directory is compared as spelled as well as
 
   it("protects a path under an agent directory that is itself spelled through a symlink", async () => {
     await symlink(agentDir, join(base, "agent-link"), "dir");
-    expect((await checkEditTarget(join(agentDir, "models.json"), cwd, join(base, "agent-link"))).auto).toBe(
-      false,
-    );
-    expect((await checkEditTarget(join(base, "agent-link", "models.json"), cwd, agentDir)).auto).toBe(false);
+    expect(
+      (await checkEditTarget(join(agentDir, "models.json"), cwd, [join(base, "agent-link"), papHome])).auto,
+    ).toBe(false);
+    expect(
+      (await checkEditTarget(join(base, "agent-link", "models.json"), cwd, [agentDir, papHome])).auto,
+    ).toBe(false);
   });
 });
