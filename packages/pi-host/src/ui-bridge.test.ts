@@ -74,16 +74,52 @@ describe("extension UI bridge", () => {
     expect(bridge.pendingCount()).toBe(0);
   });
 
-  it("forwards decorations and ignores component widgets and custom panels", async () => {
+  it("forwards decorations, renders component widgets and opens custom panels", async () => {
     const { bridge, sent } = setup();
     bridge.context.notify("hello", "warning");
     bridge.context.setStatus("ext", "busy");
     bridge.context.setWidget("w", ["line"]);
-    bridge.context.setWidget("w2", (() => ({ render: () => [], invalidate: () => {} })) as never);
-    expect(sent.map((r) => (r as { method?: string }).method)).toEqual(["notify", "setStatus", "setWidget"]);
-    expect(
-      await bridge.context.custom(() => ({ render: () => [], invalidate: () => {} }) as never),
-    ).toBeUndefined();
+    bridge.context.setWidget("w2", (() => ({
+      render: () => ["from a component"],
+      invalidate: () => {},
+    })) as never);
+    expect(sent.map((r) => (r as { method?: string }).method)).toEqual([
+      "notify",
+      "setStatus",
+      "setWidget",
+      "setWidget",
+    ]);
+    expect(sent[3]).toMatchObject({ widgetKey: "w2", widgetLines: ["from a component"] });
+    bridge.cancelAll();
+  });
+
+  it("opens a panel for custom() and closes it on cancelAll", async () => {
+    const { bridge, sent } = setup();
+    const result = bridge.context.custom(() => ({ render: () => ["panel"], invalidate: () => {} }) as never);
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(sent).toEqual([{ type: "custom_render", id: "u1", lines: ["panel"] }]);
+    bridge.panelInput("u1", "k");
+    bridge.cancelAll();
+    expect(await result).toBeUndefined();
+    expect(sent.at(-1)).toEqual({ type: "custom_close", id: "u1" });
+  });
+
+  it("clears a component widget when the key is set to lines or undefined", () => {
+    const { bridge, sent } = setup();
+    let disposed = 0;
+    bridge.context.setWidget("w", (() => ({ render: () => ["a"], dispose: () => disposed++ })) as never);
+    bridge.context.setWidget("w", ["plain"]);
+    expect(disposed).toBe(1);
+    expect(sent.at(-1)).toMatchObject({ widgetKey: "w", widgetLines: ["plain"] });
+  });
+
+  it("gives extensions the ANSI theme and bounds string-array widgets", () => {
+    const { bridge, sent } = setup();
+    expect(bridge.context.theme.fg("error", "x")).toBe("\u001b[31mx\u001b[39m");
+    bridge.context.setWidget("w", ["a\u001b]0;t\u0007b", ...Array.from({ length: 80 }, () => "l")]);
+    const lines = (sent[0] as unknown as { widgetLines: string[] }).widgetLines;
+    expect(lines).toHaveLength(50);
+    expect(lines[0]).toBe("ab");
   });
 
   it("uses the field names of Pi's RPC extension UI protocol", () => {

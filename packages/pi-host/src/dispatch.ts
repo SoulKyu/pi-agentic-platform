@@ -92,18 +92,16 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         });
         return;
       }
-      // Reachable only until Task 15 writes the last cases; then this becomes `const unhandled: never = record`.
+      case "custom_input":
+        ui.panelInput(record.id, record.data);
+        return;
+      case "custom_cancel":
+        ui.panelCancel(record.id);
+        return;
       default: {
-        const unknown = record as { type: string; id?: unknown };
-        if (typeof unknown.id === "string") {
-          send({
-            type: "response",
-            id: unknown.id,
-            command: unknown.type.slice(0, 64),
-            success: false,
-            error: "unsupported command",
-          });
-        }
+        // Compile-time guard (M2R81): a command added to the contract without a case here fails the build.
+        const unhandled: never = record;
+        return void unhandled;
       }
     }
   };
