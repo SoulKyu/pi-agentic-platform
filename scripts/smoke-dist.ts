@@ -342,6 +342,7 @@ async function main(): Promise<void> {
     PI_OFFLINE: "1",
     PI_TELEMETRY: "0",
     PAP_TEST_PROVIDER_SCRIPT: script,
+    PAP_TEST_WORKER_IMPORT: NETWORK_GUARD,
   };
   const daemon = startDaemon(env, port);
   try {

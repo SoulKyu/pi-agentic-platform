@@ -73,18 +73,56 @@ describe("loadConfig", () => {
     expect(config.allowedOrigins.has("https://pap.example.ts.net")).toBe(true);
   });
 
-  it("forwards the development condition and --import= preloads to the workers, and nothing else", () => {
+  it("forwards the development condition to the workers and no --import, whatever the daemon was given (R130)", () => {
+    // A worker runs in the session's project: a relative or bare specifier would load that project's code first.
     expect(
       workerExecArgv([
         "--disable-warning=ExperimentalWarning",
         "--conditions=development",
-        "--import=/guards/network-guard.ts",
-        "--max-old-space-size=64",
+        "--import=./x.mjs",
+        "--import=pkg/register",
+        "--import=/abs/guard.ts",
         "--import",
         "/not/forwarded.ts",
+        "--max-old-space-size=64",
       ]),
-    ).toEqual(["--conditions=development", "--import=/guards/network-guard.ts"]);
+    ).toEqual(["--conditions=development"]);
     expect(workerExecArgv([])).toEqual([]);
+  });
+
+  describe("PAP_TEST_WORKER_IMPORT (R130)", () => {
+    const withScript = { PAP_TEST_PROVIDER_SCRIPT: "/s.json" };
+
+    it("adds an absolute preload to the workers' node flags, after the daemon's own", () => {
+      const config = loadConfig({
+        ...base,
+        piHostExecArgv: ["--conditions=development"],
+        env: { ...withScript, PAP_TEST_WORKER_IMPORT: "/guards/network-guard.ts" },
+      });
+      expect(config.piHostExecArgv).toEqual([
+        "--conditions=development",
+        "--import=/guards/network-guard.ts",
+      ]);
+    });
+
+    it("refuses a relative or bare specifier, with or without the scripted provider", () => {
+      for (const value of ["./x.mjs", "x.mjs", "pkg/register", "file:///guard.ts", ""]) {
+        for (const env of [{}, withScript]) {
+          expect(() => loadConfig({ ...base, env: { ...env, PAP_TEST_WORKER_IMPORT: value } })).toThrow(
+            "PAP_TEST_WORKER_IMPORT must be an absolute path",
+          );
+        }
+      }
+    });
+
+    it("is ignored unless PAP_TEST_PROVIDER_SCRIPT is set too", () => {
+      const config = loadConfig({
+        ...base,
+        piHostExecArgv: ["--conditions=development"],
+        env: { PAP_TEST_WORKER_IMPORT: "/guards/network-guard.ts" },
+      });
+      expect(config.piHostExecArgv).toEqual(["--conditions=development"]);
+    });
   });
 
   it("clamps the default worker cap between 2 and 16", () => {
@@ -171,6 +209,7 @@ describe("loadConfig", () => {
       { env: { PAP_PUBLIC_ORIGIN: `https://owner:${secret}@` } },
       { env: { PAP_PUBLIC_ORIGIN: secret } },
       { env: { PAP_TEST_PROVIDER_SCRIPT: secret } },
+      { env: { PAP_TEST_WORKER_IMPORT: secret } },
       { env: { PAP_MAX_WORKERS: secret } },
       { env: { PAP_MIN_FREE_MEM_MB: secret } },
       { env: { PAP_LOG_LEVEL: secret } },

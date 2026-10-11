@@ -53,12 +53,12 @@ const isLoopback = (host: string) => host === "127.0.0.1" || host === "localhost
 const isWildcard = (host: string) => host === "0.0.0.0" || host === "::";
 
 /**
- * The node flags that shape how modules load carry over from the daemon to every worker it forks: the development
- * condition (`--conditions=development`, so a worker finds the TypeScript sources too) and preloads written as
- * `--import=<file>` (instrumentation, the test network guard). Nothing else is forwarded.
+ * The node flags a worker inherits from the daemon: the development condition (`--conditions=development`, so a
+ * worker finds the TypeScript sources too) and nothing else. In particular no `--import`: a worker starts in the
+ * session's project, where a relative or bare specifier would load the project's own code before the policy runs.
  */
 export function workerExecArgv(execArgv: readonly string[]): string[] {
-  return execArgv.filter((arg) => arg.startsWith("--conditions") || arg.startsWith("--import="));
+  return execArgv.filter((arg) => arg.startsWith("--conditions"));
 }
 
 export function defaultMaxWorkers(totalMemMb: number, budgetMb = WORKER_BUDGET_MB): number {
@@ -93,6 +93,9 @@ export function loadConfig(input: ConfigInput): Config {
   const script = input.env.PAP_TEST_PROVIDER_SCRIPT;
   if (script !== undefined && !isAbsolute(script))
     throw new ConfigError("PAP_TEST_PROVIDER_SCRIPT must be an absolute path");
+  const workerImport = input.env.PAP_TEST_WORKER_IMPORT;
+  if (workerImport !== undefined && !isAbsolute(workerImport))
+    throw new ConfigError("PAP_TEST_WORKER_IMPORT must be an absolute path");
   return {
     home: directoryFrom(
       input.env.PAP_HOME,
@@ -113,7 +116,12 @@ export function loadConfig(input: ConfigInput): Config {
       join(input.homedir, ".pi", "agent"),
     ),
     piHostEntry: input.piHostEntry,
-    piHostExecArgv: input.piHostExecArgv,
+    // Test-only, like the scripted provider it rides with: a preload (the network guard) for every worker. Absolute,
+    // because a worker's cwd is the session's project.
+    piHostExecArgv:
+      workerImport !== undefined && script !== undefined
+        ? [...input.piHostExecArgv, `--import=${workerImport}`]
+        : input.piHostExecArgv,
     testProviderScript: script ?? null,
     maxWorkers: input.env.PAP_MAX_WORKERS
       ? parseCount(input.env.PAP_MAX_WORKERS, "PAP_MAX_WORKERS", 1)
