@@ -23,7 +23,7 @@ describe("probeServer", () => {
     expect(await probeServer()).toBe(expected);
     expect(fetchMock).toHaveBeenCalledWith(
       "/ws?proto=1",
-      expect.objectContaining({ credentials: "same-origin" }),
+      expect.objectContaining({ credentials: "same-origin", cache: "no-store" }),
     );
   });
 
@@ -60,6 +60,22 @@ describe("getJson and postJson", () => {
       body: { error: { code: "rate_limited" } },
       retryAfterSeconds: 12,
     });
+  });
+
+  it("read retry-after as seconds or as an HTTP date, and ignore anything else", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(respond(429, "{}", { "retry-after": "7" }))
+        .mockResolvedValueOnce(respond(503, "{}", { "retry-after": "Sat, 10 Oct 2026 12:00:30 GMT" }))
+        .mockResolvedValueOnce(respond(503, "{}", { "retry-after": "Sat, 10 Oct 2026 11:00:00 GMT" }))
+        .mockResolvedValueOnce(respond(503, "{}", { "retry-after": "soon" })),
+    );
+    const seconds = async () => (await getJson("/api/x")).retryAfterSeconds;
+    expect([await seconds(), await seconds(), await seconds(), await seconds()]).toEqual([7, 30, 0, null]);
   });
 
   it("give a null body for an empty or unreadable response", async () => {

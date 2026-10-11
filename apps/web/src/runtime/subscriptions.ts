@@ -1,16 +1,38 @@
 import { EventFrame, type Cursor, type StreamName } from "@pap/contracts";
 import type { Connection, Timers } from "./connection.ts";
-import type { RpcClient } from "./rpc.ts";
+import { RpcError, type RpcClient, type RpcErrorCode } from "./rpc.ts";
 
 const CURSOR_CACHE_MS = 5 * 60_000;
+// The most a server replays is 128 events and a snapshot; this is far above that.
+const EARLY_FRAMES_MAX = 256;
 
 export interface Subscriptions {
-  subscribe(stream: StreamName, key: string, onEvent: (event: unknown) => void): () => void;
+  /**
+   * Listens to one key of a stream. Every listener of a key shares one server stream, so a listener that
+   * joins late gets the live events only, never the snapshot the first one got: keep what the events
+   * build (the session's messages, status) outside the listener, in a store keyed by `key`, and run one
+   * feed per key. The cursor outlives the last listener by 5 minutes, so a quick return resumes from it.
+   *
+   * `onError` hears why the server refused the subscription (`not_found`, `capacity`, `forbidden`,
+   * `internal`, ...). It is not called for `connection_lost` or `offline`: the next connection
+   * subscribes again by itself. A throwing listener or `onError` does not stop the others.
+   */
+  subscribe(
+    stream: StreamName,
+    key: string,
+    onEvent: (event: unknown) => void,
+    onError?: (code: RpcErrorCode) => void,
+  ): () => void;
+}
+
+interface Listener {
+  readonly onEvent: (event: unknown) => void;
+  readonly onError: ((code: RpcErrorCode) => void) | undefined;
 }
 
 interface Entry {
   readonly key: string;
-  readonly listeners: Set<(event: unknown) => void>;
+  readonly listeners: Set<Listener>;
   cursor: Cursor | null;
   sub: string | null;
   /** True from the moment a subscribe request leaves until its reply, or its failure, is handled. */
@@ -18,6 +40,15 @@ interface Entry {
   /** Bumped by every request and every connection loss: an answer from an older one is stale (R11). */
   generation: number;
   expiry: number | null;
+}
+
+// A listener belongs to the UI: whatever it throws is reported, not allowed to cut the others short.
+function isolated(call: () => void): void {
+  try {
+    call();
+  } catch (error) {
+    console.error("subscription listener failed", error);
+  }
 }
 
 export function createSubscriptions(connection: Connection, rpc: RpcClient, timers: Timers): Subscriptions {
@@ -31,7 +62,7 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
   const opening = () => [...entries.values()].some((entry) => entry.opening);
   const deliver = (entry: Entry, frame: EventFrame) => {
     entry.cursor = { epoch: frame.epoch, seq: frame.seq };
-    for (const listener of [...entry.listeners]) listener(frame.event);
+    for (const listener of [...entry.listeners]) isolated(() => listener.onEvent(frame.event));
   };
 
   /** Takes the early frames of `sub` (none for `null`), and drops the rest once no request is waiting. */
@@ -43,6 +74,16 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
 
   const release = (sub: string) => {
     void rpc.call("unsubscribe", { sub }).catch(() => undefined);
+  };
+
+  const fail = (entry: Entry, error: unknown) => {
+    const code: RpcErrorCode = error instanceof RpcError ? error.code : "internal";
+    // The next connection retries these on its own; the listener has nothing to show for them.
+    if (code === "connection_lost" || code === "offline") return;
+    for (const listener of [...entry.listeners]) {
+      const { onError } = listener;
+      if (onError) isolated(() => onError(code));
+    }
   };
 
   const open = (entry: Entry) => {
@@ -61,10 +102,11 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
           bySub.set(sub, entry);
           for (const frame of arrived) deliver(entry, frame);
         },
-        () => {
+        (error: unknown) => {
           if (entry.generation !== generation) return;
           entry.opening = false;
           claim(null);
+          fail(entry, error);
         },
       );
   };
@@ -74,7 +116,7 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
     if (!parsed.success) return;
     const entry = bySub.get(parsed.data.sub);
     if (entry) deliver(entry, parsed.data);
-    else if (opening()) early.push(parsed.data);
+    else if (opening() && early.length < EARLY_FRAMES_MAX) early.push(parsed.data);
   });
   connection.onState((state) => {
     if (state === "open") {
@@ -92,7 +134,7 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
   });
 
   return {
-    subscribe(_stream, key, onEvent) {
+    subscribe(_stream, key, onEvent, onError) {
       let entry = entries.get(key);
       if (!entry) {
         entry = {
@@ -109,15 +151,16 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
       const current = entry;
       if (current.expiry !== null) timers.clear(current.expiry);
       current.expiry = null;
-      const first = current.listeners.size === 0;
-      current.listeners.add(onEvent);
-      // A request still in flight from a listener that just left is reused: it answers to this one.
-      if (first && !current.opening && connection.state === "open") open(current);
+      const listener: Listener = { onEvent, onError };
+      current.listeners.add(listener);
+      // A request still in flight from a listener that just left is reused: it answers to this one. A
+      // key whose last request failed is tried again by whoever joins next.
+      if (current.sub === null && !current.opening && connection.state === "open") open(current);
       let listening = true;
       return () => {
         if (!listening) return;
         listening = false;
-        current.listeners.delete(onEvent);
+        current.listeners.delete(listener);
         if (current.listeners.size > 0) return;
         if (current.sub !== null) {
           bySub.delete(current.sub);

@@ -2,6 +2,7 @@ import {
   MAX_FRAME_BYTES,
   methods,
   ResponseFrame,
+  type ErrorCode,
   type MethodName,
   type ParamsOf,
   type ResultOf,
@@ -11,6 +12,28 @@ import type { Connection, Timers } from "./connection.ts";
 const PING_EVERY_MS = 5_000;
 const encoder = new TextEncoder();
 
+/** What fails before an answer exists: `offline` (nothing was sent), `connection_lost`, `payload_too_large`. */
+export type ClientErrorCode = "offline" | "connection_lost" | "payload_too_large";
+export type RpcErrorCode = ErrorCode | ClientErrorCode;
+
+type Answer =
+  { readonly id: number; readonly result: unknown } | { readonly id: number; readonly code: string };
+
+// A daemon upgraded without a protocol bump may send a code this build has no name for. The call must
+// still settle (R123), so anything with an id and `ok: false` is an error, and the code passes through.
+function answerOf(frame: unknown): Answer | null {
+  const parsed = ResponseFrame.safeParse(frame);
+  if (parsed.success) {
+    return parsed.data.ok
+      ? { id: parsed.data.id, result: parsed.data.result }
+      : { id: parsed.data.id, code: parsed.data.error.code };
+  }
+  const raw = frame as { id?: unknown; ok?: unknown; error?: { code?: unknown } | null } | null;
+  if (typeof raw?.id !== "number" || raw.ok !== false) return null;
+  const code = raw.error?.code;
+  return { id: raw.id, code: typeof code === "string" ? code : "internal" };
+}
+
 /**
  * A failed call. `code` is a server error code or one of the client's own: `offline` (nothing was
  * sent), `connection_lost` (sent, no answer) and `payload_too_large` (refused before sending). On a
@@ -18,9 +41,9 @@ const encoder = new TextEncoder();
  * never sent again by this client, and the caller reads the state before it tries again.
  */
 export class RpcError extends Error {
-  readonly code: string;
+  readonly code: RpcErrorCode;
 
-  constructor(code: string) {
+  constructor(code: RpcErrorCode) {
     super(code);
     this.name = "RpcError";
     this.code = code;
@@ -71,13 +94,12 @@ export function createRpcClient(
 
   if (connection.state === "open") schedulePing();
   connection.onFrame((frame) => {
-    const parsed = ResponseFrame.safeParse(frame);
-    if (!parsed.success) return;
-    const entry = pending.get(parsed.data.id);
-    if (!entry) return;
-    pending.delete(parsed.data.id);
-    if (parsed.data.ok) entry.resolve(parsed.data.result);
-    else entry.reject(new RpcError(parsed.data.error.code));
+    const answer = answerOf(frame);
+    const entry = answer ? pending.get(answer.id) : undefined;
+    if (!answer || !entry) return;
+    pending.delete(answer.id);
+    if ("code" in answer) entry.reject(new RpcError(answer.code as RpcErrorCode));
+    else entry.resolve(answer.result);
   });
   connection.onState((state) => {
     if (state === "open") {

@@ -1,55 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
-import type { ConnectionState } from "./connection.ts";
-import { RpcError, type RpcClient } from "./rpc.ts";
-import { createSubscriptions } from "./subscriptions.ts";
-import { fakeConnection } from "./testing.ts";
-
-interface Deferred {
-  resolve(value: unknown): void;
-  reject(error: unknown): void;
-}
-
-function setup(options: { manual?: boolean; state?: ConnectionState } = {}) {
-  const fake = fakeConnection(options.state ?? "open");
-  const calls: Array<[string, unknown]> = [];
-  const replies: Deferred[] = [];
-  const rpc = {
-    call: vi.fn((method: string, params: unknown) => {
-      calls.push([method, params]);
-      if (!options.manual) {
-        return Promise.resolve(method === "subscribe.session" ? { sub: `s${calls.length}` } : { ok: true });
-      }
-      return new Promise((resolve, reject) => {
-        replies[calls.length - 1] = { resolve, reject };
-      });
-    }),
-  } as unknown as RpcClient;
-  const pending = new Map<number, () => void>();
-  let next = 1;
-  const timers = {
-    set: (fn: () => void) => {
-      pending.set(next, fn);
-      return next++;
-    },
-    clear: (id: number) => {
-      pending.delete(id);
-    },
-  };
-  const subscriptions = createSubscriptions(fake.connection, rpc, timers);
-  return {
-    fake,
-    calls,
-    replies,
-    subscriptions,
-    expire: () => {
-      for (const [id, fn] of [...pending]) {
-        pending.delete(id);
-        fn();
-      }
-    },
-  };
-}
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+import { describe, expect, it } from "vitest";
+import { RpcError } from "./rpc.ts";
+import { flush, subscriptionBed as setup } from "./testing.ts";
 
 describe("subscriptions", () => {
   it("subscribes while open and delivers events of its sub", async () => {
@@ -251,6 +202,17 @@ describe("subscriptions", () => {
       expect(events).toEqual([]);
     });
 
+    it("are capped at 256: a reply that never comes cannot grow the buffer without bound", async () => {
+      const { fake, replies, subscriptions } = setup({ manual: true });
+      const events: unknown[] = [];
+      subscriptions.subscribe("session", "k", (event) => events.push(event));
+      for (let seq = 0; seq < 300; seq++) fake.deliver({ sub: "s1", epoch: "e1", seq, event: seq });
+      replies[0]?.resolve({ sub: "s1" });
+      await flush();
+      expect(events).toHaveLength(256);
+      expect(events[0]).toBe(0);
+    });
+
     it("are not kept for a sub that no request is waiting for", async () => {
       const { fake, subscriptions } = setup();
       const events: unknown[] = [];
@@ -258,26 +220,6 @@ describe("subscriptions", () => {
       subscriptions.subscribe("session", "k", (event) => events.push(event));
       await flush();
       expect(events).toEqual([]);
-    });
-  });
-
-  describe("a subscribe that fails", () => {
-    it("leaves the key free to subscribe again on the next connection", async () => {
-      const { fake, calls, replies, subscriptions } = setup({ manual: true });
-      const events: unknown[] = [];
-      subscriptions.subscribe("session", "k", (event) => events.push(event));
-      replies[0]?.reject(new RpcError("capacity"));
-      await flush();
-      fake.setState("waiting");
-      fake.setState("open");
-      expect(calls).toEqual([
-        ["subscribe.session", { sessionId: "k" }],
-        ["subscribe.session", { sessionId: "k" }],
-      ]);
-      replies[1]?.resolve({ sub: "s2" });
-      await flush();
-      fake.deliver({ sub: "s2", epoch: "e1", seq: 0, event: { kind: "snapshot" } });
-      expect(events).toEqual([{ kind: "snapshot" }]);
     });
   });
 });

@@ -17,8 +17,20 @@ async function read<T>(response: Response): Promise<HttpResult<T>> {
   } catch {
     body = null;
   }
-  const retry = response.headers.get("retry-after");
-  return { status: response.status, body, retryAfterSeconds: retry ? Number(retry) : null };
+  return {
+    status: response.status,
+    body,
+    retryAfterSeconds: retryAfter(response.headers.get("retry-after")),
+  };
+}
+
+// Retry-After is a number of seconds or an HTTP date.
+function retryAfter(header: string | null): number | null {
+  const value = header?.trim();
+  if (!value) return null;
+  if (/^\d+$/.test(value)) return Number(value);
+  const at = Date.parse(value);
+  return Number.isNaN(at) ? null : Math.max(0, Math.ceil((at - Date.now()) / 1000));
 }
 
 export async function getJson<T>(path: string): Promise<HttpResult<T>> {
@@ -44,6 +56,7 @@ export async function probeServer(): Promise<ProbeResult> {
   try {
     const response = await fetch(`/ws?proto=${PROTOCOL_VERSION}`, {
       credentials: "same-origin",
+      cache: "no-store",
       signal: controller.signal,
     });
     if (response.status === 426) return "outdated";

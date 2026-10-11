@@ -161,6 +161,23 @@ describe("rpc client", () => {
     await expect(rpc.call("sessions.list", {})).rejects.toEqual(new RpcError("offline"));
   });
 
+  it("settles a call whose error code this build does not know, instead of leaving it pending", async () => {
+    const fake = fakeConnection();
+    const rpc = createRpcClient(fake.connection, {
+      newCommandId: commandIds(),
+      timers: manualTimers().timers,
+    });
+    const unknown = rpc.call("sessions.list", {});
+    fake.deliver({ id: 1, ok: false, error: { code: "teapot" } });
+    await expect(unknown).rejects.toMatchObject({ name: "RpcError", code: "teapot" });
+    const bare = rpc.call("sessions.list", {});
+    fake.deliver({ id: 2, ok: false });
+    await expect(bare).rejects.toMatchObject({ code: "internal" });
+    const odd = rpc.call("sessions.list", {});
+    fake.deliver({ id: 3, ok: false, error: { code: 7 } });
+    await expect(odd).rejects.toMatchObject({ code: "internal" });
+  });
+
   it("ignores frames that are not responses to a pending call", async () => {
     const fake = fakeConnection();
     const rpc = createRpcClient(fake.connection, {

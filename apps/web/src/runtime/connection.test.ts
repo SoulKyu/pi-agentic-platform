@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { backoffDelay, createConnection, type ProbeResult, type SocketLike } from "./connection.ts";
+import {
+  backoffDelay,
+  createConnection,
+  PROBE_TIMEOUT_MS,
+  type ProbeResult,
+  type SocketLike,
+} from "./connection.ts";
 
 class FakeSocket implements SocketLike {
   sent: string[] = [];
@@ -21,14 +27,22 @@ class FakeSocket implements SocketLike {
   }
 }
 
-function setup(probe: ProbeResult | (() => Promise<ProbeResult>) = "ok") {
+function setup(
+  probe: ProbeResult | (() => Promise<ProbeResult>) = "ok",
+  options: { failCreates?: number } = {},
+) {
+  let failures = options.failCreates ?? 0;
   let now = 0;
   let nextId = 1;
-  const pending = new Map<number, { at: number; fn: () => void }>();
+  const pending = new Map<number, { at: number; ms: number; fn: () => void }>();
   const sockets: FakeSocket[] = [];
   const connection = createConnection({
     url: "ws://localhost/ws?proto=1",
     createSocket: () => {
+      if (failures > 0) {
+        failures--;
+        throw new Error("SecurityError");
+      }
       const socket = new FakeSocket();
       sockets.push(socket);
       return socket;
@@ -36,7 +50,7 @@ function setup(probe: ProbeResult | (() => Promise<ProbeResult>) = "ok") {
     probe: typeof probe === "function" ? probe : async () => probe,
     timers: {
       set: (fn, ms) => {
-        pending.set(nextId, { at: now + ms, fn });
+        pending.set(nextId, { at: now + ms, ms, fn });
         return nextId++;
       },
       clear: (id) => {
@@ -63,7 +77,8 @@ function setup(probe: ProbeResult | (() => Promise<ProbeResult>) = "ok") {
     advance,
     latest,
     hello,
-    delays: () => [...pending.values()].map((t) => t.at - now),
+    // the retry timers; the probe's own deadline is not one of them
+    delays: () => [...pending.values()].filter((t) => t.ms !== PROBE_TIMEOUT_MS).map((t) => t.at - now),
   };
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -251,5 +266,128 @@ describe("connection supervisor", () => {
     latest().onmessage?.({ data: "{not json" });
     connection.stop();
     expect(states).toEqual(["connecting", "open", "idle"]);
+  });
+  it("treats a socket that cannot even be created as a drop", async () => {
+    const { connection, sockets, delays, advance } = setup("ok", { failCreates: 1 });
+    connection.start();
+    await flush();
+    expect(connection.state).toBe("waiting");
+    expect(delays()).toEqual([backoffDelay(0, 0.5)]);
+    advance(backoffDelay(0, 0.5));
+    expect(sockets).toHaveLength(1);
+    expect(connection.state).toBe("connecting");
+  });
+
+  it("stops waiting on a probe that never answers and retries as if the network were down", async () => {
+    const { connection, latest, delays, advance } = setup(() => new Promise<ProbeResult>(() => {}));
+    connection.start();
+    latest().close();
+    await flush();
+    expect(connection.state).toBe("waiting");
+    expect(delays()).toEqual([]);
+    advance(PROBE_TIMEOUT_MS);
+    await flush();
+    expect(delays()).toEqual([backoffDelay(0, 0.5)]);
+  });
+
+  describe("start", () => {
+    it("revives a connection that ended signed-out, but not one that is outdated", async () => {
+      const signedOut = setup("signed-out");
+      signedOut.connection.start();
+      signedOut.latest().close();
+      await flush();
+      expect(signedOut.connection.state).toBe("signed-out");
+      signedOut.connection.start();
+      expect(signedOut.connection.state).toBe("connecting");
+      expect(signedOut.sockets).toHaveLength(2);
+      const outdated = setup();
+      outdated.connection.start();
+      outdated.hello(2);
+      outdated.connection.start();
+      expect(outdated.connection.state).toBe("outdated");
+      expect(outdated.sockets).toHaveLength(1);
+    });
+
+    it("begins the backoff again after a stop", async () => {
+      const { connection, latest, advance, delays } = setup();
+      connection.start();
+      for (let attempt = 0; attempt < 3; attempt++) {
+        latest().close();
+        await flush();
+        advance(backoffDelay(attempt, 0.5));
+      }
+      connection.stop();
+      connection.start();
+      latest().close();
+      await flush();
+      expect(delays()).toEqual([backoffDelay(0, 0.5)]);
+    });
+  });
+
+  describe("nudge", () => {
+    it("ends the wait when the probe says signed-out, without a new socket", async () => {
+      let answer: ProbeResult = "ok";
+      const { connection, latest, sockets, delays } = setup(async () => answer);
+      connection.start();
+      latest().close();
+      await flush();
+      answer = "signed-out";
+      connection.nudge();
+      await flush();
+      expect(connection.state).toBe("signed-out");
+      expect(sockets).toHaveLength(1);
+      expect(delays()).toEqual([]);
+    });
+
+    it("does nothing while idle, open, or while a probe is already running", async () => {
+      let probes = 0;
+      const { connection, hello, latest, sockets } = setup(() => {
+        probes++;
+        return new Promise<ProbeResult>(() => {});
+      });
+      connection.nudge();
+      expect(connection.state).toBe("idle");
+      connection.start();
+      hello();
+      connection.nudge();
+      expect(connection.state).toBe("open");
+      latest().close();
+      await flush();
+      connection.nudge();
+      await flush();
+      expect(probes).toBe(1);
+      expect(sockets).toHaveLength(1);
+    });
+
+    it("ignores a probe that answers after a stop", async () => {
+      const answers: Array<(result: ProbeResult) => void> = [];
+      let calls = 0;
+      const { connection, latest, sockets } = setup(() =>
+        calls++ === 0 ? Promise.resolve("ok") : new Promise<ProbeResult>((resolve) => answers.push(resolve)),
+      );
+      connection.start();
+      latest().close();
+      await flush();
+      connection.nudge();
+      connection.stop();
+      answers[0]?.("ok");
+      await flush();
+      expect(sockets).toHaveLength(1);
+      expect(connection.state).toBe("idle");
+    });
+
+    it("replaces a socket that is stuck connecting", () => {
+      const { connection, hello, latest, sockets } = setup();
+      connection.start();
+      const stuck = latest();
+      connection.nudge();
+      expect(stuck.closed).toBe(true);
+      expect(sockets).toHaveLength(2);
+      expect(connection.state).toBe("connecting");
+      stuck.receive({ protocol: 1, capabilities: [], serverVersion: "0" });
+      expect(connection.state).toBe("connecting");
+      hello();
+      expect(connection.state).toBe("open");
+    });
   });
 });

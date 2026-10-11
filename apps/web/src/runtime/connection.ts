@@ -38,6 +38,8 @@ export interface Connection {
 const DEAD_AFTER_MS = 15_000;
 const MAX_BACKOFF_MS = 30_000;
 const STABLE_AFTER_MS = 10_000;
+/** The longest the supervisor waits for the probe: no answer counts as `offline`. */
+export const PROBE_TIMEOUT_MS = 10_000;
 
 export function backoffDelay(attempt: number, random: number): number {
   return Math.round(Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt) * (0.5 + random / 2));
@@ -90,14 +92,19 @@ export function createConnection(deps: ConnectionDeps): Connection {
       void onDrop(dead);
     }, DEAD_AFTER_MS);
   };
-  // A probe that throws is the same as a network that does not answer.
-  const probe = async (): Promise<ProbeResult> => {
-    try {
-      return await deps.probe();
-    } catch {
-      return "offline";
-    }
-  };
+  // A probe that throws or never answers is the same as a network that is down: without this the
+  // supervisor would wait for it forever, with no retry timer armed.
+  const probe = (): Promise<ProbeResult> =>
+    new Promise((resolve) => {
+      const deadline = deps.timers.set(() => resolve("offline"), PROBE_TIMEOUT_MS);
+      Promise.resolve()
+        .then(() => deps.probe())
+        .catch((): ProbeResult => "offline")
+        .then((result) => {
+          deps.timers.clear(deadline);
+          resolve(result);
+        });
+    });
   const applyProbe = (result: ProbeResult): boolean => {
     if (result === "outdated") setState("outdated");
     else if (result === "signed-out") setState("signed-out");
@@ -109,7 +116,15 @@ export function createConnection(deps: ConnectionDeps): Connection {
     clear("retry");
     round++;
     setState("connecting");
-    const current = deps.createSocket(deps.url);
+    let current: SocketLike;
+    try {
+      current = deps.createSocket(deps.url);
+    } catch {
+      // a refused URL (mixed content, bad scheme) fails like a connection that dropped at once
+      socket = null;
+      void retryLater();
+      return;
+    }
     socket = current;
     // Armed before the socket opens: a connection that hangs in CONNECTING is as dead as a silent peer.
     armDead();
@@ -149,6 +164,11 @@ export function createConnection(deps: ConnectionDeps): Connection {
     socket = null;
     clear("dead");
     clear("stable");
+    await retryLater();
+  };
+
+  // The probe says why the socket is gone; unless that is final, the next attempt follows the backoff.
+  const retryLater = async () => {
     if (stopped || state === "outdated" || state === "signed-out") return;
     setState("waiting");
     const mine = round;
@@ -162,8 +182,10 @@ export function createConnection(deps: ConnectionDeps): Connection {
       return state;
     },
     start() {
-      if (!stopped) return;
+      // Signed-out is the one end state a start can leave: the caller has signed in again.
+      if (!stopped && state !== "signed-out") return;
       stopped = false;
+      attempt = 0;
       connect();
     },
     stop() {
@@ -199,6 +221,12 @@ export function createConnection(deps: ConnectionDeps): Connection {
       };
     },
     nudge() {
+      // Foreground or back online: a socket still connecting belongs to the network we just left.
+      if (state === "connecting" && socket) {
+        detach(socket);
+        connect();
+        return;
+      }
       if (state !== "waiting" || timers.retry === null) return;
       clear("retry");
       const mine = round;
