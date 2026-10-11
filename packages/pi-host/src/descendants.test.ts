@@ -25,10 +25,12 @@ const table: ProcEntry[] = [
 
 function run(overrides: Partial<Parameters<typeof killDetachedDescendants>[0]> = {}) {
   const signals: string[] = [];
+  // The kills work: the second sweep finds only the worker.
+  let reads = 0;
   const killed = killDetachedDescendants({
     platform: "linux",
     pid: WORKER,
-    readTable: () => table,
+    readTable: () => (reads++ === 0 ? table : table.filter((entry) => entry.pid <= WORKER)),
     kill: (pid, signal) => void signals.push(`${pid}:${signal}`),
     ...overrides,
   });
@@ -125,6 +127,48 @@ describe("killDetachedDescendants", () => {
         kill: () => {},
       }),
     ).not.toThrow();
+  });
+});
+
+describe("killDetachedDescendants sweeps", () => {
+  it("sweeps again until nothing is left, at most three times", () => {
+    const tables = [
+      [
+        { pid: 10, ppid: 1, pgrp: 10 },
+        { pid: 11, ppid: 10, pgrp: 11 },
+      ],
+      [
+        { pid: 10, ppid: 1, pgrp: 10 },
+        { pid: 12, ppid: 10, pgrp: 12 },
+      ],
+      [{ pid: 10, ppid: 1, pgrp: 10 }],
+    ];
+    let reads = 0;
+    const killed: number[] = [];
+    const count = killDetachedDescendants({
+      platform: "linux",
+      pid: 10,
+      readTable: () => tables[Math.min(reads++, tables.length - 1)] ?? [],
+      kill: (target) => void killed.push(target),
+    });
+    expect(count).toBe(2);
+    expect(killed).toEqual([-11, 11, -12, 12]);
+    expect(reads).toBe(3);
+  });
+
+  it("stops after three sweeps when processes keep appearing", () => {
+    let reads = 0;
+    const count = killDetachedDescendants({
+      platform: "linux",
+      pid: 10,
+      readTable: () => [
+        { pid: 10, ppid: 1, pgrp: 10 },
+        { pid: 20 + reads++, ppid: 10, pgrp: 10 },
+      ],
+      kill: () => {},
+    });
+    expect(count).toBe(3);
+    expect(reads).toBe(3);
   });
 });
 

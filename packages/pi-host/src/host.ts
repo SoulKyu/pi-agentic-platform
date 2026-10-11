@@ -4,6 +4,7 @@ import { type Command, createDispatch } from "./dispatch.ts";
 import { killDetachedDescendants } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
+import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 import { toExtensionErrorRecord, toWireEvent } from "./wire-events.ts";
 
@@ -37,7 +38,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
     failInit = reject;
   });
   let closing = false;
-  // Stops the running agent (bounded by the grace), cancels the dialogs, then disposes the session and exits.
+  // Cancels the dialogs, stops the running agent and tells extensions (both bounded by the grace), then disposes the session and exits.
   const shutdown = (graceMs: number) => {
     if (closing) return;
     closing = true;
@@ -47,8 +48,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
     const current = session;
     if (!current) exit(null, 0);
     const finish = () => exit(current, 0);
-    const grace = new Promise((resolve) => setTimeout(resolve, graceMs));
-    void Promise.race([current.abort().catch(() => {}), grace]).then(finish, finish);
+    void closeSession(current, graceMs).then(finish, finish);
   };
   // One listener from the first record on, so nothing sent while the session opens is lost: records after
   // `init` wait here until the session is ready, then run in order.

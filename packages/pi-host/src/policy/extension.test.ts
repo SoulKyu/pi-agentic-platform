@@ -195,7 +195,7 @@ describe("pap-policy hardening", () => {
 
   it("closes the real bridge dialog when the run is aborted", async () => {
     const sent: Array<{ type: string; id: string }> = [];
-    const bridge = createUiBridge((record) => sent.push(record));
+    const bridge = createUiBridge((record) => (sent.push(record), true));
     const controller = new AbortController();
     const audits: AuditEntry[] = [];
     const answer = evaluateToolCall(

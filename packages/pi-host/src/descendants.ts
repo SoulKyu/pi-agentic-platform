@@ -83,9 +83,7 @@ const realEnv = (): CleanupEnv => ({
  * touches nothing, and it never signals its own group, whose other members are not its descendants. A process id
  * can be recycled between the read of /proc and the kill; the window is a few milliseconds.
  */
-export function killDetachedDescendants(env: Partial<CleanupEnv> = {}): number {
-  const { platform, pid, readTable, kill } = { ...realEnv(), ...env };
-  if (platform !== "linux") return 0;
+function sweep({ pid, readTable, kill }: CleanupEnv): number {
   try {
     const table = readTable();
     const self = table.find((entry) => entry.pid === pid);
@@ -108,6 +106,21 @@ export function killDetachedDescendants(env: Partial<CleanupEnv> = {}): number {
   } catch {
     return 0;
   }
+}
+
+/** Processes forked while a sweep ran are found by the next one; three sweeps cover a shell and its children. */
+export const MAX_SWEEPS = 3;
+
+export function killDetachedDescendants(env: Partial<CleanupEnv> = {}): number {
+  const resolved = { ...realEnv(), ...env };
+  if (resolved.platform !== "linux") return 0;
+  let total = 0;
+  for (let round = 0; round < MAX_SWEEPS; round++) {
+    const killed = sweep(resolved);
+    total += killed;
+    if (killed === 0) break;
+  }
+  return total;
 }
 
 /**

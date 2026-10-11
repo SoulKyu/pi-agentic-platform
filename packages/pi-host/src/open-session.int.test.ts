@@ -64,7 +64,7 @@ const initRecord = (): InitRecord => ({
 });
 
 async function open(overrides: Partial<OpenSessionDeps> = {}) {
-  const ui = createUiBridge((record) => requests.push(record));
+  const ui = createUiBridge((record) => (requests.push(record), true));
   const session = await openSession(initRecord(), {
     ui,
     rules: () => RULES,

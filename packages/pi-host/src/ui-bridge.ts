@@ -27,7 +27,10 @@ interface PendingDialog {
   close(): void;
 }
 
-export function createUiBridge(send: (record: UiOutbound) => void, options: UiBridgeOptions = {}): UiBridge {
+export function createUiBridge(
+  send: (record: UiOutbound) => boolean,
+  options: UiBridgeOptions = {},
+): UiBridge {
   const newId = options.newId ?? randomUUID;
   const setTimer = options.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
   const clearTimer = options.clearTimer ?? ((handle: unknown) => clearTimeout(handle as NodeJS.Timeout));
@@ -66,16 +69,21 @@ export function createUiBridge(send: (record: UiOutbound) => void, options: UiBr
       });
       opts?.signal?.addEventListener("abort", close, { once: true });
       if (opts?.timeout) timer = setTimer(close, opts.timeout);
-      try {
-        send({
-          type: "extension_ui_request",
-          id,
-          ...request,
-          ...(opts?.timeout ? { timeout: opts.timeout } : {}),
-        });
-      } catch {
-        if (release()) resolve(fallback);
-      }
+      const sent = (() => {
+        try {
+          return send({
+            type: "extension_ui_request",
+            id,
+            ...request,
+            ...(opts?.timeout ? { timeout: opts.timeout } : {}),
+          });
+        } catch {
+          return false;
+        }
+      })();
+      // Too large for the channel, or the channel is gone: no answer can come, so the extension gets its fallback now
+      // instead of waiting for ever (R106).
+      if (!sent && release()) resolve(fallback);
     });
   }
 

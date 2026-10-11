@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEV_EXEC_ARGV, PI_HOST_MAIN } from "./testing/fork-host.ts";
@@ -99,6 +99,20 @@ describe("pi-host worker: lifetime", () => {
       expect(existsSync(marker)).toBe(false);
     },
   );
+
+  it("tells extensions the session is closing before it exits (R106)", async () => {
+    const probe = join(bed.root, "shutdown.txt");
+    mkdirSync(join(bed.agentDir, "extensions"), { recursive: true });
+    writeFileSync(
+      join(bed.agentDir, "extensions", "shutdown-probe.js"),
+      `import { appendFileSync } from "node:fs";\nexport default function (pi) { pi.on("session_shutdown", (event) => appendFileSync(${JSON.stringify(probe)}, event.reason + "\\n")); }\n`,
+    );
+    await bed.start({ steps: [{ text: "unused" }] });
+    const host = bed.host();
+    host.send({ type: "shutdown", graceMs: 1500 });
+    expect(await host.exited).toBe(0);
+    expect(readFileSync(probe, "utf8")).toBe("quit\n");
+  });
 
   it("exits 0, with no channel error in its log, when the daemon closes the channel mid-dialog", async () => {
     await bed.start(bashScript("echo never"));

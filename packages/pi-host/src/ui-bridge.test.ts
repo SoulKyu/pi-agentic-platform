@@ -11,6 +11,7 @@ function setup(options: { failSend?: (record: UiOutbound) => boolean } = {}) {
     (record) => {
       if (options.failSend?.(record)) throw new Error("ipc closed");
       sent.push(record);
+      return true;
     },
     {
       newId: () => `u${++next}`,
@@ -218,6 +219,13 @@ describe("extension UI bridge: a daemon link that fails", () => {
     const answer = bridge.context.confirm("t", "m");
     bridge.cancelAll();
     expect(await answer).toBe(false);
+    expect(bridge.pendingCount()).toBe(0);
+  });
+
+  it("resolves a dialog at once when its request could not be sent", async () => {
+    const bridge = createUiBridge(() => false, { newId: () => "d1" });
+    expect(await bridge.context.confirm("Run?", "ls")).toBe(false);
+    expect(await bridge.context.select("Pick", ["a"])).toBeUndefined();
     expect(bridge.pendingCount()).toBe(0);
   });
 });
