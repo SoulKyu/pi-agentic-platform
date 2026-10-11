@@ -18,4 +18,13 @@ describe("CI configuration", () => {
     }
     expect(setup.indexOf("fd-find")).toBeLessThan(setup.indexOf("pnpm install"));
   });
+
+  it("has no browser-test runner left behind (R128: Playwright is not used)", () => {
+    const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> }).scripts;
+    expect(Object.keys(scripts)).not.toContain("e2e");
+    expect(Object.values(scripts).join("\n")).not.toMatch(/playwright/i);
+    const knip = read("knip.json");
+    expect(knip).not.toMatch(/playwright|e2e/i);
+    expect(read("AGENTS.md")).not.toMatch(/pnpm e2e|playwright/i);
+  });
 });

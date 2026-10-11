@@ -3,8 +3,7 @@
   "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.ts", "e2e/**/*.ts", "eslint/*.js"],
-      "ignoreBinaries": ["playwright"]
+      "entry": ["scripts/*.ts", "eslint/*.js"]
     },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts"],
