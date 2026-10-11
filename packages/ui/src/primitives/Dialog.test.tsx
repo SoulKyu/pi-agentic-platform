@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { createRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { click, mountWithTooltips, press } from "../testing/dom.ts";
+import { click, mountWithTooltips, press, settle } from "../testing/dom.ts";
 import { Dialog } from "./Dialog.tsx";
 
 function Harness() {
@@ -57,6 +57,7 @@ describe("Dialog", () => {
     opener.focus();
     await click(opener);
     await press(document.activeElement ?? document.body, { key: "Escape" });
+    await settle();
     expect(document.activeElement).toBe(opener);
     await page.unmount();
   });

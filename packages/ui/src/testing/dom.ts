@@ -63,3 +63,10 @@ export function button(container: ParentNode, name: string): HTMLElement {
   if (found === undefined) throw new Error(`no button named ${name}`);
   return found;
 }
+
+/** Runs one macrotask inside act(): Radix FocusScope returns focus from a setTimeout(0) after a layer unmounts. */
+export async function settle(): Promise<void> {
+  await act(async () => {
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+  });
+}
