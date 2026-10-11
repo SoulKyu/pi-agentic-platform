@@ -1,6 +1,7 @@
-import { createHash, createPrivateKey, X509Certificate } from "node:crypto";
+import { createHash } from "node:crypto";
 import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { createSecureContext } from "node:tls";
 import { parseArgs } from "node:util";
 import type { LogLevel } from "./logger.ts";
 
@@ -156,19 +157,19 @@ function readTls(certPath: string, keyPath: string): { cert: Buffer; key: Buffer
   };
   const cert = read(certPath, "--tls-cert");
   const key = read(keyPath, "--tls-key");
-  let certificate: X509Certificate;
-  try {
-    certificate = new X509Certificate(cert);
-  } catch {
-    throw new ConfigError("--tls-cert is not a certificate in PEM format");
-  }
-  let privateKey: ReturnType<typeof createPrivateKey>;
-  try {
-    privateKey = createPrivateKey({ key });
-  } catch {
-    throw new ConfigError("--tls-key is not an unencrypted private key in PEM format");
-  }
-  if (!certificate.checkPrivateKey(privateKey)) throw new ConfigError("--tls-key does not match --tls-cert");
+  // The TLS stack's own parser decides, so what it would refuse at listen time is refused here, with the flag named:
+  // each file alone (PEM only, no passphrase), then the pair.
+  const accepts = (options: { cert?: Buffer; key?: Buffer }): boolean => {
+    try {
+      createSecureContext(options);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (!accepts({ cert })) throw new ConfigError("--tls-cert is not a certificate in PEM format");
+  if (!accepts({ key })) throw new ConfigError("--tls-key is not an unencrypted private key in PEM format");
+  if (!accepts({ cert, key })) throw new ConfigError("--tls-key does not match --tls-cert");
   return { cert, key };
 }
 

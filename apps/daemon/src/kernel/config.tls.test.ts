@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +11,8 @@ let base: ConfigInput;
 let cert: string;
 let key: string;
 let otherKey: string;
+let derCert: string;
+let encryptedKey: string;
 beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), "pap-tls-"));
   const first = selfSignedCertificate(dir);
@@ -18,6 +21,14 @@ beforeAll(() => {
   // A second pair gives a key that does not belong to the first certificate.
   mkdirSync(join(dir, "other"));
   otherKey = selfSignedCertificate(join(dir, "other")).key;
+  derCert = join(dir, "cert.der");
+  execFileSync("openssl", ["x509", "-in", cert, "-outform", "der", "-out", derCert], { stdio: "ignore" });
+  encryptedKey = join(dir, "key.enc.pem");
+  execFileSync(
+    "openssl",
+    ["pkcs8", "-topk8", "-v2", "aes-256-cbc", "-in", key, "-out", encryptedKey, "-passout", "pass:secret"],
+    { stdio: "ignore" },
+  );
   base = {
     argv: [],
     env: {},
@@ -68,6 +79,13 @@ describe("--tls-cert and --tls-key", () => {
     // The certificate where the key belongs, and the other way round.
     expect(message(withTls(cert, cert))).toBe("--tls-key is not an unencrypted private key in PEM format");
     expect(message(withTls(key, key))).toBe("--tls-cert is not a certificate in PEM format");
+  });
+
+  it("refuse what the TLS stack itself would refuse: a DER certificate and a key with a passphrase (R130)", () => {
+    expect(message(withTls(derCert, key))).toBe("--tls-cert is not a certificate in PEM format");
+    expect(message(withTls(cert, encryptedKey))).toBe(
+      "--tls-key is not an unencrypted private key in PEM format",
+    );
   });
 
   it("refuse a key that belongs to another certificate", () => {
