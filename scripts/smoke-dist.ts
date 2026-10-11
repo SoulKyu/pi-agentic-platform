@@ -23,7 +23,7 @@ const PI_HOST = join(REPO, "packages/pi-host/dist/main.js");
 const WEB_INDEX = join(REPO, "apps/web/dist/index.html");
 // Plain TypeScript with node:net only: Node strips the types, so it needs no build.
 const NETWORK_GUARD = join(REPO, "packages/pi-host/src/testing/network-guard.ts");
-const PROTOCOL = 1;
+const PROTOCOL = 2;
 const STEP_MS = 60_000;
 const STOP_MS = 20_000;
 const REAP_MS = 5_000;

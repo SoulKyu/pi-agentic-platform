@@ -284,7 +284,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       const fromFile = file ? transcript.tail(file, SNAPSHOT_ROWS, run?.baselineBytes) : [];
       return fitSnapshot({
         status: statusOf(sessionId),
-        rows: [...fromFile, ...(run?.messages ?? [])],
+        rows: [...fromFile, ...(run?.messages ?? [])].map((message) => ({ entryId: null, message })),
         dialogs: session?.dialogs() ?? [],
       });
     },

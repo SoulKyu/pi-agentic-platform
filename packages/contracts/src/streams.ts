@@ -3,7 +3,7 @@ import { z } from "zod";
 export const STREAMS = ["session"] as const;
 export type StreamName = (typeof STREAMS)[number];
 
-export const SessionStatus = z.enum(["cold", "starting", "idle", "running"]);
+export const SessionStatus = z.enum(["cold", "starting", "idle", "running", "releasing"]);
 export type SessionStatus = z.infer<typeof SessionStatus>;
 
 import { ApprovalAnswer, ApprovalAnswers, TOOL_CATEGORIES } from "./policy.ts";
@@ -137,20 +137,56 @@ export const EMPTY_QUEUE: QueueView = { steering: [], followUp: [], count: 0, by
 export const IDLE_ACTIVITY: Activity = { compacting: false, retry: null };
 export const NO_HISTORY: HistoryMeta = { hasMore: false, oldestEntryId: null, turnsBefore: 0 };
 
+const Snapshot = z.object({
+  kind: z.literal("snapshot"),
+  status: SessionStatus,
+  rows: z.array(TranscriptRow),
+  dialogs: z.array(Dialog),
+  partial: PartialMessage.nullable(),
+  queue: QueueView,
+  statuses: z.array(StatusEntry).max(UI_LIMITS.statuses),
+  widgets: z.array(Widget).max(UI_LIMITS.widgets),
+  title: z.string().max(UI_LIMITS.title).nullable(),
+  panels: z.array(Panel).max(UI_LIMITS.panels),
+  notices: z.array(Notice).max(UI_LIMITS.notices),
+  /** Statuses, notices or widgets were left out to keep the snapshot under its budget (Task 1b). */
+  decorationsTruncated: z.boolean(),
+  history: HistoryMeta,
+  activity: Activity,
+  leafId: z.string().max(128).nullable(),
+  name: z.string().max(UI_LIMITS.name).nullable(),
+});
+
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("snapshot"),
-    status: SessionStatus,
-    messages: z.array(z.unknown()),
-    dialogs: z.array(Dialog),
-  }),
-  z.object({ kind: z.literal("status"), status: SessionStatus, cause: z.string().optional() }),
+  Snapshot,
+  z.object({ kind: z.literal("status"), status: SessionStatus, cause: z.string().max(256).optional() }),
   z.object({ kind: z.literal("pi"), event: PiEvent }),
   z.object({ kind: z.literal("dialog_open"), dialog: Dialog }),
   z.object({ kind: z.literal("dialog_closed"), id: z.string() }),
-  z.object({ kind: z.literal("notice"), level: z.enum(["info", "warning", "error"]), text: z.string() }),
+  z.object({
+    kind: z.literal("notice"),
+    level: Notice.shape.level,
+    text: Notice.shape.text,
+    source: Notice.shape.source,
+  }),
+  z.object({ kind: z.literal("row"), row: TranscriptRow }),
+  z.object({ kind: z.literal("entry"), entry: EntryRef }),
+  z.object({ kind: z.literal("queue"), queue: QueueView }),
+  z.object({
+    kind: z.literal("status_bar"),
+    key: StatusEntry.shape.key,
+    text: StatusEntry.shape.text.nullable(),
+  }),
+  z.object({ kind: z.literal("widget"), key: Widget.shape.key, widget: Widget.nullable() }),
+  z.object({ kind: z.literal("title"), title: z.string().max(UI_LIMITS.title).nullable() }),
+  z.object({ kind: z.literal("editor_text"), text: z.string().max(UI_LIMITS.editorText) }),
+  z.object({ kind: z.literal("panel"), panel: Panel }),
+  z.object({ kind: z.literal("panel_closed"), id: z.string().max(128) }),
+  z.object({ kind: z.literal("name"), name: z.string().max(UI_LIMITS.name).nullable() }),
+  z.object({ kind: z.literal("activity"), activity: Activity }),
 ]);
 export type SessionStreamEvent = z.infer<typeof SessionStreamEvent>;
+export type SnapshotEvent = Extract<SessionStreamEvent, { kind: "snapshot" }>;
 
 export const SessionSummary = z.object({
   id: z.string(),

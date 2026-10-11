@@ -71,5 +71,8 @@ export const en = {
   "error.session_busy": "The session is working. Wait for it to finish, or stop it first.",
   "error.session_empty": "This session has no messages to work with yet.",
   "sessions.queue.title": "Waiting",
+  "session.status.releasing": "Releasing",
+  "sessions.unreadable":
+    "This session could not be shown. Reload the page; if it stays, the session file may be damaged.",
   // ── end sessions (M2) ──
 } as const;

@@ -1,7 +1,7 @@
 import { EventEmitter, once } from "node:events";
 import type { IncomingMessage } from "node:http";
 import { Duplex } from "node:stream";
-import { ALL_PERMISSIONS, type Caller } from "@pap/contracts";
+import { ALL_PERMISSIONS, PROTOCOL_VERSION, type Caller } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../clock.ts";
 import { silentLogger } from "../logger.ts";
@@ -131,8 +131,8 @@ function refusalSetup(authenticate: () => Caller | null = () => owner, onOriginR
 describe("upgrade refusals (R8)", () => {
   it.each([
     ["/ws?proto=0", "http://localhost:7777", "426 Upgrade Required"],
-    ["/ws?proto=1", "http://evil.example", "403 Forbidden"],
-    ["/nope?proto=1", "http://localhost:7777", "404 Not Found"],
+    [`/ws?proto=${PROTOCOL_VERSION}`, "http://evil.example", "403 Forbidden"],
+    [`/nope?proto=${PROTOCOL_VERSION}`, "http://localhost:7777", "404 Not Found"],
   ])(
     "writes %s to %s as %s and destroys the socket only after it was flushed",
     async (url, origin, status) => {
@@ -148,23 +148,23 @@ describe("upgrade refusals (R8)", () => {
   it("tells the caller which Origin it refused, and nothing for the other refusals", async () => {
     const refused: Array<[string, string | undefined]> = [];
     const { upgrade, socket } = refusalSetup(undefined, (via, origin) => refused.push([via, origin]));
-    upgrade("/ws?proto=1", "http://evil.example");
+    upgrade(`/ws?proto=${PROTOCOL_VERSION}`, "http://evil.example");
     await once(socket, "finish");
     upgrade("/ws?proto=0");
-    upgrade("/nope?proto=1");
+    upgrade(`/nope?proto=${PROTOCOL_VERSION}`);
     expect(refused).toEqual([["ws", "http://evil.example"]]);
   });
 
   it("answers 401 for an unauthenticated caller and 500 when authentication throws", async () => {
     const anonymous = refusalSetup(() => null);
-    anonymous.upgrade("/ws?proto=1");
+    anonymous.upgrade(`/ws?proto=${PROTOCOL_VERSION}`);
     await once(anonymous.socket, "finish");
     expect(anonymous.written.join("")).toContain("401 Unauthorized");
 
     const broken = refusalSetup(() => {
       throw new Error("database is locked");
     });
-    broken.upgrade("/ws?proto=1");
+    broken.upgrade(`/ws?proto=${PROTOCOL_VERSION}`);
     await once(broken.socket, "finish");
     expect(broken.written.join("")).toContain("500 Internal Server Error");
   });

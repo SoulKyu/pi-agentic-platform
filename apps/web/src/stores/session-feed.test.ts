@@ -14,7 +14,24 @@ describe("feedSession", () => {
     const bed = fakeRuntime();
     feedSession(bed.runtime.subscriptions, "a");
     await flush();
-    bed.emit({ kind: "snapshot", status: "running", messages: [], dialogs: [] });
+    bed.emit({
+      kind: "snapshot",
+      status: "running",
+      rows: [],
+      dialogs: [],
+      partial: null,
+      queue: { steering: [], followUp: [], count: 0, bytes: 0 },
+      statuses: [],
+      widgets: [],
+      title: null,
+      panels: [],
+      notices: [],
+      decorationsTruncated: false,
+      history: { hasMore: false, oldestEntryId: null, turnsBefore: 0 },
+      activity: { compacting: false, retry: null },
+      leafId: null,
+      name: null,
+    });
     const { views } = useSessionStore.getState();
     expect(views["a"]).toMatchObject({ status: "running", loaded: true });
     expect(views["b"]).toBeUndefined();

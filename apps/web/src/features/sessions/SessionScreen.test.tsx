@@ -40,8 +40,20 @@ const reply = { role: "assistant", content: [{ type: "text", text: "All green." 
 const snapshot = (status: string, messages: unknown[] = [], dialogs: unknown[] = []) => ({
   kind: "snapshot",
   status,
-  messages,
+  rows: messages.map((message) => ({ entryId: null, message })),
   dialogs,
+  partial: null,
+  queue: { steering: [], followUp: [], count: 0, bytes: 0 },
+  statuses: [],
+  widgets: [],
+  title: null,
+  panels: [],
+  notices: [],
+  decorationsTruncated: false,
+  history: { hasMore: false, oldestEntryId: null, turnsBefore: 0 },
+  activity: { compacting: false, retry: null },
+  leafId: null,
+  name: null,
 });
 const confirm = (message: string) => ({ id: "d1", method: "confirm", title: "Run a command?", message });
 
@@ -155,6 +167,16 @@ describe("SessionScreen provider failures", () => {
       },
     });
     expect(container.querySelector("[data-failure]")?.textContent).toContain("overloaded");
+  });
+});
+
+describe("SessionScreen unreadable snapshot", () => {
+  it("says so instead of staying blank (M2-RT-06)", async () => {
+    const container = await show();
+    await emit({ kind: "snapshot", rows: 5 });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "This session could not be shown. Reload the page; if it stays, the session file may be damaged.",
+    );
   });
 });
 

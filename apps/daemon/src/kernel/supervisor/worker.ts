@@ -67,12 +67,20 @@ export interface WorkerHandle {
 }
 
 /**
- * How long a command may wait for its answer unless the caller says otherwise. A `prompt` has none: an extension
- * command answers only when it ends (R38(1)), possibly after a dialog the user takes minutes to answer, while a
- * plain prompt answers as soon as Pi has classified it. The pending prompt ends with the worker.
+ * How long a command may wait for its answer unless the caller says otherwise. `prompt`, `compact` and `navigate_tree`
+ * have none: an extension command answers only when it ends (R38(1)), a compaction waits for the model's summary, and
+ * a navigation waits for `session_before_tree` hooks that may ask the user (M2-RT-08); the wait ends with the worker.
+ * Naming and export call the model or write a file: two minutes.
  */
+const COMMAND_TIMEOUTS: Partial<Record<CommandInput["type"], number | undefined>> = {
+  prompt: undefined,
+  compact: undefined,
+  navigate_tree: undefined,
+  auto_name: 120_000,
+  export_html: 120_000,
+};
 export const requestTimeoutMs = (command: CommandInput): number | undefined =>
-  command.type === "prompt" ? undefined : DEFAULT_REQUEST_TIMEOUT_MS;
+  command.type in COMMAND_TIMEOUTS ? COMMAND_TIMEOUTS[command.type] : DEFAULT_REQUEST_TIMEOUT_MS;
 
 export const clipWorkerString = (text: string): string =>
   text.length > MAX_WORKER_STRING ? `${text.slice(0, MAX_WORKER_STRING)}…` : text;

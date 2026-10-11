@@ -3,30 +3,59 @@ import { EMPTY_VIEW, reduceSession } from "./session-reducer.ts";
 
 const user = { role: "user", content: "hi", timestamp: 1 };
 const reply = { role: "assistant", content: [{ type: "text", text: "Hello!" }], timestamp: 2 };
+const snap = (status: string, messages: unknown[] = [], entryIds: Array<string | null> = []) => ({
+  kind: "snapshot",
+  status,
+  rows: messages.map((message, i) => ({ entryId: entryIds[i] ?? null, message })),
+  dialogs: [],
+  partial: null,
+  queue: { steering: [], followUp: [], count: 0, bytes: 0 },
+  statuses: [],
+  widgets: [],
+  title: null,
+  panels: [],
+  notices: [],
+  decorationsTruncated: false,
+  history: { hasMore: false, oldestEntryId: null, turnsBefore: 0 },
+  activity: { compacting: false, retry: null },
+  leafId: null,
+  name: null,
+});
 const pi = (event: Record<string, unknown>) => ({ kind: "pi", event });
 
 describe("reduceSession", () => {
   it("replaces the view on a snapshot", () => {
-    const view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "idle",
-      messages: [user],
-      dialogs: [],
-    });
+    const view = reduceSession(EMPTY_VIEW, snap("idle", [user], ["e1"]));
     expect(view).toMatchObject({
       status: "idle",
       loaded: true,
-      messages: [{ key: "user:1", role: "user", text: "hi" }],
+      unreadable: false,
+      messages: [{ key: "user:1", entryId: "e1", role: "user", text: "hi" }],
     });
   });
 
-  it("keeps the placeholder of an oversize row as a message that says how big it was (R109)", () => {
+  it("says a snapshot it cannot read is unreadable instead of staying blank (M2-RT-06)", () => {
+    const view = reduceSession(EMPTY_VIEW, { kind: "snapshot", status: "idle", rows: "not rows" });
+    expect(view).toMatchObject({ loaded: true, unreadable: true });
+    expect(reduceSession(view, { kind: "status", status: 7 })).toBe(view);
+    expect(reduceSession(view, snap("idle", [user]))).toMatchObject({ unreadable: false });
+  });
+
+  it("keeps the source of a notice", () => {
     const view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "idle",
-      messages: [{ role: "toolResult", timestamp: 5, omitted: true, bytes: 300_000 }, user],
-      dialogs: [],
+      kind: "notice",
+      level: "info",
+      text: "hi",
+      source: "extension",
     });
+    expect(view.notices).toEqual([{ level: "info", text: "hi", source: "extension" }]);
+  });
+
+  it("keeps the placeholder of an oversize row as a message that says how big it was (R109)", () => {
+    const view = reduceSession(
+      EMPTY_VIEW,
+      snap("idle", [{ role: "toolResult", timestamp: 5, omitted: true, bytes: 300_000 }, user]),
+    );
     expect(view.messages).toMatchObject([
       { key: "toolResult:5", role: "toolResult", text: "", omittedBytes: 300_000 },
       { key: "user:1", omittedBytes: null },
@@ -34,12 +63,10 @@ describe("reduceSession", () => {
   });
 
   it("ignores an omitted flag that comes without a size", () => {
-    const view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "idle",
-      messages: [{ role: "user", content: "hi", timestamp: 1, omitted: true }],
-      dialogs: [],
-    });
+    const view = reduceSession(
+      EMPTY_VIEW,
+      snap("idle", [{ role: "user", content: "hi", timestamp: 1, omitted: true }]),
+    );
     expect(view.messages[0]).toMatchObject({ text: "hi", omittedBytes: null });
   });
 
@@ -66,12 +93,7 @@ describe("reduceSession", () => {
   });
 
   it("does not duplicate a message present in both the snapshot and a live event", () => {
-    let view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "running",
-      messages: [user, reply],
-      dialogs: [],
-    });
+    let view = reduceSession(EMPTY_VIEW, snap("running", [user, reply]));
     view = reduceSession(view, pi({ type: "message_end", message: reply }));
     expect(view.messages).toHaveLength(2);
   });
@@ -123,18 +145,16 @@ describe("reduceSession", () => {
     });
 
     it("gives a snapshot with same-millisecond results and repeated messages unique keys", () => {
-      const view = reduceSession(EMPTY_VIEW, {
-        kind: "snapshot",
-        status: "idle",
-        dialogs: [],
-        messages: [
+      const view = reduceSession(
+        EMPTY_VIEW,
+        snap("idle", [
           result("a", "one"),
           result("b", "two"),
           { role: "user", content: "again", timestamp: 9 },
           { role: "user", content: "again!", timestamp: 9 },
           { role: "user", content: "again", timestamp: 9 },
-        ],
-      });
+        ]),
+      );
       expect(view.messages.map((m) => m.text)).toEqual(["one", "two", "again", "again!", "again"]);
       expect(new Set(keysOf(view)).size).toBe(5);
     });
@@ -152,12 +172,7 @@ describe("reduceSession", () => {
 
     it("recognises, from the snapshot, a live message that repeats its key", () => {
       const message = result("a", "once");
-      let view = reduceSession(EMPTY_VIEW, {
-        kind: "snapshot",
-        status: "running",
-        messages: [message],
-        dialogs: [],
-      });
+      let view = reduceSession(EMPTY_VIEW, snap("running", [message]));
       view = reduceSession(view, pi({ type: "message_end", message }));
       expect(view.messages).toHaveLength(1);
     });
@@ -205,12 +220,7 @@ describe("reduceSession", () => {
     });
 
     it("finds the failure in a snapshot too", () => {
-      const view = reduceSession(EMPTY_VIEW, {
-        kind: "snapshot",
-        status: "idle",
-        messages: [user, failed("boom")],
-        dialogs: [],
-      });
+      const view = reduceSession(EMPTY_VIEW, snap("idle", [user, failed("boom")]));
       expect(view.messages.map((m) => m.error)).toEqual([null, "boom"]);
     });
   });

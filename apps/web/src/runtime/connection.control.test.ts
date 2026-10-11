@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { backoffDelay, type ProbeResult } from "./connection.ts";
 import { connectionBed as setup, flush } from "./testing.ts";
@@ -15,7 +16,7 @@ describe("connection supervisor: start and nudge", () => {
       expect(signedOut.sockets).toHaveLength(2);
       const outdated = setup();
       outdated.connection.start();
-      outdated.hello(2);
+      outdated.hello(0);
       outdated.connection.start();
       expect(outdated.connection.state).toBe("outdated");
       expect(outdated.sockets).toHaveLength(1);
@@ -109,7 +110,7 @@ describe("connection supervisor: start and nudge", () => {
       expect(stuck.closed).toBe(true);
       expect(sockets).toHaveLength(2);
       expect(connection.state).toBe("connecting");
-      stuck.receive({ protocol: 1, capabilities: [], serverVersion: "0" });
+      stuck.receive({ protocol: PROTOCOL_VERSION, capabilities: [], serverVersion: "0" });
       expect(connection.state).toBe("connecting");
       hello();
       expect(connection.state).toBe("open");

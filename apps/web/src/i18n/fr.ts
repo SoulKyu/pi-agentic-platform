@@ -74,5 +74,8 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "error.session_busy": "La session travaille. Attendez qu'elle finisse, ou arrêtez-la d'abord.",
   "error.session_empty": "Cette session n'a encore aucun message à traiter.",
   "sessions.queue.title": "En attente",
+  "session.status.releasing": "Libération",
+  "sessions.unreadable":
+    "Cette session ne peut pas être affichée. Rechargez la page ; si cela persiste, le fichier de session est peut-être abîmé.",
   // ── end sessions (M2) ──
 };

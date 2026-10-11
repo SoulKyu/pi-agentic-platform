@@ -16,6 +16,6 @@ describe("Node 24 type stripping across workspace packages", () => {
       ],
       { cwd: piHostDir, encoding: "utf8" },
     );
-    expect(output).toBe("1");
+    expect(output).toBe("2");
   });
 });

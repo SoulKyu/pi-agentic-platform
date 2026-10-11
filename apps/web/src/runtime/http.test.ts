@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getJson, postJson, probeServer } from "./http.ts";
 
@@ -22,7 +23,7 @@ describe("probeServer", () => {
     vi.stubGlobal("fetch", fetchMock);
     expect(await probeServer()).toBe(expected);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/ws?proto=1",
+      `/ws?proto=${PROTOCOL_VERSION}`,
       expect.objectContaining({ credentials: "same-origin", cache: "no-store" }),
     );
   });

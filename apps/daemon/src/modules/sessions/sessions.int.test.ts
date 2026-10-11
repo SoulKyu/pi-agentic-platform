@@ -89,7 +89,7 @@ const ctx: HandlerContext = {
   closeSubscription: () => {},
 };
 const events = () =>
-  frames.map((frame) => frame.event as { kind: string; status?: string; messages?: unknown[] });
+  frames.map((frame) => frame.event as { kind: string; status?: string; rows?: unknown[] });
 const statuses = () => events().flatMap((event) => (event.kind === "status" ? [event.status] : []));
 const listed = (id: string) =>
   sessions.rpc["sessions.list"]({}, ctx).then(({ sessions: all }) => all.find((s) => s.id === id));
@@ -109,8 +109,8 @@ async function snapshotRows(id: string): Promise<string[]> {
     },
   );
   hub.close("probe");
-  const messages = (seen[0]?.event as { messages: Array<{ role: string }> }).messages;
-  return messages.map((message) => message.role);
+  const rows = (seen[0]?.event as { rows: Array<{ message: { role: string } }> }).rows;
+  return rows.map((row) => row.message.role);
 }
 
 async function promptAndSettle(id: string, text: string): Promise<void> {
@@ -128,7 +128,7 @@ describe("sessions with the real pi-host", () => {
   it("creates, prompts, streams, survives a killed worker and picks up where Pi's file left off", async () => {
     const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: work }, ctx);
     await sessions.rpc["subscribe.session"]({ sessionId }, ctx);
-    expect(events()[0]).toMatchObject({ kind: "snapshot", status: "idle", messages: [] });
+    expect(events()[0]).toMatchObject({ kind: "snapshot", status: "idle", rows: [] });
     // Pi has not written a file for a session nobody has spoken to.
     expect(store.get(sessionId)).toMatchObject({ piPath: null, piSessionId: null, cwd: realpathSync(work) });
 

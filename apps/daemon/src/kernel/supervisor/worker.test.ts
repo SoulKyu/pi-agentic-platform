@@ -2,7 +2,14 @@ import { EventEmitter } from "node:events";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../clock.ts";
 import { type LogFields, type Logger, silentLogger } from "../logger.ts";
-import { killAllWorkerGroups, spawnWorker, STDIO_DRAIN_MS, type WorkerHandle } from "./worker.ts";
+import {
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  killAllWorkerGroups,
+  requestTimeoutMs,
+  spawnWorker,
+  STDIO_DRAIN_MS,
+  type WorkerHandle,
+} from "./worker.ts";
 
 // A child process that only does what the test makes it do, so the supervisor's decisions can be read off its
 // calls: which group it signalled and when, and what it did with the pipes.
@@ -137,5 +144,16 @@ describe("a signal that fails", () => {
     child.emit("close");
     await handle.exited;
     expect(killAllWorkerGroups()).toBe(0);
+  });
+});
+
+describe("request timeouts", () => {
+  it("gives each command its own default timeout", () => {
+    expect(requestTimeoutMs({ type: "prompt", message: "x" })).toBeUndefined();
+    expect(requestTimeoutMs({ type: "compact" })).toBeUndefined();
+    expect(requestTimeoutMs({ type: "navigate_tree", targetId: "e1" })).toBeUndefined();
+    expect(requestTimeoutMs({ type: "auto_name" })).toBe(120_000);
+    expect(requestTimeoutMs({ type: "export_html", outputPath: "/p/x.html" })).toBe(120_000);
+    expect(requestTimeoutMs({ type: "set_session_name", name: "n" })).toBe(DEFAULT_REQUEST_TIMEOUT_MS);
   });
 });

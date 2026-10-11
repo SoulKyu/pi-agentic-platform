@@ -67,6 +67,11 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
           {t(`session.status.${view.status}`)}
         </span>
       </header>
+      {view.unreadable ? (
+        <p role="alert" className="border-l-2 border-error px-3 py-2 text-ui text-error">
+          {t("sessions.unreadable")}
+        </p>
+      ) : null}
       <ol ref={attachList} onScroll={onListScroll} className="flex flex-1 flex-col gap-2 overflow-y-auto">
         {items.map((item, index) =>
           item.failure ? (

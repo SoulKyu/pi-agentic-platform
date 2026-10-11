@@ -23,7 +23,7 @@ const build = (options?: Parameters<typeof createServiceBed>[1]) =>
 let bed: ReturnType<typeof build>;
 afterEach(() => bed.dispose());
 const rowsOf = (event: unknown): string[] =>
-  (event as { messages: Array<{ role: string; content: unknown }> }).messages.map((m) =>
+  (event as { rows: Array<{ message: { role: string; content: unknown } }> }).rows.map(({ message: m }) =>
     typeof m.content === "string" ? m.content : JSON.stringify(m.content),
   );
 const kindsOf = (frames: EventFrame[]) => frames.map((frame) => (frame.event as { kind: string }).kind);
@@ -50,10 +50,10 @@ describe("snapshot", () => {
     bed = build();
     await bed.service.create(bed.work, owner);
     bed.spawned[0]?.emit(confirm);
-    expect(await bed.snapshot("p1")).toEqual({
+    expect(await bed.snapshot("p1")).toMatchObject({
       kind: "snapshot",
       status: "idle",
-      messages: [],
+      rows: [],
       dialogs: [{ id: "d1", method: "confirm", title: "Run?", message: "bash: ls" }],
     });
   });
@@ -136,10 +136,12 @@ describe("snapshot", () => {
       Array.from({ length: 10 }, (_, i) => [`${i}${big}`, `answer ${i}`] as const),
     );
     bed.emit(0, { type: "turn_start" });
-    const snapshot = (await bed.snapshot("p1")) as { messages: Array<{ role: string; omitted?: boolean }> };
+    const snapshot = (await bed.snapshot("p1")) as {
+      rows: Array<{ message: { role: string; omitted?: boolean } }>;
+    };
     expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThan(1024 * 1024 - 1024);
-    expect(snapshot.messages).toHaveLength(20);
-    expect(snapshot.messages.filter((message) => message.omitted)).toHaveLength(10);
+    expect(snapshot.rows).toHaveLength(20);
+    expect(snapshot.rows.filter((row) => row.message.omitted)).toHaveLength(10);
     expect(rowsOf(snapshot).at(-1)).toBe('[{"type":"text","text":"answer 9"}]');
   });
 
@@ -153,9 +155,14 @@ describe("snapshot", () => {
       type: "message_end",
       message: { role: "toolResult", timestamp: 5, content: "y".repeat(2_000_000) },
     });
-    const snapshot = (await bed.snapshot("p1")) as { messages: Array<Record<string, unknown>> };
-    expect(snapshot.messages).toHaveLength(3);
-    expect(snapshot.messages.at(-1)).toMatchObject({ role: "toolResult", timestamp: 5, omitted: true });
+    const snapshot = (await bed.snapshot("p1")) as {
+      rows: Array<{ entryId: null; message: Record<string, unknown> }>;
+    };
+    expect(snapshot.rows).toHaveLength(3);
+    expect(snapshot.rows.at(-1)).toEqual({
+      entryId: null,
+      message: expect.objectContaining({ role: "toolResult", timestamp: 5, omitted: true }),
+    });
   });
 });
 

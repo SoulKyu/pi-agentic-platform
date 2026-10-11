@@ -3,9 +3,11 @@ import {
   Dialog,
   DialogResponse,
   EMPTY_QUEUE,
+  IDLE_ACTIVITY,
   NO_HISTORY,
   Notice,
   Panel,
+  SessionStreamEvent,
   StatusEntry,
   UI_LIMITS,
 } from "./index.ts";
@@ -45,5 +47,75 @@ describe("session stream v2 schemas (additive)", () => {
   it("starts the defaults empty", () => {
     expect(EMPTY_QUEUE).toEqual({ steering: [], followUp: [], count: 0, bytes: 0 });
     expect(NO_HISTORY).toEqual({ hasMore: false, oldestEntryId: null, turnsBefore: 0 });
+  });
+});
+
+const snapshot = {
+  kind: "snapshot",
+  status: "releasing",
+  rows: [
+    { entryId: "e1", message: { role: "user", content: "hi" } },
+    { entryId: null, message: {} },
+  ],
+  dialogs: [{ ...approval, answers: ["deny", "session", "always", "once"] }],
+  partial: {
+    blocks: [
+      { type: "text", text: "Hel" },
+      { type: "toolCall", text: '{"pa', id: "c1", name: "read" },
+    ],
+  },
+  queue: { steering: ["go left"], followUp: [], count: 1, bytes: 7 },
+  statuses: [{ key: "command:/mode build", text: "Build" }],
+  widgets: [{ key: "todo", lines: ["- a"], placement: "belowEditor" }],
+  title: "pi - repo",
+  panels: [{ id: "p1", lines: ["> alpha", "  beta"] }],
+  notices: [
+    { level: "warning", text: "An extension failed during session_start." },
+    { level: "info", text: "saved", source: "extension" },
+  ],
+  decorationsTruncated: false,
+  history: { hasMore: true, oldestEntryId: "e1", turnsBefore: 3 },
+  activity: { compacting: false, retry: { attempt: 1, maxAttempts: 3 } },
+  leafId: "e9",
+  name: "Fix the login bug",
+};
+
+describe("session stream v2", () => {
+  it("parses a snapshot with every section", () => {
+    expect(SessionStreamEvent.parse(snapshot)).toEqual(snapshot);
+  });
+
+  it("refuses sections over their limits", () => {
+    const statuses = Array.from({ length: UI_LIMITS.statuses + 1 }, (_, i) => ({ key: `k${i}`, text: "x" }));
+    expect(SessionStreamEvent.safeParse({ ...snapshot, statuses }).success).toBe(false);
+    expect(
+      SessionStreamEvent.safeParse({ ...snapshot, title: "t".repeat(UI_LIMITS.title + 1) }).success,
+    ).toBe(false);
+    expect(
+      SessionStreamEvent.safeParse({ kind: "status", status: "cold", cause: "c".repeat(257) }).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    {
+      kind: "row",
+      row: { entryId: "c1", message: { role: "compactionSummary", summary: "s", tokensBefore: 10 } },
+    },
+    {
+      kind: "entry",
+      entry: { id: "e2", parentId: "e1", type: "message", role: "assistant", messageTimestamp: 2 },
+    },
+    { kind: "queue", queue: EMPTY_QUEUE },
+    { kind: "status_bar", key: "git", text: null },
+    { kind: "widget", key: "todo", widget: null },
+    { kind: "title", title: null },
+    { kind: "editor_text", text: "prefill" },
+    { kind: "panel", panel: { id: "p1", lines: [] } },
+    { kind: "panel_closed", id: "p1" },
+    { kind: "name", name: null },
+    { kind: "activity", activity: IDLE_ACTIVITY },
+    { kind: "notice", level: "info", text: "hi", source: "extension" },
+  ])("round-trips a $kind event", (event) => {
+    expect(SessionStreamEvent.parse(event)).toEqual(event);
   });
 });
