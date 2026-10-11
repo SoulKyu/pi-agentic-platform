@@ -15,18 +15,40 @@ export function initialAssets(indexHtml: string): string[] {
 
 export function initialBundleGzipKb(distDir: string): number {
   const html = readFileSync(join(distDir, "index.html"), "utf8");
-  const bytes = initialAssets(html).reduce(
+  const assets = initialAssets(html);
+  if (assets.length === 0) {
+    throw new Error(
+      `${join(distDir, "index.html")} loads no script or stylesheet from /assets/: nothing to measure`,
+    );
+  }
+  const bytes = assets.reduce(
     (sum, asset) => sum + gzipSync(readFileSync(join(distDir, asset)), { level: 9 }).length,
     0,
   );
   return Math.round((bytes / 1024) * 10) / 10;
 }
 
+function initialBundleBudgetKb(path: string): number {
+  const budget = (JSON.parse(readFileSync(path, "utf8")) as { initialBundleGzipKb?: unknown })
+    .initialBundleGzipKb;
+  if (typeof budget !== "number" || !Number.isFinite(budget)) {
+    throw new Error(
+      `${path}: initialBundleGzipKb must be a number, found ${JSON.stringify(budget) ?? "nothing"}`,
+    );
+  }
+  return budget;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const budgets = JSON.parse(readFileSync("budgets.json", "utf8")) as { initialBundleGzipKb: number };
-  const measured = initialBundleGzipKb("apps/web/dist");
-  console.log(`initial bundle: ${measured} KB gzip (budget ${budgets.initialBundleGzipKb} KB)`);
-  console.log("session open payload: not measured in M1");
-  console.log("idle worker RSS: not measured in M1");
-  if (measured > budgets.initialBundleGzipKb) process.exitCode = 1;
+  try {
+    const budget = initialBundleBudgetKb("budgets.json");
+    const measured = initialBundleGzipKb("apps/web/dist");
+    console.log(`initial bundle: ${measured} KB gzip (budget ${budget} KB)`);
+    console.log("session open payload: not measured in M1");
+    console.log("idle worker RSS: not measured in M1");
+    if (measured > budget) process.exitCode = 1;
+  } catch (error) {
+    console.error(`check-budgets: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  }
 }

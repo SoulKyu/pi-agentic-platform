@@ -114,6 +114,9 @@ describe("CI configuration", () => {
     expect(Object.keys(jobs)).toEqual(["checks", "unit", "integration", "build", "budgets"]);
     const budgets = jobs["budgets"];
     expect(budgets?.needs).toBe("build");
+    expect(budgets?.steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({
+      install: "false",
+    });
     const download = budgets?.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
     expect(download?.with).toEqual({ name: "dist", path: "." });
     expect(budgets?.steps.at(-1)?.run).toBe("pnpm budgets");
