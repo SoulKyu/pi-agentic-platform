@@ -110,6 +110,19 @@ describe("CI configuration", () => {
     expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({ install: "false" });
   });
 
+  it("smoke-tests the built artifacts right after the build, before the artifact is uploaded", () => {
+    const steps = workflow("ci").jobs["build"]?.steps ?? [];
+    const order = [
+      steps.findIndex((step) => step.run === "pnpm build"),
+      steps.findIndex((step) => step.run === "pnpm smoke"),
+      steps.findIndex((step) => step.uses?.startsWith("actions/upload-artifact@")),
+    ];
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> }).scripts;
+    expect(scripts["smoke"]).toBe("node --disable-warning=ExperimentalWarning scripts/smoke-dist.ts");
+  });
+
   it("checks the bundle budget on the built artifact and has no browser job (M1 without Playwright)", () => {
     const { jobs } = workflow("ci");
     expect(Object.keys(jobs)).toEqual(["checks", "unit", "integration", "build", "budgets"]);

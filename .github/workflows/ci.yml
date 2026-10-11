@@ -56,6 +56,8 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm build
+      # The built daemon forking the built worker, no --conditions: scripted provider, temp dirs, network guard.
+      - run: pnpm smoke
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: dist

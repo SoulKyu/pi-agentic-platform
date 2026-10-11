@@ -14,13 +14,15 @@
     "test:unit": "vitest run --project unit",
     "test:int": "vitest run --project integration",
     "build": "pnpm -r run build",
-    "budgets": "node --disable-warning=ExperimentalWarning scripts/check-budgets.ts"
+    "budgets": "node --disable-warning=ExperimentalWarning scripts/check-budgets.ts",
+    "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke-dist.ts"
   },
   "packageManager": "pnpm@10.34.6+sha512.7e1ae66a83a9143c118cc1944f37cc4f2b8acddeda4b001cfa78908f6e46e45e15292739ca6c9d026426cc757e9318cc98c5551d6a16c165097b0028ba87b4e6",
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "4.8.1",
     "@eslint/js": "10.0.1",
     "@types/node": "24.13.6",
+    "@types/ws": "8.18.2",
     "eslint": "10.12.0",
     "eslint-import-resolver-typescript": "4.4.5",
     "eslint-plugin-boundaries": "5.4.0",
@@ -31,6 +33,7 @@
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.1",
     "vitest": "5.0.3",
+    "ws": "8.22.0",
     "yaml": "2.9.1"
   }
 }
