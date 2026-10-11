@@ -33,7 +33,7 @@ export function Avatar({ initials, name, avatarStyle, presence, badge }: AvatarP
         AVATAR_STYLE[style],
       )}
     >
-      <span aria-hidden>{initials.slice(0, 2)}</span>
+      <span aria-hidden>{Array.from(initials).slice(0, 2).join("")}</span>
       {presence ? (
         <span
           aria-hidden

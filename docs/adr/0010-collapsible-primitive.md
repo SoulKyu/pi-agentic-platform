@@ -12,5 +12,5 @@ Collapsible.
 region. No animation of the height (state swaps are 0 ms, DESIGN.md §7.2).
 
 ## Consequences
-Reasoning and ToolCard use it; callers never restyle the trigger. DESIGN.md §9.1's table gains a "Collapsible" row at the next
+Reasoning and ToolCard will use it; callers never restyle the trigger. DESIGN.md §9.1's table gains a "Collapsible" row at the next
 DESIGN.md revision.

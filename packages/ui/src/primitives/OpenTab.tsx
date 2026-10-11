@@ -3,7 +3,7 @@ import { IconClose } from "../icons.ts";
 import { Icon } from "./Icon.tsx";
 
 const TAB_CLASSES =
-  "group inline-flex h-bar max-w-56 shrink-0 items-center gap-s1 rounded-sm border px-s2 label-hud transition-colors duration-fast focus-ring pointer-coarse:min-h-11";
+  "group inline-flex h-bar max-w-56 shrink-0 items-center gap-s1 rounded-sm border px-s2 label-hud transition-colors duration-fast";
 const TAB_STATE = {
   active: "border-agent bg-surface-2 text-fg",
   idle: "border-border text-muted can-hover:hover:text-fg",
@@ -49,7 +49,7 @@ export function OpenTab({
           event.preventDefault();
           onClose();
         }}
-        className="flex min-w-0 items-center gap-s1 outline-none"
+        className="flex min-w-0 items-center gap-s1 focus-ring pointer-coarse:min-h-11"
       >
         {statusTone ? (
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_TONES[statusTone])} />
@@ -61,7 +61,7 @@ export function OpenTab({
         aria-label={closeLabel}
         tabIndex={-1}
         onClick={onClose}
-        className="inline-flex size-4 items-center justify-center rounded-sm text-muted can-hover:hover:bg-surface pointer-coarse:size-11"
+        className="inline-flex size-4 items-center justify-center rounded-sm text-muted focus-ring can-hover:hover:bg-surface pointer-coarse:size-11"
       >
         <Icon icon={IconClose} size={14} />
       </button>

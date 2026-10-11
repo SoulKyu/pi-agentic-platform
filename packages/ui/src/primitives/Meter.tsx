@@ -12,8 +12,9 @@ export interface MeterProps {
 
 /** DESIGN.md §9.1: tokens are agent, cost is you. The value is clamped to the range (M3R19). */
 export function Meter({ label, value, max, kind, valueText }: MeterProps) {
-  const now = Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : 0;
-  const percent = max > 0 ? (now / max) * 100 : 0;
+  const top = Number.isFinite(max) && max > 0 ? max : 0;
+  const now = Number.isFinite(value) ? Math.min(top, Math.max(0, value)) : 0;
+  const percent = top > 0 ? (now / top) * 100 : 0;
   return (
     <div data-slot="meter" className="flex flex-col gap-s1">
       <div className="flex items-baseline justify-between gap-s2">
@@ -24,7 +25,7 @@ export function Meter({ label, value, max, kind, valueText }: MeterProps) {
         role="meter"
         aria-label={label}
         aria-valuemin={0}
-        aria-valuemax={max}
+        aria-valuemax={top}
         aria-valuenow={now}
         aria-valuetext={valueText}
         className="h-1 w-full bg-surface-2"

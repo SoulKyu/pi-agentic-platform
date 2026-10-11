@@ -101,3 +101,53 @@ describe("status and structure (DESIGN.md §9.1, §2)", () => {
     );
   });
 });
+
+describe("fix round 1 (focus, touch, clamping, guards)", () => {
+  it("the focusable tab button shows the focus ring and keeps the 44 px coarse target", async () => {
+    const page = await mount(
+      <OpenTab tabId="t3" title="b" active closeLabel="Close b" onSelect={() => {}} onClose={() => {}} />,
+    );
+    const tab = page.container.querySelector('[role="tab"]') as HTMLElement;
+    expect(tab.className).toContain("focus-ring");
+    expect(tab.className).not.toContain("outline-none");
+    expect(tab.className).toContain("pointer-coarse:min-h-11");
+    const close = page.container.querySelector('[aria-label="Close b"]') as HTMLElement;
+    expect(close.className).toContain("focus-ring");
+    await page.unmount();
+  });
+
+  it("meters never report NaN or a negative value for a degenerate max", () => {
+    const zero = html(<Meter label="Zero" value={5} max={0} kind="tokens" valueText="5" />);
+    expect(zero).toContain('aria-valuemax="0"');
+    expect(zero).toContain('aria-valuenow="0"');
+    const negative = html(<Meter label="Negative" value={3} max={-5} kind="tokens" valueText="3" />);
+    expect(negative).toContain('aria-valuemax="0"');
+    expect(negative).toContain('aria-valuenow="0"');
+    const notANumber = html(<Meter label="NaN" value={3} max={Number.NaN} kind="tokens" valueText="3" />);
+    expect(notANumber).toContain('aria-valuemax="0"');
+    expect(notANumber).toContain('aria-valuenow="0"');
+    expect(html(<Meter label="Mid" value={1} max={4} kind="tokens" valueText="1" />)).toContain(
+      'aria-valuenow="1"',
+    );
+  });
+
+  it("badges show a whole non-negative count, capped at 99+", () => {
+    const shown = (count: number) => html(<Badge count={count} label="n" />);
+    expect(shown(Number.NaN)).toContain('aria-hidden="true">0</span>');
+    expect(shown(-3)).toContain('aria-hidden="true">0</span>');
+    expect(shown(2.7)).toContain('aria-hidden="true">2</span>');
+    expect(shown(99)).toContain('aria-hidden="true">99</span>');
+    expect(shown(100)).toContain('aria-hidden="true">99+</span>');
+  });
+
+  it("avatars show a count badge only above zero", () => {
+    const withBadge = html(<Avatar initials="AT" name="Atlas" badge={{ count: 2, label: "2 unread" }} />);
+    expect(withBadge).toContain('data-slot="badge"');
+    const zero = html(<Avatar initials="AT" name="Atlas" badge={{ count: 0, label: "0 unread" }} />);
+    expect(zero).not.toContain('data-slot="badge"');
+  });
+
+  it("avatar initials keep whole code points", () => {
+    expect(html(<Avatar initials="😀😀X" name="Emoji" />)).toContain('aria-hidden="true">😀😀</span>');
+  });
+});

@@ -16,3 +16,21 @@ describe("IconButton", () => {
     expect(html).toContain("size-control");
   });
 });
+
+describe("IconButton badge", () => {
+  it("shows the count badge above zero and not at zero", () => {
+    const withBadge = renderToStaticMarkup(
+      <TooltipProvider>
+        <IconButton icon={IconSettings} label="Inbox" badge={{ count: 3, label: "3 unread" }} />
+      </TooltipProvider>,
+    );
+    expect(withBadge).toContain('data-slot="badge"');
+    expect(withBadge).toContain("3 unread");
+    const none = renderToStaticMarkup(
+      <TooltipProvider>
+        <IconButton icon={IconSettings} label="Inbox" badge={{ count: 0, label: "0 unread" }} />
+      </TooltipProvider>,
+    );
+    expect(none).not.toContain('data-slot="badge"');
+  });
+});
