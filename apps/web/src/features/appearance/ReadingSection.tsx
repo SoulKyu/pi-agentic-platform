@@ -7,7 +7,7 @@ import { SIZE_RANGES, type DeviceAppearance } from "./model.ts";
 type SizeField = keyof typeof SIZE_RANGES;
 const SIZE_FIELDS = ["uiSize", "chatSize", "codeSize"] as const satisfies readonly SizeField[];
 /** What each density sets in tokens.css, shown while a size follows it. */
-const DENSITY_SIZES: Record<DeviceAppearance["density"], Record<SizeField, number>> = {
+export const DENSITY_SIZES: Record<DeviceAppearance["density"], Record<SizeField, number>> = {
   compact: { uiSize: 13, chatSize: 14, codeSize: 12 },
   comfortable: { uiSize: 14, chatSize: 15, codeSize: 12.5 },
   mixed: { uiSize: 13, chatSize: 15, codeSize: 12 },

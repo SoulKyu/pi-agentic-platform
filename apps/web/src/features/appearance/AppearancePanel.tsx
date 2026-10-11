@@ -33,7 +33,11 @@ export function AppearancePanel() {
         label: t("settings.appearance.undo"),
         altText: t("settings.appearance.undoAlt"),
         run: () => {
-          setAccount(previous.account);
+          // The reset kept the custom themes, so Undo has none to restore; themes edited since stay.
+          setAccount({
+            ...previous.account,
+            customThemes: useAppearanceStore.getState().account.customThemes,
+          });
           setDevice(previous.device);
         },
       },

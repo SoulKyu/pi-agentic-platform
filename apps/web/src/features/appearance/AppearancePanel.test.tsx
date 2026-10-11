@@ -5,6 +5,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsScreenEn, settingsScreenFr } from "../../i18n/catalog/settings-screen.ts";
 import { registerCatalog, setLocale } from "../../i18n/index.ts";
+import { RpcError } from "../../runtime/index.ts";
 import { click, mount, press } from "../../testing/dom.ts";
 import { AppearancePanel } from "./AppearancePanel.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
@@ -223,51 +224,108 @@ describe("Settings > Appearance", () => {
   });
 });
 
-describe("Undo while the reset is being saved", () => {
-  it("sends the previous values from the revision the reset's save returned", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
-    const previous: AccountAppearance = {
-      ...DEFAULT_ACCOUNT,
-      mode: "day",
-      grid: false,
-      customThemes: [ocean],
-    };
-    seed(previous);
-    const releases: Array<(revision: number) => void> = [];
-    const sets: unknown[] = [];
-    const rpc = {
-      call: vi.fn((method: string, params: unknown) => {
-        if (method === "settings.get") return Promise.resolve({ value: null, revision: 1 });
-        sets.push(params);
-        return new Promise((resolve) => releases.push((revision) => resolve({ revision })));
-      }),
-    };
-    const controller = startAppearance(window);
-    try {
-      await syncAccountAppearance(rpc as never);
-      await render();
-      await click(buttonNamed("Reset to defaults"));
-      await act(async () => vi.advanceTimersByTime(400));
-      expect(sets).toEqual([
-        {
-          key: "appearance",
-          value: { ...DEFAULT_ACCOUNT, customThemes: [ocean] },
-          baseRevision: 1,
-        },
-      ]);
-      await click(buttonNamed("Undo"));
-      expect(state().account).toEqual(previous);
-      await act(async () => vi.advanceTimersByTime(400));
-      expect(sets).toHaveLength(1); // one save at a time: Undo waits for the reset's save
-      await act(async () => releases[0]?.(2));
-      await drain();
-      expect(sets).toHaveLength(2);
-      expect(sets[1]).toEqual({ key: "appearance", value: previous, baseRevision: 2 });
-      await act(async () => releases[1]?.(3));
-      await drain();
-      expect(state().accountStatus).toBe("saved");
-    } finally {
-      controller.stop();
-    }
+const changedAccount: AccountAppearance = {
+  ...DEFAULT_ACCOUNT,
+  mode: "day",
+  grid: false,
+  customThemes: [ocean],
+};
+
+/** settings.get answers from `gets`; each settings.set waits for the test to settle it. */
+function scriptedServer(gets: Array<{ value: unknown; revision: number }>) {
+  const settles: Array<{ ok(revision: number): void; fail(code: "conflict" | "internal"): void }> = [];
+  const sets: unknown[] = [];
+  const rpc = {
+    call: vi.fn((method: string, params: unknown) => {
+      if (method === "settings.get") return Promise.resolve(gets.shift());
+      sets.push(params);
+      return new Promise((resolve, reject) =>
+        settles.push({
+          ok: (revision) => resolve({ revision }),
+          fail: (code) => reject(new RpcError(code)),
+        }),
+      );
+    }),
+  };
+  return { rpc, sets, settles };
+}
+
+let controller: { stop(): void } | null = null;
+
+async function resetThenSave(server: ReturnType<typeof scriptedServer>) {
+  seed(changedAccount); // the person's copy is in place before the controller starts watching the store
+  controller = startAppearance(window);
+  await syncAccountAppearance(server.rpc as never);
+  await render();
+  await click(buttonNamed("Reset to defaults"));
+  await act(async () => vi.advanceTimersByTime(400));
+}
+
+describe("Undo and the account copy", () => {
+  beforeEach(() => vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] }));
+  afterEach(() => controller?.stop());
+
+  it("while the reset is being saved: sends the previous values from the revision that save returned", async () => {
+    const server = scriptedServer([{ value: null, revision: 1 }]);
+    await resetThenSave(server);
+    expect(server.sets).toEqual([
+      { key: "appearance", value: { ...DEFAULT_ACCOUNT, customThemes: [ocean] }, baseRevision: 1 },
+    ]);
+    await click(buttonNamed("Undo"));
+    expect(state().account).toEqual(changedAccount);
+    await act(async () => vi.advanceTimersByTime(400));
+    expect(server.sets).toHaveLength(1); // one save at a time: Undo waits for the reset's save
+    await act(async () => server.settles[0]?.ok(2));
+    await drain();
+    expect(server.sets[1]).toEqual({ key: "appearance", value: changedAccount, baseRevision: 2 });
+    await act(async () => server.settles[1]?.ok(3));
+    await drain();
+    expect(server.sets).toHaveLength(2);
+    expect(state().accountStatus).toBe("saved");
+  });
+
+  it("when the reset's save conflicts: re-reads, merges the Undo fields over the server copy and retries at the new revision", async () => {
+    const server = scriptedServer([
+      { value: null, revision: 1 },
+      { value: { ...DEFAULT_ACCOUNT, uiFont: "system", customThemes: [ocean] }, revision: 5 },
+    ]);
+    await resetThenSave(server);
+    await click(buttonNamed("Undo"));
+    await act(async () => server.settles[0]?.fail("conflict"));
+    await drain();
+    expect(server.sets).toHaveLength(2);
+    const merged = { ...changedAccount, uiFont: "system" }; // the server's other field survives, ours win
+    expect(server.sets[1]).toEqual({ key: "appearance", value: merged, baseRevision: 5 });
+    expect(state().account).toEqual(merged);
+    await act(async () => server.settles[1]?.ok(6));
+    await drain();
+    expect(status()).toBe("Saved to your account");
+  });
+
+  it("when the reset's save fails: says so, and Undo saves the previous values again at the same revision", async () => {
+    const server = scriptedServer([{ value: null, revision: 1 }]);
+    await resetThenSave(server);
+    await act(async () => server.settles[0]?.fail("internal"));
+    await drain();
+    expect(status()).toBe("Not saved to your account. Your next change tries again.");
+    await click(buttonNamed("Undo"));
+    await act(async () => vi.advanceTimersByTime(400));
+    expect(server.sets).toHaveLength(2);
+    expect(server.sets[1]).toEqual({ key: "appearance", value: changedAccount, baseRevision: 1 });
+    await act(async () => server.settles[1]?.ok(2));
+    await drain();
+    expect(status()).toBe("Saved to your account");
+  });
+});
+
+describe("Undo and the custom themes", () => {
+  it("restores what Reset changed and never rewrites customThemes edited since", async () => {
+    seed(changedAccount);
+    await render();
+    await click(buttonNamed("Reset to defaults"));
+    const edited = { ...state().account, customThemes: [ocean, dune] };
+    await act(async () => state().setAccount(edited));
+    await click(buttonNamed("Undo"));
+    expect(state().account).toEqual({ ...changedAccount, customThemes: [ocean, dune] });
   });
 });

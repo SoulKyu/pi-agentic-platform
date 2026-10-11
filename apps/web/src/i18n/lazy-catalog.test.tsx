@@ -38,7 +38,20 @@ describe("lazy catalog (Settings)", () => {
 
   it("is referenced only from the Settings chunk: eager code can never render a raw key", () => {
     const lazy = Object.keys(settingsScreenEn);
-    const inChunk = (file: string) => /^(?:routes\/settings|features\/appearance)\/[^/]+\.tsx?$/.test(file);
+    // Explicit: features/appearance also holds the eager boot files (index, controller, store, model).
+    const chunk = new Set([
+      "routes/settings/AccountSection.tsx",
+      "routes/settings/LanguageSection.tsx",
+      "routes/settings/SettingsScreen.tsx",
+      "routes/settings/sections.tsx",
+      "features/appearance/AppearancePanel.tsx",
+      "features/appearance/AppearancePreview.tsx",
+      "features/appearance/AppearanceSection.tsx",
+      "features/appearance/DetailsSection.tsx",
+      "features/appearance/ReadingSection.tsx",
+      "features/appearance/ThemeSection.tsx",
+    ]);
+    const inChunk = (file: string) => chunk.has(file);
     const offenders: string[] = [];
     for (const file of files(src)) {
       const name = relative(src, file).split("\\").join("/");
