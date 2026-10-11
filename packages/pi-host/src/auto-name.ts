@@ -47,6 +47,12 @@ export async function handleAutoName(
         ...(levels.includes("off") || !cheapest ? {} : { reasoning: cheapest }),
       },
     );
+    if (reply.stopReason === "error" || reply.stopReason === "aborted") {
+      return void answer({
+        success: false,
+        error: controller.signal.aborted ? "title generation timed out" : "the model call failed",
+      });
+    }
     const text = reply.content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join("");
     const title = parseTitle(text);
     if (!title) return void answer({ success: false, error: "the model gave no title" });

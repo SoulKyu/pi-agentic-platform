@@ -58,4 +58,19 @@ describe("parseTitle", () => {
     expect(title.length).toBeLessThanOrEqual(80);
     expect(title.endsWith("…")).toBe(true);
   });
+
+  it.each([
+    ["\u202Eevil", "evil"],
+    ["a\u200Bb", "a b"],
+    ["a\u0000b", "a b"],
+    ["\u0007\u200B", null],
+  ])("replaces control and format characters in %j", (raw, expected) => {
+    expect(parseTitle(raw)).toBe(expected);
+  });
+
+  it("never cuts inside an astral character", () => {
+    const title = parseTitle(`${"a".repeat(78)}\u{1F600}\u{1F600}\u{1F600}`);
+    expect(title).toBe(`${"a".repeat(78)}\u{1F600}…`);
+    expect(parseTitle(`${"a".repeat(30)} ${"\u{1F600}".repeat(60)}`)).toBe(`${"a".repeat(30)}…`);
+  });
 });

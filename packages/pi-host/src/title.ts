@@ -80,14 +80,17 @@ export function parseTitle(raw: string): string | null {
     .find(Boolean);
   if (!line) return null;
   const bare = line
+    .replace(/[\p{Cc}\p{Cf}\p{Cs}\p{Co}\p{Cn}\p{Zl}\p{Zp}]/gu, " ")
+    .trim()
     .replace(/^title\s*:\s*/i, "")
     .replace(/^[*_#>`\s]+|[*_`\s]+$/g, "")
     .replace(/^["'«“‘]+|["'»”’]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
   if (!bare) return null;
-  if (bare.length <= MAX_TITLE_CHARS) return bare;
-  const room = bare.slice(0, MAX_TITLE_CHARS - 1);
+  const points = Array.from(bare);
+  if (points.length <= MAX_TITLE_CHARS) return bare;
+  const room = points.slice(0, MAX_TITLE_CHARS - 1).join("");
   const space = room.lastIndexOf(" ");
   return `${(space > 20 ? room.slice(0, space) : room).trimEnd()}…`;
 }
