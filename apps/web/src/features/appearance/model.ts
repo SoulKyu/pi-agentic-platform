@@ -1,0 +1,224 @@
+import { AccountAppearanceFields, CustomTheme, type AccountAppearance } from "@pap/contracts";
+import { DENSITIES, type Density, type ThemeName } from "@pap/ui";
+import { deriveTheme, tokenVars } from "./derive.ts";
+
+export const DEVICE_KEY = "pap.appearance.device.v1";
+export const ACCOUNT_CACHE_KEY = "pap.appearance.account.v1";
+
+export const DEFAULT_ACCOUNT: AccountAppearance = {
+  mode: "system",
+  darkTheme: "night",
+  lightTheme: "day",
+  customThemes: [],
+  uiFont: "manrope",
+  monoFont: "jetbrains-mono",
+  uppercaseLabels: true,
+  grid: true,
+  railPosition: "left",
+  avatarStyle: "outlined",
+  toolDetail: "compact",
+};
+
+export interface DeviceAppearance {
+  readonly density: Density;
+  /** px; null follows the density. */
+  readonly uiSize: number | null;
+  readonly chatSize: number | null;
+  readonly codeSize: number | null;
+  readonly motion: "system" | "reduced" | "none";
+  /** Default full width (pi-web rejected a 72ch cap, decision 28). */
+  readonly chatWidth: "full" | "wide" | "narrow";
+}
+
+export const DEFAULT_DEVICE: DeviceAppearance = {
+  density: "compact",
+  uiSize: null,
+  chatSize: null,
+  codeSize: null,
+  motion: "system",
+  chatWidth: "full",
+};
+export const SIZE_RANGES = { uiSize: [12, 16], chatSize: [13, 18], codeSize: [11, 16] } as const;
+
+const MAX_CUSTOM_THEMES = 16;
+const MAX_THEME_ENTRIES_READ = 64;
+
+/**
+ * Field by field (owner R3-4, M3-RT-01): an unreadable or missing field falls back on its own; custom themes keep
+ * their valid entries; a side whose theme is gone falls back to its preset. Never throws.
+ */
+export function parseAccount(value: unknown): AccountAppearance {
+  const source: Readonly<Record<string, unknown>> =
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const field = <K extends keyof AccountAppearance>(name: K): AccountAppearance[K] => {
+    const parsed = AccountAppearanceFields.shape[name].safeParse(source[name]);
+    return parsed.success ? (parsed.data as AccountAppearance[K]) : DEFAULT_ACCOUNT[name];
+  };
+  const themes: CustomTheme[] = [];
+  const ids = new Set<string>();
+  const entries: readonly unknown[] = Array.isArray(source.customThemes)
+    ? source.customThemes.slice(0, MAX_THEME_ENTRIES_READ)
+    : [];
+  for (const entry of entries) {
+    const parsed = CustomTheme.safeParse(entry);
+    if (!parsed.success || ids.has(parsed.data.id) || themes.length === MAX_CUSTOM_THEMES) continue;
+    ids.add(parsed.data.id);
+    themes.push(parsed.data);
+  }
+  const side = (
+    id: string,
+    base: CustomTheme["base"],
+    presets: readonly string[],
+    fallback: string,
+  ): string =>
+    presets.includes(id) || themes.some((theme) => theme.id === id && theme.base === base) ? id : fallback;
+  return {
+    mode: field("mode"),
+    darkTheme: side(field("darkTheme"), "night", ["night", "hc"], "night"),
+    lightTheme: side(field("lightTheme"), "day", ["day"], "day"),
+    customThemes: themes,
+    uiFont: field("uiFont"),
+    monoFont: field("monoFont"),
+    uppercaseLabels: field("uppercaseLabels"),
+    grid: field("grid"),
+    railPosition: field("railPosition"),
+    avatarStyle: field("avatarStyle"),
+    toolDetail: field("toolDetail"),
+  };
+}
+
+/** The account fields whose value differs (themes compared as JSON: they are plain data). */
+export function changedAccountFields(previous: AccountAppearance, next: AccountAppearance): string[] {
+  return (Object.keys(next) as Array<keyof AccountAppearance>).filter(
+    (name) => JSON.stringify(previous[name]) !== JSON.stringify(next[name]),
+  );
+}
+
+/** The server copy with the local values of the fields changed on this device laid over it, re-read field by field. */
+export function mergeAccount(
+  server: AccountAppearance,
+  local: AccountAppearance,
+  dirty: ReadonlySet<string>,
+): AccountAppearance {
+  const merged: Record<string, unknown> = { ...server };
+  for (const name of dirty) if (name in local) merged[name] = local[name as keyof AccountAppearance];
+  return parseAccount(merged);
+}
+
+const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T =>
+  allowed.includes(value as T) ? (value as T) : fallback;
+const size = (value: unknown, [min, max]: readonly [number, number]): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= min && value <= max ? value : null;
+
+/** Field by field: one bad field never resets the others (Review Focus 1). */
+export function parseDevice(raw: string | null): DeviceAppearance {
+  let value: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = raw === null ? {} : JSON.parse(raw);
+    if (parsed && typeof parsed === "object") value = parsed as Record<string, unknown>;
+  } catch {
+    value = {};
+  }
+  return {
+    density: oneOf(value.density, DENSITIES, DEFAULT_DEVICE.density),
+    uiSize: size(value.uiSize, SIZE_RANGES.uiSize),
+    chatSize: size(value.chatSize, SIZE_RANGES.chatSize),
+    codeSize: size(value.codeSize, SIZE_RANGES.codeSize),
+    motion: oneOf(value.motion, ["system", "reduced", "none"] as const, DEFAULT_DEVICE.motion),
+    chatWidth: oneOf(value.chatWidth, ["full", "wide", "narrow"] as const, DEFAULT_DEVICE.chatWidth),
+  };
+}
+
+export const APPEARANCE_ATTRS = [
+  "theme",
+  "density",
+  "font-ui",
+  "font-mono",
+  "labels",
+  "grid",
+  "rail",
+  "motion",
+  "chat-width",
+  "tool-detail",
+  "avatar",
+] as const;
+export type AppearanceAttr = (typeof APPEARANCE_ATTRS)[number];
+
+export interface ResolvedAppearance {
+  readonly attrs: Readonly<Record<AppearanceAttr, string>>;
+  readonly vars: Readonly<Record<string, string>>;
+}
+
+function side(
+  account: AccountAppearance,
+  light: boolean,
+): { theme: ThemeName; vars: Record<string, string> } {
+  const id = light ? account.lightTheme : account.darkTheme;
+  const custom = account.customThemes.find((theme) => theme.id === id);
+  if (custom) return { theme: custom.base, vars: tokenVars(deriveTheme(custom)) };
+  return { theme: id === "hc" ? "hc" : light ? "day" : "night", vars: {} };
+}
+
+function deviceVars(device: DeviceAppearance): Record<string, string> {
+  const vars: Record<string, string> = {};
+  if (device.uiSize !== null) vars["--size-ui"] = `${device.uiSize}px`;
+  if (device.chatSize !== null) vars["--size-chat"] = `${device.chatSize}px`;
+  if (device.codeSize !== null) vars["--size-code"] = `${device.codeSize}px`;
+  return vars;
+}
+
+function plainAttrs(
+  account: AccountAppearance,
+  device: DeviceAppearance,
+): Omit<Record<AppearanceAttr, string>, "theme"> {
+  return {
+    density: device.density,
+    "font-ui": account.uiFont === "system" ? "system" : "default",
+    "font-mono": account.monoFont === "system" ? "system" : "default",
+    labels: account.uppercaseLabels ? "upper" : "sentence",
+    grid: account.grid ? "on" : "off",
+    rail: account.railPosition,
+    motion: device.motion,
+    "chat-width": device.chatWidth,
+    "tool-detail": account.toolDetail,
+    avatar: account.avatarStyle,
+  };
+}
+
+export function resolveAppearance(
+  account: AccountAppearance,
+  device: DeviceAppearance,
+  prefersLight: boolean,
+): ResolvedAppearance {
+  const light = account.mode === "day" || (account.mode === "system" && prefersLight);
+  const { theme, vars } = side(account, light);
+  return { attrs: { theme, ...plainAttrs(account, device) }, vars: { ...vars, ...deviceVars(device) } };
+}
+
+export interface BootSide {
+  readonly theme: ThemeName;
+  readonly vars: Readonly<Record<string, string>>;
+}
+
+export interface BootCache {
+  readonly v: 1;
+  readonly mode: AccountAppearance["mode"];
+  readonly attrs: Readonly<Record<string, string>>;
+  readonly vars: Readonly<Record<string, string>>;
+  readonly dark: BootSide;
+  readonly light: BootSide;
+}
+
+/** What the boot script replays before the first paint: both sides, so "system" resolves without the app. */
+export function toBootCache(account: AccountAppearance, device: DeviceAppearance): BootCache {
+  return {
+    v: 1,
+    mode: account.mode,
+    attrs: plainAttrs(account, device),
+    vars: deviceVars(device),
+    dark: side(account, false),
+    light: side(account, true),
+  };
+}

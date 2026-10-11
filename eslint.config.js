@@ -179,7 +179,14 @@ export default defineConfig(
   {
     files: ["apps/web/src/**/*.{ts,tsx}", "packages/ui/src/**/*.{ts,tsx}"],
     // Colour data and colour math, each pinned by its tests (M3-RT-02). Nothing else may hold a raw colour.
-    ignores: ["**/*.test.ts", "**/*.test.tsx", "packages/ui/src/tokens.css", "packages/ui/src/presets.ts"],
+    ignores: [
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "packages/ui/src/tokens.css",
+      "packages/ui/src/presets.ts",
+      "apps/web/src/features/appearance/contrast.ts",
+      "apps/web/src/features/appearance/derive.ts",
+    ],
     plugins: { pap },
     rules: { "pap/no-raw-colors": "error" },
   },
