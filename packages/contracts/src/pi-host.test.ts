@@ -228,6 +228,13 @@ describe("protocol v2 records", () => {
     );
   });
 
+  it("takes a name of 256 code points the way nameOf clips it, and no more", () => {
+    const rename = (name: string) => DaemonToWorker.safeParse({ type: "set_session_name", id: "r1", name });
+    expect(rename("😀".repeat(256)).success).toBe(true);
+    expect(rename("😀".repeat(257)).success).toBe(false);
+    expect(rename("").success).toBe(false);
+  });
+
   it("defaults always rules to none and bounds them", () => {
     const base = { profile: "interactive", approvalMode: "auto-accept-edits" };
     expect(PolicyRules.parse(base).alwaysAllow).toEqual([]);

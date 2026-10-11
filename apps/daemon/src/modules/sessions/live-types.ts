@@ -32,6 +32,8 @@ export interface LiveSessionDeps {
   /** Called after every Pi event, when a run ends and when the worker is gone: the moments Pi's file may have appeared. */
   onActivity(): void;
   onExit(exit: WorkerExit): void;
+  /** Pi's name for the session changed (or `ready` said it): already clipped by `nameOf`, never called twice for one name. */
+  onName(name: string | null): void;
   /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
   onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
 }
@@ -45,6 +47,8 @@ export interface LiveSession {
   piFile(): string | undefined;
   /** Pi's id for the session, from `ready`. */
   piSessionId(): string | undefined;
+  /** Pi's name for the session as the worker last said it, clipped by `nameOf`; null when it has none. */
+  name(): string | null;
   dialogs(): Dialog[];
   /** The extension's status bar entries, widgets, title and open panels; empty once the worker is gone. */
   statuses(): StatusEntry[];

@@ -7,7 +7,9 @@ import {
   NO_HISTORY,
   Notice,
   Panel,
+  SessionName,
   SessionStreamEvent,
+  SessionSummary,
   StatusEntry,
   UI_LIMITS,
 } from "./index.ts";
@@ -128,5 +130,20 @@ describe("session stream v2", () => {
     { kind: "notice", level: "info", text: "hi", source: "extension" },
   ])("round-trips a $kind event", (event) => {
     expect(SessionStreamEvent.parse(event)).toEqual(event);
+  });
+});
+
+describe("session names (M2R92)", () => {
+  const summary = { id: "s", cwd: "/w", status: "idle", createdAt: 1, updatedAt: 2 } as const;
+
+  it("counts code points: 256 emoji fit everywhere a name goes, 257 do not", () => {
+    for (const name of ["x".repeat(256), "😀".repeat(256), null]) {
+      expect(SessionSummary.safeParse({ ...summary, name }).success).toBe(true);
+      expect(SessionStreamEvent.safeParse({ kind: "name", name }).success).toBe(true);
+    }
+    for (const name of ["x".repeat(257), "😀".repeat(257), 4, undefined]) {
+      expect(SessionSummary.safeParse({ ...summary, name }).success).toBe(false);
+    }
+    expect(SessionName.safeParse("😀".repeat(257)).success).toBe(false);
   });
 });

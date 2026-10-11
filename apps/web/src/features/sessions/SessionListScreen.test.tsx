@@ -33,9 +33,16 @@ vi.mock("@tanstack/react-router", async () => {
 let bed: ReturnType<typeof fakeRuntime>;
 let page: Mounted | null = null;
 
-const summary = (id: string, cwd: string, updatedAt: number, status = "idle") => ({
+const summary = (
+  id: string,
+  cwd: string,
+  updatedAt: number,
+  status = "idle",
+  name: string | null = null,
+) => ({
   id,
   cwd,
+  name,
   status,
   createdAt: 1,
   updatedAt,
@@ -73,6 +80,24 @@ describe("SessionListScreen", () => {
       ["/work/old", "/s/a"],
     ]);
     expect(text(page.container)).toContain("Working");
+  });
+
+  it("shows the name as the link and the folder below it, and a name that looks like markup as text only", async () => {
+    bed = fakeRuntime();
+    bed.handlers["sessions.list"] = () => ({
+      sessions: [
+        summary("a", "/work/a", 20, "idle", "Fix login"),
+        summary("b", "/work/b", 10, "idle", "<b>x</b>"),
+      ],
+    });
+    current.runtime = bed.runtime;
+    page = await mount(<SessionListScreen />);
+    await settle();
+    const links = [...page.container.querySelectorAll("a")];
+    expect(links.map((link) => link.textContent)).toEqual(["Fix login", "<b>x</b>"]);
+    expect(page.container.querySelector("b")).toBeNull();
+    expect(text(page.container)).toContain("/work/a");
+    expect(text(page.container)).toContain("/work/b");
   });
 
   it("says there is no session yet", async () => {

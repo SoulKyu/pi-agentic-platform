@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ApprovalAnswer, ApprovalAnswers, AuditEntry, GrantKey, TOOL_CATEGORIES } from "./policy.ts";
+import { SessionName } from "./streams.ts";
 
 // daemon → worker
 // pap targets Linux, so an absolute path starts with "/". A relative path would be resolved against the
@@ -62,7 +63,7 @@ const NavigateTreeCommand = z.object({ type: z.literal("navigate_tree"), id: z.s
 const SetSessionNameCommand = z.object({
   type: z.literal("set_session_name"),
   id: z.string(),
-  name: z.string().min(1).max(256),
+  name: SessionName.min(1),
 });
 /** The daemon picks the path (under `$PAP_HOME/exports`, Task 18): a worker never writes where a client says. */
 const ExportHtmlCommand = z.object({

@@ -14,6 +14,8 @@ function setup(overrides: Partial<SessionsService> = {}) {
     abort: vi.fn(async () => {}),
     navigate: vi.fn(async () => ({ cancelled: false, editorText: "q" })),
     compact: vi.fn(async () => ({ tokensBefore: 9, estimatedTokensAfter: null })),
+    rename: vi.fn(async () => {}),
+    autoName: vi.fn(async () => ({ name: "Fix login" })),
     clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
     respondDialog: vi.fn(),
     panelInput: vi.fn(),
@@ -75,6 +77,14 @@ describe("sessions rpc", () => {
       { sessionId: "p1", dialogId: "d1", response: { confirmed: true } },
       caller,
     );
+  });
+
+  it("hands rename and autoName to one service method each", async () => {
+    const { rpc, service, ctx } = setup();
+    expect(await rpc["sessions.rename"]({ sessionId: "p1", name: "Fix" }, ctx)).toEqual({ ok: true });
+    expect(service.rename).toHaveBeenCalledWith({ sessionId: "p1", name: "Fix" }, caller);
+    expect(await rpc["sessions.autoName"]({ sessionId: "p1" }, ctx)).toEqual({ name: "Fix login" });
+    expect(service.autoName).toHaveBeenCalledWith("p1", caller);
   });
 
   it("hands each read to one service method with the caller", async () => {

@@ -153,6 +153,14 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     }
   }
 
+  function syncName(sessionId: string, name: string | null): void {
+    try {
+      deps.store.setName(sessionId, name);
+    } catch (error) {
+      deps.logger.warn("session_name_not_stored", { sessionId, err: error });
+    }
+  }
+
   function replayPreReady(sessionId: string, held: ReturnType<PreReadyBuffer["drain"]>): void {
     for (const item of held.items) {
       if (item.kind === "publish") deps.hub.publish("session", sessionId, item.event);
@@ -199,6 +207,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
           if (stored) recordEvent(row.id, kind, data);
           else preReady?.add({ kind: "record", recordKind: kind, data });
         },
+        // Before the row exists the name is taken from the session once it is ready (below).
+        onName: (name) => {
+          if (stored) syncName(row.id, name);
+        },
         onActivity: () => {
           if (stored && !bound) bound = bindPiFile(row, session);
         },
@@ -219,6 +231,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         throw new PapError("worker_failed");
       if (isNew) deps.store.insert(row);
       stored = true;
+      // `ready` said Pi's name before the row could hold it (a new session) or this worker's start may have changed it.
+      syncName(row.id, session.name());
       if (preReady) replayPreReady(row.id, preReady.drain());
       live.set(row.id, session);
       bound = bound || bindPiFile(row, session);
@@ -282,6 +296,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         piSessionId: null,
         cwd,
         ownerId: caller.userId,
+        name: null,
         createdAt: now,
         updatedAt: now,
       };
@@ -292,6 +307,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       deps.store.listByOwner(caller.userId).map((row) => ({
         id: row.id,
         cwd: row.cwd,
+        name: row.name,
         status: statusOf(row.id),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
@@ -308,6 +324,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
     navigate: (input, caller) => commands.navigate(input, caller),
     compact: (input, caller) => commands.compact(input, caller),
+    rename: (input, caller) => commands.rename(input, caller),
+    autoName: (sessionId, caller) => commands.autoName(sessionId, caller),
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
       return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };

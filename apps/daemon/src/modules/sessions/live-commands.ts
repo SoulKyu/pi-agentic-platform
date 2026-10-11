@@ -37,13 +37,15 @@ const isCount = (value: unknown): value is number =>
 
 /**
  * Why a worker refused a command, as the code a client may be told. The worker's text is never returned (R66, M2R87):
- * the only text this reads is Pi's one message for a compaction with nothing to compact and pap's own busy marker,
- * and only to pick the code.
+ * the only text this reads is Pi's one message for a compaction with nothing to compact, pi-host's one for a session
+ * with nothing to name, and pap's own busy marker, and only to pick the code.
  */
 export function refusalOf(command: CommandInput["type"], error: string): ErrorCode {
   if (error === WORKER_BUSY) return "session_busy";
-  return command === "compact" && /nothing to compact/i.test(error) ? "session_empty" : "command_failed";
+  if (command === "compact" && /nothing to compact/i.test(error)) return "session_empty";
+  return command === "auto_name" && error === NOTHING_TO_NAME ? "session_empty" : "command_failed";
 }
+const NOTHING_TO_NAME = "nothing to name";
 
 /** Where Pi puts the text of a failure in the events it emits; the stream carries a flag instead (R66). */
 const ERROR_FIELDS: Readonly<Record<string, string>> = {

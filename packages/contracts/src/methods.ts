@@ -6,6 +6,7 @@ import {
   DialogResponse,
   ForkPoint,
   HistoryMeta,
+  SessionName,
   SessionSummary,
   TranscriptRow,
   UI_LIMITS,
@@ -118,6 +119,27 @@ export const methods = catalogue({
     // No daemon timeout either: the model writes the summary. Were one added, its `timeout` would mean the outcome is
     // unknown and the call must not be retried (R105).
     errors: ["not_found", "session_busy", "capacity", "worker_failed", "command_failed", "session_empty"],
+  }),
+  "sessions.rename": defineMethod({
+    name: "sessions.rename",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({
+      sessionId: SessionId,
+      name: SessionName.min(1).refine((name) => name.trim() !== "", "a name has something in it"),
+    }),
+    result: Ok,
+    // A name can change while a run goes on (a file append). `timeout`: whether Pi renamed is unknown (R105).
+    errors: ["not_found", "bad_request", "capacity", "worker_failed", "command_failed", "timeout"],
+  }),
+  "sessions.autoName": defineMethod({
+    name: "sessions.autoName",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId }),
+    result: z.object({ name: SessionName.min(1) }),
+    // `timeout`: the model may still have named the session; the outcome is unknown and is not retried (R105).
+    errors: ["not_found", "session_empty", "timeout", "capacity", "worker_failed", "command_failed"],
   }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",

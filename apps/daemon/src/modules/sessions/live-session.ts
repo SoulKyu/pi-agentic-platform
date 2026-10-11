@@ -16,6 +16,7 @@ import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import { createLiveCommands } from "./live-commands.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
+import { nameOf } from "./names.ts";
 import { createNoticeRing } from "./notices.ts";
 import { createPartialReply } from "./partial.ts";
 import { createQueueGuard, isClearedAnswer, readCleared } from "./queue-guard.ts";
@@ -43,6 +44,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   let piFile: string | undefined;
   let piSessionId: string | undefined;
   let leafId: string | null = null;
+  let name: string | null = null;
   const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   const partial = createPartialReply();
   const notices = createNoticeRing();
@@ -72,6 +74,13 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   const setStatus = (next: SessionStatus, cause?: string) => {
     status = next;
     publish({ kind: "status", status: next, ...(cause ? { cause } : {}) });
+  };
+  // Pi's name, through the one clip (M2R92). Only a change is handed on, so a loop in an extension stores and says nothing twice.
+  const setName = (next: string | null, announce: boolean): void => {
+    if (next === name) return;
+    name = next;
+    deps.onName(next);
+    if (announce) publish({ kind: "name", name: next });
   };
   const getState = async (): Promise<GetStateData> => {
     const response = await handle.request({ type: "get_state" }, GET_STATE_TIMEOUT_MS);
@@ -127,6 +136,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       piFile = record.sessionFile;
       piSessionId = record.sessionId;
       leafId = knownId(record.leafId);
+      setName(nameOf(record.sessionName), false);
       setStatus("idle");
       resolve(record);
     });
@@ -201,6 +211,11 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       case "pi_event": {
         const event = record.event;
         // The raw event is never forwarded: the stream carries the guard's bounded view of it.
+        // Never forwarded raw: a name is text an extension or the model wrote (M2R92).
+        if (event.type === "session_info_changed") {
+          setName(nameOf(event.name), true);
+          return;
+        }
         if (event.type === "queue_update") {
           publish({ kind: "queue", queue: queue.onQueueUpdate(event as never) });
           deps.onActivity();
@@ -259,6 +274,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     pid: () => handle.pid,
     piFile: () => piFile,
     piSessionId: () => piSessionId,
+    name: () => name,
     dialogs: () => ui.dialogs(),
     statuses: () => ui.statuses(),
     widgets: () => ui.widgets(),

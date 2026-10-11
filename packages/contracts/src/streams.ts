@@ -34,6 +34,15 @@ export const UI_LIMITS = {
   name: 256,
 } as const;
 
+/**
+ * A session name, as the daemon's `nameOf` clips it: at most `UI_LIMITS.name` code points. `.max` counts UTF-16 units,
+ * so it only bounds the work of counting code points (a name of 256 emoji is 512 units).
+ */
+export const SessionName = z
+  .string()
+  .max(UI_LIMITS.name * 2)
+  .refine((name) => [...name].length <= UI_LIMITS.name, "a session name is at most 256 characters");
+
 export const Dialog = z
   .object({
     id: z.string().min(1).max(128),
@@ -178,7 +187,7 @@ const Snapshot = z.object({
   history: HistoryMeta,
   activity: Activity,
   leafId: z.string().max(128).nullable(),
-  name: z.string().max(UI_LIMITS.name).nullable(),
+  name: SessionName.nullable(),
 });
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
@@ -206,7 +215,7 @@ export const SessionStreamEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("editor_text"), text: z.string().max(UI_LIMITS.editorText) }),
   z.object({ kind: z.literal("panel"), panel: Panel }),
   z.object({ kind: z.literal("panel_closed"), id: z.string().max(128) }),
-  z.object({ kind: z.literal("name"), name: z.string().max(UI_LIMITS.name).nullable() }),
+  z.object({ kind: z.literal("name"), name: SessionName.nullable() }),
   z.object({ kind: z.literal("activity"), activity: Activity }),
 ]);
 export type SessionStreamEvent = z.infer<typeof SessionStreamEvent>;
@@ -215,6 +224,8 @@ export type SnapshotEvent = Extract<SessionStreamEvent, { kind: "snapshot" }>;
 export const SessionSummary = z.object({
   id: z.string(),
   cwd: z.string(),
+  /** Pi's name for the session, cached; null when it has none. */
+  name: SessionName.nullable(),
   status: SessionStatus,
   createdAt: z.number(),
   updatedAt: z.number(),

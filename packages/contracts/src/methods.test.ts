@@ -17,11 +17,13 @@ describe("method catalogue", () => {
     expect(mutations).toEqual([
       "policy.revokeRule",
       "sessions.abort",
+      "sessions.autoName",
       "sessions.clearQueue",
       "sessions.compact",
       "sessions.create",
       "sessions.navigate",
       "sessions.prompt",
+      "sessions.rename",
       "sessions.respondDialog",
     ]);
   });
@@ -90,6 +92,27 @@ describe("method catalogue", () => {
     );
     expect(compact.result.safeParse({ tokensBefore: 10, estimatedTokensAfter: null }).success).toBe(true);
     expect(compact.result.safeParse({ tokensBefore: 10 }).success).toBe(false);
+  });
+
+  it("declares rename and autoName as sessions:operate mutations whose timeout means unknown", () => {
+    expect(methods["sessions.rename"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: ["not_found", "bad_request", "capacity", "worker_failed", "command_failed", "timeout"],
+    });
+    expect(methods["sessions.autoName"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: ["not_found", "session_empty", "timeout", "capacity", "worker_failed", "command_failed"],
+    });
+    const { params } = methods["sessions.rename"];
+    expect(params.safeParse({ sessionId: "s", name: "Fix" }).success).toBe(true);
+    expect(params.safeParse({ sessionId: "s", name: "😀".repeat(256) }).success).toBe(true);
+    for (const name of ["", "   ", "\n\t", "x".repeat(513), 4]) {
+      expect(params.safeParse({ sessionId: "s", name }).success).toBe(false);
+    }
+    expect(methods["sessions.autoName"].result.safeParse({ name: "Fix" }).success).toBe(true);
+    expect(methods["sessions.autoName"].result.safeParse({ name: "" }).success).toBe(false);
   });
 
   it("bounds what a history request can ask for", () => {

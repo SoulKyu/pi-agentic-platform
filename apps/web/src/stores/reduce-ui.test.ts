@@ -179,3 +179,13 @@ describe("activity (compaction and automatic retry)", () => {
     expect(reduceSession(view, { kind: "activity", activity: { compacting: "yes" } })).toBe(view);
   });
 });
+
+describe("session name", () => {
+  it("takes the name from the snapshot and from name events, and keeps it when the session goes cold", () => {
+    const named = run([snapshot({ name: "Fix login" })]);
+    expect(named.name).toBe("Fix login");
+    expect(reduceSession(named, { kind: "name", name: "Login fix" }).name).toBe("Login fix");
+    expect(reduceSession(named, { kind: "name", name: null }).name).toBeNull();
+    expect(reduceSession(named, { kind: "status", status: "cold" }).name).toBe("Fix login");
+  });
+});

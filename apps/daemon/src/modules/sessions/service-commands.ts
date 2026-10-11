@@ -3,6 +3,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { refusalOf } from "./live-commands.ts";
 import type { LiveSession } from "./live-types.ts";
+import { nameOf } from "./names.ts";
 import { clipJsonText, type SessionReads } from "./service-reads.ts";
 import type { SessionRow } from "./store.ts";
 import { clip } from "./worker-text.ts";
@@ -30,6 +31,17 @@ export interface SessionCommands {
     input: { sessionId: string; customInstructions?: string | undefined },
     caller: Caller,
   ): Promise<{ tokensBefore: number; estimatedTokensAfter: number | null }>;
+  /**
+   * Gives the session a name in Pi's file. Allowed while a run goes on: it appends one entry and moves no branch, so the
+   * busy rule does not apply. A cold session's worker is started for it (the single-writer rule, M2R93). The cached
+   * name follows from Pi's `session_info_changed`, not from this answer.
+   */
+  rename(input: { sessionId: string; name: string }, caller: Caller): Promise<void>;
+  /**
+   * Asks the model for a title and gives it to the session; answers the clipped title. Allowed while a run goes on, and
+   * two asks for one session at once share one model call.
+   */
+  autoName(sessionId: string, caller: Caller): Promise<{ name: string }>;
 }
 
 const isCount = (value: unknown): value is number =>
@@ -76,7 +88,39 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
       source: "pap",
     });
 
+  // One title request per session at a time: a double click must not pay for the model twice.
+  const naming = new Map<string, Promise<{ name: string }>>();
+  async function askTitle(row: SessionRow): Promise<{ name: string }> {
+    const session = await deps.ensureLive(row);
+    const answer = await session.command({ type: "auto_name" });
+    if (!answer.ok) throw refused("auto_name", answer.error);
+    const title = nameOf((answer.data as { title?: unknown } | null | undefined)?.title);
+    if (title === null) {
+      logger.warn("auto_name_answer_unreadable", { sessionId: row.id });
+      throw new PapError("command_failed");
+    }
+    return { name: title };
+  }
+
   return {
+    async rename({ sessionId, name }, caller) {
+      const row = deps.owned(sessionId, caller);
+      const clipped = nameOf(name);
+      if (clipped === null) throw new PapError("bad_request");
+      const session = await deps.ensureLive(row);
+      const answer = await session.command({ type: "set_session_name", name: clipped });
+      if (!answer.ok) throw refused("set_session_name", answer.error);
+    },
+    async autoName(sessionId, caller) {
+      const row = deps.owned(sessionId, caller);
+      const pending = naming.get(row.id) ?? askTitle(row);
+      naming.set(row.id, pending);
+      const done = () => {
+        if (naming.get(row.id) === pending) naming.delete(row.id);
+      };
+      pending.then(done, done);
+      return pending;
+    },
     async navigate({ sessionId, targetId }, caller) {
       const { row, session, data } = await send(sessionId, caller, { type: "navigate_tree", targetId });
       if (typeof data !== "object" || data === null) {

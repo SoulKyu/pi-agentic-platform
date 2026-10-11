@@ -19,6 +19,8 @@ export interface UiState {
   readonly editorText: { readonly text: string; readonly seq: number } | null;
   /** The session is compacting, or Pi is retrying after an error (the composer waits while it compacts, M2R89). */
   readonly activity: Activity;
+  /** Pi's name for the session; kept when the session goes cold (it lives in the session's file). */
+  readonly name: string | null;
 }
 
 export const EMPTY_UI: UiState = {
@@ -28,6 +30,7 @@ export const EMPTY_UI: UiState = {
   panels: [],
   editorText: null,
   activity: IDLE_ACTIVITY,
+  name: null,
 };
 
 /** Replaces the entry with this key in place, else appends it unless `limit` entries are held (the contract's bound). */
@@ -49,6 +52,7 @@ export function uiOfSnapshot(
     panels: event.panels,
     editorText: view.editorText,
     activity: event.activity,
+    name: event.name,
   };
 }
 
@@ -83,6 +87,8 @@ export function reduceUi(view: SessionView, event: SessionStreamEvent): SessionV
       };
     case "title":
       return { ...view, title: event.title };
+    case "name":
+      return { ...view, name: event.name };
     case "activity":
       return { ...view, activity: event.activity };
     case "editor_text":

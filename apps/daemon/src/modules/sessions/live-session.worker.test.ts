@@ -108,6 +108,7 @@ describe("abort", () => {
         record: () => {},
         onActivity: () => {},
         onExit: () => {},
+        onName: () => {},
       },
       INIT,
     );

@@ -50,6 +50,8 @@ export interface Options {
   sessionFile?: string;
   /** Pi's leaf in `ready` (default null). */
   leafId?: string | null;
+  /** Pi's session name in `ready` (default null). */
+  sessionName?: string | null;
 }
 
 /** What `startLiveSession` is given. A helper in `testing/` may import a module only through its index, so the test files pass the function in. */
@@ -61,6 +63,7 @@ export interface LiveParts {
   record(kind: string, data: unknown): void;
   onActivity(): void;
   onExit(exit: WorkerExit): void;
+  onName(name: string | null): void;
 }
 
 export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) => Live) =>
@@ -69,6 +72,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
     const published: SessionStreamEvent[] = [];
     const recorded: Array<[string, unknown]> = [];
     const exits: WorkerExit[] = [];
+    const names: Array<string | null> = [];
     const activity = { count: 0 };
     /** What the worker's `get_state` answers (or whether it answers at all): a test changes it as Pi's run progresses. */
     const pi = { streaming: options.streaming ?? false, holdState: false };
@@ -110,10 +114,16 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
         record: (kind, data) => recorded.push([kind, data]),
         onActivity: () => void activity.count++,
         onExit: (exit) => exits.push(exit),
+        onName: (name) => void names.push(name),
       },
       INIT,
     );
     if (!options.neverReady)
-      worker.emit({ ...READY, sessionFile: options.sessionFile ?? "/f", leafId: options.leafId ?? null });
-    return { clock, published, recorded, exits, activity, worker, live, pi };
+      worker.emit({
+        ...READY,
+        sessionFile: options.sessionFile ?? "/f",
+        leafId: options.leafId ?? null,
+        sessionName: options.sessionName ?? null,
+      });
+    return { clock, published, recorded, exits, names, activity, worker, live, pi };
   };

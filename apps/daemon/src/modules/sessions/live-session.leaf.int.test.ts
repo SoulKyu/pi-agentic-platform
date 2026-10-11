@@ -67,6 +67,7 @@ async function start() {
       record: () => {},
       onActivity: () => {},
       onExit: () => {},
+      onName: () => {},
     },
     init,
   );

@@ -120,3 +120,20 @@ it(
     }
   },
 );
+
+it("renames and auto-names a session, and lists the name", async () => {
+  const bed = await createIntBed({
+    steps: [{ text: "Looking at the form." }, { text: "Fix the login bug" }],
+  });
+  try {
+    const { sessionId } = await bed.rpc["sessions.create"]({ cwd: bed.work }, bed.ctx);
+    const sub = await bed.subscribe(sessionId);
+    await promptAndSettle(bed, sub, sessionId, "the login button does nothing");
+    expect(await bed.rpc["sessions.autoName"]({ sessionId }, bed.ctx)).toEqual({ name: "Fix the login bug" });
+    await bed.rpc["sessions.rename"]({ sessionId, name: "Login fix" }, bed.ctx);
+    await sub.waitFor((event) => event.kind === "name" && event.name === "Login fix");
+    expect((await bed.rpc["sessions.list"]({}, bed.ctx)).sessions[0]?.name).toBe("Login fix");
+  } finally {
+    await bed.dispose();
+  }
+});
