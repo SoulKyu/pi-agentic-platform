@@ -10,8 +10,7 @@ describe("TextField", () => {
     const labelFor = /<label for="([^"]+)"/.exec(html)?.[1];
     expect(labelFor).toBeDefined();
     expect(html).toContain(`id="${labelFor}"`);
-    expect(html).toContain("tracking-label");
-    expect(html).toContain("uppercase");
+    expect(html).toContain("label-hud");
     expect(html).toContain('value="Ada"');
   });
 
@@ -73,6 +72,12 @@ describe("TextField", () => {
     expect(/<textarea[^>]*placeholder="Ada"/.test(multi)).toBe(true);
     expect(renderToStaticMarkup(<TextField label="Name" value="" onChange={noop} />)).not.toContain(
       "placeholder",
+    );
+  });
+
+  it("uses 16 px text on coarse pointers so iOS does not zoom", () => {
+    expect(renderToStaticMarkup(<TextField label="Name" value="" onChange={() => {}} />)).toContain(
+      "pointer-coarse:text-base",
     );
   });
 });

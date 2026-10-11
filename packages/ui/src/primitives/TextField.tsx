@@ -1,6 +1,5 @@
 import { useId } from "react";
 import { cn } from "../cn.ts";
-import { FOCUS_RING } from "../focus.ts";
 import { isSubmitShortcut } from "./submit-shortcut.ts";
 
 export interface TextFieldProps {
@@ -18,9 +17,8 @@ export interface TextFieldProps {
   onSubmitShortcut?(): void;
 }
 
-const FIELD = cn(
-  "w-full rounded-sm border border-line bg-bg px-2 py-1 font-sans text-chat text-fg pointer-coarse:min-h-11",
-  FOCUS_RING,
+const FIELD_CLASSES = cn(
+  "w-full rounded-sm border border-control-border bg-bg px-s2 py-s1 font-sans text-fg focus-ring pointer-coarse:min-h-11 pointer-coarse:text-base",
   "disabled:cursor-not-allowed disabled:opacity-50",
 );
 
@@ -38,16 +36,16 @@ export function TextField(props: TextFieldProps) {
     autoComplete: props.autoComplete,
     "aria-describedby": described || undefined,
     "aria-invalid": props.error ? true : undefined,
-    className: FIELD,
   };
   return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="font-mono text-label font-semibold uppercase tracking-label text-muted">
+    <div className="flex flex-col gap-s1">
+      <label htmlFor={id} className="label-hud text-muted">
         {props.label}
       </label>
       {props.multiline ? (
         <textarea
           {...shared}
+          className={cn(FIELD_CLASSES, "text-chat")}
           rows={3}
           onChange={(event) => props.onChange(event.target.value)}
           onKeyDown={(event) => {
@@ -61,6 +59,7 @@ export function TextField(props: TextFieldProps) {
       ) : (
         <input
           {...shared}
+          className={cn(FIELD_CLASSES, "h-control text-ui")}
           type={props.type ?? "text"}
           onChange={(event) => props.onChange(event.target.value)}
         />
@@ -71,7 +70,7 @@ export function TextField(props: TextFieldProps) {
         </p>
       ) : null}
       {props.error ? (
-        <p id={errorId} role="alert" className="text-ui text-attention">
+        <p id={errorId} role="alert" className="text-ui text-attn">
           {props.error}
         </p>
       ) : null}

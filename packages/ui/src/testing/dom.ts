@@ -33,3 +33,9 @@ export async function mount(element: ReactElement): Promise<Mounted> {
     },
   };
 }
+
+export async function click(element: Element): Promise<void> {
+  await act(async () => {
+    (element as HTMLElement).click();
+  });
+}
