@@ -24,6 +24,7 @@ import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
+import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
 
 export interface DaemonHandle {
   readonly url: string;
@@ -98,7 +99,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const { db, readOnly } = migrate({
       dbPath: join(config.home, "state.db"),
       backupsDir: join(config.home, "backups"),
-      sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS],
+      sources: [
+        KERNEL_MIGRATIONS,
+        AUTH_MIGRATIONS,
+        POLICY_MIGRATIONS,
+        SESSIONS_MIGRATIONS,
+        SETTINGS_MIGRATIONS,
+      ],
       clock,
       logger,
     });
@@ -148,7 +155,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       scopes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
-    const handlers: HandlerTable = { ...systemHandlers(clock), ...policy.rpc, ...sessions.rpc };
+    const settings = createSettingsModule({ db, clock, logger });
+    const handlers: HandlerTable = {
+      ...systemHandlers(clock),
+      ...policy.rpc,
+      ...sessions.rpc,
+      ...settings.rpc,
+    };
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,

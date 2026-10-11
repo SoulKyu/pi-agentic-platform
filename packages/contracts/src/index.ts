@@ -6,4 +6,5 @@ export * from "./methods.ts";
 export * from "./permissions.ts";
 export * from "./policy.ts";
 export * from "./pi-host.ts";
+export * from "./settings.ts";
 export * from "./streams.ts";
