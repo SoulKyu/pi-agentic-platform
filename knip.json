@@ -10,7 +10,7 @@
       "ignoreBinaries": ["pgrep", "pkill", "rg", "fd"]
     },
     "apps/daemon": {
-      "ignoreBinaries": ["openssl", "loginctl", "systemd-run"]
+      "ignoreBinaries": ["openssl", "loginctl", "systemd-run", "mkfifo"]
     }
   }
 }

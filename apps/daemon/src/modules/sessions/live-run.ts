@@ -1,5 +1,5 @@
 import { type GetStateData, PapError, type PiEvent, type SessionStatus } from "@pap/contracts";
-import type { Clock } from "../../kernel/clock.ts";
+import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { fileSizeOrZero } from "./pi-files.ts";
@@ -42,19 +42,39 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
   const { handle, logger, getState } = deps;
   const view = createRunView();
   let promptsInFlight = 0;
+  // R113: a Stop that came before Pi started the run of a prompt. `startedAwaitingRun` is set when a prompt was
+  // answered `started` and its `agent_start` has not come; the deadline keeps an answer without a run from
+  // outliving its prompt (and aborting an unrelated run later).
   let abortAtStart = false;
-  let inputSinceRun = false;
+  let startedAwaitingRun = false;
+  let startDeadline: TimerHandle | null = null;
+  const clearStartDeadline = () => {
+    if (startDeadline) deps.clock.clearTimeout(startDeadline);
+    startDeadline = null;
+  };
+  const forgetAbortIfNothingWaits = () => {
+    if (promptsInFlight === 0 && !startedAwaitingRun) abortAtStart = false;
+  };
+  // A request to the worker whose failure is expected when the worker is going away: it is logged, not thrown.
+  const unanswered = (command: string) => (error: unknown) =>
+    logger.debug("worker_request_failed", { command, code: codeOf(error) });
   const tracker = createRunTracker({
     clock: deps.clock,
-    probe: getState,
+    probe: () =>
+      getState().catch((error: unknown) => {
+        unanswered("get_state")(error);
+        throw error;
+      }),
     onRunStart: () => {
       // The file is complete up to here: the last run settled before this one began (R38).
       const file = deps.piFile();
       view.begin(file ? fileSizeOrZero(file) : 0);
       deps.setStatus("running");
-      // No input since the last run: an extension started this one (accepted and audited, spec C 2.4).
-      const origin = inputSinceRun ? "user" : "extension";
-      inputSinceRun = false;
+      // A prompt Pi is answering, or answered `started`, is the user's run; anything else is an extension's
+      // (accepted and audited, spec C 2.4).
+      const origin = promptsInFlight > 0 || startedAwaitingRun ? "user" : "extension";
+      startedAwaitingRun = false;
+      clearStartDeadline();
       deps.record("run_start", { origin });
       if (origin === "extension") logger.info("run_started_by_extension");
       if (abortAtStart) {
@@ -74,10 +94,6 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
     },
   });
 
-  // A fire-and-forget request to the worker: its failure is expected when the worker is going away, and is logged.
-  const unanswered = (command: string) => (error: unknown) =>
-    logger.debug("worker_request_failed", { command, code: codeOf(error) });
-
   async function abortRunning(): Promise<void> {
     const settled = tracker.waitIdle(ABORT_SETTLE_MS);
     handle.request({ type: "abort" }, ABORT_SETTLE_MS).catch(unanswered("abort"));
@@ -95,6 +111,20 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
         if (isIdle(state)) tracker.finish(false, generation);
       })
       .catch(unanswered("get_state"));
+  }
+
+  // A prompt was answered `started`: Pi's `agent_start` is on its way, for at most one abort deadline.
+  function expectRun(): void {
+    startedAwaitingRun = true;
+    clearStartDeadline();
+    startDeadline = deps.clock.setTimeout(() => {
+      startDeadline = null;
+      startedAwaitingRun = false;
+      if (abortAtStart && promptsInFlight === 0) {
+        abortAtStart = false;
+        logger.info("abort_at_start_expired");
+      }
+    }, ABORT_SETTLE_MS);
   }
 
   async function promptOnce(text: string, streamingBehavior?: "steer" | "followUp") {
@@ -125,7 +155,6 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
     },
     async prompt(text, streamingBehavior) {
       tracker.onInput();
-      inputSinceRun = true;
       promptsInFlight++;
       let disposition: "started" | "queued" | "handled" | "rejected" = "rejected";
       try {
@@ -134,13 +163,14 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
         return result;
       } finally {
         promptsInFlight--;
-        // Every prompt answered and none started a run: the abort that waited for one has nothing to wait for.
-        if (promptsInFlight === 0 && disposition !== "started") abortAtStart = false;
+        if (disposition === "started" && !tracker.running) expectRun();
+        // Every prompt answered and none is waiting for its run: the abort that waited for one has nothing to wait for.
+        forgetAbortIfNothingWaits();
       }
     },
     // One deadline for the whole abort: a worker that has not settled 5 s after it was asked is terminated.
     async abort() {
-      if (!tracker.running && promptsInFlight > 0) {
+      if (!tracker.running && (promptsInFlight > 0 || startedAwaitingRun)) {
         // Pi has not started this prompt's run yet: an abort now would find it idle and be lost (R113). One goes now
         // (a no-op if Pi is idle) and one at `agent_start`; the second is idempotent (M2R40).
         abortAtStart = true;
@@ -149,7 +179,10 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       }
       // Read before asking: a run that begins while get_state is on its way is not the run this abort found.
       const generation = tracker.generation;
-      const state = await getState().catch(() => null);
+      const state = await getState().catch((error: unknown) => {
+        unanswered("get_state")(error);
+        return null;
+      });
       if (!state || state.isCompacting) {
         await handle.stop();
         return;
@@ -161,6 +194,8 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
         // same. It does nothing if it is idle, and stops the run if the answer was stale. The worker is left alone.
         handle.request({ type: "abort" }, ABORT_SETTLE_MS).catch(unanswered("abort"));
         tracker.finish(true, generation);
+        // A prompt still on its way will start the next run, and this Stop is meant for it too (R113).
+        if (promptsInFlight > 0) abortAtStart = true;
         return;
       }
       await abortRunning();
@@ -170,7 +205,8 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       const wasRunning = tracker.running;
       tracker.reset();
       abortAtStart = false;
-      inputSinceRun = false;
+      startedAwaitingRun = false;
+      clearStartDeadline();
       view.end();
       return wasRunning;
     },

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -49,6 +50,27 @@ describe("isPiSessionFile on real paths", () => {
     mkdirSync(outside);
     symlinkSync(outside, join(agentDir, "sessions", "--link--"));
     expect(isPiSessionFile(agentDir, join(agentDir, "sessions", "--link--", "new.jsonl"))).toBe(false);
+  });
+
+  it("refuses a link that leads nowhere", () => {
+    const link = join(agentDir, "sessions", "--w--", "dangling.jsonl");
+    symlinkSync(join(root, "nowhere.jsonl"), link);
+    expect(isPiSessionFile(agentDir, link)).toBe(false);
+  });
+
+  it("refuses a file that is not a regular file, which opening would block on", () => {
+    const fifo = join(agentDir, "sessions", "--w--", "pipe.jsonl");
+    execFileSync("mkfifo", [fifo]);
+    expect(isPiSessionFile(agentDir, fifo)).toBe(false);
+  });
+
+  it("refuses a missing file whose nearest existing folder is a link leaving the sessions directory", () => {
+    const outside = join(root, "elsewhere2");
+    mkdirSync(outside);
+    symlinkSync(outside, join(agentDir, "sessions", "--out--"));
+    expect(isPiSessionFile(agentDir, join(agentDir, "sessions", "--out--", "a", "b", "new.jsonl"))).toBe(
+      false,
+    );
   });
 
   it("accepts a file under an agent directory reached through a link", () => {

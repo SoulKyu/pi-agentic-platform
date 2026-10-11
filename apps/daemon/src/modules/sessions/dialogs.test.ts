@@ -135,8 +135,12 @@ describe("dialog size", () => {
 
   it("cuts text to the limits the Dialog schema declares", () => {
     const dialogs = createDialogRegistry();
-    const verdict = dialogs.offer(request("d", { title: "t".repeat(5000) }));
-    expect(verdict.kind === "opened" && verdict.dialog.title.length).toBe(Dialog.shape.title.maxLength);
+    // The exact cap is pinned too, so a cap raised in the contract is noticed here and not only a lowered one.
+    expect(Dialog.shape.title.maxLength).toBe(4096);
+    const verdict = dialogs.offer(
+      request("d", { title: "t".repeat(Number(Dialog.shape.title.maxLength) + 10) }),
+    );
+    expect(verdict.kind === "opened" && verdict.dialog.title.length).toBe(4096);
   });
 
   it("opens a select of 100 options and cancels one of 101, so a change of the schema limit shows here", () => {
