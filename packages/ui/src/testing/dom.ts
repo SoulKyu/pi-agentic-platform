@@ -56,3 +56,10 @@ export async function press(element: Element, init: KeyboardEventInit): Promise<
   });
   return event;
 }
+
+/** The button whose text is exactly `name`; throws when there is none, so a missing answer fails loudly. */
+export function button(container: ParentNode, name: string): HTMLElement {
+  const found = [...container.querySelectorAll("button")].find((candidate) => candidate.textContent === name);
+  if (found === undefined) throw new Error(`no button named ${name}`);
+  return found;
+}

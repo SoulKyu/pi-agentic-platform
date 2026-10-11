@@ -17,5 +17,6 @@ The Apache License, Version 2.0, is reproduced in full in `LICENSES/Apache-2.0.t
 Derived files (each carries a header naming its source file and what pap changed):
 
 - `packages/ui/src/ai/Message.tsx` (from `packages/elements/src/message.tsx`)
+- `packages/ui/src/ai/Reasoning.tsx` (from `packages/elements/src/reasoning.tsx`)
 
 pap does not depend on the AI Elements packages and does not use the Vercel or "AI Elements" names (spike S6, ruling R53).

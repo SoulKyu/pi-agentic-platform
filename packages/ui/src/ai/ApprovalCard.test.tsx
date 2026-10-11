@@ -1,8 +1,12 @@
+// @vitest-environment happy-dom
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { button, click, mount } from "../testing/dom.ts";
 import { ApprovalCard } from "./ApprovalCard.tsx";
 
 const noop = () => {};
+const LABELS = { deny: "Deny", session: "Session", always: "Always", once: "Allow once" } as const;
+const names = (container: HTMLElement) => [...container.querySelectorAll("button")].map((b) => b.textContent);
 
 function render(detail: string): string {
   return renderToStaticMarkup(
@@ -124,8 +128,70 @@ describe("ApprovalCard", () => {
 
   it("styles the card as an attention-tinted card", () => {
     const html = render("h\nb");
-    expect(html).toContain("bg-attention-tint");
-    expect(html).toContain("border-attention-line");
+    expect(html).toContain("bg-attn-tint");
+    expect(html).toContain("border-attn-line");
     expect(html).toContain("rounded-md");
+  });
+
+  it("offers all four answers by default, in DESIGN order, and calls onChoose once", async () => {
+    const onChoose = vi.fn();
+    const page = await mount(
+      <ApprovalCard
+        title="Approval"
+        category="external write"
+        taintLabel="External content"
+        detail={"1 line\npush origin main"}
+        labels={LABELS}
+        onChoose={onChoose}
+      />,
+    );
+    expect(names(page.container)).toEqual(["Deny", "Session", "Always", "Allow once"]);
+    expect(page.container.textContent).toContain("external write");
+    expect(page.container.querySelector('[data-tone="ext"]')?.textContent).toBe("External content");
+    await click(button(page.container, "Session"));
+    await click(button(page.container, "Allow once"));
+    expect(onChoose.mock.calls).toEqual([["session"]]);
+    await page.unmount();
+  });
+
+  it("offers exactly the answers it is given, in DESIGN order, and always Deny", async () => {
+    const page = await mount(
+      <ApprovalCard
+        title="Approval"
+        detail="x"
+        answers={["once", "session", "once"]}
+        labels={LABELS}
+        onChoose={() => {}}
+      />,
+    );
+    expect(names(page.container)).toEqual(["Deny", "Session", "Allow once"]);
+    await page.unmount();
+  });
+
+  it("maps the M1 props to Deny and Allow once, and answers once", async () => {
+    const onAnswer = vi.fn();
+    const page = await mount(
+      <ApprovalCard
+        title="Approval"
+        detail="x"
+        allowLabel="Allow once"
+        denyLabel="Deny"
+        onAnswer={onAnswer}
+      />,
+    );
+    expect(names(page.container)).toEqual(["Deny", "Allow once"]);
+    await click(button(page.container, "Allow once"));
+    await click(button(page.container, "Deny"));
+    expect(onAnswer.mock.calls).toEqual([[true]]);
+    await page.unmount();
+  });
+
+  it("keeps the header in sentence case in the DOM; CSS uppercases it (R121)", () => {
+    const html = renderToStaticMarkup(
+      <ApprovalCard title="Approval" category="exec" detail="x" labels={LABELS} onChoose={() => {}} />,
+    );
+    expect(html).toMatch(/<h3[^>]*class="[^"]*label-hud[^"]*text-attn-title/);
+    expect(html).toContain(">Approval<");
+    expect(html).not.toContain("APPROVAL");
   });
 });
