@@ -27,13 +27,14 @@ without a chain back (a navigation) or the walk passes 4096 entries (`resync`: t
 client subscribes again after the run; the daemon only logs it). The file is
 never read because of a `message_end` (R38). The daemon takes the leaf from `ready.leafId`, each entry and each `leaf`
 record (an id over 128 characters is unknown: the page follows the file's last entry, M2R4/M2R52); Pi's system prompt
-entry moves the leaf but is not published (R107). Still to come: history pages and tool output on
-demand over the reader's `page`, `forks` and `toolCall` in Task 11. During a run the daemon reads the file only up to
+entry moves the leaf but is not published (R107). History pages (`sessions.history`, at most 900 000
+JSON bytes, oldest rows left out first), tool output on demand (`sessions.toolOutput`, text at most 800 000 JSON
+bytes, arguments at most 64 KiB, searched along the active branch only) and fork points (`sessions.branches`) read the
+file through the reader's `page`, `forks` and `toolCall`. During a run the daemon reads the file only up to
 its size when the run began, and appends the run's own rows (R38).
 
 ## Consequences
-- No transcript ever travels over IPC; once Tasks 10b and 11 land, history pages and tool output on demand read the
-  file too.
+- No transcript ever travels over IPC; history pages, tool output on demand and fork points read the file too.
 - A navigation nobody continued is lost when the worker goes away (release, crash): Pi's leaf lives in memory. pi-web
   behaves the same (owner M2-Q11). The composer keeps the text "Edit from here" put in it (Task 24).
 - The daemon parses synchronously: a full parse costs one pass over at most 32 MiB; an append parses only the new
