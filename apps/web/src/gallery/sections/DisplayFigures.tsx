@@ -5,6 +5,8 @@ import {
   Button,
   Chip,
   EmptyState,
+  Icon,
+  IconAccount,
   IconButton,
   IconCopy,
   IconSearch,
@@ -15,7 +17,7 @@ import {
   Spinner,
   Tooltip,
 } from "@pap/ui";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import {
   AVATAR_PRESENCE,
@@ -30,6 +32,7 @@ import { GalleryItem } from "../GalleryItem.tsx";
 
 function Tabs() {
   const t = useT();
+  const prefix = useId();
   const [selected, setSelected] = useState<"first" | "second" | "third">("first");
   const tabs = [
     { id: "first", status: null },
@@ -41,7 +44,7 @@ function Tabs() {
       {tabs.map((tab) => (
         <OpenTab
           key={tab.id}
-          tabId={`gallery-tab-${tab.id}`}
+          tabId={`${prefix}-${tab.id}`}
           title={SAMPLE.tabTitle}
           active={selected === tab.id}
           status={tab.status}
@@ -70,6 +73,12 @@ export function DisplayFigures() {
       </GalleryItem>
       <GalleryItem name="Spinner">
         <Spinner />
+      </GalleryItem>
+      <GalleryItem name="Icon">
+        <Icon icon={IconSearch} size={14} />
+        <Icon icon={IconSearch} />
+        <Icon icon={IconSearch} size={20} />
+        <Icon icon={IconAccount} size={28} label={SAMPLE.agentName} />
       </GalleryItem>
       <GalleryItem name="IconButton">
         <IconButton icon={IconSearch} label={SAMPLE.tooltip} variant="ghost" />

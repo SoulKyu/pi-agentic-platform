@@ -19,6 +19,9 @@ export function OverlayFigures() {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <>
+      <p data-gallery-note="overlays" className="text-ui text-muted md:col-span-2">
+        {t("gallery.overlayNote")}
+      </p>
       <GalleryItem name="Dialog">
         {DIALOGS.map(({ variant, label }) => (
           <Button key={variant} variant="secondary" onClick={() => setDialog(variant)}>
@@ -49,6 +52,7 @@ export function OverlayFigures() {
         {menuOpen ? (
           <Menu
             defaultOpen
+            onOpenChange={(open) => setMenuOpen(open)}
             label={t("gallery.menu.label")}
             closeLabel={t("ui.close")}
             trigger={<Button variant="secondary">{t("gallery.open.menu")}</Button>}

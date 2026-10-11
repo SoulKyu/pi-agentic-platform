@@ -13,6 +13,13 @@ The gallery code is compiled only when `import.meta.env.DEV` is true. In a produ
 shows its not-found screen (HTTP 200 from the SPA fallback). In development the gallery is a pane behind the auth gate. M3 has no
 standalone gallery build: visual regression, which needed one, is deferred with the browser e2e (owner decision C1).
 
+## Limits of the gallery
+
+Frames re-theme their subtree through `data-theme` and `data-density`. Dialog, Menu, the Select list, Tooltip and Toast portal to
+`document.body`, outside the frame, so they follow the app's active theme and density, not the frame's. The gallery says so on the
+page (overlay section). No portal plumbing is added for a dev-only tool; check an overlay in another theme by switching the app's
+theme in Settings. The pane title of a `dev-ui` item exists only in development: in production it is the not-found title.
+
 ## Consequences
 
 Nothing of the gallery reaches users; the build-output test checks it. If the owner wants a real 404, the daemon gains one reserved

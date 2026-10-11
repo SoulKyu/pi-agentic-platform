@@ -166,6 +166,9 @@ describe("the built web app under the daemon's CSP", () => {
       /data-slot":\W*gallery-frame/,
       /Every component of @pap\/ui/,
       /Chaque composant de @pap\/ui/,
+      // The pane title of the dev-ui item: dev builds only, so a production page never names the gallery.
+      /UI gallery/,
+      /Galerie de l'interface/,
     ];
     const everything = [
       html,

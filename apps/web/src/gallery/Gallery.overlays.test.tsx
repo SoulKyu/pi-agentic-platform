@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { describe, expect, it } from "vitest";
-import { mount } from "../testing/dom.ts";
+import { mount, press } from "../testing/dom.ts";
 import { Gallery } from "./Gallery.tsx";
 
 const OVERLAY_ROLES = '[role="dialog"], [role="menu"], [role="listbox"], [data-slot="dialog"]';
@@ -41,6 +41,18 @@ describe("gallery overlays", () => {
     expect(items.length).toBeGreaterThan(0);
     await act(async () => (items[0] as HTMLElement).click());
     expect(document.querySelectorAll('[role="menu"]')).toHaveLength(0);
+    await page.unmount();
+  });
+
+  it("unmounts the menu when Escape closes it, so the next press mounts a fresh one", async () => {
+    window.history.replaceState(null, "", "/dev/ui");
+    const page = await mount(<Gallery />);
+    await act(async () => opener(page.container, "Menu").click());
+    await act(async () => {});
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(1);
+    await press(document.activeElement ?? document.body, { key: "Escape" });
+    expect(document.querySelectorAll('[role="menu"]')).toHaveLength(0);
+    expect(opener(page.container, "Menu").getAttribute("aria-haspopup")).toBeNull();
     await page.unmount();
   });
 });

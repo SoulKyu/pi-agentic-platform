@@ -21,6 +21,8 @@ export interface MenuProps {
   readonly closeLabel: string;
   /** Mounted on the press that asks for it, so it starts open. */
   readonly defaultOpen?: boolean;
+  /** Called when the menu (or the phone sheet) opens or closes, whoever caused it. */
+  onOpenChange?(open: boolean): void;
 }
 
 const CONTENT_CLASSES =
@@ -29,9 +31,13 @@ const ITEM_CLASSES =
   "flex h-control items-center rounded-sm px-s2 text-ui outline-none data-highlighted:bg-surface-2 data-disabled:opacity-50 pointer-coarse:min-h-11";
 
 /** A dropdown on desktop, a bottom sheet of buttons on phones (DESIGN.md §8). */
-export function Menu({ label, trigger, items, closeLabel, defaultOpen }: MenuProps) {
+export function Menu({ label, trigger, items, closeLabel, defaultOpen, onOpenChange }: MenuProps) {
   const phone = useIsPhone();
-  const [sheetOpen, setSheetOpen] = useState(defaultOpen === true);
+  const [sheetOpen, setSheet] = useState(defaultOpen === true);
+  const setSheetOpen = (open: boolean) => {
+    setSheet(open);
+    onOpenChange?.(open);
+  };
   if (phone) {
     return (
       <>
@@ -70,7 +76,7 @@ export function Menu({ label, trigger, items, closeLabel, defaultOpen }: MenuPro
     );
   }
   return (
-    <DropdownMenu.Root defaultOpen={defaultOpen}>
+    <DropdownMenu.Root defaultOpen={defaultOpen} onOpenChange={onOpenChange}>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content aria-label={label} align="end" sideOffset={4} className={CONTENT_CLASSES}>

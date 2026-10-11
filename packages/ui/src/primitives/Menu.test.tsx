@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { click, mountWithTooltips } from "../testing/dom.ts";
+import { click, mountWithTooltips, press } from "../testing/dom.ts";
 import { Menu } from "./Menu.tsx";
 
 function stubMatchMedia(phone: boolean) {
@@ -51,5 +51,42 @@ describe("Menu", () => {
     const page = await renderMenu(() => {});
     expect(page.container.querySelector("button")?.getAttribute("aria-haspopup")).toBe("menu");
     await page.unmount();
+  });
+
+  it("reports closing on desktop (Escape) and on a phone (choosing an item)", async () => {
+    stubMatchMedia(false);
+    const closed = vi.fn();
+    const desktop = await mountWithTooltips(
+      <Menu
+        label="Actions"
+        closeLabel="Close"
+        defaultOpen
+        onOpenChange={closed}
+        trigger={<button type="button">Actions</button>}
+        items={[{ id: "one", label: "One", onSelect: () => {} }]}
+      />,
+    );
+    await press(document.activeElement ?? document.body, { key: "Escape" });
+    expect(closed).toHaveBeenLastCalledWith(false);
+    await desktop.unmount();
+    stubMatchMedia(true);
+    const phoneClosed = vi.fn();
+    const phone = await mountWithTooltips(
+      <Menu
+        label="Actions"
+        closeLabel="Close"
+        defaultOpen
+        onOpenChange={phoneClosed}
+        trigger={<button type="button">Actions</button>}
+        items={[{ id: "one", label: "One", onSelect: () => {} }]}
+      />,
+    );
+    await click(
+      [...document.querySelectorAll('[role="dialog"] button')].find(
+        (b) => b.textContent === "One",
+      ) as HTMLElement,
+    );
+    expect(phoneClosed).toHaveBeenLastCalledWith(false);
+    await phone.unmount();
   });
 });

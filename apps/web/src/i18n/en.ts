@@ -1,9 +1,14 @@
 import { commandsEn } from "./catalog/commands.ts";
+import { devEn } from "./catalog/dev.ts";
 import { shellEn } from "./catalog/shell.ts";
+
+// A build-time constant: production drops the branch and the key with it. The cast keeps the key in `MessageKey`.
+const dev = (import.meta.env.DEV ? devEn : {}) as typeof devEn;
 
 export const en = {
   ...shellEn,
   ...commandsEn,
+  ...dev,
   "app.name": "pap",
   "app.tagline": "pi agentic platform",
   "app.loading": "Loading…",

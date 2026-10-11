@@ -1,5 +1,5 @@
 import type { SessionSummary } from "@pap/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { translate } from "../../i18n/index.ts";
 import { itemTitle } from "./item-title.ts";
 
@@ -27,5 +27,13 @@ describe("itemTitle", () => {
     expect(itemTitle({ kind: "home" }, [], t)).toBe("New session");
     expect(itemTitle({ kind: "settings", section: "appearance" }, [], t)).toBe("Settings");
     expect(itemTitle({ kind: "dev-ui" }, [], t)).toBe("UI gallery");
+  });
+  it("gives a dev-ui item the not-found title in production, so a tab never confirms the gallery exists", () => {
+    vi.stubEnv("DEV", false);
+    try {
+      expect(itemTitle({ kind: "dev-ui" }, [], t)).toBe("This page does not exist");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

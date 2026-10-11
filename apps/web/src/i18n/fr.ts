@@ -1,10 +1,14 @@
 import type { en } from "./en.ts";
 import { commandsFr } from "./catalog/commands.ts";
+import { devFr } from "./catalog/dev.ts";
 import { shellFr } from "./catalog/shell.ts";
+
+const dev = (import.meta.env.DEV ? devFr : {}) as typeof devFr;
 
 export const fr: { readonly [K in keyof typeof en]: string } = {
   ...shellFr,
   ...commandsFr,
+  ...dev,
   "app.name": "pap",
   "app.tagline": "pi agentic platform",
   "app.loading": "Chargement…",

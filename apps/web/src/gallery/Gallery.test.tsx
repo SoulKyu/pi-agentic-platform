@@ -1,20 +1,28 @@
 // @vitest-environment happy-dom
 import * as ui from "@pap/ui";
-import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { act } from "react";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "../testing/dom.ts";
+import { galleryEn, galleryFr } from "../i18n/catalog/gallery.ts";
+import { setLocale } from "../i18n/index.ts";
 import { Gallery } from "./Gallery.tsx";
 
 // Exports that are not components to show: providers, hooks, helpers, constants and types erase at runtime.
 const NOT_SHOWN = new Set(["TooltipProvider", "Toaster"]);
+// The glyph exports (IconAccount, IconBack...) are data for Icon; Icon and IconButton are components and are checked.
+const GLYPHS = /^Icon(?!Button$)[A-Z]/;
 const components = Object.entries(ui)
   .filter(
     ([name, value]) =>
-      typeof value === "function" && /^[A-Z]/.test(name) && !name.startsWith("Icon") && !NOT_SHOWN.has(name),
+      typeof value === "function" && /^[A-Z]/.test(name) && !GLYPHS.test(name) && !NOT_SHOWN.has(name),
   )
   .map(([name]) => name);
 
 const INTERACTIVE =
   'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
+const PROBED_CONTROLS = 68;
 const COARSE_TARGET = /(?:^|\s)pointer-coarse:(?:size-11|min-h-11|h-11)(?:\s|$)/;
 
 describe("/dev/ui gallery", () => {
@@ -75,10 +83,15 @@ describe("/dev/ui gallery", () => {
   it("gives every interactive element a 44-px coarse-pointer class (DESIGN §5, classes only)", async () => {
     window.history.replaceState(null, "", "/dev/ui");
     const page = await mount(<Gallery />);
-    const bare = [...page.container.querySelectorAll(INTERACTIVE)]
+    // The lazy Markdown chunk has rendered: its links are then in the page and exempt by rule, not by absence.
+    await vi.waitFor(() => expect(page.container.querySelector("[data-markdown-body]")).not.toBeNull(), {
+      timeout: 5_000,
+    });
+    const probed = [...page.container.querySelectorAll(INTERACTIVE)]
       .filter((el) => !el.closest('[aria-hidden="true"], [hidden]'))
       // Links inside running text are exempt (WCAG 2.5.8's inline exception): a prose link cannot be 44 px tall.
-      .filter((el) => !el.closest("[data-markdown-body]"))
+      .filter((el) => !(el.matches("a[href]") && el.closest("[data-markdown-body]")));
+    const bare = probed
       .filter(
         (el) =>
           ![el, el.parentElement, el.parentElement?.parentElement].some(
@@ -90,7 +103,36 @@ describe("/dev/ui gallery", () => {
           `${el.closest("[data-gallery-item]")?.getAttribute("data-gallery-item") ?? "?"}: <${el.tagName.toLowerCase()} ${el.getAttribute("aria-label") ?? el.textContent?.slice(0, 20) ?? ""}>`,
       );
     expect(bare).toEqual([]);
-    expect(page.container.querySelectorAll(INTERACTIVE).length).toBeGreaterThan(40);
+    // Exact on purpose: adding or removing a control is a deliberate edit of this number.
+    expect(probed).toHaveLength(PROBED_CONTROLS);
+    await page.unmount();
+  });
+
+  it("gives every element id once, also in the nine-frame view", async () => {
+    window.history.replaceState(null, "", "/dev/ui?all=1");
+    const page = await mount(<Gallery />);
+    const ids = [...page.container.querySelectorAll("[id]")].map((el) => el.id);
+    expect(ids.length).toBeGreaterThan(0);
+    expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
+    await page.unmount();
+  });
+
+  it("says in the overlay section that portaled overlays follow the app theme, not the frame's", async () => {
+    window.history.replaceState(null, "", "/dev/ui");
+    const page = await mount(<Gallery />);
+    const note = () => page.container.querySelector('[data-gallery-note="overlays"]')?.textContent;
+    expect(note()).toBe(galleryEn["gallery.overlayNote"]);
+    expect(galleryEn["gallery.overlayNote"]).toContain("not the frame");
+    await act(async () => setLocale("fr"));
+    expect(page.container.querySelector('[data-gallery-note="overlays"]')?.textContent).toBe(
+      galleryFr["gallery.overlayNote"],
+    );
+    setLocale("en");
+    const adr = readFileSync(
+      join(import.meta.dirname, "../../../../docs/adr/0011-dev-ui-not-shipped.md"),
+      "utf8",
+    );
+    expect(adr.replace(/\s+/g, " ")).toContain("follow the app's active theme and density, not the frame's");
     await page.unmount();
   });
 });
