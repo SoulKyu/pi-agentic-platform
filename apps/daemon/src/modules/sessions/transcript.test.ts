@@ -263,20 +263,47 @@ describe("transcript reader", () => {
     expect(reader.page(file).rows.map((row) => row.entryId)).toEqual(["z"]);
   });
 
-  it("reads nothing again for a file that did not change, and only the new lines for an appended one", () => {
+  it("says a kind of file issue at most once every 10 s, and how many were left out", async () => {
+    const file = join(dir, "damaged.jsonl");
+    const rewrite = (extra: number) =>
+      writeFileSync(file, `${jsonl(lines)}not json\n${"{}\n".repeat(extra)}`);
+    const issues = () => logged.filter((line) => line.msg === "session_file_issue");
+    // Each rewrite changes the size, so each read parses the file whole and finds its bad line again.
+    for (const extra of [0, 1, 2]) {
+      rewrite(extra);
+      roles(file);
+    }
+    expect(issues().map((line) => line.fields)).toEqual([
+      { issue: "bad_lines", size: expect.any(Number), suppressed: 0 },
+    ]);
+    await clock.advance(10_001);
+    rewrite(3);
+    roles(file);
+    expect(issues().map((line) => line.fields?.suppressed)).toEqual([0, 2]);
+  });
+
+  it("compares only the last bytes read of a file that did not change, and parses only the new lines for an appended one", () => {
     const file = join(dir, "s.jsonl");
     writeFileSync(file, jsonl(lines.slice(0, 2)));
     roles(file);
     reads.bytes = 0;
     roles(file);
-    expect(reads.bytes).toBe(0);
+    // Only the header line and the last bytes read are compared, to notice a file rewritten in place with the same
+    // size and mtime (this file is smaller than the 4 KiB compared).
+    expect(reads.bytes).toBe(
+      Buffer.byteLength(jsonl([lines[0]])) + Buffer.byteLength(jsonl(lines.slice(0, 2))),
+    );
     const added = jsonl([lines[2]]);
     appendFileSync(file, added);
     reads.bytes = 0;
     expect(roles(file)).toEqual(["user", "assistant"]);
-    // The header is compared (the first 64 KiB of a file are read for it; this file is smaller), then only the
-    // appended bytes are parsed: the entries already read are not read again.
-    expect(reads.bytes).toBe(Buffer.byteLength(jsonl(lines)) + Buffer.byteLength(added));
+    // The header line and the last bytes read are compared, then only the appended bytes are parsed: the entries
+    // already read are not parsed again.
+    expect(reads.bytes).toBe(
+      Buffer.byteLength(jsonl([lines[0]])) +
+        Buffer.byteLength(jsonl(lines.slice(0, 2))) +
+        Buffer.byteLength(added),
+    );
   });
 
   it("migrates an old file in memory only: the bytes on disk stay as they were", () => {

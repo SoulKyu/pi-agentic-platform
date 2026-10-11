@@ -6,11 +6,15 @@ import { createFakeClock } from "../../kernel/clock.ts";
 import type { LogFields, Logger } from "../../kernel/logger.ts";
 
 // Pi's converter throws on an entry with this id: the reader must show nothing for it and say so, rate limited.
+const converter = vi.hoisted(() => ({ throws: 0 }));
 vi.mock("@earendil-works/pi-coding-agent", () => ({
   CURRENT_SESSION_VERSION: 3,
   migrateSessionEntries: () => {},
   sessionEntryToContextMessages: (entry: { id: string; message?: unknown }) => {
-    if (entry.id.startsWith("bad")) throw new Error("secret detail /home/x");
+    if (entry.id.startsWith("bad")) {
+      converter.throws++;
+      throw new Error("secret detail /home/x");
+    }
     return [entry.message];
   },
 }));
@@ -54,9 +58,12 @@ describe("an entry Pi's converter throws on (M2-RT-33)", () => {
     const said = () => logged.filter((line) => line.msg === "transcript_entry_unreadable");
     expect(said()).toHaveLength(1);
     expect(said()[0]?.fields).toEqual({ type: "message", suppressed: 0 });
+    // Every throw after the one that was said is counted, and the count comes with the next line said.
+    const leftOut = converter.throws - 1;
+    expect(leftOut).toBeGreaterThan(0);
     await clock.advance(10_001);
     reader.page(file);
     expect(said()).toHaveLength(2);
-    expect(said()[1]?.fields?.suppressed).toBeGreaterThan(0);
+    expect(said()[1]?.fields?.suppressed).toBe(leftOut);
   });
 });

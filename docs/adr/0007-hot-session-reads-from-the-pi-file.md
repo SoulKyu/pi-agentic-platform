@@ -10,16 +10,28 @@ know is where the leaf is after a navigation: `navigate_tree` moves it in memory
 
 ## Decision
 The daemon reads hot and cold sessions from Pi's file through the SDK's own helpers. Parsed entries are cached per
-file, up to 64 MiB of source across files (least recently read out first); a file Pi appended to is parsed from its
-last complete line only, and a file over 32 MiB is read from its tail. Every walk over parent links is bounded by the
-number of entries and keeps a visited set, so a damaged file (a cycle) gives a finite answer. For a hot session the
-daemon walks the branch from the worker's leaf, which it tracks from `ready.leafId`, every `entry_appended` and every
-`navigate_tree` answer; during a run it reads the file only up to its size when the run began, from the leaf at that
-moment, and appends the run's own rows (R38).
+file, up to 64 MiB of source across files (least recently read out first). A file Pi appended to is parsed from its
+last complete line only, provided its inode, its header line and its last 4 KiB read are unchanged and its format is
+current; a file over 32 MiB is read from its tail, and that tail window slides: the oldest entries are dropped once the
+window has grown by half, without parsing the file again. Every walk over parent links is bounded by the number of
+entries and keeps a visited set, so a damaged file (a cycle) gives a finite answer.
+
+Landed with the reader (Task 10a): the cache, the bounded walks, rows read from the file along the last entry of the
+file, and `upToBytes` for a run in progress. Still to come: the worker's leaf (`ready.leafId`, `entry_appended`,
+`navigate_tree`, so a hot session is walked from the worker's leaf) in Task 10b; history pages and tool output on
+demand over the reader's `page`, `forks` and `toolCall` in Task 11. During a run the daemon reads the file only up to
+its size when the run began, and appends the run's own rows (R38).
 
 ## Consequences
-- No transcript ever travels over IPC; history pages and tool output on demand read the file too.
+- No transcript ever travels over IPC; once Tasks 10b and 11 land, history pages and tool output on demand read the
+  file too.
 - A navigation nobody continued is lost when the worker goes away (release, crash): Pi's leaf lives in memory. pi-web
   behaves the same (owner M2-Q11). The composer keeps the text "Edit from here" put in it (Task 24).
-- The daemon parses synchronously: a full parse costs one pass over at most 32 MiB, an append only the new lines.
+- The daemon parses synchronously: a full parse costs one pass over at most 32 MiB; an append parses only the new
+  lines, but still rebuilds the entry index (O(entries) for the file, without parsing again).
+- The cache weight counts source bytes only. Parsed objects take several times that in memory, and nothing is evicted
+  while idle, so 64 MiB of source can hold a few hundred MB: this is above R108's idle target (about 42 MB) whenever
+  large sessions were read, and a lower `MAX_CACHE_BYTES` or an idle eviction is the lever if RSS matters.
 - The oldest history of a session file over 32 MiB is not shown (logged as `tail_only`).
+- A file in an older format is parsed whole (tail) on every change: Pi rewrites such a file when it opens it, so only
+  cold sessions are concerned.

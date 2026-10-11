@@ -6,7 +6,9 @@ export const MAX_PARSE_BYTES = 32 * 1024 * 1024;
 /** Source bytes kept parsed across every file (M2-RT-15); the least recently read file goes first. */
 export const MAX_CACHE_BYTES = 64 * 1024 * 1024;
 const MAX_ID_CHARS = 128;
-const HEADER_BYTES = 64 * 1024;
+const HEADER_CHUNK = 64 * 1024;
+/** How much of the header line and of the bytes before the append point are compared on every read. */
+const GUARD_BYTES = 4096;
 
 export type EntriesIssue = "tail_only" | "read_failed" | "long_id" | "bad_lines";
 export interface EntriesSdk {
@@ -25,8 +27,15 @@ interface Parsed {
   readonly base: number;
   /** The offset just past the last complete line read: an append is parsed from here. */
   readonly parsedUpTo: number;
-  /** The header line as read: a file rewritten in place (same inode, `openSync(file, "w")`) changes it. */
-  readonly header: string | null;
+  /**
+   * The first bytes of the header line (its newline included when it fits): a file rewritten in place (same inode,
+   * `openSync(file, "w")`) changes them. `null` when the file has no header line.
+   */
+  readonly header: Buffer | null;
+  /** The offset of the header line's newline. */
+  readonly headerEnd: number;
+  /** The last bytes read before `parsedUpTo`: a rewrite in place with the same size and mtime changes them. */
+  readonly tail: Buffer;
   /** Whether the header's format is current: only then is an appended line parsed without its header. */
   readonly current: boolean;
   readonly entries: readonly EntryLike[];
@@ -112,21 +121,32 @@ export function createEntriesCache(
     return { entries, ends: entryEnds };
   };
 
+  /** The header line, wherever it ends (read in chunks, never beyond `maxBytes`); `null` without a newline. */
   const headerOf = (
     path: string,
     size: number,
-  ): { line: string; record: Record<string, unknown> | null } | null => {
-    const head = readRange(path, 0, Math.min(size, HEADER_BYTES));
-    const end = head.indexOf(0x0a);
+  ): { line: string; end: number; record: Record<string, unknown> | null } | null => {
+    const limit = Math.min(size, maxBytes);
+    const chunks: Buffer[] = [];
+    let end = -1;
+    for (let at = 0; at < limit && end === -1; at += HEADER_CHUNK) {
+      const chunk = readRange(path, at, Math.min(HEADER_CHUNK, limit - at));
+      if (chunk.length === 0) break;
+      chunks.push(chunk);
+      const found = chunk.indexOf(0x0a);
+      if (found !== -1) end = at + found;
+    }
     if (end === -1) return null;
-    const line = head.toString("utf8", 0, end);
+    const line = Buffer.concat(chunks).toString("utf8", 0, end);
     try {
       const record = JSON.parse(line) as Record<string, unknown>;
-      return { line, record: record?.type === "session" ? record : null };
+      return { line, end, record: record?.type === "session" ? record : null };
     } catch {
-      return { line, record: null };
+      return { line, end, record: null };
     }
   };
+
+  const lastBytes = (buffer: Buffer): Buffer => Buffer.from(buffer.subarray(-GUARD_BYTES));
 
   const full = (path: string, stat: { ino: number; size: number; mtimeMs: number }): Parsed => {
     const header = headerOf(path, stat.size);
@@ -141,6 +161,8 @@ export function createEntriesCache(
     } else buffer = readRange(path, 0, stat.size);
     const parsed = parseLines(buffer, base);
     if (parsed.bad > 0) say("bad_lines", stat.size);
+    // The format is read before the migration: it rewrites the header record's version in place.
+    const version = header?.record?.version;
     // The header goes with a tail so the migration sees the file's format; it is a no-op for a current file.
     const withHeader = base > 0 && header?.record;
     const records = withHeader
@@ -148,14 +170,15 @@ export function createEntriesCache(
       : parsed.records;
     sdk.migrateSessionEntries(records as never[]);
     const kept = keep(records, withHeader ? [0, ...parsed.ends] : parsed.ends, stat.size);
-    const version = header?.record?.version;
     return {
       ino: stat.ino,
       size: stat.size,
       mtimeMs: stat.mtimeMs,
       base,
       parsedUpTo: parsed.consumed,
-      header: header?.line ?? null,
+      header: header ? headerKey(path, header.end) : null,
+      headerEnd: header?.end ?? 0,
+      tail: lastBytes(buffer.subarray(0, parsed.consumed - base)),
       current: typeof version === "number" && version >= sdk.CURRENT_SESSION_VERSION,
       entries: kept.entries,
       ends: kept.ends,
@@ -163,28 +186,63 @@ export function createEntriesCache(
     };
   };
 
+  /** The first bytes of the header line, as they are on disk now. */
+  const headerKey = (path: string, headerEnd: number): Buffer =>
+    readRange(path, 0, Math.min(headerEnd + 1, GUARD_BYTES));
+
+  /** Whether the header and the last bytes read are as they were: the file was not rewritten in place. */
+  const unchanged = (path: string, cached: Parsed): boolean => {
+    if (cached.header !== null) {
+      if (!headerKey(path, cached.headerEnd).equals(cached.header)) return false;
+      // A header longer than the bytes compared: its newline must still be where it was.
+      if (cached.headerEnd + 1 > GUARD_BYTES && readRange(path, cached.headerEnd, 1)[0] !== 0x0a)
+        return false;
+    }
+    return cached.tail.length === 0
+      ? true
+      : readRange(path, cached.parsedUpTo - cached.tail.length, cached.tail.length).equals(cached.tail);
+  };
+
+  /** The window slides: a file may grow by half a window before its oldest entries are dropped. */
+  const slack = Math.floor(maxBytes / 2);
+
   const appendable = (path: string, cached: Parsed, stat: { ino: number; size: number }): boolean => {
     if (!cached.current || cached.header === null || stat.ino !== cached.ino || stat.size <= cached.size)
       return false;
-    if (stat.size - cached.base > maxBytes) return false;
-    return headerOf(path, stat.size)?.line === cached.header;
+    // More than a window of new bytes is read like a new file (tail only), not appended.
+    if (stat.size - cached.parsedUpTo > maxBytes) return false;
+    return unchanged(path, cached);
   };
 
   const append = (path: string, cached: Parsed, stat: { size: number; mtimeMs: number }): Parsed => {
-    const fresh = parseLines(
-      readRange(path, cached.parsedUpTo, stat.size - cached.parsedUpTo),
-      cached.parsedUpTo,
-    );
+    const added = readRange(path, cached.parsedUpTo, stat.size - cached.parsedUpTo);
+    const fresh = parseLines(added, cached.parsedUpTo);
     if (fresh.bad > 0) say("bad_lines", stat.size);
     // The header is current (checked): appended lines need no migration, and migrating them alone would be wrong.
     const kept = keep(fresh.records, fresh.ends, stat.size);
+    let entries = cached.entries.concat(kept.entries);
+    let ends = cached.ends.concat(kept.ends);
+    let base = cached.base;
+    if (fresh.consumed - base > maxBytes + slack) {
+      // Drop the oldest entries until a window is left; nothing is parsed again.
+      let drop = 0;
+      while (drop < ends.length && fresh.consumed - (ends[drop] ?? 0) > maxBytes) drop++;
+      if (drop > 0) {
+        if (base === 0) say("tail_only", stat.size);
+        base = ends[drop - 1] ?? base;
+        entries = entries.slice(drop);
+        ends = ends.slice(drop);
+      }
+    }
     return {
       ...cached,
       size: stat.size,
       mtimeMs: stat.mtimeMs,
+      base,
       parsedUpTo: fresh.consumed,
-      entries: cached.entries.concat(kept.entries),
-      ends: cached.ends.concat(kept.ends),
+      tail: lastBytes(Buffer.concat([cached.tail, added.subarray(0, fresh.consumed - cached.parsedUpTo)])),
+      entries,
+      ends,
       index: null,
     };
   };
@@ -219,11 +277,17 @@ export function createEntriesCache(
       return null;
     }
     const cached = files.get(path);
-    if (cached && cached.ino === stat.ino && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-      remember(path, cached);
-      return cached;
-    }
     try {
+      if (
+        cached &&
+        cached.ino === stat.ino &&
+        cached.size === stat.size &&
+        cached.mtimeMs === stat.mtimeMs &&
+        unchanged(path, cached)
+      ) {
+        remember(path, cached);
+        return cached;
+      }
       const parsed = cached && appendable(path, cached, stat) ? append(path, cached, stat) : full(path, stat);
       remember(path, parsed);
       return parsed;

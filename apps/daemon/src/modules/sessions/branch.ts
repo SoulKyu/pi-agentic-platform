@@ -39,6 +39,7 @@ export interface ForkPoint {
 /** A page never walks more raw entries than this (or 6 per row asked for): tool traffic cannot balloon one page. */
 export const MIN_RAW_WINDOW = 200;
 const PREVIEW_CHARS = 120;
+const TIMESTAMP_CHARS = 64;
 
 export function indexEntries(list: readonly EntryLike[]): IndexedEntries {
   const byId = new Map<string, EntryLike>();
@@ -161,7 +162,7 @@ export function forkPoints(
         entryId: kid.id,
         preview: previewOf(kid, convert),
         target: (entries.newest.get(kid.id) ?? kid).id,
-        timestamp: typeof kid.timestamp === "string" ? kid.timestamp : null,
+        timestamp: typeof kid.timestamp === "string" ? kid.timestamp.slice(0, TIMESTAMP_CHARS) : null,
         onPath: onPath.has(kid.id),
       })),
     });

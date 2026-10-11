@@ -1,4 +1,12 @@
-import { appendFileSync, mkdtempSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  mkdtempSync,
+  renameSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -147,25 +155,175 @@ describe("entries cache", () => {
     expect(issues).toEqual([["tail_only", statSync(file).size]]);
   });
 
-  it("parses again, not by append, when a growing file crosses the parse budget", () => {
+  it("slides the window of a growing file instead of parsing it again (M2R50)", () => {
     const file = join(dir, "s.jsonl");
-    const first = `${header()}\n${entry("e1", null)}\n`;
-    writeFileSync(file, first);
+    const lineOf = (n: number) =>
+      entry(`n${String(n).padStart(3, "0")}`, n === 0 ? null : `n${String(n - 1).padStart(3, "0")}`);
+    writeFileSync(file, `${header()}\n${[0, 1, 2, 3, 4].map(lineOf).join("\n")}\n`);
+    const maxBytes = 1000;
+    const longest = Buffer.byteLength(lineOf(1)) + 1;
     const sdk = counting();
     const issues: string[] = [];
-    const cache = createEntriesCache(sdk, {
-      maxBytes: Buffer.byteLength(first) + Buffer.byteLength(`${entry("e2", "e1")}\n`),
-      onIssue: (issue) => void issues.push(issue),
+    const cache = createEntriesCache(sdk, { maxBytes, onIssue: (issue) => void issues.push(issue) });
+    expect(cache.read(file).list).toHaveLength(5);
+    for (let n = 5; n < 60; n++) {
+      appendFileSync(file, `${lineOf(n)}\n`);
+      const seen = ids(cache, file);
+      expect(seen.at(-1)).toBe(`n${String(n).padStart(3, "0")}`);
+      // Never more than the window plus its slack (half a window) of source bytes.
+      expect(seen.length * longest).toBeLessThanOrEqual(maxBytes * 1.5 + longest);
+    }
+    const last = ids(cache, file);
+    expect(last).toEqual(
+      Array.from({ length: last.length }, (_, i) => `n${String(60 - last.length + i).padStart(3, "0")}`),
+    );
+    expect(last.length).toBeGreaterThan(5);
+    expect(sdk.parses).toBe(1);
+    expect(issues).toEqual(["tail_only"]);
+  });
+
+  it("keeps appending to a file that was already read from its tail", () => {
+    const file = join(dir, "s.jsonl");
+    const lines = Array.from({ length: 40 }, (_, n) =>
+      entry(`m${String(n).padStart(3, "0")}`, n === 0 ? null : `m${String(n - 1).padStart(3, "0")}`),
+    );
+    writeFileSync(file, `${header()}\n${lines.join("\n")}\n`);
+    const sdk = counting();
+    const issues: string[] = [];
+    const cache = createEntriesCache(sdk, { maxBytes: 1000, onIssue: (issue) => void issues.push(issue) });
+    const first = ids(cache, file);
+    expect(first.at(-1)).toBe("m039");
+    expect(first.length).toBeLessThan(40);
+    for (let n = 40; n < 80; n++) {
+      appendFileSync(
+        file,
+        `${entry(`m${String(n).padStart(3, "0")}`, `m${String(n - 1).padStart(3, "0")}`)}\n`,
+      );
+      expect(ids(cache, file).at(-1)).toBe(`m${String(n).padStart(3, "0")}`);
+    }
+    expect(sdk.parses).toBe(1);
+    expect(issues).toEqual(["tail_only"]);
+  });
+
+  it("parses again when more than a window was appended between two reads", () => {
+    const file = join(dir, "s.jsonl");
+    writeFileSync(file, `${header()}\n${entry("e1", null)}\n`);
+    const sdk = counting();
+    const cache = createEntriesCache(sdk, { maxBytes: 1000 });
+    ids(cache, file);
+    const burst = Array.from({ length: 30 }, (_, n) =>
+      entry(`b${String(n).padStart(2, "0")}`, n === 0 ? "e1" : `b${String(n - 1).padStart(2, "0")}`),
+    );
+    appendFileSync(file, `${burst.join("\n")}\n`);
+    expect(ids(cache, file).at(-1)).toBe("b29");
+    expect(sdk.parses).toBe(2);
+  });
+
+  it("appends to a file whose header line is longer than 64 KiB", () => {
+    const file = join(dir, "s.jsonl");
+    const big = JSON.stringify({
+      type: "session",
+      version: 3,
+      id: "s",
+      timestamp: "t",
+      cwd: "/w",
+      note: "x".repeat(70_000),
     });
+    writeFileSync(file, `${big}\n${entry("e1", null)}\n`);
+    const sdk = counting();
+    const cache = createEntriesCache(sdk);
     expect(ids(cache, file)).toEqual(["e1"]);
     appendFileSync(file, `${entry("e2", "e1")}\n`);
-    expect(ids(cache, file)).toEqual(["e1", "e2"]);
-    expect(sdk.parses).toBe(1);
     appendFileSync(file, `${entry("e3", "e2")}\n`);
-    // The last maxBytes of the file: e2 and e3 whole, the line cut in front of them left out.
-    expect(ids(cache, file)).toEqual(["e2", "e3"]);
+    expect(ids(cache, file)).toEqual(["e1", "e2", "e3"]);
+    expect(sdk.parses).toBe(1);
+  });
+
+  it("parses again when a header longer than 64 KiB was rewritten in place", () => {
+    const file = join(dir, "s.jsonl");
+    const big = (id: string) =>
+      JSON.stringify({
+        type: "session",
+        version: 3,
+        id,
+        timestamp: "t",
+        cwd: "/w",
+        note: "x".repeat(70_000),
+      });
+    writeFileSync(file, `${big("one")}\n${entry("e1", null)}\n`);
+    const sdk = counting();
+    const cache = createEntriesCache(sdk);
+    ids(cache, file);
+    writeFileSync(file, `${big("two")}\n${entry("x1", null)}\n${entry("x2", "x1")}\n`);
+    expect(ids(cache, file)).toEqual(["x1", "x2"]);
     expect(sdk.parses).toBe(2);
-    expect(issues).toEqual(["tail_only"]);
+  });
+
+  it("reads an older format from its tail by parsing the file again each time, never by append", () => {
+    const file = join(dir, "s.jsonl");
+    const old = JSON.stringify({ type: "session", version: 2, id: "o", timestamp: "t", cwd: "/w" });
+    const lines = Array.from({ length: 30 }, (_, n) =>
+      entry(`o${String(n).padStart(2, "0")}`, n === 0 ? null : `o${String(n - 1).padStart(2, "0")}`),
+    );
+    writeFileSync(file, `${old}\n${lines.join("\n")}\n`);
+    const seenByMigration: unknown[] = [];
+    // Pi's migration rewrites the header's version in place: the cache must have read it before.
+    const sdk = {
+      CURRENT_SESSION_VERSION: 3,
+      parses: 0,
+      migrateSessionEntries: (records: Array<Record<string, unknown>>) => {
+        sdk.parses++;
+        seenByMigration.push(records[0]?.type);
+        for (const record of records) if (record.type === "session") record.version = 3;
+      },
+    };
+    const cache = createEntriesCache(sdk as never, { maxBytes: 1000 });
+    expect(ids(cache, file).at(-1)).toBe("o29");
+    appendFileSync(file, `${entry("o30", "o29")}\n`);
+    expect(ids(cache, file).at(-1)).toBe("o30");
+    expect(sdk.parses).toBe(2);
+    expect(seenByMigration).toEqual(["session", "session"]);
+  });
+
+  it("parses again when the bytes before the append point were rewritten in place with the same size and mtime", () => {
+    const file = join(dir, "s.jsonl");
+    const at = new Date(1_700_000_000_000);
+    writeFileSync(file, `${header()}\n${entry("e1", null)}\n`);
+    utimesSync(file, at, at);
+    const sdk = counting();
+    const cache = createEntriesCache(sdk);
+    expect(ids(cache, file)).toEqual(["e1"]);
+    writeFileSync(file, `${header()}\n${entry("f1", null)}\n`);
+    utimesSync(file, at, at);
+    expect(ids(cache, file)).toEqual(["f1"]);
+    expect(sdk.parses).toBe(2);
+  });
+
+  it("parses again when only the header changed in place, far from the last bytes read", () => {
+    const file = join(dir, "s.jsonl");
+    const many = Array.from({ length: 80 }, (_, n) =>
+      entry(`h${String(n).padStart(3, "0")}`, n === 0 ? null : `h${String(n - 1).padStart(3, "0")}`),
+    );
+    const body = `${many.join("\n")}\n`;
+    expect(Buffer.byteLength(body)).toBeGreaterThan(4096 * 2);
+    writeFileSync(file, `${header("one")}\n${body}`);
+    const sdk = counting();
+    const cache = createEntriesCache(sdk);
+    ids(cache, file);
+    writeFileSync(file, `${header("two")}\n${body}${entry("h080", "h079")}\n`);
+    expect(ids(cache, file).at(-1)).toBe("h080");
+    expect(sdk.parses).toBe(2);
+  });
+
+  it("parses again when the last bytes read were rewritten and the file then grew", () => {
+    const file = join(dir, "s.jsonl");
+    writeFileSync(file, `${header()}\n${entry("e1", null)}\n`);
+    const sdk = counting();
+    const cache = createEntriesCache(sdk);
+    ids(cache, file);
+    writeFileSync(file, `${header()}\n${entry("f1", null)}\n${entry("f2", "f1")}\n`);
+    expect(ids(cache, file)).toEqual(["f1", "f2"]);
+    expect(sdk.parses).toBe(2);
   });
 
   it("keeps parsed files under its byte budget, least recently used out first (M2-RT-15)", () => {

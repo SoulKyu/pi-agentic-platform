@@ -114,6 +114,16 @@ describe("branch rows", () => {
     ]);
   });
 
+  it("cuts a timestamp copied from the file to 64 characters", () => {
+    const list = [
+      msg("u0", null, "user", "one"),
+      { ...msg("u1", "u0", "user", "a"), timestamp: "t".repeat(5000) },
+      msg("u2", "u0", "user", "b"),
+    ];
+    const [point] = forkPoints(indexEntries(list), convert, "u2");
+    expect(point?.choices[0]?.timestamp).toBe("t".repeat(64));
+  });
+
   it("finds a tool call's arguments and its result", () => {
     const list = [
       msg("u0", null, "user", "go"),
