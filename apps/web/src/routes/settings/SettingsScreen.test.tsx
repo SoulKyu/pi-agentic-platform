@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { startKeybindings } from "../../features/commands/index.ts";
@@ -95,6 +96,36 @@ describe("SettingsScreen", () => {
     );
     expect(trigger.textContent).toContain("Language");
     expect(document.querySelector('[role="listbox"]')).toBeNull();
+    await page.unmount();
+  });
+
+  it("opens the phone listbox, navigates on a pick, and leaves no listbox behind", async () => {
+    const page = await shown("/settings/language", { phone: true });
+    const trigger = document.querySelector('[role="combobox"]') as HTMLElement;
+    await act(async () => {
+      trigger.dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse" }),
+      );
+    });
+    await vi.waitFor(() => expect(document.querySelector('[role="listbox"]')).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    const account = [...document.querySelectorAll('[role="option"]')].find(
+      (one) => one.textContent === "Account & devices",
+    ) as HTMLElement;
+    await act(async () => {
+      account.dispatchEvent(
+        new PointerEvent("pointerup", { bubbles: true, button: 0, pointerType: "mouse" }),
+      );
+      account.click();
+    });
+    await vi.waitFor(() => expect(page.router.state.location.pathname).toBe("/settings/account"), {
+      timeout: 2_000,
+    });
+    await vi.waitFor(() => expect(document.querySelector('[role="listbox"]')).toBeNull(), { timeout: 2_000 });
+    expect(useWorkspaceStore.getState().ws.tabs.filter((tab) => tab.item.kind === "settings")).toHaveLength(
+      1,
+    );
     await page.unmount();
   });
 });

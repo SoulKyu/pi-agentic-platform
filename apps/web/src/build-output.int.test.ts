@@ -109,29 +109,27 @@ describe("the built web app under the daemon's CSP", () => {
     expect(bytes / 1024).toBeLessThanOrEqual(budget);
   });
 
-  it("keeps the Settings screen out of the initial assets", async () => {
+  // A lazy chunk holds the marker and no initial file does (the initial files are the ones index.html names).
+  const keepsLazyOnly = async (markers: readonly RegExp[]) => {
     const initial = new Set(
       [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((match) => match[1] ?? ""),
     );
-    const marker = "data-settings-screen";
-    const holders: string[] = [];
-    for (const name of assets.filter((asset) => asset.endsWith(".js"))) {
-      if ((await readFile(join(out, "assets", name), "utf8")).includes(marker)) holders.push(name);
+    const scripts = assets.filter((asset) => asset.endsWith(".js"));
+    for (const marker of markers) {
+      const holders: string[] = [];
+      for (const name of scripts) {
+        if (marker.test(await readFile(join(out, "assets", name), "utf8"))) holders.push(name);
+      }
+      expect(holders.length, String(marker)).toBeGreaterThan(0);
+      expect(
+        holders.filter((name) => initial.has(name)),
+        String(marker),
+      ).toEqual([]);
     }
-    expect(holders.length).toBeGreaterThan(0);
-    expect(holders.filter((name) => initial.has(name))).toEqual([]);
-  });
+  };
 
-  it("keeps lazy-only primitives out of the initial assets", async () => {
-    const initial = new Set(
-      [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((match) => match[1] ?? ""),
-    );
-    const marker = "data-radix-select-viewport";
-    const holders: string[] = [];
-    for (const name of assets.filter((asset) => asset.endsWith(".js"))) {
-      if ((await readFile(join(out, "assets", name), "utf8")).includes(marker)) holders.push(name);
-    }
-    expect(holders.length).toBeGreaterThan(0);
-    expect(holders.filter((name) => initial.has(name))).toEqual([]);
-  });
+  it("keeps the Settings screen out of the initial assets", () => keepsLazyOnly([/data-settings-screen/]));
+
+  it("keeps lazy-only primitives out of the initial assets", () =>
+    keepsLazyOnly([/data-radix-select-viewport/, /"data-slot":\W*segmented/]));
 });

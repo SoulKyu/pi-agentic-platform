@@ -63,6 +63,7 @@ export const shellEn = {
   "shell.mobile.tabs": "Open items",
   "shell.agents.emptyTitle": "No agent yet",
   "shell.agents.emptyPurpose": "A long-term agent has its own thread, memory, budget and triggers.",
+  "shell.lazyPane.title": "This screen did not load",
   "shell.lazyFailed": "This part of pap did not load. pap may have been updated: reload the page.",
 } as const;
 
@@ -134,6 +135,7 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.agents.emptyTitle": "Aucun agent pour l'instant",
   "shell.agents.emptyPurpose":
     "Un agent de long terme a son propre fil, sa mémoire, son budget et ses déclencheurs.",
+  "shell.lazyPane.title": "Cet écran ne s'est pas chargé",
   "shell.lazyFailed":
     "Cette partie de pap ne s'est pas chargée. pap a peut-être été mis à jour : rechargez la page.",
 };

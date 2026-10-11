@@ -7,10 +7,10 @@ export interface ShellValue {
 }
 
 /** What the shell knows about the session, for screens (Settings) that render inside its panes. */
-export const ShellContext = createContext<ShellValue>({
-  username: null,
-  passkeysAvailable: false,
-  onSignedOut: () => {},
-});
+export const ShellContext = createContext<ShellValue | null>(null);
 
-export const useShell = (): ShellValue => useContext(ShellContext);
+export function useShell(): ShellValue {
+  const value = useContext(ShellContext);
+  if (value === null) throw new Error("useShell must be used inside the AppShell");
+  return value;
+}
