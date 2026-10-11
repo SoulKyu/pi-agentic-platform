@@ -22,7 +22,7 @@ describe("lazy chunks (M3-RT-15)", () => {
   afterEach(() => vi.restoreAllMocks());
 
   it("a chunk that fails to load renders nothing, reports once, and the next attempt loads again", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {}); // React logs the caught error
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {}); // React logs the caught error
     const Panel = () => <p>panel</p>;
     const load = vi
       .fn<() => Promise<{ default: ComponentType }>>()
@@ -39,6 +39,10 @@ describe("lazy chunks (M3-RT-15)", () => {
       await vi.waitFor(() => expect(page.container.textContent).toContain("panel"), { timeout: 2_000 });
     });
     expect([load.mock.calls.length, onError.mock.calls.length]).toEqual([2, 1]);
+    // A boundary without getDerivedStateFromError makes React warn; the caught chunk error itself is expected.
+    expect(logged.mock.calls.filter((call) => String(call[0]).includes("getDerivedStateFromError"))).toEqual(
+      [],
+    );
     await page.unmount();
   });
 });

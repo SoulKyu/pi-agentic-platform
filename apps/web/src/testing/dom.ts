@@ -16,9 +16,18 @@ export interface Mounted {
 // Every mount not yet unmounted: a test that fails before its inline unmount() must not leak its registrations.
 const live = new Set<() => Promise<void>>();
 
-/** Unmounts what is still mounted. Runs after each test of any file that imports this module. */
+/** Unmounts what is still mounted, every mount even when one throws. Runs after each test of any file that imports this module. */
 export async function unmountAll(): Promise<void> {
-  for (const unmount of [...live]) await unmount();
+  const failures: unknown[] = [];
+  for (const unmount of [...live]) {
+    try {
+      await unmount();
+    } catch (failure) {
+      failures.push(failure); // the others still unmount; the test sees every failure
+    }
+  }
+  if (failures.length === 1) throw failures[0];
+  if (failures.length > 1) throw new AggregateError(failures, "several mounts failed to unmount");
 }
 afterEach(unmountAll);
 

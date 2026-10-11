@@ -21,7 +21,7 @@ vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
 });
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionScreen: () => createElement("p", { "data-stub": "session" }) };
+  return { SessionScreen: () => createElement("p", { "data-stub": "session", tabIndex: 0 }) };
 });
 
 const session = (id: string, cwd: string, updatedAt: number, status = "idle") =>
@@ -126,14 +126,30 @@ describe("tree drawer", () => {
     await page.unmount();
   });
 
-  it("Escape closes the drawer and does not stop the run", async () => {
+  it.each([
+    ["tree", "Sessions", () => ctrlB()],
+    [
+      "inbox",
+      "Inbox",
+      (page: { container: HTMLElement }) =>
+        click(page.container.querySelector('[aria-label="Inbox"]') as HTMLElement),
+    ],
+  ])("Escape in the %s drawer closes it and does not stop the run", async (_name, title, open) => {
     const stop = vi.fn();
     const off = registerCommand("session.stop", stop);
     const page = await renderShell("/s/one");
     await settle();
-    await ctrlB();
-    await opened("Sessions");
-    await press(dialog() as HTMLElement, { key: "Escape", code: "Escape" });
+    const pane = page.container.querySelector<HTMLElement>('[data-pane-kind="session"] [data-stub]');
+    await open(page);
+    await opened(title);
+    // The drawer traps focus, so the page can never report focus in the pane while it is open. Report it anyway
+    // (the state the guards exist for): only the open dialog now keeps Escape from stopping the run.
+    Object.defineProperty(document, "activeElement", { configurable: true, get: () => pane });
+    try {
+      await press(pane as HTMLElement, { key: "Escape", code: "Escape" });
+    } finally {
+      Reflect.deleteProperty(document, "activeElement");
+    }
     await vi.waitFor(() => expect(dialog()).toBeNull(), { timeout: 2_000 });
     expect(stop).not.toHaveBeenCalled();
     off();

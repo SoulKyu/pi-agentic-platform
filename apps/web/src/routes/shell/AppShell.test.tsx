@@ -225,17 +225,28 @@ describe("AppShell", () => {
   });
 
   it("listens for shortcuts only while mounted, and follows the effective bindings", async () => {
-    const tree = vi.fn();
-    const off = registerCommand("palette.toggle", tree);
+    // A command and bindings of its own, cloned from product rules, so no product task's command is borrowed.
+    const rule = (from: string) => {
+      const found = useKeybindingsStore.getState().rules.find((candidate) => candidate.command === from);
+      if (!found) throw new Error(`no default rule for ${from}`);
+      return { ...found, command: "test.only" };
+    };
+    const first = rule("palette.toggle");
+    const second = rule("settings.open");
+    const probe = vi.fn();
+    const off = registerCommand("test.only", probe);
+    useKeybindingsStore.setState({ rules: [first] });
     const page = await renderShell("/");
     await press(document.body, { key: "k", code: "KeyK", ctrlKey: true });
-    expect(tree).toHaveBeenCalledOnce();
-    useKeybindingsStore.getState().setUser([{ key: "mod+j", command: "palette.toggle" }]);
-    await press(document.body, { key: "j", code: "KeyJ", ctrlKey: true });
-    expect(tree).toHaveBeenCalledTimes(2);
+    expect(probe).toHaveBeenCalledOnce();
+    useKeybindingsStore.setState({ rules: [second] });
+    await press(document.body, { key: ",", code: "Comma", ctrlKey: true });
+    expect(probe).toHaveBeenCalledTimes(2);
+    await press(document.body, { key: "k", code: "KeyK", ctrlKey: true });
+    expect(probe).toHaveBeenCalledTimes(2);
     await page.unmount();
-    await press(document.body, { key: "j", code: "KeyJ", ctrlKey: true });
-    expect(tree).toHaveBeenCalledTimes(2);
+    await press(document.body, { key: ",", code: "Comma", ctrlKey: true });
+    expect(probe).toHaveBeenCalledTimes(2);
     off();
   });
 

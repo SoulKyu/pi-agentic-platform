@@ -1,10 +1,8 @@
-import { toast } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
-import { logout } from "../../features/auth/auth-api.ts";
 import { useCommand } from "../../features/commands/index.ts";
 import { activeTab, pathOfItem, useWorkspaceStore, type ItemRef } from "../../features/workspace/index.ts";
-import { t } from "../../i18n/index.ts";
+import { signOut } from "./sign-out.ts";
 import { closeItem, go, goToActive, toggleSplit } from "./tab-actions.ts";
 
 type Setter = (open: boolean | ((open: boolean) => boolean)) => void;
@@ -60,7 +58,5 @@ export function useShellCommands(state: ShellCommandState): void {
     const next = MODES[(MODES.indexOf(account.mode) + 1) % MODES.length] ?? "system";
     setAccount({ ...account, mode: next });
   });
-  useCommand("auth.signOut", () => {
-    void logout().then(state.onSignedOut, () => toast({ message: t("shell.signOutFailed"), tone: "error" }));
-  });
+  useCommand("auth.signOut", () => signOut(state.onSignedOut));
 }
