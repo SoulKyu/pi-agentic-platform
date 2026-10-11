@@ -1,4 +1,4 @@
-import { type ChildProcess, fork } from "node:child_process";
+import { type ChildProcess, fork, spawn } from "node:child_process";
 import {
   type CommandInput,
   type DaemonToWorker,
@@ -12,22 +12,26 @@ import type { Logger } from "../logger.ts";
 import { classifyExit, type WorkerExit } from "./exit.ts";
 import { killLadder, WORKER_SHUTDOWN_GRACE_MS } from "./kill-ladder.ts";
 import { releaseGroup, signalGroup, trackGroup } from "./process-group.ts";
+import type { WorkerScope } from "./scope.ts";
+import { boundedOutbound, boundedRecord, createTail, failedHandle, requestTimeoutMs } from "./worker-io.ts";
 
 export { killAllWorkerGroups } from "./process-group.ts";
+export {
+  boundedOutbound,
+  clipWorkerString,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  MAX_SHUTDOWN_GRACE_MS,
+  MAX_WORKER_STRING,
+  OUTPUT_TAIL_BYTES,
+  requestTimeoutMs,
+} from "./worker-io.ts";
 
-/** Stdout and stderr of a worker are kept only as a tail: a worker that floods them cannot grow the daemon. */
-export const OUTPUT_TAIL_BYTES = 8 * 1024;
-/** A worker that never answers must not leave a request pending forever (every command but `prompt`). */
-export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-/** `shutdown.graceMs` is honoured by the worker as given: the daemon never asks for more than this. */
-export const MAX_SHUTDOWN_GRACE_MS = 30_000;
 /** Records handed to the channel and not yet written: a worker that stopped reading cannot grow the queue. */
 export const MAX_OUTBOUND_IN_FLIGHT = 1024;
 /** After a worker exits, how long to wait for its last output and records before reporting the exit. */
 export const STDIO_DRAIN_MS = 500;
-/** Worker-origin strings are untrusted: bounded before they are logged or handed on (R66). */
-export const MAX_WORKER_STRING = 2048;
-
+/** The longest an exit report waits for the scope to be read and stopped. */
+export const REAP_TIMEOUT_MS = 3000;
 export interface SpawnWorkerOptions {
   readonly entry: string;
   readonly execArgv: readonly string[];
@@ -35,6 +39,8 @@ export interface SpawnWorkerOptions {
   readonly env: NodeJS.ProcessEnv;
   readonly clock: Clock;
   readonly logger: Logger;
+  /** Launch through a systemd scope instead of a plain fork; the scope is reaped once the worker has exited. */
+  readonly scope?: WorkerScope;
 }
 
 export interface WorkerStats {
@@ -66,75 +72,7 @@ export interface WorkerHandle {
   stats(): WorkerStats;
 }
 
-/**
- * How long a command may wait for its answer unless the caller says otherwise. `prompt`, `compact` and `navigate_tree`
- * have none: an extension command answers only when it ends (R38(1)), a compaction waits for the model's summary, and
- * a navigation waits for `session_before_tree` hooks that may ask the user (M2-RT-08); the wait ends with the worker.
- * Naming and export call the model or write a file: two minutes.
- */
-const COMMAND_TIMEOUTS: Partial<Record<CommandInput["type"], number | undefined>> = {
-  prompt: undefined,
-  compact: undefined,
-  navigate_tree: undefined,
-  auto_name: 120_000,
-  export_html: 120_000,
-};
-export const requestTimeoutMs = (command: CommandInput): number | undefined =>
-  command.type in COMMAND_TIMEOUTS ? COMMAND_TIMEOUTS[command.type] : DEFAULT_REQUEST_TIMEOUT_MS;
-
-export const clipWorkerString = (text: string): string =>
-  text.length > MAX_WORKER_STRING ? `${text.slice(0, MAX_WORKER_STRING)}…` : text;
-
-/** What the daemon is willing to put on the wire, whoever asked. */
-export function boundedOutbound(record: DaemonToWorker): DaemonToWorker {
-  return record.type === "shutdown" && record.graceMs > MAX_SHUTDOWN_GRACE_MS
-    ? { ...record, graceMs: MAX_SHUTDOWN_GRACE_MS }
-    : record;
-}
-
-// Worker-origin text reaches the daemon's callers only in these fields.
-function boundedRecord(record: WorkerRecord): WorkerRecord {
-  if (record.type === "response" && record.error !== undefined) {
-    return { ...record, error: clipWorkerString(record.error) };
-  }
-  if (record.type === "extension_error") {
-    return {
-      ...record,
-      extensionPath: clipWorkerString(record.extensionPath),
-      event: clipWorkerString(record.event),
-      error: clipWorkerString(record.error),
-    };
-  }
-  return record;
-}
-
-// Powers of two: the first drop is logged, then the 2nd, 4th, 8th… so a flood of garbage cannot flood the log.
 const worthLogging = (count: number): boolean => (count & (count - 1)) === 0;
-
-function createTail() {
-  let tail = Buffer.alloc(0);
-  return {
-    push(chunk: Buffer): void {
-      const whole = Buffer.concat([tail, chunk]);
-      tail = Buffer.from(whole.subarray(Math.max(0, whole.length - OUTPUT_TAIL_BYTES)));
-    },
-    text: (): string => tail.toString("utf8"),
-  };
-}
-
-function failedHandle(exit: WorkerExit): WorkerHandle {
-  const none = { droppedRecords: 0, unknownResponses: 0, listenerErrors: 0, pendingRequests: 0 };
-  return {
-    pid: undefined,
-    exited: Promise.resolve(exit),
-    send: () => false,
-    request: () => Promise.reject(new PapError("worker_failed")),
-    onRecord: () => () => {},
-    stop: () => Promise.resolve(exit),
-    outputTail: () => "",
-    stats: () => none,
-  };
-}
 
 interface Pending {
   readonly resolve: (record: ResponseRecord) => void;
@@ -146,14 +84,26 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   const { clock, logger } = options;
   let child: ChildProcess;
   try {
-    child = fork(options.entry, [], {
-      cwd: options.cwd,
-      env: options.env,
-      execArgv: [...options.execArgv],
-      detached: true,
-      stdio: ["ignore", "pipe", "pipe", "ipc"],
-      serialization: "json",
-    });
+    child = options.scope
+      ? spawn(
+          options.scope.launch.command,
+          [...options.scope.launch.args, process.execPath, ...options.execArgv, options.entry],
+          {
+            cwd: options.cwd,
+            env: { ...options.env, ...options.scope.launch.env },
+            detached: true,
+            stdio: ["ignore", "pipe", "pipe", "ipc"],
+            serialization: "json",
+          },
+        )
+      : fork(options.entry, [], {
+          cwd: options.cwd,
+          env: options.env,
+          execArgv: [...options.execArgv],
+          detached: true,
+          stdio: ["ignore", "pipe", "pipe", "ipc"],
+          serialization: "json",
+        });
   } catch (error) {
     logger.warn("worker_spawn_failed", { err: error });
     return failedHandle({ code: null, signal: null, cause: "spawn_failure" });
@@ -174,6 +124,7 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   let nextId = 0;
   let inFlight = 0;
   let stopping: Promise<WorkerExit> | undefined;
+  let scopeStarted = false;
 
   const failPending = (): void => {
     for (const entry of pending.values()) {
@@ -194,6 +145,33 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     resolveExited(exit);
   };
 
+  // The exit is reported once the scope has been read and stopped (bounded), so the cgroup is empty when the session hears of it.
+  let reported = false;
+  const report = (exit: WorkerExit): void => {
+    if (reported) return;
+    reported = true;
+    const scope = options.scope;
+    if (!scope) return finish(exit);
+    let done = false;
+    const settle = (oomKilled: boolean): void => {
+      if (done) return;
+      done = true;
+      clock.clearTimeout(timer);
+      finish(oomKilled ? { ...exit, cause: "oom" } : exit);
+    };
+    const timer = clock.setTimeout(() => {
+      logger.warn("worker_scope_reap_slow", { unit: scope.unit });
+      settle(false);
+    }, REAP_TIMEOUT_MS);
+    scope.reap(exit).then(
+      ({ oomKilled }) => settle(oomKilled),
+      (error: unknown) => {
+        logger.warn("worker_scope_reap_failed", { unit: scope.unit, err: error });
+        settle(false);
+      },
+    );
+  };
+
   child.on("error", (error) => {
     logger.warn("worker_error", { pid, err: error });
     if (pid === undefined) finish({ code: null, signal: null, cause: "spawn_failure" });
@@ -210,11 +188,11 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     const timer = clock.setTimeout(() => {
       child.stdout?.destroy();
       child.stderr?.destroy();
-      finish(exit);
+      report(exit);
     }, STDIO_DRAIN_MS);
     child.once("close", () => {
       clock.clearTimeout(timer);
-      finish(exit);
+      report(exit);
     });
   });
   child.once("disconnect", () => {
@@ -224,6 +202,12 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   });
   child.on("message", (raw: unknown) => {
     if (!alive) return;
+    if (options.scope && !scopeStarted) {
+      scopeStarted = true;
+      options.scope
+        .started()
+        .catch((error: unknown) => logger.warn("worker_scope_baseline_failed", { err: error }));
+    }
     const record = parseWorkerRecord(raw);
     if (!record) {
       stats.droppedRecords++;
@@ -299,7 +283,8 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
       if (alive) {
         // Still not reaped after SIGKILL and the wait: declare it dead so nothing waits on it any longer.
         logger.error("worker_unkillable", { pid });
-        finish(exit);
+        // A scope still kills everything in its cgroup; without one this is a plain finish.
+        report(exit);
       }
       return exit;
     });

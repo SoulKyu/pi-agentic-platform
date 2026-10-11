@@ -1,4 +1,4 @@
-export type ExitCause = "clean" | "exit_code" | "signal" | "killed" | "spawn_failure";
+export type ExitCause = "clean" | "exit_code" | "signal" | "killed" | "oom" | "spawn_failure";
 
 export interface WorkerExit {
   readonly code: number | null;
@@ -22,6 +22,8 @@ export function describeExit(exit: WorkerExit): string {
       return `Agent process stopped by ${exit.signal ?? "a signal"}.`;
     case "killed":
       return "Agent process killed (SIGKILL), possibly out of memory.";
+    case "oom":
+      return "Agent process ran out of memory and was stopped.";
     case "spawn_failure":
       return "Agent process could not start.";
   }
