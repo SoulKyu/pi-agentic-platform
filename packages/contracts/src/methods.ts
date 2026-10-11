@@ -163,8 +163,8 @@ export const methods = catalogue({
       /** The text of the message forked before, for the composer; clipped to the frame. */
       text: z.string().max(UI_LIMITS.editorText),
     }),
-    // A source over the size cap is `session_empty` too. `bad_request`: the entry is not a user message.
-    errors: ["not_found", "bad_request", "session_empty"],
+    // `capacity`: the source is over the size cap (32 MiB). `bad_request`: the entry is not a user message.
+    errors: ["not_found", "bad_request", "session_empty", "capacity"],
   }),
   "sessions.clone": defineMethod({
     name: "sessions.clone",
@@ -172,7 +172,7 @@ export const methods = catalogue({
     idempotent: false,
     params: z.object({ sessionId: SessionId }),
     result: z.object({ sessionId: SessionId }),
-    errors: ["not_found", "session_empty"],
+    errors: ["not_found", "session_empty", "capacity"],
   }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",

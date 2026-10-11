@@ -1,17 +1,24 @@
+import { randomUUID } from "node:crypto";
 import {
+  chmodSync,
   closeSync,
+  constants,
   fstatSync,
+  lstatSync,
   mkdirSync,
-  mkdtempSync,
   openSync,
+  readdirSync,
   readSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import type { Logger } from "../../kernel/logger.ts";
+import { clip } from "./worker-text.ts";
 import type { SessionManager as PiSessionManager } from "@earendil-works/pi-coding-agent";
 
-export type ForkRefusalKind = "not_a_user_message" | "empty" | "unreadable" | "too_large";
+export type ForkRefusalKind =
+  "not_a_user_message" | "empty" | "unreadable" | "too_large" | "lineage_mismatch";
 
 export class ForkRefusal extends Error {
   readonly refusal: ForkRefusalKind;
@@ -34,7 +41,7 @@ export interface PiWriter {
   ): { file: string; piSessionId: string };
 }
 
-type Sdk = { SessionManager: typeof PiSessionManager; CURRENT_SESSION_VERSION: number };
+export type Sdk = { SessionManager: typeof PiSessionManager; CURRENT_SESSION_VERSION: number };
 
 /**
  * Opening a source parses all of it, synchronously, on the daemon's thread: past this a fork or a clone is refused
@@ -44,6 +51,39 @@ export const MAX_SOURCE_BYTES = 32 * 1024 * 1024;
 
 export interface PiWriterOptions {
   readonly maxSourceBytes?: number;
+  readonly logger?: Logger;
+  /** Test seam: told the path of the working copy while it exists. */
+  readonly inspectCopy?: (path: string) => void;
+}
+
+/** What the daemon names its working copies: nothing else in the scratch folder is its own. */
+const OWN_COPY = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$/;
+
+/**
+ * Boot: deletes the copies an earlier daemon left (it died between writing one and deleting it). Only regular files
+ * with a copy's name go: a link is never followed, a folder never entered, and whatever else is there stays, counted
+ * in one log line.
+ */
+export function purgeForkTmp(dir: string, logger: Logger): void {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+    if (code !== "ENOENT") logger.warn("fork_tmp_purge_failed", { code });
+    return;
+  }
+  let kept = 0;
+  for (const name of names) {
+    const path = join(dir, name);
+    try {
+      if (OWN_COPY.test(name) && lstatSync(path).isFile()) rmSync(path, { force: true });
+      else kept++;
+    } catch (error) {
+      logger.warn("fork_tmp_delete_failed", { code: (error as NodeJS.ErrnoException).code ?? "unknown" });
+    }
+  }
+  if (kept > 0) logger.warn("fork_tmp_purge_kept", { count: kept });
 }
 
 /**
@@ -54,8 +94,11 @@ export interface PiWriterOptions {
 function readCompleteLines(file: string, max: number): Buffer {
   let fd: number | undefined;
   try {
-    fd = openSync(file, "r");
-    const size = fstatSync(fd).size;
+    // O_NONBLOCK: opening a pipe a worker swapped in must not wait for a writer. Only a plain file is read.
+    fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK);
+    const info = fstatSync(fd);
+    if (!info.isFile()) throw new ForkRefusal("unreadable");
+    const size = info.size;
     if (size > max) throw new ForkRefusal("too_large");
     const buffer = Buffer.alloc(size);
     let read = 0;
@@ -95,6 +138,23 @@ function headerIsCurrent(copy: Buffer, current: number): boolean {
   }
 }
 
+/** The `parentSession` in the first line of a file Pi wrote, or undefined when it cannot be read. */
+function parentOf(file: string): unknown {
+  let fd: number | undefined;
+  try {
+    fd = openSync(file, constants.O_RDONLY | constants.O_NONBLOCK);
+    const buffer = Buffer.alloc(64 * 1024);
+    const read = readSync(fd, buffer, 0, buffer.length, 0);
+    const end = buffer.subarray(0, read).indexOf(0x0a);
+    return (JSON.parse(buffer.toString("utf8", 0, end === -1 ? read : end)) as { parentSession?: unknown })
+      .parentSession;
+  } catch {
+    return undefined;
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
 const textOf = (content: unknown): string =>
   typeof content === "string"
     ? content
@@ -118,7 +178,7 @@ const hasMessage = (manager: PiSessionManager, leafId: string): boolean =>
         ["user", "assistant"].includes((entry.message as { role?: string }).role ?? ""),
     );
 
-function createPiWriter(sdk: Sdk, scratchDir: string, options: PiWriterOptions): PiWriter {
+export function createPiWriter(sdk: Sdk, scratchDir: string, options: PiWriterOptions): PiWriter {
   const max = options.maxSourceBytes ?? MAX_SOURCE_BYTES;
   /**
    * Runs `use` on a fresh manager over a private copy of the source, then deletes the copy, whatever happens. A fresh
@@ -128,23 +188,35 @@ function createPiWriter(sdk: Sdk, scratchDir: string, options: PiWriterOptions):
     const copy = readCompleteLines(sourceFile, max);
     if (!headerIsCurrent(copy, sdk.CURRENT_SESSION_VERSION)) throw new ForkRefusal("unreadable");
     mkdirSync(scratchDir, { recursive: true, mode: 0o700 });
-    const work = mkdtempSync(join(scratchDir, "copy-"));
+    chmodSync(scratchDir, 0o700);
+    const path = join(scratchDir, `${randomUUID()}.jsonl`);
     try {
-      const path = join(work, "source.jsonl");
-      writeFileSync(path, copy, { mode: 0o600 });
+      writeFileSync(path, copy, { mode: 0o600, flag: "wx" });
+      options.inspectCopy?.(path);
       let manager: PiSessionManager;
       try {
         // The new file goes where the source is, which is Pi's folder for the session's cwd.
         manager = sdk.SessionManager.open(path, dirname(sourceFile));
-      } catch {
+      } catch (error) {
+        options.logger?.warn("fork_open_failed", { cause: clip(String(error).slice(0, 300)) });
         throw new ForkRefusal("unreadable");
       }
       // The header of a branched session names the file it was branched from: the source, not the copy.
       (manager as unknown as { sessionFile: string }).sessionFile = sourceFile;
       return use(manager);
     } finally {
-      rmSync(work, { recursive: true, force: true });
+      rmSync(path, { force: true });
     }
+  }
+
+  // Pi's private field is what sets the lineage; if an SDK change stops it working, fail rather than record a copy.
+  function checked<T extends { file: string | null }>(sourceFile: string, made: T): T {
+    if (made.file !== null && parentOf(made.file) !== sourceFile) {
+      rmSync(made.file, { force: true });
+      options.logger?.warn("fork_lineage_mismatch", {});
+      throw new ForkRefusal("lineage_mismatch");
+    }
+    return made;
   }
 
   return {
@@ -158,7 +230,7 @@ function createPiWriter(sdk: Sdk, scratchDir: string, options: PiWriterOptions):
           return { file: null, piSessionId: null, text };
         const file = manager.createBranchedSession(entry.parentId);
         if (!file) throw new ForkRefusal("unreadable");
-        return { file, piSessionId: manager.getSessionId(), text };
+        return checked(sourceFile, { file, piSessionId: manager.getSessionId(), text });
       }),
     clone: (sourceFile, leafId, name) =>
       withCopy(sourceFile, (manager) => {
@@ -167,7 +239,7 @@ function createPiWriter(sdk: Sdk, scratchDir: string, options: PiWriterOptions):
         const file = manager.createBranchedSession(leaf);
         if (!file) throw new ForkRefusal("unreadable");
         if (name) manager.appendSessionInfo(name);
-        return { file, piSessionId: manager.getSessionId() };
+        return checked(sourceFile, { file, piSessionId: manager.getSessionId() });
       }),
   };
 }

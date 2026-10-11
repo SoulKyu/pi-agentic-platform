@@ -48,12 +48,14 @@ export function createForks(deps: ForksDeps): Forks {
     if (error instanceof PapError) return error;
     if (error instanceof ForkRefusal) {
       if (error.refusal === "not_a_user_message") return new PapError("bad_request");
-      // A source over the size cap is told apart in the log, not on the wire: there is no code for it.
-      if (error.refusal === "empty" || error.refusal === "too_large") {
-        if (error.refusal === "too_large") deps.logger.warn("fork_source_too_large", { sessionId: row.id });
-        return new PapError("session_empty");
+      if (error.refusal === "empty") return new PapError("session_empty");
+      // A resource limit, like a full table of workers: the client may show it as "too big", not as "nothing there".
+      if (error.refusal === "too_large") {
+        deps.logger.warn("fork_source_too_large", { sessionId: row.id });
+        return new PapError("capacity");
       }
-      deps.logger.warn("fork_source_unreadable", { sessionId: row.id });
+      // `lineage_mismatch` was logged where it was found.
+      if (error.refusal === "unreadable") deps.logger.warn("fork_source_unreadable", { sessionId: row.id });
       return new PapError("internal");
     }
     deps.logger.error("fork_failed", { sessionId: row.id, err: error });
@@ -98,7 +100,14 @@ export function createForks(deps: ForksDeps): Forks {
       const writer = await deps.loadWriter();
       try {
         const made = writer.fork(row.piPath, entryId);
-        const text = clipJsonText(made.text.slice(0, UI_LIMITS.editorText), FORK_TEXT_BYTES).text;
+        let text: string;
+        try {
+          text = clipJsonText(made.text.slice(0, UI_LIMITS.editorText), FORK_TEXT_BYTES).text;
+        } catch (error) {
+          // The file exists already and no row will point at it.
+          if (made.file !== null) rmSync(made.file, { force: true });
+          throw error;
+        }
         return { sessionId: adopt(row, made, null), text };
       } catch (error) {
         throw failed(row, error);

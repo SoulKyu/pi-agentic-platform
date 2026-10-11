@@ -138,12 +138,12 @@ describe("method catalogue", () => {
     expect(methods["sessions.fork"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "bad_request", "session_empty"],
+      errors: ["not_found", "bad_request", "session_empty", "capacity"],
     });
     expect(methods["sessions.clone"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "session_empty"],
+      errors: ["not_found", "session_empty", "capacity"],
     });
     const fork = methods["sessions.fork"];
     expect(fork.params.safeParse({ sessionId: "s", entryId: "e".repeat(128) }).success).toBe(true);

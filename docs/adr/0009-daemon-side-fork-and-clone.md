@@ -16,14 +16,14 @@ no newline (a line a worker is writing, or a torn one); it rewrites in place a f
 ## Decision
 
 - The daemon loads the SDK lazily (R108), and per request copies the source's **complete lines** (up to the last
-  newline) into a private folder under `$PAP_HOME/fork-tmp` (mode 0700, file 0600), opens the copy with a fresh
+  newline) into a private file `<uuid>.jsonl` under `$PAP_HOME/fork-tmp` (mode 0700, file 0600; the source is opened `O_NONBLOCK` and must be a regular file), opens the copy with a fresh
   `SessionManager`, calls `createBranchedSession(...)` and deletes the copy on every path. The source is only ever
-  read, never opened by Pi, so neither rewrite above can touch it. `$PAP_HOME/fork-tmp` is emptied at boot.
+  read, never opened by Pi, so neither rewrite above can touch it. At boot the folder's own copies (by name, regular files only) are deleted.
 - The copy is opened with the source's folder as the session directory, so the new file lands next to the source
   (Pi's folder for that cwd). The header's `parentSession` would name the copy; the daemon points it at the real source
-  before branching. The new file must pass `isPiSessionFile`, else it is deleted and `internal` is thrown.
+  before branching and checks the new file's header afterwards (a mismatch deletes the file and fails `internal`). The new file must pass `isPiSessionFile`, else it is deleted and `internal` is thrown.
 - A source whose first line is not a current-format Pi header, or that is empty, is refused (`unreadable` -> `internal`):
-  the daemon does not migrate files. A source over 32 MiB is refused (`too_large` -> `session_empty`, logged as such),
+  the daemon does not migrate files. A source over 32 MiB is refused (`too_large` -> `capacity`, logged as such),
   because parsing it is synchronous work on the daemon's thread. The fork's `text` is clipped to 800 000 JSON bytes.
 - A clone copies the branch as written on disk, ending at the worker's leaf (or the file's last entry when the leaf is
   not written yet). A fork at the first message makes a draft row with no file; Pi writes one with the first message.

@@ -166,7 +166,10 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
       if (transcript.failures-- > 0) return Promise.reject(new Error("the SDK did not load"));
       return factories.loadTranscriptReader();
     },
-    loadWriter: () => (options.writer ? Promise.resolve(options.writer) : loadPiWriter(forkTmpDir)),
+    loadWriter: () =>
+      options.writer
+        ? Promise.resolve(options.writer)
+        : loadPiWriter(forkTmpDir, { logger: options.logger ?? silentLogger }),
     freeMemMb: () => options.freeMemMb ?? 4096,
     spawn: () => {
       const index = spawned.length;

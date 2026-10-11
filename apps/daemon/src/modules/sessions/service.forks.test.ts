@@ -152,7 +152,8 @@ describe("what the service does with the writer's answer", () => {
         },
       });
     for (const [refusal, code] of [
-      ["too_large", "session_empty"],
+      ["too_large", "capacity"],
+      ["lineage_mismatch", "internal"],
       ["empty", "session_empty"],
       ["unreadable", "internal"],
     ] as const) {
@@ -185,6 +186,24 @@ describe("what the service does with the writer's answer", () => {
     expect(existsSync(stray)).toBe(false);
     expect(bed.service.list(OWNER)).toHaveLength(1);
     expect(warnings).toContain("fork_file_refused");
+  });
+
+  it("deletes the new file when the text cannot be clipped, before any row exists", async () => {
+    let made = "";
+    const { sessionId } = await boundSession(TWO, {
+      writer: fake({
+        fork: () => {
+          made = join(bed.sessionsDir, "made.jsonl");
+          writeFileSync(made, "x\n");
+          return { file: made, piSessionId: "pi-x", text: 5 as unknown as string };
+        },
+      }),
+    });
+    await expect(bed.service.fork({ sessionId, entryId: "u1" }, OWNER)).rejects.toThrow(
+      new PapError("internal"),
+    );
+    expect(existsSync(made)).toBe(false);
+    expect(bed.service.list(OWNER)).toHaveLength(1);
   });
 
   it("deletes the new file when its row cannot be stored", async () => {
