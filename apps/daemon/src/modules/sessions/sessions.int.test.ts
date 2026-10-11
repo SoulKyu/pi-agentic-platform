@@ -52,6 +52,7 @@ function moduleWith(testProviderScript: string, clock: Clock = createSystemClock
       testProviderScript,
       maxWorkers: 2,
       minFreeMemMb: 0,
+      workerIdleMs: 30 * 60_000,
     },
     workerUmask: 0o022,
     env: { PATH: process.env.PATH, LANG: process.env.LANG, HOME: join(root, "home"), PI_OFFLINE: "1" },

@@ -170,7 +170,15 @@ export const UiRequestRecord = z.looseObject({
 export type UiRequestRecord = z.infer<typeof UiRequestRecord>;
 const UiClosedRecord = z.object({ type: z.literal("extension_ui_closed"), id: z.string() });
 const AuditRecord = z.object({ type: z.literal("audit"), entry: AuditEntry });
-const HealthRecord = z.object({ type: z.literal("health"), rssMb: z.number().nonnegative() });
+/**
+ * Every 30 s. `descendants`: the live processes below the worker that are outside its process group, which are the
+ * ones the agent started (M2R107); 0 when an older worker does not say, and off Linux.
+ */
+const HealthRecord = z.object({
+  type: z.literal("health"),
+  rssMb: z.number().nonnegative(),
+  descendants: z.number().int().nonnegative().default(0),
+});
 const ExtensionErrorRecord = z.object({
   type: z.literal("extension_error"),
   extensionPath: z.string(),

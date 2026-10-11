@@ -35,8 +35,8 @@ its size when the run began, and appends the run's own rows (R38).
 
 ## Consequences
 - No transcript ever travels over IPC; history pages, tool output on demand and fork points read the file too.
-- A navigation nobody continued is lost when the worker goes away (release, crash): Pi's leaf lives in memory. pi-web
-  behaves the same (owner M2-Q11). The composer keeps the text "Edit from here" put in it (Task 24).
+- A navigation nobody continued is lost when the worker goes away (the idle release of Task 20, a crash): Pi's leaf
+  lives in memory. pi-web behaves the same (owner M2-Q11, M2R110). The release does not restore the leaf. The composer keeps the text "Edit from here" put in it (Task 24).
 - The daemon parses synchronously: a full parse costs one pass over at most 32 MiB; an append parses only the new
   lines, but still rebuilds the entry index (O(entries) for the file, without parsing again).
 - The cache weight counts source bytes only. Parsed objects take several times that in memory, and nothing is evicted

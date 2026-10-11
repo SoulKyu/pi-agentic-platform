@@ -34,6 +34,8 @@ export interface IntBedOptions {
   /** Written to `<agentDir>/settings.json`. */
   readonly settings?: object;
   readonly maxWorkers?: number;
+  /** The idle release delay in milliseconds (default 30 minutes, the daemon's own). */
+  readonly workerIdleMs?: number;
   /** Real scopes for the tests that need them (Task 22); every other test runs workers unscoped (owner R2-3). */
   readonly scopes?: WorkerScopes;
 }
@@ -84,6 +86,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
         testProviderScript: join(root, "script.json"),
         maxWorkers: options.maxWorkers ?? 4,
         minFreeMemMb: 0,
+        workerIdleMs: options.workerIdleMs ?? 30 * 60_000,
       },
       workerUmask: 0o022,
       env: { PATH: process.env.PATH, LANG: process.env.LANG, HOME: join(root, "home"), PI_OFFLINE: "1" },
@@ -160,7 +163,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
 }
 export type IntBed = Awaited<ReturnType<typeof createIntBed>>;
 
-/** Prompts and waits for the run to settle (status `idle` after `running`). */
+/** Prompts and waits for the run to settle (status `running`, then `idle`). */
 export async function promptAndSettle(
   bed: IntBed,
   sub: Subscription,
@@ -175,7 +178,9 @@ export async function promptAndSettle(
         .events()
         .slice(before)
         .flatMap((event) => (event.kind === "status" ? [event.status] : []));
-      if (statuses.lastIndexOf("idle") <= statuses.indexOf("running")) throw new Error("still running");
+      // A worker reopened for this prompt says `starting` and `idle` before the run: only an `idle` after `running` settles.
+      if (!statuses.includes("running") || statuses.lastIndexOf("idle") <= statuses.indexOf("running"))
+        throw new Error("still running");
     },
     { timeout: WAIT_MS },
   );

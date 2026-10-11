@@ -46,6 +46,10 @@ export interface Options {
   /** Commands (by type) the worker leaves unanswered until the test calls `worker.respond`. */
   hold?: readonly string[];
   neverReady?: boolean;
+  /** The idle release delay; 0 (the default) turns the release off, so a test that moves the clock far is not released. */
+  idleMs?: number;
+  /** `stop()` sends `shutdown` and the worker exits only when the test crashes it. */
+  holdShutdown?: boolean;
   logger?: Logger;
   sessionFile?: string;
   /** Pi's leaf in `ready` (default null). */
@@ -64,6 +68,7 @@ export interface LiveParts {
   onActivity(): void;
   onExit(exit: WorkerExit): void;
   onName(name: string | null): void;
+  readonly idleMs: number;
 }
 
 export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) => Live) =>
@@ -78,6 +83,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
     const pi = { streaming: options.streaming ?? false, holdState: false };
     const worker = createFakeWorker({
       clock,
+      ...(options.holdShutdown ? { holdShutdown: true } : {}),
       reply: (command) => {
         if (command.type === "get_state") {
           // Held until the test answers it, to put the answer where it wants it among other records.
@@ -115,6 +121,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
         onActivity: () => void activity.count++,
         onExit: (exit) => exits.push(exit),
         onName: (name) => void names.push(name),
+        idleMs: options.idleMs ?? 0,
       },
       INIT,
     );

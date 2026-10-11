@@ -145,6 +145,22 @@ describe("fake worker", () => {
   });
 });
 
+describe("fake worker with holdShutdown", () => {
+  it("is told to shut down and exits only when the test crashes it", async () => {
+    const worker = createFakeWorker({ holdShutdown: true });
+    const stopping = worker.stop();
+    let exited = false;
+    void worker.exited.then(() => void (exited = true));
+    await Promise.resolve();
+    expect(worker.sent).toEqual([{ type: "shutdown", graceMs: 1500 }]);
+    expect(worker.stopped()).toBe(true);
+    expect(exited).toBe(false);
+    worker.crash({ code: 0, signal: null, cause: "clean" });
+    expect((await stopping).cause).toBe("clean");
+    expect(exited).toBe(true);
+  });
+});
+
 describe("fake worker, raw records", () => {
   it("parses a raw record as the real handle does, and counts one it drops", () => {
     const worker = createFakeWorker();

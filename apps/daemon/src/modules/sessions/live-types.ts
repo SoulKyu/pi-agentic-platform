@@ -34,6 +34,8 @@ export interface LiveSessionDeps {
   onExit(exit: WorkerExit): void;
   /** Pi's name for the session changed (or `ready` said it): already clipped by `nameOf`, never called twice for one name. */
   onName(name: string | null): void;
+  /** Idle minutes after which the worker is released (spec C 2.1); 0 or less turns it off. */
+  readonly idleMs: number;
   /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
   onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
 }
@@ -99,5 +101,12 @@ export interface LiveSession {
   answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
   /** Hands the worker a record (a policy update); false when it was not accepted (the worker is gone or backed up). */
   send(record: DaemonToWorker): boolean;
+  /**
+   * Stops the worker for good (the daemon is closing, a policy update did not reach it): the exit shows `cold` with no
+   * cause. Released automatically after `idleMs` of quiet (`releasing`, then `cold`): from then on `prompt`, `command`
+   * and `clearQueue` are refused with `worker_failed` (empty for the queue) and nothing is sent to the worker.
+   */
   stop(): Promise<void>;
+  /** Resolves, never rejects, once the worker has exited and the exit has been handled (the service has forgotten the session by then). */
+  exited(): Promise<void>;
 }

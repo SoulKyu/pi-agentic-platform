@@ -64,6 +64,23 @@ describe("worker record routing", () => {
   });
 });
 
+describe("health record", () => {
+  it("counts the processes the agent left running, 0 when an older worker does not say", () => {
+    expect(parseWorkerRecord({ type: "health", rssMb: 80 })).toEqual({
+      type: "health",
+      rssMb: 80,
+      descendants: 0,
+    });
+    expect(parseWorkerRecord({ type: "health", rssMb: 80, descendants: 3 })).toMatchObject({
+      descendants: 3,
+    });
+  });
+
+  it.each([-1, 1.5, "2", null])("refuses %j as a count of processes", (descendants) => {
+    expect(parseWorkerRecord({ type: "health", rssMb: 80, descendants })).toBeNull();
+  });
+});
+
 describe("InitRecord", () => {
   const init = { type: "init", cwd: "/work", agentDir: "/agent", papHome: "/pap", umask: 0o022, policy: {} };
 

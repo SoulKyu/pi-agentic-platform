@@ -52,6 +52,10 @@ export interface BedOptions {
   writer?: PiWriter;
   /** The transcript reader fails to load this many times before it loads. */
   readerFailures?: number;
+  /** The idle release delay; 0 (the default) turns the release off. */
+  idleMs?: number;
+  /** A worker told to stop exits only when the test crashes it (`bed.spawned[i].crash(...)`). */
+  holdShutdown?: boolean;
   /** By the order the workers are spawned in, from 0. */
   start?(index: number, init: InitRecord): StartBehavior | undefined;
   /**
@@ -87,6 +91,7 @@ export interface ServiceParts<Store, Reader> {
   readonly policy: PolicyPort;
   readonly exports: Exports;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
+  readonly idleMs: number;
   readonly worker: {
     readonly agentDir: string;
     readonly papHome: string;
@@ -154,6 +159,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     policy: options.policy ?? fakePolicyPort(),
     exports,
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
+    idleMs: options.idleMs ?? 0,
     worker: {
       agentDir,
       papHome: join(dir, "pap"),
@@ -175,6 +181,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
       const index = spawned.length;
       const worker = createFakeWorker({
         clock,
+        ...(options.holdShutdown ? { holdShutdown: true } : {}),
         onSend: (record, self) => {
           if (record.type !== "init") return;
           const behavior = options.start?.(index, record) ?? { kind: "ready" };

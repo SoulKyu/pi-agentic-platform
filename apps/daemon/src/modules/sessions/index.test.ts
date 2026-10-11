@@ -86,6 +86,7 @@ const config = (testProviderScript: string | null) => ({
   testProviderScript,
   maxWorkers: 2,
   minFreeMemMb: 0,
+  workerIdleMs: 30 * 60_000,
 });
 const daemonEnv = {
   PATH: "/usr/bin",

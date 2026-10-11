@@ -68,6 +68,7 @@ async function start() {
       onActivity: () => {},
       onExit: () => {},
       onName: () => {},
+      idleMs: 0,
     },
     init,
   );

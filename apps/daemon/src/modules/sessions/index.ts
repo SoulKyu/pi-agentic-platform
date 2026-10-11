@@ -46,6 +46,7 @@ export interface SessionsModuleDeps {
     | "testProviderScript"
     | "maxWorkers"
     | "minFreeMemMb"
+    | "workerIdleMs"
   >;
   /** The umask the daemon was started with, before it set its own 077: what the workers' tools run under (R114). */
   readonly workerUmask: number;
@@ -92,6 +93,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     hub: deps.hub,
     policy: deps.policy,
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
+    idleMs: config.workerIdleMs,
     worker: {
       agentDir: config.piAgentDir,
       papHome: config.home,

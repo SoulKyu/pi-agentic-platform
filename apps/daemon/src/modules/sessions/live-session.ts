@@ -13,13 +13,15 @@ import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { createCoalescer } from "./coalescer.ts";
 import type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 import { slimEntryRef, summaryRow } from "./entry-events.ts";
+import type { IdleState } from "./idle-release.ts";
 import { createLiveCommands } from "./live-commands.ts";
+import { createLiveIdle } from "./live-idle.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { nameOf } from "./names.ts";
 import { createNoticeRing } from "./notices.ts";
 import { createPartialReply } from "./partial.ts";
-import { createQueueGuard, isClearedAnswer, readCleared } from "./queue-guard.ts";
+import { clearWorkerQueue, createQueueGuard } from "./queue-guard.ts";
 import { clipMessage, clipPiEvent } from "./wire-clip.ts";
 import { clip, outputTailOf } from "./worker-text.ts";
 
@@ -45,6 +47,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   let piSessionId: string | undefined;
   let leafId: string | null = null;
   let name: string | null = null;
+  // From the worker's `health`: processes the agent started that still run (M2R107).
+  let agentProcesses = 0;
   const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   const partial = createPartialReply();
   const notices = createNoticeRing();
@@ -122,6 +126,30 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     promptBlocked: () => commands.activity().compacting || commands.structuralInFlight() > 0,
   });
 
+  // What a user waits on keeps the worker (the status is `running` while a run is open); processes the agent left
+  // running keep it for 8 h at most (M2R107).
+  const state = (): IdleState => {
+    const busy =
+      status !== "idle" ||
+      run.promptPending() ||
+      ui.dialogs().length > 0 ||
+      ui.panels().length > 0 ||
+      queue.view().count > 0 ||
+      commands.inFlight() > 0 ||
+      commands.activity().compacting ||
+      commands.activity().retry !== null;
+    return busy ? "busy" : agentProcesses > 0 ? "background" : "quiet";
+  };
+  const idle = createLiveIdle({
+    clock: deps.clock,
+    idleMs: deps.idleMs,
+    logger,
+    handle,
+    cancelPanels: () => ui.cancelPanels(),
+    setStatus,
+    state,
+  });
+
   const ready = new Promise<ReadyRecord>((resolve, reject) => {
     const timer = deps.clock.setTimeout(() => {
       off();
@@ -138,6 +166,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       leafId = knownId(record.leafId);
       setName(nameOf(record.sessionName), false);
       setStatus("idle");
+      idle.touch();
       resolve(record);
     });
     void handle.exited.then(() => {
@@ -173,9 +202,11 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   function onRecord(record: WorkerRecord): void {
     switch (record.type) {
       case "extension_ui_request":
-        ui.onUiRequest(record);
+        // Only a dialog is a person's work: a status bar that ticks must not keep the worker (M2R108).
+        if (ui.onUiRequest(record)) idle.touch();
         return;
       case "approval_request":
+        idle.touch();
         ui.onApprovalRequest(record);
         return;
       case "approval_request_invalid":
@@ -185,6 +216,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         ui.onUiClosed(record.id);
         return;
       case "custom_render":
+        idle.touch();
         ui.onPanelRender(record.id, record.lines);
         return;
       case "custom_close":
@@ -195,6 +227,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         return;
       case "health":
         rss = record.rssMb;
+        agentProcesses = record.descendants;
         return;
       case "extension_error":
         ui.onExtensionError(record);
@@ -209,6 +242,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         return;
       }
       case "pi_event": {
+        idle.touch();
         const event = record.event;
         // The raw event is never forwarded: the stream carries the guard's bounded view of it.
         // Never forwarded raw: a name is text an extension or the model wrote (M2R92).
@@ -247,24 +281,27 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   }
   handle.onRecord(onRecord);
 
-  void handle.exited.then((exit) => {
-    coalescer.flush();
-    partial.reset();
-    coalescer.dispose();
-    queue.reset();
-    commands.reset();
-    const wasRunning = run.onExit();
-    for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
-    for (const id of ui.clearDecorations()) publish({ kind: "panel_closed", id });
-    if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
-    deps.record("worker_exit", exit);
-    if (exit.cause === "clean") logger.info("worker_exited", { ...exit });
-    else logger.warn("worker_exited", { ...exit, output: outputTailOf(handle) });
-    setStatus("cold", describeExit(exit));
-    deps.onActivity();
-    deps.onExit(exit);
-    deps.onWorkerExit?.({ exit, outputTail: handle.outputTail() });
-  });
+  const gone = handle.exited
+    .then((exit) => {
+      idle.end();
+      coalescer.flush();
+      partial.reset();
+      coalescer.dispose();
+      queue.reset();
+      commands.reset();
+      const wasRunning = run.onExit();
+      for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
+      for (const id of ui.clearDecorations()) publish({ kind: "panel_closed", id });
+      if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
+      deps.record("worker_exit", exit);
+      if (exit.cause === "clean") logger.info("worker_exited", { ...exit });
+      else logger.warn("worker_exited", { ...exit, output: outputTailOf(handle) });
+      setStatus("cold", idle.stopping() && exit.cause !== "oom" ? undefined : describeExit(exit));
+      deps.onActivity();
+      deps.onExit(exit);
+      deps.onWorkerExit?.({ exit, outputTail: handle.outputTail() });
+    })
+    .catch((error: unknown) => logger.error("worker_exit_handling_failed", { err: error }));
   if (!handle.send(init)) logger.warn("worker_init_not_sent");
 
   return {
@@ -281,40 +318,40 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     title: () => ui.title(),
     panels: () => ui.panels(),
     notices: () => notices.list(),
-    panelInput: (id, data) => ui.panelInput(id, data),
+    panelInput(id, data) {
+      idle.touch();
+      ui.panelInput(id, data);
+    },
     partial: () => partial.current(),
     leafId: () => leafId,
     runView: () => run.runView(),
-    prompt: (text, streamingBehavior) => run.prompt(text, streamingBehavior),
-    abort: () => run.abort(),
+    prompt: (text, streamingBehavior) => idle.active(() => run.prompt(text, streamingBehavior)),
+    async abort() {
+      if (idle.stopping()) return;
+      await idle.active(() => run.abort());
+    },
     busy: () =>
       run.tracker.running ||
       run.promptPending() ||
       commands.activity().compacting ||
       commands.structuralInFlight() > 0,
-    command: (input) => commands.command(input),
+    command: (input) => idle.active(() => commands.command(input)),
     commandsInFlight: () => commands.inFlight(),
     navigated(next) {
       leafId = knownId(next);
     },
     activity: () => commands.activity(),
     queue: queue.view,
-    async clearQueue() {
-      const response = await handle.request({ type: "clear_queue" });
-      if (!response.success) {
-        logger.info("clear_queue_failed", { error: clip(response.error ?? "") });
-        throw new PapError("worker_failed");
-      }
-      if (!isClearedAnswer(response.data)) {
-        logger.warn("clear_queue_unreadable", { detail: clip(JSON.stringify(response.data) ?? "") });
-      }
-      return readCleared(response.data);
+    clearQueue: () =>
+      idle.stopping()
+        ? Promise.resolve({ steering: [], followUp: [], truncated: false })
+        : idle.active(() => clearWorkerQueue(handle, logger)),
+    answer(dialogId, response) {
+      idle.touch();
+      return ui.answer(dialogId, response);
     },
-    answer: (dialogId, response) => ui.answer(dialogId, response),
     send: (record) => handle.send(record),
-    stop: async () => {
-      ui.cancelPanels();
-      await handle.stop();
-    },
+    stop: idle.stop,
+    exited: () => gone,
   };
 }

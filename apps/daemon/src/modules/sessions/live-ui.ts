@@ -40,7 +40,8 @@ export interface LiveUiDeps {
 }
 
 export interface LiveUi {
-  onUiRequest(record: UiRequestRecord): void;
+  /** Returns whether a dialog was opened: a decoration, or a request that was cancelled, is not a person's work. */
+  onUiRequest(record: UiRequestRecord): boolean;
   onUiClosed(id: string): void;
   onExtensionError(record: Extract<WorkerRecord, { type: "extension_error" }>): void;
   /** The policy's own question (an approval card). */
@@ -171,6 +172,7 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
       } else {
         decorate(record);
       }
+      return verdict.kind === "opened";
     },
     onApprovalRequest(record) {
       // A second question under the id of an open approval never swaps the text of the card the person is reading:

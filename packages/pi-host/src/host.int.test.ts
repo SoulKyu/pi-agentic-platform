@@ -27,6 +27,8 @@ describe("pi-host worker: boot", () => {
     const health = await bed.host().waitFor((r) => r.type === "health");
     expect(health.rssMb).toBeGreaterThan(50);
     expect(health.rssMb).toBeLessThan(1024);
+    // Nothing the agent started runs yet; the bed forks the worker detached, so it leads its group and the count is real.
+    expect(health.descendants).toBe(0);
   });
 
   it("answers the records it received while the session was opening, after ready and in order", async () => {

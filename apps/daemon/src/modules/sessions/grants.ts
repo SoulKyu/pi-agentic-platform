@@ -77,7 +77,8 @@ export function createGrantLink(deps: GrantLinkDeps) {
 
   // A worker that cannot be told keeps a rule that may be revoked: it is stopped, and the next prompt starts one with the current rules.
   function flush(session: LiveSession, at: Launched): void {
-    if (!at.dirty || session.status() === "cold") return;
+    // A worker being released is not told: it drops what it is sent, and the next one starts with the current rules.
+    if (!at.dirty || session.status() === "cold" || session.status() === "releasing") return;
     at.dirty = false;
     let sent = false;
     try {

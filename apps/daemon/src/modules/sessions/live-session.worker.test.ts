@@ -109,6 +109,7 @@ describe("abort", () => {
         onActivity: () => {},
         onExit: () => {},
         onName: () => {},
+        idleMs: 0,
       },
       INIT,
     );

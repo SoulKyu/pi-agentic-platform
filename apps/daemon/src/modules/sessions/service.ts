@@ -21,11 +21,11 @@ import { createForks } from "./forks.ts";
 import type { Exports } from "./exports.ts";
 import { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
-import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
 import type { PiWriter } from "./pi-writer.ts";
-import { createPreReadyBuffer, type PreReadyBuffer } from "./pre-ready-buffer.ts";
+import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
 import { createSessionReads } from "./service-reads.ts";
+import { createStoreSync } from "./service-sync.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 
@@ -39,6 +39,8 @@ export interface SessionsServiceDeps {
   /** The pending HTML exports (ADR 0006). */
   readonly exports: Pick<Exports, "prepare" | "discard">;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
+  /** Idle minutes after which a worker is released (spec C 2.1), in milliseconds; 0 or less turns the release off. */
+  readonly idleMs: number;
   readonly worker: {
     readonly agentDir: string;
     readonly papHome: string;
@@ -145,48 +147,13 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     }
   };
 
-  // Pi writes a session's file with the first user message, not at creation (S1). Once it exists, the session
-  // remembers it: that is what a restart reopens. Returns true when there is nothing left to wait for.
-  function bindPiFile(row: SessionRow, session: LiveSession): boolean {
-    const file = session.piFile();
-    const piSessionId = session.piSessionId();
-    if (!file || !piSessionId || fileSizeOrZero(file) === 0) return false;
-    if (!isPiSessionFile(deps.worker.agentDir, file)) {
-      deps.logger.warn("session_file_refused", { sessionId: row.id });
-      return true;
-    }
-    try {
-      deps.store.bindPiFile(row.id, file, piSessionId);
-    } catch (error) {
-      deps.logger.warn("session_file_not_bound", { sessionId: row.id, err: error });
-    }
-    return true;
-  }
-
-  function recordEvent(sessionId: string, kind: string, data: unknown): void {
-    try {
-      deps.store.appendEvent(sessionId, kind, data, deps.clock.now());
-    } catch (error) {
-      deps.logger.warn("session_event_dropped", { sessionId, kind, err: error });
-    }
-  }
-
-  function syncName(sessionId: string, name: string | null): void {
-    try {
-      deps.store.setName(sessionId, name);
-    } catch (error) {
-      deps.logger.warn("session_name_not_stored", { sessionId, err: error });
-    }
-  }
-
-  function replayPreReady(sessionId: string, held: ReturnType<PreReadyBuffer["drain"]>): void {
-    for (const item of held.items) {
-      if (item.kind === "publish") deps.hub.publish("session", sessionId, item.event);
-      else recordEvent(sessionId, item.recordKind, item.data);
-    }
-    if (held.dropped > 0)
-      deps.logger.warn("session_start_events_dropped", { sessionId, dropped: held.dropped });
-  }
+  const { bindPiFile, recordEvent, syncName, replayPreReady } = createStoreSync({
+    store: deps.store,
+    clock: deps.clock,
+    logger: deps.logger,
+    hub: deps.hub,
+    agentDir: deps.worker.agentDir,
+  });
 
   // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already
   // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
@@ -225,6 +192,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
           if (stored) recordEvent(row.id, kind, data);
           else preReady?.add({ kind: "record", recordKind: kind, data });
         },
+        idleMs: deps.idleMs,
         // Before the row exists the name is taken from the session once it is ready (below).
         onName: (name) => {
           if (stored) syncName(row.id, name);
@@ -266,7 +234,12 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     }
   }
 
+  // A session being released has a worker that drops what it is sent: it is waited for, and the next worker opens the
+  // same Pi file. `onExit` has forgotten the session by the time `exited()` resolves, so the second look finds none.
   async function ensureLive(row: SessionRow): Promise<LiveSession> {
+    const closing = live.get(row.id);
+    // No deadline of its own: the worker's kill ladder ends it within seconds (spec C 2.5).
+    if (closing?.status() === "releasing") await closing.exited();
     const current = live.get(row.id);
     if (current) return current;
     const pending = reopening.get(row.id);
@@ -284,6 +257,13 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     const row = deps.store.get(sessionId);
     if (!row || row.ownerId !== caller.userId) throw new PapError("not_found");
     return row;
+  };
+
+  // The worker a dialog or a panel answer may go to: none once it is being released, whose dialogs closed with it.
+  const openWorker = (id: string): LiveSession => {
+    const session = live.get(id);
+    if (!session || session.status() === "releasing") throw new PapError("not_found");
+    return session;
   };
 
   const statusOf = (id: string): SessionStatus =>
@@ -351,7 +331,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
     async abort(sessionId, caller) {
       owned(sessionId, caller);
-      await live.get(sessionId)?.abort();
+      // A worker being released has no run, and a closing one drops requests (M2R112).
+      const session = live.get(sessionId);
+      if (session && session.status() !== "releasing") await session.abort();
     },
     navigate: (input, caller) => commands.navigate(input, caller),
     compact: (input, caller) => commands.compact(input, caller),
@@ -365,19 +347,20 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
-      return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };
+      const session = live.get(sessionId);
+      // A worker being released has an empty queue and drops requests: nothing to ask it (M2-RT-39).
+      if (!session || session.status() === "releasing")
+        return { steering: [], followUp: [], truncated: false };
+      return session.clearQueue();
     },
     respondDialog(input, caller) {
       owned(input.sessionId, caller);
-      const session = live.get(input.sessionId);
-      if (!session) throw new PapError("not_found");
+      const session = openWorker(input.sessionId);
       grants.answered(session, session.answer(input.dialogId, input.response));
     },
     panelInput(input, caller) {
       owned(input.sessionId, caller);
-      const session = live.get(input.sessionId);
-      if (!session) throw new PapError("not_found");
-      session.panelInput(input.panelId, input.data);
+      openWorker(input.sessionId).panelInput(input.panelId, input.data);
     },
     history: (input, caller) => reads.history(input, caller),
     toolOutput: (input, caller) => reads.toolOutput(input, caller),

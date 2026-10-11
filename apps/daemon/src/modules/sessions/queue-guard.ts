@@ -1,5 +1,8 @@
 import { EMPTY_QUEUE, PapError, type QueueView, UI_LIMITS } from "@pap/contracts";
+import type { Logger } from "../../kernel/logger.ts";
+import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { PAGE_BYTES, sizeOf } from "./snapshot.ts";
+import { clip } from "./worker-text.ts";
 
 export const MAX_QUEUED_MESSAGES = 128;
 export const MAX_QUEUED_BYTES = 32 * 1024 * 1024;
@@ -74,6 +77,19 @@ export function readCleared(data: unknown): FittedTexts {
     PAGE_BYTES - sizeOf({ steering: [], followUp: [], truncated: true }),
   );
   return { ...fitted, truncated: fitted.truncated || answer.truncated === true };
+}
+
+/** Asks the worker to empty Pi's queue and fits the texts it returns; `worker_failed` when it refuses. */
+export async function clearWorkerQueue(handle: WorkerHandle, logger: Logger): Promise<FittedTexts> {
+  const response = await handle.request({ type: "clear_queue" });
+  if (!response.success) {
+    logger.info("clear_queue_failed", { error: clip(response.error ?? "") });
+    throw new PapError("worker_failed");
+  }
+  if (!isClearedAnswer(response.data)) {
+    logger.warn("clear_queue_unreadable", { detail: clip(JSON.stringify(response.data) ?? "") });
+  }
+  return readCleared(response.data);
 }
 
 export interface QueueGuard {

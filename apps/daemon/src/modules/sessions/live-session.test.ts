@@ -206,7 +206,7 @@ describe("runs", () => {
   it("remembers the worker's memory use", () => {
     const { worker, live } = setup();
     expect(live.rssMb()).toBeNull();
-    worker.emit({ type: "health", rssMb: 156 });
+    worker.emit({ type: "health", rssMb: 156, descendants: 0 });
     expect(live.rssMb()).toBe(156);
   });
 });

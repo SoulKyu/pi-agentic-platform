@@ -20,8 +20,8 @@ type Reply = Partial<Omit<ResponseRecord, "type" | "id">>;
  * throwing listener being isolated and counted.
  *
  * What it does not do, so a test must not rely on it:
- * - `stop()` ends the worker at once and cleanly: there is no ladder, no signal, no process group, and a worker
- *   that ignores `shutdown` cannot be modelled (use `crash` for any other exit).
+ * - `stop()` ends the worker at once and cleanly (unless `holdShutdown`, which leaves the exit to `crash`): there is
+ *   no ladder, no signal, no process group, and a worker that ignores `shutdown` cannot be modelled.
  * - `exited` resolves when `stop()` or `crash()` is called, not after stdio drains; `outputTail()` is always empty.
  * - There is no bound on records in flight, no `droppedRecords` (only the records you `emit` exist) and no
  *   garbage: every record `emit` is given is already a valid `WorkerRecord` (use `emitRaw` to cross the schema).
@@ -49,6 +49,8 @@ export interface FakeWorkerOptions {
   pid?: number;
   /** Gives held requests the real handle's timeout (`requestTimeoutMs(command)` unless the request names one). */
   clock?: Clock;
+  /** `stop()` sends `shutdown` and waits: the worker exits only when the test calls `crash`, as a real one does within its grace. */
+  holdShutdown?: boolean;
 }
 
 interface Held {
@@ -129,7 +131,7 @@ export function createFakeWorker(options: FakeWorkerOptions = {}): FakeWorker {
     async stop() {
       stopCalled = true;
       if (alive) worker.send({ type: "shutdown", graceMs: WORKER_SHUTDOWN_GRACE_MS });
-      finish({ code: 0, signal: null, cause: "clean" });
+      if (!options.holdShutdown) finish({ code: 0, signal: null, cause: "clean" });
       return exited;
     },
     outputTail: () => "",

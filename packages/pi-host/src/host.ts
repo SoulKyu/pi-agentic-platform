@@ -3,7 +3,7 @@ import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contra
 import { createApprovals } from "./approvals.ts";
 import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
-import { killDetachedDescendants } from "./descendants.ts";
+import { countAgentProcesses, killDetachedDescendants } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { closeSession } from "./shutdown.ts";
@@ -145,7 +145,12 @@ export async function runHost(ipc: Ipc): Promise<void> {
     sessionName: opened.sessionName ?? null,
   });
   for (const record of early.splice(0)) dispatch(record);
-  const health = () => ipc.send({ type: "health", rssMb: Math.round(process.memoryUsage().rss / 1048576) });
+  const health = () =>
+    ipc.send({
+      type: "health",
+      rssMb: Math.round(process.memoryUsage().rss / 1048576),
+      descendants: countAgentProcesses(),
+    });
   health();
   setInterval(health, HEALTH_INTERVAL_MS).unref();
 }

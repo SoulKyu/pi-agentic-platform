@@ -1,12 +1,15 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import {
+  countAgentProcesses,
   descendantsOf,
+  entryOf,
   installSignalCleanup,
   killDetachedDescendants,
   parseStat,
   type ProcEntry,
   readProcTable,
+  stateOf,
 } from "./descendants.ts";
 
 // The worker is 100, led by the daemon's group of its own. Pi's bash tool started 200 detached (a session and
@@ -214,5 +217,98 @@ describe("installSignalCleanup", () => {
     });
     proc.emit("SIGTERM");
     expect(proc.kill).toHaveBeenCalledWith(4321, "SIGTERM");
+  });
+});
+
+describe("countAgentProcesses", () => {
+  const entries = [
+    { pid: 10, ppid: 1, pgrp: 10 },
+    { pid: 11, ppid: 10, pgrp: 10 },
+    { pid: 12, ppid: 10, pgrp: 12 },
+    { pid: 13, ppid: 12, pgrp: 12 },
+  ];
+  const count = (table: readonly ProcEntry[], extra: Parameters<typeof countAgentProcesses>[0] = {}) =>
+    countAgentProcesses({ platform: "linux", pid: 10, readTable: () => [...table], ...extra });
+
+  it("counts the processes the agent started, not the worker's own helpers (M2-RT-14)", () => {
+    expect(count(entries)).toBe(2);
+    expect(count(entries, { platform: "darwin" })).toBe(0);
+  });
+
+  it("counts a grandchild of a helper that left the group, and nothing of a helper's own children in the group", () => {
+    const table = [...entries, { pid: 14, ppid: 11, pgrp: 10 }, { pid: 15, ppid: 11, pgrp: 15 }];
+    expect(count(table)).toBe(3);
+  });
+
+  it("is 0 when the worker does not lead its group (run by hand) or is not in the table", () => {
+    expect(count(entries.map((e) => (e.pid === 10 ? { ...e, pgrp: 7 } : e)))).toBe(0);
+    expect(count(entries.filter((e) => e.pid !== 10))).toBe(0);
+    expect(count([])).toBe(0);
+  });
+
+  it("never throws: a failed read is 0 and says so once on stderr", () => {
+    const lines: string[] = [];
+    const failing = {
+      readTable: () => {
+        throw new Error("EACCES: /proc");
+      },
+      warn: (line: string) => void lines.push(line),
+    };
+    expect(count(entries, failing)).toBe(0);
+    expect(count(entries, failing)).toBe(0);
+    expect(lines).toEqual(["pi-host: the process count failed: EACCES: /proc\n"]);
+  });
+
+  it("counts a pid once when it was listed twice, and never the worker itself (a pid reused between two reads)", () => {
+    const table = [
+      ...entries,
+      { pid: 12, ppid: 99, pgrp: 12 },
+      { pid: 10, ppid: 13, pgrp: 10 },
+      { pid: 16, ppid: 16, pgrp: 16 },
+    ];
+    expect(count(table)).toBe(2);
+  });
+
+  it("ignores a child whose parent left the table mid-read", () => {
+    expect(count([...entries, { pid: 20, ppid: 19, pgrp: 20 }])).toBe(2);
+  });
+
+  it("looks at no more than maxVisited processes, and no deeper than maxDepth", () => {
+    const fan = Array.from({ length: 10 }, (_, i) => ({ pid: 100 + i, ppid: 10, pgrp: 100 + i }));
+    expect(count([entries[0] as ProcEntry, ...fan], { maxVisited: 4 })).toBe(4);
+    const chain = Array.from({ length: 6 }, (_, i) => ({
+      pid: 100 + i,
+      ppid: i === 0 ? 10 : 99 + i,
+      pgrp: 100 + i,
+    }));
+    expect(count([entries[0] as ProcEntry, ...chain], { maxDepth: 3 })).toBe(3);
+    expect(count([entries[0] as ProcEntry, ...chain])).toBe(6);
+  });
+
+  it("walks a wide table once: 20000 processes in a few milliseconds", () => {
+    const wide = Array.from({ length: 20_000 }, (_, i) => ({ pid: 1000 + i, ppid: 100 + (i % 50), pgrp: 1 }));
+    const started = performance.now();
+    expect(count([...entries, ...wide])).toBe(2);
+    expect(performance.now() - started).toBeLessThan(250);
+  });
+});
+
+describe("stateOf and the table", () => {
+  it("reads the state letter after a command name with spaces and parentheses", () => {
+    expect(stateOf("123 (my (odd) name) Z 45 67 89")).toBe("Z");
+    expect(stateOf("9 (sleep) S 1 9 9")).toBe("S");
+    expect(stateOf("garbage")).toBeNull();
+  });
+
+  it("leaves out a zombie and a dead process, and what is not a stat line", () => {
+    expect(entryOf(7, "7 (a b) S 1 7 7 0")).toEqual({ pid: 7, ppid: 1, pgrp: 7 });
+    expect(entryOf(7, "7 (a b) Z 1 7 7 0")).toBeNull();
+    expect(entryOf(7, "7 (a b) X 1 7 7 0")).toBeNull();
+    expect(entryOf(7, "7 (a b) S")).toBeNull();
+  });
+
+  it("lists this process, and reads no more than the limit", () => {
+    expect(readProcTable().some((entry) => entry.pid === process.pid)).toBe(true);
+    expect(readProcTable(1)).toHaveLength(1);
   });
 });

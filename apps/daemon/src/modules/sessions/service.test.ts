@@ -328,7 +328,7 @@ describe("abort and prompt", () => {
     open();
     await bed.service.create(bed.work, owner);
     expect(bed.service.inspect("p1")).toEqual({ pid: 4242, rssMb: null });
-    bed.spawned[0]?.emit({ type: "health", rssMb: 150 });
+    bed.spawned[0]?.emit({ type: "health", rssMb: 150, descendants: 0 });
     expect(bed.service.inspect("p1")?.rssMb).toBe(150);
     expect(bed.service.inspect("nope")).toBeNull();
   });
