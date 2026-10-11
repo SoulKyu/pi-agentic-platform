@@ -7,6 +7,7 @@ import { createFakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { silentLogger } from "../../kernel/logger.ts";
+import { NO_SCOPES, type WorkerScope, type WorkerScopes } from "../../kernel/supervisor/scope.ts";
 import { type SpawnWorkerOptions } from "../../kernel/supervisor/worker.ts";
 import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
 import { createStreamHub } from "../../kernel/ws/stream-hub.ts";
@@ -84,7 +85,11 @@ const daemonEnv = {
   PI_TELEMETRY: "1",
 };
 
-function moduleWith(testProviderScript: string | null, logger = silentLogger) {
+function moduleWith(
+  testProviderScript: string | null,
+  logger = silentLogger,
+  scopes: WorkerScopes = NO_SCOPES,
+) {
   const hub = createStreamHub();
   const sessions = createSessionsModule({
     db,
@@ -94,6 +99,7 @@ function moduleWith(testProviderScript: string | null, logger = silentLogger) {
     config: config(testProviderScript),
     workerUmask: 0o027,
     env: daemonEnv,
+    scopes,
   });
   return { sessions, hub };
 }
@@ -115,6 +121,20 @@ describe("sessions module", () => {
       PI_TELEMETRY: "0",
       PI_SKIP_VERSION_CHECK: "1",
     });
+  });
+
+  it("runs each worker in the next scope of the scopes, and in none when scopes are off", async () => {
+    const scope: WorkerScope = {
+      unit: "pap-test-worker-1.scope",
+      launch: { command: "systemd-run", args: ["--scope", "--"], env: { XDG_RUNTIME_DIR: "/run/user/1" } },
+      reap: async () => ({ oomKilled: false }),
+    };
+    const { sessions } = moduleWith(null, silentLogger, { ...NO_SCOPES, enabled: true, next: () => scope });
+    await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
+    expect(started().scope).toBe(scope);
+    const off = moduleWith(null).sessions;
+    await off.rpc["sessions.create"]({ cwd: root }, ctx);
+    expect(spawned.options.at(-1)).not.toHaveProperty("scope");
   });
 
   it("tells the worker the umask the daemon was started with in its init record (R114)", async () => {

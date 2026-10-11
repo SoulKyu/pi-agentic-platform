@@ -239,6 +239,8 @@ describe("probeScopes", () => {
     expect(lines.filter((line) => line.msg === "worker_scope_show_failed")).toEqual([
       expect.objectContaining({ level: "warn", unit: scope?.unit, code: 1 }),
     ]);
+    // One line for the failed show, not a second generic step line whose `unit` is the `--property=…` argument.
+    expect(lines.filter((line) => String(line.msg).startsWith("worker_scope_"))).toHaveLength(1);
   });
 
   it.each([

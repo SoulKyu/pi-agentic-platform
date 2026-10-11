@@ -43,6 +43,7 @@ function run(args: string[], home = join(root, "home"), env: Record<string, stri
         PAP_HOME: home,
         PI_CODING_AGENT_DIR: join(root, "agent"),
         PI_TELEMETRY: "0",
+        PAP_WORKER_SCOPE: "off",
         ...env,
       },
     },

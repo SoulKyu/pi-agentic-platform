@@ -243,3 +243,37 @@ describe("loadConfig", () => {
     }
   });
 });
+
+describe("worker settings", () => {
+  it("defaults to 30 idle minutes, automatic scopes, half the RAM (at least 2 GiB) and 4096 tasks", () => {
+    const config = loadConfig(base);
+    expect(config.workerIdleMs).toBe(30 * 60_000);
+    expect(config.workerScope).toBe("auto");
+    expect(config.workerLimits).toEqual({ memoryMaxMb: 8192, tasksMax: 4096 });
+    expect(loadConfig({ ...base, totalMemMb: 2048 }).workerLimits.memoryMaxMb).toBe(2048);
+  });
+
+  it("reads them from the environment", () => {
+    const config = loadConfig({
+      ...base,
+      env: {
+        PAP_WORKER_IDLE_MINUTES: "0",
+        PAP_WORKER_SCOPE: "off",
+        PAP_WORKER_MEMORY_MAX_MB: "1024",
+        PAP_WORKER_TASKS_MAX: "512",
+      },
+    });
+    expect(config.workerIdleMs).toBe(0);
+    expect(config.workerScope).toBe("off");
+    expect(config.workerLimits).toEqual({ memoryMaxMb: 1024, tasksMax: 512 });
+  });
+
+  it.each([
+    [{ PAP_WORKER_SCOPE: "maybe" }, "PAP_WORKER_SCOPE must be auto or off"],
+    [{ PAP_WORKER_MEMORY_MAX_MB: "128" }, "PAP_WORKER_MEMORY_MAX_MB must be an integer ≥ 256"],
+    [{ PAP_WORKER_TASKS_MAX: "8" }, "PAP_WORKER_TASKS_MAX must be an integer ≥ 64"],
+    [{ PAP_WORKER_IDLE_MINUTES: "-1" }, "PAP_WORKER_IDLE_MINUTES must be an integer ≥ 0"],
+  ])("refuses %j", (env, message) => {
+    expect(() => loadConfig({ ...base, env })).toThrow(message);
+  });
+});

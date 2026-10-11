@@ -64,7 +64,11 @@ async function serve(config: Config): Promise<void> {
     });
     shutdown = createShutdown({
       stop: () => daemon.stop(),
-      killWorkers: killAllWorkerGroups,
+      killWorkers: () => {
+        const killed = killAllWorkerGroups();
+        daemon.killScopes();
+        return killed;
+      },
       exit: (code) => process.exit(code),
       clock,
       logger,

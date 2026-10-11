@@ -9,6 +9,7 @@ import { createSystemClock } from "../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { silentLogger } from "../../kernel/logger.ts";
+import { NO_SCOPES } from "../../kernel/supervisor/scope.ts";
 import { createStreamHub, type StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "./index.ts";
 import { createSessionsStore, type SessionsStore } from "./store.ts";
@@ -51,6 +52,7 @@ function moduleWith(testProviderScript: string): SessionsModule {
     },
     workerUmask: 0o022,
     env: { PATH: process.env.PATH, LANG: process.env.LANG, HOME: join(root, "home"), PI_OFFLINE: "1" },
+    scopes: NO_SCOPES,
   });
 }
 

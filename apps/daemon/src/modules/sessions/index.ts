@@ -7,6 +7,8 @@ import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import { newId } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { workerEnv } from "../../kernel/supervisor/env.ts";
+import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
+import type { WorkerScopes } from "../../kernel/supervisor/scope.ts";
 import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
@@ -37,6 +39,9 @@ export interface SessionsModuleDeps {
   /** The umask the daemon was started with, before it set its own 077: what the workers' tools run under (R114). */
   readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
+  readonly scopes: WorkerScopes;
+  /** After a worker exited: its session and the end of its output (the supervisor keeps 8 KiB). */
+  readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
 }
 
 export interface SessionsModule {
@@ -72,15 +77,19 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     newId,
     loadTranscript: loadTranscriptReader,
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
-    spawn: (cwd) =>
-      spawnWorker({
+    spawn: (cwd) => {
+      const scope = deps.scopes.next();
+      return spawnWorker({
         entry: config.piHostEntry,
         execArgv: config.piHostExecArgv,
         cwd,
         env,
         clock: deps.clock,
-        logger: logger.child({ component: "worker" }),
-      }),
+        logger: logger.child({ component: "worker", ...(scope ? { unit: scope.unit } : {}) }),
+        ...(scope ? { scope } : {}),
+      });
+    },
+    ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
   });
   deps.hub.registerSnapshot("session", (key) => service.snapshot(key));
   return {

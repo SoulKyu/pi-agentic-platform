@@ -10,6 +10,7 @@ import {
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { resolveSessionCwd } from "./cwd.ts";
@@ -44,6 +45,7 @@ export interface SessionsServiceDeps {
   loadTranscript(): Promise<TranscriptReader>;
   spawn(cwd: string): WorkerHandle;
   freeMemMb(): number;
+  onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
 }
 
 export interface PromptInput {
@@ -171,6 +173,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         onExit: () => {
           if (live.get(row.id) === session) live.delete(row.id);
         },
+        onWorkerExit: (info) => deps.onWorkerExit?.(row.id, info),
       },
       init,
     );

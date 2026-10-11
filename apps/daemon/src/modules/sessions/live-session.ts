@@ -48,6 +48,8 @@ export interface LiveSessionDeps {
   /** Called after every Pi event, when a run ends and when the worker is gone: the moments Pi's file may have appeared. */
   onActivity(): void;
   onExit(exit: WorkerExit): void;
+  /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
+  onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
 }
 
 export interface LiveSession {
@@ -250,6 +252,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     setStatus("cold", describeExit(exit));
     deps.onActivity();
     deps.onExit(exit);
+    deps.onWorkerExit?.({ exit, outputTail: handle.outputTail() });
   });
   if (!handle.send(init)) logger.warn("worker_init_not_sent");
 

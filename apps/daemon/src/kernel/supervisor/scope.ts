@@ -175,7 +175,7 @@ export async function probeScopes(
   // A failed step is logged (unit and step only) and the next step still runs: reap never throws.
   const systemctlRun = async (args: readonly string[]): Promise<ExecResult> => {
     const result = await run(systemctl, ["--user", ...args], SYSTEMCTL_TIMEOUT_MS);
-    if (result.code !== 0 && args[0] !== "reset-failed") {
+    if (result.code !== 0 && args[0] !== "reset-failed" && args[0] !== "show") {
       deps.logger.warn("worker_scope_step_failed", { step: args[0], unit: args.at(-1), code: result.code });
     }
     return result;

@@ -11,8 +11,11 @@ import { createHttpApp } from "./kernel/http/app.ts";
 import { createOriginRefusalLog } from "./kernel/http/origin-refusals.ts";
 import { startServer } from "./kernel/http/server.ts";
 import { createLogger, type Logger } from "./kernel/logger.ts";
+import type { WorkerExit } from "./kernel/supervisor/exit.ts";
+import { probeScopes } from "./kernel/supervisor/scope.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
 import { VERSION } from "./kernel/version.ts";
+import { execFileCode, execFileText, whichOnPath } from "./kernel/which.ts";
 import { createDispatcher } from "./kernel/ws/dispatcher.ts";
 import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { systemHandlers } from "./kernel/ws/system-handlers.ts";
@@ -31,6 +34,8 @@ export interface DaemonHandle {
   };
   /** Idempotent. Workers go first (R104), then the sockets, the receipt purge, the database and the instance lock. */
   stop(): Promise<void>;
+  /** A stop was given up: SIGKILLs every worker scope of this home, synchronously and bounded. Never throws. */
+  killScopes(): void;
 }
 
 export interface DaemonDeps {
@@ -46,6 +51,8 @@ export interface DaemonDeps {
    * Where the one-time setup address goes. Defaults to `logger.info("setup_url")`; `pap serve` prints it whatever
    * PAP_LOG_LEVEL is, because without it nobody can create the owner (R117).
    */
+  /** A worker exited: its session and the end of what it printed (at most the supervisor's 8 KiB tail). */
+  readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
   readonly announceSetupUrl?: (fields: { readonly url: string; readonly hint: string }) => void;
 }
 
@@ -111,6 +118,19 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       allowedOrigins: config.allowedOrigins,
       insecureHttp: config.insecureHttp,
     });
+    const env = deps.env ?? process.env;
+    const scopes = await probeScopes(config.workerScope, config.workerLimits, {
+      home: config.home,
+      uid: process.getuid?.() ?? -1,
+      exec: execFileText,
+      execSync: execFileCode,
+      env,
+      which: (command) => whichOnPath(command, env),
+      clock,
+      logger,
+    });
+    // What an earlier daemon of this home left behind dies before any new worker starts (M2-RT-13).
+    await scopes.sweep();
     const sessions = createSessionsModule({
       db,
       clock,
@@ -118,7 +138,9 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       hub,
       config,
       workerUmask,
-      env: deps.env ?? process.env,
+      env,
+      scopes,
+      ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
     const handlers: HandlerTable = { ...systemHandlers(clock), ...sessions.rpc };
     const dispatch = createDispatcher({ handlers, receipts, logger });
@@ -194,6 +216,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         workerPid: (id) => sessions.inspect(id)?.pid,
         workerRssMb: (id) => sessions.inspect(id)?.rssMb ?? null,
       },
+      killScopes: () => scopes.killAllNow(),
       stop() {
         stopping ??= (async () => {
           // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash

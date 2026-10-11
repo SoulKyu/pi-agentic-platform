@@ -4,6 +4,7 @@ import { isAbsolute, join } from "node:path";
 import { createSecureContext } from "node:tls";
 import { parseArgs } from "node:util";
 import type { LogLevel } from "./logger.ts";
+import { defaultMemoryMaxMb, type ScopeLimits } from "./supervisor/scope.ts";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 7777;
@@ -35,6 +36,11 @@ export interface Config {
   readonly testProviderScript: string | null;
   readonly maxWorkers: number;
   readonly minFreeMemMb: number;
+  /** A worker with nothing to do is released after this long; 0 never releases (`PAP_WORKER_IDLE_MINUTES`). */
+  readonly workerIdleMs: number;
+  /** `auto` puts each worker in a systemd user scope when a lingering user manager answers; `off` never does. */
+  readonly workerScope: "auto" | "off";
+  readonly workerLimits: ScopeLimits;
   readonly staticRoot: string | null;
   readonly logLevel: LogLevel;
 }
@@ -137,6 +143,19 @@ export function loadConfig(input: ConfigInput): Config {
     minFreeMemMb: input.env.PAP_MIN_FREE_MEM_MB
       ? parseCount(input.env.PAP_MIN_FREE_MEM_MB, "PAP_MIN_FREE_MEM_MB", 0)
       : DEFAULT_MIN_FREE_MEM_MB,
+    workerIdleMs:
+      (input.env.PAP_WORKER_IDLE_MINUTES
+        ? parseCount(input.env.PAP_WORKER_IDLE_MINUTES, "PAP_WORKER_IDLE_MINUTES", 0)
+        : 30) * 60_000,
+    workerScope: parseScope(input.env.PAP_WORKER_SCOPE),
+    workerLimits: {
+      memoryMaxMb: input.env.PAP_WORKER_MEMORY_MAX_MB
+        ? parseCount(input.env.PAP_WORKER_MEMORY_MAX_MB, "PAP_WORKER_MEMORY_MAX_MB", 256)
+        : defaultMemoryMaxMb(input.totalMemMb),
+      tasksMax: input.env.PAP_WORKER_TASKS_MAX
+        ? parseCount(input.env.PAP_WORKER_TASKS_MAX, "PAP_WORKER_TASKS_MAX", 64)
+        : 4096,
+    },
     staticRoot: input.staticRoot,
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),
   };
@@ -250,4 +269,10 @@ function parseLevel(raw: string | undefined): LogLevel {
   if (raw === undefined) return "info";
   if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") return raw;
   throw new ConfigError("PAP_LOG_LEVEL must be debug, info, warn or error");
+}
+
+function parseScope(raw: string | undefined): "auto" | "off" {
+  if (raw === undefined || raw === "" || raw === "auto") return "auto";
+  if (raw === "off") return "off";
+  throw new ConfigError("PAP_WORKER_SCOPE must be auto or off");
 }

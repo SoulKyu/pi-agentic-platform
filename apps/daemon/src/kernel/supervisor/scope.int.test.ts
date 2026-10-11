@@ -64,10 +64,23 @@ const scopesWith = async (limits: ScopeLimits): Promise<WorkerScopes> => {
   return scopes;
 };
 // The bed's clock is fake: the ladder's first rung (2 s) is advanced by hand, and the rogue worker ends on its SIGTERM.
-const stopped = async (handle: WorkerHandle) => {
+// A stop that never ends is a named failure, not the 60 s test timeout.
+const STOP_DEADLINE_MS = 10_000;
+const stopped = async (handle: WorkerHandle): Promise<WorkerExit> => {
   const pending = handle.stop();
   await bed.clock.advance(2000);
-  return pending;
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`the worker did not stop within ${STOP_DEADLINE_MS} ms`)),
+      STOP_DEADLINE_MS,
+    );
+  });
+  try {
+    return await Promise.race([pending, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
 };
 const sliceOf = (scope: WorkerScope) =>
   scope.launch.args.find((arg) => arg.startsWith("--slice="))?.slice("--slice=".length) ?? "";
@@ -218,8 +231,8 @@ describe.skipIf(!available)("workers in systemd user scopes", () => {
     const left = execFileSync(
       "systemctl",
       ["--user", "list-units", "--all", "--no-legend", scope.unit, sliceOf(scope)],
-      { encoding: "utf8" },
+      { encoding: "utf8", timeout: 5000 },
     );
-    expect(left).not.toMatch(/\bactive\b/);
+    expect(left.trim()).toBe("");
   });
 });
