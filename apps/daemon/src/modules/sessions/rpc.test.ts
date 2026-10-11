@@ -12,6 +12,8 @@ function setup(overrides: Partial<SessionsService> = {}) {
     list: vi.fn(() => []),
     prompt: vi.fn(async () => ({ disposition: "started" as const })),
     abort: vi.fn(async () => {}),
+    navigate: vi.fn(async () => ({ cancelled: false, editorText: "q" })),
+    compact: vi.fn(async () => ({ tokensBefore: 9, estimatedTokensAfter: null })),
     clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
     respondDialog: vi.fn(),
     panelInput: vi.fn(),
@@ -51,6 +53,16 @@ describe("sessions rpc", () => {
       truncated: false,
     });
     expect(service.clearQueue).toHaveBeenCalledWith("p1", caller);
+    expect(await rpc["sessions.navigate"]({ sessionId: "p1", targetId: "u0" }, ctx)).toEqual({
+      cancelled: false,
+      editorText: "q",
+    });
+    expect(service.navigate).toHaveBeenCalledWith({ sessionId: "p1", targetId: "u0" }, caller);
+    expect(await rpc["sessions.compact"]({ sessionId: "p1", customInstructions: "short" }, ctx)).toEqual({
+      tokensBefore: 9,
+      estimatedTokensAfter: null,
+    });
+    expect(service.compact).toHaveBeenCalledWith({ sessionId: "p1", customInstructions: "short" }, caller);
     expect(
       await rpc["sessions.respondDialog"](
         { sessionId: "p1", dialogId: "d1", response: { confirmed: true } },

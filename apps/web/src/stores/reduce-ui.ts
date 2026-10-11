@@ -1,4 +1,6 @@
 import {
+  type Activity,
+  IDLE_ACTIVITY,
   type Panel,
   type SessionStreamEvent,
   type StatusEntry,
@@ -15,9 +17,18 @@ export interface UiState {
   readonly panels: readonly Panel[];
   /** A composer instruction: `seq` counts the events, so the composer applies each once, even for the same text. */
   readonly editorText: { readonly text: string; readonly seq: number } | null;
+  /** The session is compacting, or Pi is retrying after an error (the composer waits while it compacts, M2R89). */
+  readonly activity: Activity;
 }
 
-export const EMPTY_UI: UiState = { statuses: [], widgets: [], title: null, panels: [], editorText: null };
+export const EMPTY_UI: UiState = {
+  statuses: [],
+  widgets: [],
+  title: null,
+  panels: [],
+  editorText: null,
+  activity: IDLE_ACTIVITY,
+};
 
 /** Replaces the entry with this key in place, else appends it unless `limit` entries are held (the contract's bound). */
 function upsert<T>(list: readonly T[], keyOf: (item: T) => string, item: T, limit: number): readonly T[] {
@@ -37,6 +48,7 @@ export function uiOfSnapshot(
     title: event.title,
     panels: event.panels,
     editorText: view.editorText,
+    activity: event.activity,
   };
 }
 
@@ -47,6 +59,7 @@ export const clearedUi = (view: SessionView): SessionView => ({
   widgets: [],
   title: null,
   panels: [],
+  activity: IDLE_ACTIVITY,
 });
 
 /** The view after a decoration event; `null` for any other kind of event. */
@@ -70,6 +83,8 @@ export function reduceUi(view: SessionView, event: SessionStreamEvent): SessionV
       };
     case "title":
       return { ...view, title: event.title };
+    case "activity":
+      return { ...view, activity: event.activity };
     case "editor_text":
       return { ...view, editorText: { text: event.text, seq: (view.editorText?.seq ?? 0) + 1 } };
     case "panel":

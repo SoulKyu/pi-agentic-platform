@@ -1,5 +1,7 @@
 import type {
+  Activity,
   ApprovalAnswer,
+  CommandInput,
   DaemonToWorker,
   Dialog,
   DialogResponse,
@@ -18,6 +20,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { Grant } from "./dialogs.ts";
+import type { CommandAnswer } from "./live-commands.ts";
 import type { RunViewState } from "./run-view.ts";
 
 export interface LiveSessionDeps {
@@ -63,6 +66,20 @@ export interface LiveSession {
     streamingBehavior?: "steer" | "followUp",
   ): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(): Promise<void>;
+  /**
+   * The session must not be disturbed by a navigation or a compaction (M2R88): a run is open, Pi compacts, a prompt is
+   * on its way (or answered `started` and has no `agent_start` yet), or a navigation or compaction is in flight.
+   * Callers check it right before `command`, with no `await` between.
+   */
+  busy(): boolean;
+  /** Sends a session command to the worker now and counts it until it is answered; see `LiveCommands.command`. */
+  command(input: CommandInput): Promise<CommandAnswer>;
+  /** Commands sent to the worker and not answered yet (Task 20 waits for none before it releases the worker). */
+  commandsInFlight(): number;
+  /** Pi moved its leaf (a navigation): an id over 128 characters counts as unknown (M2R52). */
+  navigated(leafId: string | null): void;
+  /** Compaction and automatic retry as Pi last said them. */
+  activity(): Activity;
   /** What Pi's steering and follow-up queue showed last; empty once the worker is gone. */
   queue(): QueueView;
   /**

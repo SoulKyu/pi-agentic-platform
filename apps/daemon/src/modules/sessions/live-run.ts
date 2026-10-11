@@ -34,6 +34,11 @@ export interface LiveRunDeps {
   getState(): Promise<GetStateData>;
   /** Counts the prompts on their way to Pi against the cap of its queue. */
   readonly queue: QueueGuard;
+  /**
+   * Pi is compacting, or a compaction or a navigation is on its way to it. A prompt now would throw in Pi ("Cannot
+   * submit a prompt while compaction is in progress") or land on a branch about to change: it is refused (M2R89).
+   */
+  promptBlocked(): boolean;
 }
 
 export interface LiveRun {
@@ -45,6 +50,11 @@ export interface LiveRun {
     streamingBehavior?: "steer" | "followUp",
   ): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(): Promise<void>;
+  /**
+   * A prompt is on its way to Pi, or was answered `started` and its `agent_start` has not come (the R113 window): the
+   * status says `idle` and the run is about to begin.
+   */
+  promptPending(): boolean;
   runView(): RunViewState | null;
   /** The entry Pi wrote for a message of the run: its row gets the id. */
   bindEntry(entry: EntryRef): void;
@@ -170,6 +180,8 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       if (!isSystemMessage(event) && event.type === "message_end") view.push(event.message);
     },
     async prompt(text, streamingBehavior) {
+      // Before anything is counted or sent.
+      if (deps.promptBlocked()) throw new PapError("session_busy");
       const release = deps.queue.admit(text);
       tracker.onInput();
       promptsInFlight++;
@@ -218,6 +230,7 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       }
       await abortRunning();
     },
+    promptPending: () => promptsInFlight > 0 || startedAwaitingRun,
     runView: () => view.state(),
     bindEntry: (entry) => view.bind(entry),
     addRow: (row) => view.add(row),

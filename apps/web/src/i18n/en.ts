@@ -70,6 +70,7 @@ export const en = {
     "Too many messages are waiting in this session. Wait for the agent, or clear the queue.",
   "error.session_busy": "The session is working. Wait for it to finish, or stop it first.",
   "error.session_empty": "This session has no messages to work with yet.",
+  "error.command_failed": "The session could not complete this command.",
   "sessions.queue.title": "Waiting",
   "session.status.releasing": "Releasing",
   "sessions.unreadable":

@@ -3,6 +3,7 @@ import {
   EMPTY_QUEUE,
   type ForkPoint,
   type HistoryMeta,
+  IDLE_ACTIVITY,
   PapError,
   type SessionStatus,
   type SessionStreamEvent,
@@ -202,6 +203,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         notices: session?.notices() ?? [],
         partial: session?.partial() ?? null,
         queue: session?.queue() ?? EMPTY_QUEUE,
+        activity: session?.activity() ?? IDLE_ACTIVITY,
         history,
         leafId: session?.leafId() ?? page.leafId,
       });

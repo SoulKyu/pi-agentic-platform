@@ -43,6 +43,8 @@ export interface Options {
   /** How the worker answers `clear_queue` (default: success with no data). */
   clearQueue?: { success?: boolean; error?: string; data?: unknown; hold?: boolean };
   holdPrompt?: boolean;
+  /** Commands (by type) the worker leaves unanswered until the test calls `worker.respond`. */
+  hold?: readonly string[];
   neverReady?: boolean;
   logger?: Logger;
   sessionFile?: string;
@@ -95,6 +97,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
         if (command.type === "clear_queue" && options.clearQueue) {
           return options.clearQueue.hold ? undefined : options.clearQueue;
         }
+        if (options.hold?.includes(command.type)) return undefined;
         return {};
       },
     });

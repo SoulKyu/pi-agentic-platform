@@ -157,3 +157,33 @@ describe("summary and custom messages", () => {
     });
   });
 });
+
+describe("the leaf after a navigation (M2R90)", () => {
+  it("is moved back by the fresh snapshot, and the entries that follow move it on", () => {
+    const grown = [
+      entry({ id: "u1", role: "user", messageTimestamp: 1 }),
+      entry({ id: "a1", role: "assistant", messageTimestamp: 2 }),
+    ].reduce(
+      reduceSession,
+      reduceSession(EMPTY_VIEW, snap([{ entryId: "u0", message: user(0) }], { leafId: "u0" })),
+    );
+    expect(grown.leafId).toBe("a1");
+    // The daemon moved Pi's leaf to u0 and publishes the snapshot of that branch: the view replaces itself.
+    const navigated = reduceSession(grown, snap([{ entryId: "u0", message: user(0) }], { leafId: "u0" }));
+    expect(navigated.leafId).toBe("u0");
+    expect(navigated.generation).toBe(grown.generation + 1);
+    expect(idsOf(navigated)).toEqual(["u0"]);
+    const next = reduceSession(
+      navigated,
+      entry({ id: "u2", parentId: "u0", role: "user", messageTimestamp: 3 }),
+    );
+    expect(next.leafId).toBe("u2");
+  });
+
+  it("shows a branch summary row that arrives live, once", () => {
+    const summary = { role: "branchSummary", summary: "left that path", fromId: "a1", timestamp: 5 };
+    const once = reduceSession(EMPTY_VIEW, { kind: "row", row: { entryId: "b1", message: summary } });
+    expect(idsOf(once)).toEqual(["b1"]);
+    expect(reduceSession(once, { kind: "row", row: { entryId: "b1", message: summary } })).toBe(once);
+  });
+});

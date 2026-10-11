@@ -21,6 +21,7 @@ import { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
 import { createPreReadyBuffer, type PreReadyBuffer } from "./pre-ready-buffer.ts";
+import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
 import { createSessionReads } from "./service-reads.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
@@ -54,7 +55,7 @@ export interface PromptInput {
   readonly streamingBehavior?: "steer" | "followUp" | undefined;
 }
 
-export interface SessionsService {
+export interface SessionsService extends SessionCommands {
   create(cwd: string, caller: Caller): Promise<{ sessionId: string }>;
   list(caller: Caller): SessionSummary[];
   prompt(input: PromptInput, caller: Caller): Promise<{ disposition: "started" | "queued" | "handled" }>;
@@ -262,6 +263,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     owned,
   });
 
+  const commands = createSessionCommands({
+    owned,
+    ensureLive,
+    live,
+    reads,
+    hub: deps.hub,
+    logger: deps.logger,
+  });
+
   return {
     async create(cwdInput, caller) {
       const cwd = resolveSessionCwd(cwdInput);
@@ -296,6 +306,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       owned(sessionId, caller);
       await live.get(sessionId)?.abort();
     },
+    navigate: (input, caller) => commands.navigate(input, caller),
+    compact: (input, caller) => commands.compact(input, caller),
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
       return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };

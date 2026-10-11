@@ -4,6 +4,7 @@ import { basename, join } from "node:path";
 import {
   ALL_PERMISSIONS,
   type Caller,
+  type CommandInput,
   type Cursor,
   type EventFrame,
   type InitRecord,
@@ -49,6 +50,17 @@ export interface BedOptions {
   readerFailures?: number;
   /** By the order the workers are spawned in, from 0. */
   start?(index: number, init: InitRecord): StartBehavior | undefined;
+  /**
+   * How the fake worker answers a command, by type. `"held"` waits for `bed.answerHeld(index, command, reply)`.
+   * `navigate_tree` and `compact` answer a success unless told otherwise.
+   */
+  replies?: Partial<Record<CommandInput["type"], BedReply | "held">>;
+}
+
+export interface BedReply {
+  success?: boolean;
+  error?: string;
+  data?: unknown;
 }
 
 /** The one user of the beds: the owner of every session they make. */
@@ -124,6 +136,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   const files: string[] = [];
   let ids = 0;
   const transcript = { loads: 0, failures: options.readerFailures ?? 0 };
+  const answered = new Set<string>();
   const service = factories.createSessionsService({
     store,
     clock,
@@ -175,6 +188,11 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
           });
         },
         reply: (command) => {
+          const scripted = options.replies?.[command.type];
+          if (scripted === "held") return undefined;
+          if (scripted) return scripted;
+          if (command.type === "navigate_tree") return { data: { cancelled: false, leafId: null } };
+          if (command.type === "compact") return { data: { tokensBefore: 10, estimatedTokensAfter: 5 } };
           if (command.type === "prompt") return { data: { disposition: "started" } };
           if (command.type === "get_state") return { data: IDLE_STATE };
           if (command.type === "clear_queue")
@@ -227,6 +245,15 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
       const file = files[index] ?? "";
       writeFileSync(file, sessionFileText(basename(file, ".jsonl"), exchanges));
       return file;
+    },
+    /** Answers the first request of this type that a `"held"` reply left waiting, on the worker spawned `index`-th. */
+    answerHeld(index: number, command: CommandInput["type"], reply: BedReply): void {
+      const request = spawned[index]?.requests.find(
+        (candidate) => candidate.type === command && !answered.has(`${index}:${candidate.id}`),
+      );
+      if (!request) throw new Error(`no held ${command} request on worker ${index}`);
+      answered.add(`${index}:${request.id}`);
+      spawned[index]?.respond(request.id, reply);
     },
     emit(index: number, event: { type: string } & Record<string, unknown>): void {
       spawned[index]?.emit({ type: "pi_event", event });

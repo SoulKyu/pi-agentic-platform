@@ -73,6 +73,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "error.queue_full": "Trop de messages attendent dans cette session. Attendez l'agent, ou videz la file.",
   "error.session_busy": "La session travaille. Attendez qu'elle finisse, ou arrêtez-la d'abord.",
   "error.session_empty": "Cette session n'a encore aucun message à traiter.",
+  "error.command_failed": "La session n'a pas pu exécuter cette commande.",
   "sessions.queue.title": "En attente",
   "session.status.releasing": "Libération",
   "sessions.unreadable":

@@ -18,7 +18,9 @@ describe("method catalogue", () => {
       "policy.revokeRule",
       "sessions.abort",
       "sessions.clearQueue",
+      "sessions.compact",
       "sessions.create",
+      "sessions.navigate",
       "sessions.prompt",
       "sessions.respondDialog",
     ]);
@@ -55,6 +57,39 @@ describe("method catalogue", () => {
       errors: ["not_found", "worker_failed", "timeout"],
     });
     expect(methods["sessions.prompt"].errors).toContain("queue_full");
+  });
+
+  it("declares navigate and compact as sessions:operate mutations that cannot time out", () => {
+    const shared = ["not_found", "session_busy", "capacity", "worker_failed", "command_failed"];
+    expect(methods["sessions.navigate"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: shared,
+    });
+    expect(methods["sessions.compact"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: [...shared, "session_empty"],
+    });
+    expect(methods["sessions.prompt"].errors).toContain("session_busy");
+    const { params, result } = methods["sessions.navigate"];
+    expect(params.safeParse({ sessionId: "s", targetId: "e1" }).success).toBe(true);
+    for (const bad of [{ targetId: "" }, { targetId: "e".repeat(129) }, { sessionId: "" }]) {
+      expect(params.safeParse({ sessionId: "s", targetId: "e1", ...bad }).success).toBe(false);
+    }
+    expect(result.safeParse({ cancelled: false }).success).toBe(true);
+    expect(result.safeParse({ cancelled: true, editorText: "q" }).success).toBe(true);
+    expect(result.safeParse({ editorText: "q" }).success).toBe(false);
+    const compact = methods["sessions.compact"];
+    expect(compact.params.safeParse({ sessionId: "s" }).success).toBe(true);
+    expect(compact.params.safeParse({ sessionId: "s", customInstructions: "x".repeat(4096) }).success).toBe(
+      true,
+    );
+    expect(compact.params.safeParse({ sessionId: "s", customInstructions: "x".repeat(4097) }).success).toBe(
+      false,
+    );
+    expect(compact.result.safeParse({ tokensBefore: 10, estimatedTokensAfter: null }).success).toBe(true);
+    expect(compact.result.safeParse({ tokensBefore: 10 }).success).toBe(false);
   });
 
   it("bounds what a history request can ask for", () => {

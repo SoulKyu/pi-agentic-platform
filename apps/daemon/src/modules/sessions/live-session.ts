@@ -13,6 +13,7 @@ import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { createCoalescer } from "./coalescer.ts";
 import type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 import { slimEntryRef, summaryRow } from "./entry-events.ts";
+import { createLiveCommands } from "./live-commands.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createNoticeRing } from "./notices.ts";
@@ -97,6 +98,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
 
   const queue = createQueueGuard();
   const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish });
+  const commands = createLiveCommands({ handle, logger });
   const run = createLiveRun({
     handle,
     clock: deps.clock,
@@ -108,6 +110,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     leafId: () => leafId,
     getState,
     queue,
+    promptBlocked: () => commands.activity().compacting || commands.structuralInFlight() > 0,
   });
 
   const ready = new Promise<ReadyRecord>((resolve, reject) => {
@@ -216,6 +219,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
           const clipped = clipPiEvent(event);
           run.onPiEvent(clipped ?? event);
           if (clipped) coalescer.push(clipped);
+          const activity = commands.onPiEvent(event);
+          if (activity) publish(activity);
         }
         deps.onActivity();
         return;
@@ -232,6 +237,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     partial.reset();
     coalescer.dispose();
     queue.reset();
+    commands.reset();
     const wasRunning = run.onExit();
     for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
     for (const id of ui.clearDecorations()) publish({ kind: "panel_closed", id });
@@ -265,6 +271,17 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     runView: () => run.runView(),
     prompt: (text, streamingBehavior) => run.prompt(text, streamingBehavior),
     abort: () => run.abort(),
+    busy: () =>
+      run.tracker.running ||
+      run.promptPending() ||
+      commands.activity().compacting ||
+      commands.structuralInFlight() > 0,
+    command: (input) => commands.command(input),
+    commandsInFlight: () => commands.inFlight(),
+    navigated(next) {
+      leafId = knownId(next);
+    },
+    activity: () => commands.activity(),
     queue: queue.view,
     async clearQueue() {
       const response = await handle.request({ type: "clear_queue" });

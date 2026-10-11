@@ -69,7 +69,7 @@ export const methods = catalogue({
       streamingBehavior: z.enum(["steer", "followUp"]).optional(),
     }),
     result: z.object({ disposition: z.enum(["started", "queued", "handled"]) }),
-    errors: ["not_found", "capacity", "worker_failed", "prompt_rejected", "queue_full"],
+    errors: ["not_found", "capacity", "worker_failed", "prompt_rejected", "queue_full", "session_busy"],
   }),
   "sessions.abort": defineMethod({
     name: "sessions.abort",
@@ -92,6 +92,32 @@ export const methods = catalogue({
     }),
     // `timeout`: the worker did not answer in time, so whether the queue was cleared is unknown (R105).
     errors: ["not_found", "worker_failed", "timeout"],
+  }),
+  "sessions.navigate": defineMethod({
+    name: "sessions.navigate",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId, targetId: z.string().min(1).max(128) }),
+    result: z.object({
+      cancelled: z.boolean(),
+      /** The text of the user message navigated to, to edit and send again; fitted to the frame. */
+      editorText: z.string().max(UI_LIMITS.editorText).optional(),
+    }),
+    // No daemon timeout (M2R90): Pi answers when it is done, or the worker is gone (`worker_failed`).
+    errors: ["not_found", "session_busy", "capacity", "worker_failed", "command_failed"],
+  }),
+  "sessions.compact": defineMethod({
+    name: "sessions.compact",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId, customInstructions: z.string().max(4096).optional() }),
+    result: z.object({
+      tokensBefore: z.number().nonnegative(),
+      estimatedTokensAfter: z.number().nonnegative().nullable(),
+    }),
+    // No daemon timeout either: the model writes the summary. Were one added, its `timeout` would mean the outcome is
+    // unknown and the call must not be retried (R105).
+    errors: ["not_found", "session_busy", "capacity", "worker_failed", "command_failed", "session_empty"],
   }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",

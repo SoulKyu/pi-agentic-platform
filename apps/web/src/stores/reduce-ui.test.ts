@@ -148,3 +148,34 @@ describe("snapshot and cold", () => {
     expect(reduceSession(live, { kind: "status", status: "releasing" }).title).toBe("t");
   });
 });
+
+describe("activity (compaction and automatic retry)", () => {
+  it("starts idle, follows the events, and takes the snapshot's value", () => {
+    expect(EMPTY_VIEW.activity).toEqual({ compacting: false, retry: null });
+    const compacting = reduceSession(EMPTY_VIEW, {
+      kind: "activity",
+      activity: { compacting: true, retry: null },
+    });
+    expect(compacting.activity).toEqual({ compacting: true, retry: null });
+    const retrying = reduceSession(compacting, {
+      kind: "activity",
+      activity: { compacting: false, retry: { attempt: 2, maxAttempts: 3 } },
+    });
+    expect(retrying.activity).toEqual({ compacting: false, retry: { attempt: 2, maxAttempts: 3 } });
+    const fresh = reduceSession(retrying, snapshot({ activity: { compacting: true, retry: null } }));
+    expect(fresh.activity).toEqual({ compacting: true, retry: null });
+  });
+
+  it("is idle again when the session goes cold", () => {
+    const view = run([{ kind: "activity", activity: { compacting: true, retry: null } }]);
+    expect(reduceSession(view, { kind: "status", status: "cold" }).activity).toEqual({
+      compacting: false,
+      retry: null,
+    });
+  });
+
+  it("ignores an activity event the contract cannot read", () => {
+    const view = run([{ kind: "activity", activity: { compacting: true, retry: null } }]);
+    expect(reduceSession(view, { kind: "activity", activity: { compacting: "yes" } })).toBe(view);
+  });
+});
