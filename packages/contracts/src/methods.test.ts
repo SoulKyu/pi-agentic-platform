@@ -30,6 +30,24 @@ describe("method catalogue", () => {
     }
   });
 
+  it("declares panelInput as the one idempotent sessions:operate write, with bounded data", () => {
+    const def = methods["sessions.panelInput"];
+    expect(def).toMatchObject({ permission: "sessions:operate", idempotent: true, errors: ["not_found"] });
+    const ok = { sessionId: "s", panelId: "p", data: "x" };
+    expect(def.params.safeParse(ok).success).toBe(true);
+    expect(def.params.safeParse({ ...ok, data: "x".repeat(4096) }).success).toBe(true);
+    for (const bad of [
+      { data: "" },
+      { data: "x".repeat(4097) },
+      { panelId: "" },
+      { panelId: "p".repeat(129) },
+      { data: 4 },
+    ]) {
+      expect(def.params.safeParse({ ...ok, ...bad }).success).toBe(false);
+    }
+    expect(def.result.safeParse({ ok: true }).success).toBe(true);
+  });
+
   it("declares clearQueue as a sessions:operate mutation that can time out", () => {
     expect(methods["sessions.clearQueue"]).toMatchObject({
       permission: "sessions:operate",

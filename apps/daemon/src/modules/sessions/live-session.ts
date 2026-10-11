@@ -1,32 +1,23 @@
 import {
-  type ApprovalAnswer,
-  type DaemonToWorker,
-  type Dialog,
-  type DialogResponse,
   GetStateData,
   type InitRecord,
-  type PartialMessage,
   PapError,
   type PiEvent,
-  type QueueView,
   type ReadyRecord,
   type SessionStatus,
   type SessionStreamEvent,
   type WorkerRecord,
 } from "@pap/contracts";
-import type { Clock } from "../../kernel/clock.ts";
-import type { Logger } from "../../kernel/logger.ts";
-import { describeExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
-import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
+import { describeExit } from "../../kernel/supervisor/exit.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { createCoalescer } from "./coalescer.ts";
-import type { Grant } from "./dialogs.ts";
+import type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
+import { createNoticeRing } from "./notices.ts";
 import { createPartialReply } from "./partial.ts";
 import { createQueueGuard, isClearedAnswer, readCleared } from "./queue-guard.ts";
-import type { RunViewState } from "./run-view.ts";
 import { clipMessage, clipPiEvent } from "./wire-clip.ts";
 import { clip, outputTailOf } from "./worker-text.ts";
 
@@ -42,57 +33,7 @@ const MAX_ID_CHARS = 128;
 const knownId = (id: unknown): string | null =>
   typeof id === "string" && id.length > 0 && id.length <= MAX_ID_CHARS ? id : null;
 
-export interface LiveSessionDeps {
-  readonly handle: WorkerHandle;
-  readonly clock: Clock;
-  readonly logger: Logger;
-  publish(event: SessionStreamEvent): void;
-  record(kind: string, data: unknown): void;
-  /** Called after every Pi event, when a run ends and when the worker is gone: the moments Pi's file may have appeared. */
-  onActivity(): void;
-  onExit(exit: WorkerExit): void;
-  /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
-  onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
-}
-
-export interface LiveSession {
-  readonly ready: Promise<ReadyRecord>;
-  status(): SessionStatus;
-  rssMb(): number | null;
-  pid(): number | undefined;
-  /** Where Pi writes (or wrote) this session, from `ready`. It does not exist until the first user message. */
-  piFile(): string | undefined;
-  /** Pi's id for the session, from `ready`. */
-  piSessionId(): string | undefined;
-  dialogs(): Dialog[];
-  /** The reply being written, as the stream has sent it so far (never deltas still pending); null between replies. */
-  partial(): PartialMessage | null;
-  /** Pi's leaf as far as the daemon knows it (from `ready`, each appended entry, the worker's leaf records); null when unknown. */
-  leafId(): string | null;
-  /** What a run in progress has produced that the session file does not have yet; null between runs. */
-  runView(): RunViewState | null;
-  prompt(
-    text: string,
-    streamingBehavior?: "steer" | "followUp",
-  ): Promise<{ disposition: "started" | "queued" | "handled" }>;
-  abort(): Promise<void>;
-  /** What Pi's steering and follow-up queue showed last; empty once the worker is gone. */
-  queue(): QueueView;
-  /**
-   * Empties Pi's queue and returns the texts, fitted in JSON bytes under the frame (`truncated` when any was left
-   * out). A worker that does not answer in time is `timeout`: whether it was cleared is then unknown (R105).
-   */
-  clearQueue(): Promise<{ steering: string[]; followUp: string[]; truncated: boolean }>;
-  /**
-   * Answers an open dialog. An approval returns its answer and grant,
-   * for the "session" and "always" answers of Task 14b. A response the dialog does not offer is `bad_request` and
-   * the dialog stays open.
-   */
-  answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
-  /** Hands the worker a record (a policy update); false when it was not accepted (the worker is gone or backed up). */
-  send(record: DaemonToWorker): boolean;
-  stop(): Promise<void>;
-}
+export type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 
 export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveSession {
   const { handle, logger } = deps;
@@ -103,10 +44,22 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   let leafId: string | null = null;
   const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   const partial = createPartialReply();
+  const notices = createNoticeRing();
+  // Every notice is kept for the snapshot, whoever says it (M2R85).
+  const emit = (event: SessionStreamEvent): void => {
+    if (event.kind === "notice") {
+      notices.add({
+        level: event.level,
+        text: event.text,
+        ...(event.source ? { source: event.source } : {}),
+      });
+    }
+    deps.publish(event);
+  };
   // Every event this session publishes sends the pending deltas first, so text never arrives after what follows it.
   const publish = (event: SessionStreamEvent): void => {
     coalescer.flush();
-    deps.publish(event);
+    emit(event);
   };
   const coalescer = createCoalescer({
     clock: deps.clock,
@@ -134,7 +87,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       const said = limiter.check("event_too_large");
       if (said.allowed) {
         logger.warn("pi_event_too_large", { type: clip(event.type), suppressed: said.suppressed });
-        deps.publish({ kind: "notice", level: "warning", text: "A message was too large to stream." });
+        emit({ kind: "notice", level: "warning", text: "A message was too large to stream." });
       }
       return false;
     }
@@ -143,7 +96,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   }
 
   const queue = createQueueGuard();
-  const ui = createLiveUi({ handle, logger, limiter, publish, publishPi: coalescer.push });
+  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish });
   const run = createLiveRun({
     handle,
     clock: deps.clock,
@@ -218,6 +171,12 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       case "extension_ui_closed":
         ui.onUiClosed(record.id);
         return;
+      case "custom_render":
+        ui.onPanelRender(record.id, record.lines);
+        return;
+      case "custom_close":
+        ui.onPanelClose(record.id);
+        return;
       case "audit":
         deps.record("policy", record.entry);
         return;
@@ -275,6 +234,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     queue.reset();
     const wasRunning = run.onExit();
     for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
+    for (const id of ui.clearDecorations()) publish({ kind: "panel_closed", id });
     if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
     deps.record("worker_exit", exit);
     if (exit.cause === "clean") logger.info("worker_exited", { ...exit });
@@ -294,6 +254,12 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     piFile: () => piFile,
     piSessionId: () => piSessionId,
     dialogs: () => ui.dialogs(),
+    statuses: () => ui.statuses(),
+    widgets: () => ui.widgets(),
+    title: () => ui.title(),
+    panels: () => ui.panels(),
+    notices: () => notices.list(),
+    panelInput: (id, data) => ui.panelInput(id, data),
     partial: () => partial.current(),
     leafId: () => leafId,
     runView: () => run.runView(),
@@ -314,6 +280,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     answer: (dialogId, response) => ui.answer(dialogId, response),
     send: (record) => handle.send(record),
     stop: async () => {
+      ui.cancelPanels();
       await handle.stop();
     },
   };

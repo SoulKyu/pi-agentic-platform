@@ -16,6 +16,7 @@ import {
   type SnapshotEvent,
   type StatusEntry,
   type TranscriptRow,
+  UI_LIMITS,
   type Widget,
 } from "@pap/contracts";
 
@@ -96,6 +97,7 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     status: input.status,
     rows: [],
     dialogs: [],
+    hiddenDialogs: 0,
     partial: null,
     queue: input.queue ?? EMPTY_QUEUE,
     statuses: [],
@@ -122,8 +124,13 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     kept.add(dialog);
   }
   snapshot.dialogs = input.dialogs.filter((dialog) => kept.has(dialog));
+  // A dialog left out is still open in the worker: the client is told how many, so it can say something is waiting.
+  snapshot.hiddenDialogs = input.dialogs.length - snapshot.dialogs.length;
   let decorations = 0;
-  const decorate = <T>(items: readonly T[]): T[] => {
+  // At most `limit` items whatever the source sent (`newest`: the last ones), then as many as the byte budget allows.
+  const decorate = <T>(all: readonly T[], limit: number, newest = false): T[] => {
+    const items = newest ? all.slice(-limit).toReversed() : all.slice(0, limit);
+    if (all.length > limit) snapshot.decorationsTruncated = true;
     const taken: T[] = [];
     for (const item of items) {
       const size = sizeOf(item) + 1;
@@ -137,10 +144,12 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     }
     return taken;
   };
-  snapshot.statuses = decorate(input.statuses ?? []);
-  snapshot.notices = decorate((input.notices ?? []).toReversed()).toReversed();
-  snapshot.widgets = decorate(input.widgets ?? []);
-  for (const panel of input.panels ?? []) {
+  snapshot.statuses = decorate(input.statuses ?? [], UI_LIMITS.statuses);
+  snapshot.notices = decorate(input.notices ?? [], UI_LIMITS.notices, true).toReversed();
+  snapshot.widgets = decorate(input.widgets ?? [], UI_LIMITS.widgets);
+  const panels = input.panels ?? [];
+  if (panels.length > UI_LIMITS.panels) snapshot.decorationsTruncated = true;
+  for (const panel of panels.slice(0, UI_LIMITS.panels)) {
     const size = sizeOf(panel) + 1;
     if (used + size > budget) continue;
     used += size;

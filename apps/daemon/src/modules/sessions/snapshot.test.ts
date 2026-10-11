@@ -34,6 +34,7 @@ describe("fitSnapshot", () => {
       title: null,
       panels: [],
       notices: [],
+      hiddenDialogs: 0,
       decorationsTruncated: false,
       history: { hasMore: false, oldestEntryId: null, turnsBefore: 0 },
       activity: { compacting: false, retry: null },

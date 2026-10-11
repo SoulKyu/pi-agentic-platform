@@ -68,6 +68,11 @@ export interface SessionsService {
     input: { sessionId: string; dialogId: string; response: DialogResponse },
     caller: Caller,
   ): void;
+  /**
+   * Keystrokes for an open extension panel of a session the caller owns (M2R86). Not a mutation with a receipt: the
+   * client never retries one. `not_found` when the session has no worker or the panel is not open.
+   */
+  panelInput(input: { sessionId: string; panelId: string; data: string }, caller: Caller): void;
   /** Older rows of the branch above `before`; reads of a session the caller owns (`not_found` otherwise). */
   history(
     input: { sessionId: string; before: string; limit?: number | undefined },
@@ -300,6 +305,12 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       const session = live.get(input.sessionId);
       if (!session) throw new PapError("not_found");
       grants.answered(session, session.answer(input.dialogId, input.response));
+    },
+    panelInput(input, caller) {
+      owned(input.sessionId, caller);
+      const session = live.get(input.sessionId);
+      if (!session) throw new PapError("not_found");
+      session.panelInput(input.panelId, input.data);
     },
     history: (input, caller) => reads.history(input, caller),
     toolOutput: (input, caller) => reads.toolOutput(input, caller),

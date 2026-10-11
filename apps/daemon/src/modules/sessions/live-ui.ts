@@ -5,15 +5,23 @@ import {
   type Dialog,
   type DialogResponse,
   PapError,
-  type PiEvent,
+  type Panel,
   type SessionStreamEvent,
+  type StatusEntry,
+  UI_LIMITS,
   type UiRequestRecord,
+  type Widget,
   type WorkerRecord,
 } from "@pap/contracts";
+import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { RateLimiter } from "../../kernel/rate-limit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
+import { createDecorations } from "./decorations.ts";
 import { type CancelReason, createDialogRegistry, type Grant } from "./dialogs.ts";
+import { createKeyedThrottle } from "./keyed-throttle.ts";
+import { createNoticeLimiter } from "./notices.ts";
+import { createPanels } from "./panels.ts";
 import { clip, SAFE_EVENT_NAME } from "./worker-text.ts";
 
 const CANCEL_NOTICES: Partial<Record<CancelReason, string>> = {
@@ -25,10 +33,10 @@ const APPROVAL_CANCEL_NOTICE = "A question about a tool call could not be shown.
 
 export interface LiveUiDeps {
   readonly handle: WorkerHandle;
+  readonly clock: Clock;
   readonly logger: Logger;
   readonly limiter: RateLimiter;
   publish(event: SessionStreamEvent): void;
-  publishPi(event: PiEvent): void;
 }
 
 export interface LiveUi {
@@ -47,6 +55,18 @@ export interface LiveUi {
   dialogs(): Dialog[];
   /** Forgets every dialog, for a worker that is gone; returns the ones that were open. */
   clear(): Dialog[];
+  onPanelRender(id: string, lines: readonly string[]): void;
+  onPanelClose(id: string): void;
+  /** Keystrokes for an open panel. `not_found` for an id that is not open, `bad_request` for data outside 1..4096. */
+  panelInput(id: string, data: string): void;
+  /** Asks the worker to cancel every open panel (the panels close when it says so, or when the worker is gone). */
+  cancelPanels(): void;
+  statuses(): StatusEntry[];
+  widgets(): Widget[];
+  title(): string | null;
+  panels(): Panel[];
+  /** Forgets statuses, widgets, the title and panels, cancels what waits in the throttle and the notice window; returns the open panel ids. */
+  clearDecorations(): string[];
 }
 
 /**
@@ -67,6 +87,16 @@ function approvalAnswerOf(dialog: Dialog, response: DialogResponse): ApprovalAns
 export function createLiveUi(deps: LiveUiDeps): LiveUi {
   const { handle, logger, limiter } = deps;
   const dialogs = createDialogRegistry();
+  const decorations = createDecorations();
+  const throttle = createKeyedThrottle({ clock: deps.clock, publish: deps.publish });
+  const extensionNotices = createNoticeLimiter({ clock: deps.clock, publish: deps.publish });
+  const panels = createPanels({
+    clock: deps.clock,
+    publish: deps.publish,
+    cancel: (id) => void handle.send({ type: "custom_cancel", id }),
+    say: (notice) => deps.publish({ kind: "notice", ...notice }),
+    throttle,
+  });
 
   // Every dialog is answered; only the telling is spaced out, so an extension that asks in a loop cannot flood the
   // user's screen or the log. Approvals have a key of their own: an extension's noise cannot hide their notice.
@@ -95,6 +125,37 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
     return true;
   }
 
+  // Status, widget and title events share the throttle; a notice goes through the extension limit; editor text at once.
+  function decorate(record: UiRequestRecord): void {
+    const event = decorations.apply(record);
+    if (!event) {
+      const said = limiter.check("decoration_refused");
+      if (said.allowed) {
+        logger.warn("decoration_refused", {
+          method: clip(record.method).slice(0, 64),
+          suppressed: said.suppressed,
+        });
+      }
+      return;
+    }
+    switch (event.kind) {
+      case "status_bar":
+        throttle.push(`status:${event.key}`, event);
+        return;
+      case "widget":
+        throttle.push(`widget:${event.key}`, event);
+        return;
+      case "title":
+        throttle.push("title", event);
+        return;
+      case "notice":
+        extensionNotices.add({ level: event.level, text: event.text, source: "extension" });
+        return;
+      default:
+        deps.publish(event);
+    }
+  }
+
   return {
     onUiRequest(record) {
       const verdict = dialogs.offer(record);
@@ -104,7 +165,7 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
         handle.send({ type: "extension_ui_response", id: record.id, cancelled: true });
         said(`dialog_${verdict.reason}`, verdict.reason, record.method, CANCEL_NOTICES[verdict.reason]);
       } else {
-        deps.publishPi(record);
+        decorate(record);
       }
     },
     onApprovalRequest(record) {
@@ -131,7 +192,7 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
         error: clip(record.error),
       });
       const during = SAFE_EVENT_NAME.test(record.event) ? ` during ${record.event}` : "";
-      deps.publish({ kind: "notice", level: "error", text: `An extension failed${during}.` });
+      extensionNotices.add({ level: "error", text: `An extension failed${during}.` });
     },
     answer(dialogId, response) {
       const open = dialogs.peek(dialogId); // looks without taking
@@ -153,5 +214,25 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
     },
     dialogs: () => dialogs.list(),
     clear: () => dialogs.clear(),
+    onPanelRender: (id, lines) => panels.render(id, lines),
+    onPanelClose: (id) => panels.close(id),
+    panelInput(id, data) {
+      if (data.length === 0 || data.length > UI_LIMITS.panelInput) throw new PapError("bad_request");
+      if (!panels.has(id)) throw new PapError("not_found");
+      if (!handle.send({ type: "custom_input", id, data })) throw new PapError("not_found");
+    },
+    cancelPanels() {
+      for (const panel of panels.list()) handle.send({ type: "custom_cancel", id: panel.id });
+    },
+    statuses: () => decorations.statuses(),
+    widgets: () => decorations.widgets(),
+    title: () => decorations.title(),
+    panels: () => panels.list(),
+    clearDecorations() {
+      throttle.clear();
+      extensionNotices.stop();
+      decorations.clear();
+      return panels.clear();
+    },
   };
 }

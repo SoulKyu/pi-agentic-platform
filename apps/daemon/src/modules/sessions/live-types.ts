@@ -1,0 +1,82 @@
+import type {
+  ApprovalAnswer,
+  DaemonToWorker,
+  Dialog,
+  DialogResponse,
+  Notice,
+  Panel,
+  PartialMessage,
+  QueueView,
+  ReadyRecord,
+  SessionStatus,
+  SessionStreamEvent,
+  StatusEntry,
+  Widget,
+} from "@pap/contracts";
+import type { Clock } from "../../kernel/clock.ts";
+import type { Logger } from "../../kernel/logger.ts";
+import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
+import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
+import type { Grant } from "./dialogs.ts";
+import type { RunViewState } from "./run-view.ts";
+
+export interface LiveSessionDeps {
+  readonly handle: WorkerHandle;
+  readonly clock: Clock;
+  readonly logger: Logger;
+  publish(event: SessionStreamEvent): void;
+  record(kind: string, data: unknown): void;
+  /** Called after every Pi event, when a run ends and when the worker is gone: the moments Pi's file may have appeared. */
+  onActivity(): void;
+  onExit(exit: WorkerExit): void;
+  /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
+  onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
+}
+
+export interface LiveSession {
+  readonly ready: Promise<ReadyRecord>;
+  status(): SessionStatus;
+  rssMb(): number | null;
+  pid(): number | undefined;
+  /** Where Pi writes (or wrote) this session, from `ready`. It does not exist until the first user message. */
+  piFile(): string | undefined;
+  /** Pi's id for the session, from `ready`. */
+  piSessionId(): string | undefined;
+  dialogs(): Dialog[];
+  /** The extension's status bar entries, widgets, title and open panels; empty once the worker is gone. */
+  statuses(): StatusEntry[];
+  widgets(): Widget[];
+  title(): string | null;
+  panels(): Panel[];
+  /** The last notices this session published, of every source, oldest first (start-up notices included). */
+  notices(): Notice[];
+  /** Keystrokes for an open panel: `not_found` when it is not open, `bad_request` for data outside 1..4096 characters. */
+  panelInput(id: string, data: string): void;
+  /** The reply being written, as the stream has sent it so far (never deltas still pending); null between replies. */
+  partial(): PartialMessage | null;
+  /** Pi's leaf as far as the daemon knows it (from `ready`, each appended entry, the worker's leaf records); null when unknown. */
+  leafId(): string | null;
+  /** What a run in progress has produced that the session file does not have yet; null between runs. */
+  runView(): RunViewState | null;
+  prompt(
+    text: string,
+    streamingBehavior?: "steer" | "followUp",
+  ): Promise<{ disposition: "started" | "queued" | "handled" }>;
+  abort(): Promise<void>;
+  /** What Pi's steering and follow-up queue showed last; empty once the worker is gone. */
+  queue(): QueueView;
+  /**
+   * Empties Pi's queue and returns the texts, fitted in JSON bytes under the frame (`truncated` when any was left
+   * out). A worker that does not answer in time is `timeout`: whether it was cleared is then unknown (R105).
+   */
+  clearQueue(): Promise<{ steering: string[]; followUp: string[]; truncated: boolean }>;
+  /**
+   * Answers an open dialog. An approval returns its answer and grant,
+   * for the "session" and "always" answers of Task 14b. A response the dialog does not offer is `bad_request` and
+   * the dialog stays open.
+   */
+  answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
+  /** Hands the worker a record (a policy update); false when it was not accepted (the worker is gone or backed up). */
+  send(record: DaemonToWorker): boolean;
+  stop(): Promise<void>;
+}

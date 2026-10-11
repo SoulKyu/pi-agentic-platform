@@ -112,11 +112,11 @@ describe("dialogs", () => {
     expect(Buffer.byteLength(JSON.stringify(opened))).toBeLessThan(1024 * 1024 - 1024);
   });
 
-  it("passes decorations on as Pi events", () => {
+  it("rebuilds decorations as their own events, never as Pi events", () => {
     const { worker, published } = setup();
-    const notify = { type: "extension_ui_request" as const, id: "n1", method: "notify", message: "hi" };
-    worker.emit(notify);
-    expect(published.at(-1)).toEqual({ kind: "pi", event: notify });
+    worker.emit({ type: "extension_ui_request" as const, id: "n1", method: "notify", message: "hi" });
+    expect(published.at(-1)).toEqual({ kind: "notice", level: "info", text: "hi", source: "extension" });
+    expect(published.filter((event) => event.kind === "pi")).toEqual([]);
   });
 
   it("answers a dialog while a prompt that waits for it is still pending, and the prompt then completes", async () => {

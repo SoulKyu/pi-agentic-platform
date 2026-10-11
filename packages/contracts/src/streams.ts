@@ -164,6 +164,8 @@ const Snapshot = z.object({
   status: SessionStatus,
   rows: z.array(TranscriptRow),
   dialogs: z.array(Dialog),
+  /** Dialogs (approvals included) still open that did not fit the snapshot: something is pending that this one cannot show. */
+  hiddenDialogs: z.number().int().nonnegative().default(0),
   partial: PartialMessage.nullable(),
   queue: QueueView,
   statuses: z.array(StatusEntry).max(UI_LIMITS.statuses),
@@ -171,7 +173,7 @@ const Snapshot = z.object({
   title: z.string().max(UI_LIMITS.title).nullable(),
   panels: z.array(Panel).max(UI_LIMITS.panels),
   notices: z.array(Notice).max(UI_LIMITS.notices),
-  /** Statuses, notices or widgets were left out to keep the snapshot under its budget (Task 1b). */
+  /** Statuses, notices, widgets or panels were left out to keep the snapshot under its limits and budget (Task 1b). */
   decorationsTruncated: z.boolean(),
   history: HistoryMeta,
   activity: Activity,

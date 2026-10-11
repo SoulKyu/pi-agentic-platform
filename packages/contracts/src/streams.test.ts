@@ -83,6 +83,7 @@ const snapshot = {
     { level: "warning", text: "An extension failed during session_start." },
     { level: "info", text: "saved", source: "extension" },
   ],
+  hiddenDialogs: 0,
   decorationsTruncated: false,
   history: { hasMore: true, oldestEntryId: "e1", turnsBefore: 3 },
   activity: { compacting: false, retry: { attempt: 1, maxAttempts: 3 } },

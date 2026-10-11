@@ -9,6 +9,7 @@ export type SessionsRpc = Pick<
   | "sessions.abort"
   | "sessions.clearQueue"
   | "sessions.respondDialog"
+  | "sessions.panelInput"
   | "sessions.history"
   | "sessions.toolOutput"
   | "sessions.branches"
@@ -27,6 +28,10 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
     "sessions.clearQueue": async ({ sessionId }, ctx) => service.clearQueue(sessionId, ctx.caller),
     "sessions.respondDialog": async (params, ctx) => {
       service.respondDialog(params, ctx.caller);
+      return { ok: true as const };
+    },
+    "sessions.panelInput": async (params, ctx) => {
+      service.panelInput(params, ctx.caller);
       return { ok: true as const };
     },
     "sessions.history": async (params, ctx) => service.history(params, ctx.caller),

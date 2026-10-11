@@ -2,7 +2,14 @@ import { z } from "zod";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { Cursor } from "./frames.ts";
 import { MAX_ALWAYS_RULES } from "./policy.ts";
-import { DialogResponse, ForkPoint, HistoryMeta, SessionSummary, TranscriptRow } from "./streams.ts";
+import {
+  DialogResponse,
+  ForkPoint,
+  HistoryMeta,
+  SessionSummary,
+  TranscriptRow,
+  UI_LIMITS,
+} from "./streams.ts";
 
 const SessionId = z.string().min(1).max(128);
 const Ok = z.object({ ok: z.literal(true) });
@@ -98,6 +105,19 @@ export const methods = catalogue({
     result: Ok,
     // `bad_request`: an answer the dialog does not offer; the dialog stays open (M2R61).
     errors: ["not_found", "worker_failed", "bad_request"],
+  }),
+  "sessions.panelInput": defineMethod({
+    name: "sessions.panelInput",
+    permission: "sessions:operate",
+    // Reasoned exception to R65b (owner R2-10): keystrokes are never retried, and a receipt per key would cost an fsync per key.
+    idempotent: true,
+    params: z.object({
+      sessionId: SessionId,
+      panelId: z.string().min(1).max(128),
+      data: z.string().min(1).max(UI_LIMITS.panelInput),
+    }),
+    result: Ok,
+    errors: ["not_found"],
   }),
   "sessions.history": defineMethod({
     name: "sessions.history",

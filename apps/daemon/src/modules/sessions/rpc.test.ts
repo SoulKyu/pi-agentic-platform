@@ -14,6 +14,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     abort: vi.fn(async () => {}),
     clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
     respondDialog: vi.fn(),
+    panelInput: vi.fn(),
     prepareSubscription: vi.fn(async () => {}),
     history: vi.fn(async () => ({ rows: [], hasMore: false, oldestEntryId: null, turnsBefore: 0 })),
     toolOutput: vi.fn(async () => ({ text: "out", truncated: false, isError: false, args: null })),
@@ -136,6 +137,24 @@ describe("sessions rpc", () => {
     prepared();
     await pending;
     expect(order).toEqual(["prepared", "opened"]);
+  });
+
+  it("hands a panel keystroke to the service and lets not_found through", async () => {
+    const { rpc, service, ctx } = setup();
+    expect(await rpc["sessions.panelInput"]({ sessionId: "p1", panelId: "pn1", data: "\r" }, ctx)).toEqual({
+      ok: true,
+    });
+    expect(service.panelInput).toHaveBeenCalledWith({ sessionId: "p1", panelId: "pn1", data: "\r" }, caller);
+    const refused = setup({
+      panelInput: vi.fn(() => {
+        throw new PapError("not_found");
+      }),
+    });
+    expect(
+      await codeOf(
+        refused.rpc["sessions.panelInput"]({ sessionId: "p1", panelId: "x", data: "k" }, refused.ctx),
+      ),
+    ).toBe("not_found");
   });
 
   it("lets a typed error through for the dispatcher to map", async () => {

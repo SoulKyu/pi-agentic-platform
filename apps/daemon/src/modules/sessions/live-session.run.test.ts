@@ -344,13 +344,7 @@ describe("streamed text", () => {
         ? ((event.event.assistantMessageEvent as { delta?: string } | undefined)?.delta ?? event.event.type)
         : event.kind,
     );
-    expect(order.slice(order.indexOf("x"))).toEqual([
-      "x",
-      "extension_ui_request",
-      "y",
-      "agent_settled",
-      "status",
-    ]);
+    expect(order.slice(order.indexOf("x"))).toEqual(["x", "notice", "y", "agent_settled", "status"]);
   });
 
   it("publishes the merged text once and ends the partial reply with the message", async () => {

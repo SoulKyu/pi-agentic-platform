@@ -11,6 +11,7 @@ import {
 } from "@pap/contracts";
 
 import { failRunningTools, reducePi, withNotice } from "./reduce-pi.ts";
+import { clearedUi, EMPTY_UI, reduceUi, uiOfSnapshot, type UiState } from "./reduce-ui.ts";
 import { toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
 
 export interface ToolView {
@@ -20,7 +21,7 @@ export interface ToolView {
   readonly preview: string;
 }
 
-export interface SessionView {
+export interface SessionView extends UiState {
   readonly status: SessionStatus;
   readonly messages: readonly MessageView[];
   /** The reply being written, by content index; null between replies. */
@@ -28,6 +29,8 @@ export interface SessionView {
   /** Tool calls by id, latest wins, oldest first; at most 200. */
   readonly tools: ReadonlyMap<string, ToolView>;
   readonly dialogs: readonly Dialog[];
+  /** Open dialogs the snapshot could not carry: something is pending that this view cannot show. */
+  readonly hiddenDialogs: number;
   /** What waits in Pi's steering and follow-up queue; empty while the session is cold. */
   readonly queue: QueueView;
   readonly notices: ReadonlyArray<{
@@ -52,8 +55,10 @@ export const EMPTY_VIEW: SessionView = {
   partial: null,
   tools: new Map(),
   dialogs: [],
+  hiddenDialogs: 0,
   queue: EMPTY_QUEUE,
   notices: [],
+  ...EMPTY_UI,
   history: NO_HISTORY,
   leafId: null,
   loaded: false,
@@ -97,8 +102,11 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
           [],
         ),
         dialogs: event.dialogs,
+        hiddenDialogs: event.hiddenDialogs,
         partial: event.partial,
         queue: event.queue,
+        notices: event.notices,
+        ...uiOfSnapshot(event, view),
         history: event.history,
         leafId: event.leafId,
         loaded: true,
@@ -106,8 +114,9 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       };
     case "status": {
       // A half-written reply of a session that stopped will never be finished.
+      const base = event.status === "cold" ? clearedUi(view) : view;
       const next = {
-        ...view,
+        ...base,
         status: event.status,
         partial: event.status === "cold" ? null : view.partial,
         queue: event.status === "cold" ? EMPTY_QUEUE : view.queue,
@@ -138,6 +147,6 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
             messages: appendMessage(view.messages, toMessageView(event.row.message, event.row.entryId)),
           };
     default:
-      return view;
+      return reduceUi(view, event) ?? view;
   }
 }
