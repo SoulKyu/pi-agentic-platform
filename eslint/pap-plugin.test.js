@@ -138,6 +138,35 @@ describe("test helpers stay out of production daemon code", () => {
     );
   });
 
+  // The fake worker lives in the kernel, so the modules' tests (Task 22) can build on it without the build shipping it.
+  describe("the kernel's fake worker", () => {
+    const fake = "../../kernel/testing/fake-worker.ts";
+    const boundariesAndImports = async (code, filePath) =>
+      (await ruleIdsOf(code, filePath)).filter(
+        (id) => id?.startsWith("boundaries/") || id === "no-restricted-imports",
+      );
+
+    it("can be imported by a module's test, and by a test of the kernel", async () => {
+      const code = `import { createFakeWorker } from "${fake}";\nexport const worker = createFakeWorker();\n`;
+      expect(await boundariesAndImports(code, "apps/daemon/src/modules/auth/session.test.ts")).toEqual([]);
+      const fromKernel = code.replace(fake, "../testing/fake-worker.ts");
+      expect(
+        await boundariesAndImports(fromKernel, "apps/daemon/src/kernel/supervisor/other.test.ts"),
+      ).toEqual([]);
+    });
+
+    it("cannot be imported by production code of a module or of the kernel", async () => {
+      const code = `import { createFakeWorker } from "${fake}";\nexport const worker = createFakeWorker();\n`;
+      expect(await boundariesAndImports(code, "apps/daemon/src/modules/auth/session.ts")).toEqual([
+        "no-restricted-imports",
+      ]);
+      const fromKernel = code.replace(fake, "../testing/fake-worker.ts");
+      expect(await boundariesAndImports(fromKernel, "apps/daemon/src/kernel/supervisor/other.ts")).toEqual([
+        "no-restricted-imports",
+      ]);
+    });
+  });
+
   it("lets production code import ordinary siblings", async () => {
     const code = 'import "./service.ts";\nimport "../b/index.ts";\nimport "./contesting/x.ts";\n';
     expect(await ruleIdsOf(code, "apps/daemon/src/modules/auth/service.ts")).not.toContain(
