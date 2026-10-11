@@ -6,6 +6,7 @@ import { DetailsSection } from "./DetailsSection.tsx";
 import { ReadingSection } from "./ReadingSection.tsx";
 import { ThemeSection } from "./ThemeSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
+import { parseAccount } from "./model.ts";
 
 /** `local` says nothing: the account document knows of no saved copy. */
 const STATUS_LINES: Record<AccountStatus, MessageKey | null> = {
@@ -33,11 +34,14 @@ export function AppearancePanel() {
         label: t("settings.appearance.undo"),
         altText: t("settings.appearance.undoAlt"),
         run: () => {
-          // The reset kept the custom themes, so Undo has none to restore; themes edited since stay.
-          setAccount({
-            ...previous.account,
-            customThemes: useAppearanceStore.getState().account.customThemes,
-          });
+          // The reset kept the custom themes, so Undo has none to restore; themes edited since stay. A side that
+          // names a theme deleted since falls back to its preset, so the document the server refuses is never built.
+          setAccount(
+            parseAccount({
+              ...previous.account,
+              customThemes: useAppearanceStore.getState().account.customThemes,
+            }),
+          );
           setDevice(previous.device);
         },
       },
