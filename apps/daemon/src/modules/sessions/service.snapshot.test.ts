@@ -127,6 +127,23 @@ describe("snapshot", () => {
     expect(rows.at(-1)).toBe('[{"type":"text","text":"answer 99"}]');
   });
 
+  it("carries the file's entry ids and what lies above the 75 rows shown", async () => {
+    bed = build();
+    await bed.service.create(bed.work, owner);
+    bed.writePiFile(
+      0,
+      Array.from({ length: 100 }, (_, i) => [`question ${i}`, `answer ${i}`] as const),
+    );
+    bed.emit(0, { type: "turn_start" });
+    const snapshot = (await bed.snapshot("p1")) as {
+      rows: Array<{ entryId: string | null }>;
+      history: unknown;
+    };
+    expect(snapshot.rows.at(0)?.entryId).toBe("a62");
+    expect(snapshot.rows.at(-1)?.entryId).toBe("a99");
+    expect(snapshot.history).toEqual({ hasMore: true, oldestEntryId: "a62", turnsBefore: 63 });
+  });
+
   it("shows a row too big for a snapshot as a placeholder, and the rows around it as they are (R109)", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);

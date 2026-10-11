@@ -75,7 +75,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       testProviderScript: config.testProviderScript,
     },
     newId,
-    loadTranscript: loadTranscriptReader,
+    loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
     spawn: (cwd) => {
       const scope = deps.scopes.next();

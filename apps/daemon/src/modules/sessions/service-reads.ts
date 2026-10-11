@@ -1,4 +1,12 @@
-import { type Caller, PapError, type SessionStatus, type SessionStreamEvent } from "@pap/contracts";
+import {
+  type Caller,
+  type HistoryMeta,
+  NO_HISTORY,
+  PapError,
+  type SessionStatus,
+  type SessionStreamEvent,
+  type TranscriptRow,
+} from "@pap/contracts";
 import { isPiSessionFile } from "./pi-files.ts";
 import { fitSnapshot, SNAPSHOT_ROWS } from "./snapshot.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
@@ -54,13 +62,23 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const reported = session?.piFile();
       const file = row.piPath ?? (reported && isPiSessionFile(deps.agentDir, reported) ? reported : null);
       // A run in progress is not in the file yet: the file is read as it was when the run began, then the run's
-      // own messages follow (R38).
-      const fromFile = file ? transcript.tail(file, SNAPSHOT_ROWS, run?.baselineBytes) : [];
+      // own messages follow (R38). No leaf is tracked yet: the page follows the file's last entry.
+      const page = file
+        ? transcript.page(file, { upToBytes: run?.baselineBytes, limit: SNAPSHOT_ROWS })
+        : null;
+      const rows: TranscriptRow[] = [
+        ...(page?.rows ?? []),
+        ...(run?.messages ?? []).map((message) => ({ entryId: null, message })),
+      ];
+      const history: HistoryMeta = page
+        ? { hasMore: page.hasMore, oldestEntryId: page.oldestEntryId, turnsBefore: page.turnsBefore }
+        : NO_HISTORY;
       return fitSnapshot({
         status: deps.statusOf(sessionId),
-        rows: [...fromFile, ...(run?.messages ?? [])].map((message) => ({ entryId: null, message })),
+        rows,
         dialogs: session?.dialogs() ?? [],
         partial: session?.partial() ?? null,
+        history,
       });
     },
   };
