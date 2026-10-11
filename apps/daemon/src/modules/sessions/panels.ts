@@ -13,6 +13,8 @@ export interface PanelsDeps {
   cancel(id: string): void;
   say(notice: Notice): void;
   readonly throttle: KeyedThrottle;
+  /** A render for a panel that was closed was ignored; the caller decides how often to say so. */
+  stale(id: string): void;
 }
 
 export interface Panels {
@@ -24,6 +26,8 @@ export interface Panels {
   clear(): string[];
 }
 
+/** How many closed ids are remembered, oldest dropped: enough for the records still in flight at a close. */
+const REMEMBERED_CLOSED = 64;
 const keyOf = (id: string): string => `panel:${id}`;
 
 /**
@@ -32,9 +36,14 @@ const keyOf = (id: string): string => `panel:${id}`;
  */
 export function createPanels(deps: PanelsDeps): Panels {
   const open = new Map<string, Panel>();
+  const closed = new Set<string>();
   const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   return {
     render(id, lines) {
+      if (closed.has(id)) {
+        deps.stale(id);
+        return;
+      }
       if (!open.has(id) && open.size >= UI_LIMITS.panels) {
         deps.cancel(id);
         if (limiter.check("too_many").allowed) deps.say({ level: "warning", text: TOO_MANY });
@@ -49,6 +58,8 @@ export function createPanels(deps: PanelsDeps): Panels {
     },
     close(id) {
       if (!open.delete(id)) return;
+      closed.add(id);
+      if (closed.size > REMEMBERED_CLOSED) closed.delete(closed.values().next().value as string);
       deps.throttle.flush(keyOf(id));
       deps.publish({ kind: "panel_closed", id });
     },
@@ -58,6 +69,7 @@ export function createPanels(deps: PanelsDeps): Panels {
       const ids = [...open.keys()];
       for (const id of ids) deps.throttle.drop(keyOf(id));
       open.clear();
+      closed.clear();
       return ids;
     },
   };

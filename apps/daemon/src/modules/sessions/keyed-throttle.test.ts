@@ -25,6 +25,19 @@ describe("keyed throttle", () => {
     expect(out).toEqual([status("git", "0"), status("git", "59")]);
   });
 
+  it("publishes a sustained 60 Hz stream about 20 times a second, the latest value last", async () => {
+    const { clock, out, throttle } = setup();
+    for (let i = 0; i < 60; i++) {
+      throttle.push("status:git", status("git", String(i)));
+      await clock.advance(1000 / 60);
+    }
+    await clock.advance(1);
+    expect(out).toHaveLength(21);
+    expect(out.at(-1)).toEqual(status("git", "59"));
+    await clock.advance(50);
+    expect(clock.pending()).toBe(0);
+  });
+
   it("keeps one window per key", async () => {
     const { clock, out, throttle } = setup();
     throttle.push("status:a", status("a", "1"));

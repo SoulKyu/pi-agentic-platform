@@ -75,12 +75,26 @@ describe("extension notice limiter", () => {
     expect(out[10]).toMatchObject({ text: "9990 more notices from extensions were not shown." });
   });
 
-  it("stop() leaves no timer and no summary", async () => {
+  it("stop() says what it held back, once, and leaves no timer", async () => {
     const { clock, out, limiter, say } = setup();
     for (let i = 0; i < 12; i++) say(i);
     limiter.stop();
+    expect(out).toHaveLength(11);
+    expect(out[10]).toEqual({
+      kind: "notice",
+      level: "warning",
+      text: "2 more notices from extensions were not shown.",
+    });
     expect(clock.pending()).toBe(0);
+    limiter.stop();
     await clock.advance(20_000);
+    expect(out).toHaveLength(11);
+  });
+
+  it("stop() says nothing when nothing was held back", () => {
+    const { out, limiter, say } = setup();
+    for (let i = 0; i < 10; i++) say(i);
+    limiter.stop();
     expect(out).toHaveLength(10);
   });
 });

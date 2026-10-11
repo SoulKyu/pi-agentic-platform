@@ -94,10 +94,6 @@ export function reducePi(view: SessionView, event: { type: string } & Record<str
           }
         : next;
     }
-    case "extension_ui_request":
-      return event.method === "notify" && typeof event.message === "string"
-        ? withNotice(next, String(event.notifyType ?? "info"), event.message)
-        : next;
     default:
       return next.partial === view.partial ? view : next;
   }

@@ -1,5 +1,5 @@
 import { type Notice, type SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { createKeyedThrottle } from "./keyed-throttle.ts";
 import { createPanels } from "./panels.ts";
@@ -11,14 +11,16 @@ function setup() {
   const said: Notice[] = [];
   const publish = (event: SessionStreamEvent) => out.push(event);
   const throttle = createKeyedThrottle({ clock, publish });
+  const onStale = vi.fn();
   const panels = createPanels({
     clock,
     publish,
     cancel: (id) => cancelled.push(id),
     say: (notice) => said.push(notice),
     throttle,
+    stale: onStale,
   });
-  return { clock, out, cancelled, said, panels, throttle };
+  return { clock, out, cancelled, said, panels, throttle, onStale };
 }
 
 describe("panels", () => {
@@ -79,6 +81,24 @@ describe("panels", () => {
     expect(cancelled).toEqual([]);
     expect(said).toEqual([]);
     expect(panels.has("p5")).toBe(true);
+  });
+
+  it("ignores a render for a closed id, and remembers only the last 64 closed ids", () => {
+    const { out, panels, onStale } = setup();
+    panels.render("p1", ["a"]);
+    panels.close("p1");
+    panels.render("p1", ["late"]);
+    expect(panels.has("p1")).toBe(false);
+    expect(out.filter((event) => event.kind === "panel")).toHaveLength(1);
+    expect(onStale).toHaveBeenCalledTimes(1);
+    for (let i = 2; i <= 65; i++) {
+      panels.render(`p${i}`, ["a"]);
+      panels.close(`p${i}`);
+    }
+    panels.render("p2", ["again"]);
+    expect(panels.has("p2")).toBe(false);
+    panels.render("p1", ["forgotten"]);
+    expect(panels.has("p1")).toBe(true);
   });
 
   it("cuts lines to the limits", () => {

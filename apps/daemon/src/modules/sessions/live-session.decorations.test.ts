@@ -43,6 +43,18 @@ describe("decorations in the live session", () => {
     ]);
   });
 
+  it("publishes a sustained 60 Hz status about 20 times a second, the latest last", async () => {
+    const { worker, clock, published } = setup();
+    for (let i = 0; i < 60; i++) {
+      worker.emit(setStatus(`s${i}`));
+      await clock.advance(1000 / 60);
+    }
+    await clock.advance(1);
+    const bars = published.filter((event) => event.kind === "status_bar");
+    expect(bars).toHaveLength(21);
+    expect(bars.at(-1)).toEqual({ kind: "status_bar", key: "git", text: "s59" });
+  });
+
   it("publishes widgets, titles and editor text, the last one at once", async () => {
     const { worker, clock, published, live } = setup();
     worker.emit(request("setWidget", { widgetKey: "todo", widgetLines: ["- a"] }));
@@ -166,7 +178,7 @@ describe("panels in the live session", () => {
     expect(published.filter((event) => event.kind === "notice")).toHaveLength(1);
   });
 
-  it("ignores a close and a late render of a panel it never opened, without a log line", async () => {
+  it("ignores a close of a panel it never opened, without a log line", async () => {
     const { logger, lines } = captureLogger();
     const { worker, clock, published, live } = setup({ logger });
     for (let i = 0; i < 100; i++) worker.emit({ type: "custom_close", id: `ghost${i}` });
@@ -174,6 +186,19 @@ describe("panels in the live session", () => {
     expect(published.map((event) => event.kind)).toEqual(["status"]);
     expect(live.panels()).toEqual([]);
     expect(lines.filter((line) => String(line.msg).includes("panel"))).toEqual([]);
+  });
+
+  it("does not reopen a closed panel on a late render, and logs it once in 10 s", async () => {
+    const { logger, lines } = captureLogger();
+    const { worker, clock, published, live } = setup({ logger });
+    worker.emit(render("p1", ["a"]));
+    worker.emit({ type: "custom_close", id: "p1" });
+    for (let i = 0; i < 20; i++) worker.emit(render("p1", ["late"]));
+    await clock.advance(0);
+    expect(live.panels()).toEqual([]);
+    expect(() => live.panelInput("p1", "x")).toThrow(new PapError("not_found"));
+    expect(published.filter((event) => event.kind === "panel")).toHaveLength(1);
+    expect(lines.filter((line) => line.msg === "panel_record_ignored")).toHaveLength(1);
   });
 
   it("sends the input of an open panel to the worker, and refuses an unknown one", async () => {

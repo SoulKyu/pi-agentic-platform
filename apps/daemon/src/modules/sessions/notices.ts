@@ -30,7 +30,7 @@ export interface NoticeLimiterDeps {
 
 export interface NoticeLimiter {
   add(notice: Notice): void;
-  /** Ends the window without a summary and leaves no timer. */
+  /** Ends the window, says what it held back (once), and leaves no timer. */
   stop(): void;
 }
 
@@ -72,8 +72,10 @@ export function createNoticeLimiter(deps: NoticeLimiterDeps): NoticeLimiter {
     stop() {
       if (timer !== null) deps.clock.clearTimeout(timer);
       timer = null;
+      const count = held;
       shown = 0;
       held = 0;
+      if (count > 0) deps.publish({ kind: "notice", level: "warning", text: summary(count) });
     },
   };
 }

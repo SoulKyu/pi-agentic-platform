@@ -57,6 +57,8 @@ export function boundedRow(row: unknown): { row: unknown; size: number } {
 export const PARTIAL_BYTES = 256 * 1024;
 /** Statuses, notices and widgets together, in JSON bytes: extension text cannot crowd out what a run waits on. */
 export const DECORATION_BYTES = 256 * 1024;
+/** Open panels together, in JSON bytes: a panel of 200 long lines cannot starve the partial reply and the rows. */
+export const PANEL_BYTES = 256 * 1024;
 
 export interface SnapshotInput {
   readonly status: SessionStatus;
@@ -88,7 +90,7 @@ export function fitRow(row: TranscriptRow): { row: TranscriptRow; size: number }
  * sections (status, queue, title, history, activity, leaf, name) are always in. Then the open dialogs, approvals
  * first (the policy holds a tool call on them), kept in their own order; then decorations under `DECORATION_BYTES`
  * (statuses, the newest notices, widgets oldest first; `decorationsTruncated` says when one was left out); then open
- * panels, the partial reply if it fits whole, and the rows, newest first and contiguous, each over `ROW_BYTES` as a
+ * panels (under `PANEL_BYTES` together), the partial reply if it fits whole, and the rows, newest first and contiguous, each over `ROW_BYTES` as a
  * placeholder (R109).
  */
 export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): SnapshotEvent {
@@ -149,9 +151,14 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
   snapshot.widgets = decorate(input.widgets ?? [], UI_LIMITS.widgets);
   const panels = input.panels ?? [];
   if (panels.length > UI_LIMITS.panels) snapshot.decorationsTruncated = true;
+  let panelBytes = 0;
   for (const panel of panels.slice(0, UI_LIMITS.panels)) {
     const size = sizeOf(panel) + 1;
-    if (used + size > budget) continue;
+    if (panelBytes + size > PANEL_BYTES || used + size > budget) {
+      snapshot.decorationsTruncated = true;
+      continue;
+    }
+    panelBytes += size;
     used += size;
     snapshot.panels.push(panel);
   }

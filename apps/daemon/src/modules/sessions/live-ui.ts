@@ -96,6 +96,10 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
     cancel: (id) => void handle.send({ type: "custom_cancel", id }),
     say: (notice) => deps.publish({ kind: "notice", ...notice }),
     throttle,
+    stale: () => {
+      const said = limiter.check("panel_record_ignored");
+      if (said.allowed) logger.warn("panel_record_ignored", { suppressed: said.suppressed });
+    },
   });
 
   // Every dialog is answered; only the telling is spaced out, so an extension that asks in a loop cannot flood the
@@ -192,6 +196,7 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
         error: clip(record.error),
       });
       const during = SAFE_EVENT_NAME.test(record.event) ? ` during ${record.event}` : "";
+      // pap's own sentence about an extension, not text the extension wrote: no `source` (only an extension's own text has one).
       extensionNotices.add({ level: "error", text: `An extension failed${during}.` });
     },
     answer(dialogId, response) {
