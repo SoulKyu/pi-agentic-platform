@@ -157,6 +157,22 @@ function mergeThemes(
 }
 
 /**
+ * True when this device edited its theme list and the merged list is over the 16-theme cap before `parseAccount`
+ * cuts it. The server's themes come first and local edits replace them in place, so everything cut is this device's.
+ */
+export function mergeCutsThemes(
+  server: AccountAppearance,
+  local: AccountAppearance,
+  dirty: ReadonlySet<string>,
+  base: AccountAppearance,
+): boolean {
+  return (
+    dirty.has("customThemes") &&
+    mergeThemes(server.customThemes, local.customThemes, base.customThemes).themes.length > MAX_CUSTOM_THEMES
+  );
+}
+
+/**
  * The server copy with the local values of the fields changed on this device laid over it, re-read field by field.
  * The theme library is merged by id against `base` (the last server copy), the other fields are replaced.
  */
