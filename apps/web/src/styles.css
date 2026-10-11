@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@import "@pap/ui/tokens.css";
+@import "./fonts.css";
+@source "../../../packages/ui/src";
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-bg font-sans text-ui text-fg;
+}

@@ -1,13 +1,17 @@
 {
-  "ignore": ["spikes/**", "docs/**"],
+  "ignore": ["spikes/**"],
   "ignoreExportsUsedInFile": true,
   "workspaces": {
-    ".": { "entry": ["scripts/*.ts", "e2e/**/*.ts", "eslint/*.js"] },
+    ".": {
+      "entry": ["scripts/*.ts", "e2e/**/*.ts", "eslint/*.js"],
+      "ignoreBinaries": ["playwright"]
+    },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts"],
       "ignoreBinaries": ["pgrep", "pkill", "rg", "fd"]
     },
-    "apps/daemon": { "ignoreBinaries": ["openssl"] },
-    "apps/web": { "entry": ["src/runtime/index.ts"] }
+    "apps/daemon": {
+      "ignoreBinaries": ["openssl"]
+    }
   }
 }

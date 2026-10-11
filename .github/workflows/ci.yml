@@ -19,9 +19,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
-      # knip reports exports that later tasks wire up; it becomes blocking in Task 26 (ruling R5).
       - run: pnpm knip
-        continue-on-error: true
   unit:
     needs: checks
     runs-on: ubuntu-24.04

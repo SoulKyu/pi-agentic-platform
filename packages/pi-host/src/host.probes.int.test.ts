@@ -1,7 +1,7 @@
 import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type TestContext } from "vitest";
 import { createHostBed, isConfirm, toolScript, toolText } from "./testing/host-bed.ts";
 
 // grep and find are "read" tools: the policy lets them through without asking. A model-chosen pattern or path that
@@ -11,6 +11,20 @@ import { createHostBed, isConfirm, toolScript, toolText } from "./testing/host-b
 const hasBinary = (name: string) => spawnSync(name, ["--version"], { stdio: "ignore" }).status === 0;
 const HAS_RG = hasBinary("rg");
 const HAS_FD = hasBinary("fd");
+
+// A skipped security probe passes silently, so in CI a missing binary fails the probes that need it (R92).
+// On a developer machine the probe is skipped, and says why.
+function needs(binary: string, present: boolean) {
+  return (context: TestContext) => {
+    if (present) return;
+    if (process.env["CI"]) {
+      throw new Error(
+        `${binary} is not installed: the CI setup action must provide it, a probe may not be skipped`,
+      );
+    }
+    context.skip(`${binary} is not installed`);
+  };
+}
 
 let bed: ReturnType<typeof createHostBed>;
 let evil: string;
@@ -40,18 +54,22 @@ async function probe(tool: string, args: Record<string, string>): Promise<string
 }
 
 describe("the probe script", () => {
-  it.skipIf(!HAS_RG)("runs when ripgrep is given --pre directly", () => {
+  it("runs when ripgrep is given --pre directly", (context) => {
+    needs("rg", HAS_RG)(context);
     execFileSync("rg", ["--pre", evil, "needle", bed.cwd], { stdio: "ignore" });
     expect(existsSync(marker)).toBe(true);
   });
 
-  it.skipIf(!HAS_FD)("runs when fd is given -x directly", () => {
+  it("runs when fd is given -x directly", (context) => {
+    needs("fd", HAS_FD)(context);
     execFileSync("fd", ["--type", "f", "--exec", evil, ";", ".", bed.cwd], { stdio: "ignore" });
     expect(existsSync(marker)).toBe(true);
   });
 });
 
-describe.skipIf(!HAS_RG)("grep reads option-shaped arguments as data", () => {
+describe("grep reads option-shaped arguments as data", () => {
+  beforeEach(needs("rg", HAS_RG));
+
   it.each([
     ["a pattern that is --pre", () => ({ pattern: `--pre=${evil}`, path: "." })],
     [
@@ -75,7 +93,9 @@ describe.skipIf(!HAS_RG)("grep reads option-shaped arguments as data", () => {
   });
 });
 
-describe.skipIf(!HAS_FD)("find reads option-shaped arguments as data", () => {
+describe("find reads option-shaped arguments as data", () => {
+  beforeEach(needs("fd", HAS_FD));
+
   it.each([
     ["a pattern that is -x", () => ({ pattern: `-x${evil}`, path: "." })],
     ["a pattern that is --exec", () => ({ pattern: `--exec=${evil}`, path: "." })],

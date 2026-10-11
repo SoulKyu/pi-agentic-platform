@@ -7,7 +7,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - `pnpm install` · `pnpm lint` · `pnpm format:check` · `pnpm typecheck` · `pnpm knip`
 - `pnpm test:unit` · `pnpm test:int` (forks real pi-host workers with a scripted provider)
 - `pnpm build` · `pnpm e2e` (Chromium + WebKit) · `pnpm budgets`
-- Dev: `pnpm --filter @pap/daemon dev` (port and PAP_HOME derived from the worktree path) + `pnpm --filter @pap/web dev`
+- Dev: `pnpm --filter @pap/daemon dev` (prints its URL; port and PAP_HOME derived from the worktree path), then `PAP_DEV_DAEMON=http://127.0.0.1:<that port> pnpm --filter @pap/web dev` and open http://localhost:5173
 
 ## Rules (CI-enforced)
 

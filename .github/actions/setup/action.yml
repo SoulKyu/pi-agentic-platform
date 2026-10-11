@@ -8,5 +8,19 @@ runs:
       with:
         node-version: 24.14.x
         cache: pnpm
+    # The integration tests run the grep and find tools against injection probes (ripgrep, fd) and look for
+    # leftover processes (pgrep). A missing binary fails them in CI instead of skipping them (ruling R92).
+    - name: Install ripgrep, fd and procps
+      shell: bash
+      run: |
+        missing=()
+        command -v rg >/dev/null || missing+=(ripgrep)
+        command -v fd >/dev/null || command -v fdfind >/dev/null || missing+=(fd-find)
+        command -v pgrep >/dev/null || missing+=(procps)
+        if [ "${#missing[@]}" -gt 0 ]; then
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends "${missing[@]}"
+        fi
+        command -v fd >/dev/null || sudo ln -s "$(command -v fdfind)" /usr/local/bin/fd
     - run: pnpm install --frozen-lockfile
       shell: bash
