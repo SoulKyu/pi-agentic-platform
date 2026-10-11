@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pap — roadmap de développement</title>
+<style>
+@font-face { font-family: Manrope; font-weight: 200 800; font-display: swap;
+  src: url(fonts/manrope-latin-wght-normal.woff2) format("woff2"), url(../../apps/web/src/fonts/manrope-latin-wght-normal.woff2) format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 100 800; font-display: swap;
+  src: url(fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2"), url(../../apps/web/src/fonts/jetbrains-mono-latin-wght-normal.woff2) format("woff2"); }
+
+:root {
+  --bg:#110F18; --bg-side:#14111D; --surface:#1A1724; --surface-2:#241F33;
+  --border:#2D2840; --border-strong:#3D3657;
+  --text:#F2EFFA; --text-muted:#9C95B5; --text-dim:#6B6485; --grid:#FFFFFF06;
+  --agent:#A78BFA; --agent-fill:#A78BFA; --agent-ink:#110F18;
+  --you:#FB923C; --you-fill:#FB923C; --you-ink:#1B0D00; --you-tint:#FB923C1A; --you-line:#FB923C66; --you-text:#FED7AA;
+  --attn:#EC4899; --attn-tint:#EC48991A; --attn-line:#EC48998C;
+  --ok:#34D399; --err:#F87171;
+  --radius-sm:2px; --radius-md:3px;
+  --sans: Manrope, ui-sans-serif, system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg:#FAF9F6; --bg-side:#F3F1EC; --surface:#FFFFFF; --surface-2:#EEEBE4;
+    --border:#E2DED5; --border-strong:#CFC9BC;
+    --text:#1C1917; --text-muted:#6B645A; --text-dim:#A8A196; --grid:#1C19170A;
+    --agent:#6D28D9; --agent-fill:#7C3AED; --agent-ink:#FFFFFF;
+    --you:#C2410C; --you-fill:#FB923C; --you-ink:#1B0D00; --you-tint:#FFF4EA; --you-line:#FDBA74; --you-text:#431407;
+    --attn:#BE185D; --attn-tint:#FDF1F6; --attn-line:#F9A8D4;
+    --ok:#047857; --err:#DC2626;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background-color: var(--bg); color: var(--text); font: 400 14px/1.55 var(--sans);
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
+.label { font: 600 10.5px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); }
+.mono, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+h1 { font-size: 28px; font-weight: 800; letter-spacing: -.02em; margin: 6px 0 4px; }
+h2 { font-size: 20px; font-weight: 800; margin: 48px 0 6px; }
+h3 { font-size: 16px; font-weight: 700; margin: 0; }
+p { margin: 0 0 8px; }
+.muted { color: var(--text-muted); }
+
+/* header */
+header.top { display: flex; align-items: center; gap: 14px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.brand { display: flex; align-items: center; gap: 10px; }
+.brand .name { font-weight: 800; font-size: 26px; letter-spacing: -.02em; }
+.brand .tag { display: block; }
+header.top .meta { margin-left: auto; text-align: right; }
+
+/* summary strip */
+.strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 24px; }
+.stat { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 14px 16px; }
+.stat .big { font: 700 26px/1.1 var(--mono); font-variant-numeric: tabular-nums; margin-top: 4px; }
+.stat.ok .big { color: var(--ok); } .stat.agent .big { color: var(--agent); } .stat.attn .big { color: var(--attn); }
+
+/* legend */
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+
+/* waves graph */
+.waves { display: grid; grid-template-columns: repeat(8, minmax(120px, 1fr)); gap: 10px; margin-top: 12px; overflow-x: auto; }
+.wave { display: flex; flex-direction: column; gap: 8px; }
+.wave > .label { padding: 2px 2px 4px; border-bottom: 1px solid var(--border); }
+.node { display: block; text-decoration: none; color: inherit; background: var(--surface); border: 1px solid var(--border-strong); border-left: 3px solid var(--text-dim); border-radius: var(--radius-md); padding: 8px 10px; }
+.node:hover { background: var(--surface-2); }
+.node .id { font: 700 12px var(--mono); }
+.node .t { font-size: 12.5px; font-weight: 600; line-height: 1.3; margin-top: 2px; }
+.node .dep { font: 500 10px var(--mono); color: var(--text-dim); margin-top: 4px; }
+.node.done { border-left-color: var(--ok); } .node.done .id { color: var(--ok); }
+.node.plan { border-left-color: var(--agent); } .node.plan .id { color: var(--agent); }
+
+/* milestone cards */
+.cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-top: 12px; }
+.card { background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); padding: 16px 18px; scroll-margin-top: 16px; }
+.card header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.card .id { font: 700 13px var(--mono); color: var(--text-muted); }
+.badge { margin-left: auto; font: 600 10px/1 var(--mono); text-transform: uppercase; letter-spacing: .1em; padding: 5px 7px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); color: var(--text-muted); white-space: nowrap; }
+.badge.ok { color: var(--ok); border-color: currentColor; }
+.badge.agent { color: var(--agent-ink); background: var(--agent-fill); border-color: var(--agent-fill); }
+.card.done { border-color: color-mix(in srgb, var(--ok) 45%, var(--border-strong)); }
+.card.plan { border-color: color-mix(in srgb, var(--agent) 55%, var(--border-strong)); }
+dl { display: grid; grid-template-columns: 112px 1fr; gap: 6px 12px; margin: 10px 0 0; font-size: 13px; }
+dt { font: 600 10px/1.9 var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); }
+dd { margin: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip { font: 500 11px/1 var(--mono); padding: 4px 6px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--border); }
+.est { font: 600 12px var(--mono); font-variant-numeric: tabular-nums; }
+
+/* decisions (you / attention) */
+.decisions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+.decision { background: var(--attn-tint); border: 1px solid var(--attn-line); border-radius: var(--radius-md); padding: 14px 16px; }
+.decision .label { color: var(--attn); }
+.decision h3 { margin: 4px 0 6px; font-size: 14.5px; }
+
+/* coverage table */
+table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-md); overflow: hidden; }
+th { text-align: left; font: 600 10px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); background: var(--bg-side); }
+th, td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+
+footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+@media (max-width: 860px) {
+  .strip, .cards, .decisions { grid-template-columns: 1fr; }
+  .waves { grid-template-columns: repeat(8, 150px); }
+  dl { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="brand">
+    <svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="6" y="9" width="20" height="3.2" fill="var(--text)"/>
+      <rect x="10.4" y="12" width="3.2" height="13" fill="var(--agent)"/>
+      <path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--you)"/>
+    </svg>
+    <div><span class="name">pap</span><span class="label tag">pi agentic platform</span></div>
+  </div>
+  <div class="meta">
+    <div class="label">Roadmap de développement</div>
+    <div class="mono muted" style="font-size:12px">mise à jour 2026-10-11 · main @ f765f2a</div>
+  </div>
+</header>
+
+<h1>De M0 à la v1</h1>
+<p class="muted">14 jalons. M0 + M1 posent les preuves techniques et le squelette ; la v1 = M2 → M13. Chaque jalon reçoit son plan détaillé (tâches, modèles, estimation) avant de démarrer, validé par toi. Les jalons sur des branches indépendantes du graphe peuvent avancer en parallèle.</p>
+
+<div class="strip">
+  <div class="stat ok"><div class="label">Terminés</div><div class="big">2</div><div class="muted">M0 spikes · M1 squelette</div></div>
+  <div class="stat agent"><div class="label">En planification</div><div class="big">2</div><div class="muted">M2 · M3, en parallèle</div></div>
+  <div class="stat"><div class="label">À venir</div><div class="big">10</div><div class="muted">M4 → M13</div></div>
+  <div class="stat attn"><div class="label">Décisions à prendre</div><div class="big">3</div><div class="muted">voir plus bas</div></div>
+</div>
+
+<div class="legend label">
+  <span><span class="dot" style="background:var(--ok)"></span>terminé</span>
+  <span><span class="dot" style="background:var(--agent)"></span>en cours (agents)</span>
+  <span><span class="dot" style="background:var(--text-dim)"></span>à venir</span>
+  <span><span class="dot" style="background:var(--attn)"></span>ta décision</span>
+  <span><span class="dot" style="background:var(--you)"></span>toi</span>
+</div>
+
+<h2>Graphe des dépendances</h2>
+<p class="muted">Lecture de gauche à droite : un jalon démarre quand ceux dont il dépend sont terminés. Une colonne = une vague ; tout ce qui est dans la même colonne peut tourner en parallèle.</p>
+<div class="waves">
+  <div class="wave"><div class="label">Vague 0</div>
+    <a class="node done" href="#m0"><div class="id">M0</div><div class="t">Spikes S1–S8</div><div class="dep">—</div></a>
+    <a class="node done" href="#m1"><div class="id">M1</div><div class="t">Walking skeleton</div><div class="dep">← M0</div></a>
+  </div>
+  <div class="wave"><div class="label">Vague 1</div>
+    <a class="node plan" href="#m2"><div class="id">M2</div><div class="t">Sessions &amp; UI d'extension</div><div class="dep">← M1</div></a>
+    <a class="node plan" href="#m3"><div class="id">M3</div><div class="t">Design system &amp; shell</div><div class="dep">← M1</div></a>
+  </div>
+  <div class="wave"><div class="label">Vague 2</div>
+    <a class="node" href="#m4"><div class="id">M4</div><div class="t">Sidebar, projets, recherche</div><div class="dep">← M2 M3</div></a>
+    <a class="node" href="#m5"><div class="id">M5</div><div class="t">Policy &amp; contrôle d'accès</div><div class="dep">← M2</div></a>
+  </div>
+  <div class="wave"><div class="label">Vague 3</div>
+    <a class="node" href="#m6"><div class="id">M6</div><div class="t">Install, update, release</div><div class="dep">← M5</div></a>
+    <a class="node" href="#m7"><div class="id">M7</div><div class="t">Modèles, outils, extensions</div><div class="dep">← M3 M5</div></a>
+    <a class="node" href="#m8"><div class="id">M8</div><div class="t">Fichiers, git, terminal</div><div class="dep">← M3 M5</div></a>
+    <a class="node" href="#m10"><div class="id">M10</div><div class="t">Outbox, automation, FinOps</div><div class="dep">← M5</div></a>
+  </div>
+  <div class="wave"><div class="label">Vague 4</div>
+    <a class="node" href="#m9"><div class="id">M9</div><div class="t">Worktrees &amp; lanes</div><div class="dep">← M8</div></a>
+  </div>
+  <div class="wave"><div class="label">Vague 5</div>
+    <a class="node" href="#m11"><div class="id">M11</div><div class="t">Agents long terme, mémoire</div><div class="dep">← M7 M9 M10</div></a>
+  </div>
+  <div class="wave"><div class="label">Vague 6</div>
+    <a class="node" href="#m12"><div class="id">M12</div><div class="t">Notifications &amp; PWA</div><div class="dep">← M3 M10 M11</div></a>
+  </div>
+  <div class="wave"><div class="label">Vague 7</div>
+    <a class="node" href="#m13"><div class="id">M13</div><div class="t">Durcissement v1 &amp; bascule</div><div class="dep">← M2 … M12</div></a>
+  </div>
+</div>
+
+<h2>Décisions qui t'attendent</h2>
+<div class="decisions">
+  <div class="decision"><div class="label">M2 · M3 · maintenant</div><h3>Valider les deux plans</h3><p>Tâches, tableau de modèles (Sonnet par défaut, Opus pour la sécurité et la review finale) et estimation, présentés dès que les planners ont fini.</p></div>
+  <div class="decision"><div class="label">M3 · R120</div><h3>Contrastes de DESIGN.md</h3><p>Anneau de focus Day #FB923C à 2,15:1 et bordures ≈ 1,3–1,7:1, sous le minimum WCAG 3:1 des éléments non textuels. Amender les valeurs ou accepter.</p></div>
+  <div class="decision"><div class="label">M9 · R52b</div><h3>Sandbox podman rootless</h3><p>Le spike S8 impose <span class="mono">--security-opt systempaths=unconfined</span> ; compromis à trancher avant la sandbox des lanes.</p></div>
+</div>
+
+<h2>Les jalons</h2>
+<div class="cards">
+
+<article class="card done" id="m0"><header><span class="id">M0</span><h3>Spikes techniques</h3><span class="badge ok">terminé</span></header>
+<p>Huit expériences courtes et jetables pour lever les inconnues avant de concevoir.</p>
+<dl>
+<dt>Résultats</dt><dd><div class="chips"><span class="chip">S1 worker Pi SDK · GO</span><span class="chip">S2 provider scripté · GO</span><span class="chip">S3 FTS5 · GO</span><span class="chip">S4 RAM 156 MB/worker</span><span class="chip">S5 diff → CodeMirror</span><span class="chip">S6 AI Elements · GO</span><span class="chip">S7 trust store · GO</span><span class="chip">S8 podman · fallback</span></div></dd>
+<dt>Durée</dt><dd class="est">incluse dans M0 + M1 ≈ 20 h</dd>
+</dl></article>
+
+<article class="card done" id="m1"><header><span class="id">M1</span><h3>Walking skeleton</h3><span class="badge ok">terminé · mergé</span></header>
+<p>Un fil complet de bout en bout, volontairement minimal : setup, login mot de passe + passkey, session Pi dans un worker isolé, streaming, approbation des outils par <span class="mono">pap-policy</span>.</p>
+<dl>
+<dt>Livré</dt><dd>27 tâches, 1301 tests unitaires, 191 d'intégration, smoke du build en CI, 130 décisions archivées.</dd>
+<dt>Sortie</dt><dd>Parcours setup → prompt → approbation → résultat validé sur les artefacts buildés.</dd>
+<dt>Durée</dt><dd class="est">M0 + M1 ≈ 20 h autonomes</dd>
+</dl></article>
+
+<article class="card plan" id="m2"><header><span class="id">M2</span><h3>Sessions et UI d'extension</h3><span class="badge agent">plan en cours</span></header>
+<p>Toute l'expérience de session Pi sur le modèle worker.</p>
+<dl>
+<dt>Domaines</dt><dd>Steer / follow-up (file 128 msg / 32 MiB), <span class="mono">navigate_tree</span>, fork / clone, compaction, export HTML, auto-nommage, pagination, sorties d'outils à la demande, deltas regroupés 50 ms, brouillons, minimap ; tous les dialogues d'extension (select, input, editor, réponses session / toujours), barre de statut et boutons <span class="mono">command:</span>, widgets, panneaux <span class="mono">custom()</span>. Libération des workers inactifs (30 min), scopes systemd.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M1</span></dd>
+<dt>Sortie</dt><dd>Comportements D01 et D18 de pi-web reproduits en tests d'intégration ; une extension ou un worker qui plante ne fait jamais tomber le daemon.</dd>
+<dt>Estimation</dt><dd class="est">25–35 h (provisoire)</dd>
+</dl></article>
+
+<article class="card plan" id="m3"><header><span class="id">M3</span><h3>Design system et shell</h3><span class="badge agent">plan en cours</span></header>
+<p>DESIGN.md en code, à la place des tokens provisoires de M1 ; tout le visuel personnalisable dans les Settings.</p>
+<dl>
+<dt>Domaines</dt><dd>Tokens Night / Day·Papier / Contraste élevé, primitives Radix, composants IA, réglages d'apparence, raccourcis JSON + éditeur, Cmd+K, <span class="mono">/dev/ui</span> ; ergonomie mobile (clavier, bottom sheets, cibles 44 px, nav basse) ; shell A×C·2 (rail agents, onglets cockpit, panneaux, tiroir ⌘B, Inbox) ; logo ; en + fr. Parcours Playwright Chromium + WebKit.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M1</span> <span class="chip">DESIGN.md</span> <span class="chip">S6</span></dd>
+<dt>Sortie</dt><dd>Lint design propre partout ; shell fonctionnel desktop et mobile sur Chromium et WebKit ; budget du bundle recalé sur des mesures réelles.</dd>
+<dt>Estimation</dt><dd class="est">30–40 h (provisoire)</dd>
+</dl></article>
+
+<article class="card" id="m4"><header><span class="id">M4</span><h3>Sidebar, projets et recherche</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Groupes de projets et ordre, épingles, archive + annulation, scanner de sessions (sessions du <span class="mono">pi</span> CLI incluses), recherche FTS5 dans Cmd+K, settle / snooze.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M2</span> <span class="chip">M3</span> <span class="chip">S3</span></dd>
+<dt>Sortie</dt><dd>Une session créée par le CLI apparaît en quelques secondes ; recherche sur 10 000 sessions dans son budget.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m5"><header><span class="id">M5</span><h3>Pipeline de policy et contrôle d'accès</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd><span class="mono">pap-policy</span> étapes 00–07 (denylist de commandes, sorties réseau, MCP lecture seule, matrice d'approbation once / session / always / deny, run guard, masquage des secrets, contenu non fiable et taint dynamique), modes d'approbation, journal d'audit, tokens API, appareils connectés, <span class="mono">pap user add</span> / reset passkey.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M2</span></dd>
+<dt>Sortie</dt><dd>Tests de sécurité de la spec C §8.1 au vert ; chaque étape écrit une ligne d'audit.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m6"><header><span class="id">M6</span><h3>Installation, mise à jour, release</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Archive autonome + <span class="mono">curl | sh</span>, image OCI avec bubblewrap, canal npm, cosign / SBOM / SLSA, <span class="mono">pap service install</span>, <span class="mono">pap doctor</span>, backup / restore, mise à jour avec rollback automatique, canaux stable / next.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M5</span> <span class="chip">S8</span></dd>
+<dt>Sortie</dt><dd>Installation en une étape sur chaque canal ; une mise à jour ratée revient en arrière seule.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m7"><header><span class="id">M7</span><h3>Modèles, outils et extensions Pi</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Sélecteur de modèle, niveaux de raisonnement, <span class="mono">enabledModels</span>, éditeur <span class="mono">models.json</span>, OAuth / clés API, prix et quotas ; presets d'outils, codemode, tool-search ; client MCP et Settings › MCP ; skills et plugins.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M3</span> <span class="chip">M5</span> <span class="chip">S7</span></dd>
+<dt>Sortie</dt><dd>Checklist de parité pi-web D07–D10 au vert.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m8"><header><span class="id">M8</span><h3>Fichiers, git et terminal</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Explorateur, viewer, uploads, mentions <span class="mono">@</span> ; statut git et diffs ; terminal node-pty + xterm (multi-clients, scrollback serveur) ; édition dans CodeMirror 6.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M3</span> <span class="chip">M5</span></dd>
+<dt>Sortie</dt><dd>Tests de traversée <span class="mono">/files</span> au vert ; un terminal survit à une reconnexion du navigateur.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m9"><header><span class="id">M9</span><h3>Worktrees et lanes</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Lanes Lots A+B portés de pi-web (project.yaml, statut dérivé, commit / push / PR, checkpoints, diff par tour, restore / undo, review), création de worktree en deux phases verrouillée ; Lanes+ (comparaison jusqu'à 4 lanes, autres forges, issue → lane).</dd>
+<dt>Dépend de</dt><dd><span class="chip">M8</span> <span class="chip">S5</span></dd>
+<dt>Sortie</dt><dd>Parcours lane → commit → PR au vert sur Chromium et WebKit.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m10"><header><span class="id">M10</span><h3>Outbox, automation et FinOps</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Outbox SQLite, triggers (RRULE, webhooks + HMAC, Alertmanager / Grafana, flux), dry-run, heures calmes ; registre des runs, coût équivalent API, budgets journaliers, <span class="mono">/metrics</span> Prometheus, OTLP optionnel ; reprise auto après quota.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M5</span></dd>
+<dt>Sortie</dt><dd>Parcours webhook → run → inbox au vert ; un crash en cours de tâche ne rejoue aucun effet lié au processus.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m11"><header><span class="id">M11</span><h3>Agents long terme, subagents et mémoire</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Registre d'agents, thread de confiance, rail, inbox, quarantaine ; opérations plateforme (notify / approve / delegate / remind) ; coffre de secrets par agent ; profils sandbox bwrap ; subagents Pi ; mémoire pi-mem0.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M7</span> <span class="chip">M9</span> <span class="chip">M10</span></dd>
+<dt>Sortie</dt><dd>Aucun appelant ne peut lancer une opération interdite à son type de session ; un agent qui exige la sandbox refuse de démarrer sans bwrap.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m12"><header><span class="id">M12</span><h3>Notifications et PWA</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Web Push auto-hébergé (VAPID), push « besoin d'une réponse », push budget, digest des heures calmes ; PWA installable, service worker.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M3</span> <span class="chip">M10</span> <span class="chip">M11</span></dd>
+<dt>Sortie</dt><dd>Reconnexion / reprise et parcours mobile au vert ; push reçu en HTTPS sur iOS 16.4+.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m13"><header><span class="id">M13</span><h3>Durcissement v1 et bascule</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>~15 parcours e2e de la spec C §8.1, compat Pi nocturne au vert, budgets finaux (bundle, payload d'ouverture, RAM worker inactif), notes <span class="mono">docs/agents</span>, revue des ADR, bascule spec D, gel de pi-web.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M2 … M12</span></dd>
+<dt>Sortie</dt><dd>Critères de succès 1–4 de la spec A vérifiés ; tag v1.0.0 sur le canal stable.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+</div>
+
+<h2>Couverture des domaines pi-web</h2>
+<table>
+<thead><tr><th>Domaine</th><th>Jalon</th></tr></thead>
+<tbody>
+<tr><td>D01 Sessions &amp; chat</td><td class="mono">M1 (squelette) · M2</td></tr>
+<tr><td>D02 Sidebar &amp; projets</td><td class="mono">M4</td></tr>
+<tr><td>D03 Worktrees &amp; lanes · D22 backport des lanes</td><td class="mono">M9</td></tr>
+<tr><td>D04 Fichiers · D05 Git · D06 Terminal</td><td class="mono">M8</td></tr>
+<tr><td>D07 Modèles · D09 MCP · D10 Skills &amp; plugins</td><td class="mono">M7</td></tr>
+<tr><td>D08 Outils &amp; presets</td><td class="mono">M5 (modes d'approbation) · M7 (presets)</td></tr>
+<tr><td>D11 Subagents · D12 Agents long terme · D14 Mémoire</td><td class="mono">M11</td></tr>
+<tr><td>D13 Agent ops · D16 FinOps &amp; observabilité</td><td class="mono">M10</td></tr>
+<tr><td>D15 Sécurité</td><td class="mono">M1 (policy minimale) · M5 · M11</td></tr>
+<tr><td>D17 Notifications</td><td class="mono">M12</td></tr>
+<tr><td>D18 UI d'extension</td><td class="mono">M1 (dialogues) · M2</td></tr>
+<tr><td>D19 Mobile / PWA</td><td class="mono">M3 (ergonomie) · M12</td></tr>
+<tr><td>D20 Settings &amp; design system</td><td class="mono">M3</td></tr>
+<tr><td>D21 Installation &amp; mise à jour</td><td class="mono">M6</td></tr>
+<tr><td>Lanes+ · Sessions+ · Security+</td><td class="mono">M9 · M4, M10 · M5, M10, M11</td></tr>
+<tr><td>Édition de fichiers (CodeMirror 6)</td><td class="mono">M8</td></tr>
+</tbody>
+</table>
+
+<h2>Après la v1</h2>
+<p class="muted">Équipes et OIDC, proxy de sortie par agent, auto-update complet, canaux nightly / Homebrew / apt, plannings gérés par les agents (spec A §7).</p>
+
+<footer class="label">Sources · docs/plans/roadmap.md · docs/research/decisions-log.md (38) · docs/research/m0-m1-rulings.md (R1–R130) · DESIGN.md</footer>
+</div>
+</body>
+</html>
