@@ -51,9 +51,11 @@ export interface DaemonDeps {
    * Where the one-time setup address goes. Defaults to `logger.info("setup_url")`; `pap serve` prints it whatever
    * PAP_LOG_LEVEL is, because without it nobody can create the owner (R117).
    */
+  readonly announceSetupUrl?: (fields: { readonly url: string; readonly hint: string }) => void;
   /** A worker exited: its session and the end of what it printed (at most the supervisor's 8 KiB tail). */
   readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
-  readonly announceSetupUrl?: (fields: { readonly url: string; readonly hint: string }) => void;
+  /** Tests only: replaces the boot probe of the worker scopes. */
+  readonly probeScopes?: typeof probeScopes;
 }
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -119,7 +121,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       insecureHttp: config.insecureHttp,
     });
     const env = deps.env ?? process.env;
-    const scopes = await probeScopes(config.workerScope, config.workerLimits, {
+    const scopes = await (deps.probeScopes ?? probeScopes)(config.workerScope, config.workerLimits, {
       home: config.home,
       uid: process.getuid?.() ?? -1,
       exec: execFileText,

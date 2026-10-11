@@ -273,7 +273,16 @@ describe("worker settings", () => {
     [{ PAP_WORKER_MEMORY_MAX_MB: "128" }, "PAP_WORKER_MEMORY_MAX_MB must be an integer ≥ 256"],
     [{ PAP_WORKER_TASKS_MAX: "8" }, "PAP_WORKER_TASKS_MAX must be an integer ≥ 64"],
     [{ PAP_WORKER_IDLE_MINUTES: "-1" }, "PAP_WORKER_IDLE_MINUTES must be an integer ≥ 0"],
+    [{ PAP_WORKER_IDLE_MINUTES: "35792" }, "PAP_WORKER_IDLE_MINUTES must be an integer ≤ 35791"],
   ])("refuses %j", (env, message) => {
     expect(() => loadConfig({ ...base, env })).toThrow(message);
+  });
+});
+
+describe("worker idle limit", () => {
+  it("accepts the largest delay a timer can hold", () => {
+    const config = loadConfig({ ...base, env: { PAP_WORKER_IDLE_MINUTES: "35791" } });
+    expect(config.workerIdleMs).toBe(35_791 * 60_000);
+    expect(config.workerIdleMs).toBeLessThan(2 ** 31);
   });
 });

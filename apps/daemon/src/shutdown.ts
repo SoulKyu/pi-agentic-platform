@@ -64,6 +64,32 @@ export function createShutdown(deps: ShutdownDeps): Shutdown {
   };
 }
 
+export interface ForceKillDeps {
+  /** SIGKILLs the worker process groups; returns how many. */
+  killWorkerGroups(): number;
+  /** SIGKILLs the worker scopes of this home (what Pi started in groups of its own lives there). */
+  killScopes(): void;
+  readonly logger: Logger;
+}
+
+/** The kill of a given-up stop: the groups, then the scopes; one failing never keeps the other from running. */
+export function forceKill(deps: ForceKillDeps): () => number {
+  return () => {
+    let killed = 0;
+    try {
+      killed = deps.killWorkerGroups();
+    } catch (error) {
+      deps.logger.error("force_kill_groups_failed", { err: error });
+    }
+    try {
+      deps.killScopes();
+    } catch (error) {
+      deps.logger.error("force_kill_scopes_failed", { err: error });
+    }
+    return killed;
+  };
+}
+
 export interface SignalSource {
   on(signal: NodeJS.Signals, listener: () => void): unknown;
 }

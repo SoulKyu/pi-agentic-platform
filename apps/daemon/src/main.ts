@@ -11,7 +11,7 @@ import { MigrationError } from "./kernel/db/migrate.ts";
 import { HomeError, InstanceLockError } from "./kernel/home.ts";
 import { createLogger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
-import { createShutdown, watchSignals, type Shutdown } from "./shutdown.ts";
+import { createShutdown, forceKill, watchSignals, type Shutdown } from "./shutdown.ts";
 
 const USAGE =
   "usage: pap serve [--dev] [--host <address>] [--port <port>] [--tls-cert <file> --tls-key <file>]\n";
@@ -64,11 +64,11 @@ async function serve(config: Config): Promise<void> {
     });
     shutdown = createShutdown({
       stop: () => daemon.stop(),
-      killWorkers: () => {
-        const killed = killAllWorkerGroups();
-        daemon.killScopes();
-        return killed;
-      },
+      killWorkers: forceKill({
+        killWorkerGroups: killAllWorkerGroups,
+        killScopes: () => daemon.killScopes(),
+        logger,
+      }),
       exit: (code) => process.exit(code),
       clock,
       logger,

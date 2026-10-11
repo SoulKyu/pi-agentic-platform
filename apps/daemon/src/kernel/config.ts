@@ -9,6 +9,8 @@ import { defaultMemoryMaxMb, type ScopeLimits } from "./supervisor/scope.ts";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 7777;
 const DEFAULT_MIN_FREE_MEM_MB = 512;
+// Timers hold at most 2^31 - 1 ms; a longer idle delay would fire at once.
+const MAX_IDLE_MINUTES = Math.floor((2 ** 31 - 1) / 60_000);
 export const VITE_DEV_ORIGIN = "http://localhost:5173";
 // Measured in docs/spikes/s4.md: idle worker ≈156 MB RSS / ≈103 MB PSS; ceil(157 × 1.5).
 export const WORKER_BUDGET_MB = 236;
@@ -145,7 +147,7 @@ export function loadConfig(input: ConfigInput): Config {
       : DEFAULT_MIN_FREE_MEM_MB,
     workerIdleMs:
       (input.env.PAP_WORKER_IDLE_MINUTES
-        ? parseCount(input.env.PAP_WORKER_IDLE_MINUTES, "PAP_WORKER_IDLE_MINUTES", 0)
+        ? parseCount(input.env.PAP_WORKER_IDLE_MINUTES, "PAP_WORKER_IDLE_MINUTES", 0, MAX_IDLE_MINUTES)
         : 30) * 60_000,
     workerScope: parseScope(input.env.PAP_WORKER_SCOPE),
     workerLimits: {
@@ -248,9 +250,10 @@ function parsePort(raw: string): number {
   return port;
 }
 
-function parseCount(raw: string, name: string, min: number): number {
+function parseCount(raw: string, name: string, min: number, max?: number): number {
   const value = Number(raw);
   if (!Number.isInteger(value) || value < min) throw new ConfigError(`${name} must be an integer ≥ ${min}`);
+  if (max !== undefined && value > max) throw new ConfigError(`${name} must be an integer ≤ ${max}`);
   return value;
 }
 
