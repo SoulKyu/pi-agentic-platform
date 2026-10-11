@@ -51,6 +51,7 @@ const reloadOffered = () => [...document.querySelectorAll("button")].some((b) =>
 describe("the overlay menus when the overlays chunk is gone (I3 of the final review)", () => {
   it("the account menu leaves the rail standing, says to reload, and offers the trigger again", async () => {
     const page = await renderShell("/");
+    named("Account").focus();
     await click(named("Account"));
     await vi.waitFor(() => expect(document.body.textContent).toContain(RELOAD_COPY), { timeout: 2_000 });
     await settle();
@@ -58,6 +59,7 @@ describe("the overlay menus when the overlays chunk is gone (I3 of the final rev
     expect(page.container.querySelector('[data-shell="desktop"]')).not.toBeNull();
     expect(reloadOffered()).toBe(true);
     expect(named("Account")).not.toBeNull(); // the plain trigger is back
+    expect(document.activeElement).toBe(named("Account")); // keyboard focus did not fall to the page
     await page.unmount();
   });
 

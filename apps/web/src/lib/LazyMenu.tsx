@@ -1,5 +1,5 @@
 import type { MenuProps } from "@pap/ui/overlays";
-import { useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 import { LazyBoundary, notifyLazyFailure, useRetryableLazy, type LazyFailureText } from "./lazy.tsx";
 
 // The menu stack (Radix dropdown, dialog sheet) is a chunk of its own, fetched on the first press of the trigger.
@@ -18,19 +18,33 @@ interface LazyMenuProps extends Omit<MenuProps, "trigger" | "defaultOpen"> {
 export function LazyMenu({ trigger, text, ...menu }: LazyMenuProps): ReactElement {
   const { Lazy, attempt, retry } = useRetryableLazy(loadMenu);
   const [asked, setAsked] = useState(false);
+  const box = useRef<HTMLSpanElement>(null);
+  const refocus = useRef(false);
+  // The trigger remounts when the menu fails to load; the person who pressed it keeps their place.
+  useEffect(() => {
+    if (asked || !refocus.current) return;
+    refocus.current = false;
+    box.current?.querySelector<HTMLElement>("button, a[href]")?.focus();
+  });
   const plain = trigger(() => setAsked(true));
-  if (!asked) return plain;
   return (
-    <LazyBoundary
-      resetKey={attempt}
-      fallback={plain}
-      onError={(error) => {
-        setAsked(false);
-        retry();
-        notifyLazyFailure(error, text);
-      }}
-    >
-      <Lazy {...menu} defaultOpen trigger={plain} />
-    </LazyBoundary>
+    <span ref={box} className="contents">
+      {asked ? (
+        <LazyBoundary
+          resetKey={attempt}
+          fallback={plain}
+          onError={(error) => {
+            refocus.current = true;
+            setAsked(false);
+            retry();
+            notifyLazyFailure(error, text);
+          }}
+        >
+          <Lazy {...menu} defaultOpen trigger={plain} />
+        </LazyBoundary>
+      ) : (
+        plain
+      )}
+    </span>
   );
 }
