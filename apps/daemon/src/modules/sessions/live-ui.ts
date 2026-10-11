@@ -86,6 +86,15 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
     said(`approval_${reason}`, reason, "approval", APPROVAL_CANCEL_NOTICE);
   }
 
+  /** Closes the approval card open under `id`, if any, and answers it closed. Returns whether there was one. */
+  function withdrawOpenApproval(id: string, reason: CancelReason): boolean {
+    if (dialogs.peek(id)?.method !== "approval") return false;
+    dialogs.take(id);
+    deps.publish({ kind: "dialog_closed", id });
+    refuseApproval(id, reason);
+    return true;
+  }
+
   return {
     onUiRequest(record) {
       const verdict = dialogs.offer(record);
@@ -101,17 +110,15 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
     onApprovalRequest(record) {
       // A second question under the id of an open approval never swaps the text of the card the person is reading:
       // the open one is withdrawn and answered closed, then the new one opens.
-      if (dialogs.peek(record.id)?.method === "approval") {
-        dialogs.take(record.id);
-        deps.publish({ kind: "dialog_closed", id: record.id });
-        refuseApproval(record.id, "collision");
-      }
+      withdrawOpenApproval(record.id, "collision");
       const verdict = dialogs.offerApproval(record);
       if (verdict.kind === "opened") deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
       else if (verdict.kind === "cancel") refuseApproval(record.id, verdict.reason);
     },
     onApprovalInvalid(record) {
-      refuseApproval(record.id, record.reason);
+      // The id is the policy's waiter too: a card left open under it could be answered a second time, after the
+      // waiter was told the question was closed. An extension's dialog of that id is not the policy's and stays.
+      if (!withdrawOpenApproval(record.id, record.reason)) refuseApproval(record.id, record.reason);
     },
     onUiClosed(id) {
       if (dialogs.take(id)) deps.publish({ kind: "dialog_closed", id });

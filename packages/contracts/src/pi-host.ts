@@ -68,7 +68,7 @@ const AutoNameCommand = z.object({ type: z.literal("auto_name"), id: z.string() 
 const CustomInputRecord = z.object({ type: z.literal("custom_input"), id: Id, data: z.string().max(4096) });
 const CustomCancelRecord = z.object({ type: z.literal("custom_cancel"), id: Id });
 /**
- * `cancelled`: the daemon could not show the question (limits, malformed). pap-policy treats it as a closed
+ * `cancelled`: the daemon could not show the question (limits, malformed, an id already in use). pap-policy treats it as a closed
  * question (fail closed, audit "dialog closed"), never as the user's refusal (M2-RT-22).
  */
 const ApprovalResponseRecord = z.object({

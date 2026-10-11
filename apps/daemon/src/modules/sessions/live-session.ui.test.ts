@@ -2,6 +2,7 @@ import { PapError } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { startLiveSession } from "./live-session.ts";
 import { fitSnapshot } from "./snapshot.ts";
+import { captureLogger } from "./testing/helpers.ts";
 import { confirm, createLiveBed } from "./testing/live-bed.ts";
 
 const setup = createLiveBed(startLiveSession);
@@ -81,6 +82,14 @@ describe("answering an approval", () => {
     ]);
   });
 
+  it("lets a dismissed card refuse even when the card does not offer deny: the person can always say no", async () => {
+    const { live, worker, clock } = setup();
+    worker.emit(ask("a1", KEY, "bash: ls", { answers: ["once", "session"] }));
+    await clock.advance(0);
+    expect(live.answer("a1", { cancelled: true })?.answer).toBe("deny");
+    expect(responses(worker)).toEqual([{ type: "approval_response", id: "a1", answer: "deny" }]);
+  });
+
   it("refuses a confirm or a refusal the card does not offer, and leaves the card open", async () => {
     const { live, worker, clock } = setup();
     worker.emit(ask("a1", KEY, "bash: ls", { answers: ["deny", "always"] }));
@@ -134,6 +143,44 @@ describe("an approval the daemon cannot show", () => {
     expect(live.dialogs()).toEqual([]);
     expect(published.filter((event) => event.kind === "dialog_open")).toEqual([]);
     expect(notices(published)).toEqual([NOTICE]);
+  });
+
+  it("withdraws an open approval of the same id, so no dead card is left to answer twice", async () => {
+    const { live, worker, clock, published } = setup();
+    worker.emit(ask("a1", KEY));
+    worker.emitRaw(ask("a1", KEY, "bash: ls", { answers: [] }));
+    await clock.advance(0);
+    expect(live.dialogs()).toEqual([]);
+    expect(published.filter((event) => event.kind === "dialog_closed")).toEqual([
+      { kind: "dialog_closed", id: "a1" },
+    ]);
+    expect(responses(worker)).toEqual([cancelled("a1")]);
+    expect(() => live.answer("a1", { answer: "once" })).toThrow(new PapError("not_found"));
+    expect(responses(worker)).toEqual([cancelled("a1")]);
+  });
+
+  it("keeps an open extension dialog of the same id (probe P2)", async () => {
+    const { live, worker, clock, published } = setup();
+    worker.emit(confirm);
+    worker.emitRaw(ask(confirm.id, KEY, "bash: ls", { answers: [] }));
+    await clock.advance(0);
+    expect(live.dialogs().map((dialog) => dialog.method)).toEqual(["confirm"]);
+    expect(responses(worker)).toEqual([cancelled(confirm.id)]);
+    expect(published.filter((event) => event.kind === "dialog_closed")).toEqual([]);
+  });
+
+  it("logs the cancellation once with a stable code and fixed fields only", async () => {
+    const { logger, lines } = captureLogger();
+    const { worker, clock } = setup({ logger });
+    worker.emitRaw(ask("a1", KEY, "secret text", { answers: [] }));
+    worker.emitRaw(ask("a2", KEY, "secret text", { answers: [] }));
+    await clock.advance(0);
+    const logged = lines.filter(
+      (line) => line.msg === "dialog_cancelled" || line.event === "dialog_cancelled",
+    );
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatchObject({ reason: "malformed", method: "approval", suppressed: 0 });
+    expect(JSON.stringify(lines)).not.toContain("secret text");
   });
 
   it("is dropped when it has no usable id, and nothing is sent", async () => {
