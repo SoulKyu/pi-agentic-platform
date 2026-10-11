@@ -14,7 +14,8 @@ export interface CheckboxProps {
 export function Checkbox({ label, checked, onChange, disabled }: CheckboxProps) {
   const id = useId();
   return (
-    <div
+    <label
+      htmlFor={id}
       data-slot="checkbox"
       className="flex items-center gap-s2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
     >
@@ -29,9 +30,7 @@ export function Checkbox({ label, checked, onChange, disabled }: CheckboxProps) 
           <Icon icon={IconCheck} size={14} />
         </Radix.Indicator>
       </Radix.Root>
-      <label htmlFor={id} className="text-ui text-fg">
-        {label}
-      </label>
-    </div>
+      <span className="text-ui text-fg">{label}</span>
+    </label>
   );
 }

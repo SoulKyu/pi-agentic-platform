@@ -20,6 +20,14 @@ const components = Object.entries(ui)
   )
   .map(([name]) => name);
 
+// An ancestor stands in for its control only when pressing it really presses the control: a label, or the
+// Slider root, where Radix takes the pointer. A plain wrapper with the classes would satisfy the probe and enlarge nothing.
+const ancestorsThatTakeThePress = (el: Element): Element[] =>
+  [el.parentElement, el.parentElement?.parentElement].filter(
+    (node): node is HTMLElement =>
+      node !== null && node !== undefined && node.matches("label, [data-slot=slider-control]"),
+  );
+
 const INTERACTIVE =
   'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
 const PROBED_CONTROLS = 68;
@@ -100,8 +108,8 @@ describe("/dev/ui gallery", () => {
     const bare = probed
       .filter(
         (el) =>
-          ![el, el.parentElement, el.parentElement?.parentElement].some(
-            (node) => node && isCoarseTarget(node.getAttribute("class") ?? ""),
+          ![el, ...ancestorsThatTakeThePress(el)].some((node) =>
+            isCoarseTarget(node.getAttribute("class") ?? ""),
           ),
       )
       .map(

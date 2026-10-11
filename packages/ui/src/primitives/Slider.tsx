@@ -23,6 +23,7 @@ export function Slider({ label, value, min, max, step, onChange, valueText }: Sl
         <span className="font-mono text-ui tabular-nums text-muted">{valueText(value)}</span>
       </div>
       <Radix.Root
+        data-slot="slider-control"
         value={[value]}
         min={min}
         max={max}

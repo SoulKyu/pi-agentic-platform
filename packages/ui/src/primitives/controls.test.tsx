@@ -43,6 +43,16 @@ describe("form controls", () => {
     await page.unmount();
   });
 
+  it("Checkbox: the whole row is one label, so its 44 px area is the click target (N4)", async () => {
+    const onChange = vi.fn();
+    const page = await mount(<Checkbox label="Seen" checked={false} onChange={onChange} />);
+    const row = page.container.querySelector('[data-slot="checkbox"]') as HTMLElement;
+    expect(row.tagName).toBe("LABEL");
+    await click(row.querySelector("span") as HTMLElement); // the text
+    expect(onChange).toHaveBeenCalledWith(true);
+    await page.unmount();
+  });
+
   it("Checkbox reports the new state", async () => {
     const onChange = vi.fn();
     const page = await mount(<Checkbox label="Seen" checked onChange={onChange} />);
