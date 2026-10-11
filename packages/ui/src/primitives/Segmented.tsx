@@ -2,7 +2,7 @@ import { ToggleGroup } from "radix-ui";
 import type { Option } from "./Select.tsx";
 
 const ITEM_CLASSES =
-  "h-control border-b-2 border-transparent px-s2 label-hud text-muted transition-colors duration-fast focus-ring can-hover:hover:text-fg state-on:border-agent state-on:text-fg pointer-coarse:min-h-11";
+  "h-control border-b-2 border-transparent px-s2 label-hud text-muted transition-colors duration-fast focus-ring can-hover:hover:text-fg state-on:border-agent state-on:text-fg pointer-coarse:min-h-11 pointer-coarse:min-w-11";
 
 export interface SegmentedProps<V extends string> {
   readonly label: string;

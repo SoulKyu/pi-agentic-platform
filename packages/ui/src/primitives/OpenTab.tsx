@@ -49,7 +49,7 @@ export function OpenTab({
           event.preventDefault();
           onClose();
         }}
-        className="flex min-w-0 items-center gap-s1 focus-ring pointer-coarse:min-h-11"
+        className="flex min-w-0 items-center gap-s1 focus-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
       >
         {statusTone ? (
           <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_TONES[statusTone])} />

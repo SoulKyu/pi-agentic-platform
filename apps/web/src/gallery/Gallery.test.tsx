@@ -23,7 +23,13 @@ const components = Object.entries(ui)
 const INTERACTIVE =
   'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
 const PROBED_CONTROLS = 68;
-const COARSE_TARGET = /(?:^|\s)pointer-coarse:(?:size-11|min-h-11|h-11)(?:\s|$)/;
+// Both dimensions: `size-11`, or a minimum height together with a minimum width (`pointer-coarse:min-w-11`, or
+// `w-full` for a control that fills its row) (m2 of the final review).
+const hasClass = (classes: string, name: string) => classes.split(/\s+/).includes(name);
+const isCoarseTarget = (classes: string) =>
+  hasClass(classes, "pointer-coarse:size-11") ||
+  ((hasClass(classes, "pointer-coarse:min-w-11") || hasClass(classes, "w-full")) &&
+    (hasClass(classes, "pointer-coarse:min-h-11") || hasClass(classes, "pointer-coarse:h-11")));
 
 describe("/dev/ui gallery", () => {
   it("shows every component @pap/ui exports", async () => {
@@ -95,7 +101,7 @@ describe("/dev/ui gallery", () => {
       .filter(
         (el) =>
           ![el, el.parentElement, el.parentElement?.parentElement].some(
-            (node) => node && COARSE_TARGET.test(node.getAttribute("class") ?? ""),
+            (node) => node && isCoarseTarget(node.getAttribute("class") ?? ""),
           ),
       )
       .map(

@@ -14,7 +14,10 @@ export interface CheckboxProps {
 export function Checkbox({ label, checked, onChange, disabled }: CheckboxProps) {
   const id = useId();
   return (
-    <div data-slot="checkbox" className="flex items-center gap-s2 pointer-coarse:min-h-11">
+    <div
+      data-slot="checkbox"
+      className="flex items-center gap-s2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+    >
       <Radix.Root
         id={id}
         checked={checked}
