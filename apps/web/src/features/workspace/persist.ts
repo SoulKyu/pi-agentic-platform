@@ -1,4 +1,4 @@
-import { MAX_ID } from "./item-path.ts";
+import { isValidId } from "./item-path.ts";
 import {
   clampRatio,
   EMPTY_WORKSPACE,
@@ -27,12 +27,7 @@ function parseItem(value: unknown, devUi: boolean): ItemRef | null {
     case "dev-ui":
       return devUi ? { kind: "dev-ui" } : null;
     case "session":
-      return typeof value.id === "string" &&
-        value.id.length > 0 &&
-        value.id.length <= MAX_ID &&
-        !value.id.includes("/")
-        ? { kind: "session", id: value.id }
-        : null;
+      return typeof value.id === "string" && isValidId(value.id) ? { kind: "session", id: value.id } : null;
     case "settings":
       return SETTINGS_SECTIONS.includes(value.section as SettingsSection)
         ? { kind: "settings", section: value.section as SettingsSection }
@@ -72,13 +67,18 @@ export function parseWorkspace(raw: string | null, devUi: boolean, onRejected?: 
   if (!isRecord(data) || data.v !== 1 || !Array.isArray(data.tabs)) return reject();
   const seen = new Set<string>();
   const tabs: Tab[] = [];
+  let dropped = false;
   for (const candidate of data.tabs as unknown[]) {
     if (tabs.length >= MAX_TABS) break;
     const tab = parseTab(candidate, devUi);
-    if (!tab || seen.has(tab.key)) continue;
+    if (!tab || seen.has(tab.key)) {
+      dropped = true;
+      continue;
+    }
     seen.add(tab.key);
     tabs.push(tab);
   }
+  if (dropped) onRejected?.();
   const active =
     typeof data.active === "string" && seen.has(data.active) ? data.active : (tabs[0]?.key ?? null);
   return { tabs, active };

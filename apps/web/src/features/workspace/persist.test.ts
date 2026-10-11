@@ -89,4 +89,34 @@ describe("workspace persistence", () => {
     });
     expect(parseWorkspace(raw, true).active).toBe("dev-ui");
   });
+
+  it("drops lone-surrogate and dot ids, keeps the valid subset and reports", () => {
+    const rejected = vi.fn();
+    const raw = JSON.stringify({
+      v: 1,
+      active: "session:ok",
+      tabs: [tab("\ud800"), tab("."), tab(".."), tab("ok")],
+    });
+    const ws = parseWorkspace(raw, false, rejected);
+    expect(ws.tabs.map((t) => t.key)).toEqual(["session:ok"]);
+    expect(rejected).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not report a clean payload", () => {
+    const rejected = vi.fn();
+    parseWorkspace(serializeWorkspace({ tabs: [tab("a")], active: "session:a" } as never), false, rejected);
+    expect(rejected).not.toHaveBeenCalled();
+  });
+
+  it("treats __proto__ and constructor as plain data", () => {
+    const raw =
+      '{"v":1,"active":"__proto__","tabs":[{"key":"__proto__","item":{"kind":"__proto__"},"split":null},{"key":"constructor","item":{"kind":"constructor"},"split":null},' +
+      '{"key":"session:__proto__","item":{"kind":"session","id":"__proto__"},"split":{"item":{"kind":"constructor"},"ratio":0.5}},{"__proto__":{"kind":"home"},"key":"home"}]}';
+    const ws = parseWorkspace(raw, false);
+    expect(ws.tabs).toEqual([
+      { key: "session:__proto__", item: { kind: "session", id: "__proto__" }, split: null },
+    ]);
+    expect(ws.active).toBe("session:__proto__");
+    expect(({} as Record<string, unknown>).kind).toBeUndefined();
+  });
 });

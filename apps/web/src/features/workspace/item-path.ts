@@ -1,6 +1,16 @@
 import { SETTINGS_SECTIONS, type ItemRef, type SettingsSection } from "./model.ts";
 
 export const MAX_ID = 128;
+const LONE_SURROGATE = /\p{Surrogate}/u; // with the u flag, only unpaired surrogates match
+
+/** The one id rule for URLs and stored tabs: bounded, no "/", not a dot segment, well-formed UTF-16. */
+export const isValidId = (id: string): boolean =>
+  id.length > 0 &&
+  id.length <= MAX_ID &&
+  !id.includes("/") &&
+  id !== "." &&
+  id !== ".." &&
+  !LONE_SURROGATE.test(id);
 
 export function itemFromPath(pathname: string, devUi: boolean): ItemRef | null {
   const path = pathname.length > 1 ? pathname.replace(/\/$/, "") : pathname;
@@ -20,7 +30,7 @@ export function itemFromPath(pathname: string, devUi: boolean): ItemRef | null {
   } catch {
     return null; // malformed escape: not a session path
   }
-  return id.length > 0 && id.length <= MAX_ID && !id.includes("/") ? { kind: "session", id } : null;
+  return isValidId(id) ? { kind: "session", id } : null;
 }
 
 export function pathOfItem(item: ItemRef): string {
@@ -28,7 +38,7 @@ export function pathOfItem(item: ItemRef): string {
     case "home":
       return "/";
     case "session":
-      return `/s/${encodeURIComponent(item.id)}`;
+      return isValidId(item.id) ? `/s/${encodeURIComponent(item.id)}` : "/"; // total: never throws on a bad id
     case "settings":
       return `/settings/${item.section}`;
     case "dev-ui":
