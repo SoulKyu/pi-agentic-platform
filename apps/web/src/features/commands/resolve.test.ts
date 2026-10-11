@@ -104,6 +104,9 @@ describe("the default bindings (agreement 7, M3-RT-30)", () => {
     expect(modB({ dialogOpen: true, treeOpen: true })).toEqual(["drawer.tree.toggle"]);
     expect(modB({ dialogOpen: true })).toEqual([]);
   });
+  it("drop none of the defaults", () => {
+    expect(rules).toHaveLength(DEFAULT_KEYBINDINGS.length);
+  });
   it("only read context keys the shell provides", () => {
     const used = new Set(DEFAULT_KEYBINDINGS.flatMap((rule) => rule.when?.match(/[A-Za-z]+/g) ?? []));
     expect([...used].filter((name) => !(CONTEXT_KEYS as readonly string[]).includes(name))).toEqual([]);
@@ -123,6 +126,18 @@ describe("conflicts and reserved chords", () => {
     const { rules } = mergeWithDefaults(defaults, [{ key: "ctrl+k", command: "tab.close" }], known);
     expect(conflictsOf(rules, "other").get(rules.length - 1)).toEqual(["palette.toggle"]);
     expect(conflictsOf(rules, "mac").size).toBe(0);
+  });
+  it("lists each conflicting command once", () => {
+    const { rules } = mergeWithDefaults(
+      [],
+      [
+        { key: "mod+j", command: "palette.toggle" },
+        { key: "mod+j", command: "tab.close" },
+        { key: "mod+j", command: "tab.close", when: "a" },
+      ],
+      known,
+    );
+    expect(conflictsOf(rules, "other").get(0)).toEqual(["tab.close"]);
   });
   it("flags browser-reserved chords", () => {
     expect(isReserved(parseChord("mod+w") as never, "other")).toBe(true);
