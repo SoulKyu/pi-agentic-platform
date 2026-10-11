@@ -212,12 +212,14 @@ describe("AppShell", () => {
   });
 
   it("asks only once for an id that stays missing", async () => {
+    let calls = 0;
+    bed.handlers["sessions.list"] = () => (++calls > 5 ? new Promise(() => {}) : { sessions: [] });
     const page = await renderShell("/s/ghost");
     await act(async () => bed.fake.setState("open"));
     await settle();
     await settle();
     await settle();
-    expect(bed.called("sessions.list")).toHaveLength(2);
+    expect(calls).toBe(2); // the refresh on open, then one for the missing id
     await page.unmount();
   });
 
