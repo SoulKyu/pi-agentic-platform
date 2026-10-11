@@ -9,7 +9,8 @@ export type ClientIssue =
   | "lazy_chunk_failed"
   | "render_failed"
   | "command_failed"
-  | "workspace_invalid";
+  | "workspace_invalid"
+  | "message_missing";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.

@@ -1,3 +1,4 @@
+import "./register-settings-catalog.ts";
 import { Select, useIsPhone } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { pathOfItem, SETTINGS_SECTIONS, type SettingsSection } from "../../features/workspace/index.ts";

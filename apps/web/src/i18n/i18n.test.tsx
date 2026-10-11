@@ -3,6 +3,7 @@ import { ERROR_CODES } from "@pap/contracts";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
+import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 import {
@@ -30,6 +31,13 @@ const IDENTICAL_IN_FR = new Set([
   "settings.language.en",
   "settings.language.fr",
   "settings.appearance.fontManrope",
+  "settings.appearance.preset.night",
+  "settings.appearance.mode.label",
+  "settings.appearance.density.compact",
+  "settings.appearance.toolDetail.compact",
+  "settings.appearance.px",
+  "settings.appearance.sample.agentLabel",
+  "settings.appearance.sample.toolSummary",
   "settings.appearance.fontJetbrains",
   "shell.pane.terminal",
   "commands.palette.title",
@@ -48,16 +56,19 @@ describe("i18n", () => {
     for (const code of [...ERROR_CODES, ...CLIENT_ERROR_CODES]) {
       const key = errorKey(code);
       expect(key, code).toBe(`error.${code}`);
-      expect(en[key].length).toBeGreaterThan(0);
-      expect(fr[key].length).toBeGreaterThan(0);
+      expect((en as Record<string, string>)[key]?.length).toBeGreaterThan(0);
+      expect((fr as Record<string, string>)[key]?.length).toBeGreaterThan(0);
     }
     expect(errorKey("teapot")).toBe("error.internal");
   });
 
   it("translates every key into French", () => {
-    for (const key of Object.keys(en) as Array<keyof typeof en>) {
-      expect(fr[key], key).toBeTruthy();
-      if (!IDENTICAL_IN_FR.has(key)) expect(fr[key], key).not.toBe(en[key]);
+    const english: Record<string, string> = { ...en, ...settingsScreenEn };
+    const french: Record<string, string> = { ...fr, ...settingsScreenFr };
+    expect(Object.keys(french).sort()).toEqual(Object.keys(english).sort());
+    for (const key of Object.keys(english)) {
+      expect(french[key], key).toBeTruthy();
+      if (!IDENTICAL_IN_FR.has(key)) expect(french[key], key).not.toBe(english[key]);
     }
   });
 

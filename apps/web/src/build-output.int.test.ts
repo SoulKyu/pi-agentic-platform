@@ -131,5 +131,25 @@ describe("the built web app under the daemon's CSP", () => {
   it("keeps the Settings screen out of the initial assets", () => keepsLazyOnly([/data-settings-screen/]));
 
   it("keeps lazy-only primitives out of the initial assets", () =>
-    keepsLazyOnly([/data-radix-select-viewport/, /"data-slot":\W*segmented/]));
+    keepsLazyOnly([
+      /data-radix-select-viewport/,
+      /"data-slot":\W*segmented/,
+      /"data-slot":\W*slider/,
+      /role:\W*slider/,
+    ]));
+
+  it("keeps the appearance panel out of the initial assets (import it from its file, not from the feature index)", () =>
+    keepsLazyOnly([/data-slot":\W*appearance-status/]));
+
+  it("loads the Settings strings with the Settings chunk, not with the initial catalog", () =>
+    keepsLazyOnly([/Saved to your account/, /Enregistré dans votre compte/]));
+
+  it("keeps the markdown renderer and the highlighter out of the initial assets (owner R3-1, R3-5)", async () => {
+    const initial = [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((m) => m[1] ?? "");
+    for (const name of initial)
+      expect(await readFile(join(out, "assets", name), "utf8"), name).not.toMatch(
+        /data-markdown-body|pap-code/,
+      );
+    await keepsLazyOnly([/data-markdown-body/]);
+  });
 });
