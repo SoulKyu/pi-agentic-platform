@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { startLiveSession } from "./live-session.ts";
 import { captureLogger } from "./testing/helpers.ts";
-import { createLiveBed, piEvent } from "./testing/live-bed.ts";
+import { confirm, createLiveBed, piEvent } from "./testing/live-bed.ts";
 
 const setup = createLiveBed(startLiveSession);
 
@@ -271,5 +271,108 @@ describe("probe failures are logged", () => {
     expect(lines.filter((line) => line.msg === "worker_request_failed")).toContainEqual(
       expect.objectContaining({ command: "abort", code: "worker_failed", level: "debug" }),
     );
+  });
+});
+
+describe("streamed text", () => {
+  const text = (delta: string) =>
+    piEvent({
+      type: "message_update",
+      assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta },
+    });
+  const startReply = (worker: { emit(record: unknown): void }) => {
+    worker.emit(piEvent({ type: "agent_start" }));
+    worker.emit(piEvent({ type: "message_start", message: { role: "assistant", content: [] } }));
+    worker.emit(
+      piEvent({ type: "message_update", assistantMessageEvent: { type: "text_start", contentIndex: 0 } }),
+    );
+  };
+  const deltasOf = (published: Array<{ kind: string; event?: unknown }>) =>
+    published.flatMap((event) =>
+      event.kind === "pi"
+        ? [
+            ((event.event as { assistantMessageEvent?: { delta?: string } }).assistantMessageEvent?.delta ??
+              "") as string,
+          ]
+        : [],
+    );
+
+  it("puts only published deltas in the snapshot's partial reply", async () => {
+    const { live, worker, clock } = setup();
+    startReply(worker);
+    worker.emit(text("ab"));
+    expect(live.partial()).toEqual({ blocks: [{ type: "text", text: "" }] });
+    await clock.advance(50);
+    expect(live.partial()).toEqual({ blocks: [{ type: "text", text: "ab" }] });
+  });
+
+  it("leaves a delta too large to stream out of the partial reply as well", async () => {
+    const { live, worker, published, clock } = setup();
+    startReply(worker);
+    worker.emit(text("x".repeat(1_100_000)));
+    worker.emit(text("ok"));
+    await clock.advance(50);
+    expect(deltasOf(published).filter(Boolean)).toEqual(["ok"]);
+    expect(live.partial()).toEqual({ blocks: [{ type: "text", text: "ok" }] });
+  });
+
+  it("sends pending deltas before any other event it publishes", async () => {
+    const { worker, published, clock } = setup();
+    worker.emit(piEvent({ type: "message_start", message: { role: "assistant", content: [] } }));
+    worker.emit(text("before the question"));
+    worker.emit(confirm);
+    await clock.advance(0);
+    const kinds = published.map((event) =>
+      event.kind === "pi"
+        ? ((event.event.assistantMessageEvent as { delta?: string } | undefined)?.delta ?? event.event.type)
+        : event.kind,
+    );
+    expect(kinds.indexOf("before the question")).toBeGreaterThanOrEqual(0);
+    expect(kinds.indexOf("before the question")).toBeLessThan(kinds.indexOf("dialog_open"));
+  });
+
+  it("sends pending deltas before an extension's notification and before the end of the run", async () => {
+    const { worker, published, clock } = setup();
+    startReply(worker);
+    worker.emit(text("x"));
+    worker.emit({ type: "extension_ui_request", id: "n1", method: "notify", message: "hi" });
+    worker.emit(text("y"));
+    worker.emit(piEvent({ type: "agent_settled", aborted: false }));
+    await clock.advance(0);
+    const order = published.map((event) =>
+      event.kind === "pi"
+        ? ((event.event.assistantMessageEvent as { delta?: string } | undefined)?.delta ?? event.event.type)
+        : event.kind,
+    );
+    expect(order.slice(order.indexOf("x"))).toEqual([
+      "x",
+      "extension_ui_request",
+      "y",
+      "agent_settled",
+      "status",
+    ]);
+  });
+
+  it("publishes the merged text once and ends the partial reply with the message", async () => {
+    const { live, worker, published, clock } = setup();
+    startReply(worker);
+    for (const piece of ["a", "b", "c"]) worker.emit(text(piece));
+    worker.emit(piEvent({ type: "message_end", message: { role: "assistant", content: [] } }));
+    expect(deltasOf(published).filter(Boolean)).toEqual(["abc"]);
+    expect(live.partial()).toBeNull();
+    expect(clock.pending()).toBe(0);
+  });
+
+  it("sends what is pending when the worker exits, forgets the partial reply and arms nothing", async () => {
+    const { live, worker, published, clock } = setup();
+    startReply(worker);
+    worker.emit(text("last words"));
+    worker.crash({ code: null, signal: "SIGKILL", cause: "killed" });
+    await clock.advance(0);
+    const kinds = published.map((event) => (event.kind === "pi" ? "pi" : event.kind));
+    expect(deltasOf(published)).toContain("last words");
+    expect(kinds.lastIndexOf("pi")).toBeLessThan(kinds.lastIndexOf("status"));
+    expect(live.partial()).toBeNull();
+    expect(clock.pending()).toBe(0);
   });
 });

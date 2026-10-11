@@ -191,4 +191,32 @@ describe("sessions with the real pi-host", () => {
     expect((await broken.rpc["sessions.list"]({}, ctx)).sessions).toEqual([]);
     await broken.shutdownAll();
   });
+
+  it("streams a long reply in fewer frames than Pi's deltas, and the text comes out exactly", async () => {
+    const reply = "word ".repeat(80);
+    // The scripted provider sends this reply as 25 deltas (measured with the coalescer bypassed).
+    writeFileSync(join(root, "long.json"), JSON.stringify({ steps: [{ text: reply }] }));
+    await sessions.shutdownAll();
+    sessions = moduleWith(join(root, "long.json"));
+    const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: work }, ctx);
+    await sessions.rpc["subscribe.session"]({ sessionId }, ctx);
+    await promptAndSettle(sessionId, "talk");
+    const updates = frames
+      .map(
+        (frame) =>
+          frame.event as {
+            kind: string;
+            event?: { type: string; assistantMessageEvent?: { type?: string; delta?: string } };
+          },
+      )
+      .filter(
+        (event) =>
+          event.kind === "pi" &&
+          event.event?.type === "message_update" &&
+          event.event.assistantMessageEvent?.type === "text_delta",
+      )
+      .map((event) => event.event?.assistantMessageEvent as { delta: string });
+    expect(updates.length).toBeLessThan(25);
+    expect(updates.map((update) => update.delta).join("")).toBe(reply);
+  });
 });

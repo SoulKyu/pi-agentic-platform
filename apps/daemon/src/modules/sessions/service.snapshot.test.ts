@@ -278,3 +278,49 @@ describe("what is recorded about a session", () => {
     expect(await codeOf(bed.service.prompt({ sessionId: "p1", text: "go" }, owner))).toBeNull();
   });
 });
+
+describe("snapshot of a reply being written", () => {
+  const text = (d: string) => ({
+    type: "message_update",
+    assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: d },
+  });
+  const deltaOf = (frame: EventFrame): string =>
+    (frame.event as { event?: { assistantMessageEvent?: { delta?: string } } }).event?.assistantMessageEvent
+      ?.delta ?? "";
+
+  it("rebuilds the reply exactly from a snapshot taken between two flushes and the frames after it", async () => {
+    bed = build();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    bed.emit(0, { type: "agent_start" });
+    bed.emit(0, { type: "message_start", message: { role: "assistant", content: [] } });
+    bed.emit(0, text("a"));
+    bed.emit(0, text("b"));
+    await bed.clock.advance(50);
+    bed.emit(0, text("c"));
+    const frames = await bed.subscribe(sessionId);
+    bed.emit(0, text("d"));
+    await bed.clock.advance(50);
+    const snapshot = frames[0]?.event as { kind: string; partial: { blocks: Array<{ text: string }> } };
+    expect(snapshot.kind).toBe("snapshot");
+    expect(snapshot.partial.blocks[0]?.text).toBe("ab");
+    expect(frames.slice(1).map(deltaOf).join("")).toBe("cd");
+  });
+
+  it("rebuilds the reply exactly when a message_end flushes the pending deltas after the snapshot", async () => {
+    bed = build();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    bed.emit(0, { type: "agent_start" });
+    bed.emit(0, { type: "message_start", message: { role: "assistant", content: [] } });
+    bed.emit(0, text("a"));
+    const frames = await bed.subscribe(sessionId);
+    bed.emit(0, text("b"));
+    bed.emit(0, {
+      type: "message_end",
+      message: { role: "assistant", content: [{ type: "text", text: "ab" }] },
+    });
+    const snapshot = frames[0]?.event as { partial: { blocks: Array<{ text: string }> } | null };
+    expect(snapshot.partial?.blocks[0]?.text ?? "").toBe("");
+    expect(frames.slice(1).map(deltaOf).join("")).toBe("ab");
+    expect((await bed.snapshot(sessionId)) as { partial: unknown }).toMatchObject({ partial: null });
+  });
+});

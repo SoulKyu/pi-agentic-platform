@@ -60,6 +60,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         status: deps.statusOf(sessionId),
         rows: [...fromFile, ...(run?.messages ?? [])].map((message) => ({ entryId: null, message })),
         dialogs: session?.dialogs() ?? [],
+        partial: session?.partial() ?? null,
       });
     },
   };
