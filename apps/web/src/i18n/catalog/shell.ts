@@ -40,6 +40,19 @@ export const shellEn = {
   "shell.error.purpose": "Reload the page to continue.",
   "shell.stale.title": "pap was updated",
   "shell.stale.purpose": "This screen is from an older version. Reload the page to get the new one.",
+  "shell.tree.filter": "Filter by folder",
+  "shell.tree.empty": "No session matches.",
+  "shell.tree.none": "No session yet.",
+  "shell.tree.more": "{count} more. Use {chord} to find older sessions.",
+  "shell.tree.moreNoChord": "{count} more. Use search to find older sessions.",
+  "shell.tree.loading": "Loading sessions",
+  "shell.tree.error": "The session list did not load.",
+  "shell.tree.retry": "Retry",
+  "shell.inbox.title": "Inbox",
+  "shell.inbox.emptyTitle": "Nothing waits for you",
+  "shell.inbox.emptyPurpose":
+    "Approvals, replies and finished tasks of your agents appear here, those that need you first.",
+  "shell.lazyFailed": "This part of pap did not load. pap may have been updated: reload the page.",
 } as const;
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
@@ -86,4 +99,18 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.stale.title": "pap a été mis à jour",
   "shell.stale.purpose":
     "Cet écran vient d'une ancienne version. Rechargez la page pour obtenir la nouvelle.",
+  "shell.tree.filter": "Filtrer par dossier",
+  "shell.tree.empty": "Aucune session ne correspond.",
+  "shell.tree.none": "Aucune session pour l'instant.",
+  "shell.tree.more": "{count} de plus. Utilisez {chord} pour retrouver les plus anciennes.",
+  "shell.tree.moreNoChord": "{count} de plus. Utilisez la recherche pour retrouver les plus anciennes.",
+  "shell.tree.loading": "Chargement des sessions",
+  "shell.tree.error": "La liste des sessions ne s'est pas chargée.",
+  "shell.tree.retry": "Réessayer",
+  "shell.inbox.title": "Boîte de réception",
+  "shell.inbox.emptyTitle": "Rien ne vous attend",
+  "shell.inbox.emptyPurpose":
+    "Les approbations, réponses et tâches terminées de vos agents apparaissent ici, celles qui vous attendent d'abord.",
+  "shell.lazyFailed":
+    "Cette partie de pap ne s'est pas chargée. pap a peut-être été mis à jour : rechargez la page.",
 };

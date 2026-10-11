@@ -226,11 +226,11 @@ describe("AppShell", () => {
 
   it("listens for shortcuts only while mounted, and follows the effective bindings", async () => {
     const tree = vi.fn();
-    const off = registerCommand("drawer.tree.toggle", tree);
+    const off = registerCommand("palette.toggle", tree);
     const page = await renderShell("/");
-    await press(document.body, { key: "b", code: "KeyB", ctrlKey: true });
+    await press(document.body, { key: "k", code: "KeyK", ctrlKey: true });
     expect(tree).toHaveBeenCalledOnce();
-    useKeybindingsStore.getState().setUser([{ key: "mod+j", command: "drawer.tree.toggle" }]);
+    useKeybindingsStore.getState().setUser([{ key: "mod+j", command: "palette.toggle" }]);
     await press(document.body, { key: "j", code: "KeyJ", ctrlKey: true });
     expect(tree).toHaveBeenCalledTimes(2);
     await page.unmount();

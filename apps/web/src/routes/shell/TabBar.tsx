@@ -1,68 +1,15 @@
 import { IconButton, IconPlus, IconSplit, OpenTab } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import { useCommand } from "../../features/commands/index.ts";
-import {
-  activeTab,
-  pathOfItem,
-  useWorkspaceStore,
-  type ItemRef,
-  type Workspace,
-} from "../../features/workspace/index.ts";
+import { activeTab, pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
-import { reportClientIssue } from "../../lib/report.ts";
 import { itemTitle } from "./item-title.ts";
 import { useSessionsCache } from "./sessions-cache.ts";
+import { closeItem, go, otherItem, takeFocusAfterClose, toggleSplit } from "./tab-actions.ts";
 
 const ROVING_KEYS = ["ArrowLeft", "ArrowRight", "Home", "End"];
 
-type Navigate = ReturnType<typeof useNavigate>;
-
-const go = (navigate: Navigate, path: string) =>
-  void navigate({ to: path }).catch(() => reportClientIssue("command_failed"));
-
-function goToActive(navigate: Navigate): void {
-  const next = activeTab(useWorkspaceStore.getState().ws);
-  go(navigate, next ? pathOfItem(next.item) : "/");
-}
-
-// Set when the active tab closed: the bar then moves focus to the new active tab (or New tab), once it has rendered.
-let focusAfterClose = false;
-
-function closeItem(navigate: Navigate, key: string): void {
-  const store = useWorkspaceStore.getState();
-  const wasActive = store.ws.active === key;
-  store.close(key);
-  if (!wasActive) return;
-  focusAfterClose = true;
-  goToActive(navigate);
-}
-
 const NEW_TAB_ID = "new-tab-button";
-
-const HOME: ItemRef = { kind: "home" };
-
-/** The tab before the active one (the most recent other item), else the one after, else home; null when home is alone. */
-function otherItem(ws: Workspace): ItemRef | null {
-  const index = ws.tabs.findIndex((tab) => tab.key === ws.active);
-  const found = (ws.tabs[index - 1] ?? ws.tabs[index + 1])?.item;
-  if (found) return found;
-  return ws.tabs[index]?.item.kind === "home" ? null : HOME;
-}
-
-/** False when there is nothing to do (no active tab, or nothing to split with). */
-function toggleSplit(): boolean {
-  const store = useWorkspaceStore.getState();
-  const tab = activeTab(store.ws);
-  if (!tab) return false;
-  if (tab.split) store.unsplit(tab.key);
-  else {
-    const item = otherItem(store.ws);
-    if (!item) return false;
-    store.split(tab.key, item);
-  }
-  return true;
-}
 
 /** The open items as a tablist with roving focus, then New tab and the split toggle. */
 export function TabBar() {
@@ -74,22 +21,8 @@ export function TabBar() {
   const active = activeTab(ws);
   const other = otherItem(ws);
 
-  const step = (by: 1 | -1) => () => {
-    useWorkspaceStore.getState().cycle(by);
-    goToActive(navigate);
-  };
-  useCommand("tab.next", step(1));
-  useCommand("tab.prev", step(-1));
-  useCommand("tab.close", () => {
-    const key = useWorkspaceStore.getState().ws.active;
-    if (key === null) return false;
-    closeItem(navigate, key);
-  });
-  useCommand("pane.split", () => toggleSplit());
-
   useEffect(() => {
-    if (!focusAfterClose) return;
-    focusAfterClose = false;
+    if (!takeFocusAfterClose()) return;
     const next = ws.active === null ? null : document.getElementById(`tab-${ws.active}`);
     (next ?? document.getElementById(NEW_TAB_ID))?.focus();
   }, [ws]);

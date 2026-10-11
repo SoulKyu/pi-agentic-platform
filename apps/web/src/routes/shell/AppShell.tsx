@@ -1,13 +1,17 @@
 import { useIsPhone } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { detectPlatform } from "../../features/commands/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
+import { LazyPanel } from "./LazyPanel.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
 import { useSessionsCache } from "./sessions-cache.ts";
+import { useShellCommands } from "./shell-commands.ts";
 import { TabBar } from "./TabBar.tsx";
 import { TopBar } from "./TopBar.tsx";
 import { useShellEffects } from "./use-shell-effects.ts";
@@ -18,14 +22,26 @@ interface AppShellProps {
   onSignedOut(): void;
 }
 
-// The tree drawer arrives with Task 21, which reads its state here.
-const treeClosed = () => false;
+// Each is its own chunk (they import the overlay stack), fetched on first open and mounted only while open.
+const loadTreeDrawer = () => import("./TreeDrawer.tsx");
+const loadInboxDrawer = () => import("./InboxDrawer.tsx");
+const loadShortcutsHelp = () => import("../../features/commands/ShortcutsHelp.tsx");
 
 /** Desktop layout. The URL names the active item; Task 23 adds the phone branch. */
 export function AppShell({ username, onSignedOut }: AppShellProps) {
   const t = useT();
   const mobile = useIsPhone();
-  useShellEffects({ mobile, treeOpen: treeClosed });
+  const [treeOpen, setTreeOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  // The dispatcher reads the tree state at each key (`treeOpen`, M3-RT-30), so Ctrl+B can close the drawer it opened.
+  const treeRef = useRef(false);
+  useEffect(() => {
+    treeRef.current = treeOpen;
+  }, [treeOpen]);
+  const readTreeOpen = useCallback(() => treeRef.current, []);
+  useShellEffects({ mobile, treeOpen: readTreeOpen });
+  useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, onSignedOut });
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const sessions = useSessionsCache((state) => state.sessions);
@@ -43,6 +59,24 @@ export function AppShell({ username, onSignedOut }: AppShellProps) {
           {item ? <PaneHost tab={tab} /> : <NotFound />}
         </div>
       </div>
+      <LazyPanel
+        load={loadTreeDrawer}
+        open={treeOpen}
+        props={{ open: treeOpen, onOpenChange: setTreeOpen }}
+        onFailed={() => setTreeOpen(false)}
+      />
+      <LazyPanel
+        load={loadInboxDrawer}
+        open={inboxOpen}
+        props={{ open: inboxOpen, onOpenChange: setInboxOpen }}
+        onFailed={() => setInboxOpen(false)}
+      />
+      <LazyPanel
+        load={loadShortcutsHelp}
+        open={helpOpen}
+        props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}
+        onFailed={() => setHelpOpen(false)}
+      />
     </div>
   );
 }

@@ -98,7 +98,7 @@ export default defineConfig(
               allow: ["contracts", "kernel", "module", "daemon-root", "daemon-testing"],
             },
             { from: "web-runtime", allow: ["web-runtime", "contracts"] },
-            { from: "web-lib", allow: ["web-lib", "web-runtime", "contracts"] },
+            { from: "web-lib", allow: ["web-lib", "web-runtime", "contracts", "ui"] },
             { from: "web-stores", allow: ["web-stores", "web-runtime", "contracts"] },
             {
               from: "web-feature",

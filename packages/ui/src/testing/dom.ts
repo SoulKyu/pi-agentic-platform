@@ -1,5 +1,6 @@
 import { act, createElement, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
+import { afterEach } from "vitest";
 import { TooltipProvider } from "../primitives/Tooltip.tsx";
 
 // React only batches updates inside act() when the environment says it is a test.
@@ -11,6 +12,15 @@ export interface Mounted {
   unmount(): Promise<void>;
 }
 
+// Every mount not yet unmounted: a test that fails before its inline unmount() must not leak its registrations.
+const live = new Set<() => Promise<void>>();
+
+/** Unmounts what is still mounted. Runs after each test of any file that imports this module. */
+export async function unmountAll(): Promise<void> {
+  for (const unmount of [...live]) await unmount();
+}
+afterEach(unmountAll);
+
 /** Renders into the happy-dom document, with effects and pending state updates settled. */
 export async function mount(element: ReactElement): Promise<Mounted> {
   const container = document.createElement("div");
@@ -19,6 +29,14 @@ export async function mount(element: ReactElement): Promise<Mounted> {
   await act(async () => {
     root.render(element);
   });
+  const unmount = async () => {
+    if (!live.delete(unmount)) return;
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  };
+  live.add(unmount);
   return {
     container,
     rerender: async (next: ReactElement) => {
@@ -26,12 +44,7 @@ export async function mount(element: ReactElement): Promise<Mounted> {
         root.render(next);
       });
     },
-    unmount: async () => {
-      await act(async () => {
-        root.unmount();
-      });
-      container.remove();
-    },
+    unmount,
   };
 }
 
