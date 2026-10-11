@@ -1,3 +1,4 @@
+import { WORKER_BUSY } from "@pap/contracts";
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import {
@@ -103,5 +104,22 @@ describe("session commands", () => {
     );
     expect(names).toEqual(["Fix login"]);
     expect(sent.map((record) => record.data ?? null)).toEqual([null, { path: "/pap/exports/x.html" }]);
+  });
+
+  it("refuses compact and navigate_tree while Pi is not idle, without touching the session", async () => {
+    const { sent, send } = recorder();
+    let touched = 0;
+    const busy = fake({
+      isIdle: false,
+      compact: async () => void touched++,
+      navigateTree: async () => void touched++,
+    });
+    await handleCompact(busy, { id: "r1" }, send);
+    await handleNavigateTree(busy, { id: "r2", targetId: "u1" }, send);
+    expect(touched).toBe(0);
+    expect(sent).toEqual([
+      { type: "response", id: "r1", command: "compact", success: false, error: WORKER_BUSY },
+      { type: "response", id: "r2", command: "navigate_tree", success: false, error: WORKER_BUSY },
+    ]);
   });
 });

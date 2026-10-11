@@ -143,6 +143,13 @@ function clipUpdate(event: PiEvent): PiEvent {
   return event;
 }
 
+/** Pi's failure text is for the log, not for subscribers (R66): the event keeps a `failed` flag in its place. */
+function withoutErrorText(event: PiEvent, field: string, flag: boolean): PiEvent {
+  if (!(field in event)) return event;
+  const rest = Object.fromEntries(Object.entries(event).filter(([key]) => key !== field)) as PiEvent;
+  return flag ? { ...rest, failed: true } : rest;
+}
+
 /** What a client is sent for a Pi event. Null: not sent at all (the progress of a call made inside another tool). */
 export function clipPiEvent(event: PiEvent): PiEvent | null {
   switch (event.type) {
@@ -169,6 +176,13 @@ export function clipPiEvent(event: PiEvent): PiEvent | null {
       delete rest.result;
       return rest;
     }
+    case "compaction_end":
+      return withoutErrorText(event, "errorMessage", true);
+    case "auto_retry_end":
+      return withoutErrorText(event, "finalError", true);
+    case "auto_retry_start":
+    case "summarization_retry_scheduled":
+      return withoutErrorText(event, "errorMessage", false);
     default:
       return event;
   }

@@ -1,6 +1,7 @@
 import { PapError, type SessionStreamEvent } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { startLiveSession } from "./live-session.ts";
+import { captureLogger } from "./testing/helpers.ts";
 import { createLiveBed, piEvent } from "./testing/live-bed.ts";
 
 const setup = createLiveBed(startLiveSession);
@@ -99,5 +100,64 @@ describe("navigated", () => {
     expect(live.leafId()).toBeNull();
     live.navigated(null);
     expect(live.leafId()).toBeNull();
+  });
+});
+
+describe("Stop on a command that never answers", () => {
+  it.each(["navigate_tree", "compact"] as const)(
+    "stops the worker, rejects the held %s and frees the session",
+    async (type) => {
+      const { live, worker, clock } = setup({ hold: [type] });
+      const held = live.command(type === "compact" ? { type } : { type, targetId: "e1" });
+      const outcome = held.then(
+        () => "answered",
+        (error: PapError) => error.code,
+      );
+      expect(live.busy()).toBe(true);
+      await live.abort();
+      expect(worker.stopped()).toBe(true);
+      expect(await outcome).toBe("worker_failed");
+      await clock.advance(0);
+      expect(live.commandsInFlight()).toBe(0);
+      expect(live.busy()).toBe(false);
+    },
+  );
+});
+
+describe("Pi's error text stays off the stream (R66)", () => {
+  const hostile = `secret ${"x".repeat(5000)}`;
+  it("sends a flag instead of the text, and logs the text clipped", async () => {
+    const { logger, lines } = captureLogger();
+    const { worker, published, clock } = setup({ logger });
+    worker.emit(piEvent({ type: "compaction_start", reason: "manual" }));
+    worker.emit(
+      piEvent({
+        type: "compaction_end",
+        reason: "manual",
+        aborted: false,
+        willRetry: false,
+        errorMessage: hostile,
+      }),
+    );
+    worker.emit(
+      piEvent({ type: "auto_retry_start", attempt: 1, maxAttempts: 3, delayMs: 1, errorMessage: hostile }),
+    );
+    worker.emit(piEvent({ type: "auto_retry_end", success: false, attempt: 3, finalError: hostile }));
+    await clock.advance(100);
+    const events = published.flatMap((event) => (event.kind === "pi" ? [event.event] : []));
+    expect(JSON.stringify(events)).not.toContain("secret");
+    expect(events.map((event) => [event.type, event.failed ?? null])).toEqual([
+      ["compaction_start", null],
+      ["compaction_end", true],
+      ["auto_retry_start", null],
+      ["auto_retry_end", true],
+    ]);
+    const logged = lines.filter((line) => line.msg === "pi_error_text");
+    expect(logged.map((line) => line.event)).toEqual([
+      "compaction_end",
+      "auto_retry_start",
+      "auto_retry_end",
+    ]);
+    for (const line of logged) expect(String(line.error)).toBe(`${hostile.slice(0, 2000)}…`);
   });
 });

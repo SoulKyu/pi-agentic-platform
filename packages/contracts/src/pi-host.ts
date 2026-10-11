@@ -45,6 +45,12 @@ export type UiResponseRecord = z.infer<typeof UiResponseRecord>;
 const ShutdownRecord = z.object({ type: z.literal("shutdown"), graceMs: z.number().int().nonnegative() });
 const PolicyUpdateRecord = z.object({ type: z.literal("policy_update"), rules: z.unknown() });
 
+/**
+ * The `error` of a refused `compact` or `navigate_tree` when Pi is not idle: a typed refusal the daemon maps to
+ * `session_busy`, whatever it knew when it sent the command (a run an extension started, a slow hook).
+ */
+export const WORKER_BUSY = "pap:session_busy";
+
 const Id = z.string().min(1).max(128);
 const ClearQueueCommand = z.object({ type: z.literal("clear_queue"), id: z.string() });
 const CompactCommand = z.object({

@@ -200,6 +200,12 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
     },
     // One deadline for the whole abort: a worker that has not settled 5 s after it was asked is terminated.
     async abort() {
+      // A navigation or compaction with no answer (a hook that never ends) would refuse every prompt for good: Stop
+      // ends the worker, as it does during a compaction. The pending command settles with `worker_failed`.
+      if (deps.promptBlocked()) {
+        await handle.stop();
+        return;
+      }
       if (!tracker.running && (promptsInFlight > 0 || startedAwaitingRun)) {
         // Pi has not started this prompt's run yet: an abort now would find it idle and be lost (R113). One goes now
         // (a no-op if Pi is idle) and one at `agent_start`; the second is idempotent (M2R40).

@@ -1,4 +1,4 @@
-import { PapError } from "@pap/contracts";
+import { PapError, WORKER_BUSY } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
@@ -25,6 +25,9 @@ describe("refusalOf", () => {
     ["navigate_tree", "Nothing to compact", "command_failed"],
     ["navigate_tree", "Entry e9 not found", "command_failed"],
     ["set_session_name", "Nothing to compact", "command_failed"],
+    ["compact", WORKER_BUSY, "session_busy"],
+    ["navigate_tree", WORKER_BUSY, "session_busy"],
+    ["navigate_tree", `${WORKER_BUSY} and more`, "command_failed"],
   ] as const)("maps %s refusing with %j to %s", (command, error, code) => {
     expect(refusalOf(command, error)).toBe(code);
   });

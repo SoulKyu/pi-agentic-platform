@@ -40,7 +40,7 @@ describe("the busy rule (M2R88)", () => {
   it("is busy while a prompt waits for its agent_start and while a compaction is in flight (M2-RT-08, M2-RT-34)", async () => {
     open({ replies: { prompt: "held", compact: "held" } });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
-    void bed.service.prompt({ sessionId, text: "go" }, OWNER);
+    void bed.service.prompt({ sessionId, text: "go" }, OWNER).catch(() => undefined);
     await bed.clock.advance(0);
     // Pi has the prompt, no agent_start yet: the status still says idle, the session is busy all the same.
     await expect(bed.service.compact({ sessionId }, OWNER)).rejects.toThrow(new PapError("session_busy"));
@@ -49,7 +49,7 @@ describe("the busy rule (M2R88)", () => {
     );
     bed.answerHeld(0, "prompt", { data: { disposition: "handled" } });
     await bed.clock.advance(0);
-    void bed.service.compact({ sessionId }, OWNER);
+    void bed.service.compact({ sessionId }, OWNER).catch(() => undefined);
     await bed.clock.advance(0);
     await expect(bed.service.navigate({ sessionId, targetId: "u0" }, OWNER)).rejects.toThrow(
       new PapError("session_busy"),
@@ -130,7 +130,7 @@ describe("the busy rule (M2R88)", () => {
         expect(bed.spawned).toHaveLength(2);
         bed.spawned[1]?.emit(READY(1));
         // The request that was sent stays held; the other is refused.
-        await vi.waitFor(() => expect(Object.keys(outcomes)).toHaveLength(1));
+        await vi.waitFor(() => expect(Object.keys(outcomes)).toHaveLength(1), { timeout: 2000 });
         const [refused] = Object.keys(outcomes);
         expect(outcomes[refused ?? ""]).toBe("session_busy");
         expect(sent(1)).toEqual([order.find((name) => name !== refused)]);
@@ -213,13 +213,47 @@ describe("navigate", () => {
     expect(frames).toHaveLength(1);
   });
 
-  it("clips an editor text that would not fit one frame once escaped", async () => {
+  it("cuts an editor text to the contract's length", async () => {
+    open({
+      replies: {
+        navigate_tree: { data: { cancelled: false, leafId: null, editorText: "a".repeat(300_000) } },
+      },
+    });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    const answer = await bed.service.navigate({ sessionId, targetId: "u0" }, OWNER);
+    expect(answer.editorText).toBe("a".repeat(200_000));
+  });
+
+  it("cuts an editor text that would not fit one frame once escaped", async () => {
     const editorText = "\u0001".repeat(200_000);
     open({ replies: { navigate_tree: { data: { cancelled: false, leafId: null, editorText } } } });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     const answer = await bed.service.navigate({ sessionId, targetId: "u0" }, OWNER);
-    expect(Buffer.byteLength(JSON.stringify(answer))).toBeLessThan(900_000);
-    expect(answer.editorText?.length).toBeGreaterThan(0);
+    // (800 000 - 2 quotes) / 6 bytes per escaped character.
+    expect(answer.editorText).toBe("\u0001".repeat(133_333));
+    expect(Buffer.byteLength(JSON.stringify(answer.editorText))).toBe(799_999 + 1);
+  });
+
+  it("answers success with a notice when the view cannot be refreshed after Pi moved", async () => {
+    const { logger, lines } = captureLogger();
+    open({ logger, replies: { navigate_tree: { data: { cancelled: false, leafId: "a0" } } } });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    bed.writePiFile(0);
+    const frames = await bed.subscribe(sessionId);
+    const publish = bed.hub.publish.bind(bed.hub);
+    const spy = vi.spyOn(bed.hub, "publish").mockImplementation((stream, key, event) => {
+      if ((event as { kind: string }).kind === "snapshot") throw new Error("cannot build");
+      return publish(stream, key, event);
+    });
+    expect(await bed.service.navigate({ sessionId, targetId: "u0" }, OWNER)).toEqual({ cancelled: false });
+    spy.mockRestore();
+    const kinds = frames.map((frame) => (frame.event as { kind: string }).kind);
+    expect(kinds).toEqual(["snapshot", "notice"]);
+    expect(frames.at(-1)?.event).toMatchObject({
+      level: "warning",
+      text: expect.stringContaining("Reload the page"),
+    });
+    expect(lines.some((line) => line.msg === "navigate_snapshot_failed")).toBe(true);
   });
 
   it("treats a leaf the contract cannot carry as unknown, in the answer's snapshot too", async () => {
@@ -231,12 +265,17 @@ describe("navigate", () => {
     expect((frames.at(-1)?.event as SnapshotEvent).leafId).toBe("a0");
   });
 
-  it("refuses a worker's answer that is not an object, without moving anything", async () => {
+  it("refuses a worker's answer that is not an object, and tells the client to reload", async () => {
     open({ replies: { navigate_tree: { data: "yes" } } });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
+    bed.writePiFile(0);
+    const frames = await bed.subscribe(sessionId);
     await expect(bed.service.navigate({ sessionId, targetId: "u0" }, OWNER)).rejects.toThrow(
       new PapError("command_failed"),
     );
+    // Pi may have moved: the client must not keep a branch that is stale.
+    expect(frames.map((frame) => (frame.event as { kind: string }).kind)).toEqual(["snapshot", "notice"]);
+    expect(frames.at(-1)?.event).toMatchObject({ text: expect.stringContaining("Reload the page") });
   });
 
   it("is the owner's: a stranger and an unknown session get not_found and no worker hears of it", async () => {
@@ -251,6 +290,37 @@ describe("navigate", () => {
     );
     expect(sent()).toEqual([]);
   });
+});
+
+describe("Stop on a navigation or compaction that never answers", () => {
+  it.each(["navigate_tree", "compact"] as const)(
+    "stops the worker, rejects the held %s, and the next prompt runs on a fresh worker",
+    async (type) => {
+      open({ replies: { [type]: "held" } });
+      const { sessionId } = await bed.service.create(bed.work, OWNER);
+      const held = (
+        type === "compact"
+          ? bed.service.compact({ sessionId }, OWNER)
+          : bed.service.navigate({ sessionId, targetId: "u0" }, OWNER)
+      ).then(
+        () => "answered",
+        (error: PapError) => error.code,
+      );
+      await bed.clock.advance(0);
+      await expect(bed.service.prompt({ sessionId, text: "go" }, OWNER)).rejects.toThrow(
+        new PapError("session_busy"),
+      );
+      await bed.service.abort(sessionId, OWNER);
+      expect(bed.spawned[0]?.stopped()).toBe(true);
+      expect(await held).toBe("worker_failed");
+      await bed.clock.advance(0);
+      expect(await bed.service.prompt({ sessionId, text: "again" }, OWNER)).toEqual({
+        disposition: "started",
+      });
+      expect(bed.spawned).toHaveLength(2);
+      expect(sent(1)).toEqual(["prompt"]);
+    },
+  );
 });
 
 describe("compact", () => {

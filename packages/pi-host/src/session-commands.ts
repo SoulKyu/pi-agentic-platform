@@ -1,5 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { UI_LIMITS } from "@pap/contracts";
+import { UI_LIMITS, WORKER_BUSY } from "@pap/contracts";
 import { messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 
@@ -41,11 +41,20 @@ export function handleClearQueue(session: AgentSession, command: { id: string },
   }
 }
 
+// Pi's `compact()` aborts what is running and `navigateTree` moves the leaf under it. The daemon checks its own view
+// first; this is the check that cannot race with Pi's event loop (a run an extension started, a slow hook).
+const refuseWhileBusy = (session: AgentSession, send: Send, id: string, command: string): boolean => {
+  if (session.isIdle !== false) return false;
+  send({ type: "response", id, command, success: false, error: WORKER_BUSY });
+  return true;
+};
+
 export async function handleCompact(
   session: AgentSession,
   command: { id: string; customInstructions?: string | undefined },
   send: Send,
 ): Promise<void> {
+  if (refuseWhileBusy(session, send, command.id, "compact")) return;
   try {
     const result = await session.compact(command.customInstructions);
     ok(send, command.id, "compact", {
@@ -63,6 +72,7 @@ export async function handleNavigateTree(
   command: { id: string; targetId: string },
   send: Send,
 ): Promise<void> {
+  if (refuseWhileBusy(session, send, command.id, "navigate_tree")) return;
   try {
     const result = await session.navigateTree(command.targetId, { summarize: false });
     ok(send, command.id, "navigate_tree", {

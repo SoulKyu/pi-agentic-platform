@@ -5,9 +5,11 @@ import {
   IDLE_ACTIVITY,
   type PiEvent,
   type SessionStreamEvent,
+  WORKER_BUSY,
 } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
+import { clip } from "./worker-text.ts";
 
 export type CommandAnswer = { ok: true; data: unknown } | { ok: false; error: string };
 
@@ -35,11 +37,21 @@ const isCount = (value: unknown): value is number =>
 
 /**
  * Why a worker refused a command, as the code a client may be told. The worker's text is never returned (R66, M2R87):
- * the only text this reads is Pi's one message for a compaction with nothing to compact, and only to pick the code.
+ * the only text this reads is Pi's one message for a compaction with nothing to compact and pap's own busy marker,
+ * and only to pick the code.
  */
 export function refusalOf(command: CommandInput["type"], error: string): ErrorCode {
+  if (error === WORKER_BUSY) return "session_busy";
   return command === "compact" && /nothing to compact/i.test(error) ? "session_empty" : "command_failed";
 }
+
+/** Where Pi puts the text of a failure in the events it emits; the stream carries a flag instead (R66). */
+const ERROR_FIELDS: Readonly<Record<string, string>> = {
+  compaction_end: "errorMessage",
+  auto_retry_start: "errorMessage",
+  auto_retry_end: "finalError",
+  summarization_retry_scheduled: "errorMessage",
+};
 
 const STRUCTURAL: ReadonlySet<CommandInput["type"]> = new Set(["navigate_tree", "compact"]);
 
@@ -95,6 +107,11 @@ export function createLiveCommands(deps: { handle: WorkerHandle; logger: Logger 
     compactInFlight: () => compacts,
     activity: () => activity,
     onPiEvent(event) {
+      const field = ERROR_FIELDS[event.type];
+      const text = field === undefined ? undefined : event[field];
+      if (typeof text === "string") {
+        deps.logger.info("pi_error_text", { event: event.type, error: clip(text) });
+      }
       switch (event.type) {
         case "compaction_start":
           return changed({ ...activity, compacting: true });

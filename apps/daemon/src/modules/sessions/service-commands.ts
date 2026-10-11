@@ -58,11 +58,31 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
     return { row, session, data: answer.data };
   }
 
+  // Everyone watching is given the branch Pi is on now. A failure to do it must not look like a failed navigation.
+  async function refresh(sessionId: string, row: SessionRow): Promise<void> {
+    try {
+      await deps.reads.ensureReader();
+      deps.hub.publish("session", row.id, deps.reads.snapshot(row.id));
+    } catch (error) {
+      logger.warn("navigate_snapshot_failed", { sessionId, err: error });
+      reloadNotice(row);
+    }
+  }
+  const reloadNotice = (row: SessionRow): void =>
+    deps.hub.publish("session", row.id, {
+      kind: "notice",
+      level: "warning",
+      text: "The view could not be refreshed. Reload the page.",
+      source: "pap",
+    });
+
   return {
     async navigate({ sessionId, targetId }, caller) {
       const { row, session, data } = await send(sessionId, caller, { type: "navigate_tree", targetId });
       if (typeof data !== "object" || data === null) {
         logger.warn("navigate_answer_unreadable", { sessionId });
+        // Pi may have moved all the same: a client must not keep showing a branch that is stale.
+        reloadNotice(row);
         throw new PapError("command_failed");
       }
       const answer = data as { cancelled?: unknown; leafId?: unknown; editorText?: unknown };
@@ -72,19 +92,7 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
       // in the file, so the snapshot read from the new leaf would carry its row.
       if (!cancelled) {
         session.navigated(typeof answer.leafId === "string" ? answer.leafId : null);
-        try {
-          await deps.reads.ensureReader();
-          deps.hub.publish("session", row.id, deps.reads.snapshot(row.id));
-        } catch (error) {
-          // Pi has moved: a failure to show it must not look like a failed navigation that a client would repeat.
-          logger.warn("navigate_snapshot_failed", { sessionId, err: error });
-          deps.hub.publish("session", row.id, {
-            kind: "notice",
-            level: "warning",
-            text: "The view could not be refreshed. Reload the page.",
-            source: "pap",
-          });
-        }
+        await refresh(sessionId, row);
       }
       const text =
         typeof answer.editorText === "string"

@@ -134,4 +134,38 @@ describe("wire clipping", () => {
     expect(clipped.message.content[0]?.papTruncated).toBe(true);
     expect(clipPiEvent({ type: "turn_end" })).toEqual({ type: "turn_end" });
   });
+
+  it("replaces the error text of compaction and retry events by a flag", () => {
+    const text = "boom /home/u/.pi/agent/auth.json";
+    expect(
+      clipPiEvent({ type: "compaction_end", reason: "manual", aborted: false, errorMessage: text }),
+    ).toEqual({
+      type: "compaction_end",
+      reason: "manual",
+      aborted: false,
+      failed: true,
+    });
+    expect(clipPiEvent({ type: "compaction_end", reason: "manual", aborted: false })).toEqual({
+      type: "compaction_end",
+      reason: "manual",
+      aborted: false,
+    });
+    expect(clipPiEvent({ type: "auto_retry_start", attempt: 1, maxAttempts: 3, errorMessage: text })).toEqual(
+      {
+        type: "auto_retry_start",
+        attempt: 1,
+        maxAttempts: 3,
+      },
+    );
+    expect(clipPiEvent({ type: "auto_retry_end", success: false, attempt: 3, finalError: text })).toEqual({
+      type: "auto_retry_end",
+      success: false,
+      attempt: 3,
+      failed: true,
+    });
+    expect(clipPiEvent({ type: "summarization_retry_scheduled", attempt: 1, errorMessage: text })).toEqual({
+      type: "summarization_retry_scheduled",
+      attempt: 1,
+    });
+  });
 });
