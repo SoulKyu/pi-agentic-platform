@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConfigError, defaultMaxWorkers, loadConfig, type ConfigInput } from "./config.ts";
+import { ConfigError, defaultMaxWorkers, loadConfig, workerExecArgv, type ConfigInput } from "./config.ts";
 
 let cwd: string;
 let base: ConfigInput;
@@ -71,6 +71,20 @@ describe("loadConfig", () => {
     });
     expect(config.publicOrigin).toBe("https://pap.example.ts.net");
     expect(config.allowedOrigins.has("https://pap.example.ts.net")).toBe(true);
+  });
+
+  it("forwards the development condition and --import= preloads to the workers, and nothing else", () => {
+    expect(
+      workerExecArgv([
+        "--disable-warning=ExperimentalWarning",
+        "--conditions=development",
+        "--import=/guards/network-guard.ts",
+        "--max-old-space-size=64",
+        "--import",
+        "/not/forwarded.ts",
+      ]),
+    ).toEqual(["--conditions=development", "--import=/guards/network-guard.ts"]);
+    expect(workerExecArgv([])).toEqual([]);
   });
 
   it("clamps the default worker cap between 2 and 16", () => {

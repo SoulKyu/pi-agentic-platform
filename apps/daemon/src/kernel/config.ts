@@ -52,6 +52,15 @@ const BAD_HOST_CHARS = /[\s/\\@?#]/;
 const isLoopback = (host: string) => host === "127.0.0.1" || host === "localhost" || host === "::1";
 const isWildcard = (host: string) => host === "0.0.0.0" || host === "::";
 
+/**
+ * The node flags that shape how modules load carry over from the daemon to every worker it forks: the development
+ * condition (`--conditions=development`, so a worker finds the TypeScript sources too) and preloads written as
+ * `--import=<file>` (instrumentation, the test network guard). Nothing else is forwarded.
+ */
+export function workerExecArgv(execArgv: readonly string[]): string[] {
+  return execArgv.filter((arg) => arg.startsWith("--conditions") || arg.startsWith("--import="));
+}
+
 export function defaultMaxWorkers(totalMemMb: number, budgetMb = WORKER_BUDGET_MB): number {
   return Math.min(16, Math.max(2, Math.floor((totalMemMb * 0.5) / budgetMb)));
 }

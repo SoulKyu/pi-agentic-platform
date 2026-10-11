@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createDaemon } from "./daemon.ts";
 import { createSystemClock } from "./kernel/clock.ts";
-import { ConfigError, loadConfig, type Config } from "./kernel/config.ts";
+import { ConfigError, loadConfig, workerExecArgv, type Config } from "./kernel/config.ts";
 import { MigrationError } from "./kernel/db/migrate.ts";
 import { HomeError, InstanceLockError } from "./kernel/home.ts";
 import { createLogger } from "./kernel/logger.ts";
@@ -27,7 +27,7 @@ function readConfig(argv: string[]): Config | null {
       homedir: homedir(),
       totalMemMb: Math.floor(totalmem() / 1048576),
       piHostEntry: require.resolve("@pap/pi-host"),
-      piHostExecArgv: process.execArgv.filter((arg) => arg.startsWith("--conditions")),
+      piHostExecArgv: workerExecArgv(process.execArgv),
       staticRoot: existsSync(join(webDist, "index.html")) ? webDist : null,
     });
   } catch (error) {
