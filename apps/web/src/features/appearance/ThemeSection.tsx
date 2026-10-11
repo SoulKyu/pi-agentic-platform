@@ -1,11 +1,12 @@
 import { Segmented, Select, type Option } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { AppearanceSection } from "./AppearanceSection.tsx";
+import { CustomThemes } from "./CustomThemes.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 
 const MODES = ["night", "day", "system"] as const;
 
-/** Account scope: the mode and the theme of each side. The custom theme library is edited below (Task 26). */
+/** Account scope: the mode and the theme of each side. The custom theme library sits below. */
 export function ThemeSection() {
   const t = useT();
   const account = useAppearanceStore((state) => state.account);
@@ -46,6 +47,7 @@ export function ThemeSection() {
         options={light}
         onChange={(lightTheme) => setAccount({ ...account, lightTheme })}
       />
+      <CustomThemes />
     </AppearanceSection>
   );
 }

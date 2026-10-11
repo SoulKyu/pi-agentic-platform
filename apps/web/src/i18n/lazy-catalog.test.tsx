@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -47,10 +47,15 @@ describe("lazy catalog (Settings)", () => {
       "features/appearance/AppearancePanel.tsx",
       "features/appearance/AppearancePreview.tsx",
       "features/appearance/AppearanceSection.tsx",
+      "features/appearance/CustomThemes.tsx",
       "features/appearance/DetailsSection.tsx",
       "features/appearance/ReadingSection.tsx",
+      "features/appearance/ThemeEditor.tsx",
+      "features/appearance/ThemeImport.tsx",
       "features/appearance/ThemeSection.tsx",
     ]);
+    // A stale entry would silently exempt nothing: every listed file must exist.
+    expect([...chunk].filter((file) => !existsSync(join(src, file)))).toEqual([]);
     const inChunk = (file: string) => chunk.has(file);
     const offenders: string[] = [];
     for (const file of files(src)) {
@@ -59,7 +64,7 @@ describe("lazy catalog (Settings)", () => {
       const code = readFileSync(file, "utf8");
       for (const key of lazy)
         if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
-      if (/settings\.(?:appearance|language|account|nav|section|soon)\./.test(code))
+      if (/settings\.(?:appearance|theme|language|account|nav|section|soon)\./.test(code))
         offenders.push(`${name}: settings prefix`);
     }
     expect(offenders).toEqual([]);
