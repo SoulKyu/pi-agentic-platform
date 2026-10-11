@@ -7,7 +7,8 @@ export const blockedAttempts: string[] = [];
 const originalConnect = net.Socket.prototype.connect;
 
 function isUnixSocket(options: unknown): boolean {
-  if (typeof options === "string") return options !== "" && !/^\d+$/.test(options);
+  // net's own test: a bare string is a port unless Number() cannot read it as a non-negative number.
+  if (typeof options === "string") return !(Number(options) >= 0);
   if (typeof options !== "object" || options === null) return false;
   const { path } = options as { path?: unknown };
   return typeof path === "string" && path !== "";

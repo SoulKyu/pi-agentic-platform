@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import http from "node:http";
 import https from "node:https";
@@ -5,6 +6,7 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import tls from "node:tls";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { blockedAttempts } from "./network-guard.ts";
 
@@ -94,6 +96,59 @@ describe("the network guard refuses every TCP connection, loopback included", ()
       refused(await eventually((fail) => open().on("error", fail)));
       expect(blockedAttempts.length).toBe(countBefore + 1);
     }
+  });
+});
+
+describe("the network guard reads a bare string the way net does", () => {
+  // Socket.prototype.connect gets the caller's string as it is: net treats it as a unix path unless Number() reads it
+  // as a non-negative number, in which case it is a port.
+  it.each([
+    ["with a leading space", (p: number) => ` ${p}`],
+    ["in hex", (p: number) => `0x${p.toString(16)}`],
+    ["with a plus sign", (p: number) => `+${p}`],
+    ["with an exponent", (p: number) => `${p}e0`],
+    ["with a fraction", (p: number) => `${p}.0`],
+    ["with trailing spaces", (p: number) => `${p}  `],
+    ["empty", () => ""],
+    ["blank", () => "  "],
+  ])("refuses a port number written %s", async (_name, spell) => {
+    const countBefore = blockedAttempts.length;
+    refused(await eventually((fail) => new net.Socket().connect(spell(port) as never).on("error", fail)));
+    expect(blockedAttempts.length).toBe(countBefore + 1);
+  });
+});
+
+describe("the copy of the guard the S2 spike keeps follows the same rule", () => {
+  const SPIKE_GUARD = fileURLToPath(new URL("../../../../spikes/s2/network-guard.ts", import.meta.url));
+
+  it("reads a bare string the way net does", () => {
+    const script = `
+      const net = require("node:net");
+      const outcomes = process.argv.slice(1).map((spelling) => {
+        try {
+          new net.Socket().connect(spelling).on("error", () => {}).destroy();
+          return "passed";
+        } catch (error) {
+          return error.message;
+        }
+      });
+      console.log(JSON.stringify(outcomes));`;
+    const spellings = [
+      ` ${port}`,
+      `0x${port.toString(16)}`,
+      `+${port}`,
+      `${port}e0`,
+      "",
+      "/tmp/pap-no-such.sock",
+    ];
+    const run = spawnSync(process.execPath, ["--import", SPIKE_GUARD, "-e", script, ...spellings], {
+      encoding: "utf8",
+    });
+    const outcomes = JSON.parse(run.stdout) as string[];
+    expect(outcomes.slice(0, -1)).toEqual(
+      spellings.slice(0, -1).map(() => "network access is disabled in this process"),
+    );
+    expect(outcomes.at(-1)).toBe("passed");
   });
 });
 

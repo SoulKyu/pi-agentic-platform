@@ -33,14 +33,16 @@ export const toolText = (record: HostRecord) => JSON.stringify(record.result);
 export const isConfirm = (record: HostRecord) =>
   record.type === "extension_ui_request" && record.method === "confirm";
 
-/** A temporary world for one forked worker: every path it may touch lives under `root`, never under the real home. */
-export function createHostBed() {
+/** A temporary world for forked workers: every path they may touch lives under `root`, never under the real home. */
+export function createHostBed(fork: typeof forkHost = forkHost) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "pap-host-")));
   const agentDir = join(root, "agent");
   const cwd = join(root, "work");
   const papHome = join(root, "pap");
   const home = join(root, "home");
   for (const dir of [agentDir, cwd, papHome, home]) mkdirSync(dir);
+  // Every worker the bed launched, not just the last: a test may start several, and each one's log is checked.
+  const launched: ForkedHost[] = [];
   let current: ForkedHost | undefined;
 
   function launch(script: object, options: LaunchOptions = {}): ForkedHost {
@@ -58,7 +60,8 @@ export function createHostBed() {
       PAP_TEST_PROVIDER: "1",
       ...options.env,
     };
-    current = forkHost(env, cwd);
+    current = fork(env, cwd);
+    launched.push(current);
     current.send({
       type: "init",
       cwd,
@@ -86,15 +89,18 @@ export function createHostBed() {
       return current;
     },
     async dispose(): Promise<void> {
-      const stderr = current?.stderr() ?? "";
-      current?.kill();
-      await current?.exited;
+      const hosts = launched.splice(0);
       current = undefined;
+      for (const host of hosts) host.kill();
+      await Promise.all(hosts.map((host) => host.exited));
+      // The exit can be reported before the last of the output has been read.
+      await new Promise<void>((resolve) => setImmediate(resolve));
       rmSync(root, { recursive: true, force: true });
       // A connection the guard refused may have been swallowed by the code that tried it: the log still says so (R94).
-      const blocked = stderr.split("\n").filter((line) => line.startsWith("pap-network-guard: blocked"));
-      if (blocked.length > 0)
-        throw new Error(`the worker tried to reach the network:\n${blocked.join("\n")}`);
+      const blocked = hosts
+        .flatMap((host) => host.stderr().split("\n"))
+        .filter((line) => line.startsWith("pap-network-guard: blocked"));
+      if (blocked.length > 0) throw new Error(`a worker tried to reach the network:\n${blocked.join("\n")}`);
     },
   };
 }

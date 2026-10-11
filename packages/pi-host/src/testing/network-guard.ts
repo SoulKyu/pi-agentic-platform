@@ -13,10 +13,10 @@ function optionsOf(args: unknown[]): unknown {
 }
 
 // Only a unix socket may connect. A `path` key that is undefined or empty is how TLS and HTTP clients say "no unix
-// socket", so the key alone proves nothing: it must hold a real path. A bare string is a path unless it reads as a
-// port number, the way net.connect parses it.
+// socket", so the key alone proves nothing: it must hold a real path. A bare string is a path unless net reads it as
+// a port number: net's own test is `Number(string) >= 0`, so " 123", "0x7b", "+123", "123e0" and "" are ports.
 function isUnixSocket(options: unknown): boolean {
-  if (typeof options === "string") return options !== "" && !/^\d+$/.test(options);
+  if (typeof options === "string") return !(Number(options) >= 0);
   if (typeof options !== "object" || options === null) return false;
   const { path } = options as { path?: unknown };
   return typeof path === "string" && path !== "";
