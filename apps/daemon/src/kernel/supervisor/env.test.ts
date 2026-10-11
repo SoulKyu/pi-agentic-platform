@@ -33,4 +33,30 @@ describe("workerEnv", () => {
     workerEnv(base, { A: "b" });
     expect(base).toEqual({ PAP_HOME: "/secret", PATH: "/usr/bin" });
   });
+
+  it("drops the daemon's NODE_OPTIONS, which would load code into every worker, but keeps the rest", () => {
+    const env = workerEnv(
+      { NODE_OPTIONS: "--require /x.js", LD_LIBRARY_PATH: "/lib", HTTPS_PROXY: "http://p", PATH: "/usr/bin" },
+      {},
+    );
+    expect(env).toEqual({
+      LD_LIBRARY_PATH: "/lib",
+      HTTPS_PROXY: "http://p",
+      PATH: "/usr/bin",
+      PI_TELEMETRY: "0",
+      PI_SKIP_VERSION_CHECK: "1",
+    });
+  });
+
+  it("lets a caller set NODE_OPTIONS for one worker, but never turn telemetry or the version check back on", () => {
+    const env = workerEnv(
+      {},
+      { NODE_OPTIONS: "--max-old-space-size=256", PI_TELEMETRY: "1", PI_SKIP_VERSION_CHECK: "0" },
+    );
+    expect(env).toEqual({
+      NODE_OPTIONS: "--max-old-space-size=256",
+      PI_TELEMETRY: "0",
+      PI_SKIP_VERSION_CHECK: "1",
+    });
+  });
 });

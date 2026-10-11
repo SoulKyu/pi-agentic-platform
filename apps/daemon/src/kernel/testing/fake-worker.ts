@@ -7,10 +7,26 @@ import {
 } from "@pap/contracts";
 import type { Clock, TimerHandle } from "../clock.ts";
 import type { WorkerExit } from "../supervisor/exit.ts";
-import { boundedOutbound, DEFAULT_REQUEST_TIMEOUT_MS, type WorkerHandle } from "../supervisor/worker.ts";
+import { WORKER_SHUTDOWN_GRACE_MS } from "../supervisor/kill-ladder.ts";
+import { boundedOutbound, requestTimeoutMs, type WorkerHandle } from "../supervisor/worker.ts";
 
 type Reply = Partial<Omit<ResponseRecord, "type" | "id">>;
 
+/**
+ * A `WorkerHandle` for tests of the modules that use workers. It follows the real handle where a module can tell:
+ * the request timeouts and their codes (`timeout` for a slow answer, `worker_failed` for a dead worker), the
+ * `shutdown` record `stop()` sends and the 30 s cap on its grace, the listeners a record is delivered to, and a
+ * throwing listener being isolated and counted.
+ *
+ * What it does not do, so a test must not rely on it:
+ * - `stop()` ends the worker at once and cleanly: there is no ladder, no signal, no process group, and a worker
+ *   that ignores `shutdown` cannot be modelled (use `crash` for any other exit).
+ * - `exited` resolves when `stop()` or `crash()` is called, not after stdio drains; `outputTail()` is always empty.
+ * - There is no bound on records in flight, no `droppedRecords` (only the records you `emit` exist) and no
+ *   garbage: every record a test emits is already a valid `WorkerRecord`.
+ * - `send()` always succeeds while the worker is alive, and `pid` is a constant that is not a process.
+ * - Timeouts exist only when you pass `clock`; without one a held request waits until `respond` or `crash`.
+ */
 export interface FakeWorker extends WorkerHandle {
   /** Every record the daemon sent, as the real handle would have put it on the wire. */
   readonly sent: DaemonToWorker[];
@@ -28,7 +44,7 @@ export interface FakeWorkerOptions {
   /** Answers a request at once; return nothing to hold it until `respond`, `crash` or its timeout. */
   reply?(command: CommandInput): Reply | undefined;
   pid?: number;
-  /** Gives held requests the real handle's timeout (`DEFAULT_REQUEST_TIMEOUT_MS` unless the request names one). */
+  /** Gives held requests the real handle's timeout (`requestTimeoutMs(command)` unless the request names one). */
   clock?: Clock;
 }
 
@@ -83,7 +99,7 @@ export function createFakeWorker(options: FakeWorkerOptions = {}): FakeWorker {
       options.onSend?.(sent, worker);
       return true;
     },
-    request(command, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+    request(command, timeoutMs = requestTimeoutMs(command)) {
       const id = `r${++nextId}`;
       worker.requests.push({ ...command, id } as CommandInput & { id: string });
       if (!alive) return Promise.reject(new PapError("worker_failed"));
@@ -91,10 +107,13 @@ export function createFakeWorker(options: FakeWorkerOptions = {}): FakeWorker {
       if (reply)
         return Promise.resolve({ type: "response", id, command: command.type, success: true, ...reply });
       return new Promise((resolve, reject) => {
-        const timer = options.clock?.setTimeout(() => {
-          pending.delete(id);
-          reject(new PapError("worker_failed"));
-        }, timeoutMs);
+        const timer =
+          timeoutMs === undefined
+            ? undefined
+            : options.clock?.setTimeout(() => {
+                pending.delete(id);
+                reject(new PapError("timeout"));
+              }, timeoutMs);
         pending.set(id, { command: command.type, resolve, reject, timer });
       });
     },
@@ -106,6 +125,7 @@ export function createFakeWorker(options: FakeWorkerOptions = {}): FakeWorker {
     },
     async stop() {
       stopCalled = true;
+      if (alive) worker.send({ type: "shutdown", graceMs: WORKER_SHUTDOWN_GRACE_MS });
       finish({ code: 0, signal: null, cause: "clean" });
       return exited;
     },

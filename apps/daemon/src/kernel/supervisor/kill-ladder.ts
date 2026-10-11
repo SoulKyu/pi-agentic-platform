@@ -2,6 +2,8 @@ import type { Clock, TimerHandle } from "../clock.ts";
 import type { WorkerExit } from "./exit.ts";
 
 export const SHUTDOWN_GRACE_MS = 2000;
+/** What the worker is told to wait for: less than the ladder waits for it, so SIGTERM never cuts a graceful stop short. */
+export const WORKER_SHUTDOWN_GRACE_MS = 1500;
 export const SIGTERM_GRACE_MS = 3000;
 /** SIGKILL cannot be caught, but a process stuck in the kernel can outlive it: the ladder still ends. */
 export const SIGKILL_WAIT_MS = 5000;

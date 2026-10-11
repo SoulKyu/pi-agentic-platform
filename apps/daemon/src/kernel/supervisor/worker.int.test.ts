@@ -6,6 +6,7 @@ import type { WorkerRecord } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createSystemClock } from "../clock.ts";
 import { silentLogger } from "../logger.ts";
+import { signalGroupOf } from "../testing/rogue-bed.ts";
 import { workerEnv } from "./env.ts";
 import { describeExit } from "./exit.ts";
 import { spawnWorker, type WorkerHandle } from "./worker.ts";
@@ -97,7 +98,7 @@ describe("spawnWorker against the real worker", () => {
 
   it("rejects pending requests and reports a kill when the worker dies", async () => {
     const handle = await boot();
-    process.kill(-(handle.pid ?? 0), "SIGKILL");
+    signalGroupOf(handle, "SIGKILL");
     await expect(handle.request({ type: "get_state" })).rejects.toThrow();
     expect((await handle.exited).cause).toBe("killed");
   });

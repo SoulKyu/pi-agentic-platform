@@ -157,6 +157,29 @@ describe("dispatcher", () => {
     expect(await dispatch(respond, ctx())).toEqual({ id: 10, ok: false, error: { code: "internal" } });
   });
 
+  it("answers a worker that was slow with timeout, apart from one that died", async () => {
+    const { dispatch, prompt } = setup();
+    const request = (id: number, commandId: string) => ({
+      id,
+      method: "sessions.prompt",
+      params: { sessionId: "s", text: "go" },
+      commandId,
+    });
+    prompt
+      .mockRejectedValueOnce(new PapError("timeout"))
+      .mockRejectedValueOnce(new PapError("worker_failed"));
+    expect(await dispatch(request(11, "cmd-00000051"), ctx())).toEqual({
+      id: 11,
+      ok: false,
+      error: { code: "timeout" },
+    });
+    expect(await dispatch(request(12, "cmd-00000052"), ctx())).toEqual({
+      id: 12,
+      ok: false,
+      error: { code: "worker_failed" },
+    });
+  });
+
   it("answers system.ping with the clock time", async () => {
     const { dispatch } = setup();
     expect(await dispatch({ id: 11, method: "system.ping", params: {} }, ctx())).toEqual({

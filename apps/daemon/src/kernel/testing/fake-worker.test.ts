@@ -1,7 +1,7 @@
-import type { WorkerRecord } from "@pap/contracts";
+import type { PapError, WorkerRecord } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { createFakeClock } from "../clock.ts";
-import { MAX_SHUTDOWN_GRACE_MS } from "../supervisor/worker.ts";
+import { DEFAULT_REQUEST_TIMEOUT_MS, MAX_SHUTDOWN_GRACE_MS } from "../supervisor/worker.ts";
 import { createFakeWorker } from "./fake-worker.ts";
 
 const READY: WorkerRecord = { type: "ready", sessionFile: "/s.jsonl", sessionId: "s", piVersion: "1" };
@@ -34,19 +34,34 @@ describe("fake worker", () => {
     expect(() => worker.respond(id, {})).toThrow("no pending request");
   });
 
-  it("times a held request out with the clock it was given, and forgets it", async () => {
+  it("times a held request out with the clock it was given, with timeout, and forgets it", async () => {
     const clock = createFakeClock();
     const worker = createFakeWorker({ clock });
-    const held = worker.request({ type: "get_state" }, 1000);
-    const outcome = held.then(
+    const outcome = worker.request({ type: "get_state" }, 1000).then(
       () => "answered",
-      (error: Error) => error.name,
+      (error: PapError) => error.code,
     );
     expect(worker.stats().pendingRequests).toBe(1);
     await clock.advance(1000);
-    expect(await outcome).toBe("PapError");
+    expect(await outcome).toBe("timeout");
     expect(worker.stats().pendingRequests).toBe(0);
     expect(clock.pending()).toBe(0);
+  });
+
+  it("gives every command but prompt the real handle's default timeout", async () => {
+    const clock = createFakeClock();
+    const worker = createFakeWorker({ clock });
+    const state = worker.request({ type: "abort" }).then(
+      () => "answered",
+      (error: PapError) => error.code,
+    );
+    const prompt = worker.request({ type: "prompt", message: "/long-dialog" });
+    await clock.advance(DEFAULT_REQUEST_TIMEOUT_MS);
+    expect(await state).toBe("timeout");
+    expect(worker.stats().pendingRequests).toBe(1);
+    expect(clock.pending()).toBe(0);
+    worker.respond(worker.requests[1]?.id ?? "", { data: { disposition: "handled" } });
+    expect(await prompt).toMatchObject({ command: "prompt", success: true });
   });
 
   it("counts a response nobody waits for, like the real handle", () => {
@@ -83,6 +98,31 @@ describe("fake worker", () => {
       { type: "shutdown", graceMs: MAX_SHUTDOWN_GRACE_MS },
       { type: "shutdown", graceMs: 100 },
     ]);
+  });
+
+  it("delivers a record to the listeners that were there when it arrived", () => {
+    const worker = createFakeWorker();
+    const seen: string[] = [];
+    let offSecond = () => {};
+    worker.onRecord(() => {
+      seen.push("first");
+      offSecond();
+      worker.onRecord(() => seen.push("late"));
+    });
+    offSecond = worker.onRecord(() => seen.push("second"));
+    worker.emit(READY);
+    expect(seen).toEqual(["first", "second"]);
+  });
+
+  it("is told to shut down when it is stopped, like the real handle, and not when it is already gone", async () => {
+    const worker = createFakeWorker();
+    await worker.stop();
+    await worker.stop();
+    expect(worker.sent).toEqual([{ type: "shutdown", graceMs: 1500 }]);
+    const crashed = createFakeWorker();
+    crashed.crash({ code: 1, signal: null, cause: "exit_code" });
+    await crashed.stop();
+    expect(crashed.sent).toEqual([]);
   });
 
   it("stops once, whoever asks and whenever", async () => {

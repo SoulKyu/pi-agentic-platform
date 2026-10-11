@@ -10,11 +10,14 @@ import {
 import type { Clock, TimerHandle } from "../clock.ts";
 import type { Logger } from "../logger.ts";
 import { classifyExit, type WorkerExit } from "./exit.ts";
-import { killLadder } from "./kill-ladder.ts";
+import { killLadder, WORKER_SHUTDOWN_GRACE_MS } from "./kill-ladder.ts";
+import { releaseGroup, signalGroup, trackGroup } from "./process-group.ts";
+
+export { killAllWorkerGroups } from "./process-group.ts";
 
 /** Stdout and stderr of a worker are kept only as a tail: a worker that floods them cannot grow the daemon. */
-export const OUTPUT_TAIL_BYTES = 16 * 1024;
-/** A worker that never answers must not leave a request pending forever. */
+export const OUTPUT_TAIL_BYTES = 8 * 1024;
+/** A worker that never answers must not leave a request pending forever (every command but `prompt`). */
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 /** `shutdown.graceMs` is honoured by the worker as given: the daemon never asks for more than this. */
 export const MAX_SHUTDOWN_GRACE_MS = 30_000;
@@ -49,7 +52,11 @@ export interface WorkerHandle {
   readonly exited: Promise<WorkerExit>;
   /** True when the record was handed to the channel (even if it is backed up); false when the worker is unreachable. */
   send(record: DaemonToWorker): boolean;
-  /** Rejects with `PapError("worker_failed")` on timeout, refusal or death of the worker. */
+  /**
+   * Rejects with `PapError("worker_failed")` when the worker is gone (died, refused the record, closed the
+   * channel) and with `PapError("timeout")` when it is alive and did not answer in time: `timeoutMs`, else
+   * `requestTimeoutMs(command)`. A slow answer is never a dead worker.
+   */
   request(command: CommandInput, timeoutMs?: number): Promise<ResponseRecord>;
   onRecord(listener: (record: WorkerRecord) => void): () => void;
   /** Idempotent. Always resolves: the ladder ends with SIGKILL to the worker's whole process group. */
@@ -58,6 +65,14 @@ export interface WorkerHandle {
   outputTail(): string;
   stats(): WorkerStats;
 }
+
+/**
+ * How long a command may wait for its answer unless the caller says otherwise. A `prompt` has none: an extension
+ * command answers only when it ends (R38(1)), possibly after a dialog the user takes minutes to answer, while a
+ * plain prompt answers as soon as Pi has classified it. The pending prompt ends with the worker.
+ */
+export const requestTimeoutMs = (command: CommandInput): number | undefined =>
+  command.type === "prompt" ? undefined : DEFAULT_REQUEST_TIMEOUT_MS;
 
 export const clipWorkerString = (text: string): string =>
   text.length > MAX_WORKER_STRING ? `${text.slice(0, MAX_WORKER_STRING)}…` : text;
@@ -83,31 +98,6 @@ function boundedRecord(record: WorkerRecord): WorkerRecord {
     };
   }
   return record;
-}
-
-// The worker leads a process group of its own (`detached`), so one signal reaches whatever it started and left
-// running. A group that is already gone is not an error.
-function signalGroup(pid: number | undefined, signal: NodeJS.Signals): boolean {
-  // kill(-1) signals every process the daemon may signal: a pid that is not a real child must never reach it.
-  if (pid === undefined || !Number.isInteger(pid) || pid <= 1) return false;
-  try {
-    process.kill(-pid, signal);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-// Workers whose group may still hold processes. When the daemon dies on its own, the worker's watchdog ends the
-// worker but not a bash tree it left behind; this last hook does.
-const liveGroups = new Set<number>();
-let exitHookInstalled = false;
-function killLiveGroupsOnExit(): void {
-  if (exitHookInstalled) return;
-  exitHookInstalled = true;
-  process.once("exit", () => {
-    for (const pid of liveGroups) signalGroup(pid, "SIGKILL");
-  });
 }
 
 // Powers of two: the first drop is logged, then the 2nd, 4th, 8th… so a flood of garbage cannot flood the log.
@@ -141,7 +131,7 @@ function failedHandle(exit: WorkerExit): WorkerHandle {
 interface Pending {
   readonly resolve: (record: ResponseRecord) => void;
   readonly reject: (error: Error) => void;
-  readonly timer: TimerHandle;
+  readonly timer: TimerHandle | undefined;
 }
 
 export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
@@ -161,10 +151,7 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     return failedHandle({ code: null, signal: null, cause: "spawn_failure" });
   }
   const pid = child.pid;
-  if (pid !== undefined) {
-    liveGroups.add(pid);
-    killLiveGroupsOnExit();
-  }
+  if (pid !== undefined) trackGroup(pid);
   const tail = createTail();
   for (const stream of [child.stdout, child.stderr]) {
     stream?.on("data", (chunk: Buffer) => tail.push(chunk));
@@ -174,13 +161,15 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   const pending = new Map<string, Pending>();
   const stats = { droppedRecords: 0, unknownResponses: 0, listenerErrors: 0 };
   let alive = true;
+  // The leader has been reaped: its pid, which is also its group id, may belong to someone else from now on.
+  let reaped = false;
   let nextId = 0;
   let inFlight = 0;
   let stopping: Promise<WorkerExit> | undefined;
 
   const failPending = (): void => {
     for (const entry of pending.values()) {
-      clock.clearTimeout(entry.timer);
+      if (entry.timer) clock.clearTimeout(entry.timer);
       entry.reject(new PapError("worker_failed"));
     }
     pending.clear();
@@ -192,7 +181,7 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   const finish = (exit: WorkerExit): void => {
     if (!alive) return;
     alive = false;
-    if (pid !== undefined) liveGroups.delete(pid);
+    if (pid !== undefined) releaseGroup(pid);
     failPending();
     resolveExited(exit);
   };
@@ -202,13 +191,19 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     if (pid === undefined) finish({ code: null, signal: null, cause: "spawn_failure" });
   });
   child.once("exit", (code, signal) => {
-    // The leader is gone; whatever shares its group goes with it. The group id cannot be reused while a member
-    // lives, and a new group with this id needs the pid to wrap around within this very tick.
-    signalGroup(pid, "SIGKILL");
+    // The leader is gone; whatever shares its group goes with it. Nothing may signal the group after this: while a
+    // member lives the id stays taken, but once the group is empty the pid can be recycled.
+    signalGroup(pid, "SIGKILL", logger);
+    reaped = true;
+    if (pid !== undefined) releaseGroup(pid);
     const exit = classifyExit(code, signal);
     // `close` follows once stdout, stderr and the channel are drained: the tail and the records are complete
-    // when the exit is reported. A process that kept a pipe open must not hold the report back.
-    const timer = clock.setTimeout(() => finish(exit), STDIO_DRAIN_MS);
+    // when the exit is reported. A process that kept a pipe open must not hold the report back, nor leak it.
+    const timer = clock.setTimeout(() => {
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+      finish(exit);
+    }, STDIO_DRAIN_MS);
     child.once("close", () => {
       clock.clearTimeout(timer);
       finish(exit);
@@ -244,12 +239,14 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
         return;
       }
       pending.delete(record.id);
-      clock.clearTimeout(entry.timer);
+      if (entry.timer) clock.clearTimeout(entry.timer);
       entry.resolve(boundedRecord(record) as ResponseRecord);
       return;
     }
     const bounded = boundedRecord(record);
-    for (const listener of listeners) {
+    // The listeners there were when the record arrived: one that leaves or joins while it is delivered does not
+    // change who hears this record.
+    for (const listener of [...listeners]) {
       try {
         listener(bounded);
       } catch (error) {
@@ -282,10 +279,11 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     if (!alive) return exited;
     stopping ??= killLadder(
       {
-        shutdown: (graceMs) => {
-          send({ type: "shutdown", graceMs });
+        // The ladder waits longer than the worker is told to: a worker that uses all its grace still beats SIGTERM.
+        shutdown: () => {
+          send({ type: "shutdown", graceMs: WORKER_SHUTDOWN_GRACE_MS });
         },
-        signal: (signal) => signalGroup(pid, signal),
+        signal: (signal) => !reaped && signalGroup(pid, signal, logger),
         exited,
       },
       clock,
@@ -304,17 +302,20 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     pid,
     exited,
     send,
-    request(command, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS) {
+    request(command, timeoutMs = requestTimeoutMs(command)) {
       const id = `r${++nextId}`;
       return new Promise<ResponseRecord>((resolve, reject) => {
-        const timer = clock.setTimeout(() => {
-          pending.delete(id);
-          reject(new PapError("worker_failed"));
-        }, timeoutMs);
+        const timer =
+          timeoutMs === undefined
+            ? undefined
+            : clock.setTimeout(() => {
+                pending.delete(id);
+                reject(new PapError("timeout"));
+              }, timeoutMs);
         pending.set(id, { resolve, reject, timer });
         if (!send({ ...command, id } as DaemonToWorker)) {
           pending.delete(id);
-          clock.clearTimeout(timer);
+          if (timer) clock.clearTimeout(timer);
           reject(new PapError("worker_failed"));
         }
       });
