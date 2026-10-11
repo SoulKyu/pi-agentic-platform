@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { reportClientIssue } from "../../lib/report.ts";
 import { useSessionsCache } from "./sessions-cache.ts";
 
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
@@ -36,6 +37,7 @@ describe("sessions cache", () => {
       "error",
       1,
     ]);
+    expect(reportClientIssue).toHaveBeenCalledWith("sessions_list_failed");
   });
 
   it("asks again once the previous refresh has settled", async () => {

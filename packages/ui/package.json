@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./overlays": "./src/overlays.ts",
     "./tokens.css": "./src/tokens.css",
     "./utilities.css": "./src/utilities.css",
     "./fonts.css": "./src/fonts.css"

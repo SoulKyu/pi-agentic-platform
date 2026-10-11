@@ -1,4 +1,5 @@
-import { Dialog, Kbd } from "@pap/ui";
+import { Kbd } from "@pap/ui";
+import { Dialog } from "@pap/ui/overlays";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import { COMMANDS, type CommandGroup } from "./defaults.ts";
 import type { Platform } from "./keys.ts";

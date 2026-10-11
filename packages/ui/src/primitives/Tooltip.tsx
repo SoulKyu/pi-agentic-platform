@@ -1,14 +1,32 @@
-import { Tooltip as Radix } from "radix-ui";
-import type { ReactElement, ReactNode } from "react";
-import { Kbd } from "./Kbd.tsx";
+import {
+  cloneElement,
+  useState,
+  type FocusEvent,
+  type PointerEvent,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 
-/** One provider at the app root (Orca STYLEGUIDE: delayDuration 400). */
-export function TooltipProvider({ children }: { readonly children: ReactNode }) {
-  return (
-    <Radix.Provider delayDuration={400} skipDelayDuration={200}>
-      {children}
-    </Radix.Provider>
+type Popup = typeof import("./TooltipPopup.tsx").TooltipPopup;
+
+// The Radix tooltip stack is not needed at first paint: it loads on the first hover or focus of any tooltip.
+let loaded: Popup | null = null;
+let loading: Promise<void> | null = null;
+function loadPopup(): Promise<void> {
+  loading ??= import("./TooltipPopup.tsx").then(
+    (module) => {
+      loaded = module.TooltipPopup;
+    },
+    () => {
+      loading = null; // a tooltip is decoration: the control keeps its aria-label; the next hover tries again
+    },
   );
+  return loading;
+}
+
+/** Each tooltip carries its own Radix provider, so this one keeps the root call site and adds nothing. */
+export function TooltipProvider({ children }: { readonly children: ReactNode }) {
+  return <>{children}</>;
 }
 
 export interface TooltipProps {
@@ -20,22 +38,45 @@ export interface TooltipProps {
   readonly children: ReactElement;
 }
 
-// Defaults are read in the body: the React Compiler (Babel 8 AST) bails out on defaults in a destructured parameter.
+interface TriggerProps {
+  onPointerEnter?(event: PointerEvent<HTMLElement>): void;
+  onFocus?(event: FocusEvent<HTMLElement>): void;
+  autoFocus?: boolean;
+}
+
+/**
+ * The bare control until it is first hovered or focused; then the Radix tooltip mounts around it. The element is
+ * re-created under the new wrapper, so one that had focus asks for it again (`autoFocus`).
+ */
 export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: TooltipProps) {
-  return (
-    <Radix.Root>
-      <Radix.Trigger asChild>{children}</Radix.Trigger>
-      <Radix.Portal>
-        <Radix.Content
-          side={side ?? "top"}
-          sideOffset={4}
-          data-slot="tooltip"
-          className="z-50 flex items-center gap-s1 rounded-sm border border-border-strong bg-bg-side px-s2 py-s1 text-ui text-fg shadow-overlay animate-overlay-in"
-        >
-          {label}
-          {shortcut && shortcut.length > 0 ? <Kbd keys={shortcut} joiner={shortcutJoiner} /> : null}
-        </Radix.Content>
-      </Radix.Portal>
-    </Radix.Root>
+  const [Popup, setPopup] = useState<Popup | null>(() => loaded);
+  const [refocus, setRefocus] = useState(false);
+  const own = children.props as TriggerProps;
+  const arm = (target: HTMLElement) => {
+    if (Popup !== null) return;
+    const focused = document.activeElement === target;
+    void loadPopup().then(() => {
+      if (loaded === null) return;
+      setRefocus(focused && document.activeElement === target);
+      setPopup(() => loaded);
+    });
+  };
+  const bare = cloneElement(children as ReactElement<TriggerProps>, {
+    onPointerEnter: (event: PointerEvent<HTMLElement>) => {
+      own.onPointerEnter?.(event);
+      arm(event.currentTarget);
+    },
+    onFocus: (event: FocusEvent<HTMLElement>) => {
+      own.onFocus?.(event);
+      arm(event.currentTarget);
+    },
+    autoFocus: refocus ? true : own.autoFocus,
+  });
+  return Popup ? (
+    <Popup label={label} shortcut={shortcut} shortcutJoiner={shortcutJoiner} side={side}>
+      {bare}
+    </Popup>
+  ) : (
+    bare
   );
 }

@@ -19,6 +19,8 @@ export interface MenuProps {
   readonly trigger: ReactElement<{ onClick?: MouseEventHandler }>;
   readonly items: readonly MenuItem[];
   readonly closeLabel: string;
+  /** Mounted on the press that asks for it, so it starts open. */
+  readonly defaultOpen?: boolean;
 }
 
 const CONTENT_CLASSES =
@@ -27,9 +29,9 @@ const ITEM_CLASSES =
   "flex h-control items-center rounded-sm px-s2 text-ui outline-none data-highlighted:bg-surface-2 data-disabled:opacity-50 pointer-coarse:min-h-11";
 
 /** A dropdown on desktop, a bottom sheet of buttons on phones (DESIGN.md §8). */
-export function Menu({ label, trigger, items, closeLabel }: MenuProps) {
+export function Menu({ label, trigger, items, closeLabel, defaultOpen }: MenuProps) {
   const phone = useIsPhone();
-  const [sheetOpen, setSheetOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(defaultOpen === true);
   if (phone) {
     return (
       <>
@@ -68,7 +70,7 @@ export function Menu({ label, trigger, items, closeLabel }: MenuProps) {
     );
   }
   return (
-    <DropdownMenu.Root>
+    <DropdownMenu.Root defaultOpen={defaultOpen}>
       <DropdownMenu.Trigger asChild>{trigger}</DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content aria-label={label} align="end" sideOffset={4} className={CONTENT_CLASSES}>

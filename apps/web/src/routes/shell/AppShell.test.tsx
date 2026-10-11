@@ -34,9 +34,11 @@ vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
 
 let bed: ReturnType<typeof fakeRuntime>;
 let started: Array<{ stop(): void }> = [];
+const defaultRules = useKeybindingsStore.getState().rules;
 afterEach(() => {
   started.forEach((one) => one.stop());
   started = [];
+  useKeybindingsStore.setState({ rules: defaultRules });
 });
 beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
@@ -157,13 +159,65 @@ describe("AppShell", () => {
     await click(page.container.querySelector('[aria-label="Settings"]') as HTMLElement);
     await settle();
     expect(page.router.state.location.pathname).toBe("/settings/appearance");
-    // Radix menus open from the keyboard in happy-dom (they listen for pointerdown, not click).
-    await press(page.container.querySelector('[aria-label="Account"]') as HTMLElement, { key: "Enter" });
+    expect(page.container.ownerDocument.querySelector('[role="menu"]')).toBeNull(); // not in the DOM until asked for
+    await click(page.container.querySelector('[aria-label="Account"]') as HTMLElement);
+    await vi.waitFor(() => expect(document.querySelector('[role="menu"]')).not.toBeNull(), { timeout: 2000 });
+    const rows = [...document.querySelectorAll('[role="menuitem"]')].map((row) => row.textContent);
+    expect(rows).toEqual(["ana", "Sign out"]);
+    await press(document.activeElement as HTMLElement, { key: "ArrowDown" });
     await settle();
     await press(document.activeElement as HTMLElement, { key: "Enter" });
     await settle();
     expect(auth.logout).toHaveBeenCalledOnce();
     expect(onSignedOut).toHaveBeenCalledOnce();
+    await page.unmount();
+  });
+
+  it("shows no empty account row without a username", async () => {
+    const page = await renderShell("/", { username: null });
+    await click(page.container.querySelector('[aria-label="Account"]') as HTMLElement);
+    await vi.waitFor(
+      () =>
+        expect([...document.querySelectorAll('[role="menuitem"]')].map((row) => row.textContent)).toEqual([
+          "Sign out",
+        ]),
+      { timeout: 2000 },
+    );
+    await page.unmount();
+  });
+
+  it("falls back to an icon on the palette button while its chord is not loaded", async () => {
+    useKeybindingsStore.setState({ rules: [] });
+    const page = await renderShell("/");
+    const palette = page.container.querySelector('[aria-label="Search and commands"]') as HTMLElement;
+    expect([palette.querySelector("kbd"), palette.querySelector("svg") !== null]).toEqual([null, true]);
+    await page.unmount();
+  });
+
+  it("refreshes the list once for a session id it does not have, never in a loop", async () => {
+    let answers = 0;
+    bed.handlers["sessions.list"] = () => ({
+      sessions:
+        ++answers < 2
+          ? []
+          : [{ id: "abc", cwd: "/home/ana/fresh", status: "idle", createdAt: 1, updatedAt: 2 }],
+    });
+    const page = await renderShell("/s/abc");
+    await act(async () => bed.fake.setState("open"));
+    await settle();
+    await settle();
+    expect(bed.called("sessions.list")).toHaveLength(2);
+    expect(page.container.querySelector("header")?.textContent).toContain("fresh");
+    await page.unmount();
+  });
+
+  it("asks only once for an id that stays missing", async () => {
+    const page = await renderShell("/s/ghost");
+    await act(async () => bed.fake.setState("open"));
+    await settle();
+    await settle();
+    await settle();
+    expect(bed.called("sessions.list")).toHaveLength(2);
     await page.unmount();
   });
 

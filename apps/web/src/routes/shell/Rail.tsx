@@ -1,10 +1,14 @@
-import { IconAccount, IconButton, IconSettings, Mark, Menu, toast } from "@pap/ui";
+import { IconAccount, IconButton, IconSettings, Mark, toast } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { lazy, Suspense, useState } from "react";
 import { logout } from "../../features/auth/auth-api.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useT } from "../../i18n/index.ts";
 import { navigateTo } from "./navigate.ts";
 import { useShortcut } from "./shortcut.ts";
+
+// The menu stack (Radix dropdown, dialog sheet) is a separate chunk, fetched on the first press of the account button.
+const LazyMenu = lazy(() => import("@pap/ui/overlays").then((module) => ({ default: module.Menu })));
 
 interface RailProps {
   readonly username: string | null;
@@ -16,8 +20,12 @@ export function Rail({ username, onSignedOut }: RailProps) {
   const t = useT();
   const navigate = useNavigate();
   const settings = useShortcut("settings.open");
+  const [menuAsked, setMenuAsked] = useState(false);
   const signOut = () =>
     void logout().then(onSignedOut, () => toast({ message: t("shell.signOutFailed"), tone: "error" }));
+  const account = (
+    <IconButton icon={IconAccount} label={t("shell.rail.account")} onClick={() => setMenuAsked(true)} />
+  );
   return (
     <nav
       aria-label={t("shell.rail.label")}
@@ -39,15 +47,22 @@ export function Rail({ username, onSignedOut }: RailProps) {
           )
         }
       />
-      <Menu
-        label={t("shell.rail.account")}
-        closeLabel={t("ui.close")}
-        trigger={<IconButton icon={IconAccount} label={t("shell.rail.account")} />}
-        items={[
-          { id: "user", label: username ?? "", disabled: true, onSelect: () => {} },
-          { id: "sign-out", label: t("shell.rail.signOut"), onSelect: signOut },
-        ]}
-      />
+      {menuAsked ? (
+        <Suspense fallback={account}>
+          <LazyMenu
+            defaultOpen
+            label={t("shell.rail.account")}
+            closeLabel={t("ui.close")}
+            trigger={account}
+            items={[
+              ...(username ? [{ id: "user", label: username, disabled: true, onSelect: () => {} }] : []),
+              { id: "sign-out", label: t("shell.rail.signOut"), onSelect: signOut },
+            ]}
+          />
+        </Suspense>
+      ) : (
+        account
+      )}
     </nav>
   );
 }

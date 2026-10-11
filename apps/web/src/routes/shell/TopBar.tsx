@@ -1,4 +1,4 @@
-import { Button, IconButton, IconInbox, IconTree, Kbd } from "@pap/ui";
+import { Button, Icon, IconButton, IconInbox, IconSearch, IconTree, Kbd } from "@pap/ui";
 import { runCommand } from "../../features/commands/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { useShortcut } from "./shortcut.ts";
@@ -33,7 +33,11 @@ export function TopBar({ title }: { readonly title: string }) {
         aria-label={t("shell.top.palette")}
         onClick={() => void runCommand("palette.toggle")}
       >
-        <Kbd keys={palette.keys} joiner={palette.joiner} />
+        {palette.keys.length > 0 ? (
+          <Kbd keys={palette.keys} joiner={palette.joiner} />
+        ) : (
+          <Icon icon={IconSearch} size={14} />
+        )}
       </Button>
     </header>
   );

@@ -8,7 +8,7 @@ import { mount, type Mounted } from "./dom.ts";
 const PHONE_QUERY = "(max-width: 767.98px)";
 
 export interface ShellOptions {
-  readonly username?: string;
+  readonly username?: string | null;
   onSignedOut?(): void;
   readonly phone?: boolean;
 }
@@ -29,7 +29,7 @@ export async function renderShell(
   }
   const Shell = () => (
     <AppShell
-      username={options.username ?? "ana"}
+      username={options.username === undefined ? "ana" : options.username}
       passkeysAvailable={false}
       onSignedOut={options.onSignedOut ?? (() => {})}
     />
