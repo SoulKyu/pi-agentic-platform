@@ -8,6 +8,7 @@ import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
 import { LazyPanel } from "./LazyPanel.tsx";
 import { NotFound } from "./NotFound.tsx";
+import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
 import { useSessionsCache } from "./sessions-cache.ts";
@@ -59,6 +60,7 @@ export function AppShell({ username, onSignedOut }: AppShellProps) {
           {item ? <PaneHost tab={tab} /> : <NotFound />}
         </div>
       </div>
+      <PaletteHost />
       <LazyPanel
         load={loadTreeDrawer}
         open={treeOpen}

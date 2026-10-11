@@ -1,5 +1,10 @@
+export { COMMANDS } from "./defaults.ts";
 export { installDispatcher } from "./dispatcher.ts";
 export { chordJoiner, chordTokens, detectPlatform, keyNames } from "./labels.ts";
+export type { KeyNames } from "./labels.ts";
+export type { Platform } from "./keys.ts";
 export { startKeybindings, syncKeybindings, useKeybindingsStore } from "./keybindings-store.ts";
-export { registerCommand, runCommand } from "./registry.ts";
+export type { PaletteItem } from "./palette/rank.ts";
+export { hasCommand, registerCommand, runCommand } from "./registry.ts";
+export type { ResolvedRule } from "./resolve.ts";
 export { useCommand } from "./use-command.ts";

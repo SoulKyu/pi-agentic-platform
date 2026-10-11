@@ -31,6 +31,8 @@ const IDENTICAL_IN_FR = new Set([
   "commands.palette.title",
   "commands.group.navigation",
   "commands.group.session",
+  "commands.palette.group.actions",
+  "commands.palette.group.sessions",
   "commands.group.agents",
   "commands.key.ctrl",
   "commands.key.alt",
