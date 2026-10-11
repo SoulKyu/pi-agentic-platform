@@ -1,0 +1,96 @@
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import { type DaemonToWorker, PolicyRules } from "@pap/contracts";
+import { logLineOf } from "./bounded.ts";
+import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
+import type { Ipc } from "./ipc.ts";
+import { POLICY_EXTENSION_PATH } from "./policy/extension.ts";
+import {
+  handleClearQueue,
+  handleCompact,
+  handleExportHtml,
+  handleNavigateTree,
+  handleSetSessionName,
+} from "./session-commands.ts";
+import type { UiBridge } from "./ui-bridge.ts";
+
+export type Command = Exclude<DaemonToWorker, { type: "init" | "shutdown" }>;
+
+export interface DispatchDeps {
+  readonly session: AgentSession;
+  readonly ipc: Ipc;
+  readonly ui: UiBridge;
+  rules(): PolicyRules;
+  setRules(rules: PolicyRules): void;
+}
+
+/** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
+export function createDispatch(deps: DispatchDeps): (record: Command) => void {
+  const { session, ipc, ui } = deps;
+  const send = (record: Parameters<Ipc["send"]>[0]) => ipc.send(record);
+  // The handlers answer their own failures; this only catches a failure after the answer (a throwing `send`).
+  const background = (command: string, work: Promise<void>): void => {
+    work.catch((error: unknown) =>
+      process.stderr.write(`pi-host: ${command} failed after it answered: ${logLineOf(error)}\n`),
+    );
+  };
+  return (record) => {
+    switch (record.type) {
+      case "prompt":
+        handlePrompt(session, record, send);
+        return;
+      case "abort":
+        background("abort", handleAbort(session, record, send));
+        return;
+      case "get_state":
+        handleGetState(session, record, send);
+        return;
+      case "clear_queue":
+        handleClearQueue(session, record, send);
+        return;
+      case "compact":
+        background("compact", handleCompact(session, record, send));
+        return;
+      case "navigate_tree":
+        background("navigate_tree", handleNavigateTree(session, record, send));
+        return;
+      case "set_session_name":
+        handleSetSessionName(session, record, send);
+        return;
+      case "export_html":
+        background("export_html", handleExportHtml(session, record, send));
+        return;
+      case "extension_ui_response":
+        ui.resolve(record);
+        return;
+      case "policy_update": {
+        const update = PolicyRules.safeParse(record.rules);
+        if (update.success) {
+          deps.setRules(update.data);
+          return;
+        }
+        // Fail closed (M2-RT-17): after a revoke, "the previous rules" would still hold the revoked always rule.
+        deps.setRules({ ...deps.rules(), alwaysAllow: [] });
+        send({
+          type: "extension_error",
+          extensionPath: POLICY_EXTENSION_PATH,
+          event: "policy_update",
+          error: "invalid policy rules: always rules are suspended until the next valid update",
+        });
+        return;
+      }
+      // Reachable only until Task 15 writes the last cases; then this becomes `const unhandled: never = record`.
+      default: {
+        const unknown = record as { type: string; id?: unknown };
+        if (typeof unknown.id === "string") {
+          send({
+            type: "response",
+            id: unknown.id,
+            command: unknown.type.slice(0, 64),
+            success: false,
+            error: "unsupported command",
+          });
+        }
+      }
+    }
+  };
+}

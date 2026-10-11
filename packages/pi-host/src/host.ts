@@ -1,10 +1,9 @@
 import { type AgentSession, VERSION } from "@earendil-works/pi-coding-agent";
-import { type DaemonToWorker, type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts";
-import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
+import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts";
+import { type Command, createDispatch } from "./dispatch.ts";
 import { killDetachedDescendants } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
-import { POLICY_EXTENSION_PATH } from "./policy/extension.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 import { toExtensionErrorRecord, toWireEvent } from "./wire-events.ts";
 
@@ -13,8 +12,6 @@ const HEALTH_INTERVAL_MS = 30_000;
 const DEFAULT_GRACE_MS = 2000;
 /** The daemon sends few records before ready; more than this is a bug, not a queue to grow. */
 const MAX_EARLY_RECORDS = 128;
-
-type Command = Exclude<DaemonToWorker, { type: "init" | "shutdown" }>;
 
 // Every way the worker ends on its own terms comes through here. What the session's dispose does not stop (a
 // command in a session of its own, a grandchild of one) is killed first: once dispose has killed a command's
@@ -105,36 +102,15 @@ export async function runHost(ipc: Ipc): Promise<void> {
     onExtensionError: (error) => ipc.send(toExtensionErrorRecord(error)),
   });
   session = opened;
-  dispatch = (record) => {
-    switch (record.type) {
-      case "prompt":
-        handlePrompt(opened, record, ipc.send);
-        return;
-      case "abort":
-        void handleAbort(opened, record, ipc.send);
-        return;
-      case "get_state":
-        handleGetState(opened, record, ipc.send);
-        return;
-      case "extension_ui_response":
-        ui.resolve(record);
-        return;
-      case "policy_update": {
-        const update = PolicyRules.safeParse(record.rules);
-        if (update.success) {
-          rules = update.data;
-        } else {
-          ipc.send({
-            type: "extension_error",
-            extensionPath: POLICY_EXTENSION_PATH,
-            event: "policy_update",
-            error: "invalid policy rules: the previous rules stay in force",
-          });
-        }
-        return;
-      }
-    }
-  };
+  dispatch = createDispatch({
+    session: opened,
+    ipc,
+    ui,
+    rules: () => rules,
+    setRules: (next) => {
+      rules = next;
+    },
+  });
   ipc.send({
     type: "ready",
     sessionFile: opened.sessionFile ?? "",

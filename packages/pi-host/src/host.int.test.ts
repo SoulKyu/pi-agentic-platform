@@ -281,7 +281,7 @@ describe("pi-host worker: policy", () => {
     expect(String(report.error).startsWith("x")).toBe(true);
   });
 
-  it("keeps the previous rules, and says so, when a policy update is invalid", async () => {
+  it("keeps the profile and mode, drops the always rules and says so, when a policy update is invalid", async () => {
     await bed.start(bashScript("echo still-asked"));
     const host = bed.host();
     host.send({ type: "policy_update", rules: { bogus: true } });
@@ -290,7 +290,7 @@ describe("pi-host worker: policy", () => {
       type: "extension_error",
       extensionPath: "<inline:pap-policy>",
       event: "policy_update",
-      error: "invalid policy rules: the previous rules stay in force",
+      error: "invalid policy rules: always rules are suspended until the next valid update",
     });
     await host.request({ type: "prompt", message: "go" });
     await host.waitFor(isConfirm);
