@@ -141,10 +141,11 @@ describe("Account & devices section", () => {
   });
 });
 
-describe("placeholder sections", () => {
-  it("keeps Appearance and Keyboard shortcuts as one-line empty states until their tasks", async () => {
+describe("shortcuts section", () => {
+  it("shows the shortcuts editor, not a placeholder", async () => {
     const page = await shown("/settings/shortcuts");
-    expect(page.container.querySelector('[data-slot="empty-state"]')).not.toBeNull();
+    expect(page.container.querySelector('[data-slot="empty-state"]')).toBeNull();
+    expect(page.container.querySelector('[data-command="palette.toggle"]')).not.toBeNull();
     await page.unmount();
   });
 });

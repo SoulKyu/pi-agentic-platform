@@ -1,5 +1,6 @@
 import { CustomTheme, PRESET_THEME_IDS } from "@pap/contracts";
 import { PRESET_TOKENS, type ThemeName } from "@pap/ui";
+import { downloadJsonFile } from "../../lib/download-file.ts";
 
 export const MAX_THEME_FILE_BYTES = 16_384;
 const MAX_ERRORS = 20;
@@ -53,25 +54,9 @@ export function exportThemeFile(theme: CustomTheme): string {
   return `${JSON.stringify({ name, base, roles }, null, 2)}\n`;
 }
 
-/** FileSaver.js's precedent: Safari and Firefox start the download after the click, so the URL must outlive it. */
-const REVOKE_DELAY_MS = 40_000;
-const revokeLater = (revoke: () => void): void => {
-  setTimeout(revoke, REVOKE_DELAY_MS);
-};
-
-/** Hands the file to the browser through a Blob URL, revoked on a later task (`schedule` is injectable for tests). */
-export function downloadThemeFile(
-  theme: CustomTheme,
-  schedule: (revoke: () => void) => void = revokeLater,
-): void {
-  const url = URL.createObjectURL(new Blob([exportThemeFile(theme)], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${theme.id}.json`;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  schedule(() => URL.revokeObjectURL(url));
+/** Hands the file to the browser through the shared download helper (`schedule` is injectable for tests). */
+export function downloadThemeFile(theme: CustomTheme, schedule?: (revoke: () => void) => void): void {
+  downloadJsonFile(`${theme.id}.json`, exportThemeFile(theme), schedule);
 }
 
 /** T3's id rule (^[a-z0-9][a-z0-9-]{0,47}$), unique among `taken` and never a preset's id (M3-RT-09). */

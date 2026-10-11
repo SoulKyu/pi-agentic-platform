@@ -141,6 +141,9 @@ describe("the built web app under the daemon's CSP", () => {
   it("keeps the appearance panel out of the initial assets (import it from its file, not from the feature index)", () =>
     keepsLazyOnly([/data-slot":\W*appearance-status/]));
 
+  it("keeps the shortcuts editor out of the initial assets (import it from its file, not from the feature index)", () =>
+    keepsLazyOnly([/data-slot":\W*shortcuts-status/]));
+
   it("keeps the theme editor out of the initial assets, in a chunk of its own (M3R117)", () =>
     keepsLazyOnly([/data-slot":\W*theme-preview/]));
 

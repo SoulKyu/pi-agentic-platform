@@ -44,6 +44,10 @@ describe("lazy catalog (Settings)", () => {
       "routes/settings/LanguageSection.tsx",
       "routes/settings/SettingsScreen.tsx",
       "routes/settings/sections.tsx",
+      "features/commands/editor/KeybindingsJson.tsx",
+      "features/commands/editor/ShortcutRecorder.tsx",
+      "features/commands/editor/ShortcutRow.tsx",
+      "features/commands/editor/ShortcutsEditor.tsx",
       "features/appearance/AppearancePanel.tsx",
       "features/appearance/AppearancePreview.tsx",
       "features/appearance/AppearanceSection.tsx",
@@ -64,7 +68,7 @@ describe("lazy catalog (Settings)", () => {
       const code = readFileSync(file, "utf8");
       for (const key of lazy)
         if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
-      if (/settings\.(?:appearance|theme|language|account|nav|section|soon)\./.test(code))
+      if (/settings\.(?:appearance|theme|language|account|nav|section|soon|shortcuts)\./.test(code))
         offenders.push(`${name}: settings prefix`);
     }
     expect(offenders).toEqual([]);
