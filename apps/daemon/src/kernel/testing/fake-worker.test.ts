@@ -144,3 +144,15 @@ describe("fake worker", () => {
     expect((await crashed.stop()).cause).toBe("exit_code");
   });
 });
+
+describe("fake worker, raw records", () => {
+  it("parses a raw record as the real handle does, and counts one it drops", () => {
+    const worker = createFakeWorker();
+    const seen: WorkerRecord[] = [];
+    worker.onRecord((record) => seen.push(record));
+    worker.emitRaw({ type: "approval_request", id: "a1", answers: [] });
+    worker.emitRaw({ type: "approval_request", answers: [] });
+    expect(seen).toEqual([{ type: "approval_request_invalid", id: "a1", reason: "malformed" }]);
+    expect(worker.stats().droppedRecords).toBe(1);
+  });
+});

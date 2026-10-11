@@ -190,9 +190,10 @@ describe("approvals", () => {
   });
 
   it("never cuts an approval's message: one over the limit is cancelled", () => {
-    expect(createDialogRegistry().offerApproval(approval("a1", { message: "x".repeat(65_537) })).kind).toBe(
-      "cancel",
-    );
+    expect(createDialogRegistry().offerApproval(approval("a1", { message: "x".repeat(65_537) }))).toEqual({
+      kind: "cancel",
+      reason: "too_large",
+    });
   });
 
   it("cancels an approval that carries no answers or no category (fails closed)", () => {
@@ -209,7 +210,10 @@ describe("approvals", () => {
       kind: "cancel",
       reason: "malformed",
     });
-    expect(dialogs.offerApproval(approval("a4", { answers: ["once", "once"] })).kind).toBe("cancel");
+    expect(dialogs.offerApproval(approval("a4", { answers: ["once", "once"] }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
     expect(dialogs.list()).toEqual([]);
   });
 
@@ -237,5 +241,34 @@ describe("approvals", () => {
     dialogs.offerApproval(approval("a1"));
     expect(dialogs.take("a1")?.id).toBe("a1");
     expect(dialogs.take("a1")).toBeNull();
+  });
+
+  it("cuts the label on a character boundary: a pair of surrogates is never split", () => {
+    const dialogs = createDialogRegistry();
+    // The emoji is two UTF-16 units, the 4095th and 4096th: keeping half of it would leave a lone surrogate.
+    dialogs.offerApproval(approval("a1", { message: `${"m".repeat(4095)}\u{1F600}tail` }));
+    const label = dialogs.takeEntry("a1")?.grant?.label;
+    expect(label).toBe("m".repeat(4095));
+    expect(Buffer.from(label ?? "").toString()).toBe(label); // a lone surrogate would not survive UTF-8
+    dialogs.offerApproval(approval("a2", { message: `${"m".repeat(4094)}\u{1F600}tail` }));
+    expect(dialogs.takeEntry("a2")?.grant?.label).toBe(`${"m".repeat(4094)}\u{1F600}`);
+  });
+
+  it("refuses to mix the two kinds under one id, whichever came first", () => {
+    const dialogs = createDialogRegistry();
+    dialogs.offer(request("x1"));
+    expect(dialogs.offerApproval(approval("x1"))).toEqual({ kind: "cancel", reason: "collision" });
+    expect(dialogs.peek("x1")?.method).toBe("confirm");
+    dialogs.offerApproval(approval("a1"));
+    expect(dialogs.offer(request("a1"))).toEqual({ kind: "cancel", reason: "collision" });
+    expect(dialogs.peek("a1")?.method).toBe("approval");
+    expect(dialogs.offer(request("x1", { message: "again" })).kind).toBe("opened");
+  });
+
+  it("cancels an extension's request that names itself an approval", () => {
+    expect(createDialogRegistry().offer(request("x1", { method: "approval" }))).toEqual({
+      kind: "cancel",
+      reason: "unknown_method",
+    });
   });
 });

@@ -199,15 +199,37 @@ const PiEventRecord = z.looseObject({ type: z.string() });
 // Derived, so a record added to PapRecord can never be forwarded as a Pi event by mistake.
 const PAP_TYPES: ReadonlySet<string> = new Set(PapRecord.options.map((option) => option.shape.type.value));
 
+/**
+ * Made by the daemon's parser, never sent by a worker (a worker that sends this type gets a Pi event): an
+ * `approval_request` the schema refuses but that has an id to answer, so the policy is told and fails closed.
+ */
+export interface ApprovalInvalidRecord {
+  readonly type: "approval_request_invalid";
+  readonly id: string;
+  readonly reason: "malformed" | "too_large";
+}
+
 export type WorkerRecord =
-  z.infer<typeof PapRecord> | { type: "pi_event"; event: z.infer<typeof PiEventRecord> };
+  | z.infer<typeof PapRecord>
+  | ApprovalInvalidRecord
+  | { type: "pi_event"; event: z.infer<typeof PiEventRecord> };
+
+const textOver = (value: unknown, max: number): boolean => typeof value === "string" && value.length > max;
+
+function invalidApproval(raw: Record<string, unknown>): ApprovalInvalidRecord | null {
+  const id = Id.safeParse(raw.id);
+  if (!id.success) return null;
+  const tooLarge = textOver(raw.title, 4096) || textOver(raw.message, 65_536);
+  return { type: "approval_request_invalid", id: id.data, reason: tooLarge ? "too_large" : "malformed" };
+}
 
 export function parseWorkerRecord(raw: unknown): WorkerRecord | null {
   const base = PiEventRecord.safeParse(raw);
   if (!base.success) return null;
   if (PAP_TYPES.has(base.data.type)) {
     const parsed = PapRecord.safeParse(raw);
-    return parsed.success ? parsed.data : null;
+    if (parsed.success) return parsed.data;
+    return base.data.type === "approval_request" ? invalidApproval(base.data) : null;
   }
   return { type: "pi_event", event: base.data };
 }

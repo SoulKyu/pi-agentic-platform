@@ -83,7 +83,7 @@ export interface LiveSession {
    */
   clearQueue(): Promise<{ steering: string[]; followUp: string[]; truncated: boolean }>;
   /**
-   * Answers an open dialog. An approval returns its answer and grant (null when the card was closed, not answered),
+   * Answers an open dialog. An approval returns its answer and grant,
    * for the "session" and "always" answers of Task 14b. A response the dialog does not offer is `bad_request` and
    * the dialog stays open.
    */
@@ -208,6 +208,9 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         return;
       case "approval_request":
         ui.onApprovalRequest(record);
+        return;
+      case "approval_request_invalid":
+        ui.onApprovalInvalid(record);
         return;
       case "extension_ui_closed":
         ui.onUiClosed(record.id);

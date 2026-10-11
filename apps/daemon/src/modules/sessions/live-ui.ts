@@ -1,5 +1,6 @@
 import {
   type ApprovalAnswer,
+  type ApprovalInvalidRecord,
   type ApprovalRequestRecord,
   type Dialog,
   type DialogResponse,
@@ -36,9 +37,11 @@ export interface LiveUi {
   onExtensionError(record: Extract<WorkerRecord, { type: "extension_error" }>): void;
   /** The policy's own question (an approval card). */
   onApprovalRequest(record: ApprovalRequestRecord): void;
+  /** An approval the record schema refused: the policy is told it was closed (fail closed), the person is told once in a while. */
+  onApprovalInvalid(record: ApprovalInvalidRecord): void;
   /**
-   * Answers a dialog. For an approval it returns the answer sent and the grant it would give (null when the card was
-   * closed rather than answered). Nothing is taken until the answer is known to be one the dialog offers.
+   * Answers a dialog. For an approval it returns the answer sent and the grant it would give. Nothing is taken until
+   * the answer is known to be one the dialog offers.
    */
   answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
   dialogs(): Dialog[];
@@ -46,16 +49,18 @@ export interface LiveUi {
   clear(): Dialog[];
 }
 
-type Verdict = ReturnType<ReturnType<typeof createDialogRegistry>["offer"]>;
-
-/** What an approval is answered with: an answer the dialog offers, or a closed question (`null`). Else `bad_request`. */
-function approvalAnswerOf(dialog: Dialog, response: DialogResponse): ApprovalAnswer | null {
-  if ("answer" in response) {
-    if (!dialog.answers?.includes(response.answer)) throw new PapError("bad_request");
-    return response.answer;
-  }
-  if ("confirmed" in response) return response.confirmed ? "once" : "deny";
-  if ("cancelled" in response) return null;
+/**
+ * What the person's response means for an approval card: an answer the card offers (`confirmed` is once or deny, and
+ * must be offered too), a dismissed card is a deny. Anything else is `bad_request`, before anything is taken.
+ */
+function approvalAnswerOf(dialog: Dialog, response: DialogResponse): ApprovalAnswer {
+  const offered = (answer: ApprovalAnswer): ApprovalAnswer => {
+    if (!dialog.answers?.includes(answer)) throw new PapError("bad_request");
+    return answer;
+  };
+  if ("answer" in response) return offered(response.answer);
+  if ("confirmed" in response) return offered(response.confirmed ? "once" : "deny");
+  if ("cancelled" in response) return "deny";
   throw new PapError("bad_request");
 }
 
@@ -64,9 +69,9 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
   const dialogs = createDialogRegistry();
 
   // Every dialog is answered; only the telling is spaced out, so an extension that asks in a loop cannot flood the
-  // user's screen or the log.
-  function said(reason: CancelReason, method: string, notice: string | undefined): void {
-    const verdict = limiter.check(`dialog_${reason}`);
+  // user's screen or the log. Approvals have a key of their own: an extension's noise cannot hide their notice.
+  function said(key: string, reason: CancelReason, method: string, notice: string | undefined): void {
+    const verdict = limiter.check(key);
     if (!verdict.allowed) return;
     logger.warn("dialog_cancelled", {
       reason,
@@ -75,29 +80,38 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
     });
     if (notice) deps.publish({ kind: "notice", level: "warning", text: notice });
   }
-  const opened = (verdict: Verdict): verdict is Extract<Verdict, { kind: "opened" }> => {
-    if (verdict.kind !== "opened") return false;
-    deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
-    return true;
-  };
+  // The policy hears a closed question, never a refusal: the model must not be told a person said no (M2R62).
+  function refuseApproval(id: string, reason: CancelReason): void {
+    handle.send({ type: "approval_response", id, answer: "deny", cancelled: true });
+    said(`approval_${reason}`, reason, "approval", APPROVAL_CANCEL_NOTICE);
+  }
 
   return {
     onUiRequest(record) {
       const verdict = dialogs.offer(record);
-      if (opened(verdict)) return;
-      if (verdict.kind === "cancel") {
+      if (verdict.kind === "opened") {
+        deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
+      } else if (verdict.kind === "cancel") {
         handle.send({ type: "extension_ui_response", id: record.id, cancelled: true });
-        said(verdict.reason, record.method, CANCEL_NOTICES[verdict.reason]);
+        said(`dialog_${verdict.reason}`, verdict.reason, record.method, CANCEL_NOTICES[verdict.reason]);
       } else {
         deps.publishPi(record);
       }
     },
     onApprovalRequest(record) {
+      // A second question under the id of an open approval never swaps the text of the card the person is reading:
+      // the open one is withdrawn and answered closed, then the new one opens.
+      if (dialogs.peek(record.id)?.method === "approval") {
+        dialogs.take(record.id);
+        deps.publish({ kind: "dialog_closed", id: record.id });
+        refuseApproval(record.id, "collision");
+      }
       const verdict = dialogs.offerApproval(record);
-      if (opened(verdict) || verdict.kind !== "cancel") return;
-      // The policy hears a closed question, never a refusal: the model must not be told a person said no (M2R62).
-      handle.send({ type: "approval_response", id: record.id, answer: "deny", cancelled: true });
-      said(verdict.reason, "approval", APPROVAL_CANCEL_NOTICE);
+      if (verdict.kind === "opened") deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
+      else if (verdict.kind === "cancel") refuseApproval(record.id, verdict.reason);
+    },
+    onApprovalInvalid(record) {
+      refuseApproval(record.id, record.reason);
     },
     onUiClosed(id) {
       if (dialogs.take(id)) deps.publish({ kind: "dialog_closed", id });
@@ -125,15 +139,10 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
       }
       const answer = approvalAnswerOf(open, response); // throws before anything is taken
       const entry = dialogs.takeEntry(dialogId);
-      const delivered = handle.send({
-        type: "approval_response",
-        id: dialogId,
-        answer: answer ?? "deny",
-        ...(answer === null ? { cancelled: true as const } : {}),
-      });
+      const delivered = handle.send({ type: "approval_response", id: dialogId, answer });
       deps.publish({ kind: "dialog_closed", id: dialogId });
       if (!delivered) throw new PapError("worker_failed");
-      return answer && entry?.grant ? { answer, grant: entry.grant } : null;
+      return entry?.grant ? { answer, grant: entry.grant } : null;
     },
     dialogs: () => dialogs.list(),
     clear: () => dialogs.clear(),

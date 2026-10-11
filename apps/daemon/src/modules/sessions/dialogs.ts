@@ -26,7 +26,7 @@ const TEXT_FIELDS = Object.keys(TEXT_LIMITS) as TextField[];
 const MAX_OPTIONS = 100;
 const MAX_OPTION_CHARS = maxLengthOf(Dialog.shape.options.unwrap().element);
 
-export type CancelReason = "unknown_method" | "malformed" | "too_large" | "limit";
+export type CancelReason = "unknown_method" | "malformed" | "too_large" | "limit" | "collision";
 export type DialogVerdict =
   { kind: "opened"; dialog: Dialog } | { kind: "cancel"; reason: CancelReason } | { kind: "decoration" };
 
@@ -135,6 +135,13 @@ function fitFrame(dialog: Dialog): Dialog | null {
   return sizeOf(current) <= DIALOG_FRAME_BYTES ? current : null;
 }
 
+/** At most 4096 characters, never ending between the two halves of a surrogate pair. */
+function labelOf(message: string): string {
+  const label = message.slice(0, MAX_LABEL_CHARS);
+  const last = label.charCodeAt(label.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? label.slice(0, -1) : label;
+}
+
 /** The card must show the whole call, so a request is the dialog as it is or no dialog (R86). */
 function approvalDialog(record: ApprovalRequestRecord): Built {
   if (!record.answers?.length || !record.category) return { reason: "malformed" };
@@ -161,6 +168,11 @@ export function createDialogRegistry(): DialogRegistry {
     const size = sizeOf(dialog);
     // A dialog offered again under an id that is open replaces it, as it does in the worker.
     const replaced = open.get(dialog.id);
+    // Only one extension's dialog replaces another's. An approval and a dialog of the other kind never share an id:
+    // the newcomer is refused and the open one stays, so neither waiter is left without an answer.
+    if (replaced && (replaced.dialog.method === "approval") !== (dialog.method === "approval")) {
+      return cancel("collision");
+    }
     if (
       open.size - (replaced ? 1 : 0) >= MAX_DIALOGS ||
       bytes - (replaced?.bytes ?? 0) + size > MAX_DIALOG_BYTES
@@ -186,7 +198,7 @@ export function createDialogRegistry(): DialogRegistry {
       return place(built.dialog, {
         tool: record.tool,
         key: record.key,
-        label: built.dialog.message?.slice(0, MAX_LABEL_CHARS) ?? "",
+        label: labelOf(built.dialog.message ?? ""),
       });
     },
     peek: (id) => open.get(id)?.dialog ?? null,

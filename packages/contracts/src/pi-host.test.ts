@@ -137,9 +137,49 @@ describe("protocol v2 records", () => {
     expect(parseWorkerRecord(render)).toEqual(render);
     expect(parseWorkerRecord({ type: "custom_close", id: "p1" })).toEqual({ type: "custom_close", id: "p1" });
     expect(parseWorkerRecord(approval)).toEqual(approval);
-    expect(parseWorkerRecord({ ...approval, key: "not-hex" })).toBeNull();
-    expect(parseWorkerRecord({ ...approval, answers: ["once", "once"] })).toBeNull();
     expect(parseWorkerRecord({ type: "custom_render", id: "p1" })).toBeNull();
+  });
+
+  describe("an approval_request the schema refuses", () => {
+    const approval = {
+      type: "approval_request",
+      id: "a1",
+      category: "exec",
+      title: "Run?",
+      message: "bash: ls",
+      answers: ["deny", "once"],
+      tool: "bash",
+      key: KEY,
+    };
+    const invalid = (reason: string) => ({ type: "approval_request_invalid", id: "a1", reason });
+
+    it.each([
+      ["empty answers", { answers: [] }, "malformed"],
+      ["missing answers", { answers: undefined }, "malformed"],
+      ["an unknown answer", { answers: ["deny", "forever"] }, "malformed"],
+      ["a repeated answer", { answers: ["once", "once"] }, "malformed"],
+      ["no category", { category: undefined }, "malformed"],
+      ["a non-hex key", { key: "not-hex" }, "malformed"],
+      ["a 257-character tool", { tool: "t".repeat(257) }, "malformed"],
+      ["a 65 537-character message", { message: "m".repeat(65_537) }, "too_large"],
+      ["a 4097-character title", { title: "t".repeat(4097) }, "too_large"],
+    ])("becomes a record the daemon can answer: %s", (_name, fields, reason) => {
+      expect(parseWorkerRecord({ ...approval, ...fields })).toEqual(invalid(reason));
+    });
+
+    it("is dropped when it has no usable id, since nobody could be told", () => {
+      expect(parseWorkerRecord({ ...approval, id: "", answers: [] })).toBeNull();
+      expect(parseWorkerRecord({ ...approval, id: "i".repeat(129), answers: [] })).toBeNull();
+      expect(parseWorkerRecord({ ...approval, id: 7, answers: [] })).toBeNull();
+      expect(parseWorkerRecord({ type: "approval_request", answers: [] })).toBeNull();
+    });
+
+    it("cannot be forged: a worker sending the internal type gets a Pi event, nothing more", () => {
+      expect(parseWorkerRecord(invalid("malformed"))).toEqual({
+        type: "pi_event",
+        event: invalid("malformed"),
+      });
+    });
   });
 
   it("parses a leaf record as a pap record, and refuses one without a boolean resync", () => {
