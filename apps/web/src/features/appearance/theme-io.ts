@@ -53,8 +53,17 @@ export function exportThemeFile(theme: CustomTheme): string {
   return `${JSON.stringify({ name, base, roles }, null, 2)}\n`;
 }
 
-/** Hands the file to the browser through a Blob URL, revoked right after the click. */
-export function downloadThemeFile(theme: CustomTheme): void {
+/** FileSaver.js's precedent: Safari and Firefox start the download after the click, so the URL must outlive it. */
+const REVOKE_DELAY_MS = 40_000;
+const revokeLater = (revoke: () => void): void => {
+  setTimeout(revoke, REVOKE_DELAY_MS);
+};
+
+/** Hands the file to the browser through a Blob URL, revoked on a later task (`schedule` is injectable for tests). */
+export function downloadThemeFile(
+  theme: CustomTheme,
+  schedule: (revoke: () => void) => void = revokeLater,
+): void {
   const url = URL.createObjectURL(new Blob([exportThemeFile(theme)], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
@@ -62,7 +71,7 @@ export function downloadThemeFile(theme: CustomTheme): void {
   document.body.append(link);
   link.click();
   link.remove();
-  URL.revokeObjectURL(url);
+  schedule(() => URL.revokeObjectURL(url));
 }
 
 /** T3's id rule (^[a-z0-9][a-z0-9-]{0,47}$), unique among `taken` and never a preset's id (M3-RT-09). */
@@ -78,8 +87,8 @@ export function newThemeId(name: string, taken: ReadonlySet<string>): string {
       .slice(0, 40)
       .replace(/-+$/, "") || "theme";
   if (!used.has(slug)) return slug;
-  for (let n = 2; n < 1000; n++) if (!used.has(`${slug}-${n}`)) return `${slug}-${n}`;
-  return `${slug}-${Date.now().toString(36)}`.slice(0, 48);
+  // At most 16 themes plus 3 presets are taken, so a free suffix always exists within the first 20 tries.
+  for (let n = 2; ; n++) if (!used.has(`${slug}-${n}`)) return `${slug}-${n}`;
 }
 
 /** A preset as a custom theme's eight roles: the fills, not the darkened text tones, for agent, you and attention. */

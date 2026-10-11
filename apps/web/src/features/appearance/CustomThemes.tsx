@@ -51,8 +51,13 @@ export function CustomThemes() {
   const save = (theme: Draft) => {
     const { account, setAccount } = state();
     const id = editing?.id ?? null;
-    if (id === null) {
-      if (account.customThemes.length >= THEME_LIMIT) return;
+    const exists = id !== null && account.customThemes.some((one) => one.id === id);
+    if (!exists) {
+      // A new theme, or one deleted while its editor was open: it comes back as a new theme.
+      if (account.customThemes.length >= THEME_LIMIT) {
+        toast({ message: t("settings.theme.limit"), tone: "error" });
+        return; // the editor stays open: nothing was saved
+      }
       const taken = new Set(account.customThemes.map((one) => one.id));
       setAccount({
         ...account,
@@ -88,19 +93,21 @@ export function CustomThemes() {
         altText: t("settings.theme.undoAlt"),
         run: () => {
           const now = state().account;
-          if (now.customThemes.some((one) => one.id === theme.id)) return;
           if (now.customThemes.length >= THEME_LIMIT) {
             toast({ message: t("settings.theme.limit"), tone: "error" });
             return;
           }
+          // A theme created since may have taken the id: the restored one gets a fresh id and keeps its selection.
+          const taken = new Set(now.customThemes.map((one) => one.id));
+          const restored = taken.has(theme.id) ? { ...theme, id: newThemeId(theme.name, taken) } : theme;
           const list = [...now.customThemes];
-          list.splice(Math.min(index, list.length), 0, theme);
+          list.splice(Math.min(index, list.length), 0, restored);
           state().setAccount({
             ...now,
             customThemes: list,
             // The selection comes back only if nothing else was chosen for that side in the meantime.
-            darkTheme: darkReset && now.darkTheme === "night" ? theme.id : now.darkTheme,
-            lightTheme: lightReset && now.lightTheme === "day" ? theme.id : now.lightTheme,
+            darkTheme: darkReset && now.darkTheme === "night" ? restored.id : now.darkTheme,
+            lightTheme: lightReset && now.lightTheme === "day" ? restored.id : now.lightTheme,
           });
         },
       },

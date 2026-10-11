@@ -15,7 +15,10 @@ import {
 const example =
   '{"name":"My theme","base":"night","roles":{"bg":"#0E1626","surface":"#132033","agent":"#38BDF8","you":"#FB923C","attn":"#EC4899","ok":"#34D399","err":"#F87171","text":"#E6EDF7"}}';
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
 
 describe("theme files (DESIGN.md §13.1)", () => {
   it("reads DESIGN's example and writes it back without an id, as 2-space JSON", () => {
@@ -114,7 +117,7 @@ describe("theme files (DESIGN.md §13.1)", () => {
     ).toBe("#fb923c");
   });
 
-  it("downloads through a Blob URL that is revoked right after the click", async () => {
+  it("downloads through a Blob URL that is revoked later, on the scheduled call, once", async () => {
     const order: string[] = [];
     let blob: Blob | undefined;
     const create = vi.fn((made: Blob) => {
@@ -131,14 +134,58 @@ describe("theme files (DESIGN.md §13.1)", () => {
       download = this.download;
       href = this.href;
     });
+    const scheduled: (() => void)[] = [];
     const parsed = parseThemeFile(example);
     if (!parsed.ok) throw new Error("parse");
-    downloadThemeFile({ id: "my-theme", ...parsed.theme });
+    downloadThemeFile({ id: "my-theme", ...parsed.theme }, (fn) => scheduled.push(fn));
+    expect(order).toEqual(["create", "click"]);
+    expect(revoke).not.toHaveBeenCalled();
+    expect(scheduled).toHaveLength(1);
+    scheduled[0]?.();
     expect(order).toEqual(["create", "click", "revoke"]);
-    expect([download, href, revoke.mock.calls[0]]).toEqual(["my-theme.json", "blob:pap/1", ["blob:pap/1"]]);
+    expect([download, href, revoke.mock.calls]).toEqual(["my-theme.json", "blob:pap/1", [["blob:pap/1"]]]);
     expect(blob?.type).toBe("application/json");
     expect(await blob?.text()).toBe(exportThemeFile({ id: "my-theme", ...parsed.theme }));
     expect(document.querySelector("a[download]")).toBeNull();
     vi.unstubAllGlobals();
+  });
+
+  it("waits 40 s by default before revoking", () => {
+    vi.useFakeTimers();
+    const revoke = vi.fn();
+    vi.stubGlobal(
+      "URL",
+      Object.assign(URL, { createObjectURL: () => "blob:pap/9", revokeObjectURL: revoke }),
+    );
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    const parsed = parseThemeFile(example);
+    if (!parsed.ok) throw new Error("parse");
+    downloadThemeFile({ id: "t", ...parsed.theme });
+    vi.advanceTimersByTime(39_999);
+    expect(revoke).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(revoke).toHaveBeenCalledOnce();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("is not polluted by __proto__ or constructor keys in the file", () => {
+    const text = example.replace(
+      '"name"',
+      '"__proto__":{"polluted":true},"constructor":{"prototype":{"polluted":true}},"name"',
+    );
+    const clean = parseThemeFile(example);
+    const parsed = parseThemeFile(text);
+    expect(parsed).toEqual(clean);
+    expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+    if (parsed.ok) expect(Object.keys(parsed.theme).sort()).toEqual(["base", "name", "roles"]);
+  });
+
+  it("still finds a free id at the limit of 16 themes, with a preset name", () => {
+    const taken = new Set(["x", ...Array.from({ length: 15 }, (_, i) => `x-${i + 2}`)]);
+    expect(taken.size).toBe(16);
+    expect(newThemeId("x", taken)).toBe("x-17");
+    const days = new Set(Array.from({ length: 16 }, (_, i) => `day-${i + 2}`));
+    expect(newThemeId("Day", days)).toBe("day-18");
   });
 });
