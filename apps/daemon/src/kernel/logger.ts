@@ -13,9 +13,16 @@ export interface Logger {
 
 const RANK: Record<LogLevel, number> = { debug: 10, info: 20, warn: 30, error: 40 };
 // Matched on whole words of the key (camelCase and separators split into words), so `accessToken`,
-// `x-api-key` and `passwd` are secrets while `inputTokens`, `bypass` and `passed` are not.
-const SECRET_WORDS =
-  /(?:^|_)(?:pass|passwd|passwords?|passphrase|secrets?|token|cookies?|authorization|credentials?|api_?key|private_?key|signing_?key|encryption_?key|hmac|bearer|jwt)(?:_|$)/;
+// `x-api-key` and `passwd` are secrets while `inputTokens`, `bypass` and `passed` are not. Keys written in one
+// lower-case run (`accesstoken`, `clientsecret`, `secretkey`, `apikey`) cannot be split, so the usual compounds are
+// listed. Digits may follow a word (`token2`, `password_1`).
+const TOKEN_OR_SECRET_PREFIX =
+  "(?:access|refresh|id|auth|session|bearer|api|csrf|xsrf|oauth|client|app|shared|webhook)";
+const SECRET_WORDS = new RegExp(
+  `(?:^|_)(?:${TOKEN_OR_SECRET_PREFIX}?_?(?:token|secrets?)|pass|passwd|passwords?|passphrase|cookies?|authorization|credentials?|(?:api|private|signing|encryption|secret|access)_?keys?|hmac|bearer|jwt)\\d*(?:_|$)`,
+);
+// A list of tokens is a secret list, a count of tokens (`inputTokens`, `max_tokens`) is not.
+const TOKEN_LIST = /tokens\d*$/;
 const MAX_STRING = 2000;
 const MAX_DEPTH = 6;
 const MAX_KEYS = 100;
@@ -30,10 +37,9 @@ const keyWords = (key: string): string =>
     .replace(/[^A-Za-z\d]+/g, "_")
     .toLowerCase();
 
-// A bare `tokens` is a secret list unless it holds a count.
 function isSecretKey(key: string, value: unknown): boolean {
   const words = keyWords(key);
-  return SECRET_WORDS.test(words) || (words === "tokens" && typeof value !== "number");
+  return SECRET_WORDS.test(words) || (TOKEN_LIST.test(words) && typeof value !== "number");
 }
 
 function read(get: () => unknown): unknown {

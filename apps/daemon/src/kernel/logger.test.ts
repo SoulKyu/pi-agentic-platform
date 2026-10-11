@@ -95,12 +95,39 @@ describe("redaction keys", () => {
     "bearer",
     "jwt",
     "tokens",
+    // Plural token lists, whatever the prefix.
+    "accessTokens",
+    "refresh_tokens",
+    "x-api-tokens",
+    "accesstokens",
+    // Digits after a word.
+    "token2",
+    "token_2",
+    "password1",
+    "api_key2",
+    "clientSecret2",
+    // Keys written in one lower-case run.
+    "accesstoken",
+    "refreshtoken",
+    "idtoken",
+    "authtoken",
+    "sessiontoken",
+    "clientsecret",
+    "appsecret",
+    "secretkey",
+    "secret_key",
+    "SecretKey",
+    "accesskey",
+    "access_key",
+    "apikey",
+    "APIKEY",
+    "apikeys",
+    "x-apikey",
+    "privatekey",
+    "signingkey",
+    "encryptionkey",
   ];
   const kept = [
-    "inputTokens",
-    "outputTokens",
-    "totalTokens",
-    "cacheReadTokens",
     "bypass",
     "passed",
     "compass",
@@ -108,6 +135,12 @@ describe("redaction keys", () => {
     "url",
     "key",
     "publicKey",
+    "tokenizer",
+    "keyboard",
+    "apiKeyboard",
+    "monkey",
+    "secretary",
+    "validity",
   ];
 
   it.each(redacted)("redacts %s", (key) => {
@@ -122,6 +155,15 @@ describe("redaction keys", () => {
     expect(redact({ tokens: 1234 })).toEqual({ tokens: 1234 });
     expect(redact({ tokens: ["a", "b"] })).toEqual({ tokens: "[REDACTED]" });
   });
+
+  it.each(["inputTokens", "outputTokens", "totalTokens", "cacheReadTokens", "max_tokens", "accessTokens"])(
+    "keeps %s when it holds a count, and redacts it when it holds anything else",
+    (key) => {
+      expect(redact({ [key]: 42 })).toEqual({ [key]: 42 });
+      expect(redact({ [key]: "42" })).toEqual({ [key]: "[REDACTED]" });
+      expect(redact({ [key]: ["a", "b"] })).toEqual({ [key]: "[REDACTED]" });
+    },
+  );
 });
 
 describe("a logger that never throws", () => {
