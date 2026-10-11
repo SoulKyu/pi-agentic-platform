@@ -1,4 +1,5 @@
 import "./csp-safe-zod.ts";
+import { TooltipProvider } from "@pap/ui";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
@@ -13,6 +14,8 @@ const root = document.getElementById("root");
 if (!root) throw new Error("#root is missing from index.html");
 createRoot(root).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <TooltipProvider>
+      <RouterProvider router={router} />
+    </TooltipProvider>
   </StrictMode>,
 );

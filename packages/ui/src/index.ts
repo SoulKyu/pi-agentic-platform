@@ -37,10 +37,13 @@ export {
   IconWork,
 } from "./icons.ts";
 export { once } from "./once.ts";
-export { Button, type ButtonProps } from "./primitives/Button.tsx";
+export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./primitives/Button.tsx";
 export { Icon, type IconProps } from "./primitives/Icon.tsx";
+export { IconButton, type IconButtonProps } from "./primitives/IconButton.tsx";
+export { Kbd, type KbdProps } from "./primitives/Kbd.tsx";
 export { ProgressBar, type ProgressBarProps } from "./primitives/ProgressBar.tsx";
 export { Spinner } from "./primitives/Spinner.tsx";
+export { Tooltip, TooltipProvider, type TooltipProps } from "./primitives/Tooltip.tsx";
 export { TextField, type TextFieldProps } from "./primitives/TextField.tsx";
 export { PRESET_TOKENS } from "./presets.ts";
 export {
