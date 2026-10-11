@@ -16,6 +16,10 @@ export interface Subscriptions {
    * `onError` hears why the server refused the subscription (`not_found`, `capacity`, `forbidden`,
    * `internal`, ...). It is not called for `connection_lost` or `offline`: the next connection
    * subscribes again by itself. A throwing listener or `onError` does not stop the others.
+   *
+   * Never subscribe again from `onError`: nothing backs off, so retrying `not_found` or `capacity` from
+   * the handler is a hot loop against the server. Show the error; the next connection, or the next
+   * `subscribe` call (a new mount), tries again.
    */
   subscribe(
     stream: StreamName,
@@ -58,6 +62,8 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
   // hand both over before the reply's promise continues (browsers run microtasks between messages, Node's
   // `ws` does not). Frames of a sub nobody has claimed yet wait here for the reply.
   let early: EventFrame[] = [];
+  // Counts the connections that have ended: a sub id only means something on the connection it came from.
+  let link = 0;
 
   const opening = () => [...entries.values()].some((entry) => entry.opening);
   const deliver = (entry: Entry, frame: EventFrame) => {
@@ -88,12 +94,19 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
 
   const open = (entry: Entry) => {
     const generation = ++entry.generation;
+    const connected = link;
     entry.opening = true;
     rpc
       .call("subscribe.session", { sessionId: entry.key, ...(entry.cursor ? { after: entry.cursor } : {}) })
       .then(
         ({ sub }) => {
-          if (entry.generation !== generation) return;
+          if (entry.generation !== generation) {
+            // Two requests for the key crossed on this connection (a subscribe made while the open
+            // notification was still going out): the newer one serves the listeners, so free this sub.
+            claim(sub);
+            if (link === connected) release(sub);
+            return;
+          }
           entry.opening = false;
           const arrived = claim(sub);
           // Everyone left while the request was in flight and nobody came back: the server still holds it.
@@ -126,6 +139,7 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
     // The server drops a connection's subscriptions with it, and `sub` ids restart on the next one.
     bySub.clear();
     early = [];
+    link++;
     for (const entry of entries.values()) {
       entry.sub = null;
       entry.opening = false;

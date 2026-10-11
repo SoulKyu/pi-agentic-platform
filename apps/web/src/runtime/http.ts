@@ -1,7 +1,7 @@
 import { PROTOCOL_VERSION } from "@pap/contracts";
 import type { ProbeResult } from "./connection.ts";
 
-const PROBE_TIMEOUT_MS = 5_000;
+const PROBE_ABORT_MS = 5_000;
 
 export interface HttpResult<T> {
   readonly status: number;
@@ -52,7 +52,7 @@ export async function postJson<T>(path: string, body: unknown): Promise<HttpResu
 // dropped. A network that swallows the request must not leave the supervisor waiting for the answer.
 export async function probeServer(): Promise<ProbeResult> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), PROBE_ABORT_MS);
   try {
     const response = await fetch(`/ws?proto=${PROTOCOL_VERSION}`, {
       credentials: "same-origin",

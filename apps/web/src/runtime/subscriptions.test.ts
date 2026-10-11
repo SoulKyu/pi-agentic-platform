@@ -159,6 +159,36 @@ describe("subscriptions", () => {
     });
   });
 
+  describe("a subscribe made while the connection announces it is open", () => {
+    it("sends two requests, delivers once, and releases the sub of the one that lost", async () => {
+      const { fake, calls, replies, hooks, subscriptions } = setup({ manual: true, state: "connecting" });
+      const seen: string[] = [];
+      subscriptions.subscribe("session", "k", () => seen.push("a"));
+      hooks.onOpen = () => {
+        subscriptions.subscribe("session", "k", () => seen.push("b"));
+      };
+      fake.setState("open");
+      expect(calls.filter(([method]) => method === "subscribe.session")).toHaveLength(2);
+      replies[0]?.resolve({ sub: "s1" });
+      replies[1]?.resolve({ sub: "s2" });
+      await flush();
+      expect(calls.filter(([method]) => method === "unsubscribe")).toEqual([["unsubscribe", { sub: "s1" }]]);
+      fake.deliver({ sub: "s1", epoch: "e1", seq: 0, event: {} });
+      fake.deliver({ sub: "s2", epoch: "e1", seq: 0, event: {} });
+      expect(seen).toEqual(["a", "b"]);
+    });
+
+    it("does not release the sub of a request that belongs to a connection that ended", async () => {
+      const { fake, calls, replies, subscriptions } = setup({ manual: true });
+      subscriptions.subscribe("session", "k", () => {});
+      fake.setState("waiting");
+      fake.setState("open");
+      replies[0]?.resolve({ sub: "s1" });
+      await flush();
+      expect(calls.filter(([method]) => method === "unsubscribe")).toEqual([]);
+    });
+  });
+
   describe("frames that arrive in the same tick as the reply", () => {
     it("are delivered in order once the reply names the sub", async () => {
       const { fake, calls, replies, subscriptions } = setup({ manual: true });

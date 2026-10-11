@@ -39,7 +39,7 @@ const DEAD_AFTER_MS = 15_000;
 const MAX_BACKOFF_MS = 30_000;
 const STABLE_AFTER_MS = 10_000;
 /** The longest the supervisor waits for the probe: no answer counts as `offline`. */
-export const PROBE_TIMEOUT_MS = 10_000;
+export const PROBE_DEADLINE_MS = 10_000;
 
 export function backoffDelay(attempt: number, random: number): number {
   return Math.round(Math.min(MAX_BACKOFF_MS, 500 * 2 ** attempt) * (0.5 + random / 2));
@@ -57,6 +57,8 @@ export function createConnection(deps: ConnectionDeps): Connection {
     dead: null,
     stable: null,
   };
+  // Deadline timers of the probes in flight, so that stop() leaves nothing armed.
+  const probeDeadlines = new Set<number>();
   const frameListeners = new Set<(frame: unknown) => void>();
   const stateListeners = new Set<(state: ConnectionState) => void>();
 
@@ -96,12 +98,16 @@ export function createConnection(deps: ConnectionDeps): Connection {
   // supervisor would wait for it forever, with no retry timer armed.
   const probe = (): Promise<ProbeResult> =>
     new Promise((resolve) => {
-      const deadline = deps.timers.set(() => resolve("offline"), PROBE_TIMEOUT_MS);
+      const deadline = deps.timers.set(() => {
+        probeDeadlines.delete(deadline);
+        resolve("offline");
+      }, PROBE_DEADLINE_MS);
+      probeDeadlines.add(deadline);
       Promise.resolve()
         .then(() => deps.probe())
         .catch((): ProbeResult => "offline")
         .then((result) => {
-          deps.timers.clear(deadline);
+          if (probeDeadlines.delete(deadline)) deps.timers.clear(deadline);
           resolve(result);
         });
     });
@@ -194,6 +200,8 @@ export function createConnection(deps: ConnectionDeps): Connection {
       clear("retry");
       clear("dead");
       clear("stable");
+      for (const deadline of probeDeadlines) deps.timers.clear(deadline);
+      probeDeadlines.clear();
       const current = socket;
       socket = null;
       if (current) detach(current);

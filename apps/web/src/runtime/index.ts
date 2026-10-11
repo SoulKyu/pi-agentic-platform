@@ -39,5 +39,5 @@ export function getRuntime(): Runtime {
 
 export type { ConnectionState } from "./connection.ts";
 export { getJson, postJson } from "./http.ts";
-export { RpcError } from "./rpc.ts";
+export { RpcError, type RpcErrorCode } from "./rpc.ts";
 export { useConnectionState } from "./use-connection-state.ts";
