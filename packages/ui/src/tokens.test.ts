@@ -261,6 +261,12 @@ describe("motion, labels and fonts", () => {
     expect(utilities).toContain('[data-motion="system"] .animate-indeterminate');
   });
 
+  it("stops spinners as well as the indeterminate bar under reduced motion", () => {
+    expect(utilities).toContain('[data-motion="none"] .animate-spin');
+    expect(utilities).toContain('[data-motion="system"] .animate-spin');
+    expect(utilities).toMatch(/\[data-motion="none"\] \.animate-spin \{\s*animation: none;/);
+  });
+
   it("switches HUD labels to sentence case with one attribute", () => {
     expect(
       blocks.find((b) => b.selector === '[data-labels="sentence"]')?.decls.get("--label-transform"),

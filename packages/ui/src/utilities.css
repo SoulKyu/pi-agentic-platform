@@ -10,13 +10,17 @@
 @custom-variant state-active (&[data-state="active"]);
 
 [data-motion="reduced"] .animate-indeterminate,
-[data-motion="none"] .animate-indeterminate {
+[data-motion="none"] .animate-indeterminate,
+[data-motion="reduced"] .animate-spin,
+[data-motion="none"] .animate-spin {
   animation: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion]) .animate-indeterminate,
-  [data-motion="system"] .animate-indeterminate {
+  :root:not([data-motion]) .animate-spin,
+  [data-motion="system"] .animate-indeterminate,
+  [data-motion="system"] .animate-spin {
     animation: none;
   }
 }
