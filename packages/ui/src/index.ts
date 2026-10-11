@@ -1,5 +1,18 @@
 export { ApprovalCard, type ApprovalCardProps } from "./ai/ApprovalCard.tsx";
-export { Message, type Author, type MessageProps } from "./ai/Message.tsx";
+export {
+  Message,
+  MessageAction,
+  MessageActions,
+  MessageBranch,
+  type Author,
+  type MessageActionProps,
+  type MessageBranchProps,
+  type MessageProps,
+} from "./ai/Message.tsx";
+export { AuthorGroup } from "./ai/AuthorGroup.tsx";
+export { DaySeparator } from "./ai/DaySeparator.tsx";
+export { RunStatusChip, type RunStatus } from "./ai/RunStatusChip.tsx";
+export { Fence } from "./ai/Fence.tsx";
 export { cn } from "./cn.ts";
 export { FOCUS_RING } from "./focus.ts";
 export { feedbackPhase, type FeedbackPhase, usePendingAction, usePendingFeedback } from "./feedback.ts";

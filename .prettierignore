@@ -7,3 +7,5 @@ playwright-report/
 test-results/
 DESIGN.md
 *.html
+THIRD_PARTY_NOTICES.md
+LICENSES/
