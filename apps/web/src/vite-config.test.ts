@@ -47,3 +47,28 @@ describe("vite build", () => {
     expect(inline("/src/logo.svg", tiny)).toBeUndefined();
   });
 });
+
+describe("appearance boot plugin", () => {
+  it("links one hashed classic script first in <head>, under /assets/ in a build", async () => {
+    const config = await load();
+    const plugin = (config.plugins ?? [])
+      .flat()
+      .find(
+        (p) => p && typeof p === "object" && "name" in p && p.name === "pap-appearance-boot",
+      ) as unknown as {
+      transformIndexHtml(html: string): unknown;
+      configResolved(c: { command: string }): void;
+    };
+    plugin.configResolved({ command: "build" });
+    const tags = plugin.transformIndexHtml("<html></html>") as Array<{
+      tag: string;
+      attrs: { src: string; type?: string };
+      injectTo: string;
+    }>;
+    expect(tags).toHaveLength(1);
+    expect(tags[0]?.tag).toBe("script");
+    expect(tags[0]?.attrs.src).toMatch(/^\/assets\/appearance-boot-[0-9a-f]{10}\.js$/);
+    expect(tags[0]?.attrs.type).toBeUndefined();
+    expect(tags[0]?.injectTo).toBe("head-prepend");
+  });
+});

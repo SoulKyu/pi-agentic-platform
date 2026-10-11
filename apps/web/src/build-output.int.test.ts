@@ -47,6 +47,15 @@ describe("the built web app under the daemon's CSP", () => {
     expect(html).not.toMatch(/\son[a-z]+\s*=/i);
   });
 
+  it("runs the appearance boot script before anything else, as a blocking external file (R74)", async () => {
+    const head = html.slice(0, html.indexOf("</head>"));
+    const first = /<script\b([^>]*)>/.exec(head);
+    expect(first?.[1]).toMatch(/src="\/assets\/appearance-boot-[0-9a-f]{10}\.js"/);
+    expect(first?.[1]).not.toMatch(/type="module"|defer|async/);
+    const file = /src="\/assets\/(appearance-boot-[0-9a-f]{10}\.js)"/.exec(head)?.[1] ?? "";
+    expect(await readFile(join(out, "assets", file), "utf8")).toContain('"pap.appearance.boot"');
+  });
+
   it("loads only from its own origin", () => {
     const references = [...html.matchAll(/\b(?:src|href)="([^"]+)"/g)].map((match) => match[1]);
     expect(references.length).toBeGreaterThan(0);

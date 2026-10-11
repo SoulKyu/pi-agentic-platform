@@ -205,6 +205,10 @@ export default defineConfig(
     },
   },
   {
+    files: ["apps/web/src/**/*.js"],
+    languageOptions: { globals: { ...globals.browser } },
+  },
+  {
     files: ["apps/web/src/**/*.{ts,tsx}"],
     rules: { "pap/no-restyle": "error", "pap/zustand-selector": "error" },
   },

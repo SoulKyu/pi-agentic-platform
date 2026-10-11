@@ -10,5 +10,5 @@
     "allowImportingTsExtensions": true,
     "customConditions": ["development"]
   },
-  "include": ["src", "vite.config.ts", "browser-targets.ts"]
+  "include": ["src", "vite.config.ts", "browser-targets.ts", "vite"]
 }
