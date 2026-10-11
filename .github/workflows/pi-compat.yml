@@ -23,4 +23,5 @@ jobs:
       - run: node --disable-warning=ExperimentalWarning scripts/pi-compat-bump.ts
       - run: pnpm install --no-frozen-lockfile --config.minimum-release-age=0
       - run: pnpm typecheck
+      - run: pnpm test:unit
       - run: pnpm test:int

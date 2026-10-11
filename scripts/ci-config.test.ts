@@ -96,12 +96,13 @@ describe("CI configuration", () => {
     for (const step of checkouts) expect(step.with?.["persist-credentials"]).toBe(false);
   });
 
-  it("type-checks the nightly run after the bump and before its tests, on a runner with the probe tools (R63, R92)", () => {
+  it("type-checks the nightly run after the bump and before its unit and integration tests, on a runner with the probe tools (R63, R92)", () => {
     const steps = Object.values(workflow("pi-compat").jobs)[0]?.steps ?? [];
     const order = [
       "scripts/pi-compat-bump.ts",
       "pnpm install --no-frozen-lockfile",
       "pnpm typecheck",
+      "pnpm test:unit",
       "pnpm test:int",
     ].map((command) => steps.findIndex((step) => step.run?.includes(command)));
     expect(order.every((index) => index >= 0)).toBe(true);
