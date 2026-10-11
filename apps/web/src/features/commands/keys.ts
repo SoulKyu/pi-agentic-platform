@@ -78,6 +78,8 @@ const CODE_KEYS: Readonly<Record<string, string>> = {
 };
 const MODIFIER_KEYS = new Set(["control", "shift", "alt", "meta", "os", "altgraph", "capslock"]);
 
+const MAX_CHORD_LENGTH = 64;
+
 const isPrintable = (key: string) => [...key].length === 1 && key !== " ";
 // Own properties only: a stored "constructor" or "__proto__" must not resolve through Object.prototype.
 const own = <T>(table: Readonly<Record<string, T>>, name: string): T | undefined =>
@@ -85,11 +87,12 @@ const own = <T>(table: Readonly<Record<string, T>>, name: string): T | undefined
 
 /** Defensive: stored rules and imports are untrusted, so anything malformed (or not even a string) is null, never a throw. */
 export function parseChord(text: string): Chord | null {
-  if (typeof text !== "string") return null;
+  if (typeof text !== "string" || text.length > MAX_CHORD_LENGTH) return null;
   const raw = text.trim().toLowerCase();
   if (raw === "" || raw === KEY_NONE) return null;
   // A trailing "++" is the plus key (T3: "mod++").
-  const parts = raw.endsWith("++") ? [...raw.slice(0, -2).split("+"), "+"] : raw.split("+");
+  const parts =
+    raw === "+" ? ["+"] : raw.endsWith("++") ? [...raw.slice(0, -2).split("+"), "+"] : raw.split("+");
   const chord = { mod: false, ctrl: false, meta: false, alt: false, shift: false, key: "" };
   for (const part of parts) {
     const modifier = own(MODIFIERS, part);
@@ -122,12 +125,21 @@ interface Candidates {
   readonly physical: string | null;
 }
 
-/** Null during a composition, for an input method's Process key, and for AltGr. */
+/** A digit or punctuation character: the one kind of layout key whose physical key is preferred. */
+const isSymbolKey = (key: string) => [...key].length === 1 && !/^\p{L}$/u.test(key);
+
+/**
+ * Null during a composition, for an input method's Process key, for AltGr and for an event without a key. The physical
+ * key is used when the layout key is unusable or is itself a digit or punctuation character and the physical key is not a letter (owner R3-7); a usable
+ * letter ("m" on AZERTY's Semicolon) or a named key ("End" on a numpad without NumLock) stays.
+ */
 function candidatesOf(event: KeyInput, platform: Platform): Candidates | null {
+  // Chrome's autofill dispatches keydowns without a key.
+  if (typeof event.key !== "string") return null;
   if (cancelsComposition(event) || event.key === "Process") return null;
   if (platform === "other" && event.getModifierState?.("AltGraph") === true) return null;
   const layout = event.key === " " ? " " : event.key.toLowerCase();
-  const physical = codeKey(event.code);
+  const physical = codeKey(typeof event.code === "string" ? event.code : "");
   const unusable = layout === "" || layout === "dead" || layout === "unidentified";
   const nonLatinUnderCommand =
     /^\p{L}$/u.test(layout) && !/^[a-z]$/.test(layout) && (event.ctrlKey || event.metaKey);
@@ -136,7 +148,10 @@ function candidatesOf(event: KeyInput, platform: Platform): Candidates | null {
   const layoutUsable = !unusable && !nonLatinUnderCommand && !macComposed;
   return {
     layout: layoutUsable ? layout : null,
-    physical: physical !== null && (!/^[a-z]$/.test(physical) || !layoutUsable) ? physical : null,
+    physical:
+      physical !== null && (!layoutUsable || (isSymbolKey(layout) && !/^[a-z]$/.test(physical)))
+        ? physical
+        : null,
   };
 }
 
@@ -180,18 +195,18 @@ export function chordId(chord: Chord, platform: Platform): string {
 export function chordFromEvent(event: KeyInput, platform: Platform): string | null {
   const candidates = candidatesOf(event, platform);
   if (candidates === null || MODIFIER_KEYS.has(event.key.toLowerCase())) return null;
-  const key =
-    candidates.physical !== null && !/^[a-z]$/.test(candidates.physical)
-      ? candidates.physical
-      : (candidates.layout ?? candidates.physical);
+  const key = candidates.physical ?? candidates.layout;
   if (key === null) return null;
-  const mod = platform === "mac" ? event.metaKey : event.ctrlKey;
-  const parts = [
-    mod && "mod",
-    (platform === "mac" ? event.ctrlKey : event.metaKey) && (platform === "mac" ? "ctrl" : "meta"),
-    event.altKey && "alt",
-    event.shiftKey && "shift",
-    key === " " ? "space" : key,
-  ];
-  return parts.filter(Boolean).join("+");
+  // Both Ctrl and Cmd: `mod` would stand for one of them, so both are written out (the parser refuses mod+ctrl).
+  const primary = platform === "mac" ? event.metaKey : event.ctrlKey;
+  const secondary = platform === "mac" ? event.ctrlKey : event.metaKey;
+  const modifiers =
+    primary && secondary
+      ? ["ctrl", "meta"]
+      : [primary && "mod", secondary && (platform === "mac" ? "ctrl" : "meta")];
+  const text = [...modifiers, event.altKey && "alt", event.shiftKey && "shift", key === " " ? "space" : key]
+    .filter(Boolean)
+    .join("+");
+  // The recorder never stores what the parser would refuse (ContextMenu, PrintScreen...).
+  return parseChord(text) === null ? null : text;
 }

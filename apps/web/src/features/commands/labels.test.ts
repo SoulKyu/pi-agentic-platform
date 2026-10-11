@@ -60,3 +60,19 @@ describe("labels (pw lib/shortcut-label.ts)", () => {
     expect(ariaKeyShortcuts(parseChord("mod+k") as never, "other")).toBe("Control+K");
   });
 });
+
+describe("fix round 1", () => {
+  it("writes UI Events key names in aria-keyshortcuts", () => {
+    const aria = (text: string) => ariaKeyShortcuts(parseChord(text) as never, "other");
+    expect(aria("alt+up")).toBe("Alt+ArrowUp");
+    expect(aria("ctrl+pageup")).toBe("Control+PageUp");
+    expect(aria("ctrl+pagedown")).toBe("Control+PageDown");
+    expect(aria("ctrl+space")).toBe("Control+Space");
+    expect(aria("f5")).toBe("F5");
+    expect(aria("mod++")).toBe("Control++");
+    expect(aria("esc")).toBe("Escape");
+  });
+  it("uses the control glyph on Apple platforms", () => {
+    expect(chordTokens(parseChord("ctrl+k") as never, "mac", names)).toEqual(["⌃", "K"]);
+  });
+});

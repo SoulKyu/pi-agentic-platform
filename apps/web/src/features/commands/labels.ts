@@ -109,16 +109,23 @@ export function keyNames(t: Translate): KeyNames {
   return Object.fromEntries(Object.entries(KEY_NAME_KEYS).map(([id, key]) => [id, t(key)])) as KeyNames;
 }
 
+const ARIA_NAMES: Readonly<Record<string, string>> = {
+  arrowup: "ArrowUp",
+  arrowdown: "ArrowDown",
+  arrowleft: "ArrowLeft",
+  arrowright: "ArrowRight",
+  pageup: "PageUp",
+  pagedown: "PageDown",
+};
+const ariaName = (key: string) =>
+  Object.hasOwn(ARIA_NAMES, key) ? (ARIA_NAMES[key] as string) : key.charAt(0).toUpperCase() + key.slice(1);
+
 /** ARIA's aria-keyshortcuts form ("Control+K", "Meta+K"). */
 export function ariaKeyShortcuts(chord: Chord, platform: Platform): string {
   const ctrl = chord.ctrl || (chord.mod && platform === "other");
   const meta = chord.meta || (chord.mod && platform === "mac");
   const key =
-    chord.key === " "
-      ? "Space"
-      : chord.key.length === 1
-        ? chord.key.toUpperCase()
-        : chord.key.replace(/^arrow/, "Arrow").replace(/^./, (c) => c.toUpperCase());
+    chord.key === " " ? "Space" : chord.key.length === 1 ? chord.key.toUpperCase() : ariaName(chord.key);
   return [ctrl && "Control", chord.alt && "Alt", chord.shift && "Shift", meta && "Meta", key]
     .filter(Boolean)
     .join("+");

@@ -132,3 +132,72 @@ describe("parseChord on hostile names", () => {
       expect(parseChord(bad), bad).toBeNull();
   });
 });
+
+describe("fix round 1", () => {
+  const EVENTS: Array<[Partial<KeyInput>, "mac" | "other"]> = [
+    [{ key: "k", code: "KeyK", ctrlKey: true, metaKey: true }, "other"],
+    [{ key: "k", code: "KeyK", ctrlKey: true, metaKey: true }, "mac"],
+    [{ key: "k", code: "KeyK", ctrlKey: true }, "mac"],
+    [{ key: "k", code: "KeyK", metaKey: true }, "other"],
+    [{ key: "+", code: "Equal", shiftKey: true }, "other"],
+    [{ key: "+", code: "Equal", ctrlKey: true, shiftKey: true }, "other"],
+    [{ key: "+", code: "Equal", metaKey: true }, "mac"],
+    [{ key: "+", code: "NumpadAdd", metaKey: true }, "mac"],
+    [{ key: "ArrowRight", code: "ArrowRight", altKey: true, shiftKey: true }, "other"],
+    [{ key: " ", code: "Space", ctrlKey: true }, "other"],
+    [{ key: "F5", code: "F5" }, "other"],
+    [{ key: "&", code: "Digit1", ctrlKey: true }, "other"],
+    [{ key: "Escape", code: "Escape" }, "other"],
+  ];
+
+  it("every recorded chord parses back and matches the event that made it", () => {
+    for (const [over, platform] of EVENTS) {
+      const event = ev(over);
+      const text = chordFromEvent(event, platform);
+      const chord = text === null ? null : parseChord(text);
+      expect(chord, `${String(text)} for ${JSON.stringify(over)}`).not.toBeNull();
+      expect(matchesChord(chord as never, event, platform), String(text)).toBe(true);
+    }
+    expect(chordFromEvent(ev({ key: "k", ctrlKey: true, metaKey: true }), "other")).toBe("ctrl+meta+k");
+    // The numpad plus has no punctuation code, so the layout key "+" is recorded: the parser's "mod++" form.
+    expect(chordFromEvent(ev({ key: "+", code: "NumpadAdd", metaKey: true }), "mac")).toBe("mod++");
+    expect(chordFromEvent(ev({ key: "+", code: "NumpadAdd" }), "mac")).toBe("+");
+  });
+
+  it("returns null for a key the parser would refuse", () => {
+    expect(chordFromEvent(ev({ key: "ContextMenu", code: "ContextMenu" }), "other")).toBeNull();
+  });
+
+  it("parses a bare plus and caps the input length", () => {
+    expect(parseChord("+")?.key).toBe("+");
+    // Whitespace padding would trim to a valid chord: only the length cap refuses the 65-character form.
+    expect(parseChord(`${" ".repeat(60)}mod+k`)).toBeNull();
+    expect(parseChord(`${" ".repeat(59)}mod+k`)?.key).toBe("k");
+  });
+
+  it("takes the physical key only when the layout key is unusable or a digit/punctuation character", () => {
+    expect(chordFromEvent(ev({ key: "m", code: "Semicolon", ctrlKey: true }), "other")).toBe("mod+m");
+    expect(
+      matchesChord(parseChord("mod+;") as never, ev({ key: "m", code: "Semicolon", ctrlKey: true }), "other"),
+    ).toBe(false);
+    expect(chordFromEvent(ev({ key: "End", code: "Numpad1", ctrlKey: true }), "other")).toBe("mod+end");
+    expect(
+      matchesChord(parseChord("mod+1") as never, ev({ key: "End", code: "Numpad1", ctrlKey: true }), "other"),
+    ).toBe(false);
+    expect(chordFromEvent(ev({ key: "&", code: "Digit1", ctrlKey: true }), "other")).toBe("mod+1");
+    expect(keyCandidates(ev({ key: "Dead", code: "KeyE" }), "other")).toEqual(["e"]);
+  });
+
+  it("never throws on an event without a key (Chrome autofill)", () => {
+    const bare = {
+      code: "KeyA",
+      ctrlKey: true,
+      metaKey: false,
+      altKey: false,
+      shiftKey: false,
+    } as unknown as KeyInput;
+    expect(keyCandidates(bare, "other")).toEqual([]);
+    expect(chordFromEvent(bare, "other")).toBeNull();
+    expect(matchesChord(parseChord("mod+a") as never, bare, "other")).toBe(false);
+  });
+});
