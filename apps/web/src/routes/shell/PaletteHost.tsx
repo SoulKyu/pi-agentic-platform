@@ -69,7 +69,7 @@ export function PaletteHost() {
       text={lazyText}
       load={loadPalette}
       open={open}
-      props={{ open, onOpenChange: setOpen, items, platform: detectPlatform() }}
+      props={{ open, onOpenChange: setOpen, items }}
       onFailed={() => setOpen(false)}
     />
   );

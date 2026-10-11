@@ -1,10 +1,10 @@
 import { IconAccount, IconButton, IconSettings, Mark } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { reportClientIssue } from "../../lib/report.ts";
+import { pathOfItem } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
-import { navigateTo } from "./navigate.ts";
 import { signOut } from "./sign-out.ts";
+import { go } from "./tab-actions.ts";
 import { useShortcut } from "./shortcut.ts";
 
 interface RailProps {
@@ -33,11 +33,7 @@ export function Rail({ username, onSignedOut }: RailProps) {
         label={t("shell.rail.settings")}
         shortcut={settings.keys}
         shortcutJoiner={settings.joiner}
-        onClick={() =>
-          navigateTo(navigate, { kind: "settings", section: "appearance" }).catch(() =>
-            reportClientIssue("command_failed"),
-          )
-        }
+        onClick={() => go(navigate, pathOfItem({ kind: "settings", section: "appearance" }))}
       />
       <LazyMenu
         label={t("shell.rail.account")}

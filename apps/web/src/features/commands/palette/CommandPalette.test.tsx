@@ -47,7 +47,7 @@ afterEach(async () => {
 const open = async () => {
   page = await mount(
     <TooltipProvider>
-      <CommandPalette open onOpenChange={onOpenChange} items={items} platform="other" />
+      <CommandPalette open onOpenChange={onOpenChange} items={items} />
     </TooltipProvider>,
   );
 };
@@ -143,7 +143,7 @@ describe("CommandPalette", () => {
   it("renders no listbox while closed", async () => {
     page = await mount(
       <TooltipProvider>
-        <CommandPalette open={false} onOpenChange={onOpenChange} items={items} platform="other" />
+        <CommandPalette open={false} onOpenChange={onOpenChange} items={items} />
       </TooltipProvider>,
     );
     expect(document.querySelector('[role="listbox"]')).toBeNull();

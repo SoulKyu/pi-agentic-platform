@@ -3,7 +3,6 @@ import { Dialog } from "@pap/ui/overlays";
 import { Command } from "cmdk";
 import { useMemo, useRef, useState } from "react";
 import { useLocale, useT } from "../../../i18n/index.ts";
-import type { Platform } from "../keys.ts";
 import { rankItems, type PaletteItem } from "./rank.ts";
 import { resultCountLabel } from "./result-count.ts";
 
@@ -11,7 +10,6 @@ interface CommandPaletteProps {
   readonly open: boolean;
   onOpenChange(open: boolean): void;
   readonly items: readonly PaletteItem[];
-  readonly platform: Platform;
 }
 
 /**

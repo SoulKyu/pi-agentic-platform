@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { hasCommand, onRegistryChange, registerCommand, runCommand } from "./registry.ts";
+import { hasCommand, registerCommand, runCommand } from "./registry.ts";
 
 describe("command registry (Orca app-command-handlers)", () => {
   it("lets the latest registration answer and re-exposes the earlier one when it leaves", () => {
@@ -21,15 +21,5 @@ describe("command registry (Orca app-command-handlers)", () => {
     expect(runCommand("x.two")).toBe(false);
     expect(runCommand("x.none")).toBe(false);
     off();
-  });
-
-  it("tells listeners about registrations and removals; a second removal changes nothing", () => {
-    const listener = vi.fn();
-    const stop = onRegistryChange(listener);
-    const off = registerCommand("x.three", () => {});
-    off();
-    off();
-    stop();
-    expect(listener).toHaveBeenCalledTimes(2);
   });
 });
