@@ -7,6 +7,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - `pnpm install` · `pnpm lint` · `pnpm format:check` · `pnpm typecheck` · `pnpm knip`
 - `pnpm test:unit` · `pnpm test:int` (forks real pi-host workers with a scripted provider)
 - `pnpm build` · `pnpm budgets`
+- Run the built POC: `pnpm build && node --disable-warning=ExperimentalWarning apps/daemon/dist/main.js serve`, then open the setup URL it prints (`/` answers 404 when `apps/web/dist` does not exist, so build first). `pnpm smoke` boots that same build against the scripted provider and drives it end to end.
 - Dev: `pnpm --filter @pap/daemon dev` (prints its URL; port and PAP_HOME derived from the worktree path), then `PAP_DEV_DAEMON=http://127.0.0.1:<that port> pnpm --filter @pap/web dev` and open http://localhost:5173
 
 ## Rules (CI-enforced)
@@ -16,7 +17,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - Every RPC method declares a permission in `packages/contracts/src/methods.ts`.
 - RPC handlers decode, call one service method, map typed errors. Nothing else.
 - UI code uses tokens from `packages/ui/src/tokens.css`: no raw colours, no `[…]` arbitrary values, no restyling of `@pap/ui` primitives.
-- Every `eslint-disable` carries a reason after `--`.
+- The only ESLint directive accepted is `eslint-disable-next-line <rule> -- <reason>`; block and `-line` forms are refused, and so is inline config (`/* eslint max-lines: "off" */`).
 - TypeScript: erasable syntax only (no enum, namespace, parameter properties); relative imports keep their `.ts` extension.
 - Tests never touch `~/.pi/agent` or `~/.pap`; timers go through the kernel `Clock`; no sleeps.
 - Never edit pi-web; pap imports nothing from it.
