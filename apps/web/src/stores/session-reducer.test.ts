@@ -286,25 +286,25 @@ describe("reduceSession", () => {
       let view = reduceSession(EMPTY_VIEW, start("a"));
       view = reduceSession(view, start("b", "read"));
       view = reduceSession(view, update("a", "line 1"));
-      expect(view.tools).toEqual({
-        a: { name: "bash", status: "running", preview: "line 1" },
-        b: { name: "read", status: "running", preview: "" },
-      });
+      expect([...view.tools]).toEqual([
+        ["a", { name: "bash", status: "running", preview: "line 1" }],
+        ["b", { name: "read", status: "running", preview: "" }],
+      ]);
       view = reduceSession(reduceSession(view, end("a")), end("b", true));
-      expect(view.tools).toEqual({
-        a: { name: "bash", status: "done", preview: "line 1" },
-        b: { name: "read", status: "failed", preview: "" },
-      });
+      expect([...view.tools]).toEqual([
+        ["a", { name: "bash", status: "done", preview: "line 1" }],
+        ["b", { name: "read", status: "failed", preview: "" }],
+      ]);
     });
 
     it("ignores progress and ends of a tool it never saw start", () => {
       const view = reduceSession(reduceSession(EMPTY_VIEW, update("z", "x")), end("z"));
-      expect(view.tools).toEqual({});
+      expect(view.tools.size).toBe(0);
     });
 
     it("cuts a preview to 2000 characters", () => {
       const view = reduceSession(reduceSession(EMPTY_VIEW, start("a")), update("a", "p".repeat(2500)));
-      expect(view.tools.a?.preview).toHaveLength(2000);
+      expect(view.tools.get("a")?.preview).toHaveLength(2000);
     });
 
     it("keeps 200 tool views: the 201st drops the oldest finished one, the oldest of all when none finished", () => {
@@ -312,21 +312,38 @@ describe("reduceSession", () => {
       for (let i = 0; i < 200; i++) view = reduceSession(view, start(`t${i}`));
       view = reduceSession(reduceSession(view, end("t5")), end("t7"));
       view = reduceSession(view, start("t200"));
-      expect(Object.keys(view.tools)).toHaveLength(200);
-      expect(view.tools.t5).toBeUndefined();
-      expect(view.tools.t7).toBeDefined();
-      expect(view.tools.t200?.status).toBe("running");
+      expect(view.tools.size).toBe(200);
+      expect(view.tools.has("t5")).toBe(false);
+      expect(view.tools.has("t7")).toBe(true);
+      expect(view.tools.get("t200")?.status).toBe("running");
       let running = EMPTY_VIEW;
       for (let i = 0; i < 201; i++) running = reduceSession(running, start(`r${i}`));
-      expect(Object.keys(running.tools)).toHaveLength(200);
-      expect(running.tools.r0).toBeUndefined();
+      expect(running.tools.size).toBe(200);
+      expect(running.tools.has("r0")).toBe(false);
+    });
+
+    it("keeps ids like toString or 10 as ordinary keys, evicting by insertion order", () => {
+      let view = reduceSession(EMPTY_VIEW, start("toString"));
+      view = reduceSession(view, start("constructor"));
+      expect(view.tools.get("toString")?.status).toBe("running");
+      expect(view.tools.get("constructor")?.status).toBe("running");
+      expect(reduceSession(EMPTY_VIEW, end("toString")).tools.size).toBe(0);
+      let numeric = reduceSession(EMPTY_VIEW, start("10"));
+      numeric = reduceSession(numeric, start("2"));
+      expect([...numeric.tools.keys()]).toEqual(["10", "2"]);
+      for (let i = 0; i < 198; i++) numeric = reduceSession(numeric, start(`t${i}`));
+      numeric = reduceSession(numeric, start("last"));
+      expect(numeric.tools.size).toBe(200);
+      expect(numeric.tools.has("10")).toBe(false);
+      expect(numeric.tools.has("2")).toBe(true);
     });
 
     it("marks every running tool failed when the session goes cold", () => {
       let view = reduceSession(reduceSession(EMPTY_VIEW, start("a")), start("b"));
       view = reduceSession(view, end("a"));
       view = reduceSession(view, { kind: "status", status: "cold" });
-      expect(view.tools).toMatchObject({ a: { status: "done" }, b: { status: "failed" } });
+      expect(view.tools.get("a")?.status).toBe("done");
+      expect(view.tools.get("b")?.status).toBe("failed");
     });
 
     it("reads how much of a clipped result was cut", () => {

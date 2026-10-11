@@ -17,8 +17,8 @@ export interface SessionView {
   readonly messages: readonly MessageView[];
   /** The reply being written, by content index; null between replies. */
   readonly partial: PartialMessage | null;
-  /** Tool calls by id, latest wins; at most 200. */
-  readonly tools: Readonly<Record<string, ToolView>>;
+  /** Tool calls by id, latest wins, oldest first; at most 200. */
+  readonly tools: ReadonlyMap<string, ToolView>;
   readonly dialogs: readonly Dialog[];
   readonly notices: ReadonlyArray<{
     readonly level: string;
@@ -34,7 +34,7 @@ export const EMPTY_VIEW: SessionView = {
   status: "cold",
   messages: [],
   partial: null,
-  tools: {},
+  tools: new Map(),
   dialogs: [],
   notices: [],
   loaded: false,

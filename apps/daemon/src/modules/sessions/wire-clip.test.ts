@@ -121,4 +121,17 @@ describe("wire clipping", () => {
     expect(call.assistantMessageEvent.toolCall.arguments.content).toHaveLength(ARG_PREVIEW_CHARS);
     expect(call.assistantMessageEvent.toolCall.papTruncated).toBe(true);
   });
+
+  it("clips the assistant message of a turn_end like its message_end (a 900 KB write call is not sent whole again)", () => {
+    const message = {
+      role: "assistant",
+      content: [{ type: "toolCall", id: "c1", name: "write", arguments: { content: "w".repeat(900_000) } }],
+    };
+    const clipped = clipPiEvent({ type: "turn_end", message }) as unknown as {
+      message: { content: Array<{ arguments: { content: string }; papTruncated?: boolean }> };
+    };
+    expect(clipped.message.content[0]?.arguments.content).toHaveLength(ARG_PREVIEW_CHARS);
+    expect(clipped.message.content[0]?.papTruncated).toBe(true);
+    expect(clipPiEvent({ type: "turn_end" })).toEqual({ type: "turn_end" });
+  });
 });

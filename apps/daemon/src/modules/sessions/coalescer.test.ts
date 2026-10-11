@@ -77,12 +77,15 @@ describe("delta coalescer", () => {
     expect(sent).toHaveLength(MAX_PENDING_ITEMS + 1);
   });
 
-  it("sends at once past 256 KiB pending, and not at exactly 256 KiB", () => {
+  it("holds exactly 256 KiB pending, and sends it before appending one more character", () => {
     const { sent, coalescer } = setup();
-    coalescer.push(delta("x".repeat(256 * 1024)));
+    const full = "x".repeat(256 * 1024);
+    coalescer.push(delta(full));
     expect(sent).toHaveLength(0);
     coalescer.push(delta("y"));
-    expect(sent).toHaveLength(1);
+    expect(sent).toEqual([delta(full)]);
+    coalescer.flush();
+    expect(sent).toEqual([delta(full), delta("y")]);
   });
 
   it("sends what is pending before appending a delta that would pass 256 KiB, so no frame exceeds the cap or one delta", () => {

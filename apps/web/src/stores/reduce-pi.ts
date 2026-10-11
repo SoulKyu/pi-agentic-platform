@@ -26,26 +26,24 @@ const textOf = (partialResult: unknown): string => {
     .slice(-MAX_PREVIEW_CHARS);
 };
 
-/** At most MAX_TOOL_VIEWS: the oldest finished one goes first, the oldest of all when none has finished. */
-function withTool(
-  tools: Readonly<Record<string, ToolView>>,
-  id: string,
-  tool: ToolView,
-): Record<string, ToolView> {
-  let entries = Object.entries(tools).filter(([key]) => key !== id);
-  if (entries.length >= MAX_TOOL_VIEWS) {
-    const drop = entries.findIndex(([, existing]) => existing.status !== "running");
-    entries = entries.filter((_, index) => index !== (drop === -1 ? 0 : drop));
+/** At most MAX_TOOL_VIEWS, in insertion order: the oldest finished one goes first, the oldest of all when none has. */
+function withTool(tools: ReadonlyMap<string, ToolView>, id: string, tool: ToolView): Map<string, ToolView> {
+  const next = new Map(tools);
+  next.delete(id);
+  if (next.size >= MAX_TOOL_VIEWS) {
+    const finished = [...next].find(([, existing]) => existing.status !== "running");
+    const oldest = finished?.[0] ?? next.keys().next().value;
+    if (oldest !== undefined) next.delete(oldest);
   }
-  return Object.fromEntries([...entries, [id, tool]]);
+  return next.set(id, tool);
 }
 
-export function failRunningTools(tools: Readonly<Record<string, ToolView>>): Record<string, ToolView> {
-  return Object.fromEntries(
-    Object.entries(tools).map(([id, tool]) => [
-      id,
-      tool.status === "running" ? { ...tool, status: "failed" } : tool,
-    ]),
+const replaceTool = (tools: ReadonlyMap<string, ToolView>, id: string, tool: ToolView) =>
+  new Map(tools).set(id, tool);
+
+export function failRunningTools(tools: ReadonlyMap<string, ToolView>): Map<string, ToolView> {
+  return new Map(
+    [...tools].map(([id, tool]) => [id, tool.status === "running" ? { ...tool, status: "failed" } : tool]),
   );
 }
 
@@ -74,21 +72,24 @@ export function reducePi(view: SessionView, event: { type: string } & Record<str
       };
     case "tool_execution_update": {
       const id = String(event.toolCallId);
-      const current = view.tools[id];
+      const current = view.tools.get(id);
       return current
-        ? { ...next, tools: { ...view.tools, [id]: { ...current, preview: textOf(event.partialResult) } } }
+        ? {
+            ...next,
+            tools: replaceTool(view.tools, id, { ...current, preview: textOf(event.partialResult) }),
+          }
         : next;
     }
     case "tool_execution_end": {
       const id = String(event.toolCallId);
-      const current = view.tools[id];
+      const current = view.tools.get(id);
       return current
         ? {
             ...next,
-            tools: {
-              ...view.tools,
-              [id]: { ...current, status: event.isError === true ? "failed" : "done" },
-            },
+            tools: replaceTool(view.tools, id, {
+              ...current,
+              status: event.isError === true ? "failed" : "done",
+            }),
           }
         : next;
     }

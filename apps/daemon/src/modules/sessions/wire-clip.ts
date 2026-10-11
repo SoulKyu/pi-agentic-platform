@@ -150,6 +150,7 @@ export function clipPiEvent(event: PiEvent): PiEvent | null {
       return clipUpdate(event);
     case "message_start":
     case "message_end":
+    case "turn_end":
       return event.message === undefined ? event : { ...event, message: clipMessage(event.message) };
     case "tool_execution_start": {
       const { value, cut } = clipArguments(event.args);
