@@ -153,6 +153,27 @@ export const methods = catalogue({
     // `timeout`: Pi may still write the file; the outcome is unknown and the call is not retried (R105, M2R97).
     errors: ["not_found", "capacity", "timeout", "worker_failed", "command_failed"],
   }),
+  "sessions.fork": defineMethod({
+    name: "sessions.fork",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId, entryId: z.string().min(1).max(128) }),
+    result: z.object({
+      sessionId: SessionId,
+      /** The text of the message forked before, for the composer; clipped to the frame. */
+      text: z.string().max(UI_LIMITS.editorText),
+    }),
+    // A source over the size cap is `session_empty` too. `bad_request`: the entry is not a user message.
+    errors: ["not_found", "bad_request", "session_empty"],
+  }),
+  "sessions.clone": defineMethod({
+    name: "sessions.clone",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId }),
+    result: z.object({ sessionId: SessionId }),
+    errors: ["not_found", "session_empty"],
+  }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",
     permission: "sessions:operate",

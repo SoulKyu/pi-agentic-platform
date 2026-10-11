@@ -17,6 +17,8 @@ function setup(overrides: Partial<SessionsService> = {}) {
     rename: vi.fn(async () => {}),
     autoName: vi.fn(async () => ({ name: "Fix login" })),
     exportHtml: vi.fn(async () => ({ url: `/api/sessions/p1/export/${"A".repeat(43)}` })),
+    fork: vi.fn(async () => ({ sessionId: "p2", text: "q1" })),
+    clone: vi.fn(async () => ({ sessionId: "p3" })),
     clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
     respondDialog: vi.fn(),
     panelInput: vi.fn(),
@@ -50,6 +52,13 @@ describe("sessions rpc", () => {
       caller,
     );
     expect(await rpc["sessions.abort"]({ sessionId: "p1" }, ctx)).toEqual({ ok: true });
+    expect(await rpc["sessions.fork"]({ sessionId: "p1", entryId: "u1" }, ctx)).toEqual({
+      sessionId: "p2",
+      text: "q1",
+    });
+    expect(service.fork).toHaveBeenCalledWith({ sessionId: "p1", entryId: "u1" }, caller);
+    expect(await rpc["sessions.clone"]({ sessionId: "p1" }, ctx)).toEqual({ sessionId: "p3" });
+    expect(service.clone).toHaveBeenCalledWith({ sessionId: "p1" }, caller);
     expect(await rpc["sessions.clearQueue"]({ sessionId: "p1" }, ctx)).toEqual({
       steering: ["a"],
       followUp: [],

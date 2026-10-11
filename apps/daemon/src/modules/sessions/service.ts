@@ -17,10 +17,12 @@ import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import { resolveSessionCwd } from "./cwd.ts";
+import { createForks } from "./forks.ts";
 import type { Exports } from "./exports.ts";
 import { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
+import type { PiWriter } from "./pi-writer.ts";
 import { createPreReadyBuffer, type PreReadyBuffer } from "./pre-ready-buffer.ts";
 import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
 import { createSessionReads } from "./service-reads.ts";
@@ -47,6 +49,8 @@ export interface SessionsServiceDeps {
   newId(): string;
   /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
   loadTranscript(): Promise<TranscriptReader>;
+  /** Loads the writer of forks and clones: Pi's own session manager, behind a lazy import (R108, ADR 0009). */
+  loadWriter(): Promise<PiWriter>;
   spawn(cwd: string): WorkerHandle;
   freeMemMb(): number;
   onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
@@ -90,6 +94,17 @@ export interface SessionsService extends SessionCommands {
     sessionId: string,
     caller: Caller,
   ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
+  /**
+   * A new session on a new file, cut before a user message of the session's branch (ADR 0009). Allowed while the source
+   * runs and for a cold one: no worker is started, and the new session is cold. At the first message there is no file
+   * yet (a draft). `bad_request` for an entry that is not a user message, `session_empty` for a source without a file.
+   */
+  fork(
+    input: { sessionId: string; entryId: string },
+    caller: Caller,
+  ): Promise<{ sessionId: string; text: string }>;
+  /** A new, cold session holding the branch as written on disk (the turn in flight is not in it). */
+  clone(input: { sessionId: string }, caller: Caller): Promise<{ sessionId: string }>;
   /**
    * What `subscribe.session` does before it opens a subscription (R108): checks that the caller may read the session
    * and loads the transcript reader, once. The hub builds a snapshot synchronously, from what this has loaded.
@@ -293,6 +308,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     logger: deps.logger,
   });
 
+  const forks = createForks({
+    store: deps.store,
+    clock: deps.clock,
+    logger: deps.logger,
+    agentDir: deps.worker.agentDir,
+    newId: deps.newId,
+    loadWriter: deps.loadWriter,
+  });
+
   return {
     async create(cwdInput, caller) {
       const cwd = resolveSessionCwd(cwdInput);
@@ -334,6 +358,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     rename: (input, caller) => commands.rename(input, caller),
     autoName: (sessionId, caller) => commands.autoName(sessionId, caller),
     exportHtml: (sessionId, caller) => commands.exportHtml(sessionId, caller),
+    fork: async ({ sessionId, entryId }, caller) => forks.fork(owned(sessionId, caller), entryId),
+    clone: async ({ sessionId }, caller) => {
+      const row = owned(sessionId, caller);
+      return forks.clone(row, live.get(row.id)?.leafId() ?? null);
+    },
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
       return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };

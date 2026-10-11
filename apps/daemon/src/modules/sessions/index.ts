@@ -1,4 +1,5 @@
 import { freemem } from "node:os";
+import { rmSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Clock } from "../../kernel/clock.ts";
@@ -16,12 +17,14 @@ import type { Hono } from "hono";
 import type { PolicyPort } from "../policy/index.ts";
 import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
+import { loadPiWriter } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
 export { createExports, type Exports } from "./exports.ts";
+export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 
 export const SESSIONS_MIGRATIONS: MigrationSource = {
   module: "sessions",
@@ -79,6 +82,9 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   // What an earlier daemon left in the exports directory goes before anything can be exported (M2R96).
   const exports = createExports({ dir: join(config.home, "exports"), clock: deps.clock, logger });
   exports.purgeAll();
+  // The working copies of sources are deleted when each fork ends; a crash in the middle leaves one, deleted here.
+  const forkTmpDir = join(config.home, "fork-tmp");
+  rmSync(forkTmpDir, { recursive: true, force: true });
   const service = createSessionsService({
     store: createSessionsStore(deps.db),
     exports,
@@ -95,6 +101,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     newId,
     loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
+    loadWriter: () => loadPiWriter(forkTmpDir),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
     spawn: (cwd) => {
       const scope = deps.scopes.next();

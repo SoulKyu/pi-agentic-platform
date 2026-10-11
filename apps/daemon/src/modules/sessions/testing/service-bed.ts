@@ -18,7 +18,7 @@ import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../../policy/index.ts";
-import { createExports, type Exports, SESSIONS_MIGRATIONS } from "../index.ts";
+import { createExports, type Exports, loadPiWriter, type PiWriter, SESSIONS_MIGRATIONS } from "../index.ts";
 import { fakePolicyPort } from "./fake-policy.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
 
@@ -48,6 +48,8 @@ export interface BedOptions {
   logger?: Logger;
   /** The policy module's port; defaults to an empty fake (`fakePolicyPort()`). */
   policy?: PolicyPort;
+  /** Replaces the writer of forks and clones (a test of how the service treats what it returns). */
+  writer?: PiWriter;
   /** The transcript reader fails to load this many times before it loads. */
   readerFailures?: number;
   /** By the order the workers are spawned in, from 0. */
@@ -95,6 +97,7 @@ export interface ServiceParts<Store, Reader> {
   freeMemMb(): number;
   spawn(cwd: string): WorkerHandle;
   loadTranscript(): Promise<Reader>;
+  loadWriter(): Promise<PiWriter>;
 }
 
 // A helper in `testing/` may import a module only through its index (the boundaries rule), so the service and the
@@ -141,6 +144,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   const transcript = { loads: 0, failures: options.readerFailures ?? 0 };
   const answered = new Set<string>();
   const exportsDir = join(dir, "pap", "exports");
+  const forkTmpDir = join(dir, "pap", "fork-tmp");
   const exports = createExports({ dir: exportsDir, clock, logger: options.logger ?? silentLogger });
   const service = factories.createSessionsService({
     store,
@@ -162,6 +166,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
       if (transcript.failures-- > 0) return Promise.reject(new Error("the SDK did not load"));
       return factories.loadTranscriptReader();
     },
+    loadWriter: () => (options.writer ? Promise.resolve(options.writer) : loadPiWriter(forkTmpDir)),
     freeMemMb: () => options.freeMemMb ?? 4096,
     spawn: () => {
       const index = spawned.length;
@@ -218,6 +223,8 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     /** The pending HTML exports and the directory their files are in. */
     exports,
     exportsDir,
+    forkTmpDir,
+    sessionsDir,
     agentDir,
     clock,
     db,

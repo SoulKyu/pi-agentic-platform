@@ -19,9 +19,11 @@ describe("method catalogue", () => {
       "sessions.abort",
       "sessions.autoName",
       "sessions.clearQueue",
+      "sessions.clone",
       "sessions.compact",
       "sessions.create",
       "sessions.exportHtml",
+      "sessions.fork",
       "sessions.navigate",
       "sessions.prompt",
       "sessions.rename",
@@ -130,6 +132,25 @@ describe("method catalogue", () => {
     for (const bad of ["", "https://evil.example/x", "//evil.example/x", `${url}?x`, "x".repeat(400)]) {
       expect(def.result.safeParse({ url: bad }).success, bad).toBe(false);
     }
+  });
+
+  it("declares fork and clone as sessions:operate mutations with the errors a caller can handle", () => {
+    expect(methods["sessions.fork"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: ["not_found", "bad_request", "session_empty"],
+    });
+    expect(methods["sessions.clone"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: ["not_found", "session_empty"],
+    });
+    const fork = methods["sessions.fork"];
+    expect(fork.params.safeParse({ sessionId: "s", entryId: "e".repeat(128) }).success).toBe(true);
+    for (const bad of [{ entryId: "" }, { entryId: "e".repeat(129) }, {}]) {
+      expect(fork.params.safeParse({ sessionId: "s", ...bad }).success).toBe(false);
+    }
+    expect(fork.result.safeParse({ sessionId: "p", text: "x".repeat(200_001) }).success).toBe(false);
   });
 
   it("bounds what a history request can ask for", () => {
