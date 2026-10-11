@@ -21,6 +21,21 @@ Spec C §2.3, as amended by decision 34, lists `init{…}` as the first daemon �
 
 Pi derives its session directory from `PI_CODING_AGENT_DIR`, not from the `agentDir` it is handed. The worker environment built in Task 22 sets `PI_CODING_AGENT_DIR` to the same directory as `init.agentDir`, and the worker refuses to start when the two differ: a mismatch would write sessions where the init record does not say. `HOME` must be the user's home, because Pi reads user-level skills from it and the policy judges "the home directory" by it. When the channel to the daemon closes, however the worker learns of it (the `disconnect` event, a `send` that finds the channel closed, or the `ERR_IPC_CHANNEL_CLOSED` error Node emits later), it disposes the session and exits 0, without a crash trace.
 
+## Processes a worker leaves behind
+
+Pi's `bash` tool starts every command with `detached: true`, so each command leads a session and a process group of its own. A signal to the worker's group (what the daemon's kill ladder sends) never reaches it, and `process.exit` leaves it running; a grandchild that called `setsid` is beyond even Pi's own list of detached children. The SDK kills that list on its own signals (`killTrackedDetachedChildren`) but does not export it, so `pi-host` walks `/proc` itself:
+
+- On `shutdown`, on a closed channel, when orphaned, and on SIGTERM and SIGHUP, the worker SIGKILLs every descendant (found by parent pid) and the group of each descendant that leads one, then exits. The walk comes first: once Pi has killed a command's shell, the shell's children have a new parent and are no longer found. SIGTERM and SIGHUP are handled once and re-raised, so the daemon still reads the exit as a signal.
+- It does this only when the worker leads a group of its own (the daemon forks it `detached`), never signals its own group, and does nothing off Linux.
+- Residual: when the worker itself is killed (SIGKILL, the OOM killer) nothing runs in it and these processes survive. The cgroup of the systemd scope (roadmap M2) is the only cover for that case; its priority goes up in M2.
+- On its side the daemon signals the worker's group when the worker exits and exports `killAllWorkerGroups()` for the signal handlers of the daemon (Task 23): `process.on("exit")` does not run for a signal whose default action kills the process.
+
+## Record size
+
+Node reads a whole IPC record before any code sees it and has no receive-side limit, so the daemon cannot cap what a worker sends: a valid 100 MiB record costs about 430 MB of resident memory in the daemon (measured in the Task 21 review), one line without a newline can end it with a `RangeError`, and a line that is not JSON throws a `SyntaxError` inside the channel's reader that the daemon cannot catch. The cap is at the source: `ipc.send` serializes each record, and a record of more than 4 MiB (UTF-8 bytes of its JSON) is dropped. One bounded line goes to stderr and an `extension_error` for `pi-host:ipc` goes to the daemon; a dropped `response` is replaced by a failed response with the same id, so no request waits for it. Reports are sampled (1st, 2nd, 4th, 8th drop…); every dropped response is still answered.
+
+Accepted residual: code running inside the worker (an extension) can write to the channel's file descriptor directly and crash the daemon, as it could already signal it. The durable fix belongs to the sandbox stage: a plain pipe on that descriptor with a daemon-side line framer that has a byte cap and parses inside `try`/`catch` (the transport adapter of spec §2.2).
+
 ## Project trust
 
 pap uses the shared Pi agent directory (decision 24), so `trust.json` is the one the `pi` CLI uses (S7). The SDK's own default is fail open (`projectTrusted: true`, and `reload()` never asks again), so the worker decides:
@@ -37,3 +52,5 @@ pap uses the shared Pi agent directory (decision 24), so `trust.json` is the one
 
 - The Task 22 worker environment must set `PI_CODING_AGENT_DIR`, and every `init` it sends must carry `papHome`. It sets `PAP_TEST_PROVIDER=1` only under test (when `PAP_TEST_PROVIDER_SCRIPT` is set).
 - A worker cannot run without `pap-policy`: `movePolicyLast` makes session creation fail when the policy extension did not load, and the policy stays last after `reload()`, after trust is granted and after Pi's built-in extensions load.
+- The daemon's request timeouts are per command. A `prompt` has none by default: an extension command is answered only when it ends, possibly after a dialog that takes minutes, so Task 22 must not treat a long wait as a failure and relays `custom_input` independently (R38). Every other command defaults to 30 s and rejects with the `timeout` error code, which is distinct from `worker_failed` (the worker is gone).
+- `outputTail()` is 8 KiB; Task 22 clips it to 2 KB before it logs it (R66).

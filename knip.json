@@ -5,7 +5,7 @@
     ".": { "entry": ["scripts/*.ts", "e2e/**/*.ts", "eslint/*.js"] },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts"],
-      "ignoreBinaries": ["pgrep", "rg", "fd"]
+      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd"]
     },
     "apps/daemon": { "ignoreBinaries": ["openssl"] }
   }

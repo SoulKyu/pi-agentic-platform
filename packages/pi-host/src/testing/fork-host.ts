@@ -16,6 +16,8 @@ export interface ForkedHost {
   readonly child: ChildProcess;
   readonly records: HostRecord[];
   readonly exited: Promise<number | null>;
+  /** Resolves when the worker's output is complete: after the exit, once stdout and stderr have closed. */
+  readonly closed: Promise<void>;
   readonly stderr: () => string;
   send(record: object): void;
   request(record: HostRecord): Promise<HostRecord>;
@@ -49,6 +51,7 @@ export function forkHost(env: NodeJS.ProcessEnv, cwd: string): ForkedHost {
       resolve(code);
     }),
   );
+  const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
   const waitFor = (predicate: (record: HostRecord) => boolean, { from = 0, timeoutMs = 20_000 } = {}) =>
     new Promise<HostRecord>((resolve, reject) => {
       const check = () => {
@@ -77,6 +80,7 @@ export function forkHost(env: NodeJS.ProcessEnv, cwd: string): ForkedHost {
     child,
     records,
     exited,
+    closed,
     stderr: () => stderr.join(""),
     send: (record) => child.send(record),
     request: (record) => {

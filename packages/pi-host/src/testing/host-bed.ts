@@ -33,6 +33,17 @@ export const toolText = (record: HostRecord) => JSON.stringify(record.result);
 export const isConfirm = (record: HostRecord) =>
   record.type === "extension_ui_request" && record.method === "confirm";
 
+/** Something outside the worker's group could hold its output open; the bed does not wait for that for ever. */
+const CLOSE_WAIT_MS = 5000;
+const within = (promise: Promise<unknown>, ms: number) =>
+  new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void promise.then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+
 /** A temporary world for forked workers: every path they may touch lives under `root`, never under the real home. */
 export function createHostBed(fork: typeof forkHost = forkHost) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "pap-host-")));
@@ -93,8 +104,8 @@ export function createHostBed(fork: typeof forkHost = forkHost) {
       current = undefined;
       for (const host of hosts) host.kill();
       await Promise.all(hosts.map((host) => host.exited));
-      // The exit can be reported before the last of the output has been read.
-      await new Promise<void>((resolve) => setImmediate(resolve));
+      // The exit can be reported before the last of the output has been read: it is complete when the pipes close.
+      await Promise.all(hosts.map((host) => within(host.closed, CLOSE_WAIT_MS)));
       rmSync(root, { recursive: true, force: true });
       // A connection the guard refused may have been swallowed by the code that tried it: the log still says so (R94).
       const blocked = hosts

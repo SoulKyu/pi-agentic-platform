@@ -1,6 +1,7 @@
 import { type AgentSession, VERSION } from "@earendil-works/pi-coding-agent";
 import { type DaemonToWorker, type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts";
 import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
+import { killDetachedDescendants } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { POLICY_EXTENSION_PATH } from "./policy/extension.ts";
@@ -15,7 +16,11 @@ const MAX_EARLY_RECORDS = 128;
 
 type Command = Exclude<DaemonToWorker, { type: "init" | "shutdown" }>;
 
+// Every way the worker ends on its own terms comes through here. What the session's dispose does not stop (a
+// command in a session of its own, a grandchild of one) is killed first: once dispose has killed a command's
+// shell, the shell's own children have a new parent and are no longer found below this process.
 function exit(session: AgentSession | null, code: number): never {
+  killDetachedDescendants();
   try {
     session?.dispose();
   } finally {
@@ -40,6 +45,8 @@ export async function runHost(ipc: Ipc): Promise<void> {
     if (closing) return;
     closing = true;
     ui.cancelAll();
+    // Before the abort, for the same reason: aborting kills the shell of a running command and orphans its children.
+    killDetachedDescendants();
     const current = session;
     if (!current) exit(null, 0);
     const finish = () => exit(current, 0);

@@ -1,6 +1,6 @@
 import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { createIpc } from "./ipc.ts";
+import { createIpc, MAX_RECORD_BYTES } from "./ipc.ts";
 
 interface FakeOptions {
   /** No IPC channel at all: the process was not started with fork. */
@@ -159,5 +159,103 @@ describe("createIpc: the channel closing", () => {
     expect(listener).not.toHaveBeenCalled();
     expect(stderr).toHaveLength(1);
     expect(stderr[0]).toMatch(/^pi-host: ipc send failed: .*BigInt/);
+  });
+});
+
+describe("createIpc: record size", () => {
+  const bytes = (record: unknown) => Buffer.byteLength(JSON.stringify(record));
+  // A record of exactly `size` bytes once serialized, padded with a character that takes `width` bytes.
+  const recordOf = (size: number, pad = "x", width = 1) => {
+    const overhead = bytes({ type: "message_update", pad: "" });
+    return { type: "message_update", pad: pad.repeat((size - overhead) / width) };
+  };
+
+  it("limits a record to 4 MiB of JSON", () => {
+    expect(MAX_RECORD_BYTES).toBe(4 * 1024 * 1024);
+  });
+
+  it("sends a record of exactly the limit and drops one byte more", () => {
+    const sent: unknown[] = [];
+    const { proc, stderr } = fakeProcess({ onSend: (record) => void sent.push(record) });
+    const ipc = createIpc(proc);
+    const atLimit = recordOf(MAX_RECORD_BYTES);
+    expect(bytes(atLimit)).toBe(MAX_RECORD_BYTES);
+    ipc.send(atLimit);
+    expect(sent).toEqual([atLimit]);
+    ipc.send(recordOf(MAX_RECORD_BYTES + 1));
+    expect(sent).toHaveLength(2);
+    expect(stderr).toHaveLength(1);
+  });
+
+  it("counts bytes, not characters: a multi-byte record under the limit in characters is dropped", () => {
+    const sent: unknown[] = [];
+    const { proc } = fakeProcess({ onSend: (record) => void sent.push(record) });
+    const heavy = recordOf(MAX_RECORD_BYTES + 100, "é", 2);
+    expect(JSON.stringify(heavy).length).toBeLessThan(MAX_RECORD_BYTES);
+    createIpc(proc).send(heavy);
+    expect(sent).toEqual([expect.objectContaining({ type: "extension_error" })]);
+  });
+
+  it("drops an oversize record with one bounded stderr line and tells the daemon in an extension_error", () => {
+    const sent: unknown[] = [];
+    const { proc, stderr } = fakeProcess({ onSend: (record) => void sent.push(record) });
+    createIpc(proc).send(recordOf(5 * 1024 * 1024));
+    expect(stderr).toEqual([
+      `pi-host: dropped a message_update record of ${bytes(recordOf(5 * 1024 * 1024))} bytes: the limit is ${MAX_RECORD_BYTES}\n`,
+    ]);
+    expect(sent).toEqual([
+      {
+        type: "extension_error",
+        extensionPath: "pi-host:ipc",
+        event: "message_update",
+        error: `a record of ${bytes(recordOf(5 * 1024 * 1024))} bytes was dropped: the limit is ${MAX_RECORD_BYTES}`,
+      },
+    ]);
+  });
+
+  it("never lets the type of a dropped record forge a log line or grow it", () => {
+    const { proc, stderr } = fakeProcess();
+    createIpc(proc).send({
+      ...recordOf(MAX_RECORD_BYTES + 1),
+      type: `evil\npi-host: forged ${"y".repeat(500)}`,
+    });
+    expect(stderr).toHaveLength(1);
+    expect(stderr[0]?.trimEnd()).not.toContain("\n");
+    expect(stderr[0]?.length).toBeLessThan(200);
+  });
+
+  it("answers a response it had to drop with a failed response, so the daemon does not wait for it", () => {
+    const sent: unknown[] = [];
+    const { proc } = fakeProcess({ onSend: (record) => void sent.push(record) });
+    createIpc(proc).send({
+      type: "response",
+      id: "r7",
+      command: "get_state",
+      success: true,
+      data: "x".repeat(MAX_RECORD_BYTES),
+    });
+    expect(sent).toEqual([
+      { type: "response", id: "r7", command: "get_state", success: false, error: "record too large" },
+    ]);
+  });
+
+  it("reports the first, second, fourth and eighth drop only, but still answers every dropped response", () => {
+    const sent: Array<{ type: string }> = [];
+    const { proc, stderr } = fakeProcess({ onSend: (record) => void sent.push(record as { type: string }) });
+    const ipc = createIpc(proc);
+    for (let drop = 0; drop < 9; drop++) ipc.send(recordOf(MAX_RECORD_BYTES + 1));
+    expect(stderr).toHaveLength(4);
+    expect(sent.filter((record) => record.type === "extension_error")).toHaveLength(4);
+    sent.length = 0;
+    for (let drop = 0; drop < 3; drop++) {
+      ipc.send({
+        type: "response",
+        id: `r${drop}`,
+        command: "x",
+        success: true,
+        data: "x".repeat(MAX_RECORD_BYTES),
+      });
+    }
+    expect(sent.map((record) => record.type)).toEqual(["response", "response", "response"]);
   });
 });
