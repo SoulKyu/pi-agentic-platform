@@ -1,6 +1,8 @@
 import { type Caller, type CommandInput, PapError, UI_LIMITS } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import { patchExportFile } from "./export-patch.ts";
+import type { Exports } from "./exports.ts";
 import { refusalOf } from "./live-commands.ts";
 import type { LiveSession } from "./live-types.ts";
 import { nameOf } from "./names.ts";
@@ -17,6 +19,7 @@ export interface SessionCommandsDeps {
   readonly live: ReadonlyMap<string, LiveSession>;
   readonly reads: Pick<SessionReads, "ensureReader" | "snapshot">;
   readonly hub: Pick<StreamHub, "publish">;
+  readonly exports: Pick<Exports, "prepare" | "discard">;
   readonly logger: Logger;
 }
 
@@ -42,6 +45,13 @@ export interface SessionCommands {
    * two asks for one session at once share one model call.
    */
   autoName(sessionId: string, caller: Caller): Promise<{ name: string }>;
+  /**
+   * Has the session's worker write an HTML export under the exports directory and answers the single-use download URL
+   * (ADR 0006). A cold session's worker is started for it (M2R98). A refusal, a lost worker or a worker that cannot be
+   * started discards the export at once; a timeout keeps the entry, whose TTL deletes the file even if Pi writes it
+   * later (M2R97): its outcome is unknown.
+   */
+  exportHtml(sessionId: string, caller: Caller): Promise<{ url: string }>;
 }
 
 const isCount = (value: unknown): value is number =>
@@ -103,6 +113,24 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
   }
 
   return {
+    async exportHtml(sessionId, caller) {
+      const row = deps.owned(sessionId, caller);
+      // Before the worker is brought up: a full table refuses without starting one.
+      const { token, path } = deps.exports.prepare(row.id, caller.userId, row.name);
+      let sent = false;
+      try {
+        const session = await deps.ensureLive(row);
+        sent = true;
+        const answer = await session.command({ type: "export_html", outputPath: path });
+        if (!answer.ok) throw refused("export_html", answer.error);
+        await patchExportFile(path, logger);
+        return { url: `/api/sessions/${row.id}/export/${token}` };
+      } catch (error) {
+        const unknown = sent && error instanceof PapError && error.code === "timeout";
+        if (!unknown) deps.exports.discard(token);
+        throw error;
+      }
+    },
     async rename({ sessionId, name }, caller) {
       const row = deps.owned(sessionId, caller);
       const clipped = nameOf(name);

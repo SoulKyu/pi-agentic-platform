@@ -59,7 +59,13 @@ function livePid(): number {
 describe("prepareHome", () => {
   it("makes the home and the directories it owns 0700 and files created afterwards 0600 (R68)", () => {
     prepareHome(home);
-    for (const dir of [home, join(home, "backups"), join(home, "secrets"), join(home, "logs")]) {
+    for (const dir of [
+      home,
+      join(home, "backups"),
+      join(home, "secrets"),
+      join(home, "logs"),
+      join(home, "exports"),
+    ]) {
       expect(mode(dir), dir).toBe(0o700);
     }
     writeFileSync(join(home, "state.db"), "x");

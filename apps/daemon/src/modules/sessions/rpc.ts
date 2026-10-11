@@ -11,6 +11,7 @@ export type SessionsRpc = Pick<
   | "sessions.compact"
   | "sessions.rename"
   | "sessions.autoName"
+  | "sessions.exportHtml"
   | "sessions.clearQueue"
   | "sessions.respondDialog"
   | "sessions.panelInput"
@@ -36,6 +37,7 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
       return { ok: true as const };
     },
     "sessions.autoName": async ({ sessionId }, ctx) => service.autoName(sessionId, ctx.caller),
+    "sessions.exportHtml": async ({ sessionId }, ctx) => service.exportHtml(sessionId, ctx.caller),
     "sessions.clearQueue": async ({ sessionId }, ctx) => service.clearQueue(sessionId, ctx.caller),
     "sessions.respondDialog": async (params, ctx) => {
       service.respondDialog(params, ctx.caller);

@@ -16,6 +16,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     compact: vi.fn(async () => ({ tokensBefore: 9, estimatedTokensAfter: null })),
     rename: vi.fn(async () => {}),
     autoName: vi.fn(async () => ({ name: "Fix login" })),
+    exportHtml: vi.fn(async () => ({ url: `/api/sessions/p1/export/${"A".repeat(43)}` })),
     clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
     respondDialog: vi.fn(),
     panelInput: vi.fn(),
@@ -85,6 +86,14 @@ describe("sessions rpc", () => {
     expect(service.rename).toHaveBeenCalledWith({ sessionId: "p1", name: "Fix" }, caller);
     expect(await rpc["sessions.autoName"]({ sessionId: "p1" }, ctx)).toEqual({ name: "Fix login" });
     expect(service.autoName).toHaveBeenCalledWith("p1", caller);
+  });
+
+  it("hands exportHtml to one service method", async () => {
+    const { rpc, service, ctx } = setup();
+    expect(await rpc["sessions.exportHtml"]({ sessionId: "p1" }, ctx)).toEqual({
+      url: `/api/sessions/p1/export/${"A".repeat(43)}`,
+    });
+    expect(service.exportHtml).toHaveBeenCalledWith("p1", caller);
   });
 
   it("hands each read to one service method with the caller", async () => {

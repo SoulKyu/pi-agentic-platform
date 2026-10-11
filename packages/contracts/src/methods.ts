@@ -141,6 +141,18 @@ export const methods = catalogue({
     // `timeout`: the model may still have named the session; the outcome is unknown and is not retried (R105).
     errors: ["not_found", "session_empty", "timeout", "capacity", "worker_failed", "command_failed"],
   }),
+  "sessions.exportHtml": defineMethod({
+    name: "sessions.exportHtml",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId }),
+    // A path on the same origin, not a page: the client downloads it with the session cookie (ADR 0006).
+    result: z.object({
+      url: z.string().regex(/^\/api\/sessions\/[A-Za-z0-9_-]{1,128}\/export\/[A-Za-z0-9_-]{43}$/),
+    }),
+    // `timeout`: Pi may still write the file; the outcome is unknown and the call is not retried (R105, M2R97).
+    errors: ["not_found", "capacity", "timeout", "worker_failed", "command_failed"],
+  }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",
     permission: "sessions:operate",

@@ -75,3 +75,9 @@ At most 64 open dialogs and 8 MiB per session; extra ones are answered `cancelle
 - Panels (`panels.ts`): at most 4 open; a fifth `custom_render` is answered with `custom_cancel` and a rate-limited notice. A `custom_close` for an id the daemon never saw (e.g. after that cancel) is ignored silently. The last 64 closed ids are remembered: a late `custom_render` for one is ignored (log `panel_record_ignored`, once per 10 s) instead of reopening a ghost panel. `stop()` sends `custom_cancel` for every open panel before the shutdown; a worker exit clears decorations and panels and publishes `panel_closed` for each (clients clear theirs on `cold`).
 - `sessions.panelInput` is `idempotent: true` with no `commandId`, the one exception to R65b (keystrokes are never retried; a receipt per key would cost an fsync per key). It still needs `sessions:operate` and the owner check; `data` is 1..4096 characters; a session without a worker or a panel that is not open is `not_found`.
 - `fitSnapshot` clamps statuses, widgets, notices and panels to `UI_LIMITS` (setting `decorationsTruncated`) and counts the dialogs it could not fit in `hiddenDialogs`. Open panels have their own 256 KiB budget (`PANEL_BYTES`) beside the 256 KiB of statuses, widgets and notices.
+
+## HTML export (Task 18, ADR 0006)
+- `exports.ts` holds the pending exports (16, 10 min, in memory); `export-http.ts` is the one download route; `export-patch.ts` makes Pi's three recursive template helpers iterative.
+- The route is the only user of `ownCsp` (kernel `app.ts`). A new header for it needs an exact test in `export-http.test.ts`.
+- `exportHtml` prepares the entry before it brings the worker up; only a `timeout` after the command was sent keeps the entry (the worker may still write).
+- A Pi upgrade can change the template: `export-patch.test.ts` runs the anchors against the installed Pi, so it fails first.

@@ -17,6 +17,7 @@ import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import { resolveSessionCwd } from "./cwd.ts";
+import type { Exports } from "./exports.ts";
 import { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
@@ -33,6 +34,8 @@ export interface SessionsServiceDeps {
   readonly hub: Pick<StreamHub, "publish">;
   /** The project's "always" rules: what every worker starts with, and what an "always" answer is saved in. */
   readonly policy: PolicyPort;
+  /** The pending HTML exports (ADR 0006). */
+  readonly exports: Pick<Exports, "prepare" | "discard">;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   readonly worker: {
     readonly agentDir: string;
@@ -286,6 +289,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     live,
     reads,
     hub: deps.hub,
+    exports: deps.exports,
     logger: deps.logger,
   });
 
@@ -329,6 +333,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     compact: (input, caller) => commands.compact(input, caller),
     rename: (input, caller) => commands.rename(input, caller),
     autoName: (sessionId, caller) => commands.autoName(sessionId, caller),
+    exportHtml: (sessionId, caller) => commands.exportHtml(sessionId, caller),
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
       return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };

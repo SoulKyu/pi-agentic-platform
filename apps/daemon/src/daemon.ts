@@ -175,7 +175,10 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
       servesTls: config.tls !== null,
       onOriginRefused,
-      mount: (hono) => auth.mount(hono),
+      mount: (hono) => {
+        auth.mount(hono);
+        sessions.mountExportRoute(hono, auth.authenticateCookieHeader);
+      },
       wsProbe,
     });
     let fatal = false;

@@ -1,4 +1,5 @@
 import { freemem } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Config } from "../../kernel/config.ts";
@@ -11,11 +12,16 @@ import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerScopes } from "../../kernel/supervisor/scope.ts";
 import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import type { Hono } from "hono";
 import type { PolicyPort } from "../policy/index.ts";
+import { mountExportRoute } from "./export-http.ts";
+import { createExports } from "./exports.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+
+export { createExports, type Exports } from "./exports.ts";
 
 export const SESSIONS_MIGRATIONS: MigrationSource = {
   module: "sessions",
@@ -49,6 +55,11 @@ export interface SessionsModuleDeps {
 
 export interface SessionsModule {
   readonly rpc: SessionsRpc;
+  /** The download route of HTML exports (ADR 0006). It checks the session cookie itself, with `authenticate`. */
+  mountExportRoute(
+    app: Hono,
+    authenticate: (cookieHeader: string | undefined) => { userId: string } | null,
+  ): void;
   shutdownAll(): Promise<void>;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
 }
@@ -65,8 +76,12 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     PI_CODING_AGENT_DIR: config.piAgentDir,
     ...(config.testProviderScript ? { PAP_TEST_PROVIDER: "1" } : {}),
   });
+  // What an earlier daemon left in the exports directory goes before anything can be exported (M2R96).
+  const exports = createExports({ dir: join(config.home, "exports"), clock: deps.clock, logger });
+  exports.purgeAll();
   const service = createSessionsService({
     store: createSessionsStore(deps.db),
+    exports,
     clock: deps.clock,
     logger,
     hub: deps.hub,
@@ -98,7 +113,14 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   deps.hub.registerSnapshot("session", (key) => service.snapshot(key));
   return {
     rpc: sessionsRpc(service),
-    shutdownAll: () => service.shutdownAll(),
+    mountExportRoute: (app, authenticate) => mountExportRoute(app, { exports, authenticate, logger }),
+    async shutdownAll() {
+      try {
+        await service.shutdownAll();
+      } finally {
+        exports.stop();
+      }
+    },
     inspect: (sessionId) => service.inspect(sessionId),
   };
 }

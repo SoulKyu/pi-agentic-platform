@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ALL_PERMISSIONS, type Caller, type HandlerContext } from "@pap/contracts";
@@ -16,12 +16,16 @@ import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { captureLogger } from "./testing/helpers.ts";
 
 // The real supervisor forks a process; here it only records what it was asked to start, and answers like a worker.
-const spawned = vi.hoisted(() => ({ options: [] as unknown[], inits: [] as unknown[] }));
+const spawned = vi.hoisted(() => ({
+  options: [] as unknown[],
+  inits: [] as unknown[],
+  workers: [] as Array<{ requests: Array<{ type: string; outputPath?: string }> }>,
+}));
 vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../kernel/supervisor/worker.ts")>()),
   spawnWorker: (options: SpawnWorkerOptions) => {
     spawned.options.push(options);
-    return createFakeWorker({
+    const worker = createFakeWorker({
       onSend: (record, self) => {
         if (record.type === "init") {
           spawned.inits.push(record);
@@ -38,6 +42,8 @@ vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
         }
       },
     });
+    spawned.workers.push(worker);
+    return worker;
   },
 }));
 
@@ -54,6 +60,7 @@ let db: Db;
 beforeEach(() => {
   spawned.options.length = 0;
   spawned.inits.length = 0;
+  spawned.workers.length = 0;
   root = mkdtempSync(join(tmpdir(), "pap-sessions-index-"));
   db = migrate({
     dbPath: join(root, "s.db"),
@@ -178,5 +185,34 @@ describe("sessions module", () => {
     expect(sessions.inspect(sessionId)).toEqual({ pid: 4242, rssMb: null });
     expect(sessions.inspect("nope")).toBeNull();
     await sessions.shutdownAll();
+  });
+});
+
+describe("the exports directory (M2R96)", () => {
+  const exportsDir = () => join(root, "pap", "exports");
+
+  it("is emptied when the module is built, strays and folders alike, and made 0700", () => {
+    mkdirSync(exportsDir(), { recursive: true, mode: 0o755 });
+    writeFileSync(join(exportsDir(), "old.html"), "<html>an earlier run</html>");
+    mkdirSync(join(exportsDir(), "dir"));
+    moduleWith(null);
+    expect(readdirSync(exportsDir())).toEqual([]);
+    expect(statSync(exportsDir()).mode & 0o777).toBe(0o700);
+  });
+
+  it("has its pending files deleted when the sessions are shut down", async () => {
+    const { sessions } = moduleWith(null);
+    const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
+    const pending = sessions.rpc["sessions.exportHtml"]({ sessionId }, ctx).catch(() => undefined);
+    await vi.waitFor(() => {
+      const request = spawned.workers[0]?.requests.find((candidate) => candidate.type === "export_html");
+      if (!request?.outputPath) throw new Error("not yet");
+      writeFileSync(request.outputPath, "<html></html>");
+    });
+    expect(readdirSync(exportsDir())).toHaveLength(1);
+    await sessions.shutdownAll();
+    await pending;
+    expect(existsSync(exportsDir())).toBe(true);
+    expect(readdirSync(exportsDir())).toEqual([]);
   });
 });

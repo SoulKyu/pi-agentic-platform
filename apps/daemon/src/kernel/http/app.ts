@@ -6,6 +6,13 @@ import type { Logger } from "../logger.ts";
 import { originGuard, type OriginRefused } from "./origin.ts";
 import { createStaticHandler, isSpaRoute } from "./static.ts";
 
+declare module "hono" {
+  interface ContextVariableMap {
+    /** A route that answers with a Content-Security-Policy of its own (the export download, ADR 0006). */
+    ownCsp?: string;
+  }
+}
+
 export interface HttpAppOptions {
   readonly allowedOrigins: ReadonlySet<string>;
   readonly staticRoot: string | null;
@@ -55,6 +62,13 @@ function isReserved(path: string): boolean {
 // Scheme and client address come from the socket only: no X-Forwarded-* / Forwarded header is read (R72).
 export function createHttpApp(options: HttpAppOptions): Hono {
   const app = new Hono();
+  // A route that answers with a policy of its own keeps it, on a successful answer only: registered first, so that this part runs
+  // after `secureHeaders` has set the global one. Every other route, and an error page, keeps the global policy.
+  app.use("*", async (c, next) => {
+    await next();
+    const own = c.get("ownCsp");
+    if (own !== undefined && c.res.ok) c.res.headers.set("content-security-policy", own);
+  });
   app.use(
     "*",
     secureHeaders({

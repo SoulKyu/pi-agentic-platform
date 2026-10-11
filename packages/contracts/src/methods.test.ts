@@ -21,6 +21,7 @@ describe("method catalogue", () => {
       "sessions.clearQueue",
       "sessions.compact",
       "sessions.create",
+      "sessions.exportHtml",
       "sessions.navigate",
       "sessions.prompt",
       "sessions.rename",
@@ -113,6 +114,22 @@ describe("method catalogue", () => {
     }
     expect(methods["sessions.autoName"].result.safeParse({ name: "Fix" }).success).toBe(true);
     expect(methods["sessions.autoName"].result.safeParse({ name: "" }).success).toBe(false);
+  });
+
+  it("declares exportHtml as a sessions:operate mutation whose timeout means unknown, answering a download path", () => {
+    expect(methods["sessions.exportHtml"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: ["not_found", "capacity", "timeout", "worker_failed", "command_failed"],
+    });
+    const def = methods["sessions.exportHtml"];
+    expect(def.params.safeParse({ sessionId: "s" }).success).toBe(true);
+    expect(def.params.safeParse({ sessionId: "" }).success).toBe(false);
+    const url = `/api/sessions/s/export/${"A".repeat(43)}`;
+    expect(def.result.safeParse({ url }).success).toBe(true);
+    for (const bad of ["", "https://evil.example/x", "//evil.example/x", `${url}?x`, "x".repeat(400)]) {
+      expect(def.result.safeParse({ url: bad }).success, bad).toBe(false);
+    }
   });
 
   it("bounds what a history request can ask for", () => {

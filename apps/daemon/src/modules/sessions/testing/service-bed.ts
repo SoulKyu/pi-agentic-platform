@@ -18,7 +18,7 @@ import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../../policy/index.ts";
-import { SESSIONS_MIGRATIONS } from "../index.ts";
+import { createExports, type Exports, SESSIONS_MIGRATIONS } from "../index.ts";
 import { fakePolicyPort } from "./fake-policy.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
 
@@ -83,6 +83,7 @@ export interface ServiceParts<Store, Reader> {
   readonly logger: Logger;
   readonly hub: StreamHub;
   readonly policy: PolicyPort;
+  readonly exports: Exports;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   readonly worker: {
     readonly agentDir: string;
@@ -139,12 +140,15 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   let ids = 0;
   const transcript = { loads: 0, failures: options.readerFailures ?? 0 };
   const answered = new Set<string>();
+  const exportsDir = join(dir, "pap", "exports");
+  const exports = createExports({ dir: exportsDir, clock, logger: options.logger ?? silentLogger });
   const service = factories.createSessionsService({
     store,
     clock,
     logger: options.logger ?? silentLogger,
     hub,
     policy: options.policy ?? fakePolicyPort(),
+    exports,
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
     worker: {
       agentDir,
@@ -211,6 +215,9 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     dir,
     work,
     otherWork,
+    /** The pending HTML exports and the directory their files are in. */
+    exports,
+    exportsDir,
     agentDir,
     clock,
     db,
@@ -261,6 +268,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
       spawned[index]?.emit({ type: "pi_event", event });
     },
     dispose(): void {
+      exports.stop();
       db.close();
       rmSync(dir, { recursive: true, force: true });
     },
