@@ -1,0 +1,253 @@
+import {
+  type Caller,
+  type DialogResponse,
+  type InitRecord,
+  PapError,
+  type PolicyRules,
+  type SessionStatus,
+  type SessionStreamEvent,
+  type SessionSummary,
+} from "@pap/contracts";
+import type { Clock } from "../../kernel/clock.ts";
+import type { Logger } from "../../kernel/logger.ts";
+import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
+import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import { resolveSessionCwd } from "./cwd.ts";
+import { type LiveSession, startLiveSession } from "./live-session.ts";
+import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
+import { fitSnapshot, SNAPSHOT_ROWS } from "./snapshot.ts";
+import type { SessionRow, SessionsStore } from "./store.ts";
+import { readTranscriptTail } from "./transcript.ts";
+
+const INTERACTIVE_POLICY: PolicyRules = { profile: "interactive", approvalMode: "auto-accept-edits" };
+
+export interface SessionsServiceDeps {
+  readonly store: SessionsStore;
+  readonly clock: Clock;
+  readonly logger: Logger;
+  readonly hub: Pick<StreamHub, "publish">;
+  readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
+  readonly worker: {
+    readonly agentDir: string;
+    readonly papHome: string;
+    readonly testProviderScript: string | null;
+  };
+  newId(): string;
+  spawn(cwd: string): WorkerHandle;
+  freeMemMb(): number;
+}
+
+export interface PromptInput {
+  readonly sessionId: string;
+  readonly text: string;
+  readonly streamingBehavior?: "steer" | "followUp" | undefined;
+}
+
+export interface SessionsService {
+  create(cwd: string, caller: Caller): Promise<{ sessionId: string }>;
+  list(caller: Caller): SessionSummary[];
+  prompt(input: PromptInput, caller: Caller): Promise<{ disposition: "started" | "queued" | "handled" }>;
+  abort(sessionId: string, caller: Caller): Promise<void>;
+  respondDialog(
+    input: { sessionId: string; dialogId: string; response: DialogResponse },
+    caller: Caller,
+  ): void;
+  assertReadable(sessionId: string, caller: Caller): void;
+  /** Throws `not_found` for a session that does not exist: the stream hub calls it for every key a client names (R79). */
+  snapshot(sessionId: string): SessionStreamEvent;
+  shutdownAll(): Promise<void>;
+  inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
+}
+
+export function createSessionsService(deps: SessionsServiceDeps): SessionsService {
+  // Workers that are up, by session id. A crashed worker leaves this map and is not replaced until the next prompt.
+  const live = new Map<string, LiveSession>();
+  // A cold session being brought up, so that concurrent commands start one worker, not several.
+  const reopening = new Map<string, Promise<LiveSession>>();
+  // Workers between fork and `ready`. They count against the cap like running ones (R9).
+  const starting = new Set<LiveSession>();
+  let closing = false;
+
+  const checkCapacity = () => {
+    if (
+      closing ||
+      live.size + starting.size >= deps.limits.maxWorkers ||
+      deps.freeMemMb() < deps.limits.minFreeMemMb
+    ) {
+      throw new PapError("capacity");
+    }
+  };
+
+  // Pi writes a session's file with the first user message, not at creation (S1). Once it exists, the session
+  // remembers it: that is what a restart reopens. Returns true when there is nothing left to wait for.
+  function bindPiFile(row: SessionRow, session: LiveSession): boolean {
+    const file = session.piFile();
+    const piSessionId = session.piSessionId();
+    if (!file || !piSessionId || fileSizeOrZero(file) === 0) return false;
+    if (!isPiSessionFile(deps.worker.agentDir, file)) {
+      deps.logger.warn("session_file_refused", { sessionId: row.id });
+      return true;
+    }
+    try {
+      deps.store.bindPiFile(row.id, file, piSessionId);
+    } catch (error) {
+      deps.logger.warn("session_file_not_bound", { sessionId: row.id, err: error });
+    }
+    return true;
+  }
+
+  // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already
+  // stored when a cold session is reopened. Nothing is published or recorded for a row that is not stored.
+  async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
+    checkCapacity();
+    let stored = !isNew;
+    let bound = row.piPath !== null;
+    const init: InitRecord = {
+      type: "init",
+      cwd: row.cwd,
+      agentDir: deps.worker.agentDir,
+      papHome: deps.worker.papHome,
+      policy: INTERACTIVE_POLICY,
+      // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
+      ...(row.piPath ? { sessionFile: row.piPath } : {}),
+      ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
+    };
+    const logger = deps.logger.child({ component: "session", sessionId: row.id });
+    const session: LiveSession = startLiveSession(
+      {
+        handle: deps.spawn(row.cwd),
+        clock: deps.clock,
+        logger,
+        publish: (event) => {
+          if (stored) deps.hub.publish("session", row.id, event);
+        },
+        record: (kind, data) => {
+          if (!stored) return;
+          try {
+            deps.store.appendEvent(row.id, kind, data, deps.clock.now());
+          } catch (error) {
+            logger.warn("session_event_dropped", { kind, err: error });
+          }
+        },
+        onActivity: () => {
+          if (stored && !bound) bound = bindPiFile(row, session);
+        },
+        onExit: () => {
+          if (live.get(row.id) === session) live.delete(row.id);
+        },
+      },
+      init,
+    );
+    starting.add(session);
+    try {
+      await session.ready;
+      // The file of a recorded session says who it is. Another id means the file was replaced under us.
+      if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId)
+        throw new PapError("worker_failed");
+      if (isNew) deps.store.insert(row);
+      stored = true;
+      live.set(row.id, session);
+      bound = bound || bindPiFile(row, session);
+      return session;
+    } catch (error) {
+      await session.stop();
+      throw error;
+    } finally {
+      starting.delete(session);
+    }
+  }
+
+  async function ensureLive(row: SessionRow): Promise<LiveSession> {
+    const current = live.get(row.id);
+    if (current) return current;
+    const pending = reopening.get(row.id);
+    if (pending) return pending;
+    const reopened = launch(row, false);
+    reopening.set(row.id, reopened);
+    try {
+      return await reopened;
+    } finally {
+      reopening.delete(row.id);
+    }
+  }
+
+  const owned = (sessionId: string, caller: Caller): SessionRow => {
+    const row = deps.store.get(sessionId);
+    if (!row || row.ownerId !== caller.userId) throw new PapError("not_found");
+    return row;
+  };
+
+  const statusOf = (id: string): SessionStatus =>
+    live.get(id)?.status() ?? (reopening.has(id) ? "starting" : "cold");
+
+  return {
+    async create(cwdInput, caller) {
+      const cwd = resolveSessionCwd(cwdInput);
+      const now = deps.clock.now();
+      const row: SessionRow = {
+        id: deps.newId(),
+        piPath: null,
+        piSessionId: null,
+        cwd,
+        ownerId: caller.userId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await launch(row, true);
+      return { sessionId: row.id };
+    },
+    list: (caller) =>
+      deps.store.listByOwner(caller.userId).map((row) => ({
+        id: row.id,
+        cwd: row.cwd,
+        status: statusOf(row.id),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
+    async prompt(input, caller) {
+      const row = owned(input.sessionId, caller);
+      const session = await ensureLive(row);
+      deps.store.touch(row.id, deps.clock.now());
+      return session.prompt(input.text, input.streamingBehavior);
+    },
+    async abort(sessionId, caller) {
+      owned(sessionId, caller);
+      await live.get(sessionId)?.abort();
+    },
+    respondDialog(input, caller) {
+      owned(input.sessionId, caller);
+      const session = live.get(input.sessionId);
+      if (!session) throw new PapError("not_found");
+      session.answer(input.dialogId, input.response);
+    },
+    assertReadable(sessionId, caller) {
+      owned(sessionId, caller);
+    },
+    snapshot(sessionId) {
+      const row = deps.store.get(sessionId);
+      if (!row) throw new PapError("not_found");
+      const session = live.get(sessionId);
+      const run = session?.runView() ?? null;
+      // A draft's file is the one its worker reported; it is read only if it is where Pi keeps session files.
+      const reported = session?.piFile();
+      const file =
+        row.piPath ?? (reported && isPiSessionFile(deps.worker.agentDir, reported) ? reported : null);
+      // A run in progress is not in the file yet: the file is read as it was when the run began, then the run's
+      // own messages follow (R38).
+      const fromFile = file ? readTranscriptTail(file, SNAPSHOT_ROWS, run?.baselineBytes) : [];
+      return fitSnapshot({
+        status: statusOf(sessionId),
+        rows: [...fromFile, ...(run?.messages ?? [])],
+        dialogs: session?.dialogs() ?? [],
+      });
+    },
+    async shutdownAll() {
+      closing = true;
+      await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
+    },
+    inspect(sessionId) {
+      const session = live.get(sessionId);
+      return session ? { pid: session.pid(), rssMb: session.rssMb() } : null;
+    },
+  };
+}

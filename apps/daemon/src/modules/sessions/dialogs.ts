@@ -1,0 +1,150 @@
+import { Dialog, type UiRequestRecord } from "@pap/contracts";
+
+const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
+const DECORATION_METHODS = new Set(["notify", "setStatus", "setWidget", "setTitle", "set_editor_text"]);
+const MAX_DIALOGS = 64;
+const MAX_DIALOG_BYTES = 8 * 1024 * 1024;
+/** One dialog as sent: the socket allows 1 MiB per frame, and the frame's own fields need a few hundred bytes. */
+export const DIALOG_FRAME_BYTES = 1_000_000;
+
+// The limits of `Dialog` in the contracts; the parse below fails (and the dialog is cancelled) if they ever differ.
+const TEXT_LIMITS = { title: 4096, message: 65_536, placeholder: 4096, prefill: 1_000_000 } as const;
+type TextField = keyof typeof TEXT_LIMITS;
+const TEXT_FIELDS = Object.keys(TEXT_LIMITS) as TextField[];
+const MAX_OPTIONS = 100;
+const MAX_OPTION_CHARS = 4096;
+
+export type CancelReason = "unknown_method" | "malformed" | "too_large" | "limit";
+export type DialogVerdict =
+  { kind: "opened"; dialog: Dialog } | { kind: "cancel"; reason: CancelReason } | { kind: "decoration" };
+
+export interface DialogRegistry {
+  offer(request: UiRequestRecord): DialogVerdict;
+  take(id: string): Dialog | null;
+  list(): Dialog[];
+  clear(): Dialog[];
+}
+
+const sizeOf = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
+const cancel = (reason: CancelReason): DialogVerdict => ({ kind: "cancel", reason });
+
+/** `max` characters at most, the last one marking the cut. */
+const cut = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
+
+// Text fields of the request that are not text make the whole dialog malformed; `undefined` means "not given".
+function textOf(raw: Record<string, unknown>, field: TextField): string | undefined | null {
+  const value = raw[field];
+  if (value === undefined) return undefined;
+  return typeof value === "string" ? cut(value, TEXT_LIMITS[field]) : null;
+}
+
+type Built = { dialog: Dialog } | { reason: CancelReason };
+
+function build(request: UiRequestRecord): Built {
+  const raw: Record<string, unknown> = request;
+  const text = Object.fromEntries(TEXT_FIELDS.map((field) => [field, textOf(raw, field)] as const));
+  if (
+    typeof text.title !== "string" ||
+    text.message === null ||
+    text.placeholder === null ||
+    text.prefill === null
+  ) {
+    return { reason: "malformed" };
+  }
+  let options: string[] | undefined;
+  if (request.method === "select") {
+    const given = raw.options;
+    if (!Array.isArray(given) || !given.every((option) => typeof option === "string")) {
+      return { reason: "malformed" };
+    }
+    // Cutting an option would change the value the extension is waiting for, so one that is too long is no dialog.
+    if (given.length > MAX_OPTIONS || given.some((option: string) => option.length > MAX_OPTION_CHARS)) {
+      return { reason: "too_large" };
+    }
+    options = given as string[];
+  }
+  const timeout =
+    Number.isSafeInteger(raw.timeout) && (raw.timeout as number) > 0 ? (raw.timeout as number) : undefined;
+  const parsed = Dialog.safeParse({
+    id: request.id,
+    method: request.method,
+    title: text.title,
+    ...(text.message === undefined ? {} : { message: text.message }),
+    ...(options === undefined ? {} : { options }),
+    ...(text.placeholder === undefined ? {} : { placeholder: text.placeholder }),
+    ...(text.prefill === undefined ? {} : { prefill: text.prefill }),
+    ...(timeout === undefined ? {} : { timeout }),
+  });
+  return parsed.success ? { dialog: parsed.data } : { reason: "malformed" };
+}
+
+const longestText = (dialog: Dialog): TextField | null => {
+  let best: TextField | null = null;
+  let bestLength = 1;
+  for (const field of TEXT_FIELDS) {
+    const length = dialog[field]?.length ?? 0;
+    if (length > bestLength) {
+      best = field;
+      bestLength = length;
+    }
+  }
+  return best;
+};
+
+// A frame holds at most 1 MiB, and a character can take up to six bytes of it once escaped, so the longest text
+// field is cut by the share of its own bytes that is over, then measured again.
+function fitFrame(dialog: Dialog): Dialog | null {
+  let current = dialog;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const excess = sizeOf(current) - DIALOG_FRAME_BYTES;
+    if (excess <= 0) return current;
+    const field = longestText(current);
+    const text = field ? current[field] : undefined;
+    if (!field || text === undefined) return null;
+    const bytes = sizeOf(text);
+    const keep = Math.max(1, Math.floor((text.length * Math.max(0, bytes - excess - 8)) / bytes));
+    current = { ...current, [field]: cut(text, keep) };
+  }
+  return sizeOf(current) <= DIALOG_FRAME_BYTES ? current : null;
+}
+
+export function createDialogRegistry(): DialogRegistry {
+  const open = new Map<string, { dialog: Dialog; bytes: number }>();
+  let bytes = 0;
+  return {
+    offer(request) {
+      if (DECORATION_METHODS.has(request.method)) return { kind: "decoration" };
+      if (!DIALOG_METHODS.has(request.method)) return cancel("unknown_method");
+      const built = build(request);
+      if ("reason" in built) return cancel(built.reason);
+      const dialog = fitFrame(built.dialog);
+      if (!dialog) return cancel("too_large");
+      const size = sizeOf(dialog);
+      // A dialog offered again under an id that is open replaces it, as it does in the worker.
+      const replaced = open.get(dialog.id);
+      if (
+        open.size - (replaced ? 1 : 0) >= MAX_DIALOGS ||
+        bytes - (replaced?.bytes ?? 0) + size > MAX_DIALOG_BYTES
+      ) {
+        return cancel("limit");
+      }
+      bytes += size - (replaced?.bytes ?? 0);
+      open.set(dialog.id, { dialog, bytes: size });
+      return { kind: "opened", dialog };
+    },
+    take(id) {
+      const entry = open.get(id);
+      if (!entry) return null;
+      open.delete(id);
+      bytes -= entry.bytes;
+      return entry.dialog;
+    },
+    list: () => [...open.values()].map((entry) => entry.dialog),
+    clear() {
+      const all = [...open.values()].map((entry) => entry.dialog);
+      open.clear();
+      bytes = 0;
+      return all;
+    },
+  };
+}

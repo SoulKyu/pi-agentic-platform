@@ -12,6 +12,7 @@
     "dev": "node --disable-warning=ExperimentalWarning --conditions=development --watch src/main.ts serve --dev"
   },
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "catalog:",
     "@hono/node-server": "2.1.3",
     "@pap/contracts": "workspace:*",
     "@simplewebauthn/server": "13.3.3",

@@ -73,7 +73,7 @@ export const methods = catalogue({
       response: DialogResponse,
     }),
     result: Ok,
-    errors: ["not_found"],
+    errors: ["not_found", "worker_failed"],
   }),
   "subscribe.session": defineMethod({
     name: "subscribe.session",

@@ -1,0 +1,113 @@
+import { describe, expect, it } from "vitest";
+import { createFakeClock } from "../../kernel/clock.ts";
+import { silentLogger } from "../../kernel/logger.ts";
+import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
+import { startLiveSession } from "./live-session.ts";
+import { captureLogger, codeOf } from "./testing/helpers.ts";
+import { createLiveBed, INIT, piEvent, READY } from "./testing/live-bed.ts";
+
+const setup = createLiveBed(startLiveSession);
+
+describe("abort", () => {
+  it("terminates the worker when abort meets compaction or no settle within 5 s", async () => {
+    const compacting = setup({ compacting: true });
+    compacting.worker.emit(piEvent({ type: "agent_start" }));
+    await compacting.live.abort();
+    expect(compacting.worker.stopped()).toBe(true);
+    const stuck = setup();
+    stuck.worker.emit(piEvent({ type: "agent_start" }));
+    const pending = stuck.live.abort();
+    await stuck.clock.advance(4999);
+    expect(stuck.worker.stopped()).toBe(false);
+    await stuck.clock.advance(1);
+    await pending;
+    expect(stuck.worker.stopped()).toBe(true);
+  });
+
+  it("leaves the worker alone when the run settles in time", async () => {
+    const { worker, live, clock } = setup();
+    worker.emit(piEvent({ type: "agent_start" }));
+    const aborting = live.abort();
+    await clock.advance(0);
+    expect(worker.requests.some((request) => request.type === "abort")).toBe(true);
+    worker.emit(piEvent({ type: "agent_settled", aborted: true }));
+    await clock.advance(0);
+    await aborting;
+    expect(worker.stopped()).toBe(false);
+    expect(live.status()).toBe("idle");
+  });
+
+  it("terminates a worker that does not answer get_state", async () => {
+    const clock = createFakeClock();
+    const worker = createFakeWorker({ clock });
+    const live = startLiveSession(
+      {
+        handle: worker,
+        clock,
+        logger: silentLogger,
+        publish: () => {},
+        record: () => {},
+        onActivity: () => {},
+        onExit: () => {},
+      },
+      INIT,
+    );
+    worker.emit(READY);
+    const aborting = live.abort();
+    await clock.advance(2000);
+    await aborting;
+    expect(worker.stopped()).toBe(true);
+  });
+});
+
+describe("prompt", () => {
+  it("maps a rejected prompt to prompt_rejected and never forwards the worker's text", async () => {
+    const { logger, lines } = captureLogger();
+    const { live } = setup({ promptFails: true, logger });
+    expect(await codeOf(live.prompt("go"))).toBe("prompt_rejected");
+    expect(lines.find((line) => line.msg === "prompt_rejected")?.error).toBe("No API key for provider x");
+  });
+
+  it("starts, queues or hands the prompt over, as Pi says", async () => {
+    const { live } = setup();
+    expect(await live.prompt("go")).toEqual({ disposition: "started" });
+  });
+
+  it("fails with worker_failed, not timeout, when the worker dies while the prompt waits", async () => {
+    const { worker, live } = setup({ holdPrompt: true });
+    const prompt = codeOf(live.prompt("/ask"));
+    worker.crash({ code: null, signal: "SIGKILL", cause: "killed" });
+    expect(await prompt).toBe("worker_failed");
+  });
+});
+
+describe("extension errors", () => {
+  const error = {
+    type: "extension_error" as const,
+    extensionPath: "/home/u/ext.ts",
+    event: "tool_call",
+    error: "TOKEN=abc123",
+  };
+
+  it("tells the user in fixed words and logs the worker's, clipped", () => {
+    const { logger, lines } = captureLogger();
+    const { worker, published } = setup({ logger });
+    worker.emit({ ...error, error: `${"e".repeat(5000)}` });
+    expect(published.at(-1)).toEqual({
+      kind: "notice",
+      level: "error",
+      text: "An extension failed during tool_call.",
+    });
+    expect(String(lines.find((line) => line.msg === "extension_error")?.error).length).toBeLessThanOrEqual(
+      2001,
+    );
+  });
+
+  it("never sends the worker's text to a client", () => {
+    const { worker, published } = setup();
+    worker.emit(error);
+    worker.emit({ ...error, event: "see /etc/passwd now" });
+    expect(JSON.stringify(published)).not.toMatch(/abc123|ext\.ts|passwd/);
+    expect(published.at(-1)).toEqual({ kind: "notice", level: "error", text: "An extension failed." });
+  });
+});

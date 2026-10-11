@@ -1,0 +1,35 @@
+import type { HandlerTable } from "@pap/contracts";
+import type { SessionsService } from "./service.ts";
+
+export type SessionsRpc = Pick<
+  HandlerTable,
+  | "sessions.create"
+  | "sessions.list"
+  | "sessions.prompt"
+  | "sessions.abort"
+  | "sessions.respondDialog"
+  | "subscribe.session"
+>;
+
+export function sessionsRpc(service: SessionsService): SessionsRpc {
+  return {
+    "sessions.create": async ({ cwd }, ctx) => service.create(cwd, ctx.caller),
+    "sessions.list": async (_params, ctx) => ({ sessions: service.list(ctx.caller) }),
+    "sessions.prompt": async (params, ctx) => service.prompt(params, ctx.caller),
+    "sessions.abort": async ({ sessionId }, ctx) => {
+      await service.abort(sessionId, ctx.caller);
+      return { ok: true as const };
+    },
+    "sessions.respondDialog": async (params, ctx) => {
+      service.respondDialog(params, ctx.caller);
+      return { ok: true as const };
+    },
+    // Opening a subscription is this handler's only effect. A handler that also had a side effect would open the
+    // subscription first: it can fail with capacity or not_found, and failing after the effect would invite a retry
+    // of the same command (R79).
+    "subscribe.session": async ({ sessionId, after }, ctx) => {
+      service.assertReadable(sessionId, ctx.caller);
+      return { sub: ctx.openSubscription("session", sessionId, after) };
+    },
+  };
+}
