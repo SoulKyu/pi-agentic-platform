@@ -1,103 +1,340 @@
-/* E1 tokens: a subset of DESIGN.md §3.1–3.2 (validated, decision 33). The full token schema
-   (DESIGN.md names, high-contrast theme, densities) lands in roadmap M3. Fonts are self-hosted
-   (DESIGN.md §4): nothing here loads from the network. The default Tailwind palette is reset: only the
-   colours below compile (transparent and current stay built in). */
+/* Night Control tokens: DESIGN.md §3 (themes), §5 (densities), §7.2 (motion), §7.4 (focus); spec B, validated
+   (decision 33), contrast amended by ADR 0012 (R120). Raw values carry the DESIGN.md names. Every theme selector
+   has the same specificity (R120): the boot script always sets data-theme, the no-JS fallback only applies while
+   the attribute is absent. The default Tailwind palette is reset: only the colours below compile (transparent and
+   current stay built in). Variants, utilities and keyframes live in utilities.css. Nothing here loads from the
+   network.
+
+   `@theme inline`, not `@theme static` as DESIGN §14 writes: a utility must read var(--bg) where it is used, so a
+   data-theme on a subtree (gallery frames, Mark's mode) re-themes it. A non-inline theme would resolve
+   the colour variable once, on :root. Do not "fix" it. */
+
 @theme inline {
   --color-*: initial;
-  --color-bg: var(--pap-bg);
-  --color-panel: var(--pap-panel);
-  --color-line: var(--pap-line);
-  --color-fg: var(--pap-fg);
-  --color-muted: var(--pap-muted);
-  --color-agent: var(--pap-agent);
-  --color-agent-fill: var(--pap-agent-fill);
-  --color-human: var(--pap-human);
-  --color-human-fill: var(--pap-human-fill);
-  --color-human-tint: var(--pap-human-tint);
-  --color-human-line: var(--pap-human-line);
-  --color-human-text: var(--pap-human-text);
-  --color-on-fill: var(--pap-on-fill);
-  --color-attention: var(--pap-attention);
-  --color-attention-tint: var(--pap-attention-tint);
-  --color-attention-line: var(--pap-attention-line);
-  --color-ok: var(--pap-ok);
-  --color-error: var(--pap-error);
-  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --color-bg: var(--bg);
+  --color-bg-side: var(--bg-side);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-control-border: var(--control-border);
+  --color-fg: var(--text);
+  --color-muted: var(--text-muted);
+  --color-dim: var(--text-dim);
+  --color-agent: var(--agent);
+  --color-agent-fill: var(--agent-fill);
+  --color-agent-ink: var(--agent-ink);
+  --color-you: var(--you);
+  --color-you-fill: var(--you-fill);
+  --color-you-ink: var(--you-ink);
+  --color-you-tint: var(--you-tint);
+  --color-you-line: var(--you-line);
+  --color-you-text: var(--you-text);
+  --color-attn: var(--attn);
+  --color-attn-fill: var(--attn-fill);
+  --color-attn-ink: var(--attn-ink);
+  --color-attn-tint: var(--attn-tint);
+  --color-attn-line: var(--attn-line);
+  --color-attn-title: var(--attn-title);
+  --color-ok: var(--ok);
+  --color-err: var(--err);
+  --color-diff-add: var(--diff-add);
+  --color-diff-del: var(--diff-del);
+  --color-focus: var(--focus-ring);
+  /* M1 names, kept until M2 and M3 have both merged (post-merge task P1 removes them). */
+  --color-panel: var(--surface);
+  --color-line: var(--border);
+  --color-human: var(--you);
+  --color-human-fill: var(--you-fill);
+  --color-human-tint: var(--you-tint);
+  --color-human-line: var(--you-line);
+  --color-human-text: var(--you-text);
+  --color-on-fill: var(--you-ink);
+  --color-attention: var(--attn);
+  --color-attention-tint: var(--attn-tint);
+  --color-attention-line: var(--attn-line);
+  --color-error: var(--err);
+
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-code);
   --text-label: 0.65625rem;
-  --text-ui: 0.8125rem;
-  --text-chat: 0.875rem;
-  --text-chat--line-height: 1.55;
+  --text-ui: var(--size-ui);
+  --text-chat: var(--size-chat);
+  --text-chat--line-height: var(--leading-chat);
+  --text-code: var(--size-code);
+  --text-h2: 1rem;
+  --text-h2--line-height: 1.4;
+  --text-h2--font-weight: 700;
+  --text-h1: 1.25rem;
+  --text-h1--line-height: 1.3;
+  --text-h1--font-weight: 800;
+  --text-display: 1.75rem;
+  --text-display--line-height: 1.15;
+  --text-display--font-weight: 800;
+  --text-display--letter-spacing: -0.02em;
   --tracking-label: 0.12em;
+  --tracking-display: -0.02em;
   --radius-sm: 2px;
   --radius-md: 3px;
+  --spacing-s1: var(--space-1);
+  --spacing-s2: var(--space-2);
+  --spacing-s3: var(--space-3);
+  --spacing-s4: var(--space-4);
+  --spacing-s5: var(--space-5);
+  --spacing-s6: var(--space-6);
+  --spacing-control: var(--control-h);
+  --spacing-bar: var(--bar-h);
+  --spacing-rail: var(--rail-w);
+  --spacing-avatar: var(--avatar-size);
+  --spacing-drawer-tree: 18.75rem;
+  --spacing-drawer-inbox: 22.5rem;
+  --spacing-pane: 20rem;
+  --spacing-status-panel: 20.625rem;
 }
 
 :root,
 [data-theme="night"] {
   color-scheme: dark;
-  --pap-bg: #110f18;
-  --pap-panel: #1a1724;
-  --pap-line: #2d2840;
-  --pap-fg: #f2effa;
-  --pap-muted: #9c95b5;
-  --pap-agent: #a78bfa;
-  --pap-agent-fill: #a78bfa;
-  --pap-human: #fb923c;
-  --pap-human-fill: #fb923c;
-  --pap-human-tint: #fb923c1a;
-  --pap-human-line: #fb923c66;
-  --pap-human-text: #fed7aa;
-  --pap-on-fill: #1b0d00;
-  --pap-attention: #ec4899;
-  --pap-attention-tint: #ec48991a;
-  --pap-attention-line: #ec48998c;
-  --pap-ok: #34d399;
-  --pap-error: #f87171;
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="night"]) {
-    color-scheme: light;
-    --pap-bg: #faf9f6;
-    --pap-panel: #ffffff;
-    --pap-line: #e2ded5;
-    --pap-fg: #1c1917;
-    --pap-muted: #6b645a;
-    --pap-agent: #6d28d9;
-    --pap-agent-fill: #7c3aed;
-    --pap-human: #c2410c;
-    --pap-human-fill: #fb923c;
-    --pap-human-tint: #fff4ea;
-    --pap-human-line: #fdba74;
-    --pap-human-text: #431407;
-    --pap-on-fill: #1b0d00;
-    --pap-attention: #be185d;
-    --pap-attention-tint: #fdf1f6;
-    --pap-attention-line: #f9a8d4;
-    --pap-ok: #047857;
-    --pap-error: #dc2626;
-  }
+  --bg: #110f18;
+  --bg-side: #14111d;
+  --surface: #1a1724;
+  --surface-2: #241f33;
+  --border: #2d2840;
+  --border-strong: #3d3657;
+  --control-border: #6b6485;
+  --text: #f2effa;
+  --text-muted: #9c95b5;
+  --text-dim: #6b6485;
+  --grid: #ffffff06;
+  --focus-ring: #fb923c;
+  --agent: #a78bfa;
+  --agent-fill: #a78bfa;
+  --agent-ink: #110f18;
+  --you: #fb923c;
+  --you-fill: #fb923c;
+  --you-ink: #1b0d00;
+  --you-tint: #fb923c1a;
+  --you-line: #fb923c66;
+  --you-text: #fed7aa;
+  --attn: #ec4899;
+  --attn-fill: #ec4899;
+  --attn-ink: #110f18;
+  --attn-tint: #ec48991a;
+  --attn-line: #ec48998c;
+  --attn-title: #f472b6;
+  --ok: #34d399;
+  --err: #f87171;
+  --diff-add: #34d39914;
+  --diff-del: #f8717114;
+  --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.6);
 }
 
 [data-theme="day"] {
   color-scheme: light;
-  --pap-bg: #faf9f6;
-  --pap-panel: #ffffff;
-  --pap-line: #e2ded5;
-  --pap-fg: #1c1917;
-  --pap-muted: #6b645a;
-  --pap-agent: #6d28d9;
-  --pap-agent-fill: #7c3aed;
-  --pap-human: #c2410c;
-  --pap-human-fill: #fb923c;
-  --pap-human-tint: #fff4ea;
-  --pap-human-line: #fdba74;
-  --pap-human-text: #431407;
-  --pap-on-fill: #1b0d00;
-  --pap-attention: #be185d;
-  --pap-attention-tint: #fdf1f6;
-  --pap-attention-line: #f9a8d4;
-  --pap-ok: #047857;
-  --pap-error: #dc2626;
+  --bg: #faf9f6;
+  --bg-side: #f3f1ec;
+  --surface: #ffffff;
+  --surface-2: #eeebe4;
+  --border: #e2ded5;
+  --border-strong: #cfc9bc;
+  --control-border: #8f877a;
+  --text: #1c1917;
+  --text-muted: #6b645a;
+  --text-dim: #a8a196;
+  --grid: #1c19170a;
+  --focus-ring: #ea580c;
+  --agent: #6d28d9;
+  --agent-fill: #7c3aed;
+  --agent-ink: #ffffff;
+  --you: #c2410c;
+  --you-fill: #fb923c;
+  --you-ink: #1b0d00;
+  --you-tint: #fff4ea;
+  --you-line: #fdba74;
+  --you-text: #431407;
+  --attn: #be185d;
+  --attn-fill: #db2777;
+  --attn-ink: #ffffff;
+  --attn-tint: #fdf1f6;
+  --attn-line: #f9a8d4;
+  --attn-title: #be185d;
+  --ok: #047857;
+  --err: #dc2626;
+  --diff-add: #04785714;
+  --diff-del: #dc262614;
+  --shadow-overlay: 0 12px 40px rgba(28, 25, 23, 0.18);
+}
+
+/* DESIGN.md §3.3; what §3.3 leaves out follows §13.2 (inks, tints and lines from the night fills it keeps). */
+[data-theme="hc"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --bg-side: #0a0a0a;
+  --surface: #111111;
+  --surface-2: #1f1f1f;
+  --border: #5a5a5a;
+  --border-strong: #8a8a8a;
+  --control-border: #8a8a8a;
+  --text: #ffffff;
+  --text-muted: #d0d0d0;
+  --text-dim: #a0a0a0;
+  --grid: transparent;
+  --focus-ring: #fb923c;
+  --agent: #c4b5fd;
+  --agent-fill: #a78bfa;
+  --agent-ink: #110f18;
+  --you: #fdba74;
+  --you-fill: #fb923c;
+  --you-ink: #1b0d00;
+  --you-tint: #fb923c1a;
+  --you-line: #fb923c66;
+  --you-text: #fed7aa;
+  --attn: #f9a8d4;
+  --attn-fill: #ec4899;
+  --attn-ink: #110f18;
+  --attn-tint: #ec48991a;
+  --attn-line: #ec48998c;
+  --attn-title: #f9a8d4;
+  --ok: #6ee7b7;
+  --err: #fca5a5;
+  --diff-add: #6ee7b714;
+  --diff-del: #fca5a514;
+  --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* No JavaScript yet (or ever): follow the system. Applies only while <html> has no data-theme. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+    --bg: #faf9f6;
+    --bg-side: #f3f1ec;
+    --surface: #ffffff;
+    --surface-2: #eeebe4;
+    --border: #e2ded5;
+    --border-strong: #cfc9bc;
+    --control-border: #8f877a;
+    --text: #1c1917;
+    --text-muted: #6b645a;
+    --text-dim: #a8a196;
+    --grid: #1c19170a;
+    --focus-ring: #ea580c;
+    --agent: #6d28d9;
+    --agent-fill: #7c3aed;
+    --agent-ink: #ffffff;
+    --you: #c2410c;
+    --you-fill: #fb923c;
+    --you-ink: #1b0d00;
+    --you-tint: #fff4ea;
+    --you-line: #fdba74;
+    --you-text: #431407;
+    --attn: #be185d;
+    --attn-fill: #db2777;
+    --attn-ink: #ffffff;
+    --attn-tint: #fdf1f6;
+    --attn-line: #f9a8d4;
+    --attn-title: #be185d;
+    --ok: #047857;
+    --err: #dc2626;
+    --diff-add: #04785714;
+    --diff-del: #dc262614;
+    --shadow-overlay: 0 12px 40px rgba(28, 25, 23, 0.18);
+  }
+}
+
+:root,
+[data-density="compact"] {
+  --size-ui: 13px;
+  --size-chat: 14px;
+  --leading-chat: 1.55;
+  --size-code: 12px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --control-h: 26px;
+  --rail-w: 48px;
+  --bar-h: 34px;
+  --avatar-size: 28px;
+}
+
+[data-density="comfortable"] {
+  --size-ui: 14px;
+  --size-chat: 15px;
+  --leading-chat: 1.65;
+  --size-code: 12.5px;
+  --space-1: 6px;
+  --space-2: 10px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --space-6: 32px;
+  --control-h: 32px;
+  --rail-w: 56px;
+  --bar-h: 40px;
+  --avatar-size: 32px;
+}
+
+/* Compact UI with comfortable chat prose (DESIGN.md §5). */
+[data-density="mixed"] {
+  --size-ui: 13px;
+  --size-chat: 15px;
+  --leading-chat: 1.65;
+  --size-code: 12px;
+}
+
+:root {
+  --font-ui: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --label-transform: uppercase;
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --grid-size: 24px;
+  --chat-max-width: none;
+}
+
+[data-font-ui="system"] {
+  --font-ui: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+[data-font-mono="system"] {
+  --font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-labels="sentence"] {
+  --label-transform: none;
+}
+
+[data-chat-width="wide"] {
+  --chat-max-width: 64rem;
+}
+
+[data-chat-width="narrow"] {
+  --chat-max-width: 48rem;
+}
+
+[data-motion="reduced"],
+[data-motion="none"] {
+  --motion-fast: 0ms;
+  --motion-base: 0ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]),
+  [data-motion="system"] {
+    --motion-fast: 0ms;
+    --motion-base: 0ms;
+  }
+}
+
+@media (max-width: 767.98px) {
+  :root {
+    --grid-size: 16px;
+  }
+}
+
+/* After the themes: same specificity, so the later rule wins. */
+[data-grid="off"] {
+  --grid: transparent;
 }

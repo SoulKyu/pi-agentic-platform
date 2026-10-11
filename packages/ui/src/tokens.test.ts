@@ -1,15 +1,103 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { PRESET_TOKENS } from "./presets.ts";
+import { THEME_TOKENS, THEMES, type ThemeName } from "./token-names.ts";
 
 const css = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
+const utilities = readFileSync(new URL("./utilities.css", import.meta.url), "utf8");
 
-const occurrences = (declaration: string) => css.toLowerCase().split(declaration.toLowerCase()).length - 1;
+interface Block {
+  readonly media: string | null;
+  readonly selector: string;
+  readonly decls: ReadonlyMap<string, string>;
+  readonly body: string;
+}
 
-describe("E1 tokens", () => {
-  it("defines every themed variable for night, system-light and day", () => {
-    const names = [...css.matchAll(/var\(--pap-([a-z-]+)\)/g)].map((match) => match[1]);
-    expect(names.length).toBeGreaterThan(10);
-    for (const name of new Set(names)) expect(css.split(`--pap-${name}:`).length - 1, name).toBe(3);
+/** Top-level rules and the rules of @media blocks, comments removed. Enough for a hand-written token file. */
+function parse(source: string): Block[] {
+  const text = source.replace(/\/\*[\s\S]*?\*\//g, "");
+  const out: Block[] = [];
+  const walk = (src: string, media: string | null): void => {
+    let i = 0;
+    while (i < src.length) {
+      const open = src.indexOf("{", i);
+      if (open === -1) return;
+      const raw = src.slice(i, open);
+      const prelude = raw
+        .slice(raw.lastIndexOf(";") + 1)
+        .trim()
+        .replace(/\s+/g, " ");
+      let depth = 1;
+      let j = open + 1;
+      for (; j < src.length && depth > 0; j++) {
+        if (src[j] === "{") depth++;
+        else if (src[j] === "}") depth--;
+      }
+      const body = src.slice(open + 1, j - 1);
+      if (prelude.startsWith("@media")) walk(body, prelude);
+      else {
+        const decls = new Map<string, string>();
+        for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/g))
+          decls.set(m[1] ?? "", (m[2] ?? "").trim().toLowerCase());
+        out.push({ media, selector: prelude, decls, body });
+      }
+      i = j;
+    }
+  };
+  walk(text, null);
+  return out;
+}
+
+// WCAG 2.x contrast, with a translucent colour composited over its backdrop (the token tests' own copy; the app's
+// contrast.ts arrives in Task 13).
+const channels = (hex: string): number[] =>
+  [1, 3, 5, 7].filter((i) => i < hex.length).map((i) => parseInt(hex.slice(i, i + 2), 16));
+function over(color: string, backdrop: string): string {
+  const [r = 0, g = 0, b = 0, a = 255] = channels(color);
+  const [br = 0, bg = 0, bb = 0] = channels(backdrop);
+  const mix = (c: number, d: number) => Math.round(c * (a / 255) + d * (1 - a / 255));
+  return `#${[mix(r, br), mix(g, bg), mix(b, bb)].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+function luminance(hex: string): number {
+  const [r = 0, g = 0, b = 0] = channels(hex).map((c) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function ratio(foreground: string, background: string): number {
+  const [hi, lo] = [luminance(foreground), luminance(background)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+const blocks = parse(css);
+const themeBlocks = blocks.filter((block) => block.decls.has("--bg"));
+const PER_THEME = [...THEME_TOKENS.map((name) => `--${name}`), "--shadow-overlay"];
+
+describe("theme tokens (DESIGN.md §3)", () => {
+  it("sets theme values only from equal-specificity selectors, plus a no-JS fallback (R120)", () => {
+    expect(themeBlocks.map((block) => `${block.media ?? ""}|${block.selector}`)).toEqual([
+      '|:root, [data-theme="night"]',
+      '|[data-theme="day"]',
+      '|[data-theme="hc"]',
+      "@media (prefers-color-scheme: light)|:root:not([data-theme])",
+    ]);
+    for (const block of themeBlocks) expect(block.body).not.toContain("!important");
+  });
+
+  it("defines every token in every theme", () => {
+    for (const block of themeBlocks)
+      for (const name of PER_THEME) expect(block.decls.has(name), `${block.selector} ${name}`).toBe(true);
+  });
+
+  it("matches the presets, and the fallback is the day theme", () => {
+    const [night, day, hc, fallback] = themeBlocks;
+    for (const name of THEME_TOKENS) {
+      expect(night?.decls.get(`--${name}`), name).toBe(PRESET_TOKENS.night[name]);
+      expect(day?.decls.get(`--${name}`), name).toBe(PRESET_TOKENS.day[name]);
+      expect(hc?.decls.get(`--${name}`), name).toBe(PRESET_TOKENS.hc[name]);
+      expect(fallback?.decls.get(`--${name}`), name).toBe(PRESET_TOKENS.day[name]);
+    }
   });
 
   it("keeps the decision 11 role colours", () => {
@@ -22,48 +110,163 @@ describe("E1 tokens", () => {
       "#6d28d9",
       "#c2410c",
       "#be185d",
-    ])
+    ]) {
       expect(css.toLowerCase()).toContain(hex);
+    }
   });
 
-  it("follows DESIGN.md for the panel surface and the ink on the you fill", () => {
-    expect(occurrences("--pap-panel: #1a1724;")).toBe(1);
-    expect(occurrences("--pap-panel: #ffffff;")).toBe(2);
-    expect(occurrences("--pap-on-fill: #1b0d00;")).toBe(3);
+  it("applies ADR 0012's values (R120)", () => {
+    const pick = (token: "focus-ring" | "control-border" | "attn-title" | "attn-ink") =>
+      THEMES.map((theme) => PRESET_TOKENS[theme][token]);
+    expect(pick("focus-ring")).toEqual(["#fb923c", "#ea580c", "#fb923c"]);
+    expect(pick("control-border")).toEqual(["#6b6485", "#8f877a", "#8a8a8a"]);
+    expect(pick("attn-title")).toEqual(["#f472b6", "#be185d", "#f9a8d4"]);
+    expect(pick("attn-ink")).toEqual(["#110f18", "#ffffff", "#110f18"]);
+    expect(PRESET_TOKENS.night.border).toBe("#2d2840"); // the hairline stays decorative
   });
 
-  it("keeps the focus fill orange in every mode", () => {
-    expect(occurrences("--pap-human-fill: #fb923c;")).toBe(3);
+  it.each(THEMES)("reaches the ratios ADR 0012 promises in %s", (theme: ThemeName) => {
+    const t = PRESET_TOKENS[theme];
+    for (const ground of [t.bg, t.surface]) {
+      expect(ratio(t["focus-ring"], ground), `focus ring on ${ground}`).toBeGreaterThanOrEqual(3);
+      expect(ratio(t["control-border"], ground), `control border on ${ground}`).toBeGreaterThanOrEqual(3);
+    }
+    expect(
+      ratio(t["attn-title"], over(t["attn-tint"], t.surface)),
+      "approval title on its card",
+    ).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(t["attn-ink"], t["attn-fill"]), "ink on the attention fill").toBeGreaterThanOrEqual(4.5);
   });
 
-  it("defines the you message box and the attention card tones", () => {
-    for (const declaration of [
-      "--pap-human-tint: #fb923c1a;",
-      "--pap-human-line: #fb923c66;",
-      "--pap-human-text: #fed7aa;",
-      "--pap-human-tint: #fff4ea;",
-      "--pap-human-line: #fdba74;",
-      "--pap-human-text: #431407;",
-      "--pap-attention-tint: #ec48991a;",
-      "--pap-attention-line: #ec48998c;",
-      "--pap-attention-tint: #fdf1f6;",
-      "--pap-attention-line: #f9a8d4;",
-    ])
-      expect(css.toLowerCase(), declaration).toContain(declaration);
+  it("measures what ADR 0012 records, so its numbers stay true", () => {
+    expect(ratio("#ea580c", "#faf9f6")).toBeCloseTo(3.38, 2);
+    expect(ratio("#8f877a", "#faf9f6")).toBeCloseTo(3.37, 2);
+    expect(ratio("#6b6485", "#1a1724")).toBeCloseTo(3.18, 2);
+    expect(ratio("#f472b6", over("#ec48991a", "#1a1724"))).toBeCloseTo(5.96, 2);
+    expect(ratio("#110f18", "#ec4899")).toBeCloseTo(5.39, 2);
+    expect(ratio("#fb923c", "#faf9f6")).toBeCloseTo(2.15, 2); // why the day ring changed
   });
 
-  it("sizes the HUD label at 10.5 px with 0.12em tracking", () => {
-    expect(css).toContain("--text-label: 0.65625rem;");
-    expect(css).toContain("--tracking-label: 0.12em;");
+  it("gives each role its own ink", () => {
+    expect(PRESET_TOKENS.night["agent-ink"]).toBe("#110f18");
+    expect(PRESET_TOKENS.day["agent-ink"]).toBe("#ffffff");
+    expect(PRESET_TOKENS.night["you-ink"]).toBe("#1b0d00");
   });
 
-  it("resets the default Tailwind palette so only the M1 colours compile", () => {
+  it("keeps the M1 utility names as aliases until post-merge task P1", () => {
+    for (const alias of [
+      "--color-panel: var(--surface);",
+      "--color-line: var(--border);",
+      "--color-human: var(--you);",
+      "--color-human-fill: var(--you-fill);",
+      "--color-on-fill: var(--you-ink);",
+      "--color-attention: var(--attn);",
+      "--color-error: var(--err);",
+      "--color-fg: var(--text);",
+      "--color-muted: var(--text-muted);",
+    ]) {
+      expect(css).toContain(alias);
+    }
+  });
+
+  it("resets the default Tailwind palette before the first colour", () => {
     const reset = css.indexOf("--color-*: initial;");
     expect(reset).toBeGreaterThan(-1);
     expect(reset).toBeLessThan(css.indexOf("--color-bg:"));
   });
 
-  it("loads nothing from the network (fonts are self-hosted)", () => {
-    expect(css).not.toMatch(/url\(|@import|https?:\/\//);
+  it("turns the grid off after the themes, so it wins over them", () => {
+    const off = blocks.findIndex((block) => block.selector === '[data-grid="off"]');
+    expect(off).toBeGreaterThan(blocks.indexOf(themeBlocks[2] as Block));
+  });
+
+  it("keeps both files within the 400-line rule (AGENTS.md)", () => {
+    expect(css.split("\n").length).toBeLessThanOrEqual(400);
+    expect(utilities.split("\n").length).toBeLessThanOrEqual(400);
+  });
+});
+
+describe("densities (DESIGN.md §5)", () => {
+  const density = (selector: string) => blocks.find((block) => block.selector === selector)?.decls;
+
+  it("sizes compact, comfortable and mixed as the table says", () => {
+    const compact = density(':root, [data-density="compact"]');
+    const comfortable = density('[data-density="comfortable"]');
+    const mixed = density('[data-density="mixed"]');
+    expect([
+      compact?.get("--size-ui"),
+      compact?.get("--size-chat"),
+      compact?.get("--leading-chat"),
+      compact?.get("--size-code"),
+    ]).toEqual(["13px", "14px", "1.55", "12px"]);
+    expect([
+      comfortable?.get("--size-ui"),
+      comfortable?.get("--size-chat"),
+      comfortable?.get("--leading-chat"),
+      comfortable?.get("--size-code"),
+    ]).toEqual(["14px", "15px", "1.65", "12.5px"]);
+    expect([mixed?.get("--size-ui"), mixed?.get("--size-chat"), mixed?.get("--leading-chat")]).toEqual([
+      "13px",
+      "15px",
+      "1.65",
+    ]);
+    expect([
+      compact?.get("--control-h"),
+      compact?.get("--rail-w"),
+      compact?.get("--bar-h"),
+      compact?.get("--avatar-size"),
+    ]).toEqual(["26px", "48px", "34px", "28px"]);
+    expect([
+      comfortable?.get("--control-h"),
+      comfortable?.get("--rail-w"),
+      comfortable?.get("--bar-h"),
+      comfortable?.get("--avatar-size"),
+    ]).toEqual(["32px", "56px", "40px", "32px"]);
+    expect([1, 2, 3, 4, 5, 6].map((n) => compact?.get(`--space-${n}`))).toEqual([
+      "4px",
+      "8px",
+      "12px",
+      "16px",
+      "24px",
+      "32px",
+    ]);
+    expect([1, 2, 3, 4, 5].map((n) => comfortable?.get(`--space-${n}`))).toEqual([
+      "6px",
+      "10px",
+      "16px",
+      "24px",
+      "32px",
+    ]);
+  });
+});
+
+describe("motion, labels and fonts", () => {
+  it("drops transitions to 0 ms for reduced and none, and for system under prefers-reduced-motion", () => {
+    expect(
+      blocks
+        .find((b) => b.selector === '[data-motion="reduced"], [data-motion="none"]')
+        ?.decls.get("--motion-base"),
+    ).toBe("0ms");
+    const system = blocks.find(
+      (b) =>
+        b.media === "@media (prefers-reduced-motion: reduce)" &&
+        b.selector.includes('[data-motion="system"]'),
+    );
+    expect(system?.decls.get("--motion-fast")).toBe("0ms");
+  });
+
+  it("stops the indeterminate bar under reduced motion", () => {
+    expect(utilities).toContain('[data-motion="none"] .animate-indeterminate');
+    expect(utilities).toContain('[data-motion="system"] .animate-indeterminate');
+  });
+
+  it("switches HUD labels to sentence case with one attribute", () => {
+    expect(
+      blocks.find((b) => b.selector === '[data-labels="sentence"]')?.decls.get("--label-transform"),
+    ).toBe("none");
+  });
+
+  it("loads nothing from the network", () => {
+    for (const source of [css, utilities]) expect(source).not.toMatch(/url\(|@import|https?:\/\//);
   });
 });

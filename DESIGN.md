@@ -54,7 +54,8 @@ All values are CSS custom properties defined in `packages/ui/src/tokens.css`, sc
 | `--surface` | `#1A1724` | cards, composer, tool cards |
 | `--surface-2` | `#241F33` | selected rows, active tabs, inline code |
 | `--border` | `#2D2840` | hairlines |
-| `--border-strong` | `#3D3657` | card and control borders |
+| `--border-strong` | `#3D3657` | card borders |
+| `--control-border` | `#6B6485` | input and control borders (≥ 3:1, ADR 0012); `--border` stays a decorative hairline |
 | `--text` | `#F2EFFA` | primary text |
 | `--text-muted` | `#9C95B5` | secondary text, meta |
 | `--text-dim` | `#6B6485` | idle avatars, disabled |
@@ -62,8 +63,10 @@ All values are CSS custom properties defined in `packages/ui/src/tokens.css`, sc
 | `--agent` / `--agent-fill` / `--agent-ink` | `#A78BFA` / `#A78BFA` / `#110F18` | agent role |
 | `--you` / `--you-fill` / `--you-ink` | `#FB923C` / `#FB923C` / `#1B0D00` | you role |
 | `--you-tint` / `--you-line` / `--you-text` | `#FB923C1A` / `#FB923C66` / `#FED7AA` | your message box |
-| `--attn` / `--attn-fill` / `--attn-ink` | `#EC4899` / `#EC4899` / `#FFFFFF` | attention role |
+| `--attn` / `--attn-fill` / `--attn-ink` | `#EC4899` / `#EC4899` / `#110F18` | attention role |
 | `--attn-tint` / `--attn-line` | `#EC48991A` / `#EC48998C` | approval cards, Inbox highlight |
+| `--focus-ring` | `#FB923C` (the you fill) | keyboard focus outline (§7.4) |
+| `--attn-title` | `#F472B6` | approval card titles on the attention tint |
 | `--ok` | `#34D399` | success |
 | `--err` | `#F87171` | error |
 | `--diff-add` / `--diff-del` | `#34D39914` / `#F8717114` | diff line backgrounds |
@@ -85,6 +88,7 @@ All values are CSS custom properties defined in `packages/ui/src/tokens.css`, sc
 | `--attn-tint` / `--attn-line` | `#FDF1F6` / `#F9A8D4` |
 | `--ok` / `--err` | `#047857` / `#DC2626` |
 | `--diff-add` / `--diff-del` | `#04785714` / `#DC262614` |
+| `--control-border` / `--focus-ring` / `--attn-title` | `#8F877A` / `#EA580C` / `#BE185D` |
 
 ### 3.3 High contrast (accessibility preset)
 
@@ -96,6 +100,7 @@ All values are CSS custom properties defined in `packages/ui/src/tokens.css`, sc
 | `--agent` / `--you` / `--attn` / `--ok` / `--err` | `#C4B5FD` / `#FDBA74` / `#F9A8D4` / `#6EE7B7` / `#FCA5A5` |
 | fills | same as night (`#A78BFA`, `#FB923C`, `#EC4899`) |
 | `--grid` | `transparent` |
+| `--control-border` / `--focus-ring` / `--attn-title` / `--attn-ink` | `#8A8A8A` / `#FB923C` / `#F9A8D4` / `#110F18` |
 
 ### 3.4 Geometry and depth
 
@@ -197,7 +202,7 @@ Remote spinners are deferred by about 200 ms, but the control is disabled immedi
 
 ### 7.4 Focus
 
-A 2 px solid `--you-fill` outline with a 2 px offset on `:focus-visible`. It is never removed.
+A 2 px solid `--focus-ring` outline with a 2 px offset on `:focus-visible`: the you fill in night and high contrast, `#EA580C` in day, where the fill reaches only 2.15:1 (ADR 0012). It is never removed.
 
 ## 8. Layout (decision 25)
 
