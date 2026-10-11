@@ -8,6 +8,7 @@ import { KERNEL_MIGRATIONS, migrate } from "./kernel/db/migrate.ts";
 import { createReceiptStore, startReceiptPurge } from "./kernel/db/receipts.ts";
 import { acquireInstanceLock, prepareHome } from "./kernel/home.ts";
 import { createHttpApp } from "./kernel/http/app.ts";
+import { createOriginRefusalLog } from "./kernel/http/origin-refusals.ts";
 import { startServer } from "./kernel/http/server.ts";
 import { createLogger, type Logger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
@@ -100,6 +101,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const purge = startReceiptPurge(receipts, clock, logger);
     closers.push({ name: "receipt_purge", close: () => purge.stop() });
 
+    const onOriginRefused = createOriginRefusalLog(logger, clock);
     const hub = createStreamHub();
     const auth = createAuthModule({
       db,
@@ -127,6 +129,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
       clock,
       serverVersion: VERSION,
+      onOriginRefused,
     });
     // The browser cannot read the status of a failed upgrade, so the client asks this plain GET first.
     const wsProbe = (c: Context) => {
@@ -141,6 +144,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       staticRoot: config.staticRoot,
       logger,
       servesTls: config.tls !== null,
+      onOriginRefused,
       mount: (hono) => auth.mount(hono),
       wsProbe,
     });
@@ -169,7 +173,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     }
     if (!LOOPBACK.has(config.host) && !config.tls) {
       logger.warn("plain_http_on_network", {
-        hint: "Passkeys, secure cookies and Web Push need HTTPS: use Tailscale serve, a reverse proxy or --tls-cert/--tls-key.",
+        hint: "Passkeys, secure cookies and Web Push need HTTPS: use Tailscale serve, a reverse proxy or --tls-cert/--tls-key. Browsers on other machines are only accepted under the address in PAP_PUBLIC_ORIGIN; set it to the one they type.",
       });
     }
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });

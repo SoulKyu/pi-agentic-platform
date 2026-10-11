@@ -101,9 +101,39 @@ describe("what the daemon does at boot", () => {
     const { logger, named } = capture();
     await boot(ANSWER, { config: { host: "0.0.0.0" }, deps: { logger } });
     expect(named("plain_http_on_network")).toHaveLength(1);
+    // The one thing an operator on the network has to do next: name the address browsers will use.
+    expect(String(named("plain_http_on_network")[0]?.hint)).toContain("PAP_PUBLIC_ORIGIN");
     const quiet = capture();
     await boot(ANSWER, { deps: { logger: quiet.logger } });
     expect(quiet.named("plain_http_on_network")).toHaveLength(0);
+  });
+
+  it("logs a refused Origin on http and on the websocket, once per window, without the cookie", async () => {
+    const { logger, named } = capture();
+    const t = await boot(ANSWER, { deps: { logger } });
+    const secret = "pap_session=do-not-log-this-cookie-value";
+    const post = () =>
+      httpRequest(`${t.base}/auth/logout`, {
+        method: "POST",
+        headers: { origin: "http://192.168.1.5:7777", cookie: secret },
+      });
+    for (let n = 0; n < 3; n++) expect((await post()).status).toBe(403);
+    const upgrade = () =>
+      httpRequest(`${t.base}/ws?proto=${PROTOCOL_VERSION}`, {
+        headers: {
+          origin: "http://192.168.1.5:7777",
+          cookie: secret,
+          connection: "Upgrade",
+          upgrade: "websocket",
+        },
+      });
+    expect((await upgrade()).status).toBe(403);
+    expect((await upgrade()).status).toBe(403);
+    expect(named("origin_refused")).toEqual([
+      expect.objectContaining({ via: "http", origin: "http://192.168.1.5:7777", suppressed: 0 }),
+      expect.objectContaining({ via: "ws", origin: "http://192.168.1.5:7777", suppressed: 0 }),
+    ]);
+    expect(JSON.stringify(named("origin_refused"))).not.toContain("do-not-log-this-cookie-value");
   });
 
   it("logs every late server error by its code alone, and hands the daemon over once (R75, R115)", async () => {

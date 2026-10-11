@@ -2,7 +2,7 @@ import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import type { Logger } from "../logger.ts";
-import { originGuard } from "./origin.ts";
+import { originGuard, type OriginRefused } from "./origin.ts";
 import { createStaticHandler, isSpaRoute } from "./static.ts";
 
 export interface HttpAppOptions {
@@ -11,6 +11,8 @@ export interface HttpAppOptions {
   readonly logger: Logger;
   /** True only when this process terminates TLS itself: HSTS is sent then and never on plain HTTP (R73). */
   readonly servesTls?: boolean;
+  /** Called for every request refused for its Origin: the composition root logs it, rate-limited. */
+  readonly onOriginRefused?: OriginRefused;
   mount(app: Hono): void;
   wsProbe(c: Context): Response | Promise<Response>;
 }
@@ -59,7 +61,7 @@ export function createHttpApp(options: HttpAppOptions): Hono {
       strictTransportSecurity: options.servesTls === true ? HSTS : false,
     }),
   );
-  app.use("*", originGuard(options.allowedOrigins));
+  app.use("*", originGuard(options.allowedOrigins, options.onOriginRefused));
   app.get("/healthz", (c) => c.json({ status: "ok" }));
   options.mount(app);
   app.get("/ws", (c) => options.wsProbe(c));

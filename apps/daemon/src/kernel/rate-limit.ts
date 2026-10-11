@@ -1,4 +1,4 @@
-import type { Clock } from "../../kernel/clock.ts";
+import type { Clock } from "./clock.ts";
 
 export interface RateLimiter {
   /**

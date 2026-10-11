@@ -5,6 +5,7 @@ import { ALL_PERMISSIONS, type Caller } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../clock.ts";
 import { silentLogger } from "../logger.ts";
+import type { OriginRefused } from "../http/origin.ts";
 import { createStreamHub } from "./stream-hub.ts";
 import { createWsServer, KEEPALIVE_MS, startKeepalive } from "./ws-server.ts";
 
@@ -101,9 +102,10 @@ describe("keepalive", () => {
 
 const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
 
-function refusalSetup(authenticate: () => Caller | null = () => owner) {
+function refusalSetup(authenticate: () => Caller | null = () => owner, onOriginRefused?: OriginRefused) {
   const server = createWsServer({
     allowedOrigins: new Set(["http://localhost:7777"]),
+    ...(onOriginRefused ? { onOriginRefused } : {}),
     authenticate,
     dispatch: () => Promise.reject(new Error("unused")),
     hub: createStreamHub("e"),
@@ -141,6 +143,16 @@ describe("upgrade refusals (R8)", () => {
       expect(written.join("")).toBe(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
     },
   );
+
+  it("tells the caller which Origin it refused, and nothing for the other refusals", async () => {
+    const refused: Array<[string, string | undefined]> = [];
+    const { upgrade, socket } = refusalSetup(undefined, (via, origin) => refused.push([via, origin]));
+    upgrade("/ws?proto=1", "http://evil.example");
+    await once(socket, "finish");
+    upgrade("/ws?proto=0");
+    upgrade("/nope?proto=1");
+    expect(refused).toEqual([["ws", "http://evil.example"]]);
+  });
 
   it("answers 401 for an unauthenticated caller and 500 when authentication throws", async () => {
     const anonymous = refusalSetup(() => null);

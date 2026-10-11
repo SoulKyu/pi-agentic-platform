@@ -6,9 +6,14 @@ export function originAllowed(origin: string | null | undefined, allowed: Readon
   return typeof origin === "string" && allowed.has(origin);
 }
 
-export function originGuard(allowed: ReadonlySet<string>): MiddlewareHandler {
+/** Told of every request the Origin check refused, with the Origin it carried (undefined when there was none). */
+export type OriginRefused = (via: "http" | "ws", origin: string | undefined) => void;
+
+export function originGuard(allowed: ReadonlySet<string>, onRefused?: OriginRefused): MiddlewareHandler {
   return async (c, next) => {
-    if (!SAFE_METHODS.has(c.req.method) && !originAllowed(c.req.header("origin"), allowed)) {
+    const origin = c.req.header("origin");
+    if (!SAFE_METHODS.has(c.req.method) && !originAllowed(origin, allowed)) {
+      onRefused?.("http", origin);
       return c.json({ error: { code: "forbidden" } }, 403);
     }
     await next();

@@ -17,7 +17,7 @@ import { describeExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { type CancelReason, createDialogRegistry } from "./dialogs.ts";
 import { fileSizeOrZero } from "./pi-files.ts";
-import { createRateLimiter } from "./rate-limit.ts";
+import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { createRunTracker, isIdle } from "./run-tracker.ts";
 import { createRunView, type RunViewState } from "./run-view.ts";
 

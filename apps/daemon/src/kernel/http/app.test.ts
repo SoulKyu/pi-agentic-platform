@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../clock.ts";
 import { createLogger, silentLogger } from "../logger.ts";
 import { createHttpApp } from "./app.ts";
+import type { OriginRefused } from "./origin.ts";
 import { createStaticHandler, isSpaRoute } from "./static.ts";
 
 const ORIGIN = "http://localhost:7777";
@@ -31,11 +32,12 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-const build = (staticRoot: string | null = null, servesTls = false) =>
+const build = (staticRoot: string | null = null, servesTls = false, onOriginRefused?: OriginRefused) =>
   createHttpApp({
     allowedOrigins: new Set([ORIGIN]),
     staticRoot,
     servesTls,
+    ...(onOriginRefused ? { onOriginRefused } : {}),
     logger: silentLogger,
     mount: (app) => {
       app.post("/auth/echo", (c) => c.json({ ok: true }));
@@ -80,6 +82,19 @@ describe("http app", () => {
     expect((await app.request("/auth/echo", { method: "POST", headers: { origin: ORIGIN } })).status).toBe(
       200,
     );
+  });
+
+  it("tells the caller which Origin it refused, and only then", async () => {
+    const refused: Array<[string, string | undefined]> = [];
+    const app = build(null, false, (via, origin) => refused.push([via, origin]));
+    await app.request("/auth/echo", { method: "POST" });
+    await app.request("/auth/echo", { method: "POST", headers: { origin: "http://evil.example" } });
+    await app.request("/auth/echo", { method: "POST", headers: { origin: ORIGIN } });
+    await app.request("/healthz", { headers: { origin: "http://evil.example" } });
+    expect(refused).toEqual([
+      ["http", undefined],
+      ["http", "http://evil.example"],
+    ]);
   });
 
   it("guards every unsafe method, not only POST, and leaves safe ones alone", async () => {

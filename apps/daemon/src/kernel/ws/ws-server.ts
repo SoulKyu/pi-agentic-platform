@@ -13,7 +13,7 @@ import {
 } from "@pap/contracts";
 import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import type { Clock, TimerHandle } from "../clock.ts";
-import { originAllowed } from "../http/origin.ts";
+import { originAllowed, type OriginRefused } from "../http/origin.ts";
 import type { Logger } from "../logger.ts";
 import type { Dispatch } from "./dispatcher.ts";
 import type { PreparedOpen, StreamHub } from "./stream-hub.ts";
@@ -45,6 +45,8 @@ export interface WsServerOptions {
   readonly logger: Logger;
   readonly clock: Clock;
   readonly serverVersion: string;
+  /** Called for every upgrade refused for its Origin. */
+  readonly onOriginRefused?: OriginRefused;
 }
 
 export interface WsServer {
@@ -266,7 +268,10 @@ export function createWsServer(options: WsServerOptions): WsServer {
       const url = upgradeUrl(req);
       if (!url) return reject(socket, 400);
       if (url.pathname !== "/ws") return reject(socket, 404);
-      if (!originAllowed(req.headers.origin, options.allowedOrigins)) return reject(socket, 403);
+      if (!originAllowed(req.headers.origin, options.allowedOrigins)) {
+        options.onOriginRefused?.("ws", req.headers.origin);
+        return reject(socket, 403);
+      }
       if (url.searchParams.get("proto") !== String(PROTOCOL_VERSION)) return reject(socket, 426);
       let caller: Caller | null;
       try {

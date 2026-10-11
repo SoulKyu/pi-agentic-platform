@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createFakeClock } from "../../kernel/clock.ts";
+import { createFakeClock } from "./clock.ts";
 import { createRateLimiter } from "./rate-limit.ts";
 
 describe("rate limiter", () => {

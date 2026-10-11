@@ -32,6 +32,7 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 
 - Every response carries the CSP of R74 (`default-src 'self'` and the rest, no inline script) from `secureHeaders`, API and static alike. `connect-src 'self'` covers same-origin ws/wss; if a library needs more, relax one directive and write an ADR.
 - HSTS (`max-age=15552000`, no `includeSubDomains`) only when the daemon itself serves TLS: `createHttpApp({ servesTls })` is `config.tls !== null`. Plain HTTP never sends it, because it would pin `localhost` and every other local port for 180 days. A reverse proxy that terminates TLS adds its own.
+- A request refused for its Origin (an unsafe-method HTTP request, or a `/ws` upgrade) is answered 403 and logged as the warn line `origin_refused`: `via` (`http` or `ws`), the Origin clipped to 100 characters (`(none)` when absent), `suppressed` (refusals the window swallowed) and a hint naming `PAP_PUBLIC_ORIGIN`. One line per path every 10 s (`createOriginRefusalLog`), never a cookie, header or path. The case it exists for: `--host 0.0.0.0` with no `PAP_PUBLIC_ORIGIN` only accepts the loopback origins, so a browser on the LAN gets a bare "forbidden" otherwise. The startup warning `plain_http_on_network` names `PAP_PUBLIC_ORIGIN` for the same reason.
 - `GET /ws?proto=N` is a plain request answering 426 (another protocol), 401 (no session) or 200: the browser cannot read the status of a failed upgrade.
 
 ## Setup address
