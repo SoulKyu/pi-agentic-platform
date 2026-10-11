@@ -34,6 +34,7 @@ export function installEditorTestHooks(): void {
     cleanups.forEach((fn) => fn());
     cleanups = [];
     setLocale("en");
+    vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });

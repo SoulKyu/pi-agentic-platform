@@ -68,7 +68,7 @@ describe("lazy catalog (Settings)", () => {
       const code = readFileSync(file, "utf8");
       for (const key of lazy)
         if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
-      if (/settings\.(?:appearance|theme|language|account|nav|section|soon|shortcuts)\./.test(code))
+      if (/settings\.(?:appearance|theme|language|account|nav|section|shortcuts)\./.test(code))
         offenders.push(`${name}: settings prefix`);
     }
     expect(offenders).toEqual([]);

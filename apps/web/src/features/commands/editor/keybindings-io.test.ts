@@ -56,6 +56,15 @@ describe("keybindings files", () => {
     expect(parsed.omittedIssues).toBe(10);
   });
 
+  it("warns about Ctrl+Alt only where it can be AltGr", () => {
+    const text = JSON.stringify([{ key: "mod+alt+x", command: "palette.toggle" }]);
+    const other = parseKeybindingsFile(text, "other");
+    const mac = parseKeybindingsFile(text, "mac");
+    expect(other.ok && other.issues).toEqual([{ index: 0, problem: "altgr" }]);
+    expect(other.ok && other.rules).toHaveLength(1);
+    expect(mac.ok && mac.issues).toEqual([]);
+  });
+
   it("is not polluted by __proto__ keys in an entry", () => {
     const parsed = parse('[{"key":"alt+p","command":"palette.toggle","__proto__":{"polluted":true}}]');
     if (!parsed.ok) throw new Error("parse");

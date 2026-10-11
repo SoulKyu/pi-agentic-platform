@@ -122,10 +122,41 @@ describe("the default bindings (agreement 7, M3-RT-30)", () => {
 });
 
 describe("conflicts and reserved chords", () => {
-  it("flags two rules on one chord when either has no clause or both clauses are equal", () => {
+  it("flags two rules on one chord unless their clauses are provably exclusive", () => {
     const { rules } = mergeWithDefaults(defaults, [{ key: "ctrl+k", command: "tab.close" }], known);
     expect(conflictsOf(rules, "other").get(rules.length - 1)).toEqual(["palette.toggle"]);
     expect(conflictsOf(rules, "mac").size).toBe(0);
+  });
+  it("flags overlapping clauses that differ (Ctrl+B on the palette shadows the tree toggle)", () => {
+    const { rules } = mergeWithDefaults(
+      DEFAULT_KEYBINDINGS,
+      [{ key: "mod+b", command: "palette.toggle", when: "!panelFocus" }],
+      KNOWN_COMMANDS,
+    );
+    const palette = rules.findIndex((r) => r.command === "palette.toggle");
+    const tree = rules.findIndex((r) => r.command === "drawer.tree.toggle");
+    const found = conflictsOf(rules, "other");
+    expect(found.get(palette)).toEqual(["drawer.tree.toggle"]);
+    expect(found.get(tree)).toEqual(["palette.toggle"]);
+  });
+  it("stays quiet only when the clauses are provably exclusive", () => {
+    const conflicts = (a: string, b: string) => {
+      const { rules } = mergeWithDefaults(
+        [],
+        [
+          { key: "mod+j", command: "palette.toggle", when: a },
+          { key: "mod+j", command: "tab.close", when: b },
+        ],
+        known,
+      );
+      return conflictsOf(rules, "other").size;
+    };
+    expect(conflicts("sessionFocus", "!sessionFocus")).toBe(0);
+    expect(conflicts("x && sessionFocus && y", "z && !sessionFocus")).toBe(0);
+    expect(conflicts("sessionFocus || x", "!sessionFocus")).toBe(2);
+    expect(conflicts("!(sessionFocus && x)", "sessionFocus")).toBe(2);
+    expect(conflicts("sessionFocus", "sessionFocus")).toBe(2);
+    expect(conflicts("a", "b")).toBe(2);
   });
   it("lists each conflicting command once", () => {
     const { rules } = mergeWithDefaults(

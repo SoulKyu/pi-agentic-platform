@@ -87,8 +87,30 @@ export function matchingCommands(
   return out;
 }
 
+/** The atoms a clause requires, as `name` / `!name`: its top-level conjuncts only; any other shape contributes none. */
+function requiredAtoms(node: WhenNode | null, out: Set<string> = new Set()): Set<string> {
+  if (node === null) return out;
+  if (node.type === "and") {
+    requiredAtoms(node.left, out);
+    requiredAtoms(node.right, out);
+  } else if (node.type === "id") out.add(node.name);
+  else if (node.type === "not" && node.node.type === "id") out.add(`!${node.node.name}`);
+  return out;
+}
+
+/** True only when one clause needs an atom and the other needs its negation, so they never hold together. */
+function provablyExclusive(a: ResolvedRule, b: ResolvedRule): boolean {
+  const left = requiredAtoms(a.when);
+  const right = requiredAtoms(b.when);
+  for (const atom of left) {
+    const opposite = atom.startsWith("!") ? atom.slice(1) : `!${atom}`;
+    if (right.has(opposite)) return true;
+  }
+  return false;
+}
+
 /**
- * T3 keybindingConflictLabels: same chord, and either clause absent or both equal. Keyed by position in `rules`.
+ * Like T3 keybindingConflictLabels, but stricter: same chord, and the clauses are not provably exclusive. Keyed by position in `rules`.
  * Rules are grouped by chord first, so only rules sharing a chord are compared (at most defaults + 256 user rules).
  */
 export function conflictsOf(rules: readonly ResolvedRule[], platform: Platform): Map<number, string[]> {
@@ -105,12 +127,7 @@ export function conflictsOf(rules: readonly ResolvedRule[], platform: Platform):
       const a = rules[i] as ResolvedRule;
       const others = group
         .map((j) => rules[j] as ResolvedRule)
-        .filter(
-          (b) =>
-            b !== a &&
-            b.command !== a.command &&
-            (a.whenText === null || b.whenText === null || a.whenText === b.whenText),
-        );
+        .filter((b) => b !== a && b.command !== a.command && !provablyExclusive(a, b));
       if (others.length > 0) out.set(i, [...new Set(others.map((b) => b.command))]);
     }
   }

@@ -64,17 +64,11 @@ describe("JSON view", () => {
   it("exports the user rules as a file, the URL revoked later", async () => {
     seed([{ key: "alt+p", command: "palette.toggle" }]);
     let blob: Blob | undefined;
-    const revoke = vi.fn();
-    vi.stubGlobal(
-      "URL",
-      Object.assign(URL, {
-        createObjectURL: (value: Blob) => {
-          blob = value;
-          return "blob:pap/kb";
-        },
-        revokeObjectURL: revoke,
-      }),
-    );
+    vi.spyOn(URL, "createObjectURL").mockImplementation((value) => {
+      blob = value as Blob;
+      return "blob:pap/kb";
+    });
+    const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
     let name = "";
     vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (this: HTMLAnchorElement) {
       name = this.download;
@@ -90,7 +84,6 @@ describe("JSON view", () => {
     expect(revoke).not.toHaveBeenCalled();
     vi.advanceTimersByTime(40_000);
     expect(revoke).toHaveBeenCalledWith("blob:pap/kb");
-    vi.useRealTimers();
   });
 
   it("imports a file through the same path, and refuses a big one before reading it", async () => {
@@ -114,6 +107,67 @@ describe("JSON view", () => {
       "The file is larger than 64 KB.",
     );
     expect(store().user).toEqual([{ key: "alt+o", command: "palette.toggle" }]);
+  });
+});
+
+describe("a list that would clear the custom bindings", () => {
+  const json = (container: HTMLElement) =>
+    field(container, "Keyboard shortcuts as JSON") as HTMLTextAreaElement;
+  const issues = (container: HTMLElement) =>
+    container.querySelector('[data-slot="shortcuts-json-issues"]')?.textContent ?? "";
+
+  it("applies nothing when no entry is valid, and says so", async () => {
+    seed([{ key: "alt+p", command: "palette.toggle" }]);
+    const { container } = await render();
+    await click(button(container, "Edit as JSON"));
+    await typeInto(json(container), '[{"key":"alt+q","command":"nope.nothing"}]');
+    await click(button(container, "Apply"));
+    expect(store().user).toEqual([{ key: "alt+p", command: "palette.toggle" }]);
+    expect(issues(container)).toContain("Nothing was applied: no entry is valid.");
+    expect(issues(container)).toContain("Entry 1: unknown command.");
+  });
+
+  it("offers Undo after a replacement, and the issue list follows the text that produced it", async () => {
+    seed([{ key: "alt+p", command: "palette.toggle" }]);
+    const { container } = await render();
+    await click(button(container, "Edit as JSON"));
+    const text = JSON.stringify([
+      { key: "alt+q", command: "nope.nothing" },
+      { key: "alt+o", command: "palette.toggle" },
+    ]);
+    await typeInto(json(container), text);
+    await click(button(container, "Apply"));
+    expect(store().user).toEqual([{ key: "alt+o", command: "palette.toggle" }]);
+    expect(json(container).value).toBe(text); // "Entry 1" still points at what is shown
+    expect(issues(container)).toContain("Entry 1: unknown command.");
+    // Toasts of earlier tests may still be on screen: the newest one is last.
+    const newest = [...document.querySelectorAll<HTMLElement>('[data-slot="toast"]')].at(-1) as HTMLElement;
+    expect(newest.textContent).toContain("Shortcuts replaced");
+    await click(button(newest, "Undo"));
+    expect(store().user).toEqual([{ key: "alt+p", command: "palette.toggle" }]);
+    expect(issues(container)).toBe(""); // the list belonged to a text that is gone
+    await typeInto(json(container), "[]");
+    await click(button(container, "Apply"));
+    expect(issues(container)).toBe("");
+  });
+
+  it("clears the issue list when the text is edited", async () => {
+    const { container } = await render();
+    await click(button(container, "Edit as JSON"));
+    await typeInto(json(container), "{oops");
+    await click(button(container, "Apply"));
+    expect(issues(container)).toContain("not valid JSON");
+    await typeInto(json(container), "[]");
+    expect(issues(container)).toBe("");
+  });
+
+  it("warns about a Ctrl+Alt rule on a system where it is AltGr", async () => {
+    const { container } = await render();
+    await click(button(container, "Edit as JSON"));
+    await typeInto(json(container), '[{"key":"ctrl+alt+x","command":"palette.toggle"}]');
+    await click(button(container, "Apply"));
+    expect(store().user).toEqual([{ key: "ctrl+alt+x", command: "palette.toggle" }]);
+    expect(issues(container)).toContain("Entry 1: Ctrl+Alt may never fire here (AltGr).");
   });
 });
 

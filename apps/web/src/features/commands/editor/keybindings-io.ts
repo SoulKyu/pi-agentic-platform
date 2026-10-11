@@ -10,7 +10,7 @@ const MAX_RULES = 256;
 const MAX_ISSUES = 20;
 const FUNCTION_KEY = /^f\d{1,2}$/;
 
-export type KeybindingsIssueProblem = "shape" | "key" | "when" | "command" | "reserved";
+export type KeybindingsIssueProblem = "shape" | "key" | "when" | "command" | "reserved" | "altgr";
 export interface KeybindingsIssue {
   readonly index: number;
   readonly problem: KeybindingsIssueProblem;
@@ -41,7 +41,10 @@ function problemOf(
     const when = parseWhen(rule.when);
     if ("error" in when) return "when";
   }
-  return chord !== null && isReserved(chord, platform) ? "reserved" : null;
+  if (chord === null) return null;
+  if (isReserved(chord, platform)) return "reserved";
+  // Where Ctrl+Alt is AltGr (Windows), the dispatcher cannot match it: kept, but it may never fire.
+  return platform === "other" && chord.alt && (chord.ctrl || chord.mod) ? "altgr" : null;
 }
 
 /**

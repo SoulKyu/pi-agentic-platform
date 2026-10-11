@@ -21,7 +21,7 @@ export interface ShortcutRecorderProps {
 export function ShortcutRecorder({ command, commandTitle, platform, onRecord }: ShortcutRecorderProps) {
   const t = useT();
   const [recording, setRecording] = useState(false);
-  const [problem, setProblem] = useState<"no_modifier" | "reserved" | "unusable" | null>(null);
+  const [problem, setProblem] = useState<"no_modifier" | "reserved" | "unusable" | "altgr" | null>(null);
   // A key released after the recording ended must not click the button again (Space activates on keyup).
   const swallowKeyUp = useRef(false);
 
@@ -39,7 +39,10 @@ export function ShortcutRecorder({ command, commandTitle, platform, onRecord }: 
       return;
     }
     const chord = chordFromEvent(native, platform);
-    const refused = chord === null ? "unusable" : recordedChordProblem(chord, command, platform);
+    // `chordFromEvent` refuses Ctrl+Alt when the system reports AltGr: say so rather than "unusable".
+    const altGr = platform === "other" && event.ctrlKey && event.altKey;
+    const refused =
+      chord === null ? (altGr ? "altgr" : "unusable") : recordedChordProblem(chord, command, platform);
     setProblem(refused);
     if (chord === null || refused !== null) return;
     setRecording(false);

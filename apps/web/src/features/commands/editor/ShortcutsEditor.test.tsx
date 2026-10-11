@@ -152,6 +152,16 @@ describe("recorder", () => {
     expect(store().user).toEqual([{ key: "mod+shift+7", command: "palette.toggle", when: "!panelFocus" }]);
   });
 
+  it("says why Ctrl+Alt cannot be recorded where it is AltGr", async () => {
+    const { container } = await render();
+    const recorder = await start(container, "palette.toggle");
+    await press(recorder, { key: "x", code: "KeyX", ctrlKey: true, altKey: true });
+    expect(text(row(container, "palette.toggle"))).toContain(
+      "Ctrl+Alt acts as AltGr on this system and cannot be recorded.",
+    );
+    expect(store().user).toEqual([]);
+  });
+
   it("stops recording when the recorder loses focus", async () => {
     const { container } = await render();
     const recorder = await start(container, "palette.toggle");
@@ -162,7 +172,15 @@ describe("recorder", () => {
 });
 
 describe("conflicts, reset and remove", () => {
-  it("warns on both rows when two commands share a chord, and still saves", async () => {
+  it("warns on both rows when Ctrl+B goes to the palette, and still saves", async () => {
+    const { container } = await render();
+    await press(await start(container, "palette.toggle"), ctrl("b", "KeyB"));
+    expect(store().user).toEqual([{ key: "mod+b", command: "palette.toggle", when: "!panelFocus" }]);
+    expect(rowText(container, "palette.toggle")).toContain("Conflicts with Toggle the project tree");
+    expect(rowText(container, "drawer.tree.toggle")).toContain("Conflicts with Open the command palette");
+  });
+
+  it("warns on both rows when two commands with equal clauses share a chord", async () => {
     const { container } = await render();
     await press(await start(container, "session.new"), ctrl(",", "Comma"));
     expect(store().user).toEqual([
