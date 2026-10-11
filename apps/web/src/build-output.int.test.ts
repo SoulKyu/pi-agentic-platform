@@ -76,6 +76,10 @@ describe("the built web app under the daemon's CSP", () => {
     expect(css).not.toMatch(/(^|[{;\s])&[:.[\s>+~]/);
   });
 
+  it("ships no WebAssembly: the CSP has no 'wasm-unsafe-eval' (R74)", () => {
+    expect(assets.filter((name) => name.endsWith(".wasm"))).toEqual([]);
+  });
+
   it("keeps the initial JavaScript and CSS within the declared gzip budget", async () => {
     const budget = (
       JSON.parse(await readFile(join(repoRoot, "budgets.json"), "utf8")) as { initialBundleGzipKb: number }

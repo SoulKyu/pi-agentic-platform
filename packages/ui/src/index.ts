@@ -22,6 +22,7 @@ export { AuthorGroup } from "./ai/AuthorGroup.tsx";
 export { DaySeparator } from "./ai/DaySeparator.tsx";
 export { RunStatusChip, type RunStatus } from "./ai/RunStatusChip.tsx";
 export { Fence } from "./ai/Fence.tsx";
+export { Markdown } from "./ai/Markdown.tsx";
 export { cn } from "./cn.ts";
 export { FOCUS_RING } from "./focus.ts";
 export { feedbackPhase, type FeedbackPhase, usePendingAction, usePendingFeedback } from "./feedback.ts";

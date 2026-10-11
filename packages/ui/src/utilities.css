@@ -137,3 +137,19 @@ html[data-keyboard-open] .pb-safe {
 @utility max-w-chat {
   max-width: var(--chat-max-width);
 }
+
+/* Code highlighting (Task 10b): shiki's css-variables theme mapped to role tokens on the block itself, so a themed
+   subtree re-themes it. Only the agent hue appears: code blocks are agent output (DESIGN.md §2). */
+[data-slot="code-block"] {
+  --shiki-foreground: var(--text);
+  --shiki-background: transparent;
+  --shiki-token-keyword: var(--agent);
+  --shiki-token-comment: var(--text-muted);
+  --shiki-token-string: var(--text);
+  --shiki-token-string-expression: var(--text);
+  --shiki-token-constant: var(--text);
+  --shiki-token-function: var(--text);
+  --shiki-token-parameter: var(--text);
+  --shiki-token-punctuation: var(--text-muted);
+  --shiki-token-link: var(--agent);
+}
