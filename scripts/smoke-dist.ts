@@ -271,6 +271,8 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
     await session.call("subscribe.session", { sessionId });
     await session.waitFor((event) => event.kind === "snapshot", "the snapshot");
     step(`session ${sessionId} created and subscribed`);
+    const rules = JSON.stringify(await session.call("policy.listRules", { cwd: work }));
+    if (rules !== '{"rules":[],"truncated":false}') throw new Error(`policy.listRules answered ${rules}`);
     await session.call("sessions.prompt", { sessionId, text: "Run the check" }, true);
     const dialog = asJson(
       (await session.waitFor((event) => event.kind === "dialog_open", "the approval card")).dialog,

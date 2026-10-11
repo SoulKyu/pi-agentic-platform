@@ -1,3 +1,4 @@
+import { sizeOf } from "../../kernel/json-bytes.ts";
 import type { BranchPage } from "./branch.ts";
 import {
   type Activity,
@@ -18,6 +19,8 @@ import {
   type Widget,
 } from "@pap/contracts";
 
+export { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
+
 /** About the last 75 rows of a transcript (spec C 4.3). */
 export const SNAPSHOT_ROWS = 75;
 /** One snapshot event as sent: the socket allows 1 MiB per frame, and the frame's own fields need a few hundred bytes. */
@@ -25,11 +28,6 @@ export const SNAPSHOT_BYTES = 1_000_000;
 
 /** The most one row may weigh in a snapshot. A bigger one is replaced by a placeholder, so it can never empty the snapshot. */
 export const ROW_BYTES = 256 * 1024;
-
-/** A page of rows, fork points or queued texts, in JSON bytes: well under the 1 MiB frame, which also holds the envelope (M2R54). */
-export const PAGE_BYTES = 900_000;
-
-export const sizeOf = (value: unknown): number => Buffer.byteLength(JSON.stringify(value) ?? "null");
 
 /** A role is one word; a row whose role is not is not worth more than this in a placeholder. */
 const MAX_ROLE_CHARS = 64;

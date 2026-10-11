@@ -15,6 +15,7 @@ describe("method catalogue", () => {
       .map((def) => def.name)
       .sort();
     expect(mutations).toEqual([
+      "policy.revokeRule",
       "sessions.abort",
       "sessions.clearQueue",
       "sessions.create",
@@ -54,5 +55,31 @@ describe("method catalogue", () => {
     expect(tool.safeParse({ sessionId: "s", toolCallId: "c".repeat(256) }).success).toBe(true);
     expect(tool.safeParse({ sessionId: "s", toolCallId: "c".repeat(257) }).success).toBe(false);
     expect(tool.safeParse({ sessionId: "s", toolCallId: "" }).success).toBe(false);
+  });
+
+  it("declares the policy methods: a read for the caller's rules, an admin mutation to revoke one", () => {
+    expect(methods["policy.listRules"]).toMatchObject({
+      permission: "policy:read",
+      idempotent: true,
+      errors: [],
+    });
+    expect(methods["policy.revokeRule"]).toMatchObject({
+      permission: "policy:admin",
+      idempotent: false,
+      errors: ["not_found"],
+    });
+    const list = methods["policy.listRules"];
+    expect(list.params.safeParse({}).success).toBe(true);
+    expect(list.params.safeParse({ cwd: "/w" }).success).toBe(true);
+    expect(list.params.safeParse({ cwd: "" }).success).toBe(false);
+    expect(list.params.safeParse({ cwd: "c".repeat(4097) }).success).toBe(false);
+    const rule = { id: "r1", scope: "/w", tool: "bash", label: "l", createdAt: 1 };
+    expect(list.result.safeParse({ rules: [rule], truncated: false }).success).toBe(true);
+    expect(list.result.safeParse({ rules: [rule] }).success).toBe(false);
+    expect(list.result.safeParse({ rules: Array(1001).fill(rule), truncated: true }).success).toBe(false);
+    const revoke = methods["policy.revokeRule"].params;
+    expect(revoke.safeParse({ ruleId: "r1" }).success).toBe(true);
+    expect(revoke.safeParse({ ruleId: "" }).success).toBe(false);
+    expect(revoke.safeParse({ ruleId: "r".repeat(129) }).success).toBe(false);
   });
 });

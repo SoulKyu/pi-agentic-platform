@@ -1,10 +1,19 @@
 import { z } from "zod";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { Cursor } from "./frames.ts";
+import { MAX_ALWAYS_RULES } from "./policy.ts";
 import { DialogResponse, ForkPoint, HistoryMeta, SessionSummary, TranscriptRow } from "./streams.ts";
 
 const SessionId = z.string().min(1).max(128);
 const Ok = z.object({ ok: z.literal(true) });
+
+const RuleView = z.object({
+  id: z.string().min(1).max(128),
+  scope: z.string().max(4096),
+  tool: z.string().min(1).max(256),
+  label: z.string().max(4096),
+  createdAt: z.number(),
+});
 
 function catalogue<const T extends { readonly [K in keyof T]: MethodDef<K & string> }>(defs: T): T {
   return defs;
@@ -138,5 +147,26 @@ export const methods = catalogue({
     params: z.object({ sessionId: SessionId, after: Cursor.optional() }),
     result: z.object({ sub: z.string() }),
     errors: ["not_found", "capacity"],
+  }),
+  "policy.listRules": defineMethod({
+    name: "policy.listRules",
+    permission: "policy:read",
+    idempotent: true,
+    params: z.object({ cwd: z.string().min(1).max(4096).optional() }),
+    result: z.object({
+      rules: z.array(RuleView).max(MAX_ALWAYS_RULES),
+      /** The oldest rules were left out to stay in the 1 MiB frame. */
+      truncated: z.boolean(),
+    }),
+    errors: [],
+  }),
+  "policy.revokeRule": defineMethod({
+    name: "policy.revokeRule",
+    permission: "policy:admin",
+    idempotent: false,
+    params: z.object({ ruleId: z.string().min(1).max(128) }),
+    result: Ok,
+    // Another owner's rule is `not_found` too: existence does not leak.
+    errors: ["not_found"],
   }),
 });

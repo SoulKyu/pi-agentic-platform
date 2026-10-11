@@ -144,4 +144,21 @@ describe("pap daemon end to end (scripted provider)", () => {
     expect(t.daemon.inspect.workerPid(sessionId)).not.toBe(firstPid);
     client.close();
   });
+
+  it("answers the policy methods on the wire: an empty list, and not_found for a rule that is not there", async () => {
+    const client = await t.connect(await t.login());
+    expect(await client.call("policy.listRules", {})).toMatchObject({
+      ok: true,
+      result: { rules: [], truncated: false },
+    });
+    expect(await client.call("policy.listRules", { cwd: t.cwd })).toMatchObject({
+      ok: true,
+      result: { rules: [], truncated: false },
+    });
+    expect(await client.call("policy.revokeRule", { ruleId: "nope" })).toMatchObject({
+      ok: false,
+      error: { code: "not_found" },
+    });
+    client.close();
+  });
 });

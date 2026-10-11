@@ -10,6 +10,7 @@ import { acquireInstanceLock, prepareHome } from "./kernel/home.ts";
 import { createHttpApp } from "./kernel/http/app.ts";
 import { createOriginRefusalLog } from "./kernel/http/origin-refusals.ts";
 import { startServer } from "./kernel/http/server.ts";
+import { newId } from "./kernel/ids.ts";
 import { createLogger, type Logger } from "./kernel/logger.ts";
 import type { WorkerExit } from "./kernel/supervisor/exit.ts";
 import { probeScopes } from "./kernel/supervisor/scope.ts";
@@ -21,6 +22,7 @@ import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
+import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 
 export interface DaemonHandle {
@@ -96,7 +98,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const { db, readOnly } = migrate({
       dbPath: join(config.home, "state.db"),
       backupsDir: join(config.home, "backups"),
-      sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS, SESSIONS_MIGRATIONS],
+      sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS],
       clock,
       logger,
     });
@@ -133,6 +135,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     // What an earlier daemon of this home left behind dies before any new worker starts (M2-RT-13).
     await scopes.sweep();
+    const policy = createPolicyModule({ db, clock, logger, newId });
     const sessions = createSessionsModule({
       db,
       clock,
@@ -144,7 +147,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       scopes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
-    const handlers: HandlerTable = { ...systemHandlers(clock), ...sessions.rpc };
+    const handlers: HandlerTable = { ...systemHandlers(clock), ...policy.rpc, ...sessions.rpc };
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
