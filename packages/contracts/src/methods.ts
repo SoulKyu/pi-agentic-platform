@@ -108,7 +108,12 @@ export const methods = catalogue({
     permission: "sessions:read",
     idempotent: true,
     params: z.object({ sessionId: SessionId }),
-    result: z.object({ leafId: z.string().max(128).nullable(), points: z.array(ForkPoint) }),
+    result: z.object({
+      leafId: z.string().max(128).nullable(),
+      points: z.array(ForkPoint).max(100),
+      /** Fork points or choices were left out (the 1 MiB frame, or an entry id the contract cannot carry). */
+      truncated: z.boolean(),
+    }),
     errors: ["not_found"],
   }),
   "subscribe.session": defineMethod({

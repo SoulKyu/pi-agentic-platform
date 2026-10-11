@@ -376,3 +376,12 @@ describe("reduceSession", () => {
     });
   });
 });
+
+describe("a snapshot the client cannot read", () => {
+  it("is a new generation too, so a page asked before it is dropped (M2-RT-12)", () => {
+    const first = reduceSession(EMPTY_VIEW, snap("idle", [user], ["e1"]));
+    const unreadable = reduceSession(first, { kind: "snapshot", status: "idle", rows: "not rows" });
+    expect(unreadable).toMatchObject({ unreadable: true, generation: first.generation + 1 });
+    expect(unreadable.messages).toEqual(first.messages);
+  });
+});

@@ -9,7 +9,15 @@ import {
 } from "@pap/contracts";
 import { isPiSessionFile } from "./pi-files.ts";
 import type { BranchPage } from "./branch.ts";
-import { fitPage, fitSnapshot, SNAPSHOT_ROWS, withTrimmedHistory } from "./snapshot.ts";
+import {
+  fitPage,
+  fitPoints,
+  fitSnapshot,
+  MAX_ID_CHARS,
+  SNAPSHOT_ROWS,
+  sizeOf,
+  withTrimmedHistory,
+} from "./snapshot.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 import type { LiveSession } from "./live-session.ts";
@@ -84,7 +92,10 @@ export interface SessionReads {
     input: { sessionId: string; toolCallId: string },
     caller: Caller,
   ): Promise<{ text: string; truncated: boolean; isError: boolean; args: string | null }>;
-  branches(sessionId: string, caller: Caller): Promise<{ leafId: string | null; points: ForkPoint[] }>;
+  branches(
+    sessionId: string,
+    caller: Caller,
+  ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
 }
 
 export function createSessionReads(deps: SessionReadsDeps): SessionReads {
@@ -143,8 +154,13 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const reader = await ensureReader();
       const session = deps.live.get(sessionId);
       const file = fileOf(row, session);
-      const leafId = session?.leafId() ?? (file ? reader.lastEntryId(file) : null);
-      return { leafId, points: file ? reader.forks(file, leafId) : [] };
+      const known = session?.leafId() ?? (file ? reader.lastEntryId(file) : null);
+      // An id over the contract's bound cannot be carried: the leaf is then unknown, as for the snapshot (M2R4).
+      const leafId = known !== null && known.length <= MAX_ID_CHARS ? known : null;
+      if (!file) return { leafId, points: [], truncated: false };
+      // The list is measured in JSON bytes with its envelope, like a history page (M2R54).
+      const envelope = sizeOf({ leafId, points: [], truncated: true });
+      return { leafId, ...fitPoints(reader.forks(file, known), PAGE_BYTES - envelope) };
     },
     async prepare(sessionId, caller) {
       deps.owned(sessionId, caller);

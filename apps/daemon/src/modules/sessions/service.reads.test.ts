@@ -76,10 +76,9 @@ describe("sessions.history", () => {
     const page = await bed.service.history({ sessionId, before: "a5", limit: 100 }, OWNER);
     expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(900_000 + 1000);
     expect(Buffer.byteLength(JSON.stringify(page.rows))).toBeLessThanOrEqual(900_000);
-    expect(page.hasMore).toBe(true);
-    expect(page.oldestEntryId).toBe(page.rows[0]?.entryId);
-    // The newest rows are the ones kept.
-    expect(page.rows.at(-1)?.entryId).toBe("u5");
+    // Four 200 000-byte rows and the four small ones among them fit; the fifth big row does not.
+    expect(page.rows.map((row) => row.entryId)).toEqual(["a1", "u2", "a2", "u3", "a3", "u4", "a4", "u5"]);
+    expect(page).toMatchObject({ hasMore: true, oldestEntryId: "a1", turnsBefore: 2 });
   });
 });
 
@@ -150,10 +149,18 @@ describe("sessions.branches", () => {
   it("has no point for a linear session, and none before the file exists", async () => {
     open();
     const { sessionId } = await bed.service.create(bed.work, OWNER);
-    expect(await bed.service.branches(sessionId, OWNER)).toEqual({ leafId: null, points: [] });
+    expect(await bed.service.branches(sessionId, OWNER)).toEqual({
+      leafId: null,
+      points: [],
+      truncated: false,
+    });
     bed.writePiFile(0);
     bed.emit(0, { type: "agent_settled", aborted: false });
-    expect(await bed.service.branches(sessionId, OWNER)).toEqual({ leafId: "a0", points: [] });
+    expect(await bed.service.branches(sessionId, OWNER)).toEqual({
+      leafId: "a0",
+      points: [],
+      truncated: false,
+    });
   });
 });
 
@@ -251,5 +258,7 @@ describe("fitPage", () => {
     const fitted = fitPage(page([rowOf("e1", 300_000)]), 900_000);
     expect(fitted.rows).toHaveLength(1);
     expect(fitted.rows[0]?.message).toMatchObject({ omitted: true, role: "user" });
+    // Nothing was left out: the cursor and the counts are the page's own.
+    expect(fitted).toMatchObject({ hasMore: false, oldestEntryId: "e1", turnsBefore: 0 });
   });
 });

@@ -75,7 +75,10 @@ export interface SessionsService {
     input: { sessionId: string; toolCallId: string },
     caller: Caller,
   ): Promise<{ text: string; truncated: boolean; isError: boolean; args: string | null }>;
-  branches(sessionId: string, caller: Caller): Promise<{ leafId: string | null; points: ForkPoint[] }>;
+  branches(
+    sessionId: string,
+    caller: Caller,
+  ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
   /**
    * What `subscribe.session` does before it opens a subscription (R108): checks that the caller may read the session
    * and loads the transcript reader, once. The hub builds a snapshot synchronously, from what this has loaded.

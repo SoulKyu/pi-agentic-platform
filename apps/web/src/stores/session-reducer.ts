@@ -78,7 +78,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
   if (!parsed.success) {
     // A snapshot the client cannot read would leave the view blank for ever: say so (M2-RT-06). Other events are dropped.
     return (raw as { kind?: unknown } | null)?.kind === "snapshot"
-      ? { ...view, loaded: true, unreadable: true }
+      ? { ...view, loaded: true, unreadable: true, generation: view.generation + 1 }
       : view;
   }
   const event = parsed.data;

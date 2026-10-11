@@ -2,6 +2,7 @@ import type { BranchPage } from "./branch.ts";
 import {
   type Activity,
   type Dialog,
+  type ForkPoint,
   EMPTY_QUEUE,
   type HistoryMeta,
   IDLE_ACTIVITY,
@@ -213,4 +214,42 @@ export function fitPage(page: BranchPage, budget: number): BranchPage {
     oldestEntryId: kept[0]?.entryId ?? page.oldestEntryId,
     turnsBefore: page.turnsBefore + page.rows.slice(0, dropped).filter(isAnchorRow).length,
   };
+}
+
+/** The longest id the contract carries; an id is a key, so one over it cannot be clipped. */
+export const MAX_ID_CHARS = 128;
+
+/**
+ * Fork points under `budget` JSON bytes. A choice whose entry id or target is over `MAX_ID_CHARS` is skipped (and a
+ * point left with none), so the result always passes its schema; then the oldest points go first. `truncated` says
+ * when anything was left out.
+ */
+export function fitPoints(
+  points: readonly ForkPoint[],
+  budget: number,
+): { points: ForkPoint[]; truncated: boolean } {
+  let truncated = false;
+  const carried = points.flatMap((point) => {
+    const choices = point.choices.filter(
+      (choice) => choice.entryId.length <= MAX_ID_CHARS && choice.target.length <= MAX_ID_CHARS,
+    );
+    if (choices.length < point.choices.length) truncated = true;
+    if (choices.length === 0 || (point.parentId?.length ?? 0) > MAX_ID_CHARS) {
+      truncated = true;
+      return [];
+    }
+    return [choices.length === point.choices.length ? point : { ...point, choices }];
+  });
+  const newestFirst: ForkPoint[] = [];
+  let used = 0;
+  for (const point of carried.toReversed()) {
+    const size = sizeOf(point) + 1;
+    if (used + size > budget) {
+      truncated = true;
+      break;
+    }
+    used += size;
+    newestFirst.push(point);
+  }
+  return { points: newestFirst.toReversed(), truncated };
 }

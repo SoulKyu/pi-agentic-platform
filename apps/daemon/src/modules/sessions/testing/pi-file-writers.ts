@@ -127,3 +127,26 @@ export function writeForkedSession(file: string): void {
     ]),
   );
 }
+
+/**
+ * A chain of `points` fork points on the active branch, each with `choices` user children (the last one continues the
+ * chain), whose ids are `idLength` characters long and whose texts are control characters: the worst case for the size
+ * of `sessions.branches`.
+ */
+export function writeWideForkSession(
+  file: string,
+  { points, choices, idLength }: { points: number; choices: number; idLength: number },
+): void {
+  const id = (name: string) => name.padEnd(idLength, "-");
+  const rows: unknown[] = [header(basename(file, ".jsonl")), systemEntry];
+  let parent = "s0";
+  for (let point = 0; point < points; point++) {
+    for (let choice = 0; choice < choices - 1; choice++) {
+      rows.push(userEntry(id(`k${point}.${choice}`), parent, "\u0001".repeat(200)));
+    }
+    const next = id(`p${point}`);
+    rows.push(userEntry(next, parent, "\u0001".repeat(200)));
+    parent = next;
+  }
+  writeFileSync(file, jsonl(rows));
+}

@@ -16,7 +16,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     prepareSubscription: vi.fn(async () => {}),
     history: vi.fn(async () => ({ rows: [], hasMore: false, oldestEntryId: null, turnsBefore: 0 })),
     toolOutput: vi.fn(async () => ({ text: "out", truncated: false, isError: false, args: null })),
-    branches: vi.fn(async () => ({ leafId: null, points: [] })),
+    branches: vi.fn(async () => ({ leafId: null, points: [], truncated: false })),
     snapshot: vi.fn(),
     shutdownAll: vi.fn(async () => {}),
     inspect: vi.fn(() => null),
@@ -71,7 +71,11 @@ describe("sessions rpc", () => {
       text: "out",
     });
     expect(service.toolOutput).toHaveBeenCalledWith({ sessionId: "p1", toolCallId: "c1" }, caller);
-    expect(await rpc["sessions.branches"]({ sessionId: "p1" }, ctx)).toEqual({ leafId: null, points: [] });
+    expect(await rpc["sessions.branches"]({ sessionId: "p1" }, ctx)).toEqual({
+      leafId: null,
+      points: [],
+      truncated: false,
+    });
     expect(service.branches).toHaveBeenCalledWith("p1", caller);
   });
 
