@@ -13,7 +13,7 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 ## Server errors
 
 - `startServer` requires `onError`: Node throws an `'error'` that no listener handles (accept failing on EMFILE, say) as an uncaught exception. The daemon logs `server_error` with the error `code` and nothing else, then calls `deps.onFatal("server_error")`; `main.ts` answers with the graceful stop and exit code 1, so the service manager restarts it.
-- A database written by a newer pap opens read-only (`read_only_mode` warning at boot). A write that SQLite then refuses (a sign-in, a session that is due to slide) is `503 {"error":{"code":"read_only"}}` on HTTP, the same code the RPC answers, logged as the warn line `http_read_only` instead of an `http_error` stack. `kernel/db/read-only.ts` (`isReadOnlyError`) is the one test for it. The page reads that code from a failed `/auth/status` too, so the gate says the database is read-only instead of "unreachable".
+- A database written by a newer pap opens read-only (`read_only_mode` warning at boot). A write that SQLite then refuses (a sign-in; a session's daily slide is skipped instead) is `503 {"error":{"code":"read_only"}}` on HTTP, the same code the RPC answers, logged as the warn line `http_read_only` instead of an `http_error` stack. `kernel/db/read-only.ts` (`isReadOnlyError`) is the one test for it. The page reads that code from a failed `/auth/status` too, so the gate says the database is read-only instead of "unreachable".
 - `onFatal` fires once (R115). A later error is only logged: a second `shutdown.trigger` would count as a second signal and SIGKILL the worker groups before pi-host cleaned up.
 
 ## Home, permissions, umask

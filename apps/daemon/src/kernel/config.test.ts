@@ -85,6 +85,9 @@ describe("loadConfig", () => {
         "--import",
         "/not/forwarded.ts",
         "--max-old-space-size=64",
+        "--conditions",
+        "development",
+        "--conditionsX=1",
       ]),
     ).toEqual(["--conditions=development"]);
     expect(workerExecArgv([])).toEqual([]);

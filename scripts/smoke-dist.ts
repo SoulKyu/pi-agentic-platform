@@ -86,6 +86,7 @@ function http(url: string, init: { method?: string; headers?: Record<string, str
       );
     });
     req.on("error", reject);
+    req.setTimeout(STEP_MS, () => req.destroy(new Error(`${url} timed out`)));
     if (init.body) req.write(init.body);
     req.end();
   });
@@ -99,7 +100,7 @@ interface Daemon {
 }
 
 function startDaemon(env: NodeJS.ProcessEnv, port: number): Daemon {
-  // No --conditions: this is the built daemon on its own. The guard rides along as --import= so the daemon forwards it.
+  // No --conditions: this is the built daemon on its own. The guard reaches workers through PAP_TEST_WORKER_IMPORT.
   const child = spawn(
     process.execPath,
     [

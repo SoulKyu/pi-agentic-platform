@@ -59,7 +59,8 @@ const isWildcard = (host: string) => host === "0.0.0.0" || host === "::";
  * session's project, where a relative or bare specifier would load the project's own code before the policy runs.
  */
 export function workerExecArgv(execArgv: readonly string[]): string[] {
-  return execArgv.filter((arg) => arg.startsWith("--conditions"));
+  // `=` form only: a lone `--conditions` would take the worker entry path as its value.
+  return execArgv.filter((arg) => arg.startsWith("--conditions="));
 }
 
 export function defaultMaxWorkers(totalMemMb: number, budgetMb = WORKER_BUDGET_MB): number {
