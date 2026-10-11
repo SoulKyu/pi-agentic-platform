@@ -108,4 +108,30 @@ describe("the built web app under the daemon's CSP", () => {
     for (const name of initial) bytes += gzipSync(await readFile(join(out, "assets", name))).length;
     expect(bytes / 1024).toBeLessThanOrEqual(budget);
   });
+
+  it("keeps the Settings screen out of the initial assets", async () => {
+    const initial = new Set(
+      [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((match) => match[1] ?? ""),
+    );
+    const marker = "data-settings-screen";
+    const holders: string[] = [];
+    for (const name of assets.filter((asset) => asset.endsWith(".js"))) {
+      if ((await readFile(join(out, "assets", name), "utf8")).includes(marker)) holders.push(name);
+    }
+    expect(holders.length).toBeGreaterThan(0);
+    expect(holders.filter((name) => initial.has(name))).toEqual([]);
+  });
+
+  it("keeps lazy-only primitives out of the initial assets", async () => {
+    const initial = new Set(
+      [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((match) => match[1] ?? ""),
+    );
+    const marker = "data-radix-select-viewport";
+    const holders: string[] = [];
+    for (const name of assets.filter((asset) => asset.endsWith(".js"))) {
+      if ((await readFile(join(out, "assets", name), "utf8")).includes(marker)) holders.push(name);
+    }
+    expect(holders.length).toBeGreaterThan(0);
+    expect(holders.filter((name) => initial.has(name))).toEqual([]);
+  });
 });
