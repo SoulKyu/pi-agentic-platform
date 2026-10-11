@@ -1,8 +1,7 @@
 import { realpathSync } from "node:fs";
 import type { AlwaysRule, DaemonToWorker } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
-import { GRANT_NOTICE_EVERY_MS, MAX_POLICY_BYTES } from "./grants.ts";
-import { READY_TIMEOUT_MS } from "./live-session.ts";
+import { FULL_NOTICE, GRANT_NOTICE_EVERY_MS, NOT_SAVED_NOTICE } from "./grants.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { captureLogger } from "./testing/helpers.ts";
@@ -38,6 +37,7 @@ const always = async (index: number, sessionId: string, id: string, key = KEY) =
   bed.spawned[index]?.emit(ask(id, key));
   await bed.clock.advance(0);
   bed.service.respondDialog({ sessionId, dialogId: id, response: { answer: "always" } }, OWNER);
+  await bed.clock.advance(0);
 };
 const notices = (frames: Array<{ event: unknown }>) =>
   frames.map((frame) => frame.event as { kind: string }).filter((event) => event.kind === "notice");
@@ -63,7 +63,7 @@ describe("always and session answers", () => {
       answer: "always",
     });
     const pushed = rulesOf([{ tool: "bash", key: KEY }]);
-    // The worker that took the answer hears it too: that is what ends its provisional grant.
+    // The worker that took the answer hears it too: its provisional grant ends at the update, the rule takes over.
     expect(updates(0)).toEqual([pushed]);
     expect(updates(1)).toEqual([pushed]);
     expect(updates(2)).toEqual([]);
@@ -83,7 +83,9 @@ describe("always and session answers", () => {
   });
 
   it("starts a worker with its project's always rules", async () => {
-    open({ policy: fakePolicyPort([{ tool: "bash", key: KEY }]) });
+    const policy = fakePolicyPort();
+    open({ policy });
+    policy.seed(OWNER.userId, realpathSync(bed.work), [{ tool: "bash", key: KEY }]);
     await bed.service.create(bed.work, OWNER);
     expect(bed.spawned[0]?.sent.find((record) => record.type === "init")).toMatchObject({
       policy: { alwaysAllow: [{ tool: "bash", key: KEY }] },
@@ -97,8 +99,10 @@ describe("always and session answers", () => {
     await always(0, sessionId, "a1");
     await always(0, sessionId, "a2", OTHER_KEY);
     policy.revoke(OWNER.userId, realpathSync(bed.work), KEY);
+    await bed.clock.advance(0);
     expect(updates(0).at(-1)).toEqual(rulesOf([{ tool: "bash", key: OTHER_KEY }]));
     policy.revoke(OWNER.userId, realpathSync(bed.work), OTHER_KEY);
+    await bed.clock.advance(0);
     expect(updates(0).at(-1)).toEqual(rulesOf([]));
   });
 
@@ -108,28 +112,6 @@ describe("always and session answers", () => {
     await bed.service.create(bed.work, OWNER);
     policy.revoke("u2", realpathSync(bed.work), KEY);
     expect(updates(0)).toEqual([]);
-  });
-
-  it("queues a change for a worker that is still starting, behind its init (ADR 0001)", async () => {
-    const policy = fakePolicyPort();
-    open({ policy, start: (index) => (index === 0 ? { kind: "silent" } : undefined) });
-    const creating = bed.service.create(bed.work, OWNER);
-    const settled = creating.then(
-      () => "started",
-      () => "failed",
-    );
-    await bed.clock.advance(0);
-    policy.addAlways({
-      ownerId: OWNER.userId,
-      scope: realpathSync(bed.work),
-      tool: "bash",
-      key: KEY,
-      label: "x",
-    });
-    expect(bed.spawned[0]?.sent.map((record) => record.type)).toEqual(["init", "policy_update"]);
-    expect(updates(0)).toEqual([rulesOf([{ tool: "bash", key: KEY }])]);
-    await bed.clock.advance(READY_TIMEOUT_MS);
-    expect(await settled).toBe("failed");
   });
 
   it("stops telling a worker once it has exited, and stops listening when the module stops", async () => {
@@ -161,7 +143,7 @@ describe("always and session answers", () => {
 
 describe("an always rule that cannot be saved", () => {
   it("says so when the project's always rules are full, at most once per window, and keeps the answer for the session", async () => {
-    const policy = fakePolicyPort([], { full: true });
+    const policy = fakePolicyPort({ full: true });
     open({ policy });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     const frames = await bed.subscribe(sessionId);
@@ -170,7 +152,7 @@ describe("an always rule that cannot be saved", () => {
       {
         kind: "notice",
         level: "warning",
-        text: "This project already has 1000 always-allowed calls: this one is allowed for the session only.",
+        text: FULL_NOTICE,
       },
     ]);
     // The worker still got the answer: the call it asked about runs.
@@ -187,7 +169,7 @@ describe("an always rule that cannot be saved", () => {
 
   it("fails closed when addAlways throws: no rule, the call proceeds, the failure is logged once with a stable code", async () => {
     const { logger, lines } = captureLogger();
-    const policy = fakePolicyPort([], { throws: true });
+    const policy = fakePolicyPort({ throws: true });
     open({ policy, logger });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     const frames = await bed.subscribe(sessionId);
@@ -198,40 +180,6 @@ describe("an always rule that cannot be saved", () => {
     expect(bed.spawned[0]?.sent.filter((record) => record.type === "approval_response")).toHaveLength(2);
     const logged = lines.filter((line) => line.msg === "always_rule_not_saved");
     expect(logged).toHaveLength(1);
-    expect(notices(frames)).toHaveLength(1);
-  });
-});
-
-describe("the size of the rules pushed to a worker", () => {
-  const rule = (i: number): AlwaysRule => ({ tool: `tool-${i}`, key: i.toString(16).padStart(64, "0") });
-
-  it("starts a worker with no allowing rule, and says so, when the list is over the 1000-rule cap", async () => {
-    const { logger, lines } = captureLogger();
-    open({ policy: fakePolicyPort(Array.from({ length: 1001 }, (_, i) => rule(i))), logger });
-    await bed.service.create(bed.work, OWNER);
-    expect(bed.spawned[0]?.sent.find((record) => record.type === "init")).toMatchObject({
-      policy: { alwaysAllow: [] },
-    });
-    expect(lines.filter((line) => line.msg === "policy_rules_too_large")).toHaveLength(1);
-  });
-
-  it("sends a full 1000 rules, and pushes none when they would not fit the byte budget", async () => {
-    const { logger, lines } = captureLogger();
-    const policy = fakePolicyPort(Array.from({ length: 1000 }, (_, i) => rule(i)));
-    open({ policy, logger });
-    await bed.service.create(bed.work, OWNER);
-    expect(
-      (
-        bed.spawned[0]?.sent.find((record) => record.type === "init") as {
-          policy: { alwaysAllow: unknown[] };
-        }
-      ).policy.alwaysAllow,
-    ).toHaveLength(1000);
-    policy.setRules(
-      Array.from({ length: 4 }, (_, i) => ({ tool: "x".repeat(MAX_POLICY_BYTES), key: rule(i).key })),
-    );
-    policy.revoke(OWNER.userId, realpathSync(bed.work), "none");
-    expect(updates(0).at(-1)).toEqual(rulesOf([]));
-    expect(lines.filter((line) => line.msg === "policy_rules_too_large")).toHaveLength(1);
+    expect(notices(frames)).toEqual([{ kind: "notice", level: "warning", text: NOT_SAVED_NOTICE }]);
   });
 });

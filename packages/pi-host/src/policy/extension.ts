@@ -77,9 +77,12 @@ export function answersFor(category: ToolCategory, review: EditReview | undefine
 export interface PolicyGrants {
   hasSession(key: string): boolean;
   rememberSession(key: string): void;
+  /** The rules version now: read when a question is asked, and handed back to `rememberAlways` with its answer. */
+  version(): number;
   /** An "always" answer the daemon has not pushed back yet: it lasts until the next policy update (M2-RT-01). */
   hasProvisionalAlways(key: string): boolean;
-  rememberAlways(key: string): void;
+  /** `askedAt` is the version when the question was asked: an update that landed since then has already ended it. */
+  rememberAlways(key: string, askedAt: number): void;
 }
 
 /** One per worker; insertion-ordered, so the oldest grant is the first dropped at the cap. */
@@ -93,10 +96,11 @@ export function createPolicyGrants(rulesVersion: () => number, max = MAX_SESSION
       session.add(key);
       if (session.size > max) session.delete(session.values().next().value as string);
     },
+    version: rulesVersion,
     hasProvisionalAlways: (key) => provisional.get(key) === rulesVersion(),
-    rememberAlways(key) {
+    rememberAlways(key, askedAt) {
       provisional.delete(key);
-      provisional.set(key, rulesVersion());
+      provisional.set(key, askedAt);
       if (provisional.size > max) provisional.delete(provisional.keys().next().value as string);
     },
   };
@@ -167,6 +171,8 @@ export async function evaluateToolCall(
         return undefined;
       }
     }
+    // Read before the question goes out: an update the worker takes while the card is open ends this answer (M2R73).
+    const askedAt = deps.grants.version();
     const outcome = await deps.ask(
       {
         category,
@@ -188,7 +194,7 @@ export async function evaluateToolCall(
     }
     if (outcome.answer === "session") deps.grants.rememberSession(key);
     // Never a session grant: a revoke must bite this worker too (M2-RT-01).
-    if (outcome.answer === "always") deps.grants.rememberAlways(key);
+    if (outcome.answer === "always") deps.grants.rememberAlways(key, askedAt);
     record("approved", review ? `answer: ${outcome.answer}; ${review.why}` : `answer: ${outcome.answer}`);
     return undefined;
   } catch {

@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { grantKey, grantPayload } from "./policy/grant-key.ts";
 import { bashScript, createHostBed, isApproval, RULES, toolScript, toolText } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
@@ -116,5 +117,20 @@ describe("pi-host worker: approval channel", () => {
     host.send({ type: "policy_update", rules: RULES });
     host.send({ type: "prompt", id: "p5", message: "p5" });
     await vi.waitFor(() => expect(asks()).toHaveLength(3), within);
+  });
+
+  it("takes a policy update that arrives before ready, and applies it before the first prompt", async () => {
+    const key = grantKey("bash", grantPayload({ command: "echo early" }, true));
+    const host = bed.launch(bashScript("echo early"));
+    host.send({
+      type: "policy_update",
+      rules: { ...RULES, alwaysAllow: [{ tool: "bash", key }] },
+    });
+    host.send({ type: "prompt", id: "p1", message: "go" });
+    await host.waitFor((r) => r.type === "tool_execution_end" && r.isError === false);
+    expect(host.records.filter(isApproval)).toEqual([]);
+    expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+      entry: { decision: "allow", reason: "always rule" },
+    });
   });
 });

@@ -2,7 +2,13 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApprovals } from "../approvals.ts";
 import { createPolicyBed } from "../testing/policy-bed.ts";
-import { createPolicyGrants, DENIED_REASON, FAIL_CLOSED_REASON, MAX_SESSION_GRANTS } from "./extension.ts";
+import {
+  answersFor,
+  createPolicyGrants,
+  DENIED_REASON,
+  FAIL_CLOSED_REASON,
+  MAX_SESSION_GRANTS,
+} from "./extension.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import { interactiveRules } from "../testing/policy-bed.ts";
 
@@ -166,6 +172,43 @@ describe("pap-policy grants", () => {
     expect(h.asks).toHaveLength(2);
   });
 
+  it("ends an always answer when updates land while its question was open (add, then revoke)", async () => {
+    let version = 0;
+    const h = bed.harness({
+      rulesVersion: () => version,
+      ask: async () => {
+        // What a worker sees when the answer, the add push and a revoke push arrive in one read.
+        version += 2;
+        return { answer: "always", closed: false };
+      },
+    });
+    expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
+    expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
+    expect(h.asks).toHaveLength(2);
+    expect(h.audits.at(-1)).toMatchObject({ decision: "approved", reason: "answer: always" });
+  });
+
+  it("pins the answers of every category", () => {
+    expect(
+      (["read", "edit", "exec", "network", "external-write", "unknown"] as const).map((category) =>
+        answersFor(category, undefined),
+      ),
+    ).toEqual([
+      ["deny", "session", "always", "once"],
+      ["deny", "session", "always", "once"],
+      ["deny", "session", "always", "once"],
+      ["deny", "session", "always", "once"],
+      ["deny", "session", "always", "once"],
+      ["deny", "session", "once"],
+    ]);
+  });
+
+  it("offers a network call all four answers", async () => {
+    const h = bed.harness({ answers: [{ answer: "deny", closed: false }] });
+    await h.run("web_fetch", { url: "https://example.com" });
+    expect(h.asks[0]).toMatchObject({ category: "network", answers: ["deny", "session", "always", "once"] });
+  });
+
   it("does not turn an always answer into a session grant", async () => {
     let version = 0;
     const h = bed.harness({ answers: [{ answer: "always", closed: false }], rulesVersion: () => version });
@@ -221,7 +264,7 @@ describe("createPolicyGrants", () => {
 
   it("caps the provisional always grants at MAX_SESSION_GRANTS, dropping the oldest", () => {
     const grants = createPolicyGrants(() => 0);
-    for (const key of keys(MAX_SESSION_GRANTS + 1)) grants.rememberAlways(key);
+    for (const key of keys(MAX_SESSION_GRANTS + 1)) grants.rememberAlways(key, grants.version());
     expect(grants.hasProvisionalAlways("k0")).toBe(false);
     expect(grants.hasProvisionalAlways("k1")).toBe(true);
     expect(grants.hasProvisionalAlways(`k${MAX_SESSION_GRANTS}`)).toBe(true);
@@ -238,7 +281,7 @@ describe("createPolicyGrants", () => {
   it("ends every provisional grant when the version moves, and keeps session grants", () => {
     let version = 4;
     const grants = createPolicyGrants(() => version);
-    grants.rememberAlways("x");
+    grants.rememberAlways("x", grants.version());
     grants.rememberSession("y");
     version = 5;
     expect(grants.hasProvisionalAlways("x")).toBe(false);

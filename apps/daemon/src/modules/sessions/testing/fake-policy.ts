@@ -16,23 +16,35 @@ export interface AddedRule {
   label: string;
 }
 
-/** A `PolicyPort` for the sessions tests: the identity for `scopeOf`, rules kept in memory, listeners told on every change. */
-export function fakePolicyPort(initial: AlwaysRule[] = [], options: FakePolicyOptions = {}) {
-  const rules: AlwaysRule[] = [...initial];
+const slot = (ownerId: string, scope: string) => `${ownerId}\u0000${scope}`;
+
+/** A `PolicyPort` for the sessions tests: the identity for `scopeOf`, rules kept per owner and project, listeners told on every change. */
+export function fakePolicyPort(options: FakePolicyOptions = {}) {
+  const rules = new Map<string, AlwaysRule[]>();
   const added: AddedRule[] = [];
   const listeners = new Set<(ownerId: string, scope: string) => void>();
+  let failReads = false;
+  const of = (ownerId: string, scope: string): AlwaysRule[] => {
+    let list = rules.get(slot(ownerId, scope));
+    if (!list) rules.set(slot(ownerId, scope), (list = []));
+    return list;
+  };
   const tell = (ownerId: string, scope: string) => {
     for (const listener of [...listeners]) listener(ownerId, scope);
   };
   const port: PolicyPort = {
     scopeOf: (cwd) => cwd,
-    rulesFor: () => [...rules],
+    rulesFor(ownerId, scope) {
+      if (failReads) throw new Error("rulesFor failed");
+      return [...of(ownerId, scope)];
+    },
     addAlways(input) {
       if (options.throws) throw new Error("addAlways failed");
       if (options.full) return "full";
-      if (rules.some((rule) => rule.tool === input.tool && rule.key === input.key)) return "exists";
+      const list = of(input.ownerId, input.scope);
+      if (list.some((rule) => rule.tool === input.tool && rule.key === input.key)) return "exists";
       added.push(input);
-      rules.push({ tool: input.tool, key: input.key });
+      list.push({ tool: input.tool, key: input.key });
       tell(input.ownerId, input.scope);
       return "added";
     },
@@ -47,13 +59,18 @@ export function fakePolicyPort(initial: AlwaysRule[] = [], options: FakePolicyOp
     listenerCount: () => listeners.size,
     /** What the policy module does when a rule is revoked: the rule is gone, the listeners are told. */
     revoke(ownerId: string, scope: string, key: string) {
-      const at = rules.findIndex((rule) => rule.key === key);
-      if (at >= 0) rules.splice(at, 1);
+      const list = of(ownerId, scope);
+      const at = list.findIndex((rule) => rule.key === key);
+      if (at >= 0) list.splice(at, 1);
       tell(ownerId, scope);
     },
-    /** Replaces the rules without telling anyone (to set up a worker's start). */
-    setRules(next: AlwaysRule[]) {
-      rules.splice(0, rules.length, ...next);
+    /** Sets the rules of an owner's project without telling anyone (to set up a worker's start). */
+    seed(ownerId: string, scope: string, next: AlwaysRule[]) {
+      rules.set(slot(ownerId, scope), [...next]);
+    },
+    /** `rulesFor` throws from now on. */
+    failReads() {
+      failReads = true;
     },
   };
 }
