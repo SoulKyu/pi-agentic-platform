@@ -1,7 +1,7 @@
 import { realpathSync } from "node:fs";
 import type { AlwaysRule, DaemonToWorker } from "@pap/contracts";
-import { afterEach, describe, expect, it } from "vitest";
-import { FULL_NOTICE, GRANT_NOTICE_EVERY_MS, NOT_SAVED_NOTICE } from "./grants.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { GRANT_NOTICE_EVERY_MS } from "./grants.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { captureLogger } from "./testing/helpers.ts";
@@ -125,6 +125,23 @@ describe("always and session answers", () => {
     expect(updates(0)).toEqual([]);
   });
 
+  it("does not complain about, or stop, a worker that exited just before its update was sent", async () => {
+    const { logger, lines } = captureLogger();
+    const policy = fakePolicyPort();
+    open({ policy, logger });
+    await bed.service.create(bed.work, OWNER);
+    const worker = bed.spawned[0];
+    if (!worker) throw new Error("no worker");
+    const stop = vi.spyOn(worker, "stop");
+    // The exit is settled first (its listeners run before the queued update does), the change comes after.
+    worker.crash({ code: 1, signal: null, cause: "exit_code" });
+    policy.revoke(OWNER.userId, realpathSync(bed.work), KEY);
+    await bed.clock.advance(0);
+    expect(updates(0)).toEqual([]);
+    expect(stop).not.toHaveBeenCalled();
+    expect(lines.filter((line) => line.msg === "policy_update_not_sent")).toEqual([]);
+  });
+
   it("stops a worker that could not be told of a change: it must not keep a revoked rule", async () => {
     const { logger, lines } = captureLogger();
     const policy = fakePolicyPort();
@@ -152,7 +169,7 @@ describe("an always rule that cannot be saved", () => {
       {
         kind: "notice",
         level: "warning",
-        text: FULL_NOTICE,
+        text: "This project already has 1000 always-allowed calls: this one is allowed until this project's rules change.",
       },
     ]);
     // The worker still got the answer: the call it asked about runs.
@@ -180,6 +197,12 @@ describe("an always rule that cannot be saved", () => {
     expect(bed.spawned[0]?.sent.filter((record) => record.type === "approval_response")).toHaveLength(2);
     const logged = lines.filter((line) => line.msg === "always_rule_not_saved");
     expect(logged).toHaveLength(1);
-    expect(notices(frames)).toEqual([{ kind: "notice", level: "warning", text: NOT_SAVED_NOTICE }]);
+    expect(notices(frames)).toEqual([
+      {
+        kind: "notice",
+        level: "warning",
+        text: "This call is allowed until this project's rules change: its always rule could not be saved.",
+      },
+    ]);
   });
 });

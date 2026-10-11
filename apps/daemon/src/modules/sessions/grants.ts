@@ -17,12 +17,10 @@ export const GRANT_NOTICE_EVERY_MS = 60_000;
  * six bytes a character) come to about 1.6 MB, and a list past this is sent as no rule at all.
  */
 export const MAX_POLICY_BYTES = 2 * 1024 * 1024;
-export const FULL_NOTICE =
-  `This project already has ${MAX_ALWAYS_RULES} always-allowed calls: this one is allowed until this project's rules change. / ` +
-  `Ce projet a déjà ${MAX_ALWAYS_RULES} appels toujours autorisés : celui-ci est autorisé jusqu'à ce que les règles du projet changent.`;
+// English only, like every daemon notice; the web shows the text as it is.
+export const FULL_NOTICE = `This project already has ${MAX_ALWAYS_RULES} always-allowed calls: this one is allowed until this project's rules change.`;
 export const NOT_SAVED_NOTICE =
-  "This call is allowed until this project's rules change: its always rule could not be saved. / " +
-  "Cet appel est autorisé jusqu'à ce que les règles du projet changent : sa règle n'a pas pu être enregistrée.";
+  "This call is allowed until this project's rules change: its always rule could not be saved.";
 const LOG_EVERY_MS = 60_000;
 
 interface Launched {
