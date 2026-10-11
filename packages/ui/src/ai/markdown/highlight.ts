@@ -9,6 +9,7 @@ export interface CodeToken {
 
 export const MAX_HIGHLIGHT_CHARS = 20_000;
 const THEME = "pap-code";
+const COMMENT_COLOR = "var(--shiki-token-comment)";
 const SAFE_COLOR = /^var\(--shiki-[a-z-]+\)$/;
 
 // One module per language, loaded on first use (each is its own chunk). Aliases map to the module's own name.
@@ -82,8 +83,8 @@ export async function highlightCode(code: string, lang: string): Promise<CodeTok
     line.map((token) => ({
       content: token.content,
       color: token.color !== undefined && SAFE_COLOR.test(token.color) ? token.color : null,
-      // shiki's FontStyle flags: 1 is italic.
-      italic: ((token.fontStyle ?? 0) & 1) === 1,
+      // shiki's FontStyle flag 1 is italic; the css-variables theme sets none, so comments are italic by role (R3-1).
+      italic: ((token.fontStyle ?? 0) & 1) === 1 || token.color === COMMENT_COLOR,
     })),
   );
 }

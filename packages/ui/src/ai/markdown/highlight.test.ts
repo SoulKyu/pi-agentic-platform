@@ -33,6 +33,19 @@ describe("code highlighting with shiki's JavaScript regex engine (R74: no WebAss
     }
   });
 
+  it.each(["constructor", "__proto__", "toString"])(
+    "treats the object-prototype name %j as an unknown language",
+    async (lang) => {
+      expect(await highlightCode("x", lang)).toBeNull();
+    },
+  );
+
+  it("marks comments italic and keywords not", async () => {
+    const tokens = ((await highlightCode("const x = 1; // one", "ts")) ?? []).flat();
+    expect(tokens.find((token) => token.content.includes("one"))?.italic).toBe(true);
+    expect(tokens.find((token) => token.content === "const")?.italic).toBe(false);
+  });
+
   it("leaves unknown languages and oversized code plain", async () => {
     expect(await highlightCode("x", "brainfuck")).toBeNull();
     expect(await highlightCode("x".repeat(MAX_HIGHLIGHT_CHARS + 1), "ts")).toBeNull();
