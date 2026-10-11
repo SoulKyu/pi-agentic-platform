@@ -1,4 +1,6 @@
-import { expect, it } from "vitest";
+import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { expect, it, vi } from "vitest";
 import { createIntBed, promptAndSettle } from "./testing/int-bed.ts";
 
 it("edits from an earlier message: navigate, then the next prompt makes a sibling branch", async () => {
@@ -76,3 +78,45 @@ it("compacts, shows the summary row live and keeps the history before it after a
     await bed.dispose();
   }
 });
+
+// A run an extension starts is invisible to the daemon until Pi's `agent_start` reaches it, and here the extension's
+// own `agent_start` hook holds the run: only pi-host's `isIdle` check can refuse (WORKER_BUSY -> session_busy).
+const KICK = `import { existsSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+export default function (pi) {
+  pi.registerCommand("kick", { handler: async () => { void pi.sendUserMessage("kicked"); } });
+  pi.on("agent_start", async () => {
+    writeFileSync(join(process.cwd(), "marker"), "1");
+    while (!existsSync(join(process.cwd(), "release"))) await new Promise((resolve) => setTimeout(resolve, 20));
+  });
+}
+`;
+
+it(
+  "refuses compact and navigate while a run an extension started is held by its own hook",
+  { timeout: 30_000 },
+  async () => {
+    const bed = await createIntBed({ steps: [{ text: "ok" }] }, { extensions: { kick: KICK } });
+    try {
+      const { sessionId } = await bed.rpc["sessions.create"]({ cwd: bed.work }, bed.ctx);
+      const sub = await bed.subscribe(sessionId);
+      expect(await bed.rpc["sessions.prompt"]({ sessionId, text: "/kick" }, bed.ctx)).toEqual({
+        disposition: "handled",
+      });
+      await vi.waitFor(() => expect(existsSync(join(bed.work, "marker"))).toBe(true), { timeout: 10_000 });
+      await expect(bed.rpc["sessions.compact"]({ sessionId }, bed.ctx)).rejects.toMatchObject({
+        code: "session_busy",
+      });
+      await expect(
+        bed.rpc["sessions.navigate"]({ sessionId, targetId: "anything" }, bed.ctx),
+      ).rejects.toMatchObject({ code: "session_busy" });
+      writeFileSync(join(bed.work, "release"), "1");
+      await sub.waitFor(
+        (event) =>
+          event.kind === "pi" && event.event.type === "agent_settled" && event.event.aborted === false,
+      );
+    } finally {
+      await bed.dispose();
+    }
+  },
+);
