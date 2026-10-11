@@ -13,7 +13,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     prompt: vi.fn(async () => ({ disposition: "started" as const })),
     abort: vi.fn(async () => {}),
     respondDialog: vi.fn(),
-    assertReadable: vi.fn(),
+    prepareSubscription: vi.fn(async () => {}),
     snapshot: vi.fn(),
     shutdownAll: vi.fn(async () => {}),
     inspect: vi.fn(() => null),
@@ -61,7 +61,7 @@ describe("sessions rpc", () => {
     });
     expect(openSubscription).toHaveBeenCalledWith("session", "p1", { epoch: "e", seq: 4 });
     const refused = setup({
-      assertReadable: vi.fn(() => {
+      prepareSubscription: vi.fn(async () => {
         throw new PapError("not_found");
       }),
     });
@@ -69,6 +69,32 @@ describe("sessions rpc", () => {
       "not_found",
     );
     expect(refused.openSubscription).not.toHaveBeenCalled();
+  });
+
+  it("opens the subscription only after the read has been prepared (R108)", async () => {
+    const order: string[] = [];
+    let prepared: () => void = () => {};
+    const { rpc, ctx, openSubscription } = setup({
+      prepareSubscription: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            prepared = () => {
+              order.push("prepared");
+              resolve();
+            };
+          }),
+      ),
+    });
+    openSubscription.mockImplementation(() => {
+      order.push("opened");
+      return "s1";
+    });
+    const pending = rpc["subscribe.session"]({ sessionId: "p1" }, ctx);
+    await Promise.resolve();
+    expect(openSubscription).not.toHaveBeenCalled();
+    prepared();
+    await pending;
+    expect(order).toEqual(["prepared", "opened"]);
   });
 
   it("lets a typed error through for the dispatcher to map", async () => {

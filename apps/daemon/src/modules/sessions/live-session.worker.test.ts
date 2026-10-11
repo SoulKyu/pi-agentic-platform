@@ -14,7 +14,7 @@ describe("abort", () => {
     compacting.worker.emit(piEvent({ type: "agent_start" }));
     await compacting.live.abort();
     expect(compacting.worker.stopped()).toBe(true);
-    const stuck = setup();
+    const stuck = setup({ streaming: true });
     stuck.worker.emit(piEvent({ type: "agent_start" }));
     const pending = stuck.live.abort();
     await stuck.clock.advance(4999);
@@ -25,16 +25,39 @@ describe("abort", () => {
   });
 
   it("leaves the worker alone when the run settles in time", async () => {
-    const { worker, live, clock } = setup();
+    const { worker, live, clock, pi } = setup({ streaming: true });
     worker.emit(piEvent({ type: "agent_start" }));
     const aborting = live.abort();
     await clock.advance(0);
     expect(worker.requests.some((request) => request.type === "abort")).toBe(true);
+    pi.streaming = false;
     worker.emit(piEvent({ type: "agent_settled", aborted: true }));
     await clock.advance(0);
     await aborting;
     expect(worker.stopped()).toBe(false);
     expect(live.status()).toBe("idle");
+  });
+
+  it("ends a run Pi is not running, and leaves the worker alone: nothing is stuck (R111)", async () => {
+    const { worker, live, clock, recorded, published } = setup();
+    // The run Pi reported but never settled: input it rejected or handled, so no agent_settled will come.
+    worker.emit(piEvent({ type: "agent_start" }));
+    expect(live.status()).toBe("running");
+    await live.abort();
+    expect(live.status()).toBe("idle");
+    expect(published.at(-1)).toEqual({ kind: "status", status: "idle" });
+    expect(recorded.at(-1)).toEqual(["run_end", { aborted: true }]);
+    expect(worker.requests.some((request) => request.type === "abort")).toBe(false);
+    await clock.advance(60_000);
+    expect(worker.stopped()).toBe(false);
+  });
+
+  it("does nothing to a session that is idle", async () => {
+    const { worker, live, recorded } = setup();
+    await live.abort();
+    expect(worker.stopped()).toBe(false);
+    expect(live.status()).toBe("idle");
+    expect(recorded).toEqual([]);
   });
 
   it("terminates a worker that does not answer get_state", async () => {

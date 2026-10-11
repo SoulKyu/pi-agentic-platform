@@ -14,12 +14,18 @@ export interface RunTrackerDeps {
 export interface RunTracker {
   readonly running: boolean;
   onInput(): void;
+  /**
+   * Ends the open run now, without waiting for `agent_settled`, for the caller that has just seen for itself that Pi has
+   * nothing running (an abort that found Pi idle). A run can be left open by input Pi rejected or handled without ever
+   * starting an agent turn to settle. True when there was a run to end.
+   */
+  finish(aborted: boolean): boolean;
   onEvent(event: { type: string } & Record<string, unknown>): void;
   waitIdle(timeoutMs: number): Promise<boolean>;
   reset(): void;
 }
 
-const isIdle = (state: GetStateData) =>
+export const isIdle = (state: GetStateData) =>
   !state.isStreaming && !state.isCompacting && state.pendingMessageCount === 0;
 
 /**
@@ -57,6 +63,13 @@ export function createRunTracker(deps: RunTrackerDeps): RunTracker {
     },
     onInput() {
       revision++;
+    },
+    finish(aborted) {
+      if (!running) return false;
+      // Whatever probe is still on its way would find the run gone.
+      revision++;
+      endRun(aborted);
+      return true;
     },
     onEvent(event) {
       if (event.type === "agent_start" && !running) {

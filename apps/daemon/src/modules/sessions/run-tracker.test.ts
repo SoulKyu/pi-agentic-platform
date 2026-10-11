@@ -103,6 +103,19 @@ describe("run tracker", () => {
     expect(await ok).toBe(true);
   });
 
+  it("finish ends an open run at once, drops the probes in progress and wakes whoever waits", async () => {
+    const { clock, log, tracker } = setup([busy]);
+    expect(tracker.finish(true)).toBe(false);
+    tracker.onEvent({ type: "agent_start" });
+    const waiting = tracker.waitIdle(5000);
+    tracker.onEvent({ type: "agent_settled", aborted: false });
+    expect(tracker.finish(true)).toBe(true);
+    expect(await waiting).toBe(true);
+    expect(tracker.running).toBe(false);
+    await clock.advance(1000);
+    expect(log).toEqual(["start", "end:true"]);
+  });
+
   it("reset drops the run without recording an end, and wakes whoever waits", async () => {
     const { clock, log, tracker } = setup([busy]);
     tracker.onEvent({ type: "agent_start" });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createRunView } from "./run-view.ts";
-import { SNAPSHOT_ROWS } from "./snapshot.ts";
+import { ROW_BYTES, SNAPSHOT_ROWS } from "./snapshot.ts";
 
 describe("run view", () => {
   it("has nothing to show outside a run", () => {
@@ -47,5 +47,28 @@ describe("run view", () => {
     expect(messages).toHaveLength(SNAPSHOT_ROWS);
     expect(messages.at(-1)).toEqual({ n: SNAPSHOT_ROWS + 4 });
     expect(messages[0]).toEqual({ n: 5 });
+  });
+
+  it("measures a message before it keeps it, and keeps a placeholder for one over the per-row budget (R109)", () => {
+    const view = createRunView();
+    view.begin(0);
+    const huge = { role: "assistant", timestamp: 9, content: "x".repeat(ROW_BYTES + 1) };
+    view.push(huge);
+    expect(view.state()?.messages).toEqual([
+      { role: "assistant", timestamp: 9, omitted: true, bytes: Buffer.byteLength(JSON.stringify(huge)) },
+    ]);
+  });
+
+  it("holds the messages of a run to 1 MiB in all, dropping the oldest first", () => {
+    const view = createRunView();
+    view.begin(0);
+    const nearlyHuge = (n: number) => ({ role: "user", n, content: "x".repeat(ROW_BYTES - 200) });
+    for (let n = 0; n < 12; n++) view.push(nearlyHuge(n));
+    const messages = (view.state()?.messages ?? []) as Array<{ n: number }>;
+    expect(Buffer.byteLength(JSON.stringify(messages))).toBeLessThanOrEqual(1024 * 1024);
+    expect(messages.length).toBeGreaterThanOrEqual(3);
+    expect(messages.length).toBeLessThan(12);
+    expect(messages.at(-1)?.n).toBe(11);
+    expect(messages.map((m) => m.n)).toEqual(messages.map((_, i) => 12 - messages.length + i));
   });
 });

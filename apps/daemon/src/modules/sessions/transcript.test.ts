@@ -1,8 +1,25 @@
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readTranscriptTail } from "./transcript.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { loadTranscriptReader } from "./transcript.ts";
+
+// Wraps the reads of the file system so a test can see how many bytes of a file were asked for.
+const reads = vi.hoisted(() => ({ bytes: 0 }));
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...actual,
+    readSync: ((fd: number, buffer: NodeJS.ArrayBufferView, ...rest: unknown[]) => {
+      const result = (actual.readSync as (...args: unknown[]) => number)(fd, buffer, ...rest);
+      reads.bytes += result;
+      return result;
+    }) as typeof actual.readSync,
+  };
+});
+
+const reader = await loadTranscriptReader();
+const readTranscriptTail = reader.tail;
 
 let dir: string;
 beforeEach(() => {
@@ -53,7 +70,7 @@ const lines = [
 const jsonl = (rows: unknown[]) => `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`;
 const rolesOf = (messages: unknown[]) => messages.map((m) => (m as { role: string }).role);
 
-describe("readTranscriptTail", () => {
+describe("transcript reader", () => {
   it("returns nothing for a missing or unreadable file", () => {
     expect(readTranscriptTail(join(dir, "missing.jsonl"))).toEqual([]);
     writeFileSync(join(dir, "bad.jsonl"), "not json\n");
@@ -73,6 +90,41 @@ describe("readTranscriptTail", () => {
     writeFileSync(file, jsonl(lines));
     expect(rolesOf(readTranscriptTail(file, 75, Buffer.byteLength(before)))).toEqual(["user"]);
     expect(readTranscriptTail(file, 75, 0)).toEqual([]);
+  });
+
+  it("leaves out the system prompt Pi keeps in the file as a message (R107)", () => {
+    const file = join(dir, "s.jsonl");
+    const system = {
+      type: "message",
+      id: "s0",
+      parentId: null,
+      timestamp: "2026-10-10T00:00:00.500Z",
+      message: { role: "system", content: "", sections: { preamble: "You are an expert" }, timestamp: 0 },
+    };
+    writeFileSync(file, jsonl([lines[0], system, { ...lines[1], parentId: "s0" }, lines[2]]));
+    expect(rolesOf(readTranscriptTail(file))).toEqual(["user", "assistant"]);
+    // The cap counts the rows that are left, not the ones that were hidden.
+    expect(rolesOf(readTranscriptTail(file, 2))).toEqual(["user", "assistant"]);
+  });
+
+  it("reads no more of the file than it was told to (R111)", () => {
+    const file = join(dir, "s.jsonl");
+    const before = jsonl(lines.slice(0, 2));
+    writeFileSync(file, jsonl(lines) + jsonl(lines).repeat(200));
+    reads.bytes = 0;
+    expect(rolesOf(readTranscriptTail(file, 75, Buffer.byteLength(before)))).toEqual(["user"]);
+    expect(reads.bytes).toBe(Buffer.byteLength(before));
+    reads.bytes = 0;
+    readTranscriptTail(file, 75, 0);
+    expect(reads.bytes).toBe(0);
+  });
+
+  it("reads all of a file it is not told how much of", () => {
+    const file = join(dir, "s.jsonl");
+    writeFileSync(file, jsonl(lines));
+    reads.bytes = 0;
+    readTranscriptTail(file);
+    expect(reads.bytes).toBe(Buffer.byteLength(jsonl(lines)));
   });
 
   it("migrates an old file in memory only: the bytes on disk stay as they were", () => {

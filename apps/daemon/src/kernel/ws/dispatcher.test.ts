@@ -143,7 +143,8 @@ describe("dispatcher", () => {
       ok: false,
       error: { code: "not_found" },
     });
-    expect(await dispatch({ id: 9, method: "sessions.abort", params: { sessionId: "s" } }, ctx())).toEqual({
+    const abort = { id: 9, method: "sessions.abort", params: { sessionId: "s" }, commandId: "cmd-00000003" };
+    expect(await dispatch(abort, ctx())).toEqual({
       id: 9,
       ok: false,
       error: { code: "read_only" },

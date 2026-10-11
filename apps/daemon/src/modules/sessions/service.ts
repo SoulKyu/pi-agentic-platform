@@ -17,7 +17,7 @@ import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
 import { fitSnapshot, SNAPSHOT_ROWS } from "./snapshot.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
-import { readTranscriptTail } from "./transcript.ts";
+import type { TranscriptReader } from "./transcript.ts";
 
 const INTERACTIVE_POLICY: PolicyRules = { profile: "interactive", approvalMode: "auto-accept-edits" };
 
@@ -33,6 +33,8 @@ export interface SessionsServiceDeps {
     readonly testProviderScript: string | null;
   };
   newId(): string;
+  /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
+  loadTranscript(): Promise<TranscriptReader>;
   spawn(cwd: string): WorkerHandle;
   freeMemMb(): number;
 }
@@ -52,8 +54,15 @@ export interface SessionsService {
     input: { sessionId: string; dialogId: string; response: DialogResponse },
     caller: Caller,
   ): void;
-  assertReadable(sessionId: string, caller: Caller): void;
-  /** Throws `not_found` for a session that does not exist: the stream hub calls it for every key a client names (R79). */
+  /**
+   * What `subscribe.session` does before it opens a subscription (R108): checks that the caller may read the session
+   * and loads the transcript reader, once. The hub builds a snapshot synchronously, from what this has loaded.
+   */
+  prepareSubscription(sessionId: string, caller: Caller): Promise<void>;
+  /**
+   * Throws `not_found` for a session that does not exist: the stream hub calls it for every key a client names (R79).
+   * Throws `internal` if no subscription was prepared first, rather than show an empty transcript.
+   */
   snapshot(sessionId: string): SessionStreamEvent;
   shutdownAll(): Promise<void>;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
@@ -67,6 +76,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   // Workers between fork and `ready`. They count against the cap like running ones (R9).
   const starting = new Set<LiveSession>();
   let closing = false;
+  let transcript: TranscriptReader | null = null;
+  let loadingTranscript: Promise<TranscriptReader> | null = null;
 
   const checkCapacity = () => {
     if (
@@ -220,12 +231,22 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (!session) throw new PapError("not_found");
       session.answer(input.dialogId, input.response);
     },
-    assertReadable(sessionId, caller) {
+    async prepareSubscription(sessionId, caller) {
       owned(sessionId, caller);
+      // One load for everyone who asks while it runs; a failed one is forgotten, so the next caller tries again.
+      loadingTranscript ??= deps.loadTranscript().then(
+        (reader) => (transcript = reader),
+        (error: unknown) => {
+          loadingTranscript = null;
+          throw error;
+        },
+      );
+      await loadingTranscript;
     },
     snapshot(sessionId) {
       const row = deps.store.get(sessionId);
       if (!row) throw new PapError("not_found");
+      if (!transcript) throw new PapError("internal");
       const session = live.get(sessionId);
       const run = session?.runView() ?? null;
       // A draft's file is the one its worker reported; it is read only if it is where Pi keeps session files.
@@ -234,7 +255,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         row.piPath ?? (reported && isPiSessionFile(deps.worker.agentDir, reported) ? reported : null);
       // A run in progress is not in the file yet: the file is read as it was when the run began, then the run's
       // own messages follow (R38).
-      const fromFile = file ? readTranscriptTail(file, SNAPSHOT_ROWS, run?.baselineBytes) : [];
+      const fromFile = file ? transcript.tail(file, SNAPSHOT_ROWS, run?.baselineBytes) : [];
       return fitSnapshot({
         status: statusOf(sessionId),
         rows: [...fromFile, ...(run?.messages ?? [])],

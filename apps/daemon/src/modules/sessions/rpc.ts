@@ -26,9 +26,10 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
     },
     // Opening a subscription is this handler's only effect. A handler that also had a side effect would open the
     // subscription first: it can fail with capacity or not_found, and failing after the effect would invite a retry
-    // of the same command (R79).
+    // of the same command (R79). What is awaited first is the read's preparation: the owner check and the transcript
+    // reader the hub's synchronous snapshot provider needs (R108).
     "subscribe.session": async ({ sessionId, after }, ctx) => {
-      service.assertReadable(sessionId, ctx.caller);
+      await service.prepareSubscription(sessionId, ctx.caller);
       return { sub: ctx.openSubscription("session", sessionId, after) };
     },
   };

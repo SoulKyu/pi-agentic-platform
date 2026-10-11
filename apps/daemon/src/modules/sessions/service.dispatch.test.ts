@@ -14,6 +14,7 @@ import { sessionsRpc } from "./rpc.ts";
 import { createSessionsService, type SessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { createServiceBed } from "./testing/service-bed.ts";
+import { loadTranscriptReader } from "./transcript.ts";
 
 const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
 const ctx: HandlerContext = {
@@ -23,7 +24,7 @@ const ctx: HandlerContext = {
   closeSubscription: () => {},
 };
 
-const build = () => createServiceBed({ createSessionsStore, createSessionsService });
+const build = () => createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader });
 let bed: ReturnType<typeof build>;
 afterEach(() => bed.dispose());
 
@@ -91,5 +92,38 @@ describe("sessions behind the dispatcher", () => {
     expect(attempts).toBe(1);
     expect(await dispatch(prompt(2, "command-0002"), ctx)).toMatchObject({ ok: true });
     expect(attempts).toBe(2);
+  });
+
+  it("aborts once for a commandId: replaying it does not stop a newer run (R110)", async () => {
+    bed = build();
+    const { dispatch } = dispatcherOver(bed.service);
+    await bed.service.create(bed.work, owner);
+    const abort = (id: number, commandId?: string) => ({
+      id,
+      method: "sessions.abort",
+      params: { sessionId: "p1" },
+      ...(commandId ? { commandId } : {}),
+    });
+    // Without a commandId there is no abort: it is a mutation like the others.
+    expect(await dispatch(abort(1), ctx)).toEqual({ id: 1, ok: false, error: { code: "bad_request" } });
+    bed.emit(0, { type: "agent_start" });
+    expect(await dispatch(abort(2, "command-abort1"), ctx)).toEqual({
+      id: 2,
+      ok: true,
+      result: { ok: true },
+    });
+    expect(bed.service.list(owner)[0]?.status).toBe("idle");
+    // A new run starts; the client, not sure its answer arrived, sends the same command again.
+    bed.emit(0, { type: "agent_start" });
+    const stateRequests = () =>
+      bed.spawned[0]?.requests.filter((request) => request.type === "get_state").length;
+    const before = stateRequests();
+    expect(await dispatch(abort(3, "command-abort1"), ctx)).toEqual({
+      id: 3,
+      ok: true,
+      result: { ok: true },
+    });
+    expect(stateRequests()).toBe(before);
+    expect(bed.service.list(owner)[0]?.status).toBe("running");
   });
 });

@@ -14,6 +14,11 @@ describe("method catalogue", () => {
       .filter((def) => !def.idempotent)
       .map((def) => def.name)
       .sort();
-    expect(mutations).toEqual(["sessions.create", "sessions.prompt", "sessions.respondDialog"]);
+    expect(mutations).toEqual([
+      "sessions.abort",
+      "sessions.create",
+      "sessions.prompt",
+      "sessions.respondDialog",
+    ]);
   });
 });

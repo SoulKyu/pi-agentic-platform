@@ -93,20 +93,23 @@ const statuses = () => events().flatMap((event) => (event.kind === "status" ? [e
 const listed = (id: string) =>
   sessions.rpc["sessions.list"]({}, ctx).then(({ sessions: all }) => all.find((s) => s.id === id));
 
-// What a client reading the snapshot would count: Pi puts its system prompt in the file as the first message.
+// The rows a client starting from the snapshot would have.
 async function snapshotRows(id: string): Promise<string[]> {
   const seen: EventFrame[] = [];
-  hub.open({
-    connectionId: "probe",
-    sub: "p",
-    stream: "session",
-    key: id,
-    after: undefined,
-    send: (f) => seen.push(f),
-  });
+  await sessions.rpc["subscribe.session"](
+    { sessionId: id },
+    {
+      ...ctx,
+      connectionId: "probe",
+      openSubscription: (stream, key, after) => {
+        hub.open({ connectionId: "probe", sub: "p", stream, key, after, send: (f) => seen.push(f) });
+        return "p";
+      },
+    },
+  );
   hub.close("probe");
   const messages = (seen[0]?.event as { messages: Array<{ role: string }> }).messages;
-  return messages.map((message) => message.role).filter((role) => role !== "system");
+  return messages.map((message) => message.role);
 }
 
 async function promptAndSettle(id: string, text: string): Promise<void> {
@@ -135,6 +138,9 @@ describe("sessions with the real pi-host", () => {
     expect(events().some((event) => event.kind === "pi")).toBe(true);
     expect(await snapshotRows(sessionId)).toEqual(["user", "assistant"]);
     expect(JSON.stringify(frames)).toContain("a scripted answer");
+    // Pi's system prompt is in its file and in its events; none of it reaches a subscriber (R107).
+    expect(JSON.stringify(frames)).not.toContain('"role":"system"');
+    expect(JSON.stringify(frames)).not.toContain("expert coding assistant");
 
     const pid = sessions.inspect(sessionId)?.pid ?? 0;
     expect(pid).toBeGreaterThan(1);

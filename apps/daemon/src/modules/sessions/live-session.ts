@@ -17,7 +17,8 @@ import { describeExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { type CancelReason, createDialogRegistry } from "./dialogs.ts";
 import { fileSizeOrZero } from "./pi-files.ts";
-import { createRunTracker } from "./run-tracker.ts";
+import { createRateLimiter } from "./rate-limit.ts";
+import { createRunTracker, isIdle } from "./run-tracker.ts";
 import { createRunView, type RunViewState } from "./run-view.ts";
 
 const ABORT_SETTLE_MS = 5000;
@@ -26,6 +27,8 @@ const GET_STATE_TIMEOUT_MS = 2000;
 export const READY_TIMEOUT_MS = 30_000;
 /** The socket allows 1 MiB per frame; an event is sent whole or not at all. */
 const MAX_EVENT_BYTES = 1_000_000;
+/** The user and the log hear of a thing the daemon keeps doing (cancelling a dialog, dropping an event) this often. */
+const SAY_EVERY_MS = 10_000;
 /** What the daemon logs of a worker's output or error text, counted from the end for output (R66, R102). */
 const LOG_CHARS = 2000;
 /** An event name an extension error may show to the user; anything else is left out, never cut. */
@@ -68,6 +71,9 @@ export interface LiveSession {
   stop(): Promise<void>;
 }
 
+const isSystemMessage = (event: PiEvent): boolean =>
+  (event.message as { role?: unknown } | null | undefined)?.role === "system";
+
 const clip = (text: string): string => (text.length > LOG_CHARS ? `${text.slice(0, LOG_CHARS)}…` : text);
 
 export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveSession {
@@ -78,6 +84,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   let piSessionId: string | undefined;
   const dialogs = createDialogRegistry();
   const view = createRunView();
+  const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   const setStatus = (next: SessionStatus, cause?: string) => {
     status = next;
     deps.publish({ kind: "status", status: next, ...(cause ? { cause } : {}) });
@@ -136,11 +143,15 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     return tail.length > LOG_CHARS ? `…${tail.slice(-(LOG_CHARS - 1))}` : tail;
   }
 
-  // An event is sent whole or not at all. A delta is a few tokens, so only the other events are measured.
+  // An event is sent whole or not at all, and every kind of event is measured: a `text_end` carries the whole text of
+  // a block and a `toolcall_end` the whole call, so a delta is the only small one and it costs nothing to look.
   function publishPi(event: PiEvent): void {
-    if (event.type !== "message_update" && Buffer.byteLength(JSON.stringify(event)) > MAX_EVENT_BYTES) {
-      logger.warn("pi_event_too_large", { type: clip(event.type) });
-      deps.publish({ kind: "notice", level: "warning", text: "A message was too large to stream." });
+    if (Buffer.byteLength(JSON.stringify(event)) > MAX_EVENT_BYTES) {
+      const said = limiter.check("event_too_large");
+      if (said.allowed) {
+        logger.warn("pi_event_too_large", { type: clip(event.type), suppressed: said.suppressed });
+        deps.publish({ kind: "notice", level: "warning", text: "A message was too large to stream." });
+      }
       return;
     }
     deps.publish({ kind: "pi", event });
@@ -151,8 +162,16 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     if (verdict.kind === "opened") {
       deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
     } else if (verdict.kind === "cancel") {
-      logger.warn("dialog_cancelled", { reason: verdict.reason, method: clip(record.method).slice(0, 64) });
+      // Every dialog is answered; only the telling is spaced out, so an extension that asks in a loop cannot flood
+      // the user's screen or the log.
       handle.send({ type: "extension_ui_response", id: record.id, cancelled: true });
+      const said = limiter.check(`dialog_${verdict.reason}`);
+      if (!said.allowed) return;
+      logger.warn("dialog_cancelled", {
+        reason: verdict.reason,
+        method: clip(record.method).slice(0, 64),
+        suppressed: said.suppressed,
+      });
       const notice = CANCEL_NOTICES[verdict.reason];
       if (notice) deps.publish({ kind: "notice", level: "warning", text: notice });
     } else {
@@ -191,8 +210,11 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       case "pi_event": {
         const event = record.event;
         tracker.onEvent(event);
-        if (event.type === "message_end") view.push(event.message);
-        publishPi(event);
+        // Pi's system prompt travels as a message. It stays here: it is internal and may carry the user's AGENTS.md (R107).
+        if (!isSystemMessage(event)) {
+          if (event.type === "message_end") view.push(event.message);
+          publishPi(event);
+        }
         deps.onActivity();
         return;
       }
@@ -248,6 +270,12 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       const state = await getState().catch(() => null);
       if (!state || state.isCompacting) {
         await handle.stop();
+        return;
+      }
+      // Pi has nothing running, so there is nothing to abort and nothing to wait for: the run the daemon still holds
+      // open (input that Pi rejected or handled without a turn) ends here, and the worker is left alone (R111).
+      if (isIdle(state)) {
+        tracker.finish(true);
         return;
       }
       const settled = tracker.waitIdle(ABORT_SETTLE_MS);

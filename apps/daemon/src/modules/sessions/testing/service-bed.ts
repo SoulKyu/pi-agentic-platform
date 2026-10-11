@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import type { InitRecord } from "@pap/contracts";
+import { ALL_PERMISSIONS, type Caller, type Cursor, type EventFrame, type InitRecord } from "@pap/contracts";
 import { type Clock, createFakeClock, type FakeClock } from "../../../kernel/clock.ts";
 import type { Db } from "../../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
@@ -20,6 +20,8 @@ export interface BedOptions {
   freeMemMb?: number;
   testProviderScript?: string | null;
   logger?: Logger;
+  /** The transcript reader fails to load this many times before it loads. */
+  readerFailures?: number;
   /** By the order the workers are spawned in, from 0. */
   start?(index: number, init: InitRecord): StartBehavior | undefined;
 }
@@ -38,7 +40,20 @@ export function sessionFileText(piId: string, exchanges: ReadonlyArray<readonly 
   const rows: unknown[] = [
     { type: "session", version: 3, id: piId, timestamp: "2026-10-10T00:00:00.000Z", cwd: "/w" },
   ];
-  let parentId: string | null = null;
+  // Pi puts its system prompt in the file as the first message (S1); the daemon never shows it (R107).
+  rows.push({
+    type: "message",
+    id: "s0",
+    parentId: null,
+    timestamp: "2026-10-10T00:00:00.500Z",
+    message: {
+      role: "system",
+      content: "",
+      sections: { preamble: "You are an expert coding assistant" },
+      timestamp: 0,
+    },
+  });
+  let parentId: string | null = "s0";
   exchanges.forEach(([user, assistant], index) => {
     const userId = `u${index}`;
     const assistantId = `a${index}`;
@@ -72,6 +87,9 @@ export function sessionFileText(piId: string, exchanges: ReadonlyArray<readonly 
   return `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`;
 }
 
+/** The one user of the beds: the owner of every session they make. */
+export const OWNER: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+
 const IDLE_STATE = {
   isStreaming: false,
   isCompacting: false,
@@ -81,7 +99,7 @@ const IDLE_STATE = {
 };
 
 /** What a sessions service is built from. The service and store themselves are the test's own: see `Factories`. */
-export interface ServiceParts<Store> {
+export interface ServiceParts<Store, Reader> {
   readonly store: Store;
   readonly clock: Clock;
   readonly logger: Logger;
@@ -95,18 +113,25 @@ export interface ServiceParts<Store> {
   newId(): string;
   freeMemMb(): number;
   spawn(cwd: string): WorkerHandle;
+  loadTranscript(): Promise<Reader>;
 }
 
 // A helper in `testing/` may import a module only through its index (the boundaries rule), so the service and the
 // store come in from the test files, which sit in the module and import what they test directly.
-export interface Factories<Store, Service extends { snapshot(key: string): unknown }> {
+export interface ServiceLike {
+  snapshot(key: string): unknown;
+  prepareSubscription(sessionId: string, caller: Caller): Promise<void>;
+}
+
+export interface Factories<Store, Reader, Service extends ServiceLike> {
   createSessionsStore(db: Db): Store;
-  createSessionsService(parts: ServiceParts<Store>): Service;
+  createSessionsService(parts: ServiceParts<Store, Reader>): Service;
+  loadTranscriptReader(): Promise<Reader>;
 }
 
 /** A sessions service over a real database, a real stream hub and fake workers, in a temporary directory. */
-export function createServiceBed<Store, Service extends { snapshot(key: string): unknown }>(
-  factories: Factories<Store, Service>,
+export function createServiceBed<Store, Reader, Service extends ServiceLike>(
+  factories: Factories<Store, Reader, Service>,
   options: BedOptions = {},
 ) {
   const dir = mkdtempSync(join(tmpdir(), "pap-sessions-"));
@@ -129,6 +154,7 @@ export function createServiceBed<Store, Service extends { snapshot(key: string):
   /** The session file each worker reported in `ready`, by spawn order. It exists only once the test writes it. */
   const files: string[] = [];
   let ids = 0;
+  const transcript = { loads: 0, failures: options.readerFailures ?? 0 };
   const service = factories.createSessionsService({
     store,
     clock,
@@ -137,6 +163,11 @@ export function createServiceBed<Store, Service extends { snapshot(key: string):
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
     worker: { agentDir, papHome: join(dir, "pap"), testProviderScript: options.testProviderScript ?? null },
     newId: () => `p${++ids}`,
+    loadTranscript: () => {
+      transcript.loads++;
+      if (transcript.failures-- > 0) return Promise.reject(new Error("the SDK did not load"));
+      return factories.loadTranscriptReader();
+    },
     freeMemMb: () => options.freeMemMb ?? 4096,
     spawn: () => {
       const index = spawned.length;
@@ -182,6 +213,26 @@ export function createServiceBed<Store, Service extends { snapshot(key: string):
     service,
     spawned,
     files,
+    transcript,
+    /** What a client is given: `subscribe.session` prepares the read first (owner, transcript reader), then the hub builds this. */
+    async snapshot(sessionId: string): Promise<ReturnType<Service["snapshot"]>> {
+      await service.prepareSubscription(sessionId, OWNER);
+      return service.snapshot(sessionId) as ReturnType<Service["snapshot"]>;
+    },
+    /** A client subscribing through the same two steps; the frames it receives collect in the returned array. */
+    async subscribe(sessionId: string, after?: Cursor): Promise<EventFrame[]> {
+      await service.prepareSubscription(sessionId, OWNER);
+      const frames: EventFrame[] = [];
+      hub.open({
+        connectionId: "c1",
+        sub: "s1",
+        stream: "session",
+        key: sessionId,
+        after,
+        send: (frame) => void frames.push(frame),
+      });
+      return frames;
+    },
     /** What Pi does with the first user message: the worker's session file comes into being. */
     writePiFile(
       index: number,

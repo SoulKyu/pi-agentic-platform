@@ -1,4 +1,7 @@
-import { SNAPSHOT_ROWS } from "./snapshot.ts";
+import { boundedRow, SNAPSHOT_ROWS } from "./snapshot.ts";
+
+/** All the messages a run may keep, as serialised: a run of big tool results must not grow the daemon without limit. */
+const RUN_BYTES = 1024 * 1024;
 
 export interface RunViewState {
   /** How many bytes of the session file the run found when it began: everything before is on disk for sure. */
@@ -22,16 +25,26 @@ export interface RunView {
 }
 
 export function createRunView(): RunView {
-  let current: { baselineBytes: number; messages: unknown[] } | null = null;
+  let current: { baselineBytes: number; messages: unknown[]; sizes: number[]; bytes: number } | null = null;
   return {
     begin(baselineBytes) {
-      current ??= { baselineBytes, messages: [] };
+      current ??= { baselineBytes, messages: [], sizes: [], bytes: 0 };
     },
     push(message) {
       if (!current) return;
-      current.messages.push(message);
-      // A snapshot carries a bounded number of rows, so older ones of a long run are never needed again.
-      if (current.messages.length > SNAPSHOT_ROWS) current.messages.shift();
+      // Measured before it is kept: a row over the per-row budget is only ever kept as its placeholder (R109).
+      const { row, size } = boundedRow(message);
+      current.messages.push(row);
+      current.sizes.push(size + 1);
+      current.bytes += size + 1;
+      // A snapshot carries a bounded number of rows and bytes, so older ones of a long run are never needed again.
+      while (
+        current.messages.length > SNAPSHOT_ROWS ||
+        (current.bytes > RUN_BYTES && current.messages.length > 1)
+      ) {
+        current.messages.shift();
+        current.bytes -= current.sizes.shift() ?? 0;
+      }
     },
     end() {
       current = null;

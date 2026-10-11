@@ -21,6 +21,8 @@ export const READY = { type: "ready" as const, sessionFile: "/f", sessionId: "s1
 
 export interface Options {
   compacting?: boolean;
+  /** Pi is in the middle of a reply when asked: `get_state` says so. */
+  streaming?: boolean;
   promptFails?: boolean;
   holdPrompt?: boolean;
   neverReady?: boolean;
@@ -46,13 +48,15 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
     const recorded: Array<[string, unknown]> = [];
     const exits: WorkerExit[] = [];
     const activity = { count: 0 };
+    /** What the worker's `get_state` answers: a test changes it as Pi's run progresses. */
+    const pi = { streaming: options.streaming ?? false };
     const worker = createFakeWorker({
       clock,
       reply: (command) => {
         if (command.type === "get_state") {
           return {
             data: {
-              isStreaming: false,
+              isStreaming: pi.streaming,
               isCompacting: options.compacting ?? false,
               pendingMessageCount: 0,
               sessionFile: "/f",
@@ -82,5 +86,5 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
       INIT,
     );
     if (!options.neverReady) worker.emit({ ...READY, sessionFile: options.sessionFile ?? "/f" });
-    return { clock, published, recorded, exits, activity, worker, live };
+    return { clock, published, recorded, exits, activity, worker, live, pi };
   };

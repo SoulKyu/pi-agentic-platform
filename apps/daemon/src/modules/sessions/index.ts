@@ -12,6 +12,7 @@ import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
+import { loadTranscriptReader } from "./transcript.ts";
 
 export const SESSIONS_MIGRATIONS: MigrationSource = {
   module: "sessions",
@@ -66,6 +67,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       testProviderScript: config.testProviderScript,
     },
     newId,
+    loadTranscript: loadTranscriptReader,
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
     spawn: (cwd) =>
       spawnWorker({

@@ -6,6 +6,7 @@ import { READY_TIMEOUT_MS } from "./live-session.ts";
 import { captureLogger, codeOf } from "./testing/helpers.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
+import { loadTranscriptReader } from "./transcript.ts";
 import { type BedOptions, createServiceBed } from "./testing/service-bed.ts";
 
 const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
@@ -19,7 +20,7 @@ const confirm = {
 };
 
 const build = (options?: BedOptions) =>
-  createServiceBed({ createSessionsStore, createSessionsService }, options);
+  createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader }, options);
 let bed: ReturnType<typeof build>;
 const open = (options?: BedOptions): typeof bed => (bed = build(options));
 afterEach(() => bed.dispose());
@@ -228,7 +229,7 @@ describe("who may do what", () => {
     const refused = [
       codeOf(bed.service.prompt({ sessionId: "p1", text: "hi" }, stranger)),
       codeOf(bed.service.abort("p1", stranger)),
-      codeOf(Promise.resolve().then(() => bed.service.assertReadable("p1", stranger))),
+      codeOf(bed.service.prepareSubscription("p1", stranger)),
       codeOf(
         Promise.resolve().then(() =>
           bed.service.respondDialog(

@@ -58,7 +58,7 @@ export const methods = catalogue({
   "sessions.abort": defineMethod({
     name: "sessions.abort",
     permission: "sessions:operate",
-    idempotent: true,
+    idempotent: false,
     params: z.object({ sessionId: SessionId }),
     result: Ok,
     errors: ["not_found"],

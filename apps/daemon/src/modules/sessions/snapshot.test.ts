@@ -1,6 +1,6 @@
 import type { Dialog } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
-import { fitSnapshot, SNAPSHOT_BYTES, SNAPSHOT_ROWS } from "./snapshot.ts";
+import { fitSnapshot, ROW_BYTES, SNAPSHOT_BYTES, SNAPSHOT_ROWS } from "./snapshot.ts";
 
 const sizeOf = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 const row = (n: number, filler = "") => ({ role: "user", content: `m${n}${filler}` });
@@ -63,5 +63,46 @@ describe("fitSnapshot", () => {
     const snapshot = fitSnapshot({ status: "running", rows: [row(1)], dialogs });
     expect(sizeOf(snapshot)).toBeLessThanOrEqual(SNAPSHOT_BYTES);
     expect(SNAPSHOT_BYTES + 512).toBeLessThan(1024 * 1024);
+  });
+
+  describe("a row over the per-row budget (R109)", () => {
+    const huge = (n: number) => ({ role: "toolResult", timestamp: n, content: "x".repeat(ROW_BYTES + 10) });
+
+    it("never empties the snapshot: the newest row becomes a placeholder and the older rows stay", () => {
+      const rows = [row(1), row(2), huge(3)];
+      const snapshot = fitSnapshot({ status: "idle", rows, dialogs: [] });
+      if (snapshot.kind !== "snapshot") throw new Error("expected a snapshot");
+      expect(snapshot.messages).toEqual([
+        row(1),
+        row(2),
+        { role: "toolResult", timestamp: 3, omitted: true, bytes: sizeOf(huge(3)) },
+      ]);
+    });
+
+    it("says what it can of a row that has no role or timestamp", () => {
+      const snapshot = fitSnapshot({ status: "idle", rows: ["x".repeat(ROW_BYTES + 10)], dialogs: [] });
+      expect(snapshot.kind === "snapshot" && snapshot.messages).toEqual([
+        { role: "unknown", timestamp: null, omitted: true, bytes: ROW_BYTES + 12 },
+      ]);
+    });
+
+    it("keeps a placeholder a run already made as it is", () => {
+      const placeholder = { role: "toolResult", timestamp: 3, omitted: true, bytes: 999_999 };
+      const snapshot = fitSnapshot({ status: "idle", rows: [row(1), placeholder], dialogs: [] });
+      expect(snapshot.kind === "snapshot" && snapshot.messages).toEqual([row(1), placeholder]);
+    });
+
+    it("still ends the history at the first row that does not fit the rest of the budget", () => {
+      const rows = Array.from({ length: 6 }, (_, i) => ({
+        role: "user",
+        content: "y".repeat(ROW_BYTES - 100),
+        i,
+      }));
+      const snapshot = fitSnapshot({ status: "idle", rows, dialogs: [] });
+      if (snapshot.kind !== "snapshot") throw new Error("expected a snapshot");
+      expect(snapshot.messages.length).toBeLessThan(6);
+      expect(snapshot.messages.at(-1)).toEqual(rows.at(-1));
+      expect(sizeOf(snapshot)).toBeLessThanOrEqual(SNAPSHOT_BYTES);
+    });
   });
 });
