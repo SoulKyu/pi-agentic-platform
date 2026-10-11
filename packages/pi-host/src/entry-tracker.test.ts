@@ -165,13 +165,41 @@ describe("entry tracker", () => {
   });
 
   it("sends a burst in batches of the bound, one batch per macrotask, in order, without a resync", () => {
-    const { t, tracker, sent, runAll, ids } = bed((x) => x.append("user", "start"));
+    const { t, tracker, sent, deferred, run, ids } = bed((x) => x.append("user", "start"));
     for (let i = 0; i < 300; i++) t.append("custom", `n${i}`);
     tracker.observe({ type: "entry_appended", entry: { id: "x" } });
-    expect(runAll()).toBe(3);
+    const sizes: number[] = [];
+    while (deferred.length > 0) {
+      const before = sent.length;
+      expect(deferred).toHaveLength(1);
+      run();
+      sizes.push(sent.length - before);
+    }
+    expect(sizes).toEqual([MAX_FLUSH_ENTRIES, MAX_FLUSH_ENTRIES, 300 - 2 * MAX_FLUSH_ENTRIES]);
     expect(ids()).toEqual(Array.from({ length: 300 }, (_, i) => `n${i}`));
     expect(sent.some((record) => record.type === "leaf")).toBe(false);
-    expect(MAX_FLUSH_ENTRIES).toBe(128);
+  });
+
+  it("sends an entry appended between two batches after the burst, once, in order", () => {
+    const { t, tracker, runAll, run, ids } = bed((x) => x.append("user", "start"));
+    for (let i = 0; i < 300; i++) t.append("custom", `n${i}`);
+    tracker.observe({ type: "entry_appended", entry: { id: "x" } });
+    run();
+    t.append("assistant", "late");
+    tracker.observe({ type: "message_end" });
+    runAll();
+    expect(ids()).toEqual([...Array.from({ length: 300 }, (_, i) => `n${i}`), "late"]);
+  });
+
+  it("walks again for a leaf that moved while a burst was being sent", () => {
+    const { t, tracker, sent, runAll, run } = bed((x) => x.append("user", "start"));
+    for (let i = 0; i < 200; i++) t.append("custom", `n${i}`);
+    tracker.observe({ type: "entry_appended", entry: { id: "x" } });
+    run();
+    t.moveTo("start");
+    tracker.leafMayHaveMoved();
+    runAll();
+    expect(sent.at(-1)).toEqual({ type: "leaf", leafId: "start", resync: false });
   });
 
   it("keeps skipping announced entries across batches and ends with the leaf record when the leaf was announced", () => {

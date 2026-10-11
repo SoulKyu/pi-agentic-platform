@@ -49,6 +49,8 @@ export function createEntryTracker(deps: EntryTrackerDeps): EntryTracker {
   const { manager } = deps;
   let reported = manager.getLeafId();
   let scheduled = false;
+  // An event came while a burst was still being sent: once the queue is empty the leaf is looked at again.
+  let dirty = false;
   const announced = new Set<string>();
 
   // Entries found by a walk and not yet sent, oldest first, and the leaf that walk started from.
@@ -58,6 +60,7 @@ export function createEntryTracker(deps: EntryTrackerDeps): EntryTracker {
 
   // Looks at the leaf; when it moved along a chain from the reported one, queues the entries not announced yet.
   function walk(): void {
+    dirty = false;
     const leaf = manager.getLeafId();
     if (leaf === reported) return;
     const fresh: Array<{ id: string; parentId: string | null }> = [];
@@ -98,16 +101,24 @@ export function createEntryTracker(deps: EntryTrackerDeps): EntryTracker {
         deps.send({ type: "entry_appended", entry: slimEntry(entry as unknown as Record<string, unknown>) });
         lastSent = entry.id;
       }
-      if (pending.length > 0) schedule();
-      else if (lastSent !== pendingLeaf) deps.send({ type: "leaf", leafId: pendingLeaf, resync: false });
+      if (pending.length > 0) {
+        schedule();
+        return;
+      }
+      if (lastSent !== pendingLeaf) deps.send({ type: "leaf", leafId: pendingLeaf, resync: false });
+      if (dirty) schedule();
     } catch (error) {
       pending = [];
+      dirty = false;
       deps.onError(error);
     }
   }
 
   function schedule(): void {
-    if (scheduled) return;
+    if (scheduled) {
+      dirty = true;
+      return;
+    }
     scheduled = true;
     deps.defer(flush);
   }
