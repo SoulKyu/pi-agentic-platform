@@ -15,6 +15,7 @@ Status: design phase complete (specs A, C, D and [DESIGN.md](../DESIGN.md) writt
 
 ## Decisions
 - [research/decisions-log.md](research/decisions-log.md): every decision taken during brainstorming, numbered.
+- [research/m0-m1-rulings.md](research/m0-m1-rulings.md): the rulings (R1–R130) taken while implementing M0 + M1, incl. backlog items for later milestones.
 
 ## Architecture (spec C, validated section by section)
 - [architecture/01-overview.html](architecture/01-overview.html): process view, repo layout, anti-sprawl rules, the `pap` binary.
