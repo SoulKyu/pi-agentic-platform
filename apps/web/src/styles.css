@@ -18,12 +18,18 @@ html[data-keyboard-open] [data-slot="bottom-nav"] {
   display: none;
 }
 
-[data-shell="mobile"] {
-  --toast-bottom: calc(var(--bar-h) + 2.75rem + env(safe-area-inset-bottom, 0px));
+/* <html> carries the layout: the Toaster is a sibling of the router and cannot inherit from the shell element. */
+html[data-shell="mobile"] {
+  --bottom-nav-height: 3rem;
+  --toast-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 0.5rem);
 }
 
-html:has([data-shell="mobile"]) [data-slot="toast-viewport"] {
-  bottom: var(--toast-bottom);
+[data-slot="bottom-nav"] {
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+}
+
+html[data-shell="mobile"] [data-slot="toast-viewport"] {
+  bottom: var(--toast-bottom, 0.5rem);
 }
 
 /* The keyboard hides the bottom nav, and the layout viewport stays behind it: lift toasts by what the keyboard covers. */

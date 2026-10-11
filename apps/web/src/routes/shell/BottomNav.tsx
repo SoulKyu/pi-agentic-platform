@@ -9,7 +9,7 @@ import {
   IconWork,
   type IconGlyph,
 } from "@pap/ui";
-import { useT } from "../../i18n/index.ts";
+import { useLocale, useT, type Locale, type Translate } from "../../i18n/index.ts";
 
 export type MobileSection = "agents" | "work" | "lists" | "inbox";
 
@@ -24,6 +24,12 @@ const SECTIONS: ReadonlyArray<{
   { id: "inbox", icon: IconInbox, label: "shell.mobile.inbox" },
 ];
 
+/** "1 unread", "2 unread": the plural category comes from the language (French: 0 and 1 are singular). */
+function inboxCountLabel(locale: Locale, t: Translate, count: number): string {
+  const singular = new Intl.PluralRules(locale).select(count) === "one";
+  return t(singular ? "shell.mobile.inboxCountOne" : "shell.mobile.inboxCount", { count });
+}
+
 interface BottomNavProps {
   readonly section: MobileSection;
   readonly inboxCount: number;
@@ -33,6 +39,7 @@ interface BottomNavProps {
 /** The phone's four sections (DESIGN.md §8). Hidden by styles.css while the keyboard is open. */
 export function BottomNav({ section, inboxCount, onSection }: BottomNavProps) {
   const t = useT();
+  const locale = useLocale();
   return (
     <nav
       aria-label={t("shell.mobile.sections")}
@@ -46,7 +53,7 @@ export function BottomNav({ section, inboxCount, onSection }: BottomNavProps) {
           aria-current={section === id ? "page" : undefined}
           onClick={() => onSection(id)}
           className={cn(
-            "relative flex min-h-11 flex-col items-center justify-center gap-s1 py-s1 label-hud",
+            "relative flex h-full min-h-11 flex-col items-center justify-center gap-s1 label-hud",
             section === id ? "text-fg" : "text-muted",
             FOCUS_RING,
           )}
@@ -55,7 +62,8 @@ export function BottomNav({ section, inboxCount, onSection }: BottomNavProps) {
           <span>{t(label)}</span>
           {id === "inbox" && inboxCount > 0 ? (
             <span className="absolute right-s3 top-s1">
-              <Badge count={inboxCount} label={t("shell.mobile.inboxCount")} />
+              {" "}
+              <Badge count={inboxCount} label={inboxCountLabel(locale, t, inboxCount)} />
             </span>
           ) : null}
         </button>

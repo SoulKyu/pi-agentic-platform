@@ -1,6 +1,6 @@
 import { EmptyState, IconButton, IconLists, IconSearch, Mark } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
@@ -30,6 +30,13 @@ export function MobileShell() {
     setSeenPath(pathname);
     setSection("work");
   }
+  // The Toaster is a sibling of the router, outside this tree: styles.css reads the layout from <html>.
+  useEffect(() => {
+    document.documentElement.dataset["shell"] = "mobile";
+    return () => {
+      delete document.documentElement.dataset["shell"];
+    };
+  }, []);
   const item = itemFromPath(pathname, import.meta.env.DEV);
   const title = item ? itemTitle(item, sessions, t) : t("shell.notFound.title");
   return (

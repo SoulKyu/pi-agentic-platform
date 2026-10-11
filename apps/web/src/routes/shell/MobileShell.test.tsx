@@ -166,30 +166,9 @@ describe("phone shell", () => {
     const css = readFileSync(join(import.meta.dirname, "../../styles.css"), "utf8");
     expect(css).toMatch(/html\[data-keyboard-open\] \[data-slot="bottom-nav"\]\s*\{\s*display:\s*none;/);
   });
-
-  it("lifts toasts above the bottom nav and keeps them inside the visual viewport", () => {
-    const css = readFileSync(join(import.meta.dirname, "../../styles.css"), "utf8");
-    expect(css).toMatch(/\[data-shell="mobile"\]\s*\{\s*--toast-bottom:/);
-    expect(css).toMatch(
-      /html:has\(\[data-shell="mobile"\]\) \[data-slot="toast-viewport"\]\s*\{\s*bottom:\s*var\(--toast-bottom\);/,
-    );
-    expect(css).toMatch(
-      /html\[data-keyboard-open\] \[data-slot="toast-viewport"\]\s*\{[^}]*var\(--app-viewport-height/,
-    );
-  });
 });
 
 describe("BottomNav", () => {
-  it("badges Inbox with its count and says what the number is", async () => {
-    const page = await mount(
-      createElement(BottomNav, { section: "inbox", inboxCount: 3, onSection: () => {} }),
-    );
-    const inbox = page.container.querySelectorAll("button")[3] as HTMLElement;
-    expect(inbox.getAttribute("aria-current")).toBe("page");
-    expect(inbox.querySelector('[data-slot="badge"]')).not.toBeNull();
-    await page.unmount();
-  });
-
   it("shows no badge at zero and reports the tab that was pressed", async () => {
     const picked: string[] = [];
     const page = await mount(

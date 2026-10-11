@@ -65,8 +65,17 @@ function Probe() {
 /** A visualViewport that keeps its listeners where the test can count them. */
 function fakeViewport() {
   const listeners = new Map<string, Set<EventListener>>();
+  let height = 400;
+  let reads = 0;
   return {
-    height: 400,
+    get height() {
+      reads += 1;
+      return height;
+    },
+    set height(value: number) {
+      height = value;
+    },
+    reads: () => reads,
     scale: 1,
     addEventListener: (type: string, listener: EventListener) => {
       listeners.set(type, (listeners.get(type) ?? new Set()).add(listener));
@@ -151,7 +160,7 @@ describe("useViewportHeight", () => {
     await page.unmount();
   });
 
-  it("re-reads the geometry five times and a trigger during the chain does not start another", async () => {
+  it("starts one chain of five timers, and a trigger during the chain does not start another", async () => {
     const timers = vi.spyOn(globalThis, "setTimeout");
     const page = await mount(createElement(Probe));
     expect(timers).toHaveBeenCalledTimes(1);
@@ -168,6 +177,42 @@ describe("useViewportHeight", () => {
 
     viewport.fire("resize"); // a finished chain lets the next trigger start a new one
     expect(timers).toHaveBeenCalledTimes(6);
+    await page.unmount();
+  });
+
+  it("reads the geometry on the frame, then after 48, 120, 240, 420 and 720 ms one after the other, and then stops", async () => {
+    const page = await mount(createElement(Probe));
+    const readsAt = (ms: number) => {
+      vi.advanceTimersByTime(ms);
+      return viewport.reads();
+    };
+    expect(readsAt(16)).toBe(1); // the frame
+    expect(readsAt(31)).toBe(1); // t = 47
+    expect(readsAt(1)).toBe(2); // 48
+    expect(readsAt(119)).toBe(2); // t = 167
+    expect(readsAt(1)).toBe(3); // 48 + 120
+    expect(readsAt(239)).toBe(3);
+    expect(readsAt(1)).toBe(4); // + 240
+    expect(readsAt(419)).toBe(4);
+    expect(readsAt(1)).toBe(5); // + 420
+    expect(readsAt(719)).toBe(5);
+    expect(readsAt(1)).toBe(6); // + 720
+    expect(readsAt(10_000)).toBe(6);
+    await page.unmount();
+  });
+
+  it("scrolls an unzoomed page back to the top on a read, and leaves a zoomed one alone", async () => {
+    const scrollTo = vi.fn();
+    vi.stubGlobal("scrollTo", scrollTo);
+    vi.stubGlobal("scrollY", 120);
+    const page = await mount(createElement(Probe));
+    vi.advanceTimersByTime(16);
+    expect(scrollTo).toHaveBeenCalledWith(0, 0);
+    scrollTo.mockClear();
+    viewport.scale = 2;
+    viewport.fire("scroll");
+    vi.advanceTimersByTime(16);
+    expect(scrollTo).not.toHaveBeenCalled();
     await page.unmount();
   });
 

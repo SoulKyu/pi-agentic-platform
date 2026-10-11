@@ -26,6 +26,7 @@ export default function TabSwitcher({ open, onOpenChange }: TabSwitcherProps) {
       closeLabel={t("ui.close")}
       variant="sheet"
     >
+      {ws.tabs.length === 0 ? <p className="p-s3 text-ui text-muted">{t("shell.mobile.noTabs")}</p> : null}
       <ul className="flex flex-col gap-s1 p-s3">
         {ws.tabs.map((tab) => {
           const title = itemTitle(tab.item, sessions, t);
