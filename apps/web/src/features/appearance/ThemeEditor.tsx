@@ -4,7 +4,8 @@ import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { getLocale, useT } from "../../i18n/index.ts";
 import { deriveTheme, roleChecks, tokenVars, type RoleCheck } from "./derive.ts";
-import { downloadThemeFile, newThemeId, type ThemeFileError } from "./theme-io.ts";
+import { downloadThemeFile, type ThemeFileError } from "./theme-io.ts";
+import { newThemeId } from "./theme-ids.ts";
 import { ImportButton, ImportErrors } from "./ThemeImport.tsx";
 
 type Role = (typeof THEME_ROLES)[number];

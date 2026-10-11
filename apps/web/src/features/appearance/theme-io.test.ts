@@ -5,12 +5,12 @@ import {
   downloadThemeFile,
   exportThemeFile,
   MAX_THEME_FILE_BYTES,
-  newThemeId,
   parseThemeFile,
   presetRoles,
   readThemeFile,
   themeFileErrors,
 } from "./theme-io.ts";
+import { newThemeId } from "./theme-ids.ts";
 
 const example =
   '{"name":"My theme","base":"night","roles":{"bg":"#0E1626","surface":"#132033","agent":"#38BDF8","you":"#FB923C","attn":"#EC4899","ok":"#34D399","err":"#F87171","text":"#E6EDF7"}}';

@@ -15,7 +15,8 @@ import { useId, useState } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
-import { downloadThemeFile, newThemeId, presetRoles, type ThemeFileError } from "./theme-io.ts";
+import { downloadThemeFile, presetRoles, type ThemeFileError } from "./theme-io.ts";
+import { newThemeId } from "./theme-ids.ts";
 import { ImportButton, ImportErrors } from "./ThemeImport.tsx";
 
 type Draft = Omit<CustomTheme, "id">;

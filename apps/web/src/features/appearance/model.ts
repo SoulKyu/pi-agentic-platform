@@ -1,7 +1,7 @@
 import { AccountAppearanceFields, CustomTheme, type AccountAppearance } from "@pap/contracts";
 import { DENSITIES, type Density, type ThemeName } from "@pap/ui";
 import { deriveTheme, tokenVars } from "./derive.ts";
-import { newThemeId } from "./theme-io.ts";
+import { newThemeId } from "./theme-ids.ts";
 
 export const DEVICE_KEY = "pap.appearance.device.v1";
 export const ACCOUNT_CACHE_KEY = "pap.appearance.account.v1";

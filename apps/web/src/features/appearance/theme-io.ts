@@ -1,4 +1,4 @@
-import { CustomTheme, PRESET_THEME_IDS } from "@pap/contracts";
+import { CustomTheme } from "@pap/contracts";
 import { PRESET_TOKENS, type ThemeName } from "@pap/ui";
 import { downloadJsonFile } from "../../lib/download-file.ts";
 
@@ -57,23 +57,6 @@ export function exportThemeFile(theme: CustomTheme): string {
 /** Hands the file to the browser through the shared download helper (`schedule` is injectable for tests). */
 export function downloadThemeFile(theme: CustomTheme, schedule?: (revoke: () => void) => void): void {
   downloadJsonFile(`${theme.id}.json`, exportThemeFile(theme), schedule);
-}
-
-/** T3's id rule (^[a-z0-9][a-z0-9-]{0,47}$), unique among `taken` and never a preset's id (M3-RT-09). */
-export function newThemeId(name: string, taken: ReadonlySet<string>): string {
-  const used = new Set<string>([...taken, ...PRESET_THEME_IDS]);
-  const slug =
-    name
-      .normalize("NFKD")
-      .replace(/\p{M}/gu, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 40)
-      .replace(/-+$/, "") || "theme";
-  if (!used.has(slug)) return slug;
-  // At most 16 themes plus 3 presets are taken, so a free suffix always exists within the first 20 tries.
-  for (let n = 2; ; n++) if (!used.has(`${slug}-${n}`)) return `${slug}-${n}`;
 }
 
 /** A preset as a custom theme's eight roles: the fills, not the darkened text tones, for agent, you and attention. */
