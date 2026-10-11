@@ -12,8 +12,30 @@ import { reportClientIssue } from "./report.ts";
 
 interface BoundaryProps {
   readonly resetKey: number;
-  onError(): void;
+  onError(error: unknown): void;
+  /** Shown while the chunk loads and after a failure (until the next `resetKey`); nothing by default. */
+  readonly fallback?: ReactNode;
   readonly children: ReactNode;
+}
+
+// What browsers throw when a lazy chunk is gone after an update: Chromium, Safari, Firefox, bundler wording.
+const STALE_CHUNK =
+  /dynamically imported module|importing a module script failed|error loading dynamically|ChunkLoadError/i;
+
+const looksStale = (error: unknown): boolean =>
+  error instanceof Error && (STALE_CHUNK.test(error.message) || error.name === "ChunkLoadError");
+
+/** A wrapper that re-throws the import failure (a bundler helper, the test runner's mock) keeps it as `cause`. */
+export const isStaleChunk = (error: unknown): boolean =>
+  looksStale(error) || (error instanceof Error && looksStale(error.cause));
+
+/** What a failed lazy part says, translated by the caller (`lib/` does not import the catalogs). */
+export interface LazyFailureText {
+  /** A chunk that is gone: pap was updated. */
+  readonly stale: string;
+  /** Any other failure of the part itself. */
+  readonly broken: string;
+  readonly reload: string;
 }
 
 /**
@@ -28,8 +50,8 @@ export class LazyBoundary extends Component<BoundaryProps, { readonly failed: bo
     return { failed: true };
   }
 
-  override componentDidCatch(): void {
-    this.props.onError();
+  override componentDidCatch(error: unknown): void {
+    this.props.onError(error);
   }
 
   override componentDidUpdate(previous: BoundaryProps): void {
@@ -37,7 +59,8 @@ export class LazyBoundary extends Component<BoundaryProps, { readonly failed: bo
   }
 
   override render(): ReactNode {
-    return this.state.failed ? null : <Suspense fallback={null}>{this.props.children}</Suspense>;
+    const fallback = this.props.fallback ?? null;
+    return this.state.failed ? fallback : <Suspense fallback={fallback}>{this.props.children}</Suspense>;
   }
 }
 
@@ -61,11 +84,15 @@ export function useRetryableLazy<P extends object>(
   };
 }
 
-/** One line in the client log and a toast with Reload; the strings come translated from the caller. */
-export function notifyLazyFailure(text: { readonly message: string; readonly reload: string }): void {
-  reportClientIssue("lazy_chunk_failed");
+/**
+ * One line in the client log and a toast with Reload. A chunk that is gone says pap was updated; a part that threw
+ * says it stopped working, so a render bug is not blamed on an update.
+ */
+export function notifyLazyFailure(error: unknown, text: LazyFailureText): void {
+  const stale = isStaleChunk(error);
+  reportClientIssue(stale ? "lazy_chunk_failed" : "render_failed");
   toast({
-    message: text.message,
+    message: stale ? text.stale : text.broken,
     tone: "error",
     action: { label: text.reload, altText: text.reload, run: () => window.location.reload() },
   });

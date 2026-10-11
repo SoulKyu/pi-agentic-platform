@@ -12,8 +12,8 @@ import {
 } from "@pap/ui";
 import { Menu } from "@pap/ui/overlays";
 import { useId, useState } from "react";
-import { useT } from "../../i18n/index.ts";
-import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { downloadThemeFile, newThemeId, presetRoles, type ThemeFileError } from "./theme-io.ts";
 import { ImportButton, ImportErrors } from "./ThemeImport.tsx";
@@ -38,7 +38,7 @@ export function CustomThemes() {
   const themes = useAppearanceStore((s) => s.account.customThemes);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [importErrors, setImportErrors] = useState<readonly ThemeFileError[]>([]);
-  const { Lazy, attempt, retry } = useRetryableLazy(loadEditor);
+  const lazyText = useLazyFailureText();
   const full = themes.length >= THEME_LIMIT;
   const open = (next: Editing) => {
     setImportErrors([]);
@@ -193,23 +193,20 @@ export function CustomThemes() {
       ) : null}
       <ImportErrors errors={importErrors} />
       {editing === null ? null : (
-        <LazyBoundary
-          resetKey={attempt}
-          onError={() => {
-            setEditing(null);
-            retry();
-            notifyLazyFailure({ message: t("shell.lazyFailed"), reload: t("shell.reload") });
-          }}
-        >
-          <Lazy
-            open
-            onOpenChange={(next) => {
+        <LazyPanel
+          load={loadEditor}
+          open
+          text={lazyText}
+          onFailed={() => setEditing(null)}
+          props={{
+            open: true,
+            onOpenChange: (next: boolean) => {
               if (!next) setEditing(null);
-            }}
-            initial={editing.initial}
-            onSave={save}
-          />
-        </LazyBoundary>
+            },
+            initial: editing.initial,
+            onSave: save,
+          }}
+        />
       )}
     </div>
   );

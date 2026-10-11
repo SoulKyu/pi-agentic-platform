@@ -12,7 +12,7 @@ import { DEFAULT_ACCOUNT } from "./model.ts";
 registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr });
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
 vi.mock("./ThemeEditor.tsx", () => {
-  throw new Error("chunk gone");
+  throw new Error("Failed to fetch dynamically imported module: chunk.js");
 });
 
 afterEach(() => vi.restoreAllMocks());

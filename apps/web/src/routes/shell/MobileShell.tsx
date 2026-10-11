@@ -3,11 +3,11 @@ import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
-import { useT } from "../../i18n/index.ts";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
-import { LazyPanel } from "./LazyPanel.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { SessionTree } from "./SessionTree.tsx";
@@ -19,6 +19,7 @@ const loadTabSwitcher = () => import("./TabSwitcher.tsx");
 /** Below 768 px (DESIGN.md §8): one pane at a time, the four sections in a bottom nav. No split, no rail. */
 export function MobileShell() {
   const t = useT();
+  const lazyText = useLazyFailureText();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const sessions = useSessionsCache((state) => state.sessions);
@@ -72,6 +73,7 @@ export function MobileShell() {
       </div>
       <BottomNav section={section} inboxCount={0} onSection={setSection} />
       <LazyPanel
+        text={lazyText}
         load={loadTabSwitcher}
         open={tabsOpen}
         props={{ open: tabsOpen, onOpenChange: setTabsOpen }}

@@ -20,7 +20,7 @@ vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
 });
 // A pap update removed the chunk: the dynamic import rejects.
 vi.mock("../../features/commands/ShortcutsHelp.tsx", () => {
-  throw new Error("chunk gone");
+  throw new Error("Failed to fetch dynamically imported module: chunk.js");
 });
 
 let started: Array<{ stop(): void }> = [];

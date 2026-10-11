@@ -65,6 +65,7 @@ export const shellEn = {
   "shell.agents.emptyPurpose": "A long-term agent has its own thread, memory, budget and triggers.",
   "shell.lazyPane.title": "This screen did not load",
   "shell.lazyFailed": "This part of pap did not load. pap may have been updated: reload the page.",
+  "shell.lazyBroken": "This part of pap stopped working. Reload the page.",
 } as const;
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
@@ -138,4 +139,5 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.lazyPane.title": "Cet écran ne s'est pas chargé",
   "shell.lazyFailed":
     "Cette partie de pap ne s'est pas chargée. pap a peut-être été mis à jour : rechargez la page.",
+  "shell.lazyBroken": "Cette partie de pap a cessé de fonctionner. Rechargez la page.",
 };

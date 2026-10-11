@@ -26,7 +26,7 @@ describe("lazy chunks (M3-RT-15)", () => {
     const Panel = () => <p>panel</p>;
     const load = vi
       .fn<() => Promise<{ default: ComponentType }>>()
-      .mockRejectedValueOnce(new Error("chunk gone"))
+      .mockRejectedValueOnce(new Error("Failed to fetch dynamically imported module: chunk.js"))
       .mockResolvedValue({ default: Panel });
     const onError = vi.fn();
     const page = await mount(<Host load={load} onError={onError} />);

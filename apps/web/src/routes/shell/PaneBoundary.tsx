@@ -1,15 +1,9 @@
 import { Button, EmptyState } from "@pap/ui";
 import { Component, Suspense, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
+import { isStaleChunk } from "../../lib/lazy.tsx";
 import { reportClientIssue } from "../../lib/report.ts";
 import { RouteErrorScreen } from "../RouteError.tsx";
-
-// What browsers throw when a lazy chunk is gone after an update: Chromium, Safari, Firefox, bundler wording.
-const STALE_CHUNK =
-  /dynamically imported module|importing a module script failed|error loading dynamically|ChunkLoadError/i;
-
-export const isStaleChunk = (error: unknown): boolean =>
-  error instanceof Error && (STALE_CHUNK.test(error.message) || error.name === "ChunkLoadError");
 
 function Updated() {
   const t = useT();

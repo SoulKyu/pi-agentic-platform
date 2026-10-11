@@ -10,11 +10,11 @@ import {
   useKeybindingsStore,
 } from "../../features/commands/index.ts";
 import { pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts";
-import { useT } from "../../i18n/index.ts";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { buildPaletteItems } from "./palette-items.ts";
-import { LazyPanel } from "./LazyPanel.tsx";
 import { useSessionsCache } from "./sessions-cache.ts";
 import { go } from "./tab-actions.ts";
 
@@ -23,6 +23,7 @@ const loadPalette = () => import("../../features/commands/palette/CommandPalette
 /** Owns `palette.toggle`. The palette and cmdk are fetched on first open, so none of it is in the initial bundle. */
 export function PaletteHost() {
   const t = useT();
+  const lazyText = useLazyFailureText();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   useCommand("palette.toggle", () => setOpen((current) => !current));
@@ -65,6 +66,7 @@ export function PaletteHost() {
   );
   return (
     <LazyPanel
+      text={lazyText}
       load={loadPalette}
       open={open}
       props={{ open, onOpenChange: setOpen, items, platform: detectPlatform() }}

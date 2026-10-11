@@ -1,8 +1,8 @@
 import { Button, EmptyState } from "@pap/ui";
 import type { ComponentType } from "react";
 import { useState } from "react";
-import { useT } from "../../i18n/index.ts";
-import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { isStaleChunk, LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
 
 interface LazyPaneProps<P extends object> {
   readonly load: () => Promise<{ default: ComponentType<P> }>;
@@ -15,18 +15,19 @@ interface LazyPaneProps<P extends object> {
  */
 export function LazyPane<P extends object>({ load, props }: LazyPaneProps<P>) {
   const t = useT();
+  const text = useLazyFailureText();
   const { Lazy, attempt, retry } = useRetryableLazy(load);
-  const [failed, setFailed] = useState(false);
-  if (failed) {
+  const [failure, setFailure] = useState<string | null>(null);
+  if (failure !== null) {
     return (
       <EmptyState
         title={t("shell.lazyPane.title")}
-        purpose={t("shell.lazyFailed")}
+        purpose={failure}
         action={
           <Button
             variant="primary"
             onClick={() => {
-              setFailed(false);
+              setFailure(null);
               retry();
             }}
           >
@@ -39,9 +40,9 @@ export function LazyPane<P extends object>({ load, props }: LazyPaneProps<P>) {
   return (
     <LazyBoundary
       resetKey={attempt}
-      onError={() => {
-        setFailed(true);
-        notifyLazyFailure({ message: t("shell.lazyFailed"), reload: t("shell.reload") });
+      onError={(error) => {
+        setFailure(isStaleChunk(error) ? text.stale : text.broken);
+        notifyLazyFailure(error, text);
       }}
     >
       <Lazy {...props} />

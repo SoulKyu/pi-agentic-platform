@@ -21,7 +21,9 @@ async function show(load: () => Promise<{ default: typeof Screen }>) {
 
 describe("LazyPane", () => {
   it("imports once on a failure, says so once, and offers Retry instead of looping", async () => {
-    const load = vi.fn().mockRejectedValue(new Error("chunk gone"));
+    const load = vi
+      .fn()
+      .mockRejectedValue(new Error("Failed to fetch dynamically imported module: chunk.js"));
     const page = await show(load);
     await settle();
     await settle();
@@ -36,7 +38,7 @@ describe("LazyPane", () => {
   it("imports once more on Retry, and renders the screen when that works", async () => {
     const load = vi
       .fn()
-      .mockRejectedValueOnce(new Error("chunk gone"))
+      .mockRejectedValueOnce(new Error("Failed to fetch dynamically imported module: chunk.js"))
       .mockResolvedValueOnce({ default: Screen });
     const page = await show(load);
     await settle();
@@ -49,7 +51,9 @@ describe("LazyPane", () => {
   });
 
   it("fails again on a failing Retry: one more import and one more toast, still no loop", async () => {
-    const load = vi.fn().mockRejectedValue(new Error("chunk gone"));
+    const load = vi
+      .fn()
+      .mockRejectedValue(new Error("Failed to fetch dynamically imported module: chunk.js"));
     const page = await show(load);
     await settle();
     await click(button(page.container, "Retry"));

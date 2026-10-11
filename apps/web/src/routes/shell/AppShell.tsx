@@ -2,11 +2,11 @@ import { useIsPhone } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectPlatform } from "../../features/commands/index.ts";
-import { useT } from "../../i18n/index.ts";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
-import { LazyPanel } from "./LazyPanel.tsx";
 import { MobileShell } from "./MobileShell.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
@@ -34,6 +34,7 @@ const loadShortcutsHelp = () => import("../../features/commands/ShortcutsHelp.ts
 /** The URL names the active item. Desktop: rail, tabs and split panes; below 768 px: one pane and a bottom nav. */
 export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellProps) {
   const mobile = useIsPhone();
+  const lazyText = useLazyFailureText();
   const [treeOpen, setTreeOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -55,18 +56,21 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
       {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
       <PaletteHost />
       <LazyPanel
+        text={lazyText}
         load={loadTreeDrawer}
         open={treeOpen}
         props={{ open: treeOpen, onOpenChange: setTreeOpen }}
         onFailed={() => setTreeOpen(false)}
       />
       <LazyPanel
+        text={lazyText}
         load={loadInboxDrawer}
         open={inboxOpen}
         props={{ open: inboxOpen, onOpenChange: setInboxOpen }}
         onFailed={() => setInboxOpen(false)}
       />
       <LazyPanel
+        text={lazyText}
         load={loadShortcutsHelp}
         open={helpOpen}
         props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}

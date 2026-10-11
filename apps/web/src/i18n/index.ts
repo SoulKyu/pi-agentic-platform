@@ -1,4 +1,5 @@
 import { useCallback, useSyncExternalStore } from "react";
+import type { LazyFailureText } from "../lib/lazy.tsx";
 import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
@@ -69,6 +70,12 @@ export function useT(): Translate {
   const locale = useLocale();
   const catalogs = useSyncExternalStore(onLocaleChange, getCatalogs, getCatalogs);
   return useCallback((key, vars) => translateIn(catalogs[locale], key, vars), [catalogs, locale]);
+}
+
+/** The words of a lazy part that failed to load or threw, for `LazyPanel`, `LazyMenu` and `LazyPane`. */
+export function useLazyFailureText(): LazyFailureText {
+  const t = useT();
+  return { stale: t("shell.lazyFailed"), broken: t("shell.lazyBroken"), reload: t("shell.reload") };
 }
 
 /** Settings › Language: remembered on this device, applied without a reload. False: applied to this page only. */

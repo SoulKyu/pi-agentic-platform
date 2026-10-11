@@ -2,7 +2,8 @@
 import { lazy } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasButton, mount, settle } from "../../testing/dom.ts";
-import { isStaleChunk, PaneBoundary } from "./PaneBoundary.tsx";
+import { isStaleChunk } from "../../lib/lazy.tsx";
+import { PaneBoundary } from "./PaneBoundary.tsx";
 
 const report = vi.hoisted(() => ({ reportClientIssue: vi.fn() }));
 vi.mock("../../lib/report.ts", () => report);
@@ -62,6 +63,9 @@ describe("isStaleChunk", () => {
     expect(isStaleChunk(new TypeError("Failed to fetch dynamically imported module: /a.js"))).toBe(true);
     expect(isStaleChunk(new TypeError("Importing a module script failed."))).toBe(true);
     expect(isStaleChunk(Object.assign(new Error("x"), { name: "ChunkLoadError" }))).toBe(true);
+    expect(
+      isStaleChunk(new Error("wrapper", { cause: new TypeError("Importing a module script failed.") })),
+    ).toBe(true);
     expect(isStaleChunk(new Error("boom"))).toBe(false);
     expect(isStaleChunk("Importing a module script failed")).toBe(false);
   });
