@@ -1,9 +1,26 @@
+import { execFile } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { gzipSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
+
+const run = promisify(execFile);
+
+// Loads one built chunk with string evaluation refused, as the daemon's CSP does, and prints the attempt count.
+const EVAL_PROBE = `
+const refused = [];
+const Real = globalThis.Function;
+globalThis.Function = new Proxy(Real, {
+  apply(target, self, args) { if (args.length) { refused.push(args); throw new EvalError("refused"); } return Reflect.apply(target, self, args); },
+  construct(target, args, newTarget) { if (args.length) { refused.push(args); throw new EvalError("refused"); } return Reflect.construct(target, args, newTarget); },
+});
+await import(process.argv[1]);
+console.log(refused.length);
+`;
 
 const webRoot = resolve(import.meta.dirname, "..");
 const repoRoot = resolve(webRoot, "../..");
@@ -94,6 +111,23 @@ describe("the built web app under the daemon's CSP", () => {
 
   it("ships no WebAssembly: the CSP has no 'wasm-unsafe-eval' (R74)", () => {
     expect(assets.filter((name) => name.endsWith(".wasm"))).toEqual([]);
+  });
+
+  // zod probes for eval with `Function("")` when it builds its first object schema (the `Cloudflare` marker is that
+  // probe). The chunk that holds zod must switch it off before any schema it contains is built (I1 of the final review).
+  it("never asks for eval while the chunk that holds zod loads (R74)", async () => {
+    const holders: string[] = [];
+    for (const name of assets.filter((asset) => asset.endsWith(".js")))
+      if (/Cloudflare/.test(await readFile(join(out, "assets", name), "utf8"))) holders.push(name);
+    expect(holders.length).toBeGreaterThan(0);
+    for (const name of holders) {
+      const { stdout } = await run(
+        process.execPath,
+        ["--input-type=module", "-e", EVAL_PROBE, pathToFileURL(join(out, "assets", name)).href],
+        { cwd: out },
+      );
+      expect(stdout.trim(), name).toBe("0");
+    }
   });
 
   it("keeps the initial JavaScript and CSS within the declared gzip budget", async () => {
