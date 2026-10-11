@@ -1,20 +1,32 @@
-import { createRootRoute, createRoute, createRouter, Navigate } from "@tanstack/react-router";
-import { SessionListScreen } from "../features/sessions/SessionListScreen.tsx";
-import { SessionScreen } from "../features/sessions/SessionScreen.tsx";
+import { createRootRoute, createRoute, createRouter, type RouterHistory } from "@tanstack/react-router";
+import type { ReactNode } from "react";
 import { RootLayout } from "./RootLayout.tsx";
+import { RouteError } from "./RouteError.tsx";
 
-const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: () => <Navigate to="/" /> });
-const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: SessionListScreen });
-const sessionRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/s/$sessionId",
-  component: function SessionRoute() {
-    const { sessionId } = sessionRoute.useParams();
-    return <SessionScreen key={sessionId} sessionId={sessionId} />;
-  },
-});
+// The routes name the URLs (typed links, M2's Link to="/s/$sessionId"); AppShell renders the panes from the path.
+const Empty = () => null;
 
-export const router = createRouter({ routeTree: rootRoute.addChildren([indexRoute, sessionRoute]) });
+/** The route tree under a root component: RootLayout in the app, AppShell alone in the shell test bed. */
+export function buildRouteTree(Root: () => ReactNode) {
+  const rootRoute = createRootRoute({ component: Root, notFoundComponent: Empty });
+  const route = <P extends string>(path: P) =>
+    createRoute({ getParentRoute: () => rootRoute, path, component: Empty });
+  return rootRoute.addChildren([
+    route("/"),
+    route("/s/$sessionId"),
+    route("/settings"),
+    route("/settings/$section"),
+    route("/dev/ui"),
+  ]);
+}
+
+/** The app's router options in one place, so the test bed gets the same translated error screen (M3-RT-15). */
+export function createAppRouter(tree: ReturnType<typeof buildRouteTree>, history?: RouterHistory) {
+  return createRouter({ routeTree: tree, history, defaultErrorComponent: RouteError });
+}
+
+export const routeTree = buildRouteTree(RootLayout);
+export const router = createAppRouter(routeTree);
 
 declare module "@tanstack/react-router" {
   interface Register {

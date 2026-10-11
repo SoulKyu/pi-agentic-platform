@@ -13,6 +13,17 @@ export const shellEn = {
   "server.cause.signalUnknown": "Agent process stopped by a signal.",
   "server.cause.killed": "Agent process killed (SIGKILL), possibly out of memory.",
   "server.cause.spawnFailure": "Agent process could not start.",
+  "shell.tab.home": "New session",
+  "shell.tab.session": "Session",
+  "shell.tab.settings": "Settings",
+  "shell.reload": "Reload",
+  "shell.notFound.title": "This page does not exist",
+  "shell.notFound.purpose": "The link may be old, or the item was closed.",
+  "shell.notFound.home": "Go to the start",
+  "shell.error.title": "This screen stopped working",
+  "shell.error.purpose": "Reload the page to continue.",
+  "shell.stale.title": "pap was updated",
+  "shell.stale.purpose": "This screen is from an older version. Reload the page to get the new one.",
 } as const;
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
@@ -31,4 +42,16 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "server.cause.signalUnknown": "Le processus de l'agent a été arrêté par un signal.",
   "server.cause.killed": "Le processus de l'agent a été tué (SIGKILL), peut-être faute de mémoire.",
   "server.cause.spawnFailure": "Le processus de l'agent n'a pas pu démarrer.",
+  "shell.tab.home": "Nouvelle session",
+  "shell.tab.session": "Session",
+  "shell.tab.settings": "Réglages",
+  "shell.reload": "Recharger",
+  "shell.notFound.title": "Cette page n'existe pas",
+  "shell.notFound.purpose": "Le lien est peut-être ancien, ou l'élément a été fermé.",
+  "shell.notFound.home": "Aller au début",
+  "shell.error.title": "Cet écran a cessé de fonctionner",
+  "shell.error.purpose": "Rechargez la page pour continuer.",
+  "shell.stale.title": "pap a été mis à jour",
+  "shell.stale.purpose":
+    "Cet écran vient d'une ancienne version. Rechargez la page pour obtenir la nouvelle.",
 };

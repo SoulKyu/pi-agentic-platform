@@ -114,7 +114,7 @@ export default defineConfig(
             },
             {
               from: "web-routes",
-              allow: ["web-routes", "web-feature", "web-runtime", "web-lib", "web-i18n", "ui"],
+              allow: ["web-routes", "web-feature", "web-runtime", "web-lib", "web-i18n", "ui", "contracts"],
             },
             { from: "web-i18n", allow: ["web-i18n", "web-lib", "contracts"] },
             {

@@ -20,6 +20,7 @@ import {
 // Keys whose French is the same word (endonyms, product and font names). Every other key must differ.
 const IDENTICAL_IN_FR = new Set([
   "app.name",
+  "shell.tab.session",
   "settings.language.en",
   "settings.language.fr",
   "settings.appearance.fontManrope",

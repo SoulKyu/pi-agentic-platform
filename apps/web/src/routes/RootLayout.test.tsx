@@ -25,9 +25,16 @@ vi.mock("../runtime/index.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
 }));
-vi.mock("@tanstack/react-router", async () => {
+vi.mock("./shell/AppShell.tsx", async () => {
   const { createElement } = await import("react");
-  return { Outlet: () => createElement("p", { "data-screen": "outlet" }, "the current route") };
+  return {
+    AppShell: (props: { username: string | null; passkeysAvailable: boolean }) =>
+      createElement(
+        "p",
+        { "data-screen": "shell", "data-passkeys": String(props.passkeysAvailable) },
+        `pap · ${props.username}`,
+      ),
+  };
 });
 
 let bed: ReturnType<typeof fakeRuntime>;
@@ -86,37 +93,25 @@ describe("RootLayout", () => {
     expect(start).not.toHaveBeenCalled();
   });
 
-  it("shows the account bar and the route, and connects, once signed in", async () => {
+  it("hands the signed-in user to the shell, and connects", async () => {
     const container = await show(status({}));
     expect(text(container)).toContain("pap · ana");
-    expect(container.querySelector('[data-screen="outlet"]')).not.toBeNull();
+    expect(container.querySelector('[data-screen="shell"]')?.getAttribute("data-passkeys")).toBe("true");
+    expect(container.querySelector('[data-screen="shell"]')).not.toBeNull();
     expect(start).toHaveBeenCalledOnce();
   });
 
   it("asks again who this is when the server ends the session, and drops to sign-in", async () => {
     const container = await show(status({}));
-    expect(container.querySelector('[data-screen="outlet"]')).not.toBeNull();
+    expect(container.querySelector('[data-screen="shell"]')).not.toBeNull();
     api.fetchAuthStatus.mockResolvedValue(status({ authenticated: false, username: null }));
     await act(async () => {
       bed.fake.setState("signed-out");
     });
     await settle();
     expect(container.querySelector("h1")?.textContent).toBe("Sign in");
-    expect(container.querySelector('[data-screen="outlet"]')).toBeNull();
+    expect(container.querySelector('[data-screen="shell"]')).toBeNull();
     expect(stop).toHaveBeenCalled();
-  });
-
-  it("warns that the page is out of date, and that it is reconnecting", async () => {
-    const container = await show(status({}));
-    await act(async () => {
-      bed.fake.setState("waiting");
-    });
-    const statuses = [...container.querySelectorAll('[role="status"]')].map((element) => element.textContent);
-    expect(statuses).toContain("Reconnecting…");
-    await act(async () => {
-      bed.fake.setState("outdated");
-    });
-    expect(alerts(container)).toEqual(["A new version of pap is available. Reload the page."]);
   });
 
   it("says the server is unreachable when the status cannot be read", async () => {
@@ -137,7 +132,7 @@ describe("RootLayout", () => {
     await page?.unmount();
     page = null;
     const signedIn = await show(status({}));
-    expect(hasButton(signedIn, "Add a passkey")).toBe(false);
+    expect(signedIn.querySelector('[data-screen="shell"]')?.getAttribute("data-passkeys")).toBe("false");
   });
 
   it("offers a Retry when the status cannot be read, and goes on once it can", async () => {
@@ -166,7 +161,7 @@ describe("RootLayout", () => {
       window.dispatchEvent(new Event("online"));
     });
     await settle();
-    expect(container.querySelector('[data-screen="outlet"]')).not.toBeNull();
+    expect(container.querySelector('[data-screen="shell"]')).not.toBeNull();
     const calls = api.fetchAuthStatus.mock.calls.length;
     await act(async () => {
       window.dispatchEvent(new Event("online"));
