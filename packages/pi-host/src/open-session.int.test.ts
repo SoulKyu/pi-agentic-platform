@@ -71,6 +71,7 @@ async function open(overrides: Partial<OpenSessionDeps> = {}) {
     ui,
     approvals,
     rules: () => RULES,
+    rulesVersion: () => 0,
     audit: (entry) => audits.push(entry),
     onEvent: () => {},
     onExtensionError: (report) => reports.push(report),

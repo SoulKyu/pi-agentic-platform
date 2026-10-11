@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
-import { evaluateToolCall } from "../policy/extension.ts";
+import { createPolicyGrants, evaluateToolCall } from "../policy/extension.ts";
 
 export const interactiveRules: PolicyRules = {
   profile: "interactive",
@@ -17,6 +17,8 @@ export interface HarnessOptions {
   /** Outcomes taken in order, then "once". */
   answers?: ApprovalOutcome[];
   rules?: () => PolicyRules | null;
+  /** The rules version the provisional "always" grants are tagged with (default: never changes). */
+  rulesVersion?: () => number;
   hasUI?: boolean;
   audit?: (entry: AuditEntry) => void;
   cwd?: string;
@@ -38,6 +40,7 @@ export async function createPolicyBed() {
     const asked: string[] = [];
     const asks: ApprovalAsk[] = [];
     const scripted = [...(options.answers ?? [])];
+    const grants = createPolicyGrants(options.rulesVersion ?? (() => 0));
     const run = (toolName: string, input: unknown, toolCallId = "c1") =>
       evaluateToolCall(
         { toolCallId, toolName, input },
@@ -51,6 +54,7 @@ export async function createPolicyBed() {
           audit: options.audit ?? ((entry) => audits.push(entry)),
           agentDir,
           papHome,
+          grants,
           isBuiltinTool: options.isBuiltinTool ?? (() => true),
           ask: async (request, signal) => {
             asked.push(`${request.title}|${request.message}`);

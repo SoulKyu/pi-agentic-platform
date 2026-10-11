@@ -12,6 +12,7 @@ import { type SpawnWorkerOptions } from "../../kernel/supervisor/worker.ts";
 import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
 import { createStreamHub } from "../../kernel/ws/stream-hub.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./index.ts";
+import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { captureLogger } from "./testing/helpers.ts";
 
 // The real supervisor forks a process; here it only records what it was asked to start, and answers like a worker.
@@ -96,6 +97,7 @@ function moduleWith(
     clock: createFakeClock(),
     logger,
     hub,
+    policy: fakePolicyPort(),
     config: config(testProviderScript),
     workerUmask: 0o027,
     env: daemonEnv,

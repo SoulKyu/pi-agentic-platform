@@ -11,6 +11,7 @@ import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerScopes } from "../../kernel/supervisor/scope.ts";
 import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import type { PolicyPort } from "../policy/index.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
@@ -26,6 +27,8 @@ export interface SessionsModuleDeps {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly hub: StreamHub;
+  /** The policy module: the project's "always" rules, and where an "always" answer is saved (Task 14b). */
+  readonly policy: PolicyPort;
   readonly config: Pick<
     Config,
     | "home"
@@ -67,6 +70,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     clock: deps.clock,
     logger,
     hub: deps.hub,
+    policy: deps.policy,
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
     worker: {
       agentDir: config.piAgentDir,

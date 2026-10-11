@@ -28,6 +28,8 @@ export interface OpenSessionDeps {
   /** The policy's own questions; only the policy extension asks through it. */
   readonly approvals: Approvals;
   rules(): PolicyRules | null;
+  /** Moves on every policy update (the host bumps it), valid or not. */
+  rulesVersion(): number;
   audit(entry: AuditEntry): void;
   onEvent(event: AgentSessionEvent): void;
   onExtensionError(error: ExtensionErrorReport): void;
@@ -83,6 +85,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   }
   const policy = (deps.createPolicy ?? createPapPolicyExtension)({
     rules: deps.rules,
+    rulesVersion: deps.rulesVersion,
     audit: deps.audit,
     agentDir,
     papHome,

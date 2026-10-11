@@ -10,6 +10,7 @@ import { createApprovals } from "../approvals.ts";
 import { createPolicyBed, interactiveRules as rules } from "../testing/policy-bed.ts";
 import {
   createPapPolicyExtension,
+  createPolicyGrants,
   DENIED_REASON,
   evaluateToolCall,
   FAIL_CLOSED_REASON,
@@ -209,6 +210,7 @@ describe("pap-policy hardening", () => {
       { hasUI: true, cwd, signal: controller.signal },
       {
         rules: () => rules,
+        grants: createPolicyGrants(() => 0),
         audit: (e) => audits.push(e),
         agentDir: bed.agentDir,
         papHome: bed.papHome,
@@ -269,6 +271,7 @@ describe("createPapPolicyExtension", () => {
     const asked: string[] = [];
     const extension = createPapPolicyExtension({
       rules: () => rules,
+      rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
       agentDir: bed.agentDir,
       papHome: bed.papHome,
@@ -332,6 +335,7 @@ describe("createPapPolicyExtension", () => {
     const audits: AuditEntry[] = [];
     const extension = createPapPolicyExtension({
       rules: () => rules,
+      rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
       agentDir: bed.agentDir,
       papHome: bed.papHome,

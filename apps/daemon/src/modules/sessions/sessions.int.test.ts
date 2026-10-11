@@ -14,6 +14,7 @@ import { createStreamHub, type StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { DELTA_FLUSH_MS } from "./coalescer.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "./index.ts";
 import { createSessionsStore, type SessionsStore } from "./store.ts";
+import { fakePolicyPort } from "./testing/fake-policy.ts";
 
 // The real pi-host in a real forked process, on a scripted model, with the network closed (never a real provider).
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
@@ -42,6 +43,7 @@ function moduleWith(testProviderScript: string, clock: Clock = createSystemClock
     clock,
     logger: silentLogger,
     hub,
+    policy: fakePolicyPort(),
     config: {
       home: join(root, "pap"),
       piAgentDir: agentDir,

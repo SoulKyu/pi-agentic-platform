@@ -5,7 +5,6 @@ import {
   type HistoryMeta,
   type InitRecord,
   PapError,
-  type PolicyRules,
   type SessionStatus,
   type SessionStreamEvent,
   type SessionSummary,
@@ -16,7 +15,9 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import type { PolicyPort } from "../policy/index.ts";
 import { resolveSessionCwd } from "./cwd.ts";
+import { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
 import { createPreReadyBuffer, type PreReadyBuffer } from "./pre-ready-buffer.ts";
@@ -24,17 +25,13 @@ import { createSessionReads } from "./service-reads.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 
-const INTERACTIVE_POLICY: PolicyRules = {
-  profile: "interactive",
-  approvalMode: "auto-accept-edits",
-  alwaysAllow: [],
-};
-
 export interface SessionsServiceDeps {
   readonly store: SessionsStore;
   readonly clock: Clock;
   readonly logger: Logger;
   readonly hub: Pick<StreamHub, "publish">;
+  /** The project's "always" rules: what every worker starts with, and what an "always" answer is saved in. */
+  readonly policy: PolicyPort;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   readonly worker: {
     readonly agentDir: string;
@@ -106,6 +103,13 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   // Workers between fork and `ready`. They count against the cap like running ones (R9).
   const starting = new Set<LiveSession>();
   let closing = false;
+  const grants = createGrantLink({
+    policy: deps.policy,
+    clock: deps.clock,
+    logger: deps.logger,
+    hub: deps.hub,
+    sessions: () => [...live.values(), ...starting],
+  });
 
   const checkCapacity = () => {
     if (
@@ -160,13 +164,14 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     let stored = !isNew;
     const preReady = isNew ? createPreReadyBuffer() : null;
     let bound = row.piPath !== null;
+    const scope = grants.scopeOf(row.cwd);
     const init: InitRecord = {
       type: "init",
       cwd: row.cwd,
       agentDir: deps.worker.agentDir,
       papHome: deps.worker.papHome,
       umask: deps.worker.umask,
-      policy: INTERACTIVE_POLICY,
+      policy: grants.policyFor(row, scope),
       // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
       ...(row.piPath ? { sessionFile: row.piPath } : {}),
       ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
@@ -198,6 +203,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       },
       init,
     );
+    // Nothing awaits between the rules in `init` and here, so a change cannot fall between the two.
+    grants.track(session, row, scope);
     starting.add(session);
     try {
       await session.ready;
@@ -292,7 +299,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       owned(input.sessionId, caller);
       const session = live.get(input.sessionId);
       if (!session) throw new PapError("not_found");
-      session.answer(input.dialogId, input.response);
+      grants.answered(session, session.answer(input.dialogId, input.response));
     },
     history: (input, caller) => reads.history(input, caller),
     toolOutput: (input, caller) => reads.toolOutput(input, caller),
@@ -301,6 +308,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     snapshot: (sessionId) => reads.snapshot(sessionId),
     async shutdownAll() {
       closing = true;
+      grants.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
     inspect(sessionId) {

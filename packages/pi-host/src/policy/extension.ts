@@ -20,6 +20,8 @@ export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so i
 export const TOO_LONG_REASON = "too long to review — split the work";
 
 const MAX_AUDIT_FIELD = 256;
+/** Session grants, and provisional always grants, kept per worker: the oldest is dropped past this (M2R74). */
+export const MAX_SESSION_GRANTS = 1000;
 
 const TITLES: Readonly<Record<ToolCategory, string>> = {
   read: "Allow reading?",
@@ -39,9 +41,12 @@ export interface PolicyConfig {
   papHome: string;
   /** The policy's question, on its own record. A closed question blocks the call (M2R66). */
   ask(request: ApprovalAsk, signal?: AbortSignal): Promise<ApprovalOutcome>;
+  /** Moves on every policy update, valid or not: a provisional "always" grant ends with it. */
+  rulesVersion(): number;
 }
 
-export interface PolicyDeps extends PolicyConfig {
+export interface PolicyDeps extends Omit<PolicyConfig, "rulesVersion"> {
+  readonly grants: PolicyGrants;
   /** Whether `toolName` is the tool Pi ships under that name, not an extension that took the name over. */
   isBuiltinTool(toolName: string): boolean;
 }
@@ -60,10 +65,41 @@ interface PolicyContext {
 
 type NamedInlineExtension = Exclude<InlineExtension, ExtensionFactory>;
 
-/** The answers a card offers, in DESIGN.md order (Deny / Session / Always / Allow once). Task 14b widens this. */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the parameters are the contract Task 14b fills in
-export function answersFor(_category: ToolCategory, _review: EditReview | undefined): ApprovalAnswer[] {
-  return ["deny", "once"];
+/** The answers a card offers, in DESIGN.md order (Deny / Session / Always / Allow once). */
+export function answersFor(category: ToolCategory, review: EditReview | undefined): ApprovalAnswer[] {
+  // A write outside the project or to a protected path is judged one call at a time: no grant covers the next one.
+  if (review) return ["deny", "once"];
+  // A tool pap cannot classify may do anything: it is never remembered beyond this worker.
+  if (category === "unknown") return ["deny", "session", "once"];
+  return ["deny", "session", "always", "once"];
+}
+
+export interface PolicyGrants {
+  hasSession(key: string): boolean;
+  rememberSession(key: string): void;
+  /** An "always" answer the daemon has not pushed back yet: it lasts until the next policy update (M2-RT-01). */
+  hasProvisionalAlways(key: string): boolean;
+  rememberAlways(key: string): void;
+}
+
+/** One per worker; insertion-ordered, so the oldest grant is the first dropped at the cap. */
+export function createPolicyGrants(rulesVersion: () => number, max = MAX_SESSION_GRANTS): PolicyGrants {
+  const session = new Set<string>();
+  const provisional = new Map<string, number>();
+  return {
+    hasSession: (key) => session.has(key),
+    rememberSession(key) {
+      session.delete(key);
+      session.add(key);
+      if (session.size > max) session.delete(session.values().next().value as string);
+    },
+    hasProvisionalAlways: (key) => provisional.get(key) === rulesVersion(),
+    rememberAlways(key) {
+      provisional.delete(key);
+      provisional.set(key, rulesVersion());
+      if (provisional.size > max) provisional.delete(provisional.keys().next().value as string);
+    },
+  };
 }
 
 async function decideCall(
@@ -120,6 +156,17 @@ export async function evaluateToolCall(
       return { block: true, reason: TOO_LONG_REASON };
     }
     const key = grantKey(event.toolName, grantPayload(event.input, category === "exec"));
+    // A call with a review (outside the project, a protected path) is judged one call at a time (M2R71).
+    if (!review) {
+      const always =
+        rules.alwaysAllow.some((rule) => rule.tool === event.toolName && rule.key === key) ||
+        deps.grants.hasProvisionalAlways(key);
+      const grantedBy = deps.grants.hasSession(key) ? "session rule" : always ? "always rule" : null;
+      if (grantedBy) {
+        record("allow", grantedBy);
+        return undefined;
+      }
+    }
     const outcome = await deps.ask(
       {
         category,
@@ -139,6 +186,9 @@ export async function evaluateToolCall(
       record("denied", review?.why);
       return { block: true, reason: DENIED_REASON };
     }
+    if (outcome.answer === "session") deps.grants.rememberSession(key);
+    // Never a session grant: a revoke must bite this worker too (M2-RT-01).
+    if (outcome.answer === "always") deps.grants.rememberAlways(key);
     record("approved", review ? `answer: ${outcome.answer}; ${review.why}` : `answer: ${outcome.answer}`);
     return undefined;
   } catch {
@@ -158,6 +208,7 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
     factory: (pi) => {
       const deps: PolicyDeps = {
         ...config,
+        grants: createPolicyGrants(config.rulesVersion),
         isBuiltinTool: (toolName) =>
           pi
             .getAllTools()

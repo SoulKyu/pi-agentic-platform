@@ -16,7 +16,9 @@ import { type Logger, silentLogger } from "../../../kernel/logger.ts";
 import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
+import type { PolicyPort } from "../../policy/index.ts";
 import { SESSIONS_MIGRATIONS } from "../index.ts";
+import { fakePolicyPort } from "./fake-policy.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
 
 export { sessionFileText };
@@ -41,6 +43,8 @@ export interface BedOptions {
   /** The umask the daemon was started with; defaults to 022. */
   umask?: number;
   logger?: Logger;
+  /** The policy module's port; defaults to an empty fake (`fakePolicyPort()`). */
+  policy?: PolicyPort;
   /** The transcript reader fails to load this many times before it loads. */
   readerFailures?: number;
   /** By the order the workers are spawned in, from 0. */
@@ -64,6 +68,7 @@ export interface ServiceParts<Store, Reader> {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly hub: StreamHub;
+  readonly policy: PolicyPort;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   readonly worker: {
     readonly agentDir: string;
@@ -97,9 +102,12 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
 ) {
   const dir = mkdtempSync(join(tmpdir(), "pap-sessions-"));
   const work = join(dir, "work");
+  /** A second project, for the tests that push rules to one project and not the other. */
+  const otherWork = join(dir, "other-work");
   const agentDir = join(dir, "agent");
   const sessionsDir = join(agentDir, "sessions", "--w--");
   mkdirSync(work);
+  mkdirSync(otherWork);
   mkdirSync(sessionsDir, { recursive: true });
   const clock: FakeClock = createFakeClock();
   const db: Db = migrate({
@@ -121,6 +129,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     clock,
     logger: options.logger ?? silentLogger,
     hub,
+    policy: options.policy ?? fakePolicyPort(),
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
     worker: {
       agentDir,
@@ -181,6 +190,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   return {
     dir,
     work,
+    otherWork,
     agentDir,
     clock,
     db,

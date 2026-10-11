@@ -14,7 +14,9 @@ import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
 import { silentLogger } from "../../../kernel/logger.ts";
 import type { WorkerExit } from "../../../kernel/supervisor/exit.ts";
 import { NO_SCOPES, type WorkerScopes } from "../../../kernel/supervisor/scope.ts";
+import { newId } from "../../../kernel/ids.ts";
 import { createStreamHub } from "../../../kernel/ws/stream-hub.ts";
+import { createPolicyModule, POLICY_MIGRATIONS } from "../../policy/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "../index.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
@@ -61,17 +63,19 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const db = migrate({
       dbPath: join(root, "state.db"),
       backupsDir: join(root, "backups"),
-      sources: [KERNEL_MIGRATIONS, SESSIONS_MIGRATIONS],
+      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS],
       clock,
       logger: silentLogger,
     }).db;
     const hub = createStreamHub(undefined, clock);
     const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
+    const policy = createPolicyModule({ db, clock, logger: silentLogger, newId });
     const sessions: SessionsModule = createSessionsModule({
       db,
       clock,
       logger: silentLogger,
       hub,
+      policy: policy.port,
       config: {
         home: papHome,
         piAgentDir: agentDir,
@@ -106,6 +110,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       sessions,
       exits,
       rpc: sessions.rpc,
+      policyRpc: policy.rpc,
       ctx: owner,
       async subscribe(sessionId: string): Promise<Subscription> {
         const frames: EventFrame[] = [];

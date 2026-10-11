@@ -141,6 +141,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       clock,
       logger,
       hub,
+      policy: policy.port,
       config,
       workerUmask,
       env,

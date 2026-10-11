@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { bashScript, createHostBed, isApproval, toolText } from "./testing/host-bed.ts";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bashScript, createHostBed, isApproval, RULES, toolScript, toolText } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -24,7 +24,11 @@ describe("pi-host worker: approval channel", () => {
     host.send({ type: "extension_ui_response", id: plain.id, confirmed: true });
     host.send({ type: "prompt", id: "p2", message: "go" });
     const ask = await host.waitFor(isApproval);
-    expect(ask).toMatchObject({ category: "exec", tool: "bash", answers: ["deny", "once"] });
+    expect(ask).toMatchObject({
+      category: "exec",
+      tool: "bash",
+      answers: ["deny", "session", "always", "once"],
+    });
     host.send({ type: "approval_response", id: ask.id, answer: "once" });
     await host.waitFor((r) => r.type === "tool_execution_end" && r.isError === false);
   });
@@ -44,10 +48,11 @@ describe("pi-host worker: approval channel", () => {
   });
 
   it("treats an answer the card did not offer as a refusal", async () => {
-    await bed.start(bashScript("echo never"));
+    await bed.start(toolScript("write", { path: join(bed.root, "outside.txt"), content: "x" }));
     const host = bed.host();
     host.send({ type: "prompt", id: "p1", message: "go" });
     const ask = await host.waitFor(isApproval);
+    expect(ask.answers).toEqual(["deny", "once"]);
     host.send({ type: "approval_response", id: ask.id, answer: "always" });
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(true);
@@ -81,5 +86,35 @@ describe("pi-host worker: approval channel", () => {
       id: ask.id,
     });
     expect(await host.exited).toBe(0);
+  });
+
+  it("ends a provisional always answer at every policy update, valid or malformed (M2R73, M2R16)", async () => {
+    const call = { toolCalls: [{ name: "bash", args: { command: "echo granted" }, id: "c" }] };
+    await bed.start({ steps: Array.from({ length: 5 }, (_, i) => [call, { text: String(i) }]).flat() });
+    const host = bed.host();
+    const asks = () => host.records.filter(isApproval);
+    const settled = () => host.records.filter((r) => r.type === "agent_settled").length;
+    const within = { timeout: 20_000 };
+    const askAndAnswerAlways = async (id: string, asked: number) => {
+      host.send({ type: "prompt", id, message: id });
+      await vi.waitFor(() => expect(asks()).toHaveLength(asked), within);
+      host.send({ type: "approval_response", id: asks().at(-1)?.id, answer: "always" });
+      await vi.waitFor(() => expect(settled()).toBe(asked * 2 - 1), within);
+    };
+    const runHeld = async (id: string, done: number) => {
+      host.send({ type: "prompt", id, message: id });
+      await vi.waitFor(() => expect(settled()).toBe(done), within);
+    };
+    await askAndAnswerAlways("p1", 1);
+    // Held until the daemon's push: the identical call runs without a question.
+    await runHeld("p2", 2);
+    expect(asks()).toHaveLength(1);
+    host.send({ type: "policy_update", rules: { profile: "nonsense" } });
+    await askAndAnswerAlways("p3", 2);
+    await runHeld("p4", 4);
+    expect(asks()).toHaveLength(2);
+    host.send({ type: "policy_update", rules: RULES });
+    host.send({ type: "prompt", id: "p5", message: "p5" });
+    await vi.waitFor(() => expect(asks()).toHaveLength(3), within);
   });
 });

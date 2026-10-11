@@ -1,8 +1,10 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApprovals } from "../approvals.ts";
 import { createPolicyBed } from "../testing/policy-bed.ts";
-import { DENIED_REASON, FAIL_CLOSED_REASON } from "./extension.ts";
+import { createPolicyGrants, DENIED_REASON, FAIL_CLOSED_REASON, MAX_SESSION_GRANTS } from "./extension.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
+import { interactiveRules } from "../testing/policy-bed.ts";
 
 let bed: Awaited<ReturnType<typeof createPolicyBed>>;
 beforeEach(async () => {
@@ -20,7 +22,7 @@ describe("pap-policy approval channel", () => {
       expect.objectContaining({
         category: "exec",
         tool: "bash",
-        answers: ["deny", "once"],
+        answers: ["deny", "session", "always", "once"],
         key: expect.stringMatching(/^[0-9a-f]{64}$/),
       }),
     ]);
@@ -109,5 +111,137 @@ describe("pap-policy approval channel", () => {
       decision: "approved",
       reason: "answer: once; outside the session directory",
     });
+  });
+});
+
+describe("pap-policy grants", () => {
+  it("asks once, then lets the identical call through for the rest of the worker's life on a session answer", async () => {
+    const h = bed.harness({ answers: [{ answer: "session", closed: false }] });
+    expect(await h.run("bash", { command: "npm test" })).toBeUndefined();
+    expect(await h.run("bash", { command: "npm test" })).toBeUndefined();
+    expect(h.asks).toHaveLength(1);
+    expect(h.audits.at(-1)).toMatchObject({ decision: "allow", reason: "session rule" });
+    await h.run("bash", { command: "npm test " });
+    expect(h.asks).toHaveLength(2);
+  });
+
+  it("lets a call through on a project's always rule, matching the exact call only", async () => {
+    const key = grantKey("bash", grantPayload({ command: "npm test" }, true));
+    const h = bed.harness({
+      rules: () => ({ ...interactiveRules, alwaysAllow: [{ tool: "bash", key }] }),
+      answers: [{ answer: "deny", closed: false }],
+    });
+    expect(await h.run("bash", { command: "npm test" })).toBeUndefined();
+    expect(h.audits.at(-1)).toMatchObject({ decision: "allow", reason: "always rule" });
+    expect(await h.run("bash", { command: "npm  test" })).toEqual({ block: true, reason: DENIED_REASON });
+    expect(h.asks.map((ask) => ask.answers)).toEqual([["deny", "session", "always", "once"]]);
+  });
+
+  it("does not let a rule of another tool allow the call, even with the same key", async () => {
+    const key = grantKey("bash", grantPayload({ command: "npm test" }, true));
+    const h = bed.harness({
+      rules: () => ({ ...interactiveRules, alwaysAllow: [{ tool: "other", key }] }),
+      answers: [{ answer: "deny", closed: false }],
+    });
+    expect(await h.run("bash", { command: "npm test" })).toEqual({ block: true, reason: DENIED_REASON });
+  });
+
+  it("never keeps an always answer past a policy update that dropped it (M2-RT-01)", async () => {
+    let version = 0;
+    const h = bed.harness({
+      answers: [
+        { answer: "always", closed: false },
+        { answer: "deny", closed: false },
+      ],
+      rulesVersion: () => version,
+    });
+    expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
+    // Before the daemon's push: the provisional grant covers the same call.
+    expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
+    expect(h.asks).toHaveLength(1);
+    expect(h.audits.at(-1)).toMatchObject({ decision: "allow", reason: "always rule" });
+    // The daemon's push without the rule (it was revoked): the answer is gone, the call asks again.
+    version++;
+    expect(await h.run("bash", { command: "rm -rf build" })).toEqual({ block: true, reason: DENIED_REASON });
+    expect(h.asks).toHaveLength(2);
+  });
+
+  it("does not turn an always answer into a session grant", async () => {
+    let version = 0;
+    const h = bed.harness({ answers: [{ answer: "always", closed: false }], rulesVersion: () => version });
+    await h.run("bash", { command: "ls -l" });
+    version++;
+    await h.run("bash", { command: "ls -l" });
+    expect(h.asks).toHaveLength(2);
+    expect(h.audits.at(-1)).toMatchObject({ decision: "approved", reason: "answer: once" });
+  });
+
+  it("never lets a grant cover a write outside the project or to a protected path", async () => {
+    const input = { path: join(bed.cwd, ".git", "hooks", "pre-commit"), content: "x" };
+    const key = grantKey("write", grantPayload(input, false));
+    const h = bed.harness({
+      rules: () => ({ ...interactiveRules, alwaysAllow: [{ tool: "write", key }] }),
+      answers: [
+        { answer: "session", closed: false },
+        { answer: "once", closed: false },
+      ],
+    });
+    await h.run("write", input);
+    await h.run("write", input);
+    expect(h.asks.map((ask) => ask.answers)).toEqual([
+      ["deny", "once"],
+      ["deny", "once"],
+    ]);
+  });
+
+  it("offers no always answer for a tool it cannot classify", async () => {
+    const h = bed.harness({ answers: [{ answer: "deny", closed: false }], isBuiltinTool: () => false });
+    await h.run("mystery_tool", { x: 1 });
+    expect(h.asks[0]?.answers).toEqual(["deny", "session", "once"]);
+  });
+
+  it("keeps at most MAX_SESSION_GRANTS session grants, dropping the oldest", async () => {
+    const h = bed.harness({
+      answers: Array.from({ length: MAX_SESSION_GRANTS + 2 }, () => ({
+        answer: "session" as const,
+        closed: false,
+      })),
+    });
+    for (let i = 0; i <= MAX_SESSION_GRANTS; i++) await h.run("bash", { command: `echo ${i}` });
+    await h.run("bash", { command: "echo 0" });
+    expect(h.asks).toHaveLength(MAX_SESSION_GRANTS + 2);
+    // The newest is still granted.
+    await h.run("bash", { command: `echo ${MAX_SESSION_GRANTS}` });
+    expect(h.asks).toHaveLength(MAX_SESSION_GRANTS + 2);
+  });
+});
+
+describe("createPolicyGrants", () => {
+  const keys = (n: number) => Array.from({ length: n }, (_, i) => `k${i}`);
+
+  it("caps the provisional always grants at MAX_SESSION_GRANTS, dropping the oldest", () => {
+    const grants = createPolicyGrants(() => 0);
+    for (const key of keys(MAX_SESSION_GRANTS + 1)) grants.rememberAlways(key);
+    expect(grants.hasProvisionalAlways("k0")).toBe(false);
+    expect(grants.hasProvisionalAlways("k1")).toBe(true);
+    expect(grants.hasProvisionalAlways(`k${MAX_SESSION_GRANTS}`)).toBe(true);
+  });
+
+  it("drops the oldest session grant at its cap, and a repeated one counts as the newest", () => {
+    const grants = createPolicyGrants(() => 0, 3);
+    for (const key of ["a", "b", "c"]) grants.rememberSession(key);
+    grants.rememberSession("a");
+    grants.rememberSession("d");
+    expect(["a", "b", "c", "d"].map((key) => grants.hasSession(key))).toEqual([true, false, true, true]);
+  });
+
+  it("ends every provisional grant when the version moves, and keeps session grants", () => {
+    let version = 4;
+    const grants = createPolicyGrants(() => version);
+    grants.rememberAlways("x");
+    grants.rememberSession("y");
+    version = 5;
+    expect(grants.hasProvisionalAlways("x")).toBe(false);
+    expect(grants.hasSession("y")).toBe(true);
   });
 });

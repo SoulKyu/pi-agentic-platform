@@ -1,5 +1,6 @@
 import {
   type ApprovalAnswer,
+  type DaemonToWorker,
   type Dialog,
   type DialogResponse,
   GetStateData,
@@ -88,6 +89,8 @@ export interface LiveSession {
    * the dialog stays open.
    */
   answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
+  /** Hands the worker a record (a policy update); false when it was not accepted (the worker is gone or backed up). */
+  send(record: DaemonToWorker): boolean;
   stop(): Promise<void>;
 }
 
@@ -309,6 +312,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       return readCleared(response.data);
     },
     answer: (dialogId, response) => ui.answer(dialogId, response),
+    send: (record) => handle.send(record),
     stop: async () => {
       await handle.stop();
     },
