@@ -19,7 +19,10 @@ import { captureLogger } from "./testing/helpers.ts";
 const spawned = vi.hoisted(() => ({
   options: [] as unknown[],
   inits: [] as unknown[],
-  workers: [] as Array<{ requests: Array<{ type: string; outputPath?: string }> }>,
+  workers: [] as Array<{
+    requests: Array<{ id: string; type: string; outputPath?: string }>;
+    respond(id: string, reply: { data?: unknown }): void;
+  }>,
 }));
 vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../kernel/supervisor/worker.ts")>()),
@@ -203,15 +206,17 @@ describe("the exports directory (M2R96)", () => {
   it("has its pending files deleted when the sessions are shut down", async () => {
     const { sessions } = moduleWith(null);
     const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
-    const pending = sessions.rpc["sessions.exportHtml"]({ sessionId }, ctx).catch(() => undefined);
-    await vi.waitFor(() => {
-      const request = spawned.workers[0]?.requests.find((candidate) => candidate.type === "export_html");
-      if (!request?.outputPath) throw new Error("not yet");
-      writeFileSync(request.outputPath, "<html></html>");
+    const exporting = sessions.rpc["sessions.exportHtml"]({ sessionId }, ctx);
+    const request = await vi.waitFor(() => {
+      const found = spawned.workers[0]?.requests.find((candidate) => candidate.type === "export_html");
+      if (!found?.outputPath) throw new Error("not yet");
+      return found;
     });
+    writeFileSync(request.outputPath ?? "", "<html></html>");
+    spawned.workers[0]?.respond(request.id, { data: {} });
+    await exporting;
     expect(readdirSync(exportsDir())).toHaveLength(1);
     await sessions.shutdownAll();
-    await pending;
     expect(existsSync(exportsDir())).toBe(true);
     expect(readdirSync(exportsDir())).toEqual([]);
   });

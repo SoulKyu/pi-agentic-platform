@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { createHttpApp } from "../../kernel/http/app.ts";
@@ -71,6 +72,27 @@ describe("the export download route (ADR 0006)", () => {
     expect(await reply.text()).toBe(PAGE);
     await vi.waitFor(() => expect(existsSync(path)).toBe(false), { timeout: 2000 });
     expect((await t.app.request(url, { headers: COOKIE })).status).toBe(404);
+  });
+
+  it("sets every header itself, whatever the app around it adds", async () => {
+    const t = setup();
+    const bare = new Hono();
+    mountExportRoute(bare, {
+      exports: t.exports,
+      authenticate: () => ({ userId: "u1" }),
+      logger: silentLogger,
+    });
+    const reply = await bare.request(t.ready("s1", "u1", "Fix login").url);
+    expect(Object.fromEntries(reply.headers)).toEqual({
+      "cache-control": "no-store",
+      "content-disposition": "attachment; filename=\"Fix login.html\"; filename*=UTF-8''Fix%20login.html",
+      "content-length": String(Buffer.byteLength(PAGE)),
+      "content-security-policy": "sandbox; default-src 'none'",
+      "content-type": "text/html; charset=utf-8",
+      "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+    });
+    await reply.text();
   });
 
   it("pins the policy as one exact string", () => {
