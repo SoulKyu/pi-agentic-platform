@@ -53,6 +53,52 @@ describe("dispatch", () => {
     await vi.waitFor(() => expect(order).toEqual(["response", "look"]));
   });
 
+  it.each([
+    ["set_session_name", { type: "set_session_name", id: "n1", name: "Fix" }],
+    ["auto_name", { type: "auto_name", id: "n1" }],
+  ] as const)(
+    "asks for a look at the leaf after %s has answered (it appends an entry)",
+    async (_name, command) => {
+      const order: string[] = [];
+      const session = {
+        setSessionName: () => {},
+        model: undefined,
+      } as unknown as AgentSession;
+      const dispatch = createDispatch({
+        session,
+        ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
+        ui: {} as UiBridge,
+        approvals: {} as Approvals,
+        leafMayHaveMoved: () => void order.push("look"),
+        rules: () => withAlways,
+        setRules: () => {},
+      });
+      dispatch(command);
+      await vi.waitFor(() => expect(order).toEqual(["response", "look"]));
+    },
+  );
+
+  it("does not ask for a look when set_session_name failed", async () => {
+    const order: string[] = [];
+    const session = {
+      setSessionName: () => {
+        throw new Error("disk full");
+      },
+    } as unknown as AgentSession;
+    const dispatch = createDispatch({
+      session,
+      ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
+      ui: {} as UiBridge,
+      approvals: {} as Approvals,
+      leafMayHaveMoved: () => void order.push("look"),
+      rules: () => withAlways,
+      setRules: () => {},
+    });
+    dispatch({ type: "set_session_name", id: "n1", name: "Fix" });
+    await Promise.resolve();
+    expect(order).toEqual(["response"]);
+  });
+
   it("hands an approval_response to the approvals, and nothing else", () => {
     const resolved: unknown[] = [];
     const sent: unknown[] = [];

@@ -87,16 +87,19 @@ export async function handleNavigateTree(
   }
 }
 
+/** True when the name was set: Pi appended a `session_info` entry, which advances its leaf. */
 export function handleSetSessionName(
   session: AgentSession,
   command: { id: string; name: string },
   send: Send,
-): void {
+): boolean {
   try {
     session.setSessionName(command.name);
     ok(send, command.id, "set_session_name");
+    return true;
   } catch (error) {
     failed(send, command.id, "set_session_name", error);
+    return false;
   }
 }
 

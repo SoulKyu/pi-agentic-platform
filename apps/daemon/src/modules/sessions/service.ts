@@ -234,6 +234,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       // `ready` said Pi's name before the row could hold it (a new session) or this worker's start may have changed it.
       syncName(row.id, session.name());
       if (preReady) replayPreReady(row.id, preReady.drain());
+      // Whoever watches the session while it was cold saw the cached name (R112).
+      if (session.name() !== row.name)
+        deps.hub.publish("session", row.id, { kind: "name", name: session.name() });
       live.set(row.id, session);
       bound = bound || bindPiFile(row, session);
       return session;

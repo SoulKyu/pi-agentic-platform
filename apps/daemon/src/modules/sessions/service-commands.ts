@@ -32,8 +32,8 @@ export interface SessionCommands {
     caller: Caller,
   ): Promise<{ tokensBefore: number; estimatedTokensAfter: number | null }>;
   /**
-   * Gives the session a name in Pi's file. Allowed while a run goes on: it appends one entry and moves no branch, so the
-   * busy rule does not apply. A cold session's worker is started for it (the single-writer rule, M2R93). The cached
+   * Gives the session a name in Pi's file. Allowed while a run goes on: it appends one `session_info` entry to the
+   * current branch (Pi's leaf advances to it, pi-host has the tracker look) and forks nothing, so the busy rule does not apply. A cold session's worker is started for it (the single-writer rule, M2R93). The cached
    * name follows from Pi's `session_info_changed`, not from this answer.
    */
   rename(input: { sessionId: string; name: string }, caller: Caller): Promise<void>;

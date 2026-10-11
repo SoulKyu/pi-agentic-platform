@@ -30,7 +30,7 @@ describe("rename and auto-name", () => {
   });
 
   it("answers the clipped title", async () => {
-    open({ replies: { auto_name: { data: { title: "  Fix‮ the login  " } } } });
+    open({ replies: { auto_name: { data: { title: "  Fix\u202E the login  " } } } });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     expect(await bed.service.autoName(sessionId, OWNER)).toEqual({ name: "Fix the login" });
   });
@@ -56,7 +56,7 @@ describe("rename and auto-name", () => {
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     const hostile = [
       "😀".repeat(400),
-      `‮${"\u0000".repeat(50)}${"é".repeat(300)}`,
+      `\u202E${"\u0000".repeat(50)}${"é".repeat(300)}`,
       "\ud800".repeat(300),
       `${"a".repeat(255)}\u{1F600}`,
     ];
@@ -110,7 +110,7 @@ describe("rename and auto-name", () => {
   it("refuses a name with nothing in it, and another user's session", async () => {
     open();
     const { sessionId } = await bed.service.create(bed.work, OWNER);
-    for (const name of ["", "  ", "‮​"]) {
+    for (const name of ["", "  ", "\u202E\u200B"]) {
       await expect(bed.service.rename({ sessionId, name }, OWNER)).rejects.toThrow(
         new PapError("bad_request"),
       );
@@ -148,5 +148,53 @@ describe("rename and auto-name", () => {
     await bed.clock.advance(30_000);
     await refused;
     expect(sent()).toEqual(["set_session_name"]);
+  });
+
+  it("answers timeout for an auto-name nobody heard back from, and asks anew afterwards", async () => {
+    open({ replies: { auto_name: "held" } });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    const first = expect(bed.service.autoName(sessionId, OWNER)).rejects.toThrow(new PapError("timeout"));
+    const second = expect(bed.service.autoName(sessionId, OWNER)).rejects.toThrow(new PapError("timeout"));
+    await bed.clock.advance(120_000);
+    await Promise.all([first, second]);
+    expect(sent()).toEqual(["auto_name"]);
+    // The failed ask left nothing behind to join: this one reaches the worker again.
+    const third = bed.service.autoName(sessionId, OWNER);
+    await bed.clock.advance(0);
+    expect(sent()).toEqual(["auto_name", "auto_name"]);
+    const id = bed.spawned[0]?.requests.filter((request) => request.type === "auto_name").at(-1)?.id ?? "";
+    bed.spawned[0]?.respond(id, { data: { title: "Late" } });
+    expect(await third).toEqual({ name: "Late" });
+  });
+
+  it("tells a subscriber of a cold session the name its restarted worker says in ready", async () => {
+    open({
+      replies: { set_session_name: { data: undefined } },
+      start: (index) => ({ kind: "ready", sessionName: index === 0 ? null : "Fresh" }),
+    });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    bed.spawned[0]?.crash({ code: 1, signal: null, cause: "exit_code" });
+    await bed.clock.advance(0);
+    bed.store.setName(sessionId, "Stale");
+    const frames = await bed.subscribe(sessionId);
+    expect(frames[0]?.event).toMatchObject({ kind: "snapshot", name: "Stale" });
+    await bed.service.rename({ sessionId, name: "Whatever" }, OWNER);
+    expect(
+      frames.map((frame) => frame.event).filter((event) => (event as { kind: string }).kind === "name"),
+    ).toEqual([{ kind: "name", name: "Fresh" }]);
+    expect(bed.service.list(OWNER)[0]?.name).toBe("Fresh");
+  });
+
+  it("announces nothing when ready says the name the row already has", async () => {
+    open({
+      replies: { set_session_name: { data: undefined } },
+      start: () => ({ kind: "ready", sessionName: "Same" }),
+    });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    bed.spawned[0]?.crash({ code: 1, signal: null, cause: "exit_code" });
+    await bed.clock.advance(0);
+    const frames = await bed.subscribe(sessionId);
+    await bed.service.rename({ sessionId, name: "x" }, OWNER);
+    expect(frames.map((frame) => (frame.event as { kind: string }).kind)).not.toContain("name");
   });
 });

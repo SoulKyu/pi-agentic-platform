@@ -137,3 +137,21 @@ it("renames and auto-names a session, and lists the name", async () => {
     await bed.dispose();
   }
 });
+
+it("follows the leaf Pi moves by a rename: the session_info entry and the snapshot's leaf, with no later event", async () => {
+  const bed = await createIntBed({ steps: [{ text: "ok" }] });
+  try {
+    const { sessionId } = await bed.rpc["sessions.create"]({ cwd: bed.work }, bed.ctx);
+    const sub = await bed.subscribe(sessionId);
+    await promptAndSettle(bed, sub, sessionId, "hello");
+    await bed.rpc["sessions.rename"]({ sessionId, name: "Renamed" }, bed.ctx);
+    const entry = await sub.waitFor((event) => event.kind === "entry" && event.entry.type === "session_info");
+    if (entry.kind !== "entry") throw new Error("no entry");
+    const again = await bed.subscribe(sessionId);
+    const snapshot = again.events()[0];
+    if (snapshot?.kind !== "snapshot") throw new Error("no snapshot");
+    expect(snapshot.leafId).toBe(entry.entry.id);
+  } finally {
+    await bed.dispose();
+  }
+});

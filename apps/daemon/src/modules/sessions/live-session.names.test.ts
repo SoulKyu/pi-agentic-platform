@@ -20,7 +20,7 @@ describe("the session's name", () => {
 
   it("publishes session_info_changed as a name event, clipped, and never as a Pi event", async () => {
     const { worker, published, names, live, clock } = setup();
-    worker.emit(piEvent({ type: "session_info_changed", name: `  ‮Fix   login ${"x".repeat(400)}` }));
+    worker.emit(piEvent({ type: "session_info_changed", name: `  \u202EFix   login ${"x".repeat(400)}` }));
     await clock.advance(0);
     const expected = `Fix login ${"x".repeat(400)}`.slice(0, 256);
     expect(published).toContainEqual({ kind: "name", name: expected });

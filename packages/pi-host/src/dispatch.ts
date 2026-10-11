@@ -62,13 +62,17 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         );
         return;
       case "set_session_name":
-        handleSetSessionName(session, record, send);
+        if (handleSetSessionName(session, record, send)) deps.leafMayHaveMoved();
         return;
       case "export_html":
         background("export_html", handleExportHtml(session, record, send));
         return;
       case "auto_name":
-        background("auto_name", handleAutoName(session, record, send));
+        background(
+          "auto_name",
+          // The title is a `session_info` entry, which advances the leaf (a look after a refusal finds nothing).
+          handleAutoName(session, record, send).then(() => deps.leafMayHaveMoved()),
+        );
         return;
       case "extension_ui_response":
         ui.resolve(record);
