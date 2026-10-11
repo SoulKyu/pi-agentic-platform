@@ -17,7 +17,7 @@ import { resolveSessionCwd } from "./cwd.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
 import { createPreReadyBuffer, type PreReadyBuffer } from "./pre-ready-buffer.ts";
-import { fitSnapshot, SNAPSHOT_ROWS } from "./snapshot.ts";
+import { createSessionReads } from "./service-reads.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 
@@ -85,8 +85,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   // Workers between fork and `ready`. They count against the cap like running ones (R9).
   const starting = new Set<LiveSession>();
   let closing = false;
-  let transcript: TranscriptReader | null = null;
-  let loadingTranscript: Promise<TranscriptReader> | null = null;
 
   const checkCapacity = () => {
     if (
@@ -220,6 +218,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   const statusOf = (id: string): SessionStatus =>
     live.get(id)?.status() ?? (reopening.has(id) ? "starting" : "cold");
 
+  const reads = createSessionReads({
+    store: deps.store,
+    agentDir: deps.worker.agentDir,
+    loadTranscript: deps.loadTranscript,
+    live,
+    statusOf,
+    owned,
+  });
+
   return {
     async create(cwdInput, caller) {
       const cwd = resolveSessionCwd(cwdInput);
@@ -260,37 +267,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (!session) throw new PapError("not_found");
       session.answer(input.dialogId, input.response);
     },
-    async prepareSubscription(sessionId, caller) {
-      owned(sessionId, caller);
-      // One load for everyone who asks while it runs; a failed one is forgotten, so the next caller tries again.
-      loadingTranscript ??= deps.loadTranscript().then(
-        (reader) => (transcript = reader),
-        (error: unknown) => {
-          loadingTranscript = null;
-          throw error;
-        },
-      );
-      await loadingTranscript;
-    },
-    snapshot(sessionId) {
-      const row = deps.store.get(sessionId);
-      if (!row) throw new PapError("not_found");
-      if (!transcript) throw new PapError("internal");
-      const session = live.get(sessionId);
-      const run = session?.runView() ?? null;
-      // A draft's file is the one its worker reported; it is read only if it is where Pi keeps session files.
-      const reported = session?.piFile();
-      const file =
-        row.piPath ?? (reported && isPiSessionFile(deps.worker.agentDir, reported) ? reported : null);
-      // A run in progress is not in the file yet: the file is read as it was when the run began, then the run's
-      // own messages follow (R38).
-      const fromFile = file ? transcript.tail(file, SNAPSHOT_ROWS, run?.baselineBytes) : [];
-      return fitSnapshot({
-        status: statusOf(sessionId),
-        rows: [...fromFile, ...(run?.messages ?? [])].map((message) => ({ entryId: null, message })),
-        dialogs: session?.dialogs() ?? [],
-      });
-    },
+    prepareSubscription: (sessionId, caller) => reads.prepare(sessionId, caller),
+    snapshot: (sessionId) => reads.snapshot(sessionId),
     async shutdownAll() {
       closing = true;
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
