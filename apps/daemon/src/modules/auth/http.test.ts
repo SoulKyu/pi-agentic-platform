@@ -103,6 +103,27 @@ describe("auth routes", () => {
     }
   });
 
+  it("drops Secure for a plain-http LAN address only with --insecure-http", async () => {
+    const LAN = "http://192.168.1.20:7777";
+    await setup();
+    for (const [insecureHttp, secure] of [
+      [false, true],
+      [true, false],
+    ] as const) {
+      const lan = bed.start(LAN, new Set([LAN]), insecureHttp).app;
+      const login = await lan.request(`${LAN}/auth/login`, {
+        method: "POST",
+        headers: { origin: LAN, "content-type": "application/json" },
+        body: JSON.stringify(owner),
+      });
+      expect(login.status).toBe(200);
+      const cookie = login.headers.get("set-cookie") ?? "";
+      expect(cookie.includes("Secure"), `insecureHttp=${insecureHttp}`).toBe(secure);
+      expect(cookie).toContain("HttpOnly");
+      expect(cookie).toContain("SameSite=Strict");
+    }
+  });
+
   it("keeps Secure on plain-http loopback requests when the public origin is https (R24b)", async () => {
     await setup();
     const proxied = bed.start("https://pap.example.net", ORIGINS).app;

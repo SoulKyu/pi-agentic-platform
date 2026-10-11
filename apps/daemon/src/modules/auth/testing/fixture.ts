@@ -21,7 +21,11 @@ export interface AuthTestBed {
   readonly logger: Logger;
   /** Every log line since the bed was created or last cleared; migration output is already dropped. */
   readonly lines: string[];
-  start(publicOrigin: string, allowedOrigins?: ReadonlySet<string>): { auth: AuthModule; app: Hono };
+  start(
+    publicOrigin: string,
+    allowedOrigins?: ReadonlySet<string>,
+    insecureHttp?: boolean,
+  ): { auth: AuthModule; app: Hono };
   events(name: string): Record<string, unknown>[];
   dispose(): void;
 }
@@ -46,8 +50,8 @@ export function createAuthTestBed(): AuthTestBed {
     clock,
     logger,
     lines,
-    start(publicOrigin, allowedOrigins = new Set([publicOrigin])) {
-      const auth = createAuthModule({ db, clock, logger, publicOrigin, allowedOrigins });
+    start(publicOrigin, allowedOrigins = new Set([publicOrigin]), insecureHttp = false) {
+      const auth = createAuthModule({ db, clock, logger, publicOrigin, allowedOrigins, insecureHttp });
       const app = createHttpApp({
         allowedOrigins,
         staticRoot: null,

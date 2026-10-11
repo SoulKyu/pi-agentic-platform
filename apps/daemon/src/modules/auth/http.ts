@@ -47,8 +47,9 @@ export const sessionCookie = (c: Context): string | undefined =>
 // Set per request by the middleware of mountAuthRoutes. Only an explicit false allows a cookie without Secure,
 // so a route mounted without it fails closed.
 const SECURE_BY_CONFIG = "secureByConfig";
+const INSECURE_HTTP = "insecureHttp";
 const cookieAttributes = (c: Context) =>
-  sessionCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false);
+  sessionCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true);
 
 export function setSessionCookie(c: Context, session: StartedSession): void {
   setCookie(c, SESSION_COOKIE, session.cookieValue, {
@@ -85,11 +86,12 @@ async function startSessionFrom<T>(
 
 export function mountAuthRoutes(
   app: Hono,
-  deps: { service: AuthService; passkeysAvailable: boolean; secureByConfig: boolean },
+  deps: { service: AuthService; passkeysAvailable: boolean; secureByConfig: boolean; insecureHttp?: boolean },
 ): void {
   const client = (c: Context) => ({ ip: clientIp(c), userAgent: c.req.header("user-agent") });
   app.use("/auth/*", async (c: Context, next: Next) => {
     c.set(SECURE_BY_CONFIG, deps.secureByConfig);
+    c.set(INSECURE_HTTP, deps.insecureHttp === true);
     c.header("cache-control", "no-store");
     await next();
   });

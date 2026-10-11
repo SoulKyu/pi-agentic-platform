@@ -21,10 +21,23 @@ export function cookieNeedsSecure(url: string): boolean {
 // R24b: the configured public origin counts too. A proxy that terminates TLS may rewrite Host to a loopback
 // name, which would make the request look like plain loopback http while the browser is on https.
 // `secureByConfig` is cookieNeedsSecure(publicOrigin), computed once at startup.
-export function sessionCookieAttributes(requestUrl: string, secureByConfig: boolean): CookieOptions {
+const isPlainHttp = (url: string): boolean => {
+  try {
+    return new URL(url).protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+
+/** `insecureHttp` (`--insecure-http`): any plain-HTTP request gets a cookie without Secure, for LAN testing. */
+export function sessionCookieAttributes(
+  requestUrl: string,
+  secureByConfig: boolean,
+  insecureHttp = false,
+): CookieOptions {
   return {
     httpOnly: true,
-    secure: secureByConfig || cookieNeedsSecure(requestUrl),
+    secure: insecureHttp ? !isPlainHttp(requestUrl) : secureByConfig || cookieNeedsSecure(requestUrl),
     sameSite: "Strict",
     path: "/",
   };

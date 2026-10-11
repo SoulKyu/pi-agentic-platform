@@ -63,6 +63,16 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...base, argv: ["--bogus"] })).toThrow();
   });
 
+  it("allows a session cookie without Secure on plain HTTP only with --insecure-http", () => {
+    expect(loadConfig(base).insecureHttp).toBe(false);
+    const lan = loadConfig({ ...base, argv: ["--host", "192.168.1.182", "--insecure-http"] });
+    expect(lan.insecureHttp).toBe(true);
+    expect(lan.publicOrigin).toBe("http://192.168.1.182:7777");
+    expect(() =>
+      loadConfig({ ...base, argv: ["--insecure-http", "--tls-cert", "/c.pem", "--tls-key", "/k.pem"] }),
+    ).toThrow(ConfigError);
+  });
+
   it("uses PAP_PUBLIC_ORIGIN for a non-loopback host", () => {
     const config = loadConfig({
       ...base,

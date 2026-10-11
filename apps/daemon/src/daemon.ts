@@ -109,6 +109,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
       publicOrigin: config.publicOrigin,
       allowedOrigins: config.allowedOrigins,
+      insecureHttp: config.insecureHttp,
     });
     const sessions = createSessionsModule({
       db,
@@ -175,6 +176,11 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     if (!LOOPBACK.has(config.host) && !config.tls) {
       logger.warn("plain_http_on_network", {
         hint: "Passkeys, secure cookies and Web Push need HTTPS: use Tailscale serve, a reverse proxy or --tls-cert/--tls-key. Browsers on other machines are only accepted under the address in PAP_PUBLIC_ORIGIN; set it to the one they type.",
+      });
+    }
+    if (config.insecureHttp) {
+      logger.warn("insecure_http", {
+        hint: "--insecure-http: session cookies travel without Secure over plain HTTP, readable by anyone on the network. For testing on a trusted LAN only.",
       });
     }
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });

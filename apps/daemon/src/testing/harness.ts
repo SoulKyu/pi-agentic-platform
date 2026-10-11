@@ -68,6 +68,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     port,
     dev: false,
     tls,
+    insecureHttp: false,
     publicOrigin: origin,
     allowedOrigins: new Set([origin, base]),
     piAgentDir: agentDir,

@@ -25,6 +25,8 @@ export interface AuthModuleDeps {
   readonly logger: Logger;
   readonly publicOrigin: string;
   readonly allowedOrigins: ReadonlySet<string>;
+  /** `--insecure-http`: session cookies without Secure on plain HTTP (LAN testing). */
+  readonly insecureHttp?: boolean;
 }
 
 export interface AuthModule {
@@ -60,7 +62,12 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
   const secureByConfig = cookieNeedsSecure(deps.publicOrigin);
   return {
     mount: (app) => {
-      mountAuthRoutes(app, { service, passkeysAvailable: passkeys.available, secureByConfig });
+      mountAuthRoutes(app, {
+        service,
+        passkeysAvailable: passkeys.available,
+        secureByConfig,
+        insecureHttp: deps.insecureHttp === true,
+      });
       mountPasskeyRoutes(app, { passkeys, auth: service, throttle: passkeyThrottle, logger });
     },
     sessionValueOf: (header) => readCookie(header, SESSION_COOKIE),

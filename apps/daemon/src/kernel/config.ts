@@ -25,6 +25,8 @@ export interface Config {
   readonly dev: boolean;
   /** The certificate and key as read at start-up (PEM); the server never reads the files again. */
   readonly tls: { readonly cert: Buffer; readonly key: Buffer } | null;
+  /** `--insecure-http`: session cookies without Secure on plain HTTP, so a LAN address works for testing. */
+  readonly insecureHttp: boolean;
   readonly publicOrigin: string;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly piAgentDir: string;
@@ -82,6 +84,9 @@ export function loadConfig(input: ConfigInput): Config {
   const key = values["tls-key"];
   if ((cert === undefined) !== (key === undefined))
     throw new ConfigError("--tls-cert and --tls-key go together");
+  const insecureHttp = values["insecure-http"] === true;
+  if (insecureHttp && (cert !== undefined || key !== undefined))
+    throw new ConfigError("--insecure-http is for plain HTTP; drop it when serving TLS");
   const tls = cert !== undefined && key !== undefined ? readTls(cert, key) : null;
   const scheme = tls ? "https" : "http";
   const local = isLoopback(host) || isWildcard(host);
@@ -109,6 +114,7 @@ export function loadConfig(input: ConfigInput): Config {
     port,
     dev,
     tls,
+    insecureHttp,
     publicOrigin,
     allowedOrigins,
     piAgentDir: directoryFrom(
@@ -205,6 +211,7 @@ function parseFlags(argv: readonly string[]) {
         port: { type: "string" },
         "tls-cert": { type: "string" },
         "tls-key": { type: "string" },
+        "insecure-http": { type: "boolean", default: false },
       },
     }).values;
   } catch (error) {

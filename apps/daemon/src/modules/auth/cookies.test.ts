@@ -55,6 +55,14 @@ describe("session cookie attributes", () => {
     expect(publicSecure).toBe(true);
     expect(sessionCookieAttributes("http://127.0.0.1:7777/auth/login", publicSecure).secure).toBe(true);
   });
+
+  it("drop Secure on any plain-http request only when --insecure-http allows it", () => {
+    expect(sessionCookieAttributes("http://192.168.1.20:7777/auth/login", true).secure).toBe(true);
+    expect(sessionCookieAttributes("http://192.168.1.20:7777/auth/login", true, true).secure).toBe(false);
+    expect(sessionCookieAttributes("http://pap.lan:7777/auth/login", true, true).secure).toBe(false);
+    expect(sessionCookieAttributes("https://192.168.1.20:7777/auth/login", true, true).secure).toBe(true);
+    expect(sessionCookieAttributes("not a url", true, true).secure).toBe(true);
+  });
 });
 
 describe("readCookie", () => {

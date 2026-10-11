@@ -7,7 +7,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - `pnpm install` · `pnpm lint` · `pnpm format:check` · `pnpm typecheck` · `pnpm knip`
 - `pnpm test:unit` · `pnpm test:int` (forks real pi-host workers with a scripted provider)
 - `pnpm build` · `pnpm budgets`
-- Run the built POC: `pnpm build && node --disable-warning=ExperimentalWarning apps/daemon/dist/main.js serve`, then open the setup URL it prints (`/` answers 404 when `apps/web/dist` does not exist, so build first). `pnpm smoke` boots that same build against the scripted provider and drives it end to end.
+- Run the built POC: `pnpm build && node --disable-warning=ExperimentalWarning apps/daemon/dist/main.js serve`, then open the setup URL it prints (`/` answers 404 when `apps/web/dist` does not exist, so build first). From another machine of a trusted LAN (testing only, cookie in clear text): add `--host <LAN IP> --insecure-http` (ADR 0004). `pnpm smoke` boots that same build against the scripted provider and drives it end to end.
 - Dev: `pnpm --filter @pap/daemon dev` (prints its URL; port and PAP_HOME derived from the worktree path), then `PAP_DEV_DAEMON=http://127.0.0.1:<that port> pnpm --filter @pap/web dev` and open http://localhost:5173
 
 ## Rules (CI-enforced)
