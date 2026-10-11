@@ -1,6 +1,7 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { type DaemonToWorker, PolicyRules } from "@pap/contracts";
 import { logLineOf } from "./bounded.ts";
+import { handleAutoName } from "./auto-name.ts";
 import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
 import type { Ipc } from "./ipc.ts";
 import { POLICY_EXTENSION_PATH } from "./policy/extension.ts";
@@ -58,6 +59,9 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         return;
       case "export_html":
         background("export_html", handleExportHtml(session, record, send));
+        return;
+      case "auto_name":
+        background("auto_name", handleAutoName(session, record, send));
         return;
       case "extension_ui_response":
         ui.resolve(record);

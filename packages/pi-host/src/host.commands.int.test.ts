@@ -90,3 +90,25 @@ describe("session commands over IPC", () => {
     await host.waitFor((r) => r.type === "agent_settled");
   });
 });
+
+describe("auto_name over IPC", () => {
+  it("names a session from its transcript through the scripted model", async () => {
+    await bed.start({ steps: [{ text: "I will look at the login form." }, { text: "Fix the login bug" }] });
+    const host = bed.host();
+    await host.request({ type: "prompt", message: "the login button does nothing" });
+    await host.waitFor((r) => r.type === "agent_settled");
+    expect(await host.request({ type: "auto_name" })).toMatchObject({
+      success: true,
+      data: { title: "Fix the login bug" },
+    });
+    await host.waitFor((r) => r.type === "session_info_changed" && r.name === "Fix the login bug");
+  });
+
+  it("refuses to name a session nobody has spoken to", async () => {
+    await bed.start({ steps: [{ text: "unused" }] });
+    expect(await bed.host().request({ type: "auto_name" })).toMatchObject({
+      success: false,
+      error: "nothing to name",
+    });
+  });
+});
