@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { setLocale } from "../../i18n/index.ts";
 import { EMPTY_VIEW, reduceSession } from "../../stores/session-reducer.ts";
 import { transcriptItems } from "./transcript.vm.ts";
+
+afterEach(() => setLocale("en"));
 
 describe("transcriptItems", () => {
   it("maps authors, shows tool calls and results, and appends the partial reply", () => {
@@ -86,5 +89,35 @@ describe("transcriptItems", () => {
       ["overloaded", true],
     ]);
     expect(new Set(transcriptItems(view).map((item) => item.key)).size).toBe(2);
+  });
+
+  it("shows an oversize row as an item with its size instead of dropping it, in English and French (R109)", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      kind: "snapshot",
+      status: "idle",
+      dialogs: [],
+      messages: [
+        { role: "toolResult", timestamp: 5, omitted: true, bytes: 300_000 },
+        { role: "user", content: "next", timestamp: 6 },
+      ],
+    });
+    expect(transcriptItems(view).map((item) => [item.author, item.text])).toEqual([
+      ["tool", "Message too large to show (293 KB)."],
+      ["you", "next"],
+    ]);
+    setLocale("fr");
+    expect(transcriptItems(view)[0]?.text).toBe("Message trop volumineux pour être affiché (293 Ko).");
+  });
+
+  it("rounds a small placeholder up to 1 KB", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      kind: "snapshot",
+      status: "idle",
+      dialogs: [],
+      messages: [{ role: "assistant", timestamp: 5, omitted: true, bytes: 10 }],
+    });
+    expect(transcriptItems(view)).toMatchObject([
+      { author: "agent", text: "Message too large to show (1 KB)." },
+    ]);
   });
 });

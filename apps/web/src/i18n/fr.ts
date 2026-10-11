@@ -30,6 +30,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "session.send": "Envoyer",
   "session.stop": "Arrêter",
   "session.failure": "Erreur du modèle",
+  "session.omitted": "Message trop volumineux pour être affiché ({size} Ko).",
   "session.status.cold": "Arrêtée",
   "session.status.starting": "Démarrage",
   "session.status.idle": "Prête",

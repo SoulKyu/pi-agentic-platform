@@ -16,6 +16,8 @@ export interface MessageView {
   readonly toolCalls: readonly ToolCallView[];
   /** Why the provider failed (clipped), "" when it gave no reason, null when the message did not fail. */
   readonly error: string | null;
+  /** Size in bytes of a row the server did not send because it was too big (a placeholder), null otherwise. */
+  readonly omittedBytes: number | null;
 }
 
 export interface SessionView {
@@ -63,6 +65,8 @@ function toMessageView(raw: unknown): MessageView {
     toolCallId?: unknown;
     stopReason?: unknown;
     errorMessage?: unknown;
+    omitted?: unknown;
+    bytes?: unknown;
   };
   const role =
     message.role === "user" || message.role === "assistant" || message.role === "toolResult"
@@ -86,6 +90,8 @@ function toMessageView(raw: unknown): MessageView {
       summary: summarize(block.arguments ?? block.args ?? block.input),
     }));
   const failed = role === "assistant" && message.stopReason === "error";
+  const omitted =
+    message.omitted === true && typeof message.bytes === "number" && Number.isFinite(message.bytes);
   const ref = refOf(message, role);
   return {
     key: ref,
@@ -96,6 +102,7 @@ function toMessageView(raw: unknown): MessageView {
     error: failed
       ? clip(typeof message.errorMessage === "string" ? message.errorMessage : "", MAX_ERROR)
       : null,
+    omittedBytes: omitted ? (message.bytes as number) : null,
   };
 }
 
@@ -103,6 +110,7 @@ const sameContent = (a: MessageView, b: MessageView): boolean =>
   a.role === b.role &&
   a.text === b.text &&
   a.error === b.error &&
+  a.omittedBytes === b.omittedBytes &&
   a.toolCalls.length === b.toolCalls.length &&
   a.toolCalls.every((call, i) => {
     const other = b.toolCalls[i];

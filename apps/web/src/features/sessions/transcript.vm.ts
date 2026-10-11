@@ -9,13 +9,18 @@ export interface TranscriptItem {
   readonly failure?: true;
 }
 
+const BYTES_PER_KB = 1024;
+
 export function transcriptItems(view: SessionView): TranscriptItem[] {
   const items: TranscriptItem[] = [];
   for (const message of view.messages) {
     const author = message.role === "user" ? "you" : message.role === "assistant" ? "agent" : "tool";
-    const text = [message.text, ...message.toolCalls.map((call) => `${call.name}: ${call.summary}`)]
-      .filter(Boolean)
-      .join("\n");
+    const text =
+      message.omittedBytes === null
+        ? [message.text, ...message.toolCalls.map((call) => `${call.name}: ${call.summary}`)]
+            .filter(Boolean)
+            .join("\n")
+        : t("session.omitted", { size: Math.max(1, Math.round(message.omittedBytes / BYTES_PER_KB)) });
     if (text) items.push({ key: message.key, author, text });
     if (message.error !== null) {
       items.push({

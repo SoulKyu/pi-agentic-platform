@@ -20,6 +20,29 @@ describe("reduceSession", () => {
     });
   });
 
+  it("keeps the placeholder of an oversize row as a message that says how big it was (R109)", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      kind: "snapshot",
+      status: "idle",
+      messages: [{ role: "toolResult", timestamp: 5, omitted: true, bytes: 300_000 }, user],
+      dialogs: [],
+    });
+    expect(view.messages).toMatchObject([
+      { key: "toolResult:5", role: "toolResult", text: "", omittedBytes: 300_000 },
+      { key: "user:1", omittedBytes: null },
+    ]);
+  });
+
+  it("ignores an omitted flag that comes without a size", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      kind: "snapshot",
+      status: "idle",
+      messages: [{ role: "user", content: "hi", timestamp: 1, omitted: true }],
+      dialogs: [],
+    });
+    expect(view.messages[0]).toMatchObject({ text: "hi", omittedBytes: null });
+  });
+
   it("builds a partial reply from text deltas and replaces it on message_end", () => {
     let view = reduceSession(EMPTY_VIEW, pi({ type: "message_start", message: { role: "assistant" } }));
     view = reduceSession(

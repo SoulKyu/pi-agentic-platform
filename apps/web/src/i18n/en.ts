@@ -28,6 +28,7 @@ export const en = {
   "session.send": "Send",
   "session.stop": "Stop",
   "session.failure": "Model error",
+  "session.omitted": "Message too large to show ({size} KB).",
   "session.status.cold": "Stopped",
   "session.status.starting": "Starting",
   "session.status.idle": "Ready",
