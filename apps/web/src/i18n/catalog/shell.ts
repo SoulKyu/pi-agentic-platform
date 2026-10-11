@@ -1,6 +1,8 @@
 export const shellEn = {
   "ui.dismiss": "Dismiss",
   "ui.notifications": "Notifications",
+  "appearance.themeNotKept":
+    "A custom theme was not kept: another device filled the library first (16 themes at most). Delete one and add it again.",
   "ui.close": "Close",
   "server.notice.messageTooLarge": "A message was too large to stream.",
   "server.notice.dialogTooLarge":
@@ -72,6 +74,8 @@ export const shellEn = {
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "ui.dismiss": "Fermer",
   "ui.notifications": "Notifications",
+  "appearance.themeNotKept":
+    "Un thème personnalisé n'a pas été conservé : un autre appareil a rempli la bibliothèque avant (16 thèmes au plus). Supprimez-en un et ajoutez-le de nouveau.",
   "ui.close": "Fermer",
   "server.notice.messageTooLarge": "Un message était trop volumineux pour être diffusé.",
   "server.notice.dialogTooLarge":

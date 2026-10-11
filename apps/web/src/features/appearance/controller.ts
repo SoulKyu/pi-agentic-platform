@@ -2,9 +2,21 @@ import type { AccountAppearance } from "@pap/contracts";
 import { createAccountDocument, type AccountDocument } from "../../lib/account-setting.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import type { Runtime } from "../../runtime/index.ts";
+import { toast } from "@pap/ui";
+import { t } from "../../i18n/index.ts";
 import { applyAppearance, inlineAppearanceVars, syncThemeColor, writeBootCache } from "./apply.ts";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { changedAccountFields, mergeAccount, parseAccount, resolveAppearance, toBootCache } from "./model.ts";
+
+/** True when a theme this device holds is gone after the merge, though nobody deleted it here: the 16-theme cap cut it. */
+function dropsLocalTheme(local: AccountAppearance, merged: AccountAppearance): boolean {
+  const kept = new Set(merged.customThemes.map((theme) => theme.id));
+  const names = new Set(merged.customThemes.map((theme) => theme.name));
+  return (
+    merged.customThemes.length >= 16 &&
+    local.customThemes.some((theme) => !kept.has(theme.id) && !names.has(theme.name))
+  );
+}
 
 const LIGHT = "(prefers-color-scheme: light)";
 /** Blocked storage can throw on the property read itself: the appearance still applies, only the boot cache is lost. */
@@ -40,7 +52,11 @@ export function startAppearance(win: Window = window): { stop(): void } {
     write: (value, baseRevision) => ({ key: "appearance", value, baseRevision }),
     parse: parseAccount,
     changed: changedAccountFields,
-    merge: mergeAccount,
+    merge: (server, local, dirty, base) => {
+      const merged = mergeAccount(server, local, dirty, base);
+      if (dropsLocalTheme(local, merged)) toast({ message: t("appearance.themeNotKept"), tone: "error" });
+      return merged;
+    },
     local: () => useAppearanceStore.getState().account,
     adopt: (account) => {
       adopting = true;
