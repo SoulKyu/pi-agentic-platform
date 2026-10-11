@@ -57,6 +57,12 @@ describe("E1 tokens", () => {
     expect(css).toContain("--tracking-label: 0.12em;");
   });
 
+  it("resets the default Tailwind palette so only the M1 colours compile", () => {
+    const reset = css.indexOf("--color-*: initial;");
+    expect(reset).toBeGreaterThan(-1);
+    expect(reset).toBeLessThan(css.indexOf("--color-bg:"));
+  });
+
   it("loads nothing from the network (fonts are self-hosted)", () => {
     expect(css).not.toMatch(/url\(|@import|https?:\/\//);
   });

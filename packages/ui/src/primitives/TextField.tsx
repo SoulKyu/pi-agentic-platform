@@ -1,6 +1,7 @@
 import { useId } from "react";
 import { cn } from "../cn.ts";
 import { FOCUS_RING } from "../focus.ts";
+import { isSubmitShortcut } from "./submit-shortcut.ts";
 
 export interface TextFieldProps {
   readonly label: string;
@@ -19,19 +20,21 @@ export interface TextFieldProps {
 const FIELD = cn(
   "w-full rounded-sm border border-line bg-bg px-2 py-1 font-sans text-chat text-fg pointer-coarse:min-h-11",
   FOCUS_RING,
+  "disabled:cursor-not-allowed disabled:opacity-50",
 );
 
 export function TextField(props: TextFieldProps) {
   const id = useId();
-  const noteId = `${id}-note`;
-  const note = props.error || props.hint;
+  const hintId = `${id}-hint`;
+  const errorId = `${id}-error`;
+  const described = [props.hint ? hintId : "", props.error ? errorId : ""].filter(Boolean).join(" ");
   const shared = {
     id,
     name: props.name,
     value: props.value,
     disabled: props.disabled,
     autoComplete: props.autoComplete,
-    "aria-describedby": note ? noteId : undefined,
+    "aria-describedby": described || undefined,
     "aria-invalid": props.error ? true : undefined,
     className: FIELD,
   };
@@ -46,7 +49,7 @@ export function TextField(props: TextFieldProps) {
           rows={3}
           onChange={(event) => props.onChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) props.onSubmitShortcut?.();
+            if (isSubmitShortcut(event)) props.onSubmitShortcut?.();
           }}
         />
       ) : (
@@ -56,9 +59,14 @@ export function TextField(props: TextFieldProps) {
           onChange={(event) => props.onChange(event.target.value)}
         />
       )}
-      {note ? (
-        <p id={noteId} className={props.error ? "text-ui text-attention" : "text-ui text-muted"}>
-          {note}
+      {props.hint ? (
+        <p id={hintId} className="text-ui text-muted">
+          {props.hint}
+        </p>
+      ) : null}
+      {props.error ? (
+        <p id={errorId} role="alert" className="text-ui text-attention">
+          {props.error}
         </p>
       ) : null}
     </div>

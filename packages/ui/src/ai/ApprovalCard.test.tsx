@@ -99,6 +99,29 @@ describe("ApprovalCard", () => {
     expect(regions(render("")).header).toBe("");
   });
 
+  it("describes the dialog by its header and its scrollable text", () => {
+    const html = render("12 characters, 1 line\nbash: echo hi");
+    const describedBy = /<section[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1] ?? "";
+    const headerId = /<pre data-approval-header[^>]*id="([^"]+)"/.exec(html)?.[1];
+    const scrollId = /<pre data-approval-scroll[^>]*id="([^"]+)"/.exec(html)?.[1];
+    expect(headerId).toBeDefined();
+    expect(scrollId).toBeDefined();
+    expect(describedBy).toBe(`${headerId} ${scrollId}`);
+  });
+
+  it("describes the dialog only by what is rendered", () => {
+    const noBreak = render("Run a command?");
+    const scrollId = /<pre data-approval-scroll[^>]*id="([^"]+)"/.exec(noBreak)?.[1];
+    expect(scrollId).toBeDefined();
+    expect(/<section[^>]*aria-describedby="([^"]+)"/.exec(noBreak)?.[1]).toBe(scrollId);
+
+    const headerOnly = render("only a header\n");
+    const headerId = /<pre data-approval-header[^>]*id="([^"]+)"/.exec(headerOnly)?.[1];
+    expect(/<section[^>]*aria-describedby="([^"]+)"/.exec(headerOnly)?.[1]).toBe(headerId);
+
+    expect(render("")).not.toContain("aria-describedby");
+  });
+
   it("styles the card as an attention-tinted card", () => {
     const html = render("h\nb");
     expect(html).toContain("bg-attention-tint");

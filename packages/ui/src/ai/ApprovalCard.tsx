@@ -29,18 +29,24 @@ export function ApprovalCard(props: ApprovalCardProps) {
   useEffect(() => {
     latestOnAnswer.current = props.onAnswer;
   });
-  const [answer] = useState(() =>
-    once((approved: boolean) => {
+  // Built on the first click, never during render: both buttons share it for the card's whole life.
+  const guard = useRef<((approved: boolean) => boolean) | null>(null);
+  const answer = (approved: boolean) => {
+    guard.current ??= once((value: boolean) => {
       setAnswered(true);
-      latestOnAnswer.current(approved);
-    }),
-  );
+      latestOnAnswer.current(value);
+    });
+    guard.current(approved);
+  };
   const headerId = useId();
+  const bodyId = useId();
   const { header, body } = splitDetail(props.detail);
+  const described = [header === null ? "" : headerId, body === "" ? "" : bodyId].filter(Boolean).join(" ");
   return (
     <section
       role="alertdialog"
       aria-label={props.title}
+      aria-describedby={described || undefined}
       className="rounded-md border border-attention-line bg-attention-tint p-3"
     >
       <h3 className="font-mono text-label font-semibold uppercase tracking-label text-attention">
@@ -58,6 +64,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
       {body === "" ? null : (
         <pre
           data-approval-scroll
+          id={bodyId}
           role="region"
           aria-labelledby={header === null ? undefined : headerId}
           aria-label={header === null ? props.title : undefined}

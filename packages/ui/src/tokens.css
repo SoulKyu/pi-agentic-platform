@@ -1,7 +1,9 @@
 /* E1 tokens: a subset of DESIGN.md §3.1–3.2 (validated, decision 33). The full token schema
    (DESIGN.md names, high-contrast theme, densities) lands in roadmap M3. Fonts are self-hosted
-   (DESIGN.md §4): nothing here loads from the network. */
+   (DESIGN.md §4): nothing here loads from the network. The default Tailwind palette is reset: only the
+   colours below compile (transparent and current stay built in). */
 @theme inline {
+  --color-*: initial;
   --color-bg: var(--pap-bg);
   --color-panel: var(--pap-panel);
   --color-line: var(--pap-line);

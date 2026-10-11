@@ -14,6 +14,7 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   readonly variant?: Variant;
 }
 
+// DESIGN.md §9.1 sets button labels in mono uppercase: deferred to M3 with the full token schema.
 export function Button({ variant = "secondary", type = "button", ...rest }: ButtonProps) {
   return (
     <button

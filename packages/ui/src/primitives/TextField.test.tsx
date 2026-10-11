@@ -15,14 +15,37 @@ describe("TextField", () => {
     expect(html).toContain('value="Ada"');
   });
 
-  it("describes the field by its error, and flags it invalid", () => {
+  it("flags an error as an alert and still describes the field by its hint", () => {
     const html = renderToStaticMarkup(
       <TextField label="Name" value="" onChange={noop} hint="Shown to others" error="Required" />,
     );
     expect(html).toContain('aria-invalid="true"');
-    expect(html).toMatch(/aria-describedby="([^"]+)-note"/);
-    expect(html).toContain(">Required<");
-    expect(html).not.toContain("Shown to others");
+    const hintId = /<p id="([^"]+)"[^>]*>Shown to others</.exec(html)?.[1];
+    const errorId = /<p id="([^"]+)"[^>]*role="alert"[^>]*>Required</.exec(html)?.[1];
+    expect(hintId).toBeDefined();
+    expect(errorId).toBeDefined();
+    expect(hintId).not.toBe(errorId);
+    expect(/<input[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1]).toBe(`${hintId} ${errorId}`);
+  });
+
+  it("describes the field by its hint alone, with no alert", () => {
+    const html = renderToStaticMarkup(
+      <TextField label="Name" value="" onChange={noop} hint="Shown to others" />,
+    );
+    expect(html).toContain("Shown to others");
+    expect(html).not.toContain("role=");
+    expect(html).not.toContain("aria-invalid");
+    expect(/<input[^>]*aria-describedby="([^"]+)"/.exec(html)?.[1]).toBeDefined();
+    expect(renderToStaticMarkup(<TextField label="Name" value="" onChange={noop} />)).not.toContain(
+      "aria-describedby",
+    );
+  });
+
+  it("dims a disabled field and shows it is not editable", () => {
+    const html = renderToStaticMarkup(<TextField label="Name" value="" disabled onChange={noop} />);
+    expect(html).toContain("disabled:opacity-50");
+    expect(html).toContain("disabled:cursor-not-allowed");
+    expect(html).toContain('disabled=""');
   });
 
   it("renders a password input and a multiline textarea", () => {
