@@ -7,6 +7,7 @@
       "entry": ["src/testing/*.ts"],
       "ignoreBinaries": ["pgrep", "pkill", "rg", "fd"]
     },
-    "apps/daemon": { "ignoreBinaries": ["openssl"] }
+    "apps/daemon": { "ignoreBinaries": ["openssl"] },
+    "apps/web": { "entry": ["src/runtime/index.ts"] }
   }
 }
