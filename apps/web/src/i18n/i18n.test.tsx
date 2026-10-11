@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { ERROR_CODES } from "@pap/contracts";
 import { act } from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
@@ -59,6 +59,11 @@ describe("i18n", () => {
 });
 
 describe("reactive locale (R128)", () => {
+  afterEach(() => {
+    setLocale("en");
+    vi.restoreAllMocks();
+  });
+
   it("re-renders a component that reads useT when the locale changes", async () => {
     setLocale("en");
     function Probe() {
@@ -97,6 +102,7 @@ describe("reactive locale (R128)", () => {
   });
 
   it("switches for this page and says so when the browser refuses to store the choice", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const refused = {
       setItem: () => {
         throw new Error("denied");
@@ -104,6 +110,7 @@ describe("reactive locale (R128)", () => {
     };
     expect(switchLocale("fr", { storage: refused, root: document.documentElement })).toBe(false);
     expect(getLocale()).toBe("fr");
+    expect(warn.mock.calls).toEqual([["pap: storage_refused"]]);
     switchLocale("en", { storage: { setItem: () => {} }, root: document.documentElement });
   });
 });

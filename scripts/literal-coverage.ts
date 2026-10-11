@@ -20,7 +20,7 @@ const LABEL_ATTRIBUTES = new Set([
   "stageLabel",
 ]);
 const LETTER = /\p{L}/u;
-// The gallery shows sample content (data, not UI text); tests and test helpers are not shipped.
+// The gallery is dev-only and not shipped (ADR 0011) and shows sample content (data, not UI text); tests and test helpers are not shipped either.
 const SCANNED = /^(?:packages\/ui\/src|apps\/web\/src)\/.*\.tsx$/;
 // M2's folder waits for post-merge task P7, which deletes that alternative (M3-RT-24).
 const SKIPPED = /\.test\.|\/testing\/|^apps\/web\/src\/gallery\/|^apps\/web\/src\/features\/sessions\//;
