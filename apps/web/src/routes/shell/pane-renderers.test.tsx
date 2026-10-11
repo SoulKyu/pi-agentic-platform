@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { isValidElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { startKeybindings } from "../../features/commands/index.ts";
@@ -57,5 +58,46 @@ describe("the settings pane", () => {
       { timeout: 2_000 },
     );
     await page.unmount();
+  });
+});
+
+describe("the dev-ui pane", () => {
+  it("shows the gallery in development", async () => {
+    const page = await renderShell("/dev/ui");
+    await vi.waitFor(
+      () =>
+        expect(
+          page.container.querySelector('[data-pane-kind="dev-ui"] [data-gallery-section]'),
+        ).not.toBeNull(),
+      { timeout: 5_000 },
+    );
+    await page.unmount();
+  });
+
+  it("answers /dev/ui with the not-found screen in production, with no gallery in the page (ADR 0011)", async () => {
+    vi.stubEnv("DEV", false);
+    try {
+      const page = await renderShell("/dev/ui");
+      expect(page.container.querySelector('[data-slot="empty-state"]')?.textContent).toContain(
+        "This page does not exist",
+      );
+      expect(page.container.querySelector("[data-gallery-section]")).toBeNull();
+      await page.unmount();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("builds the pane renderer without a gallery in a production build (ADR 0011)", async () => {
+    vi.stubEnv("DEV", false);
+    vi.resetModules();
+    try {
+      const { renderItem } = await import("./pane-renderers.tsx");
+      const { NotFound } = await import("./NotFound.tsx");
+      const shown = renderItem({ kind: "dev-ui" });
+      expect(isValidElement(shown) && shown.type).toBe(NotFound);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

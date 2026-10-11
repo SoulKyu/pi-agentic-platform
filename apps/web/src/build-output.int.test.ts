@@ -158,4 +158,23 @@ describe("the built web app under the daemon's CSP", () => {
       );
     await keepsLazyOnly([/data-markdown-body/]);
   });
+
+  it("ships nothing of the /dev/ui gallery in any production asset, initial or lazy (ADR 0011, M3R122)", async () => {
+    const markers = [
+      /data-gallery-section/,
+      /data-gallery-item/,
+      /data-slot":\W*gallery-frame/,
+      /Every component of @pap\/ui/,
+      /Chaque composant de @pap\/ui/,
+    ];
+    const everything = [
+      html,
+      ...(await Promise.all(assets.map((name) => readFile(join(out, "assets", name))))).map((bytes) =>
+        bytes.toString("latin1"),
+      ),
+    ];
+    expect(everything.length).toBeGreaterThan(10);
+    for (const marker of markers)
+      expect(everything.filter((content) => marker.test(content)).length, String(marker)).toBe(0);
+  });
 });

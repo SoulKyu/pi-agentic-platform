@@ -4,6 +4,7 @@ import { join, relative } from "node:path";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
+import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { registerCatalog, setLocale, translate, useT } from "./index.ts";
 
@@ -72,5 +73,39 @@ describe("lazy catalog (Settings)", () => {
         offenders.push(`${name}: settings prefix`);
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("lazy catalog (gallery)", () => {
+  it("registers its strings with the gallery chunk, English and French", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(translate("en", "gallery.heading")).toBe("gallery.heading");
+    await act(async () => registerCatalog({ en: galleryEn, fr: galleryFr }));
+    expect(translate("en", "gallery.heading")).toBe("UI gallery");
+    expect(translate("fr", "gallery.heading")).toBe("Galerie de l'interface");
+    expect(translate("fr", "gallery.frame", { theme: "Nuit", density: "Mixte" })).toBe("Nuit · Mixte");
+  });
+
+  it("is referenced only from the gallery directory: shipped code can never render a raw gallery key", () => {
+    // The whole directory is the lazy chunk; every other file is held to the strict rule.
+    const inGallery = (file: string) => file.startsWith("gallery/");
+    expect(readdirSync(join(src, "gallery")).length).toBeGreaterThan(0);
+    const offenders: string[] = [];
+    for (const file of files(src)) {
+      const name = relative(src, file).split("\\").join("/");
+      if (!/\.tsx?$/.test(name) || /\.test\.|^i18n\/|^testing\//.test(name) || inGallery(name)) continue;
+      const code = readFileSync(file, "utf8");
+      for (const key of Object.keys(galleryEn))
+        if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
+      if (/["'`]gallery\./.test(code)) offenders.push(`${name}: gallery prefix`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the gallery strings out of the eager catalogs", async () => {
+    const { en } = await import("./en.ts");
+    const { fr } = await import("./fr.ts");
+    expect(Object.keys(en).filter((key) => key.startsWith("gallery."))).toEqual([]);
+    expect(Object.keys(fr).filter((key) => key.startsWith("gallery."))).toEqual([]);
   });
 });

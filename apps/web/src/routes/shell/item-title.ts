@@ -15,6 +15,6 @@ export function itemTitle(item: ItemRef, sessions: readonly SessionSummary[], t:
     case "settings":
       return t("shell.tab.settings");
     case "dev-ui":
-      return t("gallery.title");
+      return t("shell.tab.devUi");
   }
 }

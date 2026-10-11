@@ -3,10 +3,11 @@ import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
+import type { galleryEn } from "./catalog/gallery.ts";
 import type { settingsScreenEn } from "./catalog/settings-screen.ts";
 
 /** The eager keys plus the keys of lazy catalogs (type-only import: nothing of them is bundled eagerly). */
-export type MessageKey = keyof typeof en | keyof typeof settingsScreenEn;
+export type MessageKey = keyof typeof en | keyof typeof settingsScreenEn | keyof typeof galleryEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

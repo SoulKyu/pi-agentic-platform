@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { lazy, Suspense, type ReactNode } from "react";
 import type { ItemRef, SettingsSection } from "../../features/workspace/index.ts";
 import { SessionListScreen } from "../../features/sessions/SessionListScreen.tsx";
 import { SessionScreen } from "../../features/sessions/SessionScreen.tsx";
@@ -16,12 +16,25 @@ function LazySettings({ section }: { readonly section: SettingsSection }) {
   return <LazyPane load={loadSettings} props={{ section }} />;
 }
 
-/** One renderer per item kind; Task 28 replaces the dev-ui placeholder. */
+// Dev only (ADR 0011): `import.meta.env.DEV` is a build-time constant, so a production build drops the branch and with it
+// the dynamic import: no gallery chunk exists. A dev chunk needs no LazyBoundary.
+const DevGallery = import.meta.env.DEV
+  ? lazy(() => import("../../gallery/Gallery.tsx").then((module) => ({ default: module.Gallery })))
+  : null;
+
+/** One renderer per item kind. */
 export const PANE_RENDERERS: Renderers = {
   home: () => <SessionListScreen />,
   session: (item) => <SessionScreen key={item.id} sessionId={item.id} />,
   settings: (item) => <LazySettings section={item.section} />,
-  "dev-ui": () => <NotFound />,
+  "dev-ui": () =>
+    DevGallery ? (
+      <Suspense fallback={null}>
+        <DevGallery />
+      </Suspense>
+    ) : (
+      <NotFound />
+    ),
 };
 
 export function renderItem(item: ItemRef): ReactNode {

@@ -21,6 +21,7 @@ const ELEMENTS = [
   { type: "web-stores", pattern: "apps/web/src/stores" },
   { type: "web-feature", pattern: "apps/web/src/features/*", capture: ["domain"] },
   { type: "web-routes", pattern: "apps/web/src/routes" },
+  { type: "web-gallery", pattern: "apps/web/src/gallery" },
   { type: "web-i18n", pattern: "apps/web/src/i18n" },
   { type: "web-root", pattern: "apps/web/src/*.{ts,tsx}", mode: "file" },
 ];
@@ -114,8 +115,18 @@ export default defineConfig(
             },
             {
               from: "web-routes",
-              allow: ["web-routes", "web-feature", "web-runtime", "web-lib", "web-i18n", "ui", "contracts"],
+              allow: [
+                "web-routes",
+                "web-feature",
+                "web-gallery",
+                "web-runtime",
+                "web-lib",
+                "web-i18n",
+                "ui",
+                "contracts",
+              ],
             },
+            { from: "web-gallery", allow: ["web-gallery", "web-i18n", "ui"] },
             { from: "web-i18n", allow: ["web-i18n", "web-lib", "contracts"] },
             {
               from: "web-root",
@@ -143,6 +154,7 @@ export default defineConfig(
                 "web-stores",
                 "web-feature",
                 "web-routes",
+                "web-gallery",
                 "web-i18n",
                 "web-root",
               ],

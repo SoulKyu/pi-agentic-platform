@@ -1,11 +1,9 @@
 import { commandsEn } from "./catalog/commands.ts";
-import { galleryEn } from "./catalog/gallery.ts";
 import { shellEn } from "./catalog/shell.ts";
 
 export const en = {
   ...shellEn,
   ...commandsEn,
-  ...galleryEn,
   "app.name": "pap",
   "app.tagline": "pi agentic platform",
   "app.loading": "Loading…",

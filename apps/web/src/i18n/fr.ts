@@ -1,12 +1,10 @@
 import type { en } from "./en.ts";
 import { commandsFr } from "./catalog/commands.ts";
-import { galleryFr } from "./catalog/gallery.ts";
 import { shellFr } from "./catalog/shell.ts";
 
 export const fr: { readonly [K in keyof typeof en]: string } = {
   ...shellFr,
   ...commandsFr,
-  ...galleryFr,
   "app.name": "pap",
   "app.tagline": "pi agentic platform",
   "app.loading": "Chargement…",
