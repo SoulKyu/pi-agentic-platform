@@ -25,10 +25,21 @@ export const CLOSE_GRACE_MS = 1_000;
 export const MAX_BUFFERED_BYTES = 8 * 1024 * 1024;
 /** Open subscriptions one connection may hold; the next one is answered `capacity`. */
 export const MAX_SUBSCRIPTIONS = 64;
+/**
+ * Close code of a socket whose session ended (sign-out, expiry) while it was open. Application codes start at 4000;
+ * 4401 mirrors HTTP 401. A client that sees it must sign in again before it reconnects.
+ */
+export const CLOSE_UNAUTHENTICATED = 4401;
 
 export interface WsServerOptions {
   readonly allowedOrigins: ReadonlySet<string>;
-  authenticate(req: IncomingMessage): Caller | null;
+  /**
+   * Resolves the session cookie header to a caller. Asked at the upgrade, before every request frame and on every
+   * keepalive tick, so a sign-out or an expiry ends an open socket within one request or one tick. It may throw
+   * (database trouble): the upgrade answers 500, a request frame answers `internal`, a tick leaves the socket for
+   * the next check.
+   */
+  authenticate(cookieHeader: string | undefined): Caller | null;
   readonly dispatch: Dispatch;
   readonly hub: StreamHub;
   readonly logger: Logger;
@@ -51,9 +62,11 @@ export interface KeepalivePeer {
  * One timer chain per peer, one 15 s window. The server pings at the start of each window; a peer
  * from which nothing at all arrived during a whole window (no message, ping or pong) is terminated
  * when the window closes. Browsers answer pings below the page, so a throttled background tab lives.
+ * `onWindow` runs at the end of every window a live peer survived (the session re-check).
  */
-export function startKeepalive(peer: KeepalivePeer, clock: Clock): { stop(): void } {
+export function startKeepalive(peer: KeepalivePeer, clock: Clock, onWindow?: () => void): { stop(): void } {
   let heard = false;
+  let stopped = false;
   let timer: TimerHandle | null = null;
   for (const event of ["message", "ping", "pong"] as const) {
     peer.on(event, () => {
@@ -75,11 +88,14 @@ export function startKeepalive(peer: KeepalivePeer, clock: Clock): { stop(): voi
       return;
     }
     heard = false;
-    probe();
+    // The callback may end the connection and stop this chain; it must not throw out of the timer.
+    onWindow?.();
+    if (!stopped) probe();
   };
   probe();
   return {
     stop() {
+      stopped = true;
       if (timer) clock.clearTimeout(timer);
       timer = null;
     },
@@ -123,9 +139,14 @@ function decode(text: string, reply: (frame: unknown) => void): RequestFrame | n
 export function createWsServer(options: WsServerOptions): WsServer {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
 
-  function attach(ws: WebSocket, caller: Caller): void {
+  /**
+   * `cookie` is the Cookie header of the upgrade, kept for the life of the socket and used for nothing but the
+   * re-checks below. It is never logged or sent anywhere.
+   */
+  function attach(ws: WebSocket, cookie: string | undefined): void {
     const connectionId = randomUUID();
     let nextSub = 0;
+    let revoked = false;
     const send = (frame: unknown): void => {
       if (ws.readyState !== ws.OPEN) return;
       if (ws.bufferedAmount > MAX_BUFFERED_BYTES) {
@@ -152,15 +173,36 @@ export function createWsServer(options: WsServerOptions): WsServer {
       options.hub.close(connectionId, sub);
     };
 
+    // The session ended: live events stop at once, the close frame follows whatever was already queued.
+    const revoke = (): void => {
+      if (revoked) return;
+      revoked = true;
+      options.hub.close(connectionId);
+      subs.clear();
+      if (ws.readyState === ws.CLOSED) return;
+      ws.close(CLOSE_UNAUTHENTICATED, "unauthenticated");
+      const cut = options.clock.setTimeout(() => ws.terminate(), CLOSE_GRACE_MS);
+      ws.once("close", () => options.clock.clearTimeout(cut));
+    };
+
     const onText = async (text: string): Promise<void> => {
+      if (revoked) return;
       let requestId: number | null = null;
       let answered = false;
       let committed = false;
       const prepared: Array<{ readonly sub: string; readonly open: PreparedOpen }> = [];
       try {
         const frame = decode(text, sendSafe);
+        requestId = frame?.id ?? null;
+        // Every text frame re-asks, a malformed one too: a revoked socket must not linger on garbage.
+        const caller = options.authenticate(cookie);
+        if (!caller) {
+          if (frame) sendSafe({ id: frame.id, ok: false, error: { code: "unauthenticated" } });
+          answered = true;
+          revoke();
+          return;
+        }
         if (!frame) return;
-        requestId = frame.id;
         const response = await options.dispatch(frame, {
           caller,
           connectionId,
@@ -193,7 +235,17 @@ export function createWsServer(options: WsServerOptions): WsServer {
       }
     };
 
-    const keepalive = startKeepalive(ws, options.clock);
+    const keepalive = startKeepalive(ws, options.clock, () => {
+      try {
+        if (!options.authenticate(cookie)) {
+          keepalive.stop();
+          revoke();
+        }
+      } catch (error) {
+        // Cannot tell: keep the socket, the next frame or tick asks again. No request is served meanwhile.
+        options.logger.error("ws_authenticate_failed", { connectionId, err: error });
+      }
+    });
     ws.on("message", (data: RawData, isBinary: boolean) => {
       if (!isBinary) void onText(data.toString());
     });
@@ -218,13 +270,14 @@ export function createWsServer(options: WsServerOptions): WsServer {
       if (url.searchParams.get("proto") !== String(PROTOCOL_VERSION)) return reject(socket, 426);
       let caller: Caller | null;
       try {
-        caller = options.authenticate(req);
+        caller = options.authenticate(req.headers.cookie);
       } catch (error) {
         options.logger.error("ws_authenticate_failed", { err: error });
         return reject(socket, 500);
       }
       if (!caller) return reject(socket, 401);
-      wss.handleUpgrade(req, socket, head, (ws) => attach(ws, caller));
+      const cookie = req.headers.cookie;
+      wss.handleUpgrade(req, socket, head, (ws) => attach(ws, cookie));
     },
     close() {
       for (const client of wss.clients) {

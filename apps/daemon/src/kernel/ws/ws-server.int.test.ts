@@ -72,7 +72,7 @@ beforeEach(async () => {
     frame.id === EXPLODING_ID ? Promise.reject(new Error("dispatch exploded")) : inner(frame, ctx);
   ws = createWsServer({
     allowedOrigins: new Set([ORIGIN]),
-    authenticate: (req) => (req.headers.cookie === "pap_session=good" ? owner : null),
+    authenticate: (cookie) => (cookie === "pap_session=good" ? owner : null),
     dispatch,
     hub,
     logger,

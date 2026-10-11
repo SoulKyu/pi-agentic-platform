@@ -62,6 +62,30 @@ describe("keepalive", () => {
     expect(peer.terminate).not.toHaveBeenCalled();
   });
 
+  it("runs onWindow at the end of every window a live peer survived, not at the start", async () => {
+    const clock = createFakeClock();
+    const peer = new FakePeer();
+    const onWindow = vi.fn();
+    startKeepalive(peer, clock, onWindow);
+    expect(onWindow).not.toHaveBeenCalled();
+    peer.emit("pong");
+    await clock.advance(KEEPALIVE_MS);
+    expect(onWindow).toHaveBeenCalledTimes(1);
+    await clock.advance(KEEPALIVE_MS);
+    expect(onWindow).toHaveBeenCalledTimes(1);
+    expect(peer.terminate).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops pinging once onWindow stopped the chain", async () => {
+    const clock = createFakeClock();
+    const peer = new FakePeer();
+    const keepalive = startKeepalive(peer, clock, () => keepalive.stop());
+    peer.emit("pong");
+    await clock.advance(KEEPALIVE_MS);
+    expect(peer.ping).toHaveBeenCalledTimes(1);
+    expect(clock.pending()).toBe(0);
+  });
+
   it("terminates instead of throwing out of the timer when a ping fails", async () => {
     const clock = createFakeClock();
     const peer = new FakePeer();

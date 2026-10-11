@@ -3,6 +3,8 @@ import { WebSocket } from "ws";
 
 export interface TestClient {
   readonly events: EventFrame[];
+  /** Resolves with the close code when the socket closes (1006 when it was cut). */
+  readonly closed: Promise<number>;
   /** Rejects when no response comes within `timeoutMs`; the client never retries a mutation (R105). */
   call<M extends MethodName>(method: M, params: ParamsOf<M>, timeoutMs?: number): Promise<ResponseFrame>;
   waitForEvent(predicate: (frame: EventFrame) => boolean, timeoutMs?: number): Promise<EventFrame>;
@@ -17,10 +19,12 @@ export function connectTestClient(url: string, headers: Record<string, string>):
     const events: EventFrame[] = [];
     const pending = new Map<number, (frame: ResponseFrame) => void>();
     const wakers = new Set<() => void>();
+    const closed = new Promise<number>((done) => socket.on("close", (code) => done(code)));
     let nextId = 0;
     let greeted = false;
     const client: TestClient = {
       events,
+      closed,
       call(method, params, timeoutMs = 30_000) {
         const id = ++nextId;
         const commandId = methods[method].idempotent ? undefined : `cmd-${process.pid}-${++commandCounter}`;

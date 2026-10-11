@@ -8,6 +8,13 @@ Code: `apps/daemon/src/modules/auth/`. Cookie policy: ADR 0004.
 - `POST /auth/setup` verifies the token by SHA-256 digest in constant time, creates the single owner (12+ characters, scrypt N=2^15 r=8 p=3, parameters stored in the hash) and consumes the token.
 - Sessions: opaque 32-byte id in `pap_session`, stored as SHA-256, 30-day expiry that slides at most once a day from `clock.now()`. `GET /auth/status` re-issues the cookie so the browser copy slides too.
 
+## Open sockets and revocation
+
+- `/ws` authenticates at the upgrade, and then again before every text frame and on every keepalive tick (`kernel/ws/ws-server.ts`; the check is the same `authenticateCookieHeader` the upgrade uses). The socket keeps the `Cookie` header of its upgrade in memory for that, nothing else: it is never logged, stored or sent.
+- A failed check answers the request in flight `unauthenticated` (a malformed frame gets no answer), drops the socket's subscriptions at once, closes with code 4401 (`CLOSE_UNAUTHENTICATED`) and cuts the connection after the 1 s close grace if the peer does not answer. So `POST /auth/logout`, an expiry or a deleted session row end an open socket within one request or one 15 s tick.
+- The web client needs nothing special: a dropped socket makes it probe `GET /ws`, which answers 401 for a dead session, and the connection goes to `signed-out`.
+- A check that throws (database trouble) does not close the socket: the request is answered `internal` and not dispatched, a tick logs `ws_authenticate_failed` and tries again at the next one. The check also slides the session expiry like any other authenticated call, so a connected, busy client keeps its session.
+
 ## Sign-in throttle and its trade-offs
 
 - Keys: socket address (`ip:`) and lower-cased account name (`user:`). Failures double the wait from 1 s to 60 s; a key is forgotten after 5 idle minutes or a success. A failure is counted before the scrypt, so parallel guesses queue behind the first.
