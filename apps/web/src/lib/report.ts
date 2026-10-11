@@ -7,6 +7,7 @@ export type ClientIssue =
   | "keybindings_invalid"
   | "sessions_list_failed"
   | "lazy_chunk_failed"
+  | "render_failed"
   | "command_failed"
   | "workspace_invalid";
 

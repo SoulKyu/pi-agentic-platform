@@ -2,10 +2,14 @@
 import { lazy } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasButton, mount, settle } from "../../testing/dom.ts";
-import { PaneBoundary } from "./PaneBoundary.tsx";
+import { isStaleChunk, PaneBoundary } from "./PaneBoundary.tsx";
+
+const report = vi.hoisted(() => ({ reportClientIssue: vi.fn() }));
+vi.mock("../../lib/report.ts", () => report);
 
 let silenced: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
+  report.reportClientIssue.mockReset();
   silenced = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => silenced.mockRestore());
@@ -23,6 +27,7 @@ describe("PaneBoundary", () => {
     await settle();
     expect(page.container.querySelector("h2")?.textContent).toBe("pap was updated");
     expect(hasButton(page.container, "Reload")).toBe(true);
+    expect(report.reportClientIssue.mock.calls).toEqual([["lazy_chunk_failed"]]);
     await page.unmount();
   });
 
@@ -35,6 +40,7 @@ describe("PaneBoundary", () => {
     );
     await settle();
     expect(page.container.querySelector("h2")?.textContent).toBe("This screen stopped working");
+    expect(report.reportClientIssue.mock.calls).toEqual([["render_failed"]]);
     await page.unmount();
   });
 
@@ -48,5 +54,15 @@ describe("PaneBoundary", () => {
     await settle();
     expect(page.container.querySelector('[data-ok="yes"]')).not.toBeNull();
     await page.unmount();
+  });
+});
+
+describe("isStaleChunk", () => {
+  it("knows the Chromium, Safari and bundler wordings, and nothing else", () => {
+    expect(isStaleChunk(new TypeError("Failed to fetch dynamically imported module: /a.js"))).toBe(true);
+    expect(isStaleChunk(new TypeError("Importing a module script failed."))).toBe(true);
+    expect(isStaleChunk(Object.assign(new Error("x"), { name: "ChunkLoadError" }))).toBe(true);
+    expect(isStaleChunk(new Error("boom"))).toBe(false);
+    expect(isStaleChunk("Importing a module script failed")).toBe(false);
   });
 });

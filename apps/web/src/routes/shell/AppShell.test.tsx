@@ -124,10 +124,10 @@ describe("AppShell", () => {
 
   it("does not re-push the path when it already matches the active item", async () => {
     const page = await renderShell("/s/abc");
-    const length = window.history.length;
+    const length = page.router.history.length;
     await settle();
     expect(page.router.state.location.pathname).toBe("/s/abc");
-    expect(window.history.length).toBe(length);
+    expect(page.router.history.length).toBe(length);
     await page.unmount();
   });
 });

@@ -2,7 +2,7 @@ import { Button, EmptyState } from "@pap/ui";
 import { Component, Suspense, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
-import { RouteError } from "../RouteError.tsx";
+import { RouteErrorScreen } from "../RouteError.tsx";
 
 // What browsers throw when a lazy chunk is gone after an update: Chromium, Safari, Firefox, bundler wording.
 const STALE_CHUNK =
@@ -40,12 +40,12 @@ export class PaneBoundary extends Component<{ readonly children: ReactNode }, St
   }
 
   override componentDidCatch(error: unknown): void {
-    if (isStaleChunk(error)) reportClientIssue("lazy_chunk_failed");
+    reportClientIssue(isStaleChunk(error) ? "lazy_chunk_failed" : "render_failed");
   }
 
   override render(): ReactNode {
     if (this.state.failure === "stale") return <Updated />;
-    if (this.state.failure === "broken") return <RouteError />;
+    if (this.state.failure === "broken") return <RouteErrorScreen />;
     return <Suspense fallback={<Loading />}>{this.props.children}</Suspense>;
   }
 }

@@ -4,8 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { hasButton, mount } from "../testing/dom.ts";
 import { buildRouteTree, createAppRouter } from "./router.tsx";
 
+const report = vi.hoisted(() => ({ reportClientIssue: vi.fn() }));
+vi.mock("../lib/report.ts", () => report);
+
 let silenced: ReturnType<typeof vi.spyOn>;
 beforeEach(() => {
+  report.reportClientIssue.mockReset();
   silenced = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => silenced.mockRestore());
@@ -26,6 +30,7 @@ describe("router", () => {
     expect(page.container.querySelector("h2")?.textContent).toBe("This screen stopped working");
     expect(hasButton(page.container, "Reload")).toBe(true);
     expect(page.container.textContent).not.toContain("boom");
+    expect(report.reportClientIssue.mock.calls).toEqual([["render_failed"]]);
     await page.unmount();
   });
 
@@ -33,6 +38,7 @@ describe("router", () => {
     const page = await show(Fine);
     expect(page.container.querySelector('[data-ok="yes"]')).not.toBeNull();
     expect(page.container.querySelector("h2")).toBeNull();
+    expect(report.reportClientIssue).not.toHaveBeenCalled();
     await page.unmount();
   });
 
