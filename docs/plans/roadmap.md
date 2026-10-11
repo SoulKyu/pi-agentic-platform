@@ -4,7 +4,7 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 
 ## M2 — Sessions core and extension UI
 - Goal: the full Pi session experience on the worker model.
-- Domains: D01 (steer / follow-up with the 128-message / 32 MiB queue cap, `navigate_tree`, fork / clone, compaction, HTML export, auto-name, history paging, tool output on demand, 50 ms delta coalescing, drafts, minimap), D18 (all dialogs incl. session/always answers, status bar with `command:` buttons, widgets, `ctx.ui.custom()` panels over `custom_render` / `custom_input` as proven by S1). Worker idle release after 30 min; systemd scopes (`MemoryHigh` / `MemoryMax` / `TasksMax`).
+- Domains: D01 (steer / follow-up with the 128-message / 32 MiB queue cap, `navigate_tree`, fork / clone, compaction, HTML export, auto-name, history paging, tool output on demand, 50 ms delta coalescing, recent notices in the snapshot so that start-up notices (the events a new session's worker raised before `ready`) reach a cursor-less subscriber, drafts, minimap), D18 (all dialogs incl. session/always answers, status bar with `command:` buttons, widgets, `ctx.ui.custom()` panels over `custom_render` / `custom_input` as proven by S1). Worker idle release after 30 min; systemd scopes (`MemoryHigh` / `MemoryMax` / `TasksMax`).
 - Depends on: M1, S1.
 - Exit: pi-web D01 and D18 behaviours reproduced with scripted-provider integration tests; a crashing extension or worker never takes the daemon down.
 

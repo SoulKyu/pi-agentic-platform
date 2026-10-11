@@ -136,6 +136,8 @@ describe("redaction keys", () => {
     "key",
     "publicKey",
     "tokenizer",
+    // Pi's compaction field: a count of tokens before, not a token.
+    "tokensBefore",
     "keyboard",
     "apiKeyboard",
     "monkey",
