@@ -9,6 +9,7 @@ export const CLIENT_ERROR_CODES = [
   "connection_lost",
   "offline",
   "passkey_cancelled",
+  "passkey_failed",
   "password_incorrect",
 ] as const;
 const CATALOGS: Record<Locale, { readonly [K in MessageKey]: string }> = { en, fr };

@@ -73,4 +73,18 @@ describe("SetupScreen", () => {
     expect(alerts(container)).toEqual(["Open the setup link printed in the server log."]);
     expect(onDone).not.toHaveBeenCalled();
   });
+
+  it("states the username rule, and keeps Create account off for a name the server would refuse", async () => {
+    const container = await show("#token=tok");
+    expect(container.textContent).toContain("Letters, digits, dot, dash and underscore; up to 64.");
+    for (const name of ["ana smith", "ana@example.com", "é", "x".repeat(65)]) {
+      await typeInto(field(container, "Username"), name);
+      await typeInto(field(container, "Password"), "a long enough password");
+      expect(button(container, "Create account").disabled, name).toBe(true);
+    }
+    for (const name of ["ana", "a.b-c_d", "x".repeat(64)]) {
+      await typeInto(field(container, "Username"), name);
+      expect(button(container, "Create account").disabled, name).toBe(false);
+    }
+  });
 });

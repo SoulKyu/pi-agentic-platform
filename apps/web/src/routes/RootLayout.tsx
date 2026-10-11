@@ -1,3 +1,4 @@
+import { Button } from "@pap/ui";
 import { Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AccountBar } from "../features/auth/AccountBar.tsx";
@@ -8,7 +9,7 @@ import { t } from "../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../runtime/index.ts";
 
 export function RootLayout() {
-  const { state, refresh } = useAuthGate();
+  const { state, refresh, retry } = useAuthGate();
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
 
@@ -23,8 +24,11 @@ export function RootLayout() {
   if (state.phase === "loading") return <main className="p-6 text-muted">{t("app.loading")}</main>;
   if (state.phase === "error") {
     return (
-      <main role="alert" className="p-6 text-attention">
-        {t("error.offline")}
+      <main className="flex flex-col items-start gap-3 p-6">
+        <p role="alert" className="text-attention">
+          {t("error.offline")}
+        </p>
+        <Button onClick={retry}>{t("gate.retry")}</Button>
       </main>
     );
   }

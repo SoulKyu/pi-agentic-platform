@@ -111,4 +111,12 @@ describe("LoginScreen", () => {
     expect(alerts(container)).toEqual(["The passkey prompt was cancelled."]);
     expect(button(container, "Sign in with a passkey").disabled).toBe(false);
   });
+
+  it("words a passkey that did not work as such, never as a wrong username or password", async () => {
+    api.loginWithPasskey.mockResolvedValue(failed("passkey_failed"));
+    const container = await show(true);
+    await click(button(container, "Sign in with a passkey"));
+    await settle();
+    expect(alerts(container)).toEqual(["The passkey could not be used. Try again, or use your password."]);
+  });
 });

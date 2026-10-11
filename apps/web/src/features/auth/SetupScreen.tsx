@@ -4,6 +4,9 @@ import { t } from "../../i18n/index.ts";
 import { setupOwner } from "./auth-api.ts";
 import { authErrorText } from "./auth-error.ts";
 
+// What the server accepts as a username (apps/daemon, auth/http.ts): a name it would refuse is not sent.
+const USERNAME = /^[A-Za-z0-9_.-]{1,64}$/;
+
 export function SetupScreen({ onDone }: { onDone(): void }) {
   const [token] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
   const [username, setUsername] = useState("");
@@ -40,6 +43,7 @@ export function SetupScreen({ onDone }: { onDone(): void }) {
           onChange={setUsername}
           name="username"
           autoComplete="username"
+          hint={t("setup.usernameHint")}
         />
         <TextField
           label={t("setup.password")}
@@ -53,7 +57,7 @@ export function SetupScreen({ onDone }: { onDone(): void }) {
         <Button
           type="submit"
           variant="primary"
-          disabled={busy || !token || password.length < 12 || username === ""}
+          disabled={busy || !token || password.length < 12 || !USERNAME.test(username)}
         >
           {t("setup.submit")}
         </Button>

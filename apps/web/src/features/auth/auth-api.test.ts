@@ -36,6 +36,8 @@ function server(...answers: Array<Response | Error>) {
 }
 
 const OPTIONS = { challenge: "abc" };
+// What the browser (through simplewebauthn) rejects with: the DOMException's name tells why.
+const ceremonyError = (name: string) => Object.assign(new Error(`${name}: the ceremony failed`), { name });
 const authenticated = (value: boolean) =>
   reply(200, { setupRequired: false, authenticated: value, username: "ana", passkeysAvailable: true });
 
@@ -96,13 +98,74 @@ describe("registerPasskey", () => {
 
   it("stops at the authenticator's refusal and never calls verify", async () => {
     const seen = server(reply(200, { flowId: "f1", options: OPTIONS }));
-    webauthn.startRegistration.mockRejectedValue(new Error("NotAllowedError"));
+    webauthn.startRegistration.mockRejectedValue(ceremonyError("NotAllowedError"));
     expect(await registerPasskey("x")).toEqual({
       ok: false,
       code: "passkey_cancelled",
       retryAfterSeconds: null,
     });
     expect(seen).toHaveLength(1);
+  });
+
+  it("tells a cancelled prompt (NotAllowedError, AbortError) from any other ceremony error", async () => {
+    for (const [name, code] of [
+      ["NotAllowedError", "passkey_cancelled"],
+      ["AbortError", "passkey_cancelled"],
+      ["InvalidStateError", "passkey_failed"],
+      ["SecurityError", "passkey_failed"],
+      ["TypeError", "passkey_failed"],
+    ] as const) {
+      server(reply(200, { flowId: "f1", options: OPTIONS }));
+      webauthn.startRegistration.mockRejectedValue(ceremonyError(name));
+      expect(await registerPasskey("x"), name).toMatchObject({ ok: false, code });
+    }
+  });
+
+  it("calls a 401 from verify a failed passkey while /auth/status still says signed in (R127.2)", async () => {
+    const seen = server(
+      reply(200, { flowId: "f1", options: OPTIONS }),
+      refusal(401, "unauthenticated"),
+      authenticated(true),
+    );
+    webauthn.startRegistration.mockResolvedValue({ id: "cred" });
+    expect(await registerPasskey("pw")).toEqual({
+      ok: false,
+      code: "passkey_failed",
+      retryAfterSeconds: null,
+    });
+    expect(seen.map((request) => request.url)).toEqual([
+      "/auth/passkey/register/options",
+      "/auth/passkey/register/verify",
+      "/auth/status",
+    ]);
+  });
+
+  it("calls a 401 from verify an ended session only when /auth/status says signed out", async () => {
+    server(
+      reply(200, { flowId: "f1", options: OPTIONS }),
+      refusal(401, "unauthenticated"),
+      authenticated(false),
+    );
+    webauthn.startRegistration.mockResolvedValue({});
+    expect(await registerPasskey("pw")).toEqual({
+      ok: false,
+      code: "unauthenticated",
+      retryAfterSeconds: null,
+    });
+  });
+
+  it("passes the wait of a throttled verify on without asking /auth/status, and reports offline when it cannot ask", async () => {
+    const seen = server(
+      reply(200, { flowId: "f1", options: OPTIONS }),
+      refusal(429, "rate_limited", { "retry-after": "5" }),
+      reply(200, { flowId: "f2", options: OPTIONS }),
+      refusal(401, "unauthenticated"),
+      new TypeError("Failed to fetch"),
+    );
+    webauthn.startRegistration.mockResolvedValue({});
+    expect(await registerPasskey("pw")).toEqual({ ok: false, code: "rate_limited", retryAfterSeconds: 5 });
+    expect(seen).toHaveLength(2);
+    expect(await registerPasskey("pw")).toMatchObject({ ok: false, code: "offline" });
   });
 
   it("returns the server's code when verify refuses", async () => {
@@ -122,6 +185,24 @@ describe("loginWithPasskey", () => {
       ["/auth/passkey/login/options", {}],
       ["/auth/passkey/login/verify", { flowId: "chal", response: { id: "cred" } }],
     ]);
+  });
+
+  it("calls a 401 from verify a failed passkey, never a wrong password, and does not re-check the session", async () => {
+    const seen = server(reply(200, { flowId: "chal", options: OPTIONS }), refusal(401, "unauthenticated"));
+    webauthn.startAuthentication.mockResolvedValue({});
+    expect(await loginWithPasskey()).toEqual({ ok: false, code: "passkey_failed", retryAfterSeconds: null });
+    expect(seen).toHaveLength(2);
+  });
+
+  it("tells a cancelled prompt from any other ceremony error", async () => {
+    server(
+      reply(200, { flowId: "chal", options: OPTIONS }),
+      reply(200, { flowId: "chal", options: OPTIONS }),
+    );
+    webauthn.startAuthentication.mockRejectedValueOnce(ceremonyError("NotAllowedError"));
+    expect(await loginWithPasskey()).toMatchObject({ code: "passkey_cancelled" });
+    webauthn.startAuthentication.mockRejectedValueOnce(ceremonyError("NotSupportedError"));
+    expect(await loginWithPasskey()).toMatchObject({ code: "passkey_failed" });
   });
 
   it("does not re-check the session on a refusal of the options", async () => {

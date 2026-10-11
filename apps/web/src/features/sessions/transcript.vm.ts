@@ -1,9 +1,12 @@
+import { t } from "../../i18n/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 
 export interface TranscriptItem {
   readonly key: string;
   readonly author: "agent" | "you" | "tool";
   readonly text: string;
+  /** The provider failed: the text is why, to be shown as an error. */
+  readonly failure?: true;
 }
 
 export function transcriptItems(view: SessionView): TranscriptItem[] {
@@ -14,6 +17,14 @@ export function transcriptItems(view: SessionView): TranscriptItem[] {
       .filter(Boolean)
       .join("\n");
     if (text) items.push({ key: message.key, author, text });
+    if (message.error !== null) {
+      items.push({
+        key: `${message.key}:failure`,
+        author: "agent",
+        text: message.error || t("error.internal"),
+        failure: true,
+      });
+    }
   }
   if (view.partialText) items.push({ key: "partial", author: "agent", text: view.partialText });
   return items;

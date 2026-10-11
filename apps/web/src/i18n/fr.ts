@@ -3,9 +3,11 @@ import type { en } from "./en.ts";
 export const fr: { readonly [K in keyof typeof en]: string } = {
   "app.name": "pap",
   "app.loading": "Chargement…",
+  "gate.retry": "Réessayer",
   "setup.title": "Créer le compte propriétaire",
   "setup.username": "Nom d'utilisateur",
   "setup.password": "Mot de passe",
+  "setup.usernameHint": "Lettres, chiffres, point, tiret et tiret bas ; 64 au plus.",
   "setup.passwordHint": "Au moins 12 caractères.",
   "setup.submit": "Créer le compte",
   "setup.missingToken": "Ouvrez le lien d'installation affiché dans le journal du serveur.",
@@ -27,6 +29,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "session.composer": "Message à envoyer",
   "session.send": "Envoyer",
   "session.stop": "Arrêter",
+  "session.failure": "Erreur du modèle",
   "session.status.cold": "Arrêtée",
   "session.status.starting": "Démarrage",
   "session.status.idle": "Prête",
@@ -62,5 +65,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
     "La connexion a été coupée avant la réponse. L'action a peut-être abouti : vérifiez avant de réessayer.",
   "error.offline": "pap est injoignable pour le moment.",
   "error.passkey_cancelled": "La demande de clé d'accès a été annulée.",
+  "error.passkey_failed":
+    "La clé d'accès n'a pas pu être utilisée. Réessayez, ou utilisez votre mot de passe.",
   "error.password_incorrect": "Mot de passe incorrect.",
 };

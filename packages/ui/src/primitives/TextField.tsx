@@ -49,7 +49,11 @@ export function TextField(props: TextFieldProps) {
           rows={3}
           onChange={(event) => props.onChange(event.target.value)}
           onKeyDown={(event) => {
-            if (isSubmitShortcut(event)) props.onSubmitShortcut?.();
+            // Handled here: the browser must not also add a line break for the same keystroke.
+            if (props.onSubmitShortcut && isSubmitShortcut(event)) {
+              event.preventDefault();
+              props.onSubmitShortcut();
+            }
           }}
         />
       ) : (

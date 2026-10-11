@@ -56,6 +56,6 @@ export function stopRuntime(): void {
 // beside the new one (R125).
 if (import.meta.hot) import.meta.hot.dispose(stopRuntime);
 
-export { getJson, postJson, type HttpResult } from "./http.ts";
+export { getJson, postJson } from "./http.ts";
 export { RpcError, type RpcErrorCode } from "./rpc.ts";
 export { useConnectionState } from "./use-connection-state.ts";

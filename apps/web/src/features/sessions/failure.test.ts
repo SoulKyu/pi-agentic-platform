@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { RpcError } from "../../runtime/index.ts";
-import { failureCode, failureText } from "./failure.ts";
+import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 
 describe("failure", () => {
   it("reads the code of an rpc error and calls anything else internal", () => {
@@ -16,5 +16,14 @@ describe("failure", () => {
     );
     expect(failureText(new RpcError("teapot" as never))).toBe("Something went wrong.");
     expect(failureText(new Error("x"))).toBe("Something went wrong.");
+  });
+
+  it("knows which failures leave the outcome of a mutation open", () => {
+    expect(outcomeUnknown(new RpcError("timeout"))).toBe(true);
+    expect(outcomeUnknown(new RpcError("connection_lost"))).toBe(true);
+    for (const code of ["offline", "capacity", "prompt_rejected", "internal"] as const) {
+      expect(outcomeUnknown(new RpcError(code)), code).toBe(false);
+    }
+    expect(outcomeUnknown(new Error("x"))).toBe(false);
   });
 });

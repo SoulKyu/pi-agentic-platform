@@ -4,7 +4,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
-import { failureCode, failureText } from "./failure.ts";
+import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 
 // A dropped connection has its own banner and the next connection lists again: only a real refusal is shown.
 const isConnectionLoss = (code: string): boolean => code === "offline" || code === "connection_lost";
@@ -18,6 +18,8 @@ export function SessionListScreen() {
   const [error, setError] = useState<string | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Bumped to list again without a new connection.
+  const [listings, setListings] = useState(0);
 
   useEffect(() => {
     if (connection !== "open") return;
@@ -35,7 +37,7 @@ export function SessionListScreen() {
     return () => {
       current = false;
     };
-  }, [connection, runtime]);
+  }, [connection, runtime, listings]);
 
   const create = async () => {
     setBusy(true);
@@ -45,6 +47,8 @@ export function SessionListScreen() {
       await navigate({ to: "/s/$sessionId", params: { sessionId } });
     } catch (failure) {
       setError(failureText(failure));
+      // The session may have been made though no answer came (R105): the list tells.
+      if (outcomeUnknown(failure)) setListings((count) => count + 1);
     } finally {
       setBusy(false);
     }

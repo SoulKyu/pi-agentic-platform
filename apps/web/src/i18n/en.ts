@@ -1,9 +1,11 @@
 export const en = {
   "app.name": "pap",
   "app.loading": "Loading…",
+  "gate.retry": "Retry",
   "setup.title": "Create the owner account",
   "setup.username": "Username",
   "setup.password": "Password",
+  "setup.usernameHint": "Letters, digits, dot, dash and underscore; up to 64.",
   "setup.passwordHint": "At least 12 characters.",
   "setup.submit": "Create account",
   "setup.missingToken": "Open the setup link printed in the server log.",
@@ -25,6 +27,7 @@ export const en = {
   "session.composer": "Message",
   "session.send": "Send",
   "session.stop": "Stop",
+  "session.failure": "Model error",
   "session.status.cold": "Stopped",
   "session.status.starting": "Starting",
   "session.status.idle": "Ready",
@@ -59,5 +62,6 @@ export const en = {
     "The connection dropped before the answer arrived. The action may still have gone through: check before trying again.",
   "error.offline": "pap is unreachable right now.",
   "error.passkey_cancelled": "The passkey prompt was cancelled.",
+  "error.passkey_failed": "The passkey could not be used. Try again, or use your password.",
   "error.password_incorrect": "Password incorrect.",
 } as const;

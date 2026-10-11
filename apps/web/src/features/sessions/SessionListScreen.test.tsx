@@ -146,4 +146,35 @@ describe("SessionListScreen", () => {
     await settle();
     expect(alerts(page.container)).toEqual([]);
   });
+
+  it("lists again after a create whose outcome is unknown, since the session may exist (R105)", async () => {
+    for (const code of ["timeout", "connection_lost"] as const) {
+      const container = await show();
+      const listed = bed.called("sessions.list").length;
+      bed.handlers["sessions.list"] = () => ({ sessions: [summary("made", "/work/maybe", 5)] });
+      bed.handlers["sessions.create"] = () => {
+        throw new RpcError(code);
+      };
+      await typeInto(field(container, "Working directory"), "/work/maybe");
+      await click(button(container, "New session"));
+      await settle();
+      expect(bed.called("sessions.list").length, code).toBe(listed + 1);
+      expect(text(container), code).toContain("/work/maybe");
+      expect(alerts(container)[0], code).toContain("may still have gone through");
+      await page?.unmount();
+      page = null;
+    }
+  });
+
+  it("does not list again after a refusal that settles the matter", async () => {
+    const container = await show();
+    const listed = bed.called("sessions.list").length;
+    bed.handlers["sessions.create"] = () => {
+      throw new RpcError("invalid_cwd");
+    };
+    await typeInto(field(container, "Working directory"), "nope");
+    await click(button(container, "New session"));
+    await settle();
+    expect(bed.called("sessions.list")).toHaveLength(listed);
+  });
 });

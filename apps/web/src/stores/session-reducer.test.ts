@@ -74,4 +74,132 @@ describe("reduceSession", () => {
     expect(reduceSession(view, { kind: "future_kind", x: 1 })).toBe(view);
     expect(reduceSession(view, pi({ type: "future_event" }))).toBe(view);
   });
+
+  describe("message identity (R127.3)", () => {
+    const call = (id: string) => ({ type: "toolCall", id, name: "bash", arguments: { command: id } });
+    const result = (id: string, text: string, timestamp = 7) => ({
+      role: "toolResult",
+      toolCallId: id,
+      content: [{ type: "text", text }],
+      timestamp,
+    });
+    const keysOf = (view: { messages: ReadonlyArray<{ key: string }> }) => view.messages.map((m) => m.key);
+
+    it("keeps every tool result of one turn, though they share a millisecond", () => {
+      let view = reduceSession(
+        EMPTY_VIEW,
+        pi({
+          type: "message_end",
+          message: { role: "assistant", content: [call("a"), call("b")], timestamp: 6 },
+        }),
+      );
+      view = reduceSession(view, pi({ type: "message_end", message: result("a", "first") }));
+      view = reduceSession(view, pi({ type: "message_end", message: result("b", "second") }));
+      expect(view.messages.map((m) => m.text)).toEqual(["", "first", "second"]);
+      expect(new Set(keysOf(view)).size).toBe(3);
+    });
+
+    it("gives a snapshot with same-millisecond results and repeated messages unique keys", () => {
+      const view = reduceSession(EMPTY_VIEW, {
+        kind: "snapshot",
+        status: "idle",
+        dialogs: [],
+        messages: [
+          result("a", "one"),
+          result("b", "two"),
+          { role: "user", content: "again", timestamp: 9 },
+          { role: "user", content: "again!", timestamp: 9 },
+          { role: "user", content: "again", timestamp: 9 },
+        ],
+      });
+      expect(view.messages.map((m) => m.text)).toEqual(["one", "two", "again", "again!", "again"]);
+      expect(new Set(keysOf(view)).size).toBe(5);
+    });
+
+    it("keeps two different messages that share role and millisecond, and still drops a replay", () => {
+      const first = { role: "user", content: "one", timestamp: 3 };
+      const second = { role: "user", content: "two", timestamp: 3 };
+      let view = reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: first }));
+      view = reduceSession(view, pi({ type: "message_end", message: second }));
+      view = reduceSession(view, pi({ type: "message_end", message: first }));
+      view = reduceSession(view, pi({ type: "message_end", message: second }));
+      expect(view.messages.map((m) => m.text)).toEqual(["one", "two"]);
+      expect(new Set(keysOf(view)).size).toBe(2);
+    });
+
+    it("recognises, from the snapshot, a live message that repeats its key", () => {
+      const message = result("a", "once");
+      let view = reduceSession(EMPTY_VIEW, {
+        kind: "snapshot",
+        status: "running",
+        messages: [message],
+        dialogs: [],
+      });
+      view = reduceSession(view, pi({ type: "message_end", message }));
+      expect(view.messages).toHaveLength(1);
+    });
+  });
+
+  describe("provider failures (R127.4)", () => {
+    const failed = (errorMessage?: string) => ({
+      role: "assistant",
+      content: [],
+      stopReason: "error",
+      ...(errorMessage === undefined ? {} : { errorMessage }),
+      timestamp: 4,
+    });
+
+    it("carries the error message of an assistant message that ended in error", () => {
+      const view = reduceSession(
+        EMPTY_VIEW,
+        pi({ type: "message_end", message: failed("429 usage limit reached") }),
+      );
+      expect(view.messages[0]).toMatchObject({
+        role: "assistant",
+        text: "",
+        error: "429 usage limit reached",
+      });
+    });
+
+    it("clips a very long error message", () => {
+      const view = reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: failed("x".repeat(5_000)) }));
+      const error = view.messages[0]?.error ?? "";
+      expect(error.length).toBeLessThanOrEqual(501);
+      expect(error.endsWith("…")).toBe(true);
+    });
+
+    it("flags a failure that came without a message, and leaves other stop reasons alone", () => {
+      expect(
+        reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: failed() })).messages[0]?.error,
+      ).toBe("");
+      for (const stopReason of ["stop", "aborted", "toolUse", "length"]) {
+        const message = { ...reply, stopReason, errorMessage: "ignored", timestamp: 8 };
+        expect(
+          reduceSession(EMPTY_VIEW, pi({ type: "message_end", message })).messages[0]?.error,
+          stopReason,
+        ).toBeNull();
+      }
+    });
+
+    it("finds the failure in a snapshot too", () => {
+      const view = reduceSession(EMPTY_VIEW, {
+        kind: "snapshot",
+        status: "idle",
+        messages: [user, failed("boom")],
+        dialogs: [],
+      });
+      expect(view.messages.map((m) => m.error)).toEqual([null, "boom"]);
+    });
+  });
+
+  it("drops a half-written reply when the session goes cold", () => {
+    let view = reduceSession(EMPTY_VIEW, pi({ type: "message_start", message: { role: "assistant" } }));
+    view = reduceSession(
+      view,
+      pi({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Half a sen" } }),
+    );
+    expect(view.partialText).toBe("Half a sen");
+    expect(reduceSession(view, { kind: "status", status: "running" }).partialText).toBe("Half a sen");
+    expect(reduceSession(view, { kind: "status", status: "cold" }).partialText).toBeNull();
+  });
 });

@@ -54,6 +54,15 @@ export async function typeInto(field: HTMLInputElement | HTMLTextAreaElement, va
   });
 }
 
+/** Presses a key on an element and says whether the page left it to the browser (`defaultPrevented` is false). */
+export async function press(element: Element, init: KeyboardEventInit): Promise<KeyboardEvent> {
+  const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+  await act(async () => {
+    element.dispatchEvent(event);
+  });
+  return event;
+}
+
 const words = (element: Element): string => (element.textContent ?? "").trim();
 
 /** The button with this exact visible text; throws when there is none or several (an e2e would too). */

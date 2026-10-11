@@ -4,7 +4,7 @@ import {
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/browser";
-import { getJson, postJson, type HttpResult } from "../../runtime/index.ts";
+import { getJson, postJson } from "../../runtime/index.ts";
 
 export interface AuthStatus {
   readonly setupRequired: boolean;
@@ -61,50 +61,67 @@ export async function logout(): Promise<void> {
   }
 }
 
+type Stage = "options" | "verify";
+type Answer = {
+  readonly status: number;
+  readonly body: ErrorBody | null;
+  readonly retryAfterSeconds: number | null;
+};
+
+// The prompt the owner dismissed or let run out is not an error worth more than a line; anything else the
+// authenticator or the browser refuses (a passkey already on this device, no matching credential...) is.
+const DISMISSED = new Set(["NotAllowedError", "AbortError"]);
+
 // Registering and signing in are the same three steps: ask the server for options, let the authenticator
-// answer them, hand the answer back. Nothing is verified here: the server decides.
+// answer them, hand the answer back. Nothing is verified here: the server decides, and `refuse` words
+// what it refused, per flow.
 function passkeyCeremony<O>(
   flow: "register" | "login",
   optionsBody: object,
   authenticate: (options: O) => Promise<unknown>,
-  refuseOptions: (options: HttpResult<Ceremony<O>>) => Promise<AuthResult>,
+  refuse: (stage: Stage, answer: Answer) => Promise<AuthResult>,
 ): Promise<AuthResult> {
   return answered(async () => {
     const options = await postJson<Ceremony<O>>(`/auth/passkey/${flow}/options`, optionsBody);
-    if (options.status !== 200 || !options.body) return refuseOptions(options);
+    if (options.status !== 200 || !options.body) return refuse("options", options);
     let response: unknown;
     try {
       response = await authenticate(options.body.options);
-    } catch {
-      return refused("passkey_cancelled");
+    } catch (error) {
+      return refused(
+        error instanceof Error && DISMISSED.has(error.name) ? "passkey_cancelled" : "passkey_failed",
+      );
     }
     const verify = await postJson<ErrorBody>(`/auth/passkey/${flow}/verify`, {
       flowId: options.body.flowId,
       response,
     });
-    return verify.status === 200 ? { ok: true } : failure(verify);
+    return verify.status === 200 ? { ok: true } : refuse("verify", verify);
   });
 }
 
 // Adding a passkey asks for the password again (R83): a stolen session alone cannot add a credential that
-// outlives it. A 401 means a wrong password or a session that ended, and only /auth/status tells which.
+// outlives it. For the server a 401 is a wrong password, a verification that failed, a flow that ran out, or
+// a session that ended: only /auth/status tells the last from the others.
 export function registerPasskey(password: string): Promise<AuthResult> {
   return passkeyCeremony<PublicKeyCredentialCreationOptionsJSON>(
     "register",
     { password },
     (optionsJSON) => startRegistration({ optionsJSON }),
-    async (options) => {
-      if (options.status !== 401) return failure(options);
-      return (await fetchAuthStatus()).authenticated ? refused("password_incorrect") : failure(options);
+    async (stage, answer) => {
+      if (answer.status !== 401 || !(await fetchAuthStatus()).authenticated) return failure(answer);
+      return refused(stage === "options" ? "password_incorrect" : "passkey_failed");
     },
   );
 }
 
+// Here a 401 from verify is an assertion the server did not accept: not a wrong username or password.
 export function loginWithPasskey(): Promise<AuthResult> {
   return passkeyCeremony<PublicKeyCredentialRequestOptionsJSON>(
     "login",
     {},
     (optionsJSON) => startAuthentication({ optionsJSON }),
-    async (options) => failure(options),
+    async (stage, answer) =>
+      stage === "verify" && answer.status === 401 ? refused("passkey_failed") : failure(answer),
   );
 }

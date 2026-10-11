@@ -8,3 +8,7 @@ export const failureCode = (failure: unknown): string =>
 export const codeText = (code: string): string => t(errorKey(code));
 
 export const failureText = (failure: unknown): string => codeText(failureCode(failure));
+
+/** After these a mutation may have gone through (R105): do not offer it again as is, and look at the state. */
+export const outcomeUnknown = (failure: unknown): boolean =>
+  ["timeout", "connection_lost"].includes(failureCode(failure));

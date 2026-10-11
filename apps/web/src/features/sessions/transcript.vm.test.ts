@@ -33,4 +33,58 @@ describe("transcriptItems", () => {
       ["agent", "Done"],
     ]);
   });
+
+  it("shows a provider failure as its own item, after whatever the message said", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      kind: "snapshot",
+      status: "idle",
+      dialogs: [],
+      messages: [
+        { role: "user", content: "go", timestamp: 1 },
+        {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "429 usage limit reached",
+          timestamp: 2,
+        },
+      ],
+    });
+    expect(transcriptItems(view).map((item) => [item.author, item.text, item.failure ?? false])).toEqual([
+      ["you", "go", false],
+      ["agent", "429 usage limit reached", true],
+    ]);
+  });
+
+  it("words a failure that came without a message", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      kind: "snapshot",
+      status: "idle",
+      dialogs: [],
+      messages: [{ role: "assistant", content: [], stopReason: "error", timestamp: 2 }],
+    });
+    expect(transcriptItems(view)).toMatchObject([{ text: "Something went wrong.", failure: true }]);
+  });
+
+  it("keeps the text a failed message did write, then the failure", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      kind: "snapshot",
+      status: "idle",
+      dialogs: [],
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "text", text: "Starting..." }],
+          stopReason: "error",
+          errorMessage: "overloaded",
+          timestamp: 2,
+        },
+      ],
+    });
+    expect(transcriptItems(view).map((item) => [item.text, item.failure ?? false])).toEqual([
+      ["Starting...", false],
+      ["overloaded", true],
+    ]);
+    expect(new Set(transcriptItems(view).map((item) => item.key)).size).toBe(2);
+  });
 });

@@ -10,6 +10,7 @@ import {
   field,
   hasButton,
   mount,
+  press,
   settle,
   text,
   typeInto,
@@ -116,6 +117,47 @@ describe("SessionScreen feed", () => {
   });
 });
 
+describe("SessionScreen provider failures", () => {
+  it("shows why the model failed, as plain text, and announces it when it is the last thing said", async () => {
+    const container = await show();
+    await emit(
+      snapshot("idle", [
+        user,
+        {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: '429 usage limit <img src=x onerror="alert(1)">',
+          timestamp: 2,
+        },
+      ]),
+    );
+    const failure = container.querySelector("[data-failure]");
+    expect(failure?.textContent).toContain('429 usage limit <img src=x onerror="alert(1)">');
+    expect(container.querySelector("img")).toBeNull();
+    expect(failure?.getAttribute("role")).toBe("alert");
+  });
+
+  it("shows a failure that happens during a run, from the live stream", async () => {
+    const container = await show();
+    await emit(snapshot("running", [user]));
+    await emit({
+      kind: "pi",
+      event: {
+        type: "message_end",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "overloaded",
+          timestamp: 5,
+        },
+      },
+    });
+    expect(container.querySelector("[data-failure]")?.textContent).toContain("overloaded");
+  });
+});
+
 describe("SessionScreen composer", () => {
   it("sends the message, empties the composer and keeps Send off while it is empty", async () => {
     const container = await show();
@@ -127,6 +169,19 @@ describe("SessionScreen composer", () => {
     expect(bed.called("sessions.prompt")).toEqual([
       { method: "sessions.prompt", params: { sessionId: "sess-1", text: "hello" } },
     ]);
+    expect(field(container, "Message").value).toBe("");
+  });
+
+  it("sends on Ctrl+Enter and keeps the browser from also adding a newline", async () => {
+    const container = await show();
+    await typeInto(field(container, "Message"), "hello");
+    const plain = await press(field(container, "Message"), { key: "Enter" });
+    expect(plain.defaultPrevented).toBe(false);
+    expect(bed.called("sessions.prompt")).toEqual([]);
+    const shortcut = await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
+    await settle();
+    expect(shortcut.defaultPrevented).toBe(true);
+    expect(bed.called("sessions.prompt")[0]?.params).toEqual({ sessionId: "sess-1", text: "hello" });
     expect(field(container, "Message").value).toBe("");
   });
 
@@ -244,6 +299,45 @@ describe("SessionScreen approvals", () => {
     expect(bed.called("sessions.respondDialog")[0]?.params).toMatchObject({ response: { confirmed: false } });
     await emit({ kind: "dialog_closed", id: "d1" });
     expect(card(container)).toBeNull();
+  });
+
+  it("re-arms the card when the answer could not be delivered, so a second click goes through (R127.1)", async () => {
+    let tries = 0;
+    bed.handlers["sessions.respondDialog"] = () => {
+      if (++tries === 1) throw new RpcError("offline");
+      return { ok: true };
+    };
+    const container = await show();
+    await emit(snapshot("running", [], [confirm("1 character, 1 line\nbash: ls")]));
+    await click(button(container, "Allow once"));
+    await settle();
+    expect(alerts(container)).toEqual(["pap is unreachable right now."]);
+    expect(button(container, "Allow once").disabled).toBe(false);
+    expect(button(container, "Deny").disabled).toBe(false);
+    await click(button(container, "Allow once"));
+    await settle();
+    expect(bed.called("sessions.respondDialog").map((call) => call.params)).toEqual([
+      { sessionId: "sess-1", dialogId: "d1", response: { confirmed: true } },
+      { sessionId: "sess-1", dialogId: "d1", response: { confirmed: true } },
+    ]);
+    expect(alerts(container)).toEqual([]);
+  });
+
+  it("re-arms the card after a lost connection even when the snapshot brings the same dialog back", async () => {
+    let tries = 0;
+    bed.handlers["sessions.respondDialog"] = () => {
+      if (++tries === 1) throw new RpcError("connection_lost");
+      return { ok: true };
+    };
+    const container = await show();
+    const dialogs = [confirm("1 character, 1 line\nbash: ls")];
+    await emit(snapshot("running", [], dialogs));
+    await click(button(container, "Deny"));
+    await settle();
+    await emit(snapshot("running", [], dialogs));
+    await click(button(container, "Deny"));
+    await settle();
+    expect(bed.called("sessions.respondDialog")).toHaveLength(2);
   });
 
   it("cancels a dialog it cannot show, and says so", async () => {

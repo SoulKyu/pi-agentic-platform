@@ -7,10 +7,15 @@ export interface ToolCallView {
 }
 
 export interface MessageView {
+  /** Unique in a view: `ref`, plus a counter when another message has the same one. */
   readonly key: string;
+  /** What names the message in Pi's data: a tool result by its call, any other by role and time. */
+  readonly ref: string;
   readonly role: "user" | "assistant" | "toolResult" | "other";
   readonly text: string;
   readonly toolCalls: readonly ToolCallView[];
+  /** Why the provider failed (clipped), "" when it gave no reason, null when the message did not fail. */
+  readonly error: string | null;
 }
 
 export interface SessionView {
@@ -31,6 +36,7 @@ export const EMPTY_VIEW: SessionView = {
   loaded: false,
 };
 const MAX_NOTICES = 20;
+const MAX_ERROR = 500;
 
 const summarize = (args: unknown): string => {
   const command = (args as { command?: unknown } | null)?.command;
@@ -38,8 +44,26 @@ const summarize = (args: unknown): string => {
   return text.length > 200 ? `${text.slice(0, 200)}…` : text;
 };
 
-export function toMessageView(raw: unknown, index: number): MessageView {
-  const message = (raw ?? {}) as { role?: unknown; content?: unknown; timestamp?: unknown };
+const clip = (text: string, max: number): string =>
+  text.length > max ? `${[...text.slice(0, max * 2)].slice(0, max).join("")}…` : text;
+
+// A turn's tool results all come in the same millisecond, so time alone cannot tell messages apart.
+function refOf(message: { role?: unknown; toolCallId?: unknown; timestamp?: unknown }, role: string): string {
+  if (role === "toolResult" && typeof message.toolCallId === "string" && message.toolCallId !== "") {
+    return `toolResult:${message.toolCallId}`;
+  }
+  return `${role}:${typeof message.timestamp === "number" ? message.timestamp : "none"}`;
+}
+
+function toMessageView(raw: unknown): MessageView {
+  const message = (raw ?? {}) as {
+    role?: unknown;
+    content?: unknown;
+    timestamp?: unknown;
+    toolCallId?: unknown;
+    stopReason?: unknown;
+    errorMessage?: unknown;
+  };
   const role =
     message.role === "user" || message.role === "assistant" || message.role === "toolResult"
       ? message.role
@@ -61,12 +85,41 @@ export function toMessageView(raw: unknown, index: number): MessageView {
       name: String(block.name ?? "tool"),
       summary: summarize(block.arguments ?? block.args ?? block.input),
     }));
+  const failed = role === "assistant" && message.stopReason === "error";
+  const ref = refOf(message, role);
   return {
-    key: typeof message.timestamp === "number" ? `${role}:${message.timestamp}` : `${role}:#${index}`,
+    key: ref,
+    ref,
     role,
     text,
     toolCalls,
+    error: failed
+      ? clip(typeof message.errorMessage === "string" ? message.errorMessage : "", MAX_ERROR)
+      : null,
   };
+}
+
+const sameContent = (a: MessageView, b: MessageView): boolean =>
+  a.role === b.role &&
+  a.text === b.text &&
+  a.error === b.error &&
+  a.toolCalls.length === b.toolCalls.length &&
+  a.toolCalls.every((call, i) => {
+    const other = b.toolCalls[i];
+    return (
+      other !== undefined &&
+      call.id === other.id &&
+      call.name === other.name &&
+      call.summary === other.summary
+    );
+  });
+
+/** The message under a key no other message in `list` has. */
+function withUniqueKey(list: readonly MessageView[], message: MessageView): MessageView {
+  const taken = new Set(list.map((existing) => existing.key));
+  let key = message.ref;
+  for (let n = 1; taken.has(key); n++) key = `${message.ref}#${n}`;
+  return { ...message, key };
 }
 
 const withNotice = (view: SessionView, level: string, text: string): SessionView => ({
@@ -87,11 +140,14 @@ function reducePi(view: SessionView, event: { type: string } & Record<string, un
         : view;
     }
     case "message_end": {
-      const message = toMessageView(event.message, view.messages.length);
-      const known = view.messages.some((existing) => existing.key === message.key);
+      const message = toMessageView(event.message);
+      // The snapshot and the live stream can both carry a message: the same one is not added twice.
+      const replay = view.messages.some(
+        (existing) => existing.ref === message.ref && sameContent(existing, message),
+      );
       return {
         ...view,
-        messages: known ? view.messages : [...view.messages, message],
+        messages: replay ? view.messages : [...view.messages, withUniqueKey(view.messages, message)],
         partialText: message.role === "assistant" ? null : view.partialText,
       };
     }
@@ -113,12 +169,20 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       return {
         ...EMPTY_VIEW,
         status: event.status,
-        messages: event.messages.map(toMessageView),
+        messages: event.messages.reduce<MessageView[]>(
+          (list, raw) => [...list, withUniqueKey(list, toMessageView(raw))],
+          [],
+        ),
         dialogs: event.dialogs,
         loaded: true,
       };
     case "status": {
-      const next = { ...view, status: event.status };
+      // A half-written reply of a session that stopped will never be finished.
+      const next = {
+        ...view,
+        status: event.status,
+        partialText: event.status === "cold" ? null : view.partialText,
+      };
       return event.cause ? withNotice(next, "error", event.cause) : next;
     }
     case "dialog_open":
