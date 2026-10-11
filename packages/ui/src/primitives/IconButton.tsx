@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes } from "react";
 import { cn } from "../cn.ts";
 import type { IconGlyph } from "../icons.ts";
+import { Badge } from "./Badge.tsx";
 import { Icon } from "./Icon.tsx";
 import { Tooltip } from "./Tooltip.tsx";
 
@@ -23,6 +24,7 @@ export interface IconButtonProps extends Omit<
   readonly shortcutJoiner?: "" | "+";
   readonly variant?: keyof typeof ICON_BUTTON_VARIANTS;
   readonly size?: keyof typeof ICON_BUTTON_SIZES;
+  readonly badge?: { readonly count: number; readonly label: string };
 }
 
 // Defaults are read in the body: the React Compiler (Babel 8 AST) bails out on defaults in a destructured parameter.
@@ -33,6 +35,7 @@ export function IconButton({
   shortcutJoiner,
   variant,
   size,
+  badge,
   type,
   ...rest
 }: IconButtonProps) {
@@ -51,6 +54,11 @@ export function IconButton({
         {...rest}
       >
         <Icon icon={icon} size={sizeKey === "sm" ? 14 : 16} />
+        {badge && badge.count > 0 ? (
+          <span className="absolute -right-1 -top-1">
+            <Badge count={badge.count} label={badge.label} />
+          </span>
+        ) : null}
       </button>
     </Tooltip>
   );

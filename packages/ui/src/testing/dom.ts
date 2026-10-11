@@ -39,3 +39,12 @@ export async function click(element: Element): Promise<void> {
     (element as HTMLElement).click();
   });
 }
+
+/** Presses a key on an element and says whether the page left it to the browser (`defaultPrevented` is false). */
+export async function press(element: Element, init: KeyboardEventInit): Promise<KeyboardEvent> {
+  const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+  await act(async () => {
+    element.dispatchEvent(event);
+  });
+  return event;
+}
