@@ -198,7 +198,14 @@ describe("phone and desktop", () => {
 
 describe("the tab sheet", () => {
   it("says there is no open item instead of showing an empty list", async () => {
-    const page = await renderShell("/s/one", { phone: true });
+    // At a path that names no item, so the shell does not reopen one when the workspace empties.
+    useWorkspaceStore.setState({
+      ws: {
+        tabs: [{ key: "session:one", item: { kind: "session", id: "one" }, split: null }],
+        active: "session:one",
+      },
+    });
+    const page = await renderShell("/nope", { phone: true });
     await click(page.container.querySelector('button[aria-label="Open items"]') as HTMLElement);
     await vi.waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull(), {
       timeout: 2_000,

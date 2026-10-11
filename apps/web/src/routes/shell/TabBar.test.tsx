@@ -141,6 +141,17 @@ describe("TabBar", () => {
     await page.unmount();
   });
 
+  it("reopens the start screen when the lone home tab closes at / (no blank pane)", async () => {
+    useWorkspaceStore.setState({ ws: { tabs: [home], active: "home" } });
+    const page = await renderShell("/");
+    await click(named(page.container, "Close New session"));
+    await settle();
+    expect(useWorkspaceStore.getState().ws.tabs.map((one) => one.key)).toEqual(["home"]);
+    expect(page.router.state.location.pathname).toBe("/");
+    expect(page.container.querySelector("[data-stub=home]")).not.toBeNull();
+    await page.unmount();
+  });
+
   it("splits a lone non-home item with the start screen", async () => {
     useWorkspaceStore.setState({ ws: { tabs: [session], active: "session:a" } });
     const page = await renderShell("/s/a");

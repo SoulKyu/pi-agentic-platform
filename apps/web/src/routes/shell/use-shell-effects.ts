@@ -22,11 +22,13 @@ export function useShellEffects(shell: { readonly mobile: boolean; treeOpen(): b
 
   const asked = useRef(new Set<string>());
 
-  // The URL names the active item; the tab follows it. An unknown path opens nothing.
+  // The URL names the active item; the tab follows it. An unknown path opens nothing. An empty workspace opens the
+  // URL's item again: closing the last tab at "/" leaves the path unchanged, so the pathname alone would not.
+  const empty = useWorkspaceStore((state) => state.ws.active === null);
   useEffect(() => {
     const item = itemFromPath(pathname, import.meta.env.DEV);
     if (item) open(item);
-  }, [pathname, open]);
+  }, [pathname, empty, open]);
 
   // Account settings and the session list, each time the socket opens. The three map their own failures to a
   // status the screens show; the catches only report a rejection a future change might introduce.
