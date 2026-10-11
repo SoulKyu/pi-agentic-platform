@@ -3,10 +3,14 @@ import { join } from "node:path";
 import type { ResponseFrame } from "@pap/contracts";
 import { afterEach, expect, it } from "vitest";
 import { httpRequest } from "../../testing/http-client.ts";
+import type { TestClient } from "../../testing/ws-client.ts";
 import { startTestDaemon, type TestDaemon } from "../../testing/harness.ts";
 
 let t: TestDaemon | undefined;
+let client: TestClient | undefined;
 afterEach(async () => {
+  client?.close();
+  client = undefined;
   await t?.stop();
   t = undefined;
 });
@@ -19,7 +23,7 @@ const resultOf = <T>(frame: ResponseFrame): T => {
 it("exports a session and serves it once as an attachment to its owner", async () => {
   t = await startTestDaemon({ steps: [{ text: "exported reply" }] });
   const cookie = await t.login();
-  const client = await t.connect(cookie);
+  client = await t.connect(cookie);
   const { sessionId } = resultOf<{ sessionId: string }>(await client.call("sessions.create", { cwd: t.cwd }));
   await client.call("subscribe.session", { sessionId });
   await client.call("sessions.prompt", { sessionId, text: "export me" });
@@ -55,5 +59,4 @@ it("exports a session and serves it once as an attachment to its owner", async (
   const exportsDir = join(t.home, "exports");
   expect(existsSync(exportsDir)).toBe(true);
   expect(readdirSync(exportsDir)).toEqual([]);
-  client.close();
 });

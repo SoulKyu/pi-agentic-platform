@@ -58,6 +58,8 @@ export function mountExportRoute(
   },
 ): void {
   app.get("/api/sessions/:sessionId/export/:token", async (c) => {
+    // Hono runs this handler for HEAD too; a HEAD must not spend the single-use token.
+    if (c.req.method !== "GET") return notFound(c);
     const caller = deps.authenticate(c.req.header("cookie"));
     if (!caller) return c.json({ error: { code: "unauthenticated" } }, 401);
     const sessionId = c.req.param("sessionId");
@@ -82,9 +84,11 @@ export function mountExportRoute(
       // The file is unlinked while it is held open: nothing is left on disk whatever becomes of the response.
       await rm(taken.path, { force: true });
       const stream = file.createReadStream();
-      stream.once("error", (error: NodeJS.ErrnoException) =>
-        deps.logger.warn("export_read_failed", { code: error.code ?? "unknown" }),
-      );
+      stream.once("error", (error: NodeJS.ErrnoException) => {
+        // The browser gave up (a cancelled download) is not a disk problem.
+        if (error.code === "ABORT_ERR") deps.logger.info("export_aborted");
+        else deps.logger.warn("export_read_failed", { code: error.code ?? "unknown" });
+      });
       c.set("ownCsp", EXPORT_CSP);
       return new Response(Readable.toWeb(stream) as ReadableStream, {
         status: 200,

@@ -1,4 +1,4 @@
-import { readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { chmod, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import type { Logger } from "../../kernel/logger.ts";
 
 interface ExportPatch {
@@ -85,6 +85,8 @@ export async function patchExportFile(
   const maxBytes = options.maxBytes ?? MAX_PATCH_BYTES;
   const temp = `${path}.patching`;
   try {
+    // Pi wrote the file under the user's umask: it is private whatever becomes of the patch.
+    await chmod(path, 0o600);
     if ((await stat(path)).size > maxBytes) {
       logger.warn("export_patch_too_large", { limit: maxBytes });
       return;

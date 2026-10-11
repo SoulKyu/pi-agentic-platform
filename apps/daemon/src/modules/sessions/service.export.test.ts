@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getPackageDir } from "@earendil-works/pi-coding-agent";
 import { ERROR_MESSAGES, PapError } from "@pap/contracts";
@@ -57,6 +57,23 @@ describe("exporting a session (M2R95-M2R98)", () => {
     await pending;
     expect(readFileSync(outputOf(), "utf8")).toBe("<script>nothing to patch</script>");
     expect(logs.lines.filter((line) => line.msg === "export_patch_skipped")).toHaveLength(1);
+  });
+
+  it("makes the file 0600 whether or not it could be patched", async () => {
+    open({ replies: { export_html: "held" } });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    for (const content of [`<script>${TEMPLATE}</script>`, "<html>not Pi's template</html>"]) {
+      const pending = bed.service.exportHtml(sessionId, OWNER);
+      await bed.clock.advance(0);
+      const path = (
+        bed.spawned[0]?.requests.filter((r) => r.type === "export_html").at(-1) as { outputPath: string }
+      ).outputPath;
+      writeFileSync(path, content);
+      chmodSync(path, 0o644);
+      bed.answerHeld(0, "export_html", { data: {} });
+      await pending;
+      expect(statSync(path).mode & 0o777).toBe(0o600);
+    }
   });
 
   it("is a session the caller owns", async () => {
@@ -143,7 +160,7 @@ describe("exporting a session (M2R95-M2R98)", () => {
     bed.spawned[0]?.crash({ code: 1, signal: null, cause: "exit_code" });
     await bed.clock.advance(0);
     const timers = bed.clock.pending();
-    await expect(bed.service.exportHtml(sessionId, OWNER)).rejects.toThrow(PapError);
+    await expect(bed.service.exportHtml(sessionId, OWNER)).rejects.toThrow(new PapError("worker_failed"));
     expect(bed.clock.pending()).toBe(timers);
     expect(exported()).toEqual([]);
   });

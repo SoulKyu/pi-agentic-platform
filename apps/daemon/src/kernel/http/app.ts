@@ -42,6 +42,9 @@ const CONTENT_SECURITY_POLICY = {
   objectSrc: ["'none'"],
 };
 
+// The token of an export download is a credential until it is used: it is never logged.
+const loggablePath = (path: string): string => path.replace(/(\/export\/)[^/]+$/, "$1[redacted]");
+
 const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 
 // Routes and WebSocket live under these prefixes: a miss is a 404, never index.html, so a typo in an
@@ -102,10 +105,10 @@ export function createHttpApp(options: HttpAppOptions): Hono {
     }
     // A database written by a newer pap is read-only here: say so (as the RPC does) instead of a bare 500.
     if (isReadOnlyError(error)) {
-      options.logger.warn("http_read_only", { path: c.req.path });
+      options.logger.warn("http_read_only", { path: loggablePath(c.req.path) });
       return c.json({ error: { code: "read_only" } }, 503);
     }
-    options.logger.error("http_error", { err: error, path: c.req.path });
+    options.logger.error("http_error", { err: error, path: loggablePath(c.req.path) });
     return c.json({ error: { code: "internal" } }, 500);
   });
   return app;

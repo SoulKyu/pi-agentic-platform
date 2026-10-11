@@ -81,3 +81,6 @@ At most 64 open dialogs and 8 MiB per session; extra ones are answered `cancelle
 - The route is the only user of `ownCsp` (kernel `app.ts`). A new header for it needs an exact test in `export-http.test.ts`.
 - `exportHtml` prepares the entry before it brings the worker up; only a `timeout` after the command was sent keeps the entry (the worker may still write).
 - A Pi upgrade can change the template: `export-patch.test.ts` runs the anchors against the installed Pi, so it fails first.
+- The patch reads and rewrites the whole file synchronously-ish: at the 64 MiB bound it holds the event loop about 270 ms and about 0.5 GB of transient heap. The bound is a conscious choice; lower `MAX_PATCH_BYTES` if that matters.
+- The boot purge only removes regular `<uuid>.html` / `<uuid>.html.patching` files in `$PAP_HOME/exports`; anything else is kept and counted in an `export_purge_kept` warning.
+- HEAD on the export URL answers 404 and spends nothing (Hono would otherwise run the GET handler for it).

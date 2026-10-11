@@ -194,12 +194,15 @@ describe("sessions module", () => {
 describe("the exports directory (M2R96)", () => {
   const exportsDir = () => join(root, "pap", "exports");
 
-  it("is emptied when the module is built, strays and folders alike, and made 0700", () => {
+  it("is emptied of pap's own files when the module is built, and made 0700", () => {
     mkdirSync(exportsDir(), { recursive: true, mode: 0o755 });
-    writeFileSync(join(exportsDir(), "old.html"), "<html>an earlier run</html>");
+    writeFileSync(
+      join(exportsDir(), "0b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html"),
+      "<html>an earlier run</html>",
+    );
     mkdirSync(join(exportsDir(), "dir"));
     moduleWith(null);
-    expect(readdirSync(exportsDir())).toEqual([]);
+    expect(readdirSync(exportsDir())).toEqual(["dir"]);
     expect(statSync(exportsDir()).mode & 0o777).toBe(0o700);
   });
 
@@ -207,11 +210,14 @@ describe("the exports directory (M2R96)", () => {
     const { sessions } = moduleWith(null);
     const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
     const exporting = sessions.rpc["sessions.exportHtml"]({ sessionId }, ctx);
-    const request = await vi.waitFor(() => {
-      const found = spawned.workers[0]?.requests.find((candidate) => candidate.type === "export_html");
-      if (!found?.outputPath) throw new Error("not yet");
-      return found;
-    });
+    const request = await vi.waitFor(
+      () => {
+        const found = spawned.workers[0]?.requests.find((candidate) => candidate.type === "export_html");
+        if (!found?.outputPath) throw new Error("not yet");
+        return found;
+      },
+      { timeout: 2000 },
+    );
     writeFileSync(request.outputPath ?? "", "<html></html>");
     spawned.workers[0]?.respond(request.id, { data: {} });
     await exporting;

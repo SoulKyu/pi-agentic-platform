@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PapError } from "@pap/contracts";
@@ -109,16 +118,49 @@ describe("the pending exports (M2R96)", () => {
     expect(() => t.exports.discard(token)).not.toThrow();
   });
 
-  it("empties the directory with purgeAll, entries and strays alike", () => {
+  it("deletes only pap's own files at boot: regular <uuid>.html and <uuid>.html.patching, no folder, no link, nothing foreign", () => {
     const t = setup();
     const { path } = t.exports.prepare("s1", "u1");
     t.touch(path);
+    const own = [
+      "0b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html",
+      "0b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html.patching",
+    ];
+    for (const name of own) t.touch(join(t.dir, name));
+    const outside = mkdtempSync(join(tmpdir(), "pap-exports-outside-"));
+    beds.push({ dispose: () => rmSync(outside, { recursive: true, force: true }) });
+    writeFileSync(join(outside, "precious.html"), "mine");
+    t.touch(join(t.dir, "notes.txt"));
     t.touch(join(t.dir, "stray.html"));
-    mkdirSync(join(t.dir, "nested"));
-    t.touch(join(t.dir, "nested", "file.html"));
+    t.touch(join(t.dir, "0B9C1F0E-2D3A-4C5B-8D7E-9F0A1B2C3D4E.html"));
+    mkdirSync(join(t.dir, "1b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html"));
+    t.touch(join(t.dir, "1b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html", "inner.html"));
+    symlinkSync(join(outside, "precious.html"), join(t.dir, "2b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html"));
+    symlinkSync(outside, join(t.dir, "3b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html.patching"));
     t.exports.purgeAll();
-    expect(readdirSync(t.dir)).toEqual([]);
+    expect(readdirSync(t.dir).sort()).toEqual([
+      "0B9C1F0E-2D3A-4C5B-8D7E-9F0A1B2C3D4E.html",
+      "1b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html",
+      "2b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html",
+      "3b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html.patching",
+      "notes.txt",
+      "stray.html",
+    ]);
+    expect(readdirSync(outside)).toEqual(["precious.html"]);
+    expect(existsSync(join(t.dir, "1b9c1f0e-2d3a-4c5b-8d7e-9f0a1b2c3d4e.html", "inner.html"))).toBe(true);
+    expect(t.logs.lines.filter((line) => line.msg === "export_purge_kept")).toEqual([
+      expect.objectContaining({ level: "warn", count: 6 }),
+    ]);
     expect(t.clock.pending()).toBe(0);
+  });
+
+  it("forgets its pending entries at purgeAll", () => {
+    const t = setup();
+    const { token, path } = t.exports.prepare("s1", "u1");
+    t.touch(path);
+    t.exports.purgeAll();
+    expect(existsSync(path)).toBe(false);
+    expect(t.exports.take(token, "s1", "u1")).toBeNull();
   });
 
   it("deletes the pending files at stop, leaves no timer and takes no more", () => {

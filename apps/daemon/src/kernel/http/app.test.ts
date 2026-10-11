@@ -334,3 +334,30 @@ describe("a route's own CSP (ADR 0006)", () => {
     );
   });
 });
+
+describe("what the error log keeps of an export URL", () => {
+  it("never writes the single-use token of /api/sessions/:id/export/:token", async () => {
+    const lines: string[] = [];
+    const logger = createLogger({
+      level: "debug",
+      clock: createFakeClock(0),
+      write: (line) => lines.push(line),
+    });
+    const token = "T".repeat(43);
+    const app = createHttpApp({
+      allowedOrigins: new Set([ORIGIN]),
+      staticRoot: null,
+      logger,
+      mount: (hono) => {
+        hono.get("/api/sessions/:id/export/:token", () => {
+          throw new Error("database is locked");
+        });
+      },
+      wsProbe: (c) => c.json({ protocol: 1 }),
+    });
+    expect((await app.request(`/api/sessions/s1/export/${token}`)).status).toBe(500);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain(token);
+    expect(lines[0]).toContain("/api/sessions/s1/export/[redacted]");
+  });
+});

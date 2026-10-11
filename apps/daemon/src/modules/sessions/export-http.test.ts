@@ -194,6 +194,29 @@ describe("the export download route (ADR 0006)", () => {
     expect(unauthenticated.headers.get("content-security-policy")).toContain("default-src 'self'");
   });
 
+  it("answers HEAD 404 without spending the token: the next GET still gets the file", async () => {
+    const t = setup();
+    const { url, path } = t.ready();
+    const head = await t.app.request(url, { method: "HEAD", headers: COOKIE });
+    expect(head.status).toBe(404);
+    expect(head.headers.get("content-disposition")).toBeNull();
+    expect(existsSync(path)).toBe(true);
+    const get = await t.app.request(url, { headers: COOKIE });
+    expect(get.status).toBe(200);
+    expect(await get.text()).toBe(PAGE);
+  });
+
+  it("logs a download the client gave up as export_aborted, not as a read failure", async () => {
+    const t = setup();
+    const reply = await t.app.request(t.ready().url, { headers: COOKIE });
+    await reply.body?.cancel();
+    await vi.waitFor(() => expect(t.logs.lines.map((line) => line.msg)).toContain("export_aborted"), {
+      timeout: 2000,
+    });
+    expect(t.logs.lines.filter((line) => line.msg === "export_read_failed")).toEqual([]);
+    expect(t.logs.lines.find((line) => line.msg === "export_aborted")?.level).toBe("info");
+  });
+
   it("only answers GET", async () => {
     const t = setup();
     const { url } = t.ready();

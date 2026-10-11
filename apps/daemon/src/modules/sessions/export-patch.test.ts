@@ -1,4 +1,13 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runInNewContext, Script } from "node:vm";
@@ -180,6 +189,21 @@ describe("patching a file", () => {
     // At the bound exactly it is patched.
     await patchExportFile(path, silentLogger, { maxBytes: bytes });
     expect(readFileSync(path, "utf8")).toBe(patchExportHtml(html).html);
+  });
+
+  it("leaves the file 0600 patched or not, too large or not (Pi writes it under the user's umask)", async () => {
+    const mode = (path: string) => statSync(path).mode & 0o777;
+    const path = join(tempDir(), "x.html");
+    for (const [content, options] of [
+      [html, {}],
+      [html.replace("node.children.forEach(mapNodes);", ""), {}],
+      [html, { maxBytes: 1 }],
+    ] as const) {
+      writeFileSync(path, content);
+      chmodSync(path, 0o644);
+      await patchExportFile(path, silentLogger, options);
+      expect(mode(path)).toBe(0o600);
+    }
   });
 
   it("bounds the file at 64 MiB by default", () => {

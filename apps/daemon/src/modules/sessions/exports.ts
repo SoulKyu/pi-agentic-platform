@@ -1,14 +1,17 @@
-import { randomBytes, randomUUID } from "node:crypto";
-import { chmodSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { chmodSync, lstatSync, mkdirSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { PapError } from "@pap/contracts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
+import { randomToken } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
 
 /** How long a download link lives. The clock is the kernel's, so a test advances it. */
 export const EXPORT_TTL_MS = 600_000;
 export const MAX_PENDING_EXPORTS = 16;
 /** What a token and a session id may look like in a URL; anything else never reaches a lookup. */
+/** The names pap gives its own files (`randomUUID`), and the half-patched copy beside one. */
+const OWN_FILE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.html(?:\.patching)?$/;
 export const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 export const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 
@@ -53,7 +56,7 @@ export interface ExportsDeps {
  * export is discarded.
  */
 export function createExports(deps: ExportsDeps): Exports {
-  const newToken = deps.newToken ?? (() => randomBytes(32).toString("base64url"));
+  const newToken = deps.newToken ?? randomToken;
   const pending = new Map<string, Pending>();
   let stopped = false;
   mkdirSync(deps.dir, { recursive: true, mode: 0o700 });
@@ -112,15 +115,20 @@ export function createExports(deps: ExportsDeps): Exports {
       } catch (error) {
         deps.logger.warn("export_purge_failed", { code: (error as NodeJS.ErrnoException).code ?? "unknown" });
       }
+      let kept = 0;
       for (const name of names) {
+        const path = join(deps.dir, name);
         try {
-          rmSync(join(deps.dir, name), { recursive: true, force: true });
+          // lstat: a link is never followed, and a folder is never entered. Only pap's own regular files go.
+          if (OWN_FILE.test(name) && lstatSync(path).isFile()) rmSync(path, { force: true });
+          else kept++;
         } catch (error) {
           deps.logger.warn("export_delete_failed", {
             code: (error as NodeJS.ErrnoException).code ?? "unknown",
           });
         }
       }
+      if (kept > 0) deps.logger.warn("export_purge_kept", { count: kept });
     },
     stop() {
       stopped = true;
