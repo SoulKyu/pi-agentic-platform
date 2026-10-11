@@ -4,7 +4,11 @@ import { join } from "node:path";
 import type { AuditEntry, PolicyRules } from "@pap/contracts";
 import { evaluateToolCall } from "../policy/extension.ts";
 
-export const interactiveRules: PolicyRules = { profile: "interactive", approvalMode: "auto-accept-edits" };
+export const interactiveRules: PolicyRules = {
+  profile: "interactive",
+  approvalMode: "auto-accept-edits",
+  alwaysAllow: [],
+};
 
 export interface HarnessOptions {
   confirm?: (title: string, message: string, opts?: { signal?: AbortSignal }) => Promise<boolean>;

@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { AuditEntry, DaemonToWorker, InitRecord, TOOL_CATEGORIES, parseWorkerRecord } from "./index.ts";
+import {
+  AuditEntry,
+  DaemonToWorker,
+  InitRecord,
+  PolicyRules,
+  TOOL_CATEGORIES,
+  parseWorkerRecord,
+} from "./index.ts";
 
 describe("worker records", () => {
   it("parses pap records strictly", () => {
     const ready = { type: "ready", sessionFile: "/s.jsonl", sessionId: "abc", piVersion: "1.1.0" };
-    expect(parseWorkerRecord(ready)).toEqual(ready);
+    expect(parseWorkerRecord(ready)).toEqual({ ...ready, leafId: null, sessionName: null });
     expect(parseWorkerRecord({ type: "ready", sessionId: "abc" })).toBeNull();
   });
 
@@ -47,6 +54,9 @@ describe("worker record routing", () => {
     "audit",
     "health",
     "extension_error",
+    "custom_render",
+    "custom_close",
+    "approval_request",
   ];
 
   it.each(PAP_RECORD_TYPES)("never forwards a malformed %s as a Pi event", (type) => {
@@ -106,5 +116,73 @@ describe("tool categories", () => {
     expect(
       AuditEntry.safeParse({ toolCallId: "t1", tool: "x", category: "other", decision: "block" }).success,
     ).toBe(false);
+  });
+});
+
+const KEY = "a".repeat(64);
+
+describe("protocol v2 records", () => {
+  it("parses the new worker records as pap records, never as Pi events", () => {
+    const render = { type: "custom_render", id: "p1", lines: ["> a"] };
+    const approval = {
+      type: "approval_request",
+      id: "a1",
+      category: "exec",
+      title: "Run a command?",
+      message: "1 line\nbash: ls",
+      answers: ["deny", "once"],
+      tool: "bash",
+      key: KEY,
+    };
+    expect(parseWorkerRecord(render)).toEqual(render);
+    expect(parseWorkerRecord({ type: "custom_close", id: "p1" })).toEqual({ type: "custom_close", id: "p1" });
+    expect(parseWorkerRecord(approval)).toEqual(approval);
+    expect(parseWorkerRecord({ ...approval, key: "not-hex" })).toBeNull();
+    expect(parseWorkerRecord({ ...approval, answers: ["once", "once"] })).toBeNull();
+    expect(parseWorkerRecord({ type: "custom_render", id: "p1" })).toBeNull();
+  });
+
+  it("defaults the leaf and name of ready to null", () => {
+    const ready = { type: "ready", sessionFile: "/s.jsonl", sessionId: "abc", piVersion: "1.1.0" };
+    expect(parseWorkerRecord(ready)).toEqual({ ...ready, leafId: null, sessionName: null });
+    expect(parseWorkerRecord({ ...ready, leafId: "e9", sessionName: "Fix login" })).toEqual({
+      ...ready,
+      leafId: "e9",
+      sessionName: "Fix login",
+    });
+  });
+
+  it.each([
+    { type: "clear_queue", id: "r1" },
+    { type: "compact", id: "r1", customInstructions: "keep the API notes" },
+    { type: "navigate_tree", id: "r1", targetId: "e4" },
+    { type: "set_session_name", id: "r1", name: "Fix login" },
+    { type: "export_html", id: "r1", outputPath: "/pap/exports/x.html" },
+    { type: "auto_name", id: "r1" },
+    { type: "custom_input", id: "p1", data: "\r" },
+    { type: "custom_cancel", id: "p1" },
+    { type: "approval_response", id: "a1", answer: "session" },
+    { type: "approval_response", id: "a1", answer: "deny", cancelled: true },
+  ])("accepts the daemon record $type", (record) => {
+    expect(DaemonToWorker.safeParse(record).success).toBe(true);
+  });
+
+  it("refuses an export path that is not absolute and an answer outside the four", () => {
+    expect(DaemonToWorker.safeParse({ type: "export_html", id: "r1", outputPath: "x.html" }).success).toBe(
+      false,
+    );
+    expect(DaemonToWorker.safeParse({ type: "approval_response", id: "a1", answer: "yes" }).success).toBe(
+      false,
+    );
+  });
+
+  it("defaults always rules to none and bounds them", () => {
+    const base = { profile: "interactive", approvalMode: "auto-accept-edits" };
+    expect(PolicyRules.parse(base).alwaysAllow).toEqual([]);
+    expect(PolicyRules.safeParse({ ...base, alwaysAllow: [{ tool: "bash", key: "xyz" }] }).success).toBe(
+      false,
+    );
+    const many = Array.from({ length: 1001 }, () => ({ tool: "bash", key: KEY }));
+    expect(PolicyRules.safeParse({ ...base, alwaysAllow: many }).success).toBe(false);
   });
 });

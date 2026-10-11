@@ -24,7 +24,14 @@ vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
         if (record.type === "init") {
           spawned.inits.push(record);
           queueMicrotask(() =>
-            self.emit({ type: "ready", sessionId: "pi-1", sessionFile: "/x/pi-1.jsonl", piVersion: "1" }),
+            self.emit({
+              type: "ready",
+              sessionId: "pi-1",
+              sessionFile: "/x/pi-1.jsonl",
+              piVersion: "1",
+              leafId: null,
+              sessionName: null,
+            }),
           );
         }
       },

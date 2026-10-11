@@ -1,9 +1,14 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { PolicyRules } from "@pap/contracts";
 import { type ForkedHost, forkHost, type HostRecord } from "./fork-host.ts";
 
-export const RULES = { profile: "interactive", approvalMode: "auto-accept-edits" } as const;
+export const RULES: PolicyRules = {
+  profile: "interactive",
+  approvalMode: "auto-accept-edits",
+  alwaysAllow: [],
+};
 
 export interface LaunchOptions {
   /** The `policy` field of the init record. */

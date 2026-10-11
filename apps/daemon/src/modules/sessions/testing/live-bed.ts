@@ -24,7 +24,14 @@ export const piEvent = (event: { type: string } & Record<string, unknown>) => ({
   type: "pi_event" as const,
   event,
 });
-export const READY = { type: "ready" as const, sessionFile: "/f", sessionId: "s1", piVersion: "1.1.0" };
+export const READY = {
+  type: "ready" as const,
+  sessionFile: "/f",
+  sessionId: "s1",
+  piVersion: "1.1.0",
+  leafId: null,
+  sessionName: null,
+};
 
 export interface Options {
   compacting?: boolean;

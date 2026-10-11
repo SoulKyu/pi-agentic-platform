@@ -4,7 +4,14 @@ import { createFakeClock } from "../clock.ts";
 import { DEFAULT_REQUEST_TIMEOUT_MS, MAX_SHUTDOWN_GRACE_MS } from "../supervisor/worker.ts";
 import { createFakeWorker } from "./fake-worker.ts";
 
-const READY: WorkerRecord = { type: "ready", sessionFile: "/s.jsonl", sessionId: "s", piVersion: "1" };
+const READY: WorkerRecord = {
+  type: "ready",
+  sessionFile: "/s.jsonl",
+  sessionId: "s",
+  piVersion: "1",
+  leafId: null,
+  sessionName: null,
+};
 
 describe("fake worker", () => {
   it("answers scripted requests, holds others, and rejects them on a crash", async () => {

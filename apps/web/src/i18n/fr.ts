@@ -69,4 +69,10 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "error.passkey_failed":
     "La clé d'accès n'a pas pu être utilisée. Réessayez, ou utilisez votre mot de passe.",
   "error.password_incorrect": "Mot de passe incorrect.",
+  // ── sessions (M2): every key of M2, in task order; lookups are by key, position is irrelevant ──
+  "error.queue_full": "Trop de messages attendent dans cette session. Attendez l'agent, ou videz la file.",
+  "error.session_busy": "La session travaille. Attendez qu'elle finisse, ou arrêtez-la d'abord.",
+  "error.session_empty": "Cette session n'a encore aucun message à traiter.",
+  "sessions.queue.title": "En attente",
+  // ── end sessions (M2) ──
 };

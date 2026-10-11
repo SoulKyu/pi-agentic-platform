@@ -1,22 +1,5 @@
 import { z } from "zod";
-
-export const PolicyRules = z.object({
-  profile: z.literal("interactive"),
-  approvalMode: z.enum(["auto-accept-edits"]),
-});
-export type PolicyRules = z.infer<typeof PolicyRules>;
-
-export const TOOL_CATEGORIES = ["read", "edit", "exec", "network", "external-write", "unknown"] as const;
-export type ToolCategory = (typeof TOOL_CATEGORIES)[number];
-
-export const AuditEntry = z.object({
-  toolCallId: z.string().max(256),
-  tool: z.string().max(256),
-  category: z.enum(TOOL_CATEGORIES),
-  decision: z.enum(["allow", "block", "approved", "denied"]),
-  reason: z.string().max(1024).optional(),
-});
-export type AuditEntry = z.infer<typeof AuditEntry>;
+import { ApprovalAnswer, ApprovalAnswers, AuditEntry, GrantKey, TOOL_CATEGORIES } from "./policy.ts";
 
 // daemon → worker
 // pap targets Linux, so an absolute path starts with "/". A relative path would be resolved against the
@@ -62,18 +45,68 @@ export type UiResponseRecord = z.infer<typeof UiResponseRecord>;
 const ShutdownRecord = z.object({ type: z.literal("shutdown"), graceMs: z.number().int().nonnegative() });
 const PolicyUpdateRecord = z.object({ type: z.literal("policy_update"), rules: z.unknown() });
 
+const Id = z.string().min(1).max(128);
+const ClearQueueCommand = z.object({ type: z.literal("clear_queue"), id: z.string() });
+const CompactCommand = z.object({
+  type: z.literal("compact"),
+  id: z.string(),
+  customInstructions: z.string().max(4096).optional(),
+});
+const NavigateTreeCommand = z.object({ type: z.literal("navigate_tree"), id: z.string(), targetId: Id });
+const SetSessionNameCommand = z.object({
+  type: z.literal("set_session_name"),
+  id: z.string(),
+  name: z.string().min(1).max(256),
+});
+/** The daemon picks the path (under `$PAP_HOME/exports`, Task 18): a worker never writes where a client says. */
+const ExportHtmlCommand = z.object({
+  type: z.literal("export_html"),
+  id: z.string(),
+  outputPath: AbsolutePath,
+});
+const AutoNameCommand = z.object({ type: z.literal("auto_name"), id: z.string() });
+const CustomInputRecord = z.object({ type: z.literal("custom_input"), id: Id, data: z.string().max(4096) });
+const CustomCancelRecord = z.object({ type: z.literal("custom_cancel"), id: Id });
+/**
+ * `cancelled`: the daemon could not show the question (limits, malformed). pap-policy treats it as a closed
+ * question (fail closed, audit "dialog closed"), never as the user's refusal (M2-RT-22).
+ */
+const ApprovalResponseRecord = z.object({
+  type: z.literal("approval_response"),
+  id: Id,
+  answer: ApprovalAnswer,
+  cancelled: z.literal(true).optional(),
+});
+
 export const DaemonToWorker = z.discriminatedUnion("type", [
   InitRecord,
   PromptCommand,
   AbortCommand,
   GetStateCommand,
+  ClearQueueCommand,
+  CompactCommand,
+  NavigateTreeCommand,
+  SetSessionNameCommand,
+  ExportHtmlCommand,
+  AutoNameCommand,
   UiResponseRecord,
+  CustomInputRecord,
+  CustomCancelRecord,
+  ApprovalResponseRecord,
   ShutdownRecord,
   PolicyUpdateRecord,
 ]);
 export type DaemonToWorker = z.infer<typeof DaemonToWorker>;
 type CommandRecord =
-  z.infer<typeof PromptCommand> | z.infer<typeof AbortCommand> | z.infer<typeof GetStateCommand>;
+  | z.infer<typeof PromptCommand>
+  | z.infer<typeof AbortCommand>
+  | z.infer<typeof GetStateCommand>
+  | z.infer<typeof ClearQueueCommand>
+  | z.infer<typeof CompactCommand>
+  | z.infer<typeof NavigateTreeCommand>
+  | z.infer<typeof SetSessionNameCommand>
+  | z.infer<typeof ExportHtmlCommand>
+  | z.infer<typeof AutoNameCommand>;
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 export type CommandInput = DistributiveOmit<CommandRecord, "id">;
 
@@ -83,8 +116,36 @@ export const ReadyRecord = z.object({
   sessionFile: z.string(),
   sessionId: z.string(),
   piVersion: z.string(),
+  /**
+   * Pi's current leaf: where the next entry goes and what the transcript of a hot session shows (Task 10b). Not
+   * bounded here: the daemon treats one over 128 characters as unknown (M2-RT-06).
+   */
+  leafId: z.string().nullable().default(null),
+  /** The session's name in Pi; the daemon clips it with `nameOf` (Task 17b). */
+  sessionName: z.string().nullable().default(null),
 });
 export type ReadyRecord = z.infer<typeof ReadyRecord>;
+export const CustomRenderRecord = z.object({
+  type: z.literal("custom_render"),
+  id: Id,
+  lines: z.array(z.string()),
+});
+const CustomCloseRecord = z.object({ type: z.literal("custom_close"), id: Id });
+/**
+ * The policy's own question (Task 13b). The extension API cannot send it (`ctx.ui` has no approval method); code
+ * inside the worker process could, which is R101's residual (ADR 0008).
+ */
+export const ApprovalRequestRecord = z.object({
+  type: z.literal("approval_request"),
+  id: Id,
+  category: z.enum(TOOL_CATEGORIES),
+  title: z.string().max(4096),
+  message: z.string().max(65_536),
+  answers: ApprovalAnswers,
+  tool: z.string().min(1).max(256),
+  key: GrantKey,
+});
+export type ApprovalRequestRecord = z.infer<typeof ApprovalRequestRecord>;
 export const ResponseRecord = z.object({
   type: z.literal("response"),
   id: z.string(),
@@ -117,6 +178,9 @@ const PapRecord = z.discriminatedUnion("type", [
   AuditRecord,
   HealthRecord,
   ExtensionErrorRecord,
+  CustomRenderRecord,
+  CustomCloseRecord,
+  ApprovalRequestRecord,
 ]);
 const PiEventRecord = z.looseObject({ type: z.string() });
 // Derived, so a record added to PapRecord can never be forwarded as a Pi event by mistake.

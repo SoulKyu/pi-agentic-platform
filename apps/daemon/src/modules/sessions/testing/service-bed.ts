@@ -211,7 +211,14 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
           files[index] = sessionFile;
           queueMicrotask(() => {
             for (const record of behavior.before ?? []) self.emit(record);
-            self.emit({ type: "ready", sessionId: piId, sessionFile, piVersion: "1.1.0" });
+            self.emit({
+              type: "ready",
+              sessionId: piId,
+              sessionFile,
+              piVersion: "1.1.0",
+              leafId: null,
+              sessionName: null,
+            });
           });
         },
         reply: (command) => {

@@ -65,4 +65,11 @@ export const en = {
   "error.passkey_cancelled": "The passkey prompt was cancelled.",
   "error.passkey_failed": "The passkey could not be used. Try again, or use your password.",
   "error.password_incorrect": "Password incorrect.",
+  // ── sessions (M2): every key of M2, in task order; lookups are by key, position is irrelevant ──
+  "error.queue_full":
+    "Too many messages are waiting in this session. Wait for the agent, or clear the queue.",
+  "error.session_busy": "The session is working. Wait for it to finish, or stop it first.",
+  "error.session_empty": "This session has no messages to work with yet.",
+  "sessions.queue.title": "Waiting",
+  // ── end sessions (M2) ──
 } as const;

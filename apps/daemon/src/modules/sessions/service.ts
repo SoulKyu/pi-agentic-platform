@@ -20,7 +20,11 @@ import { fitSnapshot, SNAPSHOT_ROWS } from "./snapshot.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 
-const INTERACTIVE_POLICY: PolicyRules = { profile: "interactive", approvalMode: "auto-accept-edits" };
+const INTERACTIVE_POLICY: PolicyRules = {
+  profile: "interactive",
+  approvalMode: "auto-accept-edits",
+  alwaysAllow: [],
+};
 
 export interface SessionsServiceDeps {
   readonly store: SessionsStore;

@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 import { toolCategory } from "./categories.ts";
 import { decide, decideEdit } from "./decide.ts";
 
-const interactive: PolicyRules = { profile: "interactive", approvalMode: "auto-accept-edits" };
+const interactive: PolicyRules = {
+  profile: "interactive",
+  approvalMode: "auto-accept-edits",
+  alwaysAllow: [],
+};
 // The contract only knows the interactive profile in M1; a rules object from the future must not open anything.
 const unattended = { profile: "isolated-task", approvalMode: "auto-accept-edits" } as unknown as PolicyRules;
 

@@ -140,6 +140,8 @@ export async function runHost(ipc: Ipc): Promise<void> {
     sessionFile: opened.sessionFile ?? "",
     sessionId: opened.sessionId,
     piVersion: VERSION,
+    leafId: opened.sessionManager.getLeafId(),
+    sessionName: opened.sessionName ?? null,
   });
   for (const record of early.splice(0)) dispatch(record);
   const health = () => ipc.send({ type: "health", rssMb: Math.round(process.memoryUsage().rss / 1048576) });

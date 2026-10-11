@@ -40,7 +40,7 @@ describe("create", () => {
       agentDir: bed.agentDir,
       papHome: join(bed.dir, "pap"),
       umask: 0o022,
-      policy: { profile: "interactive", approvalMode: "auto-accept-edits" },
+      policy: { profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow: [] },
     });
   });
 

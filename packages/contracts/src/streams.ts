@@ -6,15 +6,46 @@ export type StreamName = (typeof STREAMS)[number];
 export const SessionStatus = z.enum(["cold", "starting", "idle", "running"]);
 export type SessionStatus = z.infer<typeof SessionStatus>;
 
+import { ApprovalAnswer, ApprovalAnswers, TOOL_CATEGORIES } from "./policy.ts";
+
+/**
+ * The most the daemon passes on from a worker for each extension UI surface (R66). The daemon rebuilds every client
+ * event from the fields it knows, cut to these, so an extension that loops or lies cannot grow a frame or a snapshot.
+ * They count characters; the snapshot also bounds decorations in bytes (Task 1b).
+ */
+export const UI_LIMITS = {
+  statuses: 32,
+  statusKey: 256,
+  statusText: 512,
+  widgets: 8,
+  widgetKey: 256,
+  widgetLines: 50,
+  widgetLineChars: 512,
+  title: 256,
+  editorText: 200_000,
+  panels: 4,
+  panelLines: 200,
+  panelLineChars: 512,
+  panelInput: 4096,
+  notices: 20,
+  noticeText: 2000,
+  queuePreviewChars: 2000,
+  queueEntries: 128,
+  name: 256,
+} as const;
+
 export const Dialog = z.object({
   id: z.string().min(1).max(128),
-  method: z.enum(["select", "confirm", "input", "editor"]),
+  method: z.enum(["select", "confirm", "input", "editor", "approval"]),
   title: z.string().max(4096),
   message: z.string().max(65_536).optional(),
   options: z.array(z.string().max(4096)).max(100).optional(),
   placeholder: z.string().max(4096).optional(),
   prefill: z.string().max(1_000_000).optional(),
   timeout: z.number().int().positive().optional(),
+  /** Approval dialogs only (`method: "approval"`): the policy's category and the answers it accepts, in card order. */
+  category: z.enum(TOOL_CATEGORIES).optional(),
+  answers: ApprovalAnswers.optional(),
 });
 export type Dialog = z.infer<typeof Dialog>;
 
@@ -22,11 +53,89 @@ export const DialogResponse = z.union([
   z.object({ confirmed: z.boolean() }),
   z.object({ value: z.string().max(1_000_000) }),
   z.object({ cancelled: z.literal(true) }),
+  z.object({ answer: ApprovalAnswer }),
 ]);
 export type DialogResponse = z.infer<typeof DialogResponse>;
 
 export const PiEvent = z.looseObject({ type: z.string() });
 export type PiEvent = z.infer<typeof PiEvent>;
+
+/** One displayed transcript row: a Pi message (or summary) and the id of the Pi entry it came from, once known. */
+export const TranscriptRow = z.object({
+  entryId: z.string().min(1).max(128).nullable(),
+  message: z.unknown(),
+});
+export type TranscriptRow = z.infer<typeof TranscriptRow>;
+
+export const PartialBlock = z.object({
+  type: z.enum(["text", "thinking", "toolCall"]),
+  text: z.string(),
+  id: z.string().max(256).optional(),
+  name: z.string().max(256).optional(),
+});
+export type PartialBlock = z.infer<typeof PartialBlock>;
+/** The assistant reply being written, by content index: what a client resuming mid-reply starts from (spec C §4.3). */
+export const PartialMessage = z.object({ blocks: z.array(PartialBlock).max(64) });
+export type PartialMessage = z.infer<typeof PartialMessage>;
+
+export const StatusEntry = z.object({
+  key: z.string().min(1).max(UI_LIMITS.statusKey),
+  text: z.string().max(UI_LIMITS.statusText),
+});
+export type StatusEntry = z.infer<typeof StatusEntry>;
+export const Widget = z.object({
+  key: z.string().min(1).max(UI_LIMITS.widgetKey),
+  lines: z.array(z.string().max(UI_LIMITS.widgetLineChars)).max(UI_LIMITS.widgetLines),
+  placement: z.enum(["aboveEditor", "belowEditor"]),
+});
+export type Widget = z.infer<typeof Widget>;
+export const Panel = z.object({
+  id: z.string().min(1).max(128),
+  lines: z.array(z.string().max(UI_LIMITS.panelLineChars)).max(UI_LIMITS.panelLines),
+});
+export type Panel = z.infer<typeof Panel>;
+export const Notice = z.object({
+  level: z.enum(["info", "warning", "error"]),
+  text: z.string().max(UI_LIMITS.noticeText),
+  /** `extension`: the text is an extension's own (`ctx.ui.notify`), labelled so in the UI (owner R2-8). Absent: pap's text. */
+  source: z.enum(["pap", "extension"]).optional(),
+});
+export type Notice = z.infer<typeof Notice>;
+/** Previews of what waits in Pi's queue, and how much (Task 12). The texts themselves stay in the worker. */
+export const QueueView = z.object({
+  steering: z.array(z.string().max(UI_LIMITS.queuePreviewChars)).max(UI_LIMITS.queueEntries),
+  followUp: z.array(z.string().max(UI_LIMITS.queuePreviewChars)).max(UI_LIMITS.queueEntries),
+  count: z.number().int().nonnegative(),
+  bytes: z.number().int().nonnegative(),
+});
+export type QueueView = z.infer<typeof QueueView>;
+export const HistoryMeta = z.object({
+  hasMore: z.boolean(),
+  oldestEntryId: z.string().max(128).nullable(),
+  turnsBefore: z.number().int().nonnegative(),
+});
+export type HistoryMeta = z.infer<typeof HistoryMeta>;
+export const Activity = z.object({
+  compacting: z.boolean(),
+  retry: z
+    .object({ attempt: z.number().int().nonnegative(), maxAttempts: z.number().int().nonnegative() })
+    .nullable(),
+});
+export type Activity = z.infer<typeof Activity>;
+/** A Pi entry as the client needs it: its id binds a live message to the entry Pi wrote for it. */
+export const EntryRef = z.object({
+  id: z.string().min(1).max(128),
+  parentId: z.string().max(128).nullable(),
+  type: z.string().max(64),
+  role: z.string().max(64).optional(),
+  toolCallId: z.string().max(256).optional(),
+  messageTimestamp: z.number().optional(),
+});
+export type EntryRef = z.infer<typeof EntryRef>;
+
+export const EMPTY_QUEUE: QueueView = { steering: [], followUp: [], count: 0, bytes: 0 };
+export const IDLE_ACTIVITY: Activity = { compacting: false, retry: null };
+export const NO_HISTORY: HistoryMeta = { hasMore: false, oldestEntryId: null, turnsBefore: 0 };
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
   z.object({
