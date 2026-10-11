@@ -8,15 +8,19 @@ permissions:
 jobs:
   latest-pi-sdk:
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     env:
       PI_OFFLINE: "1"
       PI_TELEMETRY: "0"
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          node-version: 24.14.x
+          persist-credentials: false
+      # The setup action brings pnpm, Node and the probe tools (R92); the install waits for the bump.
+      - uses: ./.github/actions/setup
+        with:
+          install: "false"
       - run: node --disable-warning=ExperimentalWarning scripts/pi-compat-bump.ts
       - run: pnpm install --no-frozen-lockfile --config.minimum-release-age=0
+      - run: pnpm typecheck
       - run: pnpm test:int
