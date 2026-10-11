@@ -1,7 +1,13 @@
 import { PapError, QueueView } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
-import { createQueueGuard, fitTexts, MAX_QUEUED_BYTES, MAX_QUEUED_MESSAGES } from "./queue-guard.ts";
-import { PAGE_BYTES, sizeOf } from "./snapshot.ts";
+import {
+  createQueueGuard,
+  fitTexts,
+  MAX_QUEUED_BYTES,
+  MAX_QUEUED_MESSAGES,
+  QUEUE_PREVIEW_BYTES,
+} from "./queue-guard.ts";
+import { fitSnapshot, SNAPSHOT_BYTES, sizeOf } from "./snapshot.ts";
 
 const update = (count: number, bytes: number) => ({
   steering: Array.from({ length: Math.min(count, 128) }, () => "s"),
@@ -60,9 +66,48 @@ describe("queue guard", () => {
       bytes: 123,
     });
     expect(QueueView.safeParse(view).success).toBe(true);
-    expect(sizeOf({ kind: "queue", queue: view })).toBeLessThanOrEqual(PAGE_BYTES);
+    expect(sizeOf({ kind: "queue", queue: view })).toBeLessThanOrEqual(QUEUE_PREVIEW_BYTES);
     expect(view.steering.length + view.followUp.length).toBeGreaterThan(0);
     expect(view.count).toBe(256);
+  });
+
+  it("uncounts the bytes of a prompt too, once, so 32 MiB of prompts over time do not wedge the session", () => {
+    const guard = createQueueGuard();
+    const full = "x".repeat(MAX_QUEUED_BYTES);
+    const release = guard.admit(full);
+    expect(() => guard.admit("y")).toThrow(new PapError("queue_full"));
+    release();
+    release();
+    const again = guard.admit(full);
+    expect(() => guard.admit("y")).toThrow(new PapError("queue_full"));
+    again();
+  });
+
+  it("does not let a release that comes after a reset uncount what was admitted since", () => {
+    const guard = createQueueGuard();
+    const stale = Array.from({ length: MAX_QUEUED_MESSAGES }, () => guard.admit("a"));
+    guard.reset();
+    guard.admit("b");
+    stale.forEach((release) => release());
+    for (let i = 1; i < MAX_QUEUED_MESSAGES; i++) guard.admit("c");
+    expect(() => guard.admit("d")).toThrow(new PapError("queue_full"));
+  });
+
+  it("keeps a snapshot's room for an approval whatever the queue holds (the full 128 / 32 MiB, escape-heavy)", () => {
+    const guard = createQueueGuard();
+    const nasty = '"\\\u0000\u001f'.repeat(500);
+    const texts = Array.from({ length: 128 }, () => nasty);
+    const queue = guard.onQueueUpdate({
+      steering: texts,
+      followUp: texts,
+      count: 128,
+      bytes: MAX_QUEUED_BYTES,
+    });
+    const approval = { id: "d1", method: "approval" as const, title: "Run?", message: "m".repeat(200_000) };
+    const snapshot = fitSnapshot({ status: "running", rows: [], dialogs: [approval] as never, queue });
+    expect(snapshot.dialogs).toHaveLength(1);
+    expect(sizeOf(snapshot)).toBeLessThanOrEqual(SNAPSHOT_BYTES);
+    expect(snapshot.queue.count).toBe(128);
   });
 
   it("ignores what is not a list of texts, and negative or fractional totals", () => {
@@ -74,6 +119,11 @@ describe("queue guard", () => {
 });
 
 describe("fitTexts", () => {
+  it("keeps a contiguous prefix: it stops at the first text that does not fit", () => {
+    const fitted = fitTexts(["a", "b".repeat(100), "c"], ["d"], 20);
+    expect(fitted).toEqual({ steering: ["a"], followUp: [], truncated: true });
+  });
+
   it("fits in JSON bytes and says when it left something out", () => {
     const nasty = "\u0000".repeat(10_000);
     const texts = Array.from({ length: 128 }, () => nasty);

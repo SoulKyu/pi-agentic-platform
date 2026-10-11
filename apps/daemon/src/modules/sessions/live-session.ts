@@ -22,7 +22,7 @@ import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createPartialReply } from "./partial.ts";
-import { createQueueGuard, readCleared } from "./queue-guard.ts";
+import { createQueueGuard, isClearedAnswer, readCleared } from "./queue-guard.ts";
 import type { RunViewState } from "./run-view.ts";
 import { clipMessage, clipPiEvent } from "./wire-clip.ts";
 import { clip, outputTailOf } from "./worker-text.ts";
@@ -289,6 +289,9 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       if (!response.success) {
         logger.info("clear_queue_failed", { error: clip(response.error ?? "") });
         throw new PapError("worker_failed");
+      }
+      if (!isClearedAnswer(response.data)) {
+        logger.warn("clear_queue_unreadable", { detail: clip(JSON.stringify(response.data) ?? "") });
       }
       return readCleared(response.data);
     },

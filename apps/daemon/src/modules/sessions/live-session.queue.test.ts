@@ -2,6 +2,8 @@ import { PapError } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { startLiveSession } from "./live-session.ts";
 import { PAGE_BYTES, sizeOf } from "./snapshot.ts";
+import { DEFAULT_REQUEST_TIMEOUT_MS } from "../../kernel/supervisor/worker.ts";
+import { captureLogger } from "./testing/helpers.ts";
 import { createLiveBed, piEvent } from "./testing/live-bed.ts";
 
 const setup = createLiveBed(startLiveSession);
@@ -79,8 +81,10 @@ describe("the steering queue", () => {
     const cleared = await live.clearQueue();
     expect(cleared.truncated).toBe(true);
     expect(sizeOf(cleared)).toBeLessThanOrEqual(PAGE_BYTES);
-    expect(cleared.steering.length + cleared.followUp.length).toBeGreaterThan(0);
-    expect(cleared.steering.every((text) => text === nasty)).toBe(true);
+    const room = PAGE_BYTES - sizeOf({ steering: [], followUp: [], truncated: true });
+    const kept = Math.floor(room / (Buffer.byteLength(JSON.stringify(nasty)) + 1));
+    expect(cleared.steering).toEqual(Array.from({ length: kept }, () => nasty));
+    expect(cleared.followUp).toEqual([]);
   });
 
   it("keeps the worker's own truncated flag, and reads an unexpected answer as empty and truncated", async () => {
@@ -88,5 +92,33 @@ describe("the steering queue", () => {
     expect(await said.live.clearQueue()).toEqual({ steering: ["a"], followUp: [], truncated: true });
     const odd = setup({ clearQueue: { data: "garbage" } });
     expect(await odd.live.clearQueue()).toEqual({ steering: [], followUp: [], truncated: true });
+  });
+
+  it("passes a timeout on unchanged and asks the worker once: the outcome is unknown, not a failure (R105)", async () => {
+    const { live, worker, clock } = setup({ clearQueue: { hold: true } });
+    const cleared = live.clearQueue();
+    const outcome = expect(cleared).rejects.toThrow(new PapError("timeout"));
+    await clock.advance(DEFAULT_REQUEST_TIMEOUT_MS);
+    await outcome;
+    await clock.advance(DEFAULT_REQUEST_TIMEOUT_MS);
+    expect(worker.requests.filter((request) => request.type === "clear_queue")).toHaveLength(1);
+  });
+
+  it("logs a reply it cannot read, once, and still answers empty and truncated", async () => {
+    const { logger, lines } = captureLogger();
+    const { live } = setup({ logger, clearQueue: { data: { steering: "no" } } });
+    expect(await live.clearQueue()).toEqual({ steering: [], followUp: [], truncated: true });
+    expect(lines.filter((line) => line.msg === "clear_queue_unreadable")).toHaveLength(1);
+  });
+
+  it("does not bring a queue back from an update that comes after the worker is gone", async () => {
+    const { live, worker, clock, published } = setup();
+    await live.stop();
+    await clock.advance(0);
+    const before = published.length;
+    worker.emit(piEvent({ type: "queue_update", steering: ["late"], followUp: [], count: 1, bytes: 4 }));
+    await clock.advance(0);
+    expect(live.queue()).toEqual({ steering: [], followUp: [], count: 0, bytes: 0 });
+    expect(published.slice(before)).toEqual([]);
   });
 });

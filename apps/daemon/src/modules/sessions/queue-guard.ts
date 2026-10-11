@@ -3,6 +3,11 @@ import { PAGE_BYTES, sizeOf } from "./snapshot.ts";
 
 export const MAX_QUEUED_MESSAGES = 128;
 export const MAX_QUEUED_BYTES = 32 * 1024 * 1024;
+/**
+ * The most JSON bytes the queue's previews take in a `queue` event and in a snapshot. Small on purpose: the snapshot
+ * also carries the approvals a run waits on and its rows, and the user's texts come back whole from `clearQueue`.
+ */
+export const QUEUE_PREVIEW_BYTES = 64 * 1024;
 /** The contract's longest prompt (`sessions.prompt`); a queued text over it is not one the client could have sent. */
 const MAX_TEXT_CHARS = 200_000;
 
@@ -15,7 +20,8 @@ export interface FittedTexts {
 /**
  * Queued texts under `budget` JSON bytes (quotes, backslashes and control characters grow when escaped; M2-RT-28):
  * at most `UI_LIMITS.queueEntries` per list, text only, none over a prompt's length, the first that fit kept in their
- * order. `truncated` says when anything was left out.
+ * order, as a contiguous prefix: the first that does not fit ends the lists, so the UI can show "N more" from `count`.
+ * `truncated` says when anything was left out.
  */
 export function fitTexts(
   steering: readonly unknown[],
@@ -24,18 +30,16 @@ export function fitTexts(
 ): FittedTexts {
   let left = budget;
   let truncated = false;
+  let full = false;
   const take = (texts: readonly unknown[]): string[] => {
     if (texts.length > UI_LIMITS.queueEntries) truncated = true;
     const kept: string[] = [];
     for (const text of texts.slice(0, UI_LIMITS.queueEntries)) {
-      if (typeof text !== "string" || text.length > MAX_TEXT_CHARS) {
+      const size = typeof text === "string" ? Buffer.byteLength(JSON.stringify(text)) + 1 : Infinity;
+      if (full || typeof text !== "string" || text.length > MAX_TEXT_CHARS || size > left) {
+        full = true;
         truncated = true;
-        continue;
-      }
-      const size = Buffer.byteLength(JSON.stringify(text)) + 1;
-      if (size > left) {
-        truncated = true;
-        continue;
+        break;
       }
       left -= size;
       kept.push(text);
@@ -45,6 +49,13 @@ export function fitTexts(
   const fitted = { steering: take(steering), followUp: take(followUp) };
   return { ...fitted, truncated };
 }
+
+/** Whether `clear_queue` answered with the two lists the contract expects. */
+export const isClearedAnswer = (data: unknown): boolean =>
+  typeof data === "object" &&
+  data !== null &&
+  Array.isArray((data as { steering?: unknown }).steering) &&
+  Array.isArray((data as { followUp?: unknown }).followUp);
 
 /** What `clear_queue` answered, as the contract carries it. Anything but two lists of texts reads as empty and cut. */
 export function readCleared(data: unknown): FittedTexts {
@@ -91,6 +102,8 @@ export function createQueueGuard(): QueueGuard {
   let held = EMPTY_QUEUE;
   let inFlight = 0;
   let inFlightBytes = 0;
+  // A release that comes after `reset` belongs to a count that is gone: it must not uncount what was admitted since.
+  let epoch = 0;
   return {
     admit(text) {
       const size = Buffer.byteLength(text);
@@ -103,8 +116,9 @@ export function createQueueGuard(): QueueGuard {
       inFlight++;
       inFlightBytes += size;
       let released = false;
+      const admittedIn = epoch;
       return () => {
-        if (released) return;
+        if (released || admittedIn !== epoch) return;
         released = true;
         inFlight--;
         inFlightBytes -= size;
@@ -118,13 +132,14 @@ export function createQueueGuard(): QueueGuard {
       const { steering, followUp } = fitTexts(
         preview(update.steering),
         preview(update.followUp),
-        PAGE_BYTES - sizeOf(EMPTY_QUEUE),
+        QUEUE_PREVIEW_BYTES - sizeOf(EMPTY_QUEUE),
       );
       held = { steering, followUp, count: total(update.count), bytes: total(update.bytes) };
       return held;
     },
     view: () => held,
     reset() {
+      epoch++;
       held = EMPTY_QUEUE;
       inFlight = 0;
       inFlightBytes = 0;

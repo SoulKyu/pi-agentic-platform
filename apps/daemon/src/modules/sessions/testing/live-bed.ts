@@ -41,7 +41,7 @@ export interface Options {
   disposition?: "started" | "queued" | "handled";
   promptFails?: boolean;
   /** How the worker answers `clear_queue` (default: success with no data). */
-  clearQueue?: { success?: boolean; error?: string; data?: unknown };
+  clearQueue?: { success?: boolean; error?: string; data?: unknown; hold?: boolean };
   holdPrompt?: boolean;
   neverReady?: boolean;
   logger?: Logger;
@@ -92,7 +92,9 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
             ? { success: false, error: "No API key for provider x" }
             : { data: { disposition: options.disposition ?? "started" } };
         }
-        if (command.type === "clear_queue" && options.clearQueue) return options.clearQueue;
+        if (command.type === "clear_queue" && options.clearQueue) {
+          return options.clearQueue.hold ? undefined : options.clearQueue;
+        }
         return {};
       },
     });
