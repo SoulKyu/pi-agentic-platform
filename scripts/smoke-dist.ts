@@ -290,7 +290,9 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
     session.close();
   }
 
-  const workers = descendantsOf(daemon.child.pid ?? 0);
+  const daemonPid = daemon.child.pid;
+  if (daemonPid === undefined || daemonPid <= 1) throw new Error("the daemon has no process id of its own");
+  const workers = descendantsOf(daemonPid);
   const hosts = workers.filter((pid) => cmdlineOf(pid).includes(PI_HOST));
   if (hosts.length === 0) throw new Error(`no worker running ${PI_HOST} was found under the daemon`);
   for (const pid of hosts) {
@@ -311,7 +313,29 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
   step(`SIGTERM: exit 0, ${workers.length} worker process(es) gone`);
 }
 
+// What a failed or finished run must not leave behind: the daemon's descendants (workers lead groups of their own),
+// anything still running under the run's HOME, and the daemon's own group. Pids at or below 1 are never signalled.
+function killLeftovers(daemonPid: number | undefined, userHome: string | null): void {
+  const own = daemonPid !== undefined && daemonPid > 1 ? daemonPid : null;
+  const pids = [...(own ? descendantsOf(own) : []), ...(userHome ? runningUnder(userHome) : [])];
+  for (const pid of pids) {
+    if (pid <= 1 || pid === process.pid) continue;
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // already gone
+    }
+  }
+  if (own === null) return;
+  try {
+    process.kill(-own, "SIGKILL");
+  } catch {
+    // already gone
+  }
+}
+
 async function main(): Promise<void> {
+  if (process.platform !== "linux") throw new Error("the smoke test reads /proc: it runs on Linux only");
   for (const [what, path] of [
     ["the daemon build", DAEMON],
     ["the worker build", PI_HOST],
@@ -323,48 +347,40 @@ async function main(): Promise<void> {
       throw new Error(`${what} is missing (${path}): run pnpm build first`);
     }
   }
-  const root = mkdtempSync(join(tmpdir(), "pap-smoke-"));
-  const home = join(root, "home");
-  const agent = join(root, "agent");
-  const work = join(root, "work");
-  const userHome = join(root, "user");
-  for (const dir of [agent, work, userHome]) mkdirSync(dir);
-  const script = join(root, "script.json");
-  writeFileSync(script, JSON.stringify(SCRIPT));
-  const port = await freePort();
-  // Not the whole environment: nothing of the outer PI_*, PAP_* or credentials reaches the daemon or its workers.
-  const env: NodeJS.ProcessEnv = {
-    PATH: process.env.PATH,
-    LANG: process.env.LANG,
-    HOME: userHome,
-    PAP_HOME: home,
-    PI_CODING_AGENT_DIR: agent,
-    PI_OFFLINE: "1",
-    PI_TELEMETRY: "0",
-    PAP_TEST_PROVIDER_SCRIPT: script,
-    PAP_TEST_WORKER_IMPORT: NETWORK_GUARD,
-  };
-  const daemon = startDaemon(env, port);
+  let root: string | null = null;
+  let userHome: string | null = null;
+  let daemon: Daemon | null = null;
   try {
+    root = mkdtempSync(join(tmpdir(), "pap-smoke-"));
+    const home = join(root, "home");
+    const agent = join(root, "agent");
+    const work = join(root, "work");
+    userHome = join(root, "user");
+    for (const dir of [agent, work, userHome]) mkdirSync(dir);
+    const script = join(root, "script.json");
+    writeFileSync(script, JSON.stringify(SCRIPT));
+    const port = await freePort();
+    // Not the whole environment: nothing of the outer PI_*, PAP_* or credentials reaches the daemon or its workers.
+    const env: NodeJS.ProcessEnv = {
+      PATH: process.env.PATH,
+      LANG: process.env.LANG,
+      HOME: userHome,
+      PAP_HOME: home,
+      PI_CODING_AGENT_DIR: agent,
+      PI_OFFLINE: "1",
+      PI_TELEMETRY: "0",
+      PAP_TEST_PROVIDER_SCRIPT: script,
+      PAP_TEST_WORKER_IMPORT: NETWORK_GUARD,
+    };
+    daemon = startDaemon(env, port);
     await drive(daemon, port, work, userHome);
   } catch (error) {
     console.error(`smoke: ${error instanceof Error ? error.message : String(error)}`);
-    console.error(`smoke: daemon output:\n${daemon.output.slice(-40).join("\n")}`);
+    if (daemon) console.error(`smoke: daemon output:\n${daemon.output.slice(-40).join("\n")}`);
     process.exitCode = 1;
   } finally {
-    for (const pid of [...descendantsOf(daemon.child.pid ?? 0), ...runningUnder(userHome)]) {
-      try {
-        process.kill(pid, "SIGKILL");
-      } catch {
-        // already gone
-      }
-    }
-    try {
-      process.kill(-(daemon.child.pid ?? 0), "SIGKILL");
-    } catch {
-      // already gone
-    }
-    rmSync(root, { recursive: true, force: true });
+    killLeftovers(daemon?.child.pid, userHome);
+    if (root) rmSync(root, { recursive: true, force: true });
   }
   if (process.exitCode === undefined) step("ok");
 }

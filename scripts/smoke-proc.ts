@@ -21,6 +21,8 @@ export function running(pid: number): boolean {
   return stat !== null && stat.slice(stat.lastIndexOf(")") + 2, stat.lastIndexOf(")") + 3) !== "Z";
 }
 export function descendantsOf(root: number): number[] {
+  // Pid 0 and 1 are the kernel and init: everything descends from them.
+  if (!(root > 1)) return [];
   const parentOf = new Map<number, number>();
   for (const entry of readdirSync("/proc")) {
     const pid = Number(entry);
@@ -44,7 +46,7 @@ export function runningUnder(userHome: string): number[] {
   const needle = Buffer.from(`HOME=${userHome}\0`);
   return readdirSync("/proc")
     .map(Number)
-    .filter((pid) => Number.isInteger(pid) && pid !== process.pid && running(pid))
+    .filter((pid) => Number.isInteger(pid) && pid > 1 && pid !== process.pid && running(pid))
     .filter((pid) => {
       try {
         return readFileSync(`/proc/${pid}/environ`).includes(needle);
