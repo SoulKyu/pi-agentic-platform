@@ -26,6 +26,9 @@ const IDENTICAL_IN_FR = new Set([
   "settings.appearance.fontJetbrains",
   "shell.pane.terminal",
   "commands.palette.title",
+  "commands.key.ctrl",
+  "commands.key.alt",
+  "commands.key.tab",
 ]);
 
 describe("i18n", () => {
