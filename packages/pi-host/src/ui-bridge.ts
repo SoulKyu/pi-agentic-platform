@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionUIContext, ExtensionUIDialogOptions } from "@earendil-works/pi-coding-agent";
-import { UiResponseRecord } from "@pap/contracts";
+import { UI_LIMITS, UiResponseRecord } from "@pap/contracts";
 import { ANSI_THEME } from "./ansi-theme.ts";
 import {
   type CustomPanels,
@@ -11,7 +11,6 @@ import {
 import { toExtensionErrorRecord } from "./wire-events.ts";
 import { messageOf } from "./bounded.ts";
 import { boundLines, UI_RECORD_BYTES } from "./ui-lines.ts";
-import { UI_LIMITS } from "@pap/contracts";
 import { createWidgetComponents, type WidgetFactory } from "./widget-components.ts";
 
 export type UiOutbound =
@@ -133,7 +132,8 @@ export function createUiBridge(
       widgets.set(key, content as WidgetFactory, placement);
       return;
     }
-    widgets.clear(key);
+    // One record per call: a cleared component widget has told the daemon already; a replaced one is overwritten below.
+    if (content === undefined ? widgets.clear(key) : (widgets.release(key), false)) return;
     if (content === undefined || Array.isArray(content)) {
       fire({
         method: "setWidget",

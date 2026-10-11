@@ -6,6 +6,7 @@ import {
   disposeQuietly,
   headlessTui,
   type LiveComponent,
+  watchRejection,
   type PanelDeps,
   REAL_TIMERS,
   PANEL_COLUMNS,
@@ -25,11 +26,16 @@ export type WidgetRecord = {
 
 export interface WidgetComponents {
   set(key: string, factory: WidgetFactory, placement?: string): void;
-  clear(key: string): void;
+  /** Clears the key and tells the daemon; false when no component widget held it (nothing was sent). */
+  clear(key: string): boolean;
+  /** Disposes the key's component without telling the daemon, for a caller about to send its own record. */
+  release(key: string): void;
   clearAll(): void;
 }
 
 interface Live {
+  /** True while the daemon shows lines for this key that this component sent. */
+  visible: boolean;
   dispose(): void;
 }
 
@@ -57,24 +63,19 @@ export function createWidgetComponents(
       ...(placement ? { widgetPlacement: placement } : {}),
     });
 
-  function drop(key: string): boolean {
+  /** Disposes the component of a key; the lines it left on screen are the caller's to replace or clear. */
+  function drop(key: string): Live | undefined {
     const previous = live.get(key);
-    if (!previous) return false;
+    if (!previous) return undefined;
     live.delete(key);
     previous.dispose();
-    return true;
+    return previous;
   }
 
   function set(key: string, factory: WidgetFactory, placement?: string): void {
-    drop(key);
-    if (live.size >= UI_LIMITS.widgets) {
-      deps.onError("setWidget", new Error(`too many widgets: at most ${UI_LIMITS.widgets}`));
-      return;
-    }
-    let component: LiveComponent | undefined;
-    let closed = false;
-    const redraw = createRenderTimer(timers, () => render());
     const handle: Live = {
+      // A replacement that fails must clear what the one before it left on screen.
+      visible: drop(key)?.visible ?? false,
       dispose: () => {
         closed = true;
         redraw.cancel();
@@ -82,25 +83,37 @@ export function createWidgetComponents(
         component = undefined;
       },
     };
-    function render(): boolean {
-      if (closed || !component) return false;
+    let component: LiveComponent | undefined;
+    let closed = false;
+    const redraw = createRenderTimer(timers, () => render());
+    const fail = (error: unknown): void => {
+      deps.onError("setWidget", error);
+      if (live.get(key) === handle) live.delete(key);
+      handle.dispose();
+      if (handle.visible) emit(key, undefined, undefined);
+      handle.visible = false;
+    };
+    function render(): void {
+      if (closed || !component) return;
       redraw.cancel();
       try {
         const rendered: unknown = component.render(PANEL_COLUMNS);
+        if (watchRejection(rendered, fail, () => fail(new TypeError("render() must not be async")))) return;
         if (!Array.isArray(rendered)) throw new TypeError("render() did not return an array of lines");
         const lines = boundLines(rendered, {
           lines: UI_LIMITS.widgetLines,
           lineChars: UI_LIMITS.widgetLineChars,
           bytes: UI_RECORD_BYTES,
         });
+        handle.visible = true;
         emit(key, lines, placement);
-        return true;
       } catch (error) {
-        deps.onError("setWidget", error);
-        live.delete(key);
-        handle.dispose();
-        return false;
+        fail(error);
       }
+    }
+    if (live.size >= UI_LIMITS.widgets) {
+      fail(new Error(`too many widgets: at most ${UI_LIMITS.widgets}`));
+      return;
     }
     try {
       component = factory(
@@ -110,7 +123,7 @@ export function createWidgetComponents(
         deps.theme,
       );
     } catch (error) {
-      deps.onError("setWidget", error);
+      fail(error);
       return;
     }
     live.set(key, handle);
@@ -120,8 +133,12 @@ export function createWidgetComponents(
   return {
     set,
     clear: (key) => {
-      if (drop(key)) emit(key, undefined, undefined);
+      const previous = drop(key);
+      if (!previous) return false;
+      emit(key, undefined, undefined);
+      return true;
     },
+    release: (key) => void drop(key),
     clearAll: () => {
       for (const key of [...live.keys()]) {
         drop(key);

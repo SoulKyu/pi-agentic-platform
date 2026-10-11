@@ -50,4 +50,49 @@ describe("boundLines: extension text on its way to the browser", () => {
   it("turns non-strings into empty lines", () => {
     expect(boundLines(["a", 5 as never, undefined as never], LIMITS)).toEqual(["a", "", ""]);
   });
+
+  const esc = (params: string) => `\u001b[${params}m`;
+  it.each([
+    "38;5;196",
+    "38;2;1;2;3",
+    "48;5;9",
+    "48;2;1;2;3",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "40",
+    "47",
+    "53",
+    "100",
+    "107",
+    "21",
+    "28",
+    "25",
+    "27",
+    "29",
+    "38",
+    "48",
+    "99999",
+  ])("drops SGR parameter %s", (code) => {
+    expect(boundLines([`a${esc(code)}b`], { ...LIMITS, lineChars: 100 })).toEqual(["ab"]);
+  });
+
+  it("keeps the allowed parameters of a mixed sequence and drops the rest", () => {
+    const bounds = { ...LIMITS, lineChars: 100 };
+    expect(boundLines([`${esc("1;38;5;196;4")}x`], bounds)).toEqual([`${esc("1;4")}x`]);
+    expect(boundLines([`${esc("5;31;8")}x`], bounds)).toEqual([`${esc("31")}x`]);
+    expect(boundLines([`${esc("")}x${esc("0")}`], bounds)).toEqual([`${esc("0")}x${esc("0")}`]);
+    expect(boundLines([`${esc("38;2;1;2;3;1")}x`], bounds)).toEqual([`${esc("1")}x`]);
+  });
+
+  it.each([0, 1, 2, 3, 4, 22, 23, 24, 30, 31, 32, 33, 34, 35, 36, 37, 39, 90])(
+    "keeps SGR parameter %i",
+    (code) => {
+      expect(boundLines([`${esc(String(code))}x`], { ...LIMITS, lineChars: 100 })).toEqual([
+        `${esc(String(code))}x`,
+      ]);
+    },
+  );
 });

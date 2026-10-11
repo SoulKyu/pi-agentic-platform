@@ -26,14 +26,37 @@ const TERMINAL_TEXT = new RegExp(
   "g",
 );
 
+const ALLOWED_SGR: ReadonlySet<number> = new Set([
+  0, 1, 2, 3, 4, 22, 23, 24, 30, 31, 32, 33, 34, 35, 36, 37, 39, 90,
+]);
+
 /**
- * Extension text is untrusted. What stays is text and SGR sequences, which the web client maps to role tokens and
- * ignores when it does not know them; everything else a terminal would act on is removed here, at the source.
+ * The allow-list pass over one SGR parameter list: reset, bold, dim, italic, underline and their resets, the 8 basic
+ * foregrounds, the default foreground and bright black. Everything else goes, including backgrounds, inverse (7),
+ * blink (5, 6), conceal (8), and the arguments that follow an extended colour (38 or 48 with `;5;n` or `;2;r;g;b`),
+ * which would otherwise read as codes of their own. An empty list is a reset and stays one.
+ */
+function allowedSgr(params: string): string {
+  const tokens = params.split(";");
+  const kept: number[] = [];
+  for (let i = 0; i < tokens.length; i++) {
+    const code = tokens[i] === "" ? 0 : Number(tokens[i]);
+    if (code === 38 || code === 48) {
+      const mode = Number(tokens[i + 1]);
+      i += mode === 5 ? 2 : mode === 2 ? 4 : 0;
+    } else if (ALLOWED_SGR.has(code)) kept.push(code);
+  }
+  return kept.length > 0 ? `${ESC}[${kept.join(";")}m` : "";
+}
+
+/**
+ * Extension text is untrusted. What stays is text and the SGR subset above, which the web client maps to role tokens;
+ * everything else a terminal would act on is removed here, at the source.
  */
 function inert(line: string): string {
   return line.replace(TERMINAL_TEXT, (match, params?: string, intermediates?: string, final?: string) =>
     match.startsWith("\u001b[") && final === "m" && !intermediates && /^[0-9;]*$/.test(params ?? "")
-      ? match
+      ? allowedSgr(params ?? "")
       : "",
   );
 }

@@ -73,6 +73,8 @@ export interface PanelDeps {
   newId(): string;
   theme: Theme;
   onError(event: string, error: unknown): void;
+  /** One line with a stable code for something dropped that is not the extension's fault (stderr by default). */
+  log?(line: string): void;
   timers?: RenderTimers;
 }
 
@@ -89,20 +91,46 @@ interface OpenPanel {
   cancel(): void;
 }
 
-/** Calls a component's `dispose`, reporting a throw instead of letting it out. */
+/**
+ * When an extension's callback returned a promise (an `async` method type-checks against the `void` signatures), its
+ * rejection would reach Node as an unhandled one and end the worker: it is handled here. Returns whether it was one.
+ */
+export function watchRejection(
+  result: unknown,
+  onRejected: (error: unknown) => void,
+  onFulfilled?: () => void,
+): boolean {
+  if (typeof (result as PromiseLike<unknown> | null)?.then !== "function") return false;
+  Promise.resolve(result).then(onFulfilled, onRejected);
+  return true;
+}
+
+/** Calls a component's `dispose`, reporting a throw or a rejection instead of letting it out. */
 export function disposeQuietly(component: LiveComponent | undefined, onError: PanelDeps["onError"]): void {
   try {
-    component?.dispose?.();
+    watchRejection(component?.dispose?.(), (error) => onError("custom_dispose", error));
   } catch (error) {
     onError("custom_dispose", error);
+  }
+}
+
+/**
+ * pi-tui's manager with the two members the SDK's adds for its config file. Pap has no user bindings for panels: the
+ * defaults are the whole configuration, `reload` has nothing to read and `getEffectiveConfig` is what is resolved.
+ * (The SDK's `configPath` is private and unreachable for extensions.)
+ */
+class PanelKeybindings extends KeybindingsManager {
+  reload(): void {}
+  getEffectiveConfig(): ReturnType<KeybindingsManager["getResolvedBindings"]> {
+    return this.getResolvedBindings();
   }
 }
 
 export function createCustomPanels(send: (record: PanelOutbound) => boolean, deps: PanelDeps): CustomPanels {
   const timers = deps.timers ?? REAL_TIMERS;
   const panels = new Map<string, OpenPanel>();
-  // pi-tui's manager answers `matches` and `getKeys` like the SDK's; the SDK adds config-file members panels do not use.
-  const keybindings = new KeybindingsManager(TUI_KEYBINDINGS) as unknown as SdkKeybindings;
+  const keybindings = new PanelKeybindings(TUI_KEYBINDINGS) as unknown as SdkKeybindings;
+  const log = deps.log ?? ((line: string) => void process.stderr.write(`pi-host: ${line}\n`));
   const trySend = (record: PanelOutbound): boolean => {
     try {
       return send(record);
@@ -121,6 +149,7 @@ export function createCustomPanels(send: (record: PanelOutbound) => boolean, dep
     return new Promise<T>((resolve) => {
       let closed = false;
       let component: LiveComponent | undefined;
+      const dropLogged = new Set<string>();
       const redraw = createRenderTimer(timers, () => render());
 
       const done = (value: T | undefined): void => {
@@ -139,6 +168,12 @@ export function createCustomPanels(send: (record: PanelOutbound) => boolean, dep
         let lines: string[];
         try {
           const rendered: unknown = component.render(PANEL_COLUMNS);
+          const fail = (error: unknown) => {
+            deps.onError("custom_render", error);
+            done(undefined);
+          };
+          // An async render cannot be drawn; whichever way it settles, it is reported once and ends the panel.
+          if (watchRejection(rendered, fail, () => fail(new TypeError("render() must not be async")))) return;
           if (!Array.isArray(rendered)) throw new TypeError("render() did not return an array of lines");
           lines = boundLines(rendered, {
             lines: UI_LIMITS.panelLines,
@@ -156,9 +191,22 @@ export function createCustomPanels(send: (record: PanelOutbound) => boolean, dep
       // Registered before the factory runs, so a cancel while an async factory is pending is seen.
       panels.set(id, {
         input: (data) => {
-          if (closed || !component || data.length > UI_LIMITS.panelInput) return;
+          if (closed) return;
+          const tooLong = data.length > UI_LIMITS.panelInput;
+          if (!component || tooLong) {
+            const code = tooLong ? "custom_input_too_long" : "custom_input_before_render";
+            if (!dropLogged.has(code)) {
+              dropLogged.add(code);
+              log(code);
+            }
+            return;
+          }
           try {
-            component.handleInput?.(data);
+            const returned: unknown = component.handleInput?.(data);
+            watchRejection(returned, (error) => {
+              deps.onError("custom_input", error);
+              done(undefined);
+            });
           } catch (error) {
             deps.onError("custom_input", error);
             done(undefined);

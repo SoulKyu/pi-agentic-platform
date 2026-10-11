@@ -123,4 +123,79 @@ describe("widget components", () => {
     widgets.clearAll();
     expect(sent.filter((r) => r.widgetLines === undefined)).toHaveLength(UI_LIMITS.widgets);
   });
+
+  it("clears the daemon's lines when a widget that has rendered later fails, and when its replacement fails", async () => {
+    const { sent, errors, due, widgets } = setup();
+    let requestRender = () => {};
+    let broken = false;
+    widgets.set("w", ((tui: { requestRender(): void }) => {
+      requestRender = () => tui.requestRender();
+      return {
+        render: () => {
+          if (broken) throw new Error("later");
+          return ["a"];
+        },
+      };
+    }) as never);
+    broken = true;
+    requestRender();
+    due.splice(0)[0]?.();
+    expect(errors).toEqual(["setWidget"]);
+    expect(sent.map((r) => r.widgetLines)).toEqual([["a"], undefined]);
+    requestRender();
+    expect(due).toEqual([]);
+  });
+
+  it("sends a clear when the replacement factory throws, and when the widget cap refuses it", () => {
+    const { sent, errors, widgets } = setup();
+    widgets.set("w", (() => ({ render: () => ["a"] })) as never);
+    widgets.set("w", (() => {
+      throw new Error("no");
+    }) as never);
+    expect(errors).toEqual(["setWidget"]);
+    expect(sent.map((r) => r.widgetLines)).toEqual([["a"], undefined]);
+  });
+
+  it("reports a rejecting async render, clears the widget and leaves no unhandled rejection", async () => {
+    const seen: unknown[] = [];
+    const spy = (reason: unknown) => void seen.push(reason);
+    process.on("unhandledRejection", spy);
+    try {
+      const { sent, errors, widgets } = setup();
+      widgets.set("w", (() => ({
+        render: async () => {
+          throw new Error("async");
+        },
+      })) as never);
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(errors).toEqual(["setWidget"]);
+      expect(sent).toEqual([]);
+      expect(seen).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", spy);
+    }
+  });
+
+  it("reports a rejecting async dispose once", async () => {
+    const seen: unknown[] = [];
+    const spy = (reason: unknown) => void seen.push(reason);
+    process.on("unhandledRejection", spy);
+    try {
+      const { errors, widgets } = setup();
+      widgets.set("w", (() => ({
+        render: () => ["a"],
+        dispose: async () => {
+          throw new Error("async dispose");
+        },
+      })) as never);
+      widgets.clear("w");
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(errors).toEqual(["custom_dispose"]);
+      expect(seen).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", spy);
+    }
+  });
 });

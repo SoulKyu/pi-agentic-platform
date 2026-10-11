@@ -104,13 +104,31 @@ describe("extension UI bridge", () => {
     expect(sent.at(-1)).toEqual({ type: "custom_close", id: "u1" });
   });
 
-  it("clears a component widget when the key is set to lines or undefined", () => {
+  it("sends exactly one record when a component widget is replaced by lines or cleared", () => {
+    const { bridge, sent } = setup();
+    let disposed = 0;
+    const component = () => ({ render: () => ["a"], dispose: () => disposed++ });
+    bridge.context.setWidget("w", component as never);
+    bridge.context.setWidget("w", ["plain"]);
+    expect(disposed).toBe(1);
+    expect(sent.map((r) => (r as { widgetLines?: unknown }).widgetLines)).toEqual([["a"], ["plain"]]);
+    bridge.context.setWidget("c", component as never);
+    sent.length = 0;
+    bridge.context.setWidget("c", undefined);
+    expect(disposed).toBe(2);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ widgetKey: "c", widgetLines: undefined });
+  });
+
+  it("cancelAll clears a component widget and disposes it", () => {
     const { bridge, sent } = setup();
     let disposed = 0;
     bridge.context.setWidget("w", (() => ({ render: () => ["a"], dispose: () => disposed++ })) as never);
-    bridge.context.setWidget("w", ["plain"]);
+    sent.length = 0;
+    bridge.cancelAll();
     expect(disposed).toBe(1);
-    expect(sent.at(-1)).toMatchObject({ widgetKey: "w", widgetLines: ["plain"] });
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ method: "setWidget", widgetKey: "w", widgetLines: undefined });
   });
 
   it("gives extensions the ANSI theme and bounds string-array widgets", () => {
