@@ -1,3 +1,5 @@
+import { useCallback, useSyncExternalStore } from "react";
+import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
@@ -20,8 +22,49 @@ export function pickLocale(languages: readonly string[], stored: string | null):
   return languages.some((language) => language.toLowerCase().startsWith("fr")) ? "fr" : "en";
 }
 
+const listeners = new Set<() => void>();
+
 export function setLocale(locale: Locale): void {
+  if (current === locale) return;
   current = locale;
+  for (const listener of [...listeners]) listener();
+}
+
+export const getLocale = (): Locale => current;
+
+export function onLocaleChange(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string;
+
+/** The locale as React state: components that read it re-render when it changes, the Compiler included. */
+export function useLocale(): Locale {
+  return useSyncExternalStore(onLocaleChange, getLocale, getLocale);
+}
+
+/** `t` for components. Plain `t()` stays for code outside React (view-models, toasts built in handlers). */
+export function useT(): Translate {
+  const locale = useLocale();
+  return useCallback((key, vars) => translate(locale, key, vars), [locale]);
+}
+
+/** Settings › Language: remembered on this device, applied without a reload. False: applied to this page only. */
+export function switchLocale(
+  locale: Locale,
+  deps: { storage?: Pick<Storage, "setItem">; root?: HTMLElement } = {},
+): boolean {
+  let stored = true;
+  try {
+    (deps.storage ?? localStorage).setItem("pap.locale", locale);
+  } catch {
+    stored = false;
+    reportClientIssue("storage_refused");
+  }
+  (deps.root ?? document.documentElement).lang = locale;
+  setLocale(locale);
+  return stored;
 }
 
 export function translate(

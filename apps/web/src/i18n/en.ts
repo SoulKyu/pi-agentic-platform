@@ -1,4 +1,13 @@
+import { commandsEn } from "./catalog/commands.ts";
+import { galleryEn } from "./catalog/gallery.ts";
+import { settingsEn } from "./catalog/settings.ts";
+import { shellEn } from "./catalog/shell.ts";
+
 export const en = {
+  ...shellEn,
+  ...settingsEn,
+  ...commandsEn,
+  ...galleryEn,
   "app.name": "pap",
   "app.loading": "Loading…",
   "gate.retry": "Retry",

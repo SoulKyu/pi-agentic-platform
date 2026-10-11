@@ -1,6 +1,14 @@
 import type { en } from "./en.ts";
+import { commandsFr } from "./catalog/commands.ts";
+import { galleryFr } from "./catalog/gallery.ts";
+import { settingsFr } from "./catalog/settings.ts";
+import { shellFr } from "./catalog/shell.ts";
 
 export const fr: { readonly [K in keyof typeof en]: string } = {
+  ...shellFr,
+  ...settingsFr,
+  ...commandsFr,
+  ...galleryFr,
   "app.name": "pap",
   "app.loading": "Chargement…",
   "gate.retry": "Réessayer",
