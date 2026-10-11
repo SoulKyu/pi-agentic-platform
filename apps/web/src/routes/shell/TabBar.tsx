@@ -1,7 +1,7 @@
 import { IconButton, IconPlus, IconSplit, OpenTab } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import { registerCommand } from "../../features/commands/index.ts";
+import { useCommand } from "../../features/commands/index.ts";
 import {
   activeTab,
   pathOfItem,
@@ -26,17 +26,28 @@ function goToActive(navigate: Navigate): void {
   go(navigate, next ? pathOfItem(next.item) : "/");
 }
 
+// Set when the active tab closed: the bar then moves focus to the new active tab (or New tab), once it has rendered.
+let focusAfterClose = false;
+
 function closeItem(navigate: Navigate, key: string): void {
   const store = useWorkspaceStore.getState();
   const wasActive = store.ws.active === key;
   store.close(key);
-  if (wasActive) goToActive(navigate);
+  if (!wasActive) return;
+  focusAfterClose = true;
+  goToActive(navigate);
 }
 
-/** The tab before the active one (the most recent other item), else the one after; null when alone. */
+const NEW_TAB_ID = "new-tab-button";
+
+const HOME: ItemRef = { kind: "home" };
+
+/** The tab before the active one (the most recent other item), else the one after, else home; null when home is alone. */
 function otherItem(ws: Workspace): ItemRef | null {
   const index = ws.tabs.findIndex((tab) => tab.key === ws.active);
-  return (ws.tabs[index - 1] ?? ws.tabs[index + 1])?.item ?? null;
+  const found = (ws.tabs[index - 1] ?? ws.tabs[index + 1])?.item;
+  if (found) return found;
+  return ws.tabs[index]?.item.kind === "home" ? null : HOME;
 }
 
 /** False when there is nothing to do (no active tab, or nothing to split with). */
@@ -63,24 +74,25 @@ export function TabBar() {
   const active = activeTab(ws);
   const other = otherItem(ws);
 
-  // The shortcuts act on the store at the key press; they live while the bar is mounted.
+  const step = (by: 1 | -1) => () => {
+    useWorkspaceStore.getState().cycle(by);
+    goToActive(navigate);
+  };
+  useCommand("tab.next", step(1));
+  useCommand("tab.prev", step(-1));
+  useCommand("tab.close", () => {
+    const key = useWorkspaceStore.getState().ws.active;
+    if (key === null) return false;
+    closeItem(navigate, key);
+  });
+  useCommand("pane.split", () => toggleSplit());
+
   useEffect(() => {
-    const step = (by: 1 | -1) => () => {
-      useWorkspaceStore.getState().cycle(by);
-      goToActive(navigate);
-    };
-    const offs = [
-      registerCommand("tab.next", step(1)),
-      registerCommand("tab.prev", step(-1)),
-      registerCommand("tab.close", () => {
-        const key = useWorkspaceStore.getState().ws.active;
-        if (key === null) return false;
-        closeItem(navigate, key);
-      }),
-      registerCommand("pane.split", () => toggleSplit()),
-    ];
-    return () => offs.forEach((off) => off());
-  }, [navigate]);
+    if (!focusAfterClose) return;
+    focusAfterClose = false;
+    const next = ws.active === null ? null : document.getElementById(`tab-${ws.active}`);
+    (next ?? document.getElementById(NEW_TAB_ID))?.focus();
+  }, [ws]);
 
   const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!ROVING_KEYS.includes(event.key)) return;
@@ -127,7 +139,12 @@ export function TabBar() {
           );
         })}
       </div>
-      <IconButton icon={IconPlus} label={t("shell.tabs.new")} onClick={() => go(navigate, "/")} />
+      <IconButton
+        id={NEW_TAB_ID}
+        icon={IconPlus}
+        label={t("shell.tabs.new")}
+        onClick={() => go(navigate, "/")}
+      />
       <IconButton
         icon={IconSplit}
         label={active?.split ? t("shell.tabs.unsplit") : t("shell.tabs.split")}

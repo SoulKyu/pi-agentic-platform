@@ -106,6 +106,49 @@ describe("TabBar", () => {
     await page.unmount();
   });
 
+  it("moves focus to the new active tab after the active one closes: button, Delete and tab.close", async () => {
+    const page = await renderShell("/s/a");
+    await click(named(page.container, "Close a"));
+    await settle();
+    expect(document.activeElement?.id).toBe("tab-home");
+
+    useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "session:a" } });
+    await settle();
+    await press(tabs(page.container)[0] as HTMLElement, { key: "Delete" });
+    await settle();
+    expect(document.activeElement?.id).toBe("tab-home");
+
+    useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "session:a" } });
+    await settle();
+    expect(runCommand("tab.close")).toBe(true);
+    await settle();
+    expect(document.activeElement?.id).toBe("tab-home");
+    await page.unmount();
+  });
+
+  it("focuses New tab when the last tab closes, and leaves focus alone when an inactive tab closes", async () => {
+    useWorkspaceStore.setState({ ws: { tabs: [session], active: "session:a" } });
+    const page = await renderShell("/s/a");
+    await click(named(page.container, "Close a"));
+    await settle();
+    expect(document.activeElement).toBe(named(page.container, "New tab"));
+    useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "session:a" } });
+    await settle();
+    named(page.container, "Split pane").focus();
+    await click(named(page.container, "Close New session"));
+    await settle();
+    expect(document.activeElement).not.toBe(named(page.container, "New tab"));
+    await page.unmount();
+  });
+
+  it("splits a lone non-home item with the start screen", async () => {
+    useWorkspaceStore.setState({ ws: { tabs: [session], active: "session:a" } });
+    const page = await renderShell("/s/a");
+    await click(named(page.container, "Split pane"));
+    expect(useWorkspaceStore.getState().ws.tabs[0]?.split?.item).toEqual({ kind: "home" });
+    await page.unmount();
+  });
+
   it("opens the start screen from New tab", async () => {
     const page = await renderShell("/s/a");
     await click(named(page.container, "New tab"));

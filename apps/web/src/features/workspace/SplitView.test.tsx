@@ -39,6 +39,13 @@ describe("SplitView", () => {
     await page.unmount();
   });
 
+  it("never reports a value outside its bounds", async () => {
+    const page = await mount(view(vi.fn(), 0.05));
+    const separator = page.container.querySelector('[role="separator"]') as HTMLElement;
+    expect(separator.getAttribute("aria-valuenow")).toBe("32");
+    await page.unmount();
+  });
+
   it("renders only the first pane below two minimum widths", async () => {
     measured.width = 600;
     const page = await mount(view(vi.fn()));

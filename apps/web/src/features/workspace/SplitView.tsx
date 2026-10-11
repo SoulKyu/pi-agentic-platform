@@ -1,5 +1,5 @@
 import { useRef, type PointerEvent, type ReactNode } from "react";
-import { ratioAfterKey, ratioBounds, ratioFromPointer } from "./separator.ts";
+import { clampRatio, ratioAfterKey, ratioBounds, ratioFromPointer } from "./separator.ts";
 import { useElementWidth } from "./use-element-width.ts";
 
 const DEFAULT_MIN_PX = 320; // DESIGN.md §8
@@ -57,7 +57,7 @@ export function SplitView({ ratio, onRatio, first, second, label, minPx }: Split
             aria-label={label}
             aria-valuemin={Math.round(low * 100)}
             aria-valuemax={Math.round(high * 100)}
-            aria-valuenow={Math.round(ratio * 100)}
+            aria-valuenow={Math.round(clampRatio(ratio, width, min) * 100)}
             tabIndex={0}
             onKeyDown={(event) => {
               const next = ratioAfterKey(ratio, event.key, event.shiftKey, width, min);
