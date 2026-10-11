@@ -26,6 +26,9 @@ export const SNAPSHOT_BYTES = 1_000_000;
 /** The most one row may weigh in a snapshot. A bigger one is replaced by a placeholder, so it can never empty the snapshot. */
 export const ROW_BYTES = 256 * 1024;
 
+/** A page of rows, fork points or queued texts, in JSON bytes: well under the 1 MiB frame, which also holds the envelope (M2R54). */
+export const PAGE_BYTES = 900_000;
+
 export const sizeOf = (value: unknown): number => Buffer.byteLength(JSON.stringify(value) ?? "null");
 
 /** A role is one word; a row whose role is not is not worth more than this in a placeholder. */

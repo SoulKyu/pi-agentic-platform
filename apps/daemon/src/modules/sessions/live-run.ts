@@ -10,6 +10,7 @@ import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { fileSizeOrZero } from "./pi-files.ts";
+import type { QueueGuard } from "./queue-guard.ts";
 import { createRunTracker, isIdle, type RunTracker } from "./run-tracker.ts";
 import { createRunView, type RunViewState } from "./run-view.ts";
 import { clip, codeOf } from "./worker-text.ts";
@@ -31,6 +32,8 @@ export interface LiveRunDeps {
   /** Pi's leaf as far as the daemon knows it: where the file is read from for a snapshot in the middle of a run. */
   leafId(): string | null;
   getState(): Promise<GetStateData>;
+  /** Counts the prompts on their way to Pi against the cap of its queue. */
+  readonly queue: QueueGuard;
 }
 
 export interface LiveRun {
@@ -167,6 +170,7 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       if (!isSystemMessage(event) && event.type === "message_end") view.push(event.message);
     },
     async prompt(text, streamingBehavior) {
+      const release = deps.queue.admit(text);
       tracker.onInput();
       promptsInFlight++;
       let disposition: "started" | "queued" | "handled" | "rejected" = "rejected";
@@ -175,6 +179,7 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
         disposition = result.disposition;
         return result;
       } finally {
+        release();
         promptsInFlight--;
         if (disposition === "started" && !tracker.running) expectRun();
         // Every prompt answered and none is waiting for its run: the abort that waited for one has nothing to wait for.

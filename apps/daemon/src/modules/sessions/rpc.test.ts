@@ -12,6 +12,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     list: vi.fn(() => []),
     prompt: vi.fn(async () => ({ disposition: "started" as const })),
     abort: vi.fn(async () => {}),
+    clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
     respondDialog: vi.fn(),
     prepareSubscription: vi.fn(async () => {}),
     history: vi.fn(async () => ({ rows: [], hasMore: false, oldestEntryId: null, turnsBefore: 0 })),
@@ -43,6 +44,12 @@ describe("sessions rpc", () => {
       caller,
     );
     expect(await rpc["sessions.abort"]({ sessionId: "p1" }, ctx)).toEqual({ ok: true });
+    expect(await rpc["sessions.clearQueue"]({ sessionId: "p1" }, ctx)).toEqual({
+      steering: ["a"],
+      followUp: [],
+      truncated: false,
+    });
+    expect(service.clearQueue).toHaveBeenCalledWith("p1", caller);
     expect(
       await rpc["sessions.respondDialog"](
         { sessionId: "p1", dialogId: "d1", response: { confirmed: true } },

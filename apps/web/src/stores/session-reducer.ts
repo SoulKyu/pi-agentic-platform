@@ -1,8 +1,10 @@
 import {
+  EMPTY_QUEUE,
   type EntryRef,
   type HistoryMeta,
   NO_HISTORY,
   type PartialMessage,
+  type QueueView,
   SessionStreamEvent,
   type Dialog,
   type SessionStatus,
@@ -26,6 +28,8 @@ export interface SessionView {
   /** Tool calls by id, latest wins, oldest first; at most 200. */
   readonly tools: ReadonlyMap<string, ToolView>;
   readonly dialogs: readonly Dialog[];
+  /** What waits in Pi's steering and follow-up queue; empty while the session is cold. */
+  readonly queue: QueueView;
   readonly notices: ReadonlyArray<{
     readonly level: string;
     readonly text: string;
@@ -48,6 +52,7 @@ export const EMPTY_VIEW: SessionView = {
   partial: null,
   tools: new Map(),
   dialogs: [],
+  queue: EMPTY_QUEUE,
   notices: [],
   history: NO_HISTORY,
   leafId: null,
@@ -93,6 +98,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         ),
         dialogs: event.dialogs,
         partial: event.partial,
+        queue: event.queue,
         history: event.history,
         leafId: event.leafId,
         loaded: true,
@@ -104,6 +110,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         ...view,
         status: event.status,
         partial: event.status === "cold" ? null : view.partial,
+        queue: event.status === "cold" ? EMPTY_QUEUE : view.queue,
         tools: event.status === "cold" ? failRunningTools(view.tools) : view.tools,
       };
       return event.cause ? withNotice(next, "error", event.cause) : next;
@@ -114,6 +121,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         : { ...view, dialogs: [...view.dialogs, event.dialog] };
     case "dialog_closed":
       return { ...view, dialogs: view.dialogs.filter((dialog) => dialog.id !== event.id) };
+    case "queue":
+      return { ...view, queue: event.queue };
     case "notice":
       return withNotice(view, event.level, event.text, event.source);
     case "pi":

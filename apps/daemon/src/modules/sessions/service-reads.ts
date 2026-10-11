@@ -1,5 +1,6 @@
 import {
   type Caller,
+  EMPTY_QUEUE,
   type ForkPoint,
   type HistoryMeta,
   PapError,
@@ -14,6 +15,7 @@ import {
   fitPoints,
   fitSnapshot,
   MAX_ID_CHARS,
+  PAGE_BYTES,
   SNAPSHOT_ROWS,
   sizeOf,
   withTrimmedHistory,
@@ -30,8 +32,6 @@ const EMPTY_PAGE: BranchPage = {
   leafId: null,
 };
 
-/** A history page, in JSON bytes: well under the 1 MiB frame, which also holds the page's other fields (M2R54). */
-const PAGE_BYTES = 900_000;
 /** A tool output's text once JSON-encoded, and its arguments. */
 const OUTPUT_JSON_BYTES = 800_000;
 const ARGS_BYTES = 64 * 1024;
@@ -196,6 +196,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         rows,
         dialogs: session?.dialogs() ?? [],
         partial: session?.partial() ?? null,
+        queue: session?.queue() ?? EMPTY_QUEUE,
         history,
         leafId: session?.leafId() ?? page.leafId,
       });

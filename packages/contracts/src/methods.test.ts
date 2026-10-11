@@ -16,6 +16,7 @@ describe("method catalogue", () => {
       .sort();
     expect(mutations).toEqual([
       "sessions.abort",
+      "sessions.clearQueue",
       "sessions.create",
       "sessions.prompt",
       "sessions.respondDialog",
@@ -26,6 +27,15 @@ describe("method catalogue", () => {
     for (const name of ["sessions.history", "sessions.toolOutput", "sessions.branches"] as const) {
       expect(methods[name]).toMatchObject({ permission: "sessions:read", idempotent: true });
     }
+  });
+
+  it("declares clearQueue as a sessions:operate mutation that can time out", () => {
+    expect(methods["sessions.clearQueue"]).toMatchObject({
+      permission: "sessions:operate",
+      idempotent: false,
+      errors: ["not_found", "worker_failed", "timeout"],
+    });
+    expect(methods["sessions.prompt"].errors).toContain("queue_full");
   });
 
   it("bounds what a history request can ask for", () => {

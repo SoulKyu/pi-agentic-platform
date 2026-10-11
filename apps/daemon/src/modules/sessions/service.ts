@@ -62,6 +62,11 @@ export interface SessionsService {
   list(caller: Caller): SessionSummary[];
   prompt(input: PromptInput, caller: Caller): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(sessionId: string, caller: Caller): Promise<void>;
+  /** Empties the steering queue of a session the caller owns; a cold session has none (no worker is started). */
+  clearQueue(
+    sessionId: string,
+    caller: Caller,
+  ): Promise<{ steering: string[]; followUp: string[]; truncated: boolean }>;
   respondDialog(
     input: { sessionId: string; dialogId: string; response: DialogResponse },
     caller: Caller,
@@ -278,6 +283,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     async abort(sessionId, caller) {
       owned(sessionId, caller);
       await live.get(sessionId)?.abort();
+    },
+    async clearQueue(sessionId, caller) {
+      owned(sessionId, caller);
+      return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };
     },
     respondDialog(input, caller) {
       owned(input.sessionId, caller);

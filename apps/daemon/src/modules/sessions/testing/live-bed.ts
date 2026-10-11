@@ -40,6 +40,8 @@ export interface Options {
   /** How the worker answers a prompt that starts nothing, when it answers at all (default `started`). */
   disposition?: "started" | "queued" | "handled";
   promptFails?: boolean;
+  /** How the worker answers `clear_queue` (default: success with no data). */
+  clearQueue?: { success?: boolean; error?: string; data?: unknown };
   holdPrompt?: boolean;
   neverReady?: boolean;
   logger?: Logger;
@@ -90,6 +92,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
             ? { success: false, error: "No API key for provider x" }
             : { data: { disposition: options.disposition ?? "started" } };
         }
+        if (command.type === "clear_queue" && options.clearQueue) return options.clearQueue;
         return {};
       },
     });

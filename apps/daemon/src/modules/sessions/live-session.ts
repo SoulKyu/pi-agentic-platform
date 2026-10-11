@@ -6,6 +6,7 @@ import {
   type PartialMessage,
   PapError,
   type PiEvent,
+  type QueueView,
   type ReadyRecord,
   type SessionStatus,
   type SessionStreamEvent,
@@ -21,6 +22,7 @@ import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createPartialReply } from "./partial.ts";
+import { createQueueGuard, readCleared } from "./queue-guard.ts";
 import type { RunViewState } from "./run-view.ts";
 import { clipMessage, clipPiEvent } from "./wire-clip.ts";
 import { clip, outputTailOf } from "./worker-text.ts";
@@ -71,6 +73,13 @@ export interface LiveSession {
     streamingBehavior?: "steer" | "followUp",
   ): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(): Promise<void>;
+  /** What Pi's steering and follow-up queue showed last; empty once the worker is gone. */
+  queue(): QueueView;
+  /**
+   * Empties Pi's queue and returns the texts, fitted in JSON bytes under the frame (`truncated` when any was left
+   * out). A worker that does not answer in time is `timeout`: whether it was cleared is then unknown (R105).
+   */
+  clearQueue(): Promise<{ steering: string[]; followUp: string[]; truncated: boolean }>;
   answer(dialogId: string, response: DialogResponse): void;
   stop(): Promise<void>;
 }
@@ -123,6 +132,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     return true;
   }
 
+  const queue = createQueueGuard();
   const ui = createLiveUi({ handle, logger, limiter, publish, publishPi: coalescer.push });
   const run = createLiveRun({
     handle,
@@ -134,6 +144,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     piFile: () => piFile,
     leafId: () => leafId,
     getState,
+    queue,
   });
 
   const ready = new Promise<ReadyRecord>((resolve, reject) => {
@@ -211,6 +222,12 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       }
       case "pi_event": {
         const event = record.event;
+        // The raw event is never forwarded: the stream carries the guard's bounded view of it.
+        if (event.type === "queue_update") {
+          publish({ kind: "queue", queue: queue.onQueueUpdate(event as never) });
+          deps.onActivity();
+          return;
+        }
         if (event.type === "entry_appended") {
           onEntry(event.entry);
           deps.onActivity();
@@ -239,6 +256,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     coalescer.flush();
     partial.reset();
     coalescer.dispose();
+    queue.reset();
     const wasRunning = run.onExit();
     for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
     if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
@@ -265,6 +283,15 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     runView: () => run.runView(),
     prompt: (text, streamingBehavior) => run.prompt(text, streamingBehavior),
     abort: () => run.abort(),
+    queue: queue.view,
+    async clearQueue() {
+      const response = await handle.request({ type: "clear_queue" });
+      if (!response.success) {
+        logger.info("clear_queue_failed", { error: clip(response.error ?? "") });
+        throw new PapError("worker_failed");
+      }
+      return readCleared(response.data);
+    },
     answer: (dialogId, response) => ui.answer(dialogId, response),
     stop: async () => {
       await handle.stop();

@@ -7,6 +7,7 @@ export type SessionsRpc = Pick<
   | "sessions.list"
   | "sessions.prompt"
   | "sessions.abort"
+  | "sessions.clearQueue"
   | "sessions.respondDialog"
   | "sessions.history"
   | "sessions.toolOutput"
@@ -23,6 +24,7 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
       await service.abort(sessionId, ctx.caller);
       return { ok: true as const };
     },
+    "sessions.clearQueue": async ({ sessionId }, ctx) => service.clearQueue(sessionId, ctx.caller),
     "sessions.respondDialog": async (params, ctx) => {
       service.respondDialog(params, ctx.caller);
       return { ok: true as const };

@@ -53,7 +53,7 @@ export const methods = catalogue({
       streamingBehavior: z.enum(["steer", "followUp"]).optional(),
     }),
     result: z.object({ disposition: z.enum(["started", "queued", "handled"]) }),
-    errors: ["not_found", "capacity", "worker_failed", "prompt_rejected"],
+    errors: ["not_found", "capacity", "worker_failed", "prompt_rejected", "queue_full"],
   }),
   "sessions.abort": defineMethod({
     name: "sessions.abort",
@@ -62,6 +62,20 @@ export const methods = catalogue({
     params: z.object({ sessionId: SessionId }),
     result: Ok,
     errors: ["not_found"],
+  }),
+  "sessions.clearQueue": defineMethod({
+    name: "sessions.clearQueue",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId }),
+    result: z.object({
+      steering: z.array(z.string().max(200_000)).max(128),
+      followUp: z.array(z.string().max(200_000)).max(128),
+      /** Texts were left out to stay in the 1 MiB frame (or the worker's answer was unreadable). */
+      truncated: z.boolean(),
+    }),
+    // `timeout`: the worker did not answer in time, so whether the queue was cleared is unknown (R105).
+    errors: ["not_found", "worker_failed", "timeout"],
   }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",

@@ -168,6 +168,8 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
         reply: (command) => {
           if (command.type === "prompt") return { data: { disposition: "started" } };
           if (command.type === "get_state") return { data: IDLE_STATE };
+          if (command.type === "clear_queue")
+            return { data: { steering: ["left"], followUp: ["after"], truncated: false } };
           return undefined;
         },
       });
