@@ -1,5 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +8,7 @@ import type { Config } from "../kernel/config.ts";
 import { silentLogger } from "../kernel/logger.ts";
 import { freePort } from "./free-port.ts";
 import { httpRequest } from "./http-client.ts";
+import { selfSignedCertificate } from "./self-signed.ts";
 import { connectTestClient, type TestClient } from "./ws-client.ts";
 
 const REPO = fileURLToPath(new URL("../../../../", import.meta.url));
@@ -60,7 +60,8 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
   const scheme = options.tls ? "https" : "http";
   const origin = `${scheme}://localhost:${port}`;
   const base = `${scheme}://127.0.0.1:${port}`;
-  const tls = options.tls ? selfSignedCertificate(root) : null;
+  const files = options.tls ? selfSignedCertificate(root) : null;
+  const tls = files ? { cert: readFileSync(files.cert), key: readFileSync(files.key) } : null;
   const config: Config = {
     home: join(root, "home"),
     host: "127.0.0.1",
@@ -115,24 +116,4 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
       rmSync(root, { recursive: true, force: true });
     },
   };
-}
-
-function selfSignedCertificate(dir: string): { cert: string; key: string } {
-  const files = { cert: join(dir, "cert.pem"), key: join(dir, "key.pem") };
-  execFileSync(
-    "openssl",
-    [
-      "req",
-      "-x509",
-      "-newkey",
-      "ec",
-      "-pkeyopt",
-      "ec_paramgen_curve:prime256v1",
-      "-nodes",
-      "-days",
-      "1",
-    ].concat(["-subj", "/CN=localhost", "-keyout", files.key, "-out", files.cert]),
-    { stdio: "ignore" },
-  );
-  return files;
 }

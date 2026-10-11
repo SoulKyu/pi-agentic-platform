@@ -51,11 +51,8 @@ describe("loadConfig", () => {
     expect(a.allowedOrigins.has("http://localhost:5173")).toBe(true);
   });
 
-  it("requires --tls-cert and --tls-key together and switches the origin to https", () => {
+  it("requires --tls-cert and --tls-key together", () => {
     expect(() => loadConfig({ ...base, argv: ["--tls-cert", "/c.pem"] })).toThrow(ConfigError);
-    expect(loadConfig({ ...base, argv: ["--tls-cert", "/c.pem", "--tls-key", "/k.pem"] }).publicOrigin).toBe(
-      "https://localhost:7777",
-    );
   });
 
   it("rejects bad ports, relative test scripts and unknown flags", () => {

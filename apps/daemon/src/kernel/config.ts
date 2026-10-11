@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
-import { realpathSync } from "node:fs";
+import { createHash, createPrivateKey, X509Certificate } from "node:crypto";
+import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { parseArgs } from "node:util";
 import type { LogLevel } from "./logger.ts";
@@ -22,7 +22,8 @@ export interface Config {
   readonly host: string;
   readonly port: number;
   readonly dev: boolean;
-  readonly tls: { readonly cert: string; readonly key: string } | null;
+  /** The certificate and key as read at start-up (PEM); the server never reads the files again. */
+  readonly tls: { readonly cert: Buffer; readonly key: Buffer } | null;
   readonly publicOrigin: string;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly piAgentDir: string;
@@ -70,7 +71,7 @@ export function loadConfig(input: ConfigInput): Config {
   const key = values["tls-key"];
   if ((cert === undefined) !== (key === undefined))
     throw new ConfigError("--tls-cert and --tls-key go together");
-  const tls = cert !== undefined && key !== undefined ? { cert, key } : null;
+  const tls = cert !== undefined && key !== undefined ? readTls(cert, key) : null;
   const scheme = tls ? "https" : "http";
   const local = isLoopback(host) || isWildcard(host);
   const publicOrigin = input.env.PAP_PUBLIC_ORIGIN
@@ -123,6 +124,35 @@ function directoryFrom(raw: string | undefined, name: string, homedir: string, f
   const expanded = raw === "~" ? homedir : raw.startsWith("~/") ? join(homedir, raw.slice(2)) : raw;
   if (!isAbsolute(expanded)) throw new ConfigError(`${name} must be an absolute path`);
   return expanded;
+}
+
+// Read once, here: a missing or damaged file is an operator's typo and gets one line naming the flag. Left to the
+// HTTPS server it would be a stack trace from deep inside start-up. Only the errno code is kept, never the path.
+function readTls(certPath: string, keyPath: string): { cert: Buffer; key: Buffer } {
+  const read = (path: string, flag: string): Buffer => {
+    try {
+      return readFileSync(path);
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code ?? "unknown";
+      throw new ConfigError(`${flag} cannot be read (${code})`);
+    }
+  };
+  const cert = read(certPath, "--tls-cert");
+  const key = read(keyPath, "--tls-key");
+  let certificate: X509Certificate;
+  try {
+    certificate = new X509Certificate(cert);
+  } catch {
+    throw new ConfigError("--tls-cert is not a certificate in PEM format");
+  }
+  let privateKey: ReturnType<typeof createPrivateKey>;
+  try {
+    privateKey = createPrivateKey({ key });
+  } catch {
+    throw new ConfigError("--tls-key is not an unencrypted private key in PEM format");
+  }
+  if (!certificate.checkPrivateKey(privateKey)) throw new ConfigError("--tls-key does not match --tls-cert");
+  return { cert, key };
 }
 
 const HOST_ERROR = "--host must be a host name or an IP address";

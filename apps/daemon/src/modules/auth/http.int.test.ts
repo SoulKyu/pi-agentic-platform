@@ -1,5 +1,4 @@
-import { execFileSync } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { request as httpRequest, type ClientRequest, type IncomingHttpHeaders } from "node:http";
 import { request as httpsRequest } from "node:https";
 import { tmpdir } from "node:os";
@@ -11,6 +10,7 @@ import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { createHttpApp } from "../../kernel/http/app.ts";
 import { startServer, type RunningServer } from "../../kernel/http/server.ts";
 import { silentLogger } from "../../kernel/logger.ts";
+import { selfSignedCertificate } from "../../testing/self-signed.ts";
 import { AUTH_MIGRATIONS, createAuthModule, type AuthModule } from "./index.ts";
 
 // The Origin guard compares strings, so the real (ephemeral) port never has to match these.
@@ -57,24 +57,7 @@ async function boot(tls: boolean, publicOrigin = tls ? HTTPS_ORIGIN : HTTP_ORIGI
     publicOrigin,
     allowedOrigins: origins,
   });
-  const files = { cert: join(dir, "cert.pem"), key: join(dir, "key.pem") };
-  if (tls) {
-    execFileSync(
-      "openssl",
-      [
-        "req",
-        "-x509",
-        "-newkey",
-        "ec",
-        "-pkeyopt",
-        "ec_paramgen_curve:prime256v1",
-        "-nodes",
-        "-days",
-        "1",
-      ].concat(["-subj", "/CN=localhost", "-keyout", files.key, "-out", files.cert]),
-      { stdio: "ignore" },
-    );
-  }
+  const files = tls ? selfSignedCertificate(dir) : null;
   server = await startServer({
     app: createHttpApp({
       allowedOrigins: origins,
@@ -85,7 +68,7 @@ async function boot(tls: boolean, publicOrigin = tls ? HTTPS_ORIGIN : HTTP_ORIGI
     }),
     host: "127.0.0.1",
     port: 0,
-    tls: tls ? files : null,
+    tls: files ? { cert: readFileSync(files.cert), key: readFileSync(files.key) } : null,
     onUpgrade: (_req, socket) => socket.destroy(),
     onError: () => {},
   });

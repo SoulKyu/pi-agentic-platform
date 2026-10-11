@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { freePort } from "./testing/free-port.ts";
 import { httpRequest } from "./testing/http-client.ts";
+import { selfSignedCertificate } from "./testing/self-signed.ts";
 
 const MAIN = fileURLToPath(new URL("./main.ts", import.meta.url));
 const mode = (path: string) => statSync(path).mode & 0o777;
@@ -151,6 +152,29 @@ describe("pap serve", () => {
       const serve = run(args);
       expect(await serve.exit(), args.join(" ")).toEqual({ code: 64, signal: null });
       expect(serve.stderr(), args.join(" ")).toContain("usage: pap serve");
+      expect(serve.lines).toEqual([]);
+    }
+  });
+
+  it("names the flag of a TLS file that is missing or damaged, on one line, with exit code 64", async () => {
+    const files = selfSignedCertificate(root);
+    const damaged = join(root, "damaged.pem");
+    writeFileSync(damaged, "not a pem file\n");
+    const cases: Array<[string[], string]> = [
+      [
+        ["--tls-cert", join(root, "missing.pem"), "--tls-key", files.key],
+        "--tls-cert cannot be read (ENOENT)",
+      ],
+      [
+        ["--tls-cert", files.cert, "--tls-key", damaged],
+        "--tls-key is not an unencrypted private key in PEM format",
+      ],
+    ];
+    for (const [flags, message] of cases) {
+      const serve = run(["serve", "--port", String(await freePort()), ...flags]);
+      expect(await serve.exit(), message).toEqual({ code: 64, signal: null });
+      expect(serve.stderr().split("\n")[0], message).toBe(`pap: ${message}`);
+      expect(serve.stderr(), message).not.toContain("    at ");
       expect(serve.lines).toEqual([]);
     }
   });

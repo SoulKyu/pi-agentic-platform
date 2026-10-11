@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import type { IncomingMessage, Server } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import type { AddressInfo } from "node:net";
@@ -15,7 +14,7 @@ export interface StartServerOptions {
   readonly app: Hono;
   readonly host: string;
   readonly port: number;
-  readonly tls: { readonly cert: string; readonly key: string } | null;
+  readonly tls: { readonly cert: Buffer; readonly key: Buffer } | null;
   onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void;
   /**
    * An 'error' the listening server raises later (accept failing on EMFILE, say). Node throws such an error as an
@@ -32,7 +31,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     ...(options.tls
       ? {
           createServer: createHttpsServer,
-          serverOptions: { cert: readFileSync(options.tls.cert), key: readFileSync(options.tls.key) },
+          serverOptions: { cert: options.tls.cert, key: options.tls.key },
         }
       : {}),
   }) as Server;
