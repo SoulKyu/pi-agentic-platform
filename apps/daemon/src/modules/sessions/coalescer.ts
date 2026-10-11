@@ -76,6 +76,8 @@ export function createCoalescer(deps: {
     push(event) {
       const delta = deltaOf(event);
       if (delta) {
+        // What is pending goes first, so a merged frame is never bigger than the cap or than one delta.
+        if (pendingChars + delta.delta.length > MAX_PENDING_CHARS) flush();
         const key = `${delta.type}:${delta.contentIndex}`;
         const current = pending.get(key);
         if (current?.kind === "delta") {

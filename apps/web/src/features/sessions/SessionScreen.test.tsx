@@ -100,7 +100,10 @@ describe("SessionScreen feed", () => {
     await emit({ kind: "pi", event: { type: "message_start", message: { role: "assistant" } } });
     await emit({
       kind: "pi",
-      event: { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "All " } },
+      event: {
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "All " },
+      },
     });
     expect(text(container)).toContain("All");
     await emit({ kind: "pi", event: { type: "message_end", message: reply } });

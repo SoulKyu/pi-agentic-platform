@@ -1,11 +1,24 @@
 import { SessionStreamEvent, type Dialog, type SessionStatus } from "@pap/contracts";
 
-import { sameContent, toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
+import type { PartialMessage } from "@pap/contracts";
+
+import { failRunningTools, reducePi, withNotice } from "./reduce-pi.ts";
+import { toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
+
+export interface ToolView {
+  readonly name: string;
+  readonly status: "running" | "done" | "failed";
+  /** The tail of what the tool has printed so far (at most 2000 characters). */
+  readonly preview: string;
+}
 
 export interface SessionView {
   readonly status: SessionStatus;
   readonly messages: readonly MessageView[];
-  readonly partialText: string | null;
+  /** The reply being written, by content index; null between replies. */
+  readonly partial: PartialMessage | null;
+  /** Tool calls by id, latest wins; at most 200. */
+  readonly tools: Readonly<Record<string, ToolView>>;
   readonly dialogs: readonly Dialog[];
   readonly notices: ReadonlyArray<{
     readonly level: string;
@@ -20,57 +33,13 @@ export interface SessionView {
 export const EMPTY_VIEW: SessionView = {
   status: "cold",
   messages: [],
-  partialText: null,
+  partial: null,
+  tools: {},
   dialogs: [],
   notices: [],
   loaded: false,
   unreadable: false,
 };
-const MAX_NOTICES = 20;
-
-const withNotice = (
-  view: SessionView,
-  level: string,
-  text: string,
-  source?: "pap" | "extension",
-): SessionView => ({
-  ...view,
-  notices: [...view.notices, source ? { level, text, source } : { level, text }].slice(-MAX_NOTICES),
-});
-
-function reducePi(view: SessionView, event: { type: string } & Record<string, unknown>): SessionView {
-  switch (event.type) {
-    case "message_start":
-      return (event.message as { role?: unknown } | undefined)?.role === "assistant"
-        ? { ...view, partialText: "" }
-        : view;
-    case "message_update": {
-      const update = event.assistantMessageEvent as { type?: unknown; delta?: unknown } | undefined;
-      return update?.type === "text_delta" && typeof update.delta === "string"
-        ? { ...view, partialText: (view.partialText ?? "") + update.delta }
-        : view;
-    }
-    case "message_end": {
-      const message = toMessageView(event.message);
-      // The snapshot and the live stream can both carry a message: the same one is not added twice.
-      const replay = view.messages.some(
-        (existing) => existing.ref === message.ref && sameContent(existing, message),
-      );
-      return {
-        ...view,
-        messages: replay ? view.messages : [...view.messages, withUniqueKey(view.messages, message)],
-        partialText: message.role === "assistant" ? null : view.partialText,
-      };
-    }
-    case "extension_ui_request":
-      return event.method === "notify" && typeof event.message === "string"
-        ? withNotice(view, String(event.notifyType ?? "info"), event.message)
-        : view;
-    default:
-      return view;
-  }
-}
-
 export function reduceSession(view: SessionView, raw: unknown): SessionView {
   const parsed = SessionStreamEvent.safeParse(raw);
   if (!parsed.success) {
@@ -90,6 +59,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
           [],
         ),
         dialogs: event.dialogs,
+        partial: event.partial,
         loaded: true,
       };
     case "status": {
@@ -97,7 +67,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       const next = {
         ...view,
         status: event.status,
-        partialText: event.status === "cold" ? null : view.partialText,
+        partial: event.status === "cold" ? null : view.partial,
+        tools: event.status === "cold" ? failRunningTools(view.tools) : view.tools,
       };
       return event.cause ? withNotice(next, "error", event.cause) : next;
     }

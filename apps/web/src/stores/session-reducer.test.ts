@@ -86,9 +86,9 @@ describe("reduceSession", () => {
         assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "lo!" },
       }),
     );
-    expect(view.partialText).toBe("Hello!");
+    expect(view.partial).toEqual({ blocks: [{ type: "text", text: "Hello!" }] });
     view = reduceSession(view, pi({ type: "message_end", message: reply }));
-    expect(view.partialText).toBeNull();
+    expect(view.partial).toBeNull();
     expect(view.messages.map((m) => m.text)).toEqual(["Hello!"]);
   });
 
@@ -229,10 +229,124 @@ describe("reduceSession", () => {
     let view = reduceSession(EMPTY_VIEW, pi({ type: "message_start", message: { role: "assistant" } }));
     view = reduceSession(
       view,
-      pi({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Half a sen" } }),
+      pi({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Half a sen" },
+      }),
     );
-    expect(view.partialText).toBe("Half a sen");
-    expect(reduceSession(view, { kind: "status", status: "running" }).partialText).toBe("Half a sen");
-    expect(reduceSession(view, { kind: "status", status: "cold" }).partialText).toBeNull();
+    expect(view.partial).toEqual({ blocks: [{ type: "text", text: "Half a sen" }] });
+    expect(reduceSession(view, { kind: "status", status: "running" }).partial).toEqual(view.partial);
+    expect(reduceSession(view, { kind: "status", status: "cold" }).partial).toBeNull();
+  });
+
+  it("starts from the partial reply of a snapshot and keeps growing it", () => {
+    const resumed = {
+      ...snap("running"),
+      partial: {
+        blocks: [
+          { type: "text", text: "So far" },
+          { type: "toolCall", text: "{", id: "c1", name: "bash" },
+        ],
+      },
+    };
+    let view = reduceSession(EMPTY_VIEW, resumed);
+    expect(view.partial).toEqual(resumed.partial);
+    view = reduceSession(
+      view,
+      pi({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "!" },
+      }),
+    );
+    expect(view.partial?.blocks[0]).toEqual({ type: "text", text: "So far!" });
+    expect(reduceSession(view, pi({ type: "agent_settled" })).partial).toBeNull();
+  });
+
+  it("does not start a partial reply from a delta outside a reply, nor past 64 blocks", () => {
+    const delta = (contentIndex: number) =>
+      pi({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex, delta: "x" } });
+    expect(reduceSession(EMPTY_VIEW, delta(0)).partial).toBeNull();
+    let view = reduceSession(EMPTY_VIEW, pi({ type: "message_start", message: { role: "assistant" } }));
+    view = reduceSession(view, delta(64));
+    expect(view.partial).toEqual({ blocks: [] });
+  });
+
+  describe("tool views", () => {
+    const start = (id: string, name = "bash") =>
+      pi({ type: "tool_execution_start", toolCallId: id, toolName: name, args: {} });
+    const update = (id: string, text: string) =>
+      pi({
+        type: "tool_execution_update",
+        toolCallId: id,
+        partialResult: { content: [{ type: "text", text }] },
+      });
+    const end = (id: string, isError = false) => pi({ type: "tool_execution_end", toolCallId: id, isError });
+
+    it("follows a tool from running to done or failed with its latest preview", () => {
+      let view = reduceSession(EMPTY_VIEW, start("a"));
+      view = reduceSession(view, start("b", "read"));
+      view = reduceSession(view, update("a", "line 1"));
+      expect(view.tools).toEqual({
+        a: { name: "bash", status: "running", preview: "line 1" },
+        b: { name: "read", status: "running", preview: "" },
+      });
+      view = reduceSession(reduceSession(view, end("a")), end("b", true));
+      expect(view.tools).toEqual({
+        a: { name: "bash", status: "done", preview: "line 1" },
+        b: { name: "read", status: "failed", preview: "" },
+      });
+    });
+
+    it("ignores progress and ends of a tool it never saw start", () => {
+      const view = reduceSession(reduceSession(EMPTY_VIEW, update("z", "x")), end("z"));
+      expect(view.tools).toEqual({});
+    });
+
+    it("cuts a preview to 2000 characters", () => {
+      const view = reduceSession(reduceSession(EMPTY_VIEW, start("a")), update("a", "p".repeat(2500)));
+      expect(view.tools.a?.preview).toHaveLength(2000);
+    });
+
+    it("keeps 200 tool views: the 201st drops the oldest finished one, the oldest of all when none finished", () => {
+      let view = EMPTY_VIEW;
+      for (let i = 0; i < 200; i++) view = reduceSession(view, start(`t${i}`));
+      view = reduceSession(reduceSession(view, end("t5")), end("t7"));
+      view = reduceSession(view, start("t200"));
+      expect(Object.keys(view.tools)).toHaveLength(200);
+      expect(view.tools.t5).toBeUndefined();
+      expect(view.tools.t7).toBeDefined();
+      expect(view.tools.t200?.status).toBe("running");
+      let running = EMPTY_VIEW;
+      for (let i = 0; i < 201; i++) running = reduceSession(running, start(`r${i}`));
+      expect(Object.keys(running.tools)).toHaveLength(200);
+      expect(running.tools.r0).toBeUndefined();
+    });
+
+    it("marks every running tool failed when the session goes cold", () => {
+      let view = reduceSession(reduceSession(EMPTY_VIEW, start("a")), start("b"));
+      view = reduceSession(view, end("a"));
+      view = reduceSession(view, { kind: "status", status: "cold" });
+      expect(view.tools).toMatchObject({ a: { status: "done" }, b: { status: "failed" } });
+    });
+
+    it("reads how much of a clipped result was cut", () => {
+      const view = reduceSession(
+        EMPTY_VIEW,
+        pi({
+          type: "message_end",
+          message: {
+            role: "toolResult",
+            toolCallId: "c1",
+            content: [{ type: "text", text: "head" }],
+            papTruncated: { chars: 30_000 },
+            timestamp: 1,
+          },
+        }),
+      );
+      expect(view.messages[0]?.truncatedChars).toBe(30_000);
+      expect(
+        reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: reply })).messages[0]?.truncatedChars,
+      ).toBeNull();
+    });
   });
 });

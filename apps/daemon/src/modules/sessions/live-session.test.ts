@@ -176,7 +176,9 @@ describe("runs", () => {
 
   it("replaces an event too large for one frame with a notice", () => {
     const { worker, published } = setup();
-    worker.emit(piEvent({ type: "tool_execution_end", result: "x".repeat(1_100_000) }));
+    worker.emit(
+      piEvent({ type: "message_end", message: { role: "assistant", content: "x".repeat(1_100_000) } }),
+    );
     expect(published.at(-1)).toEqual({
       kind: "notice",
       level: "warning",

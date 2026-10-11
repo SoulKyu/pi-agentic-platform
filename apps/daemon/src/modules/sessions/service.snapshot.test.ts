@@ -153,7 +153,7 @@ describe("snapshot", () => {
     bed.emit(0, { type: "agent_start" });
     bed.emit(0, {
       type: "message_end",
-      message: { role: "toolResult", timestamp: 5, content: "y".repeat(2_000_000) },
+      message: { role: "assistant", timestamp: 5, content: "y".repeat(2_000_000) },
     });
     const snapshot = (await bed.snapshot("p1")) as {
       rows: Array<{ entryId: null; message: Record<string, unknown> }>;
@@ -161,7 +161,7 @@ describe("snapshot", () => {
     expect(snapshot.rows).toHaveLength(3);
     expect(snapshot.rows.at(-1)).toEqual({
       entryId: null,
-      message: expect.objectContaining({ role: "toolResult", timestamp: 5, omitted: true }),
+      message: expect.objectContaining({ role: "assistant", timestamp: 5, omitted: true }),
     });
   });
 });

@@ -18,6 +18,8 @@ export interface MessageView {
   readonly error: string | null;
   /** Size in bytes of a row the server did not send because it was too big (a placeholder), null otherwise. */
   readonly omittedBytes: number | null;
+  /** How many characters the full tool output has when the preview was cut on the wire, null when it was not. */
+  readonly truncatedChars: number | null;
 }
 
 const MAX_ERROR = 500;
@@ -39,6 +41,12 @@ function refOf(message: { role?: unknown; toolCallId?: unknown; timestamp?: unkn
   return `${role}:${typeof message.timestamp === "number" ? message.timestamp : "none"}`;
 }
 
+const truncatedChars = (marker: unknown): number | null => {
+  if (typeof marker !== "object" || marker === null) return null;
+  const chars = Number((marker as { chars?: unknown }).chars);
+  return Number.isFinite(chars) ? chars : null;
+};
+
 export function toMessageView(raw: unknown, entryId: string | null = null): MessageView {
   const message = (raw ?? {}) as {
     role?: unknown;
@@ -49,6 +57,7 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     errorMessage?: unknown;
     omitted?: unknown;
     bytes?: unknown;
+    papTruncated?: unknown;
   };
   const role =
     message.role === "user" || message.role === "assistant" || message.role === "toolResult"
@@ -86,6 +95,7 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
       ? clip(typeof message.errorMessage === "string" ? message.errorMessage : "", MAX_ERROR)
       : null,
     omittedBytes: omitted ? (message.bytes as number) : null,
+    truncatedChars: truncatedChars(message.papTruncated),
   };
 }
 

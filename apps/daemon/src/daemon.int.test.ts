@@ -20,7 +20,7 @@ type StreamEvent = {
   status?: string;
   cause?: string;
   dialog?: { id: string; message?: string };
-  event?: { type?: string; isError?: boolean };
+  event?: { type?: string; isError?: boolean; message?: { isError?: boolean } };
 };
 const ev = (frame: EventFrame) => frame.event as StreamEvent;
 const kind = (k: string) => (frame: EventFrame) => ev(frame).kind === k;
@@ -70,13 +70,17 @@ async function promptAndApprove(
   return open;
 }
 
+const toolResult = (frame: EventFrame): boolean =>
+  pi("message_end")(frame) && JSON.stringify(frame.event).includes('"role":"toolResult"');
+
 describe("pap daemon end to end (scripted provider)", () => {
   it("prompt → approval card → result, within the session-open and idle-RAM budgets", async () => {
     const { client, sessionId } = await openSession();
     const snapshot = await client.waitForEvent(kind("snapshot"));
     expect(Buffer.byteLength(JSON.stringify(snapshot)) / 1024).toBeLessThan(budgets.sessionOpenPayloadKb);
     const open = await promptAndApprove(client, sessionId, true);
-    const toolEnd = await client.waitForEvent(pi("tool_execution_end"));
+    // The end of a tool carries no result on the wire; the result is the toolResult message.
+    const toolEnd = await client.waitForEvent(toolResult);
     expect(JSON.stringify(toolEnd.event)).toContain("pap-int-ok");
     await client.waitForEvent(statusIs("idle", open.seq));
     expect(
@@ -93,8 +97,8 @@ describe("pap daemon end to end (scripted provider)", () => {
   it("a denied call reaches the model as an error", async () => {
     const { client, sessionId } = await openSession();
     await promptAndApprove(client, sessionId, false);
-    const toolEnd = await client.waitForEvent(pi("tool_execution_end"));
-    expect(ev(toolEnd).event?.isError).toBe(true);
+    const toolEnd = await client.waitForEvent(toolResult);
+    expect(ev(toolEnd).event?.message?.isError).toBe(true);
     expect(JSON.stringify(toolEnd.event)).toContain("Denied by the user.");
     // The command never ran: its output is nowhere in what the model was given back.
     expect(JSON.stringify(toolEnd.event)).not.toContain("pap-int-ok");

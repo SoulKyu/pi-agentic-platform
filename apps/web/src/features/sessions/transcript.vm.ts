@@ -31,6 +31,11 @@ export function transcriptItems(view: SessionView): TranscriptItem[] {
       });
     }
   }
-  if (view.partialText) items.push({ key: "partial", author: "agent", text: view.partialText });
+  // Thinking and tool-call blocks of the partial reply are not shown here.
+  const partialText = (view.partial?.blocks ?? [])
+    .filter((block) => block.type === "text")
+    .map((block) => block.text)
+    .join("");
+  if (partialText) items.push({ key: "partial", author: "agent", text: partialText });
   return items;
 }

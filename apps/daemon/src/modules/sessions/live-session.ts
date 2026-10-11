@@ -21,6 +21,7 @@ import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createPartialReply } from "./partial.ts";
 import type { RunViewState } from "./run-view.ts";
+import { clipPiEvent } from "./wire-clip.ts";
 import { clip, outputTailOf } from "./worker-text.ts";
 
 const GET_STATE_TIMEOUT_MS = 2000;
@@ -83,7 +84,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   const coalescer = createCoalescer({
     clock: deps.clock,
     emit: (event) => {
-      if (publishMeasured(event)) partial.apply(event);
+      // Only the content is gated: a lifecycle event (a message's end) too large to stream still ends the partial reply.
+      if (publishMeasured(event) || event.type !== "message_update") partial.apply(event);
     },
   });
   const setStatus = (next: SessionStatus, cause?: string) => {
@@ -168,9 +170,15 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         return;
       case "pi_event": {
         const event = record.event;
-        run.onPiEvent(event);
         // Pi's system prompt travels as a message. It stays here: it is internal and may carry the user's AGENTS.md (R107).
-        if (!isSystemMessage(event)) coalescer.push(event);
+        if (isSystemMessage(event)) {
+          run.onPiEvent(event);
+        } else {
+          // Clipped before the run view and the coalescer see it: the snapshot and the stream hold the same rows.
+          const clipped = clipPiEvent(event);
+          run.onPiEvent(clipped ?? event);
+          if (clipped) coalescer.push(clipped);
+        }
         deps.onActivity();
         return;
       }

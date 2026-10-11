@@ -85,6 +85,15 @@ describe("delta coalescer", () => {
     expect(sent).toHaveLength(1);
   });
 
+  it("sends what is pending before appending a delta that would pass 256 KiB, so no frame exceeds the cap or one delta", () => {
+    const { sent, coalescer } = setup();
+    coalescer.push(delta("x".repeat(200 * 1024)));
+    coalescer.push(delta("y".repeat(100 * 1024)));
+    expect(sent).toEqual([delta("x".repeat(200 * 1024))]);
+    coalescer.flush();
+    expect(sent).toEqual([delta("x".repeat(200 * 1024)), delta("y".repeat(100 * 1024))]);
+  });
+
   it("flush sends what is pending and disarms the timer; dispose leaves nothing armed or pending", async () => {
     const { clock, sent, coalescer } = setup();
     coalescer.push(delta("a"));

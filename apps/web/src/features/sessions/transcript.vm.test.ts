@@ -44,7 +44,10 @@ describe("transcriptItems", () => {
     });
     view = reduceSession(view, {
       kind: "pi",
-      event: { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Done" } },
+      event: {
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Done" },
+      },
     });
     expect(transcriptItems(view).map((item) => [item.author, item.text])).toEqual([
       ["you", "Run the check"],
@@ -52,6 +55,21 @@ describe("transcriptItems", () => {
       ["tool", "ok\n"],
       ["agent", "Done"],
     ]);
+  });
+
+  it("shows only the text blocks of the partial reply", () => {
+    const view = reduceSession(EMPTY_VIEW, {
+      ...snapshotOf("running", []),
+      partial: {
+        blocks: [
+          { type: "thinking", text: "hmm" },
+          { type: "text", text: "Hel" },
+          { type: "toolCall", text: "{}", id: "c1", name: "bash" },
+          { type: "text", text: "lo" },
+        ],
+      },
+    });
+    expect(transcriptItems(view)).toEqual([{ key: "partial", author: "agent", text: "Hello" }]);
   });
 
   it("shows a provider failure as its own item, after whatever the message said", () => {
