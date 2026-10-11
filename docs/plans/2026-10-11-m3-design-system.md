@@ -2,37 +2,44 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn DESIGN.md (spec B, validated) into code: the full Night Control token set with three themes and three densities, owned Radix primitives, the first AI components, the logo, appearance settings stored per account and per device, keybindings with `when` clauses and an editor, the Cmd+K palette, the decision-25 app shell on desktop and phone, `/dev/ui`, en + fr everywhere, and the Playwright journey dropped from M1, running in the official Playwright container.
+> **Revision 2026-10-11, before dispatch.** This plan absorbs the Opus red-team review (`.superpowers/redteam-m3.md`, findings M3-RT-01…41), the owner decisions of 2026-10-11 (`.superpowers/owner-decisions-2026-10-11.md`) and the M2 ⇄ M3 cross-plan agreements (`.superpowers/m2-m3-cross-plan-agreements.md`, quoted as "agreement n"). Every task's former list of risks awaiting a ruling is now a **Rulings (pre-dispatch)** list; the same rulings are numbered M3R1… in `.superpowers/rulings-m3.md`. Browser e2e (former Tasks 29–31) is removed and deferred (owner C1). Tasks 1, 16, 17 and 19 are split (1a/1b, 16a/16b, 17a/17b, 19a/19b); Task 10b (markdown and code highlighting, owner R3-1) is new. Every other task keeps its number.
 
-**Architecture:** `packages/ui` owns every visual decision: `tokens.css` maps the DESIGN.md custom properties (`--bg`, `--surface`, `--agent`…) scoped by `[data-theme]` and `[data-density]` onto Tailwind 4 utilities, and the primitives and AI components take a `variant` and a `size`, never a `className`. The web app gains four feature folders (`appearance`, `commands`, `workspace`, plus a shared `lib/`), and `routes/` becomes the shell that composes them: rail, top bar, open-item tabs, splittable panes, ⌘B tree drawer, Inbox drawer, palette, phone bottom nav. Account-scope settings (theme, fonts, labels, grid, rail, avatars, tool detail, keybindings) live in a new daemon `settings` module behind two RPC methods; device-scope settings (density, sizes, motion, chat width) live in `localStorage`. A blocking external boot script, emitted by a Vite plugin, applies the cached appearance before first paint without breaking the strict CSP (R74).
+**Goal:** Turn DESIGN.md (spec B, validated; contrast amended by ADR 0012) into code: the full Night Control token set with three themes and three densities, owned Radix primitives, the first AI components with lazy-loaded markdown and code highlighting, the logo, appearance settings stored per account (compare-and-set) and per device, keybindings with `when` clauses and an editor, the Cmd+K palette, the decision-25 app shell on desktop and phone, `/dev/ui`, en + fr everywhere. Every check of M3 runs headless (unit and integration tests); the Playwright journeys, the container runner and visual regression are deferred (owner C1, like decision 36).
 
-**Tech Stack:** React 19 + React Compiler, Vite 8, Tailwind 4.3.3 (`@theme inline`, `@utility`, `@custom-variant`), `radix-ui` (unified package), `cmdk`, `lucide-react`, TanStack Router, zustand, zod 4 (contracts), `node:sqlite` (daemon `settings` module), Vitest 5 + happy-dom, `@tailwindcss/node` (class-coverage gate), `babel-plugin-react-compiler` (compiler gate), Playwright (Chromium + WebKit) driven through `playwright run-server` inside `mcr.microsoft.com/playwright:v<version>-noble` (podman locally, docker in CI).
+**Architecture:** `packages/ui` owns every visual decision: `tokens.css` maps the DESIGN.md custom properties (`--bg`, `--surface`, `--agent`…) scoped by `[data-theme]` and `[data-density]` onto Tailwind 4 utilities (`utilities.css` holds the variants, utilities and keyframes), and the primitives and AI components take a `variant` and a `size`, never a `className`. The web app gains three feature folders (`appearance`, `commands`, `workspace`) and a shared `lib/`, and `routes/` becomes the shell that composes them: rail, top bar, open-item tabs, splittable panes, ⌘B tree drawer, Inbox drawer, palette, phone bottom nav. Account-scope settings (theme, fonts, labels, grid, rail, avatars, tool detail, keybindings) live in a new daemon `settings` module behind two RPC methods; a write carries the revision it was based on (compare-and-set), and the client merges and retries once on a conflict. Device-scope settings (density, sizes, motion, chat width) and the language live in `localStorage`. A blocking external boot script, emitted by a Vite plugin, applies the cached appearance before first paint without breaking the strict CSP (R74). The palette, the Settings screen, the shortcuts help, the theme editor, the markdown renderer and the code highlighter load lazily, behind a boundary that survives a stale chunk.
 
-**Spec:** `DESIGN.md` (spec B, binding: decision 33), `docs/specs/2026-10-10-C-architecture.md` §7 (frontend) and §8 (gates), `docs/specs/2026-10-10-A-product-scope.md` §5.3, `docs/research/decisions-log.md` decisions 11, 21, 25–28, 32, 33, 36, the validated screens in `docs/design/explorations/05, 08, 12`, `docs/plans/roadmap.md` (M3), `docs/research/m0-m1-rulings.md`, `docs/spikes/s6.md`. Reference code read for this plan (read-only clones under `/home/ubuntu/Workspace/soulkyu/_refs/`): T3 Code and Orca, cited per task as `T3:` and `Orca:`; pi-web (`/home/ubuntu/Workspace/soulkyu/pi-web`, read-only) cited as `pw:`.
+**Tech Stack:** React 19 + React Compiler, Vite 8, Tailwind 4.3.3 (`@theme inline`, `@utility`, `@custom-variant`), `radix-ui` (unified package), `cmdk`, `lucide-react`, `react-markdown` + `remark-gfm` (lazy), `shiki` with its JavaScript regex engine (lazy, no WebAssembly), TanStack Router, zustand, zod 4 (contracts), `node:sqlite` (daemon `settings` module), Vitest 5 + happy-dom, `@tailwindcss/node` (class-coverage gate), `babel-plugin-react-compiler` (compiler gate). No browser runner in M3.
+
+**Spec:** `DESIGN.md` (spec B, binding: decision 33; amended by ADR 0012 in Task 1a), `docs/specs/2026-10-10-C-architecture.md` §7 (frontend) and §8 (gates), `docs/specs/2026-10-10-A-product-scope.md` §5.3, `docs/research/decisions-log.md` decisions 11, 21, 25–28, 32, 33, 36 (the 2026-10-11 owner decisions are appended there by M2's plan fix, agreement 12), the validated screens in `docs/design/explorations/05, 08, 12`, `docs/plans/roadmap.md` (M3), `docs/research/m0-m1-rulings.md`, `docs/spikes/s6.md`. Reference code read for this plan (read-only clones under `/home/ubuntu/Workspace/soulkyu/_refs/`): T3 Code and Orca, cited per task as `T3:` and `Orca:`; pi-web (`/home/ubuntu/Workspace/soulkyu/pi-web`, read-only) cited as `pw:`.
 
 ## Backlog rulings absorbed
 
 | Ruling | What this plan does | Task |
 |---|---|---|
-| R120 | Raised as **open question Q1** (DESIGN contrast amendments). The plan implements DESIGN as validated, behind two indirection tokens (`--focus-ring`, `--control-border`) so an amendment is a one-line change per theme. The theme-selector specificity trap and "on-fill only valid on the you fill" are fixed now: every theme selector has the same specificity and each role has its own ink (`--agent-ink`, `--you-ink`, `--attn-ink`). | 1, Q1 |
-| R129 | DESIGN.md:367 Playwright screenshots of `/dev/ui` return (3 themes × 2 densities). The two reducer items (linear snapshot reduce, no content dedup for `role:none` refs) live in M2-owned `apps/web/src/stores/session-reducer.ts`: post-merge task P5. | 31, P5 |
-| R125 | HMR: every module-level listener M3 adds (`matchMedia`, the key dispatcher) disposes on `import.meta.hot`; shell tests mock the runtime singleton. Stream keying and hidden-tab reconnect throttling are runtime items (M2-owned folder): left to M2, listed in the merge notes. | 15, 17, 19 |
-| R118 (T26 checks) | Vite proxy `ws: true` and fonts never inlined as `data:` stay pinned (existing tests kept through the font move). Safari 16.4 CSP for ws: every journey on WebKit asserts zero `securitypolicyviolation` events, the socket included; the explicit-`wss:` fallback is only needed if that fails (daemon change, M2/M5 then). | 1, 29, 30 |
+| R120 | **Owner M3-Q1 = option (b).** ADR 0012 amends DESIGN.md §3 and §7.4 (Task 1a): day focus ring `#EA580C` (night and high contrast keep the you fill); `--control-border` for inputs and controls, day `#8F877A`, night `#6B6485`, high contrast `#8A8A8A`, while the hairline `--border` stays decorative; the night approval title `#F472B6` through a new `--attn-title` token; `--attn-ink` `#110F18` on pink fills in night and high contrast. `focus-ring`, `control-border` and `attn-title` are theme tokens (presets, custom-theme derivation, boot cache); `tokens.test.ts` asserts every value and its contrast ratio. The theme-selector specificity trap and per-role inks are fixed too: every theme selector has the same specificity and each role has its own ink. | 1a, 13 |
+| R129 | The two reducer items (linear snapshot reduce, no content dedup for `role:none` refs) live in M2-owned `apps/web/src/stores/session-reducer.ts`: post-merge task P5, which first checks whether M2's entry-id rows already resolved them. The `/dev/ui` screenshots of DESIGN §14 are deferred with the browser e2e (owner C1). | P5, deferred |
+| R125 | Agreement 3: stream keying `${stream}:${key}` is parked until the first second subscription stream (M4 sessions list or M10 inbox); hidden-tab reconnect throttling is M12. Neither M2 nor M3 adds a second stream (M3's settings are read on connect and written with compare-and-set, no live sync). HMR: every module-level listener M3 adds (`matchMedia`, the key dispatcher, the appearance controller) disposes on `import.meta.hot`; shell tests mock the runtime singleton. | 15, 17a, 19b |
+| R118 (T26 checks) | Vite proxy `ws: true` and fonts never inlined as `data:` stay pinned (existing tests kept through the font move). The Safari 16.4 CSP check for the WebSocket (`connect-src 'self'`) is **not** done in M3: no browser runs (owner C1), and Playwright's WebKit is current WebKit, not Safari 16.4, so even the deferred journeys would not prove it (M3-RT-36). It stays open; the explicit-`wss:` fallback is a daemon change if a real Safari 16.4 refuses the socket. | 1b, deferred |
 | R122 / R128 "@pap/ui through the Compiler" | A compiler gate transforms every `.tsx` of `packages/ui` and `apps/web` with `babel-plugin-react-compiler` and fails on any `CompileError`/`PipelineError`; a Vite test proves the build pipeline compiles `packages/ui` files. | 2 |
-| R128 reactive locale switch | `useT()` / `useLocale()` on `useSyncExternalStore`; Settings › Language switches without reload. | 3, 24 |
+| R128 reactive locale switch | `useT()` / `useLocale()` on `useSyncExternalStore`; Settings › Language switches without reload (per device, owner R3-3). | 3, 24 |
 | R128 i18n of server cause/notice texts | `serverText()` translates the daemon's current English notice and cause sentences (en + fr); wiring into the M2-owned reducer and a code-based contract are post-merge task P4. | 3, P4 |
-| Safari IME keyCode 229 | `cancelsComposition()` (isComposing or keyCode 229, pw: `lib/stacked-dialog.ts`) guards dialog Escape, the submit shortcut and the key dispatcher. | 6, 8, 16 |
-| R121 mono-uppercase button labels | Buttons and HUD labels use the `label-hud` utility (mono, 600, 0.12em, `text-transform: var(--label-transform)`), switchable in Settings; the DOM keeps sentence case so selectors never depend on CSS text-transform. | 1, 5 |
-| on-fill per role | `--agent-ink`, `--you-ink`, `--attn-ink` per theme; `on-fill` stays an alias of `--you-ink` until P1. | 1 |
-| theme selector specificity | A test parses `tokens.css` and allows only `:root, [data-theme="night"]`, `[data-theme="day"]`, `[data-theme="hc"]` and the no-JS fallback `:root:not([data-theme])`. | 1 |
-| R53 (S6) | AI components ported with attribution (Message actions/branch, Reasoning), `THIRD_PARTY_NOTICES.md`, Collapsible primitive through ADR 0006. | 7, 9, 10 |
-| R51 / decision 36 | The M1 Task 27 journey (setup → login → prompt → approval → result, passkey on Chromium) runs on Chromium and WebKit with the browsers in the official Playwright image (podman locally, docker in CI). | 29, 30 |
-| R74 | No inline script anywhere: the pre-paint boot script is an external hashed classic script; the build-output test keeps proving it. | 14 |
+| Safari IME keyCode 229 | `cancelsComposition()` (isComposing or keyCode 229, pw: `lib/stacked-dialog.ts`) guards dialog Escape, the submit shortcut and the key dispatcher. | 6, 8, 16a |
+| R121 mono-uppercase button labels | Buttons and HUD labels use the `label-hud` utility (mono, 600, 0.12em, `text-transform: var(--label-transform)`), switchable in Settings; the DOM keeps sentence case so selectors never depend on CSS text-transform (M2's ApprovalDialog does the same, agreement 6). | 1a, 5, 10 |
+| on-fill per role | `--agent-ink`, `--you-ink`, `--attn-ink` per theme (`--attn-ink` `#110F18` in night and high contrast, ADR 0012); `on-fill` stays an alias of `--you-ink` until P1. | 1a |
+| theme selector specificity | A test parses `tokens.css` and allows only `:root, [data-theme="night"]`, `[data-theme="day"]`, `[data-theme="hc"]` and the no-JS fallback `:root:not([data-theme])`. | 1a |
+| R53 (S6) | AI components ported with attribution (Message actions/branch, Reasoning), `THIRD_PARTY_NOTICES.md` plus the canonical Apache-2.0 text in `LICENSES/Apache-2.0.txt`, Collapsible primitive through ADR 0010. | 7, 9, 10 |
+| R51 / decision 36 | The M1 Task 27 browser journey that decision 36 moved to M3 is deferred again (owner C1, 2026-10-11): M3 adds no Playwright, no container runner and no CI `e2e` job, and the M1 guards of `scripts/ci-config.test.ts` stay unchanged. | deferred |
+| R74 | No inline script anywhere: the pre-paint boot script is an external hashed classic script; code highlighting uses shiki's JavaScript regex engine, so the CSP needs no `'wasm-unsafe-eval'`; the build-output test keeps proving both. | 14, 10b |
+| R105 / R65b | Account settings are mutations (`idempotent: false`, `commandId`) written with compare-and-set (`baseRevision`); a save that ends in `timeout`/`connection_lost` is never re-sent by itself; a re-sync re-reads before it writes. | 12, 15, 17b |
 
 ## What this plan explicitly defers
 
-- **To post-merge tasks P1–P7** (run once M2 and M3 are both on `main`, see "Merge order and conflict notes"): removing the M1 token aliases, promoting M2's dialog shells / status bar / widgets / custom panel into `packages/ui`, adopting the shell landmarks and AI components in M2's session screen, code-based server texts, R129's reducer items, re-checking e2e selectors against M2's final UI, running the new gates over M2's files.
-- **To later milestones**, built on M3's primitives: project switcher and project groups (M4), FTS5 transcript hits in ⌘K (M4), approval scopes wired to the policy (M5), DiffView with CodeMirror merge (R50, M8/M9), terminal/diff/review pane kinds (M8/M9), CheckpointBanner and CompareColumn (M9), TriggerVerdict and the Tasks board (M10), agent avatars in the rail, EventCard, PendingRequestsStrip, PromptChips, the Inbox stream and agent status panel (M11), PWA manifest, service worker and push (M12). The rail, Inbox drawer and phone "Agents" tab ship with empty states.
+- **To post-merge tasks P1–P7** (run once M2 and M3 are both on `main`, order P7 → P3 → P2 → P1 → P4 → P5 → P6, agreement 14; see "After both milestones merge"): running the new gates over M2's files, adopting the shell landmarks, AI components, markdown and key bindings in M2's session screen, promoting M2's dialog shells / status bar / widgets / custom panel into `packages/ui`, removing the M1 token aliases, code-based server texts, R129's reducer items, re-measuring the bundle budget.
+- **Browser e2e (owner C1, like decision 36):** the former Tasks 29–31, that is Playwright in the official container (`playwright run-server`, podman locally, docker in CI), the owner / shell / phone journeys on Chromium and WebKit, the CI `e2e` job, visual regression of `/dev/ui` (3 themes × 2 densities), the standalone gallery build only they needed, and the runtime "clean screen" checks (zero CSP violations and console errors in a real browser, measured 44 × 44 px targets). The M1 guards in `scripts/ci-config.test.ts` (no browser runner, exact CI job list) stay as they are. The full text of the removed tasks is in git at `02d81da` (this file before the revision). Whoever revives them applies M3-RT-17 (rewrite the named `ci-config.test.ts` assertions explicitly, never delete a guard), M3-RT-18 (no `npx` in the container: mount the lockfile-verified `playwright-core` read-only, `--shm-size=1g`, `--user pwuser`, pull the image by digest), M3-RT-34 (register the container cleanup before `run`, a Playwright `globalTimeout`, document the run-server exposure), M3-RT-35 (the 44-px probe skips `aria-hidden`, `opacity: 0` and `pointer-events: none` elements) and M3-RT-33 (the gallery entry imports no `csp-safe-zod`; `vite.gallery.config.ts` sits in a tsconfig `include`). What M3 checks instead, without a browser, is listed under "Exit criteria".
+- **PNG icons** (favicon 16/32, Apple touch 180, PWA 192/512 maskable): with M12's manifest; rendering them needed the browser container. Until then Safari shows no tab icon (SVG favicon only); Task 11 ships the SVG sources.
+- **Tool-specific renderers** (edit diff, codemode calls, MCP results): M6, on DiffView (R50), agreement 9. M3's `ToolCard` stays generic; markdown and code highlighting in messages are M3's (Task 10b); M2 renders plain text with native `<details>` until P3.
+- **Live cross-tab or cross-device refresh of account settings** (a `storage` event or a settings stream): not in M3. Compare-and-set already prevents lost updates between tabs and devices; another tab's change shows at its next connect or reload. A live settings stream would be the second subscription stream of R125.
+- **To later milestones**, built on M3's primitives: project switcher and project groups (M4), FTS5 transcript hits in ⌘K (M4), approval scopes wired to the policy (M5), DiffView (R50) and the tool renderers on it (M6), terminal/diff/review pane kinds (M8/M9), CheckpointBanner and CompareColumn (M9), TriggerVerdict and the Tasks board (M10), agent avatars in the rail, EventCard, PendingRequestsStrip, PromptChips, the Inbox stream and agent status panel (M11), PWA manifest, PNG icons, service worker and push (M12), the first-run stepper of screen 12 (M7). The rail, Inbox drawer and phone "Agents" tab ship with empty states.
 - **Not in v1 at all** (DESIGN §13): custom CSS, full cross-device sync.
 
 ## Global Constraints
@@ -40,60 +47,66 @@
 Copied from the specs and the binding rulings (source in brackets). Every task implicitly includes them.
 
 - Node 24: "Boring tech. TypeScript on Node 24, SQLite, React; no Effect, no SSR." [A §3] · `engines.node` `>=24.14 <25` [R44]
-- File size: "400 lines per file at most. No baseline, no exceptions." [C §1.4.2] — enforced by ESLint `max-lines` and `scripts/source-guards.ts` [R64c]
+- File size: "400 lines per file at most. No baseline, no exceptions." [C §1.4.2] — enforced by ESLint `max-lines` and `scripts/source-guards.ts` for code, and by AGENTS.md for every file, CSS included (hence `tokens.css` + `utilities.css`, M3-RT-20) [R64c]
 - Module boundary: "A module imports only `contracts`, `kernel` and other modules' `index.ts`." [C §1.4.1]
 - RPC handlers: "An RPC handler decodes the request, calls one service method and maps typed errors. Nothing else." [C §1.4.3]
 - Permissions: "Every RPC method declares a permission in `contracts`. A missing permission is a type error." [C §1.4.4]
 - Packages: "No fourth package until a real need appears." [C §1.4.6]
-- UI look: "Primitives in `packages/ui` own their look: no raw colours, no arbitrary values." [C §1.4.5] · "Each primitive owns its look: callers pick a `variant` and a `size`, never a `className` restyle." [DESIGN §9.1]
+- UI look: "Primitives in `packages/ui` own their look: no raw colours, no arbitrary values." [C §1.4.5] · "Each primitive owns its look: callers pick a `variant` and a `size`, never a `className` restyle." [DESIGN §9.1] · `pap/no-raw-colors` flags every hex or `rgb()`-style literal in non-test `packages/ui/src/**` and `apps/web/src/**` TypeScript; the only files exempt are the colour-data and colour-math files listed in its `ignores` (Task 1a: `presets.ts`; Task 13: `contrast.ts`, `derive.ts`), each pinned by tests. [eslint.config.js, M3-RT-02]
 - "No gradients and no glow, ever." [DESIGN §1] · "Surfaces never cast shadows." [DESIGN §3.4] · "Nothing repaints continuously." [DESIGN §7.2]
-- Focus: "A 2 px solid `--you-fill` outline with a 2 px offset on `:focus-visible`. It is never removed." [DESIGN §7.4]
-- Touch: "Under `pointer: coarse`, every interactive target is at least **44 × 44 px**, whatever the density." [DESIGN §5]
+- Focus: "A 2 px solid `--you-fill` outline with a 2 px offset on `:focus-visible`. It is never removed." [DESIGN §7.4], amended by ADR 0012: the outline colour is `--focus-ring` (the you fill in night and high contrast, `#EA580C` in day).
+- Touch: "Under `pointer: coarse`, every interactive target is at least **44 × 44 px**, whatever the density." [DESIGN §5] — checked in M3 as classes (Task 28's probe), not measured in a browser (deferred).
 - Fonts: "self-hosted as woff2 in `packages/ui`. No font CDN at runtime" [DESIGN §4]
 - Icons: "lucide, with a 1.5 px stroke, in `currentColor`… Every icon-only button has an accessible label and a tooltip; the native `title` attribute is not used." [DESIGN §7.1]
 - Copy: "Every string goes through the internal i18n layer; no string is concatenated around variables." · "Never overclaim" · "No exclamation marks in system copy." [DESIGN §11] · UI languages en + fr [A §5.3, C §7.3]
-- Browser floor: "The Safari / iOS 16.4 floor, pinned by a test." [C §7.3] — no CSS or JS above Safari 16.4 (no native CSS nesting in shipped CSS, no `light-dark()`, no `field-sizing`) [R50, S6]
-- CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'` — no inline script, no `eval`; relaxing a directive needs an ADR [R74]
-- Zero telemetry: nothing loads from the network at runtime [C §9.4, DESIGN §4]
+- Browser floor: "The Safari / iOS 16.4 floor, pinned by a test." [C §7.3] — no CSS or JS above Safari 16.4 (no native CSS nesting in shipped CSS, no `light-dark()`, no `field-sizing`, no RegExp `v` flag) [R50, S6]
+- CSP: `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'` — no inline script, no `eval`, no WebAssembly (`'wasm-unsafe-eval'` is not granted); relaxing a directive needs an ADR [R74]
+- Zero telemetry: nothing loads from the network at runtime [C §9.4, DESIGN §4]; model markdown never loads an image or any other resource (Task 10b).
 - Errors: "Errors carry a stable code and a fixed message, with no user content and no secrets." [C §4.1]
-- Mutations carry a `commandId` (`idempotent: false`); reads are `idempotent: true` [R65b]
+- Mutations carry a `commandId` (`idempotent: false`); reads are `idempotent: true` [R65b]; a mutation that ends in `timeout` or `connection_lost` is never re-sent by itself [R105]
 - Lint discipline: the only directive accepted is `eslint-disable-next-line <rule> -- <reason>` [R64b, AGENTS.md]
-- Supply chain: dependencies pinned exactly with `pnpm add -E <pkg>` (no range) [R56]; `minimumReleaseAge` 3 days (pnpm picks the newest version old enough; record the version it chose in the commit message); no new build script unless listed in `onlyBuiltDependencies` / `ignoredBuiltDependencies` [R36]
+- Supply chain: dependencies pinned exactly with `pnpm add -E <pkg>` (no range) [R56]; `minimumReleaseAge` 3 days: pnpm picks the newest version old enough, and a version too young is waited for, never forced (no `--config.minimumReleaseAge=0`, no edit of `pnpm-workspace.yaml`); record the version it chose in the commit message; no new build script unless listed in `onlyBuiltDependencies` / `ignoredBuiltDependencies` [R36]
+- Bundle (owner R3-5, agreement 10): target ≤ 200 KB gzip for the initial JavaScript and CSS. Heavy screens load lazily (palette, Settings with all its sections, shortcuts help, theme editor, markdown renderer, highlighter). `apps/web/src/build-output.int.test.ts` checks the initial size against `budgets.json` in every `pnpm test:int`: a task whose build crosses the current value raises `initialBundleGzipKb` to a provisional value (measured × 1.05, rounded up to the next KB) in its own commit, with the body `budget: provisional <n> KB (was <m>): <what grew>`; it never edits the test. Above 200 KB the controller stops and asks the owner. Task 32 sets the final value.
 - Git: Conventional Commits, rebase before PR [C §8.3]; commit messages must NOT contain `Co-Authored-By` or any AI attribution trailer (owner rule)
 - Never edit pi-web; pap imports nothing from it [D §1]. Never use port 30141.
-- Design changes go through an ADR in `docs/adr/` [decision 33]
+- Design changes go through an ADR in `docs/adr/` [decision 33]. M3's ADRs are 0010 (Collapsible), 0011 (`/dev/ui` not shipped) and 0012 (R120 contrast amendment); M2 holds 0006–0009 (agreement 2).
 - Implementers run `/home/ubuntu/Workspace/soulkyu/pi-agentic-platform/.superpowers/m1-lessons-checklist.md` on their diff and report each item ✅ / n/a. [controller, owner-approved]
-- The host is a headless VPS: no graphics, no Chrome/libatk, no sudo. Every browser check runs headless inside `mcr.microsoft.com/playwright:v<exact @playwright/test version>-noble` through rootless podman (`pnpm e2e`, Task 29) or in CI with docker; everything else is a unit or integration test that needs no browser. [R51, controller]
+- No browser in M3 (owner C1): the host is a headless VPS (no graphics, no Chrome/libatk, no sudo) and M3 adds no Playwright and no container runner. Everything is a unit or integration test (happy-dom, Vite builds, Tailwind compiles). `scripts/ci-config.test.ts` stays unchanged.
 - Work only under `/home/ubuntu/Workspace/soulkyu/pi-agentic-platform/.worktrees/feat-m3` with absolute paths (the session's default directory may be pi-web); never write to pi-web or to the M2 worktree. [brief, checklist]
-- Web-side waits: client RPC calls get no deadline of their own because the runtime settles every call when the socket is declared dead (spec C §4.2 keepalive, 15 s); a mutation that ends in `timeout` or `connection_lost` is never re-sent by itself (R105). Scripts that wait on processes or containers (`scripts/e2e.ts`, e2e global setup) carry explicit deadlines. [checklist]
+- Web-side waits: client RPC calls get no deadline of their own because the runtime settles every call when the socket is declared dead (spec C §4.2 keepalive, 15 s). [checklist]
 
 ## Plan conventions
 
 - Working directory for every command: the M3 worktree root `/home/ubuntu/Workspace/soulkyu/pi-agentic-platform/.worktrees/feat-m3`.
-- pnpm comes from the corepack shim (R55): prefix commands with `PATH="/home/ubuntu/Workspace/soulkyu/pi-agentic-platform/.worktrees/feat-m0-m1/.superpowers/bin:$PATH"`. If that worktree is gone, recreate the shim in this worktree: `mkdir -p .superpowers/bin && corepack enable --install-directory .superpowers/bin` (git-ignored) and use that path. Commands below write `pnpm` for short.
+- pnpm comes from the corepack shim (R55): prefix commands with `PATH="/home/ubuntu/Workspace/soulkyu/pi-agentic-platform/.worktrees/feat-m0-m1/.superpowers/bin:$PATH"`. If that worktree is gone (owner T5 archives it once both red-teams are done and `pnpm install` ran in feat-m2/m3), recreate the shim in this worktree: `mkdir -p .superpowers/bin && corepack enable --install-directory .superpowers/bin` (git-ignored) and use that path. Commands below write `pnpm` for short.
 - TypeScript: erasable syntax only (no enum, namespace, parameter properties); relative imports keep their `.ts`/`.tsx` extension.
-- Tests never touch `~/.pi/agent` or `~/.pap`. Web tests use happy-dom (`// @vitest-environment happy-dom`) and the helpers of `apps/web/src/testing/dom.ts`; timers are injected or use `vi.useFakeTimers()`; no sleeps.
+- Tests never touch `~/.pi/agent` or `~/.pap`. Web tests use happy-dom (`// @vitest-environment happy-dom`) and the helpers of `apps/web/src/testing/dom.ts`; timers are injected or use `vi.useFakeTimers()`; no sleeps (a microtask `drain()` helper that awaits `Promise.resolve()` a fixed number of times is not a sleep); temp dirs are removed in `finally`/`afterEach`.
 - Every task ends with: `pnpm format` on its own files, then `pnpm lint && pnpm format:check && pnpm typecheck && pnpm knip && pnpm test:unit` green (plus `pnpm test:int` when the task touches the daemon or the build), then the commit shown.
-- New strings: every task that adds visible text adds its en and fr keys to the namespace catalog named in the task (Task 3 sets them up). French keeps sentence case and French typography (a space before `:` and `?`).
+- knip runs in every task: a feature's `index.ts` re-exports only names that some file imports through it at that task; a later task adds its own names (M3-RT-13). A test-only export is fine (knip counts test files as entries).
+- New strings: every task that adds visible text adds its en and fr keys to the namespace catalog named in the task (Task 3 sets them up). French keeps sentence case and French typography (a space before `:` and `?`). A key whose French is the same word goes into `IDENTICAL_IN_FR` in the same commit.
 - Class lists live only in a `className` attribute, a `cn(...)` call, or an UPPER_CASE constant whose name ends in `CLASSES`, `VARIANTS`, `SIZES`, `TONES`, `STYLE` or `RING` (the class-coverage gate of Task 2 reads exactly those places).
 - Every primitive and AI component root carries `data-slot="<name>"` (T3/Orca convention: stable hooks for tests and parent rules, never for restyling).
-- Where a task gives test cases as bullets instead of code (UI screens), each bullet is one `it(...)` with exactly the inputs, selectors and expected values it states; the implementer writes them as code and sees them fail before writing the implementation (checklist: tests prove something). Code is given in full for contracts, security-relevant logic and every pure core (tokens, chords, `when`, merge, workspace, separator, ranking, theme derivation, e2e runner).
+- Where a task gives test cases as bullets instead of code (UI screens), each bullet is one `it(...)` with exactly the inputs, selectors and expected values it states; the implementer writes them as code and sees them fail before writing the implementation (checklist: tests prove something). Code is given in full for contracts, security-relevant logic and every pure core (tokens, chords, `when`, merge, workspace, separator, ranking, theme derivation, account-document sync, markdown safety).
+- **Rulings (pre-dispatch)** under each task are decided; an implementer does not reopen them. An item marked "discovered during implementation" is the only kind left open: the implementer records what it found in the report, and the controller rules then.
+- Library APIs not verifiable from this host (no `node_modules` in the worktree when the plan was written) are marked "verify against the pinned `.d.ts`": the implementer reads the installed type declarations first and adapts the call, keeping the behaviour and the tests.
+- Fix rounds: a task still failing review after three fix rounds goes to an Opus implementer for rounds 4–5 (owner T1).
 
 ## Review Focus
 
 Inputs and conditions the specs imply, that no feature test naturally exercises, and that are most likely to bite a person using pap. Each line names the test that pins it.
 
-1. **Stale or corrupt local state after an upgrade** (a `pap.appearance.boot`, `pap.workspace.v1` or `pap.appearance.device.v1` written by another version, edited by hand, or `localStorage` throwing in a locked-down browser). Expected: pap boots with defaults, never a blank page or a crash loop. Pinned by: Task 14 `boot-script.test.ts` "ignores garbage, unknown keys and throwing storage", Task 18 `persist.test.ts` "drops a workspace of another version or shape", Task 13 `model.test.ts` "device settings parse fail-soft", Task 15 `controller.test.ts` "marks device settings as page-only when storage refuses them".
-2. **Typing with an input method or a non-US layout** (Japanese/Chinese IME in Safari reporting keyCode 229, French AZERTY where Ctrl+Alt is AltGr, Cyrillic with Ctrl). Expected: no shortcut fires during composition, Escape cancels the composition instead of closing a dialog, AltGr characters still type, Ctrl+K still works on a Cyrillic layout. Pinned by: Task 16 `keys.test.ts` (229, isComposing, `Process`, AltGraph, Cyrillic with Ctrl, mac Option+letter, AZERTY digits), Task 17 `dispatcher.test.ts` (composition), Task 8 `Dialog.test.tsx` "does not close on the Escape that ends a Safari composition", Task 6 `submit-shortcut.test.ts` (229).
-3. **Imported JSON from outside** (a theme or keybindings file that is malformed, oversized, or carries `url(...)` / script-looking values). Expected: a precise error per entry, nothing half-applied, no value other than a hex colour ever reaches a style property, the server refuses oversize payloads. Pinned by: Task 12 `service.test.ts` "refuses a value over 128 KiB" and `settings.test.ts` "lets only hex colours into a theme", Task 13 `derive.test.ts` "only hex colours reach the token map", Task 14 `boot-script.test.ts` (hostile cache values), Task 26 `theme-io.test.ts`, Task 27 `keybindings-io.test.ts`.
-4. **A shortcut the browser keeps** (Ctrl+W, Ctrl+T, Ctrl+N, Cmd+Q, Ctrl+Tab, Ctrl+1..9) chosen in the editor. Expected: the editor says the browser may keep it instead of saving a binding that silently never fires. Pinned by: Task 16 `resolve.test.ts` "flags browser-reserved chords", Task 27 `ShortcutsEditor.test.tsx` (the recorder refuses `Ctrl+W`) and `keybindings-io.test.ts` (reserved warning).
-5. **A link or a restored tab to something that is gone** (a session id that no longer exists, `/settings/unknown`, `/dev/ui` in a production build). Expected: a not-found screen with a way home, a closable tab, never a redirect loop. Pinned by: Task 18 `item-path.test.ts` and `persist.test.ts`, Task 19 `AppShell.test.tsx` "unknown path shows not found without opening a tab", Task 32 build-output test "ships no gallery in the production build", Task 30 `shell.spec.ts` "an unknown address shows the not-found screen".
+1. **Stale or corrupt local state after an upgrade** (a `pap.appearance.boot`, `pap.workspace.v1`, `pap.appearance.device.v1` or `pap.keybindings.v1` written by another version, edited by hand, or `localStorage` throwing in a locked-down browser). Expected: pap boots with defaults, never a blank page or a crash loop, and boot-set variables the app no longer resolves are removed. Pinned by: Task 14 `boot-script.test.ts` "ignores garbage, unknown keys, unknown variables and throwing storage", Task 15 `controller.test.ts` "boot-set variables the app does not resolve are removed on the first apply", Task 18 `persist.test.ts` "drops a workspace of another version or shape", Task 13 `model.test.ts` "device settings parse fail-soft", Task 15 `controller.test.ts` "marks device settings as page-only when storage refuses them", Task 17b `keybindings-store.test.ts` "reads a hand-edited local cache field by field".
+2. **Typing with an input method or a non-US layout** (Japanese/Chinese IME in Safari reporting keyCode 229, French AZERTY where Ctrl+Alt is AltGr, Cyrillic with Ctrl). Expected: no shortcut fires during composition, Escape cancels the composition instead of closing a dialog, AltGr characters still type, Ctrl+K still works on a Cyrillic layout, a chord recorded on AZERTY means the same physical key elsewhere. Pinned by: Task 16a `keys.test.ts` (229, isComposing, `Process`, AltGraph, Cyrillic with Ctrl, mac Option+letter, AZERTY digits, AZERTY Ctrl+1 recorded as `mod+1`, a physical `/` never fires on Shift+/), Task 17a `dispatcher.test.ts` (composition), Task 8 `Dialog.test.tsx` "does not close on the Escape that ends a Safari composition", Task 6 `submit-shortcut.test.ts` (229).
+3. **Imported JSON and model text from outside** (a theme or keybindings file that is malformed, oversized, or carries `url(...)` / script-looking values; model markdown with raw HTML, `javascript:` links or remote images). Expected: a precise error per entry, nothing half-applied, no value other than a hex colour ever reaches a style property, the server refuses oversize payloads, model text never becomes markup or a request. Pinned by: Task 12 `service.test.ts` "refuses a value over 128 KiB" and `settings.test.ts` "lets only hex colours into a theme", Task 13 `derive.test.ts` "only hex colours reach the token map", Task 14 `boot-script.test.ts` (hostile cache values), Task 26 `theme-io.test.ts`, Task 27 `keybindings-io.test.ts`, Task 10b `render.test.tsx` (raw HTML, `javascript:` links, images).
+4. **A shortcut the browser keeps** (Ctrl+W, Ctrl+T, Ctrl+N, Cmd+Q, Ctrl+Tab, Ctrl+1..9, Alt+1..9 off Apple platforms) chosen in the editor. Expected: the editor says the browser may keep it instead of saving a binding that silently never fires; the palette binds no digit chords. Pinned by: Task 16b `resolve.test.ts` "flags browser-reserved chords", Task 27 `ShortcutsEditor.test.tsx` (the recorder refuses `Ctrl+W`) and `keybindings-io.test.ts` (reserved warning).
+5. **A link or a restored tab to something that is gone** (a session id that no longer exists, `/settings/unknown`, `/dev/ui` in a production build, a lazy chunk renamed by an update while a tab stayed open). Expected: a not-found screen with a way home, a closable tab, never a redirect loop; a chunk that fails to load leaves the shell standing and offers a reload. Pinned by: Task 18 `item-path.test.ts` and `persist.test.ts`, Task 19a `AppShell.test.tsx` "unknown path shows not found without opening a tab", Task 19a `router.test.tsx` "a render error shows the translated error screen with Reload", Task 21 `lib/lazy.test.tsx` "a chunk that fails to load renders nothing, reports once, and the next attempt loads again", Task 22 `PaletteHost.test.tsx` (a stale palette chunk leaves the shell standing), Task 32 build-output test "ships no gallery in the production build".
+6. **Two tabs or two devices editing account settings** (the phone flips a switch during a flaky reconnect while the laptop holds three custom themes; an older document without a field added later). Expected: no change is lost or overwritten by a stale copy; a document missing one field keeps the others; nothing is saved before the first successful load. Pinned by: Task 12 `service.test.ts` "a stale baseRevision is refused and the stored document is unchanged", Task 15 `account-setting.test.ts` (hold until loaded, load-error never saves, conflict → re-read, merge, one retry, one save at a time, re-sync keeps a pending change), Task 13 `model.test.ts` "a document missing one field keeps the others", Task 25 "reset keeps the custom themes".
 
 ## Coordination with M2 (parallel worktree)
 
-Ownership is the planning brief's contract. M3 owns `packages/ui/**`, `apps/web/src/styles.css`, `apps/web/index.html`, `apps/web/src/routes/**`, the `apps/web/src/i18n/**` structure, theming and appearance settings, keybindings, Cmd+K, `/dev/ui`, the Playwright journey and the browser e2e CI job. M2 owns `apps/daemon/**`, `packages/pi-host/**`, `packages/contracts/**`, `apps/web/src/runtime/**`, `apps/web/src/stores/**` and `apps/web/src/features/sessions/**`.
+Ownership is the planning brief's contract. M3 owns `packages/ui/**`, `apps/web/src/styles.css`, `apps/web/index.html`, `apps/web/src/routes/**`, the `apps/web/src/i18n/**` structure, theming and appearance settings, keybindings, Cmd+K, `/dev/ui`, markdown and code highlighting in messages (agreement 9). M2 owns `apps/daemon/**`, `packages/pi-host/**`, `packages/contracts/**`, `apps/web/src/runtime/**`, `apps/web/src/stores/**` and `apps/web/src/features/sessions/**`. The browser e2e work that the brief gave M3 is deferred (owner C1).
 
-What M3 also touches, and why (all listed again in "Merge order and conflict notes"):
+Coordination-contract exception, accepted by the owner (R3-8, agreement 13): M3's `settings` daemon module, its contracts file and the `settings` permission domain live inside M2-owned areas; their hunks in shared files are one line each and Opus-reviewed (Task 12). What M3 touches, and why (all listed again in "Merge order and conflict notes"):
 
 | Shared file | M3 change | Size |
 |---|---|---|
@@ -103,15 +116,19 @@ What M3 also touches, and why (all listed again in "Merge order and conflict not
 | `packages/contracts/src/methods.test.ts` | add `"settings.set"` to the mutation list | 1 line |
 | `apps/daemon/src/daemon.ts` | import the settings module, add its migrations and handlers | 4 lines |
 | `apps/web/src/i18n/en.ts`, `fr.ts` | import the M3 namespace catalogs and spread them first; existing keys untouched | 4 lines each |
-| `apps/web/src/main.tsx`, `vite.config.ts`, `src/build-output.int.test.ts`, `src/vite-config.test.ts` | boot script, providers, compiler include, CSP checks | M3 only (not in M2's list) |
+| `apps/web/src/i18n/i18n.test.ts` | reactive-locale cases, `IDENTICAL_IN_FR` in "translates every key into French" | one test body |
+| `apps/web/src/features/sessions/SessionScreen.test.tsx` | the Stop button's class assertions (`bg-panel` → `bg-surface`, `border-error` → `border-err`), Task 5 | 2 lines |
+| `budgets.json`, `scripts/check-budgets.ts` (+ test) | provisional and final `initialBundleGzipKb`; `lazyAssets` | 1 line; one function |
+| `apps/web/src/main.tsx`, `vite.config.ts`, `src/build-output.int.test.ts`, `src/vite-config.test.ts`, `src/styles.css` | boot script, providers, CSP and lazy-chunk checks, styles | M3 only (M2 touches `build-output.int.test.ts` only through `budgets.json`) |
 | `apps/web/src/features/auth/**` | restyle and move "Add a passkey" into Settings | M3 only (not in M2's list) |
-| `eslint.config.js`, `knip.json`, `package.json`, `pnpm-lock.yaml`, `.github/workflows/ci.yml` | new rule, new boundary elements, deps, e2e job | root files both may touch |
+| `DESIGN.md` | §3 tokens and §7.4 focus amended for R120 (ADR 0012) | M2 adds its ANSI rule under §9; different sections (agreement 8) |
+| `eslint.config.js`, `knip.json`, `package.json`, `pnpm-lock.yaml`, `AGENTS.md` | new rule, ignores, boundary elements, deps, topic note | root files both may touch |
 
 New files only: `packages/contracts/src/settings.ts`, `apps/daemon/src/modules/settings/**`.
 
 **Pipelining with M2.** No M3 task waits for an M2 merge: every task builds on `main` as it is (f765f2a) and renders M2's screens as they exist there. The post-merge tasks P1–P7 wait for both milestones (see "Merge order and conflict notes"). M3 does not rebase on `main` in the middle of the milestone, only before its PR, so M2's merge never forces a mid-milestone rework.
 
-M3 reads M2-owned code only through stable surfaces: `getRuntime()` / `rpc.call` / `useConnectionState` from `apps/web/src/runtime/index.ts`, `sessions.list` from the catalogue, and the screens `SessionListScreen()` and `SessionScreen({ sessionId })` from `apps/web/src/features/sessions/`, which the shell renders inside panes. M3 keeps every `@pap/ui` export of `main` working (`Button`, `TextField`, `Message`, `ApprovalCard`, `cn`, `once`, `FOCUS_RING`, and the M1 utility names `bg-panel`, `border-line`, `text-human*`, `text-on-fill`, `text-attention*`, `text-error`, `text-fg`, `text-muted`… as aliases) until P1.
+M3 reads M2-owned code only through stable surfaces: `getRuntime()` / `rpc.call` / `useConnectionState` from `apps/web/src/runtime/index.ts`, `sessions.list` from the catalogue, and the screens `SessionListScreen()` and `SessionScreen({ sessionId })` from `apps/web/src/features/sessions/`, which the shell renders inside panes. M3 keeps this `@pap/ui` API of `main` working until P1 (agreement 5): `Button`, `TextField`, `Message`, `ApprovalCard` (M1 props), `cn`, `FOCUS_RING`, `once`, and the M1 utility names `bg-panel`, `border-line`, `text-human*`, `text-on-fill`, `text-attention*`, `text-error`, `text-fg`, `text-muted`… as aliases.
 
 ## Pre-execution conflict scan
 
@@ -119,33 +136,39 @@ Tasks run one at a time (subagent-driven). These pairs share files or interfaces
 
 | Tasks | Shared file or interface | Rule |
 |---|---|---|
-| 1 → 2, 4–11 | `packages/ui/src/tokens.css` utility names (`label-hud`, `focus-ring`, `h-control`, `p-s*`, `state-*` variants) | Task 1 is the vocabulary; later tasks use only names its `token-classes.test.ts` pins |
+| 1a → 1b, 2, 4–11 | `packages/ui/src/tokens.css` + `utilities.css` utility names (`label-hud`, `focus-ring`, `h-control`, `p-s*`, `state-*` variants) | Task 1a is the vocabulary; later tasks use only names its tests pin |
+| 1a, 13 | `eslint.config.js` `pap/no-raw-colors` block `ignores` | 1a adds `presets.ts`, 13 adds `contrast.ts` and `derive.ts`; nothing else joins the list |
 | 2 → every UI task | class-coverage and compiler gates | a later task that adds a class Tailwind cannot generate fails Task 2's test: fix the class, never the allowlist |
 | 3 → every task adding text or a client `catch` | `apps/web/src/i18n/catalog/*.ts`, `apps/web/src/lib/report.ts` | each task appends to its own namespace block; every client catch reports or surfaces |
 | 4–11 | `packages/ui/src/index.ts` exports | append-only, alphabetical within each group |
-| 5, 6, 7, 8 → 9, 10 | `Button`, `Chip`, `Collapsible`, `Tooltip` APIs | AI components consume the primitive props exactly as produced |
-| 12 → 13, 15, 17, 26, 27 | `packages/contracts/src/settings.ts` (`AccountAppearance`, `KeybindingRules`, `settings.get/set`) | schemas are the single source for server validation and client import checks |
+| 5, 6, 7, 8 → 9, 10, 10b | `Button`, `Chip`, `Collapsible`, `Tooltip` APIs | AI components consume the primitive props exactly as produced |
+| 1b, 10b, 11, 14, 32 | `apps/web/src/build-output.int.test.ts` | append cases inside the existing `describe`; never loosen an existing expectation except the two Task 11 states |
+| 1b, 10b, 23 | `apps/web/src/styles.css` | 1b rewrites it; 10b adds nothing there (its variables live in `utilities.css`); 23 appends the phone rules |
+| 12 → 13, 15, 17b, 26, 27 | `packages/contracts/src/settings.ts` (`AccountAppearance`, `KeybindingRules`, `settings.get/set`, `baseRevision`) | schemas are the single source for server validation and client import checks |
 | 13 → 14, 15, 25, 26 | `features/appearance/model.ts`, `derive.ts`, `contrast.ts` | pure model first, runtime and UI after |
-| 14 → 15 | `apply.ts` (`applyAppearance`, `writeBootCache`, `BOOT_KEY`) | the controller only calls the applier |
-| 16 → 17, 22, 27 | `features/commands/keys.ts`, `when.ts`, `resolve.ts`, `defaults.ts` | core before dispatcher, palette and editor |
-| 18 → 19, 20, 21, 23 | `features/workspace/model.ts`, `workspace-store.ts`, `item-path.ts` | model before shell |
-| 19 → 20–25, 28 | `routes/shell/AppShell.tsx`, `routes/router.tsx`, `routes/shell/pane-renderers.tsx` | one shell task at a time; renderers are replaced in the map, never special-cased |
+| 14 → 15 | `apply.ts` (`applyAppearance`, `inlineAppearanceVars`, `writeBootCache`, `BOOT_KEY`, `BOOT_VAR_NAMES`) | the controller only calls the applier |
+| 15 → 17b | `lib/account-setting.ts` (`createAccountDocument`) | keybindings reuse the same engine, never a copy |
+| 16a → 16b → 17a → 17b, 22, 27 | `features/commands/keys.ts`, `labels.ts`, `when.ts`, `resolve.ts`, `defaults.ts` | core before dispatcher, palette and editor |
+| 18 → 19a, 20, 21, 23 | `features/workspace/model.ts`, `workspace-store.ts`, `item-path.ts` | model before shell |
+| 19a → 19b → 20–25, 28 | `routes/shell/AppShell.tsx`, `routes/router.tsx`, `routes/shell/pane-renderers.tsx` | one shell task at a time; renderers are replaced in the map, never special-cased |
+| 21 → 22, 24, 26 | `apps/web/src/lib/lazy.tsx` (`LazyBoundary`, `useRetryableLazy`, `notifyLazyFailure`) | every lazy chunk mounts through it |
 | 24 → 25, 27 | `routes/settings/sections.tsx` (`SETTINGS_SECTION_RENDERERS`) | sections plug into the map Task 24 creates |
-| 14, 28 | `apps/web/vite.config.ts` | 14 adds the boot plugin; 28's gallery config merges it, never edits it |
-| 2, 3, 14, 15, 28, 29 | `eslint.config.js`, `knip.json` | append entries, never reorder |
-| 29 → 30, 31 | `playwright.config.ts`, `e2e/state.ts`, `e2e/guards.ts`, `scripts/e2e.ts` | infra before journeys and screenshots |
-| 1, 4, 5, 22, 29 | `package.json` / `pnpm-lock.yaml` (`@tailwindcss/node`, `lucide-react`, `radix-ui`, `cmdk`, `@playwright/test`) | one `pnpm add -E` per task, lockfile committed with it |
+| 14, 28 | `apps/web/vite.config.ts` | 14 adds the boot plugin; 28 does not touch it |
+| 2, 3, 13, 14, 15, 19a, 28 | `eslint.config.js`, `knip.json` | append entries, never reorder |
+| 1a, 4, 5, 10b, 22 | `package.json` / `pnpm-lock.yaml` (`@tailwindcss/node`, `lucide-react`, `radix-ui`, `react-markdown`, `remark-gfm`, `shiki`, `cmdk`) | one `pnpm add -E` per task, lockfile committed with it |
 
 ## File Structure
 
 ```
 packages/ui/
-  package.json                     exports ".", "./tokens.css", "./fonts.css"; deps radix-ui, lucide-react
+  package.json                     exports ".", "./tokens.css", "./utilities.css", "./fonts.css"; deps radix-ui,
+                                   lucide-react, react-markdown, remark-gfm, shiki
   fonts/*.woff2 + *-OFL.txt        Manrope, JetBrains Mono (moved from apps/web/src/fonts)
-  src/tokens.css                   themes night/day/hc, densities, Tailwind mapping, utilities, variants
+  src/tokens.css                   themes night/day/hc, densities, global variables, Tailwind @theme mapping (≤ 400 lines)
+  src/utilities.css                @custom-variant, @utility, keyframes, motion rules, code-highlight variables
   src/fonts.css                    @font-face, self-hosted
   src/token-names.ts               THEME_TOKENS, THEMES, DENSITIES (single list for tests and the theme editor)
-  src/presets.ts                   PRESET_TOKENS (DESIGN §3 values, checked against tokens.css)
+  src/presets.ts                   PRESET_TOKENS (DESIGN §3 values as amended by ADR 0012, checked against tokens.css)
   src/feedback.ts                  feedbackPhase, usePendingFeedback, usePendingAction (DESIGN §7.3)
   src/format.ts                    formatCost, formatDuration, formatDiffCounts (DESIGN §11)
   src/media.ts                     useMediaQuery, useIsPhone (internal)
@@ -154,93 +177,81 @@ packages/ui/
                                    Segmented, Chip, Badge, Avatar, Meter, ProgressBar, Spinner, Banner, EmptyState,
                                    OpenTab, Collapsible, Dialog, Menu, Toast (+ submit-shortcut, composition)
   src/ai/                          Message (+actions, branch), AuthorGroup, DaySeparator, RunStatusChip, Fence,
-                                   Reasoning, ToolCard, ApprovalCard
+                                   Reasoning, ToolCard, ApprovalCard, Markdown (+ markdown/{render,CodeBlock,highlight})
   src/brand/                       Mark, Wordmark
 apps/web/
-  index.html                       title, viewport, icons; the boot script is injected by the plugin
-  vite.config.ts                   + appearanceBoot() plugin, compiler include check
-  vite.gallery.config.ts           standalone gallery build (test artifact, never shipped)
-  gallery.html                     gallery entry
+  index.html                       title, viewport, SVG favicon; the boot script is injected by the plugin
+  vite.config.ts                   + appearanceBoot() plugin
   vite/appearance-boot.ts          Vite plugin: emits the hashed classic boot script
-  icons-src/*.svg                  favicon tile, maskable PWA icon sources
-  public/favicon.svg, public/icons/*.png
+  icons-src/*.svg                  favicon tile, maskable PWA and Apple touch sources (PNG rendering: M12)
+  public/favicon.svg
   src/main.tsx                     boot order, providers
-  src/styles.css                   tailwind + @pap/ui tokens/fonts + base
-  src/lib/                         report.ts (bounded client issue log), account-setting.ts (settings.get/set, saver)
+  src/styles.css                   tailwind + @pap/ui tokens/utilities/fonts + base
+  src/lib/                         report.ts (bounded client issue log), account-setting.ts (settings.get/set,
+                                   compare-and-set account documents), lazy.tsx (LazyBoundary, useRetryableLazy)
   src/i18n/                        index.ts (+useT/useLocale), catalog/{shell,settings,commands,gallery}.ts,
-                                   server-text.ts, literal-coverage.test.ts
+                                   server-text.ts
   src/features/appearance/         model, derive, contrast, boot-script.js, apply, controller, appearance-store,
                                    AppearancePanel (+ sections, preview), ThemeEditor, CustomThemes, theme-io
   src/features/commands/           keys, when, defaults, resolve, labels, registry, dispatcher, context,
                                    keybindings-store, use-command, ShortcutsHelp, palette/{rank,CommandPalette},
                                    editor/{ShortcutsEditor,ShortcutRecorder,keybindings-io}
   src/features/workspace/          model, item-path, persist, workspace-store, separator, SplitView
-  src/routes/                      router, RootLayout (auth gate)
+  src/routes/                      router (createAppRouter), RouteError, RootLayout (auth gate)
   src/routes/shell/                AppShell, Rail, TopBar, TabBar, PaneHost, pane-renderers, TreeDrawer, SessionTree,
                                    session-groups, InboxDrawer, MobileShell, BottomNav, TabSwitcher, ConnectionBanner,
-                                   NotFound, PaletteHost, palette-items, shell-commands, shell-context, sessions-cache,
-                                   use-shell-effects, use-viewport-height
-  src/routes/settings/             SettingsScreen, sections, LanguageSection, AccountSection
-  src/gallery/                     Gallery, sections/*, fixtures, main.tsx (standalone entry)
+                                   NotFound, item-title, navigate, PaletteHost, palette-items, shell-commands,
+                                   shell-context, sessions-cache, use-shell-effects, use-viewport-height
+  src/routes/settings/             SettingsScreen (lazy), sections, LanguageSection, AccountSection
+  src/gallery/                     Gallery, GalleryFrame, sections/*, fixtures (dev-only pane)
   src/compiler-gate.test.ts        React Compiler gate
 apps/daemon/src/modules/settings/  index, service, store, rpc, migrations/202610111000_settings.sql
-packages/contracts/src/settings.ts AccountAppearance, KeybindingRules, settingsMethods
+packages/contracts/src/settings.ts AccountAppearanceFields, AccountAppearance, KeybindingRules, settingsMethods
 scripts/class-coverage.ts (+test), scripts/literal-coverage.ts (+test), scripts/tailwind-compile.ts,
-scripts/e2e.ts (+ e2e-config.test.ts), scripts/icon-list.ts, scripts/render-icons.ts (+ icons.test.ts)
-e2e/                               state, global-setup, global-teardown, auth, guards, owner-journey, shell, phone,
-                                   gallery specs, fixtures/approval-script.json, __screenshots__/
-playwright.config.ts
-THIRD_PARTY_NOTICES.md             AI Elements (Apache-2.0) notice
-docs/adr/0006-collapsible-primitive.md, docs/adr/0007-dev-ui-not-shipped.md, docs/agents/web.md
+scripts/notices.test.ts
+THIRD_PARTY_NOTICES.md, LICENSES/Apache-2.0.txt   AI Elements (Apache-2.0) notice and the canonical licence text
+docs/adr/0010-collapsible-primitive.md, docs/adr/0011-dev-ui-not-shipped.md,
+docs/adr/0012-r120-contrast-amendment.md, docs/agents/web.md
 ```
 
 ---
 # Phase 1 — Foundations
 
-### Task 1: DESIGN.md tokens — three themes, three densities, utilities, fonts in `packages/ui`
+### Task 1a: DESIGN.md tokens — three themes, three densities, the R120 amendment (ADR 0012)
 
-Replaces the M1 subset with the whole of DESIGN.md §3–§5 and §7. Raw values use DESIGN.md's names (`--bg`, `--surface-2`, `--you-ink`…); Tailwind sees them through `@theme inline`. The M1 utility names stay as aliases until post-merge task P1, because M2's screens use them.
+Replaces the M1 subset with the whole of DESIGN.md §3, §5 and §7 as amended by ADR 0012 (owner M3-Q1, option b). Raw values use DESIGN.md's names (`--bg`, `--surface-2`, `--you-ink`…); Tailwind sees them through `@theme inline`. The M1 utility names stay as aliases until post-merge task P1, because M2's screens use them. `tokens.css` holds the variables and the Tailwind mapping; `utilities.css` holds the variants, utilities, keyframes and motion rules, so neither file passes 400 lines (M3-RT-20). This task changes `packages/ui`, `eslint.config.js`, `DESIGN.md` and the ADR only; Task 1b wires the files into the web app.
 
 **Files:**
-- Modify: `packages/ui/src/tokens.css` (rewrite), `packages/ui/src/tokens.test.ts` (rewrite), `packages/ui/src/focus.ts`, `packages/ui/src/index.ts`, `packages/ui/package.json`
-- Modify: `packages/ui/src/primitives/Button.test.tsx`, `packages/ui/src/primitives/TextField.test.tsx` (focus-ring expectations only)
-- Create: `packages/ui/src/token-names.ts`, `packages/ui/src/presets.ts`, `packages/ui/src/fonts.css`
-- Move: `apps/web/src/fonts/*` → `packages/ui/fonts/` (`git mv`), delete `apps/web/src/fonts.css`
-- Modify: `apps/web/src/styles.css`, `apps/web/src/build-output.int.test.ts` (no native nesting)
-- Create: `scripts/tailwind-compile.ts`, `scripts/token-classes.test.ts`
-- Modify: root `package.json`, `pnpm-lock.yaml` (`@tailwindcss/node` pinned to the `tailwindcss` version, 4.3.3)
+- Modify: `packages/ui/src/tokens.css` (rewrite), `packages/ui/src/tokens.test.ts` (rewrite), `packages/ui/src/index.ts`, `packages/ui/package.json` (export `./utilities.css`)
+- Create: `packages/ui/src/utilities.css`, `packages/ui/src/token-names.ts`, `packages/ui/src/presets.ts`
+- Modify: `eslint.config.js` (`packages/ui/src/presets.ts` in the `pap/no-raw-colors` block's `ignores`, M3-RT-02)
+- Modify: `DESIGN.md` (§3.1, §3.2, §3.3, §7.4 only, agreement 8); Create: `docs/adr/0012-r120-contrast-amendment.md`
 
 **Interfaces:**
 - Consumes: nothing new.
 - Produces:
-  - CSS custom properties per theme (`:root, [data-theme="night"]`, `[data-theme="day"]`, `[data-theme="hc"]`, no-JS fallback): every name of `THEME_TOKENS` plus `--shadow-overlay`, `--focus-ring`, `--control-border`; per density (`[data-density="compact|comfortable|mixed"]`): `--size-ui`, `--size-chat`, `--leading-chat`, `--size-code`, `--space-1..6`, `--control-h`, `--rail-w`, `--bar-h`, `--avatar-size`; global: `--font-ui`, `--font-code`, `--label-transform`, `--motion-fast`, `--motion-base`, `--grid-size`, `--chat-max-width`.
+  - CSS custom properties per theme (`:root, [data-theme="night"]`, `[data-theme="day"]`, `[data-theme="hc"]`, no-JS fallback): every name of `THEME_TOKENS` plus `--shadow-overlay`; per density (`[data-density="compact|comfortable|mixed"]`): `--size-ui`, `--size-chat`, `--leading-chat`, `--size-code`, `--space-1..6`, `--control-h`, `--rail-w`, `--bar-h`, `--avatar-size`; global: `--font-ui`, `--font-code`, `--label-transform`, `--motion-fast`, `--motion-base`, `--grid-size`, `--chat-max-width`.
   - Attributes on `<html>` read by CSS: `data-theme`, `data-density`, `data-font-ui="system"`, `data-font-mono="system"`, `data-labels="sentence"`, `data-grid="off"`, `data-rail="right"`, `data-motion="system|reduced|none"`, `data-chat-width="wide|narrow"`, `data-keyboard-open`.
-  - Utilities: colours `bg-|text-|border-|fill-|outline-` × `bg, bg-side, surface, surface-2, border, border-strong, control-border, fg, muted, dim, agent, agent-fill, agent-ink, you, you-fill, you-ink, you-tint, you-line, you-text, attn, attn-fill, attn-ink, attn-tint, attn-line, ok, err, diff-add, diff-del, focus` (+ M1 aliases `panel, line, human, human-fill, human-tint, human-line, human-text, on-fill, attention, attention-tint, attention-line, error`); text sizes `text-label, text-ui, text-chat, text-code, text-h2, text-h1, text-display`; `tracking-label`, `tracking-display`; radii `rounded-sm` (2 px), `rounded-md` (3 px); spacing `p-s1..s6` (any spacing utility), `h-control`, `h-bar`, `w-rail`, `size-avatar`, `w-drawer-tree`, `w-drawer-inbox`, `min-w-pane`, `w-status-panel`; custom `label-hud`, `focus-ring`, `shadow-overlay`, `bg-grid`, `h-app`, `max-h-app`, `pt-safe`, `pb-safe`, `pl-safe`, `pr-safe`, `duration-fast`, `duration-base`, `animate-indeterminate`, `animate-overlay-in`, `max-w-chat`; class `theme-swap` (plain CSS).
+  - Utilities (compiled once Task 1b imports the files): colours `bg-|text-|border-|fill-|outline-` × `bg, bg-side, surface, surface-2, border, border-strong, control-border, fg, muted, dim, agent, agent-fill, agent-ink, you, you-fill, you-ink, you-tint, you-line, you-text, attn, attn-fill, attn-ink, attn-tint, attn-line, attn-title, ok, err, diff-add, diff-del, focus` (+ M1 aliases `panel, line, human, human-fill, human-tint, human-line, human-text, on-fill, attention, attention-tint, attention-line, error`); text sizes `text-label, text-ui, text-chat, text-code, text-h2, text-h1, text-display`; `tracking-label`, `tracking-display`; radii `rounded-sm` (2 px), `rounded-md` (3 px); spacing `p-s1..s6` (any spacing utility), `h-control`, `h-bar`, `w-rail`, `size-avatar`, `w-drawer-tree`, `w-drawer-inbox`, `min-w-pane`, `w-status-panel`; custom `label-hud`, `focus-ring`, `shadow-overlay`, `bg-grid`, `h-app`, `max-h-app`, `pt-safe`, `pb-safe`, `pl-safe`, `pr-safe`, `duration-fast`, `duration-base`, `animate-indeterminate`, `animate-overlay-in`, `max-w-chat`; class `theme-swap` (plain CSS).
   - Variants: `can-hover:`, `rail-right:`, `state-open:`, `state-closed:`, `state-checked:`, `state-on:`, `state-active:`.
-  - `packages/ui/src/token-names.ts`: `THEME_TOKENS`, `type ThemeToken`, `THEMES = ["night","day","hc"]`, `type ThemeName`, `DENSITIES = ["compact","comfortable","mixed"]`, `type Density`.
+  - `packages/ui/src/token-names.ts`: `THEME_TOKENS` (31 names), `type ThemeToken`, `THEMES = ["night","day","hc"]`, `type ThemeName`, `DENSITIES = ["compact","comfortable","mixed"]`, `type Density`.
   - `packages/ui/src/presets.ts`: `PRESET_TOKENS: Readonly<Record<ThemeName, Readonly<Record<ThemeToken, string>>>>`.
-  - `FOCUS_RING = "focus-ring"` (same export, new value).
-  - `@pap/ui/fonts.css` export.
-  - `scripts/tailwind-compile.ts`: `compileStyles(): Promise<(candidates: readonly string[]) => string>`, `escapeClass(name: string): string`, `ruleOf(css: string, className: string): string`.
+  - `@pap/ui/utilities.css` export; ADR 0012.
 
-**Risks / rulings needed:** (a) Tailwind 4.3.3 must resolve named `--spacing-*` keys (`p-s3`, `w-drawer-tree`): pinned by the test, fallback in Step 6, no ruling. (b) The high-contrast values DESIGN §3.3 leaves out (inks, tints, lines, `--you-text`, diff tones) are derived by §13.2's rules: the controller confirms this is an implementation of §13.2, not a design change (else ADR). (c) Comfortable density lists five spacing steps; `--space-6` repeats 32 px: confirm.
+**Rulings (pre-dispatch):**
+- R120 is option (b) (owner M3-Q1): ADR 0012 and the DESIGN.md amendment (§3 and §7.4 only) ship in this task, and `tokens.test.ts` asserts every amended value and its contrast ratio. [M3R1]
+- `focus-ring`, `control-border` and `attn-title` become theme tokens with concrete values per preset (night `#fb923c` / `#6b6485` / `#f472b6`, day `#ea580c` / `#8f877a` / `#be185d`, high contrast `#fb923c` / `#8a8a8a` / `#f9a8d4`), and `--attn-ink` is `#110f18` in night and high contrast. High contrast keeps its border-strong `#8a8a8a` as control border (6.1:1 on its bg): an implementation of the ADR, not a further change. Inputs and controls draw `border-control-border`; the hairline `border` stays decorative. [M3R2]
+- The high-contrast values DESIGN §3.3 leaves out (inks, tints, lines, `--you-text`, diff tones) are derived by §13.2's rules (fills = night): an implementation of §13.2, no ADR. [M3R3]
+- Comfortable density lists five spacing steps; `--space-6` repeats 32 px. Accepted. [M3R4]
+- `pap/no-raw-colors` ignores `packages/ui/src/presets.ts` (colour data, pinned to `tokens.css` by `tokens.test.ts`); nothing else in `packages/ui` joins the list. [M3R5]
+- `tokens.css` keeps `@theme inline` although DESIGN §14 writes `@theme static`: a utility must read `var(--bg)` where it is used so `data-theme` on a subtree (gallery frames, `Mark mode`) re-themes it; the reason is written in the file and in `docs/agents/web.md` (M3-RT-37). [M3R6]
 
-- [ ] **Step 1: Pin `@tailwindcss/node` and move the fonts**
-
-Run:
-```bash
-pnpm add -Dw -E @tailwindcss/node@4.3.3
-git mv apps/web/src/fonts packages/ui/fonts
-git rm apps/web/src/fonts.css
-```
-Expected: `package.json` gains `"@tailwindcss/node": "4.3.3"`; `packages/ui/fonts/` holds the four woff2 files and both OFL texts.
-
-- [ ] **Step 2: Write the token name list and the presets**
+- [ ] **Step 1: Write the token name list and the presets**
 
 `packages/ui/src/token-names.ts`:
 
 ```ts
-/** DESIGN.md §3: the custom properties every theme defines. The theme editor, the presets and the tests read this list. */
+/** DESIGN.md §3 (with ADR 0012): the custom properties every theme defines. The theme editor, the presets and the tests read this list. */
 export const THEME_TOKENS = [
   "bg",
   "bg-side",
@@ -248,10 +259,12 @@ export const THEME_TOKENS = [
   "surface-2",
   "border",
   "border-strong",
+  "control-border",
   "text",
   "text-muted",
   "text-dim",
   "grid",
+  "focus-ring",
   "agent",
   "agent-fill",
   "agent-ink",
@@ -266,6 +279,7 @@ export const THEME_TOKENS = [
   "attn-ink",
   "attn-tint",
   "attn-line",
+  "attn-title",
   "ok",
   "err",
   "diff-add",
@@ -280,7 +294,7 @@ export const DENSITIES = ["compact", "comfortable", "mixed"] as const;
 export type Density = (typeof DENSITIES)[number];
 ```
 
-`packages/ui/src/presets.ts` (values from DESIGN.md §3.1–3.3; the values §3.3 leaves out follow §13.2: inks, tints and lines come from the fills, which high contrast keeps from night; diff tones are the high-contrast ok/err at 8 % alpha):
+`packages/ui/src/presets.ts` (values from DESIGN.md §3.1–3.3 as amended by ADR 0012; the values §3.3 leaves out follow §13.2: inks, tints and lines come from the fills, which high contrast keeps from night; diff tones are the high-contrast ok/err at 8 % alpha):
 
 ```ts
 import type { ThemeName, ThemeToken } from "./token-names.ts";
@@ -294,10 +308,12 @@ const night: Tokens = {
   "surface-2": "#241f33",
   border: "#2d2840",
   "border-strong": "#3d3657",
+  "control-border": "#6b6485",
   text: "#f2effa",
   "text-muted": "#9c95b5",
   "text-dim": "#6b6485",
   grid: "#ffffff06",
+  "focus-ring": "#fb923c",
   agent: "#a78bfa",
   "agent-fill": "#a78bfa",
   "agent-ink": "#110f18",
@@ -309,9 +325,10 @@ const night: Tokens = {
   "you-text": "#fed7aa",
   attn: "#ec4899",
   "attn-fill": "#ec4899",
-  "attn-ink": "#ffffff",
+  "attn-ink": "#110f18",
   "attn-tint": "#ec48991a",
   "attn-line": "#ec48998c",
+  "attn-title": "#f472b6",
   ok: "#34d399",
   err: "#f87171",
   "diff-add": "#34d39914",
@@ -325,10 +342,12 @@ const day: Tokens = {
   "surface-2": "#eeebe4",
   border: "#e2ded5",
   "border-strong": "#cfc9bc",
+  "control-border": "#8f877a",
   text: "#1c1917",
   "text-muted": "#6b645a",
   "text-dim": "#a8a196",
   grid: "#1c19170a",
+  "focus-ring": "#ea580c",
   agent: "#6d28d9",
   "agent-fill": "#7c3aed",
   "agent-ink": "#ffffff",
@@ -343,6 +362,7 @@ const day: Tokens = {
   "attn-ink": "#ffffff",
   "attn-tint": "#fdf1f6",
   "attn-line": "#f9a8d4",
+  "attn-title": "#be185d",
   ok: "#047857",
   err: "#dc2626",
   "diff-add": "#04785714",
@@ -357,6 +377,7 @@ const hc: Tokens = {
   "surface-2": "#1f1f1f",
   border: "#5a5a5a",
   "border-strong": "#8a8a8a",
+  "control-border": "#8a8a8a",
   text: "#ffffff",
   "text-muted": "#d0d0d0",
   "text-dim": "#a0a0a0",
@@ -364,28 +385,36 @@ const hc: Tokens = {
   agent: "#c4b5fd",
   you: "#fdba74",
   attn: "#f9a8d4",
+  "attn-title": "#f9a8d4",
   ok: "#6ee7b7",
   err: "#fca5a5",
   "diff-add": "#6ee7b714",
   "diff-del": "#fca5a514",
 };
 
-/** DESIGN.md §3.1–3.3, lower case. `tokens.test.ts` proves tokens.css says exactly the same. */
+/** DESIGN.md §3.1–3.3 with ADR 0012, lower case. `tokens.test.ts` proves tokens.css says exactly the same. */
 export const PRESET_TOKENS: Readonly<Record<ThemeName, Tokens>> = { night, day, hc };
 ```
 
-- [ ] **Step 3: Write the failing token tests**
+In `eslint.config.js`, in the block that enables `pap/no-raw-colors`, change `ignores` to:
+
+```js
+    // Colour data and colour math, each pinned by its tests (M3-RT-02). Nothing else may hold a raw colour.
+    ignores: ["**/*.test.ts", "**/*.test.tsx", "packages/ui/src/tokens.css", "packages/ui/src/presets.ts"],
+```
+
+- [ ] **Step 2: Write the failing token tests**
 
 `packages/ui/src/tokens.test.ts`:
 
 ```ts
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PRESET_TOKENS } from "./presets.ts";
-import { THEME_TOKENS } from "./token-names.ts";
+import { THEME_TOKENS, THEMES, type ThemeName } from "./token-names.ts";
 
 const css = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
-const fonts = readFileSync(new URL("./fonts.css", import.meta.url), "utf8");
+const utilities = readFileSync(new URL("./utilities.css", import.meta.url), "utf8");
 
 interface Block {
   readonly media: string | null;
@@ -425,9 +454,30 @@ function parse(source: string): Block[] {
   return out;
 }
 
+// WCAG 2.x contrast, with a translucent colour composited over its backdrop (the token tests' own copy; the app's
+// contrast.ts arrives in Task 13).
+const channels = (hex: string): number[] => [1, 3, 5, 7].filter((i) => i < hex.length).map((i) => parseInt(hex.slice(i, i + 2), 16));
+function over(color: string, backdrop: string): string {
+  const [r = 0, g = 0, b = 0, a = 255] = channels(color);
+  const [br = 0, bg = 0, bb = 0] = channels(backdrop);
+  const mix = (c: number, d: number) => Math.round(c * (a / 255) + d * (1 - a / 255));
+  return `#${[mix(r, br), mix(g, bg), mix(b, bb)].map((c) => c.toString(16).padStart(2, "0")).join("")}`;
+}
+function luminance(hex: string): number {
+  const [r = 0, g = 0, b = 0] = channels(hex).map((c) => {
+    const s = c / 255;
+    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function ratio(foreground: string, background: string): number {
+  const [hi, lo] = [luminance(foreground), luminance(background)].sort((x, y) => y - x) as [number, number];
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 const blocks = parse(css);
 const themeBlocks = blocks.filter((block) => block.decls.has("--bg"));
-const PER_THEME = [...THEME_TOKENS.map((name) => `--${name}`), "--shadow-overlay", "--focus-ring", "--control-border"];
+const PER_THEME = [...THEME_TOKENS.map((name) => `--${name}`), "--shadow-overlay"];
 
 describe("theme tokens (DESIGN.md §3)", () => {
   it("sets theme values only from equal-specificity selectors, plus a no-JS fallback (R120)", () => {
@@ -460,17 +510,38 @@ describe("theme tokens (DESIGN.md §3)", () => {
     }
   });
 
-  it("draws the focus ring with the you fill in every theme, through one token (R54, R120)", () => {
-    for (const block of themeBlocks) {
-      expect(block.decls.get("--focus-ring")).toBe("var(--you-fill)");
-      expect(block.decls.get("--control-border")).toBe("var(--border-strong)");
+  it("applies ADR 0012's values (R120)", () => {
+    const pick = (token: "focus-ring" | "control-border" | "attn-title" | "attn-ink") => THEMES.map((theme) => PRESET_TOKENS[theme][token]);
+    expect(pick("focus-ring")).toEqual(["#fb923c", "#ea580c", "#fb923c"]);
+    expect(pick("control-border")).toEqual(["#6b6485", "#8f877a", "#8a8a8a"]);
+    expect(pick("attn-title")).toEqual(["#f472b6", "#be185d", "#f9a8d4"]);
+    expect(pick("attn-ink")).toEqual(["#110f18", "#ffffff", "#110f18"]);
+    expect(PRESET_TOKENS.night.border).toBe("#2d2840"); // the hairline stays decorative
+  });
+
+  it.each(THEMES)("reaches the ratios ADR 0012 promises in %s", (theme: ThemeName) => {
+    const t = PRESET_TOKENS[theme];
+    for (const ground of [t.bg, t.surface]) {
+      expect(ratio(t["focus-ring"], ground), `focus ring on ${ground}`).toBeGreaterThanOrEqual(3);
+      expect(ratio(t["control-border"], ground), `control border on ${ground}`).toBeGreaterThanOrEqual(3);
     }
+    expect(ratio(t["attn-title"], over(t["attn-tint"], t.surface)), "approval title on its card").toBeGreaterThanOrEqual(4.5);
+    expect(ratio(t["attn-ink"], t["attn-fill"]), "ink on the attention fill").toBeGreaterThanOrEqual(4.5);
+  });
+
+  it("measures what ADR 0012 records, so its numbers stay true", () => {
+    expect(ratio("#ea580c", "#faf9f6")).toBeCloseTo(3.38, 2);
+    expect(ratio("#8f877a", "#faf9f6")).toBeCloseTo(3.37, 2);
+    expect(ratio("#6b6485", "#1a1724")).toBeCloseTo(3.18, 2);
+    expect(ratio("#f472b6", over("#ec48991a", "#1a1724"))).toBeCloseTo(5.96, 2);
+    expect(ratio("#110f18", "#ec4899")).toBeCloseTo(5.39, 2);
+    expect(ratio("#fb923c", "#faf9f6")).toBeCloseTo(2.15, 2); // why the day ring changed
   });
 
   it("gives each role its own ink", () => {
     expect(PRESET_TOKENS.night["agent-ink"]).toBe("#110f18");
     expect(PRESET_TOKENS.day["agent-ink"]).toBe("#ffffff");
-    expect(PRESET_TOKENS.night["attn-ink"]).toBe("#ffffff");
+    expect(PRESET_TOKENS.night["you-ink"]).toBe("#1b0d00");
   });
 
   it("keeps the M1 utility names as aliases until post-merge task P1", () => {
@@ -499,6 +570,11 @@ describe("theme tokens (DESIGN.md §3)", () => {
     const off = blocks.findIndex((block) => block.selector === '[data-grid="off"]');
     expect(off).toBeGreaterThan(blocks.indexOf(themeBlocks[2] as Block));
   });
+
+  it("keeps both files within the 400-line rule (AGENTS.md)", () => {
+    expect(css.split("\n").length).toBeLessThanOrEqual(400);
+    expect(utilities.split("\n").length).toBeLessThanOrEqual(400);
+  });
 });
 
 describe("densities (DESIGN.md §5)", () => {
@@ -525,138 +601,41 @@ describe("motion, labels and fonts", () => {
     expect(system?.decls.get("--motion-fast")).toBe("0ms");
   });
 
+  it("stops the indeterminate bar under reduced motion", () => {
+    expect(utilities).toContain('[data-motion="none"] .animate-indeterminate');
+    expect(utilities).toContain('[data-motion="system"] .animate-indeterminate');
+  });
+
   it("switches HUD labels to sentence case with one attribute", () => {
     expect(blocks.find((b) => b.selector === '[data-labels="sentence"]')?.decls.get("--label-transform")).toBe("none");
   });
 
-  it("loads nothing from the network and serves its own woff2 files", () => {
-    expect(css).not.toMatch(/url\(|@import|https?:\/\//);
-    expect(fonts).not.toMatch(/https?:\/\//);
-    expect(fonts).toContain("font-display: swap");
-    for (const match of fonts.matchAll(/url\("([^"]+)"\)/g)) {
-      expect(existsSync(new URL(match[1] ?? "", new URL("./fonts.css", import.meta.url))), match[1]).toBe(true);
-    }
+  it("loads nothing from the network", () => {
+    for (const source of [css, utilities]) expect(source).not.toMatch(/url\(|@import|https?:\/\//);
   });
 });
 ```
 
-`scripts/tailwind-compile.ts`:
+- [ ] **Step 3: Run them to see them fail**
 
-```ts
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { compile } from "@tailwindcss/node";
+Run: `pnpm test:unit packages/ui/src/tokens.test.ts`
+Expected: FAIL (`presets.ts` values differ from the M1 file, `utilities.css` missing).
 
-const REPO = fileURLToPath(new URL("..", import.meta.url));
-export const STYLES = join(REPO, "apps/web/src/styles.css");
-
-/** Tailwind's selector escaping for a class name: every character outside [A-Za-z0-9_-] gets a backslash. */
-export const escapeClass = (name: string): string => name.replace(/[^A-Za-z0-9_-]/g, (ch) => `\\${ch}`);
-
-/**
- * The web app's real stylesheet (Tailwind, @pap/ui tokens and fonts), compiled fresh: the returned function builds
- * the CSS for exactly the classes given. A fresh compiler per call keeps one test's classes out of another's output.
- */
-export async function compileStyles(): Promise<(candidates: readonly string[]) => string> {
-  const compiler = await compile(readFileSync(STYLES, "utf8"), { base: dirname(STYLES), onDependency: () => {} });
-  return (candidates) => compiler.build([...candidates]);
-}
-
-/** The text from a class's selector to the end of its rule, or "" when the CSS has no rule for it. */
-export function ruleOf(css: string, className: string): string {
-  const at = css.indexOf(`.${escapeClass(className)}`);
-  return at === -1 ? "" : css.slice(at, css.indexOf("}", at) + 1);
-}
-```
-
-`scripts/token-classes.test.ts`:
-
-```ts
-import { describe, expect, it } from "vitest";
-import { compileStyles, ruleOf } from "./tailwind-compile.ts";
-
-async function rule(className: string): Promise<string> {
-  const build = await compileStyles();
-  return ruleOf(build([className]), className);
-}
-
-describe("the token utilities compile to the DESIGN.md variables", () => {
-  it.each([
-    ["bg-surface-2", "var(--surface-2)"],
-    ["text-fg", "var(--text)"],
-    ["text-muted", "var(--text-muted)"],
-    ["bg-you-fill", "var(--you-fill)"],
-    ["text-agent-ink", "var(--agent-ink)"],
-    ["border-control-border", "var(--control-border)"],
-    ["bg-panel", "var(--surface)"],
-    ["text-attention", "var(--attn)"],
-    ["p-s3", "var(--space-3)"],
-    ["gap-s1", "var(--space-1)"],
-    ["h-control", "var(--control-h)"],
-    ["w-rail", "var(--rail-w)"],
-    ["size-avatar", "var(--avatar-size)"],
-    ["w-drawer-tree", "18.75rem"],
-    ["min-w-pane", "20rem"],
-    ["text-ui", "var(--size-ui)"],
-    ["label-hud", "var(--label-transform)"],
-    ["shadow-overlay", "var(--shadow-overlay)"],
-    ["bg-grid", "var(--grid-size)"],
-    ["h-app", "var(--app-viewport-height, 100dvh)"],
-    ["pb-safe", "env(safe-area-inset-bottom"],
-    ["duration-fast", "var(--motion-fast)"],
-    ["max-w-chat", "var(--chat-max-width)"],
-    ["rounded-sm", "2px"],
-    ["rounded-md", "3px"],
-  ])("%s → %s", async (className, expected) => {
-    expect(await rule(className)).toContain(expected);
-  });
-
-  it("draws the focus ring on :focus-visible with the focus token", async () => {
-    const css = (await compileStyles())(["focus-ring"]);
-    expect(css).toMatch(/focus-visible/);
-    expect(css).toContain("outline: 2px solid var(--focus-ring)");
-    expect(css).toContain("outline-offset: 2px");
-  });
-
-  it("knows the state, hover and rail variants", async () => {
-    const build = await compileStyles();
-    expect(build(["state-open:opacity-100"])).toContain('[data-state="open"]');
-    expect(build(["state-checked:bg-agent-fill"])).toContain('[data-state="checked"]');
-    expect(build(["can-hover:hover:bg-surface-2"])).toContain("@media (hover: hover)");
-    expect(build(["rail-right:flex-row-reverse"])).toContain('[data-rail="right"]');
-  });
-
-  it("compiles nothing for a default palette colour", async () => {
-    expect(await rule("bg-red-500")).toBe("");
-  });
-});
-```
-
-- [ ] **Step 4: Run them to see them fail**
-
-Run: `pnpm test:unit packages/ui/src/tokens.test.ts scripts/token-classes.test.ts`
-Expected: FAIL (`presets.ts` values differ from the M1 file, `fonts.css` missing, utilities such as `label-hud` produce no rule).
-
-- [ ] **Step 5: Write `tokens.css`**
+- [ ] **Step 4: Write `tokens.css` and `utilities.css`**
 
 `packages/ui/src/tokens.css`:
 
 ```css
 /* Night Control tokens: DESIGN.md §3 (themes), §5 (densities), §7.2 (motion), §7.4 (focus); spec B, validated
-   (decision 33). Raw values carry the DESIGN.md names; Tailwind sees them through @theme inline. Every theme
-   selector has the same specificity (R120): the boot script always sets data-theme, the no-JS fallback only
-   applies while the attribute is absent. --focus-ring and --control-border are the one place to amend if the
-   owner changes the contrast values (open question Q1). The default Tailwind palette is reset: only the colours
-   below compile (transparent and current stay built in). Nothing here loads from the network. */
+   (decision 33), contrast amended by ADR 0012 (R120). Raw values carry the DESIGN.md names. Every theme selector
+   has the same specificity (R120): the boot script always sets data-theme, the no-JS fallback only applies while
+   the attribute is absent. The default Tailwind palette is reset: only the colours below compile (transparent and
+   current stay built in). Variants, utilities and keyframes live in utilities.css. Nothing here loads from the
+   network.
 
-@custom-variant can-hover (@media (hover: hover));
-@custom-variant rail-right (&:where([data-rail="right"], [data-rail="right"] *));
-@custom-variant state-open (&[data-state="open"]);
-@custom-variant state-closed (&[data-state="closed"]);
-@custom-variant state-checked (&[data-state="checked"]);
-@custom-variant state-on (&[data-state="on"]);
-@custom-variant state-active (&[data-state="active"]);
+   `@theme inline`, not `@theme static` as DESIGN §14 writes: a utility must read var(--bg) where it is used, so a
+   data-theme on a subtree (gallery frames, Mark's mode) re-themes it. A non-inline theme would resolve
+   --color-bg: var(--bg) once on :root. Do not "fix" it. */
 
 @theme inline {
   --color-*: initial;
@@ -684,6 +663,7 @@ Expected: FAIL (`presets.ts` values differ from the M1 file, `fonts.css` missing
   --color-attn-ink: var(--attn-ink);
   --color-attn-tint: var(--attn-tint);
   --color-attn-line: var(--attn-line);
+  --color-attn-title: var(--attn-title);
   --color-ok: var(--ok);
   --color-err: var(--err);
   --color-diff-add: var(--diff-add);
@@ -739,7 +719,11 @@ Expected: FAIL (`presets.ts` values differ from the M1 file, `fonts.css` missing
   --spacing-pane: 20rem;
   --spacing-status-panel: 20.625rem;
 }
+```
 
+then the four theme blocks, in this order and with these selectors: `:root,\n[data-theme="night"]` (`color-scheme: dark`), `[data-theme="day"]` (`color-scheme: light`), `[data-theme="hc"]` (`color-scheme: dark`, preceded by the comment `/* DESIGN.md §3.3; what §3.3 leaves out follows §13.2 (inks, tints and lines from the night fills it keeps). */`), and `@media (prefers-color-scheme: light) { :root:not([data-theme]) { … } }` (`color-scheme: light`, preceded by `/* No JavaScript yet (or ever): follow the system. Applies only while <html> has no data-theme. */`). Each block declares, one per line in `THEME_TOKENS` order, `--<token>: <PRESET_TOKENS[theme][token]>;` (the fallback uses the day values), then `--shadow-overlay`: night and high contrast `0 20px 60px rgba(0, 0, 0, 0.6)`, day and the fallback `0 12px 40px rgba(28, 25, 23, 0.18)`. For example the night block starts:
+
+```css
 :root,
 [data-theme="night"] {
   color-scheme: dark;
@@ -749,142 +733,22 @@ Expected: FAIL (`presets.ts` values differ from the M1 file, `fonts.css` missing
   --surface-2: #241f33;
   --border: #2d2840;
   --border-strong: #3d3657;
+  --control-border: #6b6485;
   --text: #f2effa;
-  --text-muted: #9c95b5;
-  --text-dim: #6b6485;
-  --grid: #ffffff06;
-  --agent: #a78bfa;
-  --agent-fill: #a78bfa;
-  --agent-ink: #110f18;
-  --you: #fb923c;
-  --you-fill: #fb923c;
-  --you-ink: #1b0d00;
-  --you-tint: #fb923c1a;
-  --you-line: #fb923c66;
-  --you-text: #fed7aa;
-  --attn: #ec4899;
-  --attn-fill: #ec4899;
-  --attn-ink: #ffffff;
-  --attn-tint: #ec48991a;
-  --attn-line: #ec48998c;
-  --ok: #34d399;
-  --err: #f87171;
+```
+
+and ends:
+
+```css
   --diff-add: #34d39914;
   --diff-del: #f8717114;
   --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.6);
-  --focus-ring: var(--you-fill);
-  --control-border: var(--border-strong);
 }
+```
 
-[data-theme="day"] {
-  color-scheme: light;
-  --bg: #faf9f6;
-  --bg-side: #f3f1ec;
-  --surface: #ffffff;
-  --surface-2: #eeebe4;
-  --border: #e2ded5;
-  --border-strong: #cfc9bc;
-  --text: #1c1917;
-  --text-muted: #6b645a;
-  --text-dim: #a8a196;
-  --grid: #1c19170a;
-  --agent: #6d28d9;
-  --agent-fill: #7c3aed;
-  --agent-ink: #ffffff;
-  --you: #c2410c;
-  --you-fill: #fb923c;
-  --you-ink: #1b0d00;
-  --you-tint: #fff4ea;
-  --you-line: #fdba74;
-  --you-text: #431407;
-  --attn: #be185d;
-  --attn-fill: #db2777;
-  --attn-ink: #ffffff;
-  --attn-tint: #fdf1f6;
-  --attn-line: #f9a8d4;
-  --ok: #047857;
-  --err: #dc2626;
-  --diff-add: #04785714;
-  --diff-del: #dc262614;
-  --shadow-overlay: 0 12px 40px rgba(28, 25, 23, 0.18);
-  --focus-ring: var(--you-fill);
-  --control-border: var(--border-strong);
-}
+After the themes, unchanged from the M1-to-M3 design:
 
-/* DESIGN.md §3.3; what §3.3 leaves out follows §13.2 (inks, tints and lines from the night fills it keeps). */
-[data-theme="hc"] {
-  color-scheme: dark;
-  --bg: #000000;
-  --bg-side: #0a0a0a;
-  --surface: #111111;
-  --surface-2: #1f1f1f;
-  --border: #5a5a5a;
-  --border-strong: #8a8a8a;
-  --text: #ffffff;
-  --text-muted: #d0d0d0;
-  --text-dim: #a0a0a0;
-  --grid: transparent;
-  --agent: #c4b5fd;
-  --agent-fill: #a78bfa;
-  --agent-ink: #110f18;
-  --you: #fdba74;
-  --you-fill: #fb923c;
-  --you-ink: #1b0d00;
-  --you-tint: #fb923c1a;
-  --you-line: #fb923c66;
-  --you-text: #fed7aa;
-  --attn: #f9a8d4;
-  --attn-fill: #ec4899;
-  --attn-ink: #ffffff;
-  --attn-tint: #ec48991a;
-  --attn-line: #ec48998c;
-  --ok: #6ee7b7;
-  --err: #fca5a5;
-  --diff-add: #6ee7b714;
-  --diff-del: #fca5a514;
-  --shadow-overlay: 0 20px 60px rgba(0, 0, 0, 0.6);
-  --focus-ring: var(--you-fill);
-  --control-border: var(--border-strong);
-}
-
-/* No JavaScript yet (or ever): follow the system. Applies only while <html> has no data-theme. */
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) {
-    color-scheme: light;
-    --bg: #faf9f6;
-    --bg-side: #f3f1ec;
-    --surface: #ffffff;
-    --surface-2: #eeebe4;
-    --border: #e2ded5;
-    --border-strong: #cfc9bc;
-    --text: #1c1917;
-    --text-muted: #6b645a;
-    --text-dim: #a8a196;
-    --grid: #1c19170a;
-    --agent: #6d28d9;
-    --agent-fill: #7c3aed;
-    --agent-ink: #ffffff;
-    --you: #c2410c;
-    --you-fill: #fb923c;
-    --you-ink: #1b0d00;
-    --you-tint: #fff4ea;
-    --you-line: #fdba74;
-    --you-text: #431407;
-    --attn: #be185d;
-    --attn-fill: #db2777;
-    --attn-ink: #ffffff;
-    --attn-tint: #fdf1f6;
-    --attn-line: #f9a8d4;
-    --ok: #047857;
-    --err: #dc2626;
-    --diff-add: #04785714;
-    --diff-del: #dc262614;
-    --shadow-overlay: 0 12px 40px rgba(28, 25, 23, 0.18);
-    --focus-ring: var(--you-fill);
-    --control-border: var(--border-strong);
-  }
-}
-
+```css
 :root,
 [data-density="compact"] {
   --size-ui: 13px;
@@ -964,21 +828,11 @@ Expected: FAIL (`presets.ts` values differ from the M1 file, `fonts.css` missing
   --motion-base: 0ms;
 }
 
-[data-motion="reduced"] .animate-indeterminate,
-[data-motion="none"] .animate-indeterminate {
-  animation: none;
-}
-
 @media (prefers-reduced-motion: reduce) {
   :root:not([data-motion]),
   [data-motion="system"] {
     --motion-fast: 0ms;
     --motion-base: 0ms;
-  }
-
-  :root:not([data-motion]) .animate-indeterminate,
-  [data-motion="system"] .animate-indeterminate {
-    animation: none;
   }
 }
 
@@ -992,6 +846,33 @@ Expected: FAIL (`presets.ts` values differ from the M1 file, `fonts.css` missing
 [data-grid="off"] {
   --grid: transparent;
 }
+```
+
+`packages/ui/src/utilities.css`:
+
+```css
+/* Night Control variants, utilities, keyframes and motion rules (DESIGN.md §4, §7). The variables they read are in
+   tokens.css; apps/web/src/styles.css imports both. */
+
+@custom-variant can-hover (@media (hover: hover));
+@custom-variant rail-right (&:where([data-rail="right"], [data-rail="right"] *));
+@custom-variant state-open (&[data-state="open"]);
+@custom-variant state-closed (&[data-state="closed"]);
+@custom-variant state-checked (&[data-state="checked"]);
+@custom-variant state-on (&[data-state="on"]);
+@custom-variant state-active (&[data-state="active"]);
+
+[data-motion="reduced"] .animate-indeterminate,
+[data-motion="none"] .animate-indeterminate {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .animate-indeterminate,
+  [data-motion="system"] .animate-indeterminate {
+    animation: none;
+  }
+}
 
 /* Orca theme swap (src/renderer/src/lib/document-theme.ts): no staggered fades while the theme changes. */
 .theme-swap,
@@ -1004,27 +885,11 @@ Expected: FAIL (`presets.ts` values differ from the M1 file, `fonts.css` missing
 html[data-keyboard-open] .pb-safe {
   padding-bottom: 0;
 }
+```
 
-@keyframes pap-indeterminate {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(300%);
-  }
-}
+followed by the two `@keyframes` (`pap-indeterminate`: `translateX(-100%)` → `translateX(300%)`; `pap-overlay-in`: `opacity: 0; transform: translateY(4px)` → `opacity: 1; transform: none`) and these utilities, each preceded by its one-line comment:
 
-@keyframes pap-overlay-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
+```css
 /* DESIGN.md §4 HUD label: mono 10.5 px, 600, 0.12em, upper case unless the owner turned it off. */
 @utility label-hud {
   font-family: var(--font-code);
@@ -1034,7 +899,7 @@ html[data-keyboard-open] .pb-safe {
   text-transform: var(--label-transform);
 }
 
-/* DESIGN.md §7.4. Never removed. */
+/* DESIGN.md §7.4 as amended by ADR 0012: the --focus-ring token. Never removed. */
 @utility focus-ring {
   &:focus-visible {
     outline: 2px solid var(--focus-ring);
@@ -1063,55 +928,11 @@ html[data-keyboard-open] .pb-safe {
 @utility max-h-app {
   max-height: var(--app-viewport-height, 100dvh);
 }
-
-@utility pt-safe {
-  padding-top: env(safe-area-inset-top, 0px);
-}
-
-@utility pb-safe {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
-}
-
-@utility pl-safe {
-  padding-left: env(safe-area-inset-left, 0px);
-}
-
-@utility pr-safe {
-  padding-right: env(safe-area-inset-right, 0px);
-}
-
-@utility duration-fast {
-  transition-duration: var(--motion-fast);
-}
-
-@utility duration-base {
-  transition-duration: var(--motion-base);
-}
-
-/* The one continuous animation DESIGN.md §7.2 allows: the running tool card's bar. Static under reduced motion. */
-@utility animate-indeterminate {
-  animation: pap-indeterminate 1.4s linear infinite;
-}
-
-@utility animate-overlay-in {
-  animation: pap-overlay-in var(--motion-base) ease-out;
-}
-
-@utility max-w-chat {
-  max-width: var(--chat-max-width);
-}
 ```
 
-`packages/ui/src/fonts.css`: the four `@font-face` rules of the deleted `apps/web/src/fonts.css`, unchanged except `src: url("../fonts/<file>.woff2") format("woff2");`, under the same header comment.
+then `pt-safe`, `pb-safe`, `pl-safe`, `pr-safe` (`padding-<side>: env(safe-area-inset-<side>, 0px)`), `duration-fast` / `duration-base` (`transition-duration: var(--motion-fast|base)`), `animate-indeterminate` (`animation: pap-indeterminate 1.4s linear infinite`, comment "The one continuous animation DESIGN.md §7.2 allows: the running tool card's bar. Static under reduced motion."), `animate-overlay-in` (`animation: pap-overlay-in var(--motion-base) ease-out`), `max-w-chat` (`max-width: var(--chat-max-width)`). (Tailwind compiles the `&:focus-visible` inside `@utility` to a flat selector; Task 1b's nesting check of the built CSS pins it.)
 
-`packages/ui/src/focus.ts`:
-
-```ts
-/** DESIGN.md §7.4: a 2 px solid --focus-ring (the you fill) outline, offset 2 px, on :focus-visible. Never removed. */
-export const FOCUS_RING = "focus-ring";
-```
-
-`packages/ui/package.json` `exports`: add `"./fonts.css": "./src/fonts.css"`.
+`packages/ui/package.json` `exports`: add `"./utilities.css": "./src/utilities.css"`.
 
 `packages/ui/src/index.ts`: append
 
@@ -1120,11 +941,250 @@ export { PRESET_TOKENS } from "./presets.ts";
 export { DENSITIES, THEME_TOKENS, THEMES, type Density, type ThemeName, type ThemeToken } from "./token-names.ts";
 ```
 
+- [ ] **Step 5: Amend DESIGN.md and write ADR 0012**
+
+`DESIGN.md` (sections §3 and §7.4 only; M2 edits §9, agreement 8):
+- §3.1 table: the `--attn` / `--attn-fill` / `--attn-ink` row becomes `` `#EC4899` / `#EC4899` / `#110F18` ``; add three rows after the `--border-strong` row and the `--attn-tint` row respectively: `` | `--control-border` | `#6B6485` | input and control borders (≥ 3:1, ADR 0012); `--border` stays a decorative hairline | ``, `` | `--focus-ring` | `#FB923C` (the you fill) | keyboard focus outline (§7.4) | ``, `` | `--attn-title` | `#F472B6` | approval card titles on the attention tint | ``; change `--border-strong`'s use to "card borders".
+- §3.2 table: add `` | `--control-border` / `--focus-ring` / `--attn-title` | `#8F877A` / `#EA580C` / `#BE185D` | ``.
+- §3.3 table: add `` | `--control-border` / `--focus-ring` / `--attn-title` / `--attn-ink` | `#8A8A8A` / `#FB923C` / `#F9A8D4` / `#110F18` | ``.
+- §7.4: "A 2 px solid `--focus-ring` outline with a 2 px offset on `:focus-visible`: the you fill in night and high contrast, `#EA580C` in day, where the fill reaches only 2.15:1 (ADR 0012). It is never removed."
+
+`docs/adr/0012-r120-contrast-amendment.md`:
+
+```markdown
+# ADR 0012 — contrast amendments to DESIGN.md (R120)
+
+Status: accepted · Date: 2026-10-11 · Spec: DESIGN.md §3, §7.4 (decision 33) · Rulings: R54, R120 · Owner decision: M3-Q1, option (b)
+
+DESIGN.md was validated by the owner. Measuring it against WCAG 2.x (1.4.11 non-text contrast ≥ 3:1, 1.4.3 text ≥ 4.5:1)
+found five places below the bar. The owner chose to amend DESIGN.md through this ADR.
+
+## Context
+
+- Day focus ring: the you fill `#FB923C` is 2.15:1 on the day background (2.26:1 on white), and R54 asks for it in both modes.
+- Control borders: day `--border-strong` `#CFC9BC` is 1.57:1 on bg, night `#3D3657` 1.69:1; input and control borders identify
+  the component under 1.4.11.
+- Night approval title: `#EC4899` on the attention tint over a surface card is 4.48:1.
+- Attention ink: `#FFFFFF` on `#EC4899` (night, high contrast) is 3.53:1, and badge counts are small text.
+
+## Decision
+
+- `--focus-ring` is a theme token: the you fill in night and high contrast, `#EA580C` in day (3.38:1 on bg, 3.56:1 on white).
+- `--control-border` is a theme token for inputs and controls: day `#8F877A` (3.37:1 / 3.55:1), night `#6B6485` (3.43:1 /
+  3.18:1), high contrast `#8A8A8A`. The hairline `--border` stays decorative.
+- `--attn-title` colours approval titles: night `#F472B6` (5.96:1 on its card), day and high contrast their `--attn`.
+- `--attn-ink` is `#110F18` on pink fills in night and high contrast (5.39:1); day keeps `#FFFFFF` (4.6:1 on `#DB2777`).
+
+## Consequences
+
+The three new names are theme tokens: presets, custom-theme derivation (DESIGN §13.2, Task 13) and the boot cache carry them.
+`packages/ui/src/tokens.test.ts` asserts every value and its ratio, and the ratios this ADR quotes. DESIGN.md §3 and §7.4 carry
+the new values.
+```
+
+- [ ] **Step 6: Run the tests**
+
+Run: `pnpm test:unit packages/ui && pnpm lint`
+Expected: PASS (`pnpm lint` passes with `presets.ts` holding hex strings because of the new `ignores` entry; remove it once to see `pap/no-raw-colors` report it, then restore).
+
+- [ ] **Step 7: Commit**
+
+```bash
+pnpm format
+git add packages/ui eslint.config.js DESIGN.md docs/adr/0012-r120-contrast-amendment.md
+git commit -m "feat(ui): DESIGN.md tokens in three themes and densities, with the ADR 0012 contrast amendment"
+```
+
+---
+
+### Task 1b: Fonts in `packages/ui`, the web stylesheet, the Tailwind compile helper and the token-class tests
+
+**Files:**
+- Modify: `packages/ui/src/focus.ts`, `packages/ui/package.json` (export `./fonts.css`), `packages/ui/src/primitives/Button.test.tsx`, `packages/ui/src/primitives/TextField.test.tsx` (focus-ring expectations only), `packages/ui/src/tokens.test.ts` (font files)
+- Create: `packages/ui/src/fonts.css`
+- Move: `apps/web/src/fonts/*` → `packages/ui/fonts/` (`git mv`), delete `apps/web/src/fonts.css`
+- Modify: `apps/web/src/styles.css`, `apps/web/src/build-output.int.test.ts` (no native nesting)
+- Create: `scripts/tailwind-compile.ts`, `scripts/token-classes.test.ts`
+- Modify: root `package.json`, `pnpm-lock.yaml` (`@tailwindcss/node` pinned to the `tailwindcss` version, 4.3.3)
+
+**Interfaces:**
+- Consumes: Task 1a.
+- Produces:
+  - `FOCUS_RING = "focus-ring"` (same export, new value).
+  - `@pap/ui/fonts.css` export.
+  - `scripts/tailwind-compile.ts`: `compileStyles(): Promise<(candidates: readonly string[]) => string>`, `escapeClass(name: string): string`, `classRule(className: string): RegExp`, `ruleOf(css: string, className: string): string`.
+
+**Rulings (pre-dispatch):**
+- Tailwind 4.3.3 is expected to resolve named `--spacing-*` keys (`p-s3`, `w-drawer-tree`). If the compile test shows it does not, the fallback is one `@utility` per spacing class the later tasks name in their Interfaces, appended to `utilities.css`; the test list stays as is. Whether the fallback is needed can only be discovered during implementation. [M3R7]
+- Safari 16.4 CSP for the WebSocket (R118) is not checked in M3 (no browser, owner C1); the existing `ws: true` and fonts-as-files tests stay green through the font move. [M3R8]
+
+- [ ] **Step 1: Pin `@tailwindcss/node` and move the fonts**
+
+Run:
+```bash
+pnpm add -Dw -E @tailwindcss/node@4.3.3
+git mv apps/web/src/fonts packages/ui/fonts
+git rm apps/web/src/fonts.css
+```
+Expected: `package.json` gains `"@tailwindcss/node": "4.3.3"`; `packages/ui/fonts/` holds the four woff2 files and both OFL texts.
+
+- [ ] **Step 2: Write the failing tests**
+
+Append to `packages/ui/src/tokens.test.ts` inside "motion, labels and fonts" (and read `fonts.css` at the top: `const fonts = readFileSync(new URL("./fonts.css", import.meta.url), "utf8");`, plus `existsSync` in the `node:fs` import):
+
+```ts
+  it("serves its own woff2 files", () => {
+    expect(fonts).not.toMatch(/https?:\/\//);
+    expect(fonts).toContain("font-display: swap");
+    const files = [...fonts.matchAll(/url\("([^"]+)"\)/g)].map((match) => match[1] ?? "");
+    expect(files).toHaveLength(4);
+    for (const file of files) expect(existsSync(new URL(file, new URL("./fonts.css", import.meta.url))), file).toBe(true);
+  });
+```
+
+`scripts/tailwind-compile.ts`:
+
+```ts
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { compile } from "@tailwindcss/node";
+
+const REPO = fileURLToPath(new URL("..", import.meta.url));
+export const STYLES = join(REPO, "apps/web/src/styles.css");
+
+/** Tailwind's selector escaping for a class name: every character outside [A-Za-z0-9_-] gets a backslash. */
+export const escapeClass = (name: string): string => name.replace(/[^A-Za-z0-9_-]/g, (ch) => `\\${ch}`);
+
+/**
+ * The web app's real stylesheet (Tailwind, @pap/ui tokens, utilities and fonts), compiled fresh: the returned
+ * function builds the CSS for exactly the classes given. A fresh compiler per call keeps one test's classes out of
+ * another's output.
+ */
+export async function compileStyles(): Promise<(candidates: readonly string[]) => string> {
+  const compiler = await compile(readFileSync(STYLES, "utf8"), { base: dirname(STYLES), onDependency: () => {} });
+  return (candidates) => compiler.build([...candidates]);
+}
+
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * A rule whose selector starts with exactly this class (M3-RT-03): `.bg-surface` is not found inside `.bg-surface-2`,
+ * `.w-` not inside `.w-full`, and `html[data-keyboard-open] .pb-safe` is not the `pb-safe` utility. A selector may
+ * also start after `(` or `,` (`:where(.space-y-2 > …)`, selector lists).
+ */
+export const classRule = (className: string): RegExp =>
+  new RegExp(`(?:^|[{};(,])\\s*\\.${escapeRegExp(escapeClass(className))}(?![\\w\\\\-])`);
+
+/** The text from a class's selector to the end of its rule, or "" when the CSS has no rule for exactly that class. */
+export function ruleOf(css: string, className: string): string {
+  const match = classRule(className).exec(css);
+  if (!match) return "";
+  const at = match.index + match[0].indexOf(".");
+  return css.slice(at, css.indexOf("}", at) + 1);
+}
+```
+
+(`@tailwindcss/node`'s `compile` signature and the shape of its options: verify against the pinned `.d.ts`; `onDependency` is required in 4.x.)
+
+`scripts/token-classes.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { compileStyles, ruleOf } from "./tailwind-compile.ts";
+
+async function rule(className: string): Promise<string> {
+  const build = await compileStyles();
+  return ruleOf(build([className]), className);
+}
+
+describe("the token utilities compile to the DESIGN.md variables", () => {
+  it.each([
+    ["bg-surface-2", "var(--surface-2)"],
+    ["text-fg", "var(--text)"],
+    ["text-muted", "var(--text-muted)"],
+    ["bg-you-fill", "var(--you-fill)"],
+    ["text-agent-ink", "var(--agent-ink)"],
+    ["border-control-border", "var(--control-border)"],
+    ["text-attn-title", "var(--attn-title)"],
+    ["bg-panel", "var(--surface)"],
+    ["text-attention", "var(--attn)"],
+    ["p-s3", "var(--space-3)"],
+    ["gap-s1", "var(--space-1)"],
+    ["h-control", "var(--control-h)"],
+    ["w-rail", "var(--rail-w)"],
+    ["size-avatar", "var(--avatar-size)"],
+    ["w-drawer-tree", "18.75rem"],
+    ["min-w-pane", "20rem"],
+    ["text-ui", "var(--size-ui)"],
+    ["label-hud", "var(--label-transform)"],
+    ["shadow-overlay", "var(--shadow-overlay)"],
+    ["bg-grid", "var(--grid-size)"],
+    ["h-app", "var(--app-viewport-height, 100dvh)"],
+    ["pb-safe", "env(safe-area-inset-bottom"],
+    ["duration-fast", "var(--motion-fast)"],
+    ["max-w-chat", "var(--chat-max-width)"],
+    ["rounded-sm", "2px"],
+    ["rounded-md", "3px"],
+  ])("%s → %s", async (className, expected) => {
+    expect(await rule(className)).toContain(expected);
+  });
+
+  it("draws the focus ring on :focus-visible with the focus token", async () => {
+    const css = (await compileStyles())(["focus-ring"]);
+    expect(css).toMatch(/focus-visible/);
+    expect(css).toContain("outline: 2px solid var(--focus-ring)");
+    expect(css).toContain("outline-offset: 2px");
+  });
+
+  it("knows the state, hover and rail variants", async () => {
+    const build = await compileStyles();
+    expect(build(["state-open:opacity-100"])).toContain('[data-state="open"]');
+    expect(build(["state-checked:bg-agent-fill"])).toContain('[data-state="checked"]');
+    expect(build(["can-hover:hover:bg-surface-2"])).toContain("@media (hover: hover)");
+    expect(build(["rail-right:flex-row-reverse"])).toContain('[data-rail="right"]');
+  });
+
+  it("compiles nothing for a default palette colour, and finds a rule by exact class only", async () => {
+    expect(await rule("bg-red-500")).toBe("");
+    expect(ruleOf(".bg-surface-2 { x: 1; }", "bg-surface")).toBe("");
+    expect(ruleOf("html[data-keyboard-open] .pb-safe { padding-bottom: 0; }", "pb-safe")).toBe("");
+  });
+});
+```
+
+Add to `apps/web/src/build-output.int.test.ts`, inside the existing `describe`:
+
+```ts
+  it("ships CSS without native nesting, which Safari 16.4 cannot read", () => {
+    expect(css).not.toMatch(/(^|[{;\s])&[:.[\s>+~]/);
+  });
+```
+
+- [ ] **Step 3: Run them to see them fail**
+
+Run: `pnpm test:unit packages/ui/src/tokens.test.ts scripts/token-classes.test.ts`
+Expected: FAIL (`fonts.css` missing, `label-hud` produces no rule while `styles.css` does not import `utilities.css`).
+
+- [ ] **Step 4: Implement**
+
+`packages/ui/src/fonts.css`: the four `@font-face` rules of the deleted `apps/web/src/fonts.css`, unchanged except `src: url("../fonts/<file>.woff2") format("woff2");`, under the same header comment.
+
+`packages/ui/package.json` `exports`: add `"./fonts.css": "./src/fonts.css"`.
+
+`packages/ui/src/focus.ts`:
+
+```ts
+/** DESIGN.md §7.4 with ADR 0012: a 2 px solid --focus-ring outline, offset 2 px, on :focus-visible. Never removed. */
+export const FOCUS_RING = "focus-ring";
+```
+
 `apps/web/src/styles.css`:
 
 ```css
 @import "tailwindcss";
 @import "@pap/ui/tokens.css";
+@import "@pap/ui/utilities.css";
 @import "@pap/ui/fonts.css";
 @source "../../../packages/ui/src";
 
@@ -1141,32 +1201,24 @@ body {
 
 In `Button.test.tsx` and `TextField.test.tsx`, replace the three `focus-visible:…` expectations of the focus-ring cases with `expect(html).toContain("focus-ring")` (the rule itself is pinned by `token-classes.test.ts`).
 
-In `apps/web/src/build-output.int.test.ts` add, inside the existing `describe`:
-
-```ts
-  it("ships CSS without native nesting, which Safari 16.4 cannot read", () => {
-    expect(css).not.toMatch(/(^|[{;\s])&[:.[\s>+~]/);
-  });
-```
-
-- [ ] **Step 6: Run the tests**
+- [ ] **Step 5: Run the tests**
 
 Run: `pnpm test:unit packages/ui scripts/token-classes.test.ts && pnpm test:int apps/web/src/build-output.int.test.ts`
-Expected: PASS. If `p-s3` or `w-drawer-tree` compile to nothing (Tailwind not resolving a named spacing key), replace the `--spacing-*` names by explicit utilities (`@utility p-s3 { padding: var(--space-3); }` style) for each spacing utility the later tasks name in their Interfaces, and keep the test list as is.
+Expected: PASS. If `p-s3` or `w-drawer-tree` compile to nothing, apply ruling M3R7's fallback and keep the test list as is. If the initial bundle crosses `budgets.json`, apply the provisional-budget rule (Global Constraints).
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 pnpm format
 git add packages/ui apps/web/src/styles.css apps/web/src/build-output.int.test.ts scripts/tailwind-compile.ts scripts/token-classes.test.ts package.json pnpm-lock.yaml
-git commit -m "feat(ui): DESIGN.md tokens with night, day and high-contrast themes and three densities"
+git commit -m "feat(ui): self-hosted fonts in packages/ui, the token utilities in the web stylesheet, compile tests"
 ```
 
 ---
 
 ### Task 2: Design-system gates — no native `title`, no unknown classes, the React Compiler on `@pap/ui`
 
-Three gates make "design-system lint clean on every screen" checkable without a browser: an ESLint rule against the native `title` attribute (T3: `oxlint-plugin-t3code/rules/no-native-title-tooltip.ts`), a class-coverage test that fails on any class Tailwind cannot generate (T3: `shadcn/no-unknown-classes`; Orca: `config/oxlint-dead-classes.json`), and a React Compiler gate (R122, R128) so no component silently loses memoization.
+Three gates make "design-system lint clean on every screen" checkable without a browser (owner C1: in M3 they are the whole check; the runtime browser checks are deferred): an ESLint rule against the native `title` attribute (T3: `oxlint-plugin-t3code/rules/no-native-title-tooltip.ts`), a class-coverage test that fails on any class Tailwind cannot generate (T3: `shadcn/no-unknown-classes`; Orca: `config/oxlint-dead-classes.json`), and a React Compiler gate (R122, R128) so no component silently loses memoization.
 
 **Files:**
 - Modify: `eslint/pap-plugin.js`, `eslint/pap-plugin.test.js`, `eslint.config.js`
@@ -1174,10 +1226,14 @@ Three gates make "design-system lint clean on every screen" checkable without a 
 - Create: `apps/web/src/compiler-gate.test.ts`, `apps/web/src/compiler-pipeline.int.test.ts`
 
 **Interfaces:**
-- Consumes: `compileStyles`, `escapeClass` (Task 1).
-- Produces: rule `pap/no-native-title`; `classCandidates(file: string, text: string): Candidate[]`, `unknownClasses(root: string, files?: readonly string[]): Promise<Candidate[]>` with `interface Candidate { className: string; file: string; line: number }`; the two compiler tests.
+- Consumes: `compileStyles`, `classRule` (Task 1b).
+- Produces: rule `pap/no-native-title`; `classCandidates(file: string, text: string): Candidate[]`, `unknownClasses(root: string, files?: ReadonlyArray<{ file: string; text: string }>): Promise<Candidate[]>` with `interface Candidate { className: string; file: string; line: number }`; `M2_OWNED_UNTIL_P7`; the two compiler tests.
 
-**Risks / rulings needed:** The class-coverage gate only reads `className`, `cn()` and UPPER_CASE class constants (plan convention); findings in M2-owned files go to P7 instead of being fixed here: confirm.
+**Rulings (pre-dispatch):**
+- The class-coverage gate reads only `className`, `cn()` and UPPER_CASE class constants (plan convention). [M3R9]
+- A class counts as known only when the compiled CSS has a rule whose selector starts with exactly that class (`classRule`, M3-RT-03); a substring never counts. [M3R10]
+- Both scans (this task and Task 3's literal gate) skip `apps/web/src/features/sessions/` until post-merge task P7, which removes the exclusion and fixes what it finds; a red gate with "do not fix" would block the task (M3-RT-24). [M3R11]
+- The compiler gate passes the Babel plugin as an imported function, never by name (Babel resolves names from the repository root, where the plugin is not installed: M3-RT-04). [M3R12]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1201,7 +1257,7 @@ tester.run("no-native-title", pap.rules["no-native-title"], {
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { classCandidates, unknownClasses } from "./class-coverage.ts";
+import { classCandidates, M2_OWNED_UNTIL_P7, unknownClasses } from "./class-coverage.ts";
 import { fileURLToPath } from "node:url";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
@@ -1234,6 +1290,17 @@ describe("class coverage", () => {
     const unknown = await unknownClasses(REPO, files);
     expect(unknown.map((c) => c.className).sort()).toEqual(["bg-surfce", "w-"]);
   });
+
+  it("reports a fragment or a truncated name even when a longer class compiles next to it (M3-RT-03)", async () => {
+    const files = [{ file: "fixture.tsx", text: 'const a = <b className={`w-full w-${n}`} />; const b = <i className="text-muted text-mut bg-surface-2 bg-surfac" />;' }];
+    const unknown = await unknownClasses(REPO, files);
+    expect(unknown.map((c) => c.className).sort()).toEqual(["bg-surfac", "text-mut", "w-"]);
+  });
+
+  it("leaves M2's session screens to post-merge task P7", () => {
+    expect(M2_OWNED_UNTIL_P7.test("apps/web/src/features/sessions/SessionScreen.tsx")).toBe(true);
+    expect(M2_OWNED_UNTIL_P7.test("apps/web/src/features/auth/LoginScreen.tsx")).toBe(false);
+  });
 });
 ```
 
@@ -1243,6 +1310,7 @@ describe("class coverage", () => {
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { transformAsync } from "@babel/core";
+import reactCompiler from "babel-plugin-react-compiler";
 import { describe, expect, it } from "vitest";
 
 // R122 / R128: the React Compiler skips a component it cannot prove safe without saying so. Every component file
@@ -1271,7 +1339,8 @@ async function compilerEvents(path: string): Promise<CompilerEvent[]> {
     babelrc: false,
     configFile: false,
     parserOpts: { plugins: ["typescript", "jsx"] },
-    plugins: [["babel-plugin-react-compiler", { panicThreshold: "none", logger: { logEvent: (_file: string | null, event: CompilerEvent) => events.push(event) } }]],
+    // The plugin itself, not its name: Babel would resolve a name from the repository root (M3-RT-04).
+    plugins: [[reactCompiler, { panicThreshold: "none", logger: { logEvent: (_file: string | null, event: CompilerEvent) => events.push(event) } }]],
   });
   return events;
 }
@@ -1324,7 +1393,7 @@ describe("the web build runs the React Compiler on @pap/ui", () => {
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `pnpm test:unit eslint scripts/class-coverage.test.ts apps/web/src/compiler-gate.test.ts && pnpm test:int apps/web/src/compiler-pipeline.int.test.ts`
-Expected: FAIL (rule and module missing). The compiler tests may already pass: that is the expected state of M1 code (R122 was applied); keep them as a gate.
+Expected: FAIL (rule and module missing). The compiler tests may already pass: that is the expected state of M1 code (R122 was applied); keep them as a gate. (The default export of `babel-plugin-react-compiler` is the plugin function: verify against the pinned `.d.ts`; if the package exposes it under another name, import that one. `babel-plugin-react-compiler` and `@babel/core` are devDependencies of `apps/web`, which is where this test lives.)
 
 - [ ] **Step 3: Implement**
 
@@ -1365,7 +1434,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import ts from "typescript";
-import { compileStyles, escapeClass } from "./tailwind-compile.ts";
+import { classRule, compileStyles } from "./tailwind-compile.ts";
 
 export interface Candidate {
   readonly className: string;
@@ -1379,6 +1448,8 @@ const CLASS_CONSTANT = /^[A-Z][A-Z0-9_]*(?:CLASSES|VARIANTS|SIZES|TONES|STYLE|RI
 const NOT_UTILITIES = /^(?:group|peer)(?:\/[\w-]+)?$/;
 const PLAIN_CLASSES = new Set(["theme-swap"]);
 const SCANNED = /^(?:packages\/ui\/src|apps\/web\/src)\/.*\.tsx?$/;
+/** M2's folder: scanned by post-merge task P7, which deletes this exclusion (M3-RT-24). */
+export const M2_OWNED_UNTIL_P7 = /^apps\/web\/src\/features\/sessions\//;
 
 export function classCandidates(file: string, text: string): Candidate[] {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
@@ -1425,16 +1496,16 @@ function trackedSources(root: string): Array<{ file: string; text: string }> {
   // Tracked and new (untracked, not ignored) files: a task's own new files are checked before its commit.
   return execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" })
     .split("\0")
-    .filter((file) => SCANNED.test(file) && !file.includes(".test.") && !file.includes("/testing/") && existsSync(join(root, file)))
+    .filter((file) => SCANNED.test(file) && !M2_OWNED_UNTIL_P7.test(file) && !file.includes(".test.") && !file.includes("/testing/") && existsSync(join(root, file)))
     .map((file) => ({ file, text: readFileSync(join(root, file), "utf8") }));
 }
 
 /** Classes used in the UI code that Tailwind and tokens.css do not generate (typos, stale names, dynamic fragments). */
-export async function unknownClasses(root: string, files = trackedSources(root)): Promise<Candidate[]> {
+export async function unknownClasses(root: string, files: ReadonlyArray<{ file: string; text: string }> = trackedSources(root)): Promise<Candidate[]> {
   const candidates = files.flatMap(({ file, text }) => classCandidates(file, text));
   const build = await compileStyles();
   const css = build([...new Set(candidates.map((c) => c.className))]);
-  return candidates.filter((c) => !css.includes(`.${escapeClass(c.className)}`));
+  return candidates.filter((c) => !classRule(c.className).test(css));
 }
 ```
 
@@ -1443,7 +1514,7 @@ Add `scripts/class-coverage.ts` nothing to `knip.json` (the root workspace entry
 - [ ] **Step 4: Run the tests and fix what they find in existing code**
 
 Run: `pnpm test:unit eslint scripts/class-coverage.test.ts apps/web/src/compiler-gate.test.ts && pnpm test:int apps/web/src/compiler-pipeline.int.test.ts && pnpm lint`
-Expected: PASS. Mutation checks (the gates must be seen failing): add a temporary `packages/ui/src/probe.tsx` component that reads `ref.current` during render → the compiler gate names it; add `className="bg-surfce"` to it → class coverage names it; add `<span title="x">` → `pnpm lint` reports `pap/no-native-title`; delete the probe. If class coverage reports classes in M1 code, fix them in files M3 owns; for M2-owned files (`apps/web/src/features/sessions/**`) record the finding in the commit body and add it to post-merge task P7 instead of editing the file. If the pipeline test fails because the Babel plugin skips files outside `apps/web`, pass the plugin an explicit include covering `packages/ui/src` (see `@rolldown/plugin-babel`'s options in its `.d.ts`) and add `expect(...)` on that option in `apps/web/src/vite-config.test.ts`.
+Expected: PASS. Mutation checks (the gates must be seen failing): add a temporary `packages/ui/src/probe.tsx` component that reads `ref.current` during render → the compiler gate names it; add `className="bg-surfce"` to it → class coverage names it; add `<span title="x">` → `pnpm lint` reports `pap/no-native-title`; replace `classRule(...).test(css)` by `css.includes(...)` once → the M3-RT-03 case fails; delete the probe. If class coverage reports classes in M1 code, fix them in files M3 owns (M2's `features/sessions` is excluded until P7). If the pipeline test fails because the Babel plugin skips files outside `apps/web`, pass the plugin an explicit include covering `packages/ui/src` (see `@rolldown/plugin-babel`'s options in its `.d.ts`) and add `expect(...)` on that option in `apps/web/src/vite-config.test.ts`.
 
 - [ ] **Step 5: Commit**
 
@@ -1469,13 +1540,17 @@ The M1 `t()` reads a module variable, so a component the React Compiler memoized
 - Consumes: the existing catalog types (`MessageKey`, `Locale`, `translate`, `t`, `errorKey`).
 - Produces:
   - `getLocale(): Locale`, `onLocaleChange(listener: () => void): () => void`, `useLocale(): Locale`, `type Translate = (key: MessageKey, vars?: Record<string, string | number>) => string`, `useT(): Translate`, `switchLocale(locale: Locale, deps?: { storage?: Pick<Storage, "setItem">; root?: HTMLElement }): boolean` (false when the browser refused to store the choice: the caller says so on screen); `setLocale` now notifies listeners.
-  - `type ClientIssue = "storage_refused" | "boot_cache_refused" | "appearance_boot_failed" | "setting_load_failed" | "setting_save_failed" | "keybindings_invalid" | "sessions_list_failed"`, `reportClientIssue(code: ClientIssue, deps?: { warn?(line: string): void; now?(): number }): void` — one `console.warn("pap: <code>")` per code per 10 s, nothing else in the line (no user data). Every client-side `catch` in M3 code either maps the failure to something the screen shows or calls this (checklist: errors are never silent).
+  - `type ClientIssue = "storage_refused" | "boot_cache_refused" | "appearance_boot_failed" | "setting_load_failed" | "setting_save_failed" | "keybindings_invalid" | "sessions_list_failed" | "lazy_chunk_failed"`, `reportClientIssue(code: ClientIssue, deps?: { warn?(line: string): void; now?(): number }): void` — one `console.warn("pap: <code>")` per code per 10 s, nothing else in the line (no user data). Every client-side `catch` in M3 code either maps the failure to something the screen shows or calls this (checklist: errors are never silent).
   - Boundary element `web-lib` (`apps/web/src/lib`): may import `web-lib`, `web-runtime`, `contracts`; `web-feature`, `web-routes`, `web-root` and `web-i18n` may import it.
   - Namespace catalogs, each `export const <ns>En = {…} as const; export const <ns>Fr: { readonly [K in keyof typeof <ns>En]: string } = {…};` — later tasks append keys under their prefix: `shell.*`, `settings.*`, `commands.*`, `gallery.*`, `ui.*` (in `shell.ts`), `server.*` (in `shell.ts`).
   - `serverText(text: string, locale?: Locale): string`.
   - `checkLiterals(root: string): Literal[]`, `literalsIn(file: string, text: string): Literal[]` with `interface Literal { file: string; line: number; text: string }`.
 
-**Risks / rulings needed:** `IDENTICAL_IN_FR` names keys later tasks create (harmless before they exist). The catalog spreads leave M2's `sessions.*` block untouched. None.
+**Rulings (pre-dispatch):**
+- `IDENTICAL_IN_FR` names keys later tasks create (harmless before they exist). M2 adds no key whose French equals the English (agreement 4: "Pour la session", "{index} sur {total}"); the rebase re-runs `i18n.test.ts` and P7 adds any identical M2 key with a reason. [M3R13]
+- The catalog spreads leave M2's `sessions.*` block untouched; M2 keeps all its keys inside its own delimited block (agreement 4). [M3R14]
+- The language stays per device (`pap.locale` in `localStorage`, owner R3-3); it is not an account setting. [M3R15]
+- The literal gate skips `apps/web/src/features/sessions/` until P7, like the class gate (M3R11). [M3R11]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1776,7 +1851,8 @@ export type ClientIssue =
   | "setting_load_failed"
   | "setting_save_failed"
   | "keybindings_invalid"
-  | "sessions_list_failed";
+  | "sessions_list_failed"
+  | "lazy_chunk_failed";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.
@@ -1815,7 +1891,8 @@ const LABEL_ATTRIBUTES = new Set(["aria-label", "aria-description", "placeholder
 const LETTER = /\p{L}/u;
 // The gallery shows sample content (data, not UI text); tests and test helpers are not shipped.
 const SCANNED = /^(?:packages\/ui\/src|apps\/web\/src)\/.*\.tsx$/;
-const SKIPPED = /\.test\.|\/testing\/|^apps\/web\/src\/gallery\//;
+// M2's folder waits for post-merge task P7, which deletes that alternative (M3-RT-24).
+const SKIPPED = /\.test\.|\/testing\/|^apps\/web\/src\/gallery\/|^apps\/web\/src\/features\/sessions\//;
 
 export function literalsIn(file: string, text: string): Literal[] {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
@@ -1851,7 +1928,7 @@ export function checkLiterals(root: string): Literal[] {
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm test:unit apps/web/src/i18n apps/web/src/lib scripts/literal-coverage.test.ts && pnpm typecheck && pnpm lint`
-Expected: PASS. A literal found in an M2-owned file goes to P7 (commit body), not to the allowlist.
+Expected: PASS. M2's folder is skipped until P7; a literal anywhere else is fixed through the i18n layer, never allowlisted without a reason.
 
 - [ ] **Step 5: Commit**
 
@@ -1870,22 +1947,26 @@ All primitives follow DESIGN.md §9.1: Radix underneath (`radix-ui`, unified pac
 
 **Files:**
 - Create: `packages/ui/src/icons.ts`, `packages/ui/src/primitives/Icon.tsx`, `packages/ui/src/primitives/Spinner.tsx`, `packages/ui/src/primitives/ProgressBar.tsx`, `packages/ui/src/primitives/ProgressBar.test.tsx`, `packages/ui/src/feedback.ts`, `packages/ui/src/feedback.test.tsx`, `packages/ui/src/format.ts`, `packages/ui/src/format.test.ts`, `packages/ui/src/testing/dom.ts`
-- Modify: `packages/ui/src/tokens.css` (reduced motion stops `animate-spin` too), `packages/ui/src/tokens.test.ts`, `packages/ui/package.json` (`lucide-react`), `packages/ui/src/index.ts`
+- Modify: `packages/ui/src/utilities.css` (reduced motion stops `animate-spin` too), `packages/ui/src/tokens.test.ts`, `packages/ui/package.json` (`lucide-react`), `packages/ui/src/index.ts`
 
 **Interfaces:**
-- Consumes: Task 1 utilities.
+- Consumes: Task 1a utilities.
 - Produces:
   - `Icon({ icon: IconGlyph; size?: 14 | 16 | 20 | 28; label?: string })`, `type IconGlyph`, and the curated glyphs `IconAccount, IconAgents, IconAppearance, IconBack, IconCheck, IconChevronDown, IconChevronLeft, IconChevronRight, IconClose, IconCopy, IconDot, IconExport, IconHourglass, IconImport, IconInbox, IconKeyboard, IconLanguage, IconLists, IconMore, IconPlus, IconSearch, IconSettings, IconSignOut, IconSpinner, IconSplit, IconTree, IconUndo, IconWarning, IconWork`.
   - `Spinner({ label?: string })`, `ProgressBar({ value?: number | null; max?: number; label: string; tone?: "agent" | "you" })`.
   - `type FeedbackPhase = "idle" | "quiet" | "disabled" | "spinner" | "stage"`, `feedbackPhase(elapsedMs: number | null, remote: boolean): FeedbackPhase`, `usePendingFeedback(since: number | null, options?: { remote?: boolean; clock?: { now(): number } }): FeedbackPhase`, `usePendingAction(clock?): { since: number | null; run<T>(action: () => Promise<T>): Promise<T | undefined> }`.
   - `formatCost(usd: number): string`, `formatDuration(ms: number): string`, `formatDiffCounts(added: number, removed: number): string`.
 
-**Risks / rulings needed:** lucide-react names differ across versions (renaming allowed, `Icon*` aliases fixed). A spinner turns while visible: DESIGN §7.2 "nothing repaints continuously" is read as "no idle animation"; the 1–3 s spinner of §7.3 is bounded by the action and stops under reduced motion: ruling wanted.
+**Rulings (pre-dispatch):**
+- lucide-react names differ across versions: the `Icon*` aliases are the stable API; the upstream name may change to whatever the pinned version calls it. [M3R16]
+- A spinner turns while visible: DESIGN §7.2 "nothing repaints continuously" is read as "no idle animation"; the 1–3 s spinner of §7.3 is bounded by the action and is static under reduced motion. [M3R17]
+- `lucide-react` is a dependency of `@pap/ui` only: the web app imports `IconGlyph` and the glyphs from `@pap/ui` (a web dependency would be unused for knip, M3-RT-25). [M3R18]
+- Number formats and the progress bar never print `NaN` or report a value outside their range (M3-RT-38). [M3R19]
 
 - [ ] **Step 1: Add lucide-react**
 
-Run: `pnpm --filter @pap/ui add -E lucide-react && pnpm --filter @pap/web add -E lucide-react`
-(The web app needs it too only for the `IconGlyph` type in props it builds; both pins must be the same version.)
+Run: `pnpm --filter @pap/ui add -E lucide-react`
+(Only `@pap/ui` depends on it; the web app imports `IconGlyph` and every glyph through `@pap/ui`.)
 
 - [ ] **Step 2: Write the failing tests**
 
@@ -1968,9 +2049,10 @@ import { formatCost, formatDiffCounts, formatDuration } from "./format.ts";
 describe("number formats (DESIGN.md §11)", () => {
   it("writes costs as $0.00", () => {
     expect([formatCost(0), formatCost(1.234), formatCost(0.005), formatCost(-1)]).toEqual(["$0.00", "$1.23", "$0.01", "$0.00"]);
+    expect([formatCost(Number.NaN), formatCost(Number.POSITIVE_INFINITY)]).toEqual(["$0.00", "$0.00"]);
   });
   it("writes durations as 00:07 under a minute, 3m40 above, 1h05 above an hour", () => {
-    expect([formatDuration(7_000), formatDuration(220_000), formatDuration(3_900_000), formatDuration(-5)]).toEqual(["00:07", "3m40", "1h05", "00:00"]);
+    expect([formatDuration(7_000), formatDuration(220_000), formatDuration(3_900_000), formatDuration(-5), formatDuration(Number.NaN)]).toEqual(["00:07", "3m40", "1h05", "00:00", "00:00"]);
   });
   it("writes diff counts with a true minus sign", () => {
     expect(formatDiffCounts(214, 38)).toBe("+214 −38");
@@ -1988,7 +2070,7 @@ import { ProgressBar } from "./ProgressBar.tsx";
 describe("ProgressBar", () => {
   it("is determinate with a value, clamped to its range", () => {
     const html = renderToStaticMarkup(<ProgressBar value={150} max={100} label="Budget" />);
-    expect(html).toContain('aria-valuenow="150"');
+    expect(html).toContain('aria-valuenow="100"');
     expect(html).toContain("width:100%");
   });
   it("is the thin indeterminate bar without one (the running tool card)", () => {
@@ -2003,8 +2085,8 @@ Append to `packages/ui/src/tokens.test.ts` inside "motion, labels and fonts":
 
 ```ts
   it("stops spinners as well as the indeterminate bar under reduced motion", () => {
-    expect(css).toContain('[data-motion="none"] .animate-spin');
-    expect(css).toContain('[data-motion="system"] .animate-spin');
+    expect(utilities).toContain('[data-motion="none"] .animate-spin');
+    expect(utilities).toContain('[data-motion="system"] .animate-spin');
   });
 ```
 
@@ -2090,12 +2172,13 @@ export function usePendingAction(clock: { now(): number } = PERFORMANCE_CLOCK): 
 ```ts
 /** DESIGN.md §11: costs as $0.00 (the caller labels provider cost or API-equivalent). */
 export function formatCost(usd: number): string {
-  return `$${Math.max(0, Math.round(usd * 100) / 100).toFixed(2)}`;
+  const value = Number.isFinite(usd) ? usd : 0;
+  return `$${Math.max(0, Math.round(value * 100) / 100).toFixed(2)}`;
 }
 
 /** DESIGN.md §11: 00:07 under a minute, 3m40 under an hour, 1h05 above. */
 export function formatDuration(ms: number): string {
-  const total = Math.max(0, Math.round(ms / 1000));
+  const total = Number.isFinite(ms) ? Math.max(0, Math.round(ms / 1000)) : 0;
   if (total < 60) return `00:${String(total).padStart(2, "0")}`;
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
@@ -2211,16 +2294,17 @@ export function ProgressBar({ value = null, max = 100, label, tone = "agent" }: 
       </div>
     );
   }
-  const percent = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
+  const now = Number.isFinite(value) ? Math.min(max, Math.max(0, value)) : 0;
+  const percent = max > 0 ? (now / max) * 100 : 0;
   return (
-    <div data-slot="progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} className="h-0.5 w-full bg-surface-2">
+    <div data-slot="progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={now} className="h-0.5 w-full bg-surface-2">
       <div className={cn("h-full", TONES[tone])} style={{ width: `${percent}%` }} />
     </div>
   );
 }
 ```
 
-In `packages/ui/src/tokens.css`, extend both reduced-motion selector lists that stop `.animate-indeterminate` with the same selectors for `.animate-spin` (e.g. `[data-motion="reduced"] .animate-indeterminate, [data-motion="none"] .animate-indeterminate, [data-motion="reduced"] .animate-spin, [data-motion="none"] .animate-spin { animation: none; }`, and the same inside the `prefers-reduced-motion` block).
+In `packages/ui/src/utilities.css`, extend both reduced-motion selector lists that stop `.animate-indeterminate` with the same selectors for `.animate-spin` (e.g. `[data-motion="reduced"] .animate-indeterminate, [data-motion="none"] .animate-indeterminate, [data-motion="reduced"] .animate-spin, [data-motion="none"] .animate-spin { animation: none; }`, and the same inside the `prefers-reduced-motion` block).
 
 `packages/ui/src/index.ts`: export `Icon`, `IconProps`, every name of `icons.ts`, `Spinner`, `ProgressBar`, `ProgressBarProps`, `feedbackPhase`, `usePendingFeedback`, `usePendingAction`, `FeedbackPhase`, `formatCost`, `formatDuration`, `formatDiffCounts`.
 
@@ -2233,7 +2317,7 @@ Expected: PASS.
 
 ```bash
 pnpm format
-git add packages/ui apps/web/package.json package.json pnpm-lock.yaml
+git add packages/ui pnpm-lock.yaml
 git commit -m "feat(ui): icons, spinner, progress bar, feedback timing and number formats"
 ```
 
@@ -2247,6 +2331,7 @@ DESIGN.md §9.1: Button `primary` (you fill), `secondary` (outline), `ghost`, `d
 - Modify: `packages/ui/src/primitives/Button.tsx`, `packages/ui/src/primitives/Button.test.tsx`, `packages/ui/src/index.ts`, `packages/ui/package.json` (`radix-ui`)
 - Create: `packages/ui/src/primitives/IconButton.tsx`, `IconButton.test.tsx`, `Tooltip.tsx`, `Kbd.tsx`, `Kbd.test.tsx`
 - Modify: `apps/web/src/main.tsx` (wrap the router in `TooltipProvider`)
+- Modify: `apps/web/src/features/sessions/SessionScreen.test.tsx` (M2-owned: the two class assertions on the Stop button, M3-RT-05, agreement 5)
 
 **Interfaces:**
 - Consumes: `usePendingFeedback`, `Spinner`, `Icon`, `IconGlyph` (Task 4).
@@ -2256,7 +2341,10 @@ DESIGN.md §9.1: Button `primary` (you fill), `secondary` (outline), `ghost`, `d
   - `TooltipProvider({ children })`, `Tooltip({ label: string; shortcut?: readonly string[]; shortcutJoiner?: "" | "+"; side?: "top" | "right" | "bottom" | "left"; children: ReactElement })`.
   - `Kbd({ keys: readonly string[]; joiner?: "" | "+" })`.
 
-**Risks / rulings needed:** DESIGN gives button labels as "mono uppercase" without a size: the plan uses the HUD label (10.5 px, 600, 0.12em): ruling wanted. `sm` is a fixed 24 px row.
+**Rulings (pre-dispatch):**
+- Button labels use the HUD label (10.5 px mono, 600, 0.12em): owner M3-Q9 confirmed. [M3R20]
+- `sm` is a fixed 24 px row for dense rows; under `pointer: coarse` every button is still 44 × 44 px. [M3R21]
+- The secondary button's classes change (`bg-surface`, `border-control-border`), so the M2-owned `SessionScreen.test.tsx` lines 245–246 change in this task: `bg-panel` → `bg-surface`, `border-error` → `border-err`. The file is listed in both plans' conflict tables: at the rebase take M2's version and re-apply these class names wherever its assertions survive (agreement 5). [M3R22]
 
 - [ ] **Step 1: Add radix-ui**
 
@@ -2455,7 +2543,7 @@ import { Fragment } from "react";
 
 const KEY_CLASSES = "rounded-sm border border-border-strong bg-surface px-1 font-mono text-label text-muted";
 
-/** A shortcut chip (Orca ShortcutKeyCombo). The caller formats the keys for the platform (Task 16 `chordTokens`). */
+/** A shortcut chip (Orca ShortcutKeyCombo). The caller formats the keys for the platform (Task 16a `chordTokens`). */
 export function Kbd({ keys, joiner = "" }: { readonly keys: readonly string[]; readonly joiner?: "" | "+" }) {
   return (
     <kbd data-slot="kbd" className="inline-flex items-center gap-0.5">
@@ -2562,18 +2650,20 @@ export function IconButton({ icon, label, shortcut, shortcutJoiner, variant = "g
 
 `apps/web/src/main.tsx`: wrap `<RouterProvider router={router} />` in `<TooltipProvider>` (import from `@pap/ui`).
 
+`apps/web/src/features/sessions/SessionScreen.test.tsx` ("offers Stop only while running, as a secondary button"): `expect(stop.className).toContain("bg-panel")` becomes `toContain("bg-surface")` and `expect(stop.className).not.toContain("border-error")` becomes `not.toContain("border-err")` (the danger outline is now `border-err`; the old assertion would pass whatever the variant). Nothing else in M2's folder changes.
+
 `packages/ui/src/index.ts`: export `Button`, `ButtonProps`, `ButtonVariant`, `ButtonSize`, `IconButton`, `IconButtonProps`, `Tooltip`, `TooltipProvider`, `TooltipProps`, `Kbd`.
 
 - [ ] **Step 5: Run the tests**
 
 Run: `pnpm test:unit packages/ui apps/web scripts/class-coverage.test.ts`
-Expected: PASS, including the M1 web tests that click buttons by their text (the DOM text is unchanged).
+Expected: PASS, including the M1 web tests that click buttons by their text (the DOM text is unchanged) and `SessionScreen.test.tsx` with its two updated assertions. Mutation check: add `border-err` to `BUTTON_VARIANTS.secondary` once → the updated `SessionScreen.test.tsx` assertion fails; restore.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 pnpm format
-git add packages/ui apps/web/src/main.tsx pnpm-lock.yaml
+git add packages/ui apps/web/src/main.tsx apps/web/src/features/sessions/SessionScreen.test.tsx pnpm-lock.yaml
 git commit -m "feat(ui): button variants with pending feedback, icon button, tooltip and kbd"
 ```
 
@@ -2599,7 +2689,10 @@ DESIGN.md §9.1: inputs with a 1 px control border on the `bg` fill and the focu
   - `Slider({ label; value; min; max; step?; onChange(value: number): void; valueText(value: number): string })`.
   - `Segmented<V>({ label; value: V; options: readonly Option<V>[]; onChange(value: V): void })`.
 
-**Risks / rulings needed:** The iOS 16 px input rule (D19, T3) makes inputs larger than the density's UI size on touch screens: ruling wanted (DESIGN §5 vs pi-web ergonomics). Radix ToggleGroup's item role differs across versions (test note in Step 3).
+**Rulings (pre-dispatch):**
+- On coarse pointers, text inputs use 16 px so iOS does not zoom, above the compact density's 13 px (D19, T3; owner M3-Q9 confirmed). [M3R23]
+- Radix ToggleGroup's item role may differ in the pinned version (`radio` or `aria-pressed` buttons): the test's selector follows it and keeps its assertions; which one applies is discovered during implementation. [M3R24]
+- Inputs and controls draw their border with `border-control-border` (ADR 0012), never the hairline `border`. [M3R2]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -2613,7 +2706,7 @@ Append to `packages/ui/src/primitives/submit-shortcut.test.ts`:
 
 (and give the existing calls `keyCode: 13` in `nativeEvent`).
 
-Append to `packages/ui/src/primitives/TextField.test.tsx`:
+In `packages/ui/src/primitives/TextField.test.tsx`, the M1 case "labels the input and keeps the label an uppercase mono HUD label" asserts `tracking-label` and `uppercase`, which the label no longer carries: replace those two expectations with `expect(html).toContain("label-hud")` (the utility holds the mono face, the tracking and `text-transform: var(--label-transform)`, pinned by `token-classes.test.ts`). Then append:
 
 ```ts
   it("uses 16 px text on coarse pointers so iOS does not zoom", () => {
@@ -2903,12 +2996,12 @@ git commit -m "feat(ui): form controls with the iOS 16 px rule and Safari compos
 
 ### Task 7: Status and structure — Chip, Badge, Avatar, Meter, Banner, EmptyState, OpenTab, Collapsible
 
-DESIGN.md §9.1 rows for these components, plus §2 ("every status chip carries a word"; dashed versus solid is a cue independent of colour). Collapsible is missing from DESIGN §9.1 and Reasoning and ToolCard need it (S6, R53): ADR 0006 adds it.
+DESIGN.md §9.1 rows for these components, plus §2 ("every status chip carries a word"; dashed versus solid is a cue independent of colour). Collapsible is missing from DESIGN §9.1 and Reasoning and ToolCard need it (S6, R53): ADR 0010 adds it (M2 holds ADRs 0006–0009, agreement 2).
 
 **Files:**
 - Create: `packages/ui/src/primitives/Chip.tsx`, `Badge.tsx`, `Avatar.tsx`, `Meter.tsx`, `Banner.tsx`, `EmptyState.tsx`, `OpenTab.tsx`, `Collapsible.tsx`, `display.test.tsx`
 - Modify: `packages/ui/src/primitives/IconButton.tsx` (optional `badge`), `packages/ui/src/index.ts`
-- Create: `docs/adr/0006-collapsible-primitive.md`
+- Create: `docs/adr/0010-collapsible-primitive.md`
 
 **Interfaces:**
 - Produces:
@@ -2922,15 +3015,20 @@ DESIGN.md §9.1 rows for these components, plus §2 ("every status chip carries 
   - `Collapsible({ open; onOpenChange(open: boolean): void; trigger: ReactNode; children: ReactNode })` built on Radix Collapsible (`trigger` is the trigger's content; the trigger is a button that owns its look).
   - `IconButton` gains `badge?: { count: number; label: string }`.
 
-**Risks / rulings needed:** OpenTab puts its close button next to the `role="tab"` button (`tabIndex=-1`; keyboard close is the `tab.close` command, defined in Task 16 and handled in Task 21): confirm the pattern.
+**Rulings (pre-dispatch):**
+- OpenTab puts its close button next to the `role="tab"` button (`tabIndex=-1`); the keyboard closes a focused tab with Delete (WAI-ARIA tabs pattern) and anywhere with the `tab.close` command (Tasks 16b and 21). [M3R25]
+- Meter and ProgressBar report a value clamped to their range. [M3R19]
+- Collapsible is ADR 0010; `/dev/ui` is ADR 0011; R120 is ADR 0012 (agreement 2). [M3R26]
 
 - [ ] **Step 1: Write the failing tests**
 
 `packages/ui/src/primitives/display.test.tsx`:
 
 ```tsx
+// @vitest-environment happy-dom
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { mount, press } from "../testing/dom.ts";
 import { Avatar } from "./Avatar.tsx";
 import { Badge } from "./Badge.tsx";
 import { Banner } from "./Banner.tsx";
@@ -2986,6 +3084,20 @@ describe("status and structure (DESIGN.md §9.1, §2)", () => {
     expect(tab).toContain('aria-selected="true"');
     expect(tab).toContain("border-agent");
     expect(tab).toContain('aria-label="Close feat/checkpoints"');
+  });
+
+  it("closes a focused tab with Delete, and only with Delete (WAI-ARIA tabs pattern)", async () => {
+    const onClose = vi.fn();
+    const page = await mount(<OpenTab tabId="t2" title="a" active closeLabel="Close a" onSelect={() => {}} onClose={onClose} />);
+    const tab = page.container.querySelector('[role="tab"]') as HTMLElement;
+    await press(tab, { key: "Enter" });
+    await press(tab, { key: "Delete" });
+    expect(onClose).toHaveBeenCalledOnce();
+    await page.unmount();
+  });
+
+  it("meters report a value clamped to their range", () => {
+    expect(html(<Meter label="Cost today" value={9} max={4} kind="cost" valueText="$9.00" />)).toContain('aria-valuenow="4"');
   });
 });
 ```
@@ -3076,7 +3188,7 @@ export function Avatar({ initials, name, avatarStyle = "outlined", presence, bad
 }
 ```
 
-`Meter.tsx`: a row with the label (`label-hud text-muted`) and `valueText` (`font-mono tabular-nums text-fg`), then a `role="meter"` bar (`h-1 w-full bg-surface-2`) with `aria-valuemin={0} aria-valuemax={max} aria-valuenow={value} aria-valuetext={valueText} aria-label={label}` whose fill uses `const METER_TONES = { tokens: "bg-agent-fill", cost: "bg-you-fill" } as const` and an inline `width` clamped to 0–100 %.
+`Meter.tsx`: a row with the label (`label-hud text-muted`) and `valueText` (`font-mono tabular-nums text-fg`), then a `role="meter"` bar (`h-1 w-full bg-surface-2`) with `aria-valuemin={0} aria-valuemax={max} aria-valuenow={Math.min(max, Math.max(0, value))} aria-valuetext={valueText} aria-label={label}` (non-finite values read as 0) whose fill uses `const METER_TONES = { tokens: "bg-agent-fill", cost: "bg-you-fill" } as const` and an inline `width` clamped to 0–100 %.
 
 `Banner.tsx`:
 
@@ -3170,6 +3282,11 @@ export function OpenTab({ tabId, panelId, title, active, status = null, closeLab
         aria-controls={panelId}
         tabIndex={active ? 0 : -1}
         onClick={onSelect}
+        onKeyDown={(event) => {
+          if (event.key !== "Delete") return;
+          event.preventDefault();
+          onClose();
+        }}
         className="flex min-w-0 items-center gap-s1 outline-none"
       >
         {status ? <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_TONES[status])} /> : null}
@@ -3197,7 +3314,7 @@ export interface CollapsibleProps {
   readonly children: ReactNode;
 }
 
-/** ADR 0006 (S6, R53): the disclosure Reasoning and ToolCard need. */
+/** ADR 0010 (S6, R53): the disclosure Reasoning and ToolCard need. */
 export function Collapsible({ open, onOpenChange, trigger, children }: CollapsibleProps) {
   return (
     <Radix.Root open={open} onOpenChange={onOpenChange} data-slot="collapsible">
@@ -3210,12 +3327,12 @@ export function Collapsible({ open, onOpenChange, trigger, children }: Collapsib
 
 `IconButton.tsx`: add `readonly badge?: { readonly count: number; readonly label: string };` and render `{badge && badge.count > 0 ? <span className="absolute -right-1 -top-1"><Badge count={badge.count} label={badge.label} /></span> : null}` after the icon.
 
-`docs/adr/0006-collapsible-primitive.md`:
+`docs/adr/0010-collapsible-primitive.md`:
 
 ```markdown
-# 0006 — Collapsible joins the primitives
+# ADR 0010 — Collapsible joins the primitives
 
-Date: 2026-10-11 · Status: accepted · Deviation from: DESIGN.md §9.1 (decision 33: design changes go through an ADR)
+Status: accepted · Date: 2026-10-11 · Spec: DESIGN.md §9.1 (decision 33: design changes go through an ADR) · Rulings: R53
 
 ## Context
 DESIGN.md §9.2 needs a disclosure for Reasoning ("▸ thought for 14s", expandable) and for ToolCard's detail levels. §9.1 lists no
@@ -3242,7 +3359,7 @@ Expected: PASS.
 
 ```bash
 pnpm format
-git add packages/ui docs/adr/0006-collapsible-primitive.md
+git add packages/ui docs/adr/0010-collapsible-primitive.md
 git commit -m "feat(ui): chips, badges, avatars, meters, banners, empty states, open tabs and collapsible"
 ```
 
@@ -3254,18 +3371,22 @@ Every overlay carries `--shadow-overlay`, traps focus, closes on Escape and retu
 
 **Files:**
 - Create: `packages/ui/src/media.ts`, `packages/ui/src/primitives/Dialog.tsx`, `Dialog.test.tsx`, `Menu.tsx`, `Menu.test.tsx`, `Toast.tsx`, `Toast.test.tsx`
-- Modify: `packages/ui/src/index.ts`, `apps/web/src/main.tsx` (mount `<Toaster closeLabel={…} />`)
+- Modify: `packages/ui/src/index.ts`, `apps/web/src/main.tsx` (mount the Toaster through a small `LocalizedToaster` that reads `useT`)
 
 **Interfaces:**
 - Consumes: `cancelsComposition` (Task 6), `IconButton` (Task 5).
 - Produces:
   - `useMediaQuery(query: string): boolean`, `useIsPhone(): boolean` (`(max-width: 767.98px)`).
   - `type DialogVariant = "center" | "sheet" | "drawer-left" | "drawer-right" | "palette"`.
-  - `Dialog({ open; onOpenChange(open: boolean): void; title: string; hideTitle?: boolean; description?: string; variant?: DialogVariant; closeLabel: string; children; footer?: ReactNode; initialFocus?: RefObject<HTMLElement | null> })`. Content carries `data-pap-modal` (the `dialogOpen` key of Task 17 reads it).
+  - `Dialog({ open; onOpenChange(open: boolean): void; title: string; hideTitle?: boolean; description?: string; variant?: DialogVariant; closeLabel: string; children; footer?: ReactNode; initialFocus?: RefObject<HTMLElement | null> })`. Content carries `data-pap-modal` (the `dialogOpen` key of Task 17a reads it).
   - `type MenuItem = { readonly id: string; readonly label: string; readonly tone?: "danger"; readonly disabled?: boolean; onSelect(): void }`, `Menu({ label: string; trigger: ReactElement; items: readonly MenuItem[]; closeLabel: string })`.
   - `toast(input: { message: string; tone?: "neutral" | "error"; action?: { label: string; altText: string; run(): void } }): string` (returns the toast id), `dismissToast(id: string): void`, `Toaster({ closeLabel: string })`.
 
-**Risks / rulings needed:** On phones every centred dialog and every menu becomes a bottom sheet (T3 `bottomStickOnMobile`): confirm. The overlay dim (`bg-bg/60`) is not in DESIGN, which only specifies the overlay shadow: ruling wanted. Radix focus return may need a settled frame in happy-dom (test note).
+**Rulings (pre-dispatch):**
+- On phones every centred dialog, the palette and every menu becomes a bottom sheet (T3 `bottomStickOnMobile`; DESIGN §8 "bottom sheets for menus"). [M3R27]
+- The 60 % background dim behind modal overlays (`bg-bg/60`) is accepted (owner M3-Q9). [M3R28]
+- If Radix's focus return needs a settled frame in happy-dom, the test awaits `settle()` before the assertion; the assertion is never dropped. Whether it is needed is discovered during implementation. [M3R29]
+- The toast store is module state: `resetToastsForTests()` (not exported from the package index) clears it between tests, and the app renders the Toaster from a component that reads `useT`, so its close label follows a language switch (R128, M3-RT-26). [M3R30]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -3335,10 +3456,13 @@ describe("Dialog", () => {
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { click, mount } from "../testing/dom.ts";
-import { toast, Toaster } from "./Toast.tsx";
+import { resetToastsForTests, toast, Toaster } from "./Toast.tsx";
 
 describe("Toast", () => {
-  beforeEach(() => vi.useFakeTimers());
+  beforeEach(() => {
+    resetToastsForTests();
+    vi.useFakeTimers();
+  });
   afterEach(() => vi.useRealTimers());
 
   it("shows a message with Undo for 5 s; Undo runs once and closes it", async () => {
@@ -3561,6 +3685,11 @@ export function dismissToast(id: string): void {
   emit(entries.filter((entry) => entry.id !== id));
 }
 
+/** Module state outlives a test: each test starts from no toast (not exported from the package index). */
+export function resetToastsForTests(): void {
+  emit([]);
+}
+
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -3601,7 +3730,7 @@ export function Toaster({ closeLabel }: { readonly closeLabel: string }) {
 
 (On phones the shell lifts the viewport above the bottom nav with a `styles.css` rule in Task 23; the toast itself does not know about the nav.)
 
-`apps/web/src/main.tsx`: render `<Toaster closeLabel={t("ui.dismiss")} />` next to the router inside `TooltipProvider`, and add to `catalog/shell.ts` the keys `"ui.dismiss": "Dismiss"` / `"Fermer"`, `"ui.close": "Close"` / `"Fermer"`.
+`apps/web/src/main.tsx`: define `function LocalizedToaster() { const t = useT(); return <Toaster closeLabel={t("ui.dismiss")} />; }` (a plain `t()` would keep the first language, R128) and render `<LocalizedToaster />` next to the router inside `TooltipProvider`; add to `catalog/shell.ts` the keys `"ui.dismiss": "Dismiss"` / `"Fermer"`, `"ui.close": "Close"` / `"Fermer"`.
 
 `packages/ui/src/index.ts`: export `useMediaQuery`, `useIsPhone`, `Dialog`, `DialogProps`, `DialogVariant`, `Menu`, `MenuItem`, `toast`, `dismissToast`, `Toaster`, `ToastInput`.
 
@@ -3628,7 +3757,7 @@ DESIGN.md §9.2. Message keeps its M1 props (M2's transcript uses them) and gain
 **Files:**
 - Modify: `packages/ui/src/ai/Message.tsx`, `packages/ui/src/ai/Message.test.tsx`, `packages/ui/src/index.ts`
 - Create: `packages/ui/src/ai/AuthorGroup.tsx`, `DaySeparator.tsx`, `RunStatusChip.tsx`, `Fence.tsx`, `conversation.test.tsx`
-- Create: `THIRD_PARTY_NOTICES.md`; modify `.prettierignore` (add `THIRD_PARTY_NOTICES.md`, hand-written legal text)
+- Create: `THIRD_PARTY_NOTICES.md`, `LICENSES/Apache-2.0.txt` (the canonical licence text, M3-RT-06), `scripts/notices.test.ts`; modify `.prettierignore` (add `THIRD_PARTY_NOTICES.md` and `LICENSES/`, legal text kept byte for byte)
 
 **Interfaces:**
 - Consumes: `Chip`, `Icon`, `IconChevronLeft/Right`, `Tooltip` (Tasks 4, 5, 7).
@@ -3641,11 +3770,14 @@ DESIGN.md §9.2. Message keeps its M1 props (M2's transcript uses them) and gain
   - `type RunStatus = "working" | "settled" | "interrupted" | "limited" | "needs-input"`, `RunStatusChip({ status: RunStatus; label: string })`.
   - `Fence({ label: string; children })` — `label` is the full "UNTRUSTED · <source>" text, translated by the caller.
 
-**Risks / rulings needed:** The Apache-2.0 compliance is S6's engineering reading (no legal review), already known to the owner. None.
+**Rulings (pre-dispatch):**
+- The Apache-2.0 compliance follows S6's engineering reading (no legal review, known to the owner) and its full recipe: the notice, the upstream commit, a header on every derived file, and the canonical licence text for recipients in `LICENSES/Apache-2.0.txt` (M3-RT-06). The full 40-character commit `6a9d5b1822ffb10bba4bd97175f01edd7d8651cd` is the one S6 records (`docs/spikes/s6.md`, line 4). [M3R31]
+- `Message` keeps its M1 props and DOM (agreement 5); model text is rendered through `Markdown` as its child (Task 10b), never by `Message` itself. [M3R32]
+- The M1 class assertions of `Message.test.tsx` (`bg-human-tint`, `border-human-line`, `text-human-text`, `border-line`) are replaced by the DESIGN names (`bg-you-tint`, `border-you-line`, `text-you-text`, `border-border`); the M1 behaviour assertions stay (M3-RT-27). [M3R33]
 
 - [ ] **Step 1: Write the failing tests**
 
-Add to `packages/ui/src/ai/Message.test.tsx` (keep the M1 cases):
+In `packages/ui/src/ai/Message.test.tsx`, keep the M1 cases but replace their class expectations with the DESIGN names (`bg-human-tint` → `bg-you-tint`, `border-human-line` → `border-you-line`, `text-human-text` → `text-you-text`, `border-line` → `border-border`; the M1 file asserts the old names and would fail), then add:
 
 ```tsx
   it("shows your message as a right-aligned tint box and the agent's behind a 2 px violet rule", () => {
@@ -3722,6 +3854,45 @@ describe("conversation components (DESIGN.md §9.2)", () => {
   });
 });
 ```
+
+`scripts/notices.test.ts`:
+
+```ts
+import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { describe, expect, it } from "vitest";
+
+const REPO = fileURLToPath(new URL("..", import.meta.url));
+const read = (path: string) => readFileSync(join(REPO, path), "utf8");
+// The text of https://www.apache.org/licenses/LICENSE-2.0.txt, as Debian and Ubuntu ship it in
+// /usr/share/common-licenses/Apache-2.0 (checked on the build host when this plan was written).
+const APACHE_2_0_SHA256 = "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30";
+
+describe("third-party notices (S6, R53)", () => {
+  it("ships the canonical Apache-2.0 text, byte for byte", () => {
+    expect(createHash("sha256").update(readFileSync(join(REPO, "LICENSES/Apache-2.0.txt"))).digest("hex")).toBe(APACHE_2_0_SHA256);
+  });
+
+  it("names the upstream commit and the licence file", () => {
+    const notices = read("THIRD_PARTY_NOTICES.md");
+    expect(notices).toContain("6a9d5b1822ffb10bba4bd97175f01edd7d8651cd");
+    expect(notices).toContain("LICENSES/Apache-2.0.txt");
+  });
+
+  it("lists every file whose header says it is derived from vercel/ai-elements", () => {
+    const notices = read("THIRD_PARTY_NOTICES.md");
+    const derived = readdirSync(join(REPO, "packages/ui/src/ai"))
+      .filter((name) => name.endsWith(".tsx") && !name.includes(".test."))
+      .map((name) => `packages/ui/src/ai/${name}`)
+      .filter((path) => read(path).includes("vercel/ai-elements"));
+    expect(derived.length).toBeGreaterThanOrEqual(1);
+    for (const path of derived) expect(notices, path).toContain(`\`${path}\``);
+  });
+});
+```
+
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -3906,6 +4077,8 @@ export function Fence({ label, children }: { readonly label: string; readonly ch
 }
 ```
 
+The canonical licence text (the host has it; no network needed): `mkdir -p LICENSES && cp /usr/share/common-licenses/Apache-2.0 LICENSES/Apache-2.0.txt`. If that file is missing on the machine, take the same text from an Apache-2.0 package already in `node_modules` whose licence file has the digest above (check with `sha256sum`) — never from the network, never retyped.
+
 `THIRD_PARTY_NOTICES.md`:
 
 ```markdown
@@ -3923,6 +4096,12 @@ vercel/ai-elements, commit 6a9d5b1822ffb10bba4bd97175f01edd7d8651cd (https://git
     on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the License
     for the specific language governing permissions and limitations under the License.
 
+The Apache License, Version 2.0, is reproduced in full in `LICENSES/Apache-2.0.txt`.
+
+Derived files (each carries a header naming its source file and what pap changed):
+
+- `packages/ui/src/ai/Message.tsx` (from `packages/elements/src/message.tsx`)
+
 pap does not depend on the AI Elements packages and does not use the Vercel or "AI Elements" names (spike S6, ruling R53).
 ```
 
@@ -3931,34 +4110,39 @@ pap does not depend on the AI Elements packages and does not use the Vercel or "
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm test:unit packages/ui apps/web scripts/class-coverage.test.ts`
-Expected: PASS (M2's `SessionScreen` tests still pass: Message's M1 props and DOM are unchanged apart from classes).
+Expected: PASS (M2's `SessionScreen` tests still pass: Message's M1 props and DOM are unchanged apart from classes). Mutation check: delete one line of `LICENSES/Apache-2.0.txt` → the digest case fails; restore it with `git checkout`.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
-git add packages/ui THIRD_PARTY_NOTICES.md .prettierignore
+git add packages/ui THIRD_PARTY_NOTICES.md LICENSES/Apache-2.0.txt scripts/notices.test.ts .prettierignore
 git commit -m "feat(ui): message actions and branches, author groups, day separators, run status and fences"
 ```
 
 ---
 
-### Task 10: Reasoning, ToolCard and the four-answer ApprovalCard
+### Task 10: Reasoning, ToolCard and the ApprovalCard's converged answers
 
-Reasoning is ported from AI Elements' `reasoning.tsx` with attribution: it opens while the model streams and closes 1 s after, unless the person toggled it; no `Shimmer` (DESIGN §1 and §7.2 forbid it). ToolCard is written from the Pi event model with AI Elements' `tool.tsx` as a reference only (S6): mono upper-case tool name in agent colour, argument summary, duration, an output body, the indeterminate bar while running, and the compact / expanded / full detail level of Settings. ApprovalCard gains DESIGN's header (`Approval · <category>`, "external content" when tainted), context, and the four answers Deny / Session / Always / Allow once, while its M1 props keep working (M2 uses them).
+Reasoning is ported from AI Elements' `reasoning.tsx` with attribution: it opens while the model streams and closes 1 s after, unless the person toggled it; no `Shimmer` (DESIGN §1 and §7.2 forbid it). ToolCard is written from the Pi event model with AI Elements' `tool.tsx` as a reference only (S6): mono upper-case tool name in agent colour, argument summary, duration, an output body, the indeterminate bar while running, and the compact / expanded / full detail level of Settings. ApprovalCard gains DESIGN's header (`Approval · <category>`, "external content" when tainted), context, and the converged answer API of agreement 6: the answers offered (`deny | once | session | always`, M2's contract names), their labels and one `onChoose` callback, shown in DESIGN order Deny / Session / Always / Allow once. Its M1 props keep working as a thin adapter (M2 uses them until P3).
 
 **Files:**
 - Create: `packages/ui/src/ai/Reasoning.tsx`, `Reasoning.test.tsx`, `ToolCard.tsx`, `ToolCard.test.tsx`
-- Modify: `packages/ui/src/ai/ApprovalCard.tsx`, `ApprovalCard.test.tsx`, `packages/ui/src/index.ts`
+- Modify: `packages/ui/src/ai/ApprovalCard.tsx`, `ApprovalCard.test.tsx`, `packages/ui/src/index.ts`, `THIRD_PARTY_NOTICES.md` (Reasoning in the derived-file list)
 
 **Interfaces:**
 - Consumes: `Collapsible`, `ProgressBar`, `Chip`, `Button`, `once` (Tasks 4, 5, 7).
 - Produces:
   - `Reasoning({ streaming: boolean; label: string; children })` — `label` is "Thinking…" while streaming and "Thought for 14s" after, formatted by the caller.
   - `type ToolDetail = "compact" | "expanded" | "full"`, `type ToolStatus = "running" | "done" | "error"`, `ToolCard({ name: string; summary?: string; duration?: string; status: ToolStatus; detail: ToolDetail; runningLabel: string; failedLabel: string; children?: ReactNode })`.
-  - `type ApprovalAnswer = "deny" | "session" | "always" | "once"`; `ApprovalCard` props: M1 (`title`, `detail`, `allowLabel`, `denyLabel`, `onAnswer(approved: boolean)`) + `category?: string`, `taintLabel?: string`, `context?: ReactNode`, `sessionLabel?: string`, `alwaysLabel?: string`, `onScopedAnswer?(answer: ApprovalAnswer): void`.
+  - `type ApprovalAnswer = "deny" | "once" | "session" | "always"`; `APPROVAL_ORDER: readonly ApprovalAnswer[]` (`["deny", "session", "always", "once"]`, DESIGN §9.2).
+  - `ApprovalCardProps = ApprovalCardChoiceProps | ApprovalCardM1Props`, both with `title`, `detail`, `category?: string`, `taintLabel?: string`, `context?: ReactNode`; `ApprovalCardChoiceProps` adds `answers?: readonly ApprovalAnswer[]` (default all four; `deny` is always offered), `labels: Readonly<Record<ApprovalAnswer, string>>`, `onChoose(answer: ApprovalAnswer): void`; `ApprovalCardM1Props` is M1's `allowLabel`, `denyLabel`, `onAnswer(approved: boolean)` (= answers `["deny", "once"]`).
 
-**Risks / rulings needed:** The ApprovalCard buttons move to DESIGN's order (Deny first); M2's tests select buttons by name, not order. The Session/Always answers are visual until M5 wires them: confirm M2 does not need them before the merge (if it does, M2 builds them in its feature folder and P3 converges).
+**Rulings (pre-dispatch):**
+- The ApprovalCard buttons follow DESIGN's order (Deny first); M2's tests select buttons by name, not order. [M3R34]
+- The "Session/Always visual until M5" premise is wrong: M2 ships those answers (M2 Tasks 13/14/26). The card takes the converged API of agreement 6 (`answers` + `labels` + `onChoose`, one callback per click, so no double send); the M1 props stay as an adapter until P1; `deny` is always offered (a card can always be refused). P3 replaces M2's `ApprovalDialog` with this card and adds the type-level test `ApprovalAnswer (ui) ≡ ApprovalAnswer (contracts)` in `apps/web` (`@pap/ui` cannot import `@pap/contracts`). [M3R35]
+- The header text stays sentence case in the DOM ("Approval · exec") and `label-hud` uppercases it in CSS (R121); M2's ApprovalDialog does the same, so P3 needs no test rewrite (agreement 6). Its colour is `text-attn-title` (ADR 0012). [M3R36]
+- ToolCard opens by the detail setting until the person toggles it, and follows a later change of the setting until then (M3-RT-38). [M3R37]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4036,39 +4220,64 @@ describe("ToolCard (DESIGN.md §9.2)", () => {
 });
 ```
 
-Add to `packages/ui/src/ai/ApprovalCard.test.tsx` (keep the M1 cases, which use `allowLabel`/`denyLabel`/`onAnswer`):
+Add to `packages/ui/src/ai/ApprovalCard.test.tsx` (turn it into `// @vitest-environment happy-dom`; keep the M1 cases, which use `allowLabel`/`denyLabel`/`onAnswer` and select buttons by name or variant, never by order, except that "styles the card as an attention-tinted card" expects `bg-attn-tint` and `border-attn-line` instead of the M1 names, M3-RT-27; add the imports `vi` from `vitest` and `button`, `click`, `mount` from `../testing/dom.ts`):
 
 ```tsx
-  it("offers Deny / Session / Always / Allow once in that order when scoped answers are wanted, and answers once", async () => {
-    const onAnswer = vi.fn();
-    const onScopedAnswer = vi.fn();
-    const page = await mount(
-      <ApprovalCard
-        title="Approval"
-        category="external write"
-        taintLabel="External content"
-        detail={"1 line\npush origin main"}
-        allowLabel="Allow once"
-        denyLabel="Deny"
-        sessionLabel="Session"
-        alwaysLabel="Always"
-        onAnswer={onAnswer}
-        onScopedAnswer={onScopedAnswer}
-      />,
-    );
-    const labels = [...page.container.querySelectorAll("button")].map((b) => b.textContent);
-    expect(labels).toEqual(["Deny", "Session", "Always", "Allow once"]);
+const LABELS = { deny: "Deny", session: "Session", always: "Always", once: "Allow once" } as const;
+const names = (container: HTMLElement) => [...container.querySelectorAll("button")].map((b) => b.textContent);
+
+  it("offers all four answers by default, in DESIGN order, and calls onChoose once", async () => {
+    const onChoose = vi.fn();
+    const page = await mount(<ApprovalCard title="Approval" category="external write" taintLabel="External content" detail={"1 line\npush origin main"} labels={LABELS} onChoose={onChoose} />);
+    expect(names(page.container)).toEqual(["Deny", "Session", "Always", "Allow once"]);
     expect(page.container.textContent).toContain("external write");
     expect(page.container.querySelector('[data-tone="ext"]')?.textContent).toBe("External content");
     await click(button(page.container, "Session"));
     await click(button(page.container, "Allow once"));
-    expect(onScopedAnswer.mock.calls).toEqual([["session"]]);
+    expect(onChoose.mock.calls).toEqual([["session"]]);
+    await page.unmount();
+  });
+
+  it("offers exactly the answers it is given, in DESIGN order, and always Deny", async () => {
+    const page = await mount(<ApprovalCard title="Approval" detail="x" answers={["once", "session", "once"]} labels={LABELS} onChoose={() => {}} />);
+    expect(names(page.container)).toEqual(["Deny", "Session", "Allow once"]);
+    await page.unmount();
+  });
+
+  it("maps the M1 props to Deny and Allow once, and answers once", async () => {
+    const onAnswer = vi.fn();
+    const page = await mount(<ApprovalCard title="Approval" detail="x" allowLabel="Allow once" denyLabel="Deny" onAnswer={onAnswer} />);
+    expect(names(page.container)).toEqual(["Deny", "Allow once"]);
+    await click(button(page.container, "Allow once"));
+    await click(button(page.container, "Deny"));
     expect(onAnswer.mock.calls).toEqual([[true]]);
     await page.unmount();
+  });
+
+  it("keeps the header in sentence case in the DOM; CSS uppercases it (R121)", () => {
+    const html = renderToStaticMarkup(<ApprovalCard title="Approval" category="exec" detail="x" labels={LABELS} onChoose={() => {}} />);
+    expect(html).toMatch(/<h3[^>]*class="[^"]*label-hud[^"]*text-attn-title/);
+    expect(html).toContain(">Approval<");
+    expect(html).not.toContain("APPROVAL");
   });
 ```
 
 (`button` comes from the copied test helpers: add it to `packages/ui/src/testing/dom.ts` with the M1 implementation.)
+
+Add to `ToolCard.test.tsx` (it already runs under happy-dom):
+
+```tsx
+  it("follows a later change of the detail setting until the person toggles it", async () => {
+    const card = (detail: "compact" | "expanded") => <ToolCard name="bash" status="done" detail={detail} runningLabel="Running" failedLabel="Failed">out</ToolCard>;
+    const page = await mount(card("compact"));
+    expect(page.container.textContent).not.toContain("out");
+    await page.rerender(card("expanded"));
+    expect(page.container.textContent).toContain("out");
+    await page.unmount();
+  });
+```
+
+(with `mount` imported from `../testing/dom.ts`).
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -4165,7 +4374,9 @@ export interface ToolCardProps {
 
 /** Written from the Pi tool call/result model; AI Elements' tool.tsx was a reference only (S6). */
 export function ToolCard({ name, summary, duration, status, detail, runningLabel, failedLabel, children }: ToolCardProps) {
-  const [open, setOpen] = useState(detail !== "compact");
+  // The setting decides until the person toggles this card; a later change of the setting is followed until then.
+  const [chosen, setChosen] = useState<boolean | null>(null);
+  const open = chosen ?? detail !== "compact";
   const header = (
     <span className="flex min-w-0 flex-1 items-center gap-s2 px-s2 py-s1">
       <span className="label-hud shrink-0 text-agent">{name}</span>
@@ -4179,7 +4390,7 @@ export function ToolCard({ name, summary, duration, status, detail, runningLabel
       {children === undefined ? (
         header
       ) : (
-        <Collapsible open={open} onOpenChange={setOpen} trigger={header}>
+        <Collapsible open={open} onOpenChange={setChosen} trigger={header}>
           <pre className={cn("whitespace-pre-wrap break-words border-t border-border px-s2 py-s1 font-mono text-code text-fg", BODY_DETAIL[detail])}>{children}</pre>
         </Collapsible>
       )}
@@ -4191,46 +4402,89 @@ export function ToolCard({ name, summary, duration, status, detail, runningLabel
 
 (Radix Collapsible does not render closed content, which is what the compact test relies on; if the pinned version renders it hidden instead, assert on `hidden` in the test rather than on absence.)
 
-`packages/ui/src/ai/ApprovalCard.tsx`: keep the M1 structure (`splitDetail`, the lazy `once` guard, `latestOnAnswer`, the header that stays visible above the scrolling body, `role="alertdialog"` with `aria-label={props.title}` and `aria-describedby`) and change:
+`packages/ui/src/ai/ApprovalCard.tsx`: keep the M1 structure (`splitDetail`, the lazy `once` guard, the latest-callback ref, the header that stays visible above the scrolling body, `role="alertdialog"` with `aria-label={props.title}` and `aria-describedby`) and change the props and the answer path:
 
 ```tsx
-export type ApprovalAnswer = "deny" | "session" | "always" | "once";
+/** M2's contract names (agreement 6). P3 pins this union to the one in @pap/contracts with a type-level test. */
+export type ApprovalAnswer = "deny" | "once" | "session" | "always";
+/** DESIGN.md §9.2 order. */
+export const APPROVAL_ORDER: readonly ApprovalAnswer[] = ["deny", "session", "always", "once"];
 
-export interface ApprovalCardProps {
+interface ApprovalCardCommon {
   readonly title: string;
   /** The complete, already escaped text of the request. Its first line is a header (size, lines, hidden characters). */
   readonly detail: string;
-  readonly allowLabel: string;
-  readonly denyLabel: string;
-  onAnswer(approved: boolean): void;
   /** DESIGN.md §9.2 header: "Approval · <category>". */
   readonly category?: string;
   /** Shown as the dashed "external content" chip when the run is tainted (spec C §5). */
   readonly taintLabel?: string;
   /** Diff stats, trigger, tests. */
   readonly context?: ReactNode;
-  readonly sessionLabel?: string;
-  readonly alwaysLabel?: string;
-  /** With it, the card offers Session and Always too; onAnswer still receives approved = answer !== "deny". */
-  onScopedAnswer?(answer: ApprovalAnswer): void;
+}
+
+/** The converged API (agreement 6): the answers offered, their labels, one callback per click. */
+export interface ApprovalCardChoiceProps extends ApprovalCardCommon {
+  /** Shown in DESIGN order whatever the order given; "deny" is always offered. Default: all four. */
+  readonly answers?: readonly ApprovalAnswer[];
+  readonly labels: Readonly<Record<ApprovalAnswer, string>>;
+  onChoose(answer: ApprovalAnswer): void;
+}
+
+/** M1's props, kept until post-merge task P1 (agreement 5): Deny and Allow once. */
+export interface ApprovalCardM1Props extends ApprovalCardCommon {
+  readonly allowLabel: string;
+  readonly denyLabel: string;
+  onAnswer(approved: boolean): void;
+}
+
+export type ApprovalCardProps = ApprovalCardChoiceProps | ApprovalCardM1Props;
+
+interface Choice {
+  readonly answers: readonly ApprovalAnswer[];
+  readonly labels: Readonly<Record<ApprovalAnswer, string>>;
+  choose(answer: ApprovalAnswer): void;
+}
+
+/** One path for both prop shapes: the M1 props are the answers Deny and Allow once. Keys are unique by construction. */
+function choiceOf(props: ApprovalCardProps): Choice {
+  if ("onChoose" in props) {
+    const offered = new Set<ApprovalAnswer>(props.answers ?? APPROVAL_ORDER);
+    offered.add("deny");
+    return { answers: APPROVAL_ORDER.filter((answer) => offered.has(answer)), labels: props.labels, choose: (answer) => props.onChoose(answer) };
+  }
+  return {
+    answers: ["deny", "once"],
+    labels: { deny: props.denyLabel, once: props.allowLabel, session: "", always: "" },
+    choose: (answer) => props.onAnswer(answer !== "deny"),
+  };
 }
 ```
 
+(The M1 branch never shows `session` or `always`; their labels only fill the record.) In the component:
+
 ```tsx
+  const [answered, setAnswered] = useState(false);
+  const { answers, labels, choose } = choiceOf(props);
+  // The card can stay open for minutes: the answer goes to the latest callback, not the first render's.
+  const latestChoose = useRef(choose);
+  useEffect(() => {
+    latestChoose.current = choose;
+  });
+  // Built on the first click, never during render: every button shares it for the card's whole life.
+  const guard = useRef<((answer: ApprovalAnswer) => boolean) | null>(null);
   const answer = (choice: ApprovalAnswer) => {
     guard.current ??= once((value: ApprovalAnswer) => {
       setAnswered(true);
-      latestOnAnswer.current(value !== "deny");
-      latestOnScoped.current?.(value);
+      latestChoose.current(value);
     });
     guard.current(choice);
   };
 ```
 
-(`latestOnScoped` mirrors `latestOnAnswer` for `onScopedAnswer`.) The header becomes:
+The header becomes (sentence case in the DOM, R121; `--attn-title`, ADR 0012):
 
 ```tsx
-      <h3 className="flex flex-wrap items-center gap-s2 label-hud text-attn">
+      <h3 className="flex flex-wrap items-center gap-s2 label-hud text-attn-title">
         <span>{props.title}</span>
         {props.category ? (
           <>
@@ -4246,40 +4500,613 @@ the frame `rounded-md border border-attn-line bg-attn-tint p-s3`, `{props.contex
 
 ```tsx
       <div className="mt-s3 flex flex-wrap gap-s2">
-        <Button variant="secondary" disabled={answered} onClick={() => answer("deny")}>
-          {props.denyLabel}
-        </Button>
-        {props.onScopedAnswer && props.sessionLabel ? (
-          <Button variant="secondary" disabled={answered} onClick={() => answer("session")}>
-            {props.sessionLabel}
+        {answers.map((choice) => (
+          <Button key={choice} variant={choice === "once" ? "primary" : "secondary"} disabled={answered} onClick={() => answer(choice)}>
+            {labels[choice]}
           </Button>
-        ) : null}
-        {props.onScopedAnswer && props.alwaysLabel ? (
-          <Button variant="secondary" disabled={answered} onClick={() => answer("always")}>
-            {props.alwaysLabel}
-          </Button>
-        ) : null}
-        <Button variant="primary" disabled={answered} onClick={() => answer("once")}>
-          {props.allowLabel}
-        </Button>
+        ))}
       </div>
 ```
 
-The M1 tests that read button order (`Allow` first) change to the DESIGN order; every other M1 assertion (header kept visible, `aria-describedby`, double click answers once, latest callback) stays.
+No M1 test reads the button order (they select by name or by variant, `ApprovalCard.once.test.tsx` included); every M1 assertion (header kept visible, `aria-describedby`, double click answers once, latest callback) stays, with the DESIGN class names in the styling case.
 
-`packages/ui/src/index.ts`: export `Reasoning`, `ReasoningProps`, `ToolCard`, `ToolCardProps`, `ToolDetail`, `ToolStatus`, `ApprovalAnswer`.
+`THIRD_PARTY_NOTICES.md`: add the bullet ``- `packages/ui/src/ai/Reasoning.tsx` (from `packages/elements/src/reasoning.tsx`)`` to the derived-file list (`scripts/notices.test.ts` fails without it).
+
+`packages/ui/src/index.ts`: export `Reasoning`, `ReasoningProps`, `ToolCard`, `ToolCardProps`, `ToolDetail`, `ToolStatus`, `ApprovalAnswer`, `APPROVAL_ORDER`, `ApprovalCardChoiceProps`, `ApprovalCardM1Props` (`ApprovalCardProps` stays exported, now the union).
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit packages/ui apps/web scripts/class-coverage.test.ts apps/web/src/compiler-gate.test.ts`
-Expected: PASS (the compiler gate accepts Reasoning's prop-change pattern; if it reports a bailout, keep the behaviour and restructure until it compiles, never disable the rule).
+Run: `pnpm test:unit packages/ui apps/web scripts/class-coverage.test.ts scripts/notices.test.ts apps/web/src/compiler-gate.test.ts`
+Expected: PASS (the compiler gate accepts Reasoning's prop-change pattern; if it reports a bailout, keep the behaviour and restructure until it compiles, never disable the rule). M2's session screen still renders `ApprovalCard` with the M1 props unchanged. Mutation check: make `choiceOf` skip `offered.add("deny")` → "always Deny" fails; call both `latestChoose` and a second callback in the guard → "calls onChoose once" fails.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
-git add packages/ui
-git commit -m "feat(ui): reasoning, tool card and the four-answer approval card"
+git add packages/ui THIRD_PARTY_NOTICES.md
+git commit -m "feat(ui): reasoning, tool card and the approval card's converged answer API"
+```
+
+---
+
+### Task 10b: Markdown and code highlighting in messages, loaded lazily (owner R3-1)
+
+New task (owner R3-1, agreement 9). M2 defers "markdown and code highlighting in messages" to M3; spec C §7 names pi-web's pipeline (`react-markdown` + `remark-gfm`, pw: `components/MarkdownBody.tsx`, `lib/markdown.ts`) and shiki loaded on demand. Model text is untrusted: no raw HTML ever becomes markup, a link opens only to `http:`, `https:` or `mailto:` with `rel="noopener noreferrer"`, and an image is never fetched. Highlighting uses shiki's **JavaScript regex engine**, so the CSP keeps `script-src 'self'` with no `'wasm-unsafe-eval'` (R74, unchanged, its test untouched). Both the renderer and the highlighter are lazy chunks: the initial bundle gains only the small `Markdown` wrapper. Tool-specific renderers (edit diff, codemode, MCP) are M6's, on DiffView (R50).
+
+**Files:**
+- Create: `packages/ui/src/ai/Markdown.tsx`, `packages/ui/src/ai/Markdown.test.tsx`, `packages/ui/src/ai/Markdown.fail.test.tsx`
+- Create: `packages/ui/src/ai/markdown/render.tsx`, `render.test.tsx`, `CodeBlock.tsx`, `highlight.ts`, `highlight.test.ts`, `safe-url.ts`
+- Create: `apps/web/src/markdown-build.int.test.ts`
+- Modify: `packages/ui/package.json` (`react-markdown`, `remark-gfm`, `shiki`), `pnpm-lock.yaml`, `packages/ui/src/utilities.css` (code-highlight variables), `packages/ui/src/index.ts`, `apps/web/src/build-output.int.test.ts` (no `.wasm`)
+
+**Interfaces:**
+- Consumes: Task 1a utilities, the class and compiler gates (Task 2).
+- Produces:
+  - `Markdown({ text: string; onLoadError?(): void })` — plain `whitespace-pre-wrap` text at once, the rendered markdown once its chunk has loaded; if the chunk fails to load or the renderer throws, the plain text stays and `onLoadError` is called once. Used as `Message`'s child: `<Message author="agent" label={name}><Markdown text={text} /></Message>`.
+  - `render.tsx` (lazy chunk): default export `MarkdownBody({ text: string })`; `MAX_MARKDOWN_CHARS = 100_000` (longer text is shown plain, unparsed).
+  - `safe-url.ts`: `safeHref(raw: string): string | null` (absolute `http:`, `https:`, `mailto:` only).
+  - `highlight.ts` (its own lazy chunk, imported dynamically by `CodeBlock` only, so shiki loads only when a code block appears): `type CodeToken = { readonly content: string; readonly color: string | null; readonly italic: boolean }`; `highlightCode(code: string, lang: string): Promise<CodeToken[][] | null>` (null for an unknown language or code over `MAX_HIGHLIGHT_CHARS = 20_000`).
+  - CSS: `[data-slot="code-block"]` defines `--shiki-*` from role tokens (`utilities.css`).
+
+**Rulings (pre-dispatch):**
+- Pipeline: `react-markdown` with `remark-gfm` (pi-web's, spec C §7), `skipHtml` on (raw HTML in model text is dropped, never parsed), its default URL transform plus pap's `safeHref` on every link (absolute `http:`, `https:`, `mailto:` only; anything else renders as text), links open in a new tab with `rel="noopener noreferrer"`, images render as their alt text and never load (zero telemetry, CSP `img-src`), text over 100 000 characters is shown plain. pi-web's `rehype-raw`, `rehype-sanitize`, math and frontmatter plugins are not taken. [M3R38]
+- Highlighting: shiki's core with its JavaScript regex engine and a css-variables theme; never the Oniguruma WASM engine, so the CSP stays as it is (R74) and `highlight.test.ts` proves it with `WebAssembly` stubbed to throw. Languages: a fixed list (TypeScript, TSX, JavaScript, JSX, JSON, Bash, Python, Diff, YAML, CSS, HTML, Markdown, Go, Rust, SQL), each loaded on first use; code over 20 000 characters stays plain. [M3R39]
+- Colours: only the agent hue appears in code (code blocks are agent output, DESIGN §2): keywords `--agent`, comments `--text-muted` in italic, everything else `--text`. Defined on `[data-slot="code-block"]`, not `:root`, so a themed subtree re-themes code too. No ADR: DESIGN is silent on highlighting and this stays inside §2. [M3R40]
+- Placement: `Markdown` lives in `packages/ui/src/ai` as `Message`'s body slot (S6 "Streamdown response → the pi-web markdown pipeline, a slot"); `Message` keeps its M1 props. M2's transcript adopts it in P3; Task 25's preview and Task 28's gallery use it in M3. [M3R41]
+- Dependencies `react-markdown`, `remark-gfm` and `shiki` are pinned exactly in `@pap/ui` (`pnpm add -E`); `minimumReleaseAge` (3 days) is waited for, never bypassed. If one of them brings an install script, the implementer stops and asks (not in `onlyBuiltDependencies`); whether that happens is discovered during implementation. The exact shiki subpaths (`shiki/core`, `shiki/engine/javascript`, the per-language modules) and the `react-markdown` component props are verified against the pinned `.d.ts` and `exports`. [M3R42]
+- Bundle: the `Markdown` wrapper chunk stays under 3 KB gzip (pinned by `markdown-build.int.test.ts`); the renderer and highlighter chunk sizes are recorded in the commit body. [M3R43]
+
+- [ ] **Step 1: Add the dependencies**
+
+Run: `pnpm --filter @pap/ui add -E react-markdown remark-gfm shiki`
+Expected: three exact pins in `packages/ui/package.json`; record the versions pnpm chose in the commit body. If the pinned shiki ships its languages as a separate package (`@shikijs/langs`) that `@pap/ui` must import directly, add it the same way (pnpm does not let a package import a dependency it does not declare).
+
+- [ ] **Step 2: Write the failing tests**
+
+`packages/ui/src/ai/markdown/render.test.tsx`:
+
+```tsx
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import MarkdownBody, { MAX_MARKDOWN_CHARS } from "./render.tsx";
+import { safeHref } from "./safe-url.ts";
+
+const html = (text: string) => renderToStaticMarkup(<MarkdownBody text={text} />);
+
+describe("model markdown is untrusted text (checklist: no HTML or markdown injection)", () => {
+  it("never turns raw HTML into elements", () => {
+    const out = html('hi <img src=x onerror="alert(1)"> <script>alert(2)</script> <b>bold</b> **strong**');
+    expect(out).not.toMatch(/<img|<script|<b>/);
+    expect(out).toContain("<strong>strong</strong>");
+  });
+
+  it("keeps only absolute http, https and mailto links, opened safely; the others stay text", () => {
+    const out = html("[a](https://e.test/x) [b](javascript:alert(1)) [c](/settings) [d](data:text/html,hi) [e](mailto:a@e.test)");
+    expect(out).toContain('<a href="https://e.test/x" target="_blank" rel="noopener noreferrer"');
+    expect(out).toContain('href="mailto:a@e.test"');
+    expect(out).not.toMatch(/href="(?:javascript|data|\/settings)/i);
+    for (const text of [">b<", ">c<", ">d<"]) expect(out).toContain(text);
+  });
+
+  it("never loads an image: it becomes its alt text", () => {
+    const out = html("![a cat](https://e.test/cat.png)");
+    expect(out).not.toContain("<img");
+    expect(out).toContain("a cat");
+  });
+
+  it("renders GFM tables, and fenced code as a code block in plain text first", () => {
+    const out = html("| a | b |\n|---|---|\n| 1 | 2 |\n\n```ts\nconst x = 1;\n```");
+    expect(out).toContain("<table");
+    expect(out).toMatch(/<pre[^>]*data-slot="code-block"[^>]*data-lang="ts"/);
+    expect(out).toContain("const x = 1;");
+    expect(out).toContain("data-markdown-body");
+  });
+
+  it("shows text above the cap as plain text, unparsed", () => {
+    const long = "**b** ".repeat(Math.ceil(MAX_MARKDOWN_CHARS / 6) + 1);
+    expect(long.length).toBeGreaterThan(MAX_MARKDOWN_CHARS);
+    const out = html(long);
+    expect(out).not.toContain("<strong>");
+    expect(out).toContain("data-markdown-plain");
+  });
+});
+
+describe("safeHref", () => {
+  it.each([
+    ["https://e.test/a?b=1", "https://e.test/a?b=1"],
+    ["http://e.test", "http://e.test/"],
+    ["mailto:a@e.test", "mailto:a@e.test"],
+    ["javascript:alert(1)", null],
+    [" java\tscript:alert(1)", null],
+    ["data:text/html,x", null],
+    ["/settings", null],
+    ["", null],
+  ])("%j → %j", (raw, expected) => {
+    expect(safeHref(raw)).toBe(expected);
+  });
+});
+```
+
+`packages/ui/src/ai/markdown/highlight.test.ts`:
+
+```ts
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { highlightCode, MAX_HIGHLIGHT_CHARS } from "./highlight.ts";
+
+describe("code highlighting with shiki's JavaScript regex engine (R74: no WebAssembly)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("highlights TypeScript without ever compiling WebAssembly", async () => {
+    const refuse = () => {
+      throw new Error("WebAssembly is not allowed by the CSP (R74)");
+    };
+    vi.stubGlobal("WebAssembly", { compile: refuse, instantiate: refuse, compileStreaming: refuse, instantiateStreaming: refuse, validate: refuse });
+    const lines = await highlightCode("const x = 1; // one", "ts");
+    const tokens = (lines ?? []).flat();
+    expect(tokens.map((token) => token.content).join("")).toBe("const x = 1; // one");
+    expect(tokens.find((token) => token.content.includes("one"))?.color).toBe("var(--shiki-token-comment)");
+  });
+
+  it("lets only css-variable colours through", async () => {
+    const tokens = ((await highlightCode('import { a } from "b";\nfunction f() { return 1; }', "typescript")) ?? []).flat();
+    expect(tokens.length).toBeGreaterThan(0);
+    for (const token of tokens) expect(token.color === null || /^var\(--shiki-[a-z-]+\)$/.test(token.color), token.color ?? "").toBe(true);
+  });
+
+  it("leaves unknown languages and oversized code plain", async () => {
+    expect(await highlightCode("x", "brainfuck")).toBeNull();
+    expect(await highlightCode("x".repeat(MAX_HIGHLIGHT_CHARS + 1), "ts")).toBeNull();
+  });
+});
+```
+
+`packages/ui/src/ai/Markdown.test.tsx`:
+
+```tsx
+// @vitest-environment happy-dom
+import { act } from "react";
+import { describe, expect, it, vi } from "vitest";
+import { mount } from "../testing/dom.ts";
+import { Markdown } from "./Markdown.tsx";
+
+describe("Markdown (lazy)", () => {
+  it("shows the plain text at once, then the rendered markdown", async () => {
+    const page = await mount(<Markdown text={"**hi** there"} />);
+    expect(page.container.textContent).toContain("**hi** there");
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    expect(page.container.querySelector("strong")?.textContent).toBe("hi");
+    await page.unmount();
+  });
+});
+```
+
+`packages/ui/src/ai/Markdown.fail.test.tsx` (its own file: the mock applies to the whole file):
+
+```tsx
+// @vitest-environment happy-dom
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { mount } from "../testing/dom.ts";
+import { Markdown } from "./Markdown.tsx";
+
+vi.mock("./markdown/render.tsx", () => {
+  throw new Error("chunk gone after an update");
+});
+
+describe("Markdown when its chunk cannot load", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("keeps the plain text and reports once", async () => {
+    const onLoadError = vi.fn();
+    vi.spyOn(console, "error").mockImplementation(() => {}); // React logs the caught error
+    const page = await mount(<Markdown text={"**hi**"} onLoadError={onLoadError} />);
+    await act(async () => {
+      await vi.dynamicImportSettled();
+    });
+    expect(page.container.textContent).toBe("**hi**");
+    expect(onLoadError).toHaveBeenCalledOnce();
+    await page.unmount();
+  });
+});
+```
+
+(If `vi.dynamicImportSettled()` does not flush React's Suspense ping in the pinned versions, use `await vi.waitFor(() => expect(…).…, { timeout: 5_000 })` inside `act`; never a fixed sleep.)
+
+`apps/web/src/markdown-build.int.test.ts`:
+
+```ts
+import { join, resolve } from "node:path";
+import { gzipSync } from "node:zlib";
+import { build, type Rollup } from "vite";
+import { describe, expect, it } from "vitest";
+
+const webRoot = resolve(import.meta.dirname, "..");
+const repoRoot = resolve(webRoot, "../..");
+
+// Owner R3-1, R74: markdown and highlighting are lazy chunks, and nothing in them needs WebAssembly.
+describe("markdown build", () => {
+  it("keeps the renderer and the highlighter out of Markdown's own chunk and emits no .wasm", async () => {
+    const output = (await build({
+      root: webRoot,
+      configFile: join(webRoot, "vite.config.ts"),
+      logLevel: "silent",
+      build: {
+        write: false,
+        lib: { entry: join(repoRoot, "packages/ui/src/ai/Markdown.tsx"), formats: ["es"], fileName: "markdown" },
+        rollupOptions: { external: (id) => /^(react|react-dom)(\/|$)/.test(id) },
+      },
+    })) as Rollup.RollupOutput[];
+    const files = output.flatMap((o) => o.output);
+    const chunks = files.filter((file): file is Rollup.OutputChunk => file.type === "chunk");
+    const entry = chunks.find((chunk) => chunk.isEntry);
+    expect(files.some((file) => file.fileName.endsWith(".wasm"))).toBe(false);
+    expect(entry?.code).not.toMatch(/data-markdown-body|pap-code/);
+    const renderer = chunks.find((chunk) => chunk.code.includes("data-markdown-body"));
+    expect(renderer).toBeDefined();
+    expect(renderer?.code).not.toContain("pap-code"); // shiki waits for the first code block
+    expect(chunks.some((chunk) => chunk.code.includes("pap-code"))).toBe(true);
+    expect(gzipSync(entry?.code ?? "").length).toBeLessThan(3 * 1024);
+    for (const chunk of chunks) console.info(`markdown build ${chunk.fileName}: ${(gzipSync(chunk.code).length / 1024).toFixed(1)} KB gzip`);
+  }, 120_000);
+});
+```
+
+(If Vite's lib mode inlines dynamic imports in the pinned version, set `rollupOptions.output.inlineDynamicImports: false`.)
+
+Add to `apps/web/src/build-output.int.test.ts`, inside the existing `describe`:
+
+```ts
+  it("ships no WebAssembly: the CSP has no 'wasm-unsafe-eval' (R74)", () => {
+    expect(assets.filter((name) => name.endsWith(".wasm"))).toEqual([]);
+  });
+```
+
+- [ ] **Step 3: Run them to see them fail**
+
+Run: `pnpm test:unit packages/ui/src/ai && pnpm test:int apps/web/src/markdown-build.int.test.ts`
+Expected: FAIL (modules missing).
+
+- [ ] **Step 4: Implement**
+
+`packages/ui/src/ai/markdown/safe-url.ts`:
+
+```ts
+const ALLOWED = new Set(["http:", "https:", "mailto:"]);
+
+/**
+ * Model text is untrusted: only absolute http(s) and mailto links survive. A relative path (into pap), javascript:,
+ * data: and anything the URL parser refuses render as plain text instead (the caller shows the link text).
+ */
+export function safeHref(raw: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    return null; // not an absolute URL: shown as text, which is the documented outcome
+  }
+  return ALLOWED.has(url.protocol) ? url.href : null;
+}
+```
+
+`packages/ui/src/ai/markdown/highlight.ts`:
+
+```ts
+import { createCssVariablesTheme, createHighlighterCore, type HighlighterCore } from "shiki/core";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
+
+export interface CodeToken {
+  readonly content: string;
+  readonly color: string | null;
+  readonly italic: boolean;
+}
+
+export const MAX_HIGHLIGHT_CHARS = 20_000;
+const THEME = "pap-code";
+const SAFE_COLOR = /^var\(--shiki-[a-z-]+\)$/;
+
+// One module per language, loaded on first use (each is its own chunk). Aliases map to the module's own name.
+const LOADERS = {
+  typescript: () => import("shiki/langs/typescript.mjs"),
+  tsx: () => import("shiki/langs/tsx.mjs"),
+  javascript: () => import("shiki/langs/javascript.mjs"),
+  jsx: () => import("shiki/langs/jsx.mjs"),
+  json: () => import("shiki/langs/json.mjs"),
+  bash: () => import("shiki/langs/bash.mjs"),
+  python: () => import("shiki/langs/python.mjs"),
+  diff: () => import("shiki/langs/diff.mjs"),
+  yaml: () => import("shiki/langs/yaml.mjs"),
+  css: () => import("shiki/langs/css.mjs"),
+  html: () => import("shiki/langs/html.mjs"),
+  markdown: () => import("shiki/langs/markdown.mjs"),
+  go: () => import("shiki/langs/go.mjs"),
+  rust: () => import("shiki/langs/rust.mjs"),
+  sql: () => import("shiki/langs/sql.mjs"),
+} as const;
+type Language = keyof typeof LOADERS;
+const ALIASES: Readonly<Record<string, Language>> = { ts: "typescript", js: "javascript", sh: "bash", shell: "bash", zsh: "bash", py: "python", yml: "yaml", md: "markdown", rs: "rust" };
+
+let highlighter: Promise<HighlighterCore> | null = null;
+// Bounded by LOADERS: at most one entry per language.
+const loaded = new Map<Language, Promise<void>>();
+
+function core(): Promise<HighlighterCore> {
+  highlighter ??= createHighlighterCore({
+    themes: [createCssVariablesTheme({ name: THEME, variablePrefix: "--shiki-", fontStyle: true })],
+    langs: [],
+    // The JavaScript engine: no WebAssembly, so the CSP needs no 'wasm-unsafe-eval' (R74).
+    engine: createJavaScriptRegexEngine({ forgiving: true }),
+  }).catch((error: unknown) => {
+    highlighter = null; // the next code block tries again
+    throw error;
+  });
+  return highlighter;
+}
+
+function languageOf(lang: string): Language | null {
+  const name = lang.trim().toLowerCase();
+  if (name in LOADERS) return name as Language;
+  return ALIASES[name] ?? null;
+}
+
+/** Tokens per line with css-variable colours, or null when the code stays plain (unknown language, too long). */
+export async function highlightCode(code: string, lang: string): Promise<CodeToken[][] | null> {
+  const language = languageOf(lang);
+  if (language === null || code.length > MAX_HIGHLIGHT_CHARS) return null;
+  const shiki = await core();
+  let ready = loaded.get(language);
+  if (!ready) {
+    ready = LOADERS[language]().then((module) => shiki.loadLanguage(module.default));
+    loaded.set(language, ready);
+    // A failed load is forgotten so the next block tries again; this call still rejects to its caller.
+    ready.catch(() => loaded.delete(language));
+  }
+  await ready;
+  return shiki.codeToTokens(code, { lang: language, theme: THEME }).tokens.map((line) =>
+    line.map((token) => ({
+      content: token.content,
+      color: token.color !== undefined && SAFE_COLOR.test(token.color) ? token.color : null,
+      // shiki's FontStyle flags: 1 is italic.
+      italic: ((token.fontStyle ?? 0) & 1) === 1,
+    })),
+  );
+}
+```
+
+(Verify against the pinned shiki: the names `createHighlighterCore`, `createCssVariablesTheme`, `createJavaScriptRegexEngine` and its `forgiving` option, the `codeToTokens(...).tokens` shape, the `FontStyle` italic flag, and the per-language module path — `shiki/langs/<name>.mjs` or `@shikijs/langs/<name>` — before writing; keep the behaviour and the tests. The engine's default regex target is runtime detection, which keeps Safari 16.4 working (no RegExp `v` flag there); if the pinned version has no detection, pass the ES2018 target.)
+
+`packages/ui/src/ai/markdown/CodeBlock.tsx`:
+
+```tsx
+import { useEffect, useState } from "react";
+import type { CodeToken } from "./highlight.ts";
+
+const PRE_CLASSES = "overflow-x-auto rounded-md border border-border bg-surface p-s2 font-mono text-code";
+let warned = false;
+
+/** Plain first; the highlighted tokens replace it when they arrive for the same code (a stale answer is dropped). */
+export function CodeBlock({ code, lang }: { readonly code: string; readonly lang: string }) {
+  const [highlighted, setHighlighted] = useState<{ readonly code: string; readonly lang: string; readonly lines: CodeToken[][] } | null>(null);
+  useEffect(() => {
+    let current = true;
+    // shiki loads with the first code block, not with the markdown renderer.
+    import("./highlight.ts")
+      .then(({ highlightCode }) => highlightCode(code, lang))
+      .then(
+        (lines) => {
+          if (current && lines) setHighlighted({ code, lang, lines });
+        },
+        () => {
+          // Highlighting only adds colour: the plain block stays on screen. One bounded line per page, no content.
+          if (warned) return;
+          warned = true;
+          console.warn("pap: code_highlight_failed");
+        },
+      );
+    return () => {
+      current = false;
+    };
+  }, [code, lang]);
+  const lines = highlighted && highlighted.code === code && highlighted.lang === lang ? highlighted.lines : null;
+  return (
+    <pre data-slot="code-block" data-lang={lang || undefined} className={PRE_CLASSES}>
+      <code>
+        {lines
+          ? lines.map((line, row) => (
+              <span key={row} className="block">
+                {line.map((token, column) => (
+                  <span key={column} className={token.italic ? "italic" : undefined} style={token.color ? { color: token.color } : undefined}>
+                    {token.content}
+                  </span>
+                ))}
+              </span>
+            ))
+          : code}
+      </code>
+    </pre>
+  );
+}
+```
+
+(A failed highlight leaves the plain code, which the person already reads, and writes one `pap: code_highlight_failed` line per page: `reportClientIssue` lives in the web app, which `@pap/ui` cannot import. Lines and tokens have no identity of their own and never reorder, so the index keys are stable by construction.)
+
+`packages/ui/src/ai/markdown/render.tsx`:
+
+```tsx
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { cn } from "../../cn.ts";
+import { CodeBlock } from "./CodeBlock.tsx";
+import { safeHref } from "./safe-url.ts";
+
+export const MAX_MARKDOWN_CHARS = 100_000;
+
+const BODY_CLASSES = "flex min-w-0 flex-col gap-s2 whitespace-normal break-words text-chat";
+const PLAIN_CLASSES = "whitespace-pre-wrap break-words text-chat";
+const LINK_CLASSES = "text-agent underline underline-offset-2 focus-ring";
+const INLINE_CODE_CLASSES = "rounded-sm bg-surface-2 px-1 font-mono text-code";
+const LIST_CLASSES = "flex flex-col gap-s1 pl-s4";
+const TABLE_CLASSES = "w-full border-collapse text-ui";
+const CELL_CLASSES = "border border-border px-s2 py-s1 text-left align-top";
+const QUOTE_CLASSES = "border-l-2 border-border pl-s3 text-muted";
+
+/** The hast node react-markdown hands to a component, read structurally (no direct dependency on hast's types). */
+interface HastNode {
+  readonly type?: string;
+  readonly tagName?: string;
+  readonly value?: string;
+  readonly properties?: Readonly<Record<string, unknown>>;
+  readonly children?: readonly HastNode[];
+}
+
+const textOf = (node: HastNode | undefined): string => (node?.value ?? "") + (node?.children ?? []).map(textOf).join("");
+
+function fenced(node: HastNode | undefined): { code: string; lang: string } {
+  const code = node?.children?.find((child) => child.tagName === "code");
+  const classes = code?.properties?.className;
+  const lang = (Array.isArray(classes) ? classes : []).map(String).find((name) => name.startsWith("language-"))?.slice(9) ?? "";
+  return { code: textOf(code).replace(/\n$/, ""), lang };
+}
+
+const COMPONENTS: Components = {
+  a: ({ href, children }) => {
+    const safe = href ? safeHref(href) : null;
+    return safe ? (
+      <a href={safe} target="_blank" rel="noopener noreferrer" className={LINK_CLASSES}>
+        {children}
+      </a>
+    ) : (
+      <span>{children}</span>
+    );
+  },
+  // An image would be a request to wherever the model pointed (zero telemetry, CSP img-src): show its alt text.
+  img: ({ alt }) => <span>{alt ?? ""}</span>,
+  pre: ({ node }) => {
+    const { code, lang } = fenced(node as HastNode | undefined);
+    return <CodeBlock code={code} lang={lang} />;
+  },
+  code: ({ children }) => <code className={INLINE_CODE_CLASSES}>{children}</code>,
+  ul: ({ children }) => <ul className={cn(LIST_CLASSES, "list-disc")}>{children}</ul>,
+  ol: ({ children }) => <ol className={cn(LIST_CLASSES, "list-decimal")}>{children}</ol>,
+  blockquote: ({ children }) => <blockquote className={QUOTE_CLASSES}>{children}</blockquote>,
+  table: ({ children }) => (
+    <div className="overflow-x-auto">
+      <table className={TABLE_CLASSES}>{children}</table>
+    </div>
+  ),
+  th: ({ children }) => <th className={cn(CELL_CLASSES, "font-semibold")}>{children}</th>,
+  td: ({ children }) => <td className={CELL_CLASSES}>{children}</td>,
+  h1: ({ children }) => <p className="font-bold">{children}</p>,
+  h2: ({ children }) => <p className="font-bold">{children}</p>,
+  h3: ({ children }) => <p className="font-semibold">{children}</p>,
+  h4: ({ children }) => <p className="font-semibold">{children}</p>,
+  h5: ({ children }) => <p className="font-semibold">{children}</p>,
+  h6: ({ children }) => <p className="font-semibold">{children}</p>,
+};
+
+/** pi-web's pipeline (react-markdown + remark-gfm) without raw HTML; lazy-loaded by Markdown.tsx. */
+export default function MarkdownBody({ text }: { readonly text: string }) {
+  if (text.length > MAX_MARKDOWN_CHARS) {
+    return (
+      <div data-markdown-plain="" className={PLAIN_CLASSES}>
+        {text}
+      </div>
+    );
+  }
+  return (
+    <div data-markdown-body="" className={BODY_CLASSES}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={COMPONENTS}>
+        {text}
+      </ReactMarkdown>
+    </div>
+  );
+}
+```
+
+(Model headings stay inside the message's type scale and out of the page's heading outline: a chat message never prints an `h1`. Verify the `Components` prop shapes against the pinned `react-markdown` `.d.ts`; `node` is the hast element.)
+
+`packages/ui/src/ai/Markdown.tsx`:
+
+```tsx
+import { Component, lazy, Suspense, type ReactNode } from "react";
+
+const MarkdownBody = lazy(() => import("./markdown/render.tsx"));
+const PLAIN_CLASSES = "whitespace-pre-wrap break-words";
+
+interface FallbackProps {
+  readonly fallback: ReactNode;
+  readonly onError?: () => void;
+  readonly children: ReactNode;
+}
+
+/** A chunk that fails to load (an update renamed it while the page stayed open) or a renderer that throws leaves the plain text. */
+class PlainOnError extends Component<FallbackProps, { readonly failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(): void {
+    this.props.onError?.();
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? this.props.fallback : this.props.children;
+  }
+}
+
+/** Model text as markdown (DESIGN §9.2 message body), loaded on first use; plain text until then and if it fails. */
+export function Markdown({ text, onLoadError }: { readonly text: string; readonly onLoadError?: () => void }) {
+  const plain = (
+    <div data-slot="markdown" className={PLAIN_CLASSES}>
+      {text}
+    </div>
+  );
+  return (
+    <PlainOnError fallback={plain} onError={onLoadError}>
+      <Suspense fallback={plain}>
+        <MarkdownBody text={text} />
+      </Suspense>
+    </PlainOnError>
+  );
+}
+```
+
+Append to `packages/ui/src/utilities.css`:
+
+```css
+/* Code highlighting (Task 10b): shiki's css-variables theme mapped to role tokens on the block itself, so a themed
+   subtree re-themes it. Only the agent hue appears: code blocks are agent output (DESIGN.md §2). */
+[data-slot="code-block"] {
+  --shiki-foreground: var(--text);
+  --shiki-background: transparent;
+  --shiki-token-keyword: var(--agent);
+  --shiki-token-comment: var(--text-muted);
+  --shiki-token-string: var(--text);
+  --shiki-token-string-expression: var(--text);
+  --shiki-token-constant: var(--text);
+  --shiki-token-function: var(--text);
+  --shiki-token-parameter: var(--text);
+  --shiki-token-punctuation: var(--text-muted);
+  --shiki-token-link: var(--agent);
+}
+```
+
+`packages/ui/src/index.ts`: export `Markdown` (the renderer and highlighter stay internal: they are lazy chunks).
+
+- [ ] **Step 5: Run the tests**
+
+Run: `pnpm test:unit packages/ui scripts/class-coverage.test.ts scripts/literal-coverage.test.ts apps/web/src/compiler-gate.test.ts && pnpm test:int apps/web/src/markdown-build.int.test.ts apps/web/src/build-output.int.test.ts && pnpm lint && pnpm knip`
+Expected: PASS. Mutation checks: remove `skipHtml` → "never turns raw HTML into elements" fails; return `url.href` without the protocol check → the `javascript:` and `data:` cases fail; import `highlight.ts` statically in `CodeBlock` → the build test's "shiki waits for the first code block" fails. Copy the chunk sizes the build test prints into the commit body.
+
+- [ ] **Step 6: Commit**
+
+```bash
+pnpm format
+git add packages/ui apps/web/src/markdown-build.int.test.ts apps/web/src/build-output.int.test.ts pnpm-lock.yaml
+git commit -m "feat(ui): lazy markdown and code highlighting in messages, without WebAssembly"
 ```
 
 ---
@@ -4294,9 +5121,11 @@ DESIGN.md §6 (decision 26): the "two legs" π on a 32-unit grid, agent left in 
 - Modify: `apps/web/index.html`, `apps/web/src/build-output.int.test.ts`, `packages/ui/src/index.ts`
 
 **Interfaces:**
-- Produces: `Mark({ size?: number; mode?: "night" | "day"; label?: string })` (min 16 px), `Wordmark({ name: string; tagline?: string })`. Task 31 renders PNGs from `apps/web/icons-src/*.svg`.
+- Produces: `Mark({ size?: number; mode?: "night" | "day"; label?: string })` (min 16 px), `Wordmark({ name: string; tagline?: string })`; the SVG sources `apps/web/icons-src/*.svg` that M12 renders to PNG.
 
-**Risks / rulings needed:** PNG favicons and PWA icons arrive in Task 31 (they need the browser container); until then Safari 16.4 shows no tab icon (it ignores SVG favicons): acceptable interim, confirm.
+**Rulings (pre-dispatch):**
+- PNG favicons, the Apple touch icon and the PWA icons are deferred to M12 with the manifest (rendering them needed the browser container, removed by owner C1). Until then Safari shows no tab icon (it ignores SVG favicons): accepted. The SVG sources ship now so M12 only renders them. [M3R44]
+- The build output references only `/assets/*` and `/favicon.svg` (no `/icons/` path in M3). [M3R44]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4331,7 +5160,7 @@ describe("logo (DESIGN.md §6)", () => {
 });
 ```
 
-In `apps/web/src/build-output.int.test.ts`, change the "loads only from its own origin" expectation to `expect(reference, String(reference)).toMatch(/^\/(?:assets\/|icons\/|favicon\.svg$)/);` and add:
+In `apps/web/src/build-output.int.test.ts`, change the "loads only from its own origin" expectation to `expect(reference, String(reference)).toMatch(/^\/(?:assets\/|favicon\.svg$)/);` and add:
 
 ```ts
   it("names the tab pap and serves the favicon from the build", async () => {
@@ -4440,7 +5269,7 @@ git commit -m "feat(ui): the two-legs mark, the pap wordmark and the favicon"
 
 ### Task 12: Contracts `settings.*` and the daemon `settings` module
 
-DESIGN.md §13 and §14: account-scope appearance lives in "the `settings` module (account scope)"; spec C §3.2 lists the `settings` table. Keybindings ride on the same module (open question Q3 confirms the scope). New files only, plus the small hunks in shared files listed in "Coordination with M2". Values are validated by the contracts schemas before they are stored, so the server never keeps a document the client could not read back.
+DESIGN.md §13 and §14: account-scope appearance lives in "the `settings` module (account scope)"; spec C §3.2 lists the `settings` table. Keybindings ride on the same module (owner M3-Q3: per account, on the server). New files only, plus the small hunks in shared files listed in "Coordination with M2" (owner R3-8, agreement 13). Values are validated by the contracts schemas before they are stored, so the server never keeps a document the client could not read back. A write is a compare-and-set on the document's revision (owner R3-4, M3-RT-01): a write based on a revision that moved is refused with `conflict`, never applied over the newer copy.
 
 **Files:**
 - Create: `packages/contracts/src/settings.ts`, `packages/contracts/src/settings.test.ts`
@@ -4453,12 +5282,19 @@ DESIGN.md §13 and §14: account-scope appearance lives in "the `settings` modul
 - Consumes: `defineMethod`, `PapError`, `Caller`, kernel `Db`, `Clock`, `MigrationSource`, `migrate`.
 - Produces:
   - `createSettingsService({ store, clock, logger })` logs `settings_row_unreadable { key }` (never the value) when a stored document does not parse.
-  - `THEME_ROLES`, `ThemeRoles`, `CustomTheme` (+ type), `AccountAppearance` (+ type), `KEY_NONE = "none"`, `KeybindingRule` (+ type), `KeybindingRules`, `SETTING_KEYS`, `SettingKey` (+ type), `MAX_SETTING_BYTES = 131072`, `SettingWrite` (+ type), `settingsMethods`.
-  - Methods `settings.get { key } → { value: unknown | null; revision: number }` (`settings:read`, idempotent) and `settings.set { key, value } → { revision }` (`settings:operate`, mutation, errors `payload_too_large`).
+  - `THEME_ROLES`, `ThemeRoles`, `PRESET_THEME_IDS = ["night", "day", "hc"]`, `CustomTheme` (+ type; refuses a preset id), `AccountAppearanceFields` (the plain object, every field with a `.default()`), `AccountAppearance` (+ type; the fields plus the cross-field rules), `KEY_NONE = "none"`, `KeybindingRule` (+ type), `KeybindingRules`, `SETTING_KEYS`, `SettingKey` (+ type), `MAX_SETTING_BYTES = 131072`, `SettingWrite` (+ type; `{ key, value, baseRevision }`), `settingsMethods`.
+  - Methods `settings.get { key } → { value: unknown | null; revision: number }` (`settings:read`, idempotent) and `settings.set { key, value, baseRevision } → { revision }` (`settings:operate`, mutation with `commandId`, errors `payload_too_large`, `conflict`).
   - Permission domain `settings`.
-  - `SETTINGS_MIGRATIONS`, `createSettingsModule({ db, clock, logger }): { rpc: SettingsRpc }`.
+  - `SettingsStore.put(ownerId, key, value, baseRevision, now): number | null` (null = the stored revision moved); `SETTINGS_MIGRATIONS`, `createSettingsModule({ db, clock, logger }): { rpc: SettingsRpc }`.
 
-**Risks / rulings needed:** Touches M2-owned files (the hunks of "Coordination with M2"): a trivial merge conflict is expected. Keybindings stored per account is open question Q3: rule before dispatch. On a read-only database (written by a newer pap) `settings.set` fails like every other write: acceptable.
+**Rulings (pre-dispatch):**
+- The module, its contracts file and the `settings` permission domain sit in M2-owned areas: accepted by the owner (R3-8, agreement 13); the shared-file hunks are one line each and the task is Opus-reviewed. [M3R45]
+- Keybindings are stored per account on the server (owner M3-Q3); digits and punctuation are recorded by physical key (owner R3-7, Task 16a). [M3R46]
+- On a read-only database (written by a newer pap) `settings.set` fails like every other write (`read_only`). [M3R47]
+- Compare-and-set (owner R3-4): `settings.set` carries `baseRevision` (0 = create); the store writes in one statement (`UPDATE … WHERE owner_id = ? AND key = ? AND revision = $base`, or `INSERT … ON CONFLICT DO NOTHING` for 0) and a miss is `conflict` with the stored document unchanged. Never last-writer-wins. [M3R48]
+- Every `AccountAppearance` field has a `.default()`, so a document written before a field existed still reads, on the server and in the client's field-wise parse (Task 13); the preset ids `night`, `day`, `hc` are refused as custom theme ids (M3-RT-09). [M3R49]
+- The 128 KiB cap is pinned by a test that crosses it with two-byte characters and asserts the payload size before calling `set` (M3-RT-08). [M3R50]
+- The migration keeps the stamp `202610111000_settings.sql`; the branch that merges second re-stamps its migrations after the newest stamp on `main` during its rebase (agreement 1, M3-RT-10). With M2 first, M3's stamp already sorts after M2's `202610110000` and `202610110100`; the rebase checks M2's final stamps. [M3R51]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4466,7 +5302,7 @@ DESIGN.md §13 and §14: account-scope appearance lives in "the `settings` modul
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { AccountAppearance, KeybindingRules, SettingWrite } from "./settings.ts";
+import { AccountAppearance, CustomTheme, KeybindingRules, SettingWrite } from "./settings.ts";
 
 const base = {
   mode: "system",
@@ -4481,6 +5317,7 @@ const base = {
   avatarStyle: "outlined",
   toolDetail: "compact",
 } as const;
+const withoutGrid = Object.fromEntries(Object.entries(base).filter(([name]) => name !== "grid"));
 const ocean = { id: "ocean", name: "Ocean", base: "night", roles: { bg: "#0E1626", surface: "#132033", text: "#E6EDF7", agent: "#38BDF8", you: "#FB923C", attn: "#EC4899", ok: "#34D399", err: "#F87171" } } as const;
 
 describe("account appearance", () => {
@@ -4500,6 +5337,15 @@ describe("account appearance", () => {
       expect(AccountAppearance.safeParse({ ...base, customThemes: [{ ...ocean, roles: { ...ocean.roles, bg: bad } }] }).success, bad).toBe(false);
     }
   });
+
+  it("refuses a custom theme that takes a preset's id (M3-RT-09)", () => {
+    for (const id of ["night", "day", "hc"]) expect(CustomTheme.safeParse({ ...ocean, id }).success, id).toBe(false);
+  });
+
+  it("reads a document written before a field existed: the missing field takes its default", () => {
+    expect(AccountAppearance.parse(withoutGrid)).toEqual(base);
+    expect(AccountAppearance.parse({})).toEqual(base);
+  });
 });
 
 describe("keybinding rules", () => {
@@ -4512,10 +5358,12 @@ describe("keybinding rules", () => {
 });
 
 describe("setting writes", () => {
-  it("pairs each key with its own schema", () => {
-    expect(SettingWrite.safeParse({ key: "keybindings", value: [] }).success).toBe(true);
-    expect(SettingWrite.safeParse({ key: "keybindings", value: base }).success).toBe(false);
-    expect(SettingWrite.safeParse({ key: "theme", value: {} }).success).toBe(false);
+  it("pairs each key with its own schema and always names the revision it was based on", () => {
+    expect(SettingWrite.safeParse({ key: "keybindings", value: [], baseRevision: 0 }).success).toBe(true);
+    expect(SettingWrite.safeParse({ key: "keybindings", value: [] }).success).toBe(false);
+    expect(SettingWrite.safeParse({ key: "keybindings", value: [], baseRevision: -1 }).success).toBe(false);
+    expect(SettingWrite.safeParse({ key: "keybindings", value: base, baseRevision: 0 }).success).toBe(false);
+    expect(SettingWrite.safeParse({ key: "theme", value: {}, baseRevision: 0 }).success).toBe(false);
   });
 });
 ```
@@ -4528,7 +5376,7 @@ Change the mutation list in `packages/contracts/src/methods.test.ts` to include 
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ALL_PERMISSIONS, PapError, type Caller } from "@pap/contracts";
+import { ALL_PERMISSIONS, MAX_SETTING_BYTES, PapError, type Caller } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
@@ -4565,23 +5413,34 @@ describe("settings service", () => {
   });
 
   it("stores a document per owner and key and bumps its revision", () => {
-    expect(service.set(owner("u1"), { key: "appearance", value: appearance })).toEqual({ revision: 1 });
-    expect(service.set(owner("u1"), { key: "appearance", value: { ...appearance, grid: false } })).toEqual({ revision: 2 });
+    expect(service.set(owner("u1"), { key: "appearance", value: appearance, baseRevision: 0 })).toEqual({ revision: 1 });
+    expect(service.set(owner("u1"), { key: "appearance", value: { ...appearance, grid: false }, baseRevision: 1 })).toEqual({ revision: 2 });
     expect(service.get(owner("u1"), "appearance")).toEqual({ value: { ...appearance, grid: false }, revision: 2 });
     expect(service.get(owner("u2"), "appearance")).toEqual({ value: null, revision: 0 });
     expect(service.get(owner("u1"), "keybindings")).toEqual({ value: null, revision: 0 });
   });
 
-  it("refuses a value over 128 KiB", () => {
-    const rules = Array.from({ length: 256 }, (_, i) => ({ key: "mod+k", command: `x.${"a".repeat(120)}${i}`, when: "b".repeat(256) }));
-    expect(() => service.set(owner("u1"), { key: "keybindings", value: rules })).toThrow(new PapError("payload_too_large"));
+  it("a stale baseRevision is refused and the stored document is unchanged", () => {
+    service.set(owner("u1"), { key: "appearance", value: appearance, baseRevision: 0 });
+    expect(() => service.set(owner("u1"), { key: "appearance", value: { ...appearance, grid: false }, baseRevision: 0 })).toThrow(new PapError("conflict"));
+    expect(() => service.set(owner("u1"), { key: "appearance", value: { ...appearance, grid: false }, baseRevision: 7 })).toThrow(new PapError("conflict"));
+    expect(service.get(owner("u1"), "appearance")).toEqual({ value: appearance, revision: 1 });
   });
 
-  it("reads a damaged row as no setting, and logs the key, never the value", () => {
+  it("refuses a value over 128 KiB and stores nothing", () => {
+    // "é" is two bytes in UTF-8 and one character for the schema's 256-character limit (M3-RT-08).
+    const rules = Array.from({ length: 256 }, (_, i) => ({ key: "mod+k", command: `x.${"a".repeat(120)}${i}`, when: "é".repeat(256) }));
+    expect(Buffer.byteLength(JSON.stringify(rules), "utf8")).toBeGreaterThan(MAX_SETTING_BYTES);
+    expect(() => service.set(owner("u1"), { key: "keybindings", value: rules, baseRevision: 0 })).toThrow(new PapError("payload_too_large"));
+    expect(service.get(owner("u1"), "keybindings")).toEqual({ value: null, revision: 0 });
+  });
+
+  it("reads a damaged row as no setting, logs the key, never the value, and lets the next write replace it", () => {
     db.run("INSERT INTO settings (owner_id, key, value, revision, updated_at) VALUES ('u1', 'appearance', '{oops-secret', 3, 0)");
     expect(service.get(owner("u1"), "appearance")).toEqual({ value: null, revision: 3 });
     expect(lines.join("\n")).toContain("settings_row_unreadable");
     expect(lines.join("\n")).not.toContain("oops-secret");
+    expect(service.set(owner("u1"), { key: "appearance", value: appearance, baseRevision: 3 })).toEqual({ revision: 4 });
   });
 });
 ```
@@ -4601,13 +5460,15 @@ afterEach(async () => {
 });
 
 describe("settings over /ws", () => {
-  it("round-trips the account appearance and refuses an invalid one", async () => {
+  it("round-trips the account appearance, refuses a stale write and an invalid one", async () => {
     const client = await t.connect(await t.login());
     expect(await client.call("settings.get", { key: "appearance" })).toMatchObject({ ok: true, result: { value: null, revision: 0 } });
     const value = { mode: "night", darkTheme: "hc", lightTheme: "day", customThemes: [], uiFont: "manrope", monoFont: "system", uppercaseLabels: true, grid: false, railPosition: "left", avatarStyle: "outlined", toolDetail: "expanded" };
-    expect(await client.call("settings.set", { key: "appearance", value } as never)).toMatchObject({ ok: true, result: { revision: 1 } });
+    expect(await client.call("settings.set", { key: "appearance", value, baseRevision: 0 } as never)).toMatchObject({ ok: true, result: { revision: 1 } });
     expect(await client.call("settings.get", { key: "appearance" })).toMatchObject({ ok: true, result: { value, revision: 1 } });
-    expect(await client.call("settings.set", { key: "appearance", value: { ...value, darkTheme: "nope" } } as never)).toMatchObject({ ok: false, error: { code: "bad_request" } });
+    expect(await client.call("settings.set", { key: "appearance", value: { ...value, grid: true }, baseRevision: 0 } as never)).toMatchObject({ ok: false, error: { code: "conflict" } });
+    expect(await client.call("settings.set", { key: "appearance", value: { ...value, darkTheme: "nope" }, baseRevision: 1 } as never)).toMatchObject({ ok: false, error: { code: "bad_request" } });
+    expect(await client.call("settings.get", { key: "appearance" })).toMatchObject({ ok: true, result: { value, revision: 1 } });
   });
 });
 ```
@@ -4632,32 +5493,42 @@ const Hex = z.string().regex(/^#[0-9a-fA-F]{6}$/);
 export const THEME_ROLES = ["bg", "surface", "text", "agent", "you", "attn", "ok", "err"] as const;
 export const ThemeRoles = z.object({ bg: Hex, surface: Hex, text: Hex, agent: Hex, you: Hex, attn: Hex, ok: Hex, err: Hex });
 
+/** Preset theme ids: a custom theme taking one would shadow the preset (M3-RT-09). */
+export const PRESET_THEME_IDS = ["night", "day", "hc"] as const;
+
 /** DESIGN.md §13.1: a custom theme edits roles, not variables. The id rule is T3's (themePalette.ts). */
 export const CustomTheme = z.object({
-  id: z.string().regex(/^[a-z0-9][a-z0-9-]{0,47}$/),
+  id: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,47}$/)
+    .refine((id) => !(PRESET_THEME_IDS as readonly string[]).includes(id), "reserved theme id"),
   name: z.string().trim().min(1).max(64),
   base: z.enum(["night", "day"]),
   roles: ThemeRoles,
 });
 export type CustomTheme = z.infer<typeof CustomTheme>;
 
-export const AccountAppearance = z
-  .object({
-    mode: z.enum(["system", "night", "day"]),
-    /** "night", "hc" or the id of a custom theme on a night base. */
-    darkTheme: z.string().min(1).max(48),
-    /** "day" or the id of a custom theme on a day base. */
-    lightTheme: z.string().min(1).max(48),
-    customThemes: z.array(CustomTheme).max(16),
-    uiFont: z.enum(["manrope", "system"]),
-    monoFont: z.enum(["jetbrains-mono", "system"]),
-    uppercaseLabels: z.boolean(),
-    grid: z.boolean(),
-    railPosition: z.enum(["left", "right"]),
-    avatarStyle: z.enum(["outlined", "tinted", "glyph"]),
-    toolDetail: z.enum(["compact", "expanded", "full"]),
-  })
-  .superRefine((value, ctx) => {
+/**
+ * Every field has a default (owner R3-4): a document written before a field existed reads with that field's
+ * default, and the client parses field by field from this shape (Task 13).
+ */
+export const AccountAppearanceFields = z.object({
+  mode: z.enum(["system", "night", "day"]).default("system"),
+  /** "night", "hc" or the id of a custom theme on a night base. */
+  darkTheme: z.string().min(1).max(48).default("night"),
+  /** "day" or the id of a custom theme on a day base. */
+  lightTheme: z.string().min(1).max(48).default("day"),
+  customThemes: z.array(CustomTheme).max(16).default(() => []),
+  uiFont: z.enum(["manrope", "system"]).default("manrope"),
+  monoFont: z.enum(["jetbrains-mono", "system"]).default("jetbrains-mono"),
+  uppercaseLabels: z.boolean().default(true),
+  grid: z.boolean().default(true),
+  railPosition: z.enum(["left", "right"]).default("left"),
+  avatarStyle: z.enum(["outlined", "tinted", "glyph"]).default("outlined"),
+  toolDetail: z.enum(["compact", "expanded", "full"]).default("compact"),
+});
+
+export const AccountAppearance = AccountAppearanceFields.superRefine((value, ctx) => {
     const ids = new Set<string>();
     for (const theme of value.customThemes) {
       if (ids.has(theme.id)) ctx.addIssue({ code: "custom", path: ["customThemes"], message: "duplicate theme id" });
@@ -4673,7 +5544,7 @@ export const AccountAppearance = z
   });
 export type AccountAppearance = z.infer<typeof AccountAppearance>;
 
-/** A user rule with this key unbinds the command's defaults (Task 16 merge rule). */
+/** A user rule with this key unbinds the command's defaults (Task 16b merge rule). */
 export const KEY_NONE = "none";
 
 /** T3's keybinding rule shape ({key, command, when}); later rules win. */
@@ -4690,9 +5561,12 @@ export const SettingKey = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof SettingKey>;
 export const MAX_SETTING_BYTES = 131_072;
 
+/** The revision the client read before this write; 0 creates the document (compare-and-set, owner R3-4). */
+const BaseRevision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+
 export const SettingWrite = z.discriminatedUnion("key", [
-  z.object({ key: z.literal("appearance"), value: AccountAppearance }),
-  z.object({ key: z.literal("keybindings"), value: KeybindingRules }),
+  z.object({ key: z.literal("appearance"), value: AccountAppearance, baseRevision: BaseRevision }),
+  z.object({ key: z.literal("keybindings"), value: KeybindingRules, baseRevision: BaseRevision }),
 ]);
 export type SettingWrite = z.infer<typeof SettingWrite>;
 
@@ -4711,7 +5585,8 @@ export const settingsMethods = {
     idempotent: false,
     params: SettingWrite,
     result: z.object({ revision: z.number().int().positive() }),
-    errors: ["payload_too_large"],
+    // conflict: the stored revision is not baseRevision any more; the client re-reads, merges and retries once.
+    errors: ["payload_too_large", "conflict"],
   }),
 } as const;
 ```
@@ -4749,21 +5624,30 @@ export interface SettingRow {
 
 export interface SettingsStore {
   get(ownerId: string, key: string): SettingRow | undefined;
-  /** Inserts or replaces the document; returns its new revision (1 for the first write). */
-  put(ownerId: string, key: string, value: string, now: number): number;
+  /**
+   * Compare-and-set in one statement: writes only when the stored revision is `baseRevision` (0 = no document yet)
+   * and returns the new revision, or null when the document moved or appeared meanwhile (nothing is written then).
+   */
+  put(ownerId: string, key: string, value: string, baseRevision: number, now: number): number | null;
 }
 
 export function createSettingsStore(db: Db): SettingsStore {
   return {
     get: (ownerId, key) =>
       db.get<SettingRow>("SELECT value, revision FROM settings WHERE owner_id = $ownerId AND key = $key", { ownerId, key }),
-    put: (ownerId, key, value, now) =>
-      db.get<{ revision: number }>(
-        "INSERT INTO settings (owner_id, key, value, revision, updated_at) VALUES ($ownerId, $key, $value, 1, $now) " +
-          "ON CONFLICT (owner_id, key) DO UPDATE SET value = excluded.value, revision = settings.revision + 1, updated_at = excluded.updated_at " +
-          "RETURNING revision",
-        { ownerId, key, value, now },
-      )?.revision ?? 0,
+    put: (ownerId, key, value, baseRevision, now) =>
+      (baseRevision === 0
+        ? db.get<{ revision: number }>(
+            "INSERT INTO settings (owner_id, key, value, revision, updated_at) VALUES ($ownerId, $key, $value, 1, $now) " +
+              "ON CONFLICT (owner_id, key) DO NOTHING RETURNING revision",
+            { ownerId, key, value, now },
+          )
+        : db.get<{ revision: number }>(
+            "UPDATE settings SET value = $value, revision = revision + 1, updated_at = $now " +
+              "WHERE owner_id = $ownerId AND key = $key AND revision = $baseRevision RETURNING revision",
+            { ownerId, key, value, now, baseRevision },
+          )
+      )?.revision ?? null,
   };
 }
 ```
@@ -4797,7 +5681,10 @@ export function createSettingsService(deps: { readonly store: SettingsStore; rea
     set(caller, write) {
       const text = JSON.stringify(write.value);
       if (Buffer.byteLength(text, "utf8") > MAX_SETTING_BYTES) throw new PapError("payload_too_large");
-      return { revision: deps.store.put(caller.userId, write.key, text, deps.clock.now()) };
+      // Compare-and-set (owner R3-4): a write based on a revision that moved never lands over the newer copy.
+      const revision = deps.store.put(caller.userId, write.key, text, write.baseRevision, deps.clock.now());
+      if (revision === null) throw new PapError("conflict");
+      return { revision };
     },
   };
 }
@@ -4851,7 +5738,7 @@ export function createSettingsModule(deps: { readonly db: Db; readonly clock: Cl
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm test:unit packages/contracts apps/daemon && pnpm test:int apps/daemon/src/daemon.settings.int.test.ts && pnpm build && pnpm smoke`
-Expected: PASS; `pnpm build` copies `modules/settings/migrations/*.sql` into `apps/daemon/dist` (copy-sql reads every `migrations` folder), and the smoke boots the built daemon with the new migration.
+Expected: PASS; `pnpm build` copies `modules/settings/migrations/*.sql` into `apps/daemon/dist` (copy-sql reads every `migrations` folder), and the smoke boots the built daemon with the new migration. Mutation checks: drop `AND revision = $baseRevision` → "a stale baseRevision is refused" fails; replace `DO NOTHING` by the M1-style upsert → the same test fails on its first case; remove the reserved-id refine → "refuses a custom theme that takes a preset's id" fails.
 
 - [ ] **Step 5: Commit**
 
@@ -4865,23 +5752,30 @@ git commit -m "feat(settings): account-scope settings module with appearance and
 
 ### Task 13: Appearance model — defaults, resolution, custom themes, contrast
 
-Pure code, no DOM: what the two scopes hold, how they become `<html>` attributes and variables, how a custom theme's roles become the 28 tokens (DESIGN.md §13.2), and WCAG contrast (DESIGN §12: the editor shows the ratio per role and asks below AA).
+Pure code, no DOM: what the two scopes hold, how they become `<html>` attributes and variables, how a custom theme's roles become the 31 tokens (DESIGN.md §13.2, with ADR 0012's three), WCAG contrast (DESIGN §12: the editor shows the ratio per role and asks below AA), and how an account document is read field by field and merged (owner R3-4, M3-RT-01).
 
 **Files:**
 - Create: `apps/web/src/features/appearance/model.ts`, `model.test.ts`, `derive.ts`, `derive.test.ts`, `contrast.ts`, `contrast.test.ts`
+- Modify: `eslint.config.js` (`contrast.ts` and `derive.ts` join the `pap/no-raw-colors` `ignores`: colour math, pinned by their tests, M3-RT-02)
 
 **Interfaces:**
-- Consumes: `AccountAppearance`, `CustomTheme` (Task 12); `THEME_TOKENS`, `ThemeToken`, `ThemeName`, `Density`, `DENSITIES` (Task 1).
+- Consumes: `AccountAppearance`, `AccountAppearanceFields`, `CustomTheme` (Task 12); `THEME_TOKENS`, `ThemeToken`, `ThemeName`, `Density`, `DENSITIES` (Task 1a).
 - Produces:
   - `DEFAULT_ACCOUNT: AccountAppearance`; `interface DeviceAppearance { density: Density; uiSize: number | null; chatSize: number | null; codeSize: number | null; motion: "system" | "reduced" | "none"; chatWidth: "full" | "wide" | "narrow" }`; `DEFAULT_DEVICE`; `SIZE_RANGES = { uiSize: [12, 16], chatSize: [13, 18], codeSize: [11, 16] }`; `DEVICE_KEY = "pap.appearance.device.v1"`; `ACCOUNT_CACHE_KEY = "pap.appearance.account.v1"`.
-  - `parseAccount(value: unknown): AccountAppearance`, `parseDevice(raw: string | null): DeviceAppearance`.
+  - `parseAccount(value: unknown): AccountAppearance` (field by field: each field falls back on its own, `customThemes` keeps its valid entries, a side whose theme vanished falls back to its preset), `parseDevice(raw: string | null): DeviceAppearance`.
+  - `changedAccountFields(previous: AccountAppearance, next: AccountAppearance): string[]`, `mergeAccount(server: AccountAppearance, local: AccountAppearance, dirty: ReadonlySet<string>): AccountAppearance` (the server copy with the local values of `dirty` laid over it, re-read by `parseAccount`).
   - `APPEARANCE_ATTRS = ["theme","density","font-ui","font-mono","labels","grid","rail","motion","chat-width","tool-detail","avatar"] as const`, `type AppearanceAttr`.
   - `interface ResolvedAppearance { attrs: Readonly<Record<AppearanceAttr, string>>; vars: Readonly<Record<string, string>> }`, `resolveAppearance(account, device, prefersLight: boolean): ResolvedAppearance`.
   - `interface BootSide { theme: ThemeName; vars: Readonly<Record<string, string>> }`, `interface BootCache { v: 1; mode: "system" | "night" | "day"; attrs: Readonly<Record<string, string>>; vars: Readonly<Record<string, string>>; dark: BootSide; light: BootSide }`, `toBootCache(account, device): BootCache`.
   - `deriveTheme(theme: CustomTheme): Readonly<Record<ThemeToken, string>>`, `tokenVars(tokens): Record<string, string>` (`--bg` → value).
   - `contrastRatio(foreground: string, background: string, backdrop?: string): number`, `mix(a: string, b: string, t: number): string`, `ensureContrast(color: string, background: string, target: number, toward: string): string`, `interface RoleCheck { role: string; ratio: number; passes: boolean; adjusted: string | null }`, `roleChecks(theme: CustomTheme): RoleCheck[]`.
 
-**Risks / rulings needed:** The theme mode × preset model is open question Q2: rule before dispatch. The derivation ratios (mixes of 8 %, 13 %, 22 %, 35 %, 38 %, 55 %, 58 %) are pap's own numbers for DESIGN §13.2's rules: confirm.
+**Rulings (pre-dispatch):**
+- Mode chooses the side (Night / Day / System); a dark theme (Night Control, High contrast, or a custom theme on a night base) and a light theme (Day · Papier, or a custom theme on a day base) fill each side; High contrast is a dark-side choice (owner M3-Q2 confirmed). [M3R52]
+- The derivation ratios (mixes of 8 %, 13 %, 22 %, 35 %, 38 %, 55 %, 58 %) are pap's own numbers for DESIGN §13.2's rules, documented in `docs/agents/web.md`. [M3R53]
+- An account document is read field by field (owner R3-4): one bad or missing field never resets the others; `customThemes` keeps its valid entries (first of a duplicate id wins, at most 16, at most 64 entries examined); `darkTheme`/`lightTheme` fall back to `night`/`day` when their theme is gone or sits on the wrong side. `DEFAULT_ACCOUNT` equals the contracts' defaults (`AccountAppearance.parse({})`). [M3R54]
+- A custom theme derives ADR 0012's tokens too: `control-border` and `focus-ring` (the you fill) are moved toward the text until they reach 3:1 on both bg and surface, `attn-title` until it reaches 4.5:1 on the attention tint over the surface. [M3R55]
+- `contrast.ts` and `derive.ts` join the `pap/no-raw-colors` ignore list (they hold `#ffffff` as colour math); nothing else in `apps/web` does. [M3R5]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -4954,6 +5848,17 @@ describe("custom themes (DESIGN.md §13.2)", () => {
     expect(contrastRatio(tokens["you-ink"], tokens["you-fill"])).toBeGreaterThanOrEqual(4.5);
   });
 
+  it("derives ADR 0012's tokens: 3:1 for the focus ring and control borders, 4.5:1 for the approval title on its card", () => {
+    for (const theme of [example, paper]) {
+      const t = deriveTheme(theme);
+      for (const ground of [t.bg, t.surface]) {
+        expect(contrastRatio(t["focus-ring"], ground), `${theme.id} focus on ${ground}`).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(t["control-border"], ground), `${theme.id} control border on ${ground}`).toBeGreaterThanOrEqual(3);
+      }
+      expect(contrastRatio(t["attn-title"], t["attn-tint"], t.surface), `${theme.id} approval title`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
   it("reports a role below AA so the editor can ask before saving", () => {
     const dim = { ...example, roles: { ...example.roles, text: "#1A2333" } };
     const checks = roleChecks(dim);
@@ -4966,8 +5871,9 @@ describe("custom themes (DESIGN.md §13.2)", () => {
 `apps/web/src/features/appearance/model.test.ts`:
 
 ```ts
+import { AccountAppearance } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_ACCOUNT, DEFAULT_DEVICE, parseAccount, parseDevice, resolveAppearance, toBootCache } from "./model.ts";
+import { changedAccountFields, DEFAULT_ACCOUNT, DEFAULT_DEVICE, mergeAccount, parseAccount, parseDevice, resolveAppearance, toBootCache } from "./model.ts";
 
 const ocean = { id: "ocean", name: "Ocean", base: "night", roles: { bg: "#0E1626", surface: "#132033", text: "#E6EDF7", agent: "#38BDF8", you: "#FB923C", attn: "#EC4899", ok: "#34D399", err: "#F87171" } } as const;
 
@@ -4978,9 +5884,37 @@ describe("appearance model", () => {
     expect(parseDevice('{"density":"comfortable","uiSize":99,"motion":"none","extra":1}')).toEqual({ ...DEFAULT_DEVICE, density: "comfortable", motion: "none" });
   });
 
-  it("an account document that does not validate reads as the defaults", () => {
-    expect(parseAccount({ mode: "sepia" })).toEqual(DEFAULT_ACCOUNT);
-    expect(parseAccount(null)).toEqual(DEFAULT_ACCOUNT);
+  it("DEFAULT_ACCOUNT is the contracts' defaults, and anything but an object reads as them", () => {
+    expect(AccountAppearance.parse({})).toEqual(DEFAULT_ACCOUNT);
+    for (const value of [null, undefined, 3, "x", [1]]) expect(parseAccount(value)).toEqual(DEFAULT_ACCOUNT);
+  });
+
+  it("a document missing one field keeps the others (owner R3-4)", () => {
+    const older = Object.fromEntries(Object.entries({ ...DEFAULT_ACCOUNT, railPosition: "right", toolDetail: "full" }).filter(([name]) => name !== "grid"));
+    expect(parseAccount(older)).toEqual({ ...DEFAULT_ACCOUNT, railPosition: "right", toolDetail: "full" });
+  });
+
+  it("a bad field falls back on its own", () => {
+    expect(parseAccount({ ...DEFAULT_ACCOUNT, mode: "sepia", grid: "yes", railPosition: "right" })).toEqual({ ...DEFAULT_ACCOUNT, railPosition: "right" });
+  });
+
+  it("keeps the valid custom themes, drops the rest, and repairs a side whose theme is gone", () => {
+    const account = parseAccount({ ...DEFAULT_ACCOUNT, customThemes: [ocean, { ...ocean, id: "day" }, { ...ocean, roles: { ...ocean.roles, bg: "red" } }, ocean], darkTheme: "ocean", lightTheme: "ocean" });
+    expect(account.customThemes).toEqual([ocean]);
+    expect([account.darkTheme, account.lightTheme]).toEqual(["ocean", "day"]);
+    expect(parseAccount({ ...DEFAULT_ACCOUNT, darkTheme: "gone" }).darkTheme).toBe("night");
+    // The cap: at most 16 custom themes survive, the first ones.
+    const many = parseAccount({ ...DEFAULT_ACCOUNT, customThemes: Array.from({ length: 20 }, (_, i) => ({ ...ocean, id: `t${i}` })) });
+    expect([many.customThemes.length, many.customThemes.at(-1)?.id]).toEqual([16, "t15"]);
+  });
+
+  it("names the changed fields and merges local changes over the server copy", () => {
+    const local = { ...DEFAULT_ACCOUNT, grid: false, customThemes: [ocean], darkTheme: "ocean" };
+    expect(changedAccountFields(DEFAULT_ACCOUNT, local).sort()).toEqual(["customThemes", "darkTheme", "grid"]);
+    const server = { ...DEFAULT_ACCOUNT, railPosition: "right" } as const;
+    expect(mergeAccount(server, local, new Set(["grid"]))).toEqual({ ...DEFAULT_ACCOUNT, railPosition: "right", grid: false });
+    // The side points to a theme the server copy does not have: it falls back rather than naming nothing.
+    expect(mergeAccount(server, local, new Set(["darkTheme"])).darkTheme).toBe("night");
   });
 
   it("follows the system by default and picks each side's theme", () => {
@@ -5078,6 +6012,7 @@ import type { ThemeToken } from "@pap/ui";
 import { contrastRatio, ensureContrast, mix } from "./contrast.ts";
 
 const AA = 4.5;
+const NON_TEXT = 3;
 const lower = (hex: string) => hex.toLowerCase();
 
 /** DESIGN.md §13.2: shades, inks and day text tones derived from the eight roles. Inputs are validated hex colours. */
@@ -5085,6 +6020,8 @@ export function deriveTheme(theme: CustomTheme): Readonly<Record<ThemeToken, str
   const r = Object.fromEntries(Object.entries(theme.roles).map(([k, v]) => [k, lower(v)])) as CustomTheme["roles"];
   const night = theme.base === "night";
   const tone = (role: string) => ensureContrast(role, r.bg, AA, r.text);
+  // ADR 0012 / WCAG 1.4.11: 3:1 against both grounds a control or a focus ring sits on.
+  const nonText = (color: string) => ensureContrast(ensureContrast(color, r.bg, NON_TEXT, r.text), r.surface, NON_TEXT, r.text);
   const darkInk = night ? r.bg : r.text;
   const ink = (fill: string) => (contrastRatio("#ffffff", fill) >= contrastRatio(darkInk, fill) ? "#ffffff" : darkInk);
   return {
@@ -5107,6 +6044,9 @@ export function deriveTheme(theme: CustomTheme): Readonly<Record<ThemeToken, str
     "you-tint": `${r.you}1a`,
     "you-line": `${r.you}66`,
     "you-text": ensureContrast(mix(r.you, r.text, 0.55), r.bg, AA, r.text),
+    "control-border": nonText(mix(r.bg, r.text, 0.38)),
+    "focus-ring": nonText(r.you),
+    "attn-title": ensureContrast(r.attn, mix(r.surface, r.attn, 26 / 255), AA, r.text),
     attn: tone(r.attn),
     "attn-fill": r.attn,
     "attn-ink": ink(r.attn),
@@ -5149,7 +6089,7 @@ export function roleChecks(theme: CustomTheme): RoleCheck[] {
 `model.ts`:
 
 ```ts
-import { AccountAppearance } from "@pap/contracts";
+import { AccountAppearanceFields, CustomTheme, type AccountAppearance } from "@pap/contracts";
 import { DENSITIES, type Density, type ThemeName } from "@pap/ui";
 import { deriveTheme, tokenVars } from "./derive.ts";
 
@@ -5184,9 +6124,55 @@ export interface DeviceAppearance {
 export const DEFAULT_DEVICE: DeviceAppearance = { density: "compact", uiSize: null, chatSize: null, codeSize: null, motion: "system", chatWidth: "full" };
 export const SIZE_RANGES = { uiSize: [12, 16], chatSize: [13, 18], codeSize: [11, 16] } as const;
 
+const MAX_CUSTOM_THEMES = 16;
+const MAX_THEME_ENTRIES_READ = 64;
+
+/**
+ * Field by field (owner R3-4, M3-RT-01): an unreadable or missing field falls back on its own; custom themes keep
+ * their valid entries; a side whose theme is gone falls back to its preset. Never throws.
+ */
 export function parseAccount(value: unknown): AccountAppearance {
-  const parsed = AccountAppearance.safeParse(value);
-  return parsed.success ? parsed.data : DEFAULT_ACCOUNT;
+  const source: Readonly<Record<string, unknown>> = value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+  const field = <K extends keyof AccountAppearance>(name: K): AccountAppearance[K] => {
+    const parsed = AccountAppearanceFields.shape[name].safeParse(source[name]);
+    return parsed.success ? (parsed.data as AccountAppearance[K]) : DEFAULT_ACCOUNT[name];
+  };
+  const themes: CustomTheme[] = [];
+  const ids = new Set<string>();
+  const entries: readonly unknown[] = Array.isArray(source.customThemes) ? source.customThemes.slice(0, MAX_THEME_ENTRIES_READ) : [];
+  for (const entry of entries) {
+    const parsed = CustomTheme.safeParse(entry);
+    if (!parsed.success || ids.has(parsed.data.id) || themes.length === MAX_CUSTOM_THEMES) continue;
+    ids.add(parsed.data.id);
+    themes.push(parsed.data);
+  }
+  const side = (id: string, base: CustomTheme["base"], presets: readonly string[], fallback: string): string =>
+    presets.includes(id) || themes.some((theme) => theme.id === id && theme.base === base) ? id : fallback;
+  return {
+    mode: field("mode"),
+    darkTheme: side(field("darkTheme"), "night", ["night", "hc"], "night"),
+    lightTheme: side(field("lightTheme"), "day", ["day"], "day"),
+    customThemes: themes,
+    uiFont: field("uiFont"),
+    monoFont: field("monoFont"),
+    uppercaseLabels: field("uppercaseLabels"),
+    grid: field("grid"),
+    railPosition: field("railPosition"),
+    avatarStyle: field("avatarStyle"),
+    toolDetail: field("toolDetail"),
+  };
+}
+
+/** The account fields whose value differs (themes compared as JSON: they are plain data). */
+export function changedAccountFields(previous: AccountAppearance, next: AccountAppearance): string[] {
+  return (Object.keys(next) as Array<keyof AccountAppearance>).filter((name) => JSON.stringify(previous[name]) !== JSON.stringify(next[name]));
+}
+
+/** The server copy with the local values of the fields changed on this device laid over it, re-read field by field. */
+export function mergeAccount(server: AccountAppearance, local: AccountAppearance, dirty: ReadonlySet<string>): AccountAppearance {
+  const merged: Record<string, unknown> = { ...server };
+  for (const name of dirty) if (name in local) merged[name] = local[name as keyof AccountAppearance];
+  return parseAccount(merged);
 }
 
 const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T => (allowed.includes(value as T) ? (value as T) : fallback);
@@ -5277,15 +6263,17 @@ export function toBootCache(account: AccountAppearance, device: DeviceAppearance
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web/src/features/appearance`
-Expected: PASS.
+In `eslint.config.js`, append `"apps/web/src/features/appearance/contrast.ts"` and `"apps/web/src/features/appearance/derive.ts"` to the `pap/no-raw-colors` block's `ignores` (after `presets.ts`, under the same comment).
+
+Run: `pnpm test:unit apps/web/src/features/appearance && pnpm lint`
+Expected: PASS. Mutation checks: make `parseAccount` return `DEFAULT_ACCOUNT` when any field fails (the M1-era `safeParse` shape) → "a document missing one field keeps the others" and "a bad field falls back on its own" fail; drop the `side()` repair → "repairs a side whose theme is gone" fails.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
-git add apps/web/src/features/appearance
-git commit -m "feat(appearance): account and device model, custom theme derivation and contrast"
+git add apps/web/src/features/appearance eslint.config.js
+git commit -m "feat(appearance): account and device model, field-wise parse and merge, theme derivation and contrast"
 ```
 
 ---
@@ -5303,10 +6291,15 @@ DESIGN.md §14: "applied as `data-*` attributes before first paint to avoid a fl
 - Consumes: `BootCache`, `ResolvedAppearance`, `APPEARANCE_ATTRS` (Task 13).
 - Produces:
   - `BOOT_KEY = "pap.appearance.boot"` (exported from `apply.ts`; the script reads the same literal).
+  - `BOOT_VAR_NAMES: ReadonlySet<string>` (every `--<THEME_TOKENS>` plus `--size-ui`, `--size-chat`, `--size-code`: the only custom properties the appearance writes inline; the script carries the same list, pinned by a test), `inlineAppearanceVars(root: HTMLElement): Set<string>` (those of them already set inline).
   - `interface Frames { request(fn: () => void): number; cancel(id: number): void }`, `applyAppearance(root: HTMLElement, resolved: ResolvedAppearance, previousVars: ReadonlySet<string>, frames?: Frames): Set<string>`, `writeBootCache(storage: Pick<Storage, "setItem">, cache: BootCache): boolean` (false and `reportClientIssue("boot_cache_refused")` when storage refuses), `syncThemeColor(root: HTMLElement, doc?: Document): void`.
   - Vite plugin `appearanceBoot(): Plugin` (name `pap-appearance-boot`).
 
-**Risks / rulings needed:** Relies on Vite 8 keeping `transformIndexHtml` tag injection and `emitFile` in `generateBundle` (pinned by the build-output test). None.
+**Rulings (pre-dispatch):**
+- The plugin relies on Vite 8 keeping `transformIndexHtml` tag injection and `emitFile` in `generateBundle`; the build-output test pins both. [M3R56]
+- The boot script sets only the custom properties of `BOOT_VAR_NAMES` (hex or px values) and only the known `data-*` attributes (plain words); the controller's first apply starts from the appearance variables already inline, so a boot-set variable the app no longer resolves is removed (M3-RT-11). Other inline variables (`--app-viewport-height`) are never touched by either. [M3R57]
+- The script uses optional catch bindings (`catch {`, ES2019, inside the Safari 16.4 floor), so no unused binding trips ESLint (M3-RT-12). [M3R58]
+- Reviewed by Opus (owner X2): it runs before the app under the strict CSP and turns untrusted `localStorage` into attributes and style properties. [M3R59]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -5316,7 +6309,7 @@ DESIGN.md §14: "applied as `data-*` attributes before first paint to avoid a fl
 // @vitest-environment happy-dom
 import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BOOT_KEY } from "./apply.ts";
+import { BOOT_KEY, BOOT_VAR_NAMES } from "./apply.ts";
 
 const source = readFileSync(new URL("./boot-script.js", import.meta.url), "utf8");
 const run = () => new Function(source)();
@@ -5348,13 +6341,18 @@ describe("boot script (runs before the first paint)", () => {
     expect([root.dataset.theme, root.style.getPropertyValue("--bg")]).toEqual(["night", "#0e1626"]);
   });
 
-  it("ignores garbage, unknown keys and throwing storage", () => {
+  it("carries exactly the variable names the app writes", () => {
+    const listed = /var allowed = "([^"]+)"/.exec(source)?.[1]?.split(" ") ?? [];
+    expect(listed.map((name) => `--${name}`).sort()).toEqual([...BOOT_VAR_NAMES].sort());
+  });
+
+  it("ignores garbage, unknown keys, unknown variables and throwing storage", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     localStorage.setItem(BOOT_KEY, "{oops");
     expect(run).not.toThrow();
     expect(warn).toHaveBeenCalledWith("pap: appearance_boot_failed");
     warn.mockRestore();
-    localStorage.setItem(BOOT_KEY, JSON.stringify({ v: 1, mode: "night", attrs: { onclick: "x", density: "<b>" }, vars: { "--bg": "url(https://x.test)", "color": "red" }, dark: { theme: "evil", vars: {} }, light: { theme: "day", vars: {} } }));
+    localStorage.setItem(BOOT_KEY, JSON.stringify({ v: 1, mode: "night", attrs: { onclick: "x", density: "<b>" }, vars: { "--bg": "url(https://x.test)", "color": "red", "--app-viewport-height": "1px", "--rail-w": "1px" }, dark: { theme: "evil", vars: {} }, light: { theme: "day", vars: {} } }));
     run();
     expect(root.getAttribute("data-onclick")).toBeNull();
     expect(root.dataset.density).toBeUndefined();
@@ -5375,7 +6373,7 @@ describe("boot script (runs before the first paint)", () => {
 ```ts
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import { applyAppearance, writeBootCache, BOOT_KEY } from "./apply.ts";
+import { applyAppearance, BOOT_KEY, inlineAppearanceVars, writeBootCache } from "./apply.ts";
 import { DEFAULT_ACCOUNT, DEFAULT_DEVICE, resolveAppearance, toBootCache } from "./model.ts";
 
 const frames = () => {
@@ -5395,6 +6393,14 @@ describe("applyAppearance", () => {
     expect(root.classList.contains("theme-swap")).toBe(false);
     applyAppearance(root, resolveAppearance(DEFAULT_ACCOUNT, DEFAULT_DEVICE, false), first, f);
     expect(root.style.getPropertyValue("--size-ui")).toBe("");
+  });
+
+  it("finds the appearance variables already set inline, and only those", () => {
+    const root = document.createElement("html");
+    root.style.setProperty("--bg", "#000000");
+    root.style.setProperty("--size-ui", "15px");
+    root.style.setProperty("--app-viewport-height", "400px");
+    expect([...inlineAppearanceVars(root)].sort()).toEqual(["--bg", "--size-ui"]);
   });
 
   it("writes the boot cache and survives a storage that refuses", () => {
@@ -5450,7 +6456,8 @@ Expected: FAIL.
 // Runs as a blocking classic script before the first paint. vite/appearance-boot.ts emits it under /assets/ and links
 // it first in <head>: the CSP has no 'unsafe-inline' for scripts (R74). It replays what apply.ts last wrote to
 // localStorage "pap.appearance.boot" and ignores anything unexpected: only known attributes with plain word values,
-// only custom properties with hex or px values. ES2017, no imports; any failure leaves the defaults of tokens.css.
+// only the custom properties the app writes (apply.ts BOOT_VAR_NAMES) with hex or px values. ES2019 (optional catch
+// binding), no imports; any failure leaves the defaults of tokens.css.
 (function () {
   try {
     var raw = window.localStorage.getItem("pap.appearance.boot");
@@ -5459,14 +6466,16 @@ Expected: FAIL.
     if (!cache || cache.v !== 1) return;
     var root = document.documentElement;
     var names = ["density", "font-ui", "font-mono", "labels", "grid", "rail", "motion", "chat-width", "tool-detail", "avatar"];
+    // apply.ts BOOT_VAR_NAMES without the leading "--" (boot-script.test.ts proves the two lists are equal).
+    var allowed = "bg bg-side surface surface-2 border border-strong control-border text text-muted text-dim grid focus-ring agent agent-fill agent-ink you you-fill you-ink you-tint you-line you-text attn attn-fill attn-ink attn-tint attn-line attn-title ok err diff-add diff-del size-ui size-chat size-code".split(" ");
     var word = /^[a-z0-9-]{1,32}$/;
-    var varName = /^--[a-z0-9-]{1,40}$/;
     var varValue = /^(#[0-9a-f]{6}([0-9a-f]{2})?|\d{1,2}(\.\d{1,2})?px)$/i;
     var setVars = function (vars) {
       if (!vars || typeof vars !== "object") return;
       Object.keys(vars).forEach(function (name) {
         var value = vars[name];
-        if (varName.test(name) && typeof value === "string" && varValue.test(value)) root.style.setProperty(name, value);
+        var known = name.slice(0, 2) === "--" && allowed.indexOf(name.slice(2)) !== -1;
+        if (known && typeof value === "string" && varValue.test(value)) root.style.setProperty(name, value);
       });
     };
     var attrs = cache.attrs && typeof cache.attrs === "object" ? cache.attrs : {};
@@ -5481,13 +6490,9 @@ Expected: FAIL.
       root.setAttribute("data-theme", side.theme);
       setVars(side.vars);
     }
-  } catch (error) {
+  } catch {
     // The defaults of tokens.css apply; the app rewrites the cache once it starts.
-    try {
-      console.warn("pap: appearance_boot_failed");
-    } catch (ignored) {
-      // A console that throws changes nothing.
-    }
+    if (typeof console !== "undefined") console.warn("pap: appearance_boot_failed");
   }
 })();
 ```
@@ -5495,10 +6500,27 @@ Expected: FAIL.
 `apps/web/src/features/appearance/apply.ts`:
 
 ```ts
+import { THEME_TOKENS } from "@pap/ui";
 import { reportClientIssue } from "../../lib/report.ts";
 import { APPEARANCE_ATTRS, type BootCache, type ResolvedAppearance } from "./model.ts";
 
 export const BOOT_KEY = "pap.appearance.boot";
+
+/** The only custom properties the appearance writes inline: a custom theme's tokens and the device sizes. */
+export const BOOT_VAR_NAMES: ReadonlySet<string> = new Set([...THEME_TOKENS.map((name) => `--${name}`), "--size-ui", "--size-chat", "--size-code"]);
+
+/**
+ * The appearance variables already inline (set by the boot script), so the first apply removes those the app no
+ * longer resolves (M3-RT-11). Other inline variables, such as --app-viewport-height, are not the appearance's.
+ */
+export function inlineAppearanceVars(root: HTMLElement): Set<string> {
+  const names = new Set<string>();
+  for (const declaration of root.style.cssText.split(";")) {
+    const name = declaration.slice(0, declaration.indexOf(":")).trim();
+    if (BOOT_VAR_NAMES.has(name)) names.add(name);
+  }
+  return names;
+}
 
 export interface Frames {
   request(fn: () => void): number;
@@ -5595,7 +6617,7 @@ export function appearanceBoot(): Plugin {
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm test:unit apps/web && pnpm test:int apps/web/src/build-output.int.test.ts && pnpm lint && pnpm knip`
-Expected: PASS; the existing "has no inline script" case still passes (both scripts have a `src` under `/assets/`).
+Expected: PASS; the existing "has no inline script" case still passes (both scripts have a `src` under `/assets/`). Mutation checks: drop the `known` condition in `setVars` → "ignores … unknown variables" fails; add a name to the script's list only → "carries exactly the variable names the app writes" fails.
 
 - [ ] **Step 5: Commit**
 
@@ -5607,9 +6629,9 @@ git commit -m "feat(appearance): pre-paint boot script shipped as a hashed class
 
 ---
 
-### Task 15: Appearance store, controller and account sync
+### Task 15: Appearance store, controller and account sync (compare-and-set)
 
-The store holds both scopes; the controller applies them at start, follows the system theme, and saves account changes to the server (debounced, latest value only, stale answers ignored); the shell calls `syncAccountAppearance` once the socket is open. A daemon without `settings.get` (an older build: `unknown_method`) leaves the local values in place without a message; any other failure is shown in Settings › Appearance (Task 25 reads `accountStatus`). No client call here gets its own deadline: the runtime settles every call when the socket is declared dead (spec C §4.2 keepalive, 15 s), and a mutation that ends in `timeout`/`connection_lost` is never re-sent by itself (R105) — the next change sends the whole latest document with a new `commandId`.
+The store holds both scopes; the controller applies them at start and follows the system theme; the account scope is one **account document** kept in step with the server by compare-and-set (owner R3-4, M3-RT-01, the Critical finding of the red-team): nothing is sent before the first load settles, nothing after a failed load until a later one succeeds, one save at a time from the latest revision, a `conflict` re-reads, merges the fields changed on this device and retries once, and a re-sync keeps a waiting change instead of dropping it. The engine (`createAccountDocument`) lives in `apps/web/src/lib/` because Task 17b's keybindings use it too. The shell calls `syncAccountAppearance` each time the socket opens (Task 19b). A daemon without `settings.get` (an older build: `unknown_method`) leaves the local values in place without a message and receives no save. No client call here gets its own deadline: the runtime settles every call when the socket is declared dead (spec C §4.2, 15 s); a save that ends in `timeout`/`connection_lost` is never re-sent by itself (R105): the next change, or the next sync's fresh read, sends it.
 
 **Files:**
 - Create: `apps/web/src/lib/account-setting.ts`, `apps/web/src/lib/account-setting.test.ts`
@@ -5617,24 +6639,34 @@ The store holds both scopes; the controller applies them at start, follows the s
 - Modify: `apps/web/src/main.tsx` (start the controller before the first render), `eslint.config.js` (`web-root` may import `web-feature`)
 
 **Interfaces:**
-- Consumes: `Runtime` (`getRuntime().rpc.call`) and `RpcError` from `apps/web/src/runtime/index.ts`; `reportClientIssue` (Task 3); Task 13 model; Task 14 applier.
+- Consumes: `Runtime` (`getRuntime().rpc.call`) and `RpcError` from `apps/web/src/runtime/index.ts`; `reportClientIssue` (Task 3); Task 13's model (`parseAccount`, `changedAccountFields`, `mergeAccount`); Task 14's applier (`applyAppearance`, `inlineAppearanceVars`, `writeBootCache`, `syncThemeColor`).
 - Produces:
   - `type LoadResult = { kind: "loaded"; value: unknown; revision: number } | { kind: "unsupported" } | { kind: "failed"; code: string }`, `loadSetting(rpc: Runtime["rpc"], key: SettingKey): Promise<LoadResult>` (`unsupported` for `unknown_method`).
-  - `type SaveStatus = "saving" | "saved" | "error"`, `saveSetting(rpc, write: SettingWrite): Promise<unknown>`, `createSettingSaver<V>(send: (value: V) => Promise<unknown>, onStatus: (status: SaveStatus) => void, options?: { delayMs?: number; timers?: { set(fn: () => void, ms: number): number; clear(id: number): void } }): { save(value: V): void; dispose(): void }` — only the newest send may report a status.
-  - `useAppearanceStore` state: `{ account: AccountAppearance; device: DeviceAppearance; accountStatus: "local" | "load-error" | SaveStatus; deviceStored: boolean; setAccount(next): void; setDevice(next): void; replaceFromServer(account): void; setAccountStatus(status): void; resetAll(): { account; device } }` (`resetAll` returns the previous values for Undo; `deviceStored` is false when localStorage refused the last device write, and Settings says the values apply to this page only).
-  - `startAppearance(win?: Window): { stop(): void }`, `syncAccountAppearance(rpc: Runtime["rpc"]): Promise<void>`.
-  - `features/appearance/index.ts` re-exports the public surface (store hook, start, sync, `DEFAULT_ACCOUNT`, `DEFAULT_DEVICE`, `SIZE_RANGES`, `type DeviceAppearance`, `deriveTheme`, `roleChecks`, `type RoleCheck`, `contrastRatio`).
+  - `type SaveStatus = "saving" | "saved" | "error"`, `type AccountStatus = "local" | "load-error" | SaveStatus`.
+  - `interface AccountDocumentOptions<V> { key: SettingKey; write(value: V, baseRevision: number): SettingWrite; parse(value: unknown): V; changed(previous: V, next: V): readonly string[]; merge(server: V, local: V, dirty: ReadonlySet<string>): V; local(): V; adopt(value: V): void; onStatus(status: AccountStatus): void; delayMs?: number; timers?: Timers }`, `createAccountDocument<V>(options): { change(previous: V, next: V): void; sync(rpc: Runtime["rpc"]): Promise<void>; dispose(): void }`.
+  - `useAppearanceStore` state: `{ account: AccountAppearance; device: DeviceAppearance; accountStatus: AccountStatus; deviceStored: boolean; setAccount(next): void; setDevice(next): void; replaceFromServer(account): void; setAccountStatus(status): void; resetAll(): { account; device } }` (`resetAll` returns the previous values for Undo and keeps the custom theme library; `deviceStored` is false when localStorage refused the last device write, and Settings says the values apply to this page only).
+  - `startAppearance(win?: Window): { stop(): void }`, `syncAccountAppearance(rpc: Runtime["rpc"]): Promise<void>` (never rejects in practice: failures become `accountStatus`).
+  - `features/appearance/index.ts` re-exports only `startAppearance` now (the one name `main.tsx` imports); Tasks 19b, 21 and 25 add `syncAccountAppearance`, `useAppearanceStore` and `AppearancePanel` when they first import them (M3-RT-13).
 
-**Risks / rulings needed:** After sign-in the server copy wins over the local cache, except for a change made while the answer travelled: confirm. Device settings are never sent to the server (DESIGN §13). None.
+**Rulings (pre-dispatch):**
+- Account settings are saved by compare-and-set with a field merge and one retry (owner R3-4): the document holds every change until its first load settles (`loaded`, or `unsupported`, or a server copy of `null`); after `load-error` it never saves until a later load succeeds (the status says so); one save at a time, each from the latest revision; on `conflict` it re-reads, lays the locally changed fields over the server copy and re-sends once; a second conflict, or any other failure, shows `error` and waits for the next change or sync (R105: never re-sent by itself); a re-sync cancels the debounce but keeps the changed fields and sends them after the reload. The server copy wins for every field this device did not change. [M3R60]
+- Device settings (density, sizes, motion, chat width) and the language are never sent to the server (DESIGN §13, owner R3-3). [M3R61]
+- "Reset to defaults" keeps the custom theme library (owner R3-2): it resets every other account field and every device field, and Undo restores both scopes. [M3R62]
+- No live refresh between tabs in M3 (no `storage` listener, no settings stream): compare-and-set already prevents lost updates; another tab's change appears at its next connect or reload (R125's second stream, deferred). [M3R63]
+- `accountStatus` means: `local` = nothing from the server applies (older daemon, or no document there yet); `load-error` = the server copy could not be read, this device's copy shows and nothing is saved; `saving` / `saved` / `error` = the last save's state. [M3R64]
+- Reviewed by Opus (owner X2): persisted user data, lost updates, async ordering. [M3R65]
 
 - [ ] **Step 1: Write the failing tests**
 
-`apps/web/src/lib/account-setting.test.ts` (check the `RpcError` constructor in `apps/web/src/runtime/rpc.ts`: `new RpcError(code)`):
+`apps/web/src/lib/account-setting.test.ts`:
 
 ```ts
 import { describe, expect, it, vi } from "vitest";
-import { RpcError } from "../runtime/index.ts";
-import { createSettingSaver, loadSetting } from "./account-setting.ts";
+import { RpcError, type RpcErrorCode } from "../runtime/index.ts";
+import { createAccountDocument, loadSetting, type AccountStatus } from "./account-setting.ts";
+
+type Doc = { readonly a: string; readonly b: string };
+const EMPTY: Doc = { a: "", b: "" };
 
 function manualTimers() {
   let next = 0;
@@ -5646,7 +6678,55 @@ function manualTimers() {
     pending: () => due.size,
   };
 }
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// The fake server answers at once; this lets its promises and the document's follow-ups settle. Not a sleep.
+const drain = async () => {
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+};
+
+type Step = () => unknown;
+const loaded = (value: unknown, revision: number): Step => () => ({ value, revision });
+const saved = (revision: number): Step => () => ({ revision });
+const fails = (code: RpcErrorCode): Step => () => {
+  throw new RpcError(code);
+};
+
+/** Answers settings.get and settings.set from scripted steps and records every call. */
+function fakeServer(get: Step[], set: Step[]) {
+  const calls: Array<{ method: string; params: unknown }> = [];
+  const call = vi.fn(async (method: string, params: unknown) => {
+    calls.push({ method, params });
+    const step = (method === "settings.get" ? get : set).shift();
+    if (!step) throw new Error(`no scripted answer for ${method}`);
+    return step();
+  });
+  return { rpc: { call } as never, calls, sets: () => calls.filter((c) => c.method === "settings.set").map((c) => c.params) };
+}
+
+function harness(initial: Doc = EMPTY) {
+  let state = initial;
+  const statuses: AccountStatus[] = [];
+  const timers = manualTimers();
+  const doc = createAccountDocument<Doc>({
+    key: "appearance",
+    write: (value, baseRevision) => ({ key: "appearance", value, baseRevision }) as never,
+    parse: (value) => ({ ...EMPTY, ...(value as Partial<Doc>) }),
+    changed: (previous, next) => (["a", "b"] as const).filter((name) => previous[name] !== next[name]),
+    merge: (server, local, dirty) => ({ a: dirty.has("a") ? local.a : server.a, b: dirty.has("b") ? local.b : server.b }),
+    local: () => state,
+    adopt: (value) => {
+      state = value;
+    },
+    onStatus: (status) => statuses.push(status),
+    timers,
+  });
+  const edit = (next: Partial<Doc>) => {
+    const previous = state;
+    state = { ...state, ...next };
+    doc.change(previous, state);
+  };
+  return { doc, edit, timers, statuses, state: () => state };
+}
 
 describe("loadSetting", () => {
   it("tells loaded, unsupported (older daemon) and failed apart", async () => {
@@ -5657,58 +6737,124 @@ describe("loadSetting", () => {
   });
 });
 
-describe("createSettingSaver", () => {
-  it("sends only the latest value after the delay and reports its status", async () => {
-    const t = manualTimers();
-    const send = vi.fn().mockResolvedValue({ revision: 1 });
-    const statuses: string[] = [];
-    const saver = createSettingSaver(send, (s) => statuses.push(s), { timers: t });
-    saver.save(1);
-    saver.save(2);
-    expect(t.pending()).toBe(1);
-    t.fire();
-    await flush();
-    expect(send.mock.calls).toEqual([[2]]);
-    expect(statuses).toEqual(["saving", "saved"]);
+describe("account document (compare-and-set, owner R3-4)", () => {
+  it("holds a change made before the first load, then sends it on top of the server copy", async () => {
+    const h = harness();
+    h.edit({ a: "mine" });
+    h.timers.fire();
+    const server = fakeServer([loaded({ a: "theirs", b: "server" }, 3)], [saved(4)]);
+    await h.doc.sync(server.rpc);
+    await drain();
+    expect(h.state()).toEqual({ a: "mine", b: "server" });
+    expect(server.sets()).toEqual([{ key: "appearance", value: { a: "mine", b: "server" }, baseRevision: 3 }]);
+    expect(h.statuses.at(-1)).toBe("saved");
   });
 
-  it("lets only the newest send report: an older answer arriving late changes nothing", async () => {
-    const t = manualTimers();
-    let resolveFirst: (v: unknown) => void = () => {};
-    const send = vi.fn().mockImplementationOnce(() => new Promise((resolve) => (resolveFirst = resolve))).mockResolvedValue({ revision: 2 });
-    const statuses: string[] = [];
-    const saver = createSettingSaver(send, (s) => statuses.push(s), { timers: t });
-    saver.save(1);
-    t.fire();
-    saver.save(2);
-    t.fire();
-    await flush();
-    resolveFirst({ revision: 1 });
-    await flush();
-    expect(statuses).toEqual(["saving", "saving", "saved"]);
+  it("never saves after a failed load; the next successful sync sends the change", async () => {
+    const h = harness();
+    const down = fakeServer([fails("connection_lost")], []);
+    await h.doc.sync(down.rpc);
+    h.edit({ a: "mine" });
+    h.timers.fire();
+    await drain();
+    expect([down.sets(), h.statuses.at(-1)]).toEqual([[], "load-error"]);
+    const up = fakeServer([loaded({ a: "", b: "server" }, 2)], [saved(3)]);
+    await h.doc.sync(up.rpc);
+    await drain();
+    expect(up.sets()).toEqual([{ key: "appearance", value: { a: "mine", b: "server" }, baseRevision: 2 }]);
   });
 
-  it("reports an error and sends again only on the next change (R105)", async () => {
-    const t = manualTimers();
-    const send = vi.fn().mockRejectedValueOnce(new RpcError("connection_lost")).mockResolvedValue({ revision: 2 });
-    const statuses: string[] = [];
-    const saver = createSettingSaver(send, (s) => statuses.push(s), { timers: t });
-    saver.save(1);
-    t.fire();
-    await flush();
-    expect(t.pending()).toBe(0);
-    saver.save(1);
-    t.fire();
-    await flush();
-    expect(statuses).toEqual(["saving", "error", "saving", "saved"]);
+  it("answers a conflict with a re-read, a merge and one retry", async () => {
+    const h = harness();
+    const server = fakeServer([loaded({ a: "", b: "" }, 1), loaded({ a: "", b: "other device" }, 2)], [fails("conflict"), saved(3)]);
+    await h.doc.sync(server.rpc);
+    h.edit({ a: "mine" });
+    h.timers.fire();
+    await drain();
+    expect(server.sets()).toEqual([
+      { key: "appearance", value: { a: "mine", b: "" }, baseRevision: 1 },
+      { key: "appearance", value: { a: "mine", b: "other device" }, baseRevision: 2 },
+    ]);
+    expect([h.state(), h.statuses.at(-1)]).toEqual([{ a: "mine", b: "other device" }, "saved"]);
   });
 
-  it("dispose cancels a pending save", () => {
-    const t = manualTimers();
-    const saver = createSettingSaver(vi.fn(), () => {}, { timers: t });
-    saver.save(1);
-    saver.dispose();
-    expect(t.pending()).toBe(0);
+  it("reports a second conflict and waits for the next change", async () => {
+    const h = harness();
+    const server = fakeServer([loaded({}, 1), loaded({}, 2)], [fails("conflict"), fails("conflict")]);
+    await h.doc.sync(server.rpc);
+    h.edit({ a: "mine" });
+    h.timers.fire();
+    await drain();
+    expect([server.sets().length, h.statuses.at(-1), h.timers.pending()]).toEqual([2, "error", 0]);
+  });
+
+  it("does not re-send a failed save by itself (R105); the next change sends it", async () => {
+    const h = harness();
+    const server = fakeServer([loaded({}, 1)], [fails("connection_lost"), saved(2)]);
+    await h.doc.sync(server.rpc);
+    h.edit({ a: "mine" });
+    h.timers.fire();
+    await drain();
+    expect([server.sets().length, h.statuses.at(-1), h.timers.pending()]).toEqual([1, "error", 0]);
+    h.edit({ b: "more" });
+    h.timers.fire();
+    await drain();
+    expect(server.sets().at(-1)).toEqual({ key: "appearance", value: { a: "mine", b: "more" }, baseRevision: 1 });
+  });
+
+  it("sends one save at a time; a change made meanwhile goes out after it, from the new revision", async () => {
+    const h = harness();
+    let answer: (value: unknown) => void = () => {};
+    const server = fakeServer([loaded({}, 1)], [() => new Promise((resolve) => (answer = resolve)), saved(3)]);
+    await h.doc.sync(server.rpc);
+    h.edit({ a: "one" });
+    h.timers.fire();
+    await drain();
+    h.edit({ b: "two" });
+    h.timers.fire();
+    await drain();
+    expect(server.sets()).toHaveLength(1);
+    answer({ revision: 2 });
+    await drain();
+    expect(server.sets().at(-1)).toEqual({ key: "appearance", value: { a: "one", b: "two" }, baseRevision: 2 });
+  });
+
+  it("keeps a waiting change across a re-sync and sends it after the reload", async () => {
+    const h = harness();
+    const first = fakeServer([loaded({}, 1)], []);
+    await h.doc.sync(first.rpc);
+    h.edit({ a: "mine" });
+    expect(h.timers.pending()).toBe(1);
+    const second = fakeServer([loaded({ b: "server" }, 5)], [saved(6)]);
+    await h.doc.sync(second.rpc);
+    await drain();
+    expect([first.sets(), second.sets()]).toEqual([[], [{ key: "appearance", value: { a: "mine", b: "server" }, baseRevision: 5 }]]);
+    expect(h.timers.pending()).toBe(0);
+  });
+
+  it("drops the answer of an older sync", async () => {
+    const h = harness();
+    let late: (value: unknown) => void = () => {};
+    const slow = fakeServer([() => new Promise((resolve) => (late = resolve))], []);
+    const pending = h.doc.sync(slow.rpc);
+    await h.doc.sync(fakeServer([loaded({ b: "new" }, 7)], []).rpc);
+    late({ value: { b: "old" }, revision: 6 });
+    await pending;
+    expect(h.state()).toEqual({ a: "", b: "new" });
+  });
+
+  it("sends nothing to an older daemon, and nothing without a change", async () => {
+    const h = harness();
+    const old = fakeServer([fails("unknown_method")], []);
+    await h.doc.sync(old.rpc);
+    h.edit({ a: "mine" });
+    h.timers.fire();
+    await drain();
+    expect([old.sets(), h.statuses.at(-1)]).toEqual([[], "local"]);
+    const quiet = harness();
+    const empty = fakeServer([loaded(null, 0)], []);
+    await quiet.doc.sync(empty.rpc);
+    expect([empty.sets(), quiet.statuses.at(-1)]).toEqual([[], "local"]);
   });
 });
 ```
@@ -5723,10 +6869,33 @@ import { useAppearanceStore } from "./appearance-store.ts";
 import { startAppearance, syncAccountAppearance } from "./controller.ts";
 import { DEFAULT_ACCOUNT, DEFAULT_DEVICE } from "./model.ts";
 
+const ocean = { id: "ocean", name: "Ocean", base: "night", roles: { bg: "#0e1626", surface: "#132033", text: "#e6edf7", agent: "#38bdf8", you: "#fb923c", attn: "#ec4899", ok: "#34d399", err: "#f87171" } } as const;
+
 let listeners: Array<() => void> = [];
 let light = false;
+let controller: { stop(): void } | null = null;
+const root = document.documentElement;
+// Lets the scripted server's promises and the document's follow-ups settle (microtasks only, not a sleep).
+const drain = async () => {
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+};
+
+/** settings.get and settings.set answers per call; anything else is a test bug. */
+function server(get: Array<() => unknown>, set: Array<() => unknown> = []) {
+  const calls: Array<{ method: string; params: unknown }> = [];
+  const call = vi.fn(async (method: string, params: unknown) => {
+    calls.push({ method, params });
+    const step = (method === "settings.get" ? get : set).shift();
+    if (!step) throw new Error(`no scripted answer for ${method}`);
+    return step();
+  });
+  return { rpc: { call } as never, sets: () => calls.filter((c) => c.method === "settings.set").map((c) => c.params) };
+}
+
 beforeEach(() => {
+  vi.useFakeTimers();
   localStorage.clear();
+  root.removeAttribute("style");
   useAppearanceStore.setState({ account: DEFAULT_ACCOUNT, device: DEFAULT_DEVICE, accountStatus: "local", deviceStored: true });
   listeners = [];
   light = false;
@@ -5738,56 +6907,86 @@ beforeEach(() => {
     removeEventListener: (_: string, fn: () => void) => (listeners = listeners.filter((l) => l !== fn)),
   })) as unknown as typeof window.matchMedia;
 });
-afterEach(() => localStorage.clear());
+afterEach(() => {
+  controller?.stop();
+  controller = null;
+  vi.useRealTimers();
+  localStorage.clear();
+});
 
 describe("appearance controller", () => {
   it("applies the device settings at start and follows the system theme", () => {
     useAppearanceStore.getState().setDevice({ ...DEFAULT_DEVICE, density: "mixed" });
-    const controller = startAppearance(window);
-    const root = document.documentElement;
+    controller = startAppearance(window);
     expect([root.dataset.density, root.dataset.theme]).toEqual(["mixed", "night"]);
     light = true;
     listeners.forEach((fn) => fn());
     expect(root.dataset.theme).toBe("day");
     controller.stop();
+    controller = null;
     expect(listeners).toHaveLength(0);
   });
 
   it("re-applies when the store changes and caches the account for the boot script", () => {
-    const controller = startAppearance(window);
+    controller = startAppearance(window);
     useAppearanceStore.getState().setAccount({ ...DEFAULT_ACCOUNT, mode: "day", grid: false });
-    expect([document.documentElement.dataset.theme, document.documentElement.dataset.grid]).toEqual(["day", "off"]);
+    expect([root.dataset.theme, root.dataset.grid]).toEqual(["day", "off"]);
     expect(JSON.parse(localStorage.getItem("pap.appearance.boot") ?? "{}").mode).toBe("day");
-    controller.stop();
   });
 
-  it("takes the server's account once connected, keeps the local one when the server has none or is older", async () => {
-    const controller = startAppearance(window);
-    await syncAccountAppearance({ call: vi.fn().mockResolvedValue({ value: { ...DEFAULT_ACCOUNT, railPosition: "right" }, revision: 3 }) } as never);
-    expect(document.documentElement.dataset.rail).toBe("right");
-    await syncAccountAppearance({ call: vi.fn().mockResolvedValue({ value: null, revision: 0 }) } as never);
-    expect(document.documentElement.dataset.rail).toBe("right");
-    await syncAccountAppearance({ call: vi.fn().mockRejectedValue(new RpcError("unknown_method")) } as never);
-    expect(useAppearanceStore.getState().accountStatus).not.toBe("load-error");
-    controller.stop();
+  it("removes the boot-set variables the app does not resolve on the first apply (M3-RT-11)", () => {
+    root.style.setProperty("--bg", "#000000");
+    root.style.setProperty("--app-viewport-height", "400px");
+    controller = startAppearance(window);
+    expect([root.style.getPropertyValue("--bg"), root.style.getPropertyValue("--app-viewport-height")]).toEqual(["", "400px"]);
   });
 
-  it("never overwrites a change the person made while the server answer was on its way", async () => {
-    const controller = startAppearance(window);
+  it("takes the server's account once connected", async () => {
+    controller = startAppearance(window);
+    await syncAccountAppearance(server([() => ({ value: { ...DEFAULT_ACCOUNT, railPosition: "right" }, revision: 3 })]).rpc);
+    expect([root.dataset.rail, useAppearanceStore.getState().accountStatus]).toEqual(["right", "saved"]);
+  });
+
+  it("sends a change made before the sync after the load, merged over the server copy", async () => {
+    controller = startAppearance(window);
+    useAppearanceStore.getState().setAccount({ ...DEFAULT_ACCOUNT, grid: false });
+    await vi.advanceTimersByTimeAsync(400);
+    const s = server([() => ({ value: { ...DEFAULT_ACCOUNT, railPosition: "right" }, revision: 3 })], [() => ({ revision: 4 })]);
+    await syncAccountAppearance(s.rpc);
+    await drain();
+    expect(useAppearanceStore.getState().account).toEqual({ ...DEFAULT_ACCOUNT, railPosition: "right", grid: false });
+    expect(s.sets()).toEqual([{ key: "appearance", value: { ...DEFAULT_ACCOUNT, railPosition: "right", grid: false }, baseRevision: 3 }]);
+  });
+
+  it("never overwrites a change made while the server answer was on its way", async () => {
+    controller = startAppearance(window);
     let answer: (v: unknown) => void = () => {};
-    const pending = syncAccountAppearance({ call: vi.fn(() => new Promise((resolve) => (answer = resolve))) } as never);
+    const s = server([() => new Promise((resolve) => (answer = resolve))], [() => ({ revision: 5 })]);
+    const pending = syncAccountAppearance(s.rpc);
     useAppearanceStore.getState().setAccount({ ...DEFAULT_ACCOUNT, grid: false });
     answer({ value: { ...DEFAULT_ACCOUNT, grid: true, railPosition: "right" }, revision: 4 });
     await pending;
-    expect(useAppearanceStore.getState().account.grid).toBe(false);
-    controller.stop();
+    await drain();
+    expect(useAppearanceStore.getState().account).toEqual({ ...DEFAULT_ACCOUNT, grid: false, railPosition: "right" });
+    expect(s.sets()).toHaveLength(1);
   });
 
-  it("shows a load failure as a status, not silence", async () => {
-    const controller = startAppearance(window);
-    await syncAccountAppearance({ call: vi.fn().mockRejectedValue(new Error("boom")) } as never);
-    expect(useAppearanceStore.getState().accountStatus).toBe("load-error");
-    controller.stop();
+  it("after a load failure, shows it and saves nothing", async () => {
+    controller = startAppearance(window);
+    const s = server([() => Promise.reject(new Error("boom"))]);
+    await syncAccountAppearance(s.rpc);
+    useAppearanceStore.getState().setAccount({ ...DEFAULT_ACCOUNT, grid: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect([useAppearanceStore.getState().accountStatus, s.sets()]).toEqual(["load-error", []]);
+  });
+
+  it("keeps the local values for an older daemon and never saves to it", async () => {
+    controller = startAppearance(window);
+    const s = server([() => Promise.reject(new RpcError("unknown_method"))]);
+    await syncAccountAppearance(s.rpc);
+    useAppearanceStore.getState().setAccount({ ...DEFAULT_ACCOUNT, grid: false });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect([useAppearanceStore.getState().accountStatus, s.sets(), root.dataset.grid]).toEqual(["local", [], "off"]);
   });
 
   it("marks device settings as page-only when storage refuses them", () => {
@@ -5799,6 +6998,15 @@ describe("appearance controller", () => {
     Storage.prototype.setItem = setItem;
     expect(useAppearanceStore.getState().deviceStored).toBe(false);
     expect(useAppearanceStore.getState().device.motion).toBe("none");
+  });
+
+  it("reset keeps the custom themes and returns both previous scopes for Undo (owner R3-2)", () => {
+    const account = { ...DEFAULT_ACCOUNT, customThemes: [ocean], darkTheme: "ocean", grid: false };
+    useAppearanceStore.setState({ account, device: { ...DEFAULT_DEVICE, density: "comfortable" } });
+    const previous = useAppearanceStore.getState().resetAll();
+    expect(useAppearanceStore.getState().account).toEqual({ ...DEFAULT_ACCOUNT, customThemes: [ocean] });
+    expect(useAppearanceStore.getState().device).toEqual(DEFAULT_DEVICE);
+    expect(previous).toEqual({ account, device: { ...DEFAULT_DEVICE, density: "comfortable" } });
   });
 });
 ```
@@ -5815,17 +7023,20 @@ Expected: FAIL.
 ```ts
 import type { SettingKey, SettingWrite } from "@pap/contracts";
 import { RpcError, type Runtime } from "../runtime/index.ts";
+import { reportClientIssue } from "./report.ts";
 
 export type SaveStatus = "saving" | "saved" | "error";
+export type AccountStatus = "local" | "load-error" | SaveStatus;
 export type LoadResult =
   | { readonly kind: "loaded"; readonly value: unknown; readonly revision: number }
   | { readonly kind: "unsupported" }
   | { readonly kind: "failed"; readonly code: string };
+type Rpc = Runtime["rpc"];
 type Timers = { set(fn: () => void, ms: number): number; clear(id: number): void };
 const WINDOW_TIMERS: Timers = { set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => window.clearTimeout(id) };
 
 /** No deadline of its own: the runtime settles every call when the socket is declared dead (spec C §4.2). */
-export async function loadSetting(rpc: Runtime["rpc"], key: SettingKey): Promise<LoadResult> {
+export async function loadSetting(rpc: Rpc, key: SettingKey): Promise<LoadResult> {
   try {
     const { value, revision } = await rpc.call("settings.get", { key });
     return { kind: "loaded", value, revision };
@@ -5835,58 +7046,169 @@ export async function loadSetting(rpc: Runtime["rpc"], key: SettingKey): Promise
   }
 }
 
-export function saveSetting(rpc: Runtime["rpc"], write: SettingWrite): Promise<unknown> {
-  return rpc.call("settings.set", write);
+export interface AccountDocumentOptions<V> {
+  readonly key: SettingKey;
+  write(value: V, baseRevision: number): SettingWrite;
+  /** Field by field; never throws. */
+  parse(value: unknown): V;
+  /** The names of the fields that differ (a list document is one field). */
+  changed(previous: V, next: V): readonly string[];
+  /** The server copy with the local values of `dirty` laid over it. */
+  merge(server: V, local: V, dirty: ReadonlySet<string>): V;
+  /** The value the person sees now. */
+  local(): V;
+  /** Puts a (merged) server copy in place; it must not come back through `change`. */
+  adopt(value: V): void;
+  onStatus(status: AccountStatus): void;
+  readonly delayMs?: number;
+  readonly timers?: Timers;
 }
 
-/** Debounced saves: only the latest value goes out, `delayMs` after the last change, and only its answer reports. */
-export function createSettingSaver<V>(
-  send: (value: V) => Promise<unknown>,
-  onStatus: (status: SaveStatus) => void,
-  { delayMs = 400, timers = WINDOW_TIMERS }: { delayMs?: number; timers?: Timers } = {},
-): { save(value: V): void; dispose(): void } {
+export interface AccountDocument<V> {
+  /** A local change, already applied by the caller: saved `delayMs` later, once the document has been loaded. */
+  change(previous: V, next: V): void;
+  /** Each time the socket opens: read the server copy, merge the local changes over it, send them. */
+  sync(rpc: Rpc): Promise<void>;
+  dispose(): void;
+}
+
+type Phase = "unloaded" | "loading" | "loaded" | "load-failed" | "unsupported";
+
+/**
+ * One account document kept in step with the server by compare-and-set (owner R3-4, M3-RT-01). Nothing is sent
+ * before the first load settles or after a failed one; one save at a time, from the latest revision; a conflict
+ * re-reads, merges the fields changed here and retries once; any other failed save waits for the next change or
+ * sync (R105); a re-sync keeps a waiting change and sends it after the reload.
+ */
+export function createAccountDocument<V>(options: AccountDocumentOptions<V>): AccountDocument<V> {
+  const timers = options.timers ?? WINDOW_TIMERS;
+  const delayMs = options.delayMs ?? 400;
+  let rpc: Rpc | null = null;
+  let phase: Phase = "unloaded";
+  let revision = 0;
+  // Bounded by the document's field names.
+  let dirty = new Set<string>();
   let timer: number | null = null;
-  let generation = 0;
+  let inFlight: Promise<void> | null = null;
+  let held = false;
+  let loads = 0;
+  let disposed = false;
+
+  const status = (next: AccountStatus): void => {
+    if (!disposed) options.onStatus(next);
+  };
+  const stopTimer = (): void => {
+    if (timer !== null) timers.clear(timer);
+    timer = null;
+  };
+
+  /** True when the document is loaded and may save. */
+  async function load(call: Rpc): Promise<boolean> {
+    const mine = ++loads;
+    phase = "loading";
+    const result = await loadSetting(call, options.key);
+    if (disposed || mine !== loads) return false; // a newer sync owns the document now
+    if (result.kind === "unsupported") {
+      phase = "unsupported"; // an older daemon: the local values stay, nothing is ever sent
+      status("local");
+      return false;
+    }
+    if (result.kind === "failed") {
+      phase = "load-failed";
+      reportClientIssue("setting_load_failed");
+      status("load-error");
+      return false;
+    }
+    revision = result.revision;
+    if (result.value !== null) options.adopt(options.merge(options.parse(result.value), options.local(), dirty));
+    phase = "loaded";
+    held = false;
+    if (dirty.size === 0) status(result.value === null ? "local" : "saved");
+    return true;
+  }
+
+  async function save(call: Rpc, retried: boolean): Promise<void> {
+    const batch = dirty;
+    dirty = new Set();
+    status("saving");
+    try {
+      revision = (await call.call("settings.set", options.write(options.local(), revision))).revision;
+      if (dirty.size === 0) status("saved");
+    } catch (error) {
+      for (const field of batch) dirty.add(field);
+      if (disposed) return;
+      if (error instanceof RpcError && error.code === "conflict" && !retried) {
+        if (await load(call)) await save(call, true);
+        return; // a failed reload has reported itself; nothing is sent until a later load succeeds
+      }
+      held = true; // R105: a failed save is never re-sent by itself
+      reportClientIssue("setting_save_failed");
+      status("error");
+    }
+  }
+
+  function pump(): void {
+    if (disposed || inFlight !== null || held || phase !== "loaded" || rpc === null || dirty.size === 0) return;
+    inFlight = save(rpc, false)
+      .catch(() => {
+        // save() settles every failure itself; this only guards a throwing option (a bug), never silently.
+        reportClientIssue("setting_save_failed");
+        status("error");
+      })
+      .finally(() => {
+        inFlight = null;
+        pump(); // a change made while the save travelled goes out now, from the new revision
+      });
+  }
+
   return {
-    save(value) {
-      if (timer !== null) timers.clear(timer);
+    change(previous, next) {
+      for (const field of options.changed(previous, next)) dirty.add(field);
+      if (dirty.size === 0) return;
+      held = false;
+      if (phase !== "loaded") return; // held until the first load settles, and after a failed one
+      stopTimer();
       timer = timers.set(() => {
         timer = null;
-        const mine = ++generation;
-        onStatus("saving");
-        send(value).then(
-          () => mine === generation && onStatus("saved"),
-          () => mine === generation && onStatus("error"),
-        );
+        pump();
       }, delayMs);
     },
+    async sync(call) {
+      rpc = call;
+      stopTimer(); // a waiting change stays in `dirty` and goes out after the reload
+      if (inFlight) await inFlight;
+      if (await load(call)) pump();
+    },
     dispose() {
-      if (timer !== null) timers.clear(timer);
-      timer = null;
-      generation++;
+      disposed = true;
+      stopTimer();
     },
   };
 }
 ```
 
-`apps/web/src/features/appearance/appearance-store.ts`: as described in Interfaces. Reading: `localStorage.getItem` inside `try`, a throw reads as "nothing stored" (defaults; not an error worth a line, the boot path already reported it). Writing: `setDevice` sets `deviceStored` to the result of the write; `setAccount` writes the local account cache (`ACCOUNT_CACHE_KEY`) and calls `reportClientIssue("storage_refused")` when it fails (the server copy still saves). `replaceFromServer` sets `accountStatus: "saved"`. `resetAll` returns the previous `{ account, device }` and sets both to the defaults.
+(`rpc.call("settings.set", …)` is a mutation: the runtime gives it a fresh `commandId` per call, so the conflict retry is a new command, never a replay of the refused one.)
+
+`apps/web/src/features/appearance/appearance-store.ts`: as described in Interfaces. Reading: `localStorage.getItem` inside `try`, a throw reads as "nothing stored" (defaults; the boot path already reported it). Writing: `setDevice` sets `deviceStored` to the result of the write; `setAccount` and `replaceFromServer` write the local account cache (`ACCOUNT_CACHE_KEY`) and call `reportClientIssue("storage_refused")` when it fails (the server copy still saves). The account cache is read through `parseAccount`, field by field.
 
 ```ts
 import type { AccountAppearance } from "@pap/contracts";
 import { create } from "zustand";
-import type { SaveStatus } from "../../lib/account-setting.ts";
+import type { AccountStatus } from "../../lib/account-setting.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { ACCOUNT_CACHE_KEY, DEFAULT_ACCOUNT, DEFAULT_DEVICE, DEVICE_KEY, parseAccount, parseDevice, type DeviceAppearance } from "./model.ts";
 
 interface AppearanceState {
   readonly account: AccountAppearance;
   readonly device: DeviceAppearance;
-  readonly accountStatus: "local" | "load-error" | SaveStatus;
+  readonly accountStatus: AccountStatus;
   readonly deviceStored: boolean;
   setAccount(next: AccountAppearance): void;
   setDevice(next: DeviceAppearance): void;
+  /** A server copy (already merged): cached locally; its status is the account document's to report. */
   replaceFromServer(account: AccountAppearance): void;
-  setAccountStatus(status: AppearanceState["accountStatus"]): void;
+  setAccountStatus(status: AccountStatus): void;
+  /** Defaults for both scopes, keeping the custom theme library (owner R3-2); returns the previous values for Undo. */
   resetAll(): { account: AccountAppearance; device: DeviceAppearance };
 }
 
@@ -5894,7 +7216,7 @@ const read = (key: string): string | null => {
   try {
     return localStorage.getItem(key);
   } catch {
-    return null;
+    return null; // a locked-down browser: defaults, already reported by the boot path
   }
 };
 const write = (key: string, value: unknown): boolean => {
@@ -5909,9 +7231,9 @@ const write = (key: string, value: unknown): boolean => {
 const cachedAccount = (): AccountAppearance => {
   const raw = read(ACCOUNT_CACHE_KEY);
   try {
-    return raw === null ? DEFAULT_ACCOUNT : parseAccount(JSON.parse(raw));
+    return parseAccount(raw === null ? null : JSON.parse(raw));
   } catch {
-    return DEFAULT_ACCOUNT;
+    return DEFAULT_ACCOUNT; // unreadable JSON: the server copy replaces it at the next sync
   }
 };
 
@@ -5927,12 +7249,12 @@ export const useAppearanceStore = create<AppearanceState>()((set, get) => ({
   setDevice: (device) => set({ device, deviceStored: write(DEVICE_KEY, device) }),
   replaceFromServer: (account) => {
     write(ACCOUNT_CACHE_KEY, account);
-    set({ account, accountStatus: "saved" });
+    set({ account });
   },
   setAccountStatus: (accountStatus) => set({ accountStatus }),
   resetAll: () => {
     const previous = { account: get().account, device: get().device };
-    get().setAccount(DEFAULT_ACCOUNT);
+    get().setAccount({ ...DEFAULT_ACCOUNT, customThemes: previous.account.customThemes });
     get().setDevice(DEFAULT_DEVICE);
     return previous;
   },
@@ -5943,22 +7265,22 @@ export const useAppearanceStore = create<AppearanceState>()((set, get) => ({
 
 ```ts
 import type { AccountAppearance } from "@pap/contracts";
-import { createSettingSaver, loadSetting, saveSetting } from "../../lib/account-setting.ts";
+import { createAccountDocument, type AccountDocument } from "../../lib/account-setting.ts";
 import type { Runtime } from "../../runtime/index.ts";
-import { applyAppearance, syncThemeColor, writeBootCache } from "./apply.ts";
+import { applyAppearance, inlineAppearanceVars, syncThemeColor, writeBootCache } from "./apply.ts";
 import { useAppearanceStore } from "./appearance-store.ts";
-import { parseAccount, resolveAppearance, toBootCache } from "./model.ts";
+import { changedAccountFields, mergeAccount, parseAccount, resolveAppearance, toBootCache } from "./model.ts";
 
 const LIGHT = "(prefers-color-scheme: light)";
 let active: { stop(): void } | null = null;
-let saver: ReturnType<typeof createSettingSaver<AccountAppearance>> | null = null;
-let fromServer = false;
+let accountDocument: AccountDocument<AccountAppearance> | null = null;
 
 /** Applies the appearance now and on every change of the store or of the system theme. Once, before the first render. */
 export function startAppearance(win: Window = window): { stop(): void } {
   active?.stop();
   const root = win.document.documentElement;
-  let vars = new Set<string>();
+  // Start from what the boot script set, so the first apply removes what the app no longer resolves (M3-RT-11).
+  let vars = inlineAppearanceVars(root);
   const media = typeof win.matchMedia === "function" ? win.matchMedia(LIGHT) : null;
   const apply = () => {
     const { account, device } = useAppearanceStore.getState();
@@ -5966,87 +7288,93 @@ export function startAppearance(win: Window = window): { stop(): void } {
     writeBootCache(win.localStorage, toBootCache(account, device));
     syncThemeColor(root, win.document);
   };
+  let adopting = false;
+  const doc = createAccountDocument<AccountAppearance>({
+    key: "appearance",
+    write: (value, baseRevision) => ({ key: "appearance", value, baseRevision }),
+    parse: parseAccount,
+    changed: changedAccountFields,
+    merge: mergeAccount,
+    local: () => useAppearanceStore.getState().account,
+    adopt: (account) => {
+      adopting = true;
+      try {
+        useAppearanceStore.getState().replaceFromServer(account);
+      } finally {
+        adopting = false;
+      }
+    },
+    onStatus: (status) => useAppearanceStore.getState().setAccountStatus(status),
+  });
+  accountDocument = doc;
   apply();
   media?.addEventListener("change", apply);
   const unsubscribe = useAppearanceStore.subscribe((state, previous) => {
     if (state.account === previous.account && state.device === previous.device) return;
     apply();
-    if (state.account !== previous.account && !fromServer) saver?.save(state.account);
+    if (state.account !== previous.account && !adopting) doc.change(previous.account, state.account);
   });
   active = {
     stop() {
       media?.removeEventListener("change", apply);
       unsubscribe();
-      saver?.dispose();
+      doc.dispose();
+      if (accountDocument === doc) accountDocument = null;
       active = null;
     },
   };
   return active;
 }
 
-/** Once the socket is open: take the server's account document, then save later account changes to it. */
-export async function syncAccountAppearance(rpc: Runtime["rpc"]): Promise<void> {
-  saver?.dispose();
-  saver = createSettingSaver<AccountAppearance>(
-    (value) => saveSetting(rpc, { key: "appearance", value }),
-    (status) => useAppearanceStore.getState().setAccountStatus(status),
-  );
-  const before = useAppearanceStore.getState().account;
-  const loaded = await loadSetting(rpc, "appearance");
-  if (loaded.kind === "failed") {
-    useAppearanceStore.getState().setAccountStatus("load-error");
-    return;
-  }
-  // A change made while the answer travelled is newer than the server's copy: keep it (the saver sends it).
-  if (loaded.kind !== "loaded" || loaded.value === null || useAppearanceStore.getState().account !== before) return;
-  fromServer = true;
-  try {
-    useAppearanceStore.getState().replaceFromServer(parseAccount(loaded.value));
-  } finally {
-    fromServer = false;
-  }
+/** Each time the socket opens (Task 19b): read the server copy, merge this device's changes, send them. */
+export function syncAccountAppearance(rpc: Runtime["rpc"]): Promise<void> {
+  return accountDocument?.sync(rpc) ?? Promise.resolve();
 }
 
 // A hot update replaces this module: the old controller must not keep its listeners (R125).
 if (import.meta.hot) import.meta.hot.dispose(() => active?.stop());
 ```
 
-`apps/web/src/main.tsx`: after the locale lines and before `createRoot`, call `startAppearance();` (from `./features/appearance/index.ts`). In `eslint.config.js`, add `"web-feature"` to the allow list of `web-root` (`web-lib` was created in Task 3).
+`apps/web/src/features/appearance/index.ts`: `export { startAppearance } from "./controller.ts";` (later tasks add their names, M3-RT-13).
+
+`apps/web/src/main.tsx`: after the locale lines and before `createRoot`, call `startAppearance();` (from `./features/appearance/index.ts`). In `eslint.config.js`, add `"web-feature"` to the allow list of `web-root` (`web-lib` was added in Task 3).
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web && pnpm lint && pnpm typecheck`
-Expected: PASS. Mutation checks: remove the generation guard → "only the newest send may report" fails; remove the `account !== before` guard → "never overwrites a change" fails.
+Run: `pnpm test:unit apps/web && pnpm lint && pnpm typecheck && pnpm knip`
+Expected: PASS. Mutation checks (each must turn a named test red): let `change()` schedule a save before the first load → "holds a change made before the first load"; save after `load-error` → "never saves after a failed load"; skip the `!retried` guard → "reports a second conflict and waits" loops or fails; let `pump()` run while `held` → "does not re-send a failed save by itself"; let `pump()` start a second save while one is in flight → "sends one save at a time"; drop the `mine !== loads` check → "drops the answer of an older sync"; dispose the document in `sync()` instead of keeping `dirty` → "keeps a waiting change across a re-sync"; reset `customThemes` in `resetAll` → "reset keeps the custom themes".
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
 git add apps/web eslint.config.js
-git commit -m "feat(appearance): store, controller and debounced account sync"
+git commit -m "feat(appearance): store, controller and compare-and-set account sync"
 ```
 
 ---
 # Phase 5 — Commands: keybindings, dispatcher, palette core
 
-### Task 16: Keybinding core — chords, `when` clauses, merge, conflicts, labels
+### Task 16a: Keybinding core, part 1 — chords, physical keys, labels
 
 Pure functions, no DOM. The format is T3's (`packages/contracts/src/keybindings.ts`, `packages/shared/src/keybindings.ts`): a JSON array of `{ key, command, when? }`, later rules win, user rules replace the defaults of the commands they name (T3 `mergeWithDefaultKeybindings`, shared 451-469), the `when` grammar is identifiers with `!`, `&&`, `||` and parentheses (shared 282-414, depth ≤ 64, unknown identifiers are false). Matching is layout-aware the way Orca does it (`src/shared/keybindings/matching-key.ts`, `input.ts`): the layout key first, the physical key for digits and punctuation, and for letters only when the layout key is unusable (dead key, a non-Latin letter under Ctrl/Cmd, a macOS Option composition). AltGr never matches (pw: `hooks/useKeyboardShortcuts.ts`, T3 shared 100-113); composition keys never match (T3 + Orca bail-outs). Labels follow pw `lib/shortcut-label.ts`: `⌃⌥⇧⌘` glyphs joined without a separator on Apple platforms, `Ctrl+Alt+N` elsewhere. Browser-reserved chords are flagged (Orca's `ignoredActionIds` idea for OS-reserved chords; Review Focus 4).
 
+This part holds the chord model and the labels; Task 16b adds `when` clauses, the defaults, the merge and the conflict checks.
+
 **Files:**
-- Create: `apps/web/src/features/commands/keys.ts`, `keys.test.ts`, `when.ts`, `when.test.ts`, `defaults.ts`, `resolve.ts`, `resolve.test.ts`, `labels.ts`, `labels.test.ts`
-- Modify: `apps/web/src/i18n/catalog/commands.ts` (command titles, key names)
+- Create: `apps/web/src/features/commands/keys.ts`, `keys.test.ts`, `labels.ts`, `labels.test.ts`
+- Modify: `apps/web/src/i18n/catalog/commands.ts` (key names), `apps/web/src/i18n/i18n.test.ts` (`IDENTICAL_IN_FR` for the key names that are the same word)
 
 **Interfaces:**
-- Consumes: `KeybindingRule`, `KEY_NONE` (Task 12); `cancelsComposition` (Task 6).
+- Consumes: `KEY_NONE` (Task 12); `cancelsComposition` (Task 6); `Translate` (Task 3).
 - Produces:
-  - `type Platform = "mac" | "other"`; `interface Chord { mod; ctrl; meta; alt; shift: boolean; key: string }`; `parseChord(text: string): Chord | null`; `interface KeyInput { key: string; code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; isComposing?: boolean; keyCode?: number; getModifierState?(name: string): boolean }`; `keyCandidates(event: KeyInput, platform): string[]`; `matchesChord(chord, event, platform): boolean`; `chordId(chord, platform): string` (canonical `ctrl+alt+shift+meta+<key>`); `chordFromEvent(event, platform): string | null` (for the recorder; `mod` on the platform's own modifier).
-  - `type WhenNode = { type: "id"; name: string } | { type: "not"; node: WhenNode } | { type: "and" | "or"; left: WhenNode; right: WhenNode }`; `type WhenError = { error: "empty" | "unexpected" | "unclosed" | "too_deep"; at: number }`; `parseWhen(text: string): WhenNode | WhenError`; `evaluateWhen(node, context: Readonly<Record<string, boolean>>): boolean`; `mentions(node, name: string): boolean`.
-  - `type CommandGroup = "navigation" | "tabs" | "panes" | "session" | "agents" | "app"`; `interface CommandSpec { id: string; titleKey: MessageKey; titleVars?: Record<string, number>; group: CommandGroup }`; `COMMANDS: readonly CommandSpec[]`; `DEFAULT_KEYBINDINGS: readonly KeybindingRule[]`; `KNOWN_COMMANDS: ReadonlySet<string>`; `CONTEXT_KEYS = ["editableFocus", "dialogOpen", "paletteOpen", "sessionFocus", "mobile"] as const`.
-  - `interface ResolvedRule { chord: Chord; command: string; when: WhenNode | null; source: "default" | "user"; index: number }`; `interface RuleIssue { index: number; problem: "key" | "when" | "command" }`; `mergeWithDefaults(defaults, user, known): { rules: ResolvedRule[]; issues: RuleIssue[] }`; `matchingCommands(event, rules, context, platform): string[]` (last matching rule first, de-duplicated); `conflictsOf(rules, platform): Map<number, string[]>`; `isReserved(chord, platform): boolean`.
-  - `type KeyNames = Readonly<Record<"ctrl" | "alt" | "shift" | "meta" | "escape" | "enter" | "space" | "tab" | "backspace" | "delete" | "up" | "down" | "left" | "right" | "home" | "end" | "pageup" | "pagedown", string>>`; `detectPlatform(nav?: { platform?: string; userAgent?: string }): Platform`; `chordTokens(chord, platform, names: KeyNames): string[]`; `chordJoiner(platform): "" | "+"`; `ariaKeyShortcuts(chord, platform): string`.
+  - `type Platform = "mac" | "other"`; `interface Chord { mod; ctrl; meta; alt; shift: boolean; key: string }`; `parseChord(text: string): Chord | null`; `interface KeyInput { key: string; code: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey: boolean; isComposing?: boolean; keyCode?: number; getModifierState?(name: string): boolean }`; `keyCandidates(event: KeyInput, platform): string[]`; `matchesChord(chord, event, platform): boolean`; `chordId(chord, platform): string` (canonical `ctrl+alt+shift+meta+<key>`); `chordFromEvent(event, platform): string | null` (for the recorder; `mod` on the platform's own modifier; digits and punctuation by physical key).
+  - `type KeyNames = Readonly<Record<"ctrl" | "alt" | "shift" | "meta" | "escape" | "enter" | "space" | "tab" | "backspace" | "delete" | "up" | "down" | "left" | "right" | "home" | "end" | "pageup" | "pagedown", string>>`; `keyNames(t: Translate): KeyNames` (consumed by Tasks 17b, 22 and 27, M3-RT-41); `detectPlatform(nav?: { platform?: string; userAgent?: string }): Platform`; `chordTokens(chord, platform, names: KeyNames): string[]`; `chordJoiner(platform): "" | "+"`; `ariaKeyShortcuts(chord, platform): string`.
 
-**Risks / rulings needed:** (a) Default chords chosen to avoid what browsers keep: tab switching is `Alt+Shift+←/→` and closing a tab `Alt+W` (both off inside text fields), because `Ctrl+Tab`, `Ctrl+PgUp/PgDn` and `Ctrl+W` never reach a page: ruling wanted on these three defaults. (b) A shifted symbol (`?`) matches whatever Shift state the layout needs: confirm. (c) On Windows, `Ctrl+Alt` is AltGr, so `Ctrl+Alt+1..9` and `Ctrl+Alt+N` do not fire there (pi-web's accepted trade-off): confirm. (d) A bare printable key (no Ctrl/Meta/Alt) never fires while a text field has focus unless its `when` names `editableFocus` (Orca `fileSearchClaimsTextKey`): confirm.
+**Rulings (pre-dispatch):**
+- A shifted symbol (`?`) matches whatever Shift the layout needs, but only through the layout key; a match through the physical key needs the exact Shift, so a binding of `/` never fires on Shift+/ (M3-RT-28). [M3R66]
+- On Windows, `Ctrl+Alt` is AltGr, so `Ctrl+Alt+1..9` and `Ctrl+Alt+N` do not fire there (pi-web's accepted trade-off). [M3R67]
+- The recorder stores digits and punctuation by physical key (owner R3-7): AZERTY Ctrl+1 is `mod+1`, not `mod+&`; letters keep the layout key (AZERTY "?" on the `KeyM` position stays `shift+?`). [M3R68]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -6101,9 +7429,12 @@ describe("matching", () => {
     expect(matchesChord(parseChord("mod+a") as never, ev({ key: "a", code: "KeyQ", ctrlKey: true }), "other")).toBe(true);
   });
 
-  it("lets a shifted symbol match whatever Shift the layout needs", () => {
+  it("lets a shifted symbol match whatever Shift the layout needs, through the layout key only", () => {
     expect(matchesChord(parseChord("?") as never, ev({ key: "?", code: "Slash", shiftKey: true }), "other")).toBe(true);
     expect(matchesChord(parseChord("?") as never, ev({ key: "?", code: "KeyM", shiftKey: true }), "other")).toBe(true);
+    // A physical "/" must not fire on Shift+/ ("?"): a match through the physical key needs the exact Shift (M3-RT-28).
+    expect(matchesChord(parseChord("/") as never, ev({ key: "?", code: "Slash", shiftKey: true }), "other")).toBe(false);
+    expect(matchesChord(parseChord("shift+/") as never, ev({ key: "?", code: "Slash", shiftKey: true }), "other")).toBe(true);
   });
 
   it("gives one identity per platform and records chords with mod", () => {
@@ -6112,92 +7443,14 @@ describe("matching", () => {
     expect(chordFromEvent(ev({ key: "P", code: "KeyP", ctrlKey: true, shiftKey: true }), "other")).toBe("mod+shift+p");
     expect(chordFromEvent(ev({ key: "Control", code: "ControlLeft", ctrlKey: true }), "other")).toBeNull();
   });
-});
-```
 
-`apps/web/src/features/commands/when.test.ts`:
-
-```ts
-import { describe, expect, it } from "vitest";
-import { evaluateWhen, mentions, parseWhen, type WhenNode } from "./when.ts";
-
-const run = (text: string, context: Record<string, boolean>) => evaluateWhen(parseWhen(text) as WhenNode, context);
-
-describe("when clauses (T3 grammar)", () => {
-  it("evaluates !, &&, || and parentheses with ! > && > ||", () => {
-    expect(run("a && !b", { a: true, b: false })).toBe(true);
-    expect(run("a || b && c", { a: false, b: true, c: false })).toBe(false);
-    expect(run("(a || b) && c", { a: true, c: true })).toBe(true);
-    expect(run("unknownKey", {})).toBe(false);
-    expect(run("true && !false", {})).toBe(true);
-  });
-  it("reports where a clause is broken", () => {
-    expect(parseWhen("")).toEqual({ error: "empty", at: 0 });
-    expect(parseWhen("a &&")).toEqual({ error: "unexpected", at: 4 });
-    expect(parseWhen("(a")).toEqual({ error: "unclosed", at: 2 });
-    expect(parseWhen("a & b")).toEqual({ error: "unexpected", at: 2 });
-    expect(parseWhen("(".repeat(65) + "a" + ")".repeat(65))).toMatchObject({ error: "too_deep" });
-  });
-  it("knows which keys a clause reads", () => {
-    expect(mentions(parseWhen("!editableFocus && dialogOpen") as WhenNode, "editableFocus")).toBe(true);
-    expect(mentions(parseWhen("dialogOpen") as WhenNode, "editableFocus")).toBe(false);
-  });
-});
-```
-
-`apps/web/src/features/commands/resolve.test.ts`:
-
-```ts
-import { describe, expect, it } from "vitest";
-import type { KeyInput } from "./keys.ts";
-import { parseChord } from "./keys.ts";
-import { conflictsOf, isReserved, matchingCommands, mergeWithDefaults } from "./resolve.ts";
-
-const known = new Set(["palette.toggle", "drawer.tree.toggle", "shortcuts.help", "tab.close"]);
-const defaults = [
-  { key: "mod+k", command: "palette.toggle" },
-  { key: "mod+b", command: "drawer.tree.toggle", when: "!dialogOpen" },
-  { key: "?", command: "shortcuts.help", when: "!editableFocus && !dialogOpen" },
-];
-const ev = (over: Partial<KeyInput>): KeyInput => ({ key: "k", code: "KeyK", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...over });
-
-describe("merge (T3 mergeWithDefaultKeybindings)", () => {
-  it("replaces the defaults of every command a user rule names, and `none` unbinds", () => {
-    const { rules } = mergeWithDefaults(defaults, [{ key: "mod+shift+p", command: "palette.toggle" }, { key: "none", command: "drawer.tree.toggle" }], known);
-    expect(rules.map((r) => `${r.source}:${r.command}`)).toEqual(["default:shortcuts.help", "user:palette.toggle"]);
-  });
-  it("drops invalid user entries one by one and says which", () => {
-    const { rules, issues } = mergeWithDefaults(defaults, [{ key: "mod+banana", command: "palette.toggle" }, { key: "mod+j", command: "nope.nothing" }, { key: "mod+j", command: "tab.close", when: "a &&" }, { key: "alt+w", command: "tab.close" }], known);
-    expect(issues).toEqual([{ index: 0, problem: "key" }, { index: 1, problem: "command" }, { index: 2, problem: "when" }]);
-    expect(rules.filter((r) => r.source === "user").map((r) => r.command)).toEqual(["tab.close"]);
-  });
-});
-
-describe("matchingCommands", () => {
-  const { rules } = mergeWithDefaults(defaults, [], known);
-  it("puts the last matching rule first and honours when clauses", () => {
-    expect(matchingCommands(ev({ ctrlKey: true, key: "b", code: "KeyB" }), rules, { dialogOpen: false }, "other")).toEqual(["drawer.tree.toggle"]);
-    expect(matchingCommands(ev({ ctrlKey: true, key: "b", code: "KeyB" }), rules, { dialogOpen: true }, "other")).toEqual([]);
-  });
-  it("never fires a bare printable key in a text field unless its clause names editableFocus", () => {
-    const loose = mergeWithDefaults([], [{ key: "?", command: "shortcuts.help" }], known).rules;
-    expect(matchingCommands(ev({ key: "?", code: "Slash", shiftKey: true }), loose, { editableFocus: true }, "other")).toEqual([]);
-    expect(matchingCommands(ev({ key: "?", code: "Slash", shiftKey: true }), loose, { editableFocus: false }, "other")).toEqual(["shortcuts.help"]);
-  });
-});
-
-describe("conflicts and reserved chords", () => {
-  it("flags two rules on one chord when either has no clause or both clauses are equal", () => {
-    const { rules } = mergeWithDefaults(defaults, [{ key: "ctrl+k", command: "tab.close" }], known);
-    expect(conflictsOf(rules, "other").get(rules.length - 1)).toEqual(["palette.toggle"]);
-    expect(conflictsOf(rules, "mac").size).toBe(0);
-  });
-  it("flags browser-reserved chords", () => {
-    expect(isReserved(parseChord("mod+w") as never, "other")).toBe(true);
-    expect(isReserved(parseChord("mod+t") as never, "mac")).toBe(true);
-    expect(isReserved(parseChord("ctrl+tab") as never, "mac")).toBe(true);
-    expect(isReserved(parseChord("mod+3") as never, "other")).toBe(true);
-    expect(isReserved(parseChord("mod+k") as never, "other")).toBe(false);
+  it("records digits and punctuation by physical key, letters by layout key (owner R3-7)", () => {
+    // AZERTY Ctrl+1 types "&": the binding is stored as mod+1, so it means the same key on a QWERTY device.
+    expect(chordFromEvent(ev({ key: "&", code: "Digit1", ctrlKey: true }), "other")).toBe("mod+1");
+    expect(chordFromEvent(ev({ key: "?", code: "Slash", shiftKey: true }), "other")).toBe("shift+/");
+    // AZERTY's "?" sits on the KeyM position: a letter code, so the layout character is kept.
+    expect(chordFromEvent(ev({ key: "?", code: "KeyM", shiftKey: true }), "other")).toBe("shift+?");
+    expect(chordFromEvent(ev({ key: "a", code: "KeyQ", ctrlKey: true }), "other")).toBe("mod+a");
   });
 });
 ```
@@ -6207,7 +7460,7 @@ describe("conflicts and reserved chords", () => {
 ```ts
 import { describe, expect, it } from "vitest";
 import { parseChord } from "./keys.ts";
-import { ariaKeyShortcuts, chordJoiner, chordTokens, detectPlatform, type KeyNames } from "./labels.ts";
+import { ariaKeyShortcuts, chordJoiner, chordTokens, detectPlatform, keyNames, type KeyNames } from "./labels.ts";
 
 const names: KeyNames = { ctrl: "Ctrl", alt: "Alt", shift: "Shift", meta: "Meta", escape: "Esc", enter: "Enter", space: "Space", tab: "Tab", backspace: "Backspace", delete: "Del", up: "Up", down: "Down", left: "Left", right: "Right", home: "Home", end: "End", pageup: "PgUp", pagedown: "PgDn" };
 
@@ -6225,6 +7478,11 @@ describe("labels (pw lib/shortcut-label.ts)", () => {
     expect([chordJoiner("mac"), chordJoiner("other")]).toEqual(["", "+"]);
     expect(chordTokens(parseChord("alt+shift+right") as never, "mac", names)).toEqual(["⌥", "⇧", "→"]);
   });
+  it("builds the key names from the catalog of the current language", () => {
+    const names = keyNames((key) => `<${key}>`);
+    expect([names.ctrl, names.escape, names.pagedown]).toEqual(["<commands.key.ctrl>", "<commands.key.escape>", "<commands.key.pagedown>"]);
+  });
+
   it("writes aria-keyshortcuts in the ARIA form", () => {
     expect(ariaKeyShortcuts(parseChord("mod+k") as never, "mac")).toBe("Meta+K");
     expect(ariaKeyShortcuts(parseChord("mod+k") as never, "other")).toBe("Control+K");
@@ -6307,31 +7565,49 @@ function codeKey(code: string): string | null {
   return CODE_KEYS[code] ?? null;
 }
 
-/** The keys an event can stand for. Empty during a composition, for an input method's Process key, and for AltGr. */
-export function keyCandidates(event: KeyInput, platform: Platform): string[] {
-  if (cancelsComposition(event) || event.key === "Process") return [];
-  if (platform === "other" && event.getModifierState?.("AltGraph") === true) return [];
+interface Candidates {
+  /** The layout's key, when it is usable for a shortcut. */
+  readonly layout: string | null;
+  /** The physical key: always for digits and punctuation, for a letter only when the layout key is unusable. */
+  readonly physical: string | null;
+}
+
+/** Null during a composition, for an input method's Process key, and for AltGr. */
+function candidatesOf(event: KeyInput, platform: Platform): Candidates | null {
+  if (cancelsComposition(event) || event.key === "Process") return null;
+  if (platform === "other" && event.getModifierState?.("AltGraph") === true) return null;
   const layout = event.key === " " ? " " : event.key.toLowerCase();
   const physical = codeKey(event.code);
   const unusable = layout === "" || layout === "dead" || layout === "unidentified";
   const nonLatinUnderCommand = /^\p{L}$/u.test(layout) && !/^[a-z]$/.test(layout) && (event.ctrlKey || event.metaKey);
   const macComposed = platform === "mac" && event.altKey && isPrintable(layout) && !/^[\x20-\x7e]$/.test(layout);
   const layoutUsable = !unusable && !nonLatinUnderCommand && !macComposed;
-  const out = new Set<string>();
-  if (layoutUsable) out.add(layout);
-  if (physical !== null && (!/^[a-z]$/.test(physical) || !layoutUsable)) out.add(physical);
-  return [...out];
+  return {
+    layout: layoutUsable ? layout : null,
+    physical: physical !== null && (!/^[a-z]$/.test(physical) || !layoutUsable) ? physical : null,
+  };
+}
+
+/** The keys an event can stand for (layout key first). Empty during a composition, for Process, and for AltGr. */
+export function keyCandidates(event: KeyInput, platform: Platform): string[] {
+  const candidates = candidatesOf(event, platform);
+  if (candidates === null) return [];
+  return [...new Set([candidates.layout, candidates.physical].filter((key): key is string => key !== null))];
 }
 
 const SHIFTED_SYMBOL = /^[^a-z0-9\s]$/u;
 
 export function matchesChord(chord: Chord, event: KeyInput, platform: Platform): boolean {
-  if (!keyCandidates(event, platform).includes(chord.key)) return false;
+  const candidates = candidatesOf(event, platform);
+  if (candidates === null) return false;
+  const byLayout = candidates.layout === chord.key;
+  if (!byLayout && candidates.physical !== chord.key) return false;
   const ctrl = chord.ctrl || (chord.mod && platform === "other");
   const meta = chord.meta || (chord.mod && platform === "mac");
   if (event.ctrlKey !== ctrl || event.metaKey !== meta || event.altKey !== chord.alt) return false;
-  // The Shift of a symbol such as "?" belongs to the layout, not to the chord.
-  const symbol = !chord.shift && SHIFTED_SYMBOL.test(chord.key);
+  // The Shift of a symbol such as "?" belongs to the layout, not to the chord; a match through the physical key
+  // needs the exact Shift, so a physical "/" never fires on Shift+/ (M3-RT-28).
+  const symbol = byLayout && !chord.shift && SHIFTED_SYMBOL.test(chord.key);
   return symbol || event.shiftKey === chord.shift;
 }
 
@@ -6342,15 +7618,251 @@ export function chordId(chord: Chord, platform: Platform): string {
   return [ctrl && "ctrl", chord.alt && "alt", chord.shift && "shift", meta && "meta", chord.key].filter(Boolean).join("+");
 }
 
-/** For the shortcut recorder: the chord an event stands for, written with `mod`; null for a lone modifier. */
+/**
+ * For the shortcut recorder: the chord an event stands for, written with `mod`; null for a lone modifier. Digits and
+ * punctuation are recorded by physical key (owner R3-7): an account binding is shared by devices with other layouts,
+ * and AZERTY's Ctrl+1 must not be stored as "mod+&". Letters keep the layout key.
+ */
 export function chordFromEvent(event: KeyInput, platform: Platform): string | null {
-  const [key] = keyCandidates(event, platform);
-  if (key === undefined || MODIFIER_KEYS.has(event.key.toLowerCase())) return null;
+  const candidates = candidatesOf(event, platform);
+  if (candidates === null || MODIFIER_KEYS.has(event.key.toLowerCase())) return null;
+  const key = candidates.physical !== null && !/^[a-z]$/.test(candidates.physical) ? candidates.physical : (candidates.layout ?? candidates.physical);
+  if (key === null) return null;
   const mod = platform === "mac" ? event.metaKey : event.ctrlKey;
   const parts = [mod && "mod", (platform === "mac" ? event.ctrlKey : event.metaKey) && (platform === "mac" ? "ctrl" : "meta"), event.altKey && "alt", event.shiftKey && "shift", key === " " ? "space" : key];
   return parts.filter(Boolean).join("+");
 }
 ```
+
+`labels.ts`:
+
+```ts
+import type { MessageKey, Translate } from "../../i18n/index.ts";
+import type { Chord, Platform } from "./keys.ts";
+
+export type KeyNames = Readonly<Record<"ctrl" | "alt" | "shift" | "meta" | "escape" | "enter" | "space" | "tab" | "backspace" | "delete" | "up" | "down" | "left" | "right" | "home" | "end" | "pageup" | "pagedown", string>>;
+
+const MAC_GLYPHS: Readonly<Record<string, string>> = { escape: "⎋", enter: "↩", tab: "⇥", backspace: "⌫", delete: "⌦", arrowup: "↑", arrowdown: "↓", arrowleft: "←", arrowright: "→" };
+const NAMED: Readonly<Record<string, keyof KeyNames>> = { escape: "escape", enter: "enter", " ": "space", tab: "tab", backspace: "backspace", delete: "delete", arrowup: "up", arrowdown: "down", arrowleft: "left", arrowright: "right", home: "home", end: "end", pageup: "pageup", pagedown: "pagedown" };
+
+/** Orca: never hard-code metaKey; Apple platforms (iPadOS reports "Macintosh") use ⌘. */
+export function detectPlatform(nav: { platform?: string; userAgent?: string } = navigator): Platform {
+  return /Mac|iPhone|iPad|iPod/.test(nav.platform ?? "") || /Macintosh|iPhone|iPad/.test(nav.userAgent ?? "") ? "mac" : "other";
+}
+
+function keyLabel(key: string, platform: Platform, names: KeyNames): string {
+  if (platform === "mac" && MAC_GLYPHS[key]) return MAC_GLYPHS[key] as string;
+  const named = NAMED[key];
+  if (named) return names[named];
+  return /^f\d{1,2}$/.test(key) ? key.toUpperCase() : key.length === 1 ? key.toUpperCase() : key;
+}
+
+export function chordTokens(chord: Chord, platform: Platform, names: KeyNames): string[] {
+  const ctrl = chord.ctrl || (chord.mod && platform === "other");
+  const meta = chord.meta || (chord.mod && platform === "mac");
+  const modifiers =
+    platform === "mac"
+      ? [ctrl && "⌃", chord.alt && "⌥", chord.shift && "⇧", meta && "⌘"]
+      : [ctrl && names.ctrl, chord.alt && names.alt, chord.shift && names.shift, meta && names.meta];
+  return [...modifiers.filter((m): m is string => typeof m === "string"), keyLabel(chord.key, platform, names)];
+}
+
+export const chordJoiner = (platform: Platform): "" | "+" => (platform === "mac" ? "" : "+");
+
+const KEY_NAME_KEYS = {
+  ctrl: "commands.key.ctrl",
+  alt: "commands.key.alt",
+  shift: "commands.key.shift",
+  meta: "commands.key.meta",
+  escape: "commands.key.escape",
+  enter: "commands.key.enter",
+  space: "commands.key.space",
+  tab: "commands.key.tab",
+  backspace: "commands.key.backspace",
+  delete: "commands.key.delete",
+  up: "commands.key.up",
+  down: "commands.key.down",
+  left: "commands.key.left",
+  right: "commands.key.right",
+  home: "commands.key.home",
+  end: "commands.key.end",
+  pageup: "commands.key.pageup",
+  pagedown: "commands.key.pagedown",
+} as const satisfies Readonly<Record<keyof KeyNames, MessageKey>>;
+
+/** The key names in the current language (`commands.key.*`), for chordTokens. Consumed by Tasks 17b, 22 and 27. */
+export function keyNames(t: Translate): KeyNames {
+  return Object.fromEntries(Object.entries(KEY_NAME_KEYS).map(([id, key]) => [id, t(key)])) as KeyNames;
+}
+
+/** ARIA's aria-keyshortcuts form ("Control+K", "Meta+K"). */
+export function ariaKeyShortcuts(chord: Chord, platform: Platform): string {
+  const ctrl = chord.ctrl || (chord.mod && platform === "other");
+  const meta = chord.meta || (chord.mod && platform === "mac");
+  const key = chord.key === " " ? "Space" : chord.key.length === 1 ? chord.key.toUpperCase() : chord.key.replace(/^arrow/, "Arrow").replace(/^./, (c) => c.toUpperCase());
+  return [ctrl && "Control", chord.alt && "Alt", chord.shift && "Shift", meta && "Meta", key].filter(Boolean).join("+");
+}
+```
+
+Add the key names to `catalog/commands.ts` (`commands.key.ctrl` "Ctrl"/"Ctrl", `commands.key.alt` "Alt"/"Alt", `commands.key.shift` "Shift"/"Maj", `commands.key.meta` "Meta"/"Méta", `commands.key.escape` "Esc"/"Échap", `commands.key.enter` "Enter"/"Entrée", `commands.key.space` "Space"/"Espace", `commands.key.tab` "Tab"/"Tab", `commands.key.backspace` "Backspace"/"Retour arrière", `commands.key.delete` "Del"/"Suppr", `commands.key.up` "Up"/"Haut", `commands.key.down` "Down"/"Bas", `commands.key.left` "Left"/"Gauche", `commands.key.right` "Right"/"Droite", `commands.key.home` "Home"/"Début", `commands.key.end` "End"/"Fin", `commands.key.pageup` "PgUp"/"Page préc.", `commands.key.pagedown` "PgDn"/"Page suiv."), with the keys that are the same word in French (`ctrl`, `alt`, `tab`) added to `IDENTICAL_IN_FR`.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `pnpm test:unit apps/web/src/features/commands apps/web/src/i18n && pnpm knip`
+Expected: PASS. Mutation checks: drop the `layoutUsable` condition on letters → "AZERTY A is not Q" fails; let a physical match ignore Shift (`symbol` without `byLayout`) → "a physical / never fires on Shift+/" fails; record `candidates.layout` first → "AZERTY Ctrl+1 is mod+1" fails.
+
+- [ ] **Step 5: Commit**
+
+```bash
+pnpm format
+git add apps/web/src/features/commands apps/web/src/i18n
+git commit -m "feat(commands): chords with physical-key matching and recording, and platform labels"
+```
+
+---
+
+### Task 16b: Keybinding core, part 2 — `when` clauses, defaults, merge, conflicts, reserved chords
+
+The `when` grammar is T3's (shared 282-414, depth ≤ 64, unknown identifiers are false); user rules replace the defaults of the commands they name (T3 `mergeWithDefaultKeybindings`, shared 451-469); browser-reserved chords are flagged (Review Focus 4). The default bindings carry the context keys of agreement 7 so Escape and every chord leave an extension's panel and an open menu alone (owner R3-6).
+
+**Files:**
+- Create: `apps/web/src/features/commands/when.ts`, `when.test.ts`, `defaults.ts`, `resolve.ts`, `resolve.test.ts`
+- Modify: `apps/web/src/i18n/catalog/commands.ts` (command titles)
+
+**Interfaces:**
+- Consumes: Task 16a (`parseChord`, `matchesChord`, `chordId`, `Chord`, `KeyInput`, `Platform`); `KeybindingRule`, `KEY_NONE` (Task 12); `MessageKey` (Task 3).
+- Produces:
+  - `type WhenNode = { type: "id"; name: string } | { type: "not"; node: WhenNode } | { type: "and" | "or"; left: WhenNode; right: WhenNode }`; `type WhenError = { error: "empty" | "unexpected" | "unclosed" | "too_deep"; at: number }`; `parseWhen(text: string): WhenNode | WhenError`; `evaluateWhen(node, context: Readonly<Record<string, boolean>>): boolean`; `mentions(node, name: string): boolean`.
+  - `type CommandGroup = "navigation" | "tabs" | "panes" | "session" | "agents" | "app"`; `interface CommandSpec { id: string; titleKey: MessageKey; titleVars?: Record<string, number>; group: CommandGroup }`; `COMMANDS: readonly CommandSpec[]`; `DEFAULT_KEYBINDINGS: readonly KeybindingRule[]`; `KNOWN_COMMANDS: ReadonlySet<string>`; `CONTEXT_KEYS = ["editableFocus", "dialogOpen", "overlayOpen", "panelFocus", "paletteOpen", "treeOpen", "sessionFocus", "mobile"] as const`.
+  - `interface ResolvedRule { chord: Chord; command: string; when: WhenNode | null; whenText: string | null; source: "default" | "user"; index: number }`; `interface RuleIssue { index: number; problem: "key" | "when" | "command" }`; `mergeWithDefaults(defaults, user, known): { rules: ResolvedRule[]; issues: RuleIssue[] }`; `matchingCommands(event, rules, context, platform): string[]` (last matching rule first, de-duplicated); `conflictsOf(rules, platform): Map<number, string[]>`; `isReserved(chord, platform): boolean`.
+
+**Rulings (pre-dispatch):**
+- Default chords avoid what browsers keep: tab switching `Alt+Shift+←/→`, close tab `Alt+W` (both off inside text fields), split `Ctrl/⌘+\`, settings `Ctrl/⌘+,`; pi-web's `Esc`, `Ctrl+Alt+N`, `Alt+↑/↓`, `Ctrl+Alt+1..9` kept (owner M3-Q4 confirmed). [M3R69]
+- A bare printable key (no Ctrl/Meta/Alt) never fires while a text field has focus unless its `when` names `editableFocus` (Orca `fileSearchClaimsTextKey`). [M3R70]
+- Agreement 7 (owner R3-6): every default chord carries `!panelFocus`; `escape` also `!overlayOpen`, so Escape goes to an extension panel or an open menu/select/popover first and stops the run only when neither holds. `matchingCommands` also skips any rule while `panelFocus` holds unless its clause names `panelFocus`, so a user rule cannot take a key from a panel by accident. [M3R71]
+- `mod+b` closes the tree drawer although the drawer is a modal: its clause is `!panelFocus && (!dialogOpen || treeOpen)` with a `treeOpen` context key (M3-RT-30). [M3R72]
+- Reserved chords include `Ctrl+1..9` and, off Apple platforms, `Alt+1..9` (Firefox and Chrome on Linux/Windows switch tabs with them); the palette binds no digit chord (Task 22). [M3R73]
+- `conflictsOf` is quadratic over at most defaults + 256 user rules (under 80 000 comparisons): accepted. [M3R74]
+
+- [ ] **Step 1: Write the failing tests**
+
+`apps/web/src/features/commands/when.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import { evaluateWhen, mentions, parseWhen, type WhenNode } from "./when.ts";
+
+const run = (text: string, context: Record<string, boolean>) => evaluateWhen(parseWhen(text) as WhenNode, context);
+
+describe("when clauses (T3 grammar)", () => {
+  it("evaluates !, &&, || and parentheses with ! > && > ||", () => {
+    expect(run("a && !b", { a: true, b: false })).toBe(true);
+    expect(run("a || b && c", { a: false, b: true, c: false })).toBe(false);
+    expect(run("(a || b) && c", { a: true, c: true })).toBe(true);
+    expect(run("unknownKey", {})).toBe(false);
+    expect(run("true && !false", {})).toBe(true);
+  });
+  it("reports where a clause is broken", () => {
+    expect(parseWhen("")).toEqual({ error: "empty", at: 0 });
+    expect(parseWhen("a &&")).toEqual({ error: "unexpected", at: 4 });
+    expect(parseWhen("(a")).toEqual({ error: "unclosed", at: 2 });
+    expect(parseWhen("a & b")).toEqual({ error: "unexpected", at: 2 });
+    expect(parseWhen("(".repeat(65) + "a" + ")".repeat(65))).toMatchObject({ error: "too_deep" });
+  });
+  it("knows which keys a clause reads", () => {
+    expect(mentions(parseWhen("!editableFocus && dialogOpen") as WhenNode, "editableFocus")).toBe(true);
+    expect(mentions(parseWhen("dialogOpen") as WhenNode, "editableFocus")).toBe(false);
+  });
+});
+```
+
+`apps/web/src/features/commands/resolve.test.ts`:
+
+```ts
+import { describe, expect, it } from "vitest";
+import type { KeyInput } from "./keys.ts";
+import { parseChord } from "./keys.ts";
+import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "./defaults.ts";
+import { conflictsOf, isReserved, matchingCommands, mergeWithDefaults } from "./resolve.ts";
+
+const known = new Set(["palette.toggle", "drawer.tree.toggle", "shortcuts.help", "tab.close"]);
+const defaults = [
+  { key: "mod+k", command: "palette.toggle" },
+  { key: "mod+b", command: "drawer.tree.toggle", when: "!dialogOpen" },
+  { key: "?", command: "shortcuts.help", when: "!editableFocus && !dialogOpen" },
+];
+const ev = (over: Partial<KeyInput>): KeyInput => ({ key: "k", code: "KeyK", ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, ...over });
+
+describe("merge (T3 mergeWithDefaultKeybindings)", () => {
+  it("replaces the defaults of every command a user rule names, and `none` unbinds", () => {
+    const { rules } = mergeWithDefaults(defaults, [{ key: "mod+shift+p", command: "palette.toggle" }, { key: "none", command: "drawer.tree.toggle" }], known);
+    expect(rules.map((r) => `${r.source}:${r.command}`)).toEqual(["default:shortcuts.help", "user:palette.toggle"]);
+  });
+  it("drops invalid user entries one by one and says which", () => {
+    const { rules, issues } = mergeWithDefaults(defaults, [{ key: "mod+banana", command: "palette.toggle" }, { key: "mod+j", command: "nope.nothing" }, { key: "mod+j", command: "tab.close", when: "a &&" }, { key: "alt+w", command: "tab.close" }], known);
+    expect(issues).toEqual([{ index: 0, problem: "key" }, { index: 1, problem: "command" }, { index: 2, problem: "when" }]);
+    expect(rules.filter((r) => r.source === "user").map((r) => r.command)).toEqual(["tab.close"]);
+  });
+});
+
+describe("matchingCommands", () => {
+  const { rules } = mergeWithDefaults(defaults, [], known);
+  it("puts the last matching rule first and honours when clauses", () => {
+    expect(matchingCommands(ev({ ctrlKey: true, key: "b", code: "KeyB" }), rules, { dialogOpen: false }, "other")).toEqual(["drawer.tree.toggle"]);
+    expect(matchingCommands(ev({ ctrlKey: true, key: "b", code: "KeyB" }), rules, { dialogOpen: true }, "other")).toEqual([]);
+  });
+  it("never fires inside a terminal-input panel unless the clause names panelFocus (agreement 7)", () => {
+    const loose = mergeWithDefaults([], [{ key: "mod+k", command: "palette.toggle" }, { key: "mod+j", command: "tab.close", when: "panelFocus" }], known).rules;
+    expect(matchingCommands(ev({ ctrlKey: true }), loose, { panelFocus: true }, "other")).toEqual([]);
+    expect(matchingCommands(ev({ ctrlKey: true, key: "j", code: "KeyJ" }), loose, { panelFocus: true }, "other")).toEqual(["tab.close"]);
+  });
+
+  it("never fires a bare printable key in a text field unless its clause names editableFocus", () => {
+    const loose = mergeWithDefaults([], [{ key: "?", command: "shortcuts.help" }], known).rules;
+    expect(matchingCommands(ev({ key: "?", code: "Slash", shiftKey: true }), loose, { editableFocus: true }, "other")).toEqual([]);
+    expect(matchingCommands(ev({ key: "?", code: "Slash", shiftKey: true }), loose, { editableFocus: false }, "other")).toEqual(["shortcuts.help"]);
+  });
+});
+
+describe("the default bindings (agreement 7, M3-RT-30)", () => {
+  const { rules } = mergeWithDefaults(DEFAULT_KEYBINDINGS, [], KNOWN_COMMANDS);
+  it("keep every chord out of a terminal-input panel, and Escape out of open menus", () => {
+    for (const rule of DEFAULT_KEYBINDINGS) expect(rule.when ?? "", rule.command).toContain("!panelFocus");
+    const escape = (context: Record<string, boolean>) => matchingCommands(ev({ key: "Escape", code: "Escape" }), rules, context, "other");
+    expect(escape({ sessionFocus: true })).toEqual(["session.stop"]);
+    expect(escape({ sessionFocus: true, overlayOpen: true })).toEqual([]);
+    expect(escape({ sessionFocus: true, panelFocus: true })).toEqual([]);
+  });
+  it("let mod+b close the tree drawer, which is itself a modal", () => {
+    const modB = (context: Record<string, boolean>) => matchingCommands(ev({ ctrlKey: true, key: "b", code: "KeyB" }), rules, context, "other");
+    expect(modB({ dialogOpen: true, treeOpen: true })).toEqual(["drawer.tree.toggle"]);
+    expect(modB({ dialogOpen: true })).toEqual([]);
+  });
+});
+
+describe("conflicts and reserved chords", () => {
+  it("flags two rules on one chord when either has no clause or both clauses are equal", () => {
+    const { rules } = mergeWithDefaults(defaults, [{ key: "ctrl+k", command: "tab.close" }], known);
+    expect(conflictsOf(rules, "other").get(rules.length - 1)).toEqual(["palette.toggle"]);
+    expect(conflictsOf(rules, "mac").size).toBe(0);
+  });
+  it("flags browser-reserved chords", () => {
+    expect(isReserved(parseChord("mod+w") as never, "other")).toBe(true);
+    expect(isReserved(parseChord("mod+t") as never, "mac")).toBe(true);
+    expect(isReserved(parseChord("ctrl+tab") as never, "mac")).toBe(true);
+    expect(isReserved(parseChord("mod+3") as never, "other")).toBe(true);
+    expect(isReserved(parseChord("alt+3") as never, "other")).toBe(true);
+    expect(isReserved(parseChord("mod+k") as never, "other")).toBe(false);
+  });
+});
+```
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `pnpm test:unit apps/web/src/features/commands`
+Expected: FAIL (modules missing).
+
+- [ ] **Step 3: Implement**
 
 `apps/web/src/features/commands/when.ts`:
 
@@ -6454,7 +7966,8 @@ export function mentions(node: WhenNode, name: string): boolean {
 `apps/web/src/features/commands/defaults.ts` (imports `KeybindingRule` from `@pap/contracts` and `MessageKey` from `../../i18n/index.ts`): the catalogue below; titles are `commands.<id>` keys added to `catalog/commands.ts` in en and fr (e.g. `"commands.palette.toggle": "Open the command palette"` / `"Ouvrir la palette de commandes"`, `"commands.agent.goto": "Go to agent {n}"` / `"Aller à l'agent {n}"`):
 
 ```ts
-export const CONTEXT_KEYS = ["editableFocus", "dialogOpen", "paletteOpen", "sessionFocus", "mobile"] as const;
+/** Read by Task 17a's context; `panelFocus` and `overlayOpen` follow agreement 7 (owner R3-6), `treeOpen` M3-RT-30. */
+export const CONTEXT_KEYS = ["editableFocus", "dialogOpen", "overlayOpen", "panelFocus", "paletteOpen", "treeOpen", "sessionFocus", "mobile"] as const;
 
 export type CommandGroup = "navigation" | "tabs" | "panes" | "session" | "agents" | "app";
 
@@ -6486,21 +7999,23 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: "auth.signOut", titleKey: "commands.auth.signOut", group: "app" },
 ];
 
-// pi-web's shortcuts (spec C §7.3) plus the shell's; chords browsers keep are avoided (Review Focus 4).
+// pi-web's shortcuts (spec C §7.3) plus the shell's; chords browsers keep are avoided (Review Focus 4). Every chord
+// stays out of an extension's terminal-input panel (`!panelFocus`); Escape also leaves an open menu, select or popover
+// to Radix (`!overlayOpen`), so it stops the run only when neither holds (agreement 7, owner R3-6).
 export const DEFAULT_KEYBINDINGS: readonly KeybindingRule[] = [
-  { key: "mod+k", command: "palette.toggle" },
-  { key: "mod+b", command: "drawer.tree.toggle", when: "!dialogOpen" },
-  { key: "mod+,", command: "settings.open", when: "!dialogOpen" },
-  { key: "?", command: "shortcuts.help", when: "!editableFocus && !dialogOpen" },
-  { key: "ctrl+alt+n", command: "session.new", when: "!dialogOpen" },
-  { key: "escape", command: "session.stop", when: "sessionFocus && !dialogOpen && !paletteOpen" },
-  { key: "alt+shift+arrowright", command: "tab.next", when: "!editableFocus && !dialogOpen" },
-  { key: "alt+shift+arrowleft", command: "tab.prev", when: "!editableFocus && !dialogOpen" },
-  { key: "alt+w", command: "tab.close", when: "!editableFocus && !dialogOpen" },
-  { key: "mod+\\", command: "pane.split", when: "!dialogOpen && !mobile" },
-  { key: "alt+arrowdown", command: "agent.nextUnread", when: "!dialogOpen" },
-  { key: "alt+arrowup", command: "agent.prevUnread", when: "!dialogOpen" },
-  ...Array.from({ length: 9 }, (_, i) => ({ key: `ctrl+alt+${i + 1}`, command: `agent.goto.${i + 1}`, when: "!dialogOpen" })),
+  { key: "mod+k", command: "palette.toggle", when: "!panelFocus" },
+  { key: "mod+b", command: "drawer.tree.toggle", when: "!panelFocus && (!dialogOpen || treeOpen)" },
+  { key: "mod+,", command: "settings.open", when: "!panelFocus && !dialogOpen" },
+  { key: "?", command: "shortcuts.help", when: "!panelFocus && !editableFocus && !dialogOpen" },
+  { key: "ctrl+alt+n", command: "session.new", when: "!panelFocus && !dialogOpen" },
+  { key: "escape", command: "session.stop", when: "sessionFocus && !panelFocus && !overlayOpen && !dialogOpen && !paletteOpen" },
+  { key: "alt+shift+arrowright", command: "tab.next", when: "!panelFocus && !editableFocus && !dialogOpen" },
+  { key: "alt+shift+arrowleft", command: "tab.prev", when: "!panelFocus && !editableFocus && !dialogOpen" },
+  { key: "alt+w", command: "tab.close", when: "!panelFocus && !editableFocus && !dialogOpen" },
+  { key: "mod+\\", command: "pane.split", when: "!panelFocus && !dialogOpen && !mobile" },
+  { key: "alt+arrowdown", command: "agent.nextUnread", when: "!panelFocus && !dialogOpen" },
+  { key: "alt+arrowup", command: "agent.prevUnread", when: "!panelFocus && !dialogOpen" },
+  ...Array.from({ length: 9 }, (_, i) => ({ key: `ctrl+alt+${i + 1}`, command: `agent.goto.${i + 1}`, when: "!panelFocus && !dialogOpen" })),
 ];
 
 export const KNOWN_COMMANDS: ReadonlySet<string> = new Set(COMMANDS.map((command) => command.id));
@@ -6569,6 +8084,8 @@ export function matchingCommands(event: KeyInput, rules: readonly ResolvedRule[]
     const rule = rules[i] as ResolvedRule;
     if (!matchesChord(rule.chord, event, platform)) continue;
     if (BARE_PRINTABLE(rule.chord) && context.editableFocus === true && !(rule.when && mentions(rule.when, "editableFocus"))) continue;
+    // An extension's terminal-input panel owns its keys (agreement 7): a rule fires there only if its clause says so.
+    if (context.panelFocus === true && !(rule.when && mentions(rule.when, "panelFocus"))) continue;
     if (rule.when && !evaluateWhen(rule.when, context)) continue;
     if (!out.includes(rule.command)) out.push(rule.command);
   }
@@ -6597,86 +8114,43 @@ export const isReserved = (chord: Chord, platform: Platform): boolean => RESERVE
 
 (`rules` length is bounded: defaults plus at most 256 user rules, so the quadratic `conflictsOf` stays under 80 000 comparisons.)
 
-`labels.ts`:
-
-```ts
-import type { Chord, Platform } from "./keys.ts";
-
-export type KeyNames = Readonly<Record<"ctrl" | "alt" | "shift" | "meta" | "escape" | "enter" | "space" | "tab" | "backspace" | "delete" | "up" | "down" | "left" | "right" | "home" | "end" | "pageup" | "pagedown", string>>;
-
-const MAC_GLYPHS: Readonly<Record<string, string>> = { escape: "⎋", enter: "↩", tab: "⇥", backspace: "⌫", delete: "⌦", arrowup: "↑", arrowdown: "↓", arrowleft: "←", arrowright: "→" };
-const NAMED: Readonly<Record<string, keyof KeyNames>> = { escape: "escape", enter: "enter", " ": "space", tab: "tab", backspace: "backspace", delete: "delete", arrowup: "up", arrowdown: "down", arrowleft: "left", arrowright: "right", home: "home", end: "end", pageup: "pageup", pagedown: "pagedown" };
-
-/** Orca: never hard-code metaKey; Apple platforms (iPadOS reports "Macintosh") use ⌘. */
-export function detectPlatform(nav: { platform?: string; userAgent?: string } = navigator): Platform {
-  return /Mac|iPhone|iPad|iPod/.test(nav.platform ?? "") || /Macintosh|iPhone|iPad/.test(nav.userAgent ?? "") ? "mac" : "other";
-}
-
-function keyLabel(key: string, platform: Platform, names: KeyNames): string {
-  if (platform === "mac" && MAC_GLYPHS[key]) return MAC_GLYPHS[key] as string;
-  const named = NAMED[key];
-  if (named) return names[named];
-  return /^f\d{1,2}$/.test(key) ? key.toUpperCase() : key.length === 1 ? key.toUpperCase() : key;
-}
-
-export function chordTokens(chord: Chord, platform: Platform, names: KeyNames): string[] {
-  const ctrl = chord.ctrl || (chord.mod && platform === "other");
-  const meta = chord.meta || (chord.mod && platform === "mac");
-  const modifiers =
-    platform === "mac"
-      ? [ctrl && "⌃", chord.alt && "⌥", chord.shift && "⇧", meta && "⌘"]
-      : [ctrl && names.ctrl, chord.alt && names.alt, chord.shift && names.shift, meta && names.meta];
-  return [...modifiers.filter((m): m is string => typeof m === "string"), keyLabel(chord.key, platform, names)];
-}
-
-export const chordJoiner = (platform: Platform): "" | "+" => (platform === "mac" ? "" : "+");
-
-/** ARIA's aria-keyshortcuts form ("Control+K", "Meta+K"). */
-export function ariaKeyShortcuts(chord: Chord, platform: Platform): string {
-  const ctrl = chord.ctrl || (chord.mod && platform === "other");
-  const meta = chord.meta || (chord.mod && platform === "mac");
-  const key = chord.key === " " ? "Space" : chord.key.length === 1 ? chord.key.toUpperCase() : chord.key.replace(/^arrow/, "Arrow").replace(/^./, (c) => c.toUpperCase());
-  return [ctrl && "Control", chord.alt && "Alt", chord.shift && "Shift", meta && "Meta", key].filter(Boolean).join("+");
-}
-```
-
-Add the key names to `catalog/commands.ts` (`commands.key.ctrl` "Ctrl"/"Ctrl", `commands.key.shift` "Shift"/"Maj", `commands.key.escape` "Esc"/"Échap", `commands.key.enter` "Enter"/"Entrée", `commands.key.space` "Space"/"Espace", `commands.key.delete` "Del"/"Suppr", `commands.key.up` "Up"/"Haut"…, with the keys that are the same word in French added to `IDENTICAL_IN_FR`), and a helper `keyNames(t: Translate): KeyNames` in `labels.ts` that builds the record from those keys.
-
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web/src/features/commands apps/web/src/i18n`
-Expected: PASS. Mutation checks: drop the `layoutUsable` condition on letters → "AZERTY A is not Q" fails; drop the bare-printable guard → "never fires a bare printable key in a text field" fails.
+Run: `pnpm test:unit apps/web/src/features/commands apps/web/src/i18n && pnpm knip`
+Expected: PASS. Mutation checks: drop the bare-printable guard → "never fires a bare printable key in a text field" fails; drop the panel guard → "never fires inside a terminal-input panel" fails; remove `!overlayOpen` from Escape's default → "Escape out of open menus" fails.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
 git add apps/web/src/features/commands apps/web/src/i18n
-git commit -m "feat(commands): keybinding chords, when clauses, merge, conflicts and labels"
+git commit -m "feat(commands): when clauses, default bindings with panel and overlay keys, merge and conflicts"
 ```
 
 ---
 
-### Task 17: Command registry, key dispatcher, user keybindings, shortcuts help
+### Task 17a: Command registry, key dispatcher, `when` context, `useCommand`
 
 One capture-phase `keydown` listener on `window` (Orca `src/renderer/src/app-shell/use-global-keybindings.ts`: one long-lived listener, bail-outs first) resolves the event to candidate commands; a registry maps each command to the handler of whoever mounted it (Orca `app-command-handlers.ts`: a handler returns false to decline, so an unclaimed chord falls through to the browser and the focused element). The same registry runs commands from the palette. User rules load from and save to the account `keybindings` document (Task 12) exactly like the appearance. `?` opens the shortcuts help (pw `components/ShortcutsDialog.tsx`), built from the effective rules, so it is never out of date.
 
+This part holds the registry, the context and the dispatcher; Task 17b adds the user keybindings and the shortcuts help.
+
 **Files:**
-- Create: `apps/web/src/features/commands/registry.ts`, `registry.test.ts`, `context.ts`, `dispatcher.ts`, `dispatcher.test.ts`, `use-command.ts`, `keybindings-store.ts`, `keybindings-store.test.ts`, `ShortcutsHelp.tsx`, `ShortcutsHelp.test.tsx`, `index.ts`
-- Modify: `apps/web/src/i18n/catalog/commands.ts`
+- Create: `apps/web/src/features/commands/registry.ts`, `registry.test.ts`, `context.ts`, `dispatcher.ts`, `dispatcher.test.ts`, `use-command.ts`, `use-command.test.tsx`
+- Modify: `apps/web/src/testing/dom.ts` (`Mounted` gains `rerender(element)`, as Task 4 gives the `packages/ui` copy; additive, listed in the conflict table)
 
 **Interfaces:**
-- Consumes: Task 16; `loadSetting`, `saveSetting`, `createSettingSaver`, `reportClientIssue` (Tasks 3, 15); `Dialog`, `Kbd` (Tasks 5, 8).
+- Consumes: Task 16b (`matchingCommands`, `ResolvedRule`, `CONTEXT_KEYS`), Task 16a (`Platform`); `cancelsComposition` (Task 6).
 - Produces:
   - `type CommandHandler = () => boolean | void` (false = declined); `registerCommand(id: string, handler: CommandHandler): () => void` (a stack per id, the latest registration answers; the returned function removes exactly that registration); `runCommand(id: string): boolean`; `hasCommand(id: string): boolean`; `onRegistryChange(listener): () => void`.
   - `useCommand(id: string, handler: CommandHandler, enabled?: boolean): void` (latest-callback ref, registered in an effect).
-  - `readContext(doc: Document, shell: { mobile: boolean }): Record<string, boolean>` (keys of `CONTEXT_KEYS`: `editableFocus` = focus inside `input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]` (T3 `lib/editableFocus.ts`); `dialogOpen` = a `[data-pap-modal][data-state="open"]` exists; `paletteOpen` = `[data-command-palette]` exists; `sessionFocus` = focus inside `[data-pane-kind="session"]`; `mobile` from the shell).
-  - `installDispatcher(deps: { win: Window; platform: Platform; rules(): readonly ResolvedRule[]; shell(): { mobile: boolean } }): () => void`.
-  - `useKeybindingsStore` state `{ user: KeybindingRule[]; rules: ResolvedRule[]; issues: RuleIssue[]; status: "local" | "load-error" | SaveStatus; setUser(next: KeybindingRule[]): void }`; `syncKeybindings(rpc: Runtime["rpc"]): Promise<void>`.
-  - `ShortcutsHelp({ open: boolean; onOpenChange(open: boolean): void; platform: Platform })`.
-  - `features/commands/index.ts` re-exports all public names of Tasks 16–17 (and Task 22, 27 add theirs).
+  - `interface ShellContext { mobile: boolean; treeOpen: boolean }`; `readContext(doc: Document, shell: ShellContext): Record<ContextKey, boolean>` — `editableFocus` = focus inside `input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]` (T3 `lib/editableFocus.ts`); `dialogOpen` = a `[data-pap-modal][data-state="open"]` exists; `overlayOpen` = an open `[role="menu"]`, `[role="listbox"]` or Radix popper content that is not a tooltip; `panelFocus` = focus inside `[data-terminal-input]` (M2's CustomPanel carries it, agreement 7); `paletteOpen` = `[data-command-palette]` exists; `sessionFocus` = focus inside `[data-pane-kind="session"]`; `mobile`, `treeOpen` from the shell.
+  - `installDispatcher(deps: { win: Window; platform: Platform; rules(): readonly ResolvedRule[]; shell(): ShellContext }): () => void`.
 
-**Risks / rulings needed:** (a) The dispatcher ignores auto-repeat for every command (T3 `if (event.repeat) return`): confirm, or name commands that may repeat. (b) Before M2's session screen registers `session.stop` (post-merge P3), Escape is unclaimed and keeps its browser meaning: acceptable interim. None else.
+**Rulings (pre-dispatch):**
+- The dispatcher ignores auto-repeat for every command (T3 `if (event.repeat) return`). [M3R75]
+- The dispatcher is one capture-phase listener on `window`, so it runs before any element handler; that is why the context, not `stopPropagation` in a panel, keeps Escape and chords away from extension panels and open menus (agreement 7, M3-RT-16). A tooltip is not an overlay. [M3R76]
+- Before M2's session screen registers `session.stop` (post-merge P3), Escape is unclaimed and keeps its browser meaning: accepted interim. [M3R77]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -6728,16 +8202,18 @@ import { installDispatcher } from "./dispatcher.ts";
 import { registerCommand } from "./registry.ts";
 import { mergeWithDefaults } from "./resolve.ts";
 
-const known = new Set(["palette.toggle", "shortcuts.help", "drawer.tree.toggle"]);
+const known = new Set(["palette.toggle", "shortcuts.help", "drawer.tree.toggle", "session.stop"]);
 const { rules } = mergeWithDefaults(
   [
-    { key: "mod+k", command: "palette.toggle" },
-    { key: "mod+b", command: "drawer.tree.toggle", when: "!dialogOpen" },
-    { key: "?", command: "shortcuts.help", when: "!editableFocus && !dialogOpen" },
+    { key: "mod+k", command: "palette.toggle", when: "!panelFocus" },
+    { key: "mod+b", command: "drawer.tree.toggle", when: "!panelFocus && (!dialogOpen || treeOpen)" },
+    { key: "?", command: "shortcuts.help", when: "!panelFocus && !editableFocus && !dialogOpen" },
+    { key: "escape", command: "session.stop", when: "sessionFocus && !panelFocus && !overlayOpen && !dialogOpen && !paletteOpen" },
   ],
   [],
   known,
 );
+const shell = { mobile: false, treeOpen: false };
 const press = (init: KeyboardEventInit, target: EventTarget = document.body) => {
   const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
   target.dispatchEvent(event);
@@ -6747,7 +8223,7 @@ const press = (init: KeyboardEventInit, target: EventTarget = document.body) => 
 let stop: () => void;
 let cleanup: Array<() => void> = [];
 beforeEach(() => {
-  stop = installDispatcher({ win: window, platform: "other", rules: () => rules, shell: () => ({ mobile: false }) });
+  stop = installDispatcher({ win: window, platform: "other", rules: () => rules, shell: () => shell });
 });
 afterEach(() => {
   stop();
@@ -6810,10 +8286,52 @@ describe("key dispatcher", () => {
     stop();
     const first = (e: KeyboardEvent) => e.preventDefault();
     window.addEventListener("keydown", first, { capture: true });
-    stop = installDispatcher({ win: window, platform: "other", rules: () => rules, shell: () => ({ mobile: false }) });
+    stop = installDispatcher({ win: window, platform: "other", rules: () => rules, shell: () => shell });
     press({ key: "k", code: "KeyK", ctrlKey: true });
     window.removeEventListener("keydown", first, { capture: true });
     expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("gives Escape to an open menu or select, and to an extension's panel; stops the run otherwise (agreement 7)", () => {
+    const stopRun = vi.fn();
+    cleanup.push(registerCommand("session.stop", stopRun));
+    const pane = document.createElement("section");
+    pane.setAttribute("data-pane-kind", "session");
+    const button = document.createElement("button");
+    const panel = document.createElement("div");
+    panel.setAttribute("data-terminal-input", "");
+    const field = document.createElement("textarea");
+    panel.append(field);
+    pane.append(button, panel);
+    document.body.append(pane);
+    button.focus();
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    document.body.append(menu);
+    expect(press({ key: "Escape", code: "Escape" }, button).defaultPrevented).toBe(false);
+    menu.remove();
+    field.focus();
+    expect(press({ key: "Escape", code: "Escape" }, field).defaultPrevented).toBe(false);
+    expect(press({ key: "k", code: "KeyK", ctrlKey: true }, field).defaultPrevented).toBe(false);
+    button.focus();
+    expect(press({ key: "Escape", code: "Escape" }, button).defaultPrevented).toBe(true);
+    expect(stopRun).toHaveBeenCalledOnce();
+  });
+
+  it("ignores an open tooltip when it decides whether an overlay is open", () => {
+    const stopRun = vi.fn();
+    cleanup.push(registerCommand("session.stop", stopRun));
+    const pane = document.createElement("section");
+    pane.setAttribute("data-pane-kind", "session");
+    const button = document.createElement("button");
+    pane.append(button);
+    const tip = document.createElement("div");
+    tip.setAttribute("data-radix-popper-content-wrapper", "");
+    tip.innerHTML = '<div><span role="tooltip">Stop</span></div>';
+    document.body.append(pane, tip);
+    button.focus();
+    press({ key: "Escape", code: "Escape" }, button);
+    expect(stopRun).toHaveBeenCalledOnce();
   });
 
   it("stops listening when stopped", () => {
@@ -6827,61 +8345,37 @@ describe("key dispatcher", () => {
 });
 ```
 
-`keybindings-store.test.ts`:
+`use-command.test.tsx`:
 
-```ts
+```tsx
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { RpcError } from "../../runtime/index.ts";
-import { syncKeybindings, useKeybindingsStore } from "./keybindings-store.ts";
+import { describe, expect, it, vi } from "vitest";
+import { mount } from "../../testing/dom.ts";
+import { hasCommand, runCommand } from "./registry.ts";
+import { useCommand } from "./use-command.ts";
 
-const report = vi.hoisted(() => ({ reportClientIssue: vi.fn() }));
-vi.mock("../../lib/report.ts", () => report);
+function Probe({ handler, enabled = true }: { handler: () => boolean | void; enabled?: boolean }) {
+  useCommand("x.probe", handler, enabled);
+  return null;
+}
 
-beforeEach(() => {
-  vi.useFakeTimers(); // the saver's 400 ms debounce never fires on its own here
-  localStorage.clear();
-  useKeybindingsStore.getState().setUser([]);
-  report.reportClientIssue.mockClear();
-});
-afterEach(() => vi.useRealTimers());
-
-describe("keybindings store", () => {
-  it("replaces the defaults of a command the user rebinds, and puts user rules last", () => {
-    useKeybindingsStore.getState().setUser([{ key: "mod+shift+p", command: "palette.toggle" }]);
-    const rules = useKeybindingsStore.getState().rules;
-    expect(rules.filter((r) => r.command === "palette.toggle").map((r) => `${r.source}:${r.chord.key}`)).toEqual(["user:p"]);
-    expect(rules.at(-1)?.command).toBe("palette.toggle");
-  });
-
-  it("reports invalid entries once and keeps the valid ones", () => {
-    useKeybindingsStore.getState().setUser([{ key: "mod+banana", command: "palette.toggle" }, { key: "alt+p", command: "palette.toggle" }]);
-    expect(useKeybindingsStore.getState().issues).toEqual([{ index: 0, problem: "key" }]);
-    expect(report.reportClientIssue).toHaveBeenCalledExactlyOnceWith("keybindings_invalid");
-  });
-
-  it("takes valid server rules and keeps its own on an invalid document, an old daemon or a change made meanwhile", async () => {
-    await syncKeybindings({ call: vi.fn().mockResolvedValue({ value: [{ key: "alt+p", command: "palette.toggle" }], revision: 1 }) } as never);
-    expect(useKeybindingsStore.getState().user).toEqual([{ key: "alt+p", command: "palette.toggle" }]);
-
-    const tooMany = Array.from({ length: 300 }, () => ({ key: "mod+k", command: "palette.toggle" }));
-    await syncKeybindings({ call: vi.fn().mockResolvedValue({ value: tooMany, revision: 2 }) } as never);
-    expect([useKeybindingsStore.getState().user.length, useKeybindingsStore.getState().status]).toEqual([1, "load-error"]);
-
-    await syncKeybindings({ call: vi.fn().mockRejectedValue(new RpcError("unknown_method")) } as never);
-    expect(useKeybindingsStore.getState().user).toHaveLength(1);
-
-    let answer: (value: unknown) => void = () => {};
-    const pending = syncKeybindings({ call: vi.fn(() => new Promise((resolve) => (answer = resolve))) } as never);
-    useKeybindingsStore.getState().setUser([{ key: "alt+o", command: "palette.toggle" }]);
-    answer({ value: [{ key: "alt+q", command: "palette.toggle" }], revision: 3 });
-    await pending;
-    expect(useKeybindingsStore.getState().user).toEqual([{ key: "alt+o", command: "palette.toggle" }]);
+describe("useCommand", () => {
+  it("registers while mounted and enabled, and always calls the latest handler", async () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    const page = await mount(<Probe handler={first} />);
+    expect(hasCommand("x.probe")).toBe(true);
+    await page.rerender(<Probe handler={second} />);
+    runCommand("x.probe");
+    expect([first.mock.calls.length, second.mock.calls.length]).toEqual([0, 1]);
+    await page.unmount();
+    expect(hasCommand("x.probe")).toBe(false);
+    const off = await mount(<Probe handler={first} enabled={false} />);
+    expect(hasCommand("x.probe")).toBe(false);
+    await off.unmount();
   });
 });
 ```
-
-`ShortcutsHelp.test.tsx`: opened, it lists each command that has an effective chord with its title and its `Kbd` tokens (`Ctrl` `K` for `palette.toggle` on "other"), grouped under `commands.group.*` headings; a command whose only rule is unbound (`none`) is not listed.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -6930,11 +8424,45 @@ export function onRegistryChange(listener: () => void): () => void {
 }
 ```
 
+`context.ts`:
+
+```ts
+import { CONTEXT_KEYS } from "./defaults.ts";
+
+export interface ShellContext {
+  readonly mobile: boolean;
+  readonly treeOpen: boolean;
+}
+
+const EDITABLE = 'input, textarea, select, [contenteditable="true"], [contenteditable=""], [role="textbox"]';
+
+/** Radix popper content (menus, selects, popovers) or a menu or listbox, but never a mere tooltip. */
+function overlayOpen(doc: Document): boolean {
+  if (doc.querySelector('[role="menu"], [role="listbox"]')) return true;
+  return [...doc.querySelectorAll("[data-radix-popper-content-wrapper]")].some((wrapper) => wrapper.querySelector('[role="tooltip"]') === null);
+}
+
+/** The `when` context of one key event, read from the page (T3 lib/editableFocus.ts; agreement 7). */
+export function readContext(doc: Document, shell: ShellContext): Record<(typeof CONTEXT_KEYS)[number], boolean> {
+  const active = doc.activeElement instanceof Element ? doc.activeElement : null;
+  return {
+    editableFocus: active?.closest(EDITABLE) != null,
+    dialogOpen: doc.querySelector('[data-pap-modal][data-state="open"]') !== null,
+    overlayOpen: overlayOpen(doc),
+    panelFocus: active?.closest("[data-terminal-input]") != null,
+    paletteOpen: doc.querySelector("[data-command-palette]") !== null,
+    treeOpen: shell.treeOpen,
+    sessionFocus: active?.closest('[data-pane-kind="session"]') != null,
+    mobile: shell.mobile,
+  };
+}
+```
+
 `dispatcher.ts`:
 
 ```ts
 import { cancelsComposition } from "@pap/ui";
-import { readContext } from "./context.ts";
+import { readContext, type ShellContext } from "./context.ts";
 import type { Platform } from "./keys.ts";
 import { runCommand } from "./registry.ts";
 import { matchingCommands, type ResolvedRule } from "./resolve.ts";
@@ -6943,7 +8471,7 @@ export interface DispatcherDeps {
   readonly win: Window;
   readonly platform: Platform;
   rules(): readonly ResolvedRule[];
-  shell(): { readonly mobile: boolean };
+  shell(): ShellContext;
 }
 
 /** One capture-phase listener for the whole app (Orca use-global-keybindings.ts). Returns its removal. */
@@ -6966,21 +8494,295 @@ export function installDispatcher(deps: DispatcherDeps): () => void {
 }
 ```
 
-`context.ts`, `use-command.ts`, `keybindings-store.ts`, `ShortcutsHelp.tsx`: as their Interfaces say. `keybindings-store.ts` mirrors Task 15's store and controller in one file (keybindings have no device scope): `setUser` writes the local cache (`pap.keybindings.v1`), recomputes `{ rules, issues } = mergeWithDefaults(DEFAULT_KEYBINDINGS, user, KNOWN_COMMANDS)`, reports `keybindings_invalid` when `issues` is not empty, and schedules a save through `createSettingSaver` once `syncKeybindings` has run; `syncKeybindings` validates the server value with `KeybindingRules.safeParse` before replacing anything. `useCommand` keeps the latest handler in a ref updated in an effect and registers `() => latest.current()` while `enabled`.
+`use-command.ts`:
 
-`ShortcutsHelp` lists `COMMANDS` grouped by `group`, each with `chordTokens` of its last effective rule and `chordJoiner(platform)`, in a `Dialog` titled `t("commands.help.title")` ("Keyboard shortcuts" / "Raccourcis clavier").
+```ts
+import { useEffect, useRef } from "react";
+import { registerCommand, type CommandHandler } from "./registry.ts";
+
+/** Registers a command handler while mounted and `enabled`; the registry always calls the latest `handler`. */
+export function useCommand(id: string, handler: CommandHandler, enabled = true): void {
+  const latest = useRef(handler);
+  useEffect(() => {
+    latest.current = handler;
+  });
+  useEffect(() => (enabled ? registerCommand(id, () => latest.current()) : undefined), [id, enabled]);
+}
+```
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web/src/features/commands && pnpm lint`
-Expected: PASS. Mutation checks: remove the `event.repeat` bail-out → the auto-repeat case fails; remove the `defaultPrevented` bail-out → "leaves a key another handler already took" fails.
+Run: `pnpm test:unit apps/web/src/features/commands && pnpm lint && pnpm knip`
+Expected: PASS. Mutation checks: remove the `event.repeat` bail-out → the auto-repeat case fails; remove the `defaultPrevented` bail-out → "leaves a key another handler already took" fails; make `overlayOpen` count tooltips → "ignores an open tooltip" fails; drop `panelFocus` from the context → the Escape-in-a-panel case fails.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
-git add apps/web/src/features/commands apps/web/src/i18n
-git commit -m "feat(commands): command registry, one key dispatcher, account keybindings and shortcuts help"
+git add apps/web/src/features/commands apps/web/src/testing/dom.ts
+git commit -m "feat(commands): command registry, one key dispatcher with panel and overlay context, useCommand"
+```
+
+---
+
+### Task 17b: User keybindings (account document) and the shortcuts help
+
+User rules load from and save to the account `keybindings` document (Task 12) through the same compare-and-set engine as the appearance (`createAccountDocument`, Task 15): a list document is one field, so a conflict keeps this device's list if it changed here and the server's otherwise. The local cache is read field by field: the valid rules survive, the rest are dropped and reported (M3-RT-29). `?` opens the shortcuts help (pw `components/ShortcutsDialog.tsx`), built from the effective rules, so it is never out of date; it is a lazy chunk mounted by the shell (Task 21, owner R3-5).
+
+**Files:**
+- Create: `apps/web/src/features/commands/keybindings-store.ts`, `keybindings-store.test.ts`, `ShortcutsHelp.tsx`, `ShortcutsHelp.test.tsx`, `index.ts`
+- Modify: `apps/web/src/i18n/catalog/commands.ts`, `apps/web/src/main.tsx` (`startKeybindings()` next to `startAppearance()`)
+
+**Interfaces:**
+- Consumes: Task 16b (`mergeWithDefaults`, `DEFAULT_KEYBINDINGS`, `KNOWN_COMMANDS`, `COMMANDS`), Task 16a (`chordTokens`, `chordJoiner`, `keyNames`, `Platform`); `createAccountDocument`, `AccountStatus` (Task 15); `KeybindingRule` (Task 12); `reportClientIssue` (Task 3); `Dialog`, `Kbd` (Tasks 5, 8).
+- Produces:
+  - `parseRules(value: unknown): KeybindingRule[]` (the valid entries of the first 256; reports `keybindings_invalid` when it dropped any).
+  - `useKeybindingsStore` state `{ user: readonly KeybindingRule[]; rules: readonly ResolvedRule[]; issues: readonly RuleIssue[]; status: AccountStatus; setUser(next): void; replaceFromServer(next): void; setStatus(status): void }`.
+  - `startKeybindings(): { stop(): void }` (creates the account document and follows the store), `syncKeybindings(rpc: Runtime["rpc"]): Promise<void>`.
+  - `ShortcutsHelp({ open: boolean; onOpenChange(open: boolean): void; platform: Platform })` (also the default export, for `lazy`).
+  - `features/commands/index.ts` re-exports only `startKeybindings` now (main.tsx imports it); Tasks 19a, 19b, 21, 22 and 27 add the names they import (M3-RT-13).
+
+**Rulings (pre-dispatch):**
+- Keybindings use the appearance's compare-and-set engine unchanged (owner R3-4): hold until loaded, never save after a failed load, one retry on conflict, one save at a time, R105 for every other failure. The list is one field: a conflict keeps this device's list when it changed here, the server's otherwise. [M3R78]
+- The local cache (`pap.keybindings.v1`) and the server copy are read through `parseRules`: valid entries survive, at most 256 (the contract's cap), the rest are dropped with one `keybindings_invalid` line; a newer pap's longer list would be cut at the next save from this version (accepted: no such version exists). [M3R79]
+- The shortcuts help is a lazy chunk (owner R3-5); Task 21 mounts it behind `LazyBoundary`. [M3R80]
+
+- [ ] **Step 1: Write the failing tests**
+
+`keybindings-store.test.ts`:
+
+```ts
+// @vitest-environment happy-dom
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RpcError } from "../../runtime/index.ts";
+import { parseRules, startKeybindings, syncKeybindings, useKeybindingsStore } from "./keybindings-store.ts";
+
+const report = vi.hoisted(() => ({ reportClientIssue: vi.fn() }));
+vi.mock("../../lib/report.ts", () => report);
+
+const drain = async () => {
+  for (let i = 0; i < 30; i++) await Promise.resolve();
+};
+function server(get: Array<() => unknown>, set: Array<() => unknown> = []) {
+  const calls: Array<{ method: string; params: unknown }> = [];
+  const call = vi.fn(async (method: string, params: unknown) => {
+    calls.push({ method, params });
+    const step = (method === "settings.get" ? get : set).shift();
+    if (!step) throw new Error(`no scripted answer for ${method}`);
+    return step();
+  });
+  return { rpc: { call } as never, sets: () => calls.filter((c) => c.method === "settings.set").map((c) => c.params) };
+}
+
+let started: { stop(): void } | null = null;
+beforeEach(() => {
+  vi.useFakeTimers(); // the document's 400 ms debounce
+  localStorage.clear();
+  useKeybindingsStore.getState().setUser([]);
+  report.reportClientIssue.mockClear();
+});
+afterEach(() => {
+  started?.stop();
+  started = null;
+  vi.useRealTimers();
+});
+
+describe("keybindings store", () => {
+  it("replaces the defaults of a command the user rebinds, and puts user rules last", () => {
+    useKeybindingsStore.getState().setUser([{ key: "mod+shift+p", command: "palette.toggle" }]);
+    const rules = useKeybindingsStore.getState().rules;
+    expect(rules.filter((r) => r.command === "palette.toggle").map((r) => `${r.source}:${r.chord.key}`)).toEqual(["user:p"]);
+    expect(rules.at(-1)?.command).toBe("palette.toggle");
+  });
+
+  it("reports invalid entries once and keeps the valid ones", () => {
+    useKeybindingsStore.getState().setUser([{ key: "mod+banana", command: "palette.toggle" }, { key: "alt+p", command: "palette.toggle" }]);
+    expect(useKeybindingsStore.getState().issues).toEqual([{ index: 0, problem: "key" }]);
+    expect(report.reportClientIssue).toHaveBeenCalledExactlyOnceWith("keybindings_invalid");
+  });
+
+  it("reads a hand-edited local cache field by field (M3-RT-29)", () => {
+    expect(parseRules([{ key: "alt+p", command: "palette.toggle" }, "nope", { key: 3 }, { key: "mod+k", command: "rm -rf" }])).toEqual([{ key: "alt+p", command: "palette.toggle" }]);
+    expect(report.reportClientIssue).toHaveBeenCalledWith("keybindings_invalid");
+    expect(parseRules(Array.from({ length: 300 }, () => ({ key: "mod+k", command: "palette.toggle" })))).toHaveLength(256);
+    expect(parseRules({ not: "a list" })).toEqual([]);
+  });
+
+  it("takes the server's rules once connected", async () => {
+    started = startKeybindings();
+    await syncKeybindings(server([() => ({ value: [{ key: "alt+p", command: "palette.toggle" }], revision: 1 })]).rpc);
+    expect([useKeybindingsStore.getState().user, useKeybindingsStore.getState().status]).toEqual([[{ key: "alt+p", command: "palette.toggle" }], "saved"]);
+  });
+
+  it("sends a change made before the load, from the server's revision", async () => {
+    started = startKeybindings();
+    useKeybindingsStore.getState().setUser([{ key: "alt+o", command: "palette.toggle" }]);
+    await vi.advanceTimersByTimeAsync(400);
+    const s = server([() => ({ value: [{ key: "alt+q", command: "palette.toggle" }], revision: 3 })], [() => ({ revision: 4 })]);
+    await syncKeybindings(s.rpc);
+    await drain();
+    expect(useKeybindingsStore.getState().user).toEqual([{ key: "alt+o", command: "palette.toggle" }]);
+    expect(s.sets()).toEqual([{ key: "keybindings", value: [{ key: "alt+o", command: "palette.toggle" }], baseRevision: 3 }]);
+  });
+
+  it("keeps its own rules for an older daemon and never saves to it", async () => {
+    started = startKeybindings();
+    useKeybindingsStore.getState().setUser([{ key: "alt+o", command: "palette.toggle" }]);
+    const s = server([() => Promise.reject(new RpcError("unknown_method"))]);
+    await syncKeybindings(s.rpc);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect([useKeybindingsStore.getState().user.length, s.sets()]).toEqual([1, []]);
+  });
+});
+```
+
+`ShortcutsHelp.test.tsx`: opened, it lists each command that has an effective chord with its title and its `Kbd` tokens (`Ctrl` `K` for `palette.toggle` on "other"), grouped under `commands.group.*` headings; a command whose only rule is unbound (`none`) is not listed.
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `pnpm test:unit apps/web/src/features/commands`
+Expected: FAIL.
+
+- [ ] **Step 3: Implement**
+
+`keybindings-store.ts` (the pieces as in Task 15, one file: keybindings have no device scope):
+
+```ts
+import { KeybindingRule } from "@pap/contracts";
+import { create } from "zustand";
+import { createAccountDocument, type AccountStatus } from "../../lib/account-setting.ts";
+import { reportClientIssue } from "../../lib/report.ts";
+import type { Runtime } from "../../runtime/index.ts";
+import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "./defaults.ts";
+import { mergeWithDefaults, type ResolvedRule, type RuleIssue } from "./resolve.ts";
+
+const CACHE_KEY = "pap.keybindings.v1";
+const MAX_RULES = 256;
+
+/** Field by field for a list (M3-RT-29): the valid rules among the first 256; one report when any was dropped. */
+export function parseRules(value: unknown): KeybindingRule[] {
+  if (!Array.isArray(value)) return [];
+  const rules: KeybindingRule[] = [];
+  for (const entry of value.slice(0, MAX_RULES)) {
+    const parsed = KeybindingRule.safeParse(entry);
+    if (parsed.success) rules.push(parsed.data);
+  }
+  if (rules.length !== value.length) reportClientIssue("keybindings_invalid");
+  return rules;
+}
+
+function readCache(): KeybindingRule[] {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw === null ? [] : parseRules(JSON.parse(raw));
+  } catch {
+    reportClientIssue("keybindings_invalid"); // unreadable JSON or a locked-down storage: the defaults apply
+    return [];
+  }
+}
+function writeCache(rules: readonly KeybindingRule[]): void {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(rules));
+  } catch {
+    reportClientIssue("storage_refused");
+  }
+}
+
+interface KeybindingsState {
+  readonly user: readonly KeybindingRule[];
+  readonly rules: readonly ResolvedRule[];
+  readonly issues: readonly RuleIssue[];
+  readonly status: AccountStatus;
+  setUser(next: readonly KeybindingRule[]): void;
+  replaceFromServer(next: readonly KeybindingRule[]): void;
+  setStatus(status: AccountStatus): void;
+}
+
+const resolve = (user: readonly KeybindingRule[]) => mergeWithDefaults(DEFAULT_KEYBINDINGS, user, KNOWN_COMMANDS);
+
+export const useKeybindingsStore = create<KeybindingsState>()((set) => {
+  const user = readCache();
+  return {
+    user,
+    ...resolve(user),
+    status: "local",
+    setUser: (next) => {
+      writeCache(next);
+      const resolved = resolve(next);
+      if (resolved.issues.length > 0) reportClientIssue("keybindings_invalid");
+      set({ user: next, ...resolved });
+    },
+    replaceFromServer: (next) => {
+      writeCache(next);
+      set({ user: next, ...resolve(next) });
+    },
+    setStatus: (status) => set({ status }),
+  };
+});
+
+let active: { stop(): void } | null = null;
+let sync: ((rpc: Runtime["rpc"]) => Promise<void>) | null = null;
+
+/** Creates the account document and follows the store (once, before the first render, like startAppearance). */
+export function startKeybindings(): { stop(): void } {
+  active?.stop();
+  let adopting = false;
+  const doc = createAccountDocument<readonly KeybindingRule[]>({
+    key: "keybindings",
+    write: (value, baseRevision) => ({ key: "keybindings", value: [...value], baseRevision }),
+    parse: parseRules,
+    changed: (previous, next) => (JSON.stringify(previous) === JSON.stringify(next) ? [] : ["rules"]),
+    merge: (server, local, dirty) => (dirty.has("rules") ? local : server),
+    local: () => useKeybindingsStore.getState().user,
+    adopt: (next) => {
+      adopting = true;
+      try {
+        useKeybindingsStore.getState().replaceFromServer(next);
+      } finally {
+        adopting = false;
+      }
+    },
+    onStatus: (status) => useKeybindingsStore.getState().setStatus(status),
+  });
+  const unsubscribe = useKeybindingsStore.subscribe((state, previous) => {
+    if (state.user !== previous.user && !adopting) doc.change(previous.user, state.user);
+  });
+  sync = (rpc) => doc.sync(rpc);
+  active = {
+    stop() {
+      unsubscribe();
+      doc.dispose();
+      sync = null;
+      active = null;
+    },
+  };
+  return active;
+}
+
+/** Each time the socket opens (Task 19b). */
+export function syncKeybindings(rpc: Runtime["rpc"]): Promise<void> {
+  return sync?.(rpc) ?? Promise.resolve();
+}
+
+// A hot update replaces this module: the old document must not keep its subscription (R125).
+if (import.meta.hot) import.meta.hot.dispose(() => active?.stop());
+```
+
+`ShortcutsHelp.tsx` lists `COMMANDS` grouped by `group`, each with `chordTokens` of its last effective rule, `keyNames(useT())` and `chordJoiner(platform)`, in a `Dialog` titled `t("commands.help.title")` ("Keyboard shortcuts" / "Raccourcis clavier"); it is also the module's default export (for `lazy`).
+
+`index.ts`: `export { startKeybindings } from "./keybindings-store.ts";` (later tasks add their names). `main.tsx`: call `startKeybindings()` right after `startAppearance()`.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `pnpm test:unit apps/web/src/features/commands && pnpm lint && pnpm knip`
+Expected: PASS. Mutation checks: read the cache with `KeybindingRules.safeParse` all-or-nothing → "reads a hand-edited local cache field by field" fails; drop the `adopting` flag → "takes the server's rules once connected" fails (the adopted list goes straight back as a save, so the status is `saving`, not `saved`).
+
+- [ ] **Step 5: Commit**
+
+```bash
+pnpm format
+git add apps/web/src/features/commands apps/web/src/i18n apps/web/src/main.tsx
+git commit -m "feat(commands): account keybindings with compare-and-set sync, and the shortcuts help"
 ```
 
 ---
@@ -6991,7 +8793,7 @@ git commit -m "feat(commands): command registry, one key dispatcher, account key
 DESIGN.md §8: the tabs bar shows what is open (closing a tab deletes nothing); panes split with a 320 px minimum; the layout is remembered (per lane once lanes exist, M9; per open item until then). The model is Orca's (`src/shared/tab-types.ts`, `src/shared/workspace-layout/tab-group-layout-tree.ts`): items addressed by a stable key, split ratios part of the persisted model, an unchanged ratio returns the same object so no subscriber wakes. M3 needs one split per tab (two panes); the persisted shape is versioned (`pap.workspace.v1`) so M8/M9 can grow it into Orca's binary tree with a migration.
 
 **Files:**
-- Create: `apps/web/src/features/workspace/model.ts`, `model.test.ts`, `item-path.ts`, `item-path.test.ts`, `persist.ts`, `persist.test.ts`, `workspace-store.ts`, `index.ts`
+- Create: `apps/web/src/features/workspace/model.ts`, `model.test.ts`, `item-path.ts`, `item-path.test.ts`, `persist.ts`, `persist.test.ts`, `workspace-store.ts`, `workspace-store.test.ts` (no `index.ts` yet: Task 19a creates it with the names the shell imports, M3-RT-13)
 
 **Interfaces:**
 - Produces:
@@ -7002,7 +8804,11 @@ DESIGN.md §8: the tabs bar shows what is open (closing a tab deletes nothing); 
   - `WORKSPACE_KEY = "pap.workspace.v1"`; `parseWorkspace(raw: string | null, devUi: boolean): Workspace`; `serializeWorkspace(ws): string`.
   - `useWorkspaceStore` state `{ ws: Workspace; open(item): void; close(key): void; cycle(step): void; split(key, item): void; unsplit(key): void; setRatio(key, ratio): void }` (persists every change; a refused write calls `reportClientIssue("storage_refused")`).
 
-**Risks / rulings needed:** (a) At 24 open tabs, opening another closes the oldest inactive tab (nothing is deleted, the item is still in the drawer and ⌘K): confirm, or rule a refusal instead. (b) Only the active tab is mounted; switching tabs remounts the session screen (its state lives in M2's store): confirm. (c) The layout is remembered per open item until lanes exist (DESIGN says per lane): confirm.
+**Rulings (pre-dispatch):**
+- At 24 open tabs, opening another closes the oldest inactive tab (nothing is deleted: the item is still in the drawer and ⌘K; DESIGN §8). [M3R81]
+- Only the active tab is mounted; switching tabs remounts the session screen (its state lives in M2's store; one feed per session id, R125); the resubscribe cost stays within the session-open payload budget. [M3R82]
+- The layout is remembered per open item until lanes exist (M9; DESIGN says per lane). [M3R83]
+- `workspace-store.ts` has its own test: a refused `localStorage` write keeps the in-memory workspace and reports `storage_refused` once (checklist: errors are never silent). [M3R84]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -7278,6 +9084,8 @@ export function pathOfItem(item: ItemRef): string {
 
 `workspace-store.ts`: zustand; the initial value is `parseWorkspace(localStorage.getItem(WORKSPACE_KEY), import.meta.env.DEV)` inside a `try` (a throwing storage reads as empty); every action applies the matching model function and, when the result is a new object, writes `serializeWorkspace` (a refused write calls `reportClientIssue("storage_refused")`).
 
+`workspace-store.test.ts` (`// @vitest-environment happy-dom`, `vi.mock("../../lib/report.ts")`): `open` of a session writes `pap.workspace.v1` with that tab; with `Storage.prototype.setItem` throwing, `open` still updates `ws` and `reportClientIssue` was called with `"storage_refused"`; `setRatio` with the same ratio writes nothing (spy on `setItem`: zero calls).
+
 - [ ] **Step 4: Run the tests**
 
 Run: `pnpm test:unit apps/web/src/features/workspace`
@@ -7293,29 +9101,36 @@ git commit -m "feat(workspace): open items, split panes, persistence and URL map
 
 ---
 
-### Task 19: Router and shell skeleton — rail, top bar, pane host, not found, connection banners
+### Task 19a: Router and shell skeleton — routes, error screen, pane host, not found, connection banners
 
 The auth gate stays in `RootLayout`; once signed in it renders `AppShell` instead of M1's `AccountBar` + `Outlet`. The URL is the single source of the active item: UI actions navigate, and the shell opens or activates the tab the path names (pw: URL state in `components/AppShell.tsx`). TanStack routes stay declared so M2's `Link to="/s/$sessionId"` and `navigate({ to: "/" })` keep type-checking; their components render nothing and the shell renders the panes. An unknown path shows a not-found screen and opens no tab (Review Focus 5) — M1 redirected it home.
 
+This part builds the router, the shell frame and its panes; until Task 19b adds the rail and the top bar, the shell keeps M1's `AccountBar` above the panes, so sign-out keeps working and no file goes unused between the two commits.
+
 **Files:**
 - Modify: `apps/web/src/routes/router.tsx`, `apps/web/src/routes/RootLayout.tsx`, `apps/web/src/routes/RootLayout.test.tsx`
-- Create: `apps/web/src/routes/shell/AppShell.tsx`, `AppShell.test.tsx`, `Rail.tsx`, `TopBar.tsx`, `PaneHost.tsx`, `pane-renderers.tsx`, `NotFound.tsx`, `ConnectionBanner.tsx`, `sessions-cache.ts`, `sessions-cache.test.ts`, `use-shell-effects.ts`
-- Create: `apps/web/src/testing/shell-bed.tsx`
-- Delete: `apps/web/src/features/auth/AccountBar.tsx`, `AccountBar.test.tsx` (the account controls move to the rail menu here and to Settings in Task 24)
-- Modify: `apps/web/src/i18n/catalog/shell.ts`
+- Create: `apps/web/src/routes/RouteError.tsx`, `apps/web/src/routes/router.test.tsx`
+- Create: `apps/web/src/routes/shell/AppShell.tsx`, `AppShell.test.tsx`, `PaneHost.tsx`, `pane-renderers.tsx`, `NotFound.tsx`, `ConnectionBanner.tsx`, `item-title.ts`, `item-title.test.ts`, `navigate.ts`, `use-shell-effects.ts`
+- Create: `apps/web/src/testing/shell-bed.tsx`, `apps/web/src/features/workspace/index.ts`
+- Modify: `apps/web/src/i18n/catalog/shell.ts`, `eslint.config.js` (`web-routes` may import `contracts`, M3-RT-14)
 
 **Interfaces:**
-- Consumes: `getRuntime`, `useConnectionState` (M1 runtime); `logout` (`features/auth/auth-api.ts`); `SessionListScreen`, `SessionScreen` (M2-owned, used as they exist on main); Tasks 4–11 primitives; Task 15 `syncAccountAppearance`; Task 17 `installDispatcher`, `syncKeybindings`, `useKeybindingsStore`, `detectPlatform`; Task 18 workspace.
+- Consumes: `getRuntime`, `useConnectionState` (M1 runtime); `AccountBar` (M1, until Task 19b); `SessionListScreen`, `SessionScreen` (M2-owned, used as they exist on main); Tasks 4–11 primitives; Task 18 workspace.
 - Produces:
-  - `buildRouteTree(Root: () => ReactNode)` (the five routes under a root component), `routeTree = buildRouteTree(RootLayout)` and `router`; routes `/`, `/s/$sessionId`, `/settings`, `/settings/$section`, `/dev/ui`.
+  - `buildRouteTree(Root: () => ReactNode)` (the five routes under a root component), `createAppRouter(routeTree, history?)` (adds `defaultErrorComponent: RouteError`), `routeTree = buildRouteTree(RootLayout)` and `router = createAppRouter(routeTree)`; routes `/`, `/s/$sessionId`, `/settings`, `/settings/$section`, `/dev/ui`.
+  - `RouteError()`: a translated "this screen stopped working" `EmptyState` with a Reload button, instead of TanStack's default untranslated screen (M3-RT-15).
   - `AppShell({ username: string | null; passkeysAvailable: boolean; onSignedOut(): void })`.
   - `PANE_RENDERERS: { [K in ItemRef["kind"]]: (item: Extract<ItemRef, { kind: K }>) => ReactNode }` with `home` → `<SessionListScreen />`, `session` → `<SessionScreen key={id} sessionId={id} />`, `settings` and `dev-ui` → `<NotFound />` until Tasks 24 and 28 replace them; `PaneHost({ tab: Tab | null })` renders `<section data-pane-kind={kind} aria-label={title}>` around the renderer.
-  - `useSessionsCache` state `{ sessions: readonly SessionSummary[]; status: "idle" | "loading" | "loaded" | "error"; refresh(rpc: Runtime["rpc"]): Promise<void> }` (sorted by `updatedAt` desc, capped at 500; a refresh while one runs returns the same promise, so two answers never race; `refresh` never rejects — a failure sets `status: "error"` and keeps the list).
-  - `itemTitle(item: ItemRef, sessions: readonly SessionSummary[], t: Translate): string` (session → basename of its cwd, else `shell.tab.session`; home → `shell.tab.home`; settings → `shell.tab.settings`; dev-ui → `gallery.title`).
-  - `navigateTo(navigate, item)` helper (`pathOfItem`).
-  - `renderShell(path: string, options?: { username?: string; onSignedOut?(): void; phone?: boolean }): Promise<Mounted & { router: AnyRouter }>` in `testing/shell-bed.tsx`: a memory-history router over `buildRouteTree(() => <AppShell … />)` (no auth gate), inside `TooltipProvider` and `Toaster`; `phone` stubs `window.matchMedia` for the phone query.
+  - `itemTitle(item: ItemRef, sessions: readonly SessionSummary[], t: Translate): string` in `item-title.ts` (session → basename of its cwd, else `shell.tab.session`; home → `shell.tab.home`; settings → `shell.tab.settings`; dev-ui → `gallery.title`); `navigateTo(navigate, item)` in `navigate.ts` (`pathOfItem`).
+  - `useShellEffects(): void`: in this task only the URL → tab effect (Task 19b adds its `shell` parameter).
+  - `features/workspace/index.ts` re-exports what the shell imports (`itemFromPath`, `pathOfItem`, `activeTab`, `useWorkspaceStore`, `EMPTY_WORKSPACE`, types `ItemRef`, `Tab`, `SettingsSection`, `SETTINGS_SECTIONS`); later tasks add names as they import them.
+  - `renderShell(path: string, options?: { username?: string; onSignedOut?(): void; phone?: boolean }): Promise<Mounted & { router: AnyRouter }>` in `testing/shell-bed.tsx`: a memory-history router from `createAppRouter(buildRouteTree(() => <AppShell … />))` (no auth gate), inside `TooltipProvider` and `Toaster`; `phone` stubs `window.matchMedia` for the phone query.
 
-**Risks / rulings needed:** (a) Before M2's drafts exist, the reconnect banner says only "Reconnecting…" (DESIGN 12 adds "your drafts stay on this device"; P3 adds it once true): confirm. (b) The project switcher of the top bar is deferred to M4 (no projects yet): confirm. (c) The rail shows the logo, Settings and the account menu; agent avatars arrive in M11: confirm. (d) M2 may restyle or rename `SessionListScreen`/`SessionScreen`; the shell imports them by these names (merge note).
+**Rulings (pre-dispatch):**
+- Routes may import `@pap/contracts` (types such as `SessionSummary` in `item-title.ts`, `sessions-cache.ts`, `session-groups.ts`, `palette-items.ts`): `eslint.config.js` adds `"contracts"` to `web-routes`' allow list (M3-RT-14). [M3R85]
+- A render error anywhere under the router shows `RouteError` (translated, with Reload), never TanStack's default screen; whether the root route's own errors reach `defaultErrorComponent` in the pinned TanStack version is discovered during implementation (if not, `AppShell` wraps its body in a boundary that renders `RouteError`; `router.test.tsx` pins the outcome either way). [M3R86]
+- M2 may restyle or rename `SessionListScreen`/`SessionScreen`; the shell imports them by these names and only `pane-renderers.tsx` adapts at the rebase. [M3R87]
+- The shell does not use `<main>` until P3: M2's screens carry their own `<main>`. [M3R88]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -7325,10 +9140,9 @@ The auth gate stays in `RootLayout`; once signed in it renders `AppShell` instea
 // @vitest-environment happy-dom
 import { act } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { registerCommand } from "../../features/commands/index.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
-import { button, click, hasButton, press, settle } from "../../testing/dom.ts";
+import { button, click, hasButton, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 
@@ -7348,6 +9162,7 @@ vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
 let bed: ReturnType<typeof fakeRuntime>;
 beforeEach(() => {
   bed = fakeRuntime("idle");
+  bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;
   localStorage.clear();
   useWorkspaceStore.setState({ ws: EMPTY_WORKSPACE });
@@ -7387,7 +9202,141 @@ describe("AppShell", () => {
     expect(hasButton(page.container, "Reload")).toBe(true);
     await page.unmount();
   });
+});
+```
 
+(The not-found heading is the `EmptyState`'s `h2`. `settings.get` answers "no document" so later tasks' syncs never see the bed's default `{ ok: true }`.)
+
+`router.test.tsx` (`// @vitest-environment happy-dom`): a root component that throws, routed by `createAppRouter(buildRouteTree(Thrower), createMemoryHistory({ initialEntries: ["/"] }))` inside `RouterProvider`, shows the `h2` "This screen stopped working" and a "Reload" button (silence `console.error` for the test, restore it after); a root that renders fine shows no such heading.
+
+`item-title.test.ts`: a session titled by the basename of its cwd (`/home/ana/pi-agentic/` → `pi-agentic`), an unknown session id → "Session", home → "New session", settings → "Settings", dev-ui → "UI gallery" (with `t` = the English `translate`).
+
+Update `RootLayout.test.tsx`: mock `./shell/AppShell.tsx` with a stub rendering `<p data-screen="shell">pap · {username}</p>`; the existing gate cases keep their assertions (`pap · ana` now comes from the stub), and the passkey case checks the stub's `passkeysAvailable` prop instead of AccountBar's markup.
+
+- [ ] **Step 2: Run them to see them fail**
+
+Run: `pnpm test:unit apps/web/src/routes`
+Expected: FAIL.
+
+- [ ] **Step 3: Implement**
+
+`router.tsx`:
+
+```tsx
+import { createRootRoute, createRoute, createRouter, type RouterHistory } from "@tanstack/react-router";
+import type { ReactNode } from "react";
+import { RootLayout } from "./RootLayout.tsx";
+import { RouteError } from "./RouteError.tsx";
+
+// The routes name the URLs (typed links, M2's Link to="/s/$sessionId"); AppShell renders the panes from the path.
+const Empty = () => null;
+const PATHS = ["/", "/s/$sessionId", "/settings", "/settings/$section", "/dev/ui"] as const;
+
+/** The route tree under a root component: RootLayout in the app, AppShell alone in the shell test bed. */
+export function buildRouteTree(Root: () => ReactNode) {
+  const rootRoute = createRootRoute({ component: Root, notFoundComponent: Empty });
+  return rootRoute.addChildren(PATHS.map((path) => createRoute({ getParentRoute: () => rootRoute, path, component: Empty })));
+}
+
+/** The app's router options in one place, so the test bed gets the same translated error screen (M3-RT-15). */
+export function createAppRouter<T extends ReturnType<typeof buildRouteTree>>(tree: T, history?: RouterHistory) {
+  return createRouter({ routeTree: tree, history, defaultErrorComponent: RouteError });
+}
+
+export const routeTree = buildRouteTree(RootLayout);
+export const router = createAppRouter(routeTree);
+
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+```
+
+(If `addChildren` loses the literal path types through `map`, declare the five routes one by one; the type check of M2's `Link` usages is the test. Verify `createRouter`'s `history` and `defaultErrorComponent` option names against the pinned `.d.ts`.)
+
+`RouteError.tsx`: `EmptyState` with `t("shell.error.title")` / `t("shell.error.purpose")` and a primary `Button` `t("shell.reload")` → `window.location.reload()`, read through `useT()`.
+
+`RootLayout.tsx`: unchanged gate; the `ready` branch returns `<AppShell username={state.username} passkeysAvailable={state.passkeysAvailable} onSignedOut={refresh} />`; the two connection lines move into `ConnectionBanner`.
+
+`use-shell-effects.ts` (called by `AppShell`; Task 19b adds the socket and dispatcher effects):
+
+```ts
+import { useEffect } from "react";
+import { useRouterState } from "@tanstack/react-router";
+import { itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
+
+export function useShellEffects(): void {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const open = useWorkspaceStore((state) => state.open);
+
+  // The URL names the active item; the tab follows it.
+  useEffect(() => {
+    const item = itemFromPath(pathname, import.meta.env.DEV);
+    if (item) open(item);
+  }, [pathname, open]);
+}
+```
+
+`AppShell.tsx` (desktop layout; Task 19b replaces `AccountBar` with the rail and the top bar, Task 23 adds the phone branch):
+
+```tsx
+<div data-shell="desktop" className="flex h-app flex-col">
+  <AccountBar username={username} passkeysAvailable={passkeysAvailable} onSignedOut={onSignedOut} />
+  <ConnectionBanner />
+  {/* Not <main>: M2's screens carry their own <main> until P3 turns them into sections. */}
+  <div id="pane-host" className="flex min-h-0 flex-1">{item ? <PaneHost tab={tab} /> : <NotFound />}</div>
+</div>
+```
+
+where `item = itemFromPath(pathname, import.meta.env.DEV)`, `tab = activeTab(ws)` (pass `AccountBar` the props it has on main). `ConnectionBanner`: `waiting` → `<Banner tone="offline" title={t("connection.reconnecting")} />`; `outdated` → `<Banner tone="capacity" title={t("connection.outdated")} actions={<Button onClick={() => window.location.reload()}>{t("shell.reload")}</Button>} />`; nothing otherwise. `NotFound`: `EmptyState` with `shell.notFound.title` / `shell.notFound.purpose` and a primary `Button` (`shell.notFound.home`) navigating to `/`.
+
+New `catalog/shell.ts` keys (en / fr): `shell.tab.home` "New session" / "Nouvelle session", `shell.tab.session` "Session" / "Session" (identical), `shell.tab.settings` "Settings" / "Réglages", `shell.reload` "Reload" / "Recharger", `shell.notFound.title` "This page does not exist" / "Cette page n'existe pas", `shell.notFound.purpose` "The link may be old, or the item was closed." / "Le lien est peut-être ancien, ou l'élément a été fermé.", `shell.notFound.home` "Go to the start" / "Aller au début", `shell.error.title` "This screen stopped working" / "Cet écran a cessé de fonctionner", `shell.error.purpose` "Reload the page to continue." / "Rechargez la page pour continuer.".
+
+In `eslint.config.js`, change the `web-routes` rule to `{ from: "web-routes", allow: ["web-routes", "web-feature", "web-runtime", "web-i18n", "web-lib", "ui", "contracts"] }`.
+
+- [ ] **Step 4: Run the tests**
+
+Run: `pnpm test:unit apps/web && pnpm typecheck && pnpm lint && pnpm knip`
+Expected: PASS, M2's session tests included (they render their screens directly, not through the shell).
+
+- [ ] **Step 5: Commit**
+
+```bash
+pnpm format
+git add apps/web eslint.config.js
+git commit -m "feat(shell): router with a translated error screen, pane host, not-found screen and connection banners"
+```
+
+---
+
+### Task 19b: Rail, top bar, sessions cache, and the shell's socket and key effects
+
+The rail and the top bar replace M1's account bar; each time the socket opens the shell reads the account settings (appearance and keybindings, compare-and-set documents of Tasks 15 and 17b) and the session list; one key dispatcher runs while the shell is mounted.
+
+**Files:**
+- Create: `apps/web/src/routes/shell/Rail.tsx`, `TopBar.tsx`, `sessions-cache.ts`, `sessions-cache.test.ts`
+- Modify: `apps/web/src/routes/shell/AppShell.tsx`, `AppShell.test.tsx`, `use-shell-effects.ts`, `apps/web/src/features/appearance/index.ts` (+ `syncAccountAppearance`), `apps/web/src/features/commands/index.ts` (+ `installDispatcher`, `syncKeybindings`, `useKeybindingsStore`, `detectPlatform`, `registerCommand`, `runCommand`, `chordTokens`, `chordJoiner`, `keyNames`, `parseChord`), `apps/web/src/i18n/catalog/shell.ts`
+- Delete: `apps/web/src/features/auth/AccountBar.tsx`, `AccountBar.test.tsx` (the account controls move to the rail menu here and to Settings in Task 24)
+
+**Interfaces:**
+- Consumes: `logout` (`features/auth/auth-api.ts`); Task 15 `syncAccountAppearance`, `startAppearance`; Task 17a `installDispatcher`, `registerCommand`, `runCommand`; Task 17b `syncKeybindings`, `startKeybindings`, `useKeybindingsStore`; Task 16a `detectPlatform`, `chordTokens`, `chordJoiner`, `keyNames`.
+- Produces:
+  - `useSessionsCache` state `{ sessions: readonly SessionSummary[]; status: "idle" | "loading" | "loaded" | "error"; refresh(rpc: Runtime["rpc"]): Promise<void> }` (sorted by `updatedAt` desc, capped at 500; a refresh while one runs returns the same promise, so two answers never race; `refresh` never rejects — a failure sets `status: "error"` and keeps the list).
+  - `Rail({ username; onSignedOut })`, `TopBar({ title })`.
+  - `useShellEffects(shell: { mobile: boolean; treeOpen(): boolean })` gains its parameter, the socket effect (appearance, keybindings and sessions on each `open`) and the dispatcher (`shell: () => ({ mobile: shell.mobile, treeOpen: shell.treeOpen() })`, so the dispatcher is installed once per `mobile` value and reads the drawer state at each key).
+
+**Rulings (pre-dispatch):**
+- Before M2's drafts exist, the reconnect banner says only "Reconnecting…"; P3 adds "your drafts stay on this device" once true (DESIGN §12). [M3R89]
+- The project switcher of the top bar is deferred to M4 (no projects yet). [M3R90]
+- The rail shows the logo, Settings and the account menu; agent avatars arrive in M11. [M3R91]
+- The socket effect calls the three syncs fire-and-forget, each with a `.catch` that reports (they settle their own failures into a status; the catches only cover a future rejection). [M3R92]
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `AppShell.test.tsx`: `import { registerCommand, startKeybindings } from "../../features/commands/index.ts";`, `import { startAppearance } from "../../features/appearance/index.ts";`, `press` from the dom helpers; in `beforeEach` start both documents (`const started = [startAppearance(window), startKeybindings()]`) and stop them in an `afterEach`, so the syncs have something to read into; then these cases:
+
+```tsx
   it("loads the account settings and the session list each time the socket opens", async () => {
     const page = await renderShell("/");
     await act(async () => bed.fake.setState("open"));
@@ -7433,10 +9382,9 @@ describe("AppShell", () => {
     expect(tree).toHaveBeenCalledOnce();
     off();
   });
-});
 ```
 
-(The not-found heading is the `EmptyState`'s `h2`. The keyboard path through the account menu relies on Radix moving focus to the first enabled item, "Sign out", after the disabled username row; if the pinned Radix version focuses the content instead, press `ArrowDown` once before `Enter`.)
+(The keyboard path through the account menu relies on Radix moving focus to the first enabled item, "Sign out", after the disabled username row; if the pinned Radix version focuses the content instead, press `ArrowDown` once before `Enter`.)
 
 `sessions-cache.test.ts`:
 
@@ -7465,8 +9413,6 @@ describe("sessions cache", () => {
 });
 ```
 
-Update `RootLayout.test.tsx`: mock `./shell/AppShell.tsx` with a stub rendering `<p data-screen="shell">pap · {username}</p>`; the existing gate cases keep their assertions (`pap · ana` now comes from the stub), the passkey case checks the stub's props instead of the deleted AccountBar.
-
 - [ ] **Step 2: Run them to see them fail**
 
 Run: `pnpm test:unit apps/web/src/routes`
@@ -7474,60 +9420,11 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`router.tsx`:
-
-```tsx
-import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
-import type { ReactNode } from "react";
-import { RootLayout } from "./RootLayout.tsx";
-
-// The routes name the URLs (typed links, M2's Link to="/s/$sessionId"); AppShell renders the panes from the path.
-const Empty = () => null;
-const PATHS = ["/", "/s/$sessionId", "/settings", "/settings/$section", "/dev/ui"] as const;
-
-/** The route tree under a root component: RootLayout in the app, AppShell alone in the shell test bed. */
-export function buildRouteTree(Root: () => ReactNode) {
-  const rootRoute = createRootRoute({ component: Root, notFoundComponent: Empty });
-  return rootRoute.addChildren(PATHS.map((path) => createRoute({ getParentRoute: () => rootRoute, path, component: Empty })));
-}
-
-export const routeTree = buildRouteTree(RootLayout);
-export const router = createRouter({ routeTree });
-
-declare module "@tanstack/react-router" {
-  interface Register {
-    router: typeof router;
-  }
-}
-```
-
-(If `addChildren` loses the literal path types through `map`, declare the five routes one by one; the type check of M2's `Link` usages is the test.)
-
-`RootLayout.tsx`: unchanged gate; the `ready` branch returns `<AppShell username={state.username} passkeysAvailable={state.passkeysAvailable} onSignedOut={refresh} />`; the two connection lines move into `ConnectionBanner`.
-
-`use-shell-effects.ts` (called by `AppShell`):
+`use-shell-effects.ts` takes `shell: { readonly mobile: boolean; treeOpen(): boolean }` and gains:
 
 ```ts
-import { useEffect } from "react";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { syncAccountAppearance } from "../../features/appearance/index.ts";
-import { detectPlatform, installDispatcher, syncKeybindings, useKeybindingsStore } from "../../features/commands/index.ts";
-import { itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
-import { reportClientIssue } from "../../lib/report.ts";
-import { getRuntime, useConnectionState } from "../../runtime/index.ts";
-import { useSessionsCache } from "./sessions-cache.ts";
-
-export function useShellEffects(mobile: boolean): void {
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const open = useWorkspaceStore((state) => state.open);
-
-  // The URL names the active item; the tab follows it.
-  useEffect(() => {
-    const item = itemFromPath(pathname, import.meta.env.DEV);
-    if (item) open(item);
-  }, [pathname, open]);
 
   // Account settings and the session list, each time the socket opens. The three map their own failures to a
   // status the screens show; the catches only report a rejection a future change might introduce.
@@ -7538,21 +9435,23 @@ export function useShellEffects(mobile: boolean): void {
     void useSessionsCache.getState().refresh(runtime.rpc).catch(() => reportClientIssue("sessions_list_failed"));
   }, [connection, runtime]);
 
-  // One key dispatcher while the shell is mounted.
+  // One key dispatcher while the shell is mounted; it reads the drawer state at each key.
+  const { mobile, treeOpen } = shell;
   useEffect(
     () =>
       installDispatcher({
         win: window,
         platform: detectPlatform(),
         rules: () => useKeybindingsStore.getState().rules,
-        shell: () => ({ mobile }),
+        shell: () => ({ mobile, treeOpen: treeOpen() }),
       }),
-    [mobile],
+    [mobile, treeOpen],
   );
-}
 ```
 
-`AppShell.tsx` (desktop layout; Task 23 adds the phone branch):
+(with the imports of `syncAccountAppearance`, `detectPlatform`, `installDispatcher`, `syncKeybindings`, `useKeybindingsStore`, `reportClientIssue`, `getRuntime`, `useConnectionState`, `useSessionsCache`; `AppShell` passes `treeOpen` as a stable callback — `() => false` until Task 21 reads its drawer state through a ref).
+
+`AppShell.tsx` (desktop layout):
 
 ```tsx
 <div data-shell="desktop" className="flex h-app rail-right:flex-row-reverse">
@@ -7566,21 +9465,24 @@ export function useShellEffects(mobile: boolean): void {
 </div>
 ```
 
-where `item = itemFromPath(pathname, import.meta.env.DEV)`, `tab = activeTab(ws)`. `Rail`: `<nav aria-label={t("shell.rail.label")} data-slot="rail" className="flex w-rail shrink-0 flex-col items-center gap-s2 border-r border-border bg-bg-side py-s2 rail-right:border-l rail-right:border-r-0">` with the `Mark` (link to `/`, label `app.name`), a flexible spacer, `IconButton icon={IconSettings} label={t("shell.rail.settings")} shortcut={…}` navigating to `/settings/appearance`, and a `Menu` whose trigger is `IconButton icon={IconAccount} label={t("shell.rail.account")}` with items `username` (disabled, informational) and `t("shell.rail.signOut")` → `logout().then(onSignedOut, () => toast({ message: t("shell.signOutFailed"), tone: "error" }))`. `TopBar`: `<header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">` with the tree `IconButton` (label `shell.top.tree`, shortcut tokens of `drawer.tree.toggle`), the title (`truncate text-ui font-semibold`), a spacer, the Inbox `IconButton` (label `shell.top.inbox`) and the palette button (`Button variant="ghost" size="sm"` showing `Kbd` of `palette.toggle`, label `shell.top.palette`) — the drawer and palette buttons call `runCommand("drawer.tree.toggle")`, `runCommand("drawer.inbox.toggle")`, `runCommand("palette.toggle")` (handlers arrive in Tasks 21–22; until then the buttons do nothing visible, which is the expected intermediate state). `ConnectionBanner`: `waiting` → `<Banner tone="offline" title={t("connection.reconnecting")} />`; `outdated` → `<Banner tone="capacity" title={t("connection.outdated")} actions={<Button onClick={() => window.location.reload()}>{t("shell.reload")}</Button>} />`; nothing otherwise. `NotFound`: `EmptyState` with `shell.notFound.title` / `shell.notFound.purpose` and a primary `Button` (`shell.notFound.home`) navigating to `/`.
+where `title = item ? itemTitle(item, sessions, t) : t("shell.notFound.title")` with `sessions` from `useSessionsCache`. `Rail`: `<nav aria-label={t("shell.rail.label")} data-slot="rail" className="flex w-rail shrink-0 flex-col items-center gap-s2 border-r border-border bg-bg-side py-s2 rail-right:border-l rail-right:border-r-0">` with the `Mark` (link to `/`, label `app.name`), a flexible spacer, `IconButton icon={IconSettings} label={t("shell.rail.settings")} shortcut={…}` navigating to `/settings/appearance`, and a `Menu` whose trigger is `IconButton icon={IconAccount} label={t("shell.rail.account")}` with items `username` (disabled, informational) and `t("shell.rail.signOut")` → `logout().then(onSignedOut, () => toast({ message: t("shell.signOutFailed"), tone: "error" }))`. `TopBar`: `<header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">` with the tree `IconButton` (label `shell.top.tree`, shortcut tokens of `drawer.tree.toggle`), the title (`truncate text-ui font-semibold`), a spacer, the Inbox `IconButton` (label `shell.top.inbox`) and the palette button (`Button variant="ghost" size="sm"` showing `Kbd` of `palette.toggle`, label `shell.top.palette`) — the drawer and palette buttons call `runCommand("drawer.tree.toggle")`, `runCommand("drawer.inbox.toggle")`, `runCommand("palette.toggle")` (handlers arrive in Tasks 21–22; until then the buttons do nothing visible, which is the expected intermediate state).
 
-New `catalog/shell.ts` keys (en / fr): `shell.rail.label` "Agents" / "Agents" (add to `IDENTICAL_IN_FR`), `shell.rail.settings` "Settings" / "Réglages", `shell.rail.account` "Account" / "Compte", `shell.rail.signOut` "Sign out" / "Se déconnecter", `shell.signOutFailed` "Sign-out did not reach pap. Try again." / "La déconnexion n'a pas atteint pap. Réessayez.", `shell.top.tree` "Sessions" / "Sessions" (identical), `shell.top.inbox` "Inbox" / "Boîte de réception", `shell.top.palette` "Search and commands" / "Recherche et commandes", `shell.tab.home` "New session" / "Nouvelle session", `shell.tab.session` "Session" / "Session" (identical), `shell.tab.settings` "Settings" / "Réglages", `shell.reload` "Reload" / "Recharger", `shell.notFound.title` "This page does not exist" / "Cette page n'existe pas", `shell.notFound.purpose` "The link may be old, or the item was closed." / "Le lien est peut-être ancien, ou l'élément a été fermé.", `shell.notFound.home` "Go to the start" / "Aller au début".
+
+New `catalog/shell.ts` keys (en / fr): `shell.rail.label` "Agents" / "Agents" (add to `IDENTICAL_IN_FR`), `shell.rail.settings` "Settings" / "Réglages", `shell.rail.account` "Account" / "Compte", `shell.rail.signOut` "Sign out" / "Se déconnecter", `shell.signOutFailed` "Sign-out did not reach pap. Try again." / "La déconnexion n'a pas atteint pap. Réessayez.", `shell.top.tree` "Sessions" / "Sessions" (identical), `shell.top.inbox` "Inbox" / "Boîte de réception", `shell.top.palette` "Search and commands" / "Recherche et commandes".
+
+`sessions-cache.ts`: zustand; `refresh` keeps one in-flight promise (`inFlight ??= rpc.call("sessions.list", {}).then(…).catch(…).finally(() => (inFlight = null))`), sorts by `updatedAt` desc, keeps the first 500, sets `status`; a failure sets `status: "error"`, keeps the list and reports `sessions_list_failed`.
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web && pnpm typecheck && pnpm lint`
-Expected: PASS, M2's session tests included (they render their screens directly, not through the shell).
+Run: `pnpm test:unit apps/web && pnpm typecheck && pnpm lint && pnpm knip`
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
 git add apps/web
-git commit -m "feat(shell): router, rail, top bar, pane host, not-found screen and connection banners"
+git commit -m "feat(shell): rail, top bar, sessions cache, and settings sync and shortcuts while the shell is mounted"
 ```
 
 ---
@@ -7593,14 +9495,17 @@ git commit -m "feat(shell): router, rail, top bar, pane host, not-found screen a
 - Modify: `apps/web/src/routes/shell/PaneHost.tsx`, `AppShell.tsx`, `catalog/shell.ts`
 
 **Interfaces:**
-- Consumes: Task 18 (`useWorkspaceStore`, `splitTab`, `pathOfItem`), Task 19 (`itemTitle`, `useSessionsCache`), `OpenTab`, `IconButton`, `Menu` (Tasks 5, 7, 8).
+- Consumes: Task 18 (`useWorkspaceStore`, `splitTab`, `pathOfItem`), Tasks 19a/19b (`itemTitle`, `useSessionsCache`), `OpenTab`, `IconButton`, `Menu` (Tasks 5, 7, 8).
 - Produces:
   - `ratioBounds(widthPx: number, minPx: number): readonly [number, number]` (`[max(0.15, min/width), min(0.85, 1 - min/width)]`, `[0.5, 0.5]` below two minimums), `clampRatio(ratio, widthPx, minPx)`, `ratioAfterKey(ratio, key: string, shift: boolean, widthPx, minPx): number | null` (ArrowLeft/ArrowRight move 8 px, 40 px with Shift; Home resets to 0.5; anything else null — Orca `CsvColumnResizeHandle.tsx`), `ratioFromPointer(clientX, left, widthPx, minPx)`.
   - `useElementWidth(ref): number` (ResizeObserver; 0 before the first measure).
   - `SplitView({ ratio: number; onRatio(ratio: number): void; first: ReactNode; second: ReactNode; label: string; minPx?: number })` — below `2 × minPx` it renders `first` only.
   - `TabBar()` (reads the workspace and the sessions cache, navigates on select/close/new).
 
-**Risks / rulings needed:** (a) Below 640 px of pane area the split shows the first pane only (the 320 px minimum cannot hold both): confirm. (b) Tab middle-click and drag-to-reorder are not in M3: confirm.
+**Rulings (pre-dispatch):**
+- Below 640 px of pane area the split shows the first pane only (the 320 px minimum cannot hold both). [M3R93]
+- Tab middle-click and drag-to-reorder are not in M3; a focused tab closes with Delete (Task 7) or `tab.close`. [M3R94]
+- `features/workspace/index.ts` gains only the names this task's route files import (M3-RT-13). [M3R95]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -7700,17 +9605,24 @@ DESIGN.md §8: left drawer = the ⌘B tree (project → lane → session), 300 p
 
 **Files:**
 - Create: `apps/web/src/routes/shell/TreeDrawer.tsx`, `SessionTree.tsx`, `session-groups.ts`, `session-groups.test.ts`, `InboxDrawer.tsx`, `shell-commands.ts`, `shell-commands.test.tsx`, `drawers.test.tsx`
-- Modify: `apps/web/src/routes/shell/AppShell.tsx`, `catalog/shell.ts`
+- Create: `apps/web/src/lib/lazy.tsx`, `apps/web/src/lib/lazy.test.tsx` (the boundary every lazy chunk mounts through, M3-RT-15)
+- Modify: `apps/web/src/routes/shell/AppShell.tsx` (drawer and help state, the tree state for the dispatcher, the lazy shortcuts help), `catalog/shell.ts`, `apps/web/src/features/appearance/index.ts` (+ `useAppearanceStore`), `apps/web/src/features/commands/index.ts` (+ `useCommand`, `ShortcutsHelp` stays reached by dynamic import only), `eslint.config.js` (`web-lib` may import `ui`)
 
 **Interfaces:**
-- Consumes: Tasks 8, 17, 18, 19.
+- Consumes: Tasks 8, 16b, 17a, 17b, 18, 19a, 19b.
 - Produces:
   - `interface SessionGroup { cwd: string; label: string; sessions: readonly SessionSummary[] }`; `groupSessions(sessions, filter: string, cap?: number): { groups: SessionGroup[]; hidden: number }` (groups by `cwd`, groups and rows by latest `updatedAt` first, filter = NFKD, case-insensitive substring of the cwd, at most `cap` = 200 rows, `hidden` = rows left out).
   - `SessionTree({ onPick(id: string): void })` (shared by the drawer and the phone "Lists" tab).
   - `TreeDrawer({ open; onOpenChange })`, `InboxDrawer({ open; onOpenChange })`.
   - `useShellCommands(state: { setTreeOpen(open: boolean | ((o: boolean) => boolean)): void; setInboxOpen(...); setHelpOpen(...); mobile: boolean; onSignedOut(): void })` registering `drawer.tree.toggle`, `drawer.inbox.toggle`, `settings.open`, `shortcuts.help`, `session.new`, `tab.next`, `tab.prev`, `tab.close`, `pane.split`, `pane.close`, `appearance.cycleMode` (system → night → day → system), `auth.signOut`.
+  - `lib/lazy.tsx`: `LazyBoundary({ resetKey: number; onError(): void; children })` (class component: a chunk that fails to load, or a lazy panel that throws, renders nothing and calls `onError` once; a new `resetKey` re-arms it; children render inside `Suspense` with no fallback), `useRetryableLazy<P>(load): { Lazy; attempt: number; retry(): void }` (a fresh `lazy()` per attempt: React keeps a rejected import inside the lazy component), `notifyLazyFailure(text: { message: string; reload: string }): void` (reports `lazy_chunk_failed` and shows an error toast with a Reload action).
 
-**Risks / rulings needed:** (a) The tree groups by working directory until M4: confirm. (b) The Inbox empty state copy states its purpose without promising a date: confirm. (c) More than 200 sessions: the tree shows 200 and says how many more, pointing to ⌘K (search proper is M4's FTS5): confirm.
+**Rulings (pre-dispatch):**
+- The tree groups sessions by working directory until M4's projects. [M3R96]
+- The Inbox empty state states its purpose without promising a date. [M3R97]
+- More than 200 sessions: the tree shows 200 and says how many more, pointing to ⌘K (search proper is M4's FTS5). [M3R98]
+- Every lazy chunk (shortcuts help here; palette, Settings and theme editor later) mounts through `LazyBoundary` + `useRetryableLazy`: a stale chunk after a pap update leaves the shell standing, closes the panel, says "This part of pap did not load. pap may have been updated: reload the page." with a Reload action, and the next open tries again (M3-RT-15, owner R3-5). It lives in `lib/` so features can use it; `web-lib` may import `@pap/ui` for the toast. [M3R99]
+- The tree drawer state reaches the dispatcher through a ref read at each key (`treeOpen`, M3-RT-30), so `mod+b` closes the drawer it opened. [M3R72]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -7741,7 +9653,53 @@ describe("session groups (the tree until M4's projects)", () => {
 
 `drawers.test.tsx` (shell bed, `sessions.list` answering two sessions in `/w/api`): `Ctrl+B` opens a dialog titled `Sessions` listing a group `api` with two rows; clicking a row navigates to `/s/<id>` and closes the drawer; typing `zzz` in the filter shows `No session matches.`; the Inbox button opens a dialog titled `Inbox` containing the empty state `Nothing waits for you`.
 
-`shell-commands.test.tsx` (shell bed with tabs `session:a`, `session:b`, active `b`): `runCommand("tab.next")` navigates to `/s/a`; `runCommand("tab.close")` closes the active tab and navigates to the neighbour; `runCommand("pane.split")` adds a split on desktop and returns false (declines) when `mobile`; `runCommand("appearance.cycleMode")` moves `useAppearanceStore` mode `system → night → day → system`; `runCommand("settings.open")` navigates to `/settings/appearance`; `runCommand("auth.signOut")` calls `logout` then `onSignedOut`.
+`shell-commands.test.tsx` (shell bed with tabs `session:a`, `session:b`, active `b`): `runCommand("tab.next")` navigates to `/s/a`; `runCommand("tab.close")` closes the active tab and navigates to the neighbour; `runCommand("pane.split")` adds a split on desktop and returns false (declines) when `mobile`; `runCommand("appearance.cycleMode")` moves `useAppearanceStore` mode `system → night → day → system`; `runCommand("settings.open")` navigates to `/settings/appearance`; `runCommand("auth.signOut")` calls `logout` then `onSignedOut`; `runCommand("shortcuts.help")` shows, once its chunk has loaded (`vi.waitFor`, 2 s), a dialog titled `Keyboard shortcuts`; with the tree drawer open, `Ctrl+B` closes it (M3-RT-30).
+
+`apps/web/src/lib/lazy.test.tsx`:
+
+```tsx
+// @vitest-environment happy-dom
+import { act, type ComponentType } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { button, click, mount } from "../testing/dom.ts";
+import { LazyBoundary, useRetryableLazy } from "./lazy.tsx";
+
+function Host({ load, onError }: { load: () => Promise<{ default: ComponentType }>; onError(): void }) {
+  const { Lazy, attempt, retry } = useRetryableLazy(load);
+  return (
+    <>
+      <button type="button" onClick={retry}>
+        retry
+      </button>
+      <LazyBoundary resetKey={attempt} onError={onError}>
+        <Lazy />
+      </LazyBoundary>
+    </>
+  );
+}
+
+describe("lazy chunks (M3-RT-15)", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("a chunk that fails to load renders nothing, reports once, and the next attempt loads again", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {}); // React logs the caught error
+    const Panel = () => <p>panel</p>;
+    const load = vi.fn<() => Promise<{ default: ComponentType }>>().mockRejectedValueOnce(new Error("chunk gone")).mockResolvedValue({ default: Panel });
+    const onError = vi.fn();
+    const page = await mount(<Host load={load} onError={onError} />);
+    await act(async () => {
+      await vi.waitFor(() => expect(onError).toHaveBeenCalledOnce(), { timeout: 2_000 });
+    });
+    expect(page.container.textContent).toBe("retry");
+    await click(button(page.container, "retry"));
+    await act(async () => {
+      await vi.waitFor(() => expect(page.container.textContent).toContain("panel"), { timeout: 2_000 });
+    });
+    expect([load.mock.calls.length, onError.mock.calls.length]).toEqual([2, 1]);
+    await page.unmount();
+  });
+});
+```
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -7795,32 +9753,119 @@ export function groupSessions(sessions: readonly SessionSummary[], filter: strin
 
 `shell-commands.ts`: one `useCommand` per id; handlers navigate with `pathOfItem`, mutate the workspace store, toggle drawer state, or call `runCommand`-free code; `pane.split` returns `false` when `mobile`; `tab.*` return `false` when there are no tabs (so the key keeps its browser meaning); `auth.signOut` uses the same `logout().then(onSignedOut, toast error)` as the rail.
 
+`apps/web/src/lib/lazy.tsx`:
+
+```tsx
+import { toast } from "@pap/ui";
+import { Component, lazy, Suspense, useState, type ComponentType, type LazyExoticComponent, type ReactNode } from "react";
+import { reportClientIssue } from "./report.ts";
+
+interface BoundaryProps {
+  readonly resetKey: number;
+  onError(): void;
+  readonly children: ReactNode;
+}
+
+/**
+ * Around every lazy chunk (M3-RT-15): a chunk that fails to load (an open tab after a pap update, whose old file
+ * name is gone) or a lazy panel that throws renders nothing and calls `onError` once; a new `resetKey` re-arms it.
+ * The shell stays standing instead of TanStack's root error screen.
+ */
+export class LazyBoundary extends Component<BoundaryProps, { readonly failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(): void {
+    this.props.onError();
+  }
+
+  componentDidUpdate(previous: BoundaryProps): void {
+    if (this.state.failed && previous.resetKey !== this.props.resetKey) this.setState({ failed: false });
+  }
+
+  render(): ReactNode {
+    return this.state.failed ? null : <Suspense fallback={null}>{this.props.children}</Suspense>;
+  }
+}
+
+/** A lazy component that can try again: React keeps a rejected import inside a lazy component for good. */
+export function useRetryableLazy<P extends object>(load: () => Promise<{ default: ComponentType<P> }>): {
+  Lazy: LazyExoticComponent<ComponentType<P>>;
+  attempt: number;
+  retry(): void;
+} {
+  const [Lazy, setLazy] = useState(() => lazy(load));
+  const [attempt, setAttempt] = useState(0);
+  return {
+    Lazy,
+    attempt,
+    retry: () => {
+      setLazy(() => lazy(load));
+      setAttempt((value) => value + 1);
+    },
+  };
+}
+
+/** One line in the client log and a toast with Reload; the strings come translated from the caller. */
+export function notifyLazyFailure(text: { readonly message: string; readonly reload: string }): void {
+  reportClientIssue("lazy_chunk_failed");
+  toast({ message: text.message, tone: "error", action: { label: text.reload, altText: text.reload, run: () => window.location.reload() } });
+}
+```
+
+In `eslint.config.js`, the `web-lib` rule becomes `{ from: "web-lib", allow: ["web-lib", "web-runtime", "contracts", "ui"] }`.
+
+`AppShell.tsx` holds `treeOpen`, `inboxOpen` and `helpOpen` state; a ref mirrors `treeOpen` (written in an effect) and `useShellEffects({ mobile, treeOpen: readTreeOpen })` gets a stable `readTreeOpen = useCallback(() => treeRef.current, [])`. The shortcuts help is lazy (owner R3-5):
+
+```tsx
+const loadShortcutsHelp = () => import("../../features/commands/ShortcutsHelp.tsx");
+// inside AppShell:
+const help = useRetryableLazy(loadShortcutsHelp);
+{helpOpen ? (
+  <LazyBoundary
+    resetKey={help.attempt}
+    onError={() => {
+      setHelpOpen(false);
+      help.retry();
+      notifyLazyFailure({ message: t("shell.lazyFailed"), reload: t("shell.reload") });
+    }}
+  >
+    <help.Lazy open onOpenChange={setHelpOpen} platform={platform} />
+  </LazyBoundary>
+) : null}
+```
+
+New key: `shell.lazyFailed` "This part of pap did not load. pap may have been updated: reload the page." / "Cette partie de pap ne s'est pas chargée. pap a peut-être été mis à jour : rechargez la page."
+
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web && pnpm lint`
-Expected: PASS.
+Run: `pnpm test:unit apps/web && pnpm lint && pnpm knip && pnpm test:int apps/web/src/build-output.int.test.ts`
+Expected: PASS (the shortcuts help is now a lazy chunk). Mutation checks: reuse one `lazy()` for every attempt → the "next attempt loads again" case fails; drop `getDerivedStateFromError` → the failing load escapes the boundary and the test errors.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
-git add apps/web
-git commit -m "feat(shell): session tree drawer, inbox drawer and the shell's command handlers"
+git add apps/web eslint.config.js
+git commit -m "feat(shell): session tree and inbox drawers, the shell's command handlers, and lazy chunks that survive an update"
 ```
 
 ---
 
 ### Task 22: Cmd+K command palette
 
-Spec C §7.2 picks cmdk; Orca uses it with its filter off and ranks results itself (`components/WorktreeJumpPalette.tsx`, `cmd-j/palette-results.ts`). Ranking follows T3 (`CommandPalette.logic.ts` 194-322): NFKD, diacritics stripped, every query token a substring of the item's search terms, earlier terms score higher, exact/prefix/substring bonus on the title, ties by recency then order; a leading `>` keeps actions only; Cmd/Ctrl+1..9 runs the n-th visible item. Each group renders at most 50 rows (Orca's section render cap) and the result count is announced politely (Orca's `aria-live` count). The palette module (with cmdk) loads on first open, so it stays out of the initial bundle (spec C §7.4).
+Spec C §7.2 picks cmdk; Orca uses it with its filter off and ranks results itself (`components/WorktreeJumpPalette.tsx`, `cmd-j/palette-results.ts`). Ranking follows T3 (`CommandPalette.logic.ts` 194-322): NFKD, diacritics stripped, every query token a substring of the item's search terms, earlier terms score higher, exact/prefix/substring bonus on the title, ties by recency then order; a leading `>` keeps actions only. Digit chords are not bound inside the palette: Ctrl/⌘+1..9 and (off Apple platforms) Alt+1..9 are the browser's tab keys and never reach the page (M3-RT-31). Each group renders at most 50 rows (Orca's section render cap) and the result count is announced politely (Orca's `aria-live` count). The palette module (with cmdk) loads on first open, so it stays out of the initial bundle (spec C §7.4).
 
 **Files:**
 - Create: `apps/web/src/features/commands/palette/rank.ts`, `rank.test.ts`, `CommandPalette.tsx`, `CommandPalette.test.tsx`
-- Create: `apps/web/src/routes/shell/palette-items.ts`, `palette-items.test.ts`, `PaletteHost.tsx`
-- Modify: `apps/web/package.json` (`cmdk`), `apps/web/src/routes/shell/AppShell.tsx`, `catalog/commands.ts`
+- Create: `apps/web/src/routes/shell/palette-items.ts`, `palette-items.test.ts`, `PaletteHost.tsx`, `PaletteHost.test.tsx`
+- Modify: `apps/web/package.json` (`cmdk`), `apps/web/src/routes/shell/AppShell.tsx`, `catalog/commands.ts`, `apps/web/src/features/commands/index.ts` (+ the names `palette-items.ts` and `PaletteHost.tsx` import)
 
 **Interfaces:**
-- Consumes: Tasks 16–21.
+- Consumes: Tasks 16a–21 (`LazyBoundary`, `useRetryableLazy`, `notifyLazyFailure` from Task 21).
 - Produces:
   - `type PaletteGroup = "open" | "actions" | "sessions" | "settings"`; `interface PaletteItem { id: string; group: PaletteGroup; title: string; detail?: string; searchTerms: readonly string[]; chord?: readonly string[]; chordJoiner?: "" | "+"; recency?: number; run(): void }`.
   - `normalizeSearch(text: string): string`; `rankItems(items: readonly PaletteItem[], query: string, cap?: number): { groups: Array<{ group: PaletteGroup; items: PaletteItem[] }>; count: number; actionsOnly: boolean }`.
@@ -7828,7 +9873,11 @@ Spec C §7.2 picks cmdk; Orca uses it with its filter off and ranks results itse
   - `buildPaletteItems(input: { commands: typeof COMMANDS; has(id: string): boolean; rules: readonly ResolvedRule[]; platform: Platform; names: KeyNames; tabs: readonly Tab[]; sessions: readonly SessionSummary[]; t: Translate; navigate(item: ItemRef): void; run(id: string): void }): PaletteItem[]` (commands without a handler are left out; sessions limited to the 50 most recent).
   - `PaletteHost` registers `palette.toggle` and renders the lazy palette.
 
-**Risks / rulings needed:** (a) FTS5 transcript hits (DESIGN 12's palette) arrive with M4: confirm. (b) On phones the palette opens as a full-width sheet (Task 8's dialog rule): confirm.
+**Rulings (pre-dispatch):**
+- FTS5 transcript hits (DESIGN §12's palette) arrive with M4. [M3R100]
+- On phones the palette opens as a full-width sheet (Task 8's dialog rule). [M3R27]
+- No digit chords in the palette (M3-RT-31, M3R73): the happy-dom test would pass while real browsers keep the keys. [M3R101]
+- The palette is the first lazy chunk of the shell's command layer: it mounts through Task 21's `LazyBoundary` with `useRetryableLazy`, never a bare `Suspense` (M3-RT-15). [M3R99]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -7872,7 +9921,7 @@ describe("palette ranking (T3 CommandPalette.logic.ts)", () => {
 });
 ```
 
-`CommandPalette.test.tsx` (`// @vitest-environment happy-dom`): opened with the items above, the dialog has `data-command-palette`, the input is focused and labelled `Search commands and sessions`; typing `split` leaves one option; Enter runs it and closes the palette; `Ctrl+2` with an empty query runs the second visible item; typing `zz` shows `No match. Try a folder, a setting or an action.`; typing `> zz` shows `No matching action.`; the polite live region reads `1 result` after `split`; the chord of an item with `chord: ["Ctrl", "\\"]` is shown as a `Kbd`.
+`CommandPalette.test.tsx` (`// @vitest-environment happy-dom`): opened with the items above, the dialog has `data-command-palette`, the input is focused and labelled `Search commands and sessions`; typing `split` leaves one option; Enter runs it and closes the palette; `Ctrl+2` in the input is not handled by the palette (`defaultPrevented` stays false, nothing runs); typing `zz` shows `No match. Try a folder, a setting or an action.`; typing `> zz` shows `No matching action.`; the polite live region reads `1 result` after `split`; the chord of an item with `chord: ["Ctrl", "\\"]` is shown as a `Kbd`.
 
 `palette-items.test.ts`: commands whose handler is missing are not listed; a listed command carries the chord tokens of its last effective rule; sessions become items titled by their folder name with the full path as `detail`, limited to the 50 most recent; open tabs appear in group `open`; settings sections appear in group `settings`; `run` of a session item calls `navigate({ kind: "session", id })`.
 
@@ -7933,9 +9982,9 @@ export function rankItems(items: readonly PaletteItem[], query: string, cap = 50
 
 (In the `"settings"` case `s2` scores higher than `a1` (prefix bonus), but groups render in `GROUP_ORDER`, so the action comes first in the flattened list; inside one group the score decides.)
 
-`CommandPalette.tsx`: `Dialog variant="palette" hideTitle title={t("commands.palette.dialog")} closeLabel={t("ui.close")}`; inside, a wrapper `<div data-command-palette>` holding cmdk's `<Command shouldFilter={false} loop label={…}>` with `<Command.Input aria-label={t("commands.palette.input")} value={query} onValueChange={setQuery} onKeyDown={pickByNumber} />`, `<Command.List>` with one `<Command.Group heading={t(`commands.palette.group.${group}`)}>` per group and `<Command.Item value={item.id} onSelect={() => { onOpenChange(false); item.run(); }}>` rows (title, `detail` in `text-muted font-mono text-code truncate`, `Kbd` of `chord`; selected row `aria-selected:bg-surface-2`); `<Command.Empty>` with `commands.palette.empty` or `commands.palette.emptyActions`; a `<p className="sr-only" aria-live="polite">` with `t("commands.palette.count", { count })`. `pickByNumber`: with Ctrl (or Cmd on Apple) and a digit 1–9, run the n-th visible item (flattened group order) and `preventDefault`. Strings: `commands.palette.dialog` "Command palette" / "Palette de commandes", `commands.palette.input` "Search commands and sessions" / "Rechercher des commandes et des sessions", `commands.palette.group.open|actions|sessions|settings` "Open" "Actions" "Sessions" "Settings" / "Ouverts" "Actions" "Sessions" "Réglages" (identical ones listed), `commands.palette.empty` "No match. Try a folder, a setting or an action." / "Aucun résultat. Essayez un dossier, un réglage ou une action.", `commands.palette.emptyActions` "No matching action." / "Aucune action correspondante.", `commands.palette.count` "{count} results" / "{count} résultats" (use a separate `…countOne` key for 1: "1 result" / "1 résultat"; no concatenation around the number).
+`CommandPalette.tsx`: `Dialog variant="palette" hideTitle title={t("commands.palette.dialog")} closeLabel={t("ui.close")}`; inside, a wrapper `<div data-command-palette>` holding cmdk's `<Command shouldFilter={false} loop label={…}>` with `<Command.Input aria-label={t("commands.palette.input")} value={query} onValueChange={setQuery} />`, `<Command.List>` with one `<Command.Group heading={t(`commands.palette.group.${group}`)}>` per group and `<Command.Item value={item.id} onSelect={() => { onOpenChange(false); item.run(); }}>` rows (title, `detail` in `text-muted font-mono text-code truncate`, `Kbd` of `chord`; selected row `aria-selected:bg-surface-2`); `<Command.Empty>` with `commands.palette.empty` or `commands.palette.emptyActions`; a `<p className="sr-only" aria-live="polite">` with `t("commands.palette.count", { count })`. Strings: `commands.palette.dialog` "Command palette" / "Palette de commandes", `commands.palette.input` "Search commands and sessions" / "Rechercher des commandes et des sessions", `commands.palette.group.open|actions|sessions|settings` "Open" "Actions" "Sessions" "Settings" / "Ouverts" "Actions" "Sessions" "Réglages" (identical ones listed), `commands.palette.empty` "No match. Try a folder, a setting or an action." / "Aucun résultat. Essayez un dossier, un réglage ou une action.", `commands.palette.emptyActions` "No matching action." / "Aucune action correspondante.", `commands.palette.count` "{count} results" / "{count} résultats" (use a separate `…countOne` key for 1: "1 result" / "1 résultat"; no concatenation around the number).
 
-`PaletteHost.tsx`: holds `open`, registers `palette.toggle` (toggles), builds items with `buildPaletteItems` from the stores when open, renders `lazy(() => import("../../features/commands/palette/CommandPalette.tsx"))` inside `Suspense` with no fallback (the first open loads it in well under 100 ms locally; DESIGN §7.3 shows nothing for that), and refreshes the sessions cache on open.
+`PaletteHost.tsx`: holds `open`, registers `palette.toggle` (toggles), builds items with `buildPaletteItems` from the stores when open, renders the palette from `useRetryableLazy(() => import("../../features/commands/palette/CommandPalette.tsx"))` inside `LazyBoundary` (no fallback: the first open loads in well under 100 ms locally, and DESIGN §7.3 shows nothing for that; `onError` closes the palette, retries on the next open and calls `notifyLazyFailure` with `shell.lazyFailed` / `shell.reload`), and refreshes the sessions cache on open. `PaletteHost.test.tsx`: with the palette module mocked to throw (`vi.mock`), `Ctrl+K` leaves the shell standing (the pane is still there), shows the error toast with "Reload", and a second `Ctrl+K` tries again (a second toast; the boundary re-armed).
 
 - [ ] **Step 4: Run the tests**
 
@@ -7966,7 +10015,11 @@ DESIGN.md §8 (< 768 px): bottom nav Agents / Work / Lists / Inbox, one pane at 
   - `KEYBOARD_MIN_HEIGHT_PX = 60`; `shouldUseVisualViewportHeight(state: { hasFocusedEditable: boolean; innerHeight: number; viewportHeight: number; viewportScale: number }): boolean`; `useViewportHeight(): void`.
   - `type MobileSection = "agents" | "work" | "lists" | "inbox"`; `MobileShell(props as AppShell)`; `BottomNav({ section; onSection(section): void; inboxCount: number })`; `TabSwitcher({ open; onOpenChange })`.
 
-**Risks / rulings needed:** (a) The Chat / Review / Term switch of DESIGN §8 appears only when the active item offers more than one pane kind; M3 has only chat, so it is absent until M8/M9: confirm. (b) The "Agents" tab shows an empty state without an action until M11 creates agents: confirm. (c) `interactive-widget=resizes-content` (Task 11's viewport meta, T3) helps Chrome on Android; iOS relies on the hook: none.
+**Rulings (pre-dispatch):**
+- The Chat / Review / Term switch of DESIGN §8 appears only when the active item offers more than one pane kind; M3 has only chat, so it is absent until M8/M9. [M3R102]
+- The "Agents" tab shows an empty state without an action until M11 creates agents. [M3R103]
+- `interactive-widget=resizes-content` (Task 11's viewport meta, T3) helps Chrome on Android; iOS relies on the hook. [M3R104]
+- The phone top bar's `Mark` is decorative (not a link, `aria-hidden`), so no small tap target sits there (M3-RT-35's point, kept although the browser probe is deferred). [M3R105]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8005,7 +10058,7 @@ Expected: FAIL.
 
 `use-viewport-height.ts`: port pi-web's hook (constants `KEYBOARD_MIN_HEIGHT_PX = 60`, `SETTLE_DELAYS_MS = [48, 120, 240, 420, 720]`, the same triggers: visualViewport `resize`/`scroll`, window `resize`/`focusin`/`focusout`/`pageshow`, document composition/input/keyup on a focused editor; the same cleanup) with `shouldUseVisualViewportHeight` exported. Called once by `AppShell` in both layouts.
 
-`MobileShell.tsx`: `<div data-shell="mobile" className="flex h-app flex-col">` → top bar (`h-bar`, `Mark` size 20, the active title, an `IconButton icon={IconSearch}` running `palette.toggle`, an `IconButton icon={IconLists}` (label `shell.mobile.tabs`) opening `TabSwitcher`), `ConnectionBanner`, `<div className="min-h-0 flex-1 overflow-y-auto">` (not `<main>`, as on desktop, until P3) with the section's content (agents → `EmptyState` `shell.agents.emptyTitle` "No agent yet" / "Aucun agent pour l'instant", `shell.agents.emptyPurpose` "A long-term agent has its own thread, memory, budget and triggers." / "Un agent de long terme a son propre fil, sa mémoire, son budget et ses déclencheurs."; work → `PaneHost` with the active tab, no split; lists → `SessionTree`; inbox → the Inbox empty state), then `BottomNav`. Navigating to an item (path change) selects `work`.
+`MobileShell.tsx`: `<div data-shell="mobile" className="flex h-app flex-col">` → top bar (`h-bar`, a decorative `Mark` size 20 (no link, no label), the active title, an `IconButton icon={IconSearch}` running `palette.toggle`, an `IconButton icon={IconLists}` (label `shell.mobile.tabs`) opening `TabSwitcher`), `ConnectionBanner`, `<div className="min-h-0 flex-1 overflow-y-auto">` (not `<main>`, as on desktop, until P3) with the section's content (agents → `EmptyState` `shell.agents.emptyTitle` "No agent yet" / "Aucun agent pour l'instant", `shell.agents.emptyPurpose` "A long-term agent has its own thread, memory, budget and triggers." / "Un agent de long terme a son propre fil, sa mémoire, son budget et ses déclencheurs."; work → `PaneHost` with the active tab, no split; lists → `SessionTree`; inbox → the Inbox empty state), then `BottomNav`. Navigating to an item (path change) selects `work`.
 
 `BottomNav.tsx`: `<nav aria-label={t("shell.mobile.sections")} data-slot="bottom-nav" className="grid shrink-0 grid-cols-4 border-t border-border bg-bg-side pb-safe">` with four buttons (`IconAgents`, `IconWork`, `IconLists`, `IconInbox`, each with its label under the icon in `label-hud`, `min-h-11`, `aria-current="page"` on the selected one, the Inbox one with a `Badge` when `inboxCount > 0`).
 
@@ -8048,9 +10101,10 @@ git commit -m "feat(shell): phone layout with bottom nav, tab switcher and keybo
 DESIGN.md §10 (screen 08): Settings opens as a tab, with a section list on the left (Personal: Appearance, Keyboard shortcuts, Language, Account & devices; the Platform sections — models, MCP, skills, agents, automation, security, health — arrive with their milestones) and the section on the right. On phones a section picker replaces the list. "Add a passkey" and "Sign out" move here from M1's account bar. The sign-in and setup screens get the Night Control look of screen 12 (logo and wordmark, passkey first, password second, the throttle note).
 
 **Files:**
-- Create: `apps/web/src/routes/settings/SettingsScreen.tsx`, `SettingsScreen.test.tsx`, `sections.tsx`, `LanguageSection.tsx`, `AccountSection.tsx`, `sections.test.tsx`
+- Create: `apps/web/src/routes/settings/SettingsScreen.tsx`, `SettingsScreen.test.tsx`, `sections.tsx`, `LanguageSection.tsx`, `AccountSection.tsx`, `sections.test.tsx`, `apps/web/src/routes/shell/pane-renderers.test.tsx`
+- Modify: `apps/web/src/build-output.int.test.ts` (Settings stays out of the initial assets)
 - Create: `apps/web/src/routes/shell/shell-context.ts` (username, passkeys, sign-out for sections)
-- Modify: `apps/web/src/routes/shell/pane-renderers.tsx` (`settings` → `SettingsScreen`), `AppShell.tsx` (context provider)
+- Modify: `apps/web/src/routes/shell/pane-renderers.tsx` (`settings` → the lazy `SettingsScreen`, owner R3-5), `AppShell.tsx` (context provider)
 - Modify: `apps/web/src/features/auth/LoginScreen.tsx`, `SetupScreen.tsx`, `AddPasskey.tsx` (look and `useT` only; behaviour and their M1 tests unchanged), `LoginScreen.test.tsx` (throttle note)
 - Modify: `apps/web/src/i18n/catalog/settings.ts`
 
@@ -8061,7 +10115,12 @@ DESIGN.md §10 (screen 08): Settings opens as a tab, with a section list on the 
   - `SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode>` (`language` and `account` here; `appearance` and `shortcuts` render a one-line `EmptyState` until Tasks 25 and 27 replace them in this map).
   - `SettingsScreen({ section: SettingsSection })`.
 
-**Risks / rulings needed:** (a) The first-run stepper of screen 12 (account → passkey → Pi) is deferred to M7, where the Pi step (providers) exists; setup stays one step: confirm. (b) "Connected devices" (spec C §4.4) is M5's; the Account section shows the username, passkeys and sign-out only: confirm. (c) The throttle note copies screen 12 ("After 5 attempts, waits grow, per address and per account"), which matches M1's throttle (R80): confirm wording.
+**Rulings (pre-dispatch):**
+- The first-run stepper of screen 12 (account → passkey → Pi) is deferred to M7, where the Pi step (providers) exists; setup stays one step (owner M3-Q7). [M3R106]
+- "Connected devices" (spec C §4.4) is M5's; the Account section shows the username, passkeys and sign-out only. [M3R107]
+- The throttle note says what `apps/daemon/src/modules/auth/throttle.ts` does (owner R3-9): the wait starts at the first failed attempt (1 s), doubles with each one up to a minute, per address and per account, and resets after five minutes without a failure. Screen 12's "After 5 attempts" overclaims and is not used. [M3R108]
+- The Settings screen, with all its sections, is a lazy chunk (owner R3-5, agreement 10): `pane-renderers.tsx` renders it through `useRetryableLazy` + `LazyBoundary` (Task 21); the sections import statically inside that chunk. [M3R109]
+- The language is per device (owner R3-3): `switchLocale` stores `pap.locale` in `localStorage` only. [M3R15]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8070,7 +10129,8 @@ DESIGN.md §10 (screen 08): Settings opens as a tab, with a section list on the 
 `sections.test.tsx`:
 - Language: choosing `Français` switches the page language at once — the nav entry reads `Langue` and `document.documentElement.lang` is `fr` — with no reload; with `localStorage.setItem` throwing, a status banner says `Applied to this page only: this browser does not keep settings.` (in French after the switch: assert the French text).
 - Account: shows the username; `Add a passkey` is present only when passkeys are available; `Sign out` calls `logout` then `onSignedOut`; a failed `logout` shows the error toast and keeps the session screen.
-- `LoginScreen.test.tsx` gains: the throttle note is shown under the password form; the passkey button still comes first.
+- `LoginScreen.test.tsx` gains: the throttle note "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. It resets after 5 minutes without a failure." is shown under the password form; the passkey button still comes first.
+- `pane-renderers.test.tsx` (shell bed at `/settings/language`): the Settings screen appears once its chunk has loaded (`vi.waitFor`, 2 s); `build-output.int.test.ts` gains "keeps the Settings screen out of the initial assets": no initial JS contains `data-settings-screen` (the marker the screen's root carries) and some lazy asset does.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -8085,13 +10145,13 @@ Expected: FAIL.
 
 `AccountSection.tsx`: the username in `font-mono`, `AddPasskey` (existing component, its "Passkey added." status now rendered here in a `role="status"` line) when `passkeysAvailable`, and `Button variant="secondary"` `settings.account.signOut` with the same `logout().then(onSignedOut, toast)` as the rail.
 
-`LoginScreen` / `SetupScreen` / `AddPasskey`: switch `t` to `useT()`; layout `<main className="flex min-h-full items-center justify-center p-s4">` around `<div className="flex w-full max-w-sm flex-col gap-s4 rounded-md border border-border-strong bg-surface p-s5">` headed by `Mark size={32}` + `Wordmark name={t("app.name")} tagline={t("app.tagline")}`; title `text-h1`; Login adds `<p className="text-ui text-muted">{t("login.throttleNote")}</p>` under the form. No behaviour, label or button text changes (M1 tests and the e2e journey select by them).
+`LoginScreen` / `SetupScreen` / `AddPasskey`: switch `t` to `useT()`; layout `<main className="flex min-h-full items-center justify-center p-s4">` around `<div className="flex w-full max-w-sm flex-col gap-s4 rounded-md border border-border-strong bg-surface p-s5">` headed by `Mark size={32}` + `Wordmark name={t("app.name")} tagline={t("app.tagline")}`; title `text-h1`; Login adds `<p className="text-ui text-muted">{t("login.throttleNote")}</p>` under the form. No behaviour, label or button text changes (M1 tests and the deferred e2e journey select by them). `SettingsScreen`'s root carries `data-settings-screen` for the build test.
 
-New keys (en / fr): `app.tagline` "pi agentic platform" (identical: add to `IDENTICAL_IN_FR`), `login.throttleNote` "After 5 attempts, waits grow, per address and per account." / "Après 5 essais, l'attente augmente, par adresse et par compte.", `settings.nav.label` "Settings sections" / "Sections des réglages", `settings.nav.personal` "Personal" / "Personnel", `settings.nav.section` "Section" / "Section" (identical), `settings.section.appearance` "Appearance" / "Apparence", `settings.section.shortcuts` "Keyboard shortcuts" / "Raccourcis clavier", `settings.section.language` "Language" / "Langue", `settings.section.account` "Account & devices" / "Compte et appareils", `settings.language.label` "Language" / "Langue", `settings.language.notStored` "Applied to this page only: this browser does not keep settings." / "Appliqué à cette page seulement : ce navigateur ne garde pas les réglages.", `settings.account.username` "Signed in as" / "Connecté en tant que", `settings.account.signOut` "Sign out" / "Se déconnecter".
+New keys (en / fr): `app.tagline` "pi agentic platform" (identical: add to `IDENTICAL_IN_FR`), `login.throttleNote` "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. It resets after 5 minutes without a failure." / "Chaque échec double l'attente avant l'essai suivant, de 1 seconde jusqu'à 1 minute, par adresse et par compte. Elle repart de zéro après 5 minutes sans échec.", `settings.nav.label` "Settings sections" / "Sections des réglages", `settings.nav.personal` "Personal" / "Personnel", `settings.nav.section` "Section" / "Section" (identical), `settings.section.appearance` "Appearance" / "Apparence", `settings.section.shortcuts` "Keyboard shortcuts" / "Raccourcis clavier", `settings.section.language` "Language" / "Langue", `settings.section.account` "Account & devices" / "Compte et appareils", `settings.language.label` "Language" / "Langue", `settings.language.notStored` "Applied to this page only: this browser does not keep settings." / "Appliqué à cette page seulement : ce navigateur ne garde pas les réglages.", `settings.account.username` "Signed in as" / "Connecté en tant que", `settings.account.signOut` "Sign out" / "Se déconnecter".
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web && pnpm test:unit scripts/literal-coverage.test.ts`
+Run: `pnpm test:unit apps/web && pnpm test:unit scripts/literal-coverage.test.ts && pnpm test:int apps/web/src/build-output.int.test.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -8099,7 +10159,7 @@ Expected: PASS.
 ```bash
 pnpm format
 git add apps/web
-git commit -m "feat(settings): settings screen with language and account sections; restyled sign-in"
+git commit -m "feat(settings): lazy settings screen with language and account sections; restyled sign-in"
 ```
 
 ---
@@ -8110,13 +10170,18 @@ DESIGN.md §13 and screen 08: every change applies at once (the app is the live 
 
 **Files:**
 - Create: `apps/web/src/features/appearance/AppearancePanel.tsx`, `ThemeSection.tsx`, `ReadingSection.tsx`, `DetailsSection.tsx`, `AppearancePreview.tsx`, `AppearancePanel.test.tsx`
-- Modify: `apps/web/src/routes/settings/sections.tsx` (`appearance` → `AppearancePanel`), `apps/web/src/features/appearance/index.ts`, `catalog/settings.ts`
+- Modify: `apps/web/src/routes/settings/sections.tsx` (`appearance` → `AppearancePanel`), `apps/web/src/features/appearance/index.ts` (+ `AppearancePanel`), `catalog/settings.ts`, `apps/web/src/build-output.int.test.ts` (the markdown renderer stays a lazy chunk)
 
 **Interfaces:**
 - Consumes: Task 15 store (`account`, `device`, `accountStatus`, `deviceStored`, setters, `resetAll`), Task 13 (`SIZE_RANGES`, `DEFAULT_DEVICE`), primitives, AI components (preview).
 - Produces: `AppearancePanel()`.
 
-**Risks / rulings needed:** (a) Font choices are the bundled fonts or the system stack (no CDN, no arbitrary installed fonts; T3 lists installed fonts, which needs a permission prompt): confirm. (b) Size sliders: UI 12–16 px, chat 13–18 px, code 11–16 px, each with "follow density": confirm ranges. (c) Chat width options Full (default), Wide (64rem), Narrow (48rem): confirm.
+**Rulings (pre-dispatch):**
+- Font choices are the bundled Manrope and JetBrains Mono or the system stacks; no CDN and no arbitrary installed fonts (T3 lists installed fonts, which needs a permission prompt; owner M3-Q8). [M3R110]
+- Size sliders: UI 12–16 px, chat 13–18 px, code 11–16 px, each with "follow density". [M3R111]
+- Chat width options Full (default, decision 28), Wide (64rem), Narrow (48rem). [M3R112]
+- "Reset to defaults" keeps the custom theme library (owner R3-2, M3R62); the status line never claims more than the account document knows (`local` shows no line). [M3R113]
+- The preview's agent message renders through `Markdown` (Task 10b), which puts the markdown renderer into the production build as a lazy chunk; the build-output test pins that it stays out of the initial assets. [M3R41]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8126,8 +10191,8 @@ DESIGN.md §13 and screen 08: every change applies at once (the app is the live 
 - "density and sizes write the device scope; Follow density clears a size": click `Comfortable` → `device.density === "comfortable"`; move the `UI size` slider to 15 (Radix slider: press ArrowRight on the thumb twice from the density default 13) → `device.uiSize === 15`; click `Follow density` → `null`.
 - "switches write the account scope": `Uppercase labels` off → `uppercaseLabels: false`; `Background grid` off → `grid: false`; `Rail position` Right, `Agent avatars` Glyph, `Tool card detail` Full.
 - "motion and chat width write the device scope": `None` → `motion: "none"`; `Narrow` → `chatWidth: "narrow"`.
-- "reset covers both scopes and Undo restores them": after the changes above, click `Reset to defaults` → both scopes are the defaults and a toast `Appearance reset` with `Undo` is shown; click `Undo` → the changed values are back.
-- "says where the account copy stands": `accountStatus` `saving` → `Saving…`; `saved` → `Saved to your account`; `error` → `Not saved: pap did not answer. Your next change tries again.`; `load-error` → `Showing this device's copy: your saved appearance could not be loaded.`; `deviceStored: false` → `This browser does not keep device settings: they apply to this page only.`
+- "reset covers both scopes, keeps the custom themes, and Undo restores them": with a custom theme `Ocean` in the account and after the changes above, click `Reset to defaults` → both scopes are the defaults except `customThemes`, which still holds `Ocean`; a toast `Appearance reset` with `Undo` is shown; click `Undo` → the changed values are back.
+- "says where the account copy stands": `accountStatus` `local` → no status line; `saving` → `Saving…`; `saved` → `Saved to your account`; `error` → `Not saved to your account. Your next change tries again.`; `load-error` → `Showing this device's copy: your saved appearance could not be loaded. Changes stay on this device until it loads.`; `deviceStored: false` → `This browser does not keep device settings: they apply to this page only.`
 - "the preview shows a you message, an agent message, a tool card and a primary button": the `Preview` region contains `[data-slot="message"][data-author="you"]`, `[data-author="agent"]`, `[data-slot="tool-card"]`, `[data-variant="primary"]`.
 
 - [ ] **Step 2: Run them to see them fail**
@@ -8145,14 +10210,25 @@ Expected: FAIL.
 
 `DetailsSection.tsx` (account): `Select` UI font (`manrope` "Manrope", `system` `settings.appearance.fontSystem` "System font" / "Police du système"), `Select` Mono font (`jetbrains-mono` "JetBrains Mono", `system`), `Switch` Uppercase labels, `Switch` Background grid, `Segmented` Rail position, `Segmented` Agent avatars (`outlined`/`tinted`/`glyph`), `Segmented` Tool card detail (`compact`/`expanded`/`full`).
 
-`AppearancePreview.tsx`: `<section aria-label={t("settings.appearance.preview")}>` with `Message author="you"`, `Message author="agent"` (sample texts from `settings.appearance.sample.*` keys), `ToolCard detail={account.toolDetail}` (`bash`, a sample summary and duration), an `Avatar avatarStyle={account.avatarStyle}`, a `Chip tone="att"` and a primary `Button`.
+`AppearancePreview.tsx`: `<section aria-label={t("settings.appearance.preview")}>` with `Message author="you"`, `Message author="agent"` whose body is `<Markdown text={t("settings.appearance.sample.agent")} />` (a sample with one inline code span; sample texts from `settings.appearance.sample.*` keys), `ToolCard detail={account.toolDetail}` (`bash`, a sample summary and duration), an `Avatar avatarStyle={account.avatarStyle}`, a `Chip tone="att"` and a primary `Button`.
 
 All strings: `settings.appearance.*` keys in en and fr (sentence case; preset and font proper names listed in `IDENTICAL_IN_FR`).
 
 - [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web && pnpm test:unit scripts/literal-coverage.test.ts scripts/class-coverage.test.ts`
-Expected: PASS.
+Add to `apps/web/src/build-output.int.test.ts`:
+
+```ts
+  it("keeps the markdown renderer and the highlighter out of the initial assets (owner R3-1, R3-5)", async () => {
+    const initial = [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((m) => m[1] ?? "");
+    for (const name of initial) expect(await readFile(join(out, "assets", name), "utf8"), name).not.toMatch(/data-markdown-body|pap-code/);
+    const all = await Promise.all(assets.filter((name) => name.endsWith(".js")).map((name) => readFile(join(out, "assets", name), "utf8")));
+    expect(all.some((code) => code.includes("data-markdown-body"))).toBe(true);
+  });
+```
+
+Run: `pnpm test:unit apps/web && pnpm test:unit scripts/literal-coverage.test.ts scripts/class-coverage.test.ts && pnpm test:int apps/web/src/build-output.int.test.ts`
+Expected: PASS (apply the provisional-budget rule if the initial size crosses `budgets.json`).
 
 - [ ] **Step 5: Commit**
 
@@ -8169,16 +10245,22 @@ git commit -m "feat(appearance): settings panel for theme, density, sizes, fonts
 DESIGN.md §13.1 and §12: a custom theme edits eight roles; the editor shows the WCAG ratio per role and asks for confirmation below AA; themes import and export as JSON (T3: `ThemeEditorPanel.tsx`, `serializeThemeFile`, import dialogs). Imported text is untrusted (Review Focus 3): parsed with the contracts schema, capped in size, and only hex colours ever reach a style property.
 
 **Files:**
-- Create: `apps/web/src/features/appearance/theme-io.ts`, `theme-io.test.ts`, `ThemeEditor.tsx`, `ThemeEditor.test.tsx`, `CustomThemes.tsx`
+- Create: `apps/web/src/features/appearance/theme-io.ts`, `theme-io.test.ts`, `ThemeEditor.tsx` (lazy chunk, default export too), `ThemeEditor.test.tsx`, `CustomThemes.tsx`
 - Modify: `apps/web/src/features/appearance/ThemeSection.tsx` (list + editor entry points), `catalog/settings.ts`
 
 **Interfaces:**
-- Consumes: `CustomTheme` (Task 12), `deriveTheme`, `tokenVars`, `roleChecks` (Task 13), store (Task 15), `PRESET_TOKENS` (Task 1), `Dialog`, `TextField`, `Segmented`, `Chip`, `toast`.
+- Consumes: `CustomTheme` (Task 12), `deriveTheme`, `tokenVars`, `roleChecks` (Task 13), store (Task 15), `PRESET_TOKENS` (Task 1a), `Dialog`, `TextField`, `Segmented`, `Chip`, `toast`.
 - Produces:
-  - `MAX_THEME_FILE_BYTES = 16384`; `type ThemeFileError = { kind: "too_large" } | { kind: "not_json" } | { kind: "invalid"; path: string }`; `parseThemeFile(text: string): { ok: true; theme: Omit<CustomTheme, "id"> } | { ok: false; errors: ThemeFileError[] }` (at most 20 errors); `exportThemeFile(theme: CustomTheme): string` (DESIGN §13.1 shape, no `id`, 2-space JSON); `newThemeId(name: string, taken: ReadonlySet<string>): string` (T3 id rule, unique, `theme` fallback for a name with no ASCII letters).
+  - `MAX_THEME_FILE_BYTES = 16384`; `type ThemeFileError = { kind: "too_large" } | { kind: "not_json" } | { kind: "invalid"; path: string }`; `parseThemeFile(text: string): { ok: true; theme: Omit<CustomTheme, "id"> } | { ok: false; errors: ThemeFileError[] }` (at most 20 errors); `exportThemeFile(theme: CustomTheme): string` (DESIGN §13.1 shape, no `id`, 2-space JSON); `newThemeId(name: string, taken: ReadonlySet<string>): string` (T3 id rule, unique among `taken` and the preset ids, `theme` fallback for a name with no ASCII letters); `presetRoles(theme: ThemeName): CustomTheme["roles"]` (a preset as the eight roles of a custom theme: its fills for agent, you and attention).
   - `ThemeEditor({ open; onOpenChange; initial: Omit<CustomTheme, "id">; onSave(theme: Omit<CustomTheme, "id">): void })`; `CustomThemes()` (list: Edit, Duplicate, Export, Delete; Import; "Duplicate & edit" from a preset; disabled at 16 themes with a hint).
 
-**Risks / rulings needed:** (a) Deleting a custom theme in use switches that side back to its preset (Night Control or Day · Papier), with Undo: confirm. (b) The native colour input (`<input type="color">`, Safari 16.4 supports it) sits next to a hex field: confirm.
+**Rulings (pre-dispatch):**
+- Deleting a custom theme in use switches that side back to its preset (Night Control or Day · Papier), with Undo. [M3R114]
+- The native colour input (`<input type="color">`, Safari 16.4 supports it) sits next to a hex field. [M3R115]
+- A new id never takes a preset's id (`night`, `day`, `hc`): `newThemeId` treats them as taken, and the contracts refuse them anyway (M3-RT-09). [M3R49]
+- "Duplicate & edit" from a preset takes its fills as the agent, you and attention roles (`presetRoles`), never the darkened text tones, so the copy's primary button keeps the you fill (M3-RT-32). [M3R116]
+- The theme editor is a lazy chunk (owner R3-5): `CustomThemes` opens it through `useRetryableLazy` + `LazyBoundary` + `notifyLazyFailure` (Task 21). [M3R117]
+- Imported text is untrusted (Review Focus 3): size first, then JSON, then the contracts schema; only hex colours reach a style property. [M3R118]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8186,7 +10268,8 @@ DESIGN.md §13.1 and §12: a custom theme edits eight roles; the editor shows th
 
 ```ts
 import { describe, expect, it } from "vitest";
-import { exportThemeFile, MAX_THEME_FILE_BYTES, newThemeId, parseThemeFile } from "./theme-io.ts";
+import { deriveTheme } from "./derive.ts";
+import { exportThemeFile, MAX_THEME_FILE_BYTES, newThemeId, parseThemeFile, presetRoles } from "./theme-io.ts";
 
 const example = '{"name":"My theme","base":"night","roles":{"bg":"#0E1626","surface":"#132033","agent":"#38BDF8","you":"#FB923C","attn":"#EC4899","ok":"#34D399","err":"#F87171","text":"#E6EDF7"}}';
 
@@ -8207,17 +10290,23 @@ describe("theme files (DESIGN.md §13.1)", () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.errors.map((e) => (e.kind === "invalid" ? e.path : e.kind)).sort()).toEqual(["roles.agent", "roles.bg"]);
   });
-  it("makes unique ids that follow the id rule", () => {
+  it("makes unique ids that follow the id rule and never take a preset's id", () => {
     expect(newThemeId("My Theme!", new Set())).toBe("my-theme");
     expect(newThemeId("My Theme!", new Set(["my-theme"]))).toBe("my-theme-2");
     expect(newThemeId("夜", new Set())).toBe("theme");
+    expect([newThemeId("Day", new Set()), newThemeId("HC", new Set())]).toEqual(["day-2", "hc-2"]);
+  });
+
+  it("duplicates a preset with its fills as roles, so the primary button keeps the you fill (M3-RT-32)", () => {
+    expect(presetRoles("day")).toMatchObject({ agent: "#7c3aed", you: "#fb923c", attn: "#db2777", bg: "#faf9f6" });
+    expect(deriveTheme({ id: "copy", name: "copy", base: "day", roles: presetRoles("day") })["you-fill"]).toBe("#fb923c");
   });
 });
 ```
 
 `ThemeEditor.test.tsx`: editing the `Text` role's hex field to `#1A2333` (unreadable on the example's background) turns its chip to `Below AA` with the ratio in tabular figures; `Save` then opens a confirmation dialog listing `Text` and its ratio, `Keep editing` closes it without calling `onSave`, `Save anyway` calls `onSave` with the edited roles; an invalid hex (`#12`) disables Save and marks the field invalid; the preview region carries `data-theme="night"` and an inline `--bg` equal to the role (and nothing but hex values in its style); `Import` with a file whose text is the hostile JSON above lists `roles.bg` and `roles.agent` errors and leaves the fields as they were.
 
-`CustomThemes` (in the same test file): `Duplicate & edit` from `Night Control` opens the editor with the night preset roles (`PRESET_TOKENS.night` values for bg, surface, text, agent, you, attn, ok, err) and the name `Night Control copy`; saving adds a theme with a fresh id; deleting the theme in use as the dark theme sets `darkTheme` back to `night` and shows a toast with Undo; with 16 custom themes, `Duplicate & edit` is disabled and says why.
+`CustomThemes` (in the same test file): `Duplicate & edit` from `Night Control` opens the editor (once its chunk has loaded: `vi.waitFor`, 2 s) with `presetRoles("night")` and the name `Night Control copy`; saving adds a theme with a fresh id; deleting the theme in use as the dark theme sets `darkTheme` back to `night` and shows a toast with Undo; with 16 custom themes, `Duplicate & edit` is disabled and says why.
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -8229,7 +10318,8 @@ Expected: FAIL.
 `theme-io.ts`:
 
 ```ts
-import { CustomTheme } from "@pap/contracts";
+import { CustomTheme, PRESET_THEME_IDS } from "@pap/contracts";
+import { PRESET_TOKENS, type ThemeName } from "@pap/ui";
 
 export const MAX_THEME_FILE_BYTES = 16_384;
 const MAX_ERRORS = 20;
@@ -8256,18 +10346,25 @@ export function exportThemeFile(theme: CustomTheme): string {
   return `${JSON.stringify({ name, base, roles }, null, 2)}\n`;
 }
 
-/** T3's id rule (^[a-z0-9][a-z0-9-]{0,47}$), unique among `taken`. */
+/** T3's id rule (^[a-z0-9][a-z0-9-]{0,47}$), unique among `taken` and never a preset's id (M3-RT-09). */
 export function newThemeId(name: string, taken: ReadonlySet<string>): string {
+  const used = new Set<string>([...taken, ...PRESET_THEME_IDS]);
   const slug = name.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "theme";
-  if (!taken.has(slug)) return slug;
-  for (let n = 2; n < 1000; n++) if (!taken.has(`${slug}-${n}`)) return `${slug}-${n}`;
+  if (!used.has(slug)) return slug;
+  for (let n = 2; n < 1000; n++) if (!used.has(`${slug}-${n}`)) return `${slug}-${n}`;
   return `${slug}-${Date.now().toString(36)}`.slice(0, 48);
+}
+
+/** A preset as a custom theme's eight roles: the fills, not the darkened text tones, for agent, you and attention. */
+export function presetRoles(theme: ThemeName): CustomTheme["roles"] {
+  const t = PRESET_TOKENS[theme];
+  return { bg: t.bg, surface: t.surface, text: t.text, agent: t["agent-fill"], you: t["you-fill"], attn: t["attn-fill"], ok: t.ok, err: t.err };
 }
 ```
 
 `ThemeEditor.tsx`: `Dialog` (`settings.theme.editorTitle`) with a name `TextField`, a base `Segmented` (`night`/`day`), one row per role in `THEME_ROLES` order (label `settings.theme.role.<role>`, `<input type="color" aria-label=…>` bound to the role, a hex `TextField` validated against `/^#[0-9a-fA-F]{6}$/`, the role's `RoleCheck` as `Chip tone={passes ? "ok" : "att"} label={passes ? t("settings.theme.aa") : t("settings.theme.belowAa")}` followed by the ratio `formatRatio` (one decimal, `tabular-nums`), and "adjusted to #xxxxxx" when `adjusted`), the fills' checks under them, and a preview `<div data-theme={base} style={tokenVars(deriveTheme(draft))}>` containing a you message, an agent message and a primary button. Save: invalid hex → disabled; any failing check → a second `Dialog` (`settings.theme.confirmTitle` "Save below AA contrast?" / "Enregistrer sous le contraste AA ?", listing the failing roles and ratios) with `Keep editing` and `Save anyway`. Import: a hidden `<input type="file" accept="application/json,.json">` read with `file.text()` after checking `file.size <= MAX_THEME_FILE_BYTES`; errors shown as a list (`settings.theme.importError.*`). Export: `URL.createObjectURL(new Blob([exportThemeFile(theme)], { type: "application/json" }))` on a temporary `<a download="<id>.json">`, revoked right after the click.
 
-`CustomThemes.tsx`: list of `account.customThemes` (name, base chip, Edit / Duplicate / Export / Delete as `IconButton`s with labels), `Import` and `Duplicate & edit` (a `Menu` of the three presets, built from `PRESET_TOKENS` roles), all disabled at 16 themes with `settings.theme.limit` ("16 custom themes at most. Delete one to add another." / "16 thèmes personnalisés au plus. Supprimez-en un pour en ajouter un autre."). Saving a new theme: `setAccount({ ...account, customThemes: [...account.customThemes, { id: newThemeId(name, ids), ...theme }] })`. Deleting the theme in use resets that side to its preset and offers Undo.
+`CustomThemes.tsx`: list of `account.customThemes` (name, base chip, Edit / Duplicate / Export / Delete as `IconButton`s with labels), `Import` and `Duplicate & edit` (a `Menu` of the three presets, built with `presetRoles`; High contrast duplicates on a night base), all disabled at 16 themes with `settings.theme.limit` ("16 custom themes at most. Delete one to add another." / "16 thèmes personnalisés au plus. Supprimez-en un pour en ajouter un autre."). Saving a new theme: `setAccount({ ...account, customThemes: [...account.customThemes, { id: newThemeId(name, ids), ...theme }] })`. Deleting the theme in use resets that side to its preset and offers Undo. The editor dialog renders from `useRetryableLazy(() => import("./ThemeEditor.tsx"))` inside `LazyBoundary` (Task 21's `lib/lazy.tsx`); its `onError` closes the editor, retries next time and calls `notifyLazyFailure` with the translated `shell.lazyFailed` / `shell.reload`.
 
 - [ ] **Step 4: Run the tests**
 
@@ -8290,16 +10387,20 @@ Spec C §7.4: "A keybindings JSON file with `when` clauses, plus an editor in Se
 
 **Files:**
 - Create: `apps/web/src/features/commands/editor/ShortcutsEditor.tsx`, `ShortcutRow.tsx`, `ShortcutRecorder.tsx`, `KeybindingsJson.tsx`, `keybindings-io.ts`, `keybindings-io.test.ts`, `ShortcutsEditor.test.tsx`
-- Modify: `apps/web/src/routes/settings/sections.tsx` (`shortcuts` → `ShortcutsEditor`), `apps/web/src/features/commands/index.ts`, `catalog/commands.ts`
+- Modify: `apps/web/src/routes/settings/sections.tsx` (`shortcuts` → `ShortcutsEditor`), `apps/web/src/features/commands/index.ts` (+ `ShortcutsEditor`), `catalog/commands.ts`
 
 **Interfaces:**
-- Consumes: Tasks 12, 16, 17 (`useKeybindingsStore`, `COMMANDS`, `DEFAULT_KEYBINDINGS`, `chordFromEvent`, `parseChord`, `isReserved`, `conflictsOf`, `chordTokens`, `keyNames`), primitives.
+- Consumes: Tasks 12, 16a, 16b, 17b (`useKeybindingsStore`, `COMMANDS`, `DEFAULT_KEYBINDINGS`, `chordFromEvent`, `parseChord`, `isReserved`, `conflictsOf`, `chordTokens`, `keyNames`), primitives.
 - Produces:
   - `MAX_KEYBINDINGS_FILE_BYTES = 65536`; `parseKeybindingsFile(text: string): { ok: true; rules: KeybindingRule[]; issues: Array<{ index: number; problem: "shape" | "key" | "when" | "command" | "reserved" }> } | { ok: false; error: "too_large" | "not_json" | "not_array" | "too_many" }` (entries that fail the rule shape are reported and dropped; `reserved` is a warning, the rule is kept); `exportKeybindingsFile(rules: readonly KeybindingRule[]): string`.
   - `recordedChordProblem(chord: string, command: string, platform): "no_modifier" | "reserved" | null` (bare keys allowed only for `shortcuts.help` and function keys).
   - `ShortcutsEditor()`.
 
-**Risks / rulings needed:** (a) A conflict is a warning (T3), not a refusal (Orca); a reserved chord is refused by the recorder and only warned in JSON: confirm. (b) No visual `when` builder (T3 has one): `when` is edited in the JSON view only: confirm.
+**Rulings (pre-dispatch):**
+- A conflict is a warning (T3), not a refusal (Orca); a reserved chord is refused by the recorder and only warned in JSON. [M3R119]
+- No visual `when` builder (T3 has one): `when` is edited in the JSON view only. A recorded chord keeps the command's default `when` clause (so `!panelFocus` and the rest survive a rebinding); a rule written in JSON without `panelFocus` still never fires inside a terminal-input panel (Task 16b's guard). [M3R120]
+- The recorder stores digits and punctuation by physical key (owner R3-7, Task 16a). [M3R68]
+- The editor is part of the lazy Settings chunk (Task 24), not a chunk of its own: it only shows inside Settings. [M3R121]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8344,11 +10445,11 @@ describe("keybindings files", () => {
 });
 ```
 
-(Rules whose `key` or `when` do not parse are kept in `rules` — they are the user's text — and reported; `mergeWithDefaults` drops them at use, exactly as Task 16 does.)
+(Rules whose `key` or `when` do not parse are kept in `rules` — they are the user's text — and reported; `mergeWithDefaults` drops them at use, exactly as Task 16b does.)
 
 `ShortcutsEditor.test.tsx` (`// @vitest-environment happy-dom`, platform `other`):
 - the `Open the command palette` row shows `Ctrl` `K` and a `Default` badge; searching `palette` leaves that row only.
-- `Change` on that row turns into a pressed recorder reading `Press keys…`; pressing `Ctrl+Shift+P` saves the user rule `{ key: "mod+shift+p", command: "palette.toggle" }` (store `user`), the row shows `Custom` and `Ctrl` `Shift` `P`; the dispatcher (installed in the test) did not run the palette handler for that keypress.
+- `Change` on that row turns into a pressed recorder reading `Press keys…`; pressing `Ctrl+Shift+P` saves the user rule `{ key: "mod+shift+p", command: "palette.toggle", when: "!panelFocus" }` (store `user`; the default's clause is kept), the row shows `Custom` and `Ctrl` `Shift` `P`; the dispatcher (installed in the test) did not run the palette handler for that keypress.
 - in the recorder, `Escape` cancels without a change; `Q` alone says `Include at least one modifier key.`; `Ctrl+W` says `Your browser keeps this shortcut. Choose another.` and saves nothing.
 - binding `Ctrl+B` to `Open the command palette` shows `Conflicts with Toggle the session tree` on both rows.
 - `Reset` removes the user rules of that command (back to `Default`); `Remove` writes `{ key: "none", command }` and the row reads `Not assigned`.
@@ -8365,7 +10466,7 @@ Expected: FAIL.
 
 `ShortcutRecorder.tsx`: `<button type="button" data-shortcut-recorder aria-pressed={recording}>`; while recording, `onKeyDown` calls `preventDefault` and `stopPropagation` on everything; Escape cancels; a lone modifier does nothing; otherwise `chordFromEvent` → `recordedChordProblem` → error text or `onRecord(chord)`. Blur cancels.
 
-`ShortcutsEditor.tsx`: search `TextField`; groups by `COMMANDS[].group` (`commands.group.*` headings); rows (`ShortcutRow`): title, the effective chord tokens (`Kbd`), the badge (`Default` / `Custom`, `Chip tone="mut"` / `"run"`), warnings from `conflictsOf` (`commands.editor.conflict`, "Conflicts with {commands}" — the command titles joined by the locale's list format via `Intl.ListFormat`, no hand-made concatenation) and `isReserved`, then `Change`, `Reset` (shown for custom rows), `Remove`. Writes go through `useKeybindingsStore.getState().setUser(next)` (new `user` array: the recorded rule replaces the user rules of that command). `KeybindingsJson.tsx`: a `Collapsible` "Edit as JSON" with a mono `TextField multiline` holding `exportKeybindingsFile(user)`, `Apply` (parse → `setUser(rules)` + issue list `commands.editor.issue.<problem>` with `{ index: index + 1 }`), `Import` (file ≤ 64 KiB, same path), `Export` (blob download as in Task 26).
+`ShortcutsEditor.tsx`: search `TextField`; groups by `COMMANDS[].group` (`commands.group.*` headings); rows (`ShortcutRow`): title, the effective chord tokens (`Kbd`), the badge (`Default` / `Custom`, `Chip tone="mut"` / `"run"`), warnings from `conflictsOf` (`commands.editor.conflict`, "Conflicts with {commands}" — the command titles joined by the locale's list format via `Intl.ListFormat`, no hand-made concatenation) and `isReserved`, then `Change`, `Reset` (shown for custom rows), `Remove`. Writes go through `useKeybindingsStore.getState().setUser(next)` (new `user` array: the recorded rule replaces the user rules of that command and carries the `when` of the command's first default rule, if any). `KeybindingsJson.tsx`: a `Collapsible` "Edit as JSON" with a mono `TextField multiline` holding `exportKeybindingsFile(user)`, `Apply` (parse → `setUser(rules)` + issue list `commands.editor.issue.<problem>` with `{ index: index + 1 }`), `Import` (file ≤ 64 KiB, same path), `Export` (blob download as in Task 26).
 
 - [ ] **Step 4: Run the tests**
 
@@ -8381,26 +10482,29 @@ git commit -m "feat(commands): keyboard shortcuts editor with recorder, conflict
 ```
 
 ---
-# Phase 8 — Gallery, browser journeys, budgets
+# Phase 8 — Gallery, budgets, docs
 
 ### Task 28: `/dev/ui` gallery — every component, three themes, three densities
 
-DESIGN.md §9.2: "Every component is shown in /dev/ui in all three themes and three densities. The page returns 404 in production and sits behind auth." The gallery is a dev-only pane behind the auth gate (`/dev/ui` exists only when `import.meta.env.DEV`); production builds do not contain it, and `/dev/ui` there shows the not-found screen (the SPA fallback answers 200, so ADR 0007 records the deviation from "404"). Screenshots (Task 31) use a standalone, test-only gallery build served by `vite preview`, never by the daemon. Themes and densities are applied to the gallery's own frames: every token selector is an attribute selector (Task 1), so `[data-theme]`/`[data-density]` on a wrapper re-themes its subtree.
+DESIGN.md §9.2: "Every component is shown in /dev/ui in all three themes and three densities. The page returns 404 in production and sits behind auth." The gallery is a dev-only pane behind the auth gate (`/dev/ui` exists only when `import.meta.env.DEV`); production builds do not contain it, and `/dev/ui` there shows the not-found screen (the SPA fallback answers 200, so ADR 0011 records the deviation from "404", owner M3-Q5). Themes and densities are applied to the gallery's own frames: every token selector is an attribute selector (Task 1a), so `[data-theme]`/`[data-density]` on a wrapper re-themes its subtree (`@theme inline`, M3R6). The standalone, test-only gallery build that the screenshots needed is deferred with them (owner C1). The gallery's test doubles as the headless touch-target probe: every interactive element it renders carries a 44-px coarse-pointer class (DESIGN §5), checked as classes since no browser measures layout in M3.
 
 **Files:**
-- Create: `apps/web/src/gallery/Gallery.tsx`, `GalleryFrame.tsx`, `sections/BrandSection.tsx`, `sections/PrimitivesSection.tsx`, `sections/AiSection.tsx`, `fixtures.ts`, `main.tsx`, `Gallery.test.tsx`
-- Create: `apps/web/gallery.html`, `apps/web/vite.gallery.config.ts`, `docs/adr/0007-dev-ui-not-shipped.md`
-- Modify: `apps/web/package.json` (`build:gallery` script), `apps/web/src/routes/shell/pane-renderers.tsx` (`dev-ui`), `eslint.config.js` (element `web-gallery`, ignore `**/dist-gallery/**`), `knip.json`, `.gitignore` (append `apps/web/dist-gallery/`), `.prettierignore` (append `apps/web/dist-gallery/`), `catalog/gallery.ts`
+- Create: `apps/web/src/gallery/Gallery.tsx`, `GalleryFrame.tsx`, `sections/BrandSection.tsx`, `sections/PrimitivesSection.tsx`, `sections/AiSection.tsx`, `fixtures.ts`, `Gallery.test.tsx`
+- Create: `docs/adr/0011-dev-ui-not-shipped.md`
+- Modify: `apps/web/src/routes/shell/pane-renderers.tsx` (`dev-ui`), `eslint.config.js` (element `web-gallery`), `catalog/gallery.ts`
 
 **Interfaces:**
 - Consumes: every export of `@pap/ui`; `useT`.
 - Produces:
-  - `Gallery({ standalone?: boolean })` — controls (theme `Segmented` night/day/hc, density `Segmented` compact/comfortable/mixed, an "all nine" switch), initial values from `?theme=&density=` (unknown values fall back to night/compact); each section is `<section data-gallery-section="brand|primitives|ai">`, each component instance is wrapped in `<figure data-gallery-item="<ExportName>">` with a caption.
-  - `GalleryFrame({ theme: ThemeName; density: Density; children })` → `<div data-theme data-density className="bg-grid text-fg …">`.
-  - `pnpm --filter @pap/web build:gallery` → `apps/web/dist-gallery/gallery.html`.
+  - `Gallery()` — controls (theme `Segmented` night/day/hc, density `Segmented` compact/comfortable/mixed, an "all nine" switch), initial values from `?theme=&density=&all=` (unknown values fall back to night/compact); each section is `<section data-gallery-section="brand|primitives|ai">`, each component instance is wrapped in `<figure data-gallery-item="<ExportName>">` with a caption.
+  - `GalleryFrame({ theme: ThemeName; density: Density; children })` → `<div data-slot="gallery-frame" data-theme data-density className="bg-grid text-fg …">`.
   - Boundary element `web-gallery` (`apps/web/src/gallery`): may import `ui`, `web-i18n`, `web-gallery`; `web-routes` may import it.
 
-**Risks / rulings needed:** (a) ADR 0007's reading of "returns 404 in production" (route not shipped, SPA not-found screen, no daemon change): owner question Q5. (b) Overlays (dialogs, sheets, menus, toasts, tooltips) are opened from buttons in the gallery and are not part of the screenshots (a modal would cover the page); journeys cover them: confirm.
+**Rulings (pre-dispatch):**
+- `/dev/ui` in production is the SPA's not-found screen (HTTP 200), recorded in ADR 0011; no daemon route (owner M3-Q5). [M3R122]
+- Overlays (dialogs, sheets, menus, toasts, tooltips) are opened from buttons in the gallery; with no screenshots in M3 that is only how they are shown. [M3R123]
+- The standalone gallery build (`gallery.html`, `vite.gallery.config.ts`, `src/gallery/main.tsx`, `build:gallery`, `dist-gallery/`) is deferred with the visual regression it served (owner C1); whoever adds it applies M3-RT-33 (no `csp-safe-zod` import in the gallery entry; the config in a tsconfig `include`). [M3R124]
+- DESIGN §5's 44 × 44 px rule is checked headless as classes: every interactive element the gallery renders (or its parent or grandparent) carries `pointer-coarse:size-11`, `pointer-coarse:min-h-11` or `pointer-coarse:h-11`; hidden elements (`aria-hidden="true"` or inside one, `hidden`) and links inside rendered markdown prose (WCAG 2.5.8's inline exception) are skipped. It proves the classes are present, not the computed size: the measured probe returns with the deferred browser work. [M3R125]
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -8418,36 +10522,52 @@ const components = Object.entries(ui)
   .filter(([name, value]) => typeof value === "function" && /^[A-Z]/.test(name) && !name.startsWith("Icon") && !NOT_SHOWN.has(name))
   .map(([name]) => name);
 
+const INTERACTIVE = 'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
+const COARSE_TARGET = /(?:^|\s)pointer-coarse:(?:size-11|min-h-11|h-11)(?:\s|$)/;
+
 describe("/dev/ui gallery", () => {
   it("shows every component @pap/ui exports", async () => {
-    const page = await mount(<Gallery standalone />);
+    const page = await mount(<Gallery />);
     const shown = new Set([...page.container.querySelectorAll("[data-gallery-item]")].map((el) => el.getAttribute("data-gallery-item")));
     expect(components.filter((name) => !shown.has(name))).toEqual([]);
     await page.unmount();
   });
 
   it("starts from the theme and density of the address, and falls back on unknown ones", async () => {
-    window.history.replaceState(null, "", "/gallery.html?theme=hc&density=comfortable");
-    const page = await mount(<Gallery standalone />);
-    const frame = page.container.querySelector("[data-theme]");
+    window.history.replaceState(null, "", "/dev/ui?theme=hc&density=comfortable");
+    const page = await mount(<Gallery />);
+    const frame = page.container.querySelector('[data-slot="gallery-frame"]');
     expect([frame?.getAttribute("data-theme"), frame?.getAttribute("data-density")]).toEqual(["hc", "comfortable"]);
     await page.unmount();
-    window.history.replaceState(null, "", "/gallery.html?theme=sepia&density=huge");
-    const fallback = await mount(<Gallery standalone />);
-    expect(fallback.container.querySelector("[data-theme]")?.getAttribute("data-theme")).toBe("night");
+    window.history.replaceState(null, "", "/dev/ui?theme=sepia&density=huge");
+    const fallback = await mount(<Gallery />);
+    expect(fallback.container.querySelector('[data-slot="gallery-frame"]')?.getAttribute("data-theme")).toBe("night");
     await fallback.unmount();
   });
 
   it("renders nine frames when asked for all", async () => {
-    window.history.replaceState(null, "", "/gallery.html?all=1");
-    const page = await mount(<Gallery standalone />);
+    window.history.replaceState(null, "", "/dev/ui?all=1");
+    const page = await mount(<Gallery />);
     expect(page.container.querySelectorAll('[data-slot="gallery-frame"]')).toHaveLength(9);
+    await page.unmount();
+  });
+
+  it("gives every interactive element a 44-px coarse-pointer class (DESIGN §5, classes only)", async () => {
+    window.history.replaceState(null, "", "/dev/ui");
+    const page = await mount(<Gallery />);
+    const bare = [...page.container.querySelectorAll(INTERACTIVE)]
+      .filter((el) => !el.closest('[aria-hidden="true"], [hidden]'))
+      // Links inside running text are exempt (WCAG 2.5.8's inline exception): a prose link cannot be 44 px tall.
+      .filter((el) => !el.closest("[data-markdown-body]"))
+      .filter((el) => ![el, el.parentElement, el.parentElement?.parentElement].some((node) => node && COARSE_TARGET.test(node.getAttribute("class") ?? "")))
+      .map((el) => `${el.closest("[data-gallery-item]")?.getAttribute("data-gallery-item") ?? "?"}: <${el.tagName.toLowerCase()} ${el.getAttribute("aria-label") ?? el.textContent?.slice(0, 20) ?? ""}>`);
+    expect(bare).toEqual([]);
     await page.unmount();
   });
 });
 ```
 
-(Components that need a provider render inside the gallery's own `TooltipProvider`; `Dialog`, `Menu`, `toast` show as buttons that open them, wrapped in their `data-gallery-item` figure.)
+(Components that need a provider render inside the gallery's own `TooltipProvider`; `Dialog`, `Menu`, `toast` show as buttons that open them, wrapped in their `data-gallery-item` figure. If the probe names an element, fix the component's classes, never the probe.)
 
 - [ ] **Step 2: Run them to see them fail**
 
@@ -8456,717 +10576,82 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-Sections show, with sample content from `fixtures.ts` (data, exempt from the literal gate): Brand (`Mark` 16/24/48 and `mode="day"`, `Wordmark` with tagline); Primitives (`Button` × 4 variants × 2 sizes + disabled, a `Spinner`, `IconButton` ghost/secondary with a badge, `Tooltip` trigger, `Kbd`, `TextField` with hint and error, `Select`, `Switch`, `Checkbox`, `Slider`, `Segmented`, `Chip` × 6 tones, `Badge` 3 / 120, `Avatar` × 3 styles × presence, `Meter` tokens/cost, `ProgressBar` determinate/indeterminate, `Banner` × 4, `EmptyState`, `OpenTab` active/idle/running, `Collapsible`, buttons opening `Dialog` (center, sheet, drawer-left, drawer-right, palette), `Menu`, and a `toast` with Undo); AI (`Message` you/agent/tool with meta and actions, `MessageBranch`, `AuthorGroup`, `DaySeparator`, `RunStatusChip` × 5, `Fence`, `Reasoning` streaming and settled, `ToolCard` × 3 details + running + error, `ApprovalCard` two-answer and four-answer with taint and context). Every visible chrome string goes through `useT` (`gallery.*` keys); sample content does not.
+Sections show, with sample content from `fixtures.ts` (data, exempt from the literal gate): Brand (`Mark` 16/24/48 and `mode="day"`, `Wordmark` with tagline); Primitives (`Button` × 4 variants × 2 sizes + disabled, a `Spinner`, `IconButton` ghost/secondary with a badge, `Tooltip` trigger, `Kbd`, `TextField` with hint and error, `Select`, `Switch`, `Checkbox`, `Slider`, `Segmented`, `Chip` × 6 tones, `Badge` 3 / 120, `Avatar` × 3 styles × presence, `Meter` tokens/cost, `ProgressBar` determinate/indeterminate, `Banner` × 4, `EmptyState`, `OpenTab` active/idle/running, `Collapsible`, buttons opening `Dialog` (center, sheet, drawer-left, drawer-right, palette), `Menu`, and a `toast` with Undo); AI (`Message` you/agent/tool with meta and actions, an agent `Message` whose body is `Markdown` with a list, a link and a fenced TypeScript block, `MessageBranch`, `AuthorGroup`, `DaySeparator`, `RunStatusChip` × 5, `Fence`, `Reasoning` streaming and settled, `ToolCard` × 3 details + running + error, `ApprovalCard` with the M1 props and with `answers` (all four, taint and context)). Every visible chrome string goes through `useT` (`gallery.*` keys); sample content does not.
 
-`main.tsx` (standalone entry, test artifact):
+`pane-renderers.tsx`: `"dev-ui": () => (DevGallery ? <Suspense fallback={null}><DevGallery /></Suspense> : <NotFound />)` with `const DevGallery = import.meta.env.DEV ? lazy(() => import("../../gallery/Gallery.tsx").then((m) => ({ default: () => <m.Gallery /> }))) : null;` (dev only, never shipped: Task 32 proves the production build holds none of it; a dev chunk needs no `LazyBoundary`).
 
-```tsx
-import "../csp-safe-zod.ts";
-import { Toaster, TooltipProvider } from "@pap/ui";
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-import { t } from "../i18n/index.ts";
-import "../styles.css";
-import { Gallery } from "./Gallery.tsx";
-
-const root = document.getElementById("root");
-if (!root) throw new Error("#root is missing from gallery.html");
-createRoot(root).render(
-  <StrictMode>
-    <TooltipProvider>
-      <Gallery standalone />
-      <Toaster closeLabel={t("ui.dismiss")} />
-    </TooltipProvider>
-  </StrictMode>,
-);
-```
-
-`apps/web/gallery.html`: the `index.html` head (charset, viewport, color-scheme, `<title>pap · UI gallery</title>`) and `<script type="module" src="/src/gallery/main.tsx"></script>`.
-
-`apps/web/vite.gallery.config.ts`:
-
-```ts
-import { defineConfig, mergeConfig } from "vite";
-import base from "./vite.config.ts";
-
-// A test artifact for the screenshots of Task 31: the gallery alone, built next to (never into) the shipped dist.
-export default mergeConfig(
-  base,
-  defineConfig({
-    build: { outDir: "dist-gallery", emptyOutDir: true, rollupOptions: { input: "gallery.html" } },
-    preview: { host: "127.0.0.1", port: 7795, strictPort: true },
-  }),
-);
-```
-
-`apps/web/package.json` scripts: `"build:gallery": "vite build --config vite.gallery.config.ts"`.
-
-`pane-renderers.tsx`: `"dev-ui": () => (DevGallery ? <Suspense fallback={null}><DevGallery /></Suspense> : <NotFound />)` with `const DevGallery = import.meta.env.DEV ? lazy(() => import("../../gallery/Gallery.tsx").then((m) => ({ default: () => <m.Gallery /> }))) : null;` (Task 32 proves the production build ships none of it).
-
-`docs/adr/0007-dev-ui-not-shipped.md`:
+`docs/adr/0011-dev-ui-not-shipped.md`:
 
 ```markdown
-# 0007 — /dev/ui is not shipped; unknown routes show the not-found screen
+# ADR 0011 — /dev/ui is not shipped; unknown routes show the not-found screen
 
-Date: 2026-10-11 · Status: accepted · Deviation from: DESIGN.md §9.2 ("The page returns 404 in production and sits behind auth")
+Status: accepted · Date: 2026-10-11 · Spec: DESIGN.md §9.2 ("The page returns 404 in production and sits behind auth") · Owner decision: M3-Q5
 
 ## Context
 The daemon answers every navigation outside the reserved prefixes with index.html (R78): the SPA, not the server, decides what a
 path shows. A literal HTTP 404 for /dev/ui would need a daemon route for a page that only exists in development.
 
 ## Decision
-The gallery code is compiled only when `import.meta.env.DEV` is true. In a production build, /dev/ui is an unknown path: the app shows
-its not-found screen (HTTP 200 from the SPA fallback). In development the gallery is a pane behind the auth gate. Visual regression
-(Task 31) screenshots a separate, test-only build of the gallery (`build:gallery`, `apps/web/dist-gallery`) served by `vite preview`.
+The gallery code is compiled only when `import.meta.env.DEV` is true. In a production build, /dev/ui is an unknown path: the app
+shows its not-found screen (HTTP 200 from the SPA fallback). In development the gallery is a pane behind the auth gate. M3 has no
+standalone gallery build: visual regression, which needed one, is deferred with the browser e2e (owner decision C1).
 
 ## Consequences
 Nothing of the gallery reaches users; the build-output test checks it. If the owner wants a real 404, the daemon gains one reserved
 path; nothing in the web app changes.
 ```
 
-`eslint.config.js`: element `{ type: "web-gallery", pattern: "apps/web/src/gallery" }`, rule `{ from: "web-gallery", allow: ["web-gallery", "ui", "web-i18n"] }`, `"web-gallery"` added to `web-routes`' allow list, and `"**/dist-gallery/**"` added to `ignores`. `knip.json` `apps/web` entries gain `"gallery.html"`, `"vite.gallery.config.ts"`, `"src/gallery/main.tsx"`.
+`eslint.config.js`: element `{ type: "web-gallery", pattern: "apps/web/src/gallery" }`, rule `{ from: "web-gallery", allow: ["web-gallery", "ui", "web-i18n"] }`, and `"web-gallery"` added to `web-routes`' allow list.
 
-- [ ] **Step 4: Run the tests and the build**
+- [ ] **Step 4: Run the tests**
 
-Run: `pnpm test:unit apps/web && pnpm --filter @pap/web build:gallery && ls apps/web/dist-gallery/gallery.html && pnpm lint && pnpm knip`
-Expected: PASS; the gallery file exists.
-
-- [ ] **Step 5: Commit**
-
-```bash
-pnpm format
-git add apps/web eslint.config.js knip.json .gitignore .prettierignore docs/adr/0007-dev-ui-not-shipped.md
-git commit -m "feat(ui): /dev/ui gallery of every component in three themes and three densities"
-```
-
----
-
-### Task 29: Playwright in the official container — runner, config, daemons, guards
-
-The host is a headless VPS without Chrome, libatk or sudo. Browsers run **inside** the official image `mcr.microsoft.com/playwright:v<version>-noble` (R51), pinned to the exact `@playwright/test` version, started with rootless podman locally (docker in CI, same image). The image runs `playwright run-server`; the test runner, the global setup and the daemons run on the host with its Node 24 (the image's Node may be older than the daemon's floor). The browser reaches the daemons through Playwright's documented `connectOptions.exposeNetwork: "<loopback>"`, which tunnels the browser's `localhost` requests back to the client side, so no `--network host` is needed; `PAP_E2E_NETWORK=host` switches to `--network host` if a podman setup blocks the tunnel (R51's fallback). This brings back the Playwright pieces M1 removed (R128), deliberately.
-
-**Files:**
-- Create: `scripts/e2e.ts`, `scripts/e2e-config.test.ts`, `playwright.config.ts`
-- Create: `e2e/state.ts`, `e2e/global-setup.ts`, `e2e/global-teardown.ts`, `e2e/guards.ts`, `e2e/auth.ts`, `e2e/fixtures/approval-script.json`, `e2e/smoke.spec.ts`
-- Modify: root `package.json` (`@playwright/test`, script `e2e`), `pnpm-lock.yaml`, `tsconfig.json` (include `e2e/**/*.ts`), `knip.json` (e2e entries, `ignoreBinaries` podman/docker), `.gitignore` (append `e2e/.state/`)
-
-**Interfaces:**
-- Consumes: the built daemon (`apps/daemon/dist/main.js`) and worker, `apps/web/dist`, `apps/web/dist-gallery` (Task 28), `packages/pi-host/src/testing/network-guard.ts` (as `pnpm smoke` uses it), the daemon's `setup_url` / `listening` log lines.
-- Produces:
-  - `pnpm e2e [playwright args]`: pulls the image (`PAP_E2E_SKIP_PULL=1` skips), starts the browser server, runs `playwright test`, always stops the container. Env: `PAP_E2E_RUNTIME` (`podman` default, `docker` in CI), `PAP_E2E_NETWORK` (`tunnel` default, `host`).
-  - `E2E_PORTS = { chromium: 7791, webkit: 7792, "chromium-phone": 7793, "webkit-phone": 7794 }`, `GALLERY_PORT = 7795`, `DaemonState { setupUrl; cwd; pid; root }`, `readState(project)`.
-  - `installGuards(page)`, `expectCleanScreen(page, options?: { coarse?: boolean })` (zero CSP violations, zero console errors, no element with a native `title`, and on coarse pointers every visible interactive element at least 44 × 44 px).
-  - `ensureSignedIn(page, state)` (creates the owner from the setup link on first use, signs in otherwise).
-
-**Risks / rulings needed:** (a) `npx -y playwright@<version> run-server` inside the container fetches the package from the npm registry at each container start (the image ships browsers, not the npm package); CI has network, locally it is one download per run: confirm, or rule a derived image with the package baked in. (b) The image tag `v<version>-noble` must exist for the version pnpm resolves under `minimumReleaseAge` (Microsoft publishes one per release; the runner fails with the pull error otherwise). (c) If `exposeNetwork` does not reach the host daemons under rootless podman, the fallback is `--network host` (R51): the implementer records which one this host needed.
-
-- [ ] **Step 1: Add Playwright and pin the image to it**
-
-Run: `pnpm add -Dw -E @playwright/test`
-Record the version pnpm chose (it is the image tag). No `playwright install`: the host never downloads browsers.
-
-- [ ] **Step 2: Write the failing config test**
-
-`scripts/e2e-config.test.ts`:
-
-```ts
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { parse } from "yaml";
-import { containerArgs, imageFor } from "./e2e.ts";
-
-const root = (path: string) => new URL(`../${path}`, import.meta.url);
-const pkg = JSON.parse(readFileSync(root("package.json"), "utf8")) as { devDependencies: Record<string, string>; scripts: Record<string, string> };
-
-describe("e2e wiring (R51)", () => {
-  it("pins @playwright/test exactly and derives the image tag from it", () => {
-    const version = pkg.devDependencies["@playwright/test"] ?? "";
-    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
-    expect(imageFor(version)).toBe(`mcr.microsoft.com/playwright:v${version}-noble`);
-  });
-
-  it("publishes the browser server on loopback only, or shares the host network when asked", () => {
-    expect(containerArgs({ name: "n", image: "i", version: "1.2.3", port: 4567, network: "tunnel" })).toEqual(["run", "-d", "--rm", "--init", "--name", "n", "-p", "127.0.0.1:4567:3000", "i", "/bin/sh", "-c", "cd /home/pwuser && npx -y playwright@1.2.3 run-server --port 3000 --host 0.0.0.0"]);
-    expect(containerArgs({ name: "n", image: "i", version: "1.2.3", port: 4567, network: "host" })).toEqual(["run", "-d", "--rm", "--init", "--name", "n", "--network", "host", "i", "/bin/sh", "-c", "cd /home/pwuser && npx -y playwright@1.2.3 run-server --port 4567 --host 127.0.0.1"]);
-  });
-
-  it("never uses the dev port 30141 and runs in CI with docker", () => {
-    const config = readFileSync(root("playwright.config.ts"), "utf8") + readFileSync(root("e2e/state.ts"), "utf8");
-    expect(config).not.toContain("30141");
-    expect(pkg.scripts.e2e).toBe("node --disable-warning=ExperimentalWarning scripts/e2e.ts");
-    const ci = parse(readFileSync(root(".github/workflows/ci.yml"), "utf8")) as { jobs: Record<string, { env?: Record<string, string>; steps: Array<{ run?: string }>; "timeout-minutes"?: number }> };
-    expect(ci.jobs.e2e?.env?.PAP_E2E_RUNTIME).toBe("docker");
-    expect(ci.jobs.e2e?.steps.some((step) => step.run === "pnpm e2e")).toBe(true);
-    expect(ci.jobs.e2e?.["timeout-minutes"]).toBeLessThanOrEqual(25);
-  });
-});
-```
-
-(The last case passes only after Task 30 adds the CI job: mark it `it.todo` in this task's commit, and turn it into `it` in Task 30.)
-
-Run: `pnpm test:unit scripts/e2e-config.test.ts`
-Expected: FAIL (module missing).
-
-- [ ] **Step 3: Write the runner**
-
-`scripts/e2e.ts`:
-
-```ts
-// Runs the Playwright suite with the browsers inside the official image (R51): this host has no Chrome, libatk or sudo.
-// The image runs `playwright run-server`; the tests, the global setup and the daemons stay on the host (Node 24).
-import { execFile, spawn } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { createServer } from "node:net";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
-
-const run = promisify(execFile);
-const REPO = fileURLToPath(new URL("..", import.meta.url));
-const READY_MS = 120_000; // the first start downloads the npm package inside the container
-const STOP_MS = 20_000;
-const REQUIRED = ["apps/daemon/dist/main.js", "packages/pi-host/dist/main.js", "apps/web/dist/index.html", "apps/web/dist-gallery/gallery.html"];
-
-export const imageFor = (version: string): string => `mcr.microsoft.com/playwright:v${version}-noble`;
-
-export function containerArgs(o: { name: string; image: string; version: string; port: number; network: "tunnel" | "host" }): string[] {
-  const listen = o.network === "host" ? `--port ${o.port} --host 127.0.0.1` : "--port 3000 --host 0.0.0.0";
-  const net = o.network === "host" ? ["--network", "host"] : ["-p", `127.0.0.1:${o.port}:3000`];
-  return ["run", "-d", "--rm", "--init", "--name", o.name, ...net, o.image, "/bin/sh", "-c", `cd /home/pwuser && npx -y playwright@${o.version} run-server ${listen}`];
-}
-
-function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      server.close(() => (typeof address === "object" && address && address.port !== 30141 ? resolve(address.port) : reject(new Error("no usable port"))));
-    });
-  });
-}
-
-async function waitReady(port: number): Promise<void> {
-  const deadline = Date.now() + READY_MS;
-  while (Date.now() < deadline) {
-    try {
-      // run-server answers any HTTP request (with an error status): an answer means it is listening.
-      await fetch(`http://127.0.0.1:${port}/`, { signal: AbortSignal.timeout(2000) });
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-  }
-  throw new Error(`the browser server did not answer within ${READY_MS / 1000} s`);
-}
-
-async function main(): Promise<number> {
-  const missing = REQUIRED.filter((file) => !existsSync(join(REPO, file)));
-  if (missing.length > 0) {
-    console.error(`e2e: build first (pnpm build && pnpm --filter @pap/web build:gallery); missing: ${missing.join(", ")}`);
-    return 1;
-  }
-  const runtime = process.env.PAP_E2E_RUNTIME === "docker" ? "docker" : "podman";
-  const network = process.env.PAP_E2E_NETWORK === "host" ? "host" : "tunnel";
-  const version = (JSON.parse(readFileSync(join(REPO, "node_modules/@playwright/test/package.json"), "utf8")) as { version: string }).version;
-  const image = imageFor(version);
-  if (process.env.PAP_E2E_SKIP_PULL !== "1") await run(runtime, ["pull", "--quiet", image], { timeout: 600_000 });
-  const port = await freePort();
-  const name = `pap-e2e-${process.pid}-${Date.now().toString(36)}`;
-  await run(runtime, containerArgs({ name, image, version, port, network }), { timeout: 60_000 });
-  const stop = async () => {
-    await run(runtime, ["stop", "-t", "5", name], { timeout: STOP_MS }).catch((error: unknown) => console.error(`e2e: could not stop ${name}: ${String(error)}`));
-  };
-  const onSignal = () => void stop().finally(() => process.exit(130));
-  process.once("SIGINT", onSignal);
-  process.once("SIGTERM", onSignal);
-  try {
-    await waitReady(port);
-    const child = spawn("pnpm", ["exec", "playwright", "test", ...process.argv.slice(2)], {
-      cwd: REPO,
-      stdio: "inherit",
-      env: { ...process.env, PAP_E2E_WS_ENDPOINT: `ws://127.0.0.1:${port}/`, PAP_E2E_NETWORK: network },
-    });
-    return await new Promise<number>((resolve) => child.once("exit", (code) => resolve(code ?? 1)));
-  } catch (error) {
-    const logs = await run(runtime, ["logs", "--tail", "40", name]).catch(() => ({ stdout: "", stderr: "" }));
-    console.error(`e2e: ${error instanceof Error ? error.message : String(error)}\n${logs.stdout}${logs.stderr}`);
-    return 1;
-  } finally {
-    await stop();
-  }
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  main().then(
-    (code) => process.exit(code),
-    (error: unknown) => {
-      console.error(`e2e: ${error instanceof Error ? error.message : String(error)}`);
-      process.exit(1);
-    },
-  );
-}
-```
-
-`playwright.config.ts`:
-
-```ts
-import { defineConfig, devices } from "@playwright/test";
-import { E2E_PORTS, GALLERY_PORT } from "./e2e/state.ts";
-
-const ws = process.env.PAP_E2E_WS_ENDPOINT;
-// Browsers live in the Playwright container; exposeNetwork tunnels their localhost back to this host (R51).
-const connect = ws ? { connectOptions: { wsEndpoint: ws, exposeNetwork: process.env.PAP_E2E_NETWORK === "host" ? undefined : "<loopback>" } } : {};
-
-export default defineConfig({
-  testDir: "e2e",
-  fullyParallel: false,
-  workers: 1,
-  retries: process.env.CI ? 1 : 0,
-  timeout: 60_000,
-  globalSetup: "./e2e/global-setup.ts",
-  globalTeardown: "./e2e/global-teardown.ts",
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
-  snapshotPathTemplate: "{testDir}/__screenshots__/{arg}{ext}",
-  expect: { toHaveScreenshot: { animations: "disabled", maxDiffPixelRatio: 0.002 } },
-  use: { trace: "retain-on-failure", ...connect },
-  webServer: {
-    command: "pnpm --filter @pap/web exec vite preview --config vite.gallery.config.ts",
-    url: `http://127.0.0.1:${GALLERY_PORT}/gallery.html`,
-    reuseExistingServer: false,
-    timeout: 60_000,
-  },
-  projects: [
-    { name: "chromium", testIgnore: /gallery|phone/, use: { ...devices["Desktop Chrome"], baseURL: `http://localhost:${E2E_PORTS.chromium}` } },
-    { name: "webkit", testIgnore: /gallery|phone/, use: { ...devices["Desktop Safari"], baseURL: `http://localhost:${E2E_PORTS.webkit}` } },
-    { name: "chromium-phone", testMatch: /phone|smoke/, use: { ...devices["Pixel 7"], baseURL: `http://localhost:${E2E_PORTS["chromium-phone"]}` } },
-    { name: "webkit-phone", testMatch: /phone|smoke/, use: { ...devices["iPhone 13"], baseURL: `http://localhost:${E2E_PORTS["webkit-phone"]}` } },
-    { name: "gallery", testMatch: /gallery/, use: { ...devices["Desktop Chrome"], baseURL: `http://localhost:${GALLERY_PORT}` } },
-  ],
-});
-```
-
-`e2e/state.ts`: `E2E_PORTS`, `GALLERY_PORT = 7795`, `DaemonState`, `statePath(project)`, `readState(project)` (as M1 Task 27, four projects).
-
-`e2e/global-setup.ts`: M1 Task 27's `startDaemon`, changed for the checklist: the environment is built like `scripts/smoke-dist.ts` (only `PATH`, `LANG`, a temporary `HOME`, `PAP_HOME`, `PI_CODING_AGENT_DIR`, `PI_OFFLINE=1`, `PI_TELEMETRY=0`, `PAP_TEST_PROVIDER_SCRIPT`, `PAP_TEST_WORKER_IMPORT` = the network guard), the daemon is started with `--disable-warning=ExperimentalWarning --import=<network guard>`; the 20 s deadline timer is cleared on every path; an early exit rejects with the last 40 output lines; `pid` must be `> 1` before it is recorded; a failing start of one daemon stops the ones already started and removes their temporary roots (`finally`).
-
-`e2e/global-teardown.ts`: for each state file, `expect`-free guard `if (!(state.pid > 1)) continue;`, `process.kill(-state.pid, "SIGTERM")` in `try`, wait for exit up to 10 s (poll `process.kill(pid, 0)` with a deadline), then `SIGKILL` the group if still alive, then `rmSync(state.root, { recursive: true, force: true })` in `finally`.
-
-`e2e/guards.ts`:
-
-```ts
-import { expect, type Page } from "@playwright/test";
-
-/** Collects CSP violations and console errors from the first script on (R74, R118). */
-export async function installGuards(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const store = ((window as unknown as { __pap: { csp: string[] } }).__pap = { csp: [] });
-    document.addEventListener("securitypolicyviolation", (event) => store.csp.push(`${event.violatedDirective} ${event.blockedURI}`.slice(0, 200)));
-  });
-  const errors: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") errors.push(message.text().slice(0, 200));
-  });
-  page.on("pageerror", (error) => errors.push(String(error).slice(0, 200)));
-  (page as Page & { __papErrors?: string[] }).__papErrors = errors;
-}
-
-/** "Design-system lint clean on every screen", the part a browser has to check. */
-export async function expectCleanScreen(page: Page, { coarse = false }: { coarse?: boolean } = {}): Promise<void> {
-  const csp = await page.evaluate(() => (window as unknown as { __pap?: { csp: string[] } }).__pap?.csp ?? []);
-  expect(csp, "CSP violations").toEqual([]);
-  expect((page as Page & { __papErrors?: string[] }).__papErrors ?? [], "console errors").toEqual([]);
-  const titled = await page.evaluate(() => [...document.querySelectorAll("[title]")].filter((el) => !(el instanceof SVGElement)).map((el) => el.outerHTML.slice(0, 120)));
-  expect(titled, "native title attributes (DESIGN.md §7.1)").toEqual([]);
-  if (!coarse) return;
-  const small = await page.evaluate(() =>
-    [...document.querySelectorAll('button, a[href], input, select, textarea, [role="tab"], [role="switch"], [role="checkbox"], [role="slider"], [role="separator"][tabindex]')]
-      .filter((el) => {
-        const box = el.getBoundingClientRect();
-        const style = getComputedStyle(el);
-        return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && (box.width < 43.5 || box.height < 43.5);
-      })
-      .map((el) => el.outerHTML.slice(0, 120)),
-  );
-  expect(small, "touch targets under 44 px (DESIGN.md §5)").toEqual([]);
-}
-```
-
-`e2e/auth.ts`: `ensureSignedIn(page, state)` goes to `/`; on the heading `Create the owner account` it opens `state.setupUrl` and creates `owner` / `correct horse battery staple`; on `Sign in` it signs in; then waits for the shell (`[data-shell]`).
-
-`e2e/fixtures/approval-script.json`: M1 Task 27's script (one `bash` call `echo pap-e2e-ok`, then the text).
-
-`e2e/smoke.spec.ts`:
-
-```ts
-import { expect, test } from "@playwright/test";
-import { expectCleanScreen, installGuards } from "./guards.ts";
-import { readState } from "./state.ts";
-
-test("the setup link opens the owner form, under the CSP, in this engine", async ({ page }, info) => {
-  await installGuards(page);
-  await page.goto(readState(info.project.name).setupUrl);
-  await expect(page.getByRole("heading", { name: "Create the owner account" })).toBeVisible();
-  await expectCleanScreen(page, { coarse: info.project.name.endsWith("phone") });
-});
-```
-
-`package.json` scripts: `"e2e": "node --disable-warning=ExperimentalWarning scripts/e2e.ts"`. `knip.json` root entries gain `"e2e/**/*.ts"`, `"playwright.config.ts"`; `ignoreBinaries` gains `"podman"`, `"docker"`.
-
-- [ ] **Step 4: Run it**
-
-Run:
-```bash
-pnpm test:unit scripts/e2e-config.test.ts
-pnpm build && pnpm --filter @pap/web build:gallery
-pnpm e2e --project=chromium --project=webkit --project=chromium-phone --project=webkit-phone e2e/smoke.spec.ts
-```
-Expected: the unit test passes; the e2e run prints the pull, then `4 passed`, and `podman ps` shows no `pap-e2e-*` container afterwards. If the browser cannot reach `localhost:779x`, rerun with `PAP_E2E_NETWORK=host` and record the outcome in the commit body and in `docs/agents/web.md` (Task 32).
+Run: `pnpm test:unit apps/web && pnpm lint && pnpm knip && pnpm test:int apps/web/src/build-output.int.test.ts`
+Expected: PASS. Mutation check: remove `pointer-coarse:min-h-11` from `Segmented`'s items once → the touch-target case names them.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 pnpm format
-git add scripts/e2e.ts scripts/e2e-config.test.ts playwright.config.ts e2e package.json pnpm-lock.yaml tsconfig.json knip.json .gitignore
-git commit -m "test(e2e): Playwright in the official container image with daemons on the host"
+git add apps/web eslint.config.js docs/adr/0011-dev-ui-not-shipped.md
+git commit -m "feat(ui): /dev/ui gallery of every component in three themes and densities, with a touch-target probe"
 ```
 
 ---
 
-### Task 30: Journeys — owner (M1 Task 27), shell on desktop, phone viewports; the CI e2e job
+### Former Tasks 29–31: removed (owner C1, 2026-10-11)
 
-The M1 journey (setup → reload → sign out → sign in → prompt → approval → result, passkey on Chromium) runs on Chromium and WebKit through the new shell (decision 36). The shell journey visits every screen and checks it with `expectCleanScreen`; the phone journey runs on a Pixel 7 (Chromium) and an iPhone 13 (WebKit). Selectors use roles and the DOM's sentence-case text (R121), never CSS text-transform.
+The Playwright container runner (former Task 29), the owner / shell / phone journeys and the CI `e2e` job (former Task 30), and the visual regression of the gallery with the PNG icons (former Task 31) are not part of M3. They are deferred like decision 36 moved the M1 journey: "pas de e2e pour l'instant" (owner M3-Q10, then C1). Consequences, decided:
 
-**Files:**
-- Create: `e2e/owner-journey.spec.ts`, `e2e/shell.spec.ts`, `e2e/phone.spec.ts`
-- Modify: `.github/workflows/ci.yml` (job `e2e`), `scripts/e2e-config.test.ts` (the CI case becomes a real test)
-
-**Interfaces:**
-- Consumes: Tasks 19–29.
-- Produces: the browser exit criteria of M3; CI job `e2e`.
-
-**Risks / rulings needed:** (a) The owner journey selects M2-owned screens by today's labels (`Working directory`, `New session`, `Message`, `Send`, `Approval needed`, `Allow once`); M2 may change them, so P6 re-runs and adjusts after both merge: confirm. (b) CI pulls a large image (~2 GB) per e2e run; with `timeout-minutes: 25` this is the FinOps cost of the browser gate: confirm, or rule caching the image.
-
-- [ ] **Step 1: Write the journeys**
-
-`e2e/owner-journey.spec.ts`:
-
-```ts
-import { expect, test } from "@playwright/test";
-import { expectCleanScreen, installGuards } from "./guards.ts";
-import { readState } from "./state.ts";
-
-const OWNER = { username: "owner", password: "correct horse battery staple" };
-
-test.describe.serial("owner journey (M1 Task 27, decision 36)", () => {
-  test("setup → reload → sign out → sign in → prompt → approval → result", async ({ page }, info) => {
-    await installGuards(page);
-    const state = readState(info.project.name);
-    await page.goto(state.setupUrl);
-    await expect(page.getByRole("heading", { name: "Create the owner account" })).toBeVisible();
-    await expectCleanScreen(page);
-    await page.getByLabel("Username").fill(OWNER.username);
-    await page.getByLabel("Password").fill(OWNER.password);
-    await page.getByRole("button", { name: "Create account" }).click();
-    await expect(page.locator("[data-shell]")).toBeVisible();
-
-    // WebKit keeps the loopback cookie over plain HTTP (ADR 0004).
-    await page.reload();
-    await expect(page.locator("[data-shell]")).toBeVisible();
-
-    await page.getByRole("button", { name: "Account" }).click();
-    await page.getByRole("menuitem", { name: "Sign out" }).click();
-    await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
-    await expectCleanScreen(page);
-    await page.getByLabel("Username").fill(OWNER.username);
-    await page.getByLabel("Password").fill(OWNER.password);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-
-    await page.getByLabel("Working directory").fill(state.cwd);
-    await page.getByRole("button", { name: "New session", exact: true }).click();
-    await page.getByLabel("Message").fill("Run the check");
-    await page.getByRole("button", { name: "Send" }).click();
-
-    const card = page.getByRole("alertdialog", { name: "Approval needed" });
-    await expect(card).toContainText("echo pap-e2e-ok");
-    await card.getByRole("button", { name: "Allow once" }).dblclick();
-    await expect(page.getByText("The command printed pap-e2e-ok.")).toBeVisible();
-    await expect(card).toBeHidden();
-    await expect(page.getByRole("alert")).toHaveCount(0);
-    await expect(page.getByRole("tab", { selected: true })).toBeVisible();
-    await expectCleanScreen(page);
-  });
-
-  test("passkey enrolment in Settings and sign-in (Chromium virtual authenticator)", async ({ page, browserName }) => {
-    test.skip(browserName !== "chromium", "the virtual authenticator is a Chromium DevTools feature");
-    await installGuards(page);
-    const cdp = await page.context().newCDPSession(page);
-    await cdp.send("WebAuthn.enable");
-    await cdp.send("WebAuthn.addVirtualAuthenticator", { options: { protocol: "ctap2", transport: "internal", hasResidentKey: true, hasUserVerification: true, isUserVerified: true } });
-    await page.goto("/");
-    await page.getByLabel("Username").fill(OWNER.username);
-    await page.getByLabel("Password").fill(OWNER.password);
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
-    await page.goto("/settings/account");
-    await page.getByRole("button", { name: "Add a passkey" }).click();
-    await page.getByLabel("Password").fill(OWNER.password);
-    await page.getByRole("button", { name: "Add a passkey" }).click();
-    await expect(page.getByText("Passkey added.")).toBeVisible();
-    await page.getByRole("button", { name: "Sign out" }).click();
-    await page.getByRole("button", { name: "Sign in with a passkey" }).click();
-    await expect(page.locator("[data-shell]")).toBeVisible();
-    await expectCleanScreen(page);
-  });
-});
-```
-
-`e2e/shell.spec.ts` (desktop projects; `ensureSignedIn` first; `mod` is `Control` in the Linux container), one `test` each, every one ending with `expectCleanScreen(page)`:
-- "⌘K opens the palette and runs a settings item": `Control+K` → dialog `Command palette` → type `appear` → `Enter` → heading `Appearance`, URL `/settings/appearance`.
-- "appearance: account scope survives a reload, device scope stays on the device": Mode `Day` → `html[data-theme="day"]`; Density `Comfortable` → `html[data-density="comfortable"]`; `reload()` → both kept and the status reads `Saved to your account`; Reset → toast `Appearance reset` → `Undo` → `data-theme="day"` again; set Mode back to `System`.
-- "language switches without a reload": Settings › Language → `Français` → nav entry `Apparence` visible, `html[lang="fr"]`, no navigation happened (a `page.on("framenavigated")` counter stays 0) → back to `English`.
-- "tabs and a keyboard-resizable split": create a session (as in the owner journey, without prompting) → two tabs (`New session`, the folder name) → `Alt+Shift+ArrowLeft` selects the other tab → split button → a `separator` with `aria-valuenow="50"` → focus it, `ArrowLeft` ×3 → `aria-valuenow="48"` (1280 px viewport: three 8 px steps on the pane area) → reload → the separator is back with the same value → close the split.
-- "⌘B tree and Inbox": `Control+B` → dialog `Sessions` with the working directory's group → click the session row → the dialog closes and the session tab is selected; top bar `Inbox` → dialog `Inbox` with `Nothing waits for you` → `Escape` closes it.
-- "a custom shortcut works at once and resets": Settings › Keyboard shortcuts → `Change` on `Open the command palette` → press `Control+Shift+P` → row shows `Custom` → `Escape` the settings focus → `Control+Shift+P` opens the palette → close it → `Reset` the row.
-- "? lists the shortcuts": click the page body → `?` → dialog `Keyboard shortcuts` lists `Open the command palette` with `Ctrl` `K`.
-- "an unknown address shows the not-found screen": `goto("/nope")` → heading `This page does not exist` → `Go to the start` → home.
-- "every settings section renders": visit `/settings/appearance`, `/settings/shortcuts`, `/settings/language`, `/settings/account` with `expectCleanScreen` after each.
-
-`e2e/phone.spec.ts` (phone projects; `ensureSignedIn`):
-- "bottom nav, one section at a time, no rail": `nav` `Sections` with `Agents`, `Work`, `Lists`, `Inbox`; no `[data-slot="rail"]`; `Agents` → `No agent yet`; `Lists` → the session tree; `Inbox` → `Nothing waits for you`; `Work` → home; `expectCleanScreen(page, { coarse: info.project.name === "chromium-phone" || await page.evaluate(() => matchMedia("(pointer: coarse)").matches) })` on each, and `expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true)` on `chromium-phone` (at least one engine checks the 44 px rule for real).
-- "menus open as bottom sheets": the open-items button opens a sheet whose panel's bottom edge is within 2 px of the viewport height.
-- "nothing scrolls sideways": `document.documentElement.scrollWidth <= innerWidth` on every section.
-- "the viewport is set up for the keyboard": `meta[name="viewport"]` contains `viewport-fit=cover` and `interactive-widget=resizes-content`.
-
-- [ ] **Step 2: Add the CI job**
-
-Append to `jobs:` in `.github/workflows/ci.yml`:
-
-```yaml
-  e2e:
-    needs: build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      PI_OFFLINE: "1"
-      PI_TELEMETRY: "0"
-      PAP_E2E_RUNTIME: docker
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: dist
-          path: .
-      - run: pnpm --filter @pap/web build:gallery
-      - run: pnpm e2e
-      - if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: playwright-report
-          path: |
-            playwright-report
-            test-results
-          retention-days: 7
-```
-
-and turn the `it.todo` of `scripts/e2e-config.test.ts` into `it`. (`scripts/ci-config.test.ts` already pins checkout SHAs and `persist-credentials: false` for every job; it now covers this one too — run it.)
-
-- [ ] **Step 3: Run the suite**
-
-Run: `pnpm build && pnpm --filter @pap/web build:gallery && pnpm e2e --project=chromium --project=webkit --project=chromium-phone --project=webkit-phone && pnpm test:unit scripts`
-Expected: owner journey 2 passed on Chromium, 1 passed + 1 skipped on WebKit; shell 9 passed per desktop engine; phone 4 passed per phone engine; smoke 4 passed; the unit tests pass. A WebKit failure on the reload step is a real defect (M1's note on ADR 0004): stop and report it, do not weaken the test.
-
-- [ ] **Step 4: Commit**
-
-```bash
-pnpm format
-git add e2e scripts/e2e-config.test.ts .github/workflows/ci.yml
-git commit -m "test(e2e): owner, shell and phone journeys on Chromium and WebKit, and the CI job"
-```
-
----
-
-### Task 31: Visual regression of the gallery, and the PNG icons
-
-DESIGN.md §14 (and R129): "Playwright screenshots of `/dev/ui` in 3 themes × 2 densities". Baselines are made in the same container image as CI, so fonts and rasterisation match; the snapshot path has no platform suffix (Task 29's `snapshotPathTemplate`). The PNG icons of DESIGN §6.3 (favicons 16/32 on a `--surface` tile, Apple touch 180, PWA 192/512 maskable on the night background) are rendered from the SVG sources of Task 11 by the same browser server, and a unit test catches a stale render.
-
-**Files:**
-- Create: `e2e/gallery.spec.ts`, `e2e/__screenshots__/*.png` (18 baselines)
-- Create: `scripts/icon-list.ts`, `scripts/render-icons.ts`, `scripts/icons.test.ts`, `apps/web/public/icons/{favicon-16.png, favicon-32.png, apple-touch-icon-180.png, pwa-192.png, pwa-512.png, pwa-maskable-512.png, sources.json}`
-- Modify: `scripts/e2e.ts` (`--icons` mode runs the render script against the browser server instead of `playwright test`), `apps/web/index.html` (PNG icon links), `apps/web/src/build-output.int.test.ts`
-
-**Interfaces:**
-- Produces: `pnpm e2e --project=gallery` (screenshots), `pnpm e2e -- --icons` (renders icons), `ICONS: ReadonlyArray<{ file: string; source: string; size: number }>` in `scripts/icon-list.ts`.
-
-**Risks / rulings needed:** (a) Screenshots on Chromium only (WebKit would double the baselines; its rendering is covered by the journeys): owner question Q6. (b) 18 PNG baselines (~1–2 MB) live in git: confirm. (c) PWA icons are rendered now and linked by M12's manifest: none.
-
-- [ ] **Step 1: Write the gallery spec and the icon test**
-
-`e2e/gallery.spec.ts`:
-
-```ts
-import { expect, test } from "@playwright/test";
-import { expectCleanScreen, installGuards } from "./guards.ts";
-
-const THEMES = ["night", "day", "hc"] as const;
-const DENSITIES = ["compact", "comfortable"] as const;
-const SECTIONS = ["brand", "primitives", "ai"] as const;
-
-for (const theme of THEMES) {
-  for (const density of DENSITIES) {
-    test(`gallery in ${theme}, ${density}`, async ({ page }) => {
-      await installGuards(page);
-      await page.setViewportSize({ width: 1280, height: 900 });
-      await page.goto(`/gallery.html?theme=${theme}&density=${density}`);
-      await page.evaluate(() => document.fonts.ready.then(() => undefined));
-      for (const section of SECTIONS) {
-        await expect(page.locator(`[data-gallery-section="${section}"]`)).toHaveScreenshot(`${section}-${theme}-${density}.png`);
-      }
-      await expectCleanScreen(page);
-    });
-  }
-}
-```
-
-(`vite preview` sends no CSP: the CSP part of `expectCleanScreen` is trivially empty here; the journeys check the CSP against the daemon.)
-
-`scripts/icons.test.ts`:
-
-```ts
-import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
-import { ICONS } from "./icon-list.ts";
-
-const at = (path: string) => new URL(`../${path}`, import.meta.url);
-const pngSize = (bytes: Buffer) => ({ width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) });
-
-describe("icons (DESIGN.md §6.3)", () => {
-  it("are PNGs of the declared sizes", () => {
-    for (const icon of ICONS) {
-      const bytes = readFileSync(at(`apps/web/public/icons/${icon.file}`));
-      expect(bytes.subarray(1, 4).toString("latin1"), icon.file).toBe("PNG");
-      expect(pngSize(bytes), icon.file).toEqual({ width: icon.size, height: icon.size });
-    }
-  });
-  it("were rendered from the current SVG sources (re-run pnpm e2e -- --icons after editing one)", () => {
-    const recorded = JSON.parse(readFileSync(at("apps/web/public/icons/sources.json"), "utf8")) as Record<string, string>;
-    for (const source of new Set(ICONS.map((icon) => icon.source))) {
-      expect(recorded[source], source).toBe(createHash("sha256").update(readFileSync(at(`apps/web/icons-src/${source}`))).digest("hex"));
-    }
-  });
-});
-```
-
-- [ ] **Step 2: Write the renderer**
-
-`scripts/icon-list.ts` (separate, so the unit test never loads Playwright):
-
-```ts
-export const ICONS = [
-  { file: "favicon-16.png", source: "favicon-tile.svg", size: 16 },
-  { file: "favicon-32.png", source: "favicon-tile.svg", size: 32 },
-  { file: "apple-touch-icon-180.png", source: "apple-touch.svg", size: 180 },
-  { file: "pwa-192.png", source: "apple-touch.svg", size: 192 },
-  { file: "pwa-512.png", source: "apple-touch.svg", size: 512 },
-  { file: "pwa-maskable-512.png", source: "pwa-maskable.svg", size: 512 },
-] as const;
-```
-
-`scripts/render-icons.ts`:
-
-```ts
-import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { chromium } from "@playwright/test";
-import { ICONS } from "./icon-list.ts";
-
-const at = (path: string) => new URL(`../${path}`, import.meta.url);
-
-/** Renders the icons with the containerised browser (scripts/e2e.ts --icons passes the endpoint). */
-export async function renderIcons(wsEndpoint: string): Promise<void> {
-  const browser = await chromium.connect(wsEndpoint, { timeout: 30_000 });
-  try {
-    const page = await browser.newPage({ deviceScaleFactor: 1 });
-    const hashes: Record<string, string> = {};
-    for (const icon of ICONS) {
-      const svg = readFileSync(at(`apps/web/icons-src/${icon.source}`));
-      hashes[icon.source] = createHash("sha256").update(svg).digest("hex");
-      await page.setViewportSize({ width: icon.size, height: icon.size });
-      await page.setContent(`<style>html,body{margin:0}</style><img width="${icon.size}" height="${icon.size}" src="data:image/svg+xml;base64,${svg.toString("base64")}">`);
-      await page.locator("img").evaluate((img: HTMLImageElement) => img.decode());
-      writeFileSync(at(`apps/web/public/icons/${icon.file}`), await page.screenshot({ clip: { x: 0, y: 0, width: icon.size, height: icon.size } }));
-    }
-    writeFileSync(at("apps/web/public/icons/sources.json"), `${JSON.stringify(hashes, null, 2)}\n`);
-  } finally {
-    await browser.close();
-  }
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const endpoint = process.env.PAP_E2E_WS_ENDPOINT;
-  if (!endpoint) throw new Error("run through `pnpm e2e -- --icons`");
-  await renderIcons(endpoint);
-}
-```
-
-In `scripts/e2e.ts`, when `process.argv.includes("--icons")`, spawn `node --disable-warning=ExperimentalWarning scripts/render-icons.ts` (same env) instead of `playwright test`, and skip the build check for `apps/web/dist-gallery` and the daemons (the icons need only the browser).
-
-`apps/web/index.html` adds:
-
-```html
-    <link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png" />
-    <link rel="icon" href="/icons/favicon-16.png" sizes="16x16" type="image/png" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
-```
-
-and the build-output test checks the three files exist in `dist/icons/`.
-
-- [ ] **Step 3: Make the baselines and the icons, then check them**
-
-Run:
-```bash
-pnpm e2e -- --icons
-pnpm test:unit scripts/icons.test.ts
-pnpm build && pnpm --filter @pap/web build:gallery
-pnpm e2e --project=gallery --update-snapshots
-pnpm e2e --project=gallery
-```
-Expected: six PNGs and `sources.json` written; the icon test passes; 18 baselines written under `e2e/__screenshots__/`; the second gallery run passes with no diff. Look at the PNGs before committing (they are the screen's reference from now on).
-
-- [ ] **Step 4: Commit**
-
-```bash
-pnpm format
-git add e2e/gallery.spec.ts e2e/__screenshots__ scripts/icon-list.ts scripts/render-icons.ts scripts/icons.test.ts scripts/e2e.ts apps/web/public/icons apps/web/index.html apps/web/src/build-output.int.test.ts
-git commit -m "test(ui): gallery screenshots in three themes and two densities; rendered PNG icons"
-```
+- `scripts/ci-config.test.ts` stays as it is (no `e2e` script, no Playwright, the exact CI job list); M3 adds no `@playwright/test`, no `playwright.config.ts`, no `e2e/` folder, no `scripts/e2e.ts`. M3-RT-17, -18, -34 and -35 are moot for M3 and are carried in "What this plan explicitly defers" for whoever revives the work; M3-RT-33 likewise (the standalone gallery build is deferred).
+- What moved to headless checks: "no native `title`" (ESLint `pap/no-native-title`, Task 2), "no unknown classes / no literal text / React Compiler" (Tasks 2, 3), the CSP-relevant build facts (build-output test: no inline script, boot script first, fonts as files, no WebAssembly, lazy chunks, no gallery in production: Tasks 1b, 10b, 11, 14, 24, 25, 32), the 44-px targets as classes (Task 28's probe), keyboard and shell behaviour (happy-dom tests of Tasks 16a–23).
+- What is deferred and not replaced: zero CSP violations and zero console errors observed in a real browser, measured target sizes, WebKit rendering, the passkey ceremony in a browser, the Safari 16.4 WebSocket CSP check (R118), gallery screenshots (R129's DESIGN §14 item) and the PNG icons (with M12's manifest).
+- P6 is the bundle re-measure only (agreement 11).
 
 ---
 
 ### Task 32: Bundle budget from real numbers, docs, final gates
 
-Roadmap M3 exit: "the bundle budget is re-set from real numbers". Spec C §7.4: editor, terminal, diff and shiki load lazily; in M3 that means the palette (cmdk) and the gallery stay out of the initial assets, which the build-output test now proves.
+Roadmap M3 exit: "the bundle budget is re-set from real numbers". Spec C §7.4: editor, terminal, diff and shiki load lazily; in M3 the palette (cmdk), the Settings screen, the shortcuts help, the theme editor, the markdown renderer and the highlighter stay out of the initial assets, which the build-output test proves. Owner R3-5 / agreement 10: target ≤ 200 KB gzip for the initial assets.
 
 **Files:**
 - Modify: `budgets.json`, `scripts/check-budgets.ts` (prints the lazy chunks too), `scripts/check-budgets.test.ts`, `apps/web/src/build-output.int.test.ts`
 - Create: `docs/agents/web.md`
-- Modify: `AGENTS.md` (commands, topic note link)
+- Modify: `AGENTS.md` (topic note link)
 
 **Interfaces:**
-- Produces: `lazyAssets(distDir: string): Array<{ file: string; gzipKb: number }>` (every `/assets/*.js|css` not in the initial list); the new `initialBundleGzipKb` value.
+- Produces: `lazyAssets(distDir: string): Array<{ file: string; gzipKb: number }>` (every `/assets/*.js|css` not in the initial list); the final `initialBundleGzipKb` value.
 
-**Risks / rulings needed:** The headroom rule: budget = measured initial gzip size × 1.10, rounded up to the next KB: confirm the 10 %.
+**Rulings (pre-dispatch):**
+- The final budget is the measured initial gzip size × 1.10, rounded up to the next KB, when that is at most 200 KB; above 200 KB the controller stops and asks the owner before committing any value (owner R3-5, agreement 10). A provisional value set mid-milestone is replaced here. [M3R126]
+- `docs/agents/web.md` (≤ 120 lines) describes what the code does, including the deferred browser checks as deferred, never as done. [M3R127]
+- AGENTS.md gains no e2e command (owner C1); it gains the topic note link only and stays under 150 lines. [M3R128]
 
 - [ ] **Step 1: Write the failing tests**
 
 Add to `apps/web/src/build-output.int.test.ts`:
 
 ```ts
-  it("ships no gallery in the production build (ADR 0007)", async () => {
+  it("ships no gallery in the production build (ADR 0011)", async () => {
     for (const name of assets) expect(await readFile(join(out, "assets", name), "utf8"), name).not.toContain("data-gallery-section");
   });
 
@@ -9188,19 +10673,19 @@ Expected: the gallery and lazy-palette cases pass already if Tasks 22 and 28 did
 - [ ] **Step 3: Measure and set the budget**
 
 Run: `pnpm build && pnpm budgets`
-Record the printed `initial bundle: <measured> KB gzip`. Set `budgets.json` `initialBundleGzipKb` to `ceil(measured × 1.10)`. Run `pnpm budgets` again: exit 0.
+Record the printed `initial bundle: <measured> KB gzip` and the lazy chunks. If `ceil(measured × 1.10)` is at most 200, set `budgets.json` `initialBundleGzipKb` to it and run `pnpm budgets` again: exit 0. If it is above 200, stop: report the number and the largest initial modules to the controller, who asks the owner; nothing is committed until the owner answers.
 
-- [ ] **Step 4: Write the topic note and AGENTS.md lines**
+- [ ] **Step 4: Write the topic note and the AGENTS.md line**
 
-`docs/agents/web.md` (≤ 120 lines, what the code does, no claims beyond it): the shell (the URL names the active item; `PANE_RENDERERS`; only the active tab is mounted; the workspace in `pap.workspace.v1`), appearance (two scopes, the boot cache and why the boot script is an external hashed file, the R120 indirection tokens, the theme-selector rule), commands (registry, the dispatcher's bail-outs, `when` keys, reserved chords, where defaults live), i18n (`useT` vs `t`, namespace catalogs, the literal gate and its allowlist, `serverText` until P4), the gates (class coverage and where class lists may live, the compiler gate, `pap/no-native-title`), the e2e setup (podman/docker, `run-server`, `exposeNetwork` or `--network host` as recorded in Task 29, ports 7791–7795, `--update-snapshots`, `--icons`), the measured bundle numbers, and the traps (Safari 16.4: no CSS nesting, `:has()` allowed; IME keyCode 229; AltGr; no native `title`; tokens through utilities only).
+`docs/agents/web.md` (≤ 120 lines, what the code does, no claims beyond it): the shell (the URL names the active item; `PANE_RENDERERS`; only the active tab is mounted; the workspace in `pap.workspace.v1`; lazy chunks through `lib/lazy.tsx`), appearance (two scopes; the account documents and their compare-and-set sync — hold until loaded, merge and one retry on conflict, R105; the boot cache, its variable allowlist and why the boot script is an external hashed file; ADR 0012's tokens; the theme-selector rule and why `@theme inline`; the derivation ratios of §13.2), commands (registry, the dispatcher's bail-outs, `when` keys including `panelFocus`/`overlayOpen`/`treeOpen`, physical-key recording, reserved chords, where defaults live), i18n (`useT` vs `t`, namespace catalogs, the literal gate and its allowlist, `serverText` until P4), markdown (react-markdown without raw HTML, safe links, no images, shiki's JavaScript engine and the code colours), the gates (class coverage and where class lists may live, the compiler gate, `pap/no-native-title`, the touch-target class probe), what is deferred (browser e2e, screenshots, PNG icons, the R118 Safari check), the measured bundle numbers, and the traps (Safari 16.4: no CSS nesting, no RegExp `v` flag, `:has()` allowed; IME keyCode 229; AltGr; no native `title`; tokens through utilities only).
 
-`AGENTS.md`: under Commands add `pnpm e2e` (browsers in the Playwright container via podman; needs `pnpm build && pnpm --filter @pap/web build:gallery` first; `PAP_E2E_RUNTIME=docker` in CI) and `pnpm e2e --project=gallery --update-snapshots` (after a deliberate visual change); under topic notes add `docs/agents/web.md`. AGENTS.md stays under 150 lines.
+`AGENTS.md`: under topic notes add `docs/agents/web.md`. AGENTS.md stays under 150 lines.
 
 - [ ] **Step 5: Run every gate (the M3 exit)**
 
 Run:
 ```bash
-pnpm lint && pnpm format:check && pnpm typecheck && pnpm knip && pnpm test:unit && pnpm test:int && pnpm build && pnpm smoke && pnpm --filter @pap/web build:gallery && pnpm e2e && pnpm budgets
+pnpm lint && pnpm format:check && pnpm typecheck && pnpm knip && pnpm test:unit && pnpm test:int && pnpm build && pnpm smoke && pnpm budgets
 ```
 Expected: all PASS.
 
@@ -9215,47 +10700,61 @@ git commit -m "chore(budgets): re-set the initial bundle budget from the M3 buil
 ---
 # After both milestones merge — post-merge tasks P1–P7
 
-These need M2's code on `main`. They run on the M3 branch after it rebases on a `main` that already holds M2 (recommended order), or on a follow-up branch if M3 merges first. Each is a normal task (failing test first, gates, Conventional Commit). Models: Sonnet implementer, Sonnet reviewer for all seven.
+These need M2's code on `main`. M2 merges first (owner T3, agreement 1); M3 then rebases once (see "Merge order and conflict notes": conflicts, migration re-stamp, lockfile) and runs P1–P7 on its own branch before its PR, so `main` never carries the token aliases or an unadopted shell. If the order ever flips, the same tasks run on a follow-up branch right after M2 merges. Each is a normal task (failing test first, gates, Conventional Commit, the lessons checklist). Order (agreement 14, M3-RT-21): **P7 → P3 → P2 → P1 → P4 → P5 → P6** — the gates first, because their findings feed P1–P3; P3 and P2 before P1, because they rewrite the files P1 would otherwise migrate twice; P6 last, because it measures the final code. Models: Sonnet implementer, Sonnet reviewer for all seven.
 
 | # | Task | Files (expected) | Test that proves it |
 |---|---|---|---|
-| P1 | Remove the M1 token aliases: migrate every `bg-panel`, `border-line`, `*-human*`, `text-on-fill`, `*-attention*`, `text-error` in M2's files to the DESIGN names, then delete the alias block of `tokens.css` | `apps/web/src/features/sessions/**`, `packages/ui/src/tokens.css`, `tokens.test.ts` | `tokens.test.ts` "keeps the M1 utility names" becomes "the M1 aliases are gone"; class coverage passes over the whole web app |
-| P2 | Promote M2's feature components (dialog shells for select / input / editor, status bar, widget frame, custom panel) into `packages/ui` as `InputRequestCard`, `StatusBar`, `Widgets`, `CustomPanel` (DESIGN §9.2), with gallery entries and screenshots; M2's call sites switch to them | `packages/ui/src/ai/*`, `apps/web/src/features/sessions/**`, `apps/web/src/gallery/sections/AiSection.tsx`, `e2e/__screenshots__` | gallery "shows every component" picks them up; their own unit tests move with them; the M2 integration tests stay green |
-| P3 | The session screen in the shell: M2's screens use `<section>` and `AppShell` owns `<main>`; `max-w-chat` on the transcript; `AuthorGroup`, `Reasoning`, `ToolCard` (detail from the `data-tool-detail` setting), message actions in the transcript; `useT` instead of `t` in `features/sessions`; `useCommand("session.stop")` for Escape; ApprovalCard's scoped answers if M2 has session/always answers; the reconnect banner adds "your drafts stay on this device" once M2's drafts exist | `apps/web/src/features/sessions/**`, `routes/shell/AppShell.tsx`, `MobileShell.tsx`, `ConnectionBanner.tsx` | a shell test: one `main` landmark on `/s/:id`; Escape in a running session stops it (dispatcher + handler); a locale switch re-renders the transcript's labels; the e2e owner journey still passes |
-| P4 | Server texts by code (R128): `notice` events and `status` causes carry a stable `code` (+ params) next to the English text; the reducer shows `serverText` by code; the pattern matching of Task 3 stays only as a fallback for an older daemon | `packages/contracts/src/streams.ts`, `apps/daemon/src/modules/sessions/live-session.ts`, `apps/daemon/src/kernel/supervisor/exit.ts`, `apps/web/src/stores/session-reducer.ts`, `apps/web/src/i18n/server-text.ts` | contract test for the new fields; reducer test: a French session shows the French notice for a coded event |
-| P5 | R129's reducer items: linear snapshot reduce (a running `Map`, not a `Set` per message); no content dedup for `role:none` fallback refs | `apps/web/src/stores/session-reducer.ts` (+ test) | a 2 000-message snapshot reduces in linear steps (count the key lookups through an injected map); two different `role:none` messages with equal content both stay |
-| P6 | Re-run the browser suite on merged `main`: adjust the journey selectors to M2's final screens; re-measure and re-set the bundle budget (M2 adds code) | `e2e/*.spec.ts`, `budgets.json` | `pnpm e2e` and `pnpm budgets` green on merged `main` |
-| P7 | Run M3's gates over M2's files and fix what they find: class coverage, literal strings, React Compiler, `pap/no-native-title` | `apps/web/src/features/sessions/**`, `scripts/literal-allowlist.json` only with a reason | the four gates pass over the whole repository |
+| P7 | Run M3's gates over M2's files and fix what they find: delete the `M2_OWNED_UNTIL_P7` exclusion of `scripts/class-coverage.ts` and the `features/sessions` alternative of `scripts/literal-coverage.ts`'s `SKIPPED`; fix the class, literal, React Compiler and `pap/no-native-title` findings in M2's files; add to `IDENTICAL_IN_FR` any M2 key whose French equals the English, with a reason (agreement 4 expects none) | `scripts/class-coverage.ts` (+ test), `scripts/literal-coverage.ts`, `apps/web/src/features/sessions/**`, `apps/web/src/i18n/i18n.test.ts`, `scripts/literal-allowlist.json` only with a reason | the four gates pass over the whole repository; the "leaves M2's session screens to P7" case is replaced by "scans M2's session screens" |
+| P3 | The session screen in the shell: M2's screens use `<section>` and `AppShell` owns `<main>`; `max-w-chat` on the transcript; `AuthorGroup`, `Reasoning`, message actions; `ToolCard` replaces M2's `ToolRow` (detail from the account's `toolDetail`); agent text renders through `Markdown` (`onLoadError` → `reportClientIssue("lazy_chunk_failed")`); M2's `ApprovalDialog` becomes `ApprovalCard` with `answers` + `labels` + `onChoose` (agreement 6); `useT` instead of `t` in `features/sessions`; `useCommand("session.stop")` for Escape and `useCommand("session.sendOther")` for "send with the other streaming behaviour" (default chord `mod+shift+enter`, `when: "sessionFocus && !panelFocus"`, added to `COMMANDS` and `DEFAULT_KEYBINDINGS`); M2's `CustomPanel` (and any terminal-input surface) carries `data-terminal-input` (agreement 7); polite live regions announce a run's end and a new approval (DESIGN §12) if M2's screen has none; M2's test helper `show()` wraps `TooltipProvider` once message actions render; the reconnect banner adds "your drafts stay on this device" (M2's drafts exist then) | `apps/web/src/features/sessions/**`, `routes/shell/AppShell.tsx`, `MobileShell.tsx`, `ConnectionBanner.tsx`, `features/commands/defaults.ts`, `apps/web/src/approval-answer.test.ts` | a shell test: one `main` landmark on `/s/:id`; Escape in a running session stops it, and does not when focus is in the custom panel or a menu is open (dispatcher + handler); `mod+shift+enter` sends with the other behaviour; a locale switch re-renders the transcript's labels; `approval-answer.test.ts` asserts `ApprovalAnswer` of `@pap/ui` and of `@pap/contracts` are the same type (both directions assignable); M2's integration tests stay green |
+| P2 | Promote M2's feature components into `packages/ui` (DESIGN §9.2): the select / text / confirm dialog shells as `InputRequestCard`, `StatusBar`, `Widgets`, `CustomPanel`, with gallery entries; M2's call sites switch to them. `QueueStrip` and `Minimap` stay feature components (agreement 14); `ToolRow` is already gone (P3) | `packages/ui/src/ai/*`, `apps/web/src/features/sessions/**`, `apps/web/src/gallery/sections/AiSection.tsx` | the gallery's "shows every component" and touch-target probe pick them up; their own unit tests move with them; M2's integration tests stay green |
+| P1 | Remove the M1 token aliases: migrate every `bg-panel`, `border-line`, `*-human*`, `text-on-fill`, `*-attention*`, `text-error`, `border-error` in M2's files (tests included: `grep -rE 'bg-panel\|border-line\|human\|on-fill\|attention\|border-error\|text-error' apps/web/src/features/sessions`) to the DESIGN names, then delete the alias block of `tokens.css`; drop `ApprovalCard`'s M1 props once no caller uses them (`cn`, `once`, `FOCUS_RING` stay) | `apps/web/src/features/sessions/**`, `packages/ui/src/tokens.css`, `tokens.test.ts`, `packages/ui/src/ai/ApprovalCard.tsx` | `tokens.test.ts` "keeps the M1 utility names" becomes "the M1 aliases are gone"; class coverage passes over the whole web app |
+| P4 | Server texts by code (R128): `notice` events and `status` causes carry a stable `code` (+ params) next to the English text; the reducer shows `serverText` by code; the pattern matching of Task 3 stays only as a fallback for an older daemon | `packages/contracts/src/streams.ts`, the M2 files that emit notices and causes (at planning time `apps/daemon/src/modules/sessions/{live-run,live-ui,notices}.ts`; check on `main`), `apps/daemon/src/kernel/supervisor/exit.ts`, M2's split reducer (at planning time `apps/web/src/stores/{reduce-pi,row-view}.ts`), `apps/web/src/i18n/server-text.ts` | contract test for the new fields; reducer test: a French session shows the French notice for a coded event |
+| P5 | R129's reducer items: first check whether M2's entry-id rows already resolved them (then close with a test only); otherwise linear snapshot reduce (a running `Map`, not a `Set` per message) and no content dedup for `role:none` fallback refs | M2's split reducer files (+ tests) | a 2 000-message snapshot reduces in linear steps (count the key lookups through an injected map); two different `role:none` messages with equal content both stay |
+| P6 | Re-measure the bundle on the merged code and set `budgets.json` by Task 32's rule (≤ 200 KB gzip: measured × 1.10; above: the owner decides). Bundle only: the browser suite is deferred (owner C1, agreement 11) | `budgets.json` | `pnpm build && pnpm budgets` green on the merged code |
 
-ETA for P1–P7: 7–9 hours including reviews.
+**Rulings (pre-dispatch), P1–P7:**
+- P7 runs first and removes both scan exclusions; its findings in M2's files are fixed there, never allowlisted without a written reason. [M3R129]
+- P3 adopts the converged ApprovalCard API, `ToolCard` for `ToolRow`, `Markdown` for agent text, the panel/overlay keys (`data-terminal-input` on M2's panel), the polite live regions, the `session.sendOther` binding (`mod+shift+enter`) and the drafts line; it adds the type-level `ApprovalAnswer` test. [M3R130]
+- P2 promotes exactly the four DESIGN §9.2 components; `QueueStrip` and `Minimap` stay in M2's feature folder; gallery entries, no screenshots (deferred). [M3R131]
+- P1 runs after P3 and P2 and greps M2's tests for the M1 class names first; it removes the M1 ApprovalCard props only when no caller remains. [M3R132]
+- P4 targets M2's split files as they are on `main` (the names above are M2's plan at the time of writing) and keeps the pattern fallback for an older daemon. [M3R133]
+- P5 checks first whether M2's entry-id rows already resolved R129's items. [M3R134]
+- P6 is the bundle re-measure only (agreement 11); above 200 KB gzip the owner decides before anything is committed. [M3R135]
+
+ETA for P1–P7: about 11–13 hours including reviews (red-team estimate 12–15 h, minus the e2e re-run P6 no longer holds).
 
 # Model table
 
-Owner's cost rules: Haiku for mechanical transcription, Sonnet by default, Opus reviewer only for security-critical or concurrency-heavy tasks, Opus for the final whole-branch review. Any upgrade beyond this table needs the owner's approval first.
+Owner's cost rules: Haiku for mechanical transcription, Sonnet by default, Opus reviewer only for security-critical or concurrency-heavy tasks, Opus for the final whole-branch review. This table is the owner-approved one (X2): Haiku implementers for Tasks 4, 7 and 11; Opus reviewers for Tasks 12, 14 and 15. A task still failing after three fix rounds may go to an Opus implementer for rounds 4–5 (owner T1). Any other upgrade needs the owner's approval first.
 
 | Task | Implementer | Reviewer | Why |
 |---|---|---|---|
-| 1 Tokens | Sonnet | Sonnet | transcription plus Tailwind 4 subtleties (named spacing, `@utility`, variants) |
+| 1a Tokens and ADR 0012 | Sonnet | Sonnet | transcription plus the R120 amendment and its contrast tests |
+| 1b Fonts, stylesheet, compile tests | Sonnet | Sonnet | Tailwind 4 subtleties (named spacing, `@utility`, variants) |
 | 2 Design-system gates | Sonnet | Sonnet | AST extraction and the compiler API |
 | 3 i18n structure | Sonnet | Sonnet | |
-| 4 Icons, feedback, formats | Haiku | Sonnet | code fully prescribed |
+| 4 Icons, feedback, formats | **Haiku** | Sonnet | code fully prescribed (lucide only in `@pap/ui`, M3-RT-25) |
 | 5 Button, tooltip, kbd | Sonnet | Sonnet | |
 | 6 Form controls | Sonnet | Sonnet | Radix wiring |
-| 7 Status and structure | Haiku | Sonnet | code fully prescribed, one pattern repeated |
+| 7 Status and structure | **Haiku** | Sonnet | code fully prescribed, one pattern repeated (ADR 0010, M3-RT-23) |
 | 8 Overlays | Sonnet | Sonnet | focus return, sheets, toast store |
 | 9 Message and conversation | Sonnet | Sonnet | |
-| 10 Reasoning, ToolCard, ApprovalCard | Sonnet | Sonnet | |
-| 11 Logo | Haiku | Sonnet | exact geometry given |
-| 12 Settings module | Sonnet | **Opus** | new permission domain and per-owner documents through receipts, composed into the daemon inside M2's area: an authorization or composition mistake is a security and merge risk |
+| 10 Reasoning, ToolCard, ApprovalCard | Sonnet | Sonnet | the converged answer API (agreement 6) |
+| 10b Markdown and highlighting | Sonnet | Sonnet | library APIs to verify; the safety rules are pinned by tests |
+| 11 Logo | **Haiku** | Sonnet | exact geometry given |
+| 12 Settings module | Sonnet | **Opus** | new permission domain, per-owner documents with compare-and-set, composed into the daemon inside M2's area |
 | 13 Appearance model | Sonnet | Sonnet | pure functions |
-| 14 Boot script and applier | Sonnet | **Opus** | runs before the app under the strict CSP (R74) and turns untrusted `localStorage` into DOM attributes and style properties: a slip breaks the CSP or opens CSS injection |
-| 15 Appearance store and sync | Sonnet | Sonnet | |
-| 16 Keybinding core | Sonnet | Sonnet | |
-| 17 Registry and dispatcher | Sonnet | Sonnet | |
+| 14 Boot script and applier | Sonnet | **Opus** | runs before the app under the strict CSP (R74) and turns untrusted `localStorage` into attributes and style properties |
+| 15 Appearance store and sync | Sonnet | **Opus** | persisted user data, lost updates, async ordering (M3-RT-01) |
+| 16a Chords and labels | Sonnet | Sonnet | |
+| 16b `when`, defaults, merge | Sonnet | Sonnet | |
+| 17a Registry and dispatcher | Sonnet | Sonnet | |
+| 17b Keybindings and help | Sonnet | Sonnet | reuses Task 15's engine |
 | 18 Workspace model | Sonnet | Sonnet | |
-| 19 Router and shell skeleton | Sonnet | Sonnet | |
+| 19a Router and shell skeleton | Sonnet | Sonnet | |
+| 19b Rail, top bar, shell effects | Sonnet | Sonnet | |
 | 20 Tabs and split | Sonnet | Sonnet | |
-| 21 Drawers and commands | Sonnet | Sonnet | |
+| 21 Drawers, commands, lazy boundary | Sonnet | Sonnet | |
 | 22 Palette | Sonnet | Sonnet | |
 | 23 Phone shell | Sonnet | Sonnet | |
 | 24 Settings screen | Sonnet | Sonnet | |
@@ -9263,108 +10762,138 @@ Owner's cost rules: Haiku for mechanical transcription, Sonnet by default, Opus 
 | 26 Theme editor | Sonnet | Sonnet | imports untrusted JSON, but through the contracts schema of Task 12 |
 | 27 Shortcuts editor | Sonnet | Sonnet | |
 | 28 Gallery | Sonnet | Sonnet | |
-| 29 Playwright infra | Sonnet | Sonnet | container wiring |
-| 30 Journeys and CI | Sonnet | Sonnet | |
-| 31 Visual regression and icons | Sonnet | Sonnet | |
 | 32 Budgets and docs | Sonnet | Sonnet | the topic note must describe the whole milestone accurately |
 | Final whole-branch review | — | **Opus** | owner rule |
 | P1–P7 | Sonnet | Sonnet | |
 
-Summary: 32 tasks — 3 Haiku and 29 Sonnet implementers; reviewers are Sonnet except Tasks 12 and 14 (Opus) and the final review (Opus).
+Summary: 34 tasks (Tasks 1–28 and 32, with 1, 16, 17 and 19 split, 10b new, 29–31 removed) — 3 Haiku and 31 Sonnet implementers; reviewers are Sonnet except Tasks 12, 14 and 15 (Opus) and the final review (Opus); then 7 post-merge tasks, Sonnet / Sonnet.
 
 # ETA
 
-Observed in M1: about 1–1.5 h per task including review and fix rounds, security tasks longer. Here: 32 tasks × ~1.25 h ≈ 40 h; Tasks 12 and 14 (Opus review) +1 h; container wiring in Tasks 29–31 +3 h (first image pull, `exposeNetwork` vs `--network host`, baselines); final review and its fixes +3 h. **≈ 47 h of agent time (range 42–52 h)**, then P1–P7 7–9 h after both merges. Pipelined with M2 (reviews of one overlapping implementation of the other), the calendar time is set by the slower milestone rather than the sum.
+Observed in M1: about 1–1.5 h per task including review and fix rounds, security tasks longer; M1 needed at least one fix round per task, and the red-team found prescribed-code defects this revision fixes. Here: 34 tasks × ~1.25 h ≈ 42.5 h; the three Opus reviews +1.5 h; the compare-and-set design in Tasks 12, 15 and 17b +2 h; final review and its fixes +3 h. **≈ 49 h of agent time (range 44–55 h)**: the red-team's 55 h, minus the five e2e tasks and their container wiring (≈ 9 h), plus Task 10b (≈ 2 h with its library checks) and the R120 amendment (≈ 0.5 h). Then P1–P7, about 11–13 h after M2 merges. Pipelined with M2 (reviews of one overlapping implementation of the other), the calendar time is set by the slower milestone rather than the sum.
 
-# Open questions for the owner
+# Owner decisions (2026-10-11)
 
-1. **R120 — DESIGN.md contrast amendments (WCAG 2.x 1.4.11 non-text contrast ≥ 3:1, 1.4.3 text ≥ 4.5:1).** Measured on the validated values:
-   - Day focus ring `#FB923C` (R54: you fill in both modes) is **2.15:1** on the day background and 2.26:1 on white. Candidates: the day `--you` text tone `#C2410C` (4.92:1) or `#EA580C` (3.38:1).
-   - Borders: day `--border-strong` `#CFC9BC` is 1.57:1 on bg (1.65:1 on surface), night `#3D3657` 1.69:1 (1.56:1 on surface); input and control borders "identify the component" under 1.4.11. Candidates for a separate `--control-border`: day `#958D80` (3.12:1 / 3.28:1) or `#8F877A` (3.37:1 / 3.55:1); night `#6B6485` (3.43:1 / 3.18:1, the night `--text-dim`). Hairline `--border` would stay decorative.
-   - Night approval title: `#EC4899` on the attention tint over a surface card is **4.48:1** (4.88:1 over bg). Candidate: title in `#F472B6` (5.96:1).
-   - New finding: night and high-contrast **`--attn-ink` `#FFFFFF` on `--attn-fill` `#EC4899` is 3.53:1** (badge counts are small text). Candidate: ink `#110F18` (5.39:1), as the agent fill already uses. (Day `#FFFFFF` on `#DB2777` is 4.6:1, fine.)
-   - Options: (a) keep DESIGN as validated (the plan's default); (b) amend with an ADR: the plan routes the focus ring and control borders through `--focus-ring` and `--control-border`, so each amendment is one line per theme in Task 1 plus the presets; (c) amend only where text contrast fails (title, attention ink) and keep the non-text values.
-2. **Theme mode × presets.** The plan reads DESIGN §13 / screen 08 as: Mode chooses the side (Night / Day / System); a *dark theme* (Night Control, High contrast, or a custom theme on a night base) and a *light theme* (Day · Papier, or a custom theme on a day base) fill each side. High contrast is therefore a dark-side choice. Confirm, or say how presets and mode combine.
-3. **Keybindings scope.** Stored per account on the server (same `settings` module as the appearance), edited in Settings with a JSON view, import and export. T3 keeps a `keybindings.json` file on the server machine. Confirm per account, or choose per device or a file in `~/.pap`.
-4. **Default chords the browser does not keep.** Tab next/previous `Alt+Shift+→/←`, close tab `Alt+W` (both inactive inside text fields), split `Ctrl/⌘+\`, settings `Ctrl/⌘+,`; pi-web's `Esc`, `Ctrl+Alt+N`, `Alt+↑/↓`, `Ctrl+Alt+1..9` kept. Confirm or change.
-5. **`/dev/ui` "returns 404 in production".** ADR 0007: the gallery is not compiled into production; `/dev/ui` there shows the app's not-found screen (HTTP 200 from the SPA fallback); screenshots use a test-only gallery build. A literal 404 needs one daemon route. Confirm.
-6. **Visual regression on Chromium only** (18 baselines: 3 themes × 2 densities × 3 sections); WebKit rendering is covered by the journeys. Confirm, or ask for WebKit baselines too (doubles the images and their upkeep).
-7. **First-run stepper of screen 12** (account → passkey → Pi): deferred to M7, where the Pi step (providers) exists; setup stays one step until then. Confirm.
-8. **Fonts**: the bundled Manrope and JetBrains Mono, or the system stacks; no arbitrary installed fonts (that needs a browser permission prompt) and never a font CDN. Confirm.
-9. **Small visual rulings DESIGN leaves open**: button labels use the HUD label size (10.5 px mono, 600, 0.12em); a 60 % background dim behind modal overlays; the 1–3 s spinner turns while visible (DESIGN §7.2 read as "no idle animation") and stops under reduced motion; on touch screens text inputs use 16 px so iOS does not zoom, above the compact density's 13 px. Confirm each.
-10. **CI cost of the browser gate**: the e2e job pulls the ~2 GB Playwright image on each run (≤ 25 min job). Confirm, or ask for image caching.
+Source: `.superpowers/owner-decisions-2026-10-11.md` (pages 1 and 2). M2's plan fix records them in `docs/research/decisions-log.md` (agreement 12); this plan does not touch that file.
 
-# Exit criteria (roadmap M3)
+| Question | Decision | Where |
+|---|---|---|
+| M3-Q1 R120 contrast | (b) amend through ADR 0012: day focus ring `#EA580C`; `--control-border` day `#8F877A`, night `#6B6485`; night approval title `#F472B6`; `--attn-ink` `#110F18` on pink fills (night, high contrast) | 1a, 13 |
+| M3-Q2 theme mode × presets | confirmed: mode picks the side, each side has its theme; high contrast is a dark theme | 13, 25 |
+| M3-Q3 keybindings scope | per account, on the server (`settings` module) | 12, 17b |
+| M3-Q4 default chords | confirmed | 16b |
+| M3-Q5 `/dev/ui` in production | SPA not-found (HTTP 200), ADR 0011 | 28 |
+| M3-Q6 visual regression | Chromium only — moot for M3 (visual regression deferred, C1) | deferred |
+| M3-Q7 first-run stepper | deferred to M7 | 24 |
+| M3-Q8 fonts | bundled Manrope + JetBrains Mono, or the system stacks | 25 |
+| M3-Q9 small visual calls | all confirmed (HUD-size button labels, 60 % dim, bounded spinner, 16 px touch inputs) | 5, 8, 4, 6 |
+| M3-Q10 / C1 browser e2e | none for now: Tasks 29–31 removed and deferred; exit criteria headless; M1's `ci-config.test.ts` guards unchanged; P6 = bundle re-measure | Phase 8, P6 |
+| R3-1 markdown | new Task 10b: lazy markdown + shiki's JavaScript regex engine, CSP unchanged; tool renderers to M6 (DiffView) | 10b |
+| R3-2 reset | keeps the custom theme library | 15, 25 |
+| R3-3 language | per device | 3, 24 |
+| R3-4 settings concurrency | compare-and-set (`baseRevision`), field merge, one retry; field-wise parse with `.default()`; Opus reviewer on Task 15 | 12, 13, 15, 17b |
+| R3-5 bundle | target ≤ 200 KB gzip; lazy Settings, shortcuts help, theme editor, shortcuts editor; provisional budgets mid-milestone; above 200 → owner | Global Constraints, 21, 22, 24, 26, 32 |
+| R3-6 Escape | goes to the panel or menu first, otherwise stops the run (agreement 7) | 16b, 17a, P3 |
+| R3-7 layouts | digits and punctuation recorded by physical key | 16a, 27 |
+| R3-8 settings module in M2's area | accepted | 12 |
+| R3-9 login throttle copy | the copy says what the throttle does | 24 |
+| X2 model table | as above | Model table |
+| X3 ETA | noted; recomputed above (≈ 49 h, P1–P7 ≈ 11–13 h) | ETA |
+| T1 Opus escalation at fix rounds 4–5 | allowed | Plan conventions |
+| T3 merge order | M2 then M3 | Merge notes |
 
-Checked without a browser on this host:
-- `pnpm lint` clean, including `pap/no-raw-colors`, `pap/no-arbitrary-values`, `pap/no-restyle`, `pap/no-native-title`, `pap/zustand-selector`, boundaries and the 400-line cap.
-- `scripts/class-coverage.test.ts` (no unknown classes), `scripts/literal-coverage.test.ts` (no literal UI text), `apps/web/src/compiler-gate.test.ts` and `compiler-pipeline.int.test.ts` (React Compiler on `@pap/ui` and the app) green.
-- `packages/ui/src/tokens.test.ts` (themes, densities, selectors, presets), i18n tests (every key in fr, reactive switch), Safari 16.4 floor and no native CSS nesting, build-output CSP checks (no inline script, boot script first, fonts as files, no gallery in production, palette lazy).
-- `pnpm typecheck`, `pnpm knip`, `pnpm format:check`, `pnpm test:unit`, `pnpm test:int`, `pnpm build`, `pnpm smoke`.
-- `budgets.json` re-set from the measured M3 build; `pnpm budgets` exit 0.
+# Exit criteria (roadmap M3, headless — owner C1)
 
-Checked in the Playwright container (podman here, docker in CI):
-- Owner journey on Chromium and WebKit (setup → reload → sign out → sign in → prompt → approval → result; passkey on Chromium).
-- Shell journey on Chromium and WebKit (palette, appearance persistence, reactive language, tabs, keyboard split, drawers, custom shortcut, help, not-found, every settings section); phone journey on Pixel 7 (Chromium) and iPhone 13 (WebKit).
-- On every screen visited: zero CSP violations, zero console errors, no native `title`, and on coarse pointers no interactive target under 44 × 44 px — "design-system lint clean on every screen".
-- Gallery screenshots in 3 themes × 2 densities match their baselines.
-- CI job `e2e` green.
+Checked without a browser on this host and in CI's existing jobs:
+- `pnpm lint` clean, including `pap/no-raw-colors` (only `presets.ts`, `contrast.ts`, `derive.ts` exempt), `pap/no-arbitrary-values`, `pap/no-restyle`, `pap/no-native-title`, `pap/zustand-selector`, boundaries and the 400-line cap (`tokens.css` and `utilities.css` included).
+- `scripts/class-coverage.test.ts` (no unknown classes, exact selectors), `scripts/literal-coverage.test.ts` (no literal UI text), `apps/web/src/compiler-gate.test.ts` and `compiler-pipeline.int.test.ts` (React Compiler on `@pap/ui` and the app) green — over everything but M2's `features/sessions`, which P7 adds.
+- `packages/ui/src/tokens.test.ts` (themes, densities, selectors, presets, ADR 0012 values and ratios), `scripts/token-classes.test.ts`, i18n tests (every key in fr, reactive switch), Safari 16.4 floor and no native CSS nesting, build-output checks (no inline script, boot script first, fonts as files, no WebAssembly, no gallery in production; palette, Settings, shortcuts help, theme editor and markdown out of the initial assets), `scripts/notices.test.ts` (canonical Apache-2.0 text).
+- Account settings: compare-and-set and field-wise parsing pinned by `service.test.ts`, `settings.test.ts`, `account-setting.test.ts`, `controller.test.ts`, `keybindings-store.test.ts`.
+- DESIGN §5 touch targets as classes (Task 28's probe); keyboard, shell and phone behaviour in happy-dom (Tasks 16a–23).
+- `pnpm typecheck`, `pnpm knip`, `pnpm format:check`, `pnpm test:unit`, `pnpm test:int`, `pnpm build`, `pnpm smoke`; `scripts/ci-config.test.ts` unchanged and green.
+- `budgets.json` re-set from the measured M3 build (≤ 200 KB gzip, or the owner's answer); `pnpm budgets` exit 0.
+
+Not checked in M3 (deferred with the browser e2e, owner C1): journeys in Chromium and WebKit, runtime CSP violations and console errors, measured 44 × 44 px targets, gallery screenshots, PNG icons, R118's Safari 16.4 WebSocket check.
 
 # Coverage map
 
 | Requirement (roadmap M3, DESIGN.md, brief) | Task |
 |---|---|
-| DESIGN §3 tokens: Night, Day · Papier, High contrast; §3.4 geometry; replace the M1 subset | 1 |
-| §4 typography, self-hosted fonts in `packages/ui` | 1 |
-| §5 densities, 44 px targets | 1, 5–8, 29 (guard) |
-| §6 logo and wordmark, favicons, PWA icons | 11, 31 |
+| DESIGN §3 tokens: Night, Day · Papier, High contrast; §3.4 geometry; replace the M1 subset; R120 amendment (ADR 0012) | 1a |
+| §4 typography, self-hosted fonts in `packages/ui` | 1b |
+| §5 densities, 44 px targets | 1a, 5–8 (classes), 28 (class probe); measured: deferred |
+| §6 logo and wordmark, SVG favicon | 11; PNG favicons and PWA icons: M12 |
 | §7.1 icons, no native title | 4, 2 |
-| §7.2 motion, reduced motion | 1, 4 |
+| §7.2 motion, reduced motion | 1a, 4 |
 | §7.3 Orca feedback timing | 4, 5 |
-| §7.4 focus ring | 1, 5 |
+| §7.4 focus ring (ADR 0012) | 1a, 1b, 5 |
 | §8 shell: rail, top bar, tabs, panes, ⌘B drawer, Inbox drawer (decision 25) | 18–21 |
 | §8 breakpoints, phone bottom nav, one pane, sheets (D19) | 8, 23 |
 | D19 viewport and mobile keyboard | 23 |
-| §9.1 owned Radix primitives (+ Collapsible, ADR 0006) | 4–8 |
+| §9.1 owned Radix primitives (+ Collapsible, ADR 0010) | 4–8 |
 | §9.2 AI components per S6 with Apache-2.0 attribution | 9, 10 |
-| §9.2 `/dev/ui` in 3 themes × 3 densities, not in production (ADR 0007) | 28 |
+| Markdown and code highlighting in messages (spec C §7, owner R3-1) | 10b |
+| §9.2 `/dev/ui` in 3 themes × 3 densities, not in production (ADR 0011) | 28, 32 |
 | §11 en + fr everywhere, no concatenation, server texts | 3, every UI task, P4 |
 | §12 contrast per role in the theme editor, confirmation below AA | 13, 26 |
-| §13 appearance settings per account and per device, live, reset (decisions 27–28) | 12, 13, 15, 25 |
+| §13 appearance settings per account (compare-and-set) and per device, live, reset (decisions 27–28, owner R3-2, R3-4) | 12, 13, 15, 25 |
 | §13.1–13.2 custom themes, JSON import/export, derived tokens | 13, 26 |
 | §14 no flash before first paint under the strict CSP | 14 |
-| Keybindings JSON with `when` + editor (spec C §7.4) | 12, 16, 17, 27 |
+| Keybindings JSON with `when` + editor (spec C §7.4) | 12, 16a, 16b, 17a, 17b, 27 |
 | Cmd+K palette (cmdk) | 22 |
-| Design-system lint clean on every screen | 2, 3, 29, 30 |
-| Shell works on desktop and phone in Chromium and WebKit | 29, 30 |
-| Bundle budget re-set from real numbers | 32 |
-| Playwright journey dropped from M1 (decision 36, R51) | 29, 30 |
-| R120 (open question), R129, R125, R118, R122/R128, IME 229, mono labels, on-fill per role, selector specificity | see "Backlog rulings absorbed" |
-| T3 Code and Orca patterns cited per task | 2, 4, 5, 8, 14, 16–18, 20–23, 26, 27, 29 |
+| Design-system lint clean on every screen | 2, 3 (headless gates); runtime checks deferred |
+| Shell works on desktop and phone | 19a–23 (happy-dom); browsers: deferred |
+| Bundle budget re-set from real numbers (≤ 200 KB gzip) | 32, P6 |
+| Playwright journey dropped from M1 (decision 36, R51) | deferred again (owner C1) |
+| R120, R129, R125, R118, R122/R128, IME 229, mono labels, on-fill per role, selector specificity | see "Backlog rulings absorbed" |
+| T3 Code and Orca patterns cited per task | 2, 4, 5, 8, 14, 16a–18, 20–23, 26, 27 |
 
 # Execution handoff
 
-Plan saved to `docs/plans/2026-10-11-m3-design-system.md` in the `feat/m3-design` worktree. The brief already fixes the method (subagent-driven, pipelined with M2, Opus red-team review of this plan before dispatch). Before dispatching Task 1, the controller rules on the open questions that gate tasks: Q2 (Task 13), Q3 (Task 12), Q4 (Task 16), Q5 (Task 28), and on each task's "Risks / rulings needed" line; Q1 can be answered any time before Task 1's values are final (a later answer is a one-line change per theme).
+Plan saved to `docs/plans/2026-10-11-m3-design-system.md` in the `feat/m3-design` worktree. The method is fixed by the brief (subagent-driven, pipelined with M2). Every owner question is answered (above) and every task's rulings are decided (`.superpowers/rulings-m3.md`, M3R1…); the only open items are the ones a task marks "discovered during implementation", which its implementer reports and the controller rules on then. Dispatch in task order (1a, 1b, 2, 3, …, 10, 10b, 11, …, 28, 32); the post-merge tasks wait for M2's merge and run in the order P7 → P3 → P2 → P1 → P4 → P5 → P6.
 
 # Merge order and conflict notes
 
-**Recommended order: M2 first, then M3.** M2 changes the cores (contracts, daemon, runtime, stores, session screens); M3's hunks in those areas are small and additive. M3 rebases once, resolves the hunks below, runs P1–P7 on its branch, and opens its PR with the post-merge work included, so `main` never carries the token aliases or an unadopted shell. If M3 finishes first and the owner wants it merged first, M2's executor resolves the same hunks during its rebase and P1–P7 follow on a branch from `main` right after M2 merges.
+The 14 M2 ⇄ M3 cross-plan agreements (`.superpowers/m2-m3-cross-plan-agreements.md`) as they apply to M3:
+
+1. **Merge order: M2 first, then M3** (owner T3). M3 rebases once on a `main` holding M2, resolves the hunks below, runs P1–P7 on its branch and opens its PR with the post-merge work included. **Migrations:** the branch that merges second re-stamps its migrations after the newest stamp on `main` during its rebase (never applied on `main`, so a rename is safe). M3's `apps/daemon/src/modules/settings/migrations/202610111000_settings.sql` already sorts after M2's `202610110000_session_name.sql` and `202610110100_policy.sql`; if M2's final stamps sort later, rename M3's file after the newest one and re-run `pnpm test:int apps/daemon` (`migrate.ts` refuses a migration that sorts before an applied one).
+2. **ADR numbers:** M2 0006 (export route), 0007 (hot-session reads), 0008 (protocol records), 0009 (daemon-side fork/clone); M3 0010 (Collapsible), 0011 (`/dev/ui` not shipped), 0012 (R120 contrast amendment).
+3. **R125:** parked in both plans' deferrals — stream keying until the first second stream (M4 sessions list or M10 inbox), hidden-tab reconnect throttling in M12; neither milestone adds a second stream.
+4. **i18n:** M2's keys all sit in its delimited `sessions (M2)` block; it adds no key whose French equals the English. M3 keeps `IDENTICAL_IN_FR` handling: the rebase re-runs `i18n.test.ts`, P7 adds any identical M2 key with a reason.
+5. **`@pap/ui` must-keep API until P1:** `Button`, `TextField`, `Message`, `ApprovalCard` (M1 props), `cn`, `FOCUS_RING`, `once`, and the M1 token utility classes M2 lists. Task 5 updates `SessionScreen.test.tsx`'s two class assertions; at the rebase take M2's version and re-apply the class names (`bg-surface`, `border-err`) wherever its assertions survive.
+6. **ApprovalCard convergence:** `answers` + `labels` + `onChoose(answer)`, M1 props as a thin adapter, answer names `deny | once | session | always`, header sentence case in the DOM and uppercase in CSS (M2's ApprovalDialog does the same). P3 replaces M2's ApprovalDialog and adds the type-level `ApprovalAnswer` test.
+7. **Escape and keys in panels:** M2's CustomPanel carries `data-terminal-input` and stops propagation of the keys it consumes; M3's dispatcher has `panelFocus` and `overlayOpen`; every default chord has `!panelFocus`, Escape also `!overlayOpen` (Tasks 16b, 17a; P3 verifies on M2's screen).
+8. **Shared files** (resolution below).
+9. **Markdown and code highlighting:** M3's Task 10b (lazy, shiki's JavaScript engine, CSP unchanged); tool renderers to M6 on DiffView; M2 renders plain text with `<details>` until P3.
+10. **Bundle:** ≤ 200 KB gzip target; lazy Settings, shortcuts help, theme editor, shortcuts editor; provisional `budgets.json` values mid-milestone with a commit note, never a test edit; above 200 KB the owner decides. M2's Task 30 follows the same rule.
+11. **e2e dropped:** M3's former Tasks 29–31 removed and deferred; `scripts/ci-config.test.ts` guards unchanged; P6 is the bundle re-measure only.
+12. **decisions-log:** only M2's plan fix appends to `docs/research/decisions-log.md`; M3 does not touch it.
+13. **Coordination-contract exception:** M3's `settings` module, contracts file and permission domain in M2's areas are accepted (Opus-reviewed, one-line hunks).
+14. **Post-merge order:** P7 → P3 → P2 → P1 → P4 → P5 → P6, with the items listed in the P-task table.
 
 | File | M2 (expected) | M3 | Resolution on rebase |
 |---|---|---|---|
 | `packages/contracts/src/methods.ts` | many new `sessions.*` methods appended | `import { settingsMethods }` + `...settingsMethods,` as the catalogue's first entry | keep both; M3's two lines sit at the top, M2's entries at the bottom |
 | `packages/contracts/src/methods.test.ts` | new mutations in the sorted list | `"settings.set"` in the sorted list | union, kept sorted |
-| `packages/contracts/src/permissions.ts` | maybe a new domain | `"settings"` | union of `DOMAINS` |
-| `packages/contracts/src/index.ts` | maybe new exports | `export * from "./settings.ts";` | union |
-| `apps/daemon/src/daemon.ts` | idle release, systemd scopes, new deps | settings module import, migrations source, `...settings.rpc` | keep both; re-run `pnpm test:int apps/daemon/src/daemon.settings.int.test.ts` |
-| `apps/daemon/src/modules/*/migrations` | new sessions migrations | `settings/migrations/202610111000_settings.sql` | none (independent tables; timestamps order across modules) |
-| `apps/web/src/i18n/en.ts`, `fr.ts` | a `sessions.*` block | four imports at the top and four spreads first in the object | keep both; the `fr` type annotation catches a missing key |
-| `apps/web/src/features/sessions/**` | rewritten | untouched (imported by name: `SessionListScreen`, `SessionScreen({ sessionId })`) | if M2 renamed or re-propped them, adapt `routes/shell/pane-renderers.tsx` only |
-| `apps/web/src/runtime/**`, `stores/**` | rewritten (R125's stream keying and hidden-tab throttling are M2's) | untouched; M3 reads `getRuntime`, `useConnectionState`, `rpc.call`, `RpcError` | adapt `lib/account-setting.ts` if a signature moved |
-| `packages/ui/**` | none (M2 builds feature components on the existing tokens) | rewritten internally; public API of `main` kept | P1, P2 |
-| `eslint.config.js`, `knip.json` | maybe entries | elements `web-lib`, `web-gallery`; rule `pap/no-native-title`; browser globals for `apps/web/src/**/*.js`; entries for the boot script, gallery, e2e | union; `pnpm lint && pnpm knip` |
-| `.github/workflows/ci.yml` | maybe a job or step | job `e2e` | union; `pnpm test:unit scripts/ci-config.test.ts scripts/e2e-config.test.ts` |
-| `package.json`, `pnpm-lock.yaml` | new deps | `@tailwindcss/node`, `@playwright/test`, script `e2e` (root); `radix-ui`, `lucide-react`, `cmdk` (packages) | resolve `package.json` by hand, then take either lockfile and run `pnpm install` to regenerate it; never hand-merge the lockfile |
-| `AGENTS.md` | maybe lines | commands and topic note | union (and keep the `next dev`-style generated blocks out, as usual) |
+| `packages/contracts/src/permissions.ts` | `"policy"` domain | `"settings"` | union of `DOMAINS` |
+| `packages/contracts/src/index.ts` | `export * from "./policy.ts"` and others | `export * from "./settings.ts";` | union |
+| `apps/daemon/src/daemon.ts` | policy module, idle release, scopes, new deps | settings module import, `SETTINGS_MIGRATIONS` in `sources`, `...settings.rpc` | keep both (the `handlers` and `sources` lines touch the same statements); re-run `pnpm test:int apps/daemon/src/daemon.settings.int.test.ts` (M2 may change the harness) |
+| `apps/daemon/src/modules/*/migrations` | `202610110000_session_name.sql`, `202610110100_policy.sql` (+ any later) | `settings/migrations/202610111000_settings.sql` | agreement 1: re-stamp M3's file after M2's newest stamp if it no longer sorts last |
+| `apps/web/src/i18n/en.ts`, `fr.ts` | the delimited `sessions (M2)` block | four imports at the top and four spreads first in the object | keep both; the `fr` type annotation catches a missing key |
+| `apps/web/src/i18n/i18n.test.ts` | its own keys / cases | reactive-locale cases, `IDENTICAL_IN_FR` in "translates every key into French" | union of cases; keep M3's `IDENTICAL_IN_FR` logic; re-run |
+| `apps/web/src/features/sessions/SessionScreen.test.tsx` | rewritten | two class assertions (Task 5) | take M2's version, re-apply `bg-surface` / `border-err` where its assertions survive |
+| `apps/web/src/features/sessions/**` (other files) | rewritten | untouched (imported by name: `SessionListScreen`, `SessionScreen({ sessionId })`) | if M2 renamed or re-propped them, adapt `routes/shell/pane-renderers.tsx` only |
+| `apps/web/src/runtime/**`, `stores/**` | rewritten (`call(…, options?)`, split reducer) | untouched; M3 reads `getRuntime`, `useConnectionState`, `rpc.call`, `RpcError` | adapt `lib/account-setting.ts` only if a signature moved |
+| `apps/web/src/testing/dom.ts`, `runtime-bed.ts` | `runtime-bed.ts` gains `options` | `dom.ts`'s `Mounted` gains `rerender` (Task 17a); `runtime-bed.ts` read only | union |
+| `budgets.json`, `scripts/check-budgets.ts` (+ test) | its own provisional budget (M2's Task 30) | provisional values, `lazyAssets`, the final value (Task 32) | take the larger provisional value at the rebase; P6 sets the final one by the rule |
+| `apps/web/src/build-output.int.test.ts` | reads `budgets.json` only | new cases (Tasks 1b, 10b, 11, 14, 24, 25, 32) | keep M3's cases |
+| `apps/web/src/styles.css` | none | rewritten (Task 1b), phone rules (Task 23) | M3's |
+| `DESIGN.md` | ANSI colours rule under §9 (StatusBar/Widgets) | §3 tokens and §7.4 focus (ADR 0012) | different sections: keep both |
+| `docs/research/decisions-log.md` | owner decisions of 2026-10-11 appended | none | M2's |
+| `packages/ui/**` | none (M2 builds feature components on the existing tokens) | rewritten internally; the must-keep API of agreement 5 kept | P2, P1 |
+| `eslint.config.js`, `knip.json` | maybe entries | `pap/no-raw-colors` ignores (`presets.ts`, `contrast.ts`, `derive.ts`), elements `web-lib`, `web-gallery`, allow lists (`contracts` and `web-lib` for routes, `ui` for lib, `web-feature` for root), rule `pap/no-native-title`, browser globals for `apps/web/src/**/*.js`, knip entries for the boot script and `vite/*.ts` | union; `pnpm lint && pnpm knip` |
+| `package.json`, `pnpm-lock.yaml` | new deps | `@tailwindcss/node` (root); `radix-ui`, `lucide-react`, `react-markdown`, `remark-gfm`, `shiki` (`@pap/ui`), `cmdk` (`@pap/web`) | resolve `package.json` by hand, then run `pnpm install` to regenerate the lockfile; never hand-merge it |
+| `AGENTS.md` | maybe lines | the `docs/agents/web.md` topic note | union |
+| `.github/workflows/ci.yml` | maybe a job or step | none (no e2e job, owner C1) | M2's |
 
-After the rebase: `pnpm lint && pnpm format:check && pnpm typecheck && pnpm knip && pnpm test:unit && pnpm test:int && pnpm build && pnpm smoke && pnpm --filter @pap/web build:gallery && pnpm e2e && pnpm budgets`, then P1–P7.
+After the rebase: `pnpm install && pnpm lint && pnpm format:check && pnpm typecheck && pnpm knip && pnpm test:unit && pnpm test:int && pnpm build && pnpm smoke && pnpm budgets`, then P7 → P3 → P2 → P1 → P4 → P5 → P6.
