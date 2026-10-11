@@ -32,6 +32,11 @@ export const InitRecord = z.object({
   agentDir: AbsolutePath,
   /** The pap data directory ($PAP_HOME): the policy protects it like the Pi agent directory. */
   papHome: AbsolutePath,
+  /**
+   * The umask the daemon was started with, not the 077 it runs under itself: the worker applies it before it opens
+   * the Pi session, so the files its tools create in a project get the user's usual modes (R114).
+   */
+  umask: z.number().int().min(0).max(0o777),
   sessionFile: AbsolutePath.optional(),
   policy: z.unknown(),
   /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */

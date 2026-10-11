@@ -30,6 +30,8 @@ export interface SessionsServiceDeps {
   readonly worker: {
     readonly agentDir: string;
     readonly papHome: string;
+    /** The umask the daemon was started with: workers run their tools under it, not under the daemon's own 077. */
+    readonly umask: number;
     readonly testProviderScript: string | null;
   };
   newId(): string;
@@ -118,6 +120,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       cwd: row.cwd,
       agentDir: deps.worker.agentDir,
       papHome: deps.worker.papHome,
+      umask: deps.worker.umask,
       policy: INTERACTIVE_POLICY,
       // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
       ...(row.piPath ? { sessionFile: row.piPath } : {}),

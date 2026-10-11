@@ -57,6 +57,7 @@ function launch(
     cwd: join(root, "work"),
     agentDir: join(root, "agent"),
     papHome: join(root, "pap"),
+    umask: 0o022,
     policy,
     testProviderScript: join(root, "script.json"),
   });

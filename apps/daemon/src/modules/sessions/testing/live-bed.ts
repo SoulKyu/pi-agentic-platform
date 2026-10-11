@@ -5,7 +5,14 @@ import type { WorkerExit } from "../../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker } from "../../../kernel/testing/fake-worker.ts";
 
-export const INIT: InitRecord = { type: "init", cwd: "/w", agentDir: "/a", papHome: "/p", policy: {} };
+export const INIT: InitRecord = {
+  type: "init",
+  cwd: "/w",
+  agentDir: "/a",
+  papHome: "/p",
+  umask: 0o022,
+  policy: {},
+};
 export const confirm = {
   type: "extension_ui_request" as const,
   id: "d1",

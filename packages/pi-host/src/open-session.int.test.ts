@@ -58,6 +58,7 @@ const initRecord = (): InitRecord => ({
   cwd,
   agentDir,
   papHome: join(root, "pap"),
+  umask: 0o022,
   policy: RULES,
   testProviderScript: join(root, "script.json"),
 });

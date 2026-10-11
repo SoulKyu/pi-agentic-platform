@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 // The real entry point in a real process, in a throwaway home: never the user's ~/.pap or ~/.pi/agent.
-function run(args: string[], home = join(root, "home")): Serve {
+function run(args: string[], home = join(root, "home"), env: Record<string, string> = {}): Serve {
   const child = spawn(
     process.execPath,
     ["--disable-warning=ExperimentalWarning", "--conditions=development", MAIN, ...args],
@@ -42,6 +42,7 @@ function run(args: string[], home = join(root, "home")): Serve {
         PAP_HOME: home,
         PI_CODING_AGENT_DIR: join(root, "agent"),
         PI_TELEMETRY: "0",
+        ...env,
       },
     },
   );
@@ -92,6 +93,17 @@ describe("pap serve", () => {
     expect(serve.stderr()).toBe("");
   });
 
+  it("prints the setup address whatever PAP_LOG_LEVEL is, and nothing else below that level (R117)", async () => {
+    const serve = run(["serve", "--port", String(await freePort())], join(root, "home"), {
+      PAP_LOG_LEVEL: "error",
+    });
+    await vi.waitFor(() => expect(serve.line("setup_url")).toBeDefined(), { timeout: 20_000 });
+    expect(serve.lines.map((line) => line.msg)).toEqual(["setup_url"]);
+    serve.child.kill("SIGTERM");
+    expect((await serve.exit()).code).toBe(0);
+    expect(serve.lines.map((line) => line.msg)).toEqual(["setup_url"]);
+  });
+
   it.each(["SIGINT", "SIGHUP"] as const)("stops cleanly on %s as well", async (signal) => {
     const serve = run(["serve", "--port", String(await freePort())]);
     await vi.waitFor(() => expect(serve.line("listening")).toBeDefined(), { timeout: 20_000 });
@@ -112,6 +124,15 @@ describe("pap serve", () => {
     ).toBe(200);
     first.child.kill("SIGTERM");
     expect((await first.exit()).code).toBe(0);
+  });
+
+  it("names the path of a home it cannot use instead of printing a stack trace", async () => {
+    const home = join(root, "home");
+    mkdirSync(home);
+    writeFileSync(join(home, "backups"), "a file where a directory belongs");
+    const serve = run(["serve", "--port", String(await freePort())], home);
+    expect(await serve.exit()).toEqual({ code: 1, signal: null });
+    expect(serve.stderr()).toMatch(new RegExp(`^pap: cannot create ${home}/backups: EEXIST\n$`));
   });
 
   it("names a port that is taken instead of printing a stack trace", async () => {

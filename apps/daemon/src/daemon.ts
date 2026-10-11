@@ -36,8 +36,16 @@ export interface DaemonDeps {
   readonly clock?: Clock;
   readonly logger?: Logger;
   readonly env?: NodeJS.ProcessEnv;
-  /** The HTTP server raised an error after it started: the caller stops the daemon and exits non-zero (R75). */
+  /**
+   * The HTTP server raised an error after it started: the caller stops the daemon and exits non-zero (R75). Called
+   * once, however many errors follow: a second call would look like a second signal and cut the shutdown short (R115).
+   */
   readonly onFatal?: (reason: "server_error") => void;
+  /**
+   * Where the one-time setup address goes. Defaults to `logger.info("setup_url")`; `pap serve` prints it whatever
+   * PAP_LOG_LEVEL is, because without it nobody can create the owner (R117).
+   */
+  readonly announceSetupUrl?: (fields: { readonly url: string; readonly hint: string }) => void;
 }
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -57,7 +65,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
   const logger =
     deps.logger ??
     createLogger({ level: config.logLevel, clock, write: (line) => process.stdout.write(line) });
-  prepareHome(config.home);
+  const workerUmask = prepareHome(config.home);
   const lock = acquireInstanceLock(config.home);
 
   // Undone in reverse order, by `stop()` and by a start that fails half-way.
@@ -100,7 +108,15 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       publicOrigin: config.publicOrigin,
       allowedOrigins: config.allowedOrigins,
     });
-    const sessions = createSessionsModule({ db, clock, logger, hub, config, env: deps.env ?? process.env });
+    const sessions = createSessionsModule({
+      db,
+      clock,
+      logger,
+      hub,
+      config,
+      workerUmask,
+      env: deps.env ?? process.env,
+    });
     const handlers: HandlerTable = { ...systemHandlers(clock), ...sessions.rpc };
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
@@ -128,6 +144,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       mount: (hono) => auth.mount(hono),
       wsProbe,
     });
+    let fatal = false;
     const server = await startServer({
       app,
       host: config.host,
@@ -136,6 +153,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       onUpgrade: (req, socket, head) => ws.handleUpgrade(req, socket, head),
       onError: (error) => {
         logger.error("server_error", { code: error.code });
+        if (fatal) return;
+        fatal = true;
         deps.onFatal?.("server_error");
       },
     });
@@ -143,8 +162,11 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     closers.push({ name: "http", close: () => server.close() }, { name: "ws", close: () => ws.close() });
 
     const setupUrl = openableSetupUrl(config, auth.setupUrl());
-    if (setupUrl)
-      logger.info("setup_url", { url: setupUrl, hint: "Open this URL once to create the owner account." });
+    if (setupUrl) {
+      const fields = { url: setupUrl, hint: "Open this URL once to create the owner account." };
+      if (deps.announceSetupUrl) deps.announceSetupUrl(fields);
+      else logger.info("setup_url", fields);
+    }
     if (!LOOPBACK.has(config.host) && !config.tls) {
       logger.warn("plain_http_on_network", {
         hint: "Passkeys, secure cookies and Web Push need HTTPS: use Tailscale serve, a reverse proxy or --tls-cert/--tls-key.",

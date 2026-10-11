@@ -95,6 +95,8 @@ export async function runHost(ipc: Ipc): Promise<void> {
   const first = PolicyRules.safeParse(initial.policy);
   if (!first.success) throw new Error("the init record carries invalid policy rules: refusing to start");
   let rules: PolicyRules = first.data;
+  // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
+  process.umask(initial.umask);
   const opened = await openSession(initial, {
     ui,
     rules: () => rules,

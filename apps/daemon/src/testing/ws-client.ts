@@ -3,7 +3,8 @@ import { WebSocket } from "ws";
 
 export interface TestClient {
   readonly events: EventFrame[];
-  call<M extends MethodName>(method: M, params: ParamsOf<M>): Promise<ResponseFrame>;
+  /** Rejects when no response comes within `timeoutMs`; the client never retries a mutation (R105). */
+  call<M extends MethodName>(method: M, params: ParamsOf<M>, timeoutMs?: number): Promise<ResponseFrame>;
   waitForEvent(predicate: (frame: EventFrame) => boolean, timeoutMs?: number): Promise<EventFrame>;
   close(): void;
 }
@@ -20,12 +21,25 @@ export function connectTestClient(url: string, headers: Record<string, string>):
     let greeted = false;
     const client: TestClient = {
       events,
-      call(method, params) {
+      call(method, params, timeoutMs = 30_000) {
         const id = ++nextId;
         const commandId = methods[method].idempotent ? undefined : `cmd-${process.pid}-${++commandCounter}`;
-        return new Promise((done) => {
-          pending.set(id, done);
-          socket.send(JSON.stringify({ id, method, params, ...(commandId ? { commandId } : {}) }));
+        return new Promise((done, fail) => {
+          const deadline = setTimeout(() => {
+            pending.delete(id);
+            fail(new Error(`no response to ${method} within ${timeoutMs} ms`));
+          }, timeoutMs);
+          pending.set(id, (frame) => {
+            clearTimeout(deadline);
+            done(frame);
+          });
+          try {
+            socket.send(JSON.stringify({ id, method, params, ...(commandId ? { commandId } : {}) }));
+          } catch (error) {
+            clearTimeout(deadline);
+            pending.delete(id);
+            fail(error);
+          }
         });
       },
       waitForEvent(predicate, timeoutMs = 30_000) {

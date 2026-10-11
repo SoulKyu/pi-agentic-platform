@@ -40,6 +40,16 @@ export interface TestDaemonOptions {
  */
 export async function startTestDaemon(script: object, options: TestDaemonOptions = {}): Promise<TestDaemon> {
   const root = mkdtempSync(join(tmpdir(), "pap-int-"));
+  try {
+    return await startIn(root, script, options);
+  } catch (error) {
+    // Whatever failed (a certificate, a lock, a taken port), the directory it made goes with it.
+    rmSync(root, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function startIn(root: string, script: object, options: TestDaemonOptions): Promise<TestDaemon> {
   const agentDir = join(root, "agent");
   const cwd = join(root, "work");
   const userHome = join(root, "user");
@@ -76,12 +86,7 @@ export async function startTestDaemon(script: object, options: TestDaemonOptions
   };
   // Not the whole environment: whatever PI_* and HOME the outer process has must not reach a worker.
   const env = { PATH: process.env.PATH, LANG: process.env.LANG, HOME: userHome, PI_OFFLINE: "1" };
-  const daemon = await createDaemon(config, { logger: silentLogger, ...options.deps, env }).catch(
-    (error: unknown) => {
-      rmSync(root, { recursive: true, force: true });
-      throw error;
-    },
-  );
+  const daemon = await createDaemon(config, { logger: silentLogger, ...options.deps, env });
   return {
     daemon,
     origin,

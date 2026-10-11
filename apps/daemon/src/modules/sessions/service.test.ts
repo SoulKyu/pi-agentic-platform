@@ -39,8 +39,15 @@ describe("create", () => {
       cwd: realpathSync(bed.work),
       agentDir: bed.agentDir,
       papHome: join(bed.dir, "pap"),
+      umask: 0o022,
       policy: { profile: "interactive", approvalMode: "auto-accept-edits" },
     });
+  });
+
+  it("hands the worker the umask the daemon was started with, not its own (R114)", async () => {
+    open({ umask: 0o027 });
+    await bed.service.create(bed.work, owner);
+    expect(bed.spawned[0]?.sent[0]).toMatchObject({ type: "init", umask: 0o027 });
   });
 
   it("hands the worker a test provider script only when one is configured", async () => {

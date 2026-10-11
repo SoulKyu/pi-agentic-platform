@@ -14,7 +14,7 @@ import { createSessionsModule, SESSIONS_MIGRATIONS } from "./index.ts";
 import { captureLogger } from "./testing/helpers.ts";
 
 // The real supervisor forks a process; here it only records what it was asked to start, and answers like a worker.
-const spawned = vi.hoisted(() => ({ options: [] as unknown[] }));
+const spawned = vi.hoisted(() => ({ options: [] as unknown[], inits: [] as unknown[] }));
 vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../kernel/supervisor/worker.ts")>()),
   spawnWorker: (options: SpawnWorkerOptions) => {
@@ -22,6 +22,7 @@ vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
     return createFakeWorker({
       onSend: (record, self) => {
         if (record.type === "init") {
+          spawned.inits.push(record);
           queueMicrotask(() =>
             self.emit({ type: "ready", sessionId: "pi-1", sessionFile: "/x/pi-1.jsonl", piVersion: "1" }),
           );
@@ -43,6 +44,7 @@ let root: string;
 let db: Db;
 beforeEach(() => {
   spawned.options.length = 0;
+  spawned.inits.length = 0;
   root = mkdtempSync(join(tmpdir(), "pap-sessions-index-"));
   db = migrate({
     dbPath: join(root, "s.db"),
@@ -83,6 +85,7 @@ function moduleWith(testProviderScript: string | null, logger = silentLogger) {
     logger,
     hub,
     config: config(testProviderScript),
+    workerUmask: 0o027,
     env: daemonEnv,
   });
   return { sessions, hub };
@@ -105,6 +108,12 @@ describe("sessions module", () => {
       PI_TELEMETRY: "0",
       PI_SKIP_VERSION_CHECK: "1",
     });
+  });
+
+  it("tells the worker the umask the daemon was started with in its init record (R114)", async () => {
+    const { sessions } = moduleWith(null);
+    await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
+    expect(spawned.inits).toEqual([expect.objectContaining({ type: "init", umask: 0o027 })]);
   });
 
   it("marks the worker as a test provider host only when a script is configured, and says so in the log", async () => {

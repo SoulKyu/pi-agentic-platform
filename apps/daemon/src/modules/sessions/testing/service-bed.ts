@@ -19,6 +19,8 @@ export interface BedOptions {
   limits?: { maxWorkers: number; minFreeMemMb: number };
   freeMemMb?: number;
   testProviderScript?: string | null;
+  /** The umask the daemon was started with; defaults to 022. */
+  umask?: number;
   logger?: Logger;
   /** The transcript reader fails to load this many times before it loads. */
   readerFailures?: number;
@@ -108,6 +110,7 @@ export interface ServiceParts<Store, Reader> {
   readonly worker: {
     readonly agentDir: string;
     readonly papHome: string;
+    readonly umask: number;
     readonly testProviderScript: string | null;
   };
   newId(): string;
@@ -161,7 +164,12 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     logger: options.logger ?? silentLogger,
     hub,
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
-    worker: { agentDir, papHome: join(dir, "pap"), testProviderScript: options.testProviderScript ?? null },
+    worker: {
+      agentDir,
+      papHome: join(dir, "pap"),
+      umask: options.umask ?? 0o022,
+      testProviderScript: options.testProviderScript ?? null,
+    },
     newId: () => `p${++ids}`,
     loadTranscript: () => {
       transcript.loads++;

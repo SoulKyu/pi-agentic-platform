@@ -78,6 +78,7 @@ export function createHostBed(fork: typeof forkHost = forkHost) {
       cwd,
       agentDir,
       papHome,
+      umask: 0o022,
       policy: "policy" in options ? options.policy : RULES,
       testProviderScript: scriptPath,
       ...options.init,

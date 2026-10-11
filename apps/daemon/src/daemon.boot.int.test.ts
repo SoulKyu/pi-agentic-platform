@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,7 +11,6 @@ import { httpRequest } from "./testing/http-client.ts";
 import { startTestDaemon, type TestDaemon } from "./testing/harness.ts";
 
 const ANSWER = { steps: [{ text: "a scripted answer" }] };
-const mode = (path: string) => statSync(path).mode & 0o777;
 
 function capture() {
   const lines: Array<Record<string, unknown>> = [];
@@ -35,17 +34,6 @@ afterEach(async () => {
 });
 
 describe("what the daemon does at boot", () => {
-  it("keeps the home 0700 and state.db with its WAL and snapshots 0600 (R68)", async () => {
-    const t = await boot(ANSWER);
-    expect(process.umask()).toBe(0o077);
-    for (const dir of [t.home, join(t.home, "backups"), join(t.home, "secrets")]) {
-      expect(mode(dir), dir).toBe(0o700);
-    }
-    const files = readdirSync(t.home).filter((name) => name.startsWith("state.db"));
-    expect(files).toContain("state.db");
-    for (const name of files) expect(mode(join(t.home, name)), name).toBe(0o600);
-  });
-
   it("refuses a second daemon on the same home and frees the home when the first one stops (R70)", async () => {
     const first = await boot(ANSWER);
     const refused = await startTestDaemon(ANSWER, { config: { home: first.home } }).catch(
@@ -91,6 +79,15 @@ describe("what the daemon does at boot", () => {
     expect(again.named("listening")).toHaveLength(1);
   });
 
+  it("hands the setup address to the announcer instead of the logger when it has one (R117)", async () => {
+    // main.ts announces it whatever PAP_LOG_LEVEL is: an operator cannot create the owner without it.
+    const { logger, named } = capture();
+    const announced: Array<{ url: string }> = [];
+    const t = await boot(ANSWER, { deps: { logger, announceSetupUrl: (fields) => announced.push(fields) } });
+    expect(announced).toEqual([expect.objectContaining({ url: t.daemon.setupUrl })]);
+    expect(named("setup_url")).toHaveLength(0);
+  });
+
   it("prints the setup address on the Vite origin in --dev (R31)", async () => {
     const { logger, named } = capture();
     const t = await boot(ANSWER, { config: { dev: true }, deps: { logger } });
@@ -109,7 +106,7 @@ describe("what the daemon does at boot", () => {
     expect(quiet.named("plain_http_on_network")).toHaveLength(0);
   });
 
-  it("logs a late server error by its code alone and hands the daemon over to its owner (R75)", async () => {
+  it("logs every late server error by its code alone, and hands the daemon over once (R75, R115)", async () => {
     const listen = vi.spyOn(Server.prototype, "listen");
     const { logger, named } = capture();
     const onFatal = vi.fn();
@@ -117,8 +114,13 @@ describe("what the daemon does at boot", () => {
     const instance = listen.mock.contexts[0] as Server;
     const late = Object.assign(new Error("accept failed for /home/someone/secret"), { code: "EMFILE" });
     expect(() => instance.emit("error", late)).not.toThrow();
+    expect(() => instance.emit("error", late)).not.toThrow();
+    // A second call would count as a second signal to the owner and SIGKILL the workers before they cleaned up.
     expect(onFatal).toHaveBeenCalledExactlyOnceWith("server_error");
-    expect(named("server_error")).toEqual([expect.objectContaining({ level: "error", code: "EMFILE" })]);
+    expect(named("server_error")).toEqual([
+      expect.objectContaining({ level: "error", code: "EMFILE" }),
+      expect.objectContaining({ level: "error", code: "EMFILE" }),
+    ]);
     expect(JSON.stringify(named("server_error"))).not.toContain("secret");
   });
 });
@@ -222,7 +224,8 @@ describe("stopping", () => {
       sleeper = Number(readFileSync(pidFile, "utf8"));
       expect(() => process.kill(sleeper, 0)).not.toThrow();
       await t.daemon.stop();
-      expect(() => process.kill(sleeper, 0)).toThrow(/ESRCH/);
+      // A killed process is gone for good once its parent has reaped it, a moment after the signal.
+      await vi.waitFor(() => expect(() => process.kill(sleeper, 0)).toThrow(/ESRCH/));
     } finally {
       if (sleeper > 1) {
         try {

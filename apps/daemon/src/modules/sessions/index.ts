@@ -34,6 +34,8 @@ export interface SessionsModuleDeps {
     | "maxWorkers"
     | "minFreeMemMb"
   >;
+  /** The umask the daemon was started with, before it set its own 077: what the workers' tools run under (R114). */
+  readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
 }
 
@@ -64,6 +66,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     worker: {
       agentDir: config.piAgentDir,
       papHome: config.home,
+      umask: deps.workerUmask,
       testProviderScript: config.testProviderScript,
     },
     newId,

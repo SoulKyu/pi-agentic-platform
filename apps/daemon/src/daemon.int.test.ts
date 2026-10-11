@@ -96,6 +96,8 @@ describe("pap daemon end to end (scripted provider)", () => {
     const toolEnd = await client.waitForEvent(pi("tool_execution_end"));
     expect(ev(toolEnd).event?.isError).toBe(true);
     expect(JSON.stringify(toolEnd.event)).toContain("Denied by the user.");
+    // The command never ran: its output is nowhere in what the model was given back.
+    expect(JSON.stringify(toolEnd.event)).not.toContain("pap-int-ok");
     client.close();
   });
 
@@ -124,6 +126,8 @@ describe("pap daemon end to end (scripted provider)", () => {
     });
     const open = await client.waitForEvent(kind("dialog_open"));
     const firstPid = t.daemon.inspect.workerPid(sessionId);
+    // kill(-1) and kill(0) would signal far more than this worker's group.
+    expect(firstPid).toBeGreaterThan(1);
     process.kill(-(firstPid ?? 0), "SIGKILL");
     await client.waitForEvent((f) => kind("dialog_closed")(f) && f.seq > open.seq);
     const cold = await client.waitForEvent(statusIs("cold", open.seq));

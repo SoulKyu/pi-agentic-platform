@@ -8,7 +8,7 @@ import { createDaemon } from "./daemon.ts";
 import { createSystemClock } from "./kernel/clock.ts";
 import { ConfigError, loadConfig, type Config } from "./kernel/config.ts";
 import { MigrationError } from "./kernel/db/migrate.ts";
-import { InstanceLockError } from "./kernel/home.ts";
+import { HomeError, InstanceLockError } from "./kernel/home.ts";
 import { createLogger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
 import { createShutdown, watchSignals, type Shutdown } from "./shutdown.ts";
@@ -43,6 +43,7 @@ function readConfig(argv: string[]): Config | null {
 // What an operator can fix and read in one line; anything else is a bug and keeps its stack trace.
 const isStartupRefusal = (error: unknown): error is Error =>
   error instanceof InstanceLockError ||
+  error instanceof HomeError ||
   error instanceof MigrationError ||
   ["EADDRINUSE", "EACCES", "EADDRNOTAVAIL"].includes((error as { code?: string } | null)?.code ?? "");
 
@@ -50,12 +51,15 @@ async function serve(config: Config): Promise<void> {
   const clock = createSystemClock();
   // A log reader that went away (a closed pipe) must not take the daemon down with it.
   process.stdout.on("error", () => {});
-  const logger = createLogger({ level: config.logLevel, clock, write: (line) => process.stdout.write(line) });
+  const write = (line: string) => process.stdout.write(line);
+  const logger = createLogger({ level: config.logLevel, clock, write });
+  const operator = createLogger({ level: "info", clock, write });
   let shutdown: Shutdown | undefined;
   try {
     const daemon = await createDaemon(config, {
       clock,
       logger,
+      announceSetupUrl: (fields) => operator.info("setup_url", fields),
       onFatal: () => (shutdown ? shutdown.trigger("server_error", 1) : process.exit(1)),
     });
     shutdown = createShutdown({

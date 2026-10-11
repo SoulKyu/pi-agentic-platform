@@ -55,7 +55,7 @@ describe("worker record routing", () => {
 });
 
 describe("InitRecord", () => {
-  const init = { type: "init", cwd: "/work", agentDir: "/agent", papHome: "/pap", policy: {} };
+  const init = { type: "init", cwd: "/work", agentDir: "/agent", papHome: "/pap", umask: 0o022, policy: {} };
 
   it("requires the pap data directory", () => {
     expect(InitRecord.safeParse(init).success).toBe(true);
@@ -69,6 +69,16 @@ describe("InitRecord", () => {
       expect(InitRecord.safeParse({ ...init, papHome }).success).toBe(false);
     },
   );
+
+  it("requires the umask the worker runs its tools under (R114)", () => {
+    for (const umask of [0, 0o022, 0o077, 0o777]) {
+      expect(InitRecord.safeParse({ ...init, umask }).success, String(umask)).toBe(true);
+    }
+    for (const umask of [undefined, -1, 0o1000, 18.5, "022", null, Number.NaN]) {
+      expect(InitRecord.safeParse({ ...init, umask }).success, String(umask)).toBe(false);
+    }
+    expect(DaemonToWorker.safeParse({ ...init, umask: undefined }).success).toBe(false);
+  });
 
   it.each(["sessionFile", "testProviderScript"])("holds %s to the same absolute-path rule", (field) => {
     expect(InitRecord.safeParse({ ...init, [field]: "/abs/file" }).success).toBe(true);

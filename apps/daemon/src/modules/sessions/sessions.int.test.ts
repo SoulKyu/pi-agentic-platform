@@ -49,6 +49,7 @@ function moduleWith(testProviderScript: string): SessionsModule {
       maxWorkers: 2,
       minFreeMemMb: 0,
     },
+    workerUmask: 0o022,
     env: { PATH: process.env.PATH, LANG: process.env.LANG, HOME: join(root, "home"), PI_OFFLINE: "1" },
   });
 }

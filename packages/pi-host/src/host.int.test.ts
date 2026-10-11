@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { ProjectTrustStore, VERSION } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -58,6 +58,8 @@ describe("pi-host worker: boot", () => {
     ["has no pap data directory", { papHome: undefined }, "papHome"],
     ["has a relative pap data directory", { papHome: "pap" }, "papHome"],
     ["has a relative session directory", { cwd: "work" }, "cwd"],
+    ["has no umask", { umask: undefined }, "umask"],
+    ["has a umask out of range", { umask: 0o1000 }, "umask"],
   ])("refuses to start when the init record %s", async (_name, init, field) => {
     const host = bed.launch({ steps: [{ text: "hi" }] }, { init });
     expect(await host.exited).toBe(70);
@@ -225,6 +227,27 @@ describe("pi-host worker: policy", () => {
     expect(host.records.find((r) => r.type === "audit")).toMatchObject({
       entry: { category: "edit", decision: "allow" },
     });
+  });
+
+  // The daemon runs under umask 077 for its own files and sends the umask it was started with: the files a tool
+  // creates in a user's project get that user's usual modes, not the daemon's (R114).
+  it.each([
+    { daemonMask: 0o077, initMask: 0o022, file: 0o644, directory: 0o755 },
+    { daemonMask: 0o022, initMask: 0o077, file: 0o600, directory: 0o700 },
+  ])("runs its tools under the umask of the init record, not the one it inherited: %j", async (masks) => {
+    const inherited = process.umask(masks.daemonMask);
+    try {
+      await bed.start(toolScript("write", { path: "made/note.txt", content: "hello" }), {
+        init: { umask: masks.initMask },
+      });
+    } finally {
+      process.umask(inherited);
+    }
+    const host = bed.host();
+    await host.request({ type: "prompt", message: "go" });
+    expect((await host.waitFor((r) => r.type === "tool_execution_end")).isError).toBe(false);
+    expect(statSync(join(bed.cwd, "made", "note.txt")).mode & 0o777).toBe(masks.file);
+    expect(statSync(join(bed.cwd, "made")).mode & 0o777).toBe(masks.directory);
   });
 
   it.each(["agentDir", "papHome"] as const)(
