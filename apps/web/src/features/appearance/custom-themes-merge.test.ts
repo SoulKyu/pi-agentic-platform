@@ -14,7 +14,11 @@ const withThemes = (customThemes: CustomTheme[]): AccountAppearance => ({ ...DEF
 const dirty = new Set(["customThemes"]);
 
 /** The server and two devices: each device is a real account document over the real merge. */
-function twoDevices(seed: AccountAppearance = DEFAULT_ACCOUNT, onServer: AccountAppearance | null = null) {
+function twoDevices(
+  seed: AccountAppearance = DEFAULT_ACCOUNT,
+  onServer: AccountAppearance | null = null,
+  seedB: AccountAppearance = seed,
+) {
   let stored: { value: unknown; revision: number } = { value: onServer, revision: onServer ? 1 : 0 };
   const rpc = {
     call: async (method: string, params: { baseRevision?: number; value?: unknown }) => {
@@ -24,8 +28,8 @@ function twoDevices(seed: AccountAppearance = DEFAULT_ACCOUNT, onServer: Account
       return { revision: stored.revision };
     },
   } as never;
-  const device = () => {
-    let state = seed;
+  const device = (start: AccountAppearance) => {
+    let state = start;
     let due: (() => void) | null = null;
     const doc = createAccountDocument<AccountAppearance>({
       key: "appearance",
@@ -48,9 +52,12 @@ function twoDevices(seed: AccountAppearance = DEFAULT_ACCOUNT, onServer: Account
     return {
       state: () => state,
       sync: () => doc.sync(rpc),
-      async edit(change: (themes: CustomTheme[]) => CustomTheme[]) {
+      async edit(
+        change: (themes: CustomTheme[]) => CustomTheme[],
+        also: (account: AccountAppearance) => AccountAppearance = (account) => account,
+      ) {
         const previous = state;
-        state = { ...state, customThemes: change(state.customThemes) };
+        state = also({ ...state, customThemes: change(state.customThemes) });
         doc.change(previous, state);
         due?.();
         for (let i = 0; i < 40; i++) await Promise.resolve();
@@ -58,7 +65,7 @@ function twoDevices(seed: AccountAppearance = DEFAULT_ACCOUNT, onServer: Account
       server: () => parseAccount(stored.value),
     };
   };
-  return { a: device(), b: device() };
+  return { a: device(seed), b: device(seedB) };
 }
 
 describe("custom themes merge by id against the last server copy (I5)", () => {
@@ -125,8 +132,49 @@ describe("custom themes merge by id against the last server copy (I5)", () => {
     expect(ids(a.server())).toEqual(["t2"]);
   });
 
+  it("re-ids this device's theme when both devices added the same id with different colours, and moves its side along", async () => {
+    const { a, b } = twoDevices();
+    await a.sync();
+    await b.sync();
+    const mine = { ...theme("night-control-copy", "Night Control copy"), roles: { ...roles, bg: "#101010" } };
+    const theirs = {
+      ...theme("night-control-copy", "Night Control copy"),
+      roles: { ...roles, bg: "#202020" },
+    };
+    const pick = (account: AccountAppearance) => ({ ...account, darkTheme: "night-control-copy" });
+    await a.edit((themes) => [...themes, mine], pick);
+    await b.edit((themes) => [...themes, theirs], pick); // b is stale: same id, other content
+    const server = b.server();
+    expect(server.customThemes).toHaveLength(2);
+    expect(server.customThemes.find((one) => one.id === "night-control-copy")?.roles.bg).toBe("#101010");
+    const moved = server.customThemes.find((one) => one.id !== "night-control-copy");
+    expect(moved?.roles.bg).toBe("#202020");
+    expect(server.darkTheme).toBe(moved?.id);
+    expect(b.state().darkTheme).toBe(moved?.id);
+  });
+
+  it("keeps one theme when both devices added the same id with the same content", async () => {
+    const { a, b } = twoDevices();
+    await a.sync();
+    await b.sync();
+    await a.edit((themes) => [...themes, theme("same")]);
+    await b.edit((themes) => [...themes, theme("same")]);
+    expect(ids(b.server())).toEqual(["same"]);
+  });
+
+  it("keeps a theme that only this device's cache holds when the server has no document yet", async () => {
+    // a's cache has t0; the server has nothing; b (an empty cache) saves the first document, then a adds t1.
+    const { a, b } = twoDevices(withThemes([theme("t0")]), null, DEFAULT_ACCOUNT);
+    await a.sync();
+    await b.sync();
+    await b.edit((themes) => [...themes, theme("t9")]);
+    await a.edit((themes) => [...themes, theme("t1")]); // conflicts with b's first save
+    expect(ids(a.server())).toEqual(["t9", "t0", "t1"]);
+  });
+
   it("a delete of an untouched theme and a delete on both devices both apply", async () => {
-    const { a, b } = twoDevices(withThemes([theme("t1"), theme("t2")]));
+    const both = withThemes([theme("t1"), theme("t2")]);
+    const { a, b } = twoDevices(both, both);
     await a.sync();
     await b.sync();
     await a.edit((themes) => themes.filter((one) => one.id !== "t1"));
@@ -154,11 +202,26 @@ describe("mergeAccount on the theme list", () => {
     ]);
   });
 
-  it("an add whose id the server already has keeps this device's version", () => {
+  it("an add whose id the server already has with other content gets a fresh id, the server's theme stays", () => {
     const server = withThemes([theme("t1"), theme("t3", "Theirs")]);
-    const local = withThemes([theme("t1"), theme("t2"), theme("t3", "Mine")]);
-    expect(mergeAccount(server, local, dirty, base).customThemes.find((one) => one.id === "t3")?.name).toBe(
-      "Mine",
-    );
+    const local = { ...withThemes([theme("t1"), theme("t2"), theme("t3", "Mine")]), darkTheme: "t3" };
+    const merged = mergeAccount(server, local, new Set(["customThemes", "darkTheme"]), base);
+    expect(merged.customThemes.find((one) => one.id === "t3")?.name).toBe("Theirs");
+    const mine = merged.customThemes.find((one) => one.name === "Mine");
+    expect(mine?.id).not.toBe("t3");
+    expect(merged.darkTheme).toBe(mine?.id);
+  });
+
+  it("compares themes by content, not by key order: a reordered copy is neither an edit nor an add", () => {
+    const reordered = { roles, base: "night", name: "t1", id: "t1" } as CustomTheme;
+    const kept = withThemes([theme("t1"), theme("t2")]);
+    // deleted here, the server copy only has its keys in another order: the delete applies
+    expect(
+      ids(mergeAccount(withThemes([reordered, theme("t2")]), withThemes([theme("t2")]), dirty, kept)),
+    ).toEqual(["t2"]);
+    // added here, the server already has the same theme in another key order: one theme, no copy
+    expect(
+      ids(mergeAccount(withThemes([reordered]), withThemes([theme("t1")]), dirty, DEFAULT_ACCOUNT)),
+    ).toEqual(["t1"]);
   });
 });

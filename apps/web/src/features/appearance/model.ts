@@ -1,6 +1,7 @@
 import { AccountAppearanceFields, CustomTheme, type AccountAppearance } from "@pap/contracts";
 import { DENSITIES, type Density, type ThemeName } from "@pap/ui";
 import { deriveTheme, tokenVars } from "./derive.ts";
+import { newThemeId } from "./theme-io.ts";
 
 export const DEVICE_KEY = "pap.appearance.device.v1";
 export const ACCOUNT_CACHE_KEY = "pap.appearance.account.v1";
@@ -96,24 +97,34 @@ export function changedAccountFields(previous: AccountAppearance, next: AccountA
   );
 }
 
+/** JSON with sorted keys: two themes with the same content are equal whatever order their keys were built in. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_key, inner: unknown) =>
+    inner !== null && typeof inner === "object" && !Array.isArray(inner)
+      ? Object.fromEntries(Object.entries(inner).sort(([one], [other]) => (one < other ? -1 : 1)))
+      : inner,
+  );
+
 const sameTheme = (one: CustomTheme | undefined, other: CustomTheme | undefined): boolean =>
-  JSON.stringify(one) === JSON.stringify(other);
+  canonical(one) === canonical(other);
 
 /**
- * The server's theme list with this device's changes since `base` applied by id: its adds are appended (an id the
- * server already has keeps this device's version), its edits replace the server's theme or bring it back when the
- * other device deleted it, and its deletes remove a theme only if the other device left it as it was in `base`.
- * So an edit always wins over a delete, on either device, and no theme added elsewhere is lost.
+ * The server's theme list with this device's changes since `base` applied by id: its adds are appended, its edits
+ * replace the server's theme or bring it back when the other device deleted it, and its deletes remove a theme only
+ * if the other device left it as it was in `base`. So an edit always wins over a delete, on either device, and no
+ * theme added elsewhere is lost. An add whose id the server already has with other content (ids are slugs of the
+ * name, so two devices duplicating the same preset collide) gets a fresh id, reported in `renamed`.
  */
 function mergeThemes(
   server: readonly CustomTheme[],
   local: readonly CustomTheme[],
   base: readonly CustomTheme[],
-): CustomTheme[] {
+): { themes: CustomTheme[]; renamed: Map<string, string> } {
   const inBase = new Map(base.map((theme) => [theme.id, theme]));
   const inLocal = new Map(local.map((theme) => [theme.id, theme]));
   const written = new Set<string>();
   const merged: CustomTheme[] = [];
+  const collisions: CustomTheme[] = [];
   for (const theme of server) {
     const mine = inLocal.get(theme.id);
     const known = inBase.get(theme.id);
@@ -122,6 +133,11 @@ function mergeThemes(
       continue;
     }
     written.add(theme.id);
+    if (mine !== undefined && known === undefined) {
+      merged.push(theme); // added on both devices: the server's stays
+      if (!sameTheme(mine, theme)) collisions.push(mine);
+      continue;
+    }
     merged.push(mine !== undefined && !sameTheme(mine, known) ? mine : theme);
   }
   for (const theme of local) {
@@ -129,7 +145,15 @@ function mergeThemes(
     // Added here, or edited here after the other device deleted it: it comes back. Unchanged here: it stays deleted.
     if (!sameTheme(theme, inBase.get(theme.id))) merged.push(theme);
   }
-  return merged;
+  const taken = new Set([...merged, ...local].map((theme) => theme.id));
+  const renamed = new Map<string, string>();
+  for (const theme of collisions) {
+    const id = newThemeId(theme.name, taken);
+    taken.add(id);
+    renamed.set(theme.id, id);
+    merged.push({ ...theme, id });
+  }
+  return { themes: merged, renamed };
 }
 
 /**
@@ -144,8 +168,15 @@ export function mergeAccount(
 ): AccountAppearance {
   const merged: Record<string, unknown> = { ...server };
   for (const name of dirty) if (name in local) merged[name] = local[name as keyof AccountAppearance];
-  if (dirty.has("customThemes"))
-    merged.customThemes = mergeThemes(server.customThemes, local.customThemes, base.customThemes);
+  if (dirty.has("customThemes")) {
+    const { themes, renamed } = mergeThemes(server.customThemes, local.customThemes, base.customThemes);
+    merged.customThemes = themes;
+    // This device's side follows its theme to the new id.
+    for (const side of ["darkTheme", "lightTheme"] as const) {
+      const moved = dirty.has(side) ? renamed.get(local[side]) : undefined;
+      if (moved !== undefined) merged[side] = moved;
+    }
+  }
   return parseAccount(merged);
 }
 

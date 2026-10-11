@@ -113,6 +113,9 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
       const server = options.parse(result.value);
       options.adopt(options.merge(server, options.local(), dirty, base));
       base = server;
+    } else {
+      // Nothing stored: whatever this device's cache holds is its own to add, so a conflict keeps it.
+      base = options.parse(null);
     }
     phase = "loaded";
     held = false;
