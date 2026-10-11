@@ -196,6 +196,9 @@ describe("the built web app under the daemon's CSP", () => {
   it("keeps the overlays (dialog, menu) and the shortcuts help out of the initial assets", () =>
     keepsLazyOnly([/"data-pap-modal":/, /"data-command":/]));
 
+  it("keeps the session screen out of the initial assets, so the session UI of later milestones lands in its chunk", () =>
+    keepsLazyOnly([/"data-failure"/]));
+
   it("keeps the palette (cmdk) out of the initial assets", () => keepsLazyOnly([/cmdk-input/]));
 
   it("ships nothing of the /dev/ui gallery in any production asset, initial or lazy (ADR 0011, M3R122)", async () => {

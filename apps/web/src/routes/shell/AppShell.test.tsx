@@ -61,7 +61,10 @@ describe("AppShell", () => {
 
   it("opens a session from its URL", async () => {
     const page = await renderShell("/s/abc");
-    expect(page.container.querySelector('[data-stub="session"]')?.textContent).toBe("abc");
+    await vi.waitFor(
+      () => expect(page.container.querySelector('[data-stub="session"]')?.textContent).toBe("abc"),
+      { timeout: 2_000 },
+    ); // the session screen is a lazy chunk
     expect(useWorkspaceStore.getState().ws.tabs.map((tab) => tab.key)).toEqual(["session:abc"]);
     await page.unmount();
   });

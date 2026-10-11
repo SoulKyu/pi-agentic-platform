@@ -117,7 +117,10 @@ describe("phone shell", () => {
     await settle();
     expect(page.router.state.location.pathname).toBe("/s/one");
     expect(button(nav(page.container) as HTMLElement, "Work").getAttribute("aria-current")).toBe("page");
-    expect(page.container.querySelector('[data-stub="session"]')?.textContent).toBe("one");
+    await vi.waitFor(
+      () => expect(page.container.querySelector('[data-stub="session"]')?.textContent).toBe("one"),
+      { timeout: 2_000 },
+    ); // the session screen is a lazy chunk
     await page.unmount();
   });
 

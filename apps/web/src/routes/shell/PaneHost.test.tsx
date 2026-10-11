@@ -55,7 +55,10 @@ beforeEach(() => {
 describe("PaneHost with a split", () => {
   it("shows both items around a labelled separator, and no menu until asked", async () => {
     const page = await renderShell("/s/a");
-    expect(page.container.querySelector('#pane-main [data-stub="session"]')).not.toBeNull();
+    await vi.waitFor(
+      () => expect(page.container.querySelector('#pane-main [data-stub="session"]')).not.toBeNull(),
+      { timeout: 2_000 },
+    ); // the session screen is a lazy chunk
     expect(page.container.querySelector('[data-pane-role="split"] [data-stub="home"]')).not.toBeNull();
     const separator = page.container.querySelector('[role="separator"]') as HTMLElement;
     expect([separator.getAttribute("aria-label"), separator.getAttribute("aria-valuenow")]).toEqual([
