@@ -44,7 +44,7 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 - Class coverage (`scripts/class-coverage.ts`): every class in `className`, `cn(...)` and constants named `*CLASSES|VARIANTS|SIZES|TONES|STYLE|RING` must compile with the real Tailwind config. Class lists live only there. `features/sessions` is scanned from P7.
 - Compiler gate (`compiler-gate.test.ts`, `compiler-pipeline.int.test.ts`): React Compiler runs over `@pap/ui` and the app.
 - `pap/no-native-title`: icon buttons use a labelled tooltip, never `title`. Touch targets: the gallery probe checks classes for 44 px under `pointer: coarse`; it does not measure.
-- `build-output.int.test.ts`: no inline script, boot script first, fonts as files, no WebAssembly, no gallery in any prod asset, and lazy-only markers (Settings, palette `cmdk-input`, primitives, shortcuts editor, theme editor, markdown) absent from every initial file; the initial size is held to `budgets.json`.
+- `build-output.int.test.ts`: no inline script, boot script first, fonts as files, no WebAssembly, no gallery in any prod asset, and lazy-only markers (Settings, palette `cmdk-input`, the overlays `data-pap-modal` and the shortcuts help `data-command`, primitives, shortcuts editor, theme editor, markdown), and the zod chunk loading without an eval attempt absent from every initial file; the initial size is held to `budgets.json`.
 
 ## Bundle
 
