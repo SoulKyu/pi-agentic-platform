@@ -29,11 +29,14 @@ export function createPolicyStore(db: Db) {
         `SELECT ${COLUMNS} FROM approval_rules WHERE owner_id = $ownerId AND scope_kind = 'project' AND scope = $scope ORDER BY created_at, id LIMIT $limit`,
         { ownerId, scope, limit },
       ),
-    forOwner: (ownerId: string, limit: number): RuleRow[] =>
+    /** Newest first, ties broken by id: one project's rules, or (scope null) all of the owner's. */
+    newest: (ownerId: string, scope: string | null, limit: number): RuleRow[] =>
       db.all<RuleRow>(
-        `SELECT ${COLUMNS} FROM approval_rules WHERE owner_id = $ownerId ORDER BY created_at DESC, id LIMIT $limit`,
-        { ownerId, limit },
+        `SELECT ${COLUMNS} FROM approval_rules WHERE owner_id = $ownerId AND ($scope IS NULL OR (scope_kind = 'project' AND scope = $scope)) ORDER BY created_at DESC, id DESC LIMIT $limit`,
+        { ownerId, scope, limit },
       ),
+    /** Runs `fn` in one write transaction (BEGIN IMMEDIATE), nested calls join it. */
+    transaction: <T>(fn: () => T): T => db.transaction(fn),
     get: (ownerId: string, id: string): RuleRow | undefined =>
       db.get<RuleRow>(`SELECT ${COLUMNS} FROM approval_rules WHERE owner_id = $ownerId AND id = $id`, {
         ownerId,

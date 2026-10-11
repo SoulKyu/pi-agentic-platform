@@ -23,6 +23,9 @@ function holdsGit(dir: string): boolean | null {
  * own project (as an absolute path), never the repository above it; so is a folder where `.git` cannot be looked up, and
  * one with no repository within 64 levels. A rule stored for such a path matches that exact path and nothing wider.
  *
+ * A `.git` in `$HOME` (a dotfiles repository) or in `/` makes that folder the project of every non-git folder under
+ * it, so they share their rules: the same-project case R2-5 accepts.
+ *
  * Synchronous on purpose (`PolicyPort.scopeOf` is): it runs once per session creation or rule listing, not per tool
  * call, and costs at most 64 `stat` calls.
  */

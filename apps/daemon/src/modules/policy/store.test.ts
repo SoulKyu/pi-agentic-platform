@@ -48,7 +48,7 @@ describe("policy store", () => {
     store.insert(row("c", { grantKey: keyOf(3), createdAt: 30 }));
     expect(store.forScope("u1", "/w", 10).map((r) => r.id)).toEqual(["a", "b", "c"]);
     expect(store.forScope("u1", "/w", 2).map((r) => r.id)).toEqual(["a", "b"]);
-    expect(store.forOwner("u1", 2).map((r) => r.id)).toEqual(["c", "b"]);
+    expect(store.newest("u1", null, 2).map((r) => r.id)).toEqual(["c", "b"]);
   });
 
   it("removes only the owner's own rule", () => {

@@ -13,5 +13,3 @@ CREATE TABLE approval_rules (
   created_at INTEGER NOT NULL,
   UNIQUE (owner_id, scope_kind, scope, tool, grant_key)
 ) STRICT;
-
-CREATE INDEX approval_rules_scope ON approval_rules(owner_id, scope_kind, scope);

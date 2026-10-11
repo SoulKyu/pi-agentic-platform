@@ -25,6 +25,14 @@ describe("projectScopeOf", () => {
     expect(projectScopeOf(join(root, "plain"))).toBe(join(root, "plain"));
   });
 
+  it("lets a .git high above (a dotfiles repository in $HOME) be the project of every plain folder under it", () => {
+    mkdirSync(join(root, ".git"));
+    mkdirSync(join(root, "a", "plain"), { recursive: true });
+    mkdirSync(join(root, "b"));
+    expect(projectScopeOf(join(root, "a", "plain"))).toBe(root);
+    expect(projectScopeOf(join(root, "b"))).toBe(root);
+  });
+
   it("takes the nearest .git, so a submodule is its own project", () => {
     mkdirSync(join(root, "repo", ".git"), { recursive: true });
     mkdirSync(join(root, "repo", "mod", "src"), { recursive: true });
