@@ -64,21 +64,46 @@ export class LazyBoundary extends Component<BoundaryProps, { readonly failed: bo
   }
 }
 
-/** A lazy component that can try again: React keeps a rejected import inside a lazy component for good. */
+type Loader<P extends object> = () => Promise<{ default: ComponentType<P> }>;
+
+// One lazy() per loader for the life of the page. A fresh lazy() suspends once even when its chunk is cached, and
+// React holds a revealed fallback for 300 ms, so a pane that remounts on every tab switch would stay blank that long.
+const shared = new WeakMap<object, unknown>();
+
+function fresh<P extends object>(load: Loader<P>): LazyExoticComponent<ComponentType<P>> {
+  const component = lazy(() =>
+    load().catch((error: unknown) => {
+      // A rejected import stays rejected inside its lazy(): the next mount must build a new one.
+      if (shared.get(load) === component) shared.delete(load);
+      throw error;
+    }),
+  );
+  shared.set(load, component);
+  return component;
+}
+
+const sharedLazy = <P extends object>(load: Loader<P>): LazyExoticComponent<ComponentType<P>> =>
+  (shared.get(load) as LazyExoticComponent<ComponentType<P>> | undefined) ?? fresh(load);
+
+/**
+ * A lazy component that can try again: React keeps a rejected import inside a lazy component for good, so `retry`
+ * (and a failed import) replaces the shared one. Every other mount reuses it.
+ */
 export function useRetryableLazy<P extends object>(
-  load: () => Promise<{ default: ComponentType<P> }>,
+  load: Loader<P>,
 ): {
   Lazy: LazyExoticComponent<ComponentType<P>>;
   attempt: number;
   retry(): void;
 } {
-  const [Lazy, setLazy] = useState(() => lazy(load));
+  const [Lazy, setLazy] = useState(() => sharedLazy(load));
   const [attempt, setAttempt] = useState(0);
   return {
     Lazy,
     attempt,
     retry: () => {
-      setLazy(() => lazy(load));
+      shared.delete(load);
+      setLazy(() => fresh(load));
       setAttempt((value) => value + 1);
     },
   };
