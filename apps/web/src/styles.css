@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@pap/ui/tokens.css";
-@import "./fonts.css";
+@import "@pap/ui/utilities.css";
+@import "@pap/ui/fonts.css";
 @source "../../../packages/ui/src";
 
 html,
@@ -10,5 +11,5 @@ body,
 }
 
 body {
-  @apply bg-bg font-sans text-ui text-fg;
+  @apply bg-grid font-sans text-ui text-fg;
 }

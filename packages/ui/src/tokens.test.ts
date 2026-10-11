@@ -1,9 +1,10 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { PRESET_TOKENS } from "./presets.ts";
 import { THEME_TOKENS, THEMES, type ThemeName } from "./token-names.ts";
 
 const css = readFileSync(new URL("./tokens.css", import.meta.url), "utf8");
+const fonts = readFileSync(new URL("./fonts.css", import.meta.url), "utf8");
 const utilities = readFileSync(new URL("./utilities.css", import.meta.url), "utf8");
 
 interface Block {
@@ -264,6 +265,15 @@ describe("motion, labels and fonts", () => {
     expect(
       blocks.find((b) => b.selector === '[data-labels="sentence"]')?.decls.get("--label-transform"),
     ).toBe("none");
+  });
+
+  it("serves its own woff2 files", () => {
+    expect(fonts).not.toMatch(/https?:\/\//);
+    expect(fonts).toContain("font-display: swap");
+    const files = [...fonts.matchAll(/url\("([^"]+)"\)/g)].map((match) => match[1] ?? "");
+    expect(files).toHaveLength(4);
+    for (const file of files)
+      expect(existsSync(new URL(file, new URL("./fonts.css", import.meta.url))), file).toBe(true);
   });
 
   it("loads nothing from the network", () => {

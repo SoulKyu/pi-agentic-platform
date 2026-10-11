@@ -21,6 +21,7 @@
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "4.8.1",
     "@eslint/js": "10.0.1",
+    "@tailwindcss/node": "4.3.3",
     "@types/node": "24.13.6",
     "@types/ws": "8.18.2",
     "eslint": "10.12.0",

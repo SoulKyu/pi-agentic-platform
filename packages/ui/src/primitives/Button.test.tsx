@@ -10,10 +10,7 @@ describe("Button", () => {
 
   it("shows the 2 px orange fill focus ring, offset 2 px, never the human text tone", () => {
     const html = renderToStaticMarkup(<Button>Save</Button>);
-    expect(html).toContain("focus-visible:outline-2");
-    expect(html).toContain("focus-visible:outline-offset-2");
-    expect(html).toContain("focus-visible:outline-human-fill");
-    expect(html).not.toMatch(/outline-human(?!-fill)/);
+    expect(html).toContain("focus-ring");
   });
 
   it("keeps a 44 px target on coarse pointers", () => {

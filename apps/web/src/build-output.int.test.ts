@@ -72,6 +72,10 @@ describe("the built web app under the daemon's CSP", () => {
     expect(css).toMatch(/font-family:\s*"?JetBrains Mono"?/);
   });
 
+  it("ships CSS without native nesting, which Safari 16.4 cannot read", () => {
+    expect(css).not.toMatch(/(^|[{;\s])&[:.[\s>+~]/);
+  });
+
   it("keeps the initial JavaScript and CSS within the declared gzip budget", async () => {
     const budget = (
       JSON.parse(await readFile(join(repoRoot, "budgets.json"), "utf8")) as { initialBundleGzipKb: number }
