@@ -122,6 +122,9 @@ describe("the built web app under the daemon's CSP", () => {
       if (/Cloudflare/.test(await readFile(join(out, "assets", name), "utf8"))) holders.push(name);
     expect(holders.length).toBeGreaterThan(0);
     for (const name of holders) {
+      // The probe only sees what the chunk builds when it loads. If zod sat in a chunk without schemas it would
+      // report 0 while the schema chunk still violated the CSP, so the switch must be in the chunk that holds zod.
+      expect(await readFile(join(out, "assets", name), "utf8"), name).toMatch(/jitless:\s*(?:!0|true)/);
       const { stdout } = await run(
         process.execPath,
         ["--input-type=module", "-e", EVAL_PROBE, pathToFileURL(join(out, "assets", name)).href],
