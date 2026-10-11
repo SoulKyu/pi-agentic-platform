@@ -76,6 +76,31 @@ describe("entry events", () => {
     expect(JSON.stringify(published)).not.toContain("entry_appended");
   });
 
+  it("binds the ids of a burst of 300 entries to the rows the run keeps", () => {
+    const { worker, live } = setup();
+    worker.emit(piEvent({ type: "agent_start" }));
+    for (let i = 0; i < 300; i++) {
+      worker.emit(
+        piEvent({ type: "message_end", message: { role: "user", content: `m${i}`, timestamp: i } }),
+      );
+    }
+    for (let i = 0; i < 300; i++) {
+      worker.emit(
+        appended({
+          id: `e${i}`,
+          parentId: i === 0 ? null : `e${i - 1}`,
+          type: "message",
+          role: "user",
+          messageTimestamp: i,
+        }),
+      );
+    }
+    const rows = live.runView()?.rows ?? [];
+    expect(rows).toHaveLength(75);
+    expect(rows.map((row) => row.entryId)).toEqual(Array.from({ length: 75 }, (_, i) => `e${225 + i}`));
+    expect(live.leafId()).toBe("e299");
+  });
+
   it("keeps only what the contract carries of an entry", () => {
     const { worker, published } = setup();
     worker.emit(appended({ ...userEntry, timestamp: TIMESTAMP, body: "not for the wire" }));

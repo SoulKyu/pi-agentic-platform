@@ -21,9 +21,10 @@ file, and `upToBytes` for a run in progress. Landed with the leaf (Task 10b): Pi
 for messages or manual compactions (only for the cache warmer, virtual-model state, boundary drafts, context edits and
 extension appends), so pi-host looks at `SessionManager.getLeafId()` one macrotask after `message_end`, `compaction_end`,
 `turn_end`, `agent_end`, `agent_settled`, an announced entry and a `navigate_tree` answer. When the leaf moved it sends the
-entries back to the leaf it last reported as slim `entry_appended` records (at most 128 per flush; Pi's own announced
-entries are not sent twice), or one `leaf` record when the leaf moved without a chain back (a navigation) or too many
-entries are new (`resync`: the rows of the run keep no id until the file is read; the daemon only logs it). The file is
+entries back to the leaf it last reported as slim `entry_appended` records (walking at most 4096 entries, sent in batches of
+128, one batch per macrotask; Pi's own announced entries are not sent twice), or one `leaf` record when the leaf moved
+without a chain back (a navigation) or the walk passes 4096 entries (`resync`: the rows of the run keep no id until a
+client subscribes again after the run; the daemon only logs it). The file is
 never read because of a `message_end` (R38). The daemon takes the leaf from `ready.leafId`, each entry and each `leaf`
 record (an id over 128 characters is unknown: the page follows the file's last entry, M2R4/M2R52); Pi's system prompt
 entry moves the leaf but is not published (R107). Still to come: history pages and tool output on

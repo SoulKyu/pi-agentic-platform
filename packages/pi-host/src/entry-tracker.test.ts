@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createEntryTracker, MAX_FLUSH_ENTRIES, MAX_KNOWN_ENTRIES } from "./entry-tracker.ts";
+import {
+  createEntryTracker,
+  MAX_FLUSH_ENTRIES,
+  MAX_KNOWN_ENTRIES,
+  MAX_WALK_ENTRIES,
+} from "./entry-tracker.ts";
 
 type Entry = { id: string; parentId: string | null; type: string; timestamp: string; message?: object };
 
@@ -43,9 +48,17 @@ function bed(initial: (t: ReturnType<typeof tree>) => void = () => {}) {
     onError: (error) => void errors.push(error),
   });
   const run = () => deferred.splice(0).forEach((task) => task());
+  const runAll = () => {
+    let rounds = 0;
+    while (deferred.length > 0) {
+      run();
+      rounds++;
+    }
+    return rounds;
+  };
   const ids = () =>
     sent.flatMap((r) => (r.type === "entry_appended" ? [(r.entry as { id: string }).id] : []));
-  return { t, tracker, sent, errors, deferred, run, ids };
+  return { t, tracker, sent, errors, deferred, run, runAll, ids };
 }
 
 describe("entry tracker", () => {
@@ -151,16 +164,50 @@ describe("entry tracker", () => {
     expect(ids()).toEqual(["u2"]);
   });
 
-  it("sends one resync record, not the entries, when more than the bound are new", () => {
-    const { t, tracker, sent, run, ids } = bed((x) => x.append("user", "start"));
-    for (let i = 0; i < MAX_FLUSH_ENTRIES + 1; i++) t.append("custom", `n${i}`);
+  it("sends a burst in batches of the bound, one batch per macrotask, in order, without a resync", () => {
+    const { t, tracker, sent, runAll, ids } = bed((x) => x.append("user", "start"));
+    for (let i = 0; i < 300; i++) t.append("custom", `n${i}`);
     tracker.observe({ type: "entry_appended", entry: { id: "x" } });
-    run();
-    expect(sent).toEqual([{ type: "leaf", leafId: `n${MAX_FLUSH_ENTRIES}`, resync: true }]);
+    expect(runAll()).toBe(3);
+    expect(ids()).toEqual(Array.from({ length: 300 }, (_, i) => `n${i}`));
+    expect(sent.some((record) => record.type === "leaf")).toBe(false);
+    expect(MAX_FLUSH_ENTRIES).toBe(128);
+  });
+
+  it("keeps skipping announced entries across batches and ends with the leaf record when the leaf was announced", () => {
+    const { t, tracker, sent, runAll, ids } = bed((x) => x.append("user", "start"));
+    for (let i = 0; i < 200; i++) t.append("custom", `n${i}`);
+    tracker.observe({ type: "entry_appended", entry: { id: "n199" } });
+    tracker.observe({ type: "entry_appended", entry: { id: "n3" } });
+    runAll();
+    expect(ids()).toEqual(
+      Array.from({ length: 200 }, (_, i) => `n${i}`).filter((id) => id !== "n3" && id !== "n199"),
+    );
+    expect(sent.at(-1)).toEqual({ type: "leaf", leafId: "n199", resync: false });
     t.append("user", "after");
     tracker.observe({ type: "message_end" });
-    run();
+    runAll();
+    expect(ids().at(-1)).toBe("after");
+  });
+
+  it("sends one resync record, not the entries, when the walk passes its cap", () => {
+    const { t, tracker, sent, runAll, ids } = bed((x) => x.append("user", "start"));
+    for (let i = 0; i < MAX_WALK_ENTRIES + 1; i++) t.append("custom", `n${i}`);
+    tracker.observe({ type: "entry_appended", entry: { id: "x" } });
+    runAll();
+    expect(sent).toEqual([{ type: "leaf", leafId: `n${MAX_WALK_ENTRIES}`, resync: true }]);
+    t.append("user", "after");
+    tracker.observe({ type: "message_end" });
+    runAll();
     expect(ids()).toEqual(["after"]);
+  });
+
+  it("sends exactly the walk cap when that many are new", () => {
+    const { t, tracker, runAll, ids } = bed((x) => x.append("user", "start"));
+    for (let i = 0; i < MAX_WALK_ENTRIES; i++) t.append("custom", `n${i}`);
+    tracker.observe({ type: "message_end" });
+    runAll();
+    expect(ids()).toHaveLength(MAX_WALK_ENTRIES);
   });
 
   it("sends exactly the bound when that many are new", () => {

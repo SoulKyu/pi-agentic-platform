@@ -1,10 +1,12 @@
 import { slimEntry } from "./wire-events.ts";
 import type { Outbound } from "./ipc.ts";
 
-/** The most entries one flush sends. More are new only after a burst (an extension) or a long jump: one `leaf` resync record says so. */
+/** The most entries one flush sends; a longer burst goes out in batches, one per macrotask. */
 export const MAX_FLUSH_ENTRIES = 128;
-/** The entries Pi announced itself that are remembered, so none is sent twice. Larger than a flush, so a remembered id never falls off a path being walked. */
-export const MAX_KNOWN_ENTRIES = 1024;
+/** The most entries one walk from the leaf looks at. A burst beyond it (or a long jump) is one `leaf` resync record. */
+export const MAX_WALK_ENTRIES = 4096;
+/** The entries Pi announced itself that are remembered, so none is sent twice. Larger than a walk, so a remembered id never falls off a path being walked. */
+export const MAX_KNOWN_ENTRIES = 8192;
 
 /** The events after which Pi may have appended an entry (`message_end` appends right after its listeners ran). */
 const MAY_APPEND = new Set([
@@ -41,7 +43,7 @@ export interface EntryTracker {
  * This looks at `SessionManager.getLeafId()` one macrotask after an event that may have appended (never at the file:
  * Pi writes it after its listeners ran, R38) and, when the leaf moved, sends the entries from the new leaf back to
  * the leaf it last reported as `entry_appended` records of the same slim shape Pi's own take. A leaf that moved without
- * a chain back to the old one (navigation, or a burst beyond the bound) is sent as a `leaf` record instead.
+ * a chain back to the old one (navigation, or a walk beyond `MAX_WALK_ENTRIES`) is sent as a `leaf` record instead. A burst is sent in batches of `MAX_FLUSH_ENTRIES`, one per macrotask.
  */
 export function createEntryTracker(deps: EntryTrackerDeps): EntryTracker {
   const { manager } = deps;
@@ -49,42 +51,57 @@ export function createEntryTracker(deps: EntryTrackerDeps): EntryTracker {
   let scheduled = false;
   const announced = new Set<string>();
 
+  // Entries found by a walk and not yet sent, oldest first, and the leaf that walk started from.
+  let pending: Array<{ id: string; parentId: string | null }> = [];
+  let pendingLeaf: string | null = null;
+  let lastSent: string | null = null;
+
+  // Looks at the leaf; when it moved along a chain from the reported one, queues the entries not announced yet.
+  function walk(): void {
+    const leaf = manager.getLeafId();
+    if (leaf === reported) return;
+    const fresh: Array<{ id: string; parentId: string | null }> = [];
+    let reachedReported = false;
+    let overflow = false;
+    for (let id = leaf; ;) {
+      if (id === reported) {
+        reachedReported = true;
+        break;
+      }
+      if (id === null) break;
+      if (fresh.length >= MAX_WALK_ENTRIES) {
+        overflow = true;
+        break;
+      }
+      const entry = manager.getEntry(id);
+      if (!entry) break;
+      fresh.push(entry);
+      id = entry.parentId;
+    }
+    reported = leaf;
+    if (!reachedReported) {
+      deps.send({ type: "leaf", leafId: leaf, resync: overflow });
+      return;
+    }
+    pending = fresh.toReversed().filter((entry) => !announced.has(entry.id));
+    pendingLeaf = leaf;
+    lastSent = null;
+    if (pending.length === 0) deps.send({ type: "leaf", leafId: leaf, resync: false });
+  }
+
   function flush(): void {
     scheduled = false;
     try {
-      const leaf = manager.getLeafId();
-      if (leaf === reported) return;
-      const fresh: Array<{ id: string; parentId: string | null }> = [];
-      let reachedReported = false;
-      let overflow = false;
-      for (let id = leaf; ;) {
-        if (id === reported) {
-          reachedReported = true;
-          break;
-        }
-        if (id === null) break;
-        if (fresh.length >= MAX_FLUSH_ENTRIES) {
-          overflow = true;
-          break;
-        }
-        const entry = manager.getEntry(id);
-        if (!entry) break;
-        fresh.push(entry);
-        id = entry.parentId;
-      }
-      reported = leaf;
-      if (!reachedReported) {
-        deps.send({ type: "leaf", leafId: leaf, resync: overflow });
-        return;
-      }
-      let lastSent: string | null = null;
-      for (const entry of fresh.toReversed()) {
-        if (announced.has(entry.id)) continue;
+      if (pending.length === 0) walk();
+      if (pending.length === 0) return;
+      for (const entry of pending.splice(0, MAX_FLUSH_ENTRIES)) {
         deps.send({ type: "entry_appended", entry: slimEntry(entry as unknown as Record<string, unknown>) });
         lastSent = entry.id;
       }
-      if (lastSent !== leaf) deps.send({ type: "leaf", leafId: leaf, resync: false });
+      if (pending.length > 0) schedule();
+      else if (lastSent !== pendingLeaf) deps.send({ type: "leaf", leafId: pendingLeaf, resync: false });
     } catch (error) {
+      pending = [];
       deps.onError(error);
     }
   }
