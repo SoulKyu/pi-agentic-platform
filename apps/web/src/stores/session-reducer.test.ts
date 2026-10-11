@@ -34,6 +34,15 @@ describe("reduceSession", () => {
     });
   });
 
+  it("counts the snapshots: each one is a new generation, other events keep it (M2-RT-12)", () => {
+    expect(EMPTY_VIEW.generation).toBe(0);
+    const first = reduceSession(EMPTY_VIEW, snap("idle", [user], ["e1"]));
+    const second = reduceSession(first, snap("idle", [user], ["e1"]));
+    expect([first.generation, second.generation]).toEqual([1, 2]);
+    expect(reduceSession(second, { kind: "status", status: "running" }).generation).toBe(2);
+    expect(reduceSession(second, { kind: "row", row: { entryId: "e7", message: user } }).generation).toBe(2);
+  });
+
   it("says a snapshot it cannot read is unreadable instead of staying blank (M2-RT-06)", () => {
     const view = reduceSession(EMPTY_VIEW, { kind: "snapshot", status: "idle", rows: "not rows" });
     expect(view).toMatchObject({ loaded: true, unreadable: true });

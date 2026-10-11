@@ -171,15 +171,22 @@ export function forkPoints(
   return points;
 }
 
-/** A tool call's arguments and result, wherever they are in the file (newest first). */
+/**
+ * A tool call's arguments and result, newest first. With `branchLeafId` (null: the file's last entry) only the branch
+ * that ends there is searched, so a call on an abandoned branch is not found; without it, the whole file.
+ */
 export function findToolCall(
   entries: IndexedEntries,
   toolCallId: string,
+  branchLeafId?: string | null,
 ): { result: unknown | null; args: unknown | null } {
   let result: unknown | null = null;
   let args: unknown | null = null;
-  for (let i = entries.list.length - 1; i >= 0 && (result === null || args === null); i--) {
-    const message = (entries.list[i]?.message ?? null) as {
+  const candidates =
+    branchLeafId === undefined ? entries.list.toReversed() : ancestry(entries, leafOf(entries, branchLeafId));
+  for (const entry of candidates) {
+    if (result !== null && args !== null) break;
+    const message = (entry.message ?? null) as {
       role?: unknown;
       toolCallId?: unknown;
       content?: unknown;

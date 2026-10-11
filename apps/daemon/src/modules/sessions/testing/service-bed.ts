@@ -17,6 +17,9 @@ import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
 import { SESSIONS_MIGRATIONS } from "../index.ts";
+import { sessionFileText } from "./pi-file-writers.ts";
+
+export { sessionFileText };
 
 /** What a fake worker does when it gets `init`. */
 export type StartBehavior =
@@ -42,67 +45,6 @@ export interface BedOptions {
   readerFailures?: number;
   /** By the order the workers are spawned in, from 0. */
   start?(index: number, init: InitRecord): StartBehavior | undefined;
-}
-
-const usage = {
-  input: 0,
-  output: 0,
-  cacheRead: 0,
-  cacheWrite: 0,
-  totalTokens: 0,
-  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-};
-
-/** A Pi session file (format 3) holding these exchanges, as `[user text, assistant text]`. */
-export function sessionFileText(piId: string, exchanges: ReadonlyArray<readonly [string, string]>): string {
-  const rows: unknown[] = [
-    { type: "session", version: 3, id: piId, timestamp: "2026-10-10T00:00:00.000Z", cwd: "/w" },
-  ];
-  // Pi puts its system prompt in the file as the first message (S1); the daemon never shows it (R107).
-  rows.push({
-    type: "message",
-    id: "s0",
-    parentId: null,
-    timestamp: "2026-10-10T00:00:00.500Z",
-    message: {
-      role: "system",
-      content: "",
-      sections: { preamble: "You are an expert coding assistant" },
-      timestamp: 0,
-    },
-  });
-  let parentId: string | null = "s0";
-  exchanges.forEach(([user, assistant], index) => {
-    const userId = `u${index}`;
-    const assistantId = `a${index}`;
-    rows.push(
-      {
-        type: "message",
-        id: userId,
-        parentId,
-        timestamp: "2026-10-10T00:00:01.000Z",
-        message: { role: "user", content: user, timestamp: 1 },
-      },
-      {
-        type: "message",
-        id: assistantId,
-        parentId: userId,
-        timestamp: "2026-10-10T00:00:02.000Z",
-        message: {
-          role: "assistant",
-          content: [{ type: "text", text: assistant }],
-          api: "x",
-          provider: "x",
-          model: "x",
-          usage,
-          stopReason: "stop",
-          timestamp: 2,
-        },
-      },
-    );
-    parentId = assistantId;
-  });
-  return `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`;
 }
 
 /** The one user of the beds: the owner of every session they make. */

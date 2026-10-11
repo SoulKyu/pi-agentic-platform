@@ -14,6 +14,9 @@ function setup(overrides: Partial<SessionsService> = {}) {
     abort: vi.fn(async () => {}),
     respondDialog: vi.fn(),
     prepareSubscription: vi.fn(async () => {}),
+    history: vi.fn(async () => ({ rows: [], hasMore: false, oldestEntryId: null, turnsBefore: 0 })),
+    toolOutput: vi.fn(async () => ({ text: "out", truncated: false, isError: false, args: null })),
+    branches: vi.fn(async () => ({ leafId: null, points: [] })),
     snapshot: vi.fn(),
     shutdownAll: vi.fn(async () => {}),
     inspect: vi.fn(() => null),
@@ -52,6 +55,33 @@ describe("sessions rpc", () => {
       { sessionId: "p1", dialogId: "d1", response: { confirmed: true } },
       caller,
     );
+  });
+
+  it("hands each read to one service method with the caller", async () => {
+    const { rpc, service, ctx } = setup();
+    const params = { sessionId: "p1", before: "e4", limit: 20 };
+    expect(await rpc["sessions.history"](params, ctx)).toEqual({
+      rows: [],
+      hasMore: false,
+      oldestEntryId: null,
+      turnsBefore: 0,
+    });
+    expect(service.history).toHaveBeenCalledWith(params, caller);
+    expect(await rpc["sessions.toolOutput"]({ sessionId: "p1", toolCallId: "c1" }, ctx)).toMatchObject({
+      text: "out",
+    });
+    expect(service.toolOutput).toHaveBeenCalledWith({ sessionId: "p1", toolCallId: "c1" }, caller);
+    expect(await rpc["sessions.branches"]({ sessionId: "p1" }, ctx)).toEqual({ leafId: null, points: [] });
+    expect(service.branches).toHaveBeenCalledWith("p1", caller);
+  });
+
+  it("lets not_found through from a read", async () => {
+    const { rpc, ctx } = setup({
+      history: vi.fn(async () => {
+        throw new PapError("not_found");
+      }),
+    });
+    expect(await codeOf(rpc["sessions.history"]({ sessionId: "p1", before: "e1" }, ctx))).toBe("not_found");
   });
 
   it("opens a subscription only for a session the caller may read", async () => {

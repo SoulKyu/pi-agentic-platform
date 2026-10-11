@@ -21,4 +21,28 @@ describe("method catalogue", () => {
       "sessions.respondDialog",
     ]);
   });
+
+  it("declares the session reads as idempotent sessions:read queries", () => {
+    for (const name of ["sessions.history", "sessions.toolOutput", "sessions.branches"] as const) {
+      expect(methods[name]).toMatchObject({ permission: "sessions:read", idempotent: true });
+    }
+  });
+
+  it("bounds what a history request can ask for", () => {
+    const { params } = methods["sessions.history"];
+    expect(params.safeParse({ sessionId: "s", before: "e1", limit: 100 }).success).toBe(true);
+    expect(params.safeParse({ sessionId: "s", before: "e1" }).success).toBe(true);
+    for (const bad of [
+      { before: "" },
+      { before: "e".repeat(129) },
+      { before: "e1", limit: 0 },
+      { before: "e1", limit: 101 },
+    ]) {
+      expect(params.safeParse({ sessionId: "s", ...bad }).success).toBe(false);
+    }
+    const tool = methods["sessions.toolOutput"].params;
+    expect(tool.safeParse({ sessionId: "s", toolCallId: "c".repeat(256) }).success).toBe(true);
+    expect(tool.safeParse({ sessionId: "s", toolCallId: "c".repeat(257) }).success).toBe(false);
+    expect(tool.safeParse({ sessionId: "s", toolCallId: "" }).success).toBe(false);
+  });
 });

@@ -1,12 +1,15 @@
 import {
   type Caller,
   type DialogResponse,
+  type ForkPoint,
+  type HistoryMeta,
   type InitRecord,
   PapError,
   type PolicyRules,
   type SessionStatus,
   type SessionStreamEvent,
   type SessionSummary,
+  type TranscriptRow,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -63,6 +66,16 @@ export interface SessionsService {
     input: { sessionId: string; dialogId: string; response: DialogResponse },
     caller: Caller,
   ): void;
+  /** Older rows of the branch above `before`; reads of a session the caller owns (`not_found` otherwise). */
+  history(
+    input: { sessionId: string; before: string; limit?: number | undefined },
+    caller: Caller,
+  ): Promise<HistoryMeta & { rows: TranscriptRow[] }>;
+  toolOutput(
+    input: { sessionId: string; toolCallId: string },
+    caller: Caller,
+  ): Promise<{ text: string; truncated: boolean; isError: boolean; args: string | null }>;
+  branches(sessionId: string, caller: Caller): Promise<{ leafId: string | null; points: ForkPoint[] }>;
   /**
    * What `subscribe.session` does before it opens a subscription (R108): checks that the caller may read the session
    * and loads the transcript reader, once. The hub builds a snapshot synchronously, from what this has loaded.
@@ -269,6 +282,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (!session) throw new PapError("not_found");
       session.answer(input.dialogId, input.response);
     },
+    history: (input, caller) => reads.history(input, caller),
+    toolOutput: (input, caller) => reads.toolOutput(input, caller),
+    branches: (sessionId, caller) => reads.branches(sessionId, caller),
     prepareSubscription: (sessionId, caller) => reads.prepare(sessionId, caller),
     snapshot: (sessionId) => reads.snapshot(sessionId),
     async shutdownAll() {

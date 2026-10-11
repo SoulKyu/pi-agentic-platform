@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { Cursor } from "./frames.ts";
-import { DialogResponse, SessionSummary } from "./streams.ts";
+import { DialogResponse, ForkPoint, HistoryMeta, SessionSummary, TranscriptRow } from "./streams.ts";
 
 const SessionId = z.string().min(1).max(128);
 const Ok = z.object({ ok: z.literal(true) });
@@ -74,6 +74,42 @@ export const methods = catalogue({
     }),
     result: Ok,
     errors: ["not_found", "worker_failed"],
+  }),
+  "sessions.history": defineMethod({
+    name: "sessions.history",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({
+      sessionId: SessionId,
+      before: z.string().min(1).max(128),
+      limit: z.number().int().min(1).max(100).optional(),
+    }),
+    result: HistoryMeta.extend({ rows: z.array(TranscriptRow) }),
+    errors: ["not_found"],
+  }),
+  "sessions.toolOutput": defineMethod({
+    name: "sessions.toolOutput",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({ sessionId: SessionId, toolCallId: z.string().min(1).max(256) }),
+    result: z.object({
+      text: z.string().max(800_000),
+      truncated: z.boolean(),
+      isError: z.boolean(),
+      args: z
+        .string()
+        .max(64 * 1024)
+        .nullable(),
+    }),
+    errors: ["not_found"],
+  }),
+  "sessions.branches": defineMethod({
+    name: "sessions.branches",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({ sessionId: SessionId }),
+    result: z.object({ leafId: z.string().max(128).nullable(), points: z.array(ForkPoint) }),
+    errors: ["not_found"],
   }),
   "subscribe.session": defineMethod({
     name: "subscribe.session",

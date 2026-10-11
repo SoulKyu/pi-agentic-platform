@@ -31,7 +31,12 @@ export interface TranscriptReader {
     options?: { leafId?: string | null; before?: string; limit?: number; upToBytes?: number },
   ): BranchPage;
   forks(filePath: string, leafId?: string | null): ForkPoint[];
-  toolCall(filePath: string, toolCallId: string): { result: unknown | null; args: unknown | null };
+  /** A tool call's arguments and result along the branch that ends at `leafId` (null: the file's last entry). */
+  toolCall(
+    filePath: string,
+    toolCallId: string,
+    leafId?: string | null,
+  ): { result: unknown | null; args: unknown | null };
   lastEntryId(filePath: string): string | null;
 }
 
@@ -76,7 +81,7 @@ function createTranscriptReader(sdk: Sdk, logger: Logger, clock: Clock): Transcr
       };
     },
     forks: (filePath, leafId) => forkPoints(cache.read(filePath), convert, leafId),
-    toolCall: (filePath, toolCallId) => findToolCall(cache.read(filePath), toolCallId),
+    toolCall: (filePath, toolCallId, leafId) => findToolCall(cache.read(filePath), toolCallId, leafId),
     lastEntryId: (filePath) => cache.read(filePath).list.at(-1)?.id ?? null,
   };
 }

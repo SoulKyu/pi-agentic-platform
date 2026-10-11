@@ -36,6 +36,8 @@ export interface SessionView {
   /** Pi's current leaf as far as the stream has said so; null when unknown. */
   readonly leafId: string | null;
   readonly loaded: boolean;
+  /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
+  readonly generation: number;
   /** A snapshot arrived that the contract could not parse: the screen says so instead of staying blank. */
   readonly unreadable: boolean;
 }
@@ -50,6 +52,7 @@ export const EMPTY_VIEW: SessionView = {
   history: NO_HISTORY,
   leafId: null,
   loaded: false,
+  generation: 0,
   unreadable: false,
 };
 const appendMessage = (list: readonly MessageView[], message: MessageView | null): readonly MessageView[] =>
@@ -93,6 +96,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         history: event.history,
         leafId: event.leafId,
         loaded: true,
+        generation: view.generation + 1,
       };
     case "status": {
       // A half-written reply of a session that stopped will never be finished.

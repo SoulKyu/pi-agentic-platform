@@ -1,3 +1,4 @@
+import type { BranchPage } from "./branch.ts";
 import {
   type Activity,
   type Dialog,
@@ -163,6 +164,8 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
 }
 
 const ANCHOR_ROLES: ReadonlySet<string> = new Set(["user", "compactionSummary", "branchSummary", "custom"]);
+const isAnchorRow = (row: TranscriptRow): boolean =>
+  ANCHOR_ROLES.has(String((row.message as { role?: unknown } | null)?.role));
 
 /**
  * When the snapshot had to leave out older rows (the 75-row cap or the byte budget), the client's next page must start
@@ -180,12 +183,34 @@ export function withTrimmedHistory(
       history: { hasMore: page.hasMore, oldestEntryId: page.oldestEntryId, turnsBefore: page.turnsBefore },
     };
   }
-  const anchors = offered
-    .slice(0, dropped)
-    .filter((row) => ANCHOR_ROLES.has(String((row.message as { role?: unknown } | null)?.role))).length;
+  const anchors = offered.slice(0, dropped).filter(isAnchorRow).length;
   const oldest = snapshot.rows.find((row) => row.entryId !== null)?.entryId ?? page.oldestEntryId;
   return {
     ...snapshot,
     history: { hasMore: true, oldestEntryId: oldest, turnsBefore: page.turnsBefore + anchors },
+  };
+}
+
+/**
+ * A page under `budget` JSON bytes: each row over `ROW_BYTES` is a placeholder, then the oldest rows go first. The
+ * cursor follows the oldest row kept, and the turns of the rows left out are counted into `turnsBefore`.
+ */
+export function fitPage(page: BranchPage, budget: number): BranchPage {
+  const kept: TranscriptRow[] = [];
+  let used = 0;
+  for (const candidate of page.rows.toReversed()) {
+    const { row, size } = fitRow(candidate);
+    if (used + size + 1 > budget) break;
+    used += size + 1;
+    kept.unshift(row);
+  }
+  const dropped = page.rows.length - kept.length;
+  if (dropped === 0) return kept.every((row, i) => row === page.rows[i]) ? page : { ...page, rows: kept };
+  return {
+    ...page,
+    rows: kept,
+    hasMore: true,
+    oldestEntryId: kept[0]?.entryId ?? page.oldestEntryId,
+    turnsBefore: page.turnsBefore + page.rows.slice(0, dropped).filter(isAnchorRow).length,
   };
 }

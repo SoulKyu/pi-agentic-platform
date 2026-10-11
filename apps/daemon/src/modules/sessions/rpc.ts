@@ -8,6 +8,9 @@ export type SessionsRpc = Pick<
   | "sessions.prompt"
   | "sessions.abort"
   | "sessions.respondDialog"
+  | "sessions.history"
+  | "sessions.toolOutput"
+  | "sessions.branches"
   | "subscribe.session"
 >;
 
@@ -24,6 +27,9 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
       service.respondDialog(params, ctx.caller);
       return { ok: true as const };
     },
+    "sessions.history": async (params, ctx) => service.history(params, ctx.caller),
+    "sessions.toolOutput": async (params, ctx) => service.toolOutput(params, ctx.caller),
+    "sessions.branches": async ({ sessionId }, ctx) => service.branches(sessionId, ctx.caller),
     // Opening a subscription is this handler's only effect. A handler that also had a side effect would open the
     // subscription first: it can fail with capacity or not_found, and failing after the effect would invite a retry
     // of the same command (R79). What is awaited first is the read's preparation: the owner check and the transcript

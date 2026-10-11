@@ -133,6 +133,21 @@ export const EntryRef = z.object({
 });
 export type EntryRef = z.infer<typeof EntryRef>;
 
+/** One child at a fork: `target` is the leaf a switch to it goes to (the newest entry under it). */
+export const ForkChoice = z.object({
+  entryId: z.string().max(128),
+  preview: z.string().max(120),
+  target: z.string().max(128),
+  timestamp: z.string().max(64).nullable(),
+  onPath: z.boolean(),
+});
+export type ForkChoice = z.infer<typeof ForkChoice>;
+export const ForkPoint = z.object({
+  parentId: z.string().max(128).nullable(),
+  choices: z.array(ForkChoice).max(16),
+});
+export type ForkPoint = z.infer<typeof ForkPoint>;
+
 export const EMPTY_QUEUE: QueueView = { steering: [], followUp: [], count: 0, bytes: 0 };
 export const IDLE_ACTIVITY: Activity = { compacting: false, retry: null };
 export const NO_HISTORY: HistoryMeta = { hasMore: false, oldestEntryId: null, turnsBefore: 0 };
