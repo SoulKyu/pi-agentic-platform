@@ -8,6 +8,7 @@ import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
 import { useSessionsCache } from "./sessions-cache.ts";
+import { TabBar } from "./TabBar.tsx";
 import { TopBar } from "./TopBar.tsx";
 import { useShellEffects } from "./use-shell-effects.ts";
 
@@ -35,6 +36,7 @@ export function AppShell({ username, onSignedOut }: AppShellProps) {
       <Rail username={username} onSignedOut={onSignedOut} />
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar title={title} />
+        <TabBar />
         <ConnectionBanner />
         {/* Not <main>: M2's screens carry their own <main> until P3 turns them into sections. */}
         <div id="pane-host" className="flex min-h-0 flex-1">

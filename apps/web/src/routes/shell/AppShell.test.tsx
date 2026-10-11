@@ -147,9 +147,10 @@ describe("AppShell", () => {
     await act(async () => bed.fake.setState("open"));
     await settle();
     expect(page.container.querySelector("header")?.textContent).toContain("pi-agentic");
-    expect(page.container.querySelector('[data-pane-kind="session"]')?.getAttribute("aria-label")).toBe(
-      "pi-agentic",
-    );
+    const panel = page.container.querySelector('[data-pane-kind="session"]') as HTMLElement;
+    expect(
+      page.container.ownerDocument.getElementById(panel.getAttribute("aria-labelledby") ?? "")?.textContent,
+    ).toBe("pi-agentic"); // the pane is named by its tab
     await page.unmount();
   });
 
