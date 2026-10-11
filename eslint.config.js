@@ -56,7 +56,8 @@ export default defineConfig(
       "@eslint-community/eslint-comments/no-use": [
         "error",
         {
-          allow: ["eslint-disable", "eslint-disable-next-line", "eslint-disable-line", "eslint-enable"],
+          // Only -next-line: a block or -line directive also covers the report about itself (R64b).
+          allow: ["eslint-disable-next-line"],
         },
       ],
     },

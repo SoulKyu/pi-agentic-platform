@@ -104,6 +104,48 @@ describe("repository gates", () => {
     }
   });
 
+  // A block directive and a -line directive cover the report about themselves, so only -next-line may stay (R64b).
+  describe("block and -line directives cannot switch a guard off (R64b)", () => {
+    const messagesOf = async (code, filePath) => {
+      const [result] = await eslint.lintText(code, { filePath });
+      return result?.messages.map((m) => m.ruleId) ?? [];
+    };
+
+    it("reports the block form that disables the restricted-disable rule and max-lines in one comment", async () => {
+      const code = `/* eslint-disable @eslint-community/eslint-comments/no-restricted-disable, max-lines -- r */\n${linesOf(401)}\n/* eslint-enable -- r */\n`;
+      expect(await messagesOf(code, "packages/contracts/src/block-off.ts")).toContain(
+        "@eslint-community/eslint-comments/no-use",
+      );
+    });
+
+    it("reports the -line form that does the same on the line max-lines points at", async () => {
+      const long = `${linesOf(400)}\nexport const last = 1; // eslint-disable-line @eslint-community/eslint-comments/no-restricted-disable, max-lines -- r\n`;
+      expect(await messagesOf(long, "packages/contracts/src/line-off.ts")).toContain(
+        "@eslint-community/eslint-comments/no-use",
+      );
+    });
+
+    it("reports a directive that lists the guards themselves as well", async () => {
+      const guards =
+        "@eslint-community/eslint-comments/no-use, @eslint-community/eslint-comments/no-restricted-disable";
+      const block = `/* eslint-disable ${guards}, max-lines -- r */\n${linesOf(401)}\n/* eslint-enable -- r */\n`;
+      const line = `${linesOf(400)}\nexport const last = 1; // eslint-disable-line ${guards}, max-lines -- r\n`;
+      for (const code of [block, line]) {
+        expect(await messagesOf(code, "packages/contracts/src/guards-off.ts")).toContain(
+          "@eslint-community/eslint-comments/no-use",
+        );
+      }
+    });
+
+    it("reports a block disable of an ordinary rule too", async () => {
+      const code =
+        "/* eslint-disable @typescript-eslint/no-explicit-any -- r */\nexport const a: any = 1;\n/* eslint-enable -- r */\n";
+      expect(await messagesOf(code, "packages/contracts/src/block-ordinary.ts")).toContain(
+        "@eslint-community/eslint-comments/no-use",
+      );
+    });
+  });
+
   it("lets a reasoned disable of an ordinary rule through", async () => {
     const code =
       "// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a test double\nexport const a: any = 1;\n";
