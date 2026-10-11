@@ -106,6 +106,7 @@ function refusalSetup(authenticate: () => Caller | null = () => owner, onOriginR
   const server = createWsServer({
     allowedOrigins: new Set(["http://localhost:7777"]),
     ...(onOriginRefused ? { onOriginRefused } : {}),
+    credentialOf: (header) => header,
     authenticate,
     dispatch: () => Promise.reject(new Error("unused")),
     hub: createStreamHub("e"),

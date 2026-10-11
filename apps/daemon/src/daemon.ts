@@ -123,7 +123,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
-      authenticate: (cookie) => auth.authenticateCookieHeader(cookie),
+      credentialOf: auth.sessionValueOf,
+      authenticate: auth.authenticateSession,
       dispatch,
       hub,
       logger,

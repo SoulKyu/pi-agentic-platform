@@ -220,6 +220,51 @@ describe("auth service", () => {
     expect(count("auth_sessions")).toBe(1);
   });
 
+  it("checks a session without sliding it when asked: a keepalive tick must not keep it alive (R130)", async () => {
+    const session = await service.setup(setupInput(tokenOf(service.setupUrl())));
+    const expiry = () => db.get<{ e: number }>("SELECT expires_at AS e FROM auth_sessions")?.e;
+    const initial = expiry();
+    await clock.advance(2 * DAY);
+    expect(service.authenticate(session.cookieValue, { slide: false })?.username).toBe("owner");
+    expect(expiry()).toBe(initial);
+    expect(service.authenticate(session.cookieValue)?.username).toBe("owner");
+    expect(expiry()).toBeGreaterThan(initial ?? 0);
+    const other = await service.login(loginInput(PASSWORD, "1.1.1.1"));
+    await clock.advance(31 * DAY);
+    expect(service.authenticate(other.cookieValue, { slide: false })).toBeNull();
+  });
+
+  describe("on a database that cannot be written (R130)", () => {
+    const serviceOver = (extendSession: () => void) =>
+      createAuthService({
+        store: { ...createAuthStore(db), extendSession },
+        clock,
+        logger: createLogger({ level: "debug", clock, write: () => {} }),
+        publicOrigin: "http://localhost:7777",
+        throttle: createThrottle(clock),
+        setupToken: createSetupToken(false),
+      });
+
+    it("still knows the caller when only the slide fails, and does not slide", async () => {
+      const session = await service.setup(setupInput(tokenOf(service.setupUrl())));
+      const readOnly = serviceOver(() => {
+        throw new Error("attempt to write a readonly database");
+      });
+      await clock.advance(2 * DAY);
+      expect(readOnly.authenticate(session.cookieValue)?.username).toBe("owner");
+      expect(readOnly.status(session.cookieValue)).toMatchObject({ authenticated: true });
+    });
+
+    it("lets any other failure of the slide through", async () => {
+      const session = await service.setup(setupInput(tokenOf(service.setupUrl())));
+      const broken = serviceOver(() => {
+        throw new Error("disk I/O error");
+      });
+      await clock.advance(2 * DAY);
+      expect(() => broken.authenticate(session.cookieValue)).toThrow("disk I/O error");
+    });
+  });
+
   it("ignores empty, oversized and unknown session values", async () => {
     await service.setup(setupInput(tokenOf(service.setupUrl())));
     expect(service.authenticate(undefined)).toBeNull();

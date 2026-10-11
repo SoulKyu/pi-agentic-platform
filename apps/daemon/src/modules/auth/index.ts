@@ -29,6 +29,10 @@ export interface AuthModuleDeps {
 
 export interface AuthModule {
   mount(app: Hono): void;
+  /** The `pap_session` value in a Cookie header, the only part of it that is ever kept. */
+  sessionValueOf(header: string | undefined): string | undefined;
+  /** `slide: false` checks without extending the session (see `AuthService.authenticate`). */
+  authenticateSession(value: string | undefined, options?: { readonly slide?: boolean }): Caller | null;
   authenticateCookieHeader(header: string | undefined): Caller | null;
   /** The one-time owner setup URL while no owner exists, else null. The only secret meant to be shown. */
   setupUrl(): string | null;
@@ -59,6 +63,8 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
       mountAuthRoutes(app, { service, passkeysAvailable: passkeys.available, secureByConfig });
       mountPasskeyRoutes(app, { passkeys, auth: service, throttle: passkeyThrottle, logger });
     },
+    sessionValueOf: (header) => readCookie(header, SESSION_COOKIE),
+    authenticateSession: (value, options) => service.authenticate(value, options),
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
     setupUrl: () => service.setupUrl(),
   };

@@ -17,7 +17,8 @@ import {
 } from "./ws-server.ts";
 
 const ORIGIN = "http://localhost:7777";
-const COOKIE = "pap_session=good";
+// More than the credential: nothing but the credential may be kept or asked about.
+const COOKIE = "pap_session=good; theme=dark";
 const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
 
 let server: RunningServer;
@@ -27,10 +28,13 @@ let clock: FakeClock;
 let errors: string[];
 // What the session store would answer: flipped by a test to stand for a sign-out, an expiry or a database error.
 let session: "valid" | "gone" | "broken";
+// Every question put to the session store: with what, and whether the answer may extend the session.
+let asked: Array<{ credential: string | undefined; slide: boolean }>;
 
 beforeEach(async () => {
   clock = createFakeClock(1);
   errors = [];
+  asked = [];
   session = "valid";
   const logger: Logger = {
     debug: () => {},
@@ -49,9 +53,11 @@ beforeEach(async () => {
   } as unknown as HandlerTable;
   ws = createWsServer({
     allowedOrigins: new Set([ORIGIN]),
-    authenticate: (cookie) => {
+    credentialOf: (header) => /pap_session=([^;]+)/.exec(header ?? "")?.[1],
+    authenticate: (credential, options) => {
+      asked.push({ credential, slide: options?.slide ?? true });
       if (session === "broken") throw new Error("database is locked");
-      return cookie === COOKIE && session === "valid" ? owner : null;
+      return credential === "good" && session === "valid" ? owner : null;
     },
     dispatch: createDispatcher({
       handlers,
@@ -177,6 +183,20 @@ describe("/ws session revocation", () => {
     expect(errors).toContain("ws_authenticate_failed");
     session = "valid";
     expect(await client.call({ id: 35, method: "system.ping", params: {} })).toMatchObject({ ok: true });
+    client.socket.close();
+  });
+
+  it("asks with the session value alone, and slides on request frames but never on a tick (R130)", async () => {
+    const client = await subscribed();
+    await clock.advance(KEEPALIVE_MS);
+    await client.call({ id: 40, method: "system.ping", params: {} });
+    await clock.advance(KEEPALIVE_MS);
+    expect(asked.every(({ credential }) => credential === "good")).toBe(true);
+    expect(JSON.stringify(asked)).not.toContain("theme");
+    const ticks = asked.filter(({ slide }) => !slide);
+    expect(ticks).toHaveLength(2);
+    // The upgrade and each request frame (subscribe, ping, ping) are ordinary requests.
+    expect(asked.filter(({ slide }) => slide)).toHaveLength(4);
     client.socket.close();
   });
 });

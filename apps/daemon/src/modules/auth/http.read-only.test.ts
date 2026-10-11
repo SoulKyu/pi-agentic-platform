@@ -58,11 +58,12 @@ describe("auth routes on a read-only database", () => {
     expect(bed.events("http_read_only")).toHaveLength(1);
   });
 
-  it("answer the status check of a session that is due to slide 503 read_only too", async () => {
+  it("still answer the status check of a session that is due to slide: it just does not slide (R130)", async () => {
     const { app, cookie } = await ownerThenReadOnly();
     await bed.clock.advance(2 * DAY_MS);
     const response = await app.request("/auth/status", { headers: { cookie } });
-    expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ error: { code: "read_only" } });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ authenticated: true, username: "owner" });
+    expect(bed.events("http_error")).toEqual([]);
   });
 });

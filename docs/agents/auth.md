@@ -10,10 +10,10 @@ Code: `apps/daemon/src/modules/auth/`. Cookie policy: ADR 0004.
 
 ## Open sockets and revocation
 
-- `/ws` authenticates at the upgrade, and then again before every text frame and on every keepalive tick (`kernel/ws/ws-server.ts`; the check is the same `authenticateCookieHeader` the upgrade uses). The socket keeps the `Cookie` header of its upgrade in memory for that, nothing else: it is never logged, stored or sent.
+- `/ws` authenticates at the upgrade, and then again before every text frame and on every keepalive tick (`kernel/ws/ws-server.ts`; the check is the same session lookup the upgrade uses, `authenticateSession`). The socket keeps only the `pap_session` value of its upgrade, in memory (`sessionValueOf` picks it out of the `Cookie` header; the rest of the header is dropped): it is never logged, stored or sent.
 - A failed check answers the request in flight `unauthenticated` (a malformed frame gets no answer), drops the socket's subscriptions at once, closes with code 4401 (`CLOSE_UNAUTHENTICATED`) and cuts the connection after the 1 s close grace if the peer does not answer. So `POST /auth/logout`, an expiry or a deleted session row end an open socket within one request or one 15 s tick.
 - The web client needs nothing special: a dropped socket makes it probe `GET /ws`, which answers 401 for a dead session, and the connection goes to `signed-out`.
-- A check that throws (database trouble) does not close the socket: the request is answered `internal` and not dispatched, a tick logs `ws_authenticate_failed` and tries again at the next one. The check also slides the session expiry like any other authenticated call, so a connected, busy client keeps its session.
+- A check that throws (database trouble) does not close the socket: the request is answered `internal` and not dispatched, a tick logs `ws_authenticate_failed` and tries again at the next one. Only request frames slide the session expiry, like any other request: the keepalive tick checks with `slide: false`, so an idle socket never keeps a session alive (it ends at its expiry, at the latest on the next tick after it). On a read-only database (a newer pap wrote it) the slide is skipped, not failed: `authenticate` ignores a read-only error from `extendSession` and the caller is still known, so frames and ticks keep working; any other write error still propagates.
 
 ## Sign-in throttle and its trade-offs
 

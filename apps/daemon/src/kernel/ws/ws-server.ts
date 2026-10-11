@@ -34,12 +34,18 @@ export const CLOSE_UNAUTHENTICATED = 4401;
 export interface WsServerOptions {
   readonly allowedOrigins: ReadonlySet<string>;
   /**
-   * Resolves the session cookie header to a caller. Asked at the upgrade, before every request frame and on every
-   * keepalive tick, so a sign-out or an expiry ends an open socket within one request or one tick. It may throw
+   * The session credential inside a Cookie header (undefined when there is none). It is the only part of the header
+   * a socket keeps: the rest is dropped at the upgrade.
+   */
+  credentialOf(cookieHeader: string | undefined): string | undefined;
+  /**
+   * Resolves the credential to a caller. Asked at the upgrade, before every request frame and on every keepalive
+   * tick, so a sign-out or an expiry ends an open socket within one request or one tick. Requests slide the session
+   * like any other call; a tick passes `slide: false`, so an idle socket cannot keep a session alive. It may throw
    * (database trouble): the upgrade answers 500, a request frame answers `internal`, a tick leaves the socket for
    * the next check.
    */
-  authenticate(cookieHeader: string | undefined): Caller | null;
+  authenticate(credential: string | undefined, options?: { readonly slide: boolean }): Caller | null;
   readonly dispatch: Dispatch;
   readonly hub: StreamHub;
   readonly logger: Logger;
@@ -142,10 +148,10 @@ export function createWsServer(options: WsServerOptions): WsServer {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
 
   /**
-   * `cookie` is the Cookie header of the upgrade, kept for the life of the socket and used for nothing but the
+   * `credential` is the session value of the upgrade, kept for the life of the socket and used for nothing but the
    * re-checks below. It is never logged or sent anywhere.
    */
-  function attach(ws: WebSocket, cookie: string | undefined): void {
+  function attach(ws: WebSocket, credential: string | undefined): void {
     const connectionId = randomUUID();
     let nextSub = 0;
     let revoked = false;
@@ -197,7 +203,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
         const frame = decode(text, sendSafe);
         requestId = frame?.id ?? null;
         // Every text frame re-asks, a malformed one too: a revoked socket must not linger on garbage.
-        const caller = options.authenticate(cookie);
+        const caller = options.authenticate(credential);
         if (!caller) {
           if (frame) sendSafe({ id: frame.id, ok: false, error: { code: "unauthenticated" } });
           answered = true;
@@ -239,7 +245,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
 
     const keepalive = startKeepalive(ws, options.clock, () => {
       try {
-        if (!options.authenticate(cookie)) {
+        if (!options.authenticate(credential, { slide: false })) {
           keepalive.stop();
           revoke();
         }
@@ -273,16 +279,16 @@ export function createWsServer(options: WsServerOptions): WsServer {
         return reject(socket, 403);
       }
       if (url.searchParams.get("proto") !== String(PROTOCOL_VERSION)) return reject(socket, 426);
+      const credential = options.credentialOf(req.headers.cookie);
       let caller: Caller | null;
       try {
-        caller = options.authenticate(req.headers.cookie);
+        caller = options.authenticate(credential);
       } catch (error) {
         options.logger.error("ws_authenticate_failed", { err: error });
         return reject(socket, 500);
       }
       if (!caller) return reject(socket, 401);
-      const cookie = req.headers.cookie;
-      wss.handleUpgrade(req, socket, head, (ws) => attach(ws, cookie));
+      wss.handleUpgrade(req, socket, head, (ws) => attach(ws, credential));
     },
     close() {
       for (const client of wss.clients) {

@@ -1,5 +1,6 @@
 import { ALL_PERMISSIONS, PapError, type Caller, type Permission } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
+import { isReadOnlyError } from "../../kernel/db/read-only.ts";
 import { newId, randomToken, sha256Hex } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { SESSION_TTL_MS } from "./cookies.ts";
@@ -58,7 +59,14 @@ export interface AuthService {
   /** Step-up for a signed-in caller: the account's password, checked and throttled exactly like a sign-in. */
   confirmPassword(input: { userId: string; password: string; ip: string }): Promise<void>;
   logout(cookieValue: string | undefined): void;
-  authenticate(cookieValue: string | undefined): (Caller & { username: string }) | null;
+  /**
+   * Who the session value belongs to. A request slides the expiry (at most once a day); `slide: false` only looks,
+   * for the keepalive tick of an open socket, so that an idle socket cannot keep a session alive.
+   */
+  authenticate(
+    cookieValue: string | undefined,
+    options?: { readonly slide?: boolean },
+  ): (Caller & { username: string }) | null;
   startSession(userId: string, userAgent: string | undefined): StartedSession;
   setupUrl(): string | null;
 }
@@ -115,13 +123,18 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     deps.throttle.succeed(keys);
     return user;
   };
-  const authenticate = (cookieValue: string | undefined) => {
+  const authenticate: AuthService["authenticate"] = (cookieValue, options) => {
     if (!cookieValue || cookieValue.length > MAX_COOKIE_LENGTH) return null;
     const session = deps.store.findSession(sha256Hex(cookieValue));
     const now = deps.clock.now();
     if (!session || session.expiresAt <= now) return null;
-    if (session.expiresAt - now < SESSION_TTL_MS - SLIDE_AFTER_MS) {
-      deps.store.extendSession(session.idHash, now, now + SESSION_TTL_MS);
+    if (options?.slide !== false && session.expiresAt - now < SESSION_TTL_MS - SLIDE_AFTER_MS) {
+      try {
+        deps.store.extendSession(session.idHash, now, now + SESSION_TTL_MS);
+      } catch (error) {
+        // A database written by a newer pap is read-only: the session is still valid, it just cannot slide.
+        if (!isReadOnlyError(error)) throw error;
+      }
     }
     return { userId: session.userId, username: session.username, permissions: OWNER_PERMISSIONS };
   };

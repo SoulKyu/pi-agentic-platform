@@ -1,5 +1,7 @@
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock, type FakeClock } from "./kernel/clock.ts";
+import { openDatabase } from "./kernel/db/database.ts";
 import { CLOSE_UNAUTHENTICATED, KEEPALIVE_MS } from "./kernel/ws/ws-server.ts";
 import { httpRequest } from "./testing/http-client.ts";
 import { startTestDaemon, type TestDaemon } from "./testing/harness.ts";
@@ -45,5 +47,24 @@ describe("a socket does not outlive its session", () => {
     await signOut(cookie);
     await clock.advance(KEEPALIVE_MS);
     expect(await client.closed).toBe(CLOSE_UNAUTHENTICATED);
+  });
+
+  it("a keepalive tick alone never extends the session; a request does (R130)", async () => {
+    const cookie = await t.login();
+    const client = await t.connect(cookie);
+    expect(await client.call("system.ping", {})).toMatchObject({ ok: true });
+    const db = openDatabase(join(t.home, "state.db"));
+    try {
+      const expiry = () => db.get<{ e: number }>("SELECT expires_at AS e FROM auth_sessions")?.e ?? 0;
+      // Two days of the session's life are gone: it is due to slide.
+      db.run("UPDATE auth_sessions SET expires_at = expires_at - $gone", { gone: 2 * 24 * 3600 * 1000 });
+      const aged = expiry();
+      await clock.advance(KEEPALIVE_MS);
+      expect(expiry()).toBe(aged);
+      expect(await client.call("system.ping", {})).toMatchObject({ ok: true });
+      expect(expiry()).toBeGreaterThan(aged);
+    } finally {
+      db.close();
+    }
   });
 });
