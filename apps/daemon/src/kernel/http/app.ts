@@ -1,6 +1,7 @@
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
+import { isReadOnlyError } from "../db/read-only.ts";
 import type { Logger } from "../logger.ts";
 import { originGuard, type OriginRefused } from "./origin.ts";
 import { createStaticHandler, isSpaRoute } from "./static.ts";
@@ -84,6 +85,11 @@ export function createHttpApp(options: HttpAppOptions): Hono {
     }
     if (error instanceof HTTPException && error.status === 400) {
       return c.json({ error: { code: "bad_request" } }, 400);
+    }
+    // A database written by a newer pap is read-only here: say so (as the RPC does) instead of a bare 500.
+    if (isReadOnlyError(error)) {
+      options.logger.warn("http_read_only", { path: c.req.path });
+      return c.json({ error: { code: "read_only" } }, 503);
     }
     options.logger.error("http_error", { err: error, path: c.req.path });
     return c.json({ error: { code: "internal" } }, 500);

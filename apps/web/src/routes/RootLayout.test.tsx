@@ -124,6 +124,12 @@ describe("RootLayout", () => {
     expect(alerts(container)).toEqual(["pap is unreachable right now."]);
   });
 
+  it("says why when the server answered the status with an error code, not that it is unreachable", async () => {
+    const container = await show(Object.assign(new Error("auth status unavailable"), { code: "read_only" }));
+    expect(alerts(container)).toEqual(["The database was written by a newer pap and is read-only."]);
+    expect(hasButton(container, "Retry")).toBe(true);
+  });
+
   it("shows no passkey button where the browser cannot use passkeys, though the server offers them", async () => {
     browser.webauthn = false;
     const container = await show(status({ authenticated: false, username: null }));

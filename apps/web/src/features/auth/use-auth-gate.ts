@@ -4,7 +4,8 @@ import { passkeysUsable } from "./passkey-support.ts";
 
 export type GateState =
   | { readonly phase: "loading" }
-  | { readonly phase: "error" }
+  /** `code`: why, when the server said (`read_only`); null for a server that could not be reached. */
+  | { readonly phase: "error"; readonly code: string | null }
   | { readonly phase: "setup" }
   | { readonly phase: "login"; readonly passkeysAvailable: boolean }
   | { readonly phase: "ready"; readonly username: string | null; readonly passkeysAvailable: boolean };
@@ -25,7 +26,10 @@ export function useAuthGate(): { state: GateState; refresh(): void; retry(): voi
                 }
               : { phase: "login", passkeysAvailable: passkeysUsable(status.passkeysAvailable) },
         ),
-      () => setState({ phase: "error" }),
+      (error: unknown) => {
+        const code = (error as { code?: unknown } | null)?.code;
+        setState({ phase: "error", code: typeof code === "string" ? code : null });
+      },
     );
   }, []);
   useEffect(refresh, [refresh]);

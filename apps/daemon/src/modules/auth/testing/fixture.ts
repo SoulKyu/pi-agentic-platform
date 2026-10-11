@@ -15,6 +15,8 @@ export const PASSWORD = "correct horse battery staple";
 
 export interface AuthTestBed {
   readonly db: Db;
+  /** The database file, for a test that opens it a second time (read-only, say). */
+  readonly dbPath: string;
   readonly clock: FakeClock;
   readonly logger: Logger;
   /** Every log line since the bed was created or last cleared; migration output is already dropped. */
@@ -29,8 +31,9 @@ export function createAuthTestBed(): AuthTestBed {
   const clock = createFakeClock();
   const lines: string[] = [];
   const logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
+  const dbPath = join(dir, "s.db");
   const db = migrate({
-    dbPath: join(dir, "s.db"),
+    dbPath,
     backupsDir: join(dir, "b"),
     sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS],
     clock,
@@ -39,6 +42,7 @@ export function createAuthTestBed(): AuthTestBed {
   lines.length = 0;
   return {
     db,
+    dbPath,
     clock,
     logger,
     lines,

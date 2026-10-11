@@ -5,7 +5,7 @@ import { AccountBar } from "../features/auth/AccountBar.tsx";
 import { LoginScreen } from "../features/auth/LoginScreen.tsx";
 import { SetupScreen } from "../features/auth/SetupScreen.tsx";
 import { useAuthGate } from "../features/auth/use-auth-gate.ts";
-import { t } from "../i18n/index.ts";
+import { errorKey, t } from "../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../runtime/index.ts";
 
 export function RootLayout() {
@@ -26,7 +26,7 @@ export function RootLayout() {
     return (
       <main className="flex flex-col items-start gap-3 p-6">
         <p role="alert" className="text-attention">
-          {t("error.offline")}
+          {t(state.code === null ? "error.offline" : errorKey(state.code))}
         </p>
         <Button onClick={retry}>{t("gate.retry")}</Button>
       </main>

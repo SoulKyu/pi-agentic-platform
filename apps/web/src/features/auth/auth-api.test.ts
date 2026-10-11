@@ -256,4 +256,11 @@ describe("password requests", () => {
     expect(await fetchAuthStatus()).toMatchObject({ authenticated: true, username: "ana" });
     await expect(fetchAuthStatus()).rejects.toThrow("auth status unavailable");
   });
+
+  it("carries the server's error code when the status could not be read for a reason it gave", async () => {
+    server(refusal(503, "read_only"), new Response("<html>", { status: 502 }), reply(200, null));
+    await expect(fetchAuthStatus()).rejects.toMatchObject({ code: "read_only" });
+    await expect(fetchAuthStatus()).rejects.toMatchObject({ code: null });
+    await expect(fetchAuthStatus()).rejects.toMatchObject({ code: null });
+  });
 });

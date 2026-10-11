@@ -33,9 +33,19 @@ async function answered(run: () => Promise<AuthResult>): Promise<AuthResult> {
   }
 }
 
+/** The status could not be read. `code` is the server's own error code when it answered with one (`read_only`...). */
+export class AuthStatusError extends Error {
+  readonly code: string | null;
+
+  constructor(code: string | null) {
+    super("auth status unavailable");
+    this.code = code;
+  }
+}
+
 export async function fetchAuthStatus(): Promise<AuthStatus> {
-  const result = await getJson<AuthStatus>("/auth/status");
-  if (result.status !== 200 || !result.body) throw new Error("auth status unavailable");
+  const result = await getJson<AuthStatus & ErrorBody>("/auth/status");
+  if (result.status !== 200 || !result.body) throw new AuthStatusError(result.body?.error?.code ?? null);
   return result.body;
 }
 

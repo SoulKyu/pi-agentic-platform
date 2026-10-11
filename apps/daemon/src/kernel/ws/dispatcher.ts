@@ -8,6 +8,7 @@ import {
   type RequestFrame,
   type ResponseFrame,
 } from "@pap/contracts";
+import { isReadOnlyError } from "../db/read-only.ts";
 import type { ReceiptStore } from "../db/receipts.ts";
 import { sha256Hex } from "../ids.ts";
 import type { Logger } from "../logger.ts";
@@ -30,8 +31,6 @@ interface Inflight {
 
 const ok = (id: number, result: unknown): ResponseFrame => ({ id, ok: true, result });
 const fail = (id: number, code: ErrorCode): ResponseFrame => ({ id, ok: false, error: { code } });
-const isReadOnlyError = (error: unknown) =>
-  error instanceof Error && /readonly database/i.test(error.message);
 
 /** JSON with object keys sorted at every depth, so equal params always serialise to the same text. */
 export function canonicalJson(value: unknown): string {
