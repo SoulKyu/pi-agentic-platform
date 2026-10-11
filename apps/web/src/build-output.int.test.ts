@@ -50,8 +50,15 @@ describe("the built web app under the daemon's CSP", () => {
   it("loads only from its own origin", () => {
     const references = [...html.matchAll(/\b(?:src|href)="([^"]+)"/g)].map((match) => match[1]);
     expect(references.length).toBeGreaterThan(0);
-    for (const reference of references) expect(reference, String(reference)).toMatch(/^\/assets\//);
+    for (const reference of references)
+      expect(reference, String(reference)).toMatch(/^\/(?:assets\/|favicon\.svg$)/);
     expect(css).not.toMatch(/@import|url\(\s*["']?(?:https?:)?\/\//i);
+  });
+
+  it("names the tab pap and serves the favicon from the build", async () => {
+    expect(html).toContain("<title>pap</title>");
+    expect(html).toContain('href="/favicon.svg"');
+    expect((await readFile(join(out, "favicon.svg"), "utf8")).startsWith("<svg")).toBe(true);
   });
 
   it("serves Manrope and JetBrains Mono as woff2 files, never inlined as data: URIs", async () => {
