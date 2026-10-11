@@ -65,6 +65,37 @@ const zustandSelector = {
   },
 };
 
+// DESIGN.md §7.1: icon-only controls carry a tooltip; the native title attribute is not used (T3:
+// oxlint-plugin-t3code/rules/no-native-title-tooltip.ts). Embedded content keeps title: it names the frame there.
+const TITLE_EXEMPT = new Set(["iframe", "embed", "frame", "object", "math"]);
+
+const noNativeTitle = {
+  meta: {
+    type: "problem",
+    messages: {
+      title: "Do not use the native title attribute: use the Tooltip of @pap/ui (DESIGN.md §7.1).",
+    },
+    schema: [],
+  },
+  create(context) {
+    return {
+      JSXOpeningElement(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          !/^[a-z]/.test(node.name.name) ||
+          TITLE_EXEMPT.has(node.name.name)
+        )
+          return;
+        for (const attribute of node.attributes) {
+          if (attribute.type === "JSXAttribute" && attribute.name.name === "title") {
+            context.report({ node: attribute, messageId: "title" });
+          }
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "pap" },
   rules: {
@@ -79,6 +110,7 @@ export default {
       ARBITRARY,
     ),
     "no-restyle": noRestyle,
+    "no-native-title": noNativeTitle,
     "zustand-selector": zustandSelector,
   },
 };

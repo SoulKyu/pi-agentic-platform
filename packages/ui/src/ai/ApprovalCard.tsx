@@ -32,10 +32,13 @@ export function ApprovalCard(props: ApprovalCardProps) {
   // Built on the first click, never during render: both buttons share it for the card's whole life.
   const guard = useRef<((approved: boolean) => boolean) | null>(null);
   const answer = (approved: boolean) => {
-    guard.current ??= once((value: boolean) => {
-      setAnswered(true);
-      latestOnAnswer.current(value);
-    });
+    // `??=` is not supported by the React Compiler: an explicit check keeps the component memoized.
+    if (guard.current === null) {
+      guard.current = once((value: boolean) => {
+        setAnswered(true);
+        latestOnAnswer.current(value);
+      });
+    }
     guard.current(approved);
   };
   const headerId = useId();

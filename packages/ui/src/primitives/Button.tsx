@@ -15,15 +15,16 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
 }
 
 // DESIGN.md §9.1 sets button labels in mono uppercase: deferred to M3 with the full token schema.
-export function Button({ variant = "secondary", type = "button", ...rest }: ButtonProps) {
+// Defaults are read in the body: the React Compiler (Babel 8 AST) bails out on defaults in a destructured parameter.
+export function Button({ variant, type, ...rest }: ButtonProps) {
   return (
     <button
-      type={type}
+      type={type ?? "button"}
       className={cn(
         "inline-flex h-6.5 items-center justify-center rounded-sm px-3 font-sans text-ui font-semibold pointer-coarse:min-h-11 pointer-coarse:min-w-11",
         FOCUS_RING,
         "disabled:cursor-not-allowed disabled:opacity-50",
-        VARIANTS[variant],
+        VARIANTS[variant ?? "secondary"],
       )}
       {...rest}
     />

@@ -179,6 +179,7 @@ export default defineConfig(
     languageOptions: { globals: { ...globals.browser } },
     rules: {
       "pap/no-arbitrary-values": "error",
+      "pap/no-native-title": "error",
       // The React Compiler skips a component that breaks these rules without saying so: take the whole
       // recommended preset (refs, purity, immutability, set-state-in-render...), with no rule left a warning.
       ...Object.fromEntries(
