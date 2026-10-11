@@ -54,6 +54,7 @@ function fakeServer(get: Step[], set: Step[]) {
 
 function harness(initial: Doc = EMPTY) {
   let state = initial;
+  const bases: Array<Doc | null> = [];
   const statuses: AccountStatus[] = [];
   const timers = manualTimers();
   const doc = createAccountDocument<Doc>({
@@ -61,10 +62,13 @@ function harness(initial: Doc = EMPTY) {
     write: (value, baseRevision) => ({ key: "appearance", value, baseRevision }) as never,
     parse: (value) => ({ ...EMPTY, ...(value as Partial<Doc>) }),
     changed: (previous, next) => (["a", "b"] as const).filter((name) => previous[name] !== next[name]),
-    merge: (server, local, dirty) => ({
-      a: dirty.has("a") ? local.a : server.a,
-      b: dirty.has("b") ? local.b : server.b,
-    }),
+    merge: (server, local, dirty, base) => {
+      bases.push(base);
+      return {
+        a: dirty.has("a") ? local.a : server.a,
+        b: dirty.has("b") ? local.b : server.b,
+      };
+    },
     local: () => state,
     adopt: (value) => {
       state = value;
@@ -77,7 +81,7 @@ function harness(initial: Doc = EMPTY) {
     state = { ...state, ...next };
     doc.change(previous, state);
   };
-  return { doc, edit, timers, statuses, state: () => state };
+  return { doc, edit, timers, statuses, bases, state: () => state };
 }
 
 beforeEach(() => vi.mocked(reportClientIssue).mockClear());
@@ -153,6 +157,26 @@ describe("account document (compare-and-set, owner R3-4)", () => {
       { key: "appearance", value: { a: "mine", b: "other device" }, baseRevision: 2 },
     ]);
     expect([h.state(), h.statuses.at(-1)]).toEqual([{ a: "mine", b: "other device" }, "saved"]);
+  });
+
+  it("hands the merge the last server copy it adopted or saved as the base (I5)", async () => {
+    const h = harness({ a: "cached", b: "cached" });
+    const server = fakeServer(
+      [loaded({ a: "s1", b: "s1" }, 1), loaded({ a: "s2", b: "s2" }, 2)],
+      [fails("conflict"), saved(3)],
+    );
+    await h.doc.sync(server.rpc);
+    // The first load: the base is what this device had before it (its cached copy).
+    expect(h.bases).toEqual([{ a: "cached", b: "cached" }]);
+    h.edit({ a: "mine" });
+    h.timers.fire();
+    await drain();
+    // The conflict reload: the base is the server copy the first load saw, not the merged local value.
+    expect(h.bases.at(-1)).toEqual({ a: "s1", b: "s1" });
+    h.edit({ b: "later" });
+    h.timers.fire();
+    await drain();
+    expect(h.bases.length).toBe(2); // no conflict: no merge
   });
 
   it("reports a second conflict and waits for the next change", async () => {

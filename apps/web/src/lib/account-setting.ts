@@ -33,8 +33,12 @@ export interface AccountDocumentOptions<V> {
   parse(value: unknown): V;
   /** The names of the fields that differ (a list document is one field). */
   changed(previous: V, next: V): readonly string[];
-  /** The server copy with the local values of `dirty` laid over it. */
-  merge(server: V, local: V, dirty: ReadonlySet<string>): V;
+  /**
+   * The server copy with the local values of `dirty` laid over it. `base` is the last server copy this document
+   * adopted or saved (before the first load, the copy it started from): a list field merges by what changed here
+   * relative to it, instead of replacing the other device's changes.
+   */
+  merge(server: V, local: V, dirty: ReadonlySet<string>, base: V): V;
   /** The value the person sees now. */
   local(): V;
   /** Puts a (merged) server copy in place; it must not come back through `change`. */
@@ -66,6 +70,8 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
   let rpc: Rpc | null = null;
   let phase: Phase = "unloaded";
   let revision = 0;
+  // The last server copy adopted or saved, which a list field is merged against. It starts as the cached copy.
+  let base = options.local();
   // Bounded by the document's field names.
   let dirty = new Set<string>();
   let timer: number | null = null;
@@ -103,8 +109,11 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
       return false;
     }
     revision = result.revision;
-    if (result.value !== null)
-      options.adopt(options.merge(options.parse(result.value), options.local(), dirty));
+    if (result.value !== null) {
+      const server = options.parse(result.value);
+      options.adopt(options.merge(server, options.local(), dirty, base));
+      base = server;
+    }
     phase = "loaded";
     held = false;
     if (dirty.size === 0) status(result.value === null ? "local" : "saved");
@@ -116,7 +125,9 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
     dirty = new Set();
     status("saving");
     try {
-      revision = (await call.call("settings.set", options.write(options.local(), revision))).revision;
+      const sent = options.local();
+      revision = (await call.call("settings.set", options.write(sent, revision))).revision;
+      base = sent;
       if (dirty.size === 0) status("saved");
     } catch (error) {
       for (const field of batch) dirty.add(field);

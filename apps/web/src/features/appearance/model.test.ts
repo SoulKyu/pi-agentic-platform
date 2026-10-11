@@ -99,13 +99,13 @@ describe("appearance model", () => {
       "grid",
     ]);
     const server = { ...DEFAULT_ACCOUNT, railPosition: "right" } as const;
-    expect(mergeAccount(server, local, new Set(["grid"]))).toEqual({
+    expect(mergeAccount(server, local, new Set(["grid"]), DEFAULT_ACCOUNT)).toEqual({
       ...DEFAULT_ACCOUNT,
       railPosition: "right",
       grid: false,
     });
     // The side points to a theme the server copy does not have: it falls back rather than naming nothing.
-    expect(mergeAccount(server, local, new Set(["darkTheme"])).darkTheme).toBe("night");
+    expect(mergeAccount(server, local, new Set(["darkTheme"]), DEFAULT_ACCOUNT).darkTheme).toBe("night");
   });
 
   it("follows the system by default and picks each side's theme", () => {

@@ -96,14 +96,56 @@ export function changedAccountFields(previous: AccountAppearance, next: AccountA
   );
 }
 
-/** The server copy with the local values of the fields changed on this device laid over it, re-read field by field. */
+const sameTheme = (one: CustomTheme | undefined, other: CustomTheme | undefined): boolean =>
+  JSON.stringify(one) === JSON.stringify(other);
+
+/**
+ * The server's theme list with this device's changes since `base` applied by id: its adds are appended (an id the
+ * server already has keeps this device's version), its edits replace the server's theme or bring it back when the
+ * other device deleted it, and its deletes remove a theme only if the other device left it as it was in `base`.
+ * So an edit always wins over a delete, on either device, and no theme added elsewhere is lost.
+ */
+function mergeThemes(
+  server: readonly CustomTheme[],
+  local: readonly CustomTheme[],
+  base: readonly CustomTheme[],
+): CustomTheme[] {
+  const inBase = new Map(base.map((theme) => [theme.id, theme]));
+  const inLocal = new Map(local.map((theme) => [theme.id, theme]));
+  const written = new Set<string>();
+  const merged: CustomTheme[] = [];
+  for (const theme of server) {
+    const mine = inLocal.get(theme.id);
+    const known = inBase.get(theme.id);
+    if (mine === undefined && known !== undefined) {
+      if (!sameTheme(theme, known)) merged.push(theme); // deleted here, edited there: the edit stays
+      continue;
+    }
+    written.add(theme.id);
+    merged.push(mine !== undefined && !sameTheme(mine, known) ? mine : theme);
+  }
+  for (const theme of local) {
+    if (written.has(theme.id)) continue;
+    // Added here, or edited here after the other device deleted it: it comes back. Unchanged here: it stays deleted.
+    if (!sameTheme(theme, inBase.get(theme.id))) merged.push(theme);
+  }
+  return merged;
+}
+
+/**
+ * The server copy with the local values of the fields changed on this device laid over it, re-read field by field.
+ * The theme library is merged by id against `base` (the last server copy), the other fields are replaced.
+ */
 export function mergeAccount(
   server: AccountAppearance,
   local: AccountAppearance,
   dirty: ReadonlySet<string>,
+  base: AccountAppearance,
 ): AccountAppearance {
   const merged: Record<string, unknown> = { ...server };
   for (const name of dirty) if (name in local) merged[name] = local[name as keyof AccountAppearance];
+  if (dirty.has("customThemes"))
+    merged.customThemes = mergeThemes(server.customThemes, local.customThemes, base.customThemes);
   return parseAccount(merged);
 }
 
