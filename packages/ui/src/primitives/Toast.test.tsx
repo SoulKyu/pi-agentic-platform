@@ -17,7 +17,7 @@ describe("Toast", () => {
   afterEach(() => vi.useRealTimers());
 
   it("shows a message with Undo for 5 s; Undo runs once and closes it", async () => {
-    const page = await mount(<Toaster closeLabel="Dismiss" />);
+    const page = await mount(<Toaster closeLabel="Dismiss" regionLabel="Notifications" />);
     const undo = vi.fn();
     await act(async () => {
       toast({ message: "Appearance reset", action: { label: "Undo", altText: "Undo the reset", run: undo } });
@@ -36,7 +36,7 @@ describe("Toast", () => {
   });
 
   it("keeps at most three toasts, dropping the oldest", async () => {
-    const page = await mount(<Toaster closeLabel="Dismiss" />);
+    const page = await mount(<Toaster closeLabel="Dismiss" regionLabel="Notifications" />);
     await act(async () => {
       for (const n of [1, 2, 3, 4]) toast({ message: `Toast ${n}` });
     });
@@ -49,7 +49,7 @@ describe("Toast", () => {
   });
 
   it("closes by itself after 5 s", async () => {
-    const page = await mount(<Toaster closeLabel="Dismiss" />);
+    const page = await mount(<Toaster closeLabel="Dismiss" regionLabel="Notifications" />);
     await act(async () => {
       toast({ message: "Saved" });
     });
@@ -65,7 +65,7 @@ describe("Toast", () => {
   });
 
   it("dismissToast removes a toast by id and ignores an unknown id; reset clears the store", async () => {
-    const page = await mount(<Toaster closeLabel="Dismiss" />);
+    const page = await mount(<Toaster closeLabel="Dismiss" regionLabel="Notifications" />);
     let id = "";
     await act(async () => {
       id = toast({ message: "One" });
@@ -83,8 +83,15 @@ describe("Toast", () => {
     await page.unmount();
   });
 
+  it("names the notifications region with the given text, not Radix's English default (m1)", async () => {
+    const page = await mount(<Toaster closeLabel="Fermer" regionLabel="Notifications FR" />);
+    const region = document.querySelector('[data-slot="toast-viewport"]')?.closest("[role=region]");
+    expect(region?.getAttribute("aria-label")).toBe("Notifications FR");
+    await page.unmount();
+  });
+
   it("labels the close button with the given text", async () => {
-    const page = await mount(<Toaster closeLabel="Fermer" />);
+    const page = await mount(<Toaster closeLabel="Fermer" regionLabel="Notifications" />);
     await act(async () => {
       toast({ message: "Hello" });
     });

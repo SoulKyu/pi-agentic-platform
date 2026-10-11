@@ -1,5 +1,6 @@
 export const shellEn = {
   "ui.dismiss": "Dismiss",
+  "ui.notifications": "Notifications",
   "ui.close": "Close",
   "server.notice.messageTooLarge": "A message was too large to stream.",
   "server.notice.dialogTooLarge":
@@ -70,6 +71,7 @@ export const shellEn = {
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "ui.dismiss": "Fermer",
+  "ui.notifications": "Notifications",
   "ui.close": "Fermer",
   "server.notice.messageTooLarge": "Un message était trop volumineux pour être diffusé.",
   "server.notice.dialogTooLarge":

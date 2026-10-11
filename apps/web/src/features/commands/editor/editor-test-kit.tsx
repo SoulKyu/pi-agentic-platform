@@ -43,7 +43,7 @@ export function installEditorTestHooks(): void {
 export const render = () =>
   mount(
     <TooltipProvider>
-      <Toaster closeLabel="Close" />
+      <Toaster closeLabel="Close" regionLabel="Notifications" />
       <div data-pane-kind="session">
         <div tabIndex={0} data-testid="outside" />
         <ShortcutsEditor platform="other" />

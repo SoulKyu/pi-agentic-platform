@@ -31,7 +31,6 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "account.passkeyPasswordHint": "Saisissez votre mot de passe pour ajouter une clé d'accès.",
   "account.passkeyAdded": "Clé d'accès ajoutée.",
   "account.cancel": "Annuler",
-  "account.logout": "Se déconnecter",
   "sessions.title": "Sessions de travail",
   "sessions.cwd": "Dossier de travail",
   "sessions.cwdHint": "Chemin absolu d'un dossier existant.",

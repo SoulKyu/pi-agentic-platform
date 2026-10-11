@@ -12,7 +12,7 @@ import "./styles.css";
 // A plain t() would keep the language the page started in (R128).
 function LocalizedToaster() {
   const t = useT();
-  return <Toaster closeLabel={t("ui.dismiss")} />;
+  return <Toaster closeLabel={t("ui.dismiss")} regionLabel={t("ui.notifications")} />;
 }
 
 const locale = pickLocale(navigator.languages, localStorage.getItem("pap.locale"));

@@ -49,7 +49,14 @@ const subscribe = (listener: () => void) => {
 const TOAST_TONES = { neutral: "border-border-strong", error: "border-err" } as const;
 
 /** Bottom right on desktop, bottom on phones (above the bottom nav: the shell sets --toast-bottom). */
-export function Toaster({ closeLabel }: { readonly closeLabel: string }) {
+export function Toaster({
+  closeLabel,
+  regionLabel,
+}: {
+  readonly closeLabel: string;
+  /** The name of the notifications region, translated by the app (Radix would announce its English default). */
+  readonly regionLabel: string;
+}) {
   const shown = useSyncExternalStore(
     subscribe,
     () => entries,
@@ -74,7 +81,7 @@ export function Toaster({ closeLabel }: { readonly closeLabel: string }) {
             <Radix.Action
               altText={entry.action.altText}
               onClick={entry.action.run}
-              className="label-hud text-you rounded-sm px-s1 focus-ring pointer-coarse:min-h-11"
+              className="label-hud text-you rounded-sm px-s1 focus-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
             >
               {entry.action.label}
             </Radix.Action>
@@ -88,6 +95,7 @@ export function Toaster({ closeLabel }: { readonly closeLabel: string }) {
         </Radix.Root>
       ))}
       <Radix.Viewport
+        label={regionLabel}
         data-slot="toast-viewport"
         className="fixed bottom-s4 right-s4 z-50 flex w-96 max-w-full flex-col gap-s2 outline-none max-md:inset-x-s2 max-md:bottom-s2 max-md:w-auto"
       />

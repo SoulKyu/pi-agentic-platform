@@ -39,7 +39,7 @@ export async function renderShell(
   const mounted = await mount(
     <TooltipProvider>
       <RouterProvider router={router} />
-      <Toaster closeLabel="Dismiss" />
+      <Toaster closeLabel="Dismiss" regionLabel="Notifications" />
     </TooltipProvider>,
   );
   return { ...mounted, router };

@@ -46,7 +46,7 @@ describe("CustomThemes", () => {
   const render = () =>
     mount(
       <TooltipProvider>
-        <Toaster closeLabel="Close" />
+        <Toaster closeLabel="Close" regionLabel="Notifications" />
         <CustomThemes />
       </TooltipProvider>,
     );

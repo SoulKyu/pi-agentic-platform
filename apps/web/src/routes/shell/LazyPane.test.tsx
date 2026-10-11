@@ -14,7 +14,7 @@ async function show(load: () => Promise<{ default: typeof Screen }>) {
   return mount(
     <>
       <LazyPane load={load} props={{ name: "ok" }} />
-      <Toaster closeLabel="Dismiss" />
+      <Toaster closeLabel="Dismiss" regionLabel="Notifications" />
     </>,
   );
 }

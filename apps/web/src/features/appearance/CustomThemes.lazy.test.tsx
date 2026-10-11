@@ -38,7 +38,7 @@ describe("the theme editor chunk", () => {
     useAppearanceStore.setState({ account: { ...DEFAULT_ACCOUNT, customThemes: [ocean] } });
     await mount(
       <TooltipProvider>
-        <Toaster closeLabel="Close" />
+        <Toaster closeLabel="Close" regionLabel="Notifications" />
         <CustomThemes />
       </TooltipProvider>,
     );

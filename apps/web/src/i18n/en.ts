@@ -31,7 +31,6 @@ export const en = {
   "account.passkeyPasswordHint": "Enter your password to add a passkey.",
   "account.passkeyAdded": "Passkey added.",
   "account.cancel": "Cancel",
-  "account.logout": "Sign out",
   "sessions.title": "Sessions",
   "sessions.cwd": "Working directory",
   "sessions.cwdHint": "Absolute path of an existing folder.",

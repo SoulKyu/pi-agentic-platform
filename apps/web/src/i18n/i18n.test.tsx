@@ -21,6 +21,7 @@ import {
 // Keys whose French is the same word (endonyms, product and font names). Every other key must differ.
 const IDENTICAL_IN_FR = new Set([
   "app.name",
+  "ui.notifications",
   "app.tagline",
   "settings.nav.section",
   "shell.tab.session",

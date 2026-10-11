@@ -42,7 +42,7 @@ const seed = (account: AccountAppearance = DEFAULT_ACCOUNT) =>
 const render = () =>
   mount(
     <TooltipProvider>
-      <Toaster closeLabel="Close" />
+      <Toaster closeLabel="Close" regionLabel="Notifications" />
       <AppearancePanel />
     </TooltipProvider>,
   );
@@ -327,5 +327,16 @@ describe("Undo and the custom themes", () => {
     await act(async () => state().setAccount(edited));
     await click(buttonNamed("Undo"));
     expect(state().account).toEqual({ ...changedAccount, customThemes: [ocean, dune] });
+  });
+
+  it("does not restore a side that names a theme deleted since the reset (m6)", async () => {
+    seed({ ...changedAccount, darkTheme: "ocean" });
+    await render();
+    await click(buttonNamed("Reset to defaults"));
+    await act(async () => state().setAccount({ ...state().account, customThemes: [] }));
+    await click(buttonNamed("Undo"));
+    expect(state().account.customThemes).toEqual([]);
+    expect(state().account.darkTheme).toBe("night");
+    expect(state().account.mode).toBe("day"); // the rest of the previous values still comes back
   });
 });
