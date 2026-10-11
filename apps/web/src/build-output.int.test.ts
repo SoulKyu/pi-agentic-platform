@@ -44,8 +44,9 @@ beforeAll(async () => {
   });
   html = await readFile(join(out, "index.html"), "utf8");
   assets = await readdir(join(out, "assets"));
-  const cssFile = assets.find((name) => name.endsWith(".css"));
-  css = cssFile ? await readFile(join(out, "assets", cssFile), "utf8") : "";
+  // Every stylesheet the build writes, so a second CSS chunk is checked as well.
+  const cssFiles = assets.filter((name) => name.endsWith(".css"));
+  css = (await Promise.all(cssFiles.map((name) => readFile(join(out, "assets", name), "utf8")))).join("\n");
 }, 60_000);
 
 afterAll(async () => {
