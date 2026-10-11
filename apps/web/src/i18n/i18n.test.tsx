@@ -22,6 +22,8 @@ const IDENTICAL_IN_FR = new Set([
   "app.name",
   "shell.tab.session",
   "shell.rail.label",
+  "shell.mobile.sections",
+  "shell.mobile.agents",
   "shell.top.tree",
   "settings.language.en",
   "settings.language.fr",

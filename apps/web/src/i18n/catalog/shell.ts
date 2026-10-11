@@ -52,6 +52,15 @@ export const shellEn = {
   "shell.inbox.emptyTitle": "Nothing waits for you",
   "shell.inbox.emptyPurpose":
     "Approvals, replies and finished tasks of your agents appear here, those that need you first.",
+  "shell.mobile.sections": "Sections",
+  "shell.mobile.agents": "Agents",
+  "shell.mobile.work": "Work",
+  "shell.mobile.lists": "Lists",
+  "shell.mobile.inbox": "Inbox",
+  "shell.mobile.inboxCount": "unread",
+  "shell.mobile.tabs": "Open items",
+  "shell.agents.emptyTitle": "No agent yet",
+  "shell.agents.emptyPurpose": "A long-term agent has its own thread, memory, budget and triggers.",
   "shell.lazyFailed": "This part of pap did not load. pap may have been updated: reload the page.",
 } as const;
 
@@ -111,6 +120,16 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.inbox.emptyTitle": "Rien ne vous attend",
   "shell.inbox.emptyPurpose":
     "Les approbations, réponses et tâches terminées de vos agents apparaissent ici, celles qui vous attendent d'abord.",
+  "shell.mobile.sections": "Sections",
+  "shell.mobile.agents": "Agents",
+  "shell.mobile.work": "Travail",
+  "shell.mobile.lists": "Listes",
+  "shell.mobile.inbox": "Boîte",
+  "shell.mobile.inboxCount": "non lus",
+  "shell.mobile.tabs": "Éléments ouverts",
+  "shell.agents.emptyTitle": "Aucun agent pour l'instant",
+  "shell.agents.emptyPurpose":
+    "Un agent de long terme a son propre fil, sa mémoire, son budget et ses déclencheurs.",
   "shell.lazyFailed":
     "Cette partie de pap ne s'est pas chargée. pap a peut-être été mis à jour : rechargez la page.",
 };

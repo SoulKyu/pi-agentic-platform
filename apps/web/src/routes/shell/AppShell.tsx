@@ -7,6 +7,7 @@ import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/works
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
 import { LazyPanel } from "./LazyPanel.tsx";
+import { MobileShell } from "./MobileShell.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
@@ -16,6 +17,7 @@ import { useShellCommands } from "./shell-commands.ts";
 import { TabBar } from "./TabBar.tsx";
 import { TopBar } from "./TopBar.tsx";
 import { useShellEffects } from "./use-shell-effects.ts";
+import { useViewportHeight } from "./use-viewport-height.ts";
 
 interface AppShellProps {
   readonly username: string | null;
@@ -28,9 +30,8 @@ const loadTreeDrawer = () => import("./TreeDrawer.tsx");
 const loadInboxDrawer = () => import("./InboxDrawer.tsx");
 const loadShortcutsHelp = () => import("../../features/commands/ShortcutsHelp.tsx");
 
-/** Desktop layout. The URL names the active item; Task 23 adds the phone branch. */
+/** The URL names the active item. Desktop: rail, tabs and split panes; below 768 px: one pane and a bottom nav. */
 export function AppShell({ username, onSignedOut }: AppShellProps) {
-  const t = useT();
   const mobile = useIsPhone();
   const [treeOpen, setTreeOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -41,25 +42,12 @@ export function AppShell({ username, onSignedOut }: AppShellProps) {
     treeRef.current = treeOpen;
   }, [treeOpen]);
   const readTreeOpen = useCallback(() => treeRef.current, []);
+  useViewportHeight();
   useShellEffects({ mobile, treeOpen: readTreeOpen });
   useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, onSignedOut });
-  const pathname = useRouterState({ select: (state) => state.location.pathname });
-  const tab = useWorkspaceStore((state) => activeTab(state.ws));
-  const sessions = useSessionsCache((state) => state.sessions);
-  const item = itemFromPath(pathname, import.meta.env.DEV);
-  const title = item ? itemTitle(item, sessions, t) : t("shell.notFound.title");
   return (
-    <div data-shell="desktop" className="flex h-app rail-right:flex-row-reverse">
-      <Rail username={username} onSignedOut={onSignedOut} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar title={title} />
-        <TabBar />
-        <ConnectionBanner />
-        {/* Not <main>: M2's screens carry their own <main> until P3 turns them into sections. */}
-        <div id="pane-host" className="flex min-h-0 flex-1">
-          {item ? <PaneHost tab={tab} /> : <NotFound />}
-        </div>
-      </div>
+    <>
+      {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
       <PaletteHost />
       <LazyPanel
         load={loadTreeDrawer}
@@ -79,6 +67,29 @@ export function AppShell({ username, onSignedOut }: AppShellProps) {
         props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}
         onFailed={() => setHelpOpen(false)}
       />
+    </>
+  );
+}
+
+function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" | "onSignedOut">) {
+  const t = useT();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const tab = useWorkspaceStore((state) => activeTab(state.ws));
+  const sessions = useSessionsCache((state) => state.sessions);
+  const item = itemFromPath(pathname, import.meta.env.DEV);
+  const title = item ? itemTitle(item, sessions, t) : t("shell.notFound.title");
+  return (
+    <div data-shell="desktop" className="flex h-app rail-right:flex-row-reverse">
+      <Rail username={username} onSignedOut={onSignedOut} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <TopBar title={title} />
+        <TabBar />
+        <ConnectionBanner />
+        {/* Not <main>: M2's screens carry their own <main> until P3 turns them into sections. */}
+        <div id="pane-host" className="flex min-h-0 flex-1">
+          {item ? <PaneHost tab={tab} /> : <NotFound />}
+        </div>
+      </div>
     </div>
   );
 }
