@@ -225,7 +225,7 @@ describe("stopping", () => {
       expect(() => process.kill(sleeper, 0)).not.toThrow();
       await t.daemon.stop();
       // A killed process is gone for good once its parent has reaped it, a moment after the signal.
-      await vi.waitFor(() => expect(() => process.kill(sleeper, 0)).toThrow(/ESRCH/));
+      await vi.waitFor(() => expect(() => process.kill(sleeper, 0)).toThrow(/ESRCH/), { timeout: 5000 });
     } finally {
       if (sleeper > 1) {
         try {

@@ -7,6 +7,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -104,6 +105,26 @@ describe("prepareHome", () => {
     }
   });
 
+  it("never chmods through a symlinked database file, and still follows a symlinked home (R119)", () => {
+    const real = join(root, "real-home");
+    mkdirSync(real, { mode: 0o755 });
+    chmodSync(real, 0o755);
+    symlinkSync(real, home);
+    const outside = join(root, "outside");
+    mkdirSync(outside);
+    const names = ["state.db", "state.db-wal", "state.db-shm"];
+    for (const name of names) {
+      const target = join(outside, name);
+      writeFileSync(target, "x");
+      chmodSync(target, 0o644);
+      symlinkSync(target, join(real, name));
+    }
+    prepareHome(home);
+    expect(mode(real)).toBe(0o700);
+    expect(mode(join(real, "backups"))).toBe(0o700);
+    for (const name of names) expect(mode(join(outside, name)), name).toBe(0o644);
+  });
+
   it("names the path it cannot make private instead of failing with a bare errno", () => {
     mkdirSync(home);
     writeFileSync(join(home, "backups"), "a file where a directory belongs");
@@ -195,4 +216,34 @@ describe("acquireInstanceLock", () => {
     expect(existsSync(join(home, `pap.lock.${process.pid}.tmp`))).toBe(false);
     expect(existsSync(join(home, "pap.lock"))).toBe(false);
   });
+
+  it.each(["EPERM", "ENOTSUP", "EOPNOTSUPP", "EXDEV", "ENOSYS", "EMLINK"])(
+    "hints at hard links for %s (R119)",
+    (code) => {
+      fsHooks.link = () => {
+        throw Object.assign(new Error("link failed"), { code });
+      };
+      expect(() => acquireInstanceLock(home)).toThrow(
+        `(${code}). $PAP_HOME needs a file system that allows hard links.`,
+      );
+    },
+  );
+
+  it.each(["EACCES", "ENOSPC", "EROFS", "EIO"])(
+    "gives the bare code and no hard-link hint for %s (R119)",
+    (code) => {
+      fsHooks.link = () => {
+        throw Object.assign(new Error("link failed"), { code });
+      };
+      let message = "";
+      try {
+        acquireInstanceLock(home);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain(`(${code})`);
+      expect(message).toContain(join(home, "pap.lock"));
+      expect(message).not.toContain("hard links");
+    },
+  );
 });

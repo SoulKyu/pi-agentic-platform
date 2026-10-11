@@ -2,6 +2,7 @@ import {
   chmodSync,
   closeSync,
   linkSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -16,6 +17,8 @@ const HOME_DIRS = ["backups", "secrets", "logs"] as const;
 /** The database and the files SQLite keeps next to it: 0600, whatever an earlier run left them as. */
 const DATABASE_FILES = ["state.db", "state.db-wal", "state.db-shm"] as const;
 const LOCK_FILE = "pap.lock";
+/** What link(2) answers on a file system without hard links; any other code has some other cause. */
+const NO_HARD_LINKS = new Set(["EPERM", "ENOTSUP", "EOPNOTSUPP", "EXDEV", "ENOSYS", "EMLINK"]);
 
 export class InstanceLockError extends Error {
   override name = "InstanceLockError";
@@ -30,9 +33,16 @@ const codeOf = (error: unknown): string => (error as NodeJS.ErrnoException).code
 // The umask the process had before the daemon first changed it: the one the user's tools are meant to run under.
 let original: number | undefined;
 
-function makePrivate(path: string, wanted: number): void {
+/**
+ * `follow: false` leaves a symlink alone: a chmod through a linked database file would change the mode of whatever
+ * it points to, which is not ours. The home itself and its directories are followed (a symlinked $PAP_HOME is a
+ * supported layout).
+ */
+function makePrivate(path: string, wanted: number, follow: boolean): void {
   try {
-    if ((statSync(path).mode & 0o077) !== 0) chmodSync(path, wanted);
+    const stat = follow ? statSync(path) : lstatSync(path);
+    if (stat.isSymbolicLink()) return;
+    if ((stat.mode & 0o077) !== 0) chmodSync(path, wanted);
   } catch (error) {
     if (codeOf(error) === "ENOENT") return;
     throw new HomeError(
@@ -58,9 +68,9 @@ export function prepareHome(home: string): number {
     } catch (error) {
       throw new HomeError(`cannot create ${dir}: ${codeOf(error)}`);
     }
-    makePrivate(dir, 0o700);
+    makePrivate(dir, 0o700, true);
   }
-  for (const name of DATABASE_FILES) makePrivate(join(home, name), 0o600);
+  for (const name of DATABASE_FILES) makePrivate(join(home, name), 0o600, false);
   return original;
 }
 
@@ -137,9 +147,9 @@ function createLockFile(path: string): boolean {
     return true;
   } catch (error) {
     if (codeOf(error) === "EEXIST") return false;
-    throw new InstanceLockError(
-      `cannot create the lock file ${path} (${codeOf(error)}). $PAP_HOME needs a file system that allows hard links.`,
-    );
+    const code = codeOf(error);
+    const hint = NO_HARD_LINKS.has(code) ? " $PAP_HOME needs a file system that allows hard links." : "";
+    throw new InstanceLockError(`cannot create the lock file ${path} (${code}).${hint}`);
   } finally {
     rmSync(temp, { force: true });
   }
