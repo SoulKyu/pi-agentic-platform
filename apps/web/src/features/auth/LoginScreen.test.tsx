@@ -119,4 +119,18 @@ describe("LoginScreen", () => {
     await settle();
     expect(alerts(container)).toEqual(["The passkey could not be used. Try again, or use your password."]);
   });
+
+  it("says what the throttle does under the form, and keeps the passkey button first", async () => {
+    const container = await show(true);
+    const note = [...container.querySelectorAll("p")].find((p) =>
+      p.textContent?.startsWith("Each failed attempt"),
+    );
+    expect(note?.textContent).toBe(
+      "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. It resets after 5 minutes without a failure.",
+    );
+    const form = container.querySelector("form") as Node;
+    expect(form.compareDocumentPosition(note as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const passkey = button(container, "Sign in with a passkey");
+    expect(passkey.compareDocumentPosition(form) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });

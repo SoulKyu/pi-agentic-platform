@@ -1,6 +1,6 @@
 import { Button, TextField } from "@pap/ui";
 import { useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { registerPasskey } from "./auth-api.ts";
 import { authErrorText } from "./auth-error.ts";
 
@@ -12,6 +12,7 @@ interface AddPasskeyProps {
 
 /** One button; it opens a password field, because the server only adds a passkey for someone who knows it. */
 export function AddPasskey({ onAdded, onSignedOut }: AddPasskeyProps) {
+  const t = useT();
   const [asking, setAsking] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +39,7 @@ export function AddPasskey({ onAdded, onSignedOut }: AddPasskeyProps) {
   if (!asking) return <Button onClick={() => setAsking(true)}>{t("account.addPasskey")}</Button>;
   return (
     <form
-      className="flex flex-wrap items-end gap-2"
+      className="flex flex-wrap items-end gap-s2"
       onSubmit={(event) => {
         event.preventDefault();
         submit();

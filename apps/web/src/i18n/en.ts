@@ -9,6 +9,7 @@ export const en = {
   ...commandsEn,
   ...galleryEn,
   "app.name": "pap",
+  "app.tagline": "pi agentic platform",
   "app.loading": "Loading…",
   "gate.retry": "Retry",
   "setup.title": "Create the owner account",
@@ -21,6 +22,8 @@ export const en = {
   "login.title": "Sign in",
   "login.submit": "Sign in",
   "login.passkey": "Sign in with a passkey",
+  "login.throttleNote":
+    "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. It resets after 5 minutes without a failure.",
   "login.failed": "Wrong username or password.",
   "login.throttled": "Too many attempts. Wait {seconds} s.",
   "account.addPasskey": "Add a passkey",

@@ -11,6 +11,7 @@ export interface ShellOptions {
   readonly username?: string | null;
   onSignedOut?(): void;
   readonly phone?: boolean;
+  readonly passkeysAvailable?: boolean;
 }
 
 /** The shell on a memory-history router, with no auth gate, inside the providers main.tsx supplies. */
@@ -30,7 +31,7 @@ export async function renderShell(
   const Shell = () => (
     <AppShell
       username={options.username === undefined ? "ana" : options.username}
-      passkeysAvailable={false}
+      passkeysAvailable={options.passkeysAvailable ?? false}
       onSignedOut={options.onSignedOut ?? (() => {})}
     />
   );

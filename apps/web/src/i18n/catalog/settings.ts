@@ -1,9 +1,33 @@
 export const settingsEn = {
+  "settings.nav.label": "Settings sections",
+  "settings.nav.personal": "Personal",
+  "settings.nav.section": "Section",
+  "settings.section.appearance": "Appearance",
+  "settings.section.shortcuts": "Keyboard shortcuts",
+  "settings.section.language": "Language",
+  "settings.section.account": "Account & devices",
+  "settings.soon": "Not available yet.",
+  "settings.language.label": "Language",
   "settings.language.en": "English",
   "settings.language.fr": "Français",
+  "settings.language.notStored": "Applied to this page only: this browser does not keep settings.",
+  "settings.account.username": "Signed in as",
+  "settings.account.signOut": "Sign out",
 } as const;
 
 export const settingsFr: { readonly [K in keyof typeof settingsEn]: string } = {
+  "settings.nav.label": "Sections des réglages",
+  "settings.nav.personal": "Personnel",
+  "settings.nav.section": "Section",
+  "settings.section.appearance": "Apparence",
+  "settings.section.shortcuts": "Raccourcis clavier",
+  "settings.section.language": "Langue",
+  "settings.section.account": "Compte et appareils",
+  "settings.soon": "Pas encore disponible.",
+  "settings.language.label": "Langue",
   "settings.language.en": "English",
   "settings.language.fr": "Français",
+  "settings.language.notStored": "Appliqué à cette page seulement : ce navigateur ne garde pas les réglages.",
+  "settings.account.username": "Connecté en tant que",
+  "settings.account.signOut": "Se déconnecter",
 };

@@ -97,10 +97,14 @@ describe("AppShell", () => {
     }
   });
 
-  it("settings has no screen yet and shows not found inside its pane", async () => {
+  it("renders a settings section inside its pane once the chunk has loaded", async () => {
     const page = await renderShell("/settings/shortcuts");
-    expect(page.container.querySelector('[data-pane-kind="settings"] h2')?.textContent).toBe(
-      "This page does not exist",
+    await vi.waitFor(
+      () =>
+        expect(page.container.querySelector('[data-pane-kind="settings"] h1')?.textContent).toBe(
+          "Keyboard shortcuts",
+        ),
+      { timeout: 2_000 },
     );
     await page.unmount();
   });

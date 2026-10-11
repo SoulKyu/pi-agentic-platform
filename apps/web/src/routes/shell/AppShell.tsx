@@ -1,6 +1,6 @@
 import { useIsPhone } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectPlatform } from "../../features/commands/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
@@ -12,6 +12,7 @@ import { NotFound } from "./NotFound.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
+import { ShellContext } from "./shell-context.ts";
 import { useSessionsCache } from "./sessions-cache.ts";
 import { useShellCommands } from "./shell-commands.ts";
 import { TabBar } from "./TabBar.tsx";
@@ -31,7 +32,7 @@ const loadInboxDrawer = () => import("./InboxDrawer.tsx");
 const loadShortcutsHelp = () => import("../../features/commands/ShortcutsHelp.tsx");
 
 /** The URL names the active item. Desktop: rail, tabs and split panes; below 768 px: one pane and a bottom nav. */
-export function AppShell({ username, onSignedOut }: AppShellProps) {
+export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellProps) {
   const mobile = useIsPhone();
   const [treeOpen, setTreeOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
@@ -42,11 +43,15 @@ export function AppShell({ username, onSignedOut }: AppShellProps) {
     treeRef.current = treeOpen;
   }, [treeOpen]);
   const readTreeOpen = useCallback(() => treeRef.current, []);
+  const shell = useMemo(
+    () => ({ username, passkeysAvailable, onSignedOut }),
+    [username, passkeysAvailable, onSignedOut],
+  );
   useViewportHeight();
   useShellEffects({ mobile, treeOpen: readTreeOpen });
   useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, onSignedOut });
   return (
-    <>
+    <ShellContext.Provider value={shell}>
       {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
       <PaletteHost />
       <LazyPanel
@@ -67,7 +72,7 @@ export function AppShell({ username, onSignedOut }: AppShellProps) {
         props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}
         onFailed={() => setHelpOpen(false)}
       />
-    </>
+    </ShellContext.Provider>
   );
 }
 
