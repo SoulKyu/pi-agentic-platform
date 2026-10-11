@@ -15,9 +15,9 @@ export function Switch({ label, checked, onChange, hint, disabled }: SwitchProps
   return (
     <div data-slot="switch" className="flex items-center justify-between gap-s3">
       <div className="flex flex-col gap-s1">
-        <span id={`${id}-label`} className="text-ui text-fg">
+        <label id={`${id}-label`} htmlFor={id} className="text-ui text-fg">
           {label}
-        </span>
+        </label>
         {hint ? (
           <span id={`${id}-hint`} className="text-ui text-muted">
             {hint}
@@ -25,6 +25,7 @@ export function Switch({ label, checked, onChange, hint, disabled }: SwitchProps
         ) : null}
       </div>
       <Radix.Root
+        id={id}
         checked={checked}
         onCheckedChange={onChange}
         disabled={disabled}

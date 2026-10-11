@@ -35,6 +35,14 @@ describe("form controls", () => {
     await page.unmount();
   });
 
+  it("Switch toggles when its label text is pressed (m3)", async () => {
+    const onChange = vi.fn();
+    const page = await mount(<Switch label="Background grid" checked={false} onChange={onChange} />);
+    await click(page.container.querySelector("label") as HTMLElement);
+    expect(onChange).toHaveBeenCalledWith(true);
+    await page.unmount();
+  });
+
   it("Checkbox reports the new state", async () => {
     const onChange = vi.fn();
     const page = await mount(<Checkbox label="Seen" checked onChange={onChange} />);
