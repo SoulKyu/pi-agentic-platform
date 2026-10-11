@@ -24,7 +24,7 @@ it("delivers a steer before the next model call and a follow-up after the run, i
     await sub.waitFor((event) => event.kind === "queue" && event.queue.count === 2);
     if (ask.kind !== "dialog_open") throw new Error("no dialog");
     await bed.rpc["sessions.respondDialog"](
-      { sessionId, dialogId: ask.dialog.id, response: { confirmed: true } },
+      { sessionId, dialogId: ask.dialog.id, response: { answer: "once" } },
       bed.ctx,
     );
     await sub.waitFor((event) => event.kind === "queue" && event.queue.count === 0);

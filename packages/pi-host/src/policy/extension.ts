@@ -1,14 +1,15 @@
 import type {
   ExtensionFactory,
-  ExtensionUIContext,
   InlineExtension,
   LoadExtensionsResult,
   ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
-import type { AuditEntry, PolicyRules, ToolCategory } from "@pap/contracts";
+import type { ApprovalAnswer, AuditEntry, PolicyRules, ToolCategory } from "@pap/contracts";
+import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { toolCategory } from "./categories.ts";
 import { type Decision, decide, decideEdit } from "./decide.ts";
 import { describeCall } from "./describe-call.ts";
+import { grantKey, grantPayload } from "./grant-key.ts";
 import { checkEditTarget, type EditReview } from "./target-path.ts";
 
 export const POLICY_EXTENSION_NAME = "pap-policy";
@@ -36,6 +37,8 @@ export interface PolicyConfig {
   agentDir: string;
   /** pap's data directory: the database, secrets and agent homes live there. */
   papHome: string;
+  /** The policy's question, on its own record. A closed question blocks the call (M2R66). */
+  ask(request: ApprovalAsk, signal?: AbortSignal): Promise<ApprovalOutcome>;
 }
 
 export interface PolicyDeps extends PolicyConfig {
@@ -53,10 +56,15 @@ interface PolicyContext {
   readonly hasUI: boolean;
   readonly cwd: string;
   readonly signal?: AbortSignal | undefined;
-  readonly ui: Pick<ExtensionUIContext, "confirm">;
 }
 
 type NamedInlineExtension = Exclude<InlineExtension, ExtensionFactory>;
+
+/** The answers a card offers, in DESIGN.md order (Deny / Session / Always / Allow once). Task 14b widens this. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the parameters are the contract Task 14b fills in
+export function answersFor(_category: ToolCategory, _review: EditReview | undefined): ApprovalAnswer[] {
+  return ["deny", "once"];
+}
 
 async function decideCall(
   event: PolicyEvent,
@@ -111,9 +119,28 @@ export async function evaluateToolCall(
       record("block", "too long to review");
       return { block: true, reason: TOO_LONG_REASON };
     }
-    const approved = await ctx.ui.confirm(TITLES[category], description.message, { signal: ctx.signal });
-    record(approved ? "approved" : "denied", review?.why);
-    return approved ? undefined : { block: true, reason: DENIED_REASON };
+    const key = grantKey(event.toolName, grantPayload(event.input, category === "exec"));
+    const outcome = await deps.ask(
+      {
+        category,
+        title: TITLES[category],
+        message: description.message,
+        tool: event.toolName.slice(0, MAX_AUDIT_FIELD),
+        key,
+        answers: answersFor(category, review),
+      },
+      ctx.signal,
+    );
+    if (outcome.closed) {
+      record("denied", "dialog closed");
+      return { block: true, reason: FAIL_CLOSED_REASON };
+    }
+    if (outcome.answer === "deny") {
+      record("denied", review?.why);
+      return { block: true, reason: DENIED_REASON };
+    }
+    record("approved", review ? `answer: ${outcome.answer}; ${review.why}` : `answer: ${outcome.answer}`);
+    return undefined;
   } catch {
     try {
       record("block", "evaluation error");

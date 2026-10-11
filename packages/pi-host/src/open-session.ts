@@ -11,6 +11,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { AuditEntry, InitRecord, PolicyRules } from "@pap/contracts";
+import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./policy/extension.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
@@ -24,6 +25,8 @@ export interface ExtensionErrorReport {
 
 export interface OpenSessionDeps {
   readonly ui: UiBridge;
+  /** The policy's own questions; only the policy extension asks through it. */
+  readonly approvals: Approvals;
   rules(): PolicyRules | null;
   audit(entry: AuditEntry): void;
   onEvent(event: AgentSessionEvent): void;
@@ -83,6 +86,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     audit: deps.audit,
     agentDir,
     papHome,
+    ask: (request, signal) => deps.approvals.ask(request, signal),
   });
   const services = await createAgentSessionServices({
     cwd,

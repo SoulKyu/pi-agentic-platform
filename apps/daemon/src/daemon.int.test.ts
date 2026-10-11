@@ -64,7 +64,7 @@ async function promptAndApprove(
     await client.call("sessions.respondDialog", {
       sessionId,
       dialogId: ev(open).dialog?.id ?? "",
-      response: { confirmed },
+      response: { answer: confirmed ? "once" : "deny" },
     }),
   ).toMatchObject({ ok: true });
   return open;

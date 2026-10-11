@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEV_EXEC_ARGV, PI_HOST_MAIN } from "./testing/fork-host.ts";
-import { bashScript, createHostBed, isConfirm, textOf, toolText } from "./testing/host-bed.ts";
+import { bashScript, createHostBed, isApproval, textOf, toolText } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -60,19 +60,18 @@ describe("pi-host worker: records it cannot read", () => {
     expect(host.stderr()).toContain("dropped a malformed record (fields: message)");
   });
 
-  it("cancels the dialog whose answer is malformed, which denies the call", async () => {
+  it("closes the approval whose answer is malformed, which blocks the call (fail closed)", async () => {
     await bed.start(bashScript("echo never"));
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
-    const ask = await host.waitFor(isConfirm);
-    host.send({ type: "extension_ui_response", id: ask.id, confirmed: "yes" });
-    expect(await host.waitFor((r) => r.type === "extension_ui_closed")).toEqual({
-      type: "extension_ui_closed",
-      id: ask.id,
-    });
+    const ask = await host.waitFor(isApproval);
+    host.send({ type: "approval_response", id: ask.id, answer: "forever" });
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(true);
-    expect(toolText(end)).toContain("Denied by the user.");
+    expect(toolText(end)).toContain("could not evaluate this call");
+    expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+      entry: { decision: "denied", reason: "dialog closed" },
+    });
   });
 });
 
@@ -93,7 +92,7 @@ describe("pi-host worker: lifetime", () => {
       await bed.start(bashScript(`touch ${marker}`));
       const host = bed.host();
       await host.request({ type: "prompt", message: "go" });
-      await host.waitFor(isConfirm);
+      await host.waitFor(isApproval);
       host.send({ type: "shutdown", ...fields });
       expect(await host.exited).toBe(0);
       expect(existsSync(marker)).toBe(false);
@@ -118,7 +117,7 @@ describe("pi-host worker: lifetime", () => {
     await bed.start(bashScript("echo never"));
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
-    await host.waitFor(isConfirm);
+    await host.waitFor(isApproval);
     host.child.disconnect();
     expect(await host.exited).toBe(0);
     expect(host.stderr()).not.toContain("ERR_IPC_CHANNEL_CLOSED");
@@ -142,7 +141,7 @@ describe("pi-host worker: lifetime", () => {
     await bed.start(bashScript(`sleep ${seconds}`));
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
-    host.send({ type: "extension_ui_response", id: (await host.waitFor(isConfirm)).id, confirmed: true });
+    host.send({ type: "approval_response", id: (await host.waitFor(isApproval)).id, answer: "once" });
     await vi.waitFor(() => expect(running()).toBe(true), { timeout: 5000, interval: 50 });
     host.send({ type: "shutdown", graceMs: 100 });
     expect(await host.exited).toBe(0);

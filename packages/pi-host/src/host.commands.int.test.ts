@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { bashScript, createHostBed, isConfirm } from "./testing/host-bed.ts";
+import { bashScript, createHostBed, isApproval } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -81,7 +81,7 @@ describe("session commands over IPC", () => {
     await bed.start(bashScript("echo parked"));
     const host = bed.host();
     host.send({ type: "prompt", id: "p1", message: "go" });
-    const ask = await host.waitFor(isConfirm);
+    const ask = await host.waitFor(isApproval);
     expect(
       await host.request({ type: "prompt", message: "go left instead", streamingBehavior: "steer" }),
     ).toMatchObject({ data: { disposition: "queued" } });
@@ -89,7 +89,7 @@ describe("session commands over IPC", () => {
     expect(await host.request({ type: "clear_queue" })).toMatchObject({
       data: { steering: ["go left instead"], followUp: [], truncated: false },
     });
-    host.send({ type: "extension_ui_response", id: ask.id, cancelled: true });
+    host.send({ type: "approval_response", id: ask.id, answer: "deny" });
     await host.waitFor((r) => r.type === "agent_settled");
   });
 });

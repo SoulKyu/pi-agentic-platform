@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { bashScript, createHostBed, isConfirm } from "./testing/host-bed.ts";
+import { bashScript, createHostBed, isApproval } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 let pattern = "";
@@ -29,7 +29,7 @@ async function runCommand(command: (seconds: string) => string) {
   await bed.start(bashScript(command(seconds)));
   const host = bed.host();
   await host.request({ type: "prompt", message: "go" });
-  host.send({ type: "extension_ui_response", id: (await host.waitFor(isConfirm)).id, confirmed: true });
+  host.send({ type: "approval_response", id: (await host.waitFor(isApproval)).id, answer: "once" });
   await vi.waitFor(() => expect(running()).toBe(true), { timeout: 5000, interval: 50 });
   const gone = () => vi.waitFor(() => expect(running()).toBe(false), { timeout: 5000, interval: 50 });
   return { host, gone };

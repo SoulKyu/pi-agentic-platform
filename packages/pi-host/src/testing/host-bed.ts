@@ -35,6 +35,7 @@ export const textOf = (message: unknown) =>
     .map((block) => block.text)
     .join("");
 export const toolText = (record: HostRecord) => JSON.stringify(record.result);
+export const isApproval = (record: HostRecord) => record.type === "approval_request";
 export const isConfirm = (record: HostRecord) =>
   record.type === "extension_ui_request" && record.method === "confirm";
 

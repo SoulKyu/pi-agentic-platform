@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AuditEntry, PolicyRules } from "@pap/contracts";
+import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { evaluateToolCall } from "../policy/extension.ts";
 
 export const interactiveRules: PolicyRules = {
@@ -11,7 +12,10 @@ export const interactiveRules: PolicyRules = {
 };
 
 export interface HarnessOptions {
-  confirm?: (title: string, message: string, opts?: { signal?: AbortSignal }) => Promise<boolean>;
+  /** Replaces the scripted outcomes: answers the policy's question itself. */
+  ask?: (request: ApprovalAsk, signal?: AbortSignal) => Promise<ApprovalOutcome>;
+  /** Outcomes taken in order, then "once". */
+  answers?: ApprovalOutcome[];
   rules?: () => PolicyRules | null;
   hasUI?: boolean;
   audit?: (entry: AuditEntry) => void;
@@ -32,6 +36,8 @@ export async function createPolicyBed() {
   function harness(options: HarnessOptions = {}) {
     const audits: AuditEntry[] = [];
     const asked: string[] = [];
+    const asks: ApprovalAsk[] = [];
+    const scripted = [...(options.answers ?? [])];
     const run = (toolName: string, input: unknown, toolCallId = "c1") =>
       evaluateToolCall(
         { toolCallId, toolName, input },
@@ -39,12 +45,6 @@ export async function createPolicyBed() {
           hasUI: options.hasUI ?? true,
           cwd: options.cwd ?? cwd,
           signal: options.signal,
-          ui: {
-            confirm: async (title: string, message: string, opts?: { signal?: AbortSignal }) => {
-              asked.push(`${title}|${message}`);
-              return (options.confirm ?? (async () => true))(title, message, opts);
-            },
-          },
         },
         {
           rules: options.rules ?? (() => interactiveRules),
@@ -52,9 +52,14 @@ export async function createPolicyBed() {
           agentDir,
           papHome,
           isBuiltinTool: options.isBuiltinTool ?? (() => true),
+          ask: async (request, signal) => {
+            asked.push(`${request.title}|${request.message}`);
+            asks.push(request);
+            return options.ask?.(request, signal) ?? scripted.shift() ?? { answer: "once", closed: false };
+          },
         },
       );
-    return { audits, asked, run };
+    return { audits, asked, asks, run };
   }
 
   return {

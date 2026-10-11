@@ -1,5 +1,6 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { type DaemonToWorker, PolicyRules } from "@pap/contracts";
+import type { Approvals } from "./approvals.ts";
 import { logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";
 import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
@@ -20,6 +21,7 @@ export interface DispatchDeps {
   readonly session: AgentSession;
   readonly ipc: Ipc;
   readonly ui: UiBridge;
+  readonly approvals: Approvals;
   /** Called after a command that may have moved Pi's leaf has answered. */
   leafMayHaveMoved(): void;
   rules(): PolicyRules;
@@ -70,6 +72,9 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         return;
       case "extension_ui_response":
         ui.resolve(record);
+        return;
+      case "approval_response":
+        deps.approvals.resolve(record);
         return;
       case "policy_update": {
         const update = PolicyRules.safeParse(record.rules);

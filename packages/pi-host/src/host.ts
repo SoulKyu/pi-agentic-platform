@@ -1,5 +1,6 @@
 import { type AgentSession, VERSION } from "@earendil-works/pi-coding-agent";
 import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts";
+import { createApprovals } from "./approvals.ts";
 import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { killDetachedDescendants } from "./descendants.ts";
@@ -35,6 +36,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
   // Created once the session exists; what Pi emits while it opens is before the leaf `ready` reports.
   let tracker: EntryTracker | null = null;
   const ui = createUiBridge((record) => ipc.send(record));
+  const approvals = createApprovals((record) => ipc.send(record));
   let receiveInit: (record: InitRecord) => void = () => {};
   let failInit: (error: Error) => void = () => {};
   const init = new Promise<InitRecord>((resolve, reject) => {
@@ -47,6 +49,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
     if (closing) return;
     closing = true;
     ui.cancelAll();
+    approvals.cancelAll();
     // Before the abort, for the same reason: aborting kills the shell of a running command and orphans its children.
     killDetachedDescendants();
     const current = session;
@@ -79,7 +82,9 @@ export async function runHost(ipc: Ipc): Promise<void> {
       if (type === "init") failInit(new Error("the init record is malformed: refusing to start"));
       else if (type === "shutdown") shutdown(DEFAULT_GRACE_MS);
       else if (type === "extension_ui_response") ui.resolve(raw as UiResponseRecord);
-      else if (typeof type === "string" && typeof id === "string") {
+      else if (type === "approval_response" && typeof id === "string") {
+        approvals.resolve({ id, answer: "deny", cancelled: true });
+      } else if (typeof type === "string" && typeof id === "string") {
         ipc.send({
           type: "response",
           id,
@@ -100,6 +105,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
   process.umask(initial.umask);
   const opened = await openSession(initial, {
     ui,
+    approvals,
     rules: () => rules,
     audit: (entry) => ipc.send({ type: "audit", entry }),
     onEvent: (event) => {
@@ -120,6 +126,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
     leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
     ipc,
     ui,
+    approvals,
     rules: () => rules,
     setRules: (next) => {
       rules = next;

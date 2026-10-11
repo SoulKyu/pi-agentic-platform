@@ -11,6 +11,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { AuditEntry, InitRecord } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { type ApprovalOutbound, createApprovals } from "./approvals.ts";
 import { type ExtensionErrorReport, openSession, type OpenSessionDeps } from "./open-session.ts";
 import { POLICY_EXTENSION_NAME, POLICY_EXTENSION_PATH } from "./policy/extension.ts";
 import { RULES } from "./testing/host-bed.ts";
@@ -24,7 +25,7 @@ let agentDir: string;
 let cwd: string;
 let marker: string;
 let opened: AgentSession[];
-let requests: UiOutbound[];
+let requests: Array<UiOutbound | ApprovalOutbound>;
 let reports: ExtensionErrorReport[];
 let audits: AuditEntry[];
 
@@ -65,8 +66,10 @@ const initRecord = (): InitRecord => ({
 
 async function open(overrides: Partial<OpenSessionDeps> = {}) {
   const ui = createUiBridge((record) => (requests.push(record), true));
+  const approvals = createApprovals((record) => (requests.push(record), true));
   const session = await openSession(initRecord(), {
     ui,
+    approvals,
     rules: () => RULES,
     audit: (entry) => audits.push(entry),
     onEvent: () => {},
@@ -74,7 +77,7 @@ async function open(overrides: Partial<OpenSessionDeps> = {}) {
     ...overrides,
   });
   opened.push(session);
-  return { session, ui };
+  return { session, ui, approvals };
 }
 
 const paths = (session: AgentSession) => session.extensionRunner.getExtensionPaths();
@@ -195,23 +198,20 @@ describe("pap-policy stays the last extension", () => {
   });
 
   it("judges the input an earlier extension rewrote, not the one the model sent", async () => {
-    const { session, ui } = await open({ extraExtensions: [rewriter] });
+    const { session, approvals } = await open({ extraExtensions: [rewriter] });
     const result = session.extensionRunner.emitToolCall({
       type: "tool_call",
       toolCallId: "c1",
       toolName: "bash",
       input: { command: "echo safe" },
     });
-    await vi.waitFor(
-      () => expect(requests.filter((r) => r.type === "extension_ui_request")).toHaveLength(1),
-      {
-        timeout: 5000,
-        interval: 20,
-      },
-    );
-    const ask = requests[0] as UiOutbound & { message: string };
+    await vi.waitFor(() => expect(requests.filter((r) => r.type === "approval_request")).toHaveLength(1), {
+      timeout: 5000,
+      interval: 20,
+    });
+    const ask = requests[0] as Extract<ApprovalOutbound, { type: "approval_request" }>;
     expect(ask.message).toContain("echo safe # rewritten");
-    ui.resolve({ type: "extension_ui_response", id: ask.id, confirmed: false });
+    approvals.resolve({ id: ask.id, answer: "deny" });
     expect(await result).toEqual({ block: true, reason: "Denied by the user." });
     expect(audits).toEqual([{ toolCallId: "c1", tool: "bash", category: "exec", decision: "denied" }]);
   });

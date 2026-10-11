@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { join } from "node:path";
 import { ProjectTrustStore, VERSION } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { bashScript, createHostBed, isConfirm, textOf, toolScript, toolText } from "./testing/host-bed.ts";
+import { bashScript, createHostBed, isApproval, textOf, toolScript, toolText } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -178,8 +178,8 @@ describe("pi-host worker: runs", () => {
     await bed.start(bashScript("sleep 30"));
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
-    const ask = await host.waitFor(isConfirm);
-    host.send({ type: "extension_ui_response", id: ask.id, confirmed: true });
+    const ask = await host.waitFor(isApproval);
+    host.send({ type: "approval_response", id: ask.id, answer: "once" });
     await host.waitFor((r) => r.type === "tool_execution_start");
     expect(await host.request({ type: "abort" })).toMatchObject({ success: true });
     expect(await host.waitFor((r) => r.type === "agent_settled")).toMatchObject({ aborted: true });
@@ -191,16 +191,22 @@ describe("pi-host worker: policy", () => {
     await bed.start(bashScript("echo pap-ok"));
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
-    const ask = await host.waitFor(isConfirm);
+    const ask = await host.waitFor(isApproval);
     expect(String(ask.message)).toContain("echo pap-ok");
-    host.send({ type: "extension_ui_response", id: ask.id, confirmed: true });
+    host.send({ type: "approval_response", id: ask.id, answer: "once" });
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(false);
     expect(toolText(end)).toContain("pap-ok");
     expect(host.records.filter((r) => r.type === "audit")).toEqual([
       {
         type: "audit",
-        entry: { toolCallId: "call-1", tool: "bash", category: "exec", decision: "approved" },
+        entry: {
+          toolCallId: "call-1",
+          tool: "bash",
+          category: "exec",
+          decision: "approved",
+          reason: "answer: once",
+        },
       },
     ]);
   });
@@ -209,8 +215,8 @@ describe("pi-host worker: policy", () => {
     await bed.start(bashScript("echo nope"));
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
-    const ask = await host.waitFor(isConfirm);
-    host.send({ type: "extension_ui_response", id: ask.id, confirmed: false });
+    const ask = await host.waitFor(isApproval);
+    host.send({ type: "approval_response", id: ask.id, answer: "deny" });
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(true);
     expect(toolText(end)).toContain("Denied by the user.");
@@ -223,7 +229,7 @@ describe("pi-host worker: policy", () => {
     await host.request({ type: "prompt", message: "go" });
     expect((await host.waitFor((r) => r.type === "tool_execution_end")).isError).toBe(false);
     expect(readFileSync(join(bed.cwd, "note.txt"), "utf8")).toBe("hello");
-    expect(host.records.some(isConfirm)).toBe(false);
+    expect(host.records.some(isApproval)).toBe(false);
     expect(host.records.find((r) => r.type === "audit")).toMatchObject({
       entry: { category: "edit", decision: "allow" },
     });
@@ -257,9 +263,9 @@ describe("pi-host worker: policy", () => {
       await bed.start(toolScript("write", { path: target, content: "x" }));
       const host = bed.host();
       await host.request({ type: "prompt", message: "go" });
-      const ask = await host.waitFor(isConfirm);
+      const ask = await host.waitFor(isApproval);
       expect(String(ask.message)).toContain(`→ ${target} (protected path)`);
-      host.send({ type: "extension_ui_response", id: ask.id, confirmed: false });
+      host.send({ type: "approval_response", id: ask.id, answer: "deny" });
       expect((await host.waitFor((r) => r.type === "tool_execution_end")).isError).toBe(true);
       expect(existsSync(target)).toBe(false);
     },
@@ -293,7 +299,7 @@ describe("pi-host worker: policy", () => {
       error: "invalid policy rules: always rules are suspended until the next valid update",
     });
     await host.request({ type: "prompt", message: "go" });
-    await host.waitFor(isConfirm);
+    await host.waitFor(isApproval);
   });
 
   it("accepts a valid policy update without a report", async () => {

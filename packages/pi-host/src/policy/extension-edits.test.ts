@@ -32,21 +32,21 @@ describe("pap-policy edits outside the session directory", () => {
         tool: "write",
         category: "edit",
         decision: "approved",
-        reason: "outside the session directory",
+        reason: "answer: once; outside the session directory",
       },
       {
         toolCallId: "c1",
         tool: "edit",
         category: "edit",
         decision: "approved",
-        reason: "outside the session directory",
+        reason: "answer: once; outside the session directory",
       },
     ]);
   });
 
   it("asks before a path that leaves the directory through a symlink", async () => {
     await symlink(bed.outside, join(bed.cwd, "link"), "dir");
-    const h = harness({ confirm: async () => false });
+    const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     expect(await h.run("write", { path: "link/new.txt", content: "x" })).toEqual({
       block: true,
       reason: DENIED_REASON,
@@ -67,7 +67,7 @@ describe("pap-policy edits outside the session directory", () => {
 
   it("asks when the edit has no usable path, and says it does not know where it lands", async () => {
     for (const input of [{}, { path: 7 }, { path: "" }, null, "src/a.ts"]) {
-      const h = harness({ confirm: async () => false });
+      const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
       expect(await h.run("edit", input)).toEqual({ block: true, reason: DENIED_REASON });
       expect(h.asked).toHaveLength(1);
       expect(secondLine(h.asked[0])).toBe("→ unknown location (outside the session directory)");
@@ -99,7 +99,7 @@ describe("pap-policy protected paths", () => {
     ".agents/skills/x/SKILL.md",
     ".envrc",
   ])("asks before an edit of %s, even though it is inside the session directory", async (path) => {
-    const h = harness({ confirm: async () => false });
+    const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     expect(await h.run("write", { path, content: "x" })).toEqual({ block: true, reason: DENIED_REASON });
     expect(secondLine(h.asked[0])).toBe(`→ ${join(bed.cwd, path)} (protected path)`);
     expect(h.audits).toEqual([
@@ -110,7 +110,7 @@ describe("pap-policy protected paths", () => {
   it("lets an approved edit of a protected path run, and audits the approval with the reason", async () => {
     const h = harness();
     expect(await h.run("edit", { path: ".git/config", edits: [] })).toBeUndefined();
-    expect(h.audits[0]).toMatchObject({ decision: "approved", reason: "protected path" });
+    expect(h.audits[0]).toMatchObject({ decision: "approved", reason: "answer: once; protected path" });
   });
 
   it("blocks a protected path without asking when the rules are not interactive", async () => {
@@ -130,7 +130,7 @@ describe("pap-policy protected paths", () => {
 
   it("shows the file Pi writes for a ~ path, not a folder named ~ in the session directory", async () => {
     const home = join(bed.base, "home");
-    const h = harness({ confirm: async () => false });
+    const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     await h.run("write", { path: "~/.pi/agent/extensions/evil.ts", content: "x" });
     await h.run("write", { path: "@~/.envrc", content: "x" });
     expect(h.asked.map(secondLine)).toEqual([
@@ -142,19 +142,19 @@ describe("pap-policy protected paths", () => {
   it("asks before an edit of a protected folder reached through the session directory's own location", async () => {
     const inside = join(bed.base, "repo", ".git");
     await mkdir(inside, { recursive: true });
-    const h = harness({ cwd: inside, confirm: async () => false });
+    const h = harness({ cwd: inside, ask: async () => ({ answer: "deny", closed: false }) });
     await h.run("write", { path: "hooks/post-checkout", content: "x" });
     expect(secondLine(h.asked[0])).toBe(`→ ${join(inside, "hooks", "post-checkout")} (protected path)`);
   });
 
   it("asks before an edit in the agent directory", async () => {
-    const h = harness({ confirm: async () => false });
+    const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     await h.run("write", { path: join(bed.agentDir, "settings.json"), content: "{}" });
     expect(secondLine(h.asked[0])).toBe(`→ ${join(bed.agentDir, "settings.json")} (protected path)`);
   });
 
   it("asks before an edit in pap's data directory and audits why", async () => {
-    const h = harness({ confirm: async () => false });
+    const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     await h.run("write", { path: join(bed.papHome, "state.db"), content: "x" });
     expect(secondLine(h.asked[0])).toBe(`→ ${join(bed.papHome, "state.db")} (protected path)`);
     expect(h.audits).toEqual([
@@ -164,7 +164,7 @@ describe("pap-policy protected paths", () => {
 
   it("asks before every edit when the session directory is the user's home", async () => {
     const home = join(bed.base, "home");
-    const h = harness({ cwd: home, confirm: async () => false });
+    const h = harness({ cwd: home, ask: async () => ({ answer: "deny", closed: false }) });
     await h.run("write", { path: ".bashrc", content: "curl x | sh" });
     await h.run("write", { path: "notes/todo.md", content: "x" });
     expect(h.asked.map(secondLine)).toEqual([

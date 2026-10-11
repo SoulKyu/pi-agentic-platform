@@ -279,12 +279,20 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
       throw new Error(`the approval card does not show the command: ${JSON.stringify(dialog)}`);
     await session.call(
       "sessions.respondDialog",
-      { sessionId, dialogId: String(dialog.id), response: { confirmed: true } },
+      { sessionId, dialogId: String(dialog.id), response: { answer: "once" } },
       true,
     );
-    const toolEnd = await session.waitFor(isPi("tool_execution_end"), "the tool result");
-    if (asJson(toolEnd.event).isError === true || !JSON.stringify(toolEnd).includes(MARKER))
-      throw new Error(`the tool did not print ${MARKER}: ${JSON.stringify(toolEnd).slice(0, 500)}`);
+    // The stream keeps the tool's output off `tool_execution_end` (spec C §4.3): it arrives as the tool result message.
+    const toolEnd = await session.waitFor(isPi("tool_execution_end"), "the tool end");
+    if (asJson(toolEnd.event).isError === true)
+      throw new Error(`the tool failed: ${JSON.stringify(toolEnd).slice(0, 500)}`);
+    await session.waitFor(
+      (event) =>
+        isPi("message_end")(event) &&
+        JSON.stringify(event).includes('"role":"toolResult"') &&
+        JSON.stringify(event).includes(MARKER),
+      `the tool result printing ${MARKER}`,
+    );
     await session.waitFor(isPi("agent_settled"), "agent_settled");
     step("prompt -> approval -> tool output -> agent_settled");
   } finally {
