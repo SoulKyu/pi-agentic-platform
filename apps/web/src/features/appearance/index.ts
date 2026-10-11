@@ -1,1 +1,1 @@
-export { startAppearance } from "./controller.ts";
+export { startAppearance, syncAccountAppearance } from "./controller.ts";

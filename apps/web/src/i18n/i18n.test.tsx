@@ -21,6 +21,8 @@ import {
 const IDENTICAL_IN_FR = new Set([
   "app.name",
   "shell.tab.session",
+  "shell.rail.label",
+  "shell.top.tree",
   "settings.language.en",
   "settings.language.fr",
   "settings.appearance.fontManrope",

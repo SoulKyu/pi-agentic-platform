@@ -72,6 +72,9 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
   let inFlight: Promise<void> | null = null;
   let held = false;
   let loads = 0;
+  // True from the start of a sync until its own reload begins: a conflict reload ending in that window must not
+  // let a change out ahead of the sync's reload.
+  let syncing = false;
   let disposed = false;
 
   const status = (next: AccountStatus): void => {
@@ -129,7 +132,15 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
   }
 
   function pump(): void {
-    if (disposed || inFlight !== null || held || phase !== "loaded" || rpc === null || dirty.size === 0)
+    if (
+      disposed ||
+      inFlight !== null ||
+      held ||
+      syncing ||
+      phase !== "loaded" ||
+      rpc === null ||
+      dirty.size === 0
+    )
       return;
     inFlight = save(rpc, false)
       .catch(() => {
@@ -161,7 +172,9 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
       rpc = call;
       stopTimer(); // a waiting change stays in `dirty` and goes out after the reload
       phase = "loading"; // the waiting change goes out only after the reload, not when the save in flight ends
+      syncing = true;
       if (inFlight) await inFlight;
+      syncing = false;
       if (await load(call)) pump();
     },
     dispose() {

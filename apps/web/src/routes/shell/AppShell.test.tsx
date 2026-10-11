@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import { act } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { startAppearance } from "../../features/appearance/index.ts";
+import { registerCommand, startKeybindings, useKeybindingsStore } from "../../features/commands/index.ts";
+import { useSessionsCache } from "./sessions-cache.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
-import { button, click, hasButton, settle } from "../../testing/dom.ts";
+import { button, click, hasButton, press, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 
@@ -30,7 +33,14 @@ vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
 });
 
 let bed: ReturnType<typeof fakeRuntime>;
+let started: Array<{ stop(): void }> = [];
+afterEach(() => {
+  started.forEach((one) => one.stop());
+  started = [];
+});
 beforeEach(() => {
+  started = [startAppearance(window), startKeybindings()];
+  useSessionsCache.setState({ sessions: [], status: "idle" });
   bed = fakeRuntime("idle");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;
@@ -111,15 +121,65 @@ describe("AppShell", () => {
     await page.unmount();
   });
 
-  it("keeps the account bar until the top bar exists: sign-out calls logout then onSignedOut", async () => {
+  it("loads the account settings and the session list each time the socket opens", async () => {
+    const page = await renderShell("/");
+    await act(async () => bed.fake.setState("open"));
+    await settle();
+    expect(bed.called("settings.get").map((call) => call.params)).toEqual([
+      { key: "appearance" },
+      { key: "keybindings" },
+    ]);
+    expect(bed.called("sessions.list")).toHaveLength(1);
+    await act(async () => bed.fake.setState("waiting"));
+    await act(async () => bed.fake.setState("open"));
+    await settle();
+    expect(bed.called("sessions.list")).toHaveLength(2);
+    await page.unmount();
+  });
+
+  it("titles the top bar with the active item: a session by its folder", async () => {
+    bed.handlers["sessions.list"] = () => ({
+      sessions: [{ id: "abc", cwd: "/home/ana/pi-agentic", status: "idle", createdAt: 1, updatedAt: 2 }],
+    });
+    const page = await renderShell("/s/abc");
+    await act(async () => bed.fake.setState("open"));
+    await settle();
+    expect(page.container.querySelector("header")?.textContent).toContain("pi-agentic");
+    expect(page.container.querySelector('[data-pane-kind="session"]')?.getAttribute("aria-label")).toBe(
+      "pi-agentic",
+    );
+    await page.unmount();
+  });
+
+  it("the rail opens Settings, and its account menu signs out", async () => {
     const onSignedOut = vi.fn();
-    const page = await renderShell("/", { username: "ana", onSignedOut });
-    expect(page.container.textContent).toContain("pap · ana");
-    await click(button(page.container, "Sign out"));
+    const page = await renderShell("/", { onSignedOut });
+    await click(page.container.querySelector('[aria-label="Settings"]') as HTMLElement);
+    await settle();
+    expect(page.router.state.location.pathname).toBe("/settings/appearance");
+    // Radix menus open from the keyboard in happy-dom (they listen for pointerdown, not click).
+    await press(page.container.querySelector('[aria-label="Account"]') as HTMLElement, { key: "Enter" });
+    await settle();
+    await press(document.activeElement as HTMLElement, { key: "Enter" });
     await settle();
     expect(auth.logout).toHaveBeenCalledOnce();
     expect(onSignedOut).toHaveBeenCalledOnce();
     await page.unmount();
+  });
+
+  it("listens for shortcuts only while mounted, and follows the effective bindings", async () => {
+    const tree = vi.fn();
+    const off = registerCommand("drawer.tree.toggle", tree);
+    const page = await renderShell("/");
+    await press(document.body, { key: "b", code: "KeyB", ctrlKey: true });
+    expect(tree).toHaveBeenCalledOnce();
+    useKeybindingsStore.getState().setUser([{ key: "mod+j", command: "drawer.tree.toggle" }]);
+    await press(document.body, { key: "j", code: "KeyJ", ctrlKey: true });
+    expect(tree).toHaveBeenCalledTimes(2);
+    await page.unmount();
+    await press(document.body, { key: "j", code: "KeyJ", ctrlKey: true });
+    expect(tree).toHaveBeenCalledTimes(2);
+    off();
   });
 
   it("does not re-push the path when it already matches the active item", async () => {

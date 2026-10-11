@@ -320,6 +320,36 @@ describe("account document (compare-and-set, owner R3-4)", () => {
     expect(second.sets()).toEqual([{ key: "appearance", value: { a: "one", b: "two" }, baseRevision: 5 }]);
   });
 
+  it("does not send a change made while a conflict retry travels until the re-sync has reloaded", async () => {
+    const h = harness();
+    let conflict: (reason: unknown) => void = () => {};
+    let retried: (value: unknown) => void = () => {};
+    const first = fakeServer(
+      [loaded({}, 1), loaded({}, 2)],
+      [
+        () => new Promise((_, reject) => (conflict = reject)),
+        () => new Promise((resolve) => (retried = resolve)),
+      ],
+    );
+    await h.doc.sync(first.rpc);
+    h.edit({ a: "one" });
+    h.timers.fire();
+    await drain();
+    const second = fakeServer([loaded({ a: "one" }, 7)], [saved(8)]);
+    const resync = h.doc.sync(second.rpc);
+    await drain();
+    conflict(new RpcError("conflict"));
+    await drain();
+    h.edit({ b: "two" }); // the conflict reload has set the phase back to loaded; the retry is in flight
+    h.timers.fire();
+    retried({ revision: 3 });
+    await drain();
+    await resync;
+    await drain();
+    expect(second.calls.map((call) => call.method)).toEqual(["settings.get", "settings.set"]); // reload first
+    expect(second.sets()).toEqual([{ key: "appearance", value: { a: "one", b: "two" }, baseRevision: 7 }]);
+  });
+
   it("does nothing after dispose", async () => {
     const h = harness();
     const server = fakeServer([loaded({}, 1)], []);
