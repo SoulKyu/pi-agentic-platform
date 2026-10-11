@@ -72,6 +72,7 @@ export interface WorkerHandle {
   stats(): WorkerStats;
 }
 
+// Powers of two: the first drop is logged, then the 2nd, 4th, 8th… so a flood of garbage cannot flood the log.
 const worthLogging = (count: number): boolean => (count & (count - 1)) === 0;
 
 interface Pending {
@@ -124,7 +125,6 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   let nextId = 0;
   let inFlight = 0;
   let stopping: Promise<WorkerExit> | undefined;
-  let scopeStarted = false;
 
   const failPending = (): void => {
     for (const entry of pending.values()) {
@@ -202,12 +202,6 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   });
   child.on("message", (raw: unknown) => {
     if (!alive) return;
-    if (options.scope && !scopeStarted) {
-      scopeStarted = true;
-      options.scope
-        .started()
-        .catch((error: unknown) => logger.warn("worker_scope_baseline_failed", { err: error }));
-    }
     const record = parseWorkerRecord(raw);
     if (!record) {
       stats.droppedRecords++;
@@ -285,6 +279,8 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
         logger.error("worker_unkillable", { pid });
         // A scope still kills everything in its cgroup; without one this is a plain finish.
         report(exit);
+        // One answer: what `exited` resolves with once the scope has been reaped (or the reap gave up).
+        return exited;
       }
       return exit;
     });

@@ -34,6 +34,11 @@ if (mode === "child-hog") {
   const hog = spawn(process.execPath, ["-e", "const k=[];setInterval(()=>{if(k.length>=64)process.exit(3);k.push(Buffer.alloc(16*1024*1024,1))},10)"], { stdio: "ignore" });
   hog.on("exit", (code, signal) => send({ type: "extension_error", extensionPath: "rogue", event: "child_exit", error: String(signal ?? code) }));
 }
+if (mode === "term-proof-child") {
+  // A group of its own and SIGTERM ignored (the disposition survives exec): only SIGKILL ends it.
+  const sleeper = spawn("sh", ["-c", "trap '' TERM; exec sleep 300"], { stdio: "ignore", detached: true });
+  send({ type: "grandchild", pid: sleeper.pid });
+}
 if (mode === "stubborn") process.on("SIGTERM", () => {});
 if (mode === "garbage") {
   for (const junk of [null, 5, "text", [], {}, { type: 7 }, { type: "response" }, { type: "ready" }, { type: "audit", entry: {} }, { type: "extension_error" }]) send(junk);

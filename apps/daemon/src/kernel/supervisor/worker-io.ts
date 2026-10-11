@@ -53,8 +53,6 @@ export function boundedRecord(record: WorkerRecord): WorkerRecord {
   return record;
 }
 
-// Powers of two: the first drop is logged, then the 2nd, 4th, 8th… so a flood of garbage cannot flood the log.
-
 export function createTail() {
   let tail = Buffer.alloc(0);
   return {

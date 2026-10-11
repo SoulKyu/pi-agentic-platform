@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createRogueBed, eventsOf, realPid, type RogueBed, waitForReady } from "../testing/rogue-bed.ts";
+import { createRogueBed, realPid, type RogueBed, waitForReady } from "../testing/rogue-bed.ts";
 import type { WorkerScope } from "./scope.ts";
-import { REAP_TIMEOUT_MS } from "./worker.ts";
+import { SIGKILL_WAIT_MS } from "./kill-ladder.ts";
+import { REAP_TIMEOUT_MS, STDIO_DRAIN_MS } from "./worker.ts";
 
 let bed: RogueBed;
 beforeEach(() => {
@@ -9,13 +10,12 @@ beforeEach(() => {
 });
 afterEach(() => bed.dispose());
 
-// A scope whose launch prefix is plain `env`: the worker is the same process tree, and the test owns started and reap.
+// A scope whose launch prefix is plain `env`: the worker is the same process tree, and the test owns the reap.
 function fakeScope(reap: WorkerScope["reap"]) {
-  const calls = { started: 0, reaped: 0 };
+  const calls = { reaped: 0 };
   const scope: WorkerScope = {
     unit: "pap-test-worker-00000000.scope",
     launch: { command: "/usr/bin/env", args: [], env: {} },
-    started: async () => void calls.started++,
     reap: async (exit) => {
       calls.reaped++;
       return reap(exit);
@@ -26,14 +26,10 @@ function fakeScope(reap: WorkerScope["reap"]) {
 const killWorker = (pid: number | undefined) => process.kill(realPid(pid), "SIGKILL");
 
 describe("a worker launched through a scope", () => {
-  it("reads the scope baseline at the first record only and reports oom when the reap says so", async () => {
+  it("reports oom when the reap says so", async () => {
     const { scope, calls } = fakeScope(async () => ({ oomKilled: true }));
     const handle = bed.rogue("echo", { scope });
-    const records = bed.collect(handle);
-    await waitForReady(records);
-    handle.send({ type: "get_state", id: "x" });
-    await vi.waitFor(() => expect(eventsOf(records, "echo")).toHaveLength(1));
-    expect(calls.started).toBe(1);
+    await waitForReady(bed.collect(handle));
     killWorker(handle.pid);
     expect(await handle.exited).toEqual({ code: null, signal: "SIGKILL", cause: "oom" });
     expect(calls.reaped).toBe(1);
@@ -67,9 +63,14 @@ describe("a worker launched through a scope", () => {
     const { scope, calls } = fakeScope(() => new Promise(() => {}));
     const handle = bed.rogue("echo", { scope });
     await waitForReady(bed.collect(handle));
+    let reported = false;
+    void handle.exited.then(() => (reported = true));
     killWorker(handle.pid);
     await vi.waitFor(() => expect(calls.reaped).toBe(1));
-    await bed.clock.advance(REAP_TIMEOUT_MS);
+    await bed.clock.advance(REAP_TIMEOUT_MS - 1);
+    expect(reported).toBe(false);
+    await bed.clock.advance(1);
+    await vi.waitFor(() => expect(reported).toBe(true), { timeout: 1000 });
     expect((await handle.exited).cause).toBe("killed");
     expect(bed.logged.filter((line) => line.msg === "worker_scope_reap_slow")).toHaveLength(1);
   });
@@ -81,5 +82,11 @@ describe("a worker launched through a scope", () => {
     killWorker(handle.pid);
     expect((await handle.exited).cause).toBe("killed");
     expect(bed.logged.filter((line) => line.msg === "worker_scope_reap_failed")).toHaveLength(1);
+  });
+});
+
+describe("the exit report and the kill ladder", () => {
+  it("fits in the ladder's last wait, so a SIGKILLed scoped worker is never declared unkillable", () => {
+    expect(STDIO_DRAIN_MS + REAP_TIMEOUT_MS).toBeLessThan(SIGKILL_WAIT_MS);
   });
 });
