@@ -6,7 +6,8 @@ export type ClientIssue =
   | "setting_save_failed"
   | "keybindings_invalid"
   | "sessions_list_failed"
-  | "lazy_chunk_failed";
+  | "lazy_chunk_failed"
+  | "command_failed";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.
