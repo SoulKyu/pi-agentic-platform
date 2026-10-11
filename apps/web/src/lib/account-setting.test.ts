@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type RpcErrorCode } from "../runtime/index.ts";
+import { reportClientIssue } from "./report.ts";
 import { createAccountDocument, loadSetting, type AccountStatus } from "./account-setting.ts";
 
 type Doc = { readonly a: string; readonly b: string };
+vi.mock("./report.ts", () => ({ reportClientIssue: vi.fn() }));
 const EMPTY: Doc = { a: "", b: "" };
 
 function manualTimers() {
@@ -40,7 +42,7 @@ function fakeServer(get: Step[], set: Step[]) {
   const call = vi.fn(async (method: string, params: unknown) => {
     calls.push({ method, params });
     const step = (method === "settings.get" ? get : set).shift();
-    if (!step) throw new Error(`no scripted answer for ${method}`);
+    if (!step) return new Promise(() => {}); // script exhausted: park, so a surplus call shows in the counts
     return step();
   });
   return {
@@ -77,6 +79,8 @@ function harness(initial: Doc = EMPTY) {
   };
   return { doc, edit, timers, statuses, state: () => state };
 }
+
+beforeEach(() => vi.mocked(reportClientIssue).mockClear());
 
 describe("loadSetting", () => {
   it("tells loaded, unsupported (older daemon) and failed apart", async () => {
@@ -127,6 +131,7 @@ describe("account document (compare-and-set, owner R3-4)", () => {
     h.timers.fire();
     await drain();
     expect([down.sets(), h.statuses.at(-1)]).toEqual([[], "load-error"]);
+    expect(reportClientIssue).toHaveBeenCalledWith("setting_load_failed");
     const up = fakeServer([loaded({ a: "", b: "server" }, 2)], [saved(3)]);
     await h.doc.sync(up.rpc);
     await drain();
@@ -168,6 +173,7 @@ describe("account document (compare-and-set, owner R3-4)", () => {
     h.timers.fire();
     await drain();
     expect([server.sets().length, h.statuses.at(-1), h.timers.pending()]).toEqual([1, "error", 0]);
+    expect(reportClientIssue).toHaveBeenCalledWith("setting_save_failed");
     h.edit({ b: "more" });
     h.timers.fire();
     await drain();
@@ -303,14 +309,15 @@ describe("account document (compare-and-set, owner R3-4)", () => {
     h.timers.fire();
     await drain();
     h.edit({ b: "two" });
-    const second = fakeServer([loaded({ a: "one" }, 2)], [saved(3)]);
+    const second = fakeServer([loaded({ a: "one" }, 5)], [saved(6)]);
     const resync = h.doc.sync(second.rpc);
     await drain();
     expect(second.calls).toEqual([]); // the reload waits for the save in flight
     answer({ revision: 2 });
     await resync;
     await drain();
-    expect(second.sets()).toEqual([{ key: "appearance", value: { a: "one", b: "two" }, baseRevision: 2 }]);
+    // 5 is the reloaded document's revision; 2 would be the answer of the save that was in flight.
+    expect(second.sets()).toEqual([{ key: "appearance", value: { a: "one", b: "two" }, baseRevision: 5 }]);
   });
 
   it("does nothing after dispose", async () => {

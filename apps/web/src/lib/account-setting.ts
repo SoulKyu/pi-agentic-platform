@@ -133,7 +133,9 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
       return;
     inFlight = save(rpc, false)
       .catch(() => {
-        // save() settles every failure itself; this only guards a throwing option (a bug), never silently.
+        // save() settles every failure itself; this only guards a throwing option (a bug), never silently,
+        // and never lets the bound on re-sends depend on every option being total.
+        held = true;
         reportClientIssue("setting_save_failed");
         status("error");
       })
@@ -158,6 +160,7 @@ export function createAccountDocument<V>(options: AccountDocumentOptions<V>): Ac
     async sync(call) {
       rpc = call;
       stopTimer(); // a waiting change stays in `dirty` and goes out after the reload
+      phase = "loading"; // the waiting change goes out only after the reload, not when the save in flight ends
       if (inFlight) await inFlight;
       if (await load(call)) pump();
     },

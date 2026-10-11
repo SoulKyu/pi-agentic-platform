@@ -1,9 +1,12 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { reportClientIssue } from "../../lib/report.ts";
 import { RpcError } from "../../runtime/index.ts";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { startAppearance, syncAccountAppearance } from "./controller.ts";
 import { DEFAULT_ACCOUNT, DEFAULT_DEVICE } from "./model.ts";
+
+vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
 
 const ocean = {
   id: "ocean",
@@ -36,7 +39,7 @@ function server(get: Array<() => unknown>, set: Array<() => unknown> = []) {
   const call = vi.fn(async (method: string, params: unknown) => {
     calls.push({ method, params });
     const step = (method === "settings.get" ? get : set).shift();
-    if (!step) throw new Error(`no scripted answer for ${method}`);
+    if (!step) return new Promise(() => {}); // script exhausted: park, so a surplus call shows in the counts
     return step();
   });
   return {
@@ -46,6 +49,7 @@ function server(get: Array<() => unknown>, set: Array<() => unknown> = []) {
 }
 
 beforeEach(() => {
+  vi.mocked(reportClientIssue).mockClear();
   vi.useFakeTimers();
   localStorage.clear();
   root.removeAttribute("style");
@@ -158,6 +162,7 @@ describe("appearance controller", () => {
     useAppearanceStore.getState().setAccount({ ...DEFAULT_ACCOUNT, grid: false });
     await vi.advanceTimersByTimeAsync(1000);
     expect([useAppearanceStore.getState().accountStatus, s.sets()]).toEqual(["load-error", []]);
+    expect(reportClientIssue).toHaveBeenCalledWith("setting_load_failed");
   });
 
   it("keeps the local values for an older daemon and never saves to it", async () => {
@@ -177,10 +182,14 @@ describe("appearance controller", () => {
     const refuse = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
       throw new Error("denied");
     });
-    useAppearanceStore.getState().setDevice({ ...DEFAULT_DEVICE, motion: "none" });
-    refuse.mockRestore();
+    try {
+      useAppearanceStore.getState().setDevice({ ...DEFAULT_DEVICE, motion: "none" });
+    } finally {
+      refuse.mockRestore();
+    }
     expect(useAppearanceStore.getState().deviceStored).toBe(false);
     expect(useAppearanceStore.getState().device.motion).toBe("none");
+    expect(reportClientIssue).toHaveBeenCalledWith("storage_refused");
   });
 
   it("reset keeps the custom themes and returns both previous scopes for Undo (owner R3-2)", () => {
@@ -250,14 +259,33 @@ describe("appearance controller", () => {
     meta.setAttribute("name", "theme-color");
     meta.setAttribute("content", "#14111d");
     document.head.append(meta);
-    root.style.setProperty("--bg-side", "#123456");
-    const account = { ...DEFAULT_ACCOUNT, customThemes: [ocean], darkTheme: "ocean" };
-    useAppearanceStore.setState({ account });
-    controller = startAppearance(window);
-    const expected = getComputedStyle(root).getPropertyValue("--bg-side").trim();
-    expect(expected).toMatch(/^#[0-9a-f]{6}$/i);
-    expect(expected).not.toBe("#123456");
-    expect(meta.getAttribute("content")).toBe(expected);
-    meta.remove();
+    try {
+      root.style.setProperty("--bg-side", "#123456");
+      useAppearanceStore.setState({
+        account: { ...DEFAULT_ACCOUNT, customThemes: [ocean], darkTheme: "ocean" },
+      });
+      controller = startAppearance(window);
+      // mix(bg, surface, 0.35) of the Ocean roles; the boot-set #123456 is replaced, not kept.
+      expect(root.style.getPropertyValue("--bg-side")).toBe("#101a2b");
+      expect(meta.getAttribute("content")).toBe("#101a2b");
+    } finally {
+      meta.remove();
+    }
+  });
+
+  it("applies the appearance when blocked storage throws on access", () => {
+    const blocked = vi.spyOn(window, "localStorage", "get").mockImplementation(() => {
+      throw new Error("SecurityError");
+    });
+    try {
+      controller = startAppearance(window);
+      expect(() =>
+        useAppearanceStore.getState().setAccount({ ...DEFAULT_ACCOUNT, grid: false }),
+      ).not.toThrow();
+      expect(root.dataset.grid).toBe("off");
+      expect(reportClientIssue).toHaveBeenCalledWith("boot_cache_refused");
+    } finally {
+      blocked.mockRestore();
+    }
   });
 });

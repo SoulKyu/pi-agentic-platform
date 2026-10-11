@@ -3,6 +3,7 @@ import comments from "@eslint-community/eslint-plugin-eslint-comments/configs";
 import boundaries from "eslint-plugin-boundaries";
 import reactHooks from "eslint-plugin-react-hooks";
 import { defineConfig } from "eslint/config";
+import * as espree from "espree";
 import globals from "globals";
 import tseslint from "typescript-eslint";
 import pap from "./eslint/pap-plugin.js";
@@ -206,7 +207,14 @@ export default defineConfig(
   },
   {
     files: ["apps/web/src/**/*.js"],
-    languageOptions: { ecmaVersion: 2019, sourceType: "script", globals: { ...globals.browser } },
+    languageOptions: {
+      parser: espree,
+      ecmaVersion: 2019,
+      sourceType: "script",
+      globals: { ...globals.browser },
+    },
+    // The typescript-eslint scope rules need its own parser; a classic script is checked by the core rule.
+    rules: { "@typescript-eslint/no-unused-vars": "off", "no-unused-vars": "error" },
   },
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],

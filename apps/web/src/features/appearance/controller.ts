@@ -1,11 +1,21 @@
 import type { AccountAppearance } from "@pap/contracts";
 import { createAccountDocument, type AccountDocument } from "../../lib/account-setting.ts";
+import { reportClientIssue } from "../../lib/report.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { applyAppearance, inlineAppearanceVars, syncThemeColor, writeBootCache } from "./apply.ts";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { changedAccountFields, mergeAccount, parseAccount, resolveAppearance, toBootCache } from "./model.ts";
 
 const LIGHT = "(prefers-color-scheme: light)";
+/** Blocked storage can throw on the property read itself: the appearance still applies, only the boot cache is lost. */
+function bootStorage(win: Window): Storage | null {
+  try {
+    return win.localStorage;
+  } catch {
+    return null;
+  }
+}
+
 let active: { stop(): void } | null = null;
 let accountDocument: AccountDocument<AccountAppearance> | null = null;
 
@@ -19,7 +29,9 @@ export function startAppearance(win: Window = window): { stop(): void } {
   const apply = () => {
     const { account, device } = useAppearanceStore.getState();
     vars = applyAppearance(root, resolveAppearance(account, device, media?.matches ?? false), vars);
-    writeBootCache(win.localStorage, toBootCache(account, device));
+    const storage = bootStorage(win);
+    if (storage) writeBootCache(storage, toBootCache(account, device));
+    else reportClientIssue("boot_cache_refused");
     syncThemeColor(root, win.document);
   };
   let adopting = false;
