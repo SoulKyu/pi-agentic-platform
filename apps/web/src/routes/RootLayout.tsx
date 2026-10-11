@@ -24,7 +24,7 @@ export function RootLayout() {
   if (state.phase === "error") {
     return (
       <main className="flex flex-col items-start gap-3 p-6">
-        <p role="alert" className="text-attention">
+        <p role="alert" className="text-err">
           {t(state.code === null ? "error.offline" : errorKey(state.code))}
         </p>
         <Button onClick={retry}>{t("gate.retry")}</Button>

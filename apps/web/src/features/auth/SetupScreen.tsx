@@ -64,7 +64,7 @@ export function SetupScreen({ onDone }: { onDone(): void }) {
         </Button>
       </form>
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-err">
           {error}
         </p>
       ) : null}

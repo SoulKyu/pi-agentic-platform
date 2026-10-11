@@ -61,7 +61,7 @@ export function LoginScreen({ passkeysAvailable, onDone }: { passkeysAvailable: 
       </form>
       <p className="text-ui text-muted">{t("login.throttleNote")}</p>
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-err">
           {error}
         </p>
       ) : null}
