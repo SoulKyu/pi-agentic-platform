@@ -51,6 +51,18 @@ describe("usePendingFeedback", () => {
     await page.unmount();
   });
 
+  it("reaches the next phase when a timer fires a millisecond early (the clock reads behind)", async () => {
+    now = 1000;
+    const page = await mount(<Probe since={1000} remote />);
+    expect(page.container.textContent).toBe("disabled");
+    await act(async () => {
+      now = 1199;
+      vi.advanceTimersByTime(200);
+    });
+    expect(page.container.textContent).toBe("spinner");
+    await page.unmount();
+  });
+
   it("keeps a local action quiet for its first 100 ms", async () => {
     now = 0;
     const page = await mount(<Probe since={0} remote={false} />);

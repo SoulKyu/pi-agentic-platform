@@ -31,7 +31,10 @@ export function usePendingFeedback(
   useEffect(() => {
     if (since === null) return;
     const timers = (remote ? REMOTE_MARKS : LOCAL_MARKS).map((mark) =>
-      window.setTimeout(() => setNow(clock.now()), Math.max(0, since + mark - clock.now())),
+      window.setTimeout(
+        () => setNow(Math.max(clock.now(), since + mark)),
+        Math.max(0, since + mark - clock.now()),
+      ),
     );
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [since, remote, clock]);

@@ -17,5 +17,6 @@ export function formatDuration(ms: number): string {
 
 /** DESIGN.md §11: +214 −38, with U+2212 for the minus. */
 export function formatDiffCounts(added: number, removed: number): string {
-  return `+${added} −${removed}`;
+  const count = (n: number): number => (Number.isFinite(n) && n > 0 ? n : 0);
+  return `+${count(added)} −${count(removed)}`;
 }

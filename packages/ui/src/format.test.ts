@@ -23,4 +23,10 @@ describe("number formats (DESIGN.md §11)", () => {
   it("writes diff counts with a true minus sign", () => {
     expect(formatDiffCounts(214, 38)).toBe("+214 −38");
   });
+  it("never prints NaN or a negative or infinite count (M3R19)", () => {
+    expect(formatDiffCounts(Number.NaN, 1)).toBe("+0 −1");
+    expect(formatDiffCounts(Number.NaN, -1)).toBe("+0 −0");
+    expect(formatDiffCounts(Infinity, 2)).toBe("+0 −2");
+    expect(formatDiffCounts(-3, Number.NEGATIVE_INFINITY)).toBe("+0 −0");
+  });
 });

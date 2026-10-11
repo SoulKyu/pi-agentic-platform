@@ -13,7 +13,7 @@ export interface ProgressBarProps {
 // Defaults are read in the body: the React Compiler (Babel 8 AST) bails out on defaults in a destructured parameter.
 export function ProgressBar({ value, max, label, tone }: ProgressBarProps) {
   const bar = TONES[tone ?? "agent"];
-  const range = max ?? 100;
+  const range = max !== undefined && Number.isFinite(max) && max > 0 ? max : 100;
   if (value === undefined || value === null) {
     return (
       <div
@@ -26,8 +26,8 @@ export function ProgressBar({ value, max, label, tone }: ProgressBarProps) {
       </div>
     );
   }
-  const now = Number.isFinite(value) ? Math.min(range, Math.max(0, value)) : 0;
-  const percent = range > 0 ? (now / range) * 100 : 0;
+  const now = Number.isNaN(value) ? 0 : Math.min(range, Math.max(0, value));
+  const percent = (now / range) * 100;
   return (
     <div
       data-slot="progress"
