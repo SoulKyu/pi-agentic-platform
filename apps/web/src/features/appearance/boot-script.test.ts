@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BOOT_KEY, BOOT_VAR_NAMES } from "./apply.ts";
+import { APPEARANCE_ATTRS, DEFAULT_ACCOUNT, DEFAULT_DEVICE, toBootCache } from "./model.ts";
 import source from "./boot-script.js?raw";
 const run = () => new Function(source)();
 const root = document.documentElement;
@@ -53,6 +54,46 @@ describe("boot script (runs before the first paint)", () => {
   it("carries exactly the variable names the app writes", () => {
     const listed = /var allowed =\s*"([^"]+)"/.exec(source)?.[1]?.split(" ") ?? [];
     expect(listed.map((name) => `--${name}`).sort()).toEqual([...BOOT_VAR_NAMES].sort());
+  });
+
+  it("carries exactly the attribute names the app writes, besides the theme", () => {
+    const listed = [...(/var names = \[([^\]]+)\]/.exec(source)?.[1] ?? "").matchAll(/"([a-z-]+)"/g)].map(
+      (m) => m[1],
+    );
+    expect([...listed].sort()).toEqual(APPEARANCE_ATTRS.filter((name) => name !== "theme").sort());
+  });
+
+  it("replays a stored cache with a custom theme: every cache variable ends up inline, tints included", () => {
+    const ocean = {
+      id: "ocean",
+      name: "Ocean",
+      base: "night",
+      roles: {
+        bg: "#0e1626",
+        surface: "#132033",
+        text: "#e6edf7",
+        agent: "#38bdf8",
+        you: "#fb923c",
+        attn: "#ec4899",
+        ok: "#34d399",
+        err: "#f87171",
+      },
+    } as const;
+    const device = { ...DEFAULT_DEVICE, uiSize: 15, chatSize: 16, codeSize: 13 };
+    const cache = toBootCache(
+      { ...DEFAULT_ACCOUNT, mode: "night", darkTheme: "ocean", customThemes: [ocean] },
+      device,
+    );
+    localStorage.setItem(BOOT_KEY, JSON.stringify(cache));
+    run();
+    const expected = { ...cache.vars, ...cache.dark.vars };
+    expect(Object.keys(expected).length).toBeGreaterThan(30);
+    expect(Object.values(expected).some((value) => /^#[0-9a-f]{8}$/i.test(value))).toBe(true);
+    const actual = Object.fromEntries(
+      Object.keys(expected).map((name) => [name, root.style.getPropertyValue(name)]),
+    );
+    expect(actual).toEqual(expected);
+    expect(root.dataset.theme).toBe("night");
   });
 
   it("ignores garbage, unknown keys, unknown variables and throwing storage", () => {

@@ -3,6 +3,7 @@ import { Toaster, TooltipProvider } from "@pap/ui";
 import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { startAppearance } from "./features/appearance/index.ts";
 import { pickLocale, setLocale, useT } from "./i18n/index.ts";
 import { router } from "./routes/router.tsx";
 import "./styles.css";
@@ -16,6 +17,7 @@ function LocalizedToaster() {
 const locale = pickLocale(navigator.languages, localStorage.getItem("pap.locale"));
 setLocale(locale);
 document.documentElement.lang = locale;
+startAppearance();
 const root = document.getElementById("root");
 if (!root) throw new Error("#root is missing from index.html");
 createRoot(root).render(

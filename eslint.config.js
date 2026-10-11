@@ -118,7 +118,7 @@ export default defineConfig(
             { from: "web-i18n", allow: ["web-i18n", "web-lib", "contracts"] },
             {
               from: "web-root",
-              allow: ["web-root", "web-routes", "web-runtime", "web-lib", "web-i18n", "ui"],
+              allow: ["web-root", "web-routes", "web-runtime", "web-lib", "web-feature", "web-i18n", "ui"],
             },
           ],
         },
@@ -206,7 +206,7 @@ export default defineConfig(
   },
   {
     files: ["apps/web/src/**/*.js"],
-    languageOptions: { globals: { ...globals.browser } },
+    languageOptions: { ecmaVersion: 2019, sourceType: "script", globals: { ...globals.browser } },
   },
   {
     files: ["apps/web/src/**/*.{ts,tsx}"],
