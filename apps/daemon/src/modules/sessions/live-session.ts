@@ -1,4 +1,5 @@
 import {
+  type ApprovalAnswer,
   type Dialog,
   type DialogResponse,
   GetStateData,
@@ -18,6 +19,7 @@ import { describeExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { createCoalescer } from "./coalescer.ts";
+import type { Grant } from "./dialogs.ts";
 import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
@@ -80,7 +82,12 @@ export interface LiveSession {
    * out). A worker that does not answer in time is `timeout`: whether it was cleared is then unknown (R105).
    */
   clearQueue(): Promise<{ steering: string[]; followUp: string[]; truncated: boolean }>;
-  answer(dialogId: string, response: DialogResponse): void;
+  /**
+   * Answers an open dialog. An approval returns its answer and grant (null when the card was closed, not answered),
+   * for the "session" and "always" answers of Task 14b. A response the dialog does not offer is `bad_request` and
+   * the dialog stays open.
+   */
+  answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
   stop(): Promise<void>;
 }
 
@@ -198,6 +205,9 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     switch (record.type) {
       case "extension_ui_request":
         ui.onUiRequest(record);
+        return;
+      case "approval_request":
+        ui.onApprovalRequest(record);
         return;
       case "extension_ui_closed":
         ui.onUiClosed(record.id);

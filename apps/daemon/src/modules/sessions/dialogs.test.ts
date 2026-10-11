@@ -153,3 +153,89 @@ describe("dialog size", () => {
     });
   });
 });
+
+const approval = (id: string, fields: Record<string, unknown> = {}) => ({
+  type: "approval_request" as const,
+  id,
+  category: "exec" as const,
+  title: "Run a command?",
+  message: "1 line\nbash: ls",
+  answers: ["deny", "once"] as ("deny" | "once")[],
+  tool: "bash",
+  key: "c".repeat(64),
+  ...fields,
+});
+
+describe("approvals", () => {
+  it("opens an approval as its own kind of dialog and keeps the grant beside it", () => {
+    const dialogs = createDialogRegistry();
+    expect(dialogs.offerApproval(approval("a1"))).toEqual({
+      kind: "opened",
+      dialog: {
+        id: "a1",
+        method: "approval",
+        title: "Run a command?",
+        message: "1 line\nbash: ls",
+        category: "exec",
+        answers: ["deny", "once"],
+      },
+    });
+    expect(dialogs.peek("a1")?.method).toBe("approval");
+    expect(dialogs.takeEntry("a1")?.grant).toEqual({
+      tool: "bash",
+      key: "c".repeat(64),
+      label: "1 line\nbash: ls",
+    });
+    expect(dialogs.peek("a1")).toBeNull();
+  });
+
+  it("never cuts an approval's message: one over the limit is cancelled", () => {
+    expect(createDialogRegistry().offerApproval(approval("a1", { message: "x".repeat(65_537) })).kind).toBe(
+      "cancel",
+    );
+  });
+
+  it("cancels an approval that carries no answers or no category (fails closed)", () => {
+    const dialogs = createDialogRegistry();
+    expect(dialogs.offerApproval(approval("a1", { answers: [] }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
+    expect(dialogs.offerApproval(approval("a2", { answers: undefined }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
+    expect(dialogs.offerApproval(approval("a3", { category: undefined }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
+    expect(dialogs.offerApproval(approval("a4", { answers: ["once", "once"] })).kind).toBe("cancel");
+    expect(dialogs.list()).toEqual([]);
+  });
+
+  it("cuts the label of the grant to 4096 characters and leaves the dialog whole", () => {
+    const dialogs = createDialogRegistry();
+    const message = "m".repeat(10_000);
+    const verdict = dialogs.offerApproval(approval("a1", { message }));
+    expect(verdict.kind === "opened" && verdict.dialog.message).toBe(message);
+    expect(dialogs.takeEntry("a1")?.grant?.label).toBe("m".repeat(4096));
+  });
+
+  it("counts approvals in the same limits as other dialogs, and frees their bytes when taken", () => {
+    const dialogs = createDialogRegistry();
+    for (let i = 0; i < 63; i++) dialogs.offer(request(`c${i}`));
+    expect(dialogs.offerApproval(approval("a1")).kind).toBe("opened");
+    expect(dialogs.offerApproval(approval("a2"))).toEqual({ kind: "cancel", reason: "limit" });
+    dialogs.takeEntry("a1");
+    expect(dialogs.offerApproval(approval("a3")).kind).toBe("opened");
+  });
+
+  it("gives an extension's dialog no grant, and take() still hands out the dialog alone", () => {
+    const dialogs = createDialogRegistry();
+    dialogs.offer(request("d1"));
+    expect(dialogs.takeEntry("d1")?.grant).toBeNull();
+    dialogs.offerApproval(approval("a1"));
+    expect(dialogs.take("a1")?.id).toBe("a1");
+    expect(dialogs.take("a1")).toBeNull();
+  });
+});

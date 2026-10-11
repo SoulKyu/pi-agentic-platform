@@ -29,6 +29,16 @@ describe("session stream v2 schemas (additive)", () => {
     expect(Dialog.safeParse({ ...approval, answers: ["deny"] }).success).toBe(false);
   });
 
+  it("refuses an approval without a category or without answers", () => {
+    expect(Dialog.safeParse({ ...approval }).success).toBe(false);
+    expect(Dialog.safeParse({ ...approval, answers: [] }).success).toBe(false);
+    expect(Dialog.safeParse({ ...approval, answers: ["deny", "once"], category: undefined }).success).toBe(
+      false,
+    );
+    expect(Dialog.safeParse({ ...approval, answers: ["deny", "once"] }).success).toBe(true);
+    expect(Dialog.safeParse({ id: "d1", method: "confirm", title: "Run?" }).success).toBe(true);
+  });
+
   it("answers an approval with one of four answers", () => {
     expect(DialogResponse.safeParse({ answer: "always" }).success).toBe(true);
     expect(DialogResponse.safeParse({ answer: "forever" }).success).toBe(false);

@@ -87,7 +87,8 @@ export const methods = catalogue({
       response: DialogResponse,
     }),
     result: Ok,
-    errors: ["not_found", "worker_failed"],
+    // `bad_request`: an answer the dialog does not offer; the dialog stays open (M2R61).
+    errors: ["not_found", "worker_failed", "bad_request"],
   }),
   "sessions.history": defineMethod({
     name: "sessions.history",

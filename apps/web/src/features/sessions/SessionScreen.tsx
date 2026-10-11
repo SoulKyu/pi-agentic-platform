@@ -96,14 +96,20 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
         )}
       </ol>
       {view.dialogs.map((dialog) =>
-        dialog.method === "confirm" ? (
+        dialog.method === "confirm" || dialog.method === "approval" ? (
           <ApprovalCard
             key={`${dialog.id}:${refused[dialog.id] ?? 0}`}
             title={t("approval.title")}
             detail={approvalDetail(dialog)}
             allowLabel={t("approval.allow")}
             denyLabel={t("approval.deny")}
-            onAnswer={(confirmed) => answer(dialog.id, { confirmed })}
+            // Until Task 26 the policy's card offers the two answers M1's card has; an extension's confirm keeps `confirmed`.
+            onAnswer={(allowed) =>
+              answer(
+                dialog.id,
+                dialog.method === "approval" ? { answer: allowed ? "once" : "deny" } : { confirmed: allowed },
+              )
+            }
           />
         ) : (
           <div key={dialog.id} className="flex flex-col gap-2 rounded-sm border border-attention p-3">
