@@ -1,0 +1,108 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import { ApprovalCard } from "./ApprovalCard.tsx";
+
+const noop = () => {};
+
+function render(detail: string): string {
+  return renderToStaticMarkup(
+    <ApprovalCard
+      title="Approval needed"
+      detail={detail}
+      allowLabel="Allow once"
+      denyLabel="Deny"
+      onAnswer={noop}
+    />,
+  );
+}
+
+/** The scrollable region and the fixed header, as the markup carries them. */
+function regions(html: string): {
+  header: string;
+  scroll: string | undefined;
+  headerAt: number;
+  scrollAt: number;
+} {
+  const header = /<pre data-approval-header[^>]*>([\s\S]*?)<\/pre>/.exec(html);
+  const scroll = /<pre data-approval-scroll[^>]*>([\s\S]*?)<\/pre>/.exec(html);
+  return {
+    header: header?.[1] ?? "",
+    scroll: scroll?.[1],
+    headerAt: header?.index ?? -1,
+    scrollAt: scroll?.index ?? -1,
+  };
+}
+
+describe("ApprovalCard", () => {
+  it("renders an accessible alertdialog with the request and both answers", () => {
+    const html = render("Run a command?\nbash: echo hi");
+    expect(html).toContain('role="alertdialog"');
+    expect(html).toContain('aria-label="Approval needed"');
+    expect(html).toContain("bash: echo hi");
+    expect(html).toContain(">Allow once<");
+    expect(html).toContain(">Deny<");
+  });
+
+  it("shows the detail as text, never as markup or markdown", () => {
+    const html = render(
+      '12 characters, 1 line\nbash: <img src=x onerror="alert(1)"> **bold** [x](http://e.test) <b>b</b>',
+    );
+    expect(html).not.toMatch(/<img|<b>|<strong|<a /);
+    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(html).toContain("**bold** [x](http://e.test) &lt;b&gt;b&lt;/b&gt;");
+  });
+
+  it("keeps the escaped hidden-character markers and spacing as sent", () => {
+    const detail = "3 characters, 1 line, 1 hidden character shown escaped\nbash:   \\u{202E}  a\tb";
+    expect(regions(render(detail)).scroll).toBe("bash:   \\u{202E}  a\tb");
+  });
+
+  it("keeps the header line outside the scrollable region, above it", () => {
+    const { header, scroll, headerAt, scrollAt } = regions(
+      render("40 characters, 3 lines\n→ /etc/hosts (outside the session directory)\nwrite: {}"),
+    );
+    expect(header).toBe("40 characters, 3 lines");
+    expect(scroll).toBe("→ /etc/hosts (outside the session directory)\nwrite: {}");
+    expect(headerAt).toBeGreaterThanOrEqual(0);
+    expect(headerAt).toBeLessThan(scrollAt);
+  });
+
+  it("scrolls a long detail inside a bounded, keyboard-reachable region and loses no tail", () => {
+    const padding = "\n".repeat(500);
+    const html = render(`header\nbash: start${padding}TAIL-OF-THE-COMMAND`);
+    const { scroll } = regions(html);
+    expect(scroll).toContain("TAIL-OF-THE-COMMAND");
+    expect(scroll?.endsWith("TAIL-OF-THE-COMMAND")).toBe(true);
+    expect(scroll?.split("\n").length).toBe(501);
+    const tag = /<pre data-approval-scroll[^>]*>/.exec(html)?.[0] ?? "";
+    expect(tag).toContain("max-h-64");
+    expect(tag).toContain("overflow-auto");
+    expect(tag).toContain('tabindex="0"');
+    expect(tag).toContain("font-mono");
+  });
+
+  it("keeps blank lines at the start of the scrollable text", () => {
+    // A browser drops the first newline right after <pre>; the markup carries one more so none is lost.
+    expect(regions(render("header\n\nbody")).scroll).toBe("\n\nbody");
+  });
+
+  it("treats a detail without a line break as scrollable text with no header", () => {
+    const { header, scroll } = regions(render("Run a command?"));
+    expect(header).toBe("");
+    expect(scroll).toBe("Run a command?");
+  });
+
+  it("renders a header alone, and an empty detail, without a scroll region", () => {
+    expect(regions(render("only a header\n")).header).toBe("only a header");
+    expect(regions(render("only a header\n")).scroll).toBeUndefined();
+    expect(regions(render("")).scroll).toBeUndefined();
+    expect(regions(render("")).header).toBe("");
+  });
+
+  it("styles the card as an attention-tinted card", () => {
+    const html = render("h\nb");
+    expect(html).toContain("bg-attention-tint");
+    expect(html).toContain("border-attention-line");
+    expect(html).toContain("rounded-md");
+  });
+});

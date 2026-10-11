@@ -1,0 +1,101 @@
+/* E1 tokens: a subset of DESIGN.md §3.1–3.2 (validated, decision 33). The full token schema
+   (DESIGN.md names, high-contrast theme, densities) lands in roadmap M3. Fonts are self-hosted
+   (DESIGN.md §4): nothing here loads from the network. */
+@theme inline {
+  --color-bg: var(--pap-bg);
+  --color-panel: var(--pap-panel);
+  --color-line: var(--pap-line);
+  --color-fg: var(--pap-fg);
+  --color-muted: var(--pap-muted);
+  --color-agent: var(--pap-agent);
+  --color-agent-fill: var(--pap-agent-fill);
+  --color-human: var(--pap-human);
+  --color-human-fill: var(--pap-human-fill);
+  --color-human-tint: var(--pap-human-tint);
+  --color-human-line: var(--pap-human-line);
+  --color-human-text: var(--pap-human-text);
+  --color-on-fill: var(--pap-on-fill);
+  --color-attention: var(--pap-attention);
+  --color-attention-tint: var(--pap-attention-tint);
+  --color-attention-line: var(--pap-attention-line);
+  --color-ok: var(--pap-ok);
+  --color-error: var(--pap-error);
+  --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-label: 0.65625rem;
+  --text-ui: 0.8125rem;
+  --text-chat: 0.875rem;
+  --text-chat--line-height: 1.55;
+  --tracking-label: 0.12em;
+  --radius-sm: 2px;
+  --radius-md: 3px;
+}
+
+:root,
+[data-theme="night"] {
+  color-scheme: dark;
+  --pap-bg: #110f18;
+  --pap-panel: #1a1724;
+  --pap-line: #2d2840;
+  --pap-fg: #f2effa;
+  --pap-muted: #9c95b5;
+  --pap-agent: #a78bfa;
+  --pap-agent-fill: #a78bfa;
+  --pap-human: #fb923c;
+  --pap-human-fill: #fb923c;
+  --pap-human-tint: #fb923c1a;
+  --pap-human-line: #fb923c66;
+  --pap-human-text: #fed7aa;
+  --pap-on-fill: #1b0d00;
+  --pap-attention: #ec4899;
+  --pap-attention-tint: #ec48991a;
+  --pap-attention-line: #ec48998c;
+  --pap-ok: #34d399;
+  --pap-error: #f87171;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="night"]) {
+    color-scheme: light;
+    --pap-bg: #faf9f6;
+    --pap-panel: #ffffff;
+    --pap-line: #e2ded5;
+    --pap-fg: #1c1917;
+    --pap-muted: #6b645a;
+    --pap-agent: #6d28d9;
+    --pap-agent-fill: #7c3aed;
+    --pap-human: #c2410c;
+    --pap-human-fill: #fb923c;
+    --pap-human-tint: #fff4ea;
+    --pap-human-line: #fdba74;
+    --pap-human-text: #431407;
+    --pap-on-fill: #1b0d00;
+    --pap-attention: #be185d;
+    --pap-attention-tint: #fdf1f6;
+    --pap-attention-line: #f9a8d4;
+    --pap-ok: #047857;
+    --pap-error: #dc2626;
+  }
+}
+
+[data-theme="day"] {
+  color-scheme: light;
+  --pap-bg: #faf9f6;
+  --pap-panel: #ffffff;
+  --pap-line: #e2ded5;
+  --pap-fg: #1c1917;
+  --pap-muted: #6b645a;
+  --pap-agent: #6d28d9;
+  --pap-agent-fill: #7c3aed;
+  --pap-human: #c2410c;
+  --pap-human-fill: #fb923c;
+  --pap-human-tint: #fff4ea;
+  --pap-human-line: #fdba74;
+  --pap-human-text: #431407;
+  --pap-on-fill: #1b0d00;
+  --pap-attention: #be185d;
+  --pap-attention-tint: #fdf1f6;
+  --pap-attention-line: #f9a8d4;
+  --pap-ok: #047857;
+  --pap-error: #dc2626;
+}
