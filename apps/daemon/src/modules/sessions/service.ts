@@ -15,6 +15,7 @@ import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
+import { createPreReadyBuffer, type PreReadyBuffer } from "./pre-ready-buffer.ts";
 import { fitSnapshot, SNAPSHOT_ROWS } from "./snapshot.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
@@ -109,11 +110,30 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     return true;
   }
 
+  function recordEvent(sessionId: string, kind: string, data: unknown): void {
+    try {
+      deps.store.appendEvent(sessionId, kind, data, deps.clock.now());
+    } catch (error) {
+      deps.logger.warn("session_event_dropped", { sessionId, kind, err: error });
+    }
+  }
+
+  function replayPreReady(sessionId: string, held: ReturnType<PreReadyBuffer["drain"]>): void {
+    for (const item of held.items) {
+      if (item.kind === "publish") deps.hub.publish("session", sessionId, item.event);
+      else recordEvent(sessionId, item.recordKind, item.data);
+    }
+    if (held.dropped > 0)
+      deps.logger.warn("session_start_events_dropped", { sessionId, dropped: held.dropped });
+  }
+
   // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already
-  // stored when a cold session is reopened. Nothing is published or recorded for a row that is not stored.
+  // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
+  // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
   async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
     checkCapacity();
     let stored = !isNew;
+    const preReady = isNew ? createPreReadyBuffer() : null;
     let bound = row.piPath !== null;
     const init: InitRecord = {
       type: "init",
@@ -134,14 +154,12 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         logger,
         publish: (event) => {
           if (stored) deps.hub.publish("session", row.id, event);
+          // A status is not held: the snapshot carries the status, and no one can have seen an earlier one.
+          else if (event.kind !== "status") preReady?.add({ kind: "publish", event });
         },
         record: (kind, data) => {
-          if (!stored) return;
-          try {
-            deps.store.appendEvent(row.id, kind, data, deps.clock.now());
-          } catch (error) {
-            logger.warn("session_event_dropped", { kind, err: error });
-          }
+          if (stored) recordEvent(row.id, kind, data);
+          else preReady?.add({ kind: "record", recordKind: kind, data });
         },
         onActivity: () => {
           if (stored && !bound) bound = bindPiFile(row, session);
@@ -160,6 +178,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         throw new PapError("worker_failed");
       if (isNew) deps.store.insert(row);
       stored = true;
+      if (preReady) replayPreReady(row.id, preReady.drain());
       live.set(row.id, session);
       bound = bound || bindPiFile(row, session);
       return session;

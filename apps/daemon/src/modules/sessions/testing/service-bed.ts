@@ -1,7 +1,14 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { ALL_PERMISSIONS, type Caller, type Cursor, type EventFrame, type InitRecord } from "@pap/contracts";
+import {
+  ALL_PERMISSIONS,
+  type Caller,
+  type Cursor,
+  type EventFrame,
+  type InitRecord,
+  type WorkerRecord,
+} from "@pap/contracts";
 import { type Clock, createFakeClock, type FakeClock } from "../../../kernel/clock.ts";
 import type { Db } from "../../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
@@ -13,7 +20,14 @@ import { SESSIONS_MIGRATIONS } from "../index.ts";
 
 /** What a fake worker does when it gets `init`. */
 export type StartBehavior =
-  { kind: "ready"; piId?: string; sessionFile?: string } | { kind: "silent" } | { kind: "exit70" };
+  | {
+      kind: "ready";
+      piId?: string;
+      sessionFile?: string;
+      /** Said just before `ready`. */ before?: WorkerRecord[];
+    }
+  | { kind: "silent" }
+  | { kind: "exit70" };
 
 export interface BedOptions {
   limits?: { maxWorkers: number; minFreeMemMb: number };
@@ -195,9 +209,10 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
           const sessionFile =
             behavior.sessionFile ?? record.sessionFile ?? join(sessionsDir, `${piId}.jsonl`);
           files[index] = sessionFile;
-          queueMicrotask(() =>
-            self.emit({ type: "ready", sessionId: piId, sessionFile, piVersion: "1.1.0" }),
-          );
+          queueMicrotask(() => {
+            for (const record of behavior.before ?? []) self.emit(record);
+            self.emit({ type: "ready", sessionId: piId, sessionFile, piVersion: "1.1.0" });
+          });
         },
         reply: (command) => {
           if (command.type === "prompt") return { data: { disposition: "started" } };

@@ -15,7 +15,7 @@ A worker counts against `maxWorkers` from the moment it is forked: `starting` is
 
 A worker that does not say `ready` within 30 s (`READY_TIMEOUT_MS`) is stopped and the start fails with `worker_failed`. A worker that exits before `ready` (exit 70 for a bad init, policy or `PI_CODING_AGENT_DIR`) gives the same fixed `worker_failed`; the log has its exit and the last 2000 characters of its output, never the client.
 
-A failed start of a new session leaves nothing: the row is inserted only when the worker is ready, and nothing is published or recorded for a row that is not stored (the hub keeps a channel for every key it is asked to publish for, so a ghost key would stay).
+A failed start of a new session leaves nothing: the row is inserted only when the worker is ready, and nothing is published or recorded for a row that is not stored (the hub keeps a channel for every key it is asked to publish for, so a ghost key would stay). What the worker says before that point (an extension failing at start-up, a policy audit line) is held in a bounded buffer (`pre-ready-buffer.ts`: 32 items, 256 KB, earliest kept, the rest counted in a `session_start_events_dropped` warning) and replayed to the hub and the journal right after the insert; a failed start drops it with the rest. The status at `ready` is not held, a snapshot carries it. Like the events of a reopened session, the replayed ones reach a subscriber that resumes from the start of the stream (`after.seq` 0 of this epoch); a cursor-less first subscriber gets a snapshot, which does not carry notices (M2: recent notices in the snapshot).
 
 ## Runs
 
