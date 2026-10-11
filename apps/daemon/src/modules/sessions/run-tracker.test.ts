@@ -141,4 +141,28 @@ describe("run tracker", () => {
     await clock.advance(1000);
     expect(log).toEqual(["start"]);
   });
+
+  it("never ends a run with the answer of a probe started for the previous one", async () => {
+    const clock = createFakeClock();
+    let answer: (state: GetStateData) => void = () => {};
+    const log: string[] = [];
+    const tracker = createRunTracker({
+      clock,
+      probe: () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+      onRunStart: () => log.push("start"),
+      onRunEnd: () => log.push("end"),
+    });
+    tracker.onEvent({ type: "agent_start" });
+    tracker.onEvent({ type: "agent_settled", aborted: false });
+    await clock.advance(0);
+    // An extension starts the next run before the probe answers: no input, so the revision did not move.
+    tracker.onEvent({ type: "agent_start" });
+    answer(idle);
+    await clock.advance(0);
+    expect(log).toEqual(["start"]);
+    expect(tracker.running).toBe(true);
+  });
 });

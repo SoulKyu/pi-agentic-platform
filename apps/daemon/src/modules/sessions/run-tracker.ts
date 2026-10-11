@@ -50,12 +50,15 @@ export function createRunTracker(deps: RunTrackerDeps): RunTracker {
     deps.onRunEnd({ aborted });
     wakeWaiters();
   };
-  const confirm = async (rev: number, aborted: boolean): Promise<void> => {
+  const confirm = async (rev: number, run: number, aborted: boolean): Promise<void> => {
+    // A probe belongs to the run it was started for: an `agent_start` since (an extension's run needs no input, so the
+    // revision does not move) makes its answer stale.
+    const stale = () => rev !== revision || run !== generation || !running;
     for (let attempt = 0; attempt < PROBE_ATTEMPTS; attempt++) {
       if (attempt > 0) await deps.clock.sleep(PROBE_INTERVAL_MS);
-      if (rev !== revision || !running) return;
+      if (stale()) return;
       const state = await deps.probe().catch(() => null);
-      if (rev !== revision || !running) return;
+      if (stale()) return;
       if (state && isIdle(state)) {
         endRun(aborted);
         return;
@@ -85,7 +88,7 @@ export function createRunTracker(deps: RunTrackerDeps): RunTracker {
         running = true;
         deps.onRunStart();
       } else if (event.type === "agent_settled") {
-        void confirm(revision, event.aborted === true);
+        void confirm(revision, generation, event.aborted === true);
       }
     },
     waitIdle(timeoutMs) {

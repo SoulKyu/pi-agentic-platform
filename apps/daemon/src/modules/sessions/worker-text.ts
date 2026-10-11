@@ -1,3 +1,4 @@
+import { PapError } from "@pap/contracts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 
 /** What the daemon logs of a worker's output or error text, counted from the end for output (R66, R102). */
@@ -14,3 +15,6 @@ export function outputTailOf(handle: Pick<WorkerHandle, "outputTail">): string {
   const tail = handle.outputTail();
   return tail.length > LOG_CHARS ? `…${tail.slice(-(LOG_CHARS - 1))}` : tail;
 }
+
+/** The stable code of a failure, for a log line; anything that is not a `PapError` is `unknown`. */
+export const codeOf = (error: unknown): string => (error instanceof PapError ? error.code : "unknown");

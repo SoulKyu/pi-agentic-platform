@@ -1,4 +1,5 @@
 import { Dialog, type UiRequestRecord } from "@pap/contracts";
+import { z } from "zod";
 
 const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
 const DECORATION_METHODS = new Set(["notify", "setStatus", "setWidget", "setTitle", "set_editor_text"]);
@@ -7,12 +8,23 @@ const MAX_DIALOG_BYTES = 8 * 1024 * 1024;
 /** One dialog as sent: the socket allows 1 MiB per frame, and the frame's own fields need a few hundred bytes. */
 export const DIALOG_FRAME_BYTES = 1_000_000;
 
-// The limits of `Dialog` in the contracts; the parse below fails (and the dialog is cancelled) if they ever differ.
-const TEXT_LIMITS = { title: 4096, message: 65_536, placeholder: 4096, prefill: 1_000_000 } as const;
+const maxLengthOf = (schema: z.ZodType): number => {
+  const inner = schema instanceof z.ZodOptional ? schema.unwrap() : schema;
+  const max = (inner as z.ZodString).maxLength;
+  if (typeof max !== "number") throw new Error("every Dialog text field needs a maximum length");
+  return max;
+};
+// Read from the contract, so a limit changed there is the limit applied here.
+const TEXT_LIMITS = {
+  title: maxLengthOf(Dialog.shape.title),
+  message: maxLengthOf(Dialog.shape.message),
+  placeholder: maxLengthOf(Dialog.shape.placeholder),
+  prefill: maxLengthOf(Dialog.shape.prefill),
+} as const;
 type TextField = keyof typeof TEXT_LIMITS;
 const TEXT_FIELDS = Object.keys(TEXT_LIMITS) as TextField[];
 const MAX_OPTIONS = 100;
-const MAX_OPTION_CHARS = 4096;
+const MAX_OPTION_CHARS = maxLengthOf(Dialog.shape.options.unwrap().element);
 
 export type CancelReason = "unknown_method" | "malformed" | "too_large" | "limit";
 export type DialogVerdict =

@@ -1,3 +1,4 @@
+import { Dialog } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { createDialogRegistry, DIALOG_FRAME_BYTES } from "./dialogs.ts";
 
@@ -130,5 +131,21 @@ describe("dialog size", () => {
     expect(timeoutOf(1.5)).toBeUndefined();
     expect(timeoutOf(-1)).toBeUndefined();
     expect(timeoutOf("soon")).toBeUndefined();
+  });
+
+  it("cuts text to the limits the Dialog schema declares", () => {
+    const dialogs = createDialogRegistry();
+    const verdict = dialogs.offer(request("d", { title: "t".repeat(5000) }));
+    expect(verdict.kind === "opened" && verdict.dialog.title.length).toBe(Dialog.shape.title.maxLength);
+  });
+
+  it("opens a select of 100 options and cancels one of 101, so a change of the schema limit shows here", () => {
+    const dialogs = createDialogRegistry();
+    const options = (count: number) => Array.from({ length: count }, (_, i) => `option ${i}`);
+    expect(dialogs.offer(request("a", { method: "select", options: options(100) })).kind).toBe("opened");
+    expect(dialogs.offer(request("b", { method: "select", options: options(101) }))).toEqual({
+      kind: "cancel",
+      reason: "too_large",
+    });
   });
 });

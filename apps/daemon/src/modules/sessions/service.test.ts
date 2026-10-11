@@ -198,6 +198,21 @@ describe("a session whose worker is gone", () => {
     expect(bed.service.list(owner)[0]?.status).toBe("cold");
   });
 
+  it("publishes starting when it reopens a cold session (R112)", async () => {
+    open();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    bed.spawned[0]?.crash({ code: null, signal: "SIGKILL", cause: "killed" });
+    await bed.clock.advance(0);
+    const frames = await bed.subscribe(sessionId);
+    void bed.service.prompt({ sessionId, text: "again" }, owner);
+    await bed.clock.advance(0);
+    const statuses = frames
+      .map((frame) => frame.event as { kind: string; status?: string })
+      .filter((event) => event.kind === "status")
+      .map((event) => event.status);
+    expect(statuses).toEqual(["starting", "idle"]);
+  });
+
   it("is not restarted by itself: only a prompt brings it back", async () => {
     open();
     await bed.service.create(bed.work, owner);

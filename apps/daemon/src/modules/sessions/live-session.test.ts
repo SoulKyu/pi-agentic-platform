@@ -142,7 +142,7 @@ describe("runs", () => {
     await clock.advance(0);
     expect(live.status()).toBe("idle");
     expect(recorded).toEqual([
-      ["run_start", { origin: "user" }],
+      ["run_start", { origin: "extension" }],
       ["run_end", { aborted: false }],
     ]);
   });

@@ -151,6 +151,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
     };
     const logger = deps.logger.child({ component: "session", sessionId: row.id });
+    // A reopened session has subscribers who last saw it cold; a new one has none yet (R112).
+    if (!isNew) deps.hub.publish("session", row.id, { kind: "status", status: "starting" });
     const session: LiveSession = startLiveSession(
       {
         handle: deps.spawn(row.cwd),
