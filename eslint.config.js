@@ -45,7 +45,14 @@ export default defineConfig(
       "max-lines": ["error", { max: 400, skipBlankLines: false, skipComments: false }],
       "@eslint-community/eslint-comments/require-description": "error",
       "@eslint-community/eslint-comments/no-unlimited-disable": "error",
-      "@eslint-community/eslint-comments/no-restricted-disable": ["error", "max-lines", "boundaries/*"],
+      // The guards cannot be switched off from inside a file, including these two (a disable of a restricted
+      // rule is itself reported, so "disable no-restricted-disable, then disable max-lines" does not pass).
+      "@eslint-community/eslint-comments/no-restricted-disable": [
+        "error",
+        "max-lines",
+        "boundaries/*",
+        "@eslint-community/eslint-comments/*",
+      ],
       "@eslint-community/eslint-comments/no-use": [
         "error",
         {
@@ -170,8 +177,11 @@ export default defineConfig(
     languageOptions: { globals: { ...globals.browser } },
     rules: {
       "pap/no-arbitrary-values": "error",
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "error",
+      // The React Compiler skips a component that breaks these rules without saying so: take the whole
+      // recommended preset (refs, purity, immutability, set-state-in-render...), with no rule left a warning.
+      ...Object.fromEntries(
+        Object.keys(reactHooks.configs.flat.recommended.rules).map((rule) => [rule, "error"]),
+      ),
     },
   },
   {

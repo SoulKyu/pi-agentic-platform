@@ -90,12 +90,64 @@ describe("repository gates", () => {
     expect(result?.messages.map((m) => m.ruleId)).toContain("@eslint-community/eslint-comments/no-use");
   });
 
+  it("rejects a disable of the comment guards themselves (R64)", async () => {
+    const bypass = (guard) =>
+      `// eslint-disable-next-line @eslint-community/eslint-comments/${guard} -- hide the next line\n/* eslint-disable max-lines -- legacy parser */\nexport const a = 1;\n`;
+    for (const guard of ["no-restricted-disable", "no-use"]) {
+      const [result] = await eslint.lintText(bypass(guard), {
+        filePath: "packages/contracts/src/self-off.ts",
+      });
+      const reported = result?.messages.filter(
+        (m) => m.ruleId === "@eslint-community/eslint-comments/no-restricted-disable" && m.line === 1,
+      );
+      expect(reported?.length, guard).toBeGreaterThan(0);
+    }
+  });
+
+  it("lets a reasoned disable of an ordinary rule through", async () => {
+    const code =
+      "// eslint-disable-next-line @typescript-eslint/no-explicit-any -- a test double\nexport const a: any = 1;\n";
+    const [result] = await eslint.lintText(code, { filePath: "packages/contracts/src/ordinary.ts" });
+    expect(result?.messages).toEqual([]);
+  });
+
   it("flags raw colours in UI source but not in its tests", async () => {
     const code = 'export const c = "#A78BFA";\n';
     const [source] = await eslint.lintText(code, { filePath: "packages/ui/src/Button.tsx" });
     const [test] = await eslint.lintText(code, { filePath: "packages/ui/src/Button.test.tsx" });
     expect(source?.messages.map((m) => m.ruleId)).toContain("pap/no-raw-colors");
     expect(test?.messages.map((m) => m.ruleId)).not.toContain("pap/no-raw-colors");
+  });
+});
+
+describe("React Compiler rules for the web app and the UI package (R122)", () => {
+  const eslint = new ESLint({ cwd: repoRoot });
+  const refDuringRender =
+    'import { useRef } from "react";\nexport function C() {\n  const ref = useRef(0);\n  return <p>{ref.current}</p>;\n}\n';
+  const setStateInRender =
+    'import { useState } from "react";\nexport function C() {\n  const [n, setN] = useState(0);\n  setN(1);\n  return <p>{n}</p>;\n}\n';
+  const impureRender = "export function C() {\n  return <p>{Math.random()}</p>;\n}\n";
+  const assignedProp =
+    "export function C(props: { n: number }) {\n  props.n = 2;\n  return <p>{props.n}</p>;\n}\n";
+
+  it.each([
+    ["a ref read during render", refDuringRender, "react-hooks/refs"],
+    ["a state setter called during render", setStateInRender, "react-hooks/set-state-in-render"],
+    ["an impure call during render", impureRender, "react-hooks/purity"],
+    ["an assigned prop", assignedProp, "react-hooks/immutability"],
+  ])("rejects %s, in the web app and in the UI package", async (_name, code, rule) => {
+    for (const filePath of ["apps/web/src/features/x/C.tsx", "packages/ui/src/primitives/C.tsx"]) {
+      const [result] = await eslint.lintText(code, { filePath });
+      const hit = result?.messages.find((m) => m.ruleId === rule);
+      expect(hit?.severity, `${rule} in ${filePath}`).toBe(2);
+    }
+  });
+
+  it("accepts the same component written the compiler's way", async () => {
+    const code =
+      'import { useRef, useState } from "react";\nexport function C() {\n  const ref = useRef(0);\n  const [n, setN] = useState(0);\n  return (\n    <button type="button" onClick={() => setN(n + ref.current)}>\n      {n}\n    </button>\n  );\n}\n';
+    const [result] = await eslint.lintText(code, { filePath: "apps/web/src/features/x/Ok.tsx" });
+    expect(result?.messages).toEqual([]);
   });
 });
 
