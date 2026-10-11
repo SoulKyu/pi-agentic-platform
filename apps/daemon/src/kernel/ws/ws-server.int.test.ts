@@ -85,6 +85,7 @@ beforeEach(async () => {
     port: 0,
     tls: null,
     onUpgrade: (req, socket, head) => ws.handleUpgrade(req, socket, head),
+    onError: () => {},
   });
 });
 afterEach(async () => {

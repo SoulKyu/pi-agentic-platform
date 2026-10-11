@@ -17,6 +17,11 @@ export interface StartServerOptions {
   readonly port: number;
   readonly tls: { readonly cert: string; readonly key: string } | null;
   onUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer): void;
+  /**
+   * An 'error' the listening server raises later (accept failing on EMFILE, say). Node throws such an error as an
+   * uncaught exception when nobody listens, so a listener stays for the server's whole life (R75).
+   */
+  onError(error: NodeJS.ErrnoException): void;
 }
 
 export async function startServer(options: StartServerOptions): Promise<RunningServer> {
@@ -44,6 +49,7 @@ export async function startServer(options: StartServerOptions): Promise<RunningS
     server.once("listening", onListening);
   });
   server.on("upgrade", options.onUpgrade);
+  server.on("error", options.onError);
   const { port } = server.address() as AddressInfo;
   return {
     port,

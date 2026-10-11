@@ -7,7 +7,7 @@ import type { LogLevel } from "./logger.ts";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 7777;
 const DEFAULT_MIN_FREE_MEM_MB = 512;
-const VITE_DEV_ORIGIN = "http://localhost:5173";
+export const VITE_DEV_ORIGIN = "http://localhost:5173";
 // Measured in docs/spikes/s4.md: idle worker ≈156 MB RSS / ≈103 MB PSS; ceil(157 × 1.5).
 export const WORKER_BUDGET_MB = 236;
 

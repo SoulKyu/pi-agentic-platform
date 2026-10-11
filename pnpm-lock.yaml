@@ -68,6 +68,9 @@ importers:
       '@pap/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@pap/pi-host':
+        specifier: workspace:*
+        version: link:../../packages/pi-host
       '@simplewebauthn/server':
         specifier: 13.3.3
         version: 13.3.3

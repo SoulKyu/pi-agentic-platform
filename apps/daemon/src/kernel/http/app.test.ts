@@ -31,10 +31,11 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-const build = (staticRoot: string | null = null) =>
+const build = (staticRoot: string | null = null, servesTls = false) =>
   createHttpApp({
     allowedOrigins: new Set([ORIGIN]),
     staticRoot,
+    servesTls,
     logger: silentLogger,
     mount: (app) => {
       app.post("/auth/echo", (c) => c.json({ ok: true }));
@@ -50,6 +51,23 @@ describe("http app", () => {
     const response = await build().request("/healthz");
     expect(await response.json()).toEqual({ status: "ok" });
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  it("sends the CSP exactly as ruled, on API and static responses alike (R74)", async () => {
+    const csp =
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; " +
+      "font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'; object-src 'none'";
+    const app = build(web);
+    for (const path of ["/healthz", "/", "/assets/app-1234.js", "/api/nothing"]) {
+      expect((await app.request(path)).headers.get("content-security-policy"), path).toBe(csp);
+    }
+  });
+
+  it("sends HSTS only when the daemon serves TLS, for 180 days and without includeSubDomains (R73)", async () => {
+    const plain = await build().request("/healthz");
+    expect(plain.headers.get("strict-transport-security")).toBeNull();
+    const tls = await build(null, true).request("/healthz");
+    expect(tls.headers.get("strict-transport-security")).toBe("max-age=15552000");
   });
 
   it("rejects a POST without Origin or with a forged Origin", async () => {

@@ -1,29 +1,42 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { request } from "node:http";
+import { request, Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Hono } from "hono";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../logger.ts";
 import { createHttpApp } from "./app.ts";
 import { startServer } from "./server.ts";
 
 const app = new Hono().get("/healthz", (c) => c.json({ status: "ok" }));
 const noUpgrade = (_req: unknown, socket: { destroy(): void }) => socket.destroy();
+const listenOn = (port: number, onError: (error: Error) => void = () => {}) =>
+  startServer({ app, host: "127.0.0.1", port, tls: null, onUpgrade: noUpgrade, onError });
 
 describe("startServer", () => {
   it("serves on an ephemeral port and closes", async () => {
-    const server = await startServer({ app, host: "127.0.0.1", port: 0, tls: null, onUpgrade: noUpgrade });
+    const server = await listenOn(0);
     expect(await (await fetch(`http://127.0.0.1:${server.port}/healthz`)).json()).toEqual({ status: "ok" });
     await server.close();
   });
 
   it("rejects a port already in use", async () => {
-    const first = await startServer({ app, host: "127.0.0.1", port: 0, tls: null, onUpgrade: noUpgrade });
-    await expect(
-      startServer({ app, host: "127.0.0.1", port: first.port, tls: null, onUpgrade: noUpgrade }),
-    ).rejects.toThrow(/EADDRINUSE/);
+    const first = await listenOn(0);
+    await expect(listenOn(first.port)).rejects.toThrow(/EADDRINUSE/);
     await first.close();
+  });
+
+  it("keeps an error listener for the server's whole life, so a late error is handed on, not thrown (R75)", async () => {
+    // hono's serve() creates the node server; its listen() call is the one place the instance can be taken from.
+    const listen = vi.spyOn(Server.prototype, "listen");
+    const onError = vi.fn();
+    const server = await listenOn(0, onError);
+    const instance = listen.mock.contexts[0] as Server;
+    listen.mockRestore();
+    const late = Object.assign(new Error("accept failed"), { code: "EMFILE" });
+    expect(() => instance.emit("error", late)).not.toThrow();
+    expect(onError).toHaveBeenCalledExactlyOnceWith(late);
+    await server.close();
   });
 });
 
@@ -70,6 +83,7 @@ describe("http app over a real socket", () => {
       port: 0,
       tls: null,
       onUpgrade: noUpgrade,
+      onError: () => {},
     });
     ({ port, close } = server);
   });

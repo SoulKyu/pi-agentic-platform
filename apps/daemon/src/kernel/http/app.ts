@@ -9,9 +9,28 @@ export interface HttpAppOptions {
   readonly allowedOrigins: ReadonlySet<string>;
   readonly staticRoot: string | null;
   readonly logger: Logger;
+  /** True only when this process terminates TLS itself: HSTS is sent then and never on plain HTTP (R73). */
+  readonly servesTls?: boolean;
   mount(app: Hono): void;
   wsProbe(c: Context): Response | Promise<Response>;
 }
+
+/** 180 days, no includeSubDomains: the header must not pin other services on the same host name (R73). */
+const HSTS = "max-age=15552000";
+
+// The CSP of an app that renders model output (R74). `connect-src 'self'` covers the same-origin ws/wss.
+const CONTENT_SECURITY_POLICY = {
+  defaultSrc: ["'self'"],
+  scriptSrc: ["'self'"],
+  styleSrc: ["'self'", "'unsafe-inline'"],
+  imgSrc: ["'self'", "data:", "blob:"],
+  fontSrc: ["'self'"],
+  connectSrc: ["'self'"],
+  frameAncestors: ["'none'"],
+  baseUri: ["'none'"],
+  formAction: ["'self'"],
+  objectSrc: ["'none'"],
+};
 
 const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 
@@ -33,7 +52,13 @@ function isReserved(path: string): boolean {
 // Scheme and client address come from the socket only: no X-Forwarded-* / Forwarded header is read (R72).
 export function createHttpApp(options: HttpAppOptions): Hono {
   const app = new Hono();
-  app.use("*", secureHeaders());
+  app.use(
+    "*",
+    secureHeaders({
+      contentSecurityPolicy: CONTENT_SECURITY_POLICY,
+      strictTransportSecurity: options.servesTls === true ? HSTS : false,
+    }),
+  );
   app.use("*", originGuard(options.allowedOrigins));
   app.get("/healthz", (c) => c.json({ status: "ok" }));
   options.mount(app);

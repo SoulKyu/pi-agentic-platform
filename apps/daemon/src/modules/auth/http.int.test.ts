@@ -87,6 +87,7 @@ async function boot(tls: boolean, publicOrigin = tls ? HTTPS_ORIGIN : HTTP_ORIGI
     port: 0,
     tls: tls ? files : null,
     onUpgrade: (_req, socket) => socket.destroy(),
+    onError: () => {},
   });
 }
 
