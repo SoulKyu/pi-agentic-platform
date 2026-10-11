@@ -159,6 +159,8 @@ describe("the built web app under the daemon's CSP", () => {
     await keepsLazyOnly([/data-markdown-body/]);
   });
 
+  it("keeps the palette (cmdk) out of the initial assets", () => keepsLazyOnly([/cmdk-input/]));
+
   it("ships nothing of the /dev/ui gallery in any production asset, initial or lazy (ADR 0011, M3R122)", async () => {
     const markers = [
       /data-gallery-section/,

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
@@ -30,6 +30,19 @@ export function initialBundleGzipKb(distDir: string): number {
   return Math.round((bytes / 1024) * 10) / 10;
 }
 
+export function lazyAssets(distDir: string): Array<{ file: string; gzipKb: number }> {
+  const initial = new Set(initialAssets(readFileSync(join(distDir, "index.html"), "utf8")));
+  return readdirSync(join(distDir, "assets"))
+    .filter((name) => /\.(?:js|css)$/.test(name))
+    .map((name) => `/assets/${name}`)
+    .filter((file) => !initial.has(file))
+    .sort()
+    .map((file) => ({
+      file,
+      gzipKb: Math.round((gzipSync(readFileSync(join(distDir, file)), { level: 9 }).length / 1024) * 10) / 10,
+    }));
+}
+
 function initialBundleBudgetKb(path: string): number {
   const budget = (JSON.parse(readFileSync(path, "utf8")) as { initialBundleGzipKb?: unknown })
     .initialBundleGzipKb;
@@ -46,6 +59,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const budget = initialBundleBudgetKb("budgets.json");
     const measured = initialBundleGzipKb("apps/web/dist");
     console.log(`initial bundle: ${measured} KB gzip (budget ${budget} KB)`);
+    for (const { file, gzipKb } of lazyAssets("apps/web/dist"))
+      console.log(`lazy ${file}: ${gzipKb} KB gzip`);
     console.log(`session open payload: measured by ${BUDGET_TEST} (pnpm test:int)`);
     console.log(`idle worker RSS: measured by ${BUDGET_TEST} (pnpm test:int)`);
     if (measured > budget) process.exitCode = 1;
