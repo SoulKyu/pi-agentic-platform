@@ -102,7 +102,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     closers.push({ name: "receipt_purge", close: () => purge.stop() });
 
     const onOriginRefused = createOriginRefusalLog(logger, clock);
-    const hub = createStreamHub();
+    const hub = createStreamHub(undefined, clock);
     const auth = createAuthModule({
       db,
       clock,
