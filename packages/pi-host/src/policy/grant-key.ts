@@ -2,13 +2,18 @@ import { createHash } from "node:crypto";
 
 /** Deeper than any real tool input; a cycle hits it too. */
 const MAX_DEPTH = 32;
-/** Characters of canonical JSON: above the 1 MiB `describeCall` accepts for review, so a reviewable call always fits. */
+/**
+ * Work budget in characters: strings, keys and numbers are charged their length, other values and each separator a
+ * few. The policy only gets here after `describeCall` accepted the call, which caps the whole payload at 32 KiB, so
+ * this is a second bound for the day the order changes, not the one that holds today.
+ */
 const MAX_CANONICAL_CHARS = 2 * 1024 * 1024;
 
 /**
  * Canonical JSON of tool input, which is untrusted: keys sorted, `undefined` properties left out. It throws on what it
  * cannot state exactly (too deep, too large, a function, a bigint, NaN, a class instance), so the caller fails closed
- * instead of giving two different calls one key.
+ * instead of giving two different calls one key. Inputs equal as JSON share a key on purpose: `-0` and `0`, and
+ * `[undefined]` and `[null]` (JSON states both the same way).
  */
 function canonical(root: unknown): string {
   let budget = MAX_CANONICAL_CHARS;
@@ -18,14 +23,19 @@ function canonical(root: unknown): string {
   };
   const walk = (value: unknown, depth: number): string => {
     if (depth > MAX_DEPTH) throw new RangeError("the tool input is too deep for a grant key");
-    if (value === null || typeof value === "boolean") return `${value}`;
+    if (value === null || typeof value === "boolean") {
+      spend(5);
+      return `${value}`;
+    }
     if (typeof value === "string") {
       spend(value.length + 2);
       return JSON.stringify(value);
     }
     if (typeof value === "number") {
       if (!Number.isFinite(value)) throw new TypeError("the tool input holds a number JSON cannot state");
-      return JSON.stringify(value);
+      const text = JSON.stringify(value);
+      spend(text.length);
+      return text;
     }
     if (Array.isArray(value)) {
       spend(2 + value.length);

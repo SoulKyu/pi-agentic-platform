@@ -36,8 +36,6 @@ export const textOf = (message: unknown) =>
     .join("");
 export const toolText = (record: HostRecord) => JSON.stringify(record.result);
 export const isApproval = (record: HostRecord) => record.type === "approval_request";
-export const isConfirm = (record: HostRecord) =>
-  record.type === "extension_ui_request" && record.method === "confirm";
 
 /** Something outside the worker's group could hold its output open; the bed does not wait for that for ever. */
 const CLOSE_WAIT_MS = 5000;

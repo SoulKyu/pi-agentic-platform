@@ -26,14 +26,28 @@ describe("grant keys", () => {
   it("never let a command string stand for a JSON payload, nor a tool name swallow a separator (M2-RT-24)", () => {
     const asCommand = grantKey("t", { kind: "cmd", payload: '{"a":1}' });
     expect(grantKey("t", grantPayload({ a: 1 }, false))).not.toBe(asCommand);
-    expect(grantKey("t\u0000cmd", { kind: "json", payload: "x" })).not.toBe(
-      grantKey("t", { kind: "cmd", payload: "x" }),
-    );
-    expect(grantKey('t","cmd', { kind: "json", payload: "x" })).not.toBe(
-      grantKey("t", { kind: "cmd", payload: "x" }),
-    );
-    expect(grantKey("t", { kind: "json", payload: 'x","cmd' })).not.toBe(
-      grantKey("t", { kind: "cmd", payload: "x" }),
+  });
+
+  it("keeps the three parts apart where a plain separator join would let them run together (M2-RT-24)", () => {
+    const naive = (tool: string, kind: string, payload: string, separator: string) =>
+      `${tool}${separator}${kind}${separator}${payload}`;
+    const forged: Array<[[string, "cmd" | "json", string], [string, "cmd" | "json", string], string]> = [
+      [["t\u0000cmd", "json", "x"], ["t", "cmd", "json\u0000x"], "\u0000"],
+      [["t|cmd", "json", "x"], ["t", "cmd", "json|x"], "|"],
+      [["t:cmd", "json", "x"], ["t", "cmd", "json:x"], ":"],
+      [['t","cmd', "json", "x"], ["t", "cmd", 'json","x'], '","'],
+    ];
+    for (const [one, other, separator] of forged) {
+      expect(naive(...one, separator)).toBe(naive(...other, separator));
+      expect(grantKey(one[0], { kind: one[1], payload: one[2] })).not.toBe(
+        grantKey(other[0], { kind: other[1], payload: other[2] }),
+      );
+    }
+  });
+
+  it("is the sha256 of the JSON array of tool, kind and payload", () => {
+    expect(grantKey("bash", { kind: "cmd", payload: "ls" })).toBe(
+      "fe33139c7c6283ee76a7bd68d2aac89ca5f735558ebfef8acd59541d9931daa7",
     );
   });
 
@@ -41,6 +55,12 @@ describe("grant keys", () => {
     expect(grantPayload({ command: 5 }, true)).toEqual({ kind: "json", payload: '{"command":5}' });
     expect(grantPayload(null, true)).toEqual({ kind: "json", payload: "{}" });
     expect(grantPayload({ command: "ls" }, false).kind).toBe("json");
+  });
+
+  it("give inputs that are equal as JSON one key, on purpose", () => {
+    expect(grantPayload({ n: -0 }, false)).toEqual(grantPayload({ n: 0 }, false));
+    expect(grantPayload({ a: [undefined] }, false)).toEqual(grantPayload({ a: [null] }, false));
+    expect(grantPayload({ a: undefined }, false)).toEqual(grantPayload({}, false));
   });
 
   it("refuse an input too deep, too large or not plain data, so the call fails closed", () => {
@@ -57,6 +77,17 @@ describe("grant keys", () => {
         false,
       ),
     ).toThrow();
+    expect(() => grantPayload({ d: new Date(0) }, false)).toThrow();
+    expect(() =>
+      grantPayload(
+        new (class Held {
+          x = 1;
+        })(),
+        false,
+      ),
+    ).toThrow();
+    expect(() => grantPayload({ n: Number.NaN }, false)).toThrow();
+    expect(() => grantPayload({ n: Number.POSITIVE_INFINITY }, false)).toThrow();
     expect(() => grantPayload({ n: 1n }, false)).toThrow();
     expect(() => grantPayload(() => 1, false)).toThrow();
   });

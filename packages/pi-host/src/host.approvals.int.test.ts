@@ -37,7 +37,7 @@ describe("pi-host worker: approval channel", () => {
     host.send({ type: "approval_response", id: ask.id, answer: "deny", cancelled: true });
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(true);
-    expect(JSON.stringify(end)).not.toContain("never\n");
+    expect(toolText(end)).toContain("could not evaluate this call");
     expect(host.records.find((r) => r.type === "audit")).toMatchObject({
       entry: { decision: "denied", reason: "dialog closed" },
     });

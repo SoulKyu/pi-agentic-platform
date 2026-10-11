@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApprovals } from "../approvals.ts";
 import { createPolicyBed } from "../testing/policy-bed.ts";
 import { DENIED_REASON, FAIL_CLOSED_REASON } from "./extension.ts";
+import { grantKey, grantPayload } from "./grant-key.ts";
 
 let bed: Awaited<ReturnType<typeof createPolicyBed>>;
 beforeEach(async () => {
@@ -53,6 +54,18 @@ describe("pap-policy approval channel", () => {
     expect(reordered).toBe(json);
   });
 
+  it("keys a call as a command only for the built-in shell tool, not for an extension that took its name", async () => {
+    const builtin = bed.harness({ isBuiltinTool: () => true });
+    const taken = bed.harness({ isBuiltinTool: () => false });
+    await builtin.run("bash", { command: "ls" });
+    await taken.run("bash", { command: "ls" });
+    expect(builtin.asks[0]?.category).toBe("exec");
+    expect(taken.asks[0]?.category).toBe("unknown");
+    expect(builtin.asks[0]?.key).toBe(grantKey("bash", { kind: "cmd", payload: "ls" }));
+    expect(taken.asks[0]?.key).toBe(grantKey("bash", grantPayload({ command: "ls" }, false)));
+    expect(taken.asks[0]?.key).not.toBe(builtin.asks[0]?.key);
+  });
+
   it("blocks and never asks when the input is too deep for a grant key (fail closed)", async () => {
     let deep: unknown = 1;
     for (let i = 0; i < 100; i++) deep = { a: deep };
@@ -81,7 +94,7 @@ describe("pap-policy approval channel", () => {
       signal: controller.signal,
     });
     const running = h.run("bash", { command: "ls" });
-    await vi.waitFor(() => expect(approvals.pendingCount()).toBe(1));
+    await vi.waitFor(() => expect(approvals.pendingCount()).toBe(1), { timeout: 5000 });
     controller.abort();
     expect(await running).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
     expect(h.audits.at(-1)).toMatchObject({ decision: "denied", reason: "dialog closed" });

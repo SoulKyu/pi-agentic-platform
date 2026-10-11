@@ -11,7 +11,10 @@ export interface ApprovalAsk {
 }
 export interface ApprovalOutcome {
   readonly answer: ApprovalAnswer;
-  /** The question went away unanswered: Stop, a shutdown, or a request that could not leave. */
+  /**
+   * The question went away unanswered: Stop, a shutdown, a request that could not leave or that the schema refuses, the
+   * daemon's `cancelled`, a malformed response, or the cap of pending questions. Never the person's refusal.
+   */
   readonly closed: boolean;
 }
 export type ApprovalOutbound =

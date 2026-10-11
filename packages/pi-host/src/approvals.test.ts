@@ -52,7 +52,7 @@ describe("approvals", () => {
     expect(approvals.pendingCount()).toBe(0);
   });
 
-  it("closes on abort, on cancelAll and when the request cannot be sent, always as a refusal", async () => {
+  it("closes on abort, on cancelAll and when the request cannot be sent, always as closed", async () => {
     const sent: Array<Record<string, unknown>> = [];
     const approvals = createApprovals(
       (record) => {

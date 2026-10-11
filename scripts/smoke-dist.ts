@@ -284,15 +284,13 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
     );
     // The stream keeps the tool's output off `tool_execution_end` (spec C §4.3): it arrives as the tool result message.
     const toolEnd = await session.waitFor(isPi("tool_execution_end"), "the tool end");
-    if (asJson(toolEnd.event).isError === true)
-      throw new Error(`the tool failed: ${JSON.stringify(toolEnd).slice(0, 500)}`);
-    await session.waitFor(
-      (event) =>
-        isPi("message_end")(event) &&
-        JSON.stringify(event).includes('"role":"toolResult"') &&
-        JSON.stringify(event).includes(MARKER),
-      `the tool result printing ${MARKER}`,
-    );
+    if (asJson(toolEnd.event).isError !== false)
+      throw new Error(`the tool failed: ${JSON.stringify(toolEnd)}`);
+    const printed = (event: Json) => {
+      const text = JSON.stringify(event);
+      return isPi("message_end")(event) && text.includes('"role":"toolResult"') && text.includes(MARKER);
+    };
+    await session.waitFor(printed, `the tool result printing ${MARKER}`);
     await session.waitFor(isPi("agent_settled"), "agent_settled");
     step("prompt -> approval -> tool output -> agent_settled");
   } finally {
