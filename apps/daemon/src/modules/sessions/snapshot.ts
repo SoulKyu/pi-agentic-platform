@@ -10,12 +10,15 @@ export const ROW_BYTES = 256 * 1024;
 
 export const sizeOf = (value: unknown): number => Buffer.byteLength(JSON.stringify(value) ?? "null");
 
+/** A role is one word; a row whose role is not is not worth more than this in a placeholder. */
+const MAX_ROLE_CHARS = 64;
+
 /** What stands for a row of `bytes` bytes that was too big to send (R109). */
 export function placeholderRow(row: unknown, bytes: number) {
   const fields =
     typeof row === "object" && row !== null ? (row as { role?: unknown; timestamp?: unknown }) : {};
   return {
-    role: typeof fields.role === "string" ? fields.role : "unknown",
+    role: typeof fields.role === "string" ? fields.role.slice(0, MAX_ROLE_CHARS) : "unknown",
     timestamp: typeof fields.timestamp === "number" ? fields.timestamp : null,
     omitted: true as const,
     bytes,

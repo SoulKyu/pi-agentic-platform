@@ -105,14 +105,29 @@ describe("run tracker", () => {
 
   it("finish ends an open run at once, drops the probes in progress and wakes whoever waits", async () => {
     const { clock, log, tracker } = setup([busy]);
-    expect(tracker.finish(true)).toBe(false);
+    expect(tracker.finish(true, tracker.generation)).toBe(false);
     tracker.onEvent({ type: "agent_start" });
     const waiting = tracker.waitIdle(5000);
     tracker.onEvent({ type: "agent_settled", aborted: false });
-    expect(tracker.finish(true)).toBe(true);
+    expect(tracker.finish(true, tracker.generation)).toBe(true);
     expect(await waiting).toBe(true);
     expect(tracker.running).toBe(false);
     await clock.advance(1000);
+    expect(log).toEqual(["start", "end:true"]);
+  });
+
+  it("finish ends only the run that was there when the caller looked: an agent_start since makes it refuse", () => {
+    const { log, tracker } = setup([idle]);
+    const before = tracker.generation;
+    tracker.onEvent({ type: "agent_start" });
+    expect(tracker.finish(true, before)).toBe(false);
+    expect(tracker.running).toBe(true);
+    const during = tracker.generation;
+    // Another agent_start while the run is open is Pi's word that something started again.
+    tracker.onEvent({ type: "agent_start" });
+    expect(tracker.finish(true, during)).toBe(false);
+    expect(log).toEqual(["start"]);
+    expect(tracker.finish(true, tracker.generation)).toBe(true);
     expect(log).toEqual(["start", "end:true"]);
   });
 

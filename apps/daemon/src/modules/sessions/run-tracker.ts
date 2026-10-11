@@ -14,12 +14,16 @@ export interface RunTrackerDeps {
 export interface RunTracker {
   readonly running: boolean;
   onInput(): void;
+  /** Counts the `agent_start` events seen. It is how a caller that looked at Pi a moment ago can tell Pi has started since. */
+  readonly generation: number;
   /**
    * Ends the open run now, without waiting for `agent_settled`, for the caller that has just seen for itself that Pi has
-   * nothing running (an abort that found Pi idle). A run can be left open by input Pi rejected or handled without ever
-   * starting an agent turn to settle. True when there was a run to end.
+   * nothing running (an abort that found Pi idle, a prompt answered without a turn). A run can be left open by input Pi
+   * rejected or handled without ever starting an agent turn to settle. `generation` is the one the caller read before it
+   * asked Pi: if an `agent_start` has come in since, the answer it saw is stale, Pi is running again, and nothing
+   * ends. True when a run ended.
    */
-  finish(aborted: boolean): boolean;
+  finish(aborted: boolean, generation: number): boolean;
   onEvent(event: { type: string } & Record<string, unknown>): void;
   waitIdle(timeoutMs: number): Promise<boolean>;
   reset(): void;
@@ -36,6 +40,7 @@ export const isIdle = (state: GetStateData) =>
 export function createRunTracker(deps: RunTrackerDeps): RunTracker {
   let running = false;
   let revision = 0;
+  let generation = 0;
   const idleWaiters = new Set<() => void>();
   const wakeWaiters = () => {
     for (const wake of [...idleWaiters]) wake();
@@ -61,17 +66,21 @@ export function createRunTracker(deps: RunTrackerDeps): RunTracker {
     get running() {
       return running;
     },
+    get generation() {
+      return generation;
+    },
     onInput() {
       revision++;
     },
-    finish(aborted) {
-      if (!running) return false;
+    finish(aborted, seen) {
+      if (!running || seen !== generation) return false;
       // Whatever probe is still on its way would find the run gone.
       revision++;
       endRun(aborted);
       return true;
     },
     onEvent(event) {
+      if (event.type === "agent_start") generation++;
       if (event.type === "agent_start" && !running) {
         running = true;
         deps.onRunStart();

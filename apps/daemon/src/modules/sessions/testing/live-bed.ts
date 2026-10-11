@@ -23,6 +23,8 @@ export interface Options {
   compacting?: boolean;
   /** Pi is in the middle of a reply when asked: `get_state` says so. */
   streaming?: boolean;
+  /** How the worker answers a prompt that starts nothing, when it answers at all (default `started`). */
+  disposition?: "started" | "queued" | "handled";
   promptFails?: boolean;
   holdPrompt?: boolean;
   neverReady?: boolean;
@@ -48,12 +50,14 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
     const recorded: Array<[string, unknown]> = [];
     const exits: WorkerExit[] = [];
     const activity = { count: 0 };
-    /** What the worker's `get_state` answers: a test changes it as Pi's run progresses. */
-    const pi = { streaming: options.streaming ?? false };
+    /** What the worker's `get_state` answers (or whether it answers at all): a test changes it as Pi's run progresses. */
+    const pi = { streaming: options.streaming ?? false, holdState: false };
     const worker = createFakeWorker({
       clock,
       reply: (command) => {
         if (command.type === "get_state") {
+          // Held until the test answers it, to put the answer where it wants it among other records.
+          if (pi.holdState) return undefined;
           return {
             data: {
               isStreaming: pi.streaming,
@@ -68,7 +72,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
           if (options.holdPrompt) return undefined;
           return options.promptFails
             ? { success: false, error: "No API key for provider x" }
-            : { data: { disposition: "started" } };
+            : { data: { disposition: options.disposition ?? "started" } };
         }
         return {};
       },

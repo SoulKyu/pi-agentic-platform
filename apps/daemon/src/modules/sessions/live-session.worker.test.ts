@@ -38,7 +38,7 @@ describe("abort", () => {
     expect(live.status()).toBe("idle");
   });
 
-  it("ends a run Pi is not running, and leaves the worker alone: nothing is stuck (R111)", async () => {
+  it("ends a run Pi is not running, tells Pi anyway, and leaves the worker alone (R111, R111b)", async () => {
     const { worker, live, clock, recorded, published } = setup();
     // The run Pi reported but never settled: input it rejected or handled, so no agent_settled will come.
     worker.emit(piEvent({ type: "agent_start" }));
@@ -47,8 +47,42 @@ describe("abort", () => {
     expect(live.status()).toBe("idle");
     expect(published.at(-1)).toEqual({ kind: "status", status: "idle" });
     expect(recorded.at(-1)).toEqual(["run_end", { aborted: true }]);
-    expect(worker.requests.some((request) => request.type === "abort")).toBe(false);
+    // Pi is asked to abort whatever the answer was: it is a no-op for an idle Pi, and the right thing if the answer was stale.
+    expect(worker.requests.some((request) => request.type === "abort")).toBe(true);
     await clock.advance(60_000);
+    expect(worker.stopped()).toBe(false);
+  });
+
+  it("never ends a run that began while it was asking, however the records arrive (R111b)", async () => {
+    const { worker, live, clock, pi, recorded } = setup({ holdPrompt: true });
+    pi.holdState = true;
+    // The user presses Stop as the prompt goes out. Pi's answers come in one batch: get_state (idle, as it was when
+    // asked), the prompt's `started`, then agent_start. Node delivers each record before the continuation of the
+    // response before it, so abort() resumes after all three.
+    const prompt = live.prompt("go");
+    const aborting = live.abort();
+    const id = (type: string) => worker.requests.find((request) => request.type === type)?.id ?? "";
+    worker.respond(id("get_state"), {
+      data: {
+        isStreaming: false,
+        isCompacting: false,
+        pendingMessageCount: 0,
+        sessionFile: "/f",
+        sessionId: "s1",
+      },
+    });
+    worker.respond(id("prompt"), { data: { disposition: "started" } });
+    worker.emit(piEvent({ type: "agent_start" }));
+    await Promise.all([prompt, aborting]);
+    await clock.advance(0);
+    expect(live.status()).toBe("running");
+    expect(recorded).toEqual([["run_start", { origin: "user" }]]);
+    // Pi was told to stop, and that is what ends the run.
+    expect(worker.requests.some((request) => request.type === "abort")).toBe(true);
+    pi.holdState = false;
+    worker.emit(piEvent({ type: "agent_settled", aborted: true }));
+    await clock.advance(0);
+    expect(live.status()).toBe("idle");
     expect(worker.stopped()).toBe(false);
   });
 
@@ -132,5 +166,58 @@ describe("extension errors", () => {
     worker.emit({ ...error, event: "see /etc/passwd now" });
     expect(JSON.stringify(published)).not.toMatch(/abc123|ext\.ts|passwd/);
     expect(published.at(-1)).toEqual({ kind: "notice", level: "error", text: "An extension failed." });
+  });
+});
+
+describe("a run left open by a prompt that started nothing (R111b)", () => {
+  it.each([
+    ["rejected", { promptFails: true }],
+    ["handled", { disposition: "handled" as const }],
+  ])("is ended once the prompt is answered %s and Pi shows nothing running", async (_label, options) => {
+    const { worker, live, clock, recorded } = setup(options);
+    worker.emit(piEvent({ type: "agent_start" }));
+    expect(live.status()).toBe("running");
+    await live.prompt("/command").catch(() => undefined);
+    await clock.advance(0);
+    expect(live.status()).toBe("idle");
+    expect(recorded.at(-1)).toEqual(["run_end", { aborted: false }]);
+    expect(worker.stopped()).toBe(false);
+  });
+
+  it("stays open while Pi is still running, and when there was no run", async () => {
+    const busy = setup({ disposition: "handled", streaming: true });
+    busy.worker.emit(piEvent({ type: "agent_start" }));
+    await busy.live.prompt("/command");
+    await busy.clock.advance(0);
+    expect(busy.live.status()).toBe("running");
+    const none = setup({ disposition: "handled" });
+    await none.live.prompt("/command");
+    await none.clock.advance(0);
+    expect(none.live.status()).toBe("idle");
+    expect(none.recorded).toEqual([]);
+    expect(none.worker.requests.some((request) => request.type === "get_state")).toBe(false);
+  });
+
+  it("does not end a run that began while it was looking", async () => {
+    const { worker, live, clock, pi, recorded } = setup({ promptFails: true });
+    worker.emit(piEvent({ type: "agent_start" }));
+    pi.holdState = true;
+    const rejected = live.prompt("x").catch(() => undefined);
+    await clock.advance(0);
+    const stateId = worker.requests.find((request) => request.type === "get_state")?.id ?? "";
+    worker.respond(stateId, {
+      data: {
+        isStreaming: false,
+        isCompacting: false,
+        pendingMessageCount: 0,
+        sessionFile: "/f",
+        sessionId: "s1",
+      },
+    });
+    worker.emit(piEvent({ type: "agent_start" }));
+    await rejected;
+    await clock.advance(0);
+    expect(live.status()).toBe("running");
+    expect(recorded).toEqual([["run_start", { origin: "user" }]]);
   });
 });

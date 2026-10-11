@@ -112,6 +112,19 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     },
   });
 
+  // Input Pi rejected or handled without a turn leaves no agent_settled to wait for. If the daemon holds a run open and
+  // Pi shows nothing running, the run is over (R111b). Not awaited: the answer to the client does not wait for a
+  // probe. The generation read first keeps it from ending a run that began since.
+  function closeStaleRun(): void {
+    if (!tracker.running) return;
+    const generation = tracker.generation;
+    void getState()
+      .then((state) => {
+        if (isIdle(state)) tracker.finish(false, generation);
+      })
+      .catch(() => undefined);
+  }
+
   const ready = new Promise<ReadyRecord>((resolve, reject) => {
     const timer = deps.clock.setTimeout(() => {
       off();
@@ -260,22 +273,29 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       });
       if (!response.success) {
         logger.info("prompt_rejected", { error: clip(response.error ?? "") });
+        closeStaleRun();
         throw new PapError("prompt_rejected");
       }
       const disposition = (response.data as { disposition?: unknown } | undefined)?.disposition;
+      if (disposition === "handled") closeStaleRun();
       return { disposition: disposition === "queued" || disposition === "handled" ? disposition : "started" };
     },
     // One deadline for the whole abort: a worker that has not settled 5 s after it was asked is terminated.
     async abort() {
+      // Read before asking: a run that begins while get_state is on its way is not the run this abort found.
+      const generation = tracker.generation;
       const state = await getState().catch(() => null);
       if (!state || state.isCompacting) {
         await handle.stop();
         return;
       }
-      // Pi has nothing running, so there is nothing to abort and nothing to wait for: the run the daemon still holds
-      // open (input that Pi rejected or handled without a turn) ends here, and the worker is left alone (R111).
       if (isIdle(state)) {
-        tracker.finish(true);
+        // Pi had nothing running when it answered, so the run the daemon still holds open (input Pi rejected or
+        // handled without a turn) is over, unless Pi started again since: records arrive in a batch, and this
+        // continuation can run after a prompt's `started` and its `agent_start` (R111b). Pi is told to abort all the
+        // same. It does nothing if it is idle, and stops the run if the answer was stale. The worker is left alone.
+        handle.request({ type: "abort" }, ABORT_SETTLE_MS).catch(() => undefined);
+        tracker.finish(true, generation);
         return;
       }
       const settled = tracker.waitIdle(ABORT_SETTLE_MS);

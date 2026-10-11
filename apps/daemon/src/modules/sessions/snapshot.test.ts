@@ -86,6 +86,20 @@ describe("fitSnapshot", () => {
       ]);
     });
 
+    it("clips a role to 64 characters, and takes a role that is not text for unknown", () => {
+      const pathological = { role: "r".repeat(100_000), timestamp: 1, content: "x".repeat(ROW_BYTES + 10) };
+      const snapshot = fitSnapshot({
+        status: "idle",
+        rows: [pathological, { role: { not: "text" }, content: "x".repeat(ROW_BYTES + 10) }],
+        dialogs: [],
+      });
+      if (snapshot.kind !== "snapshot") throw new Error("expected a snapshot");
+      const [first, second] = snapshot.messages as Array<{ role: string }>;
+      expect(first?.role).toBe("r".repeat(64));
+      expect(second?.role).toBe("unknown");
+      expect(sizeOf(snapshot)).toBeLessThan(1000);
+    });
+
     it("keeps a placeholder a run already made as it is", () => {
       const placeholder = { role: "toolResult", timestamp: 3, omitted: true, bytes: 999_999 };
       const snapshot = fitSnapshot({ status: "idle", rows: [row(1), placeholder], dialogs: [] });
