@@ -1,4 +1,6 @@
 export const shellEn = {
+  "ui.dismiss": "Dismiss",
+  "ui.close": "Close",
   "server.notice.messageTooLarge": "A message was too large to stream.",
   "server.notice.dialogTooLarge":
     "An extension asked a question that was too large to show. It was cancelled.",
@@ -14,6 +16,8 @@ export const shellEn = {
 } as const;
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
+  "ui.dismiss": "Fermer",
+  "ui.close": "Fermer",
   "server.notice.messageTooLarge": "Un message était trop volumineux pour être diffusé.",
   "server.notice.dialogTooLarge":
     "Une extension a posé une question trop volumineuse pour être affichée. Elle a été annulée.",

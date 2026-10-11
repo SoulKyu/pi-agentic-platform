@@ -36,6 +36,7 @@ export {
   IconWarning,
   IconWork,
 } from "./icons.ts";
+export { useIsPhone, useMediaQuery } from "./media.ts";
 export { once } from "./once.ts";
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from "./primitives/Button.tsx";
 export { Checkbox, type CheckboxProps } from "./primitives/Checkbox.tsx";
@@ -45,7 +46,9 @@ export { Badge } from "./primitives/Badge.tsx";
 export { Banner, type BannerProps, type BannerTone } from "./primitives/Banner.tsx";
 export { Chip, type ChipTone } from "./primitives/Chip.tsx";
 export { Collapsible, type CollapsibleProps } from "./primitives/Collapsible.tsx";
+export { Dialog, type DialogProps, type DialogVariant } from "./primitives/Dialog.tsx";
 export { EmptyState } from "./primitives/EmptyState.tsx";
+export { Menu, type MenuItem, type MenuProps } from "./primitives/Menu.tsx";
 export { Meter, type MeterProps } from "./primitives/Meter.tsx";
 export { OpenTab, type OpenTabProps } from "./primitives/OpenTab.tsx";
 export { Icon, type IconProps } from "./primitives/Icon.tsx";
@@ -57,6 +60,7 @@ export { Select, type Option, type SelectProps } from "./primitives/Select.tsx";
 export { Slider, type SliderProps } from "./primitives/Slider.tsx";
 export { Spinner } from "./primitives/Spinner.tsx";
 export { Switch, type SwitchProps } from "./primitives/Switch.tsx";
+export { dismissToast, toast, Toaster, type ToastInput } from "./primitives/Toast.tsx";
 export { Tooltip, TooltipProvider, type TooltipProps } from "./primitives/Tooltip.tsx";
 export { TextField, type TextFieldProps } from "./primitives/TextField.tsx";
 export { PRESET_TOKENS } from "./presets.ts";

@@ -1,5 +1,6 @@
-import { act, type ReactElement } from "react";
+import { act, createElement, type ReactElement } from "react";
 import { createRoot } from "react-dom/client";
+import { TooltipProvider } from "../primitives/Tooltip.tsx";
 
 // React only batches updates inside act() when the environment says it is a test.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -32,6 +33,13 @@ export async function mount(element: ReactElement): Promise<Mounted> {
       container.remove();
     },
   };
+}
+
+/** `mount` inside the TooltipProvider that every IconButton needs; `rerender` keeps the provider. */
+export async function mountWithTooltips(element: ReactElement): Promise<Mounted> {
+  const wrap = (inner: ReactElement) => createElement(TooltipProvider, null, inner);
+  const page = await mount(wrap(element));
+  return { ...page, rerender: (next) => page.rerender(wrap(next)) };
 }
 
 export async function click(element: Element): Promise<void> {
