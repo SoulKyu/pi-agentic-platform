@@ -44,8 +44,22 @@ const reloads = () =>
 
 describe("a palette chunk that is gone (M3-RT-15)", () => {
   it("leaves the shell standing, says to reload, and tries again on the next open", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const expectedErrors: string[] = [];
+    const expectedWarns: string[] = [];
+    const realError = console.error;
+    const realWarn = console.warn;
+    // Only the two known messages are swallowed (and asserted below); anything else still reaches the console.
+    vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+      const line = args.map(String).join(" ");
+      if (line.includes("There was an error when mocking a module"))
+        expectedErrors.push("mock-factory-threw");
+      else realError(...args);
+    });
+    vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => {
+      const line = args.map(String).join(" ");
+      if (line === "pap: lazy_chunk_failed") expectedWarns.push(line);
+      else realWarn(...args);
+    });
     const page = await renderShell("/");
     await press(document.body, { key: "k", code: "KeyK", ctrlKey: true });
     await vi.waitFor(() => expect(reloads()).toBe(1), { timeout: 2_000 });
@@ -55,6 +69,10 @@ describe("a palette chunk that is gone (M3-RT-15)", () => {
     await press(document.body, { key: "k", code: "KeyK", ctrlKey: true });
     await vi.waitFor(() => expect(reloads()).toBe(2), { timeout: 2_000 });
     expect(page.container.querySelector('[data-shell="desktop"]')).not.toBeNull();
+    expect([expectedErrors, expectedWarns]).toEqual([
+      ["mock-factory-threw", "mock-factory-threw"],
+      ["pap: lazy_chunk_failed"], // the client log says each code once
+    ]);
     await page.unmount();
   });
 });

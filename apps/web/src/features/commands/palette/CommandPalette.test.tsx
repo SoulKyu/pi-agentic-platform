@@ -2,6 +2,10 @@
 import { TooltipProvider } from "@pap/ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
+import { COMMANDS, DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../defaults.ts";
+import { installDispatcher } from "../dispatcher.ts";
+import { registerCommand } from "../registry.ts";
+import { mergeWithDefaults } from "../resolve.ts";
 import { mount, press, settle, typeInto, type Mounted } from "../../../testing/dom.ts";
 import CommandPalette from "./CommandPalette.tsx";
 import type { PaletteItem } from "./rank.ts";
@@ -73,14 +77,31 @@ describe("CommandPalette", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("does not handle the browser's tab digits", async () => {
-    await open();
-    const event = await press(input(), { key: "2", code: "Digit2", ctrlKey: true });
-    expect([event.defaultPrevented, runs.split.mock.calls.length, runs.settings.mock.calls.length]).toEqual([
-      false,
-      0,
-      0,
-    ]);
+  it("binds no digit chord while the palette is open: the real dispatcher claims none of them", async () => {
+    const platform = "other";
+    const { rules } = mergeWithDefaults(DEFAULT_KEYBINDINGS, [], KNOWN_COMMANDS);
+    const claimed = vi.fn();
+    const offs = COMMANDS.map((command) => registerCommand(command.id, () => void claimed(command.id)));
+    const stop = installDispatcher({
+      win: window,
+      platform,
+      rules: () => rules,
+      shell: () => ({ mobile: false, treeOpen: false }),
+    });
+    try {
+      await open();
+      const events = [];
+      for (const digit of "123456789") {
+        events.push(await press(input(), { key: digit, code: `Digit${digit}`, ctrlKey: true }));
+        events.push(await press(input(), { key: digit, code: `Digit${digit}`, altKey: true }));
+        events.push(await press(input(), { key: digit, code: `Digit${digit}`, ctrlKey: true, altKey: true }));
+      }
+      expect([events.length, events.filter((event) => event.defaultPrevented).length]).toEqual([27, 0]);
+      expect(claimed).not.toHaveBeenCalled();
+    } finally {
+      stop();
+      offs.forEach((off) => off());
+    }
   });
 
   it("says when nothing matches, and when no action does", async () => {
@@ -115,6 +136,7 @@ describe("CommandPalette", () => {
     expect(document.querySelector("[cmdk-empty]")?.textContent).toBe(
       "Aucun résultat. Essayez un dossier, un réglage ou une action.",
     );
+    expect(live()).toBe("0 résultat");
     await settle();
   });
 

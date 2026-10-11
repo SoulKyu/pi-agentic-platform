@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
-import { startKeybindings } from "../../features/commands/index.ts";
+import { registerCommand, startKeybindings } from "../../features/commands/index.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { press, settle, typeInto } from "../../testing/dom.ts";
@@ -81,11 +81,32 @@ describe("the palette in the shell", () => {
     await settle();
     expect(page.router.state.location.pathname).toBe("/s/abc");
     expect(listbox()).toBeNull();
-    await ctrlK();
-    await waitOpen();
-    await press(document.querySelector("input") as HTMLInputElement, { key: "Escape" });
-    await settle();
-    expect(listbox()).toBeNull();
     await page.unmount();
+  });
+
+  it("Escape inside the palette closes the palette and never stops the run", async () => {
+    const stop = vi.fn();
+    const off = registerCommand("session.stop", stop);
+    const page = await renderShell("/s/abc");
+    await settle();
+    // The focus is in the dialog's portal, so mark the page as a focused session to make the rule eligible.
+    document.body.setAttribute("data-pane-kind", "session");
+    try {
+      await press(document.body, { key: "Escape" });
+      expect(stop).toHaveBeenCalledOnce(); // premise: with no palette open, this Escape stops the run
+      stop.mockClear();
+      await ctrlK();
+      await waitOpen();
+      await settle();
+      const field = document.querySelector("input") as HTMLInputElement;
+      expect(document.activeElement).toBe(field);
+      await press(field, { key: "Escape" });
+      await settle();
+      expect([listbox(), stop.mock.calls.length]).toEqual([null, 0]);
+    } finally {
+      document.body.removeAttribute("data-pane-kind");
+      off();
+      await page.unmount();
+    }
   });
 });

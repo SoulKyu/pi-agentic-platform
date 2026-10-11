@@ -2,9 +2,10 @@ import { Kbd } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { Command } from "cmdk";
 import { useMemo, useRef, useState } from "react";
-import { useT } from "../../../i18n/index.ts";
+import { useLocale, useT } from "../../../i18n/index.ts";
 import type { Platform } from "../keys.ts";
 import { rankItems, type PaletteItem } from "./rank.ts";
+import { resultCountLabel } from "./result-count.ts";
 
 interface CommandPaletteProps {
   readonly open: boolean;
@@ -19,13 +20,11 @@ interface CommandPaletteProps {
  */
 export default function CommandPalette({ open, onOpenChange, items }: CommandPaletteProps) {
   const t = useT();
+  const locale = useLocale();
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
   const ranked = useMemo(() => rankItems(items, query), [items, query]);
-  const announced =
-    ranked.count === 1
-      ? t("commands.palette.countOne")
-      : t("commands.palette.count", { count: ranked.count });
+  const announced = resultCountLabel(locale, t, ranked.count);
   return (
     <Dialog
       open={open}

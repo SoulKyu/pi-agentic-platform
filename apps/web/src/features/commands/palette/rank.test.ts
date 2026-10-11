@@ -52,4 +52,41 @@ describe("palette ranking (T3 CommandPalette.logic.ts)", () => {
     ];
     expect(ids(rankItems(pool, "app"))).toEqual(["new", "old", "late"]);
   });
+  it("puts an exact title match before a prefix, and a prefix before a substring (same group)", () => {
+    const pool = [
+      item("sub", "sessions", "my bar"),
+      item("pre", "sessions", "bar tools"),
+      item("exact", "sessions", "bar"),
+    ];
+    expect(ids(rankItems(pool, "bar"))).toEqual(["exact", "pre", "sub"]);
+  });
+  it("after > returns actions only, even when sessions and settings match the words", () => {
+    expect(ids(rankItems(items, "> settings"))).toEqual(["a1"]);
+    expect(ids(rankItems(items, "settings"))).toEqual(["a1", "s2"]);
+    const bare = rankItems(items, ">");
+    expect([ids(bare), bare.count, bare.actionsOnly]).toEqual([["a1", "a2"], 2, true]);
+  });
+  it("keeps the given order for equal score and equal recency", () => {
+    const pool = [
+      item("second", "actions", "run one", { searchTerms: ["run"] }),
+      item("first", "actions", "run two", { searchTerms: ["run"] }),
+    ];
+    expect(ids(rankItems(pool, "run"))).toEqual(["second", "first"]);
+  });
+  it("caps every group on its own and counts all matches", () => {
+    const pool = [
+      ...Array.from({ length: 70 }, (_, i) => item(`o${i}`, "open", `file ${i}`)),
+      ...Array.from({ length: 3 }, (_, i) => item(`a${i}`, "actions", `file action ${i}`)),
+      ...Array.from({ length: 55 }, (_, i) => item(`s${i}`, "sessions", `file session ${i}`)),
+    ];
+    const result = rankItems(pool, "file");
+    expect([result.groups.map((g) => [g.group, g.items.length]), result.count]).toEqual([
+      [
+        ["open", 50],
+        ["actions", 3],
+        ["sessions", 50],
+      ],
+      128,
+    ]);
+  });
 });
