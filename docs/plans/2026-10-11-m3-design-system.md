@@ -10896,4 +10896,18 @@ The 14 M2 ⇄ M3 cross-plan agreements (`.superpowers/m2-m3-cross-plan-agreement
 | `AGENTS.md` | maybe lines | the `docs/agents/web.md` topic note | union |
 | `.github/workflows/ci.yml` | maybe a job or step | none (no e2e job, owner C1) | M2's |
 
+**Rebase hints from the final review (round 2).** What the M3 fixes changed under M2's feet, beyond the table above:
+
+- `Toaster` takes a required `regionLabel`: any M2 test that mounts `<Toaster>` must pass it.
+- `createAccountDocument`'s `merge` takes a 4th argument `base`; an M2 document that merges by field can ignore it.
+- `LazyPanel` moved from `routes/shell/` to `lib/LazyPanel.tsx` and takes a `text` prop (`useLazyFailureText()`); `lib/LazyMenu.tsx` is the shared lazy overlay menu.
+- `PANE_RENDERERS.session` goes through `LazyPane`: the session screen is its own chunk. `build-output.int.test.ts` pins it with the marker `"data-failure"` and fails closed; if M2 moves the failure line out of the session subtree, pick another marker only the session screen has.
+- Any shell-level test that reads a session pane must `vi.waitFor` it (the screen is lazy).
+- P-list item (P6 lever): move M2's `sessions.*` strings (about 68 keys, about 3 KB gzip) from the eager block of `en.ts` / `fr.ts` to a lazy catalog registered by the session chunk (`registerCatalog`, as `settings-screen.ts` does).
+- P7 removes THREE exclusion copies of `M2_OWNED_UNTIL_P7`: `scripts/class-coverage.ts`, `scripts/literal-coverage.ts` and `apps/web/src/compiler-gate.test.ts:11`.
+- Do not re-stamp M3's settings migration unless M2's final stamp sorts after `202610111000`; a home that already applied it reads a renamed one as `database_newer_than_binary` and opens read-only.
+- `@pap/contracts` has `"sideEffects": false`: check that none of M2's contracts files has a top-level side effect, or the web build drops it silently.
+- `ApprovalAnswer` is exported by both `@pap/ui` and `@pap/contracts` (M2's is a value plus a type): P3 aliases one of them.
+- P3 musts: `min-w-0 truncate` on the ToolCard name before it shows extension names; highlight settled code fences only (or debounce), not every streaming delta.
+
 After the rebase: `pnpm install && pnpm lint && pnpm format:check && pnpm typecheck && pnpm knip && pnpm test:unit && pnpm test:int && pnpm build && pnpm smoke && pnpm budgets`, then P7 → P3 → P2 → P1 → P4 → P5 → P6.
