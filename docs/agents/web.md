@@ -6,7 +6,8 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 
 - The URL names the active item. `PANE_RENDERERS` (`pane-renderers.tsx`) maps an item kind to its screen; only the active tab of a pane is mounted.
 - The workspace (tabs, split) persists in `localStorage` as `pap.workspace.v1`; a damaged value is dropped, not repaired.
-- Lazy screens go through `lib/lazy.tsx` (`LazyBoundary`): a chunk that fails to load renders nothing and reports `lazy_chunk_failed`; the shell stays standing.
+- Lazy parts go through `lib/lazy.tsx` (`LazyBoundary`, `useRetryableLazy`): `LazyPanel` (drawers, palette, help, theme editor), `LazyMenu` (the rail's account menu and the split header, one shared lazy `@pap/ui/overlays` menu) and `LazyPane` (Settings, the session screen). A chunk that fails to load or a part that throws leaves the shell standing and shows a toast with Reload: `lazy_chunk_failed` for a gone chunk (`isStaleChunk`), `render_failed` with a generic message for anything else. The exceptions are the dev-only gallery (no chunk in production) and the lazy primitives behind `Suspense` in `@pap/ui`. The words come from `useLazyFailureText()`; `lib/` never imports the catalogs.
+- The session screen is a lazy chunk (`pane-renderers.tsx`), the session list (home) is eager. Tests that look for a session pane wait with `vi.waitFor`.
 - Phone: `MobileShell` (bottom nav, one pane, sheets) replaces the rail layout under the breakpoint; it is in the initial bundle.
 
 ## Appearance (`features/appearance/`)
@@ -24,9 +25,9 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 
 ## Commands (`features/commands/`)
 
-- `registry.ts` holds the command specs; `defaults.ts` the default chords (each has `!panelFocus`, Escape also `!overlayOpen`); the user's rules live per account (`keybindings-store.ts`, `pap.keybindings.v1`) and merge over the defaults in `resolve.ts`.
+- `defaults.ts` holds the command specs (`COMMANDS`) and the default chords (each has `!panelFocus`, Escape also `!overlayOpen`); `registry.ts` only the handlers that mounted components register. The user's rules live per account (`keybindings-store.ts`, `pap.keybindings.v1`) and merge over the defaults in `resolve.ts`.
 - `when` keys (`CONTEXT_KEYS`): `editableFocus`, `dialogOpen`, `overlayOpen`, `panelFocus` (focus inside `[data-terminal-input]`), `paletteOpen`, `treeOpen`, `sessionFocus`, `mobile`.
-- The dispatcher bails out on a composition (IME `keyCode` 229, `isComposing`), on AltGr, on a lone modifier and on a reserved chord (`RESERVED` in `resolve.ts`, per platform). The recorder stores digits and punctuation by physical key (`event.code`), letters by layout key.
+- The dispatcher bails out on a composition (IME `keyCode` 229, `isComposing`), on AltGr, and on a lone modifier. It does not bail out on a reserved chord: only the recorder and the JSON import refuse one (`isReserved`, `RESERVED` in `resolve.ts`, per platform). The recorder stores digits and punctuation by physical key (`event.code`), letters by layout key.
 - The editor (`editor/`, lazy) shows conflicts and overlapping clauses; a JSON import that would wipe the bindings is refused.
 
 ## i18n (`i18n/`)
@@ -43,7 +44,7 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 
 ## Gates
 
-- Class coverage (`scripts/class-coverage.ts`): every class in `className`, `cn(...)` and constants named `*CLASSES|VARIANTS|SIZES|TONES|STYLE|RING` must compile with the real Tailwind config. Class lists live only there. `features/sessions` is scanned from P7.
+- Class coverage (`scripts/class-coverage.ts`): every class in `className`, `cn(...)` and constants named `*CLASSES|VARIANTS|SIZES|TONES|STYLE|RING` must compile with the real Tailwind config. Class lists live only there. `features/sessions` is excluded until P7 (three copies of the exclusion, all removed at P7: `scripts/class-coverage.ts`, `scripts/literal-coverage.ts`, `apps/web/src/compiler-gate.test.ts`).
 - Compiler gate (`compiler-gate.test.ts`, `compiler-pipeline.int.test.ts`): React Compiler runs over `@pap/ui` and the app.
 - `pap/no-native-title`: icon buttons use a labelled tooltip, never `title`. Touch targets: the gallery probe checks classes for 44 px under `pointer: coarse`; it does not measure.
 - `build-output.int.test.ts`: no inline script, boot script first, fonts as files, no WebAssembly, no gallery in any prod asset, and lazy-only markers (Settings, palette `cmdk-input`, the overlays `data-pap-modal` and the shortcuts help `data-command`, primitives, shortcuts editor, theme editor, markdown), and the zod chunk loading without an eval attempt absent from every initial file; the initial size is held to `budgets.json`.
@@ -51,9 +52,13 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 ## Bundle
 
 - `@pap/ui` declares `"sideEffects": ["*.css"]` and `@pap/contracts` `"sideEffects": false`. Without it, barrel re-exports pin every re-exported module (and its dependencies) into the initial graph even when unused. Import lazy-only features from their own file, not from a feature `index.ts`.
-- Measured on the M3 build: initial 192.1 KB gzip (JS and CSS, 15 files; 192.4 before `sideEffects: false` on contracts). `budgets.json` is 200: 192.1 x 1.10 rounds up to 212, capped at the owner ceiling of 200. About 8 KB of headroom.
+- Measured on the M3 build: initial 189.8 KB gzip (JS and CSS, 17 files) once the session screen is lazy (192.9 KB, 15 files before; 192.1 at the final review). It was 192.4 before `sideEffects: false` on contracts. `budgets.json` is 200: 192.1 x 1.10 rounds up to 212, capped at the owner ceiling of 200. About 10 KB of headroom.
 - Largest lazy chunks (gzip): shiki core `highlight` 47.3 KB, markdown `render` 46.3 KB, Settings 34.7 KB, `javascript`/`jsx`/`tsx`/`typescript` grammars about 15.5 KB each, `overlays` 14.4 KB, palette 5.9 KB, theme editor 3.7 KB. `pnpm budgets` prints all of them.
-- Biggest initial item: `runtime-*` (zod, about 29 KB gzip). Not reduced (`zod/mini` and a lazy `MobileShell` were left out of M3).
+- Biggest initial item after the entry: `settings-*` (zod and the contracts settings schemas, about 25 KB gzip). Not reduced (`zod/mini` and a lazy `MobileShell` were left out of M3).
+
+## zod and the CSP
+
+- zod probes for `eval` (`new Function("")`) when it builds its first object schema, which the daemon's CSP forbids (R74). `vite.config.ts` aliases `zod` to `csp-safe-zod.ts` in the web build only: it calls `config({ jitless: true })` right after zod evaluates, so every chunk that builds schemas sees it, whatever the chunk order. `main.tsx` still imports the file first. `build-output.int.test.ts` loads the built zod chunk with string evaluation refused and expects zero attempts.
 
 ## Deferred (not done, not checked)
 

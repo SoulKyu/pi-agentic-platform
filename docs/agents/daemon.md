@@ -43,6 +43,14 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 - In `--dev` the address and `DaemonHandle.setupUrl` carry the Vite origin (`http://localhost:5173`), because that is where the browser is (R31).
 - After the owner exists a restart prints no `setup_url`.
 
+## Settings (`modules/settings/`)
+
+- Account-scope documents: one JSON text per owner and key (`appearance`, `keybindings`) in the `settings` table. `settings.get` returns `{ value, revision }` (`null`, 0 when nothing is stored); `settings.set` takes `{ key, value, baseRevision }`. The RPC layer decodes the value against the contracts schema before the service sees it.
+- Compare-and-set (owner R3-4): `store.put` is one statement. `baseRevision` 0 inserts and does nothing when a row exists; any other value updates only `WHERE revision = $baseRevision`. No row returned means `conflict`, and nothing is written. The client re-reads, merges and retries once (see `docs/agents/web.md`).
+- A document over `MAX_SETTING_BYTES` (128 KiB of UTF-8 JSON) is `payload_too_large`.
+- A stored row that no longer parses reads as "no setting" (`value: null`, the row's revision) and logs the warn line `settings_row_unreadable` with the key only. The client falls back to its defaults and its next write, based on that revision, replaces the row.
+- The migration `202610111000_settings.sql` sorts after M2's `202610110100_policy.sql`. Re-stamp it only if another milestone's newest stamp sorts after it, and never for a home that already applied it: an applied id missing from the sources is `database_newer_than_binary` and the daemon opens read-only. Such a home needs a reset.
+
 ## Tests
 
 - `startTestDaemon(script, { tls?, config?, deps? })` boots a daemon on a free port in a temporary home, on the scripted provider and under the network guard (R94); the worker gets a minimal environment, never the outer process's `PI_*` or `HOME`. It removes its temporary directory when the start fails. Its client rejects a call that gets no response within 30 s and never retries a mutation (R105).
