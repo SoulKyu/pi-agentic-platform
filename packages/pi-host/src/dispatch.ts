@@ -20,6 +20,8 @@ export interface DispatchDeps {
   readonly session: AgentSession;
   readonly ipc: Ipc;
   readonly ui: UiBridge;
+  /** Called after a command that may have moved Pi's leaf has answered. */
+  leafMayHaveMoved(): void;
   rules(): PolicyRules;
   setRules(rules: PolicyRules): void;
 }
@@ -52,7 +54,10 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         background("compact", handleCompact(session, record, send));
         return;
       case "navigate_tree":
-        background("navigate_tree", handleNavigateTree(session, record, send));
+        background(
+          "navigate_tree",
+          handleNavigateTree(session, record, send).then(() => deps.leafMayHaveMoved()),
+        );
         return;
       case "set_session_name":
         handleSetSessionName(session, record, send);

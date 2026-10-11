@@ -1,6 +1,6 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { PolicyRules } from "@pap/contracts";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createDispatch } from "./dispatch.ts";
 import type { Ipc } from "./ipc.ts";
 import type { UiBridge } from "./ui-bridge.ts";
@@ -19,6 +19,7 @@ describe("dispatch", () => {
       session: {} as AgentSession,
       ipc: { send: (record: Record<string, unknown>) => void sent.push(record) } as unknown as Ipc,
       ui: {} as UiBridge,
+      leafMayHaveMoved: () => {},
       rules: () => rules,
       setRules: (next) => {
         rules = next;
@@ -29,5 +30,23 @@ describe("dispatch", () => {
     expect(sent).toEqual([expect.objectContaining({ type: "extension_error", event: "policy_update" })]);
     dispatch({ type: "policy_update", rules: withAlways });
     expect(rules).toEqual(withAlways);
+  });
+
+  it("asks for a look at the leaf after navigate_tree has answered, in that order", async () => {
+    const order: string[] = [];
+    const session = {
+      navigateTree: async () => ({ cancelled: false }),
+      sessionManager: { getLeafId: () => "e7" },
+    } as unknown as AgentSession;
+    const dispatch = createDispatch({
+      session,
+      ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
+      ui: {} as UiBridge,
+      leafMayHaveMoved: () => void order.push("look"),
+      rules: () => withAlways,
+      setRules: () => {},
+    });
+    dispatch({ type: "navigate_tree", id: "n1", targetId: "e7" });
+    await vi.waitFor(() => expect(order).toEqual(["response", "look"]));
   });
 });

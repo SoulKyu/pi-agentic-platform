@@ -4,6 +4,18 @@ export interface ToolCallView {
   readonly summary: string;
 }
 
+export type MessageRole =
+  "user" | "assistant" | "toolResult" | "compactionSummary" | "branchSummary" | "custom" | "other";
+
+const KNOWN_ROLES: ReadonlySet<unknown> = new Set([
+  "user",
+  "assistant",
+  "toolResult",
+  "compactionSummary",
+  "branchSummary",
+  "custom",
+]);
+
 export interface MessageView {
   /** The Pi entry this row came from, null for a live message Pi has not written an entry for yet. */
   readonly entryId: string | null;
@@ -11,8 +23,10 @@ export interface MessageView {
   readonly key: string;
   /** What names the message in Pi's data: a tool result by its call, any other by role and time. */
   readonly ref: string;
-  readonly role: "user" | "assistant" | "toolResult" | "other";
+  readonly role: MessageRole;
   readonly text: string;
+  /** How many tokens a compaction summarised, null for any other message. */
+  readonly tokensBefore: number | null;
   readonly toolCalls: readonly ToolCallView[];
   /** Why the provider failed (clipped), "" when it gave no reason, null when the message did not fail. */
   readonly error: string | null;
@@ -47,7 +61,8 @@ const truncatedChars = (marker: unknown): number | null => {
   return Number.isFinite(chars) ? chars : null;
 };
 
-export function toMessageView(raw: unknown, entryId: string | null = null): MessageView {
+/** Null for a message that is not shown: a custom message its extension marked `display: false`. */
+export function toMessageView(raw: unknown, entryId: string | null = null): MessageView | null {
   const message = (raw ?? {}) as {
     role?: unknown;
     content?: unknown;
@@ -58,21 +73,25 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     omitted?: unknown;
     bytes?: unknown;
     papTruncated?: unknown;
+    summary?: unknown;
+    tokensBefore?: unknown;
+    display?: unknown;
   };
-  const role =
-    message.role === "user" || message.role === "assistant" || message.role === "toolResult"
-      ? message.role
-      : "other";
+  if (message.role === "custom" && message.display === false) return null;
+  const role = KNOWN_ROLES.has(message.role) ? (message.role as MessageRole) : "other";
   const blocks: Array<Record<string, unknown>> =
     typeof message.content === "string"
       ? [{ type: "text", text: message.content }]
       : Array.isArray(message.content)
         ? (message.content as Array<Record<string, unknown>>)
         : [];
-  const text = blocks
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text as string)
-    .join("");
+  const text =
+    (role === "compactionSummary" || role === "branchSummary") && typeof message.summary === "string"
+      ? message.summary
+      : blocks
+          .filter((block) => block.type === "text" && typeof block.text === "string")
+          .map((block) => block.text as string)
+          .join("");
   const toolCalls = blocks
     .filter((block) => block.type === "toolCall")
     .map((block) => ({
@@ -90,6 +109,12 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     ref,
     role,
     text,
+    tokensBefore:
+      role === "compactionSummary" &&
+      typeof message.tokensBefore === "number" &&
+      Number.isFinite(message.tokensBefore)
+        ? message.tokensBefore
+        : null,
     toolCalls,
     error: failed
       ? clip(typeof message.errorMessage === "string" ? message.errorMessage : "", MAX_ERROR)

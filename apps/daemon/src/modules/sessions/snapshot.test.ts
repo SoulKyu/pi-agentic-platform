@@ -1,6 +1,13 @@
 import { type Dialog, SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
-import { fitSnapshot, PARTIAL_BYTES, ROW_BYTES, SNAPSHOT_BYTES, SNAPSHOT_ROWS } from "./snapshot.ts";
+import {
+  fitSnapshot,
+  PARTIAL_BYTES,
+  ROW_BYTES,
+  SNAPSHOT_BYTES,
+  SNAPSHOT_ROWS,
+  withTrimmedHistory,
+} from "./snapshot.ts";
 
 const sizeOf = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 const message = (n: number, filler = "") => ({ role: "user", content: `m${n}${filler}` });
@@ -235,5 +242,67 @@ describe("fitSnapshot", () => {
     });
     expect(SessionStreamEvent.safeParse(snapshot).success).toBe(true);
     expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThanOrEqual(SNAPSHOT_BYTES);
+  });
+});
+
+describe("withTrimmedHistory", () => {
+  const anchor = (n: number, role = "user") => ({ entryId: `e${n}`, message: { role, content: `m${n}` } });
+  const page = { hasMore: false, oldestEntryId: "e1", turnsBefore: 0 };
+
+  it("passes the page's own history when nothing was left out", () => {
+    const offered = [anchor(1), anchor(2)];
+    const snapshot = fitSnapshot({ status: "idle", rows: offered, dialogs: [] });
+    expect(withTrimmedHistory(snapshot, offered, { ...page, hasMore: true, turnsBefore: 4 }).history).toEqual(
+      {
+        hasMore: true,
+        oldestEntryId: "e1",
+        turnsBefore: 4,
+      },
+    );
+  });
+
+  it("points the history at the oldest row kept and counts the turns left out above it", () => {
+    const offered = [
+      anchor(1, "assistant"),
+      anchor(2, "user"),
+      anchor(3, "compactionSummary"),
+      anchor(4, "toolResult"),
+      ...Array.from({ length: SNAPSHOT_ROWS }, (_, i) => anchor(10 + i, "assistant")),
+    ];
+    const snapshot = fitSnapshot({ status: "idle", rows: offered, dialogs: [] });
+    expect(snapshot.rows).toHaveLength(SNAPSHOT_ROWS);
+    expect(withTrimmedHistory(snapshot, offered, { ...page, turnsBefore: 5 }).history).toEqual({
+      hasMore: true,
+      oldestEntryId: "e10",
+      turnsBefore: 7,
+    });
+  });
+
+  it("skips kept rows that have no entry id yet when it names the oldest", () => {
+    const offered = [
+      anchor(1),
+      { entryId: null, message: { role: "assistant" } },
+      ...Array.from({ length: SNAPSHOT_ROWS - 1 }, (_, i) => anchor(10 + i, "assistant")),
+    ];
+    const snapshot = fitSnapshot({ status: "idle", rows: offered, dialogs: [] });
+    expect(snapshot.rows[0]?.entryId).toBeNull();
+    expect(withTrimmedHistory(snapshot, offered, page).history).toEqual({
+      hasMore: true,
+      oldestEntryId: "e10",
+      turnsBefore: 1,
+    });
+  });
+
+  it("falls back to the page's oldest id when no row kept has one", () => {
+    const offered = [
+      anchor(1),
+      ...Array.from({ length: SNAPSHOT_ROWS }, () => ({ entryId: null, message: { role: "assistant" } })),
+    ];
+    const snapshot = fitSnapshot({ status: "idle", rows: offered, dialogs: [] });
+    expect(withTrimmedHistory(snapshot, offered, page).history).toEqual({
+      hasMore: true,
+      oldestEntryId: "e1",
+      turnsBefore: 1,
+    });
   });
 });

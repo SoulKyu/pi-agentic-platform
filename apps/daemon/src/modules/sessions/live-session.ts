@@ -17,11 +17,12 @@ import { describeExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { createCoalescer } from "./coalescer.ts";
+import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createPartialReply } from "./partial.ts";
 import type { RunViewState } from "./run-view.ts";
-import { clipPiEvent } from "./wire-clip.ts";
+import { clipMessage, clipPiEvent } from "./wire-clip.ts";
 import { clip, outputTailOf } from "./worker-text.ts";
 
 const GET_STATE_TIMEOUT_MS = 2000;
@@ -31,6 +32,10 @@ export const READY_TIMEOUT_MS = 30_000;
 const MAX_EVENT_BYTES = 1_000_000;
 /** The user and the log hear of a thing the daemon keeps doing (cancelling a dialog, dropping an event) this often. */
 const SAY_EVERY_MS = 10_000;
+/** The client contract carries ids up to this long; a longer one counts as unknown (M2R52). */
+const MAX_ID_CHARS = 128;
+const knownId = (id: unknown): string | null =>
+  typeof id === "string" && id.length > 0 && id.length <= MAX_ID_CHARS ? id : null;
 
 export interface LiveSessionDeps {
   readonly handle: WorkerHandle;
@@ -57,6 +62,8 @@ export interface LiveSession {
   dialogs(): Dialog[];
   /** The reply being written, as the stream has sent it so far (never deltas still pending); null between replies. */
   partial(): PartialMessage | null;
+  /** Pi's leaf as far as the daemon knows it (from `ready`, each appended entry, the worker's leaf records); null when unknown. */
+  leafId(): string | null;
   /** What a run in progress has produced that the session file does not have yet; null between runs. */
   runView(): RunViewState | null;
   prompt(
@@ -74,6 +81,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   let rss: number | null = null;
   let piFile: string | undefined;
   let piSessionId: string | undefined;
+  let leafId: string | null = null;
   const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   const partial = createPartialReply();
   // Every event this session publishes sends the pending deltas first, so text never arrives after what follows it.
@@ -124,6 +132,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     record: deps.record,
     onActivity: deps.onActivity,
     piFile: () => piFile,
+    leafId: () => leafId,
     getState,
   });
 
@@ -140,6 +149,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       deps.clock.clearTimeout(timer);
       piFile = record.sessionFile;
       piSessionId = record.sessionId;
+      leafId = knownId(record.leafId);
       setStatus("idle");
       resolve(record);
     });
@@ -150,6 +160,28 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   });
   // Whoever starts a session awaits this; one that is torn down meanwhile must not leave an unhandled rejection.
   ready.catch(() => undefined);
+
+  // The worker sends an entry Pi appended as the slim record `toWireEvent` defines. It becomes an `entry` event (the
+  // client binds the id to the message it already has); a compaction or a branch summary has no message event, so it
+  // is also a `row`. Pi's own event is never forwarded.
+  function onEntry(raw: unknown): void {
+    const entry = slimEntryRef(raw);
+    if (!entry) {
+      logger.debug("entry_ignored");
+      return;
+    }
+    leafId = entry.id;
+    // Pi's system prompt is an entry like any other; the client never shows it, so it never hears of it (R107).
+    if (entry.type === "message" && entry.role === "system") return;
+    run.bindEntry(entry);
+    publish({ kind: "entry", entry });
+    const message = summaryRow(raw);
+    if (message) {
+      const row = { entryId: entry.id, message: clipMessage(message) };
+      run.addRow(row);
+      publish({ kind: "row", row });
+    }
+  }
 
   function onRecord(record: WorkerRecord): void {
     switch (record.type) {
@@ -168,8 +200,22 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       case "extension_error":
         ui.onExtensionError(record);
         return;
+      case "leaf": {
+        leafId = knownId(record.leafId);
+        // More entries are new than the worker sends at once: the rows of the run keep no id until the file is read.
+        if (record.resync) {
+          const said = limiter.check("entries_resync");
+          if (said.allowed) logger.warn("entries_resync_needed", { suppressed: said.suppressed });
+        }
+        return;
+      }
       case "pi_event": {
         const event = record.event;
+        if (event.type === "entry_appended") {
+          onEntry(event.entry);
+          deps.onActivity();
+          return;
+        }
         // Pi's system prompt travels as a message. It stays here: it is internal and may carry the user's AGENTS.md (R107).
         if (isSystemMessage(event)) {
           run.onPiEvent(event);
@@ -215,6 +261,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     piSessionId: () => piSessionId,
     dialogs: () => ui.dialogs(),
     partial: () => partial.current(),
+    leafId: () => leafId,
     runView: () => run.runView(),
     prompt: (text, streamingBehavior) => run.prompt(text, streamingBehavior),
     abort: () => run.abort(),

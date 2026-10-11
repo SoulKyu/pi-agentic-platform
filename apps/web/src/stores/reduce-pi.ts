@@ -52,6 +52,7 @@ export function reducePi(view: SessionView, event: { type: string } & Record<str
   switch (event.type) {
     case "message_end": {
       const message = toMessageView(event.message);
+      if (!message) return next;
       // The snapshot and the live stream can both carry a message: the same one is not added twice.
       const replay = view.messages.some(
         (existing) => existing.ref === message.ref && sameContent(existing, message),

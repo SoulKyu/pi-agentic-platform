@@ -44,7 +44,7 @@ describe("tool output on the wire", () => {
       papTruncated: { chars: 30_000 },
     };
     expect(sent).toEqual([clipped]);
-    expect(live.runView()?.messages).toEqual([clipped]);
+    expect(live.runView()?.rows).toEqual([{ entryId: null, message: clipped }]);
   });
 
   it("does not publish the progress of a call made inside another tool", async () => {

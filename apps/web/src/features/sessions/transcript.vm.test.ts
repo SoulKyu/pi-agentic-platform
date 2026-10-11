@@ -145,4 +145,21 @@ describe("transcriptItems", () => {
       { author: "agent", text: "Message too large to show (1 KB)." },
     ]);
   });
+
+  it("shows the summaries of a compaction and a branch, and a visible custom message, as tool lines with their text", () => {
+    const view = reduceSession(
+      EMPTY_VIEW,
+      snapshotOf("idle", [
+        { role: "compactionSummary", summary: "what came before", tokensBefore: 90, timestamp: 1 },
+        { role: "branchSummary", summary: "the other branch", fromId: "e1", timestamp: 2 },
+        { role: "custom", customType: "note", display: true, content: "from an extension", timestamp: 3 },
+        { role: "custom", customType: "note", display: false, content: "kept private", timestamp: 4 },
+      ]),
+    );
+    expect(transcriptItems(view)).toEqual([
+      { key: "compactionSummary:1", author: "tool", text: "what came before" },
+      { key: "branchSummary:2", author: "tool", text: "the other branch" },
+      { key: "custom:3", author: "tool", text: "from an extension" },
+    ]);
+  });
 });

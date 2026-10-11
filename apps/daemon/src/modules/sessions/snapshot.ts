@@ -161,3 +161,31 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
   snapshot.rows = newestFirst.toReversed();
   return snapshot;
 }
+
+const ANCHOR_ROLES: ReadonlySet<string> = new Set(["user", "compactionSummary", "branchSummary", "custom"]);
+
+/**
+ * When the snapshot had to leave out older rows (the 75-row cap or the byte budget), the client's next page must start
+ * just above the oldest row it got, and the turns above count what was left out.
+ */
+export function withTrimmedHistory(
+  snapshot: SnapshotEvent,
+  offered: readonly TranscriptRow[],
+  page: HistoryMeta,
+): SnapshotEvent {
+  const dropped = offered.length - snapshot.rows.length;
+  if (dropped <= 0) {
+    return {
+      ...snapshot,
+      history: { hasMore: page.hasMore, oldestEntryId: page.oldestEntryId, turnsBefore: page.turnsBefore },
+    };
+  }
+  const anchors = offered
+    .slice(0, dropped)
+    .filter((row) => ANCHOR_ROLES.has(String((row.message as { role?: unknown } | null)?.role))).length;
+  const oldest = snapshot.rows.find((row) => row.entryId !== null)?.entryId ?? page.oldestEntryId;
+  return {
+    ...snapshot,
+    history: { hasMore: true, oldestEntryId: oldest, turnsBefore: page.turnsBefore + anchors },
+  };
+}

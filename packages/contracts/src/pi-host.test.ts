@@ -142,6 +142,18 @@ describe("protocol v2 records", () => {
     expect(parseWorkerRecord({ type: "custom_render", id: "p1" })).toBeNull();
   });
 
+  it("parses a leaf record as a pap record, and refuses one without a boolean resync", () => {
+    const leaf = { type: "leaf", leafId: "e9", resync: false };
+    expect(parseWorkerRecord(leaf)).toEqual(leaf);
+    expect(parseWorkerRecord({ type: "leaf", leafId: null, resync: true })).toEqual({
+      type: "leaf",
+      leafId: null,
+      resync: true,
+    });
+    expect(parseWorkerRecord({ type: "leaf", leafId: "e9" })).toBeNull();
+    expect(parseWorkerRecord({ type: "leaf", leafId: 4, resync: false })).toBeNull();
+  });
+
   it("defaults the leaf and name of ready to null", () => {
     const ready = { type: "ready", sessionFile: "/s.jsonl", sessionId: "abc", piVersion: "1.1.0" };
     expect(parseWorkerRecord(ready)).toEqual({ ...ready, leafId: null, sessionName: null });

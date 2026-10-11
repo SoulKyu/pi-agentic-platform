@@ -44,6 +44,8 @@ export interface Options {
   neverReady?: boolean;
   logger?: Logger;
   sessionFile?: string;
+  /** Pi's leaf in `ready` (default null). */
+  leafId?: string | null;
 }
 
 /** What `startLiveSession` is given. A helper in `testing/` may import a module only through its index, so the test files pass the function in. */
@@ -103,6 +105,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
       },
       INIT,
     );
-    if (!options.neverReady) worker.emit({ ...READY, sessionFile: options.sessionFile ?? "/f" });
+    if (!options.neverReady)
+      worker.emit({ ...READY, sessionFile: options.sessionFile ?? "/f", leafId: options.leafId ?? null });
     return { clock, published, recorded, exits, activity, worker, live, pi };
   };

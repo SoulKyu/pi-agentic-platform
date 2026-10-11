@@ -1,11 +1,13 @@
 import { type AgentSession, VERSION } from "@earendil-works/pi-coding-agent";
 import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts";
 import { type Command, createDispatch } from "./dispatch.ts";
+import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { killDetachedDescendants } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
+import { logLineOf } from "./bounded.ts";
 import { toExtensionErrorRecord, toWireEvent } from "./wire-events.ts";
 
 const HEALTH_INTERVAL_MS = 30_000;
@@ -30,6 +32,8 @@ export async function runHost(ipc: Ipc): Promise<void> {
   let session: AgentSession | null = null;
   let dispatch: ((record: Command) => void) | null = null;
   const early: Command[] = [];
+  // Created once the session exists; what Pi emits while it opens is before the leaf `ready` reports.
+  let tracker: EntryTracker | null = null;
   const ui = createUiBridge((record) => ipc.send(record));
   let receiveInit: (record: InitRecord) => void = () => {};
   let failInit: (error: Error) => void = () => {};
@@ -98,12 +102,22 @@ export async function runHost(ipc: Ipc): Promise<void> {
     ui,
     rules: () => rules,
     audit: (entry) => ipc.send({ type: "audit", entry }),
-    onEvent: (event) => ipc.send(toWireEvent(event)),
+    onEvent: (event) => {
+      ipc.send(toWireEvent(event));
+      tracker?.observe(event);
+    },
     onExtensionError: (error) => ipc.send(toExtensionErrorRecord(error)),
   });
   session = opened;
+  tracker = createEntryTracker({
+    manager: opened.sessionManager,
+    send: (record) => ipc.send(record),
+    defer: (task) => void setImmediate(task),
+    onError: (error) => process.stderr.write(`pi-host: entry tracking failed: ${logLineOf(error)}\n`),
+  });
   dispatch = createDispatch({
     session: opened,
+    leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
     ipc,
     ui,
     rules: () => rules,

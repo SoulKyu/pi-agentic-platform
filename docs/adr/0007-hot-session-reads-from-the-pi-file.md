@@ -17,8 +17,16 @@ window has grown by half, without parsing the file again. Every walk over parent
 entries and keeps a visited set, so a damaged file (a cycle) gives a finite answer.
 
 Landed with the reader (Task 10a): the cache, the bounded walks, rows read from the file along the last entry of the
-file, and `upToBytes` for a run in progress. Still to come: the worker's leaf (`ready.leafId`, `entry_appended`,
-`navigate_tree`, so a hot session is walked from the worker's leaf) in Task 10b; history pages and tool output on
+file, and `upToBytes` for a run in progress. Landed with the leaf (Task 10b): Pi 1.1.0 announces no `entry_appended`
+for messages or manual compactions (only for the cache warmer, virtual-model state, boundary drafts, context edits and
+extension appends), so pi-host looks at `SessionManager.getLeafId()` one macrotask after `message_end`, `compaction_end`,
+`turn_end`, `agent_end`, `agent_settled`, an announced entry and a `navigate_tree` answer. When the leaf moved it sends the
+entries back to the leaf it last reported as slim `entry_appended` records (at most 128 per flush; Pi's own announced
+entries are not sent twice), or one `leaf` record when the leaf moved without a chain back (a navigation) or too many
+entries are new (`resync`: the rows of the run keep no id until the file is read; the daemon only logs it). The file is
+never read because of a `message_end` (R38). The daemon takes the leaf from `ready.leafId`, each entry and each `leaf`
+record (an id over 128 characters is unknown: the page follows the file's last entry, M2R4/M2R52); Pi's system prompt
+entry moves the leaf but is not published (R107). Still to come: history pages and tool output on
 demand over the reader's `page`, `forks` and `toolCall` in Task 11. During a run the daemon reads the file only up to
 its size when the run began, and appends the run's own rows (R38).
 

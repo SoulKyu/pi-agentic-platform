@@ -19,7 +19,7 @@ describe("system messages stay inside the daemon (R107)", () => {
     worker.emit(piEvent({ type: "message_start", message: system }));
     worker.emit(piEvent({ type: "message_end", message: system }));
     worker.emit(piEvent({ type: "message_end", message: { role: "user", content: "hi" } }));
-    expect(live.runView()?.messages).toEqual([{ role: "user", content: "hi" }]);
+    expect(live.runView()?.rows).toEqual([{ entryId: null, message: { role: "user", content: "hi" } }]);
     expect(JSON.stringify(published)).not.toContain("expert coding assistant");
     expect(JSON.stringify(published)).not.toContain('"role":"system"');
     const piTypes = published.flatMap((event) => (event.kind === "pi" ? [event.event.type] : []));
@@ -90,7 +90,7 @@ describe("rows too large for a snapshot (R109)", () => {
     const huge = { role: "assistant", timestamp: 7, content: [{ type: "text", text: "x".repeat(300_000) }] };
     worker.emit(piEvent({ type: "message_end", message: huge }));
     worker.emit(piEvent({ type: "message_end", message: { role: "user", content: "hi" } }));
-    const messages = live.runView()?.messages ?? [];
+    const messages = (live.runView()?.rows ?? []).map((row) => row.message);
     expect(messages).toHaveLength(2);
     expect(messages[0]).toEqual({
       role: "assistant",

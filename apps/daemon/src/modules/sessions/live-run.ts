@@ -1,4 +1,11 @@
-import { type GetStateData, PapError, type PiEvent, type SessionStatus } from "@pap/contracts";
+import {
+  type EntryRef,
+  type GetStateData,
+  PapError,
+  type PiEvent,
+  type SessionStatus,
+  type TranscriptRow,
+} from "@pap/contracts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
@@ -21,6 +28,8 @@ export interface LiveRunDeps {
   record(kind: string, data: unknown): void;
   onActivity(): void;
   piFile(): string | undefined;
+  /** Pi's leaf as far as the daemon knows it: where the file is read from for a snapshot in the middle of a run. */
+  leafId(): string | null;
   getState(): Promise<GetStateData>;
 }
 
@@ -34,6 +43,10 @@ export interface LiveRun {
   ): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(): Promise<void>;
   runView(): RunViewState | null;
+  /** The entry Pi wrote for a message of the run: its row gets the id. */
+  bindEntry(entry: EntryRef): void;
+  /** A row built from an entry (a compaction or a branch summary) joins the run's rows. */
+  addRow(row: TranscriptRow): void;
   /** The worker is gone: returns whether a run was open, and resets the tracker and the view. */
   onExit(): boolean;
 }
@@ -68,7 +81,7 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
     onRunStart: () => {
       // The file is complete up to here: the last run settled before this one began (R38).
       const file = deps.piFile();
-      view.begin(file ? fileSizeOrZero(file) : 0);
+      view.begin(file ? fileSizeOrZero(file) : 0, deps.leafId());
       deps.setStatus("running");
       // A prompt Pi is answering, or answered `started`, is the user's run; anything else is an extension's
       // (accepted and audited, spec C 2.4).
@@ -201,6 +214,8 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       await abortRunning();
     },
     runView: () => view.state(),
+    bindEntry: (entry) => view.bind(entry),
+    addRow: (row) => view.add(row),
     onExit() {
       const wasRunning = tracker.running;
       tracker.reset();

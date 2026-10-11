@@ -170,8 +170,21 @@ const ExtensionErrorRecord = z.object({
   event: z.string(),
   error: z.string(),
 });
+/**
+ * Where Pi's leaf is now, when the worker cannot say it with `entry_appended` records: it moved without new entries
+ * (a navigation), the newest entry was one Pi announced itself, or more entries are new than one flush sends (`resync`:
+ * the daemon's ids for the rows of the run are incomplete until it reads the file after `agent_settled`). Not bounded
+ * here: the daemon treats an id over 128 characters as unknown.
+ */
+export const LeafRecord = z.object({
+  type: z.literal("leaf"),
+  leafId: z.string().nullable(),
+  resync: z.boolean(),
+});
+export type LeafRecord = z.infer<typeof LeafRecord>;
 const PapRecord = z.discriminatedUnion("type", [
   ReadyRecord,
+  LeafRecord,
   ResponseRecord,
   UiRequestRecord,
   UiClosedRecord,

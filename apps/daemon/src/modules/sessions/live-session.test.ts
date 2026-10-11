@@ -157,7 +157,11 @@ describe("runs", () => {
       worker.emit(piEvent({ type: "agent_start" }));
       worker.emit(piEvent({ type: "message_end", message: { role: "user", content: "hi" } }));
       worker.emit(piEvent({ type: "message_update", message: { role: "assistant" } }));
-      expect(live.runView()).toEqual({ baselineBytes: 5, messages: [{ role: "user", content: "hi" }] });
+      expect(live.runView()).toEqual({
+        baselineBytes: 5,
+        leafAtStart: null,
+        rows: [{ entryId: null, message: { role: "user", content: "hi" } }],
+      });
       worker.emit(piEvent({ type: "agent_settled", aborted: false }));
       await clock.advance(0);
       expect(live.runView()).toBeNull();

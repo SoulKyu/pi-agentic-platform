@@ -15,8 +15,9 @@ describe("session commands over IPC", () => {
     expect(ready.leafId).toEqual(expect.any(String));
     const host = bed.host();
     for (const text of ["first", "second"]) {
+      const from = host.records.length;
       await host.request({ type: "prompt", message: text });
-      await host.waitFor((r) => r.type === "agent_settled", { from: host.records.length - 1 });
+      await host.waitFor((r) => r.type === "agent_settled", { from });
     }
     // Pi emits no entry_appended for messages (message_end carries them): the file is the witness here.
     const file = String(ready.sessionFile);
@@ -32,8 +33,9 @@ describe("session commands over IPC", () => {
     const moved = await host.request({ type: "navigate_tree", targetId: firstReply.id });
     expect(moved).toMatchObject({ success: true, data: { cancelled: false, leafId: firstReply.id } });
     const before = entries().length;
+    const from = host.records.length;
     await host.request({ type: "prompt", message: "third" });
-    await host.waitFor((r) => r.type === "agent_settled", { from: host.records.length - 1 });
+    await host.waitFor((r) => r.type === "agent_settled", { from });
     // The new user message hangs under the first reply: a sibling of "second", in the same file.
     expect(
       entries()
@@ -56,8 +58,9 @@ describe("session commands over IPC", () => {
     );
     const host = bed.host();
     for (const text of ["first", "second"]) {
+      const from = host.records.length;
       await host.request({ type: "prompt", message: text });
-      await host.waitFor((r) => r.type === "agent_settled", { from: host.records.length - 1 });
+      await host.waitFor((r) => r.type === "agent_settled", { from });
     }
     expect(await host.request({ type: "set_session_name", name: "Fix login" })).toMatchObject({
       success: true,

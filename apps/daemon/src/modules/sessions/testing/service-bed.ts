@@ -25,6 +25,8 @@ export type StartBehavior =
       piId?: string;
       sessionFile?: string;
       /** Said just before `ready`. */ before?: WorkerRecord[];
+      /** Pi's leaf in `ready` (default null). */
+      leafId?: string | null;
     }
   | { kind: "silent" }
   | { kind: "exit70" };
@@ -216,7 +218,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
               sessionId: piId,
               sessionFile,
               piVersion: "1.1.0",
-              leafId: null,
+              leafId: behavior.leafId ?? null,
               sessionName: null,
             });
           });

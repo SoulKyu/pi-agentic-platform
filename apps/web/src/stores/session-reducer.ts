@@ -1,6 +1,12 @@
-import { SessionStreamEvent, type Dialog, type SessionStatus } from "@pap/contracts";
-
-import type { PartialMessage } from "@pap/contracts";
+import {
+  type EntryRef,
+  type HistoryMeta,
+  NO_HISTORY,
+  type PartialMessage,
+  SessionStreamEvent,
+  type Dialog,
+  type SessionStatus,
+} from "@pap/contracts";
 
 import { failRunningTools, reducePi, withNotice } from "./reduce-pi.ts";
 import { toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
@@ -25,6 +31,10 @@ export interface SessionView {
     readonly text: string;
     readonly source?: "pap" | "extension";
   }>;
+  /** What lies above the messages: where the next page starts and how many turns it holds. */
+  readonly history: HistoryMeta;
+  /** Pi's current leaf as far as the stream has said so; null when unknown. */
+  readonly leafId: string | null;
   readonly loaded: boolean;
   /** A snapshot arrived that the contract could not parse: the screen says so instead of staying blank. */
   readonly unreadable: boolean;
@@ -37,9 +47,29 @@ export const EMPTY_VIEW: SessionView = {
   tools: new Map(),
   dialogs: [],
   notices: [],
+  history: NO_HISTORY,
+  leafId: null,
   loaded: false,
   unreadable: false,
 };
+const appendMessage = (list: readonly MessageView[], message: MessageView | null): readonly MessageView[] =>
+  message ? [...list, withUniqueKey(list, message)] : list;
+
+/** The entry Pi wrote for a message the view already has: the newest one without an id that has its name in Pi's data. */
+function bindEntry(messages: readonly MessageView[], entry: EntryRef): readonly MessageView[] {
+  if (entry.type !== "message") return messages;
+  const ref =
+    entry.role === "toolResult" && entry.toolCallId !== undefined
+      ? `toolResult:${entry.toolCallId}`
+      : entry.role !== undefined && entry.messageTimestamp !== undefined
+        ? `${entry.role}:${entry.messageTimestamp}`
+        : null;
+  if (ref === null) return messages;
+  const index = messages.findLastIndex((message) => message.entryId === null && message.ref === ref);
+  const found = messages[index];
+  return found ? messages.with(index, { ...found, entryId: entry.id }) : messages;
+}
+
 export function reduceSession(view: SessionView, raw: unknown): SessionView {
   const parsed = SessionStreamEvent.safeParse(raw);
   if (!parsed.success) {
@@ -54,12 +84,14 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       return {
         ...EMPTY_VIEW,
         status: event.status,
-        messages: event.rows.reduce<MessageView[]>(
-          (list, row) => [...list, withUniqueKey(list, toMessageView(row.message, row.entryId))],
+        messages: event.rows.reduce<readonly MessageView[]>(
+          (list, row) => appendMessage(list, toMessageView(row.message, row.entryId)),
           [],
         ),
         dialogs: event.dialogs,
         partial: event.partial,
+        history: event.history,
+        leafId: event.leafId,
         loaded: true,
       };
     case "status": {
@@ -82,6 +114,16 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       return withNotice(view, event.level, event.text, event.source);
     case "pi":
       return reducePi(view, event.event);
+    case "entry":
+      return { ...view, messages: bindEntry(view.messages, event.entry), leafId: event.entry.id };
+    case "row":
+      return event.row.entryId !== null &&
+        view.messages.some((message) => message.entryId === event.row.entryId)
+        ? view
+        : {
+            ...view,
+            messages: appendMessage(view.messages, toMessageView(event.row.message, event.row.entryId)),
+          };
     default:
       return view;
   }
