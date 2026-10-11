@@ -6,7 +6,9 @@ export type Outbound = { type: string } & Record<string, unknown>;
 /**
  * The most JSON one record may carry. Node reads a record whole before the daemon's code sees any of it (it has no
  * receive-side limit), so a record this large costs the daemon several times its size in memory: it is stopped
- * here, where the size is known and the sender can still say so (R101). Pi's tool output is capped far below this.
+ * here, where the size is known and the sender can still say so (R101). Nothing is capped below this on the way in:
+ * a prompt, a pasted file or a tool result can be large, and only the events that grow with a whole run
+ * (`agent_end.messages`, `turn_end.toolResults`) are cut earlier, by `toWireEvent`.
  */
 export const MAX_RECORD_BYTES = 4 * 1024 * 1024;
 
@@ -48,7 +50,8 @@ export function createIpc(proc: NodeJS.Process): Ipc {
     if (record.type === "response" && typeof record.id === "string") {
       send({
         type: "response",
-        id: record.id.slice(0, 64),
+        // The whole id: the daemon matches the answer to its request by it, and it is the daemon's own short id.
+        id: record.id,
         command: logLineOf(record.command).slice(0, 64),
         success: false,
         error: "record too large",

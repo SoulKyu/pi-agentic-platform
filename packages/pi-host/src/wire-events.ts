@@ -25,7 +25,19 @@ function toolCallIdentity(
   };
 }
 
+/**
+ * What the daemon is sent for a Pi event. `agent_end` carries every message of the run and `turn_end` the turn's tool
+ * results: both grow with the run, so a long one would cross the record limit (`MAX_RECORD_BYTES`) and be lost. The
+ * daemon never reads them: it already has each message from `message_end` and tool results from
+ * `tool_execution_end`, and the transcript comes from the session file once the run has settled (R103).
+ */
+const WITHOUT_FIELD: Readonly<Record<string, string>> = { agent_end: "messages", turn_end: "toolResults" };
+
 export function toWireEvent(event: AgentSessionEvent): WireEvent {
+  const dropped = WITHOUT_FIELD[event.type];
+  if (dropped !== undefined) {
+    return Object.fromEntries(Object.entries(event).filter(([key]) => key !== dropped)) as WireEvent;
+  }
   if (event.type !== "message_update") return event as unknown as WireEvent;
   const raw = event as unknown as RawMessageUpdate;
   const { partial, ...rest } = raw.assistantMessageEvent;

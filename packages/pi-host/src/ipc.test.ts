@@ -239,6 +239,20 @@ describe("createIpc: record size", () => {
     ]);
   });
 
+  it("keeps the whole id on the response that replaces a dropped one, however long it is", () => {
+    const sent: Array<{ id?: string }> = [];
+    const { proc } = fakeProcess({ onSend: (record) => void sent.push(record as { id?: string }) });
+    const id = `r${"9".repeat(100)}`;
+    createIpc(proc).send({
+      type: "response",
+      id,
+      command: "get_state",
+      success: true,
+      data: "x".repeat(MAX_RECORD_BYTES),
+    });
+    expect(sent[0]?.id).toBe(id);
+  });
+
   it("reports the first, second, fourth and eighth drop only, but still answers every dropped response", () => {
     const sent: Array<{ type: string }> = [];
     const { proc, stderr } = fakeProcess({ onSend: (record) => void sent.push(record as { type: string }) });

@@ -131,5 +131,11 @@ describe("a signal that fails", () => {
     expect(logs).toEqual([
       { level: "warn", msg: "worker_signal_failed", fields: { pid: 4242, signal: "SIGKILL", code: "EPERM" } },
     ]);
+    // The pretend worker is finished here, so its pid does not stay in the groups the daemon kills on its way out.
+    kill.mockImplementation(() => true);
+    child.emit("exit", null, "SIGKILL");
+    child.emit("close");
+    await handle.exited;
+    expect(killAllWorkerGroups()).toBe(0);
   });
 });

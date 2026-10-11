@@ -40,7 +40,10 @@ describe.each(COMMANDS)("pi-host worker: %s", (_name, command) => {
     "is gone after the worker gets %s, and the worker dies of it",
     async (signal) => {
       const { host, gone } = await runCommand(command);
-      process.kill(host.child.pid ?? 0, signal);
+      // kill(0) signals the test runner's own group and kill(1) init: a missing pid must fail the test, not signal.
+      const pid = host.child.pid ?? 0;
+      expect(pid).toBeGreaterThan(1);
+      process.kill(pid, signal);
       await host.exited;
       expect(host.child.signalCode).toBe(signal);
       await gone();

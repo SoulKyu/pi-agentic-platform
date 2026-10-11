@@ -72,6 +72,14 @@ describe("toWireEvent", () => {
     });
   });
 
+  it("drops what grows with the run: every message of agent_end and the tool results of turn_end", () => {
+    const big = { role: "user", content: "x".repeat(1000) };
+    expect(toWireEvent({ type: "agent_end", messages: [big, big] } as never)).toEqual({ type: "agent_end" });
+    expect(
+      toWireEvent({ type: "turn_end", message: { role: "assistant" }, toolResults: [big] } as never),
+    ).toEqual({ type: "turn_end", message: { role: "assistant" } });
+  });
+
   it("passes other events through unchanged", () => {
     expect(toWireEvent({ type: "agent_settled", aborted: false } as never)).toEqual({
       type: "agent_settled",
