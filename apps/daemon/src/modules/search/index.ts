@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { PapError } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { SessionsScanPort } from "../sessions/index.ts";
@@ -57,7 +58,23 @@ export function createSearchModule(deps: {
     };
   }
   const dbPath = join(deps.home, "search.db");
-  const db = openSearchIndex(dbPath, logger);
+  let db: Db;
+  try {
+    db = openSearchIndex(dbPath, logger);
+  } catch (error) {
+    // The index is a cache that is safe to delete: one that cannot be opened (EACCES, ENOSPC, CANTOPEN) turns search
+    // off for this run, never the daemon. Searches answer a typed error the palette shows.
+    logger.warn("search_index_open_failed", { code: (error as { errcode?: unknown } | null)?.errcode });
+    return {
+      rpc: {
+        "search.query": async () => {
+          throw new PapError("internal");
+        },
+      },
+      start: () => {},
+      stop: async () => {},
+    };
+  }
   // No global cap: the size is said at boot and documented (owner Q14). A count that fails must not stop the boot: the
   // scanner meets the same damage and the module rebuilds (M4R127).
   try {

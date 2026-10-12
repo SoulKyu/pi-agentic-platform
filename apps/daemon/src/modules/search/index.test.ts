@@ -7,11 +7,15 @@ import type { Logger } from "../../kernel/logger.ts";
 import { testCaller } from "../../testing/caller.ts";
 import type { ThreadLike } from "./search-client.ts";
 
-const bytes = vi.hoisted(() => ({ fail: false }));
+const bytes = vi.hoisted(() => ({ fail: false, openFails: false }));
 vi.mock("./index-db.ts", async (original) => {
   const real = await original<typeof import("./index-db.ts")>();
   return {
     ...real,
+    openSearchIndex: (path: string, logger: Logger) => {
+      if (bytes.openFails) throw Object.assign(new Error("unable to open database file"), { errcode: 14 });
+      return real.openSearchIndex(path, logger);
+    },
     indexBytes: (path: string) => {
       if (bytes.fail) throw Object.assign(new Error("denied"), { code: "EACCES" });
       return real.indexBytes(path);
@@ -37,6 +41,7 @@ describe("search module", () => {
   beforeEach(() => {
     home = mkdtempSync(join(tmpdir(), "pap-search-module-"));
     bytes.fail = false;
+    bytes.openFails = false;
   });
   afterEach(() => rmSync(home, { recursive: true, force: true }));
 
@@ -73,6 +78,29 @@ describe("search module", () => {
     await module.stop();
     expect(existsSync(join(home, "search.db"))).toBe(false);
     expect(lines.map((line) => line.msg)).toEqual(["search_disabled_read_only"]);
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it("a search.db that cannot be opened does not stop the boot: a warning, and every search answers a typed error (minor 1)", async () => {
+    bytes.openFails = true;
+    const { logger, lines } = capture();
+    const spawn = vi.fn((): ThreadLike => {
+      throw new Error("no thread expected");
+    });
+    const module = createSearchModule({
+      home,
+      agentDir: home,
+      installedAt: 0,
+      readOnly: false,
+      clock: createFakeClock(),
+      logger,
+      sessions,
+      spawn,
+    });
+    expect(lines).toEqual([{ msg: "search_index_open_failed", fields: { code: 14 } }]);
+    await expect(module.rpc["search.query"]({ q: "kube" }, ctx)).rejects.toMatchObject({ code: "internal" });
+    module.start();
+    await module.stop();
     expect(spawn).not.toHaveBeenCalled();
   });
 

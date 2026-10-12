@@ -18,6 +18,7 @@ Code: `apps/daemon/src/modules/search/`. The index is a cache of Pi's files (ADR
 
 - `$PAP_HOME/search.db`: tables `meta`, `files` (one cursor per Pi file: inode, size, mtime, offset, head, state `indexed | excluded | bad | waiting`), `rows` (user messages and assistant text only, Q5) and `rows_fts` (FTS5, `unicode61 remove_diacritics 2`, content table). `synchronous=NORMAL`: a lost commit is rescanned. 0600 through the process umask. It holds message text and is safe to delete: the next boot rebuilds it from Pi's files.
 - Rebuilt (files removed, new index, scanner restarted) when `SEARCH_SCHEMA_VERSION` changes or SQLite reports damage, at open or at runtime (`search_index_rebuilt {reason}`). At runtime at most 3 times an hour; after that `search_index_unusable` and search is off until restart.
+- A `search.db` that cannot be opened (EACCES, ENOSPC, CANTOPEN) never stops the daemon: boot logs `search_index_open_failed {code}`, no scanner or thread starts, and `search.query` answers `internal` until the next restart.
 - Size: `search_index_size {bytes, rows}` is logged at boot. There is no global cap (owner Q14). The rule for lowering the per-file cap to 1 M characters is decided from the preview's boot line (above 1 GiB, M4R128), not from a test.
 
 ## Queries
