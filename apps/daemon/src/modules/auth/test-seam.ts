@@ -30,8 +30,9 @@ export interface TestTokenOptions {
 }
 
 /**
- * The one door the module's `testing/` beds use to reach real services on a test database. Everything is the
- * production factory with the same wiring as `createAuthModule`, so a bed cannot drift from what ships.
+ * The one door the module's `testing/` beds use to reach real services on a test database. Each service is the
+ * production factory, but this wiring is written out by hand and is not `createAuthModule`'s: it can drift from it
+ * (it has no device key file, for one), so a change to that wiring is mirrored here by hand.
  */
 export function createAuthTestHarness(deps: AuthTestHarnessDeps) {
   const logger = deps.logger ?? silentLogger;

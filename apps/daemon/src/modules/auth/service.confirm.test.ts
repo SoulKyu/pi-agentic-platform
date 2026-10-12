@@ -123,6 +123,28 @@ describe("auth service step-up and throttle", () => {
       expect(service.authenticate(owner.cookieValue)?.stepUpUntil).toBe(clock.now() + 5 * 60_000);
     });
 
+    it("still signs a known device in: its keys live in a table the spray cannot fill (RT-06)", async () => {
+      const owner = await service.setup(setupInput(tokenOf(service.setupUrl())));
+      const deviceCookie = owner.deviceCookie ?? "";
+      expect(deviceCookie).not.toBe("");
+      for (let i = 0; i < 10_000 && throttle.size() < 10_000; i++) throttle.fail([`ip:2001:db8::${i}`]);
+      expect(throttle.size()).toBe(10_000);
+      const sessionKeys = sessionThrottle.size();
+      const bare = await service.login(loginInput(PASSWORD, "10.9.9.9")).catch((e: unknown) => e);
+      expect(bare).toBeInstanceOf(RateLimitedError);
+      const known = await service.login({ ...loginInput(PASSWORD, "10.9.9.9"), deviceCookie });
+      expect(known.cookieValue).not.toBe("");
+      expect(known.deviceCookie).toBeUndefined();
+      // Its failures count in the table the spray did not touch, and the full table gains nothing.
+      await expect(
+        service.login({ ...loginInput("wrong password!!", "10.9.9.9"), deviceCookie }),
+      ).rejects.toMatchObject({
+        code: "unauthenticated",
+      });
+      expect(sessionThrottle.size()).toBe(sessionKeys + 1);
+      expect(throttle.size()).toBe(10_000);
+    });
+
     it("answers a setup after the owner exists without counting anything", async () => {
       await service.setup(setupInput(tokenOf(service.setupUrl())));
       for (let i = 0; i < 5; i++) {

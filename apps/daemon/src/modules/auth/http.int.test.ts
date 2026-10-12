@@ -57,6 +57,7 @@ async function boot(tls: boolean, publicOrigin = tls ? HTTPS_ORIGIN : HTTP_ORIGI
     publicOrigin,
     allowedOrigins: origins,
     audit: { append: () => undefined },
+    secretsDir: join(dir, "secrets"),
   });
   const files = tls ? selfSignedCertificate(dir) : null;
   server = await startServer({

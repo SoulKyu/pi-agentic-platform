@@ -4,7 +4,14 @@ import type { Context, Hono, Next } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
-import { readCookie, SESSION_COOKIE, SESSION_TTL_MS, sessionCookieAttributes } from "./cookies.ts";
+import {
+  deviceCookieAttributes,
+  readCookie,
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  sessionCookieAttributes,
+} from "./cookies.ts";
+import { DEVICE_COOKIE, DEVICE_COOKIE_MAX_AGE_SECONDS } from "./known-device.ts";
 import { isAcceptablePassword } from "./passwords.ts";
 import { RateLimitedError, type AuthService, type StartedSession } from "./service.ts";
 
@@ -52,11 +59,20 @@ const INSECURE_HTTP = "insecureHttp";
 const cookieAttributes = (c: Context) =>
   sessionCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true);
 
+export const deviceCookie = (c: Context): string | undefined =>
+  readCookie(c.req.header("cookie"), DEVICE_COOKIE);
+
 export function setSessionCookie(c: Context, session: StartedSession): void {
   setCookie(c, SESSION_COOKIE, session.cookieValue, {
     ...cookieAttributes(c),
     maxAge: session.maxAgeSeconds,
   });
+  if (session.deviceCookie !== undefined) {
+    setCookie(c, DEVICE_COOKIE, session.deviceCookie, {
+      ...deviceCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true),
+      maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
+    });
+  }
 }
 
 // The address of the socket, never a forwarded header (R72). Without one every caller shares a single bucket.
@@ -89,7 +105,11 @@ export function mountAuthRoutes(
   app: Hono,
   deps: { service: AuthService; passkeysAvailable: boolean; secureByConfig: boolean; insecureHttp?: boolean },
 ): void {
-  const client = (c: Context) => ({ ip: clientIp(c), userAgent: c.req.header("user-agent") });
+  const client = (c: Context) => ({
+    ip: clientIp(c),
+    userAgent: c.req.header("user-agent"),
+    deviceCookie: deviceCookie(c),
+  });
   app.use("/auth/*", async (c: Context, next: Next) => {
     c.set(SECURE_BY_CONFIG, deps.secureByConfig);
     c.set(INSECURE_HTTP, deps.insecureHttp === true);

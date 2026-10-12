@@ -126,7 +126,7 @@ describe("LoginScreen", () => {
       p.textContent?.startsWith("Each failed attempt"),
     );
     expect(note?.textContent).toBe(
-      "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. It resets after 5 minutes without a failure.",
+      "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. A browser that has signed in before has a limit of its own. It resets after 5 minutes without a failure.",
     );
     const form = container.querySelector("form") as Node;
     expect(form.compareDocumentPosition(note as Node) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

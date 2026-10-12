@@ -20,6 +20,8 @@ export interface AuthTestBed {
   readonly db: Db;
   /** The database file, for a test that opens it a second time (read-only, say). */
   readonly dbPath: string;
+  /** Where the module keeps `device.key`; a second module on the same database shares it. */
+  readonly secretsDir: string;
   readonly clock: FakeClock;
   readonly logger: Logger;
   /** Every log line since the bed was created or last cleared; migration output is already dropped. */
@@ -53,6 +55,7 @@ export function createAuthTestBed(): AuthTestBed {
   return {
     db,
     dbPath,
+    secretsDir: join(dir, "secrets"),
     clock,
     logger,
     lines,
@@ -66,6 +69,7 @@ export function createAuthTestBed(): AuthTestBed {
         allowedOrigins,
         insecureHttp,
         audit: { append: (line) => void audited.push(line) },
+        secretsDir: join(dir, "secrets"),
       });
       const app = createHttpApp({
         allowedOrigins,

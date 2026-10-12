@@ -48,7 +48,7 @@ it("auth.passkeys.list answers the contract's shape", async () => {
   };
   const rpc = authRpc(tokenBed.tokens, deviceBed.devices, bed.manager);
   expect((await rpc["auth.passkeys.list"]({}, ctx)).passkeys.map((p) => p.id)).toEqual([
-    shortId(CRED_A),
     shortId(CRED_B),
+    shortId(CRED_A),
   ]);
 });

@@ -24,7 +24,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "login.submit": "Se connecter",
   "login.passkey": "Se connecter avec une clé d'accès",
   "login.throttleNote":
-    "Chaque échec double l'attente avant l'essai suivant, de 1 seconde jusqu'à 1 minute, par adresse et par compte. Elle repart de zéro après 5 minutes sans échec.",
+    "Chaque échec double l'attente avant l'essai suivant, de 1 seconde jusqu'à 1 minute, par adresse et par compte. Un navigateur déjà connecté auparavant a sa propre limite. Elle repart de zéro après 5 minutes sans échec.",
   "login.failed": "Nom d'utilisateur ou mot de passe incorrect.",
   "login.throttled": "Trop de tentatives. Attendez {seconds} s.",
   "account.addPasskey": "Ajouter une clé d'accès",

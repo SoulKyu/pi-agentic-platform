@@ -1,8 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { PapError } from "@pap/contracts";
 import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHttpApp } from "../../kernel/http/app.ts";
 import { mountAuthRoutes } from "./http.ts";
+import { createKnownDevices } from "./known-device.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
 import type { PasskeyService } from "./passkeys.ts";
 import { createAuthService } from "./service.ts";
@@ -77,6 +79,8 @@ describe("sign-in failures are counted before the slow verification (R85)", () =
             registerVerify: () => Promise.resolve(),
           } as unknown as PasskeyService,
           auth: service,
+          devices: createKnownDevices(randomBytes(32)),
+          userOfPasskey: () => undefined,
           throttle: createThrottle(bed.clock, { whenFull: "evict" }),
           logger: bed.logger,
           audit: { append: (line) => void audited.push(line) },

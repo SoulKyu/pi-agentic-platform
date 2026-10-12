@@ -1,4 +1,5 @@
 import type { CookieOptions } from "hono/utils/cookie";
+import { DEVICE_COOKIE_MAX_AGE_SECONDS, DEVICE_COOKIE_PATH } from "./known-device.ts";
 
 export const SESSION_COOKIE = "pap_session";
 export const SESSION_TTL_MS = 30 * 24 * 3600 * 1000;
@@ -40,6 +41,19 @@ export function sessionCookieAttributes(
     secure: insecureHttp ? !isPlainHttp(requestUrl) : secureByConfig || cookieNeedsSecure(requestUrl),
     sameSite: "Strict",
     path: "/",
+  };
+}
+
+/** The known-device cookie (M5R79): the session cookie's flags, limited to the auth routes, and kept for 400 days. */
+export function deviceCookieAttributes(
+  requestUrl: string,
+  secureByConfig: boolean,
+  insecureHttp = false,
+): CookieOptions {
+  return {
+    ...sessionCookieAttributes(requestUrl, secureByConfig, insecureHttp),
+    path: DEVICE_COOKIE_PATH,
+    maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
   };
 }
 

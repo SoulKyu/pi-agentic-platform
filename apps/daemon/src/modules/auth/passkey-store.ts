@@ -19,7 +19,7 @@ export interface PasskeyListing {
 
 export interface PasskeyStore {
   listPasskeys(userId: string): PasskeyRow[];
-  /** Oldest first, at most `limit`. */
+  /** Newest first (ties: the later insert), at most `limit`: a passkey added last is never cut off. */
   listPasskeyListings(userId: string, limit: number): PasskeyListing[];
   findPasskey(id: string): PasskeyRow | undefined;
   insertPasskey(row: PasskeyRow & { readonly createdAt: number }): void;
@@ -72,7 +72,7 @@ export function createPasskeyStore(db: Db): PasskeyStore {
     listPasskeyListings: (userId, limit) =>
       db
         .all<Omit<PasskeyListing, "transports"> & { transports: string }>(
-          "SELECT id, created_at AS createdAt, last_used_at AS lastUsedAt, transports FROM passkeys WHERE user_id = $userId ORDER BY created_at, id LIMIT $limit",
+          "SELECT id, created_at AS createdAt, last_used_at AS lastUsedAt, transports FROM passkeys WHERE user_id = $userId ORDER BY created_at DESC, rowid DESC LIMIT $limit",
           { userId, limit },
         )
         .map((row) => ({ ...row, transports: readTransports(row.transports) })),

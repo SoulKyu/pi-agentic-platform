@@ -4,10 +4,19 @@ import { z } from "zod";
 import { sha256Hex } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
-import { badRequest, clientIp, errorResponse, readJson, sessionCookie, setSessionCookie } from "./http.ts";
+import {
+  badRequest,
+  clientIp,
+  deviceCookie,
+  errorResponse,
+  readJson,
+  sessionCookie,
+  setSessionCookie,
+} from "./http.ts";
+import type { KnownDevices } from "./known-device.ts";
 import type { PasskeyService } from "./passkeys.ts";
 import { RateLimitedError, type AuthService } from "./service.ts";
-import { sessionKey } from "./throttle-keys.ts";
+import { ipKey, sessionKey } from "./throttle-keys.ts";
 import { MAX_BACKOFF_MS, type Throttle } from "./throttle.ts";
 
 // A sign-in flow id is the 75-character challenge itself.
@@ -15,13 +24,21 @@ const FlowBody = z.object({
   flowId: z.string().min(1).max(128),
   response: z.record(z.string(), z.unknown()),
 });
+// WebAuthn credential ids are at most 1023 bytes, 1364 base64url characters: a longer one cannot be ours.
+const MAX_CREDENTIAL_ID = 1400;
 const EnrollBody = z.object({ password: z.string().min(1).max(1024) });
 
 export interface PasskeyRouteDeps {
   readonly passkeys: PasskeyService;
   readonly auth: AuthService;
-  /** Its own instance, keyed by socket address only: never the password keys (R80, R81). */
+  /**
+   * Its own instance, never the password keys (R80, R81). Keys: the socket address, or `device:` for a browser whose
+   * cookie was issued to the credential's user. It evicts, so a spray can only loosen a limit, never lock anybody.
+   */
   readonly throttle: Throttle;
+  readonly devices: KnownDevices;
+  /** The user a credential id belongs to, looked up before anything is verified. */
+  readonly userOfPasskey: (credentialId: string) => string | undefined;
   readonly logger: Logger;
   readonly audit: Pick<AuditPort, "append">;
 }
@@ -49,6 +66,8 @@ async function throttled<T>(
     if (error instanceof PapError && error.code === "unauthenticated") {
       deps.logger.warn("auth_passkey_failed", { ip, retryAfterMs: throttle.retryAfterMs(keys) });
     }
+    // A credential that is already registered was recognised, not guessed: it leaves no step behind.
+    if (error instanceof PapError && error.code === "conflict") throttle.succeed(keys);
     throw error;
   }
 }
@@ -111,12 +130,16 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
     const body = await readJson(c, FlowBody);
     if (!body) return badRequest(c);
     try {
+      const sent = body.response.id;
+      const claimed =
+        typeof sent === "string" && sent.length <= MAX_CREDENTIAL_ID ? deps.userOfPasskey(sent) : undefined;
+      const device = deps.devices.keyOf(deviceCookie(c), claimed);
       const { userId, passkeyRef } = await throttled(
         c,
         deps,
         () => deps.passkeys.loginVerify(body.flowId, body.response),
         deps.throttle,
-        [`ip:${clientIp(c)}`],
+        [device ?? ipKey(clientIp(c))],
       );
       // Always a new session, never the one the request came with: a cookie planted beforehand gains nothing.
       setSessionCookie(
@@ -125,6 +148,7 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
           ip: clientIp(c),
           method: "passkey",
           passkeyRef,
+          deviceCookie: deviceCookie(c),
         }),
       );
       return c.json({ ok: true });

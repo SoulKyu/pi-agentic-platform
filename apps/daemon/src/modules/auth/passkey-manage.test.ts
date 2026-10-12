@@ -25,8 +25,8 @@ describe("passkey management", () => {
   it("lists the owner's passkeys by a short hash of their id, with their last use", () => {
     const { manager, owner } = bed();
     expect(manager.list(owner)).toEqual([
-      { id: shortId(CRED_A), createdAt: T0, lastUsedAt: null, transports: ["internal"] },
       { id: shortId(CRED_B), createdAt: T1, lastUsedAt: T2, transports: ["usb", "nfc"] },
+      { id: shortId(CRED_A), createdAt: T0, lastUsedAt: null, transports: ["internal"] },
     ]);
     expect(JSON.stringify(manager.list(owner))).not.toContain(CRED_A);
   });

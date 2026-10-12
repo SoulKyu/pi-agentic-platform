@@ -76,4 +76,17 @@ describe("used nonces (R85)", () => {
     await stepped.advance(-(TTL + 5 * MINUTE));
     expect(() => own.take(challenge)).not.toThrow();
   });
+
+  it("are held for 10 000 at most: a full table of live nonces refuses new answers and forgets none", async () => {
+    const stepped = createFakeClock();
+    const own = createLoginChallenges(stepped, TTL, KEY);
+    const first = own.issue().toString("base64url");
+    own.take(first);
+    for (let i = 1; i < 10_000; i++) own.take(own.issue().toString("base64url"));
+    const refused = new PapError("unauthenticated");
+    expect(() => own.take(own.issue().toString("base64url"))).toThrow(refused);
+    expect(() => own.take(first)).toThrow(refused);
+    await stepped.advance(TTL + 5 * MINUTE);
+    expect(() => own.take(own.issue().toString("base64url"))).not.toThrow();
+  });
 });

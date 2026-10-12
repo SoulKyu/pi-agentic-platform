@@ -8,6 +8,8 @@ const MAC_BYTES = 32;
 const LABEL = "pap-passkey-login";
 // A used nonce is kept this long past its expiry: a clock stepped back by less cannot make it valid again (R85).
 const NONCE_SLACK_MS = 5 * 60_000;
+// Nonces are only recorded for challenges this process signed, but signing is free: the table is capped and refuses.
+const MAX_TAKEN = 10_000;
 
 export interface LoginChallenges {
   /** nonce (16) ‖ expiry in ms since the epoch (8, big endian) ‖ HMAC-SHA256(key, label ‖ nonce ‖ expiry). */
@@ -51,9 +53,19 @@ export function createLoginChallenges(
       const expiresAt = Number(expiry.readBigUInt64BE());
       const now = clock.now();
       if (expiresAt <= now) throw refuse();
-      for (const [seen, until] of taken) if (until <= now) taken.delete(seen);
+      // Nonces go in with a rising expiry, so the lapsed ones are at the head; a clock stepped back may leave a few
+      // behind, and those are ignored below and swept when the table is full.
+      for (const [seen, until] of taken) {
+        if (until > now) break;
+        taken.delete(seen);
+      }
       const id = nonce.toString("base64url");
-      if (taken.has(id)) throw refuse();
+      if ((taken.get(id) ?? 0) > now) throw refuse();
+      if (taken.size >= MAX_TAKEN) {
+        for (const [seen, until] of taken) if (until <= now) taken.delete(seen);
+        // Full of live nonces: a live one is never forgotten (a replay), so this answer is refused instead.
+        if (taken.size >= MAX_TAKEN) throw refuse();
+      }
       taken.set(id, expiresAt + NONCE_SLACK_MS);
     },
   };

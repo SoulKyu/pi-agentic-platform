@@ -6,11 +6,12 @@ import { newId, randomToken, sha256Hex } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { SESSION_TTL_MS } from "./cookies.ts";
+import { createKnownDevices, type KnownDevices } from "./known-device.ts";
 import { dummyHash, hashPassword, isAcceptablePassword, verifyPassword } from "./passwords.ts";
 import type { SetupToken } from "./setup-token.ts";
 import { createStepUps, type StepUps } from "./step-up.ts";
 import type { AuthStore, SignInMethod, UserRow } from "./store.ts";
-import { sessionKey } from "./throttle-keys.ts";
+import { ipKey, sessionKey } from "./throttle-keys.ts";
 import { MAX_BACKOFF_MS, type Throttle } from "./throttle.ts";
 
 // A session's expiry is pushed forward at most once a day: a read is not a write on every request.
@@ -35,6 +36,8 @@ export class RateLimitedError extends PapError {
 export interface StartedSession {
   readonly cookieValue: string;
   readonly maxAgeSeconds: number;
+  /** A known-device cookie value the browser must be given: set when the request carried no valid one (M5R80). */
+  readonly deviceCookie?: string;
 }
 
 /** How a browser signed in: the socket address of that request (R72), the method, and for a passkey which one (M5R75, M5R128). */
@@ -42,6 +45,8 @@ export interface SessionOrigin {
   readonly ip: string;
   readonly method: SignInMethod;
   readonly passkeyRef?: string;
+  /** The `pap_device` value the request carried, valid or not: a valid one for this user is not issued again. */
+  readonly deviceCookie?: string | undefined;
 }
 
 export interface AuthServiceDeps {
@@ -50,12 +55,14 @@ export interface AuthServiceDeps {
   readonly logger: Logger;
   readonly publicOrigin: string;
   readonly throttle: Throttle;
-  /** Keys minted only by a valid cookie (`session:`): a spray of addresses or names can never fill it (RT-06). */
+  /** Keys minted only by a valid cookie (`session:`, `device:`): a spray of addresses or names can never fill it (RT-06). */
   readonly sessionThrottle: Throttle;
   readonly setupToken: SetupToken;
   readonly audit: Pick<AuditPort, "append">;
   /** The marks of confirmed sessions; a bed passes its own to look at them. */
   readonly stepUps?: StepUps;
+  /** Known-device cookies; without one a key of this process's own is made, so cookies last until a restart. */
+  readonly devices?: KnownDevices;
 }
 
 export interface Credentials {
@@ -63,6 +70,8 @@ export interface Credentials {
   readonly password: string;
   readonly ip: string;
   readonly userAgent: string | undefined;
+  /** The `pap_device` cookie of the request, as sent. */
+  readonly deviceCookie?: string | undefined;
 }
 
 export interface AuthService {
@@ -110,6 +119,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   // Security events carry the socket address and the delay in force, never a username, a password or a token:
   // people type one into the other's field, and a log is read by more eyes than a database.
   const stepUps = deps.stepUps ?? createStepUps(deps.clock);
+  const devices = deps.devices ?? createKnownDevices(randomBytes(32));
   const lastThrottleLog = new Map<string, number>();
   let lastFullLog = -Infinity;
   // A table of live lockouts is full: refuse before any hash, and say so (no key, no address) at most once per window.
@@ -149,7 +159,12 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       expiresAt: now + SESSION_TTL_MS,
       userAgent: userAgent?.slice(0, MAX_USER_AGENT_LENGTH) ?? null,
     });
-    return { cookieValue, maxAgeSeconds: SESSION_TTL_MS / 1000 };
+    const known = devices.keyOf(origin.deviceCookie, userId) !== null;
+    return {
+      cookieValue,
+      maxAgeSeconds: SESSION_TTL_MS / 1000,
+      ...(known ? {} : { deviceCookie: devices.issue(userId) }),
+    };
   };
   // Sign-in and step-up end alike: guard, count the attempt before the slow hash, verify against the stored hash
   // (an unknown name against the dummy one; if even that cannot be computed it is a plain mismatch, never an
@@ -215,7 +230,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       };
     },
     async setup(input) {
-      const keys = [`ip:${input.ip}`];
+      const keys = [ipKey(input.ip)];
       guard(deps.throttle, keys, input.ip);
       // Nothing is left to guess once an owner exists: refuse without counting, so a spray costs nothing and fills nothing.
       if (deps.store.countUsers() > 0) throw new PapError("unauthenticated");
@@ -243,18 +258,31 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       deps.setupToken.consume();
       deps.throttle.succeed(keys);
       deps.logger.info("owner_created", { userId: id });
-      return startSession(id, input.userAgent, { ip: input.ip, method: "setup" });
+      return startSession(id, input.userAgent, {
+        ip: input.ip,
+        method: "setup",
+        deviceCookie: input.deviceCookie,
+      });
     },
     async login(input) {
-      const keys = [`ip:${input.ip}`, `user:${input.username.toLowerCase()}`];
-      const user = await checkPassword(
-        deps.throttle,
-        keys,
-        input.ip,
-        deps.store.findUserByName(input.username),
-        input.password,
-      );
-      return startSession(user.id, input.userAgent, { ip: input.ip, method: "password" });
+      const found = deps.store.findUserByName(input.username);
+      // A cookie issued to this very account gives the browser a throttle key of its own, in the table only valid
+      // cookies can fill. Anything else (absent, forged, another account, unknown name) is the shared keys, silently.
+      const device = devices.keyOf(input.deviceCookie, found?.id);
+      const user = device
+        ? await checkPassword(deps.sessionThrottle, [device], input.ip, found, input.password)
+        : await checkPassword(
+            deps.throttle,
+            [ipKey(input.ip), `user:${input.username.toLowerCase()}`],
+            input.ip,
+            found,
+            input.password,
+          );
+      return startSession(user.id, input.userAgent, {
+        ip: input.ip,
+        method: "password",
+        deviceCookie: input.deviceCookie,
+      });
     },
     confirmPassword,
     async confirmSession(input) {

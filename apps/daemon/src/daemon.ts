@@ -147,6 +147,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       allowedOrigins: config.allowedOrigins,
       insecureHttp: config.insecureHttp,
       audit: audit.port,
+      secretsDir: join(config.home, "secrets"),
     });
     const env = deps.env ?? process.env;
     const scopes = await (deps.probeScopes ?? probeScopes)(config.workerScope, config.workerLimits, {

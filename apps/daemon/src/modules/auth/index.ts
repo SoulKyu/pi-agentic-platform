@@ -12,6 +12,7 @@ import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
 import { credentialOf } from "./credentials.ts";
 import { createDevices } from "./devices.ts";
 import { mountAuthRoutes } from "./http.ts";
+import { createKnownDevices, loadDeviceKey } from "./known-device.ts";
 import { createPasskeyManager } from "./passkey-manage.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
 import { createPasskeyService } from "./passkeys.ts";
@@ -40,6 +41,8 @@ export interface AuthModuleDeps {
   /** `--insecure-http`: session cookies without Secure on plain HTTP (LAN testing). */
   readonly insecureHttp?: boolean;
   readonly audit: Pick<AuditPort, "append">;
+  /** `$PAP_HOME/secrets`: where `device.key` lives (0600). */
+  readonly secretsDir: string;
 }
 
 export interface AuthModule {
@@ -66,6 +69,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
   const store = createAuthStore(deps.db);
   const logger = deps.logger.child({ module: "auth" });
   const throttles = createAuthThrottles(deps.clock);
+  const knownDevices = createKnownDevices(loadDeviceKey(deps.secretsDir, logger));
   const service = createAuthService({
     store,
     clock: deps.clock,
@@ -75,6 +79,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     sessionThrottle: throttles.session,
     setupToken: createSetupToken(store.countUsers() === 0),
     audit: deps.audit,
+    devices: knownDevices,
   });
   const passkeys = createPasskeyService({
     store,
@@ -106,6 +111,8 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
         passkeys,
         auth: service,
         throttle: throttles.passkey,
+        devices: knownDevices,
+        userOfPasskey: (credentialId) => store.findPasskey(credentialId)?.userId,
         logger,
         audit: deps.audit,
       });
