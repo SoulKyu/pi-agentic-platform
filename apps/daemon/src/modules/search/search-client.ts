@@ -181,7 +181,8 @@ export function createSearchClient(deps: {
         }, QUERY_TIMEOUT_MS);
         pending.set(id, { resolve, reject, timer });
         try {
-          current.postMessage({ id, input, budgetMs: THREAD_BUDGET_MS });
+          // Absolute, from the moment of asking: a query queued behind a slow one must not get a fresh budget.
+          current.postMessage({ id, input, deadlineAt: deps.clock.now() + THREAD_BUDGET_MS });
         } catch (error) {
           pending.delete(id);
           deps.clock.clearTimeout(timer);

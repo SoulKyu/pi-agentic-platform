@@ -263,9 +263,15 @@ describe("search client", () => {
     expect(await next).toEqual([]);
   });
 
-  it("posts the query with its time budget", () => {
+  it("posts the query with an absolute deadline counted from when the client asked, so a queued query gets no fresh budget", async () => {
+    const first = clock.now();
     void settle(client.query(INPUT));
-    expect(threads[0]?.posted[0]).toEqual({ id: 1, input: INPUT, budgetMs: THREAD_BUDGET_MS });
+    await clock.advance(1_000);
+    void settle(client.query(INPUT));
+    expect(threads[0]?.posted).toEqual([
+      { id: 1, input: INPUT, deadlineAt: first + THREAD_BUDGET_MS },
+      { id: 2, input: INPUT, deadlineAt: first + 1_000 + THREAD_BUDGET_MS },
+    ]);
   });
 
   it("stop() settles within its bound when terminate() never resolves, and says so", async () => {

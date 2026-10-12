@@ -74,4 +74,15 @@ describe("search client with a real worker thread", () => {
     await second.stop();
     await exited[1];
   });
+
+  it("the thread answers `timeout` for a query whose deadline passed while it waited in the queue", async () => {
+    const worker = spawn(join(dir, "search.db")) as Worker;
+    const answer = new Promise<unknown>((resolve) => worker.once("message", resolve));
+    worker.postMessage({
+      id: 1,
+      input: { match: '"kubernetes"', ownerId: "u1", limit: 20 },
+      deadlineAt: Date.now() - 1,
+    });
+    expect(await answer).toEqual({ id: 1, ok: false, code: "timeout" });
+  });
 });

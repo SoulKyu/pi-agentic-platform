@@ -9,12 +9,12 @@ if (!port) throw new Error("search-thread runs as a worker thread");
 const db = new DatabaseSync(String((workerData as { path?: unknown }).path), { readOnly: true });
 db.exec("PRAGMA busy_timeout = 1000");
 
-port.on("message", (message: { id: number; input: QueryInput; budgetMs: number }) => {
+port.on("message", (message: { id: number; input: QueryInput; deadlineAt: number }) => {
   try {
     port.postMessage({
       id: message.id,
       ok: true,
-      rows: runQuery(db, message.input, { at: Date.now() + message.budgetMs }),
+      rows: runQuery(db, message.input, { at: message.deadlineAt }),
     });
   } catch (error) {
     if (error instanceof QueryDeadlineError) {
