@@ -304,10 +304,9 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
   const workers = descendantsOf(daemonPid);
   const hosts = workers.filter((pid) => cmdlineOf(pid).includes(PI_HOST));
   if (hosts.length === 0) throw new Error(`no worker running ${PI_HOST} was found under the daemon`);
-  for (const pid of hosts) {
-    if (!cmdlineOf(pid).includes(`--import=${NETWORK_GUARD}`))
-      throw new Error(`worker ${pid} runs without the network guard`);
-  }
+  const flags = [`--import=${NETWORK_GUARD}`, "--max-semi-space-size=16"]; // the second one: WORKER_BUDGET_MB
+  const bare = hosts.flatMap((pid) => flags.filter((f) => !cmdlineOf(pid).includes(f)));
+  if (bare.length > 0) throw new Error(`a worker runs without ${bare.join(", ")}`);
   // The leftover check below must be able to see a worker, or it proves nothing.
   const visible = runningUnder(userHome);
   if (!workers.every((pid) => visible.includes(pid)))

@@ -2,7 +2,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConfigError, defaultMaxWorkers, loadConfig, workerExecArgv, type ConfigInput } from "./config.ts";
+import {
+  ConfigError,
+  defaultMaxWorkers,
+  loadConfig,
+  WORKER_BUDGET_MB,
+  workerExecArgv,
+  type ConfigInput,
+} from "./config.ts";
 
 let cwd: string;
 let base: ConfigInput;
@@ -99,8 +106,20 @@ describe("loadConfig", () => {
         "development",
         "--conditionsX=1",
       ]),
-    ).toEqual(["--conditions=development"]);
-    expect(workerExecArgv([])).toEqual([]);
+    ).toEqual(["--conditions=development", "--max-semi-space-size=16"]);
+    expect(workerExecArgv([])).toEqual(["--max-semi-space-size=16"]);
+  });
+
+  it("always gives the workers a 16 MiB semi-space, whatever the daemon was started with (R45)", () => {
+    for (const given of [
+      [],
+      ["--max-semi-space-size=1"],
+      ["--max-semi-space-size", "1"],
+      ["--max-semi-space-size=64", "--conditions=development"],
+    ]) {
+      const flags = workerExecArgv(given).filter((arg) => arg.includes("semi-space"));
+      expect(flags).toEqual(["--max-semi-space-size=16"]);
+    }
   });
 
   describe("PAP_TEST_WORKER_IMPORT (R130)", () => {
@@ -144,10 +163,13 @@ describe("loadConfig", () => {
     expect(defaultMaxWorkers(12_000, 600)).toBe(10);
   });
 
-  it("applies the S4 worker budget by default (docs/spikes/s4.md)", () => {
+  it("applies the worker budget of 285 MB by default (docs/spikes/s4-m2-long-session.md)", () => {
+    expect(WORKER_BUDGET_MB).toBe(285);
     expect(defaultMaxWorkers(19_995)).toBe(16);
-    expect(defaultMaxWorkers(4_096)).toBe(8);
-    expect(defaultMaxWorkers(2_048)).toBe(4);
+    expect(defaultMaxWorkers(16_384)).toBe(16);
+    expect(defaultMaxWorkers(8_192)).toBe(14);
+    expect(defaultMaxWorkers(4_096)).toBe(7);
+    expect(defaultMaxWorkers(2_048)).toBe(3);
   });
 
   it("treats an empty PAP_HOME or PI_CODING_AGENT_DIR as unset", () => {

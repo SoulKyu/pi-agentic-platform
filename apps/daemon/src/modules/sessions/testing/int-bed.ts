@@ -9,6 +9,7 @@ import {
   type SessionStreamEvent,
 } from "@pap/contracts";
 import { vi } from "vitest";
+import { workerExecArgv } from "../../../kernel/config.ts";
 import { createSystemClock } from "../../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
 import { silentLogger } from "../../../kernel/logger.ts";
@@ -21,7 +22,7 @@ import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "
 
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const EXEC_ARGV = [
-  "--conditions=development",
+  ...workerExecArgv(["--conditions=development"]),
   "--disable-warning=ExperimentalWarning",
   "--import",
   join(REPO, "packages/pi-host/src/testing/network-guard.ts"),

@@ -12,8 +12,8 @@ const DEFAULT_MIN_FREE_MEM_MB = 512;
 // Timers hold at most 2^31 - 1 ms; a longer idle delay would fire at once.
 const MAX_IDLE_MINUTES = Math.floor((2 ** 31 - 1) / 60_000);
 export const VITE_DEV_ORIGIN = "http://localhost:5173";
-// Measured in docs/spikes/s4.md: idle worker ≈156 MB RSS / ≈103 MB PSS; ceil(157 × 1.5).
-export const WORKER_BUDGET_MB = 236;
+// docs/spikes/s4-m2-long-session.md: a 300-turn session with compaction on, run with WORKER_SEMI_SPACE_FLAG (owner, R45).
+export const WORKER_BUDGET_MB = 285;
 
 // Messages are fixed text: no flag value, environment value or path is ever echoed (spec C §4.1),
 // so a mistyped secret cannot reach a terminal, a log line or a crash report through a config error.
@@ -64,13 +64,20 @@ const isLoopback = (host: string) => host === "127.0.0.1" || host === "localhost
 const isWildcard = (host: string) => host === "0.0.0.0" || host === "::";
 
 /**
+ * Part of what `WORKER_BUDGET_MB` was measured with (docs/spikes/s4-m2-long-session.md): it caps V8's semi-space
+ * at 16 MiB, which brought the measured RSS of a long session down. It is a command-line flag (which takes
+ * precedence over `NODE_OPTIONS`) and it is always appended here, never inherited from the daemon.
+ */
+export const WORKER_SEMI_SPACE_FLAG = "--max-semi-space-size=16";
+
+/**
  * The node flags a worker inherits from the daemon: the development condition (`--conditions=development`, so a
  * worker finds the TypeScript sources too) and nothing else. In particular no `--import`: a worker starts in the
  * session's project, where a relative or bare specifier would load the project's own code before the policy runs.
  */
 export function workerExecArgv(execArgv: readonly string[]): string[] {
   // `=` form only: a lone `--conditions` would take the worker entry path as its value.
-  return execArgv.filter((arg) => arg.startsWith("--conditions="));
+  return [...execArgv.filter((arg) => arg.startsWith("--conditions=")), WORKER_SEMI_SPACE_FLAG];
 }
 
 export function defaultMaxWorkers(totalMemMb: number, budgetMb = WORKER_BUDGET_MB): number {

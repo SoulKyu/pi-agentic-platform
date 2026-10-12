@@ -1,6 +1,8 @@
 // By hand, never in CI (M2R117): drives one pi-host worker through a long scripted session and prints its own
 // /proc RSS and PSS every SAMPLE_EVERY turns. Scripted provider only, temp dirs only, network guard on.
 //   node --disable-warning=ExperimentalWarning --conditions=development scripts/measure-worker-rss.ts --turns 300 > /tmp/pap-rss.json
+// The worker is forked with the daemon's flags (--max-semi-space-size=16, see fork-host.ts). `--compaction on` (the default)
+// lets Pi compact as a real session does, the scripted model answering the summaries; `off` never compacts.
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -21,15 +23,19 @@ const kbOf = (file: string, field: string): number => {
 };
 const mb = (kb: number) => Math.round((kb / 1024) * 10) / 10;
 
-function turnsFromArgs(): number {
-  const { values } = parseArgs({ options: { turns: { type: "string", default: "300" } } });
+function optionsFromArgs(): { turns: number; compaction: boolean } {
+  const { values } = parseArgs({
+    options: { turns: { type: "string", default: "300" }, compaction: { type: "string", default: "on" } },
+  });
   const turns = Number(values.turns);
   if (!Number.isInteger(turns) || turns < 1) throw new Error("--turns must be a positive integer");
-  return turns;
+  if (values.compaction !== "on" && values.compaction !== "off")
+    throw new Error("--compaction must be on or off");
+  return { turns, compaction: values.compaction === "on" };
 }
 
 async function main(): Promise<void> {
-  const turns = turnsFromArgs();
+  const { turns, compaction } = optionsFromArgs();
   const started = Date.now();
   const reply = { text: "r".repeat(REPLY_BYTES) };
   const bed = createHostBed();
@@ -40,9 +46,11 @@ async function main(): Promise<void> {
         { toolCalls: [{ name: "read", args: { path: "big.txt" }, id: `read-${i}` }] },
         reply,
       ]).flat(),
+      ...(compaction
+        ? { summary: "## Goal\nRead big.txt each turn.\n## Progress\nDone: the reads so far." }
+        : {}),
     };
-    // Auto-compaction would call the scripted model for its summary and consume the steps meant for later turns.
-    await bed.start(script, { settings: { compaction: { enabled: false } } });
+    await bed.start(script, { settings: { compaction: { enabled: compaction } } });
     const host = bed.host();
     const pid = host.child.pid;
     if (pid === undefined || pid <= 1) throw new Error("no worker pid");
@@ -70,8 +78,11 @@ async function main(): Promise<void> {
       throw new Error(
         `${reads.length} reads ended, ${failed} failed, ${turns} expected: not a read-per-turn session`,
       );
+    const compactions = host.records.filter((record) => record.type === "compaction_end").length;
     const wallSeconds = Math.round((Date.now() - started) / 100) / 10;
-    console.log(JSON.stringify({ turns, idleRssMb, rssMb, peakRssMb, pssMb, wallSeconds }));
+    console.log(
+      JSON.stringify({ turns, compaction, compactions, idleRssMb, rssMb, peakRssMb, pssMb, wallSeconds }),
+    );
   } finally {
     await bed.dispose();
   }
