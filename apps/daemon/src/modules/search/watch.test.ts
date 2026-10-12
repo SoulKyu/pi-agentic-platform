@@ -24,9 +24,15 @@ it("reports a folder that cannot be watched with its code and returns null", () 
 
 it("reports the names of files created in the folder, and stops after close", async () => {
   const names: Array<string | null> = [];
+  const sentinel: Array<string | null> = [];
   const close = fsWatch(
     dir,
     (name) => names.push(name),
+    () => undefined,
+  );
+  const closeSentinel = fsWatch(
+    dir,
+    (name) => sentinel.push(name),
     () => undefined,
   );
   expect(close).not.toBeNull();
@@ -35,7 +41,8 @@ it("reports the names of files created in the folder, and stops after close", as
   close?.();
   const seen = names.length;
   writeFileSync(join(dir, "b.jsonl"), "x");
-  writeFileSync(join(dir, "b.jsonl"), "xy");
-  await new Promise<void>((resolve) => setImmediate(resolve));
+  // The second watcher is still open: once it has seen the write, the closed one would have too.
+  await vi.waitFor(() => expect(sentinel).toContain("b.jsonl"), { timeout: 5_000 });
+  closeSentinel?.();
   expect(names).toHaveLength(seen);
 });

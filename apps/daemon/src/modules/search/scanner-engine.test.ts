@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
-import { silentLogger } from "../../kernel/logger.ts";
+import { type Logger, silentLogger } from "../../kernel/logger.ts";
 import { createScanEngine, type ScanEngine } from "./scanner-engine.ts";
 import type { FileContext, FileOutcome } from "./scanner-file.ts";
 import { type FakeWatch, fakeWatch } from "./testing/fake-watch.ts";
@@ -52,6 +52,7 @@ function make(
     process?: (path: string) => FileOutcome;
     yieldNow?: () => Promise<void>;
     maxQueue?: number;
+    logger?: Logger;
   } = {},
 ): ScanEngine {
   const run =
@@ -65,7 +66,7 @@ function make(
     ctx: {} as FileContext,
     watch: watch.factory,
     clock,
-    logger: silentLogger,
+    logger: options.logger ?? silentLogger,
     say,
     requestReconcile,
     onDamaged,
@@ -288,6 +289,41 @@ describe("queue and pump", () => {
         if (path === "/a.jsonl") throw codeError("database disk image is malformed", { errcode: 11 });
         return INDEXED;
       },
+    });
+    e.enqueue("/a.jsonl");
+    e.enqueue("/b.jsonl");
+    await e.idle();
+    expect(processed).toEqual(["/a.jsonl", "/b.jsonl"]);
+  });
+
+  it("a file that changes while another is being processed is queued again, not lost", async () => {
+    const hold = gate();
+    const e = make({ yieldNow: () => hold.promise });
+    e.enqueue("/a.jsonl");
+    e.debounce("/a.jsonl");
+    await clock.advance(250);
+    hold.resolve();
+    await e.idle();
+    expect(processed).toEqual(["/a.jsonl", "/a.jsonl"]);
+  });
+
+  it("paths given to debounce and enqueue are resolved", async () => {
+    const e = make();
+    e.enqueue(`${folder}/x/../a.jsonl`);
+    await e.idle();
+    expect(processed).toEqual([join(folder, "a.jsonl")]);
+  });
+
+  it("an unexpected failure with work left restarts the pump, and a throwing logger leaks no rejection", async () => {
+    let yields = 0;
+    const e = make({
+      logger: {
+        ...silentLogger,
+        error: () => {
+          throw new Error("logger");
+        },
+      },
+      yieldNow: () => (yields++ === 0 ? Promise.reject(new Error("yield")) : Promise.resolve()),
     });
     e.enqueue("/a.jsonl");
     e.enqueue("/b.jsonl");

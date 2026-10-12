@@ -16,6 +16,8 @@ export interface ScanEngine {
   /** Watches `<root>`, or its parent until `<root>` exists. */
   watchRoot(): void;
   watchFolder(dir: string): void;
+  /** Closes and forgets the watcher of a folder (the reconcile calls it for a folder it finds gone). */
+  unwatch(dir: string): void;
   /** A file changed: read it once its writes pause, and at most a second after the first change (M4R71). */
   debounce(path: string): void;
   enqueue(path: string): void;
@@ -67,8 +69,12 @@ export function createScanEngine(deps: {
   const tell = (event: string, fields?: Record<string, unknown>): void => {
     try {
       deps.say(event, fields);
-    } catch {
-      // The sink is broken; there is nowhere left to say it.
+    } catch (error) {
+      try {
+        deps.logger.warn("session_say_failed", { code: codeOf(error) });
+      } catch {
+        // The logger is broken too; nothing is left to tell.
+      }
     }
   };
   const attempt = (call: () => void): void => {
@@ -90,20 +96,39 @@ export function createScanEngine(deps: {
     }
   };
 
-  const watchDir = (dir: string, onEvent: (name: string | null) => void): void => {
+  /** Closes a watcher and forgets it, so a folder created again under the same name is watched anew. */
+  const evict = (dir: string): void => {
+    const close = watchers.get(dir);
+    if (!close) return;
+    watchers.delete(dir);
+    attempt(close);
+  };
+
+  /** `onGone` runs when an event shows the watched folder itself no longer exists (its watcher is evicted first). */
+  const watchDir = (dir: string, onEvent: (name: string | null) => void, onGone?: () => void): void => {
     if (closed || watchers.has(dir)) return;
     if (watchers.size >= MAX_WATCHED_DIRS) {
       tell("session_watch_limit", { max: MAX_WATCHED_DIRS });
       return;
     }
+    let mine: (() => void) | null = null;
     const close = deps.watch(
       dir,
-      (name) => attempt(() => onEvent(name)),
+      (name) =>
+        attempt(() => {
+          if ((name === null || name === basename(dir)) && !isFolder(dir)) {
+            evict(dir);
+            onGone?.();
+            return;
+          }
+          onEvent(name);
+        }),
       (code) => {
-        watchers.delete(dir);
+        if (watchers.get(dir) === mine || mine === null) watchers.delete(dir);
         tell("session_watch_failed", { code });
       },
     );
+    mine = close;
     if (close) watchers.set(dir, close);
   };
 
@@ -124,15 +149,26 @@ export function createScanEngine(deps: {
         watchRoot();
         reconcile();
       });
+      // Created between the check and the watch: no event will tell.
+      if (isFolder(root)) watchRoot();
       return;
     }
-    watchDir(root, (name) => {
-      if (name === null) return reconcile();
-      const folder = join(root, name);
-      if (!isFolder(folder)) return;
-      watchFolder(folder);
-      reconcile();
-    });
+    watchDir(
+      root,
+      (name) => {
+        if (name === null) return reconcile();
+        const folder = join(root, name);
+        // A folder removed and created again has a new inode: its old watcher is dead.
+        evict(folder);
+        if (!isFolder(folder)) return;
+        watchFolder(folder);
+        reconcile();
+      },
+      () => {
+        watchRoot();
+        reconcile();
+      },
+    );
     const parentWatcher = watchers.get(parent);
     if (parentWatcher) {
       watchers.delete(parent);
@@ -140,8 +176,9 @@ export function createScanEngine(deps: {
     }
   }
 
-  function debounce(path: string): void {
+  function debounce(entry: string): void {
     if (closed) return;
+    const path = resolve(entry);
     const now = deps.clock.now();
     const current = debounces.get(path);
     if (!current && debounces.size >= maxQueue) return reconcile();
@@ -156,8 +193,9 @@ export function createScanEngine(deps: {
     debounces.set(path, { timer, first });
   }
 
-  function enqueue(path: string): void {
+  function enqueue(entry: string): void {
     if (closed) return;
+    const path = resolve(entry);
     if (!queue.has(path) && queue.size >= maxQueue) {
       tell("session_queue_full", { max: maxQueue });
       reconcile();
@@ -185,16 +223,25 @@ export function createScanEngine(deps: {
         await yieldNow();
       }
     })()
-      .catch((error: unknown) => deps.logger.error("session_scan_pump_failed", { err: error }))
+      .catch((error: unknown) => {
+        try {
+          deps.logger.error("session_scan_pump_failed", { err: error });
+        } catch {
+          // A broken logger must not turn into an unhandled rejection.
+        }
+      })
       .finally(() => {
         pumping = null;
-        for (const release of waiters.splice(0)) release();
+        // An unexpected failure left work behind: go on with it.
+        if (!closed && queue.size > 0) pump();
+        if (!pumping) for (const release of waiters.splice(0)) release();
       });
   }
 
   return {
     watchRoot,
     watchFolder,
+    unwatch: (dir) => evict(resolve(dir)),
     debounce,
     enqueue,
     idle: () => (pumping ? new Promise<void>((release) => waiters.push(release)) : Promise.resolve()),
