@@ -241,11 +241,17 @@ describe("describeCall: the kernel's reading", () => {
     const message = messageOf(
       "write",
       { path: "a", content: "" },
-      { why: "protected path", target: "/p/state.db", kernelTarget: "/q/state.db" },
+      {
+        why: "protected path",
+        target: "/p/state.db",
+        kernelTarget: "/q/state.db",
+        targetLabel: "the file Pi writes",
+        kernelLabel: "protected path, if a tool follows the symlink before ..",
+      },
     );
     expect(message.split("\n").slice(1, 3)).toEqual([
-      "\u2192 /p/state.db (protected path)",
-      "\u2192 /q/state.db (also, if `..` follows a symlink first)",
+      "\u2192 /p/state.db (the file Pi writes)",
+      "\u2192 /q/state.db (protected path, if a tool follows the symlink before ..)",
     ]);
   });
 });

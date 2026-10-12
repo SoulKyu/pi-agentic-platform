@@ -60,12 +60,16 @@ describe("a symlink followed by .. (reads)", () => {
       why: "protected path",
       target: await piFile(proc),
       kernelTarget: key,
+      targetLabel: "the file Pi reads",
+      kernelLabel: "protected path, if a tool follows the symlink before ..",
     });
     for (const path of ["s/../state.db", `${bed.cwd}/s/../state.db`])
       expect(await checkReadTarget("read", { path }, dirs())).toEqual({
         why: "protected path",
         target: await piFile(path),
         kernelTarget: join(bed.papHome, "state.db"),
+        targetLabel: "the file Pi reads",
+        kernelLabel: "protected path, if a tool follows the symlink before ..",
       });
     expect(await piFile("s/../state.db")).toBe(join(bed.cwd, "state.db"));
   });
@@ -75,6 +79,18 @@ describe("a symlink followed by .. (reads)", () => {
       why: "protected path",
       target: join(bed.papHome, "state.db"),
       kernelTarget: undefined,
+    });
+  });
+
+  it("gives each line the reason of its own file when both readings are protected", async () => {
+    await mkdir(join(bed.papHome, "backups", "deep"), { recursive: true });
+    await symlink(join(bed.papHome, "backups", "deep"), join(bed.papHome, "lnk"), "dir");
+    expect(await checkReadTarget("read", { path: `${bed.papHome}/lnk/../secrets/k` }, dirs())).toEqual({
+      why: "protected path",
+      target: join(bed.papHome, "secrets", "k"),
+      kernelTarget: join(bed.papHome, "backups", "secrets", "k"),
+      targetLabel: "protected path",
+      kernelLabel: "protected path, if a tool follows the symlink before ..",
     });
   });
 
@@ -91,6 +107,8 @@ describe("a symlink followed by .. (reads)", () => {
         why: "searches pap's data directory",
         target: await piFile(viaProcRoot(bed.base)),
         kernelTarget: bed.base,
+        targetLabel: "the file Pi reads",
+        kernelLabel: "searches pap's data directory, if a tool follows the symlink before ..",
       });
     expect(await checkReadTarget("ls", { path: viaProcRoot(bed.base) }, dirs())).toBeUndefined();
   });
@@ -116,6 +134,8 @@ describe("a symlink followed by .. (writes)", () => {
           why: "outside the session directory",
           target: join(bed.cwd, "x"),
           kernelTarget: join(bed.outside, "x"),
+          targetLabel: "the file Pi writes",
+          kernelLabel: "outside the session directory, if a tool follows the symlink before ..",
         },
       });
   });
@@ -128,6 +148,8 @@ describe("a symlink followed by .. (writes)", () => {
         why: "protected path",
         target: join(bed.papHome, "state.db"),
         kernelTarget: join(bed.outside, "pap", "state.db"),
+        targetLabel: "protected path",
+        kernelLabel: "outside the session directory, if a tool follows the symlink before ..",
       },
     });
   });
@@ -140,6 +162,8 @@ describe("a symlink followed by .. (writes)", () => {
         why: "outside the session directory",
         target: join(bed.base, ".bashrc"),
         kernelTarget: join(bed.outside, ".bashrc"),
+        targetLabel: "outside the session directory",
+        kernelLabel: "outside the session directory, if a tool follows the symlink before ..",
       },
     });
   });
@@ -153,6 +177,8 @@ describe("a symlink followed by .. (writes)", () => {
         why: "outside the session directory",
         target: await piFile(viaProcRoot(kernel)),
         kernelTarget: kernel,
+        targetLabel: "outside the session directory",
+        kernelLabel: "outside the session directory, if a tool follows the symlink before ..",
       },
     });
   });
@@ -164,6 +190,8 @@ describe("a symlink followed by .. (writes)", () => {
         why: "protected path",
         target: join(bed.cwd, "hooks", "pre-commit"),
         kernelTarget: join(bed.cwd, ".git", "hooks", "pre-commit"),
+        targetLabel: "the file Pi writes",
+        kernelLabel: "protected path, if a tool follows the symlink before ..",
       },
     });
     expect(await checkEditTarget("s/../state.db", bed.cwd, roots())).toEqual({
@@ -172,6 +200,8 @@ describe("a symlink followed by .. (writes)", () => {
         why: "protected path",
         target: join(bed.cwd, "state.db"),
         kernelTarget: join(bed.papHome, "state.db"),
+        targetLabel: "the file Pi writes",
+        kernelLabel: "protected path, if a tool follows the symlink before ..",
       },
     });
   });

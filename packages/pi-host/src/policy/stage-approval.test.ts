@@ -237,6 +237,27 @@ describe("stage 03: hostile inputs", () => {
     expect(stderr).toHaveBeenCalledWith("pi-host: policy evaluation failed (TypeError)\n");
   });
 
+  it("each arrow line of a card gives the reason of its own file", async () => {
+    const h = bed.harness();
+    await h.run("read", { path: "link/../state.db" });
+    await h.run("write", { path: "link/../.git/config", content: "x" });
+    const arrows = h.asks.map((ask) => ask.message.split("\n").filter((line) => line.startsWith("\u2192 ")));
+    expect(arrows).toEqual([
+      [
+        `\u2192 ${join(bed.cwd, "state.db")} (the file Pi reads)`,
+        `\u2192 ${join(bed.papHome, "state.db")} (protected path, if a tool follows the symlink before ..)`,
+      ],
+      [
+        `\u2192 ${join(bed.cwd, ".git", "config")} (protected path)`,
+        `\u2192 ${join(bed.papHome, ".git", "config")} (protected path, if a tool follows the symlink before ..)`,
+      ],
+    ]);
+    expect(h.entries.map((entry) => entry.stages.find((stage) => stage.stage === "03")?.reason)).toEqual([
+      "protected path",
+      "protected path",
+    ]);
+  });
+
   it("a prototype-key mode blocks even when a review, a protected read or taint would have asked", async () => {
     vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const rules = () => ({ ...interactiveRules, approvalMode: "toString" }) as unknown as PolicyRules;

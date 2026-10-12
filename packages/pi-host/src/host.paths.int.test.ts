@@ -58,8 +58,8 @@ describe("pi-host worker: Pi collapses .. before it follows a symlink", () => {
       .split("\n")
       .filter((line) => line.startsWith("\u2192 "));
     expect(lines).toEqual([
-      `\u2192 ${join(bed.cwd, "probe.txt")} (outside the session directory)`,
-      `\u2192 ${join(bed.root, "real", "probe.txt")} (also, if \`..\` follows a symlink first)`,
+      `\u2192 ${join(bed.cwd, "probe.txt")} (the file Pi writes)`,
+      `\u2192 ${join(bed.root, "real", "probe.txt")} (outside the session directory, if a tool follows the symlink before ..)`,
     ]);
     host.send({ type: "approval_response", id: ask.id, answer: "once" });
     await host.waitFor((r) => r.type === "tool_execution_end");

@@ -54,6 +54,9 @@ export function within(root: string, target: string): boolean {
   return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
 }
 
+/** Said on the second `→` line of a card: the kernel reads `..` after a symlink, Pi before. */
+export const KERNEL_CONDITION = "if a tool follows the symlink before ..";
+
 const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([
   ".git",
   ".pi",
@@ -101,6 +104,9 @@ export interface EditReview {
   readonly target?: string;
   /** Where the kernel would land when it follows a symlink before a `..`; only when that differs and is a problem too. */
   readonly kernelTarget?: string;
+  /** With `kernelTarget`: the reason that applies to `target` (Pi's file) and to `kernelTarget`, one per `→` line. */
+  readonly targetLabel?: string;
+  readonly kernelLabel?: string;
 }
 
 export type EditCheck = { readonly auto: true } | { readonly auto: false; readonly review: EditReview };
@@ -134,8 +140,11 @@ export async function checkEditTarget(
     roots.some((variants) => variants.some((dir) => within(dir, candidate)));
   let target: string | undefined;
   let kernelTarget: string | undefined;
+  let kernelReason: string | undefined;
   let outside = false;
   let protectedPath = false;
+  let piOutsideAny = false;
+  let piProtectedAny = false;
   for (const spelling of new Set([asPiResolves(path), path])) {
     const lexical = resolve(cwd, spelling);
     const real = await realTarget(lexical);
@@ -150,12 +159,25 @@ export async function checkEditTarget(
     const kernel = await kernelResolve(cwd, spelling);
     const kernelOutside = !within(root, kernel);
     const kernelProtected = inProtectedRoot(kernel) || hasProtectedName(kernel);
-    if (kernelOutside || kernelProtected) kernelTarget ??= kernel;
+    piOutsideAny ||= piOutside;
+    piProtectedAny ||= piProtected;
+    if ((kernelOutside || kernelProtected) && kernelTarget === undefined) {
+      kernelTarget = kernel;
+      kernelReason = kernelProtected ? "protected path" : "outside the session directory";
+    }
     outside ||= piOutside || kernelOutside;
     protectedPath ||= piProtected || kernelProtected;
   }
   // The card names the file Pi writes (R88b); the kernel's reading is a second line when it differs.
-  const also = kernelTarget !== undefined && kernelTarget !== target ? { kernelTarget } : {};
+  const piReason = piProtectedAny
+    ? "protected path"
+    : piOutsideAny
+      ? "outside the session directory"
+      : "the file Pi writes";
+  const also =
+    kernelTarget !== undefined && kernelTarget !== target
+      ? { kernelTarget, targetLabel: piReason, kernelLabel: `${kernelReason}, ${KERNEL_CONDITION}` }
+      : {};
   if (protectedPath) return { auto: false, review: { why: "protected path", target, ...also } };
   if (outside) return { auto: false, review: { why: "outside the session directory", target, ...also } };
   if (tooBroad) {

@@ -64,14 +64,18 @@ export function describeCall(toolName: string, input: unknown, view: CallView): 
   if (Buffer.byteLength(payload, "utf8") > MAX_RAW_BYTES) return { reviewable: false };
   const counter = { hidden: 0 };
   const call = `${showHidden(toolName, counter)}: ${showHidden(payload, counter)}`;
-  const destination = view.review
-    ? [
-        `→ ${view.review.target === undefined ? "unknown location" : showHidden(view.review.target, counter)} (${view.review.why})`,
-        ...(view.review.kernelTarget === undefined
-          ? []
-          : [`→ ${showHidden(view.review.kernelTarget, counter)} (also, if \`..\` follows a symlink first)`]),
-      ]
-    : [];
+  const arrow = (path: string | undefined, label: string) =>
+    `→ ${path === undefined ? "unknown location" : showHidden(path, counter)} (${label})`;
+  const review = view.review;
+  // With a second reading each line says why it matters for its own file.
+  const destination = !review
+    ? []
+    : review.kernelTarget === undefined
+      ? [arrow(review.target, review.why)]
+      : [
+          arrow(review.target, review.targetLabel ?? review.why),
+          arrow(review.kernelTarget, review.kernelLabel ?? review.why),
+        ];
   const header = [
     plural([...payload].length, "character"),
     plural(payload.split("\n").length, "line"),

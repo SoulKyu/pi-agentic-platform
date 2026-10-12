@@ -1,6 +1,6 @@
 import { join, resolve } from "node:path";
 import { kernelResolve, tooLong } from "./kernel-path.ts";
-import { asPiResolves, type EditReview, realTarget, within } from "./target-path.ts";
+import { asPiResolves, type EditReview, KERNEL_CONDITION, realTarget, within } from "./target-path.ts";
 
 /** What lives in pap's home that no tool call of a session has a reason to read (M5R29, R97). */
 export const PAP_SENSITIVE = [
@@ -71,8 +71,12 @@ export async function checkReadTarget(
 
   let target: string | undefined;
   let kernelTarget: string | undefined;
+  let kernelReason: string | undefined;
+  let piReason: string | undefined;
   let protectedPath = false;
   let searches = false;
+  const reasonOf = (verdict: { protectedPath: boolean; searches: boolean }) =>
+    verdict.protectedPath ? "protected path" : verdict.searches ? "searches pap's data directory" : undefined;
   const judge = (candidates: readonly string[]) => ({
     protectedPath: sensitive.some((entry) => candidates.some((candidate) => within(entry, candidate))),
     searches:
@@ -87,12 +91,23 @@ export async function checkReadTarget(
     const kernel = await kernelResolve(dirs.cwd, spelling);
     const pi = judge([lexical, real]);
     const other = judge([kernel]);
-    if (other.protectedPath || other.searches) kernelTarget ??= kernel;
+    piReason ??= reasonOf(pi);
+    if (kernelTarget === undefined && reasonOf(other) !== undefined) {
+      kernelTarget = kernel;
+      kernelReason = reasonOf(other);
+    }
     protectedPath ||= pi.protectedPath || other.protectedPath;
     searches ||= pi.searches || other.searches;
   }
   // The card names the file Pi acts on (R88b); the kernel's reading is a second line when it differs.
-  const also = kernelTarget !== undefined && kernelTarget !== target ? { kernelTarget } : {};
+  const also =
+    kernelTarget !== undefined && kernelTarget !== target
+      ? {
+          kernelTarget,
+          targetLabel: piReason ?? "the file Pi reads",
+          kernelLabel: `${kernelReason}, ${KERNEL_CONDITION}`,
+        }
+      : {};
   if (protectedPath) return { why: "protected path", target, ...also };
   if (searches) return { why: "searches pap's data directory", target, ...also };
   return undefined;
