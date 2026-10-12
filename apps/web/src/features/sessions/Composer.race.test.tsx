@@ -184,6 +184,33 @@ describe("Composer banner after a remount mid-flight (M2 #44)", () => {
     expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
   });
 
+  it("shows the returned text on the screen that came back, and a keystroke after it keeps it", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(field(newer, "Message").value).toBe("deploy");
+    await typeInto(field(newer, "Message"), "deploy!");
+    expect(localStorage.getItem("pap.draft.sess-1")).toBe("deploy!");
+  });
+
+  it("merges the returned text with what was typed meanwhile, as Stop does", async () => {
+    const { call, newer } = await remountMidFlight();
+    await typeInto(field(newer, "Message"), "newer");
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(field(newer, "Message").value).toBe("deploy\n\nnewer");
+    await typeInto(field(newer, "Message"), "deploy\n\nnewer!");
+    expect(localStorage.getItem("pap.draft.sess-1")).toBe("deploy\n\nnewer!");
+  });
+
+  it("brings no text back when the send succeeds", async () => {
+    const { call, newer } = await remountMidFlight();
+    await typeInto(field(newer, "Message"), "newer");
+    call.resolve({ disposition: "started" });
+    await settle();
+    expect(field(newer, "Message").value).toBe("newer");
+  });
+
   it("drops the banner when the send the old screen made succeeds", async () => {
     const { call, newer } = await remountMidFlight();
     call.resolve({ disposition: "started" });

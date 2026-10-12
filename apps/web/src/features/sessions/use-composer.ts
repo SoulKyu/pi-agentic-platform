@@ -62,6 +62,7 @@ export function useComposer(
   const resendingRef = useRef(false);
   const mounted = useRef(true);
   const textRef = useRef(text);
+  const pendingRef = useRef(pending);
   // The editor text this screen has already applied (or found at mount): a remount never replays it (M2-RT-10).
   const seenSeq = useRef(view.editorText?.seq ?? 0);
   // "Edit from here" has a counter of its own, so it never moves `seenSeq`: an extension's text with a sequence this
@@ -91,6 +92,9 @@ export function useComposer(
   };
 
   useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+  useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
@@ -103,9 +107,14 @@ export function useComposer(
       onPendingChange(sessionId, () => {
         if (sendingRef.current) return; // this screen's own send writes its record itself
         const stored = loadPending(storage, sessionId);
+        if (pendingRef.current && !stored) {
+          // The send ended with a refusal in an older screen, which stored the text it gives back as the draft.
+          const returned = loadDraft(storage, sessionId);
+          if (returned !== textRef.current) commit(returned);
+        }
         setPending((shown) => (shown?.commandId === stored?.commandId ? shown : stored));
       }),
-    [storage, sessionId],
+    [storage, sessionId, commit],
   );
   useEffect(() => {
     const instruction = view.editorText;
@@ -146,17 +155,19 @@ export function useComposer(
         if (mounted.current) setPending({ params, commandId });
         return;
       }
-      remember(null);
-      if (mounted.current) {
-        if (failureCode(failure) === "session_busy") setRefusedAsBusy(true);
-        commit(mergeRestored(params.text, textRef.current));
-        setError(failureText(failure));
-      } else {
+      // The draft is stored first: a screen that came back follows the record's removal and reads it then.
+      if (!mounted.current) {
         saveDraft(
           storage,
           sessionId,
           mergeRestored(params.text, loadDraft(storage, sessionId)).slice(0, MAX_DRAFT_CHARS),
         );
+      }
+      remember(null);
+      if (mounted.current) {
+        if (failureCode(failure) === "session_busy") setRefusedAsBusy(true);
+        commit(mergeRestored(params.text, textRef.current));
+        setError(failureText(failure));
       }
       return;
     }

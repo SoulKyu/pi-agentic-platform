@@ -83,18 +83,23 @@ export function loadPending(storage: Storage | null, sessionId: string): Pending
     return raw ? parsePending(raw, sessionId) : null;
   } catch (error) {
     console.warn("pap: a pending message could not be read and was dropped", error);
-    savePending(storage, sessionId, null);
+    // No notification: this can run while a screen renders.
+    writePending(storage, sessionId, null);
     return null;
   }
 }
 
-export function savePending(storage: Storage | null, sessionId: string, pending: PendingSend | null): void {
+function writePending(storage: Storage | null, sessionId: string, pending: PendingSend | null): void {
   try {
     if (pending === null) storage?.removeItem(pendingKeyOf(sessionId));
     else storage?.setItem(pendingKeyOf(sessionId), JSON.stringify(pending));
   } catch (error) {
     warnOnce(error);
   }
+}
+
+export function savePending(storage: Storage | null, sessionId: string, pending: PendingSend | null): void {
+  writePending(storage, sessionId, pending);
   for (const listener of pendingListeners.get(sessionId) ?? []) listener();
 }
 
