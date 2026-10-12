@@ -65,8 +65,8 @@ describe("SessionListScreen", () => {
     const container = await show();
     const links = [...container.querySelectorAll("a")];
     expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
-      ["/work/new", "/s/b"],
-      ["/work/old", "/s/a"],
+      ["new", "/s/b"],
+      ["old", "/s/a"],
     ]);
     expect(text(container)).toContain("Working");
     expect(bed.called("sessions.list")).toEqual([]);
@@ -81,6 +81,20 @@ describe("SessionListScreen", () => {
     const links = [...container.querySelectorAll("a")];
     expect(links.map((link) => link.textContent)).toEqual(["Fix login", "<b>x</b>"]);
     expect(container.querySelector("b")).toBeNull();
+    expect(text(container)).toContain("/work/a");
+    expect(text(container)).toContain("/work/b");
+  });
+
+  it("labels an unnamed session with the start of its first message, else its folder, and shows the path below", async () => {
+    listed(
+      shellSession({ id: "a", cwd: "/work/a", updatedAt: 20, preview: "fix the tests" }),
+      shellSession({ id: "b", cwd: "/work/b", updatedAt: 10 }),
+    );
+    const container = await show();
+    expect([...container.querySelectorAll("a")].map((link) => link.textContent)).toEqual([
+      "fix the tests",
+      "b",
+    ]);
     expect(text(container)).toContain("/work/a");
     expect(text(container)).toContain("/work/b");
   });
@@ -107,10 +121,7 @@ describe("SessionListScreen", () => {
         .getState()
         .apply({ kind: "session", session: shellSession({ id: "n", cwd: "/work/n", updatedAt: 9 }) }),
     );
-    expect([...container.querySelectorAll("a")].map((link) => link.textContent)).toEqual([
-      "/work/n",
-      "/work/a",
-    ]);
+    expect([...container.querySelectorAll("a")].map((link) => link.textContent)).toEqual(["n", "a"]);
   });
 
   it("says there is no session yet once the stream has said so", async () => {

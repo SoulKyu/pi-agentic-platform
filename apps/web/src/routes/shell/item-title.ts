@@ -1,7 +1,7 @@
 import type { Translate } from "../../i18n/index.ts";
 import type { ItemRef } from "../../features/workspace/index.ts";
 import type { ViewLabel } from "../../stores/view-labels-store.ts";
-import { sessionLabel } from "./session-label.ts";
+import { sessionLabel } from "../../lib/session-label.ts";
 
 /** A session the store holds is titled from it, else from its own view (older than the snapshot's window, M4R86). */
 export function itemTitle(

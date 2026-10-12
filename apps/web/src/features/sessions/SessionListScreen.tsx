@@ -2,6 +2,7 @@ import { Button, cn, FOCUS_RING, TextField } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
+import { sessionLabel } from "../../lib/session-label.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { failureText } from "./failure.ts";
@@ -85,23 +86,28 @@ export function SessionListScreen() {
         <p className="text-muted">{t("sessions.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-1">
-          {sessions.map((session) => (
-            <li key={session.id} className="flex items-center gap-2">
-              <div className="flex min-w-0 flex-col">
-                <Link
-                  to="/s/$sessionId"
-                  params={{ sessionId: session.id }}
-                  className={cn("break-all text-agent underline", FOCUS_RING)}
-                >
-                  {session.name ?? session.cwd}
-                </Link>
-                {session.name ? <span className="break-all text-ui text-muted">{session.cwd}</span> : null}
-              </div>
-              <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
-                {t(`session.status.${session.status}`)}
-              </span>
-            </li>
-          ))}
+          {sessions.map((session) => {
+            const label = sessionLabel(session) || session.cwd;
+            return (
+              <li key={session.id} className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-col">
+                  <Link
+                    to="/s/$sessionId"
+                    params={{ sessionId: session.id }}
+                    className={cn("break-all text-agent underline", FOCUS_RING)}
+                  >
+                    {label}
+                  </Link>
+                  {label !== session.cwd ? (
+                    <span className="break-all text-ui text-muted">{session.cwd}</span>
+                  ) : null}
+                </div>
+                <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
+                  {t(`session.status.${session.status}`)}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>

@@ -59,6 +59,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
     return () => {
       stop();
       useShellStore.getState().reset();
+      useViewLabels.setState({ labels: {} });
     };
   }, []);
   useShellEffects({ mobile, treeOpen: readTreeOpen });

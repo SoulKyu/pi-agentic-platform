@@ -71,18 +71,20 @@ describe("tree drawer", () => {
     await page.unmount();
   });
 
-  it("labels a named row with its name and an unnamed one with its id", async () => {
+  it("labels a row with its name, else the start of its first message, else its folder, never its id", async () => {
     const page = await renderShell("/");
     await settle();
     await feed([
       shellSession({ id: "one", cwd: "/w/api", name: "Fix login", updatedAt: 1 }),
-      session("two", "/w/api", 2),
+      shellSession({ id: "two", cwd: "/w/api", preview: "fix the flaky test", updatedAt: 2 }),
+      shellSession({ id: "three", cwd: "/w/api", updatedAt: 3 }),
     ]);
     await ctrlB();
     await opened("Sessions");
-    await vi.waitFor(() => expect(dialog()?.querySelectorAll("a")).toHaveLength(2), { timeout: 2_000 });
+    await vi.waitFor(() => expect(dialog()?.querySelectorAll("a")).toHaveLength(3), { timeout: 2_000 });
     expect([...(dialog()?.querySelectorAll("a") ?? [])].map((row) => row.textContent)).toEqual([
-      "two",
+      "api",
+      "fix the flaky test",
       "Fix login",
     ]);
     await page.unmount();

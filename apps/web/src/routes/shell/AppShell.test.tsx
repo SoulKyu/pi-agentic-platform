@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { registerCommand, startKeybindings, useKeybindingsStore } from "../../features/commands/index.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { button, click, hasButton, press, settle } from "../../testing/dom.ts";
@@ -176,6 +177,14 @@ describe("AppShell", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+
+  it("forgets the labels of the session views on unmount, so the next account's tabs never carry old names", async () => {
+    const page = await renderShell("/");
+    useViewLabels.getState().put("a", { name: "Previous account", cwd: "/x/y" });
+    expect(useViewLabels.getState().labels).toEqual({ a: { name: "Previous account", cwd: "/x/y" } });
+    await page.unmount();
+    expect(useViewLabels.getState().labels).toEqual({});
   });
 
   it("titles the top bar with the active item: a session by its folder", async () => {

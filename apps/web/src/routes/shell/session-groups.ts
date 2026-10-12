@@ -1,5 +1,5 @@
 import type { SessionSummary } from "@pap/contracts";
-import { basename } from "./session-label.ts";
+import { basename } from "../../lib/session-label.ts";
 
 export interface SessionGroup {
   readonly cwd: string;

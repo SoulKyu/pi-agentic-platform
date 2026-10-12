@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { runCommand, startKeybindings } from "../../features/commands/index.ts";
@@ -99,6 +100,20 @@ describe("TabBar", () => {
     expect(await focusAfter(0, "ArrowLeft")).toBe(2); // wraps
     expect(await focusAfter(1, "End")).toBe(2);
     expect(await focusAfter(2, "Home")).toBe(0);
+    await page.unmount();
+  });
+
+  it("scrolls the new active tab into view when the active tab changes (M4R90)", async () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    const page = await renderShell("/s/a");
+    scrollIntoView.mockClear();
+    await act(async () => {
+      useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "home" } });
+    });
+    await settle();
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(document.getElementById("tab-home"));
     await page.unmount();
   });
 

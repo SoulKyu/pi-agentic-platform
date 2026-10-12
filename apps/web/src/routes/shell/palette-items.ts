@@ -12,7 +12,7 @@ import { SETTINGS_SECTIONS, type ItemRef, type Tab } from "../../features/worksp
 import type { MessageKey, Translate } from "../../i18n/index.ts";
 import type { ViewLabel } from "../../stores/view-labels-store.ts";
 import { itemTitle } from "./item-title.ts";
-import { basename, sessionLabel } from "./session-label.ts";
+import { basename, sessionLabel } from "../../lib/session-label.ts";
 
 export const MAX_PALETTE_SESSIONS = 50;
 

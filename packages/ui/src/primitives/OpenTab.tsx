@@ -1,6 +1,7 @@
 import { cn } from "../cn.ts";
 import { IconClose } from "../icons.ts";
 import { Icon } from "./Icon.tsx";
+import { Tooltip } from "./Tooltip.tsx";
 
 const TAB_CLASSES =
   "group inline-flex h-bar max-w-56 shrink-0 items-center gap-s1 rounded-sm border px-s2 label-hud transition-colors duration-fast";
@@ -8,6 +9,8 @@ const TAB_STATE = {
   active: "border-agent bg-surface-2 text-fg",
   idle: "border-border text-muted can-hover:hover:text-fg",
 } as const;
+/** Longest title a tab shows whole at the default density; a longer one is truncated and gets a tooltip. */
+const FULL_TITLE_MAX = 24;
 const STATUS_TONES = { running: "bg-agent-fill", waiting: "bg-attn-fill" } as const;
 
 export interface OpenTabProps {
@@ -34,28 +37,31 @@ export function OpenTab({
   onClose,
 }: OpenTabProps) {
   const statusTone = status ?? null;
+  const tabButton = (
+    <button
+      type="button"
+      role="tab"
+      id={tabId}
+      aria-selected={active}
+      aria-controls={panelId}
+      tabIndex={active ? 0 : -1}
+      onClick={onSelect}
+      onKeyDown={(event) => {
+        if (event.key !== "Delete") return;
+        event.preventDefault();
+        onClose();
+      }}
+      className="flex min-w-0 items-center gap-s1 focus-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+    >
+      {statusTone ? (
+        <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_TONES[statusTone])} />
+      ) : null}
+      <span className="truncate">{title}</span>
+    </button>
+  );
   return (
     <div data-slot="open-tab" className={cn(TAB_CLASSES, active ? TAB_STATE.active : TAB_STATE.idle)}>
-      <button
-        type="button"
-        role="tab"
-        id={tabId}
-        aria-selected={active}
-        aria-controls={panelId}
-        tabIndex={active ? 0 : -1}
-        onClick={onSelect}
-        onKeyDown={(event) => {
-          if (event.key !== "Delete") return;
-          event.preventDefault();
-          onClose();
-        }}
-        className="flex min-w-0 items-center gap-s1 focus-ring pointer-coarse:min-h-11 pointer-coarse:min-w-11"
-      >
-        {statusTone ? (
-          <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_TONES[statusTone])} />
-        ) : null}
-        <span className="truncate">{title}</span>
-      </button>
+      {title.length > FULL_TITLE_MAX ? <Tooltip label={title}>{tabButton}</Tooltip> : tabButton}
       <button
         type="button"
         aria-label={closeLabel}

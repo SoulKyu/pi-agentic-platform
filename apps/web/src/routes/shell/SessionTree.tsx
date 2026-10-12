@@ -12,6 +12,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { sessionLabel } from "../../lib/session-label.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { groupSessions } from "./session-groups.ts";
 import { useShortcut } from "./shortcut.ts";
@@ -67,7 +68,9 @@ export function SessionTree({ onPick }: { onPick(id: string): void }) {
                     FOCUS_RING,
                   )}
                 >
-                  <span className="min-w-0 truncate font-mono text-code">{session.name ?? session.id}</span>
+                  <span className="min-w-0 truncate font-mono text-code">
+                    {sessionLabel(session) || t("shell.tab.session")}
+                  </span>
                   {session.status === "running" ? (
                     <RunStatusChip status="working" label={t("session.status.running")} />
                   ) : null}

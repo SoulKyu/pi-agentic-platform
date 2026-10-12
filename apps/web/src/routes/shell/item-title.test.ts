@@ -26,6 +26,10 @@ describe("itemTitle", () => {
     expect(itemTitle({ kind: "session", id: "a" }, none, views, t)).toBe("From view");
     expect(itemTitle({ kind: "session", id: "a" }, none, { a: { ...EMPTY_VIEW, cwd: "/x/y" } }, t)).toBe("y");
   });
+  it("titles an unnamed session by the start of its first message", () => {
+    const held = store(shellSession({ id: "a", cwd: "/w/api", preview: "fix the tests" }));
+    expect(itemTitle({ kind: "session", id: "a" }, held, {}, t)).toBe("fix the tests");
+  });
   it("prefers the store over the view", () => {
     const views = { a: { ...EMPTY_VIEW, name: "From view", cwd: "/x/y" } };
     expect(itemTitle({ kind: "session", id: "a" }, session("a", "/home/ana/work"), views, t)).toBe("work");

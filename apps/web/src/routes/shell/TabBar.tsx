@@ -29,6 +29,11 @@ export function TabBar() {
     (next ?? document.getElementById(NEW_TAB_ID))?.focus();
   }, [ws]);
 
+  useEffect(() => {
+    if (ws.active === null) return;
+    document.getElementById(`tab-${ws.active}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [ws.active]);
+
   const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!ROVING_KEYS.includes(event.key)) return;
     const buttons = [...(listRef.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])];
