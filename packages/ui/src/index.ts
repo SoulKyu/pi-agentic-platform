@@ -2,8 +2,6 @@ export {
   APPROVAL_ORDER,
   ApprovalCard,
   type ApprovalAnswer,
-  type ApprovalCardChoiceProps,
-  type ApprovalCardM1Props,
   type ApprovalCardProps,
 } from "./ai/ApprovalCard.tsx";
 export { Reasoning, type ReasoningProps } from "./ai/Reasoning.tsx";

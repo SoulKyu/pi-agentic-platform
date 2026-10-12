@@ -107,8 +107,6 @@ export const CHAT = {
     always: "Always allow",
     once: "Allow once",
   },
-  allow: "Allow once",
-  deny: "Deny",
   markdown: [
     "Here is the plan:",
     "",

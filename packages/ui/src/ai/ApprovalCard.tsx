@@ -30,22 +30,13 @@ interface ApprovalCardCommon {
   readonly headerLabel?: string | undefined;
 }
 
-/** The converged API (agreement 6): the answers offered, their labels, one callback per click. */
-export interface ApprovalCardChoiceProps extends ApprovalCardCommon {
+/** The answers offered, their labels, one callback per click. */
+export interface ApprovalCardProps extends ApprovalCardCommon {
   /** Shown in DESIGN order whatever the order given; "deny" is always offered. Default: all four. */
   readonly answers?: readonly ApprovalAnswer[];
   readonly labels: Readonly<Record<ApprovalAnswer, string>>;
   onChoose(answer: ApprovalAnswer): void;
 }
-
-/** M1's props, kept until post-merge task P1 (agreement 5): Deny and Allow once. */
-export interface ApprovalCardM1Props extends ApprovalCardCommon {
-  readonly allowLabel: string;
-  readonly denyLabel: string;
-  onAnswer(approved: boolean): void;
-}
-
-export type ApprovalCardProps = ApprovalCardChoiceProps | ApprovalCardM1Props;
 
 interface Choice {
   readonly answers: readonly ApprovalAnswer[];
@@ -53,21 +44,14 @@ interface Choice {
   choose(answer: ApprovalAnswer): void;
 }
 
-/** One path for both prop shapes: the M1 props are the answers Deny and Allow once. Keys are unique by construction. */
+/** The answers offered in DESIGN order, "deny" always among them. */
 function choiceOf(props: ApprovalCardProps): Choice {
-  if ("onChoose" in props) {
-    const offered = new Set<ApprovalAnswer>(props.answers ?? APPROVAL_ORDER);
-    offered.add("deny");
-    return {
-      answers: APPROVAL_ORDER.filter((answer) => offered.has(answer)),
-      labels: props.labels,
-      choose: (answer) => props.onChoose(answer),
-    };
-  }
+  const offered = new Set<ApprovalAnswer>(props.answers ?? APPROVAL_ORDER);
+  offered.add("deny");
   return {
-    answers: ["deny", "once"],
-    labels: { deny: props.denyLabel, once: props.allowLabel, session: "", always: "" },
-    choose: (answer) => props.onAnswer(answer !== "deny"),
+    answers: APPROVAL_ORDER.filter((answer) => offered.has(answer)),
+    labels: props.labels,
+    choose: (answer) => props.onChoose(answer),
   };
 }
 

@@ -139,9 +139,9 @@ function Runs() {
         <ApprovalCard
           title={CHAT.approvalTitle}
           detail={CHAT.approvalDetail}
-          allowLabel={CHAT.allow}
-          denyLabel={CHAT.deny}
-          onAnswer={() => {}}
+          answers={["deny", "once"]}
+          labels={CHAT.approvalLabels}
+          onChoose={() => {}}
         />
         <ApprovalCard
           title={CHAT.approvalTitle}

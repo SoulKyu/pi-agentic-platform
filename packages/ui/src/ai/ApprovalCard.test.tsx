@@ -10,13 +10,7 @@ const names = (container: HTMLElement) => [...container.querySelectorAll("button
 
 function render(detail: string): string {
   return renderToStaticMarkup(
-    <ApprovalCard
-      title="Approval needed"
-      detail={detail}
-      allowLabel="Allow once"
-      denyLabel="Deny"
-      onAnswer={noop}
-    />,
+    <ApprovalCard title="Approval needed" detail={detail} labels={LABELS} onChoose={noop} />,
   );
 }
 
@@ -168,21 +162,21 @@ describe("ApprovalCard", () => {
     await page.unmount();
   });
 
-  it("maps the M1 props to Deny and Allow once, and answers once", async () => {
-    const onAnswer = vi.fn();
+  it("offers Deny and Allow once when asked for those two, and answers once", async () => {
+    const onChoose = vi.fn();
     const page = await mount(
       <ApprovalCard
         title="Approval"
         detail="x"
-        allowLabel="Allow once"
-        denyLabel="Deny"
-        onAnswer={onAnswer}
+        answers={["deny", "once"]}
+        labels={LABELS}
+        onChoose={onChoose}
       />,
     );
     expect(names(page.container)).toEqual(["Deny", "Allow once"]);
     await click(button(page.container, "Allow once"));
     await click(button(page.container, "Deny"));
-    expect(onAnswer.mock.calls).toEqual([[true]]);
+    expect(onChoose.mock.calls).toEqual([["once"]]);
     await page.unmount();
   });
 
