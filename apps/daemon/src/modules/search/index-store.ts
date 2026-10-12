@@ -80,13 +80,24 @@ export function createSearchIndexStore(db: Db): SearchIndexStore {
         if (rows.length > 0 && (cursor.sessionId === null || cursor.ownerId === null))
           throw new Error("index rows need a session and an owner");
         for (const row of rows) {
+          // Named one by one: a key a row carries beyond these can neither override the cursor's nor reach SQL. The
+          // text is sanitised here, whoever calls (a NUL would cut it short in SQLite).
+          const text = indexText(row.text);
           const inserted = db.get<{ id: number }>(
             "INSERT INTO rows (path, session_id, owner_id, entry_id, role, at, text) VALUES ($path, $sessionId, $ownerId, $entryId, $role, $at, $text) RETURNING id",
-            { path: cursor.path, sessionId: cursor.sessionId, ownerId: cursor.ownerId, ...row },
+            {
+              path: cursor.path,
+              sessionId: cursor.sessionId,
+              ownerId: cursor.ownerId,
+              entryId: row.entryId,
+              role: row.role,
+              at: row.at,
+              text,
+            },
           );
           db.run("INSERT INTO rows_fts (rowid, text) VALUES ($id, $text)", {
             id: inserted?.id ?? null,
-            text: row.text,
+            text,
           });
         }
         db.run(

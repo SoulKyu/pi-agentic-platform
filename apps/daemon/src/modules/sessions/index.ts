@@ -19,6 +19,7 @@ import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
+import type { SessionsScanPort } from "./scan-port.ts";
 import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
@@ -26,6 +27,7 @@ import { loadTranscriptReader } from "./transcript.ts";
 
 export { createExports, type Exports } from "./exports.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
+export type { SessionsScanPort } from "./scan-port.ts";
 
 export const SESSIONS_MIGRATIONS: MigrationSource = {
   module: "sessions",
@@ -67,6 +69,8 @@ export interface SessionsModule {
     app: Hono,
     authenticate: (cookieHeader: string | undefined) => { userId: string } | null,
   ): void;
+  /** What the search module reads from sessions. */
+  readonly scanPort: SessionsScanPort;
   shutdownAll(): Promise<void>;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
 }
@@ -136,6 +140,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   return {
     rpc: { ...sessionsRpc(service), ...shellRpc(service) },
     mountExportRoute: (app, authenticate) => mountExportRoute(app, { exports, authenticate, logger }),
+    scanPort: { summary: service.summary },
     async shutdownAll() {
       try {
         await service.shutdownAll();

@@ -63,6 +63,20 @@ export const ShellSession = z.object({
 });
 export type ShellSession = z.infer<typeof ShellSession>;
 
+/** The markers a snippet carries around a match; indexed text never holds them (M4R46, M4R55). */
+export const SNIPPET_OPEN = "\u0002";
+export const SNIPPET_CLOSE = "\u0003";
+
+export const SearchHit = z.object({
+  sessionId: Id,
+  entryId: Id,
+  role: z.enum(["user", "assistant"]),
+  at: Millis,
+  snippet: z.string().max(SHELL_LIMITS.snippet),
+  session: ShellSession,
+});
+export type SearchHit = z.infer<typeof SearchHit>;
+
 export const ProjectChange = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("rename"),
@@ -127,6 +141,18 @@ export const shellMethods = {
     params: z.object({ after: Cursor.optional() }),
     result: z.object({ sub: z.string() }),
     errors: ["capacity"],
+  }),
+  "search.query": defineMethod({
+    name: "search.query",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({
+      q: z.string().min(1).max(SHELL_LIMITS.searchQuery),
+      limit: z.number().int().min(1).max(SHELL_LIMITS.searchHits).optional(),
+    }),
+    result: z.object({ hits: z.array(SearchHit).max(SHELL_LIMITS.searchHits) }),
+    // `timeout`: the query ran past 2 s and was stopped; `capacity`: too many searches at once (M4R50, M4R51).
+    errors: ["timeout", "capacity"],
   }),
   "sessions.listArchived": defineMethod({
     name: "sessions.listArchived",

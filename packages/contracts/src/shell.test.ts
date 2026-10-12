@@ -131,4 +131,24 @@ describe("shell schemas (M4)", () => {
     expect(result.parse({ sessions: [], truncated: true })).toEqual({ sessions: [], truncated: true });
     expect(result.safeParse({ sessions: [], truncated: false }).success).toBe(false);
   });
+
+  it("search.query is an idempotent read of sessions, bounded in query, limit and hits", () => {
+    const method = methods["search.query"];
+    expect(method.permission).toBe("sessions:read");
+    expect(method.idempotent).toBe(true);
+    expect(method.params.safeParse({ q: "" }).success).toBe(false);
+    expect(method.params.safeParse({ q: "x".repeat(SHELL_LIMITS.searchQuery + 1) }).success).toBe(false);
+    expect(method.params.safeParse({ q: "kube", limit: 21 }).success).toBe(false);
+    expect(method.params.parse({ q: "kube", limit: 20 })).toEqual({ q: "kube", limit: 20 });
+    const hit = { sessionId: "s1", entryId: "e1", role: "user", at: 1, snippet: "a", session };
+    expect(method.result.parse({ hits: [hit] })).toEqual({ hits: [hit] });
+    for (const bad of [
+      { at: -1 },
+      { role: "tool" },
+      { entryId: "x".repeat(129) },
+      { snippet: "x".repeat(401) },
+    ])
+      expect(method.result.safeParse({ hits: [{ ...hit, ...bad }] }).success).toBe(false);
+    expect(method.result.safeParse({ hits: Array.from({ length: 21 }, () => hit) }).success).toBe(false);
+  });
 });

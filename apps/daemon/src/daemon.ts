@@ -24,6 +24,7 @@ import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
+import { createSearchModule } from "./modules/search/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
 
@@ -159,12 +160,15 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       scopes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
+    const search = createSearchModule({ home: config.home, clock, logger, sessions: sessions.scanPort });
+    closers.push({ name: "search", close: () => search.stop() });
     const settings = createSettingsModule({ db, clock, logger });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...policy.rpc,
       ...projects.rpc,
       ...sessions.rpc,
+      ...search.rpc,
       ...settings.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger });

@@ -87,6 +87,36 @@ describe("search index store", () => {
     ).toThrow();
     expect(store.cursor("/s/a.jsonl")).toBeUndefined();
   });
+
+  it("indexes sanitised text: controls and format characters never reach rows or the FTS index", () => {
+    store.commit(cursor("/s/c.jsonl"), [
+      { entryId: "e1", role: "user", at: 1, text: "kube\u0000rnetes\u202Eplan\u200Bned" },
+    ]);
+    expect(db.all<{ text: string }>("SELECT text FROM rows WHERE path = '/s/c.jsonl'")).toEqual([
+      { text: "kube rnetesplanned" },
+    ]);
+    expect(
+      db.all<{ entry_id: string }>(
+        "SELECT r.entry_id FROM rows_fts JOIN rows r ON r.id = rows_fts.rowid WHERE rows_fts MATCH '\"rnetesplanned\"'",
+      ),
+    ).toEqual([{ entry_id: "e1" }]);
+  });
+
+  it("takes the session and owner from the cursor, never from keys a row carries", () => {
+    const hostile = {
+      entryId: "e1",
+      role: "user",
+      at: 1,
+      text: "hello",
+      sessionId: "other",
+      ownerId: "other-owner",
+      path: "/elsewhere",
+    } as const;
+    store.commit(cursor("/s/d.jsonl", { sessionId: "s1", ownerId: "u1" }), [hostile]);
+    expect(db.all("SELECT path, session_id, owner_id FROM rows")).toEqual([
+      { path: "/s/d.jsonl", session_id: "s1", owner_id: "u1" },
+    ]);
+  });
 });
 
 describe("indexText", () => {
