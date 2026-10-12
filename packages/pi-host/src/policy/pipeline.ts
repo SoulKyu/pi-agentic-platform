@@ -8,6 +8,7 @@ import type {
   StageId,
   ToolCategory,
 } from "@pap/contracts";
+import { GUARD_RULES } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { auditArgs, InputTooLarge, UNREADABLE_INPUT } from "./audit-args.ts";
 import { denylistStage } from "./denylist.ts";
@@ -15,6 +16,7 @@ import { describeCall } from "./describe-call.ts";
 import { egressStage } from "./egress.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import type { PolicyGrants } from "./grants.ts";
+import { GUARD_MODEL_REASON, guardTitle } from "./run-guard.ts";
 import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
@@ -241,8 +243,9 @@ function settle(
         ],
       };
   }
-  if (call) stages.commit(call, entry.decision, result === undefined ? evaluation.guardReleased : null);
+  // The line first: a sink that throws blocks the call, and a blocked call the guard never counted stays uncounted.
   deps.audit(entry);
+  if (call) stages.commit(call, entry.decision, result === undefined ? evaluation.guardReleased : null);
   return result;
 }
 
@@ -318,6 +321,8 @@ async function evaluateOnce(
   const guard = stages.guard(call);
   if (guard.outcome !== "pass" && guard.outcome !== "trip")
     throw new TypeError("the guard returned an unknown outcome");
+  if (guard.outcome === "trip" && !(GUARD_RULES as readonly string[]).includes(guard.rule))
+    throw new TypeError("the guard tripped without a known rule");
   const trip = guard.outcome === "trip" ? guard : null;
   if (plan.outcome === "allow" && !trip) {
     trail.add("03", "allow", plan.reason);
@@ -333,10 +338,7 @@ async function evaluateOnce(
     if (!trip) return blocked("03", "04", "no UI to ask", `pap-policy blocked this ${kind.category} call.`);
     trail.add("03", verdict03, plan.reason);
     trail.add("04", "block", trip.reason);
-    return finish(call, "block", trip.reason, {
-      block: true,
-      reason: `pap-policy stopped this run: ${trip.reason}`,
-    });
+    return finish(call, "block", trip.reason, { block: true, reason: GUARD_MODEL_REASON });
   }
   const description = describeCall(event.toolName, event.input, { exec, review });
   if (!description.reviewable) return blocked("03", "04", "too long to review", TOO_LONG_REASON);
@@ -355,7 +357,7 @@ async function evaluateOnce(
   const outcome = await deps.ask(
     {
       category: kind.category,
-      title: TITLES[kind.category],
+      title: trip ? guardTitle(trip.rule, rules.guard) : TITLES[kind.category],
       message: description.message,
       tool: ids.tool,
       key,
@@ -378,7 +380,7 @@ async function evaluateOnce(
       call,
       "denied",
       offered ? (review?.why ?? trip?.reason) : "answer not offered",
-      { block: true, reason: DENIED_REASON },
+      { block: true, reason: trip ? GUARD_MODEL_REASON : DENIED_REASON },
       answered,
     );
   if (grantable && outcome.answer === "session") deps.grants.rememberSession(key);

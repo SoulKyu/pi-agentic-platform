@@ -7,6 +7,7 @@ import { POLICY_EXTENSION_PATH, type PolicyAuditEntry, type PolicyRules } from "
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants } from "./grants.ts";
 import { errorClass, evaluateToolCall, type PipelineDeps } from "./pipeline.ts";
+import { createRunGuard, guardStages } from "./run-guard.ts";
 import type { ToolFacts } from "./tool-kind.ts";
 
 export { createPolicyGrants, MAX_SESSION_GRANTS } from "./grants.ts";
@@ -53,19 +54,33 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
             }
           : undefined;
       };
+      const guard = createRunGuard();
       const deps: PipelineDeps = {
         ...config,
         grants: createPolicyGrants(config.rulesVersion),
         toolFacts,
         taint: config.taint ?? { current: () => false },
         redact: config.redact ?? ((text) => text),
+        stages: guardStages(guard),
       };
       pi.on("tool_call", (event, ctx) => evaluateToolCall(event, ctx, deps));
       pi.on("agent_start", () => {
         try {
+          guard.onRunStart();
+        } catch (error) {
+          process.stderr.write(`pi-host: run guard failed (${errorClass(error)})\n`);
+        }
+        try {
           config.onAgentStart?.(pi.getActiveTools());
         } catch (error) {
           process.stderr.write(`pi-host: session entry failed (${errorClass(error)})\n`);
+        }
+      });
+      pi.on("message_end", (event) => {
+        try {
+          if (event.message.role === "assistant") guard.onTurn();
+        } catch (error) {
+          process.stderr.write(`pi-host: run guard failed (${errorClass(error)})\n`);
         }
       });
     },

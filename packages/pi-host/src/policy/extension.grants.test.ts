@@ -223,6 +223,8 @@ describe("pap-policy grants", () => {
 
   it("keeps at most MAX_SESSION_GRANTS session grants, dropping the oldest", async () => {
     const h = bed.harness({
+      // More calls than the default guard allows in one run: this test is about the grants.
+      rules: () => ({ ...interactiveRules, guard: { identicalCalls: 100, toolCalls: 10_000, turns: 1000 } }),
       answers: Array.from({ length: MAX_SESSION_GRANTS + 2 }, () => ({
         answer: "session" as const,
         closed: false,

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPipelineBed } from "../testing/pipeline-bed.ts";
 import { DENIED_REASON, FAIL_CLOSED_REASON, TOO_LONG_REASON } from "./pipeline.ts";
+import { GUARD_MODEL_REASON } from "./run-guard.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeAll(async () => {
@@ -100,7 +101,7 @@ describe("the guard slot", () => {
     const noUi = bed.harness({ hasUI: false, stages: { guard: () => trip } });
     expect(await noUi.run("read", { path: "a" })).toEqual({
       block: true,
-      reason: "pap-policy stopped this run: 150 calls in this run",
+      reason: GUARD_MODEL_REASON,
     });
     expect(noUi.entries.at(-1)?.stages.at(-1)).toMatchObject({ stage: "04", outcome: "block" });
     const denied = bed.harness({

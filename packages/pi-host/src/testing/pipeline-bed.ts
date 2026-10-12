@@ -5,6 +5,7 @@ import { type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
 import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
+import { createRunGuard, guardStages } from "../policy/run-guard.ts";
 import type { ToolFacts } from "../policy/tool-kind.ts";
 
 export const interactiveRules = PolicyRules.parse({
@@ -55,6 +56,7 @@ export async function createPipelineBed() {
     const asks: ApprovalAsk[] = [];
     const scripted = [...(options.answers ?? [])];
     const grants = createPolicyGrants(options.rulesVersion ?? (() => 0));
+    const guard = createRunGuard();
     const flag = options.taint ?? false;
     const taint = typeof flag === "boolean" ? { current: () => flag } : flag;
     const run = (toolName: string, input: unknown, toolCallId = "c1", parentToolCallId?: string) =>
@@ -76,10 +78,19 @@ export async function createPipelineBed() {
             asks.push(request);
             return options.ask?.(request, signal) ?? scripted.shift() ?? { answer: "once", closed: false };
           },
-          ...(options.stages ? { stages: options.stages } : {}),
+          stages: { ...guardStages(guard), ...options.stages },
         },
       );
-    return { entries, asked, asks, run };
+    return {
+      entries,
+      asked,
+      asks,
+      run,
+      /** Pi's `agent_start`. */
+      runStart: () => guard.onRunStart(),
+      /** An assistant message ended. */
+      turn: () => guard.onTurn(),
+    };
   }
 
   return {
