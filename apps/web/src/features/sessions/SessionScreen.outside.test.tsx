@@ -36,9 +36,9 @@ describe("SessionScreen, a Pi file changed outside pap (owner Q13)", () => {
     expect(region?.textContent).toContain(
       "Its file changed in the last 2 minutes outside pap, from the pi CLI or pi-web for example. Messages sent from both can interleave: close the other one before you continue here.",
     );
-    const transcript = container.querySelector("[data-transcript], [data-slot='transcript']");
-    if (transcript)
-      expect(region?.compareDocumentPosition(transcript) ?? 0).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const transcript = container.querySelector("ol");
+    expect(transcript).not.toBeNull();
+    expect(region?.compareDocumentPosition(transcript as Element)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
   it("hides on Dismiss until the next snapshot that says so again", async () => {

@@ -27,6 +27,9 @@ export interface LaunchContext {
   onReopened?(sessionId: string): void;
   /** In the worker's `onExit`, after `live` forgot the session (owner Q13). */
   onWorkerEnd?(sessionId: string): void;
+  /** From the worker's spawn to the end of `launch`, success or failure: its file may be written before `live` holds it. */
+  onStarting?(sessionId: string): void;
+  onStarted?(sessionId: string): void;
 }
 
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
@@ -103,6 +106,7 @@ export function createLaunch(ctx: LaunchContext) {
     // Nothing awaits between the rules in `init` and here, so a change cannot fall between the two.
     grants.track(session, row, scope);
     starting.add(session);
+    ctx.onStarting?.(row.id);
     try {
       await session.ready;
       // The file of a recorded session says who it is. Another id means the file was replaced under us.
@@ -130,6 +134,7 @@ export function createLaunch(ctx: LaunchContext) {
       throw error;
     } finally {
       starting.delete(session);
+      ctx.onStarted?.(row.id);
     }
   }
 

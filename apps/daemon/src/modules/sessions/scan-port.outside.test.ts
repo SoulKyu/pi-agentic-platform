@@ -62,11 +62,16 @@ describe("outside writes (owner Q13)", () => {
     expect(port.outsideWriteAt(id)).toBe(T + 20);
   });
 
-  it("ignores a live session, and a write before this daemon started", () => {
+  it("ignores a live session", () => {
     bed = build();
     const port = outsidePort(new Set(["live"]));
     port.touched(rowOf("live"), T + 10, false);
     expect(port.outsideWriteAt("live")).toBeNull();
+  });
+
+  it("ignores a write before this daemon started", () => {
+    bed = build();
+    const port = outsidePort();
     port.touched(rowOf("old"), T - 1, false);
     expect(port.outsideWriteAt("old")).toBeNull();
   });

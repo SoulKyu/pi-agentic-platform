@@ -44,7 +44,7 @@ export function createAdoption(ctx: AdoptionContext) {
     summary: ctx.summary,
     onAdopted: ctx.onAdopted ?? (() => {}),
     startedAt: outside.startedAt,
-    isLive: (id) => ctx.live.has(id),
+    isLive: (id) => ctx.live.has(id) || outside.isStarting(id),
     workerEndedAt: outside.workerEndedAt,
   });
   /** A draft's worker reported its Pi id at `ready`: kept in the table, so a restart forgets nothing (RT-01). */
@@ -60,6 +60,13 @@ export function createAdoption(ctx: AdoptionContext) {
     /** Whether the session's Pi file changed outside pap within the last 2 minutes (owner Q13). */
     outsideWrite: (sessionId: string): boolean => outside.recent(scanPort.outsideWriteAt(sessionId)),
     /** The worker's side of the table and of the outside-write memory, for `LaunchContext`. */
-    launchHooks: { onDraftReady, onWorkerEnd: outside.workerEnded },
+    launchHooks: {
+      onDraftReady,
+      onWorkerEnd: outside.workerEnded,
+      onStarting: outside.starting,
+      onStarted: outside.started,
+    },
+    /** A file pap's own writer made for this session: the same as a worker having ended on it. */
+    fileMade: outside.workerEnded,
   };
 }

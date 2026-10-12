@@ -295,8 +295,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     agentDir: deps.worker.agentDir,
     newId: deps.newId,
     loadWriter: deps.loadWriter,
+    onMade: adoption.fileMade,
   });
-
   const sessionMarks = createSessionMarks({
     store: marks,
     clock: deps.clock,

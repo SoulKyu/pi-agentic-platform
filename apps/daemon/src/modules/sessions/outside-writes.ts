@@ -9,8 +9,13 @@ export function createOutsideWrites(clock: Clock) {
   const startedAt = clock.now();
   // Bounded: the oldest end is dropped past MAX_OUTSIDE_WRITES; insertion order is age order.
   const ended = new Map<string, number>();
+  // Sessions between a worker's spawn and `live`; a worker may write its file in that window.
+  const starting = new Set<string>();
   return {
     startedAt,
+    isStarting: (sessionId: string): boolean => starting.has(sessionId),
+    starting: (sessionId: string): void => void starting.add(sessionId),
+    started: (sessionId: string): void => void starting.delete(sessionId),
     workerEndedAt: (sessionId: string): number | null => ended.get(sessionId) ?? null,
     workerEnded(sessionId: string): void {
       ended.delete(sessionId);
