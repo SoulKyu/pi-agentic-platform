@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../i18n/register-sidebar.ts";
 import type { Runtime } from "../../runtime/index.ts";
@@ -92,6 +93,35 @@ describe("Transcript focus entry", () => {
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "The match is in older messages. Use Load older messages.",
     );
+    // The request waits for the row to appear.
+    expect(useFocusEntry.getState().target).toEqual({ sessionId: "s1", entryId: "e0" });
+  });
+
+  it("says so neutrally when the entry is not shown and nothing more can load", async () => {
+    useFocusEntry.getState().ask({ sessionId: "s1", entryId: "e0" });
+    const container = await show(false);
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      "This message is not shown in the transcript.",
+    );
+  });
+
+  it("clears the notice and focuses the row once the entry is among the rows", async () => {
+    useFocusEntry.getState().ask({ sessionId: "s1", entryId: "e0" });
+    const container = await show(true);
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    await act(async () => {
+      useSessionStore.getState().apply(
+        "s1",
+        sessionSnapshot({
+          rows: [row("e0", "zeroth question"), row("e1", "first question"), row("e2", "second question")],
+          history: { hasMore: false, oldestEntryId: "e0", turnsBefore: 0 },
+        }),
+      );
+    });
+    await settle();
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(document.activeElement?.textContent).toContain("zeroth question");
+    expect(scrolled).toHaveLength(1);
     expect(useFocusEntry.getState().target).toBeNull();
   });
 });

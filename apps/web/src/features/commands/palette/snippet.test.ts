@@ -21,6 +21,15 @@ it("treats an unclosed mark as running to the end, a stray close as text, and dr
   expect(snippetParts("")).toEqual([]);
 });
 
+it("turns tabs and line breaks into spaces and keeps emoji sequences whole", () => {
+  expect(snippetParts("a\nb\tc\r\nd")).toEqual([{ text: "a b c  d", hit: false }]);
+  const family = "\u{1F469}\u200D\u{1F4BB}";
+  expect(snippetParts(`x ${family} \u0002y\u0003`)).toEqual([
+    { text: `x ${family} `, hit: false },
+    { text: "y", hit: true },
+  ]);
+});
+
 it("keeps markup as plain text", () => {
   expect(snippetParts("<img src=x onerror=alert(1)> \u0002<b>\u0003")).toEqual([
     { text: "<img src=x onerror=alert(1)> ", hit: false },

@@ -58,6 +58,19 @@ it("asks once, 150 ms after the last change, and says it is loading meanwhile", 
   expect(latest()).toEqual({ status: "done", hits: [hit("e1")] });
 });
 
+it("keeps the last rows on screen while a newer query loads, and forgets them when the query is cleared", async () => {
+  call.mockResolvedValueOnce({ hits: [hit("e1")] });
+  call.mockReturnValueOnce(new Promise(() => {}));
+  const page = await mount(<Probe query="kube" />);
+  await wait(150);
+  await page.rerender(<Probe query="kubes" />);
+  expect(latest()).toEqual({ status: "loading", hits: [hit("e1")] });
+  await page.rerender(<Probe query="" />);
+  expect(latest()).toEqual({ status: "idle", hits: [] });
+  await page.rerender(<Probe query="other" />);
+  expect(latest()).toEqual({ status: "loading", hits: [] });
+});
+
 it("drops an older answer when a newer query was asked", async () => {
   let answerOld: (value: unknown) => void = () => {};
   call.mockImplementationOnce(() => new Promise((resolve) => (answerOld = resolve)));

@@ -49,6 +49,12 @@ function RankedGroup({
 
 const SEARCH_ERROR_KEY = { timeout: "search.timeout", capacity: "search.busy" } as const;
 
+/** Only the two codes search can answer have their own line; anything else, whatever its name, is the generic one. */
+const searchErrorKey = (code: string | undefined) =>
+  code !== undefined && Object.hasOwn(SEARCH_ERROR_KEY, code)
+    ? SEARCH_ERROR_KEY[code as keyof typeof SEARCH_ERROR_KEY]
+    : "search.failed";
+
 /**
  * Orca's palette on cmdk with its own filter off: `rankItems` orders and counts, cmdk only moves the selection.
  * Loaded on first open (spec C §7.4). No digit chords here: the browser keeps Ctrl/⌘/Alt+1..9 (M3-RT-31).
@@ -65,7 +71,7 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
     search.status === "loading"
       ? t("search.loading")
       : search.status === "error"
-        ? t(SEARCH_ERROR_KEY[search.code as keyof typeof SEARCH_ERROR_KEY] ?? "search.failed")
+        ? t(searchErrorKey(search.code))
         : null;
   const choose = (hit: SearchHit) => {
     onOpenChange(false);

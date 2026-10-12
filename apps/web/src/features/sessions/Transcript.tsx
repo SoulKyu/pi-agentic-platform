@@ -80,8 +80,9 @@ function prepend(
 }
 
 /**
- * Takes the entry a search hit asked for once this session's rows are loaded (M4R108): scrolls to its row and focuses
- * it, or says the match lies in older messages when it is not among the rows and more can be loaded.
+ * Acts on the entry a search hit asked for once this session's rows are loaded (M4R108): scrolls to its row, focuses
+ * it and takes the request. While the entry is not among the rows the request stays and the hook returns the notice
+ * to show; it goes away when the row appears (for example after "Load older messages").
  */
 function useFocusMatch(
   sessionId: string,
@@ -89,29 +90,22 @@ function useFocusMatch(
   items: readonly TranscriptItem[],
   scope: string,
   canLoad: boolean,
-): boolean {
+): "search.olderMatch" | "search.notShown" | null {
   const asked = useFocusEntry((state) =>
     state.target?.sessionId === sessionId ? state.target.entryId : null,
   );
-  const [olderMatch, setOlderMatch] = useState(false);
-  const latest = useRef({ items, scope, canLoad });
-  useLayoutEffect(() => {
-    latest.current = { items, scope, canLoad };
-  });
+  const item = asked === null ? undefined : items.find((row) => "entryId" in row && row.entryId === asked);
+  const itemKey = item?.key;
   useEffect(() => {
-    if (asked === null || !view.loaded) return;
-    const entryId = useFocusEntry.getState().take(sessionId);
-    if (entryId === null) return;
-    const { items: rows, scope: owner, canLoad: more } = latest.current;
-    const item = rows.find((row) => "entryId" in row && row.entryId === entryId);
-    const element = item ? document.getElementById(rowId(owner, item.key)) : null;
-    setOlderMatch(element === null && more);
-    if (element === null) return;
+    if (itemKey === undefined || !view.loaded) return;
+    const element = document.getElementById(rowId(scope, itemKey));
+    if (element === null || useFocusEntry.getState().take(sessionId) === null) return;
     element.tabIndex = -1;
     element.focus({ preventScroll: true });
     element.scrollIntoView({ block: "center" });
-  }, [asked, sessionId, view.loaded, view.generation]);
-  return olderMatch;
+  }, [itemKey, scope, sessionId, view.loaded]);
+  if (asked === null || !view.loaded || itemKey !== undefined) return null;
+  return canLoad ? "search.olderMatch" : "search.notShown";
 }
 
 export function Transcript({ sessionId, view, toolDetail, rowActions }: TranscriptProps) {
@@ -132,7 +126,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
     loadRef.current = older.load;
   });
   const quiet = older.error !== null;
-  const olderMatch = useFocusMatch(sessionId, view, items, scope, canLoad);
+  const matchNotice = useFocusMatch(sessionId, view, items, scope, canLoad);
   const actionsFor = (item: TranscriptItem): RowActions | undefined =>
     rowActions && item.kind === "message"
       ? {
@@ -228,9 +222,9 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
           {branches.error}
         </p>
       ) : null}
-      {olderMatch ? (
+      {matchNotice ? (
         <p role="status" className="text-ui text-muted">
-          {t("search.olderMatch")}
+          {t(matchNotice)}
         </p>
       ) : null}
       {activity ? (

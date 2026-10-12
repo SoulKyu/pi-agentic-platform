@@ -259,6 +259,8 @@ describe("CommandPalette", () => {
       ["capacity", "Too many searches at once. Try again."],
       ["internal", "Search is not available right now."],
       ["worker_failed", "Search is not available right now."],
+      ["constructor", "Search is not available right now."],
+      ["toString", "Search is not available right now."],
     ])("shows the %s answer as one muted line", async (code, line) => {
       search.call.mockRejectedValue(new RpcError(code as never));
       await open();

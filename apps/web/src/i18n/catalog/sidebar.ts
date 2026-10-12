@@ -70,6 +70,7 @@ export const sidebarEn = {
   "search.failed": "Search is not available right now.",
   "search.detail": "{label} · {age}",
   "search.olderMatch": "The match is in older messages. Use Load older messages.",
+  "search.notShown": "This message is not shown in the transcript.",
 } as const;
 
 export const sidebarFr: { readonly [K in keyof typeof sidebarEn]: string } = {
@@ -144,4 +145,5 @@ export const sidebarFr: { readonly [K in keyof typeof sidebarEn]: string } = {
   "search.detail": "{label} · {age}",
   "search.olderMatch":
     "Le passage est dans des messages plus anciens. Utilisez « Charger les messages plus anciens ».",
+  "search.notShown": "Ce message n'est pas affiché dans la transcription.",
 };

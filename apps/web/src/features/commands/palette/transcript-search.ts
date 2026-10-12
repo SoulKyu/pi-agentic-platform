@@ -27,7 +27,6 @@ export function searchText(query: string): string | null {
 }
 
 const IDLE: TranscriptSearch = { status: "idle", hits: [] };
-const LOADING: TranscriptSearch = { status: "loading", hits: [] };
 
 /**
  * Transcript hits for a palette query, asked 150 ms after the last change. A change or an unmount drops the pending
@@ -60,8 +59,13 @@ export function useTranscriptSearch(query: string): TranscriptSearch {
       clearTimeout(timer);
     };
   }, [q]);
-  if (q === null) return IDLE;
-  if (settled?.q !== q) return LOADING;
+  if (q === null) {
+    // Cleared: the last rows are forgotten, so the next query does not start from them.
+    if (settled !== null) setSettled(null);
+    return IDLE;
+  }
+  // A newer query is on its way: the rows of the last answer stay until it lands, so the list does not flicker.
+  if (settled?.q !== q) return { status: "loading", hits: settled?.hits ?? [] };
   return settled.code === undefined
     ? { status: settled.status, hits: settled.hits }
     : { status: settled.status, hits: settled.hits, code: settled.code };
