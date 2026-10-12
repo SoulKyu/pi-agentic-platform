@@ -98,4 +98,14 @@ describe("connected devices", () => {
       db.get("SELECT 1 AS x FROM auth_sessions WHERE public_id = $id", { id: "0".padStart(32, "e") }),
     ).toBe(undefined);
   });
+
+  it("ignores expired rows: revoking an expired id answers like an unknown one, and the others count live rows only", () => {
+    const { devices, current, db, clock, publicIds } = bed();
+    db.run("UPDATE auth_sessions SET expires_at = $at WHERE public_id = $id", {
+      at: clock.now(),
+      id: publicIds.second,
+    });
+    expect(() => devices.revoke(current, publicIds.second)).toThrow(new PapError("not_found"));
+    expect(devices.revokeOthers(current)).toEqual({ revoked: 1 });
+  });
 });

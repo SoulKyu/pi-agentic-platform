@@ -14,7 +14,7 @@ afterEach(() => {
 
 const rpcOf = (bed: ReturnType<typeof createDeviceBed>) => {
   tokenBed = createTokenBed();
-  return authRpc(tokenBed.tokens, bed.devices);
+  return authRpc(tokenBed.tokens, bed.devices, bed.passkeys);
 };
 const ctxOf = (bed: ReturnType<typeof createDeviceBed>): HandlerContext => ({
   caller: bed.current,

@@ -1,12 +1,14 @@
 import { PapError } from "@pap/contracts";
 import type { Context, Hono } from "hono";
 import { z } from "zod";
+import { sha256Hex } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { AuditPort } from "../audit/index.ts";
 import { badRequest, clientIp, errorResponse, readJson, sessionCookie, setSessionCookie } from "./http.ts";
 import type { PasskeyService } from "./passkeys.ts";
 import { RateLimitedError, type AuthService } from "./service.ts";
 import { sessionKey } from "./throttle-keys.ts";
-import type { Throttle } from "./throttle.ts";
+import { MAX_BACKOFF_MS, type Throttle } from "./throttle.ts";
 
 // A sign-in flow id is the 75-character challenge itself.
 const FlowBody = z.object({
@@ -21,10 +23,12 @@ export interface PasskeyRouteDeps {
   /** Its own instance, keyed by socket address only: never the password keys (R80, R81). */
   readonly throttle: Throttle;
   readonly logger: Logger;
+  readonly audit: Pick<AuditPort, "append">;
 }
 
-// A verification that fails counts against the sender's address and is logged with the address and the
-// delay now in force, nothing else. A request with a body we cannot read, or a 404, is not a failure.
+// The attempt is counted before the slow verification, so parallel guesses queue behind the first instead of
+// all passing the guard (as for passwords); a success clears the count. Logged with the address and the delay
+// now in force, nothing else. A request with a body we cannot read, or a 404, is not an attempt.
 async function throttled<T>(
   c: Context,
   deps: PasskeyRouteDeps,
@@ -32,16 +36,17 @@ async function throttled<T>(
   throttle: Throttle,
   keys: string[],
 ): Promise<T> {
+  if (!deps.passkeys.available) throw new PapError("not_found");
   const ip = clientIp(c);
   const wait = throttle.retryAfterMs(keys);
   if (wait > 0) throw new RateLimitedError(wait);
+  if (!throttle.fail(keys)) throw new RateLimitedError(MAX_BACKOFF_MS);
   try {
     const result = await run();
     throttle.succeed(keys);
     return result;
   } catch (error) {
     if (error instanceof PapError && error.code === "unauthenticated") {
-      throttle.fail(keys);
       deps.logger.warn("auth_passkey_failed", { ip, retryAfterMs: throttle.retryAfterMs(keys) });
     }
     throw error;
@@ -69,7 +74,7 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
         ip: clientIp(c),
         throttleKey: sessionKey(cookie),
       });
-      return c.json(await deps.passkeys.registerOptions(owner.userId));
+      return c.json(await deps.passkeys.registerOptions(owner.userId, sha256Hex(cookie)));
     } catch (error) {
       return errorResponse(c, error);
     }
@@ -84,11 +89,12 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
       await throttled(
         c,
         deps,
-        () => deps.passkeys.registerVerify(owner.userId, body.flowId, body.response),
+        () => deps.passkeys.registerVerify(owner.userId, sha256Hex(cookie), body.flowId, body.response),
         deps.throttle,
         [sessionKey(cookie)],
       );
       deps.logger.info("auth_passkey_enrolled", { ip: clientIp(c) });
+      deps.audit.append({ ownerId: owner.userId, actor: "user", kind: "auth", reason: "passkey_enrolled" });
       return c.json({ ok: true });
     } catch (error) {
       return errorResponse(c, error);

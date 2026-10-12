@@ -1,8 +1,9 @@
-import { MAX_DEVICES_LISTED, PapError, type Caller, type DeviceView, type Permission } from "@pap/contracts";
+import { MAX_DEVICES_LISTED, PapError, type Caller, type DeviceView } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import { isReadOnlyError } from "../../kernel/db/read-only.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { deviceLabel } from "./device-label.ts";
+import { requirePermission, requireSessionAdmin } from "./guards.ts";
 import type { AuthService } from "./service.ts";
 import type { AuthStore } from "./store.ts";
 
@@ -13,21 +14,10 @@ export interface DeviceDeps {
   readonly audit: Pick<AuditPort, "append">;
 }
 
-function require(caller: Caller, permission: Permission): void {
-  if (!caller.permissions.has(permission)) throw new PapError("forbidden");
-}
-
-// Only a browser session can sign browsers out: its credential id is the public id that "the others" are measured
-// against. A token caller (which never holds auth:*) would otherwise match no row and sign everything out.
-function requireSession(caller: Caller): void {
-  require(caller, "auth:admin");
-  if (caller.kind !== "session") throw new PapError("forbidden");
-}
-
 export function createDevices(deps: DeviceDeps) {
   return {
     list(caller: Caller): DeviceView[] {
-      require(caller, "auth:read");
+      requirePermission(caller, "auth:read");
       try {
         deps.store.deleteExpiredSessions(deps.clock.now());
       } catch (error) {
@@ -51,7 +41,7 @@ export function createDevices(deps: DeviceDeps) {
     },
     /** Another owner's id and an id that never existed answer alike. This browser's own id signs it out. */
     revoke(caller: Caller, deviceId: string): void {
-      requireSession(caller);
+      requireSessionAdmin(caller);
       if (!deps.service.revokeDevice(caller.userId, deviceId)) throw new PapError("not_found");
       deps.audit.append({
         ownerId: caller.userId,
@@ -62,7 +52,7 @@ export function createDevices(deps: DeviceDeps) {
       });
     },
     revokeOthers(caller: Caller): { revoked: number } {
-      requireSession(caller);
+      requireSessionAdmin(caller);
       const revoked = deps.service.revokeOtherDevices(caller.userId, caller.credentialId);
       deps.audit.append({
         ownerId: caller.userId,

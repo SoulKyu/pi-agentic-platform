@@ -27,7 +27,10 @@ it("auth.tokens.revoke has deleted the row before its first await (M5R9)", async
     openSubscription: () => "s1",
     closeSubscription: () => {},
   };
-  const pending = authRpc(bed.tokens, devicesBed.devices)["auth.tokens.revoke"]({ tokenId: token.id }, ctx);
+  const pending = authRpc(bed.tokens, devicesBed.devices, devicesBed.passkeys)["auth.tokens.revoke"](
+    { tokenId: token.id },
+    ctx,
+  );
   expect(bed.db.all("SELECT id FROM api_tokens")).toEqual([]); // not awaited yet
   await pending;
 });

@@ -57,6 +57,17 @@ export const DeviceView = z.object({
 });
 export type DeviceView = z.infer<typeof DeviceView>;
 
+export const MAX_PASSKEYS_LISTED = 100;
+
+/** A passkey as the list shows it: `id` is the first 32 hex characters of the sha256 of its credential id (M5R76). */
+export const PasskeyView = z.object({
+  id: z.string().min(1).max(128),
+  createdAt: z.number().int(),
+  lastUsedAt: z.number().int().nullable(),
+  transports: z.array(z.string().max(32)).max(8),
+});
+export type PasskeyView = z.infer<typeof PasskeyView>;
+
 const Ok = z.object({ ok: z.literal(true) });
 
 export const authMethods = {
@@ -118,5 +129,22 @@ export const authMethods = {
     params: z.object({}),
     result: z.object({ revoked: z.number().int().nonnegative() }),
     errors: [],
+  }),
+  "auth.passkeys.list": defineMethod({
+    name: "auth.passkeys.list",
+    permission: "auth:read",
+    idempotent: true,
+    params: z.object({}),
+    result: z.object({ passkeys: z.array(PasskeyView).max(MAX_PASSKEYS_LISTED) }),
+    errors: [],
+  }),
+  // Removing a passkey also signs out the browsers it opened; `revoked` counts them. The last one can go: the password stays.
+  "auth.passkeys.remove": defineMethod({
+    name: "auth.passkeys.remove",
+    permission: "auth:admin",
+    idempotent: false,
+    params: z.object({ passkeyId: z.string().min(1).max(128) }),
+    result: z.object({ revoked: z.number().int().nonnegative() }),
+    errors: ["step_up_required", "not_found"],
   }),
 } as const;

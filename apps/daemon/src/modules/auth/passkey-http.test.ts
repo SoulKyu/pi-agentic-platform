@@ -223,6 +223,7 @@ describe("step-up before enrollment", () => {
           auth: service,
           throttle: createThrottle(bed.clock, { whenFull: "evict" }),
           logger: bed.logger,
+          audit: { append: () => undefined },
         });
       },
       wsProbe: (c) => c.json({}),

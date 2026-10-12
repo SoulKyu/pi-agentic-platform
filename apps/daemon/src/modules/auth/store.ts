@@ -1,5 +1,5 @@
 import type { Db } from "../../kernel/db/database.ts";
-import { createPasskeyStore, type PasskeyStore } from "./passkey-store.ts";
+import { createPasskeyStore, passkeyRefOf, type PasskeyStore } from "./passkey-store.ts";
 
 export interface UserRow {
   readonly id: string;
@@ -55,16 +55,27 @@ export interface AuthStore extends PasskeyStore {
   deleteExpiredSessions(now: number): void;
   /** Newest first, at most `limit`. */
   listDevices(userId: string, limit: number): DeviceRow[];
-  /** The id hashes of the rows deleted: the caller drops whatever it keeps by them. */
-  deleteDevice(userId: string, publicId: string): string[];
-  deleteOtherDevices(userId: string, keepPublicId: string): string[];
+  /** Live rows only; the id hashes of the rows deleted: the caller drops whatever it keeps by them. */
+  deleteDevice(userId: string, publicId: string, now: number): string[];
+  deleteOtherDevices(userId: string, keepPublicId: string, now: number): string[];
+  /**
+   * Deletes the user's passkey whose short id is `passkeyRef` and every browser session it opened, in one
+   * transaction. Null when the user has no such passkey. `sessions` holds the id hashes of all those rows,
+   * expired or not (an expired one is gone too); `live` counts the ones still valid at `now`.
+   */
+  deletePasskeyAndSessions(
+    userId: string,
+    passkeyRef: string,
+    now: number,
+  ): { sessions: string[]; live: number } | null;
 }
 
 const USER_COLUMNS = "id, username, password_hash AS passwordHash";
 
 export function createAuthStore(db: Db): AuthStore {
+  const passkeys = createPasskeyStore(db);
   return {
-    ...createPasskeyStore(db),
+    ...passkeys,
     countUsers: () => db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c ?? 0,
     firstUserId: () =>
       db.get<{ id: string }>("SELECT id FROM users ORDER BY created_at, id LIMIT 1")?.id ?? null,
@@ -108,19 +119,35 @@ export function createAuthStore(db: Db): AuthStore {
         "SELECT public_id AS publicId, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt, user_agent AS userAgent, ip, method FROM auth_sessions WHERE user_id = $userId ORDER BY created_at DESC, rowid DESC LIMIT $limit",
         { userId, limit },
       ),
-    deleteDevice: (userId, publicId) =>
+    deleteDevice: (userId, publicId, now) =>
       db
         .all<{ idHash: string }>(
-          "DELETE FROM auth_sessions WHERE user_id = $userId AND public_id = $publicId RETURNING id_hash AS idHash",
-          { userId, publicId },
+          "DELETE FROM auth_sessions WHERE user_id = $userId AND public_id = $publicId AND expires_at > $now RETURNING id_hash AS idHash",
+          { userId, publicId, now },
         )
         .map((row) => row.idHash),
-    deleteOtherDevices: (userId, keepPublicId) =>
+    deleteOtherDevices: (userId, keepPublicId, now) =>
       db
         .all<{ idHash: string }>(
-          "DELETE FROM auth_sessions WHERE user_id = $userId AND public_id <> $keepPublicId RETURNING id_hash AS idHash",
-          { userId, keepPublicId },
+          "DELETE FROM auth_sessions WHERE user_id = $userId AND public_id <> $keepPublicId AND expires_at > $now RETURNING id_hash AS idHash",
+          { userId, keepPublicId, now },
         )
         .map((row) => row.idHash),
+    deletePasskeyAndSessions: (userId, passkeyRef, now) =>
+      db.transaction(() => {
+        const passkey = passkeys
+          .listPasskeys(userId)
+          .find((candidate) => passkeyRefOf(candidate.id) === passkeyRef);
+        if (!passkey) return null;
+        db.run("DELETE FROM passkeys WHERE user_id = $userId AND id = $id", { userId, id: passkey.id });
+        const gone = db.all<{ idHash: string; expiresAt: number }>(
+          "DELETE FROM auth_sessions WHERE user_id = $userId AND passkey_ref = $passkeyRef RETURNING id_hash AS idHash, expires_at AS expiresAt",
+          { userId, passkeyRef },
+        );
+        return {
+          sessions: gone.map((row) => row.idHash),
+          live: gone.filter((row) => row.expiresAt > now).length,
+        };
+      }),
   };
 }

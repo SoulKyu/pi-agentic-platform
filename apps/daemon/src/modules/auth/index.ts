@@ -12,6 +12,7 @@ import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
 import { credentialOf } from "./credentials.ts";
 import { createDevices } from "./devices.ts";
 import { mountAuthRoutes } from "./http.ts";
+import { createPasskeyManager } from "./passkey-manage.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
 import { createPasskeyService } from "./passkeys.ts";
 import { type AuthRpc, authRpc } from "./rpc.ts";
@@ -22,16 +23,8 @@ import { createTokenStore } from "./token-store.ts";
 import { createTokenService } from "./tokens.ts";
 import { createAuthThrottles } from "./throttle.ts";
 
-// Built by the module itself; exported so a bed can put a counting store under the real services.
-export {
-  createAuthService,
-  createAuthStore,
-  createAuthThrottles,
-  createDevices,
-  createSetupToken,
-  createTokenService,
-  createTokenStore,
-};
+// The one export for `testing/` beds (R84): real services on a test database, no loose factories.
+export { createAuthTestHarness } from "./test-seam.ts";
 
 export const AUTH_MIGRATIONS: MigrationSource = {
   module: "auth",
@@ -97,10 +90,11 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     ownerPermissions: () => OWNER_PERMISSIONS,
   });
   const devices = createDevices({ store, service, clock: deps.clock, audit: deps.audit });
+  const passkeyManager = createPasskeyManager({ store, service, clock: deps.clock, audit: deps.audit });
   // Separate from the password throttle: a lockout of one must never lock the other (R80).
   const secureByConfig = cookieNeedsSecure(deps.publicOrigin);
   return {
-    rpc: authRpc(tokens, devices),
+    rpc: authRpc(tokens, devices, passkeyManager),
     mount: (app) => {
       mountAuthRoutes(app, {
         service,
@@ -113,6 +107,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
         auth: service,
         throttle: throttles.passkey,
         logger,
+        audit: deps.audit,
       });
     },
     credentialOf,

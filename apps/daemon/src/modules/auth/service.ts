@@ -8,7 +8,7 @@ import type { AuditPort } from "../audit/index.ts";
 import { SESSION_TTL_MS } from "./cookies.ts";
 import { dummyHash, hashPassword, isAcceptablePassword, verifyPassword } from "./passwords.ts";
 import type { SetupToken } from "./setup-token.ts";
-import { createStepUps } from "./step-up.ts";
+import { createStepUps, type StepUps } from "./step-up.ts";
 import type { AuthStore, SignInMethod, UserRow } from "./store.ts";
 import { sessionKey } from "./throttle-keys.ts";
 import { MAX_BACKOFF_MS, type Throttle } from "./throttle.ts";
@@ -54,6 +54,8 @@ export interface AuthServiceDeps {
   readonly sessionThrottle: Throttle;
   readonly setupToken: SetupToken;
   readonly audit: Pick<AuditPort, "append">;
+  /** The marks of confirmed sessions; a bed passes its own to look at them. */
+  readonly stepUps?: StepUps;
 }
 
 export interface Credentials {
@@ -94,6 +96,11 @@ export interface AuthService {
   revokeDevice(userId: string, publicId: string): boolean;
   /** Deletes every browser session of the user but `keepPublicId`, drops their marks, answers how many. */
   revokeOtherDevices(userId: string, keepPublicId: string): number;
+  /**
+   * Deletes the user's passkey with that short id and every browser session it opened, drops their step-up
+   * marks, and answers how many live sessions went; null when the user has no such passkey. Synchronous.
+   */
+  removePasskey(userId: string, passkeyRef: string): { revoked: number } | null;
   setupUrl(): string | null;
 }
 
@@ -102,7 +109,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   void dummyHash().catch(() => undefined);
   // Security events carry the socket address and the delay in force, never a username, a password or a token:
   // people type one into the other's field, and a log is read by more eyes than a database.
-  const stepUps = createStepUps(deps.clock);
+  const stepUps = deps.stepUps ?? createStepUps(deps.clock);
   const lastThrottleLog = new Map<string, number>();
   let lastFullLog = -Infinity;
   // A table of live lockouts is full: refuse before any hash, and say so (no key, no address) at most once per window.
@@ -273,14 +280,20 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     authenticate,
     startSession,
     revokeDevice(userId, publicId) {
-      const gone = deps.store.deleteDevice(userId, publicId);
+      const gone = deps.store.deleteDevice(userId, publicId, deps.clock.now());
       for (const idHash of gone) stepUps.forget(idHash);
       return gone.length > 0;
     },
     revokeOtherDevices(userId, keepPublicId) {
-      const gone = deps.store.deleteOtherDevices(userId, keepPublicId);
+      const gone = deps.store.deleteOtherDevices(userId, keepPublicId, deps.clock.now());
       for (const idHash of gone) stepUps.forget(idHash);
       return gone.length;
+    },
+    removePasskey(userId, passkeyRef) {
+      const removed = deps.store.deletePasskeyAndSessions(userId, passkeyRef, deps.clock.now());
+      if (!removed) return null;
+      for (const idHash of removed.sessions) stepUps.forget(idHash);
+      return { revoked: removed.live };
     },
     setupUrl() {
       const token = deps.setupToken.current();

@@ -79,3 +79,31 @@ describe("device contract", () => {
     expect(methods["auth.devices.revokeOthers"].result.safeParse({ revoked: -1 }).success).toBe(false);
   });
 });
+
+describe("passkey contract", () => {
+  it("declares the list as a read and the removal as an auth:admin mutation that needs a step-up", () => {
+    expect(methods["auth.passkeys.list"]).toMatchObject({ permission: "auth:read", idempotent: true });
+    expect(methods["auth.passkeys.remove"]).toMatchObject({ permission: "auth:admin", idempotent: false });
+    expect(methods["auth.passkeys.remove"].errors).toEqual(["step_up_required", "not_found"]);
+    expect("secretResult" in methods["auth.passkeys.remove"]).toBe(false);
+  });
+
+  it("shows a passkey by its short id, never a credential id, and bounds every field", () => {
+    const view = { id: "a".repeat(32), createdAt: 1, lastUsedAt: null, transports: ["usb"] };
+    const result = methods["auth.passkeys.list"].result;
+    expect(result.safeParse({ passkeys: [view] }).success).toBe(true);
+    expect(result.safeParse({ passkeys: [{ ...view, lastUsedAt: 2 }] }).success).toBe(true);
+    for (const bad of [
+      { id: "" },
+      { id: "a".repeat(129) },
+      { lastUsedAt: undefined },
+      { transports: "usb" },
+    ]) {
+      expect(result.safeParse({ passkeys: [{ ...view, ...bad }] }).success, JSON.stringify(bad)).toBe(false);
+    }
+    expect(result.safeParse({ passkeys: Array.from({ length: 101 }, () => view) }).success).toBe(false);
+    expect(methods["auth.passkeys.remove"].params.safeParse({ passkeyId: "" }).success).toBe(false);
+    expect(methods["auth.passkeys.remove"].result.safeParse({ revoked: -1 }).success).toBe(false);
+    expect(methods["auth.passkeys.remove"].result.safeParse({ revoked: 0 }).success).toBe(true);
+  });
+});

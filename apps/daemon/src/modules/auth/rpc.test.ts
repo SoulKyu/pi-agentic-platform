@@ -17,7 +17,7 @@ describe("auth.tokens.*", () => {
     current = createTokenBed();
     const bed = current;
     devicesBed = createDeviceBed();
-    const rpc = authRpc(bed.tokens, devicesBed.devices);
+    const rpc = authRpc(bed.tokens, devicesBed.devices, devicesBed.passkeys);
     const ctx: HandlerContext = {
       caller: bed.confirmed(),
       connectionId: "c1",
@@ -41,7 +41,7 @@ describe("auth.devices.*", () => {
   it("lists, revokes and signs out the others through the contract's own result shapes", async () => {
     current = createTokenBed();
     const bed = (devicesBed = createDeviceBed());
-    const rpc = authRpc(current.tokens, bed.devices);
+    const rpc = authRpc(current.tokens, bed.devices, bed.passkeys);
     const ctx: HandlerContext = {
       caller: bed.current,
       connectionId: "c1",

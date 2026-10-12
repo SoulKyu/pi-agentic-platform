@@ -24,3 +24,5 @@ export function createStepUps(clock: Clock) {
     size: (): number => marks.size,
   };
 }
+
+export type StepUps = ReturnType<typeof createStepUps>;

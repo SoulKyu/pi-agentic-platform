@@ -9,11 +9,22 @@ export interface PasskeyRow {
   readonly transports: string[];
 }
 
+/** A passkey as the list reads it: `id` is the credential id, which the manager turns into the short id before showing it. */
+export interface PasskeyListing {
+  readonly id: string;
+  readonly createdAt: number;
+  readonly lastUsedAt: number | null;
+  readonly transports: string[];
+}
+
 export interface PasskeyStore {
   listPasskeys(userId: string): PasskeyRow[];
+  /** Oldest first, at most `limit`. */
+  listPasskeyListings(userId: string, limit: number): PasskeyListing[];
   findPasskey(id: string): PasskeyRow | undefined;
   insertPasskey(row: PasskeyRow & { readonly createdAt: number }): void;
-  updatePasskeyCounter(id: string, counter: number): void;
+  /** The counter after a sign-in, and when it happened. */
+  updatePasskeyCounter(id: string, counter: number, usedAt: number): void;
 }
 
 /** The short id of a passkey (M5R128): the first 32 hex characters of the sha256 of its credential id. */
@@ -58,6 +69,13 @@ export function createPasskeyStore(db: Db): PasskeyStore {
           userId,
         })
         .map(toPasskey),
+    listPasskeyListings: (userId, limit) =>
+      db
+        .all<Omit<PasskeyListing, "transports"> & { transports: string }>(
+          "SELECT id, created_at AS createdAt, last_used_at AS lastUsedAt, transports FROM passkeys WHERE user_id = $userId ORDER BY created_at, id LIMIT $limit",
+          { userId, limit },
+        )
+        .map((row) => ({ ...row, transports: readTransports(row.transports) })),
     findPasskey: (id) => {
       const row = db.get<RawPasskey>(`SELECT ${COLUMNS} FROM passkeys WHERE id = $id`, { id });
       return row ? toPasskey(row) : undefined;
@@ -75,8 +93,12 @@ export function createPasskeyStore(db: Db): PasskeyStore {
         },
       );
     },
-    updatePasskeyCounter: (id, counter) => {
-      db.run("UPDATE passkeys SET counter = $counter WHERE id = $id", { id, counter });
+    updatePasskeyCounter: (id, counter, usedAt) => {
+      db.run("UPDATE passkeys SET counter = $counter, last_used_at = $usedAt WHERE id = $id", {
+        id,
+        counter,
+        usedAt,
+      });
     },
   };
 }
