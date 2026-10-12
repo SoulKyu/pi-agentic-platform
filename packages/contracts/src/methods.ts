@@ -3,6 +3,7 @@ import { auditMethods } from "./audit.ts";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { Cursor } from "./frames.ts";
 import { MAX_ALWAYS_RULES } from "./policy.ts";
+import { policyMethods } from "./policy-methods.ts";
 import {
   DialogResponse,
   ForkPoint,
@@ -34,6 +35,7 @@ export const methods = catalogue({
   ...settingsMethods,
   ...shellMethods,
   ...auditMethods,
+  ...policyMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",

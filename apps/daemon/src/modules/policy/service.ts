@@ -3,9 +3,10 @@ import type { Clock } from "../../kernel/clock.ts";
 import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { projectScopeOf } from "./project-scope.ts";
+import type { SessionPolicyPort } from "./session-service.ts";
 import type { PolicyStore, RuleRow } from "./store.ts";
 
-export interface PolicyPort {
+export interface PolicyPort extends SessionPolicyPort {
   /** The project a session's cwd belongs to: its git root, or the cwd outside git (owner R2-5). */
   scopeOf(cwd: string): string;
   rulesFor(ownerId: string, scope: string): AlwaysRule[];

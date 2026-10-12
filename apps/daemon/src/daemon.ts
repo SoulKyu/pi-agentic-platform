@@ -160,7 +160,16 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     // What an earlier daemon of this home left behind dies before any new worker starts (M2-RT-13).
     await scopes.sweep();
-    const policy = createPolicyModule({ db, clock, logger, newId });
+    // The sessions module is built after the policy module, which asks it who owns a session (M5R56).
+    let ownerOf: (sessionId: string) => string | null = () => null;
+    const policy = createPolicyModule({
+      db,
+      clock,
+      logger,
+      newId,
+      audit: audit.port,
+      sessionOwner: (sessionId) => ownerOf(sessionId),
+    });
     const projects = createProjectsModule({ db, clock, logger, newId });
     const sessions = createSessionsModule({
       db,
@@ -187,6 +196,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       sessions: sessions.scanPort,
     });
     closers.push({ name: "search", close: () => search.stop() });
+    ownerOf = sessions.ownerOf;
     const settings = createSettingsModule({ db, clock, logger });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),

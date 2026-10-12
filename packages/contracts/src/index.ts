@@ -7,6 +7,7 @@ export * from "./marks.ts";
 export * from "./methods.ts";
 export * from "./permissions.ts";
 export * from "./policy.ts";
+export * from "./policy-methods.ts";
 export * from "./pi-host.ts";
 export * from "./settings.ts";
 export * from "./shell.ts";

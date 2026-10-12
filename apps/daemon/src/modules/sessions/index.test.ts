@@ -271,4 +271,12 @@ describe("the exports directory (M2R96)", () => {
     expect(existsSync(exportsDir())).toBe(true);
     expect(readdirSync(exportsDir())).toEqual([]);
   });
+
+  it("answers who owns a session, and null for an unknown one (M5R56)", async () => {
+    const { sessions } = moduleWith(null);
+    const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
+    expect(sessions.ownerOf(sessionId)).toBe("u1");
+    expect(sessions.ownerOf("nope")).toBeNull();
+    await sessions.shutdownAll();
+  });
 });

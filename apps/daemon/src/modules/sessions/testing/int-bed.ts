@@ -80,9 +80,17 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     }).db;
     const hub = createStreamHub(undefined, clock);
     const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
-    const policy = createPolicyModule({ db, clock, logger: silentLogger, newId });
     const projects = createProjectsModule({ db, clock, logger: silentLogger, newId });
     const audit = createAuditModule({ db, clock, logger: silentLogger });
+    let ownerOf: (sessionId: string) => string | null = () => null;
+    const policy = createPolicyModule({
+      db,
+      clock,
+      logger: silentLogger,
+      newId,
+      audit: audit.port,
+      sessionOwner: (sessionId) => ownerOf(sessionId),
+    });
     const sessions: SessionsModule = createSessionsModule({
       db,
       clock,
@@ -107,6 +115,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       scopes: options.scopes ?? NO_SCOPES,
       onWorkerExit: (sessionId, info) => void exits.push({ sessionId, ...info }),
     });
+    ownerOf = sessions.ownerOf;
     let connections = 0;
     const contextOf = (connectionId: string, sink: EventFrame[]): HandlerContext => ({
       caller: testCaller(),

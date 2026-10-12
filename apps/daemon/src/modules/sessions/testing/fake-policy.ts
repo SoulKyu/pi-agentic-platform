@@ -1,4 +1,11 @@
-import { type AlwaysRule, type DaemonToWorker, PolicyRules } from "@pap/contracts";
+import {
+  type AlwaysRule,
+  DEFAULT_APPROVAL_MODE,
+  type DaemonToWorker,
+  DEFAULT_POLICY_SETTINGS,
+  NO_TAINT,
+  PolicyRules,
+} from "@pap/contracts";
 import type { FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import type { PolicyPort } from "../../policy/index.ts";
 
@@ -53,6 +60,13 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
       listeners.add(listener);
       return () => void listeners.delete(listener);
     },
+    // The session modes, the taint and the owner settings are inert here: the sessions tests of Tasks 12b-1 and 12b-2 extend them.
+    sessionPolicy: () => ({ mode: DEFAULT_APPROVAL_MODE, explicit: false, taint: NO_TAINT }),
+    settings: () => DEFAULT_POLICY_SETTINGS,
+    markTainted: () => false,
+    inherit: () => {},
+    onSessionChange: () => () => {},
+    onSettingsChange: () => () => {},
   };
   return {
     ...port,

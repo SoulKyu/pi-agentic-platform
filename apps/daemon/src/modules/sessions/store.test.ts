@@ -114,6 +114,13 @@ describe("the session_name migration", () => {
       join(fileURLToPath(new URL("./migrations/", import.meta.url)), "202610100200_sessions.sql"),
       join(old, "202610100200_sessions.sql"),
     );
+    // The policy module as it was then: its later migrations (session_policy) come with the second run.
+    const oldPolicy = join(dir, "old-policy");
+    mkdirSync(oldPolicy);
+    copyFileSync(
+      join(fileURLToPath(new URL("../policy/migrations/", import.meta.url)), "202610110100_policy.sql"),
+      join(oldPolicy, "202610110100_policy.sql"),
+    );
     const options = {
       dbPath: join(dir, "m.db"),
       backupsDir: join(dir, "mb"),
@@ -122,7 +129,7 @@ describe("the session_name migration", () => {
     };
     const first = migrate({
       ...options,
-      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, { module: "sessions", dir: old }],
+      sources: [KERNEL_MIGRATIONS, { module: "policy", dir: oldPolicy }, { module: "sessions", dir: old }],
     });
     expect(first.applied).toContain("policy/202610110100_policy.sql");
     first.db.close();
@@ -133,6 +140,7 @@ describe("the session_name migration", () => {
     expect(second.applied).toEqual([
       "sessions/202610110200_session_name.sql",
       "sessions/202610121500_session_marks.sql",
+      "policy/202610122010_session_policy.sql",
     ]);
     expect(second.readOnly).toBe(false);
     second.db.close();

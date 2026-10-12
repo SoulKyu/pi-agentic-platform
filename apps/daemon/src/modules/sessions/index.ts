@@ -79,6 +79,8 @@ export interface SessionsModule {
   /** What the search module reads from sessions. */
   readonly scanPort: SessionsScanPort;
   shutdownAll(): Promise<void>;
+  /** The owner of a session, or null when there is none: the policy module's late-bound lookup (M5R56). */
+  ownerOf(sessionId: string): string | null;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
 }
 
@@ -100,8 +102,9 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   // The working copies of sources are deleted when each fork ends; a crash in the middle leaves one, deleted here.
   const forkTmpDir = join(config.home, "fork-tmp");
   purgeForkTmp(forkTmpDir, logger);
+  const store = createSessionsStore(deps.db);
   const service = createSessionsService({
-    store: createSessionsStore(deps.db),
+    store,
     exports,
     clock: deps.clock,
     logger,
@@ -159,6 +162,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
         exports.stop();
       }
     },
+    ownerOf: (sessionId) => store.get(sessionId)?.ownerId ?? null,
     inspect: (sessionId) => service.inspect(sessionId),
   };
 }
