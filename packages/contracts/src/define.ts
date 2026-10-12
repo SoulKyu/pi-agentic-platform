@@ -10,6 +10,11 @@ export interface MethodDef<
   readonly name: N;
   readonly permission: Permission;
   readonly idempotent: boolean;
+  /**
+   * The result holds a secret shown once (an API token, R69). The dispatcher stores no result for it: a replay of the
+   * same commandId answers `conflict`, never the secret again (Task 13b).
+   */
+  readonly secretResult?: true;
   readonly params: P;
   readonly result: R;
   readonly errors: readonly ErrorCode[];

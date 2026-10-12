@@ -2,7 +2,6 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
-  ALL_PERMISSIONS,
   type Caller,
   type CommandInput,
   type Cursor,
@@ -23,6 +22,7 @@ import { createExports, type Exports, loadPiWriter, type PiWriter, SESSIONS_MIGR
 import { fakePolicyPort } from "./fake-policy.ts";
 import { fakeProjectsPort } from "./fake-projects.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
+import { testCaller } from "../../../testing/caller.ts";
 
 export { sessionFileText };
 
@@ -80,7 +80,7 @@ export interface BedReply {
 }
 
 /** The one user of the beds: the owner of every session they make. */
-export const OWNER: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+export const OWNER: Caller = testCaller();
 
 const IDLE_STATE = {
   isStreaming: false,

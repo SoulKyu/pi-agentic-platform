@@ -3,7 +3,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  ALL_PERMISSIONS,
   type Cursor,
   type EventFrame,
   type HandlerContext,
@@ -21,6 +20,7 @@ import { createStreamHub } from "../../../kernel/ws/stream-hub.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "../../policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "../../projects/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "../index.ts";
+import { testCaller } from "../../../testing/caller.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const EXEC_ARGV = [
@@ -106,7 +106,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     });
     let connections = 0;
     const contextOf = (connectionId: string, sink: EventFrame[]): HandlerContext => ({
-      caller: { userId: "u1", permissions: new Set(ALL_PERMISSIONS) },
+      caller: testCaller(),
       connectionId,
       openSubscription: (stream, key, after) => {
         const sub = `s-${connectionId}`;

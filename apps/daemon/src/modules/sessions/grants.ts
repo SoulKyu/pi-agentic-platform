@@ -3,7 +3,7 @@ import {
   type ApprovalAnswer,
   MAX_ALWAYS_RULES,
   type Notice,
-  type PolicyRules,
+  PolicyRules,
   SERVER_CODES,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
@@ -83,7 +83,11 @@ export function createGrantLink(deps: GrantLinkDeps) {
     }
     const fitted = fitRules(rules);
     if (!fitted) say("policy_rules_too_large", { sessionId: row.id, count: rules.length });
-    return { profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow: fitted ?? [] };
+    return PolicyRules.parse({
+      profile: "interactive",
+      approvalMode: "auto-accept-edits",
+      alwaysAllow: fitted ?? [],
+    });
   }
 
   // A worker that cannot be told keeps a rule that may be revoked: it is stopped, and the next prompt starts one with the current rules.

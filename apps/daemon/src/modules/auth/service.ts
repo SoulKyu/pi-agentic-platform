@@ -136,7 +136,14 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         if (!isReadOnlyError(error)) throw error;
       }
     }
-    return { userId: session.userId, username: session.username, permissions: OWNER_PERMISSIONS };
+    return {
+      userId: session.userId,
+      username: session.username,
+      permissions: OWNER_PERMISSIONS,
+      kind: "session",
+      credentialId: "",
+      stepUpUntil: 0,
+    };
   };
   return {
     status(cookieValue) {

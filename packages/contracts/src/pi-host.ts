@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { ApprovalAnswer, ApprovalAnswers, AuditEntry, GrantKey, TOOL_CATEGORIES } from "./policy.ts";
+import {
+  ApprovalAnswer,
+  ApprovalAnswers,
+  AuditEntry,
+  GrantKey,
+  GuardRule,
+  TOOL_CATEGORIES,
+} from "./policy.ts";
 import { SessionName } from "./streams.ts";
 
 // daemon → worker
@@ -151,6 +158,8 @@ export const ApprovalRequestRecord = z.object({
   answers: ApprovalAnswers,
   tool: z.string().min(1).max(256),
   key: GrantKey,
+  tainted: z.boolean().default(false),
+  guard: GuardRule.optional(),
 });
 export type ApprovalRequestRecord = z.infer<typeof ApprovalRequestRecord>;
 export const ResponseRecord = z.object({

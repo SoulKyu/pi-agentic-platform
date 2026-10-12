@@ -1,10 +1,4 @@
-import {
-  ALL_PERMISSIONS,
-  PROTOCOL_VERSION,
-  type Caller,
-  type HandlerContext,
-  type HandlerTable,
-} from "@pap/contracts";
+import { PROTOCOL_VERSION, type Caller, type HandlerContext, type HandlerTable } from "@pap/contracts";
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
@@ -21,11 +15,12 @@ import {
   KEEPALIVE_MS,
   type WsServer,
 } from "./ws-server.ts";
+import { testCaller } from "../../testing/caller.ts";
 
 const ORIGIN = "http://localhost:7777";
 // More than the credential: nothing but the credential may be kept or asked about.
 const COOKIE = "pap_session=good; theme=dark";
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 
 let server: RunningServer;
 let ws: WsServer;

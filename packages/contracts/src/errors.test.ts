@@ -23,6 +23,10 @@ describe("error codes", () => {
     expect(ERROR_MESSAGES.limit_reached).toBe("This list is full. Remove an entry first.");
   });
 
+  it("asks for the password again with a fixed message", () => {
+    expect(ERROR_MESSAGES.step_up_required).toBe("Confirm your password to continue.");
+  });
+
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
   });

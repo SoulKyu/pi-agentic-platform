@@ -151,6 +151,8 @@ function approvalDialog(record: ApprovalRequestRecord): Built {
     message: record.message,
     category: record.category,
     answers: record.answers,
+    ...(record.tainted ? { tainted: true } : {}),
+    ...(record.guard ? { guard: record.guard } : {}),
   });
   if (!parsed.success) {
     const longer = (text: unknown, max: number) => typeof text === "string" && text.length > max;

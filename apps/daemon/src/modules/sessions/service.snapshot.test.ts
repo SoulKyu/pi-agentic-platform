@@ -1,13 +1,14 @@
 import { appendFileSync } from "node:fs";
-import { ALL_PERMISSIONS, type Caller, type EventFrame } from "@pap/contracts";
+import { type Caller, type EventFrame } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { codeOf } from "./testing/helpers.ts";
 import { createServiceBed } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 const confirm = {
   type: "extension_ui_request" as const,
   id: "d1",
@@ -232,7 +233,7 @@ describe("preparing a read (R108)", () => {
   it("loads nothing for a caller who may not read, or for a session that is not there", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);
-    const stranger: Caller = { userId: "u2", permissions: new Set(ALL_PERMISSIONS) };
+    const stranger: Caller = testCaller({ userId: "u2" });
     expect(await codeOf(bed.service.prepareSubscription("p1", stranger))).toBe("not_found");
     expect(await codeOf(bed.service.prepareSubscription("ghost", owner))).toBe("not_found");
     expect(bed.transcript.loads).toBe(0);

@@ -153,8 +153,38 @@ describe("protocol v2 records", () => {
     };
     expect(parseWorkerRecord(render)).toEqual(render);
     expect(parseWorkerRecord({ type: "custom_close", id: "p1" })).toEqual({ type: "custom_close", id: "p1" });
-    expect(parseWorkerRecord(approval)).toEqual(approval);
+    expect(parseWorkerRecord(approval)).toEqual({ ...approval, tainted: false });
     expect(parseWorkerRecord({ type: "custom_render", id: "p1" })).toBeNull();
+  });
+
+  describe("taint and guard on an approval_request (M5R5)", () => {
+    const base = {
+      type: "approval_request",
+      id: "a1",
+      category: "exec",
+      title: "Run?",
+      message: "bash: ls",
+      answers: ["deny", "once"],
+      tool: "bash",
+      key: KEY,
+    };
+
+    it("defaults tainted to false and keeps both fields when given", () => {
+      expect(parseWorkerRecord(base)).toEqual({ ...base, tainted: false });
+      expect(parseWorkerRecord({ ...base, tainted: true, guard: "turns" })).toEqual({
+        ...base,
+        tainted: true,
+        guard: "turns",
+      });
+    });
+
+    it("answers an unknown guard rule as malformed", () => {
+      expect(parseWorkerRecord({ ...base, guard: "x" })).toEqual({
+        type: "approval_request_invalid",
+        id: "a1",
+        reason: "malformed",
+      });
+    });
   });
 
   describe("an approval_request the schema refuses", () => {

@@ -1,9 +1,10 @@
-import { ALL_PERMISSIONS, type Caller, type HandlerContext, PapError } from "@pap/contracts";
+import { type Caller, type HandlerContext, PapError } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { policyRpc } from "./rpc.ts";
 import type { PolicyService } from "./service.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const caller: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const caller: Caller = testCaller();
 const ctx: HandlerContext = {
   caller,
   connectionId: "c1",

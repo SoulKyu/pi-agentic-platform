@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ALL_PERMISSIONS, type Caller, type HandlerContext } from "@pap/contracts";
+import { type Caller, type HandlerContext } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
@@ -15,6 +15,7 @@ import { createSessionsModule, SESSIONS_MIGRATIONS } from "./index.ts";
 import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { captureLogger } from "./testing/helpers.ts";
+import { testCaller } from "../../testing/caller.ts";
 
 // The real supervisor forks a process; here it only records what it was asked to start, and answers like a worker.
 const spawned = vi.hoisted(() => ({
@@ -51,7 +52,7 @@ vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
   },
 }));
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 const ctx: HandlerContext = {
   caller: owner,
   connectionId: "c1",

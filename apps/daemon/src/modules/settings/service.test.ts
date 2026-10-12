@@ -1,13 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  ALL_PERMISSIONS,
-  MAX_SETTING_BYTES,
-  PapError,
-  type AccountAppearance,
-  type Caller,
-} from "@pap/contracts";
+import { MAX_SETTING_BYTES, PapError, type AccountAppearance, type Caller } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
@@ -16,8 +10,9 @@ import { createLogger } from "../../kernel/logger.ts";
 import { createSettingsService, type SettingsService } from "./service.ts";
 import { createSettingsStore } from "./store.ts";
 import { SETTINGS_MIGRATIONS } from "./index.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const owner = (userId: string): Caller => ({ userId, permissions: new Set(ALL_PERMISSIONS) });
+const owner = (userId: string): Caller => testCaller({ userId });
 const appearance: AccountAppearance = {
   mode: "day",
   darkTheme: "night",

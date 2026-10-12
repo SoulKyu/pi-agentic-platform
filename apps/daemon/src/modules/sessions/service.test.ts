@@ -1,6 +1,6 @@
 import { realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { ALL_PERMISSIONS, type Caller } from "@pap/contracts";
+import { type Caller, PolicyRules } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { READY_TIMEOUT_MS } from "./live-session.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
@@ -10,9 +10,10 @@ import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import { type BedOptions, createServiceBed } from "./testing/service-bed.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
-const stranger: Caller = { userId: "u2", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
+const stranger: Caller = testCaller({ userId: "u2" });
 const confirm = {
   type: "extension_ui_request" as const,
   id: "d1",
@@ -42,7 +43,11 @@ describe("create", () => {
       agentDir: bed.agentDir,
       papHome: join(bed.dir, "pap"),
       umask: 0o022,
-      policy: { profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow: [] },
+      policy: PolicyRules.parse({
+        profile: "interactive",
+        approvalMode: "auto-accept-edits",
+        alwaysAllow: [],
+      }),
     });
   });
 

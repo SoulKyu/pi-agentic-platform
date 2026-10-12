@@ -61,6 +61,7 @@ export const en = {
     "The session did not answer in time. The action may still have gone through: check before trying again.",
   "error.prompt_rejected": "The session could not start this prompt. Check the model and provider settings.",
   "error.invalid_cwd": "The working directory must be an absolute path to an existing folder.",
+  "error.step_up_required": "Confirm your password to continue.",
   "error.read_only": "The database was written by a newer pap and is read-only.",
   "error.unknown_method": "This version of the page does not match the server. Reload it.",
   "error.internal": "Something went wrong.",

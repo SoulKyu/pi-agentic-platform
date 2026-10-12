@@ -1,13 +1,14 @@
 import { EventEmitter, once } from "node:events";
 import type { IncomingMessage } from "node:http";
 import { Duplex } from "node:stream";
-import { ALL_PERMISSIONS, PROTOCOL_VERSION, type Caller } from "@pap/contracts";
+import { PROTOCOL_VERSION, type Caller } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../clock.ts";
 import { silentLogger } from "../logger.ts";
 import type { OriginRefused } from "../http/origin.ts";
 import { createStreamHub } from "./stream-hub.ts";
 import { createWsServer, KEEPALIVE_MS, startKeepalive } from "./ws-server.ts";
+import { testCaller } from "../../testing/caller.ts";
 
 class FakePeer extends EventEmitter {
   ping = vi.fn();
@@ -100,7 +101,7 @@ describe("keepalive", () => {
   });
 });
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 
 function refusalSetup(authenticate: () => Caller | null = () => owner, onOriginRefused?: OriginRefused) {
   const server = createWsServer({

@@ -1,16 +1,16 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { PolicyRules } from "@pap/contracts";
+import { PolicyRules } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import type { Approvals } from "./approvals.ts";
 import { createDispatch } from "./dispatch.ts";
 import type { Ipc } from "./ipc.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
-const withAlways: PolicyRules = {
+const withAlways = PolicyRules.parse({
   profile: "interactive",
   approvalMode: "auto-accept-edits",
   alwaysAllow: [{ tool: "bash", key: "d".repeat(64) }],
-};
+});
 
 describe("dispatch", () => {
   it("drops the always rules when a policy update is malformed, and says so (M2-RT-17)", () => {

@@ -1,5 +1,5 @@
 import { realpathSync } from "node:fs";
-import type { AlwaysRule, DaemonToWorker } from "@pap/contracts";
+import { type AlwaysRule, type DaemonToWorker, PolicyRules } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GRANT_NOTICE_EVERY_MS } from "./grants.ts";
 import { createSessionsService } from "./service.ts";
@@ -26,12 +26,13 @@ const ask = (id: string, key = KEY) => ({
   answers: ["deny", "session", "always", "once"] as Array<"deny" | "session" | "always" | "once">,
   tool: "bash",
   key,
+  tainted: false,
 });
 const updates = (index: number): DaemonToWorker[] =>
   bed.spawned[index]?.sent.filter((record) => record.type === "policy_update") ?? [];
 const rulesOf = (alwaysAllow: AlwaysRule[]) => ({
   type: "policy_update",
-  rules: { profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow },
+  rules: PolicyRules.parse({ profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow }),
 });
 const always = async (index: number, sessionId: string, id: string, key = KEY) => {
   bed.spawned[index]?.emit(ask(id, key));

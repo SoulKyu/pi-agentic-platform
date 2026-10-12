@@ -1,12 +1,13 @@
 import { appendFileSync } from "node:fs";
-import { ALL_PERMISSIONS, type Caller } from "@pap/contracts";
+import { type Caller } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { createServiceBed } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 const build = (options?: Parameters<typeof createServiceBed>[1]) =>
   createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader }, options);
 let bed: ReturnType<typeof build>;

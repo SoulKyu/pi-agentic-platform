@@ -62,6 +62,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "error.prompt_rejected":
     "La session n'a pas pu lancer cette demande. Vérifiez le modèle et le fournisseur.",
   "error.invalid_cwd": "Le dossier de travail doit être le chemin absolu d'un dossier existant.",
+  "error.step_up_required": "Confirmez votre mot de passe pour continuer.",
   "error.read_only": "La base a été écrite par une version plus récente de pap et reste en lecture seule.",
   "error.unknown_method": "Cette version de la page ne correspond pas au serveur. Rechargez-la.",
   "error.internal": "Une erreur s'est produite.",

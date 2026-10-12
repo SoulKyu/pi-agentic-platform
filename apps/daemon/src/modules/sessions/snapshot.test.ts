@@ -20,6 +20,16 @@ const dialog = (id: string, filler = ""): Dialog => ({
 });
 
 describe("fitSnapshot", () => {
+  it("a snapshot without a policy input carries the default view", () => {
+    expect(fitSnapshot({ status: "idle", rows: [], dialogs: [] }).policy).toEqual({
+      mode: "auto-accept-edits",
+      explicit: false,
+      tainted: false,
+    });
+    const policy = { mode: "read-only", explicit: true, tainted: true } as const;
+    expect(fitSnapshot({ status: "idle", rows: [], dialogs: [], policy }).policy).toEqual(policy);
+  });
+
   it("carries the status, the rows and the open dialogs as they are when they fit", () => {
     const rows = [row(1), row(2)];
     expect(fitSnapshot({ status: "idle", rows, dialogs: [dialog("d1")] })).toEqual({
@@ -42,6 +52,7 @@ describe("fitSnapshot", () => {
       name: null,
       cwd: "",
       outsideWrite: false,
+      policy: { mode: "auto-accept-edits", explicit: false, tainted: false },
     });
   });
 

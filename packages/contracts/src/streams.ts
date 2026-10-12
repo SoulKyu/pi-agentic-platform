@@ -6,7 +6,14 @@ export type StreamName = (typeof STREAMS)[number];
 export const SessionStatus = z.enum(["cold", "starting", "idle", "running", "releasing"]);
 export type SessionStatus = z.infer<typeof SessionStatus>;
 
-import { ApprovalAnswer, ApprovalAnswers, TOOL_CATEGORIES } from "./policy.ts";
+import {
+  ApprovalAnswer,
+  ApprovalAnswers,
+  DEFAULT_SESSION_POLICY_VIEW,
+  GuardRule,
+  SessionPolicyView,
+  TOOL_CATEGORIES,
+} from "./policy.ts";
 
 /**
  * The most the daemon passes on from a worker for each extension UI surface (R66). The daemon rebuilds every client
@@ -56,6 +63,9 @@ export const Dialog = z
     /** Approval dialogs only (`method: "approval"`): the policy's category and the answers it accepts, in card order. */
     category: z.enum(TOOL_CATEGORIES).optional(),
     answers: ApprovalAnswers.optional(),
+    /** Untrusted content reached the session, or the run guard asks: why the card exists (DESIGN §9.2). */
+    tainted: z.boolean().optional(),
+    guard: GuardRule.optional(),
   })
   .superRefine((dialog, ctx) => {
     // An approval without its answers or its category could not be answered by the policy's own rules: refused (M2R61).
@@ -232,6 +242,7 @@ const Snapshot = z.object({
   cwd: z.string().max(4096).default(""),
   /** The session's Pi file changed in the last 2 minutes outside pap (owner Q13, M4R141). `false` from an older daemon. */
   outsideWrite: z.boolean().default(false),
+  policy: SessionPolicyView.default(DEFAULT_SESSION_POLICY_VIEW),
 });
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
@@ -269,6 +280,7 @@ export const SessionStreamEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("panel_closed"), id: z.string().max(128) }),
   z.object({ kind: z.literal("name"), name: SessionName.nullable() }),
   z.object({ kind: z.literal("activity"), activity: Activity }),
+  z.object({ kind: z.literal("policy"), policy: SessionPolicyView }),
 ]);
 export type SessionStreamEvent = z.infer<typeof SessionStreamEvent>;
 export type SnapshotEvent = Extract<SessionStreamEvent, { kind: "snapshot" }>;

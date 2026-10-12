@@ -1,13 +1,14 @@
-import { ALL_PERMISSIONS, type Caller } from "@pap/contracts";
+import { type Caller } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { codeOf } from "./testing/helpers.ts";
 import { type BedOptions, createServiceBed } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
-const stranger: Caller = { userId: "u2", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
+const stranger: Caller = testCaller({ userId: "u2" });
 
 const build = (options?: BedOptions) =>
   createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader }, options);

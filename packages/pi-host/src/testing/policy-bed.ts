@@ -1,15 +1,15 @@
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AuditEntry, PolicyRules } from "@pap/contracts";
+import { type AuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants, evaluateToolCall } from "../policy/extension.ts";
 
-export const interactiveRules: PolicyRules = {
+export const interactiveRules = PolicyRules.parse({
   profile: "interactive",
   approvalMode: "auto-accept-edits",
   alwaysAllow: [],
-};
+});
 
 export interface HarnessOptions {
   /** Replaces the scripted outcomes: answers the policy's question itself. */

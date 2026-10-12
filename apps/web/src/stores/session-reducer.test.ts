@@ -21,6 +21,7 @@ const snap = (status: string, messages: unknown[] = [], entryIds: Array<string |
   leafId: null,
   name: null,
 });
+const policyView = { mode: "supervised", explicit: true, tainted: false } as const;
 const pi = (event: Record<string, unknown>) => ({ kind: "pi", event });
 
 describe("reduceSession", () => {
@@ -384,4 +385,11 @@ describe("a snapshot the client cannot read", () => {
     expect(unreadable).toMatchObject({ unreadable: true, generation: first.generation + 1 });
     expect(unreadable.messages).toEqual(first.messages);
   });
+});
+
+it("keeps the session's policy view from the snapshot and from policy events", () => {
+  const first = reduceSession(EMPTY_VIEW, { ...snap("idle"), policy: policyView });
+  expect(first.policy).toEqual(policyView);
+  const next = reduceSession(first, { kind: "policy", policy: { ...policyView, tainted: true } });
+  expect(next.policy.tainted).toBe(true);
 });

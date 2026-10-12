@@ -19,13 +19,107 @@ export const AlwaysRule = z.object({ tool: z.string().min(1).max(256), key: Gran
 export type AlwaysRule = z.infer<typeof AlwaysRule>;
 export const MAX_ALWAYS_RULES = 1000;
 
-export const PolicyRules = z.object({
-  profile: z.literal("interactive"),
-  approvalMode: z.enum(["auto-accept-edits"]),
-  /** "Always" answers of this project (Task 14b). Absent in M1 rules, so it defaults to none. */
-  alwaysAllow: z.array(AlwaysRule).max(MAX_ALWAYS_RULES).default([]),
+export const APPROVAL_MODES = ["read-only", "supervised", "auto-accept-edits", "full-access"] as const;
+export const ApprovalMode = z.enum(APPROVAL_MODES);
+export type ApprovalMode = z.infer<typeof ApprovalMode>;
+/** Decision 14: read and edits in the session folder run, the rest asks. */
+export const DEFAULT_APPROVAL_MODE: ApprovalMode = "auto-accept-edits";
+
+// C0 and C1 controls, line and paragraph separators, bidi and other format characters: a pattern is one visible line.
+const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+/** A blocked-command pattern the owner writes: a glob over one command segment (`*` any run, `?` one character), Task 4. */
+export const DenyPattern = z
+  .string()
+  .min(1)
+  .max(256)
+  .refine((pattern) => !INVISIBLE.test(pattern), "a pattern is one line of visible characters");
+export const MAX_DENY_PATTERNS = 64;
+
+/**
+ * A host the egress stage lets through (Task 5a): lower-case labels of letters, digits and inner hyphens, at least two
+ * labels, or `*.` and such a host (subdomains only). No IP literal, port, path or bare TLD: an IP or `localhost` is
+ * refused here because a host list is a list of names; Task 5a refuses IP-literal URLs that no entry names.
+ */
+const LABEL = "(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)";
+export const HostPattern = z
+  .string()
+  .max(253)
+  .regex(new RegExp(`^(?:\\*\\.)?${LABEL}(?:\\.${LABEL})+$`))
+  .refine((host) => !/^(?:\*\.)?(?:\d+\.)+\d+$/.test(host), "an IP address is not a host name");
+export const MAX_ALLOW_HOSTS = 256;
+
+export const GUARD_RULES = ["identical-calls", "tool-calls", "turns"] as const;
+export const GuardRule = z.enum(GUARD_RULES);
+export type GuardRule = z.infer<typeof GuardRule>;
+export const GuardLimits = z.object({
+  identicalCalls: z.number().int().min(2).max(100),
+  toolCalls: z.number().int().min(1).max(10_000),
+  turns: z.number().int().min(1).max(1_000),
 });
+export type GuardLimits = z.infer<typeof GuardLimits>;
+/** Spec C §5.2 stage 04: 5 identical calls, 150 calls, 60 turns per run. */
+export const DEFAULT_GUARD: GuardLimits = { identicalCalls: 5, toolCalls: 150, turns: 60 };
+
+/**
+ * Whether untrusted content reached the session (stage 07). `epoch` only grows, and only an explicit clear makes it grow
+ * (ADR 0020): an update with the same epoch can raise the flag, never lower it (M5R6).
+ */
+export const TaintState = z.object({ tainted: z.boolean(), epoch: z.number().int().nonnegative() });
+export type TaintState = z.infer<typeof TaintState>;
+export const NO_TAINT: TaintState = { tainted: false, epoch: 0 };
+
+export const PolicyRules = z
+  .object({
+    profile: z.literal("interactive"),
+    approvalMode: ApprovalMode,
+    alwaysAllow: z.array(AlwaysRule).max(MAX_ALWAYS_RULES).default([]),
+    /** pap's own catastrophic-command preset (Task 4), on unless the owner turns it off. */
+    builtinDenylist: z.boolean().default(true),
+    denylist: z.array(DenyPattern).max(MAX_DENY_PATTERNS).default([]),
+    /** null: no egress list, the stage is skipped. A list (even empty): only these hosts (Task 5a). */
+    allowHosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS).nullable().default(null),
+    guard: GuardLimits.default(DEFAULT_GUARD),
+    taint: TaintState.default(NO_TAINT),
+  })
+  .strict();
 export type PolicyRules = z.infer<typeof PolicyRules>;
+
+/** The owner's policy settings (Task 12a): what every session starts from. */
+export const PolicySettings = z
+  .object({
+    defaultMode: ApprovalMode.default(DEFAULT_APPROVAL_MODE),
+    builtinDenylist: z.boolean().default(true),
+    denylist: z.array(DenyPattern).max(MAX_DENY_PATTERNS).default([]),
+    allowHosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS).nullable().default(null),
+  })
+  .strict();
+export type PolicySettings = z.infer<typeof PolicySettings>;
+export const DEFAULT_POLICY_SETTINGS: PolicySettings = PolicySettings.parse({});
+
+/** What the session header shows: the mode in force, whether the session chose it, and the taint. */
+export const SessionPolicyView = z.object({
+  mode: ApprovalMode,
+  /** True when the session has a mode of its own; false when it follows the owner's default. */
+  explicit: z.boolean(),
+  tainted: z.boolean(),
+});
+export type SessionPolicyView = z.infer<typeof SessionPolicyView>;
+export const DEFAULT_SESSION_POLICY_VIEW: SessionPolicyView = {
+  mode: DEFAULT_APPROVAL_MODE,
+  explicit: false,
+  tainted: false,
+};
+
+export const STAGE_IDS = ["00", "01", "02", "03", "04", "05", "06", "07"] as const;
+export const StageId = z.enum(STAGE_IDS);
+export type StageId = z.infer<typeof StageId>;
+/** One stage's word on a call, a result or a worker start: what it decided and, briefly, why (spec C §5.1). */
+export const StageVerdict = z.object({
+  stage: StageId,
+  outcome: z.enum(["pass", "skip", "allow", "ask", "block", "acted"]),
+  reason: z.string().max(256).optional(),
+});
+export type StageVerdict = z.infer<typeof StageVerdict>;
 
 export const AuditEntry = z.object({
   toolCallId: z.string().max(256),
