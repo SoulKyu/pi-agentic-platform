@@ -1,6 +1,6 @@
 import { join } from "node:path";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createPipelineBed } from "../testing/pipeline-bed.ts";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { ALLOW_ASK, createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
 import { FAIL_CLOSED_REASON } from "./pipeline.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
@@ -8,6 +8,7 @@ beforeAll(async () => {
   bed = await createPipelineBed();
 });
 afterAll(() => bed.dispose());
+afterEach(() => vi.restoreAllMocks());
 
 type Harness = ReturnType<typeof bed.harness>;
 const verdicts = (h: Harness) =>
@@ -123,7 +124,19 @@ describe("the pipeline", () => {
       },
     });
     expect(await h.run("read", { path: "a" })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
-    vi.restoreAllMocks();
+  });
+
+  it("does not restore into a call the re-check blocked", async () => {
+    let version = 0;
+    const restored: string[] = [];
+    const h = bed.harness({
+      rulesVersion: () => version,
+      ask: async () => (version++, { answer: "once", closed: false }),
+      rules: () => (version > 0 ? { ...interactiveRules, approvalMode: "read-only" } : interactiveRules),
+      stages: { ...ALLOW_ASK, restore: () => (restored.push("x"), 1) },
+    });
+    expect(await h.run("bash", { command: "make" })).toMatchObject({ block: true });
+    expect(restored).toEqual([]);
   });
 
   it("asks the restore slot only for a call that runs, and records what it restored (M5R10)", async () => {

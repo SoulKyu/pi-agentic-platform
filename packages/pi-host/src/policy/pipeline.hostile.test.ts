@@ -1,6 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
-import { createPipelineBed } from "../testing/pipeline-bed.ts";
-import { FAIL_CLOSED_REASON } from "./pipeline.ts";
+import { ALLOW_ASK, createPipelineBed } from "../testing/pipeline-bed.ts";
+import { DENIED_REASON, FAIL_CLOSED_REASON, type Stages, TOO_LARGE_REASON } from "./pipeline.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 let stderr: string[];
@@ -93,4 +93,97 @@ it("fails closed when the audit sink throws, with one stderr line", async () => 
   });
   expect(await h.run("read", { path: "a" })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
   expect(stderr).toEqual(["pi-host: policy evaluation failed (Error)\n"]);
+});
+
+const UNKNOWN_OUTCOMES: [string, object][] = [
+  ["a denylist outcome it does not know", { denylist: () => ({ outcome: "deny" }) }],
+  ["an egress outcome it does not know", { egress: () => ({ outcome: "allow" }) }],
+  ["a guard outcome it does not know", { guard: () => ({ outcome: "block" }) }],
+  ["an approval outcome it does not know", { approval: async () => ({ outcome: "maybe" }) }],
+  ["a stage that returns nothing", { denylist: () => undefined }],
+];
+
+it.each(UNKNOWN_OUTCOMES)("fails closed on %s", async (_name, stages) => {
+  const h = bed.harness({ stages: stages as Partial<Stages> });
+  expect(await h.run("read", { path: "a" })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
+  expect(h.entries.at(-1)).toMatchObject({
+    decision: "block",
+    reason: "evaluation error",
+    category: "read",
+    args: '{"path":"a"}',
+  });
+});
+
+it("treats an answer that was not offered as a refusal", async () => {
+  const h = bed.harness({ answers: [{ answer: "maybe" as never, closed: false }] });
+  expect(await h.run("bash", { command: "ls" })).toEqual({ block: true, reason: DENIED_REASON });
+  expect(h.entries.at(-1)).toMatchObject({ decision: "denied", reason: "answer not offered" });
+  const unoffered = bed.harness({ answers: [{ answer: "always", closed: false }], stages: ALLOW_ASK });
+  expect(await unoffered.run("bash", { command: "ls" })).toEqual({ block: true, reason: DENIED_REASON });
+});
+
+it("fails closed on an answered call when the re-check meets an unknown stage outcome", async () => {
+  let version = 0;
+  const h = bed.harness({
+    rulesVersion: () => version,
+    ask: async () => (version++, { answer: "once", closed: false }),
+    stages: {
+      ...ALLOW_ASK,
+      denylist: () => (version > 0 ? ({ outcome: "deny" } as never) : { outcome: "pass" }),
+    },
+  });
+  expect(await h.run("bash", { command: "ls" })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
+});
+
+it("blocks an input above the payload bound with its own reason", async () => {
+  const h = bed.harness();
+  expect(await h.run("bash", { command: "a".repeat(2 * 1024 * 1024 + 1) })).toEqual({
+    block: true,
+    reason: TOO_LARGE_REASON,
+  });
+  expect(h.entries.at(-1)).toMatchObject({
+    decision: "block",
+    reason: "input too large",
+    category: "exec",
+    args: "[unreadable input]",
+  });
+  expect(h.asks).toEqual([]);
+  const edge = bed.harness({ hasUI: false });
+  await edge.run("bash", { command: "a".repeat(2 * 1024 * 1024) });
+  expect(edge.entries.at(-1)).toMatchObject({ reason: "no UI to ask" });
+});
+
+it("clips an entry reason to 1024 characters", async () => {
+  const h = bed.harness({
+    stages: { denylist: () => ({ outcome: "block", reason: "r".repeat(3000), modelReason: "no" }) },
+  });
+  await h.run("read", { path: "a" });
+  expect((h.entries.at(-1) as { reason: string }).reason).toBe("r".repeat(1024));
+});
+
+it("audits a readable call with its real category and arguments when the evaluation fails", async () => {
+  let version = 0;
+  const tries = bed.harness({
+    rulesVersion: () => version,
+    stages: { approval: async () => (version++, { outcome: "allow", reason: "x" }) },
+  });
+  await tries.run("read", { path: "src/a.ts" });
+  expect(tries.entries.at(-1)).toMatchObject({
+    reason: "policy changed during evaluation",
+    category: "read",
+    args: '{"path":"src/a.ts"}',
+  });
+  const thrown = bed.harness({
+    stages: {
+      denylist: () => {
+        throw new TypeError("x");
+      },
+    },
+  });
+  await thrown.run("bash", { command: "ls -la" });
+  expect(thrown.entries.at(-1)).toMatchObject({
+    reason: "evaluation error",
+    category: "exec",
+    args: "ls -la",
+  });
 });

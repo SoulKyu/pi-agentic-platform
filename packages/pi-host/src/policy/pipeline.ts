@@ -9,7 +9,7 @@ import type {
   ToolCategory,
 } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
-import { auditArgs, UNREADABLE_INPUT } from "./audit-args.ts";
+import { auditArgs, InputTooLarge, UNREADABLE_INPUT } from "./audit-args.ts";
 import { describeCall } from "./describe-call.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import type { PolicyGrants } from "./grants.ts";
@@ -22,6 +22,7 @@ export const DENIED_REASON = "Denied by the user.";
 export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so it was blocked (fail closed).";
 export const TOO_LONG_REASON = "too long to review — split the work";
 export const READ_ONLY_REASON = "pap-policy blocked this call: the session is read-only.";
+export const TOO_LARGE_REASON = "pap-policy blocked this call: its input is too large to judge.";
 const NO_RULES = "no valid policy rules";
 const MAX_FIELD = 256;
 const MAX_ENTRY_REASON = 1024;
@@ -128,6 +129,19 @@ interface Ids {
   readonly tool: string;
 }
 
+/** What does not depend on the rules, worked out once per call. */
+interface Prepared {
+  readonly kind: ToolKind;
+  readonly exec: boolean;
+  readonly args: string;
+  readonly key: string;
+}
+
+function checkStage(result: StageResult): StageResult {
+  if (result.outcome === "pass" || result.outcome === "skip" || result.outcome === "block") return result;
+  throw new TypeError("a stage returned an outcome the pipeline does not know");
+}
+
 export const errorClass = (error: unknown): string =>
   (error instanceof Error ? error.constructor.name : typeof error)
     .replace(/[^A-Za-z0-9_]/g, "")
@@ -146,24 +160,30 @@ export async function evaluateToolCall(
       : {}),
     tool: clipUnits(event.toolName, MAX_FIELD),
   };
+  // What the audit can say of the call if the evaluation dies: the real category and arguments once they are known.
+  let audited: { category: ToolCategory; args: string } = { category: "unknown", args: UNREADABLE_INPUT };
   const fail = (reason: string): CallAuditEntry => {
     const trail = createTrail();
     trail.add("03", "block", reason);
     trail.skipFrom("01", reason);
-    return {
-      kind: "call",
-      ...ids,
-      category: "unknown",
-      decision: "block",
-      reason,
-      stages: trail.list(),
-      args: UNREADABLE_INPUT,
-    };
+    return { kind: "call", ...ids, ...audited, decision: "block", reason, stages: trail.list() };
   };
   try {
+    const kind = classifyTool(event.toolName, deps.toolFacts(event.toolName));
+    audited = { category: kind.category, args: UNREADABLE_INPUT };
+    const exec = kind.category === "exec" && kind.builtin;
+    // Both throw on an input that cannot be stated: the catch below blocks the call.
+    const args = auditArgs(event.input, exec, deps.redact);
+    audited = { category: kind.category, args };
+    const prepared: Prepared = {
+      kind,
+      exec,
+      args,
+      key: grantKey(event.toolName, grantPayload(event.input, exec)),
+    };
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const started = deps.rulesVersion();
-      const evaluation = await evaluateOnce(event, ctx, deps, stages, ids);
+      const evaluation = await evaluateOnce(event, ctx, deps, stages, ids, prepared);
       const moved = deps.rulesVersion() !== started;
       // An unanswered allow under rules that moved meanwhile is evaluated again (M5R12 (1)).
       if (moved && !evaluation.answered && evaluation.result === undefined) continue;
@@ -174,12 +194,13 @@ export async function evaluateToolCall(
   } catch (error) {
     // Never the message: it can quote the input (M5R115).
     process.stderr.write(`pi-host: policy evaluation failed (${errorClass(error)})\n`);
+    const tooLarge = error instanceof InputTooLarge;
     try {
-      deps.audit(fail("evaluation error"));
+      deps.audit(fail(tooLarge ? "input too large" : "evaluation error"));
     } catch {
       // The audit sink is what failed, or failed again: the line above says so, and the block is the only safe answer.
     }
-    return { block: true, reason: FAIL_CLOSED_REASON };
+    return { block: true, reason: tooLarge ? TOO_LARGE_REASON : FAIL_CLOSED_REASON };
   }
 }
 
@@ -233,7 +254,7 @@ function recheckAnswered(
   const rules = deps.rules();
   if (rules === null) return { reason: NO_RULES, modelReason: FAIL_CLOSED_REASON };
   const now: CallFacts = { ...call, rules, tainted: deps.taint.current() };
-  for (const verdict of [stages.denylist(now), stages.egress(now)])
+  for (const verdict of [checkStage(stages.denylist(now)), checkStage(stages.egress(now))])
     if (verdict.outcome === "block") return { reason: verdict.reason, modelReason: verdict.modelReason };
   if (
     rules.approvalMode === "read-only" &&
@@ -249,12 +270,8 @@ async function evaluateOnce(
   deps: PipelineDeps,
   stages: Stages,
   ids: Ids,
+  { kind, exec, args, key }: Prepared,
 ): Promise<Evaluation> {
-  const kind = classifyTool(event.toolName, deps.toolFacts(event.toolName));
-  const exec = kind.category === "exec" && kind.builtin;
-  // Both throw on an input that cannot be stated: the caller's catch blocks the call.
-  const args = auditArgs(event.input, exec, deps.redact);
-  const key = grantKey(event.toolName, grantPayload(event.input, exec));
   const trail = createTrail();
   const finish = (
     call: CallFacts | null,
@@ -294,13 +311,17 @@ async function evaluateOnce(
     ["01", "02", () => stages.denylist(call)],
     ["02", "03", () => stages.egress(call)],
   ] as const) {
-    const verdict = run();
+    const verdict = checkStage(run());
     if (verdict.outcome === "block") return blocked(stage, next, verdict.reason, verdict.modelReason);
     trail.add(stage, verdict.outcome, verdict.reason);
   }
   const plan = await stages.approval(call, ctx, deps);
   if (plan.outcome === "block") return blocked("03", "04", plan.reason, plan.modelReason);
+  if (plan.outcome !== "allow" && plan.outcome !== "ask")
+    throw new TypeError("the approval stage returned an unknown outcome");
   const guard = stages.guard(call);
+  if (guard.outcome !== "pass" && guard.outcome !== "trip")
+    throw new TypeError("the guard returned an unknown outcome");
   const trip = guard.outcome === "trip" ? guard : null;
   if (plan.outcome === "allow" && !trip) {
     trail.add("03", "allow", plan.reason);
@@ -354,11 +375,13 @@ async function evaluateOnce(
   const answered = { answered: true };
   if (outcome.closed)
     return finish(call, "denied", "dialog closed", { block: true, reason: FAIL_CLOSED_REASON }, answered);
-  if (outcome.answer === "deny")
+  // An answer that was not offered is a refusal, whatever the channel says.
+  const offered = answers.includes(outcome.answer);
+  if (!offered || outcome.answer === "deny")
     return finish(
       call,
       "denied",
-      review?.why ?? trip?.reason,
+      offered ? (review?.why ?? trip?.reason) : "answer not offered",
       { block: true, reason: DENIED_REASON },
       answered,
     );

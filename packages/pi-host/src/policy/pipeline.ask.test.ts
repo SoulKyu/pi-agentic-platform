@@ -98,7 +98,10 @@ describe("the guard slot", () => {
   it("blocks a trip when there is no UI, and releases nothing on a denial", async () => {
     const commits: unknown[][] = [];
     const noUi = bed.harness({ hasUI: false, stages: { guard: () => trip } });
-    expect(await noUi.run("read", { path: "a" })).toMatchObject({ block: true });
+    expect(await noUi.run("read", { path: "a" })).toEqual({
+      block: true,
+      reason: "pap-policy stopped this run: 150 calls in this run",
+    });
     expect(noUi.entries.at(-1)?.stages.at(-1)).toMatchObject({ stage: "04", outcome: "block" });
     const denied = bed.harness({
       answers: [{ answer: "deny", closed: false }],

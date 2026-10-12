@@ -64,4 +64,9 @@ describe("classifyTool (M5R116)", () => {
     expect(classifyTool("", { path: "builtin:" })).toEqual({ ...unknown, external: true });
     expect(classifyTool("read ", { path: "builtin:read " })).toEqual({ ...unknown, external: true });
   });
+
+  it("does not mistake an Object.prototype key for a built-in", () => {
+    for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"])
+      expect(classifyTool(name, { path: `builtin:${name}` })).toEqual({ ...unknown, external: true });
+  });
 });
