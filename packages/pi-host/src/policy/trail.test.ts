@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { createTrail } from "./trail.ts";
 
+const keep = (reason: string) => reason;
+
 describe("the trail", () => {
   it("keeps the verdicts it is given", () => {
-    const trail = createTrail();
+    const trail = createTrail(keep);
     trail.add("01", "skip", "not in force");
     trail.add("02", "pass");
     expect(trail.list()).toEqual([
@@ -13,7 +15,7 @@ describe("the trail", () => {
   });
 
   it("skips every stage from the given one to 04 that has no verdict yet", () => {
-    const trail = createTrail();
+    const trail = createTrail(keep);
     trail.add("01", "pass");
     trail.add("03", "block", "category blocked");
     trail.skipFrom("02", "x");
@@ -26,7 +28,7 @@ describe("the trail", () => {
   });
 
   it("cuts a reason to 256 characters, never inside a surrogate pair", () => {
-    const trail = createTrail();
+    const trail = createTrail(keep);
     trail.add("01", "block", "a".repeat(300));
     trail.add("02", "block", `${"a".repeat(255)}😀`);
     trail.add("03", "block", "😀".repeat(200));
@@ -38,13 +40,13 @@ describe("the trail", () => {
   });
 
   it("refuses a stage added twice", () => {
-    const trail = createTrail();
+    const trail = createTrail(keep);
     trail.add("03", "allow");
     expect(() => trail.add("03", "block")).toThrow(RangeError);
   });
 
   it("lists the verdicts sorted by stage id", () => {
-    const trail = createTrail();
+    const trail = createTrail(keep);
     trail.add("04", "pass");
     trail.add("01", "skip");
     trail.add("03", "allow");

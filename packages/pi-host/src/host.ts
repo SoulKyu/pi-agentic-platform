@@ -13,7 +13,7 @@ import { NO_REDACTOR } from "./policy/redact.ts";
 import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
 import { createRedactingIpc } from "./redacting-ipc.ts";
 import { redactStdio, type Writable } from "./redact-stdio.ts";
-import { classifyTool } from "./policy/tool-kind.ts";
+import { createIsBuiltin } from "./policy/builtin-lookup.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
@@ -46,14 +46,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     rawIpc,
     () => secrets?.current() ?? NO_REDACTOR,
     // The same classification stage 06 uses on a result: only Pi's own tool of that name (M5R116).
-    (name) => {
-      try {
-        const info = session?.getAllTools().find((tool) => tool.name === name);
-        return classifyTool(name, info ? { path: info.sourceInfo.path } : undefined).builtin;
-      } catch {
-        return false;
-      }
-    },
+    createIsBuiltin(() => session?.getAllTools()),
   );
   // A marker for this worker alone, before Pi starts: the shells its tools run inherit the environment, so a process the
   // agent leaves running keeps it after Linux has given it to pid 1, and the count can find it without a scope (M2R107).
