@@ -62,8 +62,8 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
     // of the same command (R79). What is awaited first is the read's preparation: the owner check and the transcript
     // reader the hub's synchronous snapshot provider needs (R108).
     "subscribe.session": async ({ sessionId, after }, ctx) => {
-      await service.prepareSubscription(sessionId, ctx.caller);
-      return { sub: ctx.openSubscription("session", sessionId, after) };
+      const from = await service.prepareSubscription(sessionId, ctx.caller, after);
+      return { sub: ctx.openSubscription("session", sessionId, from) };
     },
   };
 }

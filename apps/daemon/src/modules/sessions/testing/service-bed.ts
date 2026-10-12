@@ -120,7 +120,7 @@ export interface ServiceParts<Store, Reader> {
 // store come in from the test files, which sit in the module and import what they test directly.
 export interface ServiceLike {
   snapshot(key: string): unknown;
-  prepareSubscription(sessionId: string, caller: Caller): Promise<void>;
+  prepareSubscription(sessionId: string, caller: Caller, after?: Cursor): Promise<Cursor | undefined>;
 }
 
 export interface Factories<Store, Reader, Service extends ServiceLike> {
@@ -267,14 +267,14 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     },
     /** A client subscribing through the same two steps; the frames it receives collect in the returned array. */
     async subscribe(sessionId: string, after?: Cursor): Promise<EventFrame[]> {
-      await service.prepareSubscription(sessionId, OWNER);
+      const from = await service.prepareSubscription(sessionId, OWNER, after);
       const frames: EventFrame[] = [];
       hub.open({
         connectionId: "c1",
         sub: "s1",
         stream: "session",
         key: sessionId,
-        after,
+        after: from,
         send: (frame) => void frames.push(frame),
       });
       return frames;

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ALL_PERMISSIONS,
+  type Cursor,
   type EventFrame,
   type HandlerContext,
   type SessionStreamEvent,
@@ -46,6 +47,9 @@ export interface IntBedOptions {
 
 export interface Subscription {
   events(): SessionStreamEvent[];
+  /** The cursor of the last event received, as a client keeps it for a reopen. */
+  cursor(): Cursor | undefined;
+  close(): void;
   waitFor(predicate: (event: SessionStreamEvent) => boolean, timeoutMs?: number): Promise<SessionStreamEvent>;
 }
 
@@ -122,12 +126,21 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       rpc: sessions.rpc,
       policyRpc: policy.rpc,
       ctx: owner,
-      async subscribe(sessionId: string): Promise<Subscription> {
+      async subscribe(sessionId: string, after?: Cursor): Promise<Subscription> {
         const frames: EventFrame[] = [];
-        await sessions.rpc["subscribe.session"]({ sessionId }, contextOf(`c${++connections}`, frames));
+        const context = contextOf(`c${++connections}`, frames);
+        const { sub } = await sessions.rpc["subscribe.session"](
+          after ? { sessionId, after } : { sessionId },
+          context,
+        );
         const events = () => frames.map((frame) => frame.event as SessionStreamEvent);
         return {
           events,
+          cursor: () => {
+            const last = frames.at(-1);
+            return last ? { epoch: last.epoch, seq: last.seq } : undefined;
+          },
+          close: () => context.closeSubscription(sub),
           async waitFor(predicate, timeoutMs = WAIT_MS) {
             let found: SessionStreamEvent | undefined;
             await vi.waitFor(

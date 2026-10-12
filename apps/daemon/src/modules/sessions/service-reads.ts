@@ -1,4 +1,5 @@
 import {
+  type Cursor,
   type Caller,
   EMPTY_QUEUE,
   type ForkPoint,
@@ -81,7 +82,8 @@ export interface SessionReadsDeps {
 }
 
 export interface SessionReads {
-  prepare(sessionId: string, caller: Caller): Promise<void>;
+  /** The cursor the subscription may replay from: `after`, or none when the file changed outside pap. */
+  prepare(sessionId: string, caller: Caller, after?: Cursor): Promise<Cursor | undefined>;
   snapshot(sessionId: string): SessionStreamEvent;
   /** The memoized load `prepare` awaits. */
   ensureReader(): Promise<TranscriptReader>;
@@ -176,9 +178,12 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const envelope = sizeOf({ leafId, points: [], truncated: true });
       return { leafId, ...fitPoints(reader.forks(file, known), PAGE_BYTES - envelope) };
     },
-    async prepare(sessionId, caller) {
+    async prepare(sessionId, caller, after) {
       deps.owned(sessionId, caller);
       await ensureReader();
+      // A write made outside pap publishes nothing on this stream: replaying from the client's cursor would show
+      // neither the notice nor the new entries, so a fresh snapshot is sent instead (owner Q13).
+      return deps.outsideWrite(sessionId) ? undefined : after;
     },
     snapshot(sessionId) {
       const row = deps.store.get(sessionId);

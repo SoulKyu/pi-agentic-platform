@@ -1,5 +1,6 @@
 import type {
   Caller,
+  Cursor,
   DialogResponse,
   ForkPoint,
   HistoryMeta,
@@ -121,9 +122,10 @@ export interface SessionsService extends SessionCommands {
   clone(input: { sessionId: string }, caller: Caller): Promise<{ sessionId: string }>;
   /**
    * What `subscribe.session` does before it opens a subscription (R108): checks that the caller may read the session
-   * and loads the transcript reader, once. The hub builds a snapshot synchronously, from what this has loaded.
+   * and loads the transcript reader, once. The hub builds a snapshot synchronously, from what this has loaded. Answers
+   * the cursor to open the subscription with: `after`, except when the file was written outside pap (a fresh snapshot).
    */
-  prepareSubscription(sessionId: string, caller: Caller): Promise<void>;
+  prepareSubscription(sessionId: string, caller: Caller, after?: Cursor): Promise<Cursor | undefined>;
   /**
    * Throws `not_found` for a session that does not exist: the stream hub calls it for every key a client names (R79).
    * Throws `internal` if no subscription was prepared first, rather than show an empty transcript.
