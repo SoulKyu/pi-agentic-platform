@@ -22,6 +22,12 @@ export default function SnoozeDialog({ onClose, onSubmit }: SnoozeDialogProps) {
   const [value, setValue] = useState(() => toLocalInput(snoozeTimes(new Date()).tomorrow));
   const [error, setError] = useState<string | null>(null);
 
+  // Worked out when the dialog opens; submit checks again against the clock at that moment.
+  const [bounds] = useState(() => {
+    const now = Date.now();
+    return { min: toLocalInput(now + SNOOZE_MIN_MS), max: toLocalInput(now + SNOOZE_MAX_MS) };
+  });
+
   const submit = () => {
     const until = new Date(value).getTime();
     const now = Date.now();
@@ -59,6 +65,8 @@ export default function SnoozeDialog({ onClose, onSubmit }: SnoozeDialogProps) {
           id={id}
           type="datetime-local"
           value={value}
+          min={bounds.min}
+          max={bounds.max}
           aria-invalid={error ? true : undefined}
           className={FIELD_CLASSES}
           onChange={(event) => {

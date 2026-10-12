@@ -22,7 +22,13 @@ export function ProjectHeading({ id, name, root, count, project, order, movable 
     <div className="flex flex-col gap-s1">
       <div className="flex items-baseline justify-between gap-s2">
         {project !== null && renaming ? (
-          <ProjectRename project={project} order={order} onDone={() => setRenaming(false)} />
+          <>
+            {/* The section stays named while its heading is a field. */}
+            <h3 id={id} className="sr-only">
+              {name}
+            </h3>
+            <ProjectRename project={project} order={order} onDone={() => setRenaming(false)} />
+          </>
         ) : (
           <>
             <h3 id={id} className="min-w-0 break-words text-ui font-semibold">

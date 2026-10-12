@@ -44,7 +44,7 @@ function SavingStatus({ pending }: { readonly pending: boolean }) {
     };
   }, [pending]);
   return (
-    <div role="status" aria-live="polite" className="text-ui text-muted">
+    <div role="status" aria-live="polite" className="text-ui text-muted empty:hidden">
       {pending && slow ? t("sidebar.saving") : ""}
     </div>
   );

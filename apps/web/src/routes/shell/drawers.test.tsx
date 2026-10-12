@@ -54,6 +54,41 @@ const opened = (title: string) =>
   vi.waitFor(() => expect(dialog()?.querySelector("h2")?.textContent).toBe(title), { timeout: 2_000 });
 
 describe("tree drawer", () => {
+  it("Escape in the project rename field cancels the edit and keeps the drawer open; elsewhere it closes it", async () => {
+    const page = await renderShell("/");
+    await settle();
+    await feed([shellSession({ id: "one", projectId: "api", updatedAt: 1 })], {
+      projects: [shellProject({ id: "api", name: "api", sessions: 1 })],
+    });
+    await ctrlB();
+    await opened("Sessions");
+    await vi.waitFor(() => expect(dialog()?.querySelector("[data-project-tree]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    await click(dialog()?.querySelector('button[aria-label="Project actions"]') as Element);
+    await vi.waitFor(() => expect(document.querySelector('[role="menuitem"]')).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    const rename = [...document.querySelectorAll('[role="menuitem"]')].find(
+      (i) => i.textContent === "Rename",
+    );
+    await click(rename as Element);
+    await settle();
+    const input = dialog()?.querySelector("[data-inline-edit] input") as HTMLInputElement;
+    expect(document.activeElement).toBe(input);
+    await press(input, { key: "Escape" });
+    await settle();
+    expect(dialog()).not.toBeNull();
+    expect(dialog()?.querySelector("[data-inline-edit]")).toBeNull();
+    // Escape outside an edit closes the drawer (a tooltip on the focused button may take the first one).
+    for (let tries = 0; tries < 2 && dialog() !== null; tries++) {
+      await press(document.activeElement as HTMLElement, { key: "Escape" });
+      await settle();
+    }
+    expect(dialog()).toBeNull();
+    await page.unmount();
+  });
+
   it("is not in the document until opened, then Ctrl+B lists the sessions grouped by project", async () => {
     const page = await renderShell("/");
     await settle();

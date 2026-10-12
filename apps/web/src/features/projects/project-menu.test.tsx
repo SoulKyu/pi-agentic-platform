@@ -77,6 +77,13 @@ describe("the snooze dialog", () => {
     expect(marks()).toEqual([]);
   });
 
+  it("limits the field to a minute ahead .. 366 days", async () => {
+    await openDialog();
+    const when = field(document, "Date and time");
+    expect(when.getAttribute("min")).toBe(toLocalInput(Date.now() + 60_000));
+    expect(when.getAttribute("max")).toBe(toLocalInput(Date.now() + 366 * DAY));
+  });
+
   it("sends the chosen time and closes", async () => {
     await openDialog();
     const value = toLocalInput(Date.now() + 2 * DAY);
@@ -190,6 +197,34 @@ describe("the project menu", () => {
     await settle();
     expect(projectTrigger(box, "Alpha")).not.toBeNull();
     expect(toastTexts().at(-1)).toBe("Not found.");
+  });
+
+  it("an unknown outcome on a project change toasts, frees the menus and reads the list back", async () => {
+    await projects();
+    const box = await show();
+    const off = bed.runtime.subscriptions.subscribe("shell", "me", () => {});
+    await settle();
+    expect(bed.called("subscribe.shell")).toHaveLength(1);
+    bed.handlers["projects.update"] = async () => {
+      throw new RpcError("timeout");
+    };
+    await openMenu(projectTrigger(box, "Bravo"));
+    await choose("Move up");
+    expect(toastTexts().at(-1)).toBe("pap did not answer. The list shows what pap knows as soon as it can.");
+    expect(projectTrigger(box, "Alpha").disabled).toBe(false);
+    expect(useShellStore.getState().view.pending.size).toBe(0);
+    expect(bed.called("subscribe.shell")).toHaveLength(2);
+    off();
+  });
+
+  it("keeps the section named by a mounted element while its heading is a field", async () => {
+    await projects();
+    const box = await show();
+    await openMenu(projectTrigger(box, "Alpha"));
+    await choose("Rename");
+    const section = box.querySelector("section[data-group='a']") as HTMLElement;
+    const labelled = document.getElementById(section.getAttribute("aria-labelledby") ?? "");
+    expect(labelled?.textContent).toBe("Alpha");
   });
 
   it("Escape restores the heading, sends nothing and is kept from the page", async () => {

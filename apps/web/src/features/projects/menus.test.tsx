@@ -294,3 +294,65 @@ describe("the row menu", () => {
     expect(box.querySelector("[data-shelf] button[aria-expanded]")?.textContent).toBe("Archived (2)");
   });
 });
+
+describe("the other row actions", () => {
+  const click1 = async (box: HTMLElement, row: string, action: string) => {
+    await openMenu(sessionTrigger(box, row));
+    await choose(action);
+  };
+
+  it("Unpin, Wake now, Unsettle and Unarchive each send their change and show it at once", async () => {
+    const now = Date.now();
+    await load(
+      [
+        shellSession({ id: "pin", name: "Pinned one", pinRank: 1, updatedAt: now }),
+        shellSession({ id: "zz", name: "Asleep", snoozedUntil: now + HOUR, updatedAt: now }),
+        shellSession({ id: "dn", name: "Done", settledAt: now - 5, updatedAt: now }),
+      ],
+      { archived: 1 },
+    );
+    bed.handlers["sessions.listArchived"] = async () => ({
+      sessions: [shellSession({ id: "old", name: "Old one", archivedAt: 500, updatedAt: 500 })],
+      hasMore: false,
+    });
+    const box = await show();
+    for (const shelf of ["Snoozed (1)", "Settled (1)", "Archived (1)"])
+      await click(
+        [...box.querySelectorAll("button[aria-expanded]")].find((b) => b.textContent === shelf) as Element,
+      );
+    await settle();
+    await click1(box, "Pinned one", "Unpin");
+    expect(marks().at(-1)).toEqual({ sessionId: "pin", change: { kind: "unpin" } });
+    expect(useShellStore.getState().view.sessions.get("pin")?.pinRank).toBeNull();
+    expect(toastTexts().at(-1)).toBe("Unpinned · Pinned oneUndo");
+    await click1(box, "Asleep", "Wake now");
+    expect(marks().at(-1)).toEqual({ sessionId: "zz", change: { kind: "wake" } });
+    expect(useShellStore.getState().view.sessions.get("zz")?.snoozedUntil).toBeNull();
+    await click1(box, "Done", "Unsettle");
+    expect(marks().at(-1)).toEqual({ sessionId: "dn", change: { kind: "unsettle" } });
+    expect(useShellStore.getState().view.sessions.get("dn")?.settledAt).toBeNull();
+    await openMenu(sessionTrigger(box, "Old one"));
+    expect(menuItems()).toEqual(["Unarchive"]);
+    await choose("Unarchive");
+    expect(marks().at(-1)).toEqual({ sessionId: "old", change: { kind: "unarchive" } });
+    // A shelf row the store does not hold is not shown changed before the daemon echoes it.
+  });
+
+  it("an Undo still blocked after the wait toasts that another change is saving", async () => {
+    await load([shellSession({ id: "s1", name: "Fix login" }), shellSession({ id: "s2", name: "Other" })]);
+    const box = await show();
+    await click1(box, "Fix login", "Archive");
+    const slow = deferred();
+    bed.handlers["sessions.mark"] = () => slow.promise;
+    await click1(box, "Other", "Pin");
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    await click(undoButton());
+    await act(async () => {
+      vi.advanceTimersByTime(2_000);
+    });
+    expect(toastTexts().at(-1)).toBe("Another change is still being saved. Try again.");
+    expect(marks()).toHaveLength(2);
+    slow.resolve({ ok: true });
+    await act(async () => {});
+  });
+});
