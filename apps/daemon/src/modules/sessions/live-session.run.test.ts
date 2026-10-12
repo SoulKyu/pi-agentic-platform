@@ -185,6 +185,34 @@ describe("the remembered abort belongs to its prompts (R113)", () => {
   });
 });
 
+describe("a prompt sent while Stop's probe is on its way (final review M7)", () => {
+  it("is not aborted at its start: that Stop was meant for the run it found", async () => {
+    const { live, worker, clock, pi } = setup({ holdPrompt: true });
+    worker.emit(piEvent({ type: "agent_start" }));
+    pi.holdState = true;
+    const aborting = live.abort();
+    await clock.advance(0);
+    const prompted = live.prompt("next");
+    await clock.advance(0);
+    worker.respond(idOf(worker, "get_state"), {
+      data: {
+        isStreaming: false,
+        isCompacting: false,
+        pendingMessageCount: 0,
+        sessionFile: "/f",
+        sessionId: "s1",
+      },
+    });
+    await aborting;
+    expect(aborts(worker)).toBe(1);
+    worker.respond(idOf(worker, "prompt"), { data: { disposition: "started" } });
+    await prompted;
+    worker.emit(piEvent({ type: "agent_start" }));
+    await clock.advance(0);
+    expect(aborts(worker)).toBe(1);
+  });
+});
+
 describe("run origin after input that started nothing", () => {
   it("is an extension's after a command that was handled", async () => {
     const { logger, lines } = captureLogger();

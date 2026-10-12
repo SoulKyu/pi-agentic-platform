@@ -215,6 +215,8 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       }
       // Read before asking: a run that begins while get_state is on its way is not the run this abort found.
       const generation = tracker.generation;
+      // A prompt that comes while the probe is out was sent after this Stop: it is not the one Stop was meant for.
+      const waiting = promptsInFlight > 0;
       const state = await getState().catch((error: unknown) => {
         unanswered("get_state")(error);
         return null;
@@ -231,7 +233,7 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
         handle.request({ type: "abort" }, ABORT_SETTLE_MS).catch(unanswered("abort"));
         tracker.finish(true, generation);
         // A prompt still on its way will start the next run, and this Stop is meant for it too (R113).
-        if (promptsInFlight > 0) abortAtStart = true;
+        if (waiting && promptsInFlight > 0) abortAtStart = true;
         return;
       }
       await abortRunning();
