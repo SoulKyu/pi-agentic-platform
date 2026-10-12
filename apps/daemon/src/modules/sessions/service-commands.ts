@@ -1,4 +1,5 @@
 import { type Caller, type CommandInput, PapError, SERVER_CODES, UI_LIMITS } from "@pap/contracts";
+import { isCount } from "../../kernel/numbers.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { patchExportFile } from "./export-patch.ts";
@@ -53,9 +54,6 @@ export interface SessionCommands {
    */
   exportHtml(sessionId: string, caller: Caller): Promise<{ url: string }>;
 }
-
-const isCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isFinite(value) && value >= 0;
 
 export function createSessionCommands(deps: SessionCommandsDeps): SessionCommands {
   const { logger } = deps;

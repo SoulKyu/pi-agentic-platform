@@ -10,6 +10,18 @@ const req = (method: string, fields: Record<string, unknown> = {}) => ({
 });
 
 describe("decorations", () => {
+  it("cuts a status without splitting a surrogate pair", () => {
+    expect(
+      createDecorations().apply({
+        type: "extension_ui_request",
+        id: "x",
+        method: "setStatus",
+        statusKey: "k",
+        statusText: `${"a".repeat(511)}\u{1F600}`,
+      } as never),
+    ).toEqual({ kind: "status_bar", key: "k", text: "a".repeat(511) });
+  });
+
   it("rebuilds status, widget, title and editor-text events from the fields it knows, cut", () => {
     const d = createDecorations();
     expect(d.apply(req("setStatus", { statusKey: "command:/mode build", statusText: "Build" }))).toEqual({

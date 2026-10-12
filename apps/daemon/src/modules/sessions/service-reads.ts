@@ -9,13 +9,13 @@ import {
   type SessionStreamEvent,
   type TranscriptRow,
 } from "@pap/contracts";
+import { cutUnits, MAX_ID_CHARS } from "../../kernel/text.ts";
 import { isPiSessionFile } from "./pi-files.ts";
 import type { BranchPage } from "./branch.ts";
 import {
   fitPage,
   fitPoints,
   fitSnapshot,
-  MAX_ID_CHARS,
   PAGE_BYTES,
   SNAPSHOT_ROWS,
   sizeOf,
@@ -53,8 +53,7 @@ export function clipJsonText(text: string, max: number): { text: string; truncat
     else high = mid - 1;
   }
   // Never end on half of a surrogate pair.
-  const end = low > 0 && /[\uD800-\uDBFF]/.test(text[low - 1] ?? "") ? low - 1 : low;
-  return { text: text.slice(0, end), truncated: true };
+  return { text: cutUnits(text, low), truncated: true };
 }
 
 const textOfResult = (result: unknown): string => {

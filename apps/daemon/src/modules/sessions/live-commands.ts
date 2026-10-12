@@ -8,6 +8,7 @@ import {
   WORKER_BUSY,
 } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
+import { isCount } from "../../kernel/numbers.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { clip } from "./worker-text.ts";
 
@@ -31,9 +32,6 @@ export interface LiveCommands {
   /** The worker is gone: nothing compacts or retries any more. In-flight commands settle by themselves, with `worker_failed`. */
   reset(): void;
 }
-
-const isCount = (value: unknown): value is number =>
-  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
 /**
  * Why a worker refused a command, as the code a client may be told. The worker's text is never returned (R66, M2R87):

@@ -1,4 +1,5 @@
 import { sizeOf } from "../../kernel/json-bytes.ts";
+import { MAX_ID_CHARS } from "../../kernel/text.ts";
 import type { BranchPage } from "./branch.ts";
 import {
   type Activity,
@@ -240,9 +241,6 @@ export function fitPage(page: BranchPage, budget: number): BranchPage {
     turnsBefore: page.turnsBefore + page.rows.slice(0, dropped).filter(isAnchorRow).length,
   };
 }
-
-/** The longest id the contract carries; an id is a key, so one over it cannot be clipped. */
-export const MAX_ID_CHARS = 128;
 
 /**
  * Fork points under `budget` JSON bytes. A choice whose entry id or target is over `MAX_ID_CHARS` is skipped (and a

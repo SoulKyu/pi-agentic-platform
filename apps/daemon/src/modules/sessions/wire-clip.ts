@@ -1,4 +1,6 @@
 import type { PiEvent } from "@pap/contracts";
+import { sizeOf } from "../../kernel/json-bytes.ts";
+import { cutUnits } from "../../kernel/text.ts";
 
 export const TOOL_PREVIEW_CHARS = 8000;
 export const UPDATE_PREVIEW_CHARS = 2000;
@@ -10,7 +12,6 @@ export const MAX_ITEMS = 1000;
 type Json = Record<string, unknown>;
 const isObject = (value: unknown): value is Json =>
   typeof value === "object" && value !== null && !Array.isArray(value);
-const sizeOf = (value: unknown) => Buffer.byteLength(JSON.stringify(value) ?? "");
 
 function omittedImage(block: Json): Json {
   const data = typeof block.data === "string" ? block.data : "";
@@ -26,7 +27,7 @@ function omittedImage(block: Json): Json {
 /** Text blocks cut to `budget` characters in all; images replaced by their size. */
 function clipContent(content: unknown, budget: number): { content: unknown; chars: number; cut: boolean } {
   if (typeof content === "string") {
-    return { content: content.slice(0, budget), chars: content.length, cut: content.length > budget };
+    return { content: cutUnits(content, budget), chars: content.length, cut: content.length > budget };
   }
   if (!Array.isArray(content)) return { content, chars: 0, cut: false };
   let left = budget;
@@ -41,7 +42,7 @@ function clipContent(content: unknown, budget: number): { content: unknown; char
       chars += block.text.length;
       if (left === 0) cut = true;
       else if (block.text.length > left) {
-        kept.push({ ...block, text: block.text.slice(0, left) });
+        kept.push({ ...block, text: cutUnits(block.text, left) });
         left = 0;
         cut = true;
       } else {
@@ -57,7 +58,7 @@ function clipContent(content: unknown, budget: number): { content: unknown; char
 export function clipArguments(value: unknown, depth = 0): { value: unknown; cut: boolean } {
   if (typeof value === "string") {
     return value.length > ARG_PREVIEW_CHARS
-      ? { value: value.slice(0, ARG_PREVIEW_CHARS), cut: true }
+      ? { value: cutUnits(value, ARG_PREVIEW_CHARS), cut: true }
       : { value, cut: false };
   }
   if (typeof value !== "object" || value === null) return { value, cut: false };
