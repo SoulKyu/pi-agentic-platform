@@ -16,6 +16,7 @@ describe("method catalogue", () => {
       .sort();
     expect(mutations).toEqual([
       "policy.revokeRule",
+      "projects.update",
       "sessions.abort",
       "sessions.autoName",
       "sessions.clearQueue",

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { defineMethod } from "./define.ts";
 import { MAX_PINS } from "./marks.ts";
 import { SessionName, SessionStatus } from "./streams.ts";
 
@@ -61,6 +62,18 @@ export const ShellSession = z.object({
 });
 export type ShellSession = z.infer<typeof ShellSession>;
 
+export const ProjectChange = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("rename"),
+    name: z
+      .string()
+      .min(1)
+      .max(SHELL_LIMITS.projectName * 2),
+  }),
+  z.object({ kind: z.literal("move"), before: Id.nullable() }),
+]);
+export type ProjectChange = z.infer<typeof ProjectChange>;
+
 export const ShellStreamEvent = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("snapshot"),
@@ -83,17 +96,16 @@ export const ShellStreamEvent = z.discriminatedUnion("kind", [
 ]);
 export type ShellStreamEvent = z.infer<typeof ShellStreamEvent>;
 
-export const ProjectChange = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("rename"),
-    name: z
-      .string()
-      .min(1)
-      .max(SHELL_LIMITS.projectName * 2),
-  }),
-  z.object({ kind: z.literal("move"), before: Id.nullable() }),
-]);
-export type ProjectChange = z.infer<typeof ProjectChange>;
-
 /** The methods of the sidebar and search, each added by the task that implements it (M4R18). */
-export const shellMethods = {} as const;
+export const shellMethods = {
+  "projects.update": defineMethod({
+    name: "projects.update",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ projectId: Id, change: ProjectChange }),
+    // The new state comes over the `shell` stream (M4R24).
+    result: z.object({ ok: z.literal(true) }),
+    // Another owner's project is `not_found` too (M4R25); `bad_request`: a name that is empty once cleaned.
+    errors: ["not_found", "bad_request"],
+  }),
+} as const;

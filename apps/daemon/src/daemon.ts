@@ -23,6 +23,7 @@ import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
+import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
 
@@ -103,6 +104,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         KERNEL_MIGRATIONS,
         AUTH_MIGRATIONS,
         POLICY_MIGRATIONS,
+        PROJECTS_MIGRATIONS,
         SESSIONS_MIGRATIONS,
         SETTINGS_MIGRATIONS,
       ],
@@ -143,6 +145,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     // What an earlier daemon of this home left behind dies before any new worker starts (M2-RT-13).
     await scopes.sweep();
     const policy = createPolicyModule({ db, clock, logger, newId });
+    const projects = createProjectsModule({ db, clock, logger, newId });
     const sessions = createSessionsModule({
       db,
       clock,
@@ -159,6 +162,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...policy.rpc,
+      ...projects.rpc,
       ...sessions.rpc,
       ...settings.rpc,
     };
