@@ -1,5 +1,4 @@
-import type { DialogResponse } from "@pap/contracts";
-import { ApprovalCard, Button, cn, FOCUS_RING } from "@pap/ui";
+import { cn, FOCUS_RING } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.ts";
@@ -7,36 +6,20 @@ import { getRuntime } from "../../runtime/index.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
-import { approvalDetail } from "./approval-detail.ts";
 import { Composer } from "./Composer.tsx";
-import { codeText, failureText } from "./failure.ts";
+import { DialogList } from "./dialogs/DialogList.tsx";
+import { codeText } from "./failure.ts";
 import { Transcript } from "./Transcript.tsx";
 
 export function SessionScreen({ sessionId }: { sessionId: string }) {
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
   const [error, setError] = useState<string | null>(null);
-  // Counts the answers to a dialog that could not be delivered: it keys the card, see `answer`.
-  const [refused, setRefused] = useState<Readonly<Record<string, number>>>({});
-
   // One feed per session id: the events build the view in the store, not in this component.
   useEffect(
     () => feedSession(runtime.subscriptions, sessionId, (code) => setError(codeText(code))),
     [runtime, sessionId],
   );
-
-  const fail = (failure: unknown) => setError(failureText(failure));
-  const answer = (dialogId: string, response: DialogResponse) => {
-    setError(null);
-    runtime.rpc
-      .call("sessions.respondDialog", { sessionId, dialogId, response })
-      .catch((failure: unknown) => {
-        fail(failure);
-        // The card turned its buttons off on the first click and the dialog is still open: a new key
-        // builds a new card, so the owner can answer again instead of leaving the agent waiting.
-        setRefused((current) => ({ ...current, [dialogId]: (current[dialogId] ?? 0) + 1 }));
-      });
-  };
 
   return (
     <main className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 p-4">
@@ -59,33 +42,12 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
         </p>
       ) : null}
       <Transcript key={`transcript:${sessionId}`} sessionId={sessionId} view={view} />
-      {view.dialogs.map((dialog) =>
-        dialog.method === "confirm" || dialog.method === "approval" ? (
-          <ApprovalCard
-            key={`${dialog.id}:${refused[dialog.id] ?? 0}`}
-            title={t("approval.title")}
-            detail={approvalDetail(dialog)}
-            allowLabel={t("approval.allow")}
-            denyLabel={t("approval.deny")}
-            // Until Task 26 the policy's card offers the two answers M1's card has; an extension's confirm keeps `confirmed`.
-            onAnswer={(allowed) =>
-              answer(
-                dialog.id,
-                dialog.method === "approval" ? { answer: allowed ? "once" : "deny" } : { confirmed: allowed },
-              )
-            }
-          />
-        ) : (
-          <div key={dialog.id} className="flex flex-col gap-2 rounded-sm border border-attention p-3">
-            <p role="alert" className="text-ui text-fg">
-              {t("dialog.unsupported")}
-            </p>
-            <div>
-              <Button onClick={() => answer(dialog.id, { cancelled: true })}>{t("dialog.cancel")}</Button>
-            </div>
-          </div>
-        ),
-      )}
+      <DialogList
+        key={`dialogs:${sessionId}`}
+        sessionId={sessionId}
+        dialogs={view.dialogs}
+        hidden={view.hiddenDialogs}
+      />
       {view.notices.map((notice, index) => (
         <p
           key={`${index}:${notice.text}`}

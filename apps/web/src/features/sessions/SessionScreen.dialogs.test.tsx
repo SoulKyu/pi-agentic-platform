@@ -71,11 +71,10 @@ afterEach(async () => {
 });
 
 describe("SessionScreen approval dialogs", () => {
-  it("renders an approval as an approval card", async () => {
+  it("renders an approval as an approval dialog with its category", async () => {
     const container = await show([approval]);
-    expect(container.querySelector('[role="alertdialog"]')?.getAttribute("aria-label")).toBe(
-      "Approval needed",
-    );
+    const card = container.querySelector('[role="alertdialog"]');
+    expect(card?.querySelector("h3")?.textContent).toBe("Approval · exec");
     expect(container.querySelector("[data-approval-scroll]")?.textContent).toBe("bash: ls");
   });
 
@@ -94,9 +93,10 @@ describe("SessionScreen approval dialogs", () => {
     expect(answers()).toEqual([{ sessionId: "sess-1", dialogId: "a1", response: { answer: "deny" } }]);
   });
 
-  it("still answers an extension's confirm with { confirmed }", async () => {
+  it("answers an extension's confirm with { confirmed }, from a card that is not an approval", async () => {
     const container = await show([confirm]);
-    await click(button(container, "Allow once"));
+    expect(container.querySelector('[role="alertdialog"]')).toBeNull();
+    await click(button(container, "Yes"));
     await settle();
     expect(answers()).toEqual([{ sessionId: "sess-1", dialogId: "d1", response: { confirmed: true } }]);
   });
