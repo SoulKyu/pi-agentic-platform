@@ -102,15 +102,12 @@ export function DialogList(props: {
               <TextDialog key={key} dialog={dialog} initial={slot?.typed} onAnswer={onAnswer} />
             )}
             {slot?.error ? (
-              <p role="alert" className="text-ui text-attention">
+              <p role="alert" className="text-ui text-attn">
                 {slot.error}
               </p>
             ) : null}
             {slot?.unsure ? (
-              <div
-                role="status"
-                className="flex items-center gap-2 border-l-2 border-attention-line px-3 py-2"
-              >
+              <div role="status" className="flex items-center gap-2 border-l-2 border-attn-line px-3 py-2">
                 <p className="flex-1 text-ui text-fg">{slot.unsure.message}</p>
                 <Button
                   variant="primary"

@@ -99,7 +99,7 @@ export function SessionScreen({
         />
       </header>
       {view.unreadable ? (
-        <p role="alert" className="border-l-2 border-error px-3 py-2 text-ui text-error">
+        <p role="alert" className="border-l-2 border-err px-3 py-2 text-ui text-err">
           {t("sessions.unreadable")}
         </p>
       ) : null}
@@ -135,7 +135,7 @@ export function SessionScreen({
           key={`${index}:${notice.text}`}
           data-notice
           role={notice.level === "error" ? "alert" : undefined}
-          className={notice.level === "error" ? "text-ui text-error" : "text-ui text-muted"}
+          className={notice.level === "error" ? "text-ui text-err" : "text-ui text-muted"}
         >
           {notice.source === "extension" ? (
             <>
@@ -150,7 +150,7 @@ export function SessionScreen({
         </p>
       ))}
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {error}
         </p>
       ) : null}

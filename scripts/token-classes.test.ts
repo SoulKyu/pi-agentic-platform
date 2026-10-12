@@ -15,8 +15,10 @@ describe("the token utilities compile to the DESIGN.md variables", () => {
     ["text-agent-ink", "var(--agent-ink)"],
     ["border-control-border", "var(--control-border)"],
     ["text-attn-title", "var(--attn-title)"],
-    ["bg-panel", "var(--surface)"],
-    ["text-attention", "var(--attn)"],
+    ["bg-surface", "var(--surface)"],
+    ["text-attn", "var(--attn)"],
+    ["text-err", "var(--err)"],
+    ["text-you-ink", "var(--you-ink)"],
     ["p-s3", "var(--space-3)"],
     ["gap-s1", "var(--space-1)"],
     ["h-control", "var(--control-h)"],
@@ -38,9 +40,8 @@ describe("the token utilities compile to the DESIGN.md variables", () => {
     expect(await rule(className)).toContain(expected);
   });
 
-  it("keeps compiling the M1 alias utilities the other milestone still uses", async () => {
-    const build = await compileStyles();
-    const css = build([
+  it("no longer compiles the M1 alias utilities (post-merge task P1)", async () => {
+    const aliases = [
       "bg-panel",
       "border-line",
       "text-attention",
@@ -51,21 +52,9 @@ describe("the token utilities compile to the DESIGN.md variables", () => {
       "border-human-line",
       "bg-attention-tint",
       "border-attention-line",
-    ]);
-    for (const name of [
-      "bg-panel",
-      "border-line",
-      "text-attention",
-      "outline-human-fill",
-      "text-on-fill",
-      "text-error",
-      "bg-human-tint",
-      "border-human-line",
-      "bg-attention-tint",
-      "border-attention-line",
-    ]) {
-      expect(ruleOf(css, name), name).not.toBe("");
-    }
+    ];
+    const css = (await compileStyles())(aliases);
+    for (const name of aliases) expect(ruleOf(css, name), name).toBe("");
   });
 
   it("compiles @theme inline, @utility and the custom variants rather than passing them through", async () => {

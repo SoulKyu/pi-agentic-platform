@@ -53,7 +53,7 @@ function RuleLine({ rule, onSettled }: { rule: Rule; onSettled: () => void }) {
         </Button>
       </div>
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {error}
         </p>
       ) : null}
@@ -92,7 +92,7 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
   return (
     <div className="flex flex-col gap-2">
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {error}
         </p>
       ) : null}
@@ -109,7 +109,7 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
           ))}
         </ul>
       )}
-      {truncated ? <p className="text-ui text-attention">{t("rules.more")}</p> : null}
+      {truncated ? <p className="text-ui text-attn">{t("rules.more")}</p> : null}
     </div>
   );
 }
@@ -152,7 +152,7 @@ export function SessionRules({ sessionId }: { sessionId: string }) {
         {open && cwd !== null ? <AlwaysRules cwd={cwd} /> : null}
         {open && cwd === null ? (
           error || notFound ? (
-            <p role="alert" className="text-ui text-attention">
+            <p role="alert" className="text-ui text-attn">
               {notFound ? t("rules.notFound") : error}
             </p>
           ) : (

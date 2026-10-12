@@ -83,7 +83,7 @@ export function SessionListScreen() {
         </div>
       </form>
       {listError ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {listError}
         </p>
       ) : null}

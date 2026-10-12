@@ -172,7 +172,7 @@ export function SessionActions(props: SessionActionsProps) {
       </div>
       {exporting ? (
         <div role="group" aria-label={t("actions.export")} className="flex flex-wrap items-center gap-2">
-          <p className="text-ui text-attention">{t("actions.exportWarning")}</p>
+          <p className="text-ui text-attn">{t("actions.exportWarning")}</p>
           <Button
             variant="primary"
             disabled={exportHtml.busy}
@@ -195,7 +195,7 @@ export function SessionActions(props: SessionActionsProps) {
       ) : null}
       {[rename, autoName, compact, exportHtml, duplicate].map((action, index) =>
         action.error ? (
-          <p key={index} role="alert" className="text-ui text-attention">
+          <p key={index} role="alert" className="text-ui text-attn">
             {action.error}
           </p>
         ) : null,

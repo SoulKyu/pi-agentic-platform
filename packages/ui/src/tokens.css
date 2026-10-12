@@ -41,19 +41,6 @@
   --color-diff-add: var(--diff-add);
   --color-diff-del: var(--diff-del);
   --color-focus: var(--focus-ring);
-  /* M1 names, kept until M2 and M3 have both merged (post-merge task P1 removes them). */
-  --color-panel: var(--surface);
-  --color-line: var(--border);
-  --color-human: var(--you);
-  --color-human-fill: var(--you-fill);
-  --color-human-tint: var(--you-tint);
-  --color-human-line: var(--you-line);
-  --color-human-text: var(--you-text);
-  --color-on-fill: var(--you-ink);
-  --color-attention: var(--attn);
-  --color-attention-tint: var(--attn-tint);
-  --color-attention-line: var(--attn-line);
-  --color-error: var(--err);
 
   --font-sans: var(--font-ui);
   --font-mono: var(--font-code);

@@ -63,7 +63,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
     >
       <QueueStrip queue={view.queue} onClear={c.clearQueue} />
       {c.pending ? (
-        <div role="status" className="flex items-center gap-2 border-l-2 border-attention-line px-3 py-2">
+        <div role="status" className="flex items-center gap-2 border-l-2 border-attn-line px-3 py-2">
           <p className="flex-1 text-ui text-fg">{t("sessions.composer.mayHaveBeenSent")}</p>
           <Button variant="primary" disabled={c.resending} onClick={() => void c.sendAgain()}>
             {t("sessions.composer.sendAgain")}
@@ -79,7 +79,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
         </p>
       ) : null}
       {c.error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {c.error}
         </p>
       ) : null}

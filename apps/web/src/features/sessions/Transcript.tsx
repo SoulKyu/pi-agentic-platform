@@ -187,7 +187,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
         <Minimap scope={scope} items={items} view={view} onLoadOlder={() => void older.load()} />
       </div>
       {branches.error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {branches.error}
         </p>
       ) : null}

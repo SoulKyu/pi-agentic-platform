@@ -78,7 +78,7 @@ export function Minimap({ scope, items, view, onLoadOlder }: MinimapProps) {
               : t("sessions.minimap.turnBare", { number: turn.number })
           }
           aria-current={current === turn.key ? "true" : undefined}
-          className={cn(button, current === turn.key && "bg-panel text-fg")}
+          className={cn(button, current === turn.key && "bg-surface text-fg")}
           onClick={() => goTo(turn.key)}
         >
           {turn.number}

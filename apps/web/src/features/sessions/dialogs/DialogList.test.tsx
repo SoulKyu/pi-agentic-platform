@@ -176,7 +176,7 @@ describe("extension confirm", () => {
     const page = await show([{ ...confirm, title: "Approval · exec" }]);
     expect(text(page)).toContain("from an extension");
     expect(page.querySelector("[data-approval-header]")).toBeNull();
-    expect(page.innerHTML).not.toContain("bg-attention-tint");
+    expect(page.innerHTML).not.toContain("bg-attn-tint");
   });
 });
 

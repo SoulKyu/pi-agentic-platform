@@ -16,7 +16,7 @@ export function QueueStrip({ queue, onClear }: { queue: QueueView; onClear(): vo
   return (
     <section
       aria-label={t("sessions.queue.title", { count: queue.count })}
-      className="flex flex-col gap-1 border-l-2 border-human-line bg-human-tint px-3 py-2"
+      className="flex flex-col gap-1 border-l-2 border-you-line bg-you-tint px-3 py-2"
     >
       <div className="flex items-center justify-between gap-2">
         <p className="font-mono text-label font-semibold uppercase tracking-label text-muted">
@@ -28,7 +28,7 @@ export function QueueStrip({ queue, onClear }: { queue: QueueView; onClear(): vo
         {rows.map((row) => (
           <li
             key={row.key}
-            className={row.steering ? "flex gap-2 text-ui text-human-text" : "flex gap-2 text-ui text-muted"}
+            className={row.steering ? "flex gap-2 text-ui text-you-text" : "flex gap-2 text-ui text-muted"}
           >
             <span className="shrink-0 font-mono text-label font-semibold uppercase tracking-label">
               {t(row.steering ? "sessions.queue.steer" : "sessions.queue.followUp")}

@@ -154,20 +154,28 @@ describe("theme tokens (DESIGN.md §3)", () => {
     expect(PRESET_TOKENS.night["you-ink"]).toBe("#1b0d00");
   });
 
-  it("keeps the M1 utility names as aliases until post-merge task P1", () => {
+  it("has no M1 alias left: every colour utility is a DESIGN name", () => {
+    const names = [...css.matchAll(/--color-([a-z0-9-]+):/g)].map((m) => m[1]);
     for (const alias of [
-      "--color-panel: var(--surface);",
-      "--color-line: var(--border);",
-      "--color-human: var(--you);",
-      "--color-human-fill: var(--you-fill);",
-      "--color-on-fill: var(--you-ink);",
-      "--color-attention: var(--attn);",
-      "--color-error: var(--err);",
-      "--color-fg: var(--text);",
-      "--color-muted: var(--text-muted);",
+      "panel",
+      "line",
+      "human",
+      "human-fill",
+      "human-tint",
+      "human-line",
+      "human-text",
+      "on-fill",
+      "attention",
+      "attention-tint",
+      "attention-line",
+      "error",
     ]) {
-      expect(css).toContain(alias);
+      expect(names, alias).not.toContain(alias);
     }
+    expect(css).not.toContain("M1 names");
+    expect(names).toEqual(
+      expect.arrayContaining(["fg", "muted", "surface", "border", "you-fill", "attn", "err"]),
+    );
   });
 
   it("resets the default Tailwind palette before the first colour", () => {
