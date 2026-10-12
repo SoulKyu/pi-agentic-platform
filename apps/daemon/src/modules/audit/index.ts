@@ -7,6 +7,7 @@ import { type AuditRpc, auditRpc } from "./rpc.ts";
 import { type AuditPort, createAuditService } from "./service.ts";
 import { createAuditStore, monthCutoff } from "./store.ts";
 
+export { monthCutoff };
 export type { AuditPort };
 
 export const AUDIT_MIGRATIONS: MigrationSource = {

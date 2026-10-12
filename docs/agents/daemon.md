@@ -58,6 +58,13 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 - `modules/search/` (`createSearchModule`, details in `docs/agents/search.md`): `search.db` in `$PAP_HOME`, the scanner and the query thread. `createDaemon` builds it with `installedAt` (`ensureInstallTimestamp`, the cutoff), `readOnly` and the sessions scan port, registers `search.rpc`, and calls `search.start()` only after the HTTP server listens, so a first scan never delays the boot. A damaged index is rebuilt at runtime by the module itself (at most 3 times an hour). Its closer is pushed after the database's, so `stop()` runs it first: the scanner and the thread end, and only then does the database close.
 - `testCaller()` (`testing/caller.ts`): every daemon test builds its callers with it instead of a `{ userId, permissions }` literal, so fields M5 adds to `Caller` compile after the merge.
 
+## Audit (`modules/audit/`)
+
+- The `audit` table is append-only (migration `202610122000_audit.sql`): triggers refuse UPDATE, DELETE outside a prune of a month older than 12 months, and an INSERT onto an existing id (REPLACE would skip the DELETE triggers; `recursive_triggers` stays off, it is kernel-wide). `month` and the `at` range are CHECKed. The triggers stop a bug, not a person editing the file.
+- A worker's entry arrives as `unknown` (the sessions `service-sync.ts` calls `audit.fromWorker` with the session row and the containment). It is parsed with `PolicyAuditEntry`; NUL becomes U+FFFD in every string; `args` and `reason` lose well-known token formats (`scrub.ts`); stage reasons are clipped until the JSON fits the column, the daemon's "worker scope on/off" fact always ends stage 05. A malformed entry is an `invalid` row (100 per session). Valid rows are budgeted at 600 per session per minute; the overflow is counted in one marker row per window.
+- `audit.list` (`audit:read`) answers the caller's rows and the system's, newest first, under `PAGE_BYTES`. Each row is decoded with `AuditView`; a row the contract refuses is shown repaired (`audit_row_degraded`), never failing the page.
+- `append` never throws: a failure logs `audit_append_failed` (kind and a `suppressed` count, once a minute). At boot `audit_prunable` says when months can be pruned (`pap audit prune`).
+
 ## Tests
 
 - `startTestDaemon(script, { tls?, config?, deps? })` boots a daemon on a free port in a temporary home, on the scripted provider and under the network guard (R94); the worker gets a minimal environment, never the outer process's `PI_*` or `HOME`. It removes its temporary directory when the start fails. Its client rejects a call that gets no response within 30 s and never retries a mutation (R105).

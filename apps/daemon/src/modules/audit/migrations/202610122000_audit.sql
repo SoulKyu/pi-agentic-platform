@@ -2,11 +2,13 @@
 -- start, with the stage verdicts in `stages` (ADR 0022), and one per security-relevant change (auth, policy). Results are
 -- never stored; arguments arrive redacted, escaped and clipped. Rows leave only through `pap audit prune`, a whole month
 -- older than 12 months at a time, and the prune leaves its own row. The triggers stop a bug, not a person who can edit
--- the file.
+-- the file. REPLACE deletes without firing DELETE triggers (recursive_triggers is off, and it is kernel-wide), so an
+-- INSERT onto an existing id is refused outright.
 CREATE TABLE audit (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   at INTEGER NOT NULL,
-  month TEXT NOT NULL CHECK (month = strftime('%Y-%m', at / 1000, 'unixepoch')),
+  -- strftime answers NULL outside 0000-01-01..9999-12-31 and a CHECK on NULL passes: the range closes that.
+  month TEXT NOT NULL CHECK (at BETWEEN 0 AND 253402300799999 AND month = strftime('%Y-%m', at / 1000, 'unixepoch')),
   owner_id TEXT,
   actor TEXT NOT NULL CHECK (actor IN ('worker', 'user', 'token', 'cli', 'system')),
   actor_id TEXT CHECK (actor_id IS NULL OR length(actor_id) <= 128),
@@ -38,6 +40,10 @@ CREATE TABLE audit_prunes (
 CREATE TRIGGER audit_no_update BEFORE UPDATE ON audit
 BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 
+CREATE TRIGGER audit_no_replace BEFORE INSERT ON audit
+WHEN NEW.id IN (SELECT id FROM audit)
+BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
+
 CREATE TRIGGER audit_delete_only_pruned BEFORE DELETE ON audit
 WHEN NOT EXISTS (SELECT 1 FROM audit_prunes WHERE month = OLD.month AND state = 'open')
 BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
@@ -45,6 +51,10 @@ BEGIN SELECT RAISE(ABORT, 'audit is append-only'); END;
 CREATE TRIGGER audit_prunes_old_months_only BEFORE INSERT ON audit_prunes
 WHEN NEW.state <> 'open' OR NEW.month >= strftime('%Y-%m', 'now', 'start of month', '-12 months')
 BEGIN SELECT RAISE(ABORT, 'only a month older than 12 months can be pruned'); END;
+
+CREATE TRIGGER audit_prunes_no_replace BEFORE INSERT ON audit_prunes
+WHEN NEW.id IN (SELECT id FROM audit_prunes)
+BEGIN SELECT RAISE(ABORT, 'audit_prunes is append-only'); END;
 
 CREATE TRIGGER audit_prunes_close_once BEFORE UPDATE ON audit_prunes
 WHEN OLD.state <> 'open' OR NEW.state <> 'done' OR NEW.month <> OLD.month OR NEW.id <> OLD.id OR NEW.at <> OLD.at

@@ -273,8 +273,11 @@ describe("audit service", () => {
       service.fromWorker({ id: "s1", ownerId: "u1" }, entry, { containment: "none" });
     const page = list.list(testCaller(), { limit: 200 });
     expect(page.truncated).toBe(true);
-    expect(page.entries.length).toBeLessThan(200);
-    expect(JSON.stringify(page).length).toBeLessThanOrEqual(900_000);
     expect(page.nextBefore).toBe(page.entries.at(-1)?.id);
+    const size = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
+    expect(size(page)).toBeLessThanOrEqual(900_000);
+    // Exactly as many as fit: the next row would not.
+    const next = list.list(testCaller(), { limit: 1, before: page.nextBefore ?? 0 }).entries[0];
+    expect(size(page) + size(next) + 1).toBeGreaterThan(900_000);
   });
 });

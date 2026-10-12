@@ -1,4 +1,5 @@
 import {
+  AuditView as AuditViewSchema,
   type AuditView,
   type Caller,
   type PolicyAuditEntry,
@@ -9,7 +10,8 @@ import {
 import type { Clock } from "../../kernel/clock.ts";
 import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { fitToolNames, scrubKnownSecrets } from "./scrub.ts";
+import { createRowBudget } from "./budget.ts";
+import { fitStages, fitToolNames, replaceNul, scrubKnownSecrets } from "./scrub.ts";
 import type { AuditInsert, AuditRow, AuditStore } from "./store.ts";
 
 /** One security-relevant event of the daemon itself (M5R45). Never a secret, a result or a failed sign-in. */
@@ -44,6 +46,7 @@ const LOG_EVERY_MS = 60_000;
 const REASON_MAX = 1_024;
 const ARGS_MAX = 8_192;
 const DEFAULT_LIMIT = 100;
+const WORKER_ROWS_PER_MINUTE = 600;
 
 interface InvalidCount {
   stored: number;
@@ -55,20 +58,6 @@ const clip = (text: string, max: number): string => (text.length > max ? text.sl
 
 function scrubbed(text: string | undefined, max: number): string | undefined {
   return text === undefined ? undefined : clip(scrubKnownSecrets(text).text, max);
-}
-
-// The worker is untrusted for content (R66); only the daemon knows whether the worker runs in a scope.
-function withScopeFact(entry: PolicyAuditEntry, containment: "scope" | "none"): PolicyAuditEntry {
-  if (entry.kind !== "session") return entry;
-  const fact = `worker scope ${containment === "scope" ? "on" : "off"}`;
-  return {
-    ...entry,
-    stages: entry.stages.map((verdict) =>
-      verdict.stage === "05"
-        ? { ...verdict, reason: verdict.reason ? `${verdict.reason}; ${fact}` : fact }
-        : verdict,
-    ),
-  };
 }
 
 // Field by field: the owner stays in the database, and a column added later reaches the wire only when named here.
@@ -90,6 +79,24 @@ const viewOf = (row: AuditRow): AuditView => ({
   detail: row.detail,
 });
 
+const nullable = (text: string | null, max: number): string | null =>
+  text === null ? null : text.slice(0, max);
+
+// A row the contract refuses is shown with what is wrong with it cut away: one bad row never fails a page.
+const repaired = (view: AuditView): AuditView => ({
+  ...view,
+  actorId: nullable(view.actorId, 128),
+  sessionId: view.sessionId ? view.sessionId.slice(0, 128) : null,
+  toolCallId: nullable(view.toolCallId, 256),
+  parentToolCallId: nullable(view.parentToolCallId, 256),
+  tool: nullable(view.tool, 256),
+  category: nullable(view.category, 32),
+  reason: nullable(view.reason, REASON_MAX),
+  args: nullable(view.args, ARGS_MAX),
+  stages: [],
+  detail: null,
+});
+
 export function createAuditService(deps: {
   readonly store: AuditStore;
   readonly clock: Clock;
@@ -99,17 +106,43 @@ export function createAuditService(deps: {
   // Session id -> invalid records so far. Bounded: the oldest session is forgotten past 1 024 (M5R46).
   const invalid = new Map<string, InvalidCount>();
   let failureLoggedAt = Number.NEGATIVE_INFINITY;
+  let failuresSuppressed = 0;
+  let degradedLoggedAt = Number.NEGATIVE_INFINITY;
 
-  function tryAppend(row: AuditInsert): void {
+  /** True when the row was stored. A failure logs its kind (rate-limited, with how many it did not log). */
+  function tryAppend(row: AuditInsert): boolean {
     try {
       store.append(row);
+      return true;
     } catch {
       const now = clock.now();
-      if (now - failureLoggedAt < LOG_EVERY_MS) return;
-      failureLoggedAt = now;
-      logger.error("audit_append_failed", { kind: row.kind });
+      if (now - failureLoggedAt < LOG_EVERY_MS) failuresSuppressed++;
+      else {
+        failureLoggedAt = now;
+        logger.error("audit_append_failed", { kind: row.kind, suppressed: failuresSuppressed });
+        failuresSuppressed = 0;
+      }
+      return false;
     }
   }
+
+  const budget = createRowBudget({
+    clock,
+    perMinute: WORKER_ROWS_PER_MINUTE,
+    maxSessions: MAX_TRACKED_SESSIONS,
+    onFirstDrop: (session) => logger.warn("audit_rows_dropped", { sessionId: session.id }),
+    onMarker: (session, dropped) =>
+      void tryAppend({
+        at: clock.now(),
+        ownerId: session.ownerId,
+        actor: "worker",
+        kind: "audit",
+        sessionId: session.id,
+        decision: "info",
+        reason: "audit rows dropped: rate limit",
+        detail: { dropped },
+      }),
+  });
 
   function countOf(sessionId: string): InvalidCount {
     let count = invalid.get(sessionId);
@@ -127,8 +160,8 @@ export function createAuditService(deps: {
   function noteInvalid(session: { id: string; ownerId: string }): void {
     const count = countOf(session.id);
     const now = clock.now();
-    if (count.stored < MAX_INVALID_PER_SESSION) {
-      count.stored++;
+    const stored =
+      count.stored < MAX_INVALID_PER_SESSION &&
       tryAppend({
         at: now,
         ownerId: session.ownerId,
@@ -138,7 +171,8 @@ export function createAuditService(deps: {
         decision: "info",
         reason: "malformed audit record",
       });
-    } else count.dropped++;
+    if (stored) count.stored++;
+    else count.dropped++;
     if (now - count.loggedAt >= LOG_EVERY_MS) {
       count.loggedAt = now;
       logger.warn("audit_record_invalid", { sessionId: session.id, dropped: count.dropped });
@@ -178,7 +212,7 @@ export function createAuditService(deps: {
           detail: { redactions: entry.redactions, external: entry.external },
         };
       case "session": {
-        const fitted = fitToolNames(entry.tools, entry.tools.length);
+        const fitted = fitToolNames(entry.tools, entry.tools.length, { mode: entry.mode });
         return {
           ...base,
           kind: "session",
@@ -188,6 +222,18 @@ export function createAuditService(deps: {
         };
       }
     }
+  }
+
+  function decodedView(row: AuditRow): AuditView | null {
+    const view = viewOf(row);
+    if (AuditViewSchema.safeParse(view).success) return view;
+    const now = clock.now();
+    if (now - degradedLoggedAt >= LOG_EVERY_MS) {
+      degradedLoggedAt = now;
+      logger.warn("audit_row_degraded", { id: row.id });
+    }
+    const fixed = repaired(view);
+    return AuditViewSchema.safeParse(fixed).success ? fixed : null;
   }
 
   return {
@@ -200,7 +246,7 @@ export function createAuditService(deps: {
         kind: line.kind,
         sessionId: line.sessionId,
         decision: "info",
-        reason: clip(line.reason, REASON_MAX),
+        reason: clip(replaceNul(line.reason), REASON_MAX),
         detail: line.detail,
       });
     },
@@ -210,17 +256,23 @@ export function createAuditService(deps: {
         noteInvalid(session);
         return null;
       }
-      const entry = withScopeFact(parsed.data, context.containment);
-      const safe =
-        entry.kind === "call"
+      const clean = replaceNul(parsed.data);
+      const fact =
+        clean.kind === "session"
+          ? `worker scope ${context.containment === "scope" ? "on" : "off"}`
+          : undefined;
+      const stages = fitStages(clean.stages, fact);
+      const entry: PolicyAuditEntry =
+        clean.kind === "call"
           ? {
-              ...entry,
-              args: scrubbed(entry.args, ARGS_MAX) ?? "",
-              ...(entry.reason === undefined ? {} : { reason: scrubbed(entry.reason, REASON_MAX) ?? "" }),
+              ...clean,
+              stages,
+              args: scrubbed(clean.args, ARGS_MAX) ?? "",
+              ...(clean.reason === undefined ? {} : { reason: scrubbed(clean.reason, REASON_MAX) ?? "" }),
             }
-          : entry;
-      tryAppend(rowOf(session, safe));
-      return safe;
+          : { ...clean, stages };
+      if (budget.take(session)) tryAppend(rowOf(session, entry));
+      return entry;
     },
     list(caller, params) {
       const limit = params.limit ?? DEFAULT_LIMIT;
@@ -230,15 +282,16 @@ export function createAuditService(deps: {
         before: params.before,
         limit,
       });
-      const budget =
+      const frame =
         PAGE_BYTES - sizeOf({ entries: [], nextBefore: Number.MAX_SAFE_INTEGER, truncated: true });
       const entries: AuditView[] = [];
       let used = 0;
       let truncated = false;
       for (const row of rows) {
-        const view = viewOf(row);
+        const view = decodedView(row);
+        if (!view) continue;
         const size = sizeOf(view) + 1;
-        if (used + size > budget) {
+        if (used + size > frame) {
           truncated = true;
           break;
         }

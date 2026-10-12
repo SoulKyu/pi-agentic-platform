@@ -11,6 +11,7 @@ it("stores a started worker's session entry in the audit table, not in session_e
       () => expect(bed.auditRows()).toEqual([{ kind: "session", actor: "worker", sessionId }]),
       { timeout: 10_000 },
     );
+    expect(bed.sessionEvents()).toEqual([]);
     const listed = await bed.auditRpc["audit.list"]({}, bed.ctx);
     expect(listed.entries).toHaveLength(1);
     expect(listed.entries[0]).toMatchObject({ kind: "session", sessionId, actor: "worker" });

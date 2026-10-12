@@ -61,6 +61,19 @@ describe("scrubKnownSecrets", () => {
     });
   });
 
+  it("does not go super-linear on a dash-separated run of JWT heads (4 MiB, a safety net of 3 s)", () => {
+    const text = "eyJ-".repeat(1_048_576);
+    const started = performance.now();
+    expect(scrubKnownSecrets(text)).toEqual({ text, count: 0 });
+    expect(performance.now() - started).toBeLessThan(3_000);
+  });
+
+  it("does not match a JWT glued to a token character before it (accepted trade-off)", () => {
+    const jwt = `eyJ${"a".repeat(10)}.${"b".repeat(10)}.${"c".repeat(10)}`;
+    expect(scrubKnownSecrets(`-${jwt}`)).toEqual({ text: `-${jwt}`, count: 0 });
+    expect(scrubKnownSecrets(` ${jwt}`)).toEqual({ text: " [REDACTED:jwt]", count: 1 });
+  });
+
   it("stays linear on a JWT head that never gets its second dot", () => {
     const text = `eyJ${"a".repeat(8)}.${"b".repeat(8)}!`.repeat(5_000);
     expect(scrubKnownSecrets(text)).toEqual({ text, count: 0 });
@@ -70,6 +83,17 @@ describe("scrubKnownSecrets", () => {
 describe("fitToolNames", () => {
   it("keeps every name when the JSON fits in 4000 characters", () => {
     expect(fitToolNames(["a", "b"], 2)).toEqual({ count: 2, truncated: false, names: ["a", "b"] });
+  });
+
+  it("puts extra fields before the names and counts them in the fit", () => {
+    const names = Array.from({ length: 256 }, (_, i) => `${String(i).padStart(3, "0")}${"x".repeat(253)}`);
+    const fitted = fitToolNames(names, 256, { mode: "auto-accept-edits" });
+    expect(Object.keys(fitted)).toEqual(["count", "truncated", "mode", "names"]);
+    expect(JSON.stringify(fitted).length).toBeLessThanOrEqual(4_000);
+    expect(fitted.names).toEqual(names.slice(0, fitted.names.length));
+    expect(
+      JSON.stringify({ ...fitted, names: names.slice(0, fitted.names.length + 1) }).length,
+    ).toBeGreaterThan(4_000);
   });
 
   it("drops names from the end until it fits, and keeps the count", () => {

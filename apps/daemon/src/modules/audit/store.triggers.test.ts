@@ -91,4 +91,44 @@ describe("the audit table's guards", () => {
     store.prune("2024-05", NOW);
     expect(() => db.run("UPDATE audit_prunes SET state = 'done', rows = 9")).toThrow(/append-only/);
   });
+
+  it("refuses REPLACE of an existing id on both tables (SQLite skips DELETE triggers for it)", () => {
+    const { db, store } = open();
+    store.append(row({ at: OLD }));
+    store.prune("2024-05", NOW);
+    const id = db.get<{ id: number }>("SELECT id FROM audit ORDER BY id LIMIT 1")?.id ?? 0;
+    for (const verb of ["INSERT OR REPLACE INTO", "REPLACE INTO"]) {
+      expect(() =>
+        db.run(
+          `${verb} audit (id, at, month, actor, kind, decision) VALUES ($id, $at, $month, 'system', 'audit', 'info')`,
+          {
+            id,
+            at: NOW,
+            month: new Date(NOW).toISOString().slice(0, 7),
+          },
+        ),
+      ).toThrow(/audit is append-only/);
+      expect(() =>
+        db.run(`${verb} audit_prunes (id, month, state, at) VALUES (1, '2024-05', 'open', 1)`),
+      ).toThrow(/append-only|older than 12 months/);
+    }
+    expect(db.all("SELECT month, state, rows FROM audit_prunes")).toEqual([
+      { month: "2024-05", state: "done", rows: 1 },
+    ]);
+    expect(db.get<{ reason: string }>("SELECT reason FROM audit WHERE id = $id", { id })?.reason).toBe(
+      "pruned",
+    );
+  });
+
+  it("refuses a timestamp outside 0..9999-12-31, where strftime gives NULL and the month CHECK passes", () => {
+    const { db } = open();
+    for (const at of [-1, 253402300800000, 1e16]) {
+      expect(() =>
+        db.run(
+          "INSERT INTO audit (at, month, actor, kind, decision) VALUES ($at, 'x', 'system', 'audit', 'info')",
+          { at },
+        ),
+      ).toThrow(/CHECK/);
+    }
+  });
 });

@@ -1,4 +1,5 @@
-import type { AuditView, StageVerdict } from "@pap/contracts";
+import { type AuditView, STAGE_IDS, StageVerdict } from "@pap/contracts";
+import { z } from "zod";
 import type { Db } from "../../kernel/db/database.ts";
 
 export interface AuditRow extends AuditView {
@@ -73,12 +74,15 @@ function parseJson(text: string | null): unknown {
   }
 }
 
+const Stages = z.array(StageVerdict).max(STAGE_IDS.length);
+
 function toRow(raw: RawRow): AuditRow {
-  const stages = parseJson(raw.stages);
+  // Valid JSON of the wrong shape (`[1]`) would fail the whole page at the contract: it reads as no stages.
+  const stages = Stages.safeParse(parseJson(raw.stages));
   const detail = parseJson(raw.detail);
   return {
     ...raw,
-    stages: Array.isArray(stages) ? (stages as StageVerdict[]) : [],
+    stages: stages.success ? stages.data : [],
     detail:
       typeof detail === "object" && detail !== null && !Array.isArray(detail)
         ? (detail as Record<string, unknown>)
