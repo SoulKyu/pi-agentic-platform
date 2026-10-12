@@ -18,6 +18,8 @@ export function SessionListScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const held = useShellStore((state) => state.view.sessions);
+  const loaded = useShellStore((state) => state.view.loaded);
+  const broken = useShellStore((state) => state.view.unreadable || state.view.failed !== null);
   const sessions = useMemo(
     () =>
       [...held.values()]
@@ -68,7 +70,18 @@ export function SessionListScreen() {
           </Button>
         </div>
       </form>
-      {sessions.length === 0 ? (
+      {broken ? (
+        <div className="flex items-center gap-2">
+          <p role="alert" className="text-ui text-attn">
+            {t("shell.tree.error")}
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => runtime.subscriptions.resync("shell", "me")}>
+            {t("shell.tree.retry")}
+          </Button>
+        </div>
+      ) : !loaded ? (
+        <p className="text-muted">{t("shell.tree.loading")}</p>
+      ) : sessions.length === 0 ? (
         <p className="text-muted">{t("sessions.empty")}</p>
       ) : (
         <ul className="flex flex-col gap-1">

@@ -1,13 +1,13 @@
 import type { Translate } from "../../i18n/index.ts";
 import type { ItemRef } from "../../features/workspace/index.ts";
-import type { SessionView } from "../../stores/session-reducer.ts";
+import type { ViewLabel } from "../../stores/view-labels-store.ts";
 import { sessionLabel } from "./session-label.ts";
 
 /** A session the store holds is titled from it, else from its own view (older than the snapshot's window, M4R86). */
 export function itemTitle(
   item: ItemRef,
-  sessions: ReadonlyMap<string, Pick<SessionView, "name" | "cwd">>,
-  views: Readonly<Record<string, Pick<SessionView, "name" | "cwd">>>,
+  sessions: ReadonlyMap<string, ViewLabel>,
+  views: Readonly<Record<string, ViewLabel>>,
   t: Translate,
 ): string {
   switch (item.kind) {

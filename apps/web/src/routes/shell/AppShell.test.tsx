@@ -162,17 +162,20 @@ describe("AppShell", () => {
 
   it("a refused shell subscription sets the store's failed and reports shell_feed_failed once", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    bed.handlers["subscribe.shell"] = () => {
-      throw new RpcError("capacity");
-    };
-    const page = await renderShell("/");
-    await act(async () => bed.fake.setState("open"));
-    await settle();
-    expect(useShellStore.getState().view.failed).toBe("capacity");
-    expect(warn.mock.calls.filter(([line]) => line === "pap: shell_feed_failed")).toHaveLength(1);
-    await page.unmount();
-    expect(useShellStore.getState().view.failed).toBeNull(); // unmount resets the store
-    warn.mockRestore();
+    try {
+      bed.handlers["subscribe.shell"] = () => {
+        throw new RpcError("capacity");
+      };
+      const page = await renderShell("/");
+      await act(async () => bed.fake.setState("open"));
+      await settle();
+      expect(useShellStore.getState().view.failed).toBe("capacity");
+      expect(warn.mock.calls.filter(([line]) => line === "pap: shell_feed_failed")).toHaveLength(1);
+      await page.unmount();
+      expect(useShellStore.getState().view.failed).toBeNull(); // unmount resets the store
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it("titles the top bar with the active item: a session by its folder", async () => {

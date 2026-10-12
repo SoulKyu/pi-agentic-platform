@@ -4,7 +4,7 @@ import { useEffect, useRef, type KeyboardEvent } from "react";
 import { activeTab, pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { itemTitle } from "./item-title.ts";
-import { useViewLabels } from "./use-view-labels.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { closeItem, go, otherItem, takeFocusAfterClose, toggleSplit } from "./tab-actions.ts";
 
@@ -18,7 +18,7 @@ export function TabBar() {
   const navigate = useNavigate();
   const ws = useWorkspaceStore((state) => state.ws);
   const sessions = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels();
+  const views = useViewLabels((state) => state.labels);
   const listRef = useRef<HTMLDivElement>(null);
   const active = activeTab(ws);
   const other = otherItem(ws);

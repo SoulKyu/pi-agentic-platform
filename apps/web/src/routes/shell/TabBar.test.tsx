@@ -7,8 +7,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import { click, press, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
-import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
-import { useSessionStore } from "../../stores/session-store.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 
@@ -42,7 +41,7 @@ beforeEach(() => {
   current.runtime = bed.runtime;
   localStorage.clear();
   useShellStore.getState().reset();
-  useSessionStore.setState({ views: {} });
+  useViewLabels.setState({ labels: {} });
   useShellStore
     .getState()
     .apply(shellSnapshot([shellSession({ id: "a", cwd: "/home/ana/a", status: "running", updatedAt: 2 })]));
@@ -67,7 +66,7 @@ describe("TabBar", () => {
 
   it("titles the tab of a session the store lacks from that session's own view", async () => {
     useShellStore.getState().reset();
-    useSessionStore.setState({ views: { a: { ...EMPTY_VIEW, name: "From view", cwd: "/x/y" } } });
+    useViewLabels.getState().put("a", { name: "From view", cwd: "/x/y" });
     const page = await renderShell("/s/a");
     expect(tabs(page.container).map((one) => one.textContent)).toContain("From view");
     await page.unmount();

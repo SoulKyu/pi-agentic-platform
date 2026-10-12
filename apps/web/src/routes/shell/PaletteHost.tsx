@@ -15,7 +15,7 @@ import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { buildPaletteItems } from "./palette-items.ts";
-import { useViewLabels } from "./use-view-labels.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { go } from "./tab-actions.ts";
 
 const loadPalette = () => import("../../features/commands/palette/CommandPalette.tsx");
@@ -30,7 +30,7 @@ export function PaletteHost() {
   const rules = useKeybindingsStore((state) => state.rules);
   const tabs = useWorkspaceStore((state) => state.ws.tabs);
   const held = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels();
+  const views = useViewLabels((state) => state.labels);
 
   const items = useMemo(
     () =>

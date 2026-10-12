@@ -10,7 +10,7 @@ import {
 } from "../../features/commands/index.ts";
 import { SETTINGS_SECTIONS, type ItemRef, type Tab } from "../../features/workspace/index.ts";
 import type { MessageKey, Translate } from "../../i18n/index.ts";
-import type { SessionView } from "../../stores/session-reducer.ts";
+import type { ViewLabel } from "../../stores/view-labels-store.ts";
 import { itemTitle } from "./item-title.ts";
 import { basename, sessionLabel } from "./session-label.ts";
 
@@ -25,7 +25,7 @@ interface PaletteItemsInput {
   readonly tabs: readonly Tab[];
   readonly sessions: readonly SessionSummary[];
   /** The labels of the loaded session views: titles a tab of a session the list lacks (M4R86). */
-  readonly views: Readonly<Record<string, Pick<SessionView, "name" | "cwd">>>;
+  readonly views: Readonly<Record<string, ViewLabel>>;
   readonly t: Translate;
   navigate(item: ItemRef): void;
   run(id: string): void;

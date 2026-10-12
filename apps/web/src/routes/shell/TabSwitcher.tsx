@@ -4,7 +4,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { itemTitle } from "./item-title.ts";
-import { useViewLabels } from "./use-view-labels.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { closeItem, go } from "./tab-actions.ts";
 
@@ -19,7 +19,7 @@ export default function TabSwitcher({ open, onOpenChange }: TabSwitcherProps) {
   const navigate = useNavigate();
   const ws = useWorkspaceStore((state) => state.ws);
   const sessions = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels();
+  const views = useViewLabels((state) => state.labels);
   return (
     <Dialog
       open={open}

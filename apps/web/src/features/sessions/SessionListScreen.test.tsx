@@ -37,6 +37,7 @@ let bed: ReturnType<typeof fakeRuntime>;
 let page: Mounted | null = null;
 
 const listed = (...sessions: ShellSession[]) => useShellStore.getState().apply(shellSnapshot(sessions));
+const loadedEmpty = () => listed();
 
 async function show(state: "open" | "waiting" = "open") {
   bed = fakeRuntime(state);
@@ -112,10 +113,30 @@ describe("SessionListScreen", () => {
     ]);
   });
 
-  it("says there is no session yet", async () => {
+  it("says there is no session yet once the stream has said so", async () => {
+    loadedEmpty();
     const container = await show();
     expect(text(container)).toContain("No session yet.");
     expect(container.querySelector("h1")?.textContent).toBe("Sessions");
+  });
+
+  it("shows loading, not an empty list, until the shell stream has loaded", async () => {
+    const container = await show();
+    expect(text(container)).toContain("Loading sessions");
+    expect(text(container)).not.toContain("No session yet.");
+  });
+
+  it.each([
+    ["refused", () => useShellStore.getState().fail("capacity")],
+    ["unreadable", () => useShellStore.getState().apply({ kind: "snapshot" })],
+  ])("a %s shell stream shows the error and a Retry that asks the stream again", async (_name, break_) => {
+    break_();
+    const container = await show();
+    expect(text(container)).toContain("The session list did not load.");
+    expect(text(container)).not.toContain("No session yet.");
+    const resync = vi.spyOn(bed.runtime.subscriptions, "resync");
+    await click(button(container, "Retry"));
+    expect(resync).toHaveBeenCalledExactlyOnceWith("shell", "me");
   });
 
   it("creates a session in the trimmed directory and opens it", async () => {

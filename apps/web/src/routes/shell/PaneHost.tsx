@@ -3,7 +3,7 @@ import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { SplitView, useWorkspaceStore, type ItemRef, type Tab } from "../../features/workspace/index.ts";
 import { itemTitle } from "./item-title.ts";
-import { useViewLabels } from "./use-view-labels.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { PaneBoundary } from "./PaneBoundary.tsx";
 import { renderItem } from "./pane-renderers.tsx";
 import { useShellStore } from "../../stores/shell-store.ts";
@@ -12,7 +12,7 @@ import { useShellStore } from "../../stores/shell-store.ts";
 export function PaneHost({ tab }: { readonly tab: Tab | null }) {
   const t = useT();
   const sessions = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels();
+  const views = useViewLabels((state) => state.labels);
   const setRatio = useWorkspaceStore((state) => state.setRatio);
   if (!tab) return null;
   const main = (
@@ -57,7 +57,7 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
   const t = useT();
   const ws = useWorkspaceStore((state) => state.ws);
   const sessions = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels();
+  const views = useViewLabels((state) => state.labels);
   const split = useWorkspaceStore((state) => state.split);
   const unsplit = useWorkspaceStore((state) => state.unsplit);
   const lazyText = useLazyFailureText();

@@ -1,6 +1,7 @@
 import type { HistoryMeta, TranscriptRow } from "@pap/contracts";
 import { create } from "zustand";
 import { prependHistory } from "./history.ts";
+import { useViewLabels } from "./view-labels-store.ts";
 import { EMPTY_VIEW, reduceSession, type SessionView } from "./session-reducer.ts";
 
 interface SessionStoreState {
@@ -16,10 +17,13 @@ interface SessionStoreState {
 
 export const useSessionStore = create<SessionStoreState>()((set) => ({
   views: {},
-  apply: (sessionId, event) =>
+  apply: (sessionId, event) => {
     set((state) => ({
       views: { ...state.views, [sessionId]: reduceSession(state.views[sessionId] ?? EMPTY_VIEW, event) },
-    })),
+    }));
+    const view = useSessionStore.getState().views[sessionId];
+    if (view?.loaded) useViewLabels.getState().put(sessionId, { name: view.name, cwd: view.cwd });
+  },
   prependHistory: (sessionId, page, asked) =>
     set((state) => {
       const view = state.views[sessionId];

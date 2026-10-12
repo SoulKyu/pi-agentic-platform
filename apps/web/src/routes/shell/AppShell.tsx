@@ -21,7 +21,7 @@ import { useShellCommands } from "./shell-commands.ts";
 import { TabBar } from "./TabBar.tsx";
 import { TopBar } from "./TopBar.tsx";
 import { useShellEffects } from "./use-shell-effects.ts";
-import { useViewLabels } from "./use-view-labels.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useViewportHeight } from "./use-viewport-height.ts";
 
 interface AppShellProps {
@@ -97,7 +97,7 @@ function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" 
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const sessions = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels();
+  const views = useViewLabels((state) => state.labels);
   const item = itemFromPath(pathname, import.meta.env.DEV);
   const title = item ? itemTitle(item, sessions, views, t) : t("shell.notFound.title");
   return (

@@ -8,7 +8,7 @@ import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
-import { useViewLabels } from "./use-view-labels.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { SessionTree } from "./SessionTree.tsx";
@@ -24,7 +24,7 @@ export function MobileShell() {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const sessions = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels();
+  const views = useViewLabels((state) => state.labels);
   const [section, setSection] = useState<MobileSection>("work");
   const [seenPath, setSeenPath] = useState(pathname);
   const [tabsOpen, setTabsOpen] = useState(false);
