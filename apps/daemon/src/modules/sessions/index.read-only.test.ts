@@ -78,6 +78,9 @@ describe("sessions module over a read-only database (RT-04)", () => {
         env: {},
         scopes: NO_SCOPES,
       });
+      await clock.advance(0);
+      expect(clock.pending()).toBe(0);
+      expect(createSessionsStore(db).marks.row("s1")?.marks.settledAt).toBeNull();
       expect(projects.ensured).toEqual([]);
       expect(createSessionsStore(db).marks.row("s1")?.projectId).toBeNull();
       expect(lines.filter((line) => line["msg"] === "session_projects_backfill_failed")).toEqual([]);

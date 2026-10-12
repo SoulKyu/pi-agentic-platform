@@ -31,6 +31,7 @@ import { createLaunch } from "./service-launch.ts";
 import { createSessionMarks } from "./service-marks.ts";
 import { createSessionReads } from "./service-reads.ts";
 import { createShellView } from "./service-shell.ts";
+import { createOrganiser } from "./organiser.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
 import { fitSummaries } from "./shell.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
@@ -146,6 +147,10 @@ export interface SessionsService extends SessionCommands {
    * shared rules, `read_only` when the database is read-only.
    */
   mark(input: { sessionId: string; change: MarkChange }, caller: Caller): void;
+  /** Arms the 3-day sweep and the snooze wake timer; nothing in read-only mode. `shutdownAll` stops them. */
+  startOrganiser(): void;
+  /** Someone worked in the session (a prompt, a run, new entries): it leaves Settled and Snoozed (M4R41). */
+  activity(sessionId: string): void;
   /** Files the sessions stored before M4 under their folder's project; 0 and nothing written in read-only mode. */
   backfillProjects(): number;
 }
@@ -203,6 +208,14 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     clock: deps.clock,
   });
   deps.projects.onChange((ownerId, view) => publisher.projectChanged(ownerId, view.id));
+  const organiser = createOrganiser({
+    store: marks,
+    clock: deps.clock,
+    logger: deps.logger,
+    publisher,
+    isLive: (id) => live.has(id),
+    readOnly: deps.store.readOnly,
+  });
 
   const { launch, ensureLive } = createLaunch({
     deps,
@@ -214,6 +227,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
     onReopened: (sessionId) => publisher.changed(sessionId),
     onPublished: (sessionId, event) => {
+      // A run starting is activity: the session leaves Settled and Snoozed (M4R41).
+      if (event.kind === "status" && event.status === "running") organiser.activity(sessionId);
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
     },
     onDraftReady: (sessionId, piSessionId) => {
@@ -271,8 +286,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     clock: deps.clock,
     owned,
     publisher,
-    // Task 10 passes the organiser's `rearm`.
-    onSnoozeChange: () => {},
+    onSnoozeChange: organiser.rearm,
   });
 
   const summaries = (caller: Caller): SessionSummary[] =>
@@ -313,6 +327,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       const row = owned(input.sessionId, caller);
       const session = await ensureLive(row);
       deps.store.touch(row.id, deps.clock.now());
+      organiser.activity(row.id);
       publisher.changed(row.id);
       return session.prompt(input.text, input.streamingBehavior);
     },
@@ -363,6 +378,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     snapshot: (sessionId) => reads.snapshot(sessionId),
     async shutdownAll() {
       closing = true;
+      organiser.stop();
       grants.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
@@ -371,6 +387,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       return session ? { pid: session.pid(), rssMb: session.rssMb() } : null;
     },
     mark: (input, caller) => sessionMarks.mark(input, caller),
+    startOrganiser: organiser.start,
+    activity: organiser.activity,
     backfillProjects: () => (deps.store.readOnly ? 0 : link.backfill()),
   };
 }

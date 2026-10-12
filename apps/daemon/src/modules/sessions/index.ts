@@ -129,6 +129,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   } catch (error) {
     logger.error("session_projects_backfill_failed", { err: error });
   }
+  service.startOrganiser();
   deps.hub.registerSnapshot("session", (key) => service.snapshot(key));
   // The key is the owner's id, taken from the transport: any key answers, empty for a person without sessions.
   deps.hub.registerSnapshot("shell", (ownerId) => service.shellSnapshot(ownerId));

@@ -169,6 +169,28 @@ describe("sessions.mark", () => {
     expect(bed.service.list(OWNER).find((s) => s.id === a)?.status).toBe("running");
   });
 
+  it("a prompt to a settled session un-settles it, and the event shows it", async () => {
+    const { a } = await threeSessions();
+    bed.service.mark({ sessionId: a, change: { kind: "settle" } }, OWNER);
+    await drain();
+    expect(bed.store.marks.row(a)?.marks.settledAt).toBe(T);
+    const events = watchShell();
+    await bed.service.prompt({ sessionId: a, text: "hello" }, OWNER);
+    await drain();
+    expect(bed.store.marks.row(a)?.marks).toMatchObject({ settledAt: null, settledAuto: false });
+    expect(sessionEvents(events()).map((s) => [s.id, s.settledAt])).toContainEqual([a, null]);
+  });
+
+  it("a run starting un-settles and wakes the session (M4R41)", async () => {
+    const { a } = await threeSessions();
+    bed.service.mark({ sessionId: a, change: { kind: "settle" } }, OWNER);
+    bed.service.mark({ sessionId: a, change: { kind: "snooze", until: T + 30 * 60_000 } }, OWNER);
+    bed.emit(0, { type: "agent_start" });
+    await drain();
+    expect(bed.service.list(OWNER).find((s) => s.id === a)?.status).toBe("running");
+    expect(bed.store.marks.row(a)?.marks).toMatchObject({ settledAt: null, snoozedUntil: null });
+  });
+
   it("maps a refused write in a read-only database to read_only", async () => {
     const { a } = await threeSessions();
     vi.spyOn(bed.store.marks, "write").mockImplementation(() => {
