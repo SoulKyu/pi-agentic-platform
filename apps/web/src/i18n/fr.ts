@@ -106,5 +106,6 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "sessions.tool.showAll": "Afficher toute la sortie ({size} Ko)",
   "sessions.tool.notYet": "La sortie n'est pas encore disponible.",
   "sessions.tool.retry": "Réessayer",
+  "sessions.tool.tooLarge": "Sortie trop volumineuse pour être affichée ici.",
   // ── end sessions (M2) ──
 };

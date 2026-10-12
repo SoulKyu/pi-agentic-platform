@@ -27,6 +27,10 @@ export interface ToolItem {
   /** How many characters the whole output has when `preview` is only its start, else null. */
   readonly truncatedChars: number | null;
   readonly argsTruncated: boolean;
+  /** The entry Pi wrote for the result: call ids repeat across turns, so the daemon needs it to find this call's output. */
+  readonly resultEntryId: string | null;
+  /** How big the result was when the server did not send it at all (too big for a message), else null. */
+  readonly omittedBytes: number | null;
 }
 
 export interface SummaryItem {
@@ -75,6 +79,8 @@ function toolItem(owner: string, call: ToolCallView, occurrence: number): ToolIt
     preview: "",
     truncatedChars: null,
     argsTruncated: call.argsTruncated,
+    resultEntryId: null,
+    omittedBytes: null,
   };
 }
 
@@ -107,7 +113,7 @@ export function transcriptItems(view: SessionView): TranscriptItem[] {
   const open: OpenCall[] = [];
   view.messages.forEach((message, at) => {
     const placeholder = message.omittedBytes === null ? null : omittedText(message);
-    if (message.role === "toolResult" && message.toolCallId !== null && placeholder === null) {
+    if (message.role === "toolResult" && message.toolCallId !== null) {
       const call = answered(open, message);
       if (call) {
         open.splice(open.indexOf(call), 1);
@@ -116,6 +122,8 @@ export function transcriptItems(view: SessionView): TranscriptItem[] {
           status: message.isError ? "failed" : "done",
           preview: message.text,
           truncatedChars: message.truncatedChars,
+          resultEntryId: message.entryId,
+          omittedBytes: message.omittedBytes,
         };
         return;
       }
@@ -143,6 +151,7 @@ export function transcriptItems(view: SessionView): TranscriptItem[] {
         entryId: message.entryId,
       });
     }
+    // The owner moves from the message key to the entry id when Pi writes the entry: the row remounts once, before any result exists.
     const owner = message.entryId ?? message.key;
     const seen = new Map<string, number>();
     for (const call of message.toolCalls) {

@@ -103,5 +103,6 @@ export const en = {
   "sessions.tool.showAll": "Show the whole output ({size} KB)",
   "sessions.tool.notYet": "The output is not available yet.",
   "sessions.tool.retry": "Try again",
+  "sessions.tool.tooLarge": "Output too large to show here.",
   // ── end sessions (M2) ──
 } as const;

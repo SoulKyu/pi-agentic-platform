@@ -101,6 +101,17 @@ describe("fitSnapshot", () => {
       ]);
     });
 
+    it("keeps the call id of a tool result in its placeholder, unless the id is over 256 characters", () => {
+      const placeholderOf = (toolCallId: string) =>
+        fitSnapshot({
+          status: "idle",
+          rows: [{ entryId: "h1", message: { ...huge(1), toolCallId } }],
+          dialogs: [],
+        }).rows[0]?.message;
+      expect(placeholderOf("call_0")).toMatchObject({ omitted: true, toolCallId: "call_0" });
+      expect(placeholderOf("c".repeat(257))).not.toHaveProperty("toolCallId");
+    });
+
     it("says what it can of a row that has no role or timestamp", () => {
       const snapshot = fitSnapshot({
         status: "idle",

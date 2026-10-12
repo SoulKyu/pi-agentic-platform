@@ -19,22 +19,26 @@ export function ToolRow({ item, sessionId }: { item: ToolItem; sessionId: string
   const [output, setOutput] = useState<Output>({ state: "idle" });
   const inFlight = useRef(false);
 
-  const load = () => {
+  const load = async () => {
     if (inFlight.current) return;
     inFlight.current = true;
     setOutput({ state: "loading" });
-    getRuntime()
-      .rpc.call("sessions.toolOutput", { sessionId, toolCallId: item.toolCallId })
-      .then(
-        (result) => setOutput({ state: "loaded", text: result.text, args: result.args }),
-        (failure: unknown) => setOutput({ state: "failed", code: failureCode(failure) }),
-      )
-      .finally(() => {
-        inFlight.current = false;
+    try {
+      const result = await getRuntime().rpc.call("sessions.toolOutput", {
+        sessionId,
+        toolCallId: item.toolCallId,
+        ...(item.resultEntryId ? { resultEntryId: item.resultEntryId } : {}),
       });
+      setOutput({ state: "loaded", text: result.text, args: result.args });
+    } catch (failure) {
+      setOutput({ state: "failed", code: failureCode(failure) });
+    } finally {
+      inFlight.current = false;
+    }
   };
 
-  const size = Math.max(1, Math.round((item.truncatedChars ?? 0) / BYTES_PER_KB));
+  const whole = item.truncatedChars ?? item.omittedBytes;
+  const size = Math.max(1, Math.round((whole ?? 0) / BYTES_PER_KB));
   const loaded = output.state === "loaded" ? output : null;
   return (
     <article data-tool data-status={item.status} className="rounded-sm border border-line bg-bg px-3 py-2">
@@ -51,8 +55,11 @@ export function ToolRow({ item, sessionId }: { item: ToolItem; sessionId: string
       ) : item.preview ? (
         <pre className={PRE}>{item.preview}</pre>
       ) : null}
-      {item.truncatedChars !== null && !loaded ? (
+      {whole !== null && !loaded ? (
         <div className="mt-1 flex flex-wrap items-center gap-2">
+          {item.omittedBytes !== null ? (
+            <p className="text-ui text-muted">{t("sessions.tool.tooLarge")}</p>
+          ) : null}
           {output.state === "failed" ? (
             output.code === "not_found" ? (
               <p role="status" className="text-ui text-muted">
@@ -64,7 +71,7 @@ export function ToolRow({ item, sessionId }: { item: ToolItem; sessionId: string
               </p>
             )
           ) : null}
-          <Button disabled={output.state === "loading"} onClick={load}>
+          <Button disabled={output.state === "loading"} onClick={() => void load()}>
             {output.state === "failed" ? t("sessions.tool.retry") : t("sessions.tool.showAll", { size })}
           </Button>
         </div>

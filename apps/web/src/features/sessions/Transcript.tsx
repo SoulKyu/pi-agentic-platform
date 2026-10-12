@@ -24,32 +24,33 @@ function useOlderHistory(sessionId: string, view: SessionView, preserve: () => (
   useLayoutEffect(() => {
     latest.current = { view, preserve };
   });
-  const load = () => {
+  const load = async () => {
     const { generation, history } = latest.current.view;
     const before = history.oldestEntryId;
     if (inFlight.current || !history.hasMore || before === null) return;
     inFlight.current = true;
     setLoading(true);
     setError(null);
-    const asked = { generation, oldestEntryId: before };
-    getRuntime()
-      .rpc.call("sessions.history", { sessionId, before })
-      .then(
-        (page) => {
-          const release = latest.current.preserve();
-          const was = useSessionStore.getState().views[sessionId];
-          useSessionStore.getState().prependHistory(sessionId, page, asked);
-          // The store drops a page asked for another view and leaves the view as it was: nothing landed to keep in place.
-          if (useSessionStore.getState().views[sessionId] === was) release();
-        },
-        (failure: unknown) => {
-          setError(failureText(failure));
-        },
-      )
-      .finally(() => {
-        inFlight.current = false;
-        setLoading(false);
-      });
+    try {
+      const page = await getRuntime().rpc.call("sessions.history", { sessionId, before });
+      const release = latest.current.preserve();
+      const was = useSessionStore.getState().views[sessionId];
+      useSessionStore.getState().prependHistory(sessionId, page, { generation, oldestEntryId: before });
+      const now = useSessionStore.getState().views[sessionId];
+      // A page the store dropped (another view), or one that added no row and moved no cursor, leaves nothing to keep in place.
+      if (
+        now === was ||
+        (now?.messages.length === was?.messages.length &&
+          now?.history.oldestEntryId === was?.history.oldestEntryId)
+      ) {
+        release();
+      }
+    } catch (failure) {
+      setError(failureText(failure));
+    } finally {
+      inFlight.current = false;
+      setLoading(false);
+    }
   };
   return { load, loading, error };
 }
@@ -74,7 +75,7 @@ export function Transcript({ sessionId, view }: TranscriptProps) {
     const target = sentinel.current;
     if (!canLoad || quiet || !target || typeof IntersectionObserver === "undefined") return;
     const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) loadRef.current();
+      if (entries.some((entry) => entry.isIntersecting)) void loadRef.current();
     });
     observer.observe(target);
     return () => observer.disconnect();
@@ -99,7 +100,7 @@ export function Transcript({ sessionId, view }: TranscriptProps) {
                 {older.error}
               </p>
             ) : null}
-            <Button disabled={older.loading} onClick={older.load}>
+            <Button disabled={older.loading} onClick={() => void older.load()}>
               {t("sessions.transcript.loadOlder")}
             </Button>
           </li>

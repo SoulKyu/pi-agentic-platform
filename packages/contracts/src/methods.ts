@@ -216,7 +216,12 @@ export const methods = catalogue({
     name: "sessions.toolOutput",
     permission: "sessions:read",
     idempotent: true,
-    params: z.object({ sessionId: SessionId, toolCallId: z.string().min(1).max(256) }),
+    params: z.object({
+      sessionId: SessionId,
+      toolCallId: z.string().min(1).max(256),
+      /** The entry of the tool result, when the row has one: call ids repeat across turns, entry ids do not. */
+      resultEntryId: z.string().min(1).max(128).optional(),
+    }),
     result: z.object({
       text: z.string().max(800_000),
       truncated: z.boolean(),

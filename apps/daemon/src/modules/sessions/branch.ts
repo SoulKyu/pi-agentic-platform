@@ -171,6 +171,48 @@ export function forkPoints(
   return points;
 }
 
+const NOT_FOUND = { result: null, args: null } as const;
+
+const callOf = (
+  message: { content?: unknown } | null,
+  toolCallId: string,
+): { arguments?: unknown } | undefined =>
+  Array.isArray(message?.content)
+    ? (message.content.find(
+        (block) =>
+          (block as { type?: unknown; id?: unknown }).type === "toolCall" &&
+          (block as { id?: unknown }).id === toolCallId,
+      ) as { arguments?: unknown } | undefined)
+    : undefined;
+
+/**
+ * The result in this entry and the nearest assistant call before it with the same id: ids repeat across turns, so the
+ * entry says which turn is meant. The entry must be a result for that id on the branch (when one is given).
+ */
+function findCallOfResult(
+  entries: IndexedEntries,
+  toolCallId: string,
+  resultEntryId: string,
+  branchLeafId: string | null | undefined,
+): { result: unknown | null; args: unknown | null } {
+  if (branchLeafId !== undefined) {
+    const onBranch = [...ancestry(entries, leafOf(entries, branchLeafId))].some(
+      (e) => e.id === resultEntryId,
+    );
+    if (!onBranch) return NOT_FOUND;
+  }
+  const entry = entries.byId.get(resultEntryId);
+  const result = (entry?.message ?? null) as { role?: unknown; toolCallId?: unknown } | null;
+  if (!entry || result?.role !== "toolResult" || result.toolCallId !== toolCallId) return NOT_FOUND;
+  const earlier = ancestry(entries, entry.parentId ? entries.byId.get(entry.parentId) : undefined);
+  for (const before of earlier) {
+    const message = (before.message ?? null) as { role?: unknown; content?: unknown } | null;
+    const call = message?.role === "assistant" ? callOf(message, toolCallId) : undefined;
+    if (call) return { result, args: call.arguments ?? null };
+  }
+  return { result, args: null };
+}
+
 /**
  * A tool call's arguments and result, newest first. With `branchLeafId` (null: the file's last entry) only the branch
  * that ends there is searched, so a call on an abandoned branch is not found; without it, the whole file.
@@ -179,7 +221,9 @@ export function findToolCall(
   entries: IndexedEntries,
   toolCallId: string,
   branchLeafId?: string | null,
+  resultEntryId?: string,
 ): { result: unknown | null; args: unknown | null } {
+  if (resultEntryId !== undefined) return findCallOfResult(entries, toolCallId, resultEntryId, branchLeafId);
   let result: unknown | null = null;
   let args: unknown | null = null;
   const candidates =

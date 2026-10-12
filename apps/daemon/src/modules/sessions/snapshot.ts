@@ -33,12 +33,20 @@ export const ROW_BYTES = 256 * 1024;
 /** A role is one word; a row whose role is not is not worth more than this in a placeholder. */
 const MAX_ROLE_CHARS = 64;
 
+const MAX_CALL_ID_CHARS = 256;
+
 /** What stands for a row of `bytes` bytes that was too big to send (R109). */
 export function placeholderRow(row: unknown, bytes: number) {
   const fields =
-    typeof row === "object" && row !== null ? (row as { role?: unknown; timestamp?: unknown }) : {};
+    typeof row === "object" && row !== null
+      ? (row as { role?: unknown; timestamp?: unknown; toolCallId?: unknown })
+      : {};
   return {
     role: typeof fields.role === "string" ? fields.role.slice(0, MAX_ROLE_CHARS) : "unknown",
+    // A tool result keeps the call it answers, so the client can close that call and offer the whole output.
+    ...(typeof fields.toolCallId === "string" && fields.toolCallId.length <= MAX_CALL_ID_CHARS
+      ? { toolCallId: fields.toolCallId }
+      : {}),
     timestamp: typeof fields.timestamp === "number" ? fields.timestamp : null,
     omitted: true as const,
     bytes,

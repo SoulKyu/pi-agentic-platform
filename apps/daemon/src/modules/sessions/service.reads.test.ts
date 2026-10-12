@@ -6,7 +6,7 @@ import { createSessionsService } from "./service.ts";
 import { fitPage } from "./snapshot.ts";
 import { createSessionsStore } from "./store.ts";
 import { codeOf } from "./testing/helpers.ts";
-import { writeForkedSession, writeToolSession } from "./testing/pi-file-writers.ts";
+import { writeForkedSession, writeRepeatedToolSession, writeToolSession } from "./testing/pi-file-writers.ts";
 import { createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
@@ -120,6 +120,42 @@ describe("sessions.toolOutput", () => {
       `${JSON.stringify({ ...entry, message: { role: "user", content: "again", timestamp: 9 } })}\n`,
     );
     expect(await codeOf(bed.service.toolOutput({ sessionId, toolCallId: "c1" }, OWNER))).toBe("not_found");
+  });
+
+  it("gives each turn its own output and arguments when a provider reuses the call id", async () => {
+    open();
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    writeRepeatedToolSession(bed.files[0] ?? "", "call_0");
+    bed.emit(0, { type: "agent_settled", aborted: false });
+    const ask = (resultEntryId?: string) =>
+      bed.service.toolOutput(
+        { sessionId, toolCallId: "call_0", ...(resultEntryId ? { resultEntryId } : {}) },
+        OWNER,
+      );
+    const pick = ({ text, args }: { text: string; args: string | null }) => [text, args];
+    expect(pick(await ask("t0"))).toEqual(["first", JSON.stringify({ path: "one.txt" })]);
+    expect(pick(await ask("t1"))).toEqual(["second", JSON.stringify({ path: "two.txt" })]);
+    // Without an entry (a live row that Pi has not written yet) the newest call answers.
+    expect(pick(await ask())).toEqual(["second", JSON.stringify({ path: "two.txt" })]);
+  });
+
+  it("is not_found for an entry that is not the result of that call on the active branch", async () => {
+    open();
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    writeRepeatedToolSession(bed.files[0] ?? "", "call_0");
+    bed.emit(0, { type: "agent_settled", aborted: false });
+    const ask = (toolCallId: string, resultEntryId: string) =>
+      codeOf(bed.service.toolOutput({ sessionId, toolCallId, resultEntryId }, OWNER));
+    expect(await ask("call_0", "nope")).toBe("not_found");
+    expect(await ask("call_0", "a0")).toBe("not_found");
+    expect(await ask("other", "t0")).toBe("not_found");
+    // An entry on an abandoned branch is not found either.
+    const entry = { type: "message", id: "u9", parentId: "u0", timestamp: "2026-10-10T00:00:09.000Z" };
+    appendFileSync(
+      bed.files[0] ?? "",
+      `${JSON.stringify({ ...entry, message: { role: "user", content: "again", timestamp: 9 } })}\n`,
+    );
+    expect(await ask("call_0", "t1")).toBe("not_found");
   });
 
   it("is not_found for a session that has no file yet", async () => {

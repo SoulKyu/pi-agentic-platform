@@ -24,6 +24,8 @@ const item = (patch: Partial<ToolItem> = {}): ToolItem => ({
   preview: "first 8000 chars",
   truncatedChars: 30000,
   argsTruncated: false,
+  resultEntryId: null,
+  omittedBytes: null,
   ...patch,
 });
 async function show(tool: ToolItem) {
@@ -69,6 +71,46 @@ describe("ToolRow", () => {
     ]);
     expect(container.querySelector("pre")?.textContent).toBe("the whole output");
     expect(hasButton(container, "Show the whole output (29 KB)")).toBe(false);
+  });
+
+  it("asks for the output of its own turn by the entry of its result, when it has one", async () => {
+    bed.handlers["sessions.toolOutput"] = () => ({
+      text: "first",
+      truncated: false,
+      isError: false,
+      args: null,
+    });
+    const container = await show(item({ resultEntryId: "t0" }));
+    await click(button(container, "Show the whole output (29 KB)"));
+    await settle();
+    expect(bed.called("sessions.toolOutput")[0]?.params).toEqual({
+      sessionId: "sess-1",
+      toolCallId: "c1",
+      resultEntryId: "t0",
+    });
+  });
+
+  it("says the output was too large to show here and still offers the whole output", async () => {
+    bed.handlers["sessions.toolOutput"] = () => ({
+      text: "all of it",
+      truncated: false,
+      isError: false,
+      args: null,
+    });
+    const container = await show(item({ preview: "", truncatedChars: null, omittedBytes: 300_000 }));
+    expect(text(container)).toContain("Output too large to show here.");
+    await click(button(container, "Show the whole output (293 KB)"));
+    await settle();
+    expect(container.querySelector("pre")?.textContent).toBe("all of it");
+  });
+
+  it("shows an error, and does not reject unhandled, when the answer cannot be read", async () => {
+    bed.handlers["sessions.toolOutput"] = () => null;
+    const container = await show(item());
+    await click(button(container, "Show the whole output (29 KB)"));
+    await settle();
+    expect(alerts(container)).toEqual(["Something went wrong."]);
+    expect(hasButton(container, "Try again")).toBe(true);
   });
 
   it("offers nothing when the preview is the whole output", async () => {

@@ -90,7 +90,7 @@ export interface SessionReads {
   ): Promise<HistoryMeta & { rows: TranscriptRow[] }>;
   /** A tool call's whole result (bounded) and arguments, found on the session's active branch. */
   toolOutput(
-    input: { sessionId: string; toolCallId: string },
+    input: { sessionId: string; toolCallId: string; resultEntryId?: string | undefined },
     caller: Caller,
   ): Promise<{ text: string; truncated: boolean; isError: boolean; args: string | null }>;
   branches(
@@ -136,13 +136,13 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       );
       return { rows, hasMore, oldestEntryId, turnsBefore };
     },
-    async toolOutput({ sessionId, toolCallId }, caller) {
+    async toolOutput({ sessionId, toolCallId, resultEntryId }, caller) {
       const row = deps.owned(sessionId, caller);
       const reader = await ensureReader();
       const session = deps.live.get(sessionId);
       const file = fileOf(row, session);
       const found = file
-        ? reader.toolCall(file, toolCallId, session?.leafId() ?? null)
+        ? reader.toolCall(file, toolCallId, session?.leafId() ?? null, resultEntryId)
         : { result: null, args: null };
       if (found.result === null) throw new PapError("not_found");
       const { text, truncated } = clipJsonText(textOfResult(found.result), OUTPUT_JSON_BYTES);

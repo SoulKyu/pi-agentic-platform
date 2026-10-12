@@ -145,6 +145,36 @@ describe("branch rows", () => {
     });
     expect(findToolCall(indexEntries(list), "nope")).toEqual({ args: null, result: null });
   });
+
+  it("takes the call of a given result entry, with the nearest call before it, when an id is reused", () => {
+    const call = (id: string, parentId: string, path: string) =>
+      ({
+        type: "message",
+        id,
+        parentId,
+        timestamp: "t",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "c", name: "read", arguments: { path } }],
+        },
+      }) as EntryLike;
+    const list = [
+      msg("u0", null, "user", "go"),
+      call("a0", "u0", "one"),
+      msg("t0", "a0", "toolResult", "first", { toolCallId: "c" }),
+      call("a1", "t0", "two"),
+      msg("t1", "a1", "toolResult", "second", { toolCallId: "c" }),
+    ];
+    const indexed = indexEntries(list);
+    expect(findToolCall(indexed, "c", "t1", "t0")).toEqual({
+      args: { path: "one" },
+      result: expect.objectContaining({ content: "first" }),
+    });
+    expect(findToolCall(indexed, "c", "t1", "t1")).toMatchObject({ args: { path: "two" } });
+    expect(findToolCall(indexed, "c", "t0", "t1")).toEqual({ args: null, result: null });
+    expect(findToolCall(indexed, "x", "t1", "t0")).toEqual({ args: null, result: null });
+    expect(findToolCall(indexed, "c", "t1", "a0")).toEqual({ args: null, result: null });
+  });
 });
 
 describe("bounded walks (M2-RT-03)", () => {

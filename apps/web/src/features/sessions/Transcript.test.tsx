@@ -2,7 +2,7 @@
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { EMPTY_VIEW, reduceSession } from "../../stores/session-reducer.ts";
+import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { alerts, button, click, hasButton, mount, settle, text, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
@@ -182,6 +182,28 @@ describe("Transcript older history", () => {
     expect(hasButton(container, "Load older messages")).toBe(true);
   });
 
+  it("disconnects the sentinel observer when the transcript goes away", async () => {
+    await show({ rows: [row("e5", "newest")], history: cursor("e5") });
+    expect(observers.filter((observer) => !observer.disconnected)).toHaveLength(1);
+    await page?.unmount();
+    page = null;
+    expect(observers.every((observer) => observer.disconnected)).toBe(true);
+  });
+
+  it("shows an error, and does not reject unhandled, when the page cannot be applied", async () => {
+    bed.handlers["sessions.history"] = () => ({
+      rows: null,
+      hasMore: false,
+      oldestEntryId: null,
+      turnsBefore: 0,
+    });
+    const container = await show({ rows: [row("e5", "newest")], history: cursor("e5") });
+    await click(button(container, "Load older messages"));
+    await settle();
+    expect(alerts(container)).toContain("Something went wrong.");
+    expect(hasButton(container, "Load older messages")).toBe(true);
+  });
+
   it("offers no button when there is nothing above, or no cursor to ask from", async () => {
     const container = await show({ rows: [row("e5", "newest")] });
     expect(hasButton(container, "Load older messages")).toBe(false);
@@ -228,7 +250,8 @@ describe("Transcript rows", () => {
       ],
     });
     expect(container.querySelector("img")).toBeNull();
-    expect(text(container).split(bad).length - 1).toBeGreaterThanOrEqual(4);
+    // Summary, thinking, text, tool name, command summary and output: each shown once, as text.
+    expect(text(container).split(bad).length - 1).toBe(6);
   });
 
   it("shows thinking and a compaction summary collapsed in native details", async () => {
@@ -268,10 +291,6 @@ describe("Transcript rows", () => {
     expect(text(container)).not.toContain("Compacting…");
     await emit({ kind: "activity", activity: { compacting: false, retry: null } });
     expect(text(container)).not.toContain("Retrying");
-  });
-
-  it("keeps the view model and the screen in step with a snapshot the reducer made", () => {
-    expect(reduceSession(EMPTY_VIEW, snapshotOf({})).loaded).toBe(true);
   });
 });
 
@@ -333,6 +352,24 @@ describe("Transcript scroll position", () => {
     await click(button(container, "Load older messages"));
     await emit(snapshotOf({ rows: [row("e9", "other branch")], history: cursor("e9") }));
     answer(threeOlder());
+    await settle();
+    await emit({
+      kind: "pi",
+      event: { type: "message_end", message: { role: "user", content: "later", timestamp: 99 } },
+    });
+    expect(list.scrollTop).toBe(40);
+  });
+
+  it("lets go of the anchor when an accepted page adds no row and moves no cursor", async () => {
+    bed.handlers["sessions.history"] = () => ({
+      rows: [row("e5", "newest")],
+      hasMore: true,
+      oldestEntryId: "e5",
+      turnsBefore: 2,
+    });
+    const container = await show({ rows: [row("e5", "newest")], history: cursor("e5") });
+    const list = await scrolledTo(container, 40);
+    await click(button(container, "Load older messages"));
     await settle();
     await emit({
       kind: "pi",

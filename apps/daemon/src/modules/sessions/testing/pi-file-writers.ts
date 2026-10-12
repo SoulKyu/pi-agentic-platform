@@ -110,6 +110,42 @@ export function writeToolSession(file: string, toolCallId: string, output: strin
   );
 }
 
+const resultEntry = (id: string, parentId: string, toolCallId: string, output: string) => ({
+  type: "message",
+  id,
+  parentId,
+  timestamp: "2026-10-10T00:00:03.000Z",
+  message: {
+    role: "toolResult",
+    toolCallId,
+    toolName: "read",
+    content: textOf(output),
+    isError: false,
+    timestamp: 3,
+  },
+});
+
+/**
+ * Two turns that both use the call id `toolCallId` (providers reuse ids such as `call_0`): u0, a0 (call of one.txt),
+ * t0 (result "first"), a1 (call of two.txt), t1 (result "second"), a2 (the closing reply).
+ */
+export function writeRepeatedToolSession(file: string, toolCallId: string): void {
+  const call = (path: string) => [{ type: "toolCall", id: toolCallId, name: "read", arguments: { path } }];
+  writeFileSync(
+    file,
+    jsonl([
+      header(basename(file, ".jsonl")),
+      systemEntry,
+      userEntry("u0", "s0", "read both"),
+      assistantEntry("a0", "u0", call("one.txt"), "toolUse"),
+      resultEntry("t0", "a0", toolCallId, "first"),
+      assistantEntry("a1", "t0", call("two.txt"), "toolUse"),
+      resultEntry("t1", "a1", toolCallId, "second"),
+      assistantEntry("a2", "t1", textOf("done")),
+    ]),
+  );
+}
+
 /**
  * A file whose entry a0 has two user children: u1 (the older one, abandoned) and u2 (on the path to the last entry,
  * a2).

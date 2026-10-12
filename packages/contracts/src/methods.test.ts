@@ -169,6 +169,13 @@ describe("method catalogue", () => {
     expect(tool.safeParse({ sessionId: "s", toolCallId: "c".repeat(256) }).success).toBe(true);
     expect(tool.safeParse({ sessionId: "s", toolCallId: "c".repeat(257) }).success).toBe(false);
     expect(tool.safeParse({ sessionId: "s", toolCallId: "" }).success).toBe(false);
+    expect(tool.safeParse({ sessionId: "s", toolCallId: "c", resultEntryId: "e".repeat(128) }).success).toBe(
+      true,
+    );
+    expect(tool.safeParse({ sessionId: "s", toolCallId: "c", resultEntryId: "e".repeat(129) }).success).toBe(
+      false,
+    );
+    expect(tool.safeParse({ sessionId: "s", toolCallId: "c", resultEntryId: "" }).success).toBe(false);
   });
 
   it("declares the policy methods: a read for the caller's rules, an admin mutation to revoke one", () => {

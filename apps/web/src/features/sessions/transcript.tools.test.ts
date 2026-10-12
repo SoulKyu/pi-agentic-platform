@@ -48,8 +48,14 @@ describe("transcriptItems: tool calls", () => {
       status: "done",
       truncatedChars: 30000,
       toolCallId: "c1",
+      resultEntryId: "t1",
     });
-    expect(items[2]).toMatchObject({ status: "running", preview: "building…", summary: "make" });
+    expect(items[2]).toMatchObject({
+      status: "running",
+      preview: "building…",
+      summary: "make",
+      resultEntryId: null,
+    });
   });
 
   it("keeps two calls that reuse one id apart, each with its own result and status (M2-RT-11)", () => {
@@ -148,6 +154,24 @@ describe("transcriptItems: tool calls", () => {
     expect(
       tools(transcriptItems(viewWith([["a", assistant([call("d", "x", { n: 1 })], 1)]])))[0]?.argsTruncated,
     ).toBe(false);
+  });
+
+  it("clips the name and the id of a call", () => {
+    const view = viewWith([["a1", assistant([call("i".repeat(400), "n".repeat(200), {})], 1)]]);
+    const [item] = tools(transcriptItems(view));
+    expect(item?.name).toBe(`${"n".repeat(64)}…`);
+    expect(item?.toolCallId).toBe(`${"i".repeat(256)}…`);
+  });
+
+  it("closes the call of a result that was too big to send, with its size", () => {
+    const view = viewWith([
+      ["a1", assistant([call("c", "bash", { command: "cat big" })], 1)],
+      ["t1", { role: "toolResult", toolCallId: "c", timestamp: 2, omitted: true, bytes: 300_000 }],
+    ]);
+    expect(transcriptItems(view)).toMatchObject([
+      { kind: "tool", status: "done", preview: "", omittedBytes: 300_000, resultEntryId: "t1" },
+    ]);
+    expect(transcriptItems(view)).toHaveLength(1);
   });
 
   it("keeps every key unique even when a tool key would equal a message key", () => {

@@ -36,6 +36,7 @@ export interface TranscriptReader {
     filePath: string,
     toolCallId: string,
     leafId?: string | null,
+    resultEntryId?: string,
   ): { result: unknown | null; args: unknown | null };
   lastEntryId(filePath: string): string | null;
 }
@@ -81,7 +82,8 @@ function createTranscriptReader(sdk: Sdk, logger: Logger, clock: Clock): Transcr
       };
     },
     forks: (filePath, leafId) => forkPoints(cache.read(filePath), convert, leafId),
-    toolCall: (filePath, toolCallId, leafId) => findToolCall(cache.read(filePath), toolCallId, leafId),
+    toolCall: (filePath, toolCallId, leafId, resultEntryId) =>
+      findToolCall(cache.read(filePath), toolCallId, leafId, resultEntryId),
     lastEntryId: (filePath) => cache.read(filePath).list.at(-1)?.id ?? null,
   };
 }

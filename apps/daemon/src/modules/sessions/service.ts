@@ -89,7 +89,7 @@ export interface SessionsService extends SessionCommands {
     caller: Caller,
   ): Promise<HistoryMeta & { rows: TranscriptRow[] }>;
   toolOutput(
-    input: { sessionId: string; toolCallId: string },
+    input: { sessionId: string; toolCallId: string; resultEntryId?: string | undefined },
     caller: Caller,
   ): Promise<{ text: string; truncated: boolean; isError: boolean; args: string | null }>;
   branches(
