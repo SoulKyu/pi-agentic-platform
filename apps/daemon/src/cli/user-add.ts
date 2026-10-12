@@ -1,6 +1,6 @@
 import { silentLogger } from "../kernel/logger.ts";
 import { createAuditModule } from "../modules/audit/index.ts";
-import { createOwnerFromCli, hasOwner } from "../modules/auth/index.ts";
+import { createOwnerFromCli, hasOwner, isValidUsername } from "../modules/auth/index.ts";
 import { CliError, openHomeForCli } from "./open-home.ts";
 import { readSecret } from "./read-secret.ts";
 import type { Command } from "./run-cli.ts";
@@ -15,6 +15,8 @@ export const userAdd: Command = {
   async run({ values, positionals, io }) {
     const [username, ...extra] = positionals;
     if (username === undefined || extra.length > 0) throw new UsageError("user add takes one username");
+    if (!isValidUsername(username))
+      throw new CliError("the username may use letters, digits, . _ - and 64 characters at most");
     const fromLine = values["password-stdin"] === true || io.stdin.isTTY !== true;
     const opened = await openHomeForCli(io, { create: true });
     try {

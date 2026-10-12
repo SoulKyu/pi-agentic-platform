@@ -17,6 +17,8 @@ export class AuthCliError extends Error {
 
 const BAD_PASSWORD = "the password needs 12 to 1024 characters";
 
+export const isValidUsername = (username: string): boolean => USERNAME_PATTERN.test(username);
+
 /** Whether an owner exists (the oldest user is the instance owner). */
 export const hasOwner = (db: Db): boolean => createAuthStore(db).countUsers() > 0;
 
@@ -60,20 +62,22 @@ export async function resetCredentials(
     throw new AuthCliError(BAD_PASSWORD);
   const passwordHash =
     options.newPassword === undefined ? undefined : await hashPassword(options.newPassword);
-  const counts = db.transaction(() => {
+  // The audit line is written in the same transaction (the audit module shares the database): a failure rolls the whole
+  // reset back, so a committed reset always has its line. The key file goes last, just before the commit.
+  return db.transaction(() => {
     const passkeys = store.deleteAllPasskeys();
     const sessions = store.deleteAllSessions();
     const tokens = options.revokeTokens ? tokenStore.deleteAll() : 0;
     if (passwordHash !== undefined) store.setPasswordHash(ownerId, passwordHash);
+    const counts = { passkeys, sessions, tokens };
+    audit.append({
+      ownerId,
+      actor: "cli",
+      kind: "auth",
+      reason: "credentials_reset",
+      detail: { ...counts, passwordChanged: passwordHash !== undefined },
+    });
     rmSync(join(home, "secrets", "device.key"), { force: true });
-    return { passkeys, sessions, tokens };
+    return counts;
   });
-  audit.append({
-    ownerId,
-    actor: "cli",
-    kind: "auth",
-    reason: "credentials_reset",
-    detail: { ...counts, passwordChanged: passwordHash !== undefined },
-  });
-  return counts;
 }
