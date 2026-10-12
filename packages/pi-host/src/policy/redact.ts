@@ -12,12 +12,15 @@ export interface Redactor {
   textFolded(text: string): { text: string; count: number; steps: number };
   /**
    * Replaces every secret in the strings and the keys of a value, drops function values (a `toJSON` would bring a
-   * secret back) and gives keys that collide after redaction a `~n` suffix. `text` runs on each string and key
-   * after the exact pass.
+   * secret back) and gives keys that collide after redaction a `~n` suffix. `text` runs on each string value after the
+   * exact pass, with the name of the field that holds it (an array item has its array's) and the string as it was.
    */
   deep(
     value: unknown,
-    options?: { readonly tooDeep?: "throw" | "replace"; readonly text?: (text: string) => string },
+    options?: {
+      readonly tooDeep?: "throw" | "replace";
+      readonly text?: (text: string, field: string | undefined, original: string) => string;
+    },
   ): { value: unknown; count: number };
   values(): ReadonlyMap<string, string>;
   /** The secrets a marker may be restored for: the environment's, not a provider credential. */
@@ -110,12 +113,13 @@ export function createRedactor(set: SecretSet): Redactor {
   const deep = (
     value: unknown,
     tooDeep: "throw" | "replace",
-    after: (text: string) => string,
+    after: (text: string, field: string | undefined, original: string) => string,
+    field: string | undefined,
     depth: number,
   ): { value: unknown; count: number } => {
     if (typeof value === "string") {
       const done = text(value);
-      return { value: after(done.text), count: done.count };
+      return { value: after(done.text, field, value), count: done.count };
     }
     if (typeof value === "function") return { value: null, count: 0 };
     if (value === null || typeof value !== "object") return { value, count: 0 };
@@ -124,13 +128,13 @@ export function createRedactor(set: SecretSet): Redactor {
       return { value: TOO_DEEP_TEXT, count: 0 };
     }
     let count = 0;
-    const walk = (item: unknown) => {
-      const done = deep(item, tooDeep, after, depth + 1);
+    const walk = (item: unknown, key = field) => {
+      const done = deep(item, tooDeep, after, key, depth + 1);
       count += done.count;
       return done.value;
     };
     if (Array.isArray(value)) {
-      const items = value.map(walk);
+      const items = value.map((item) => walk(item));
       return { value: items, count };
     }
     const copy: Record<string, unknown> = {};
@@ -139,11 +143,11 @@ export function createRedactor(set: SecretSet): Redactor {
       if (typeof item === "function") continue;
       const named = text(key);
       count += named.count;
-      const base = after(named.text);
+      const base = named.text;
       let name = base;
       for (let n = 2; Object.hasOwn(copy, name); n++) name = `${base}~${n}`;
       Object.defineProperty(copy, name, {
-        value: walk(item),
+        value: walk(item, key),
         enumerable: true,
         writable: true,
         configurable: true,
@@ -154,7 +158,8 @@ export function createRedactor(set: SecretSet): Redactor {
   return {
     text,
     textFolded,
-    deep: (value, options) => deep(value, options?.tooDeep ?? "throw", options?.text ?? ((text) => text), 0),
+    deep: (value, options) =>
+      deep(value, options?.tooDeep ?? "throw", options?.text ?? ((text) => text), undefined, 0),
     values: () => byName,
     restorable: () => restorable,
     entries: set.entries,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EDGE_WITHHELD_TEXT, maskCuts, maskEdges } from "./edges.ts";
+import { maskCuts, maskEdges } from "./edges.ts";
 import { createRedactor } from "./redact.ts";
 import { redactRecord } from "../redacting-ipc.ts";
 
@@ -32,7 +32,7 @@ describe("maskEdges (M5R120)", () => {
     });
   });
 
-  it("throws RangeError once the budget is spent, and the record's text part is withheld", () => {
+  it("throws RangeError once the budget is spent, and the whole record fails with it, never reshaped", () => {
     expect(() => maskEdges("ret_0123456789\nnext line", [GITHUB], { left: 10 })).toThrow(RangeError);
     const text = "x".repeat(10);
     const record = {
@@ -42,8 +42,7 @@ describe("maskEdges (M5R120)", () => {
     };
     const hostile = createRedactor({ entries: [{ name: "X", value: `${"a".repeat(4095)}b` }] });
     const big = { ...record, partialResult: { content: [{ type: "text", text: `${"a".repeat(65_535)}c` }] } };
-    const done = redactRecord(big, hostile) as typeof big;
-    expect(done.partialResult.content[0]?.text).toBe(EDGE_WITHHELD_TEXT);
+    expect(() => redactRecord(big, hostile)).toThrow(RangeError);
   });
 
   it("hostile secret of identical letters against a text of the same letter ends at once, never a hang", () => {
@@ -65,10 +64,8 @@ describe("maskEdges (M5R120)", () => {
       toolCallId: "c",
       partialResult: { content: [part, part, part, part, part, part, part, part, part, part] },
     };
-    const done = redactRecord(record, hostile) as typeof record;
-    // 2 000 characters cost about 2 000 comparisons for each of the 4 091 candidate lengths up to the spent budget:
-    // the first parts are checked and withheld one by one, none keeps its text.
-    expect(done.partialResult.content.map((p) => p.text)).toEqual(Array(10).fill(EDGE_WITHHELD_TEXT));
+    // Each part costs about 2 million comparisons on its own: the budget is spent by the first one.
+    expect(() => redactRecord(record, hostile)).toThrow(RangeError);
   });
 
   it("masks the JSON-escaped forms too: a secret with a quote and a backslash (a documented 7-15 of 21 leak before)", () => {
@@ -115,11 +112,11 @@ describe("maskEdges (M5R120)", () => {
 
 describe("maskCuts: output Pi cut before it was redacted", () => {
   it("masks the head only when Pi says the output was cut", () => {
-    expect(maskCuts("ret_0123456789 and more", [GITHUB], fresh(), true)).toEqual({
+    expect(maskCuts("ret_0123456789 and more", [GITHUB], fresh(), { head: true })).toEqual({
       text: "[SECRET:GITHUB_TOKEN] and more",
       count: 1,
     });
-    expect(maskCuts("ret_0123456789 and more", [GITHUB], fresh(), false)).toEqual({
+    expect(maskCuts("ret_0123456789 and more", [GITHUB], fresh(), { head: false })).toEqual({
       text: "ret_0123456789 and more",
       count: 0,
     });
@@ -131,11 +128,16 @@ describe("maskCuts: output Pi cut before it was redacted", () => {
         "a.ts:3: x ghp_testse... [truncated]\nb.ts:1: ghp_ok\nc: ghp_tes... [truncated]",
         [GITHUB],
         fresh(),
-        false,
+        { notice: true },
       ),
     ).toEqual({
       text: "a.ts:3: x [SECRET:GITHUB_TOKEN]... [truncated]\nb.ts:1: ghp_ok\nc: [SECRET:GITHUB_TOKEN]... [truncated]",
       count: 2,
     });
+  });
+
+  it("leaves a truncation notice alone unless asked, and a head alone unless asked", () => {
+    const text = "c: ghp_tes... [truncated]";
+    expect(maskCuts(text, [GITHUB], fresh(), {})).toEqual({ text, count: 0 });
   });
 });

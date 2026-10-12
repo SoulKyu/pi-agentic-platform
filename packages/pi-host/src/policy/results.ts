@@ -2,7 +2,7 @@ import type { JsonValue } from "@earendil-works/pi-ai";
 import type { ToolResultEvent, ToolResultEventResult } from "@earendil-works/pi-coding-agent";
 import type { PolicyAuditEntry, StageVerdict } from "@pap/contracts";
 import { errorClass } from "../bounded.ts";
-import { EDGE_BUDGET, maskCuts } from "./edges.ts";
+import { EDGE_BUDGET, isHeadCut, maskCuts, maskTruncationCopy } from "./edges.ts";
 import type { Redactor } from "./redact.ts";
 import type { SecretSource } from "./secrets.ts";
 import type { ToolKind } from "./tool-kind.ts";
@@ -53,12 +53,6 @@ function withheld(event: ToolResultEvent, deps: ResultDeps, error: unknown): Too
   return { content: [{ type: "text", text: WITHHELD_TEXT }], isError: true, details: {} };
 }
 
-/** Pi's `details.truncation.truncated` of bash and read: the start of the output may have been dropped. */
-function hasTruncatedHead(details: unknown): boolean {
-  const truncation = (details as { truncation?: { truncated?: unknown } } | null | undefined)?.truncation;
-  return truncation?.truncated === true;
-}
-
 /** Stage 06 on a result: every text part, `structuredContent` and `details` (M5R36). A throw withholds the result (M5R37). */
 export function onToolResult(event: ToolResultEvent, deps: ResultDeps): ToolResultEventResult | undefined {
   try {
@@ -67,18 +61,26 @@ export function onToolResult(event: ToolResultEvent, deps: ResultDeps): ToolResu
     let count = 0;
     // Pi cut the output before this hook ran: what it says it cut may start or end inside a secret.
     const budget = { left: EDGE_BUDGET };
-    let headCut = hasTruncatedHead(event.details);
+    const headCut = isHeadCut(event.details);
+    let head = headCut;
+    const notice = deps.classify(event.toolName).builtin && event.toolName === "grep";
     const content = event.content.map((part) => {
       if (part.type !== "text") return part;
       const done = redactor.text(part.text);
-      const cut = maskCuts(done.text, redactor.entries, budget, headCut);
-      headCut = false;
+      const cut = maskCuts(done.text, redactor.entries, budget, { head, notice });
+      head = false;
       count += done.count + cut.count;
       return done.count + cut.count === 0 ? part : { ...part, text: cut.text };
     });
     const structured =
       event.structuredContent === undefined ? undefined : redactor.deep(event.structuredContent);
-    const details = event.details === undefined ? undefined : redactor.deep(event.details);
+    const redacted = event.details === undefined ? undefined : redactor.deep(event.details);
+    const copy =
+      redacted && headCut ? maskTruncationCopy(redacted.value, redactor.entries, budget) : undefined;
+    const details = redacted && {
+      value: copy?.value ?? redacted.value,
+      count: redacted.count + (copy?.count ?? 0),
+    };
     count += (structured?.count ?? 0) + (details?.count ?? 0);
     if (count === 0) return undefined;
     deps.audit(

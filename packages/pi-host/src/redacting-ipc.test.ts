@@ -140,14 +140,112 @@ describe("the redacting ipc (M5R36)", () => {
     ]);
   });
 
-  it("masks the end result of a tool the same way", () => {
+  it("head-masks a final result and the copy in details.truncation.content only when Pi cut its last line", () => {
     const sent = fakeIpc();
-    createRedactingIpc(sent.ipc, () => redactor).send({
+    const out = createRedactingIpc(sent.ipc, () => redactor);
+    const result = (partial: boolean) => ({
       type: "tool_execution_end",
       toolCallId: "c",
-      result: { content: [{ type: "text", text: "more ghp_tests" }] },
+      toolName: "bash",
+      result: {
+        content: [{ type: "text", text: "secret_01 more" }],
+        details: { truncation: { truncated: true, lastLinePartial: partial, content: "secret_01 more" } },
+      },
     });
-    expect(JSON.stringify(sent.records)).toContain("more [SECRET:GH]");
+    out.send(result(true));
+    out.send(result(false));
+    expect(sent.records).toEqual([
+      {
+        ...result(true),
+        result: {
+          content: [{ type: "text", text: "[SECRET:GH] more" }],
+          details: { truncation: { truncated: true, lastLinePartial: true, content: "[SECRET:GH] more" } },
+        },
+      },
+      result(false),
+    ]);
+  });
+
+  it("head-masks a live update and its truncation copy whatever Pi says", () => {
+    const sent = fakeIpc();
+    createRedactingIpc(sent.ipc, () => redactor).send({
+      type: "tool_execution_update",
+      toolCallId: "c",
+      toolName: "bash",
+      partialResult: {
+        content: [{ type: "text", text: "secret_01 more" }],
+        details: { truncation: { truncated: true, content: "secret_01 more" } },
+      },
+    });
+    expect(JSON.stringify(sent.records)).toContain('"content":"[SECRET:GH] more"');
+    expect(JSON.stringify(sent.records)).not.toContain("secret_01");
+  });
+
+  it("leaves identifiers alone at any depth: an id that ends in a secret's first characters stays an id", () => {
+    const hex = createRedactor({ entries: [{ name: "HEX", value: "84f2b1c9deadbeef0123" }] });
+    const sent = fakeIpc();
+    const out = createRedactingIpc(sent.ipc, () => hex);
+    const approval = {
+      type: "approval_request",
+      id: "a184f2b1",
+      key: `${"0".repeat(58)}84f2b1`,
+      category: "exec",
+      title: "t",
+      message: "m",
+      tool: "bash",
+      answers: ["deny", "once"],
+      tainted: false,
+    };
+    const entry = {
+      type: "entry",
+      // 2 000 and 256 characters long: the lengths this worker clips at, so only the field name protects them.
+      entry: {
+        id: "c384f2b1",
+        parentId: `${"p".repeat(1994)}84f2b1`,
+        sessionFile: `${"/".repeat(250)}84f2b1`,
+      },
+      leaf: { leafId: "e984f2b1" },
+      toolCallId: "t84f2b1",
+      // Free text that ends like a secret's start is not a clipped string either.
+      message: "see 84f2b1",
+    };
+    out.send(approval);
+    out.send(entry);
+    expect(sent.records).toEqual([approval, entry]);
+  });
+
+  it("fails a record whose edges cannot be checked like any unchecked record: dropped, reported, never reshaped", () => {
+    const sent = fakeIpc();
+    const hostile = createRedactor({ entries: [{ name: "X", value: `${"a".repeat(4095)}b` }] });
+    const out = createRedactingIpc(sent.ipc, () => hostile);
+    const update = {
+      type: "tool_execution_update",
+      toolCallId: "c",
+      toolName: "bash",
+      partialResult: { content: [{ type: "text", text: `${"a".repeat(65_535)}c` }] },
+    };
+    expect(out.send(update)).toBe(false);
+    expect(sent.records).toEqual([]);
+    expect(stderr).toEqual([
+      "pi-host: a tool_execution_update record could not be checked for secrets (RangeError): dropped\n",
+    ]);
+    const response = {
+      type: "response",
+      id: "r1",
+      command: "get_state",
+      success: false,
+      error: `${"a".repeat(1999)}c`,
+    };
+    out.send(response);
+    expect(sent.records).toEqual([
+      {
+        type: "response",
+        id: "r1",
+        command: "get_state",
+        success: false,
+        error: "record could not be checked",
+      },
+    ]);
   });
 
   it("is hostile-input safe: a Map, a class, a cycle, a secret as a key and a toJSON are replaced, never thrown out of send", () => {
@@ -197,20 +295,34 @@ describe("the redacting ipc (M5R36)", () => {
     }
   });
 
-  it("masks the cut end of a final result's line that Pi marked as truncated", () => {
+  it("masks the cut end of a grep result's line that Pi marked as truncated, and no other tool's", () => {
     const sent = fakeIpc();
     createRedactingIpc(sent.ipc, () => redactor).send({
       type: "tool_execution_end",
       toolCallId: "c",
+      toolName: "grep",
       result: { content: [{ type: "text", text: "a.ts:3: ghp_testsec... [truncated]\nb.ts:1: fine" }] },
     });
     expect(sent.records).toEqual([
       {
         type: "tool_execution_end",
         toolCallId: "c",
+        toolName: "grep",
         result: { content: [{ type: "text", text: "a.ts:3: [SECRET:GH]... [truncated]\nb.ts:1: fine" }] },
       },
     ]);
+  });
+
+  it("does not read a notice line end as a cut for any other tool", () => {
+    const sent = fakeIpc();
+    const record = {
+      type: "tool_execution_end",
+      toolCallId: "c",
+      toolName: "bash",
+      result: { content: [{ type: "text", text: "a.ts:3: ghp_testsec... [truncated]" }] },
+    };
+    createRedactingIpc(sent.ipc, () => redactor).send(record);
+    expect(sent.records).toEqual([record]);
   });
 
   it("reports the first, second and fourth unchecked record only, and answers every response", () => {

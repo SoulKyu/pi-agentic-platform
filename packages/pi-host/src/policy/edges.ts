@@ -7,7 +7,6 @@ const REPLACEMENT = 0xfffd;
 const MAX_REPLACEMENTS = 8;
 /** Character comparisons one record, or one tool result, may spend on edges (M5R120). */
 export const EDGE_BUDGET = 1_000_000;
-export const EDGE_WITHHELD_TEXT = "[output hidden: pap-policy could not check its edges]";
 /** What Pi's grep appends to a line it clipped at 500 characters. */
 const TRUNCATED_NOTICE = "... [truncated]";
 
@@ -136,23 +135,51 @@ export function maskEdges(
 }
 
 /**
- * Pi cuts a tool's output before the redaction sees it. `headCut`: Pi says it dropped the start of the output, so the
- * first line may begin inside a secret. A line that ends in Pi's `... [truncated]` notice lost its end the same way.
+ * Pi's `details.truncation.lastLinePartial`: bash kept the end of an output cut inside a line, so the first line may begin
+ * inside a secret. Every other truncation (a read, a head cut by lines) keeps the start and drops the end.
+ */
+export function isHeadCut(details: unknown): boolean {
+  const truncation = (details as { truncation?: { lastLinePartial?: unknown } } | null | undefined)
+    ?.truncation;
+  return truncation?.lastLinePartial === true;
+}
+
+/** Pi keeps a copy of a cut output in `details.truncation.content`: its head is masked like the output's. */
+export function maskTruncationCopy(
+  details: unknown,
+  entries: Entries,
+  budget: { left: number },
+): { value: unknown; count: number } {
+  const truncation = (details as { truncation?: { content?: unknown } } | null | undefined)?.truncation;
+  if (typeof truncation !== "object" || truncation === null || typeof truncation.content !== "string")
+    return { value: details, count: 0 };
+  const done = maskEdges(truncation.content, entries, budget, { head: true });
+  if (done.count === 0) return { value: details, count: 0 };
+  return {
+    value: { ...(details as object), truncation: { ...truncation, content: done.text } },
+    count: done.count,
+  };
+}
+
+/**
+ * Pi cuts a tool's output before the redaction sees it. `head`: the start was dropped, so the first line may begin
+ * inside a secret. `tail`: a rolling window may end inside one. `notice`: a line that ends in Pi's grep notice
+ * `... [truncated]` lost its end the same way.
  */
 export function maskCuts(
   text: string,
   entries: Entries,
   budget: { left: number },
-  headCut: boolean,
+  cuts: { readonly head?: boolean; readonly tail?: boolean; readonly notice?: boolean },
 ): { text: string; count: number } {
   let out = text;
   let count = 0;
-  if (headCut) {
-    const done = maskEdges(out, entries, budget, { head: true });
+  if (cuts.head || cuts.tail) {
+    const done = maskEdges(out, entries, budget, { head: cuts.head === true, tail: cuts.tail === true });
     out = done.text;
     count += done.count;
   }
-  if (!out.includes(TRUNCATED_NOTICE)) return { text: out, count };
+  if (!cuts.notice || !out.includes(TRUNCATED_NOTICE)) return { text: out, count };
   const lines = out.split("\n").map((line) => {
     if (!line.endsWith(TRUNCATED_NOTICE)) return line;
     const done = maskEdges(line.slice(0, -TRUNCATED_NOTICE.length), entries, budget, { tail: true });

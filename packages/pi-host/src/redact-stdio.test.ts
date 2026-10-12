@@ -49,4 +49,29 @@ describe("redactStdio", () => {
     expect(written).toEqual(["pi-host: output could not be checked for secrets: dropped\n"]);
     expect(callbacks).toEqual(["called"]);
   });
+
+  it("decodes a string written with another encoding, and writes the redacted text back as utf8 (base64) or in its own encoding (latin1)", () => {
+    const { stream, written } = fakeStream();
+    const calls: unknown[] = [];
+    const base = stream.write.bind(stream);
+    stream.write = (chunk, encoding, callback) => (calls.push(encoding), base(chunk, encoding, callback));
+    redactStdio(stream, () => redactor);
+    stream.write(Buffer.from("token ghp_testsecret_01").toString("base64"), "base64");
+    stream.write(Buffer.from("plain").toString("base64"), "base64");
+    stream.write(Buffer.from("caf\u00e9 ghp_testsecret_01", "latin1").toString("latin1"), "latin1");
+    expect(written.map(String)).toEqual([
+      "token [SECRET:GH]",
+      Buffer.from("plain").toString("base64"),
+      "caf\u00e9 [SECRET:GH]",
+    ]);
+    expect(calls).toEqual(["utf8", "base64", "latin1"]);
+  });
+
+  it("hands a chunk that is neither a string nor bytes straight to the stream, so Node throws its own error", () => {
+    const { stream, written } = fakeStream();
+    redactStdio(stream, () => redactor);
+    const odd = { not: "a chunk" } as unknown as string;
+    stream.write(odd);
+    expect(written[0]).toBe(odd);
+  });
 });

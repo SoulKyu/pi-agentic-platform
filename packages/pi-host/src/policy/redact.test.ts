@@ -40,12 +40,18 @@ describe("redactor", () => {
     expect(createRedactor(set).deep(() => "ghp_abcdefgh").value).toBeNull();
   });
 
-  it("runs a text hook on every string and key after the exact pass", () => {
+  it("runs a text hook on every string, not on keys, with the name of the field that holds it", () => {
+    const seen: Array<[string, string | undefined]> = [];
     const { value } = createRedactor(set).deep(
-      { a: "ghp_abcdefgh x", "k ghp_abcdefgh": "y" },
-      { text: (text) => text.toUpperCase() },
+      { a: "ghp_abcdefgh x", "k ghp_abcdefgh": "y", list: ["z"] },
+      { text: (text, field) => (seen.push([text, field]), text.toUpperCase()) },
     );
-    expect(value).toEqual({ A: "[SECRET:GH] X", "K [SECRET:GH]": "Y" });
+    expect(value).toEqual({ a: "[SECRET:GH] X", "k [SECRET:GH]": "Y", list: ["Z"] });
+    expect(seen).toEqual([
+      ["[SECRET:GH] x", "a"],
+      ["y", "k ghp_abcdefgh"],
+      ["z", "list"],
+    ]);
   });
 
   it("lists as restorable every secret except the ones marked as not", () => {
