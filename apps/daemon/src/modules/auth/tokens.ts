@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import {
   API_TOKEN_PATTERN,
   MAX_TOKENS_PER_USER,
@@ -45,9 +45,6 @@ const viewOf = (row: TokenRow): TokenView => ({
   lastUsedAt: row.lastUsedAt,
 });
 
-const sameHash = (a: string, b: string): boolean =>
-  a.length === b.length && timingSafeEqual(Buffer.from(a, "utf8"), Buffer.from(b, "utf8"));
-
 function require(caller: Caller, permission: Permission): void {
   if (!caller.permissions.has(permission)) throw new PapError("forbidden");
 }
@@ -61,8 +58,17 @@ export function createTokenService(deps: TokenDeps) {
   return {
     list(caller: Caller): TokenView[] {
       require(caller, "auth:read");
-      dropExpired(caller.userId, deps.clock.now());
-      return deps.store.list(caller.userId).map(viewOf);
+      const now = deps.clock.now();
+      try {
+        dropExpired(caller.userId, now);
+      } catch (error) {
+        // A read still answers on a read-only database (R130): the cleanup is skipped, the expired rows are not shown.
+        if (!isReadOnlyError(error)) throw error;
+      }
+      return deps.store
+        .list(caller.userId)
+        .filter((row) => row.expiresAt > now)
+        .map(viewOf);
     },
     create(caller: Caller, input: TokenInput): { token: TokenView; value: string } {
       const now = deps.clock.now();
@@ -120,10 +126,9 @@ export function createTokenService(deps: TokenDeps) {
     /** A wrong, unknown, expired or malformed value all answer null; a malformed one never reaches the database. */
     authenticate(value: string | undefined, options: { readonly slide: boolean }): Caller | null {
       if (value === undefined || !API_TOKEN_PATTERN.test(value)) return null;
-      const hash = sha256Hex(value);
-      const row = deps.store.findByHash(hash);
+      const row = deps.store.findByHash(sha256Hex(value));
       const now = deps.clock.now();
-      if (!row || !sameHash(row.secretHash, hash) || row.expiresAt <= now) return null;
+      if (!row || row.expiresAt <= now) return null;
       if (options.slide && now - (lastWrite.get(row.id) ?? -Infinity) >= LAST_USE_EVERY_MS) {
         lastWrite.set(row.id, now);
         try {

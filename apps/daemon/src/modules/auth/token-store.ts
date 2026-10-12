@@ -1,5 +1,6 @@
 import type { Permission } from "@pap/contracts";
 import type { Db } from "../../kernel/db/database.ts";
+import type { Logger } from "../../kernel/logger.ts";
 
 export interface TokenRow {
   readonly id: string;
@@ -31,19 +32,30 @@ interface RawRow extends Omit<TokenRow, "permissions"> {
 const COLUMNS =
   "id, user_id AS userId, name, hint, secret_hash AS secretHash, permissions, created_at AS createdAt, expires_at AS expiresAt, last_used_at AS lastUsedAt";
 
+const MAX_LOGGED_IDS = 100;
+
 // A stored list that is not a JSON array of strings reads as empty: a damaged row grants nothing.
-function parsePermissions(text: string): Permission[] {
+function parsePermissions(text: string): Permission[] | null {
   try {
     const value: unknown = JSON.parse(text);
-    return Array.isArray(value) ? (value.filter((p) => typeof p === "string") as Permission[]) : [];
+    return Array.isArray(value) ? (value.filter((p) => typeof p === "string") as Permission[]) : null;
   } catch {
-    return [];
+    return null;
   }
 }
 
-const rowOf = (raw: RawRow): TokenRow => ({ ...raw, permissions: parsePermissions(raw.permissions) });
-
-export function createTokenStore(db: Db): TokenStore {
+export function createTokenStore(db: Db, logger: Logger): TokenStore {
+  // One warn line per damaged token (its id only, never the value or the hash); the set is capped.
+  const logged = new Set<string>();
+  const rowOf = (raw: RawRow): TokenRow => {
+    const permissions = parsePermissions(raw.permissions);
+    if (permissions === null && !logged.has(raw.id)) {
+      if (logged.size >= MAX_LOGGED_IDS) logged.clear();
+      logged.add(raw.id);
+      logger.warn("token_row_damaged", { rowId: raw.id });
+    }
+    return { ...raw, permissions: permissions ?? [] };
+  };
   return {
     insert: (row) => {
       db.run(

@@ -75,7 +75,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     allowedOrigins: deps.allowedOrigins,
   });
   const tokens = createTokenService({
-    store: createTokenStore(deps.db),
+    store: createTokenStore(deps.db, logger),
     clock: deps.clock,
     audit: deps.audit,
     newId,

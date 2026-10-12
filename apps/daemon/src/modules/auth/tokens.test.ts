@@ -12,7 +12,10 @@ import { testCaller } from "../../testing/caller.ts";
 import { createTokenBed, DAY, OWNER_ID } from "./testing/token-bed.ts";
 
 let current: ReturnType<typeof createTokenBed> | undefined;
-afterEach(() => current?.dispose());
+afterEach(() => {
+  current?.dispose();
+  current = undefined;
+});
 const bed = () => (current = createTokenBed());
 const input = { name: "x", permissions: ["sessions:read" as const], expiresInDays: 7 as const };
 
@@ -114,6 +117,37 @@ describe("api tokens", () => {
       ).toThrow(new PapError("bad_request"));
     }
     expect(db.all("SELECT * FROM api_tokens")).toEqual([]);
+  });
+
+  it("still lists on a read-only database, without the expired ones (R130)", async () => {
+    const { tokens, clock, confirmed, readOnlyTokens } = bed();
+    tokens.create(confirmed(), { ...input, name: "short" });
+    const long = tokens.create(confirmed(), { ...input, name: "long", expiresInDays: 30 });
+    await clock.advance(8 * DAY);
+    const listed = readOnlyTokens().list(confirmed());
+    expect(listed.map((t) => t.id)).toEqual([long.token.id]);
+  });
+
+  it("logs a damaged permissions row once by token id, never its value or hash, and grants nothing", () => {
+    const { tokens, db, logLines, confirmed } = bed();
+    const { token, value } = tokens.create(confirmed(), input);
+    db.exec("PRAGMA ignore_check_constraints = ON");
+    db.run("UPDATE api_tokens SET permissions = '\"not a list\"'");
+    expect(tokens.authenticate(value, { slide: false })?.permissions).toEqual(new Set());
+    expect(tokens.authenticate(value, { slide: false })?.permissions).toEqual(new Set());
+    const warns = logLines.filter((line) => line.includes("token_row_damaged"));
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain(token.id);
+    expect(logLines.join("\n")).not.toContain(value);
+    expect(logLines.join("\n")).not.toContain(createHash("sha256").update(value).digest("hex"));
+  });
+
+  it("refuses a name with control, bidi or line-separator characters", () => {
+    bed();
+    const params = methods["auth.tokens.create"].params;
+    for (const name of ["a\u0007b", "a\u202Eb", "a\u2028b", "a\u200Bb", "a\u0085b"])
+      expect(params.safeParse({ ...input, name }).success).toBe(false);
+    expect(params.safeParse({ ...input, name: "ci runner é" }).success).toBe(true);
   });
 
   it("lets a caller built from a token neither manage tokens nor list them (owner Q7 b)", () => {

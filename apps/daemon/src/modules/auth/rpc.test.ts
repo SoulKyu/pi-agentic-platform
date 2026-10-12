@@ -4,7 +4,10 @@ import { authRpc } from "./rpc.ts";
 import { createTokenBed } from "./testing/token-bed.ts";
 
 let current: ReturnType<typeof createTokenBed> | undefined;
-afterEach(() => current?.dispose());
+afterEach(() => {
+  current?.dispose();
+  current = undefined;
+});
 
 describe("auth.tokens.*", () => {
   it("creates, lists and revokes through the contract's own result shapes", async () => {

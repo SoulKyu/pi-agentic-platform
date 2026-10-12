@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
+import { INVISIBLE } from "./policy.ts";
 import { ALL_PERMISSIONS, type Permission } from "./permissions.ts";
 
 /** What a token may hold (M5R64): never credentials (`auth:*`), never policy administration (owner Q7 b). */
@@ -16,7 +17,12 @@ export const MAX_TOKENS_PER_USER = 50;
 /** `pap_` and 43 base64url characters: the prefix lets a secret scanner recognise a leak (M5R63). */
 export const API_TOKEN_PATTERN = /^pap_[A-Za-z0-9_-]{43}$/;
 
-export const TokenName = z.string().trim().min(1).max(64);
+export const TokenName = z
+  .string()
+  .trim()
+  .min(1)
+  .max(64)
+  .refine((name) => !INVISIBLE.test(name), "a name is one line of visible characters");
 
 /** A token as the list shows it: never its value, never its hash. */
 export const TokenView = z.object({

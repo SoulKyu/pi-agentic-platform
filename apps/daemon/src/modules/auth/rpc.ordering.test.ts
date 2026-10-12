@@ -4,7 +4,10 @@ import { authRpc } from "./rpc.ts";
 import { createTokenBed } from "./testing/token-bed.ts";
 
 let current: ReturnType<typeof createTokenBed> | undefined;
-afterEach(() => current?.dispose());
+afterEach(() => {
+  current?.dispose();
+  current = undefined;
+});
 
 it("auth.tokens.revoke has deleted the row before its first await (M5R9)", async () => {
   current = createTokenBed();

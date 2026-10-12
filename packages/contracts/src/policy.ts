@@ -26,7 +26,7 @@ export type ApprovalMode = z.infer<typeof ApprovalMode>;
 export const DEFAULT_APPROVAL_MODE: ApprovalMode = "auto-accept-edits";
 
 // C0 and C1 controls, line and paragraph separators, bidi and other format characters: a pattern is one visible line.
-const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+export const INVISIBLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 /** A blocked-command pattern the owner writes: a glob over one command segment (`*` any run, `?` one character), Task 4. */
 export const DenyPattern = z
   .string()
