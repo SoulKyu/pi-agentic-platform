@@ -1,6 +1,7 @@
 import { rmSync, statSync } from "node:fs";
 import { type Db, openDatabase } from "../../kernel/db/database.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import { isDamagedCode } from "./sqlite-codes.ts";
 
 /** Bump to drop and rebuild: the index is a cache over Pi's files, never a source (ADR 0013). */
 export const SEARCH_SCHEMA_VERSION = 1;
@@ -43,7 +44,7 @@ const DAMAGED_MESSAGE =
 /** SQLite says the file is damaged (M4R44): primary code 11 (CORRUPT, extended codes too) or 26 (NOTADB). */
 export function isIndexDamaged(error: unknown): boolean {
   const errcode = (error as { errcode?: unknown } | null)?.errcode;
-  if (typeof errcode === "number") return (errcode & 0xff) === 11 || (errcode & 0xff) === 26;
+  if (typeof errcode === "number") return isDamagedCode(errcode);
   return error instanceof Error && DAMAGED_MESSAGE.test(error.message);
 }
 
