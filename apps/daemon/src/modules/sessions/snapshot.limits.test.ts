@@ -1,6 +1,15 @@
 import { type Dialog, SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
-import { fitSnapshot, PANEL_BYTES, SNAPSHOT_BYTES, sizeOf } from "./snapshot.ts";
+import {
+  fitSnapshot,
+  OTHER_DIALOG_BYTES,
+  PANEL_BYTES,
+  placeholderRow,
+  ROW_FLOOR_SHARE,
+  SNAPSHOT_BYTES,
+  sizeOf,
+  withTrimmedHistory,
+} from "./snapshot.ts";
 
 const many = <T>(n: number, make: (i: number) => T): T[] => Array.from({ length: n }, (_, i) => make(i));
 const widget = (i: number) => ({ key: `w${i}`, lines: ["a"], placement: "aboveEditor" as const });
@@ -57,8 +66,10 @@ describe("fitSnapshot hidden dialogs", () => {
       },
       1_000_000,
     );
-    expect(snapshot.dialogs.map((d) => d.id)).toEqual(["d1", "d3"]);
-    expect(snapshot.hiddenDialogs).toBe(1);
+    // d1 (the oldest) takes the room, d2 does not fit; d3 is small but the non-approval dialogs together stay within
+    // OTHER_DIALOG_BYTES, and d1 already counts there (M4R8).
+    expect(snapshot.dialogs.map((d) => d.id)).toEqual(["d1"]);
+    expect(snapshot.hiddenDialogs).toBe(2);
   });
 
   it("is 0 when every dialog is in", () => {
@@ -108,5 +119,114 @@ describe("fitSnapshot worst case", () => {
     expect(sizeOf(snapshot)).toBeLessThanOrEqual(SNAPSHOT_BYTES);
     expect(snapshot.dialogs.map((d) => d.id)).toEqual(["d1"]);
     expect(snapshot.hiddenDialogs).toBe(1);
+  });
+});
+
+describe("rows are never crowded out by an extension's dialogs (M2 final M4)", () => {
+  const bound = (n: number) => ({ entryId: `e${n}`, message: { role: "user", content: `m${n}` } });
+  const unbound = (n: number, bytes: number) => ({
+    entryId: null,
+    message: { role: "assistant", timestamp: n, content: [{ type: "text", text: "r".repeat(bytes) }] },
+  });
+  const extension = (id: string, bytes: number): Dialog => ({
+    id,
+    method: "editor",
+    title: id,
+    prefill: "p".repeat(bytes),
+  });
+  const approval = (id: string, bytes: number): Dialog => ({
+    id,
+    method: "approval",
+    title: id,
+    message: "a".repeat(bytes),
+    category: "exec",
+    answers: ["deny", "once"],
+  });
+
+  it("caps the dialogs other than approvals, and counts the rest as hidden", () => {
+    const dialogs = [extension("x1", 100_000), extension("x2", 100_000), extension("x3", 100_000)];
+    const snapshot = fitSnapshot({ status: "running", rows: [bound(1)], dialogs });
+    expect(snapshot.dialogs.map((d) => d.id)).toEqual(["x1", "x2"]);
+    expect(snapshot.hiddenDialogs).toBe(1);
+    expect(OTHER_DIALOG_BYTES).toBe(256 * 1024);
+  });
+
+  it("always offers the oldest extension dialog the whole room, so a large one stays answerable after a reload (RT-07)", () => {
+    const large = fitSnapshot({
+      status: "running",
+      rows: [bound(1)],
+      dialogs: [extension("x1", 300_000), extension("x2", 1_000)],
+    });
+    expect(large.dialogs.map((d) => d.id)).toEqual(["x1"]);
+    expect(large.hiddenDialogs).toBe(1);
+    expect(large.rows).toEqual([bound(1)]);
+    // Only the oldest: a large one behind a small one waits for its turn.
+    const behind = fitSnapshot({
+      status: "running",
+      rows: [bound(1)],
+      dialogs: [extension("x1", 1_000), extension("x2", 300_000)],
+    });
+    expect(behind.dialogs.map((d) => d.id)).toEqual(["x1"]);
+    expect(behind.hiddenDialogs).toBe(1);
+  });
+
+  it("still gives approvals the first claim, whatever the extension dialogs", () => {
+    const dialogs = [extension("x1", 200_000), approval("a1", 30_000), extension("x2", 100_000)];
+    const snapshot = fitSnapshot({ status: "running", rows: [bound(1)], dialogs });
+    expect(snapshot.dialogs.map((d) => d.id)).toEqual(["x1", "a1"]);
+    expect(snapshot.hiddenDialogs).toBe(1);
+    expect(snapshot.rows).toEqual([bound(1)]);
+  });
+
+  it("keeps the newest bound row when a run's rows and a dialog fill the budget, and the cursor points at it", () => {
+    // 100 000 bytes: the floor is 6 250; the dialog fits under budget - floor; three run rows of 20 000 fit, the fourth
+    // does not and goes in as a placeholder, then the page's bound rows.
+    const rows = [
+      bound(1),
+      bound(2),
+      bound(3),
+      unbound(4, 20_000),
+      unbound(5, 20_000),
+      unbound(6, 20_000),
+      unbound(7, 20_000),
+    ];
+    const snapshot = fitSnapshot({ status: "running", rows, dialogs: [extension("x1", 30_000)] }, 100_000);
+    expect(sizeOf(snapshot)).toBeLessThanOrEqual(100_000);
+    expect(snapshot.rows.at(-1)).toEqual(rows.at(-1));
+    expect(snapshot.rows.some((row) => row.entryId === "e3")).toBe(true);
+    const placeholder = snapshot.rows.find((row) => (row.message as { omitted?: boolean }).omitted === true);
+    expect(placeholder?.entryId).toBeNull();
+    const trimmed = withTrimmedHistory(snapshot, rows, {
+      hasMore: false,
+      oldestEntryId: "e1",
+      turnsBefore: 0,
+    });
+    expect(snapshot.rows.find((row) => row.entryId !== null)?.entryId).toBe(trimmed.history.oldestEntryId);
+  });
+
+  it("reserves the row floor from what the other dialogs may take", () => {
+    expect(ROW_FLOOR_SHARE).toBe(16);
+    const dialogs = [extension("x1", 60_000)];
+    // Budget 64 000: the floor is 4 000, so a 60 000-byte dialog (plus the fixed sections) no longer fits.
+    const snapshot = fitSnapshot({ status: "running", rows: [bound(1)], dialogs }, 64_000);
+    expect(snapshot.dialogs).toEqual([]);
+    expect(snapshot.hiddenDialogs).toBe(1);
+    expect(snapshot.rows).toEqual([bound(1)]);
+  });
+
+  it("a placeholder stays under 600 bytes even when every character of its source escapes (RT-17)", () => {
+    const stand = (message: unknown) => ({ entryId: null, message: placeholderRow(message, 1e15) });
+    const escaped = stand({
+      role: "\u0001".repeat(64),
+      toolCallId: "\u0001".repeat(256),
+      timestamp: 8.64e15,
+    });
+    const longest = stand({ role: "r".repeat(64), toolCallId: "c".repeat(256), timestamp: 8.64e15 });
+    expect(escaped.message).toEqual({ role: "unknown", timestamp: 8.64e15, omitted: true, bytes: 1e15 });
+    expect(longest.message).toMatchObject({ role: "r".repeat(64), toolCallId: "c".repeat(256) });
+    // 75 run rows and the newest bound row (its 128-character id escaped) fit in the floor.
+    const boundStand = { entryId: "\u0001".repeat(128), message: placeholderRow({ role: "user" }, 1e15) };
+    expect(sizeOf(longest) * 75 + sizeOf(boundStand) + 76).toBeLessThan(1_000_000 / ROW_FLOOR_SHARE);
+    expect(Math.max(sizeOf(escaped), sizeOf(longest))).toBeLessThan(600);
   });
 });
