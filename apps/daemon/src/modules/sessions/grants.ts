@@ -3,7 +3,6 @@ import type { Clock } from "../../kernel/clock.ts";
 import { sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
-import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { Grant } from "./dialogs.ts";
 import type { LiveSession } from "./live-session.ts";
@@ -43,7 +42,6 @@ export interface GrantLinkDeps {
   readonly policy: PolicyPort;
   readonly clock: Clock;
   readonly logger: Logger;
-  readonly hub: Pick<StreamHub, "publish">;
   /** The workers that are up and the ones still starting: a rule change reaches both (ADR 0001, M2R75). */
   sessions(): Iterable<LiveSession>;
 }
@@ -113,11 +111,11 @@ export function createGrantLink(deps: GrantLinkDeps) {
     }
   });
 
-  function tellSessionOnly(at: Launched, text: string): void {
+  function tellSessionOnly(session: LiveSession, at: Launched, text: string): void {
     const now = deps.clock.now();
     if (at.noticeAt !== null && now - at.noticeAt < GRANT_NOTICE_EVERY_MS) return;
     at.noticeAt = now;
-    deps.hub.publish("session", at.row.id, { kind: "notice", level: "warning", text });
+    session.notice({ level: "warning", text });
   }
 
   return {
@@ -151,12 +149,12 @@ export function createGrantLink(deps: GrantLinkDeps) {
       try {
         const added = deps.policy.addAlways({ ownerId: at.row.ownerId, scope: at.scope, ...approved.grant });
         if (added === "full") {
-          tellSessionOnly(at, FULL_NOTICE);
+          tellSessionOnly(session, at, FULL_NOTICE);
         }
       } catch (error) {
         // A bug signal (a value outside its bounds), not an answer: no rule, the call the person allowed proceeds.
         say("always_rule_not_saved", { sessionId: at.row.id, err: error });
-        tellSessionOnly(at, NOT_SAVED_NOTICE);
+        tellSessionOnly(session, at, NOT_SAVED_NOTICE);
       }
     },
     stop: unlisten,

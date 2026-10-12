@@ -91,12 +91,9 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
     }
   }
   const reloadNotice = (row: SessionRow): void =>
-    deps.hub.publish("session", row.id, {
-      kind: "notice",
-      level: "warning",
-      text: "The view could not be refreshed. Reload the page.",
-      source: "pap",
-    });
+    deps.live
+      .get(row.id)
+      ?.notice({ level: "warning", text: "The view could not be refreshed. Reload the page." });
 
   // One title request per session at a time: a double click must not pay for the model twice.
   const naming = new Map<string, Promise<{ name: string }>>();

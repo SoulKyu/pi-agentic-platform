@@ -245,3 +245,27 @@ describe("a worker that goes away", () => {
     expect(output.length).toBeLessThanOrEqual(2000);
   });
 });
+
+describe("LiveSession.notice (final review M3)", () => {
+  it("sends the pending text first, keeps the notice in the ring and gives it no source", () => {
+    const { worker, published, live } = setup();
+    worker.emit(piEvent({ type: "message_start", message: { role: "assistant", content: [] } }));
+    worker.emit(
+      piEvent({
+        type: "message_update",
+        message: {},
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "late" },
+      }),
+    );
+    live.notice({ level: "warning", text: "from pap" });
+    const kinds = published.map((event) => event.kind);
+    const deltaAt = published.findIndex(
+      (event) =>
+        event.kind === "pi" &&
+        (event.event.assistantMessageEvent as { delta?: string } | undefined)?.delta === "late",
+    );
+    expect(deltaAt).toBeGreaterThanOrEqual(0);
+    expect(deltaAt).toBeLessThan(kinds.indexOf("notice"));
+    expect(live.notices()).toEqual([{ level: "warning", text: "from pap" }]);
+  });
+});

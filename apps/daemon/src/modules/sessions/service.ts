@@ -133,7 +133,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     policy: deps.policy,
     clock: deps.clock,
     logger: deps.logger,
-    hub: deps.hub,
     sessions: () => [...live.values(), ...starting],
   });
 

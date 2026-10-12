@@ -322,6 +322,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     title: () => ui.title(),
     panels: () => ui.panels(),
     notices: () => notices.list(),
+    notice: (notice) => publish({ kind: "notice", ...notice }),
     panelInput(id, data) {
       idle.touch();
       ui.panelInput(id, data);
