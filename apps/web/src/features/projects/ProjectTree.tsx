@@ -39,12 +39,17 @@ interface ShelfProps {
 function Shelf({ title, sessions, more, now, onPick }: ShelfProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const titleId = useId();
   return (
-    <section className="flex flex-col gap-s1">
+    <section aria-labelledby={titleId} className="flex flex-col gap-s1">
       <Collapsible
         open={open}
         onOpenChange={setOpen}
-        trigger={<span className="label-hud text-muted">{title}</span>}
+        trigger={
+          <span id={titleId} className="label-hud text-muted">
+            {title}
+          </span>
+        }
       >
         <ul className="flex flex-col gap-s1">
           {sessions.map((session) => (
@@ -165,6 +170,9 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
       ) : null}
       {view.archived > 0 && !filtering ? (
         <ArchivedShelf count={view.archived} chord={chord} now={now} onPick={onPick} />
+      ) : null}
+      {view.archived > 0 && filtering ? (
+        <p className="text-ui text-muted">{t("sidebar.archivedNotSearched")}</p>
       ) : null}
       {model.empty && view.loaded && !broken ? (
         <p className="text-ui text-muted">{t(filtering ? "sidebar.noMatch" : "sidebar.empty")}</p>

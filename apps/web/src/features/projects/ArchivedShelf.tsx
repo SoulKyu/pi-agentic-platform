@@ -1,6 +1,6 @@
 import type { ShellSession } from "@pap/contracts";
 import { Banner, Button, Collapsible } from "@pap/ui";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { RpcError } from "../../runtime/rpc.ts";
@@ -30,6 +30,7 @@ export function ArchivedShelf({ count, chord, now, onPick }: ArchivedShelfProps)
   const [phase, setPhase] = useState<"idle" | "loading" | "failed">("idle");
   const [failure, setFailure] = useState("internal");
   const inFlight = useRef(false);
+  const titleId = useId();
 
   const load = async () => {
     if (inFlight.current) return;
@@ -65,11 +66,15 @@ export function ArchivedShelf({ count, chord, now, onPick }: ArchivedShelfProps)
   const shown = rows.filter((row) => held.get(row.id)?.archivedAt !== null);
   const capped = rows.length >= ARCHIVED_ROWS;
   return (
-    <section data-shelf="archived" className="flex flex-col gap-s1">
+    <section data-shelf="archived" aria-labelledby={titleId} className="flex flex-col gap-s1">
       <Collapsible
         open={open}
         onOpenChange={toggle}
-        trigger={<span className="label-hud text-muted">{t("sidebar.archived", { count })}</span>}
+        trigger={
+          <span id={titleId} className="label-hud text-muted">
+            {t("sidebar.archived", { count })}
+          </span>
+        }
       >
         <ul className="flex flex-col gap-s1">
           {shown.map((session) => (

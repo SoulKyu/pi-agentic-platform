@@ -162,9 +162,10 @@ describe("lazy catalog (sidebar)", () => {
       expect(slots(sidebarFr[key]), key).toEqual(slots(sidebarEn[key]));
   });
 
-  it("is referenced only from features/projects (and, from Task 25, the palette and transcript files)", () => {
+  it("is referenced only from features/projects/age.ts and its .tsx files (and, from Task 25, the palette and transcript files)", () => {
     // Later tasks add their lazy files here; the register file is the only other importer.
-    const inChunk = (file: string) => file.startsWith("features/projects/");
+    const inChunk = (file: string) =>
+      file === "features/projects/age.ts" || (file.startsWith("features/projects/") && file.endsWith(".tsx"));
     const offenders: string[] = [];
     for (const file of files(src)) {
       const name = relative(src, file).split("\\").join("/");

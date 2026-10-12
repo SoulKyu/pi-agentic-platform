@@ -49,9 +49,10 @@ async function show(onPick: (id: string) => void = () => {}, chord: string | nul
   return page.container;
 }
 
-// Headings and the shelf triggers (a heading cannot sit inside the Collapsible trigger button).
-const headings = (box: HTMLElement) =>
-  [...box.querySelectorAll("h3, button[aria-expanded]")].map((h) => h.textContent);
+const headings = (box: HTMLElement) => [...box.querySelectorAll("h3")].map((h) => h.textContent);
+/** The shelf triggers (a heading cannot sit inside the Collapsible trigger button). */
+const shelves = (box: HTMLElement) =>
+  [...box.querySelectorAll("button[aria-expanded]")].map((b) => b.textContent);
 const links = (box: HTMLElement) => [...box.querySelectorAll("a")].map((a) => a.getAttribute("href"));
 const button = (box: HTMLElement, label: string) =>
   [...box.querySelectorAll("button")].find((b) => b.textContent === label) as HTMLElement;
@@ -83,7 +84,8 @@ describe("ProjectTree", () => {
       },
     );
     const box = await show();
-    expect(headings(box)).toEqual(["Pinned", "Bravo", "Alpha", "Snoozed (1)", "Settled (1)", "Archived (2)"]);
+    expect(headings(box)).toEqual(["Pinned", "Bravo", "Alpha"]);
+    expect(shelves(box)).toEqual(["Snoozed (1)", "Settled (1)", "Archived (2)"]);
     expect(links(box)).toEqual(["/s/pin", "/s/in-b", "/s/in-a"]);
   });
 
@@ -145,6 +147,7 @@ describe("ProjectTree", () => {
     await load([], { projects: [shellProject({ id: "p", name: "Far", sessions: 3 })] });
     const box = await show();
     expect(headings(box)).toEqual(["Far"]);
+    expect(shelves(box)).toEqual([]);
     expect(box.textContent).toContain("3 older sessions · search with Ctrl+K");
   });
 
@@ -166,6 +169,35 @@ describe("ProjectTree", () => {
     );
     const box = await show();
     expect(links(box)).toEqual(["/s/live"]);
+  });
+
+  it("names every shelf and flips aria-expanded on its native button trigger", async () => {
+    const now = Date.now();
+    await load([shellSession({ id: "z", snoozedUntil: now + HOUR, updatedAt: now })], { archived: 2 });
+    const box = await show();
+    const sections = [...box.querySelectorAll("section")].filter((one) =>
+      one.querySelector("button[aria-expanded]"),
+    );
+    expect(sections).toHaveLength(2);
+    for (const one of sections) {
+      const label = one.getAttribute("aria-labelledby") ?? "";
+      expect(one.querySelector(`[id="${label}"]`)?.textContent, label).toMatch(/^(Snoozed|Archived) \(\d\)$/);
+    }
+    const trigger = buttonStarting(box, "Snoozed");
+    expect([trigger.tagName, trigger.getAttribute("aria-expanded")]).toEqual(["BUTTON", "false"]);
+    await click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("true");
+    await click(trigger);
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("says archived sessions are not searched here while a filter is typed", async () => {
+    await load([shellSession({ id: "one", name: "Fix" })], { archived: 2 });
+    const box = await show();
+    expect(box.textContent).not.toContain("not searched here");
+    await typeInto(box.querySelector("input") as HTMLInputElement, "fix");
+    expect(shelves(box)).toEqual([]);
+    expect(box.textContent).toContain("Archived sessions are not searched here.");
   });
 
   it("renders a hostile name as text", async () => {
@@ -233,6 +265,55 @@ describe("the Archived shelf", () => {
     expect(button(box, "Load more")).toBeUndefined();
     expect(box.textContent).toContain("Only the 500 most recent are listed · search with Ctrl+K");
     expect(bed.called("sessions.listArchived")).toHaveLength(5);
+  });
+
+  it("cuts a page that overshoots 500: exactly 500 rows, the cap line, none of the tail", async () => {
+    let page = 0;
+    bed.handlers["sessions.listArchived"] = () => ({
+      sessions: archivedPage(page++, page === 5 ? 150 : 100),
+      hasMore: true,
+    });
+    await load([], { archived: 900 });
+    const box = await show();
+    await openShelf(box);
+    for (let i = 0; i < 4; i++) {
+      await click(button(box, "Load more"));
+      await settle();
+    }
+    expect(box.querySelectorAll("a")).toHaveLength(500);
+    expect(box.querySelector('a[href="/s/a4-120"]')).toBeNull();
+    expect(box.textContent).toContain("Only the 500 most recent are listed");
+  });
+
+  it("sends one request for two clicks on Load more before the page lands", async () => {
+    let release: (value: unknown) => void = () => {};
+    let calls = 0;
+    bed.handlers["sessions.listArchived"] = () =>
+      ++calls === 1
+        ? { sessions: archivedPage(0, 2), hasMore: true }
+        : new Promise((resolve) => (release = resolve));
+    await load([], { archived: 5 });
+    const box = await show();
+    await openShelf(box);
+    const more = button(box, "Load more");
+    await act(async () => {
+      more.click();
+      more.click();
+    });
+    expect(bed.called("sessions.listArchived")).toHaveLength(2);
+    await act(async () => release({ sessions: [], hasMore: false }));
+  });
+
+  it("asks the archive once however often the shelf is closed and reopened", async () => {
+    bed.handlers["sessions.listArchived"] = () => ({ sessions: [archivedRow("a1", 900)], hasMore: false });
+    await load([], { archived: 1 });
+    const box = await show();
+    await openShelf(box);
+    await click(buttonStarting(box, "Archived"));
+    await click(buttonStarting(box, "Archived"));
+    await settle();
+    expect(links(box)).toEqual(["/s/a1"]);
+    expect(bed.called("sessions.listArchived")).toHaveLength(1);
   });
 
   it("drops a row the store now reports as not archived (RT-35)", async () => {
