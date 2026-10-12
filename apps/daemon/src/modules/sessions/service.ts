@@ -26,6 +26,8 @@ import { createGrantLink } from "./grants.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import { createOrganiser } from "./organiser.ts";
+import { createAdoption } from "./service-adopt.ts";
+import type { SessionsScanPort } from "./scan-port.ts";
 import type { PiWriter } from "./pi-writer.ts";
 import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
 import { createLaunch } from "./service-launch.ts";
@@ -59,6 +61,9 @@ export interface SessionsServiceDeps {
     readonly testProviderScript: string | null;
   };
   newId(): string;
+  /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
+  ownerId(): string | null;
+  onAdopted?(sessionId: string): void;
   /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
   loadTranscript(): Promise<TranscriptReader>;
   /** Loads the writer of forks and clones: Pi's own session manager, behind a lazy import (R108, ADR 0009). */
@@ -153,6 +158,8 @@ export interface SessionsService extends SessionCommands {
   activity(sessionId: string): void;
   /** Files the sessions stored before M4 under their folder's project; 0 and nothing written in read-only mode. */
   backfillProjects(): number;
+  /** What the scanner asks of sessions: adoption of Pi files, and what it learns about them (Task 14). */
+  readonly scanPort: SessionsScanPort;
 }
 
 // What changes a sidebar summary: the status, an open dialog or approval, the name (M4R34).
@@ -217,6 +224,21 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     readOnly: deps.store.readOnly,
   });
 
+  const adoption = createAdoption({
+    store: deps.store,
+    clock: deps.clock,
+    logger: deps.logger,
+    agentDir: deps.worker.agentDir,
+    newId: deps.newId,
+    ownerId: deps.ownerId,
+    ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
+    live,
+    link,
+    publisher,
+    activity: organiser.activity,
+    summary: shell.summaryFor,
+  });
+
   const { launch, ensureLive } = createLaunch({
     deps,
     live,
@@ -231,13 +253,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (event.kind === "status" && event.status === "running") organiser.activity(sessionId);
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
     },
-    onDraftReady: (sessionId, piSessionId) => {
-      try {
-        marks.setPendingPiId(sessionId, piSessionId);
-      } catch (error) {
-        deps.logger.warn("session_pending_id_not_stored", { sessionId, err: error });
-      }
-    },
+    onDraftReady: (sessionId, piSessionId) => adoption.onDraftReady(sessionId, piSessionId),
   });
 
   const owned = (sessionId: string, caller: Caller): SessionRow => {
@@ -289,15 +305,12 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     onSnoozeChange: organiser.rearm,
   });
 
-  const summaries = (caller: Caller): SessionSummary[] =>
-    deps.store.listByOwner(caller.userId).map((row) => ({
-      id: row.id,
-      cwd: row.cwd,
-      name: row.name,
-      status: statusOf(row.id),
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    }));
+  const filed = <T extends { sessionId: string }>(source: SessionRow, result: T): T => {
+    const projectId = link.copy(source.id, result.sessionId);
+    publisher.changed(result.sessionId);
+    publisher.projectChanged(source.ownerId, projectId);
+    return result;
+  };
 
   return {
     async create(cwdInput, caller) {
@@ -318,8 +331,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       publisher.projectChanged(caller.userId, marks.row(row.id)?.projectId ?? null);
       return { sessionId: row.id };
     },
-    listFitted: (caller) => fitSummaries(summaries(caller)),
-    list: (caller) => summaries(caller),
+    listFitted: (caller) => fitSummaries(reads.summaries(caller)),
+    list: (caller) => reads.summaries(caller),
     shellSnapshot: (ownerId) => shell.snapshot(ownerId),
     listArchived: shell.listArchived,
     summary: shell.summaryFor,
@@ -343,19 +356,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     exportHtml: (sessionId, caller) => commands.exportHtml(sessionId, caller),
     fork: async ({ sessionId, entryId }, caller) => {
       const row = owned(sessionId, caller);
-      const result = await forks.fork(row, entryId);
-      const projectId = link.copy(row.id, result.sessionId);
-      publisher.changed(result.sessionId);
-      publisher.projectChanged(row.ownerId, projectId);
-      return result;
+      return filed(row, await forks.fork(row, entryId));
     },
     clone: async ({ sessionId }, caller) => {
       const row = owned(sessionId, caller);
-      const result = await forks.clone(row, live.get(row.id)?.leafId() ?? null);
-      const projectId = link.copy(row.id, result.sessionId);
-      publisher.changed(result.sessionId);
-      publisher.projectChanged(row.ownerId, projectId);
-      return result;
+      return filed(row, await forks.clone(row, live.get(row.id)?.leafId() ?? null));
     },
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
@@ -390,5 +395,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     startOrganiser: organiser.start,
     activity: organiser.activity,
     backfillProjects: () => (deps.store.readOnly ? 0 : link.backfill()),
+    scanPort: adoption.scanPort,
   };
 }

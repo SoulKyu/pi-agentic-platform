@@ -82,6 +82,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       hub,
       policy: policy.port,
       projects: projects.port,
+      ownerId: () => "u1",
       config: {
         home: papHome,
         piAgentDir: agentDir,

@@ -58,6 +58,10 @@ export interface SessionsModuleDeps {
   readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
   readonly scopes: WorkerScopes;
+  /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
+  ownerId(): string | null;
+  /** Once per adopted row, after its insert (agreement 8); M5 wires it to the taint of adopted sessions. */
+  readonly onAdopted?: (sessionId: string) => void;
   /** After a worker exited: its session and the end of its output (the supervisor keeps 8 KiB). */
   readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
 }
@@ -110,6 +114,8 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       testProviderScript: config.testProviderScript,
     },
     newId,
+    ownerId: deps.ownerId,
+    ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
     loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
     loadWriter: () => loadPiWriter(forkTmpDir, { logger }),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
@@ -140,7 +146,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   return {
     rpc: { ...sessionsRpc(service), ...shellRpc(service) },
     mountExportRoute: (app, authenticate) => mountExportRoute(app, { exports, authenticate, logger }),
-    scanPort: { summary: service.summary },
+    scanPort: service.scanPort,
     async shutdownAll() {
       try {
         await service.shutdownAll();

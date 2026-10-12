@@ -154,6 +154,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       hub,
       policy: policy.port,
       projects: projects.port,
+      ownerId: () => auth.ownerId(),
       config,
       workerUmask,
       env,

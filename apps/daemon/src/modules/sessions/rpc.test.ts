@@ -37,6 +37,13 @@ function setup(overrides: Partial<SessionsService> = {}) {
     startOrganiser: vi.fn(),
     activity: vi.fn(),
     backfillProjects: vi.fn(() => 0),
+    scanPort: {
+      claim: () => ({ kind: "wait" as const }),
+      touched: () => {},
+      named: () => {},
+      previewed: () => {},
+      summary: () => null,
+    },
     ...overrides,
   };
   const openSubscription = vi.fn(() => "s1");

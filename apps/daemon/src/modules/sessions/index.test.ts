@@ -111,6 +111,7 @@ function moduleWith(
     hub,
     policy: fakePolicyPort(),
     projects: fakeProjectsPort(),
+    ownerId: () => "u1",
     config: config(testProviderScript),
     workerUmask: 0o027,
     env: daemonEnv,

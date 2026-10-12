@@ -46,6 +46,7 @@ function moduleWith(testProviderScript: string, clock: Clock = createSystemClock
     hub,
     policy: fakePolicyPort(),
     projects: fakeProjectsPort(),
+    ownerId: () => "u1",
     config: {
       home: join(root, "pap"),
       piAgentDir: agentDir,

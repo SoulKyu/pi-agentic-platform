@@ -64,6 +64,7 @@ describe("sessions module over a read-only database (RT-04)", () => {
         hub: createStreamHub(),
         policy: fakePolicyPort(),
         projects,
+        ownerId: () => "u1",
         config: {
           home: join(root, "pap"),
           piAgentDir: join(root, "agent"),

@@ -40,7 +40,13 @@ describe("search module", () => {
   });
   afterEach(() => rmSync(home, { recursive: true, force: true }));
 
-  const sessions = { summary: () => null };
+  const sessions = {
+    claim: () => ({ kind: "wait" as const }),
+    touched: () => {},
+    named: () => {},
+    previewed: () => {},
+    summary: () => null,
+  };
   const ctx = {
     caller: testCaller(),
     connectionId: "c",

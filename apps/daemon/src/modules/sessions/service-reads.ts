@@ -6,6 +6,7 @@ import {
   IDLE_ACTIVITY,
   PapError,
   type SessionStatus,
+  type SessionSummary,
   type SessionStreamEvent,
   type TranscriptRow,
 } from "@pap/contracts";
@@ -96,6 +97,8 @@ export interface SessionReads {
     sessionId: string,
     caller: Caller,
   ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
+  /** Every session of the caller, newest first, with its live status. */
+  summaries(caller: Caller): SessionSummary[];
 }
 
 export function createSessionReads(deps: SessionReadsDeps): SessionReads {
@@ -123,6 +126,15 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
 
   return {
     ensureReader,
+    summaries: (caller) =>
+      deps.store.listByOwner(caller.userId).map((row) => ({
+        id: row.id,
+        cwd: row.cwd,
+        name: row.name,
+        status: deps.statusOf(row.id),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
     async history({ sessionId, before, limit }, caller) {
       const row = deps.owned(sessionId, caller);
       const reader = await ensureReader();

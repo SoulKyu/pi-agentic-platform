@@ -25,6 +25,8 @@ export interface NewSession {
 
 export interface AuthStore extends PasskeyStore {
   countUsers(): number;
+  /** The oldest user: the instance owner (M4R61). */
+  firstUserId(): string | null;
   insertFirstUser(user: { id: string; username: string; passwordHash: string; createdAt: number }): boolean;
   findUserByName(username: string): UserRow | undefined;
   findUserById(id: string): UserRow | undefined;
@@ -41,6 +43,8 @@ export function createAuthStore(db: Db): AuthStore {
   return {
     ...createPasskeyStore(db),
     countUsers: () => db.get<{ c: number }>("SELECT count(*) AS c FROM users")?.c ?? 0,
+    firstUserId: () =>
+      db.get<{ id: string }>("SELECT id FROM users ORDER BY created_at, id LIMIT 1")?.id ?? null,
     insertFirstUser: (user) =>
       db.run(
         "INSERT INTO users (id, username, password_hash, created_at) SELECT $id, $username, $passwordHash, $createdAt WHERE NOT EXISTS (SELECT 1 FROM users)",
