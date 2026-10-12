@@ -148,7 +148,8 @@ it("blocks an input above the payload bound with its own reason", async () => {
     args: "[unreadable input]",
   });
   expect(h.asks).toEqual([]);
-  const edge = bed.harness({ hasUI: false });
+  // Stage 01 refuses a command this long on its own (denylist.hostile.test.ts): the payload bound is the subject here.
+  const edge = bed.harness({ hasUI: false, stages: { denylist: () => ({ outcome: "skip" }) } });
   await edge.run("bash", { command: "a".repeat(2 * 1024 * 1024) });
   expect(edge.entries.at(-1)).toMatchObject({ reason: "no UI to ask" });
 });

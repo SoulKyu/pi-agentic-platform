@@ -10,6 +10,7 @@ import type {
 } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { auditArgs, InputTooLarge, UNREADABLE_INPUT } from "./audit-args.ts";
+import { denylistStage } from "./denylist.ts";
 import { describeCall } from "./describe-call.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import type { PolicyGrants } from "./grants.ts";
@@ -107,7 +108,7 @@ export interface PipelineDeps {
 }
 
 const PASS_THROUGH: Omit<Stages, "approval"> = {
-  denylist: () => ({ outcome: "skip", reason: "not in force" }),
+  denylist: denylistStage,
   egress: () => ({ outcome: "skip", reason: "no egress list" }),
   guard: () => ({ outcome: "pass" }),
   commit: () => {},

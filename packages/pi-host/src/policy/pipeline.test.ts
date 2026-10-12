@@ -27,7 +27,7 @@ describe("the pipeline", () => {
         decision: "allow",
         reason: "read allowed",
         stages: [
-          { stage: "01", outcome: "skip", reason: "not in force" },
+          { stage: "01", outcome: "skip", reason: "not a command" },
           { stage: "02", outcome: "skip", reason: "no egress list" },
           { stage: "03", outcome: "allow", reason: "read allowed" },
           { stage: "04", outcome: "pass" },
@@ -74,7 +74,7 @@ describe("the pipeline", () => {
     expect(await h.run("bash", { command: "ls" })).toBeUndefined();
     expect(h.asks).toHaveLength(1);
     expect(h.entries.at(-1)).toMatchObject({ decision: "approved", reason: "answer: once" });
-    expect(verdicts(h)).toEqual(["01:skip", "02:skip", "03:ask", "04:pass"]);
+    expect(verdicts(h)).toEqual(["01:pass", "02:skip", "03:ask", "04:pass"]);
   });
 
   it("blocks every call while the rules are null, and says why (M5R11)", async () => {

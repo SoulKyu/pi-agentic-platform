@@ -17,6 +17,11 @@ export const ALLOW_ASK: Partial<Stages> = {
   approval: async () => ({ outcome: "ask", reason: "asks", answers: ["deny", "once"], grantable: false }),
 };
 
+/** Stage 03 allows every call, so a test of an earlier stage sees only that stage decide. */
+export const ALLOW_03: Partial<Stages> = {
+  approval: async () => ({ outcome: "allow", reason: "allowed by the test" }),
+};
+
 export interface PipelineHarnessOptions {
   /** Replaces the scripted outcomes: answers the policy's question itself. */
   ask?: (request: ApprovalAsk, signal?: AbortSignal) => Promise<ApprovalOutcome>;
