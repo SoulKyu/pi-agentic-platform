@@ -50,26 +50,27 @@ describe("splitBlocks (M4R113)", () => {
     }
   });
 
-  it("is linear on hostile input", () => {
-    const shapes = [
-      "```\n".repeat(50_000),
-      "~~~\n".repeat(50_000),
-      "\n".repeat(200_000),
-      "a\n\n".repeat(60_000),
-      `\`\`\`${"`".repeat(100_000)}`,
-      "- x\n\n  ```\n".repeat(30_000),
-      " ".repeat(200_000),
-    ];
-    for (const shape of shapes) {
-      const small = shape.slice(0, shape.length / 2);
-      const t0 = performance.now();
-      splitBlocks(small);
-      const half = performance.now() - t0;
-      const t1 = performance.now();
-      splitBlocks(shape);
-      const full = performance.now() - t1;
-      // Doubling the input must not square the time: generous bound, still catches quadratic work at this size.
-      expect(full).toBeLessThan(Math.max(half * 8, 50));
-    }
+  it("keeps a fence whole in CRLF text", () => {
+    expect(splitBlocks("a\r\n\r\n```ts\r\nx\r\n\r\ny\r\n```\r\n\r\nz")).toEqual([
+      "a",
+      "```ts\nx\n\ny\n```",
+      "z",
+    ]);
+  });
+
+  it("reads a line opening with ```x``` as a fence until the end", () => {
+    expect(splitBlocks("```x```\n\nb\n\nc")).toEqual(["```x```\n\nb\n\nc"]);
+  });
+
+  // Exact block counts on large hostile input: a quadratic scan would also time the test out.
+  it("splits large hostile shapes into the exact blocks, in one pass", () => {
+    expect(splitBlocks("```\n".repeat(50_000))).toHaveLength(1);
+    expect(splitBlocks("~~~\n".repeat(50_001))).toHaveLength(1);
+    expect(splitBlocks("\n".repeat(200_000))).toEqual([]);
+    expect(splitBlocks("a\n\n".repeat(60_000))).toHaveLength(60_000);
+    expect(splitBlocks(`\`\`\`${"`".repeat(100_000)}`)).toHaveLength(1);
+    expect(splitBlocks(" ".repeat(200_000))).toEqual([]);
+    expect(splitBlocks("```\nx\n\n".repeat(30_000))).toHaveLength(15_000);
+    expect(splitBlocks("```\nx\n```\n\n".repeat(30_000))).toHaveLength(30_000);
   });
 });

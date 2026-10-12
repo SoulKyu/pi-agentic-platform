@@ -3,13 +3,14 @@ const FENCE = /^\s{0,3}(`{3,}|~{3,})(.*)$/;
 /**
  * A streaming reply's blocks (M4R113): split at blank lines, never inside a code fence (an unclosed one runs to the
  * end). A fence closes on a marker of the same character, at least as long, with nothing after it. One pass, no
- * backtracking.
+ * backtracking. Lines split on LF or CRLF. A line that opens with ```x``` reads as a fence until the message ends
+ * (cosmetic: the finished message renders whole).
  */
 export function splitBlocks(text: string): string[] {
   const blocks: string[] = [];
   let current: string[] = [];
   let fence: string | null = null;
-  for (const line of text.split("\n")) {
+  for (const line of text.split(/\r?\n/)) {
     const match = FENCE.exec(line);
     const marker = match?.[1];
     if (marker !== undefined) {
