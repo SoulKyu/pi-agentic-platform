@@ -79,4 +79,14 @@ describe("ANSI colours in extension text (owner C2)", () => {
     expect(parseAnsi("\u001b[31mopen")).toEqual([{ ...plain, text: "open", tone: "error" }]);
     expect(parseAnsi("next")).toEqual([{ ...plain, text: "next" }]);
   });
+
+  it("removes a lone ESC and keeps the characters around it", () => {
+    expect(plainText("a\u001bb")).toBe("ab");
+    expect(plainText("a\u001b")).toBe("a");
+    expect(plainText("\u001b\u001b[31mx")).toBe("x");
+  });
+
+  it("drops a CSI with intermediate bytes instead of reading it as SGR", () => {
+    expect(parseAnsi("\u001b[31 mred")).toEqual([{ ...plain, text: "red" }]);
+  });
 });

@@ -130,6 +130,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "panel.expand": "Afficher le panneau",
   "panel.reach": "Appuyez sur Tab pour atteindre le panneau",
   "panel.tooLong": "Ce texte est trop long pour être envoyé au panneau.",
+  "panel.leave": "Ctrl+] pour quitter le panneau",
   "status.label": "État des extensions",
   "source.extension": "d'une extension",
   // ── end sessions (M2) ──

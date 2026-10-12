@@ -127,6 +127,7 @@ export const en = {
   "panel.expand": "Show the panel",
   "panel.reach": "Press Tab to reach the panel",
   "panel.tooLong": "That text is too long to send to the panel.",
+  "panel.leave": "Ctrl+] to leave the panel",
   "status.label": "Extension status",
   "source.extension": "from an extension",
   // ── end sessions (M2) ──

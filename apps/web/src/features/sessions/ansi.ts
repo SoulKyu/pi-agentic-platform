@@ -18,13 +18,13 @@ const TONES: readonly AnsiTone[] = ["dim", "error", "ok", "you", "agent", "atten
 // below); a BEL left in the text after parsing is removed with the sequences.
 // eslint-disable-next-line no-control-regex -- the point of this pattern is to match control characters
 const UNSAFE = /[\p{Cf}\u0000-\u0006\u0008\u000a-\u001a\u001c-\u001f\u007f-\u009f]/gu;
-// eslint-disable-next-line no-control-regex -- matches the BEL control character
-const BEL = /\u0007/g;
+// eslint-disable-next-line no-control-regex -- matches BEL and a lone ESC, which no sequence consumed
+const LEFTOVER = /[\u0007\u001b]/g;
 // CSI (any final byte; only `m` is applied), OSC (ended by BEL or ST), pi-tui's cursor marker, other two-byte escapes.
 const ESC = "\\u001b";
 const BEL_CHAR = "\\u0007";
 const ESCAPES = new RegExp(
-  `${ESC}(?:\\[([0-?]*)[ -/]*([@-~])|\\][^${BEL_CHAR}${ESC}]*(?:${BEL_CHAR}|${ESC}\\\\)?|_pi:c${BEL_CHAR}|[@-Z\\\\-_])`,
+  `${ESC}(?:\\[([0-?]*)([ -/]*)([@-~])|\\][^${BEL_CHAR}${ESC}]*(?:${BEL_CHAR}|${ESC}\\\\)?|_pi:c${BEL_CHAR}|[@-Z\\\\-_])`,
   "g",
 );
 const DIGITS = /^\d+$/;
@@ -65,7 +65,7 @@ export function parseAnsi(raw: string): AnsiSpan[] {
   let last = 0;
   let capped = false;
   for (const match of text.matchAll(ESCAPES)) {
-    const chunk = text.slice(last, match.index).replace(BEL, "");
+    const chunk = text.slice(last, match.index).replace(LEFTOVER, "");
     if (chunk) {
       if (spans.length === MAX_SPANS - 1) {
         capped = true;
@@ -74,9 +74,10 @@ export function parseAnsi(raw: string): AnsiSpan[] {
       spans.push({ text: chunk, ...style });
     }
     last = match.index + match[0].length;
-    if (match[2] === "m") style = applySgr(style, match[1] ?? "");
+    // Only a bare `CSI params m` is SGR: intermediate bytes (`CSI 3 1 SP m`) make it another sequence.
+    if (match[3] === "m" && !match[2]) style = applySgr(style, match[1] ?? "");
   }
-  const rest = text.slice(last).replace(ESCAPES, "").replace(BEL, "");
+  const rest = text.slice(last).replace(ESCAPES, "").replace(LEFTOVER, "");
   if (rest) spans.push({ text: rest, ...(capped ? PLAIN : style) });
   return spans;
 }

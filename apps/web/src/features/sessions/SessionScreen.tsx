@@ -1,6 +1,6 @@
 import { cn, FOCUS_RING } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { t } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { feedSession } from "../../stores/session-feed.ts";
@@ -10,7 +10,7 @@ import { Composer } from "./Composer.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
 import { plainText } from "./ansi.ts";
 import { AnsiText } from "./AnsiText.tsx";
-import { CustomPanel, focusPanel } from "./CustomPanel.tsx";
+import { CustomPanel } from "./CustomPanel.tsx";
 import { codeText, failureText } from "./failure.ts";
 import { StatusBar } from "./StatusBar.tsx";
 import { Transcript } from "./Transcript.tsx";
@@ -27,16 +27,29 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
   );
 
   // A status button's command goes out as a prompt; its failure shows like any other (the bar is disabled while busy).
+  const commandInFlight = useRef(false);
   const runCommand = (command: string) => {
+    if (commandInFlight.current) return;
+    commandInFlight.current = true;
     setError(null);
     runtime.rpc
       .call("sessions.prompt", { sessionId, text: command }, { commandId: runtime.rpc.newCommandId() })
-      .catch((failure: unknown) => setError(failureText(failure)));
+      .catch((failure: unknown) => setError(failureText(failure)))
+      .finally(() => {
+        commandInFlight.current = false;
+      });
+  };
+  // Tab in the composer goes to this screen's own panel (two screens can be mounted at once).
+  const screenRef = useRef<HTMLElement | null>(null);
+  const focusPanel = () => {
+    const input = screenRef.current?.querySelector<HTMLElement>("[data-terminal-input] textarea");
+    input?.focus();
+    return input != null;
   };
   const title = view.title === null ? "" : plainText(view.title).trim();
 
   return (
-    <main className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 p-4">
+    <main ref={screenRef} className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 p-4">
       <header className="flex items-center justify-between">
         <Link to="/" className={cn("text-agent underline", FOCUS_RING)}>
           {t("sessions.title")}

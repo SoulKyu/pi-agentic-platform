@@ -8,8 +8,8 @@ import { AnsiText } from "./AnsiText.tsx";
 import { failureText } from "./failure.ts";
 import { terminalKeyData } from "./terminal-keys.ts";
 
-/** A paste is cut into chunks of the contract's size; more than this many chunks is refused, not sent (M2R136 follow-up). */
-const MAX_PASTE_CHUNKS = 16;
+/** A paste longer than this many UTF-16 units is refused, not sent; shorter ones are cut into chunks of the contract's size. */
+const MAX_PASTE_UNITS = 16 * UI_LIMITS.panelInput;
 
 /** The text in chunks of at most `UI_LIMITS.panelInput` UTF-16 units, never cutting a surrogate pair. */
 function chunksOf(text: string): string[] {
@@ -34,15 +34,7 @@ function subscribeToFocus(notify: () => void): () => void {
   };
 }
 
-/** The input of the open panel, for the composer's Tab; null when no panel shows one. */
-let panelInput: HTMLTextAreaElement | null = null;
-
-/** Moves the focus into the open panel; true when there was one to move it to. */
-export function focusPanel(): boolean {
-  if (!panelInput) return false;
-  panelInput.focus();
-  return true;
-}
+const composerField = () => document.querySelector<HTMLElement>("[data-composer] textarea");
 
 /**
  * The oldest open custom panel (`ctx.ui.custom`): its lines in mono, re-rendered whole on each update, and a small
@@ -58,8 +50,16 @@ export function CustomPanel(props: { readonly sessionId: string; readonly panels
   const [error, setError] = useState<string | null>(null);
   const composing = useRef(false);
   const input = useRef<HTMLTextAreaElement | null>(null);
+  const heldFocus = useRef(false);
   const panelId = panel?.id;
 
+  // The panel closed while it held the focus (Enter or Escape is its normal exit): the focus goes to the composer, not to the body.
+  useEffect(() => {
+    if (!panelId && heldFocus.current) {
+      heldFocus.current = false;
+      composerField()?.focus();
+    }
+  }, [panelId]);
   // Opening or expanding takes the focus, unless the composer has it: then the panel says how to get there (M2R136).
   useEffect(() => {
     if (panelId && !collapsed && !composerFocused()) input.current?.focus();
@@ -86,12 +86,11 @@ export function CustomPanel(props: { readonly sessionId: string; readonly panels
   };
   const sendText = (typed: string) => {
     if (typed === "") return;
-    const chunks = chunksOf(typed);
-    if (chunks.length > MAX_PASTE_CHUNKS) {
+    if (typed.length > MAX_PASTE_UNITS) {
       setError(t("panel.tooLong"));
       return;
     }
-    send(chunks);
+    send(chunksOf(typed));
   };
 
   return (
@@ -118,6 +117,7 @@ export function CustomPanel(props: { readonly sessionId: string; readonly panels
               </div>
             ))}
           </div>
+          <p className="text-ui text-muted">{t("panel.leave")}</p>
           {composerHasFocus ? (
             <p role="status" className="text-ui text-muted">
               {t("panel.reach")}
@@ -128,9 +128,12 @@ export function CustomPanel(props: { readonly sessionId: string; readonly panels
               {t("panel.input")}
             </span>
             <textarea
-              ref={(element) => {
-                input.current = element;
-                panelInput = element;
+              ref={input}
+              onFocus={() => {
+                heldFocus.current = true;
+              }}
+              onBlur={(event) => {
+                if (event.relatedTarget !== null) heldFocus.current = false;
               }}
               rows={1}
               autoComplete="off"
@@ -155,6 +158,13 @@ export function CustomPanel(props: { readonly sessionId: string; readonly panels
               onKeyDown={(event) => {
                 if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) {
                   event.stopPropagation();
+                  return;
+                }
+                if (event.ctrlKey && event.key === "]") {
+                  // The way out of a panel that never closes (WCAG 2.1.2); never sent to the worker.
+                  event.preventDefault();
+                  event.stopPropagation();
+                  composerField()?.focus();
                   return;
                 }
                 const data = terminalKeyData(event);

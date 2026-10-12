@@ -91,4 +91,21 @@ describe("extension decorations in the session screen", () => {
     expect(field(container, "Message")).toBeTruthy();
     expect(text(container)).toContain("from an extension");
   });
+
+  it("sends a status command once when the button is clicked twice before the call returns", async () => {
+    let release: (value: unknown) => void = () => {};
+    const container = await screen.show({
+      status: "idle",
+      statuses: [{ key: "command:/mode build", text: "Build" }],
+    });
+    screen.bed.handlers["sessions.prompt"] = () => new Promise((resolve) => (release = resolve));
+    const run = button(container, "Build /mode build");
+    await click(run);
+    await click(run);
+    expect(screen.bed.called("sessions.prompt")).toHaveLength(1);
+    release({ disposition: "started" });
+    await settle();
+    await click(run);
+    expect(screen.bed.called("sessions.prompt")).toHaveLength(2);
+  });
 });
