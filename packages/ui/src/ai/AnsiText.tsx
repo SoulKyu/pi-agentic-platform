@@ -16,6 +16,7 @@ const TONE_CLASS: Record<AnsiTone, string> = {
 export function AnsiText({ text }: { readonly text: string }) {
   return parseAnsi(text).map((span, index) => (
     <span
+      data-slot="ansi-text"
       // The list is rebuilt whole from the text on each render: the index is its identity.
       key={index}
       className={cn(

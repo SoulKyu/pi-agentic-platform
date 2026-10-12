@@ -23,7 +23,12 @@ export interface StatusBarProps {
 export function StatusBar(props: StatusBarProps) {
   if (props.cells.length === 0) return null;
   return (
-    <div role="group" aria-label={props.label} className="flex flex-wrap items-center gap-s2">
+    <div
+      role="group"
+      data-slot="status-bar"
+      aria-label={props.label}
+      className="flex flex-wrap items-center gap-s2"
+    >
       <span className="label-hud text-muted">{props.sourceLabel}</span>
       {props.cells.map((cell) =>
         cell.kind === "command" ? (

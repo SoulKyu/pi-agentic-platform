@@ -97,7 +97,15 @@ describe("CustomPanel", () => {
     await typeInto(input, "你");
     await act(() => input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true })));
     expect(p.onText.mock.calls).toEqual([["pasted"], ["你"]]);
+    expect(input.value).toBe("");
     expect(p.onKeyData).not.toHaveBeenCalled();
+  });
+
+  it("keeps iOS from zooming on focus and gives touch a full-height field", async () => {
+    const page = await mount(<CustomPanel {...props()} />);
+    const classes = inputOf(page.container).className.split(/\s+/);
+    expect(classes).toContain("pointer-coarse:text-base");
+    expect(classes).toContain("pointer-coarse:min-h-11");
   });
 
   it("collapses to the toggle, and takes the focus again on expand", async () => {
@@ -106,6 +114,7 @@ describe("CustomPanel", () => {
     expect(page.container.querySelector("[data-terminal-input]")).toBeNull();
     expect(page.container.querySelector("button")?.textContent).toBe("Show the panel");
     await click(page.container.querySelector("button") as HTMLElement);
+    expect(page.container.textContent).toContain("plain");
     expect(document.activeElement).toBe(inputOf(page.container));
   });
 

@@ -106,7 +106,7 @@ export function CustomPanel(props: CustomPanelProps) {
               autoCapitalize="off"
               spellCheck={false}
               className={cn(
-                "w-full rounded-sm border border-control-border bg-bg px-s2 py-s1 font-mono text-ui text-fg pointer-coarse:min-h-11",
+                "w-full rounded-sm border border-control-border bg-bg px-s2 py-s1 font-mono text-ui text-fg pointer-coarse:min-h-11 pointer-coarse:text-base",
                 FOCUS_RING,
               )}
               onCompositionStart={() => {

@@ -204,7 +204,13 @@ describe("the built web app under the daemon's CSP", () => {
     keepsLazyOnly([/"data-failure"/]));
 
   it("keeps the extension surfaces (@pap/ui/extensions: questions, status bar, widgets, custom panel) out of the initial assets", () =>
-    keepsLazyOnly([/"data-extension-label"/, /"data-terminal-input"/, /"data-widget-line"/]));
+    keepsLazyOnly([
+      /"data-extension-label"/,
+      /"data-terminal-input"/,
+      /"data-widget-line"/,
+      /data-slot":\W*status-bar/,
+      /data-slot":\W*ansi-text/,
+    ]));
 
   it("keeps the palette (cmdk) out of the initial assets", () => keepsLazyOnly([/cmdk-input/]));
 

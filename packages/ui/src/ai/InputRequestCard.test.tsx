@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import { button, click, mount, press } from "../testing/dom.ts";
+import { button, click, mount, press, typeInto } from "../testing/dom.ts";
 import { InputRequestCard } from "../extensions.ts";
 
 const COMMON = {
@@ -108,5 +108,40 @@ describe("InputRequestCard", () => {
     expect(region?.getAttribute("tabindex")).toBe("0");
     expect(page.container.textContent).toContain("Show less");
     expect(page.container.textContent).toContain("Closes on its own after 5 s");
+  });
+
+  it("makes an expanded title a named, focusable region", async () => {
+    const props = { ...COMMON, kind: "confirm", yesLabel: "Y", noLabel: "N", onConfirm: () => {} } as const;
+    const page = await mount(<InputRequestCard {...props} />);
+    expect(page.container.querySelector("[data-title-scroll]")?.hasAttribute("tabindex")).toBe(false);
+    await page.rerender(<InputRequestCard {...props} titleExpanded />);
+    const region = page.container.querySelector("[data-title-scroll]");
+    expect(region?.getAttribute("role")).toBe("region");
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.getAttribute("aria-labelledby")).toBe(page.container.querySelector("h3")?.id);
+  });
+
+  it("text, multiline: Enter types a line, Ctrl+Enter submits the text", async () => {
+    const onSubmit = vi.fn();
+    const page = await mount(
+      <InputRequestCard
+        {...COMMON}
+        kind="text"
+        multiline
+        initialValue="a"
+        submitLabel="Submit"
+        cancelLabel="Cancel"
+        onSubmit={onSubmit}
+        onCancel={() => {}}
+      />,
+    );
+    const area = page.container.querySelector("textarea") as HTMLTextAreaElement;
+    await typeInto(area, "line one\nline two");
+    const enter = await press(area, { key: "Enter" });
+    expect(enter.defaultPrevented).toBe(false);
+    expect(onSubmit).not.toHaveBeenCalled();
+    const submit = await press(area, { key: "Enter", ctrlKey: true });
+    expect(submit.defaultPrevented).toBe(true);
+    expect(onSubmit).toHaveBeenCalledExactlyOnceWith("line one\nline two");
   });
 });

@@ -17,7 +17,11 @@ export function SelectDialog(props: { readonly dialog: Dialog; onAnswer(response
       answered={answered}
       options={options.map(titleText)}
       cancelLabel={t("dialog.cancel")}
-      onSelect={(index) => answer({ value: options[index] ?? "" })}
+      onSelect={(index) => {
+        // Fail closed: a position the card never offered answers nothing.
+        const option = options[index];
+        if (option !== undefined) answer({ value: option });
+      }}
       onCancel={() => answer({ cancelled: true })}
     />
   );

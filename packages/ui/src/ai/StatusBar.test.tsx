@@ -16,6 +16,7 @@ describe("StatusBar", () => {
     const buttons = [...page.container.querySelectorAll("button")];
     expect(buttons).toHaveLength(1);
     expect(buttons[0]?.textContent).toBe("Build /mode build");
+    expect(buttons[0]?.querySelector(".font-mono.text-muted")?.textContent).toBe("/mode build");
     expect(buttons[0]?.hasAttribute("title")).toBe(false);
     await click(buttons[0] as HTMLElement);
     expect(onCommand).toHaveBeenCalledExactlyOnceWith("/mode build");
@@ -32,6 +33,7 @@ describe("StatusBar", () => {
   it("is a named group that says whose text it is, with the error span on the err token", async () => {
     const page = await mount(<StatusBar {...base} cells={cells} busy={false} onCommand={() => {}} />);
     const group = page.container.querySelector('[role="group"]');
+    expect(group?.getAttribute("data-slot")).toBe("status-bar");
     expect(group?.getAttribute("aria-label")).toBe("Status");
     expect(group?.textContent).toContain("from an extension");
     const red = [...page.container.querySelectorAll("span")].find(
