@@ -20,9 +20,10 @@ CREATE TABLE session_pending_ids (
   pi_session_id TEXT NOT NULL CHECK (length(pi_session_id) BETWEEN 1 AND 128),
   PRIMARY KEY (pi_session_id, session_id)
 ) WITHOUT ROWID;
+CREATE INDEX session_pending_ids_session ON session_pending_ids(session_id);
 
 CREATE INDEX sessions_pi_session_id ON sessions(pi_session_id) WHERE pi_session_id IS NOT NULL;
-CREATE INDEX sessions_pending_pi_session_id ON sessions(pending_pi_session_id) WHERE pending_pi_session_id IS NOT NULL;
+-- No index on pending_pi_session_id: no query reads it any more (the scanner reads session_pending_ids).
 CREATE INDEX sessions_owner_active ON sessions(owner_id, archived_at, updated_at DESC);
 CREATE INDEX sessions_owner_project ON sessions(owner_id, project_id);
 CREATE INDEX sessions_snoozed ON sessions(snoozed_until) WHERE snoozed_until IS NOT NULL;
