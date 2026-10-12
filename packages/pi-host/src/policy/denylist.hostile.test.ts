@@ -41,6 +41,14 @@ const adversarial: ReadonlyArray<readonly [string, string]> = [
   ["a run of backslashes", "\\".repeat(65_536)],
   ["a run of single quotes", "'".repeat(65_535)],
   ["a run of letters", "a".repeat(65_530)],
+  ["a run of arithmetic openers", "((".repeat(32_000)],
+  ["a run of parameter-expansion openers", "${".repeat(32_000)],
+  ["a run of double-quoted expansion openers", '"${'.repeat(21_000)],
+  ["nested arithmetic expansions", "$((".repeat(21_000)],
+  ["16 000 here-documents on one line", "cat " + "<<A ".repeat(16_000) + "\n"],
+  ["16 000 here-documents, then 990 commands on their line", "<<A ".repeat(15_000) + ";x".repeat(990) + "\n"],
+  ["a here-document body of continued lines", "cat <<EOF\n" + "x\\\n".repeat(21_000)],
+  ["a comment with a quote after every arithmetic opener", "((#'\n".repeat(13_000)],
 ];
 
 describe("bounded work", () => {

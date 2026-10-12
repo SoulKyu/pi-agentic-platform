@@ -83,9 +83,12 @@ function takesNextWord(option: string, valued: ReadonlySet<string>): boolean {
   return false;
 }
 
-/** Whether a command reads its standard input as commands: a shell, or `ssh` (the remote shell). */
-export const readsCommands = (argv: readonly string[]): boolean =>
-  argv[0] !== undefined && (SHELLS.has(argv[0]) || argv[0] === "ssh");
+/**
+ * Commands that only write their standard input out: a here-document they receive is data. Any other receiver (a shell
+ * however reached: `sudo -s`, `su -`, `chroot /mnt`, `$SHELL`…) has its body read as commands.
+ */
+const DATA_RECEIVERS: ReadonlySet<string> = new Set(["cat", "tee"]);
+export const receivesData = (argv: readonly string[]): boolean => DATA_RECEIVERS.has(argv[0] ?? "");
 
 /** The words from the command word on, with the wrappers and redirections gone and the command word reduced to its basename. */
 export function argvOf(segment: Pick<Segment, "words" | "operators">): readonly string[] {

@@ -91,13 +91,39 @@ describe("readCommands", () => {
     expect(argvs("function f { rm -rf /; }; f")).toContain("rm -rf /");
   });
 
-  it("reads a here-document body as commands only for a shell or ssh, and a long data body costs no segment", () => {
+  it("reads a here-document body as commands unless cat or tee writes it out, and a long data body costs no segment", () => {
     const body = "x = 1\n".repeat(2000);
     expect(readCommands(`cat <<'EOF' > f.py\n${body}EOF\nls`).map((s) => s.words.join(" "))).toEqual([
       "cat << EOF > f.py",
       "ls",
     ]);
     expect(argvs("ssh host <<EOF\nrm -rf /\nEOF")).toContain("rm -rf /");
+    expect(argvs("sudo -s <<EOF\nrm -rf /\nEOF")).toEqual(["rm -rf /"]);
+    expect(argvs("tee f <<EOF\nrm -rf /\nEOF")).toEqual(["tee f"]);
+    expect(argvs("cat <<EOF | bash\nrm -rf /\nEOF")).toEqual(["cat", "bash", "rm -rf /"]);
+    expect(argvs("bash <(cat <<EOF\nrm -rf /\nEOF\n)")).toContain("rm -rf /");
+    expect(argvs("cat <<EOF\nrm -rf /")).toEqual(["cat", "rm -rf /"]);
+  });
+
+  it("reads the substitutions of an unquoted data body as commands, and splits no delimiter bash joins", () => {
+    expect(argvs("cat <<EOF\n$(rm -rf /) `ls` \\$(id)\nEOF")).toEqual(["cat", "rm -rf /", "ls"]);
+    expect(argvs("cat <<'EOF'\n$(rm -rf /)\nEOF")).toEqual(["cat"]);
+    expect(argvs("cat <<EOF\nE\\\nOF\nrm -rf /\nEOF")).toEqual(["cat", "rm -rf /", "EOF"]);
+    expect(argvs('cat <<"A\\"B"\nx\nA"B\nls')).toEqual(["cat", "ls"]);
+  });
+
+  it("never queues a here-document inside ((…)), $((…)), ${…} or $[…]", () => {
+    expect(argvs("((x = 1 << 2))\nls")).toEqual(["x = 1", "ls"]);
+    expect(argvs("echo $((1 << 2))\nls")).toEqual(["1", "echo $(…)", "ls"]);
+    expect(wordsOf("cat ${x/<<Z/y}\nls\nZ/y}")).toEqual(["cat ${x/ << Z/y}", "ls", "Z/y}"]);
+    expect(wordsOf("cat $[1<<Z]\nls\nZ]")).toEqual(["cat $[1 << Z]", "ls", "Z]"]);
+  });
+
+  it("reads # after $IFS and a line continuation as a character, and # inside ${…} or ((…)) too", () => {
+    expect(argvs("echo$IFS\\\n#;rm -rf /")).toContain("rm -rf /");
+    expect(argvs("echo \\\n#;rm -rf /")).toEqual(["echo"]);
+    expect(argvs("echo ${x:- #}; ls")).toEqual(["echo ${x:- #}", "ls"]);
+    expect(argvs("((1 #)); ls")).toContain("ls");
   });
 
   it("reads ${IFS} and $IFS as a blank", () => {
