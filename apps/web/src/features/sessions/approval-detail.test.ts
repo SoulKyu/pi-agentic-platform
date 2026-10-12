@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { approvalDetail } from "./approval-detail.ts";
+import { splitApproval } from "./approval-detail.ts";
 
-describe("approvalDetail", () => {
-  it("puts the question on the policy's header line, so the size line stays pinned", () => {
-    const message = "12 characters, 1 line\nbash: echo hello";
-    const detail = approvalDetail({ title: "Run a command?", message });
-    expect(detail.split("\n")[0]).toBe("Run a command? · 12 characters, 1 line");
-    expect(detail.split("\n").slice(1)).toEqual(["bash: echo hello"]);
+describe("splitApproval", () => {
+  it("keeps the policy's header line apart, so the size line stays pinned", () => {
+    expect(splitApproval("12 characters, 1 line\nbash: echo hello")).toEqual({
+      header: "12 characters, 1 line",
+      body: "bash: echo hello",
+    });
   });
 
   it("keeps every other line of the message exactly as sent", () => {
     const message = "4 characters, 3 lines\n→ /etc/hosts (outside the session directory)\n\n\n  write: {}\t";
-    const rest = approvalDetail({ title: "Allow this edit?", message }).split("\n").slice(1);
-    expect(rest).toEqual(message.split("\n").slice(1));
+    expect(splitApproval(message).body).toBe(message.split("\n").slice(1).join("\n"));
   });
 
-  it("is the title alone when the dialog has no message", () => {
-    expect(approvalDetail({ title: "Allow this tool?" })).toBe("Allow this tool?");
-    expect(approvalDetail({ title: "Allow this tool?", message: "" })).toBe("Allow this tool?");
+  it("has no header for a message of one line or none", () => {
+    expect(splitApproval("one line")).toEqual({ header: null, body: "one line" });
+    expect(splitApproval(undefined)).toEqual({ header: null, body: "" });
+    expect(splitApproval("")).toEqual({ header: null, body: "" });
   });
 });

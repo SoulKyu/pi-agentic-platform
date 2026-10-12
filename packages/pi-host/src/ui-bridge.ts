@@ -1,15 +1,31 @@
 import { randomUUID } from "node:crypto";
 import type { ExtensionUIContext, ExtensionUIDialogOptions } from "@earendil-works/pi-coding-agent";
-import { UiResponseRecord } from "@pap/contracts";
-import { PLAIN_THEME } from "./plain-theme.ts";
+import { UI_LIMITS, UiResponseRecord } from "@pap/contracts";
+import { ANSI_THEME } from "./ansi-theme.ts";
+import {
+  type CustomPanels,
+  createCustomPanels,
+  type PanelOutbound,
+  type RenderTimers,
+} from "./custom-panels.ts";
+import { toExtensionErrorRecord } from "./wire-events.ts";
+import { messageOf } from "./bounded.ts";
+import { boundLines, UI_RECORD_BYTES } from "./ui-lines.ts";
+import { createWidgetComponents, type WidgetFactory } from "./widget-components.ts";
 
 export type UiOutbound =
   | ({ type: "extension_ui_request"; id: string; method: string } & Record<string, unknown>)
-  | { type: "extension_ui_closed"; id: string };
+  | { type: "extension_ui_closed"; id: string }
+  | PanelOutbound
+  | ReturnType<typeof toExtensionErrorRecord>;
 
 export interface UiBridge {
   readonly context: ExtensionUIContext;
   resolve(response: UiResponseRecord): void;
+  /** Keys for an open panel (`custom_input`); an unknown id is ignored. */
+  panelInput(id: string, data: string): void;
+  panelCancel(id: string): void;
+  /** Closes every dialog and panel and clears the component widgets, each settling exactly once. */
   cancelAll(): void;
   pendingCount(): number;
 }
@@ -18,6 +34,8 @@ export interface UiBridgeOptions {
   newId?: () => string;
   setTimer?: (fn: () => void, ms: number) => unknown;
   clearTimer?: (handle: unknown) => void;
+  /** Timers of the panels' and widgets' coalesced re-renders (real, unref'ed, by default). */
+  renderTimers?: RenderTimers;
 }
 
 type Request = Record<string, unknown> & { method: string };
@@ -27,11 +45,28 @@ interface PendingDialog {
   close(): void;
 }
 
-export function createUiBridge(send: (record: UiOutbound) => void, options: UiBridgeOptions = {}): UiBridge {
+export function createUiBridge(
+  send: (record: UiOutbound) => boolean,
+  options: UiBridgeOptions = {},
+): UiBridge {
   const newId = options.newId ?? randomUUID;
   const setTimer = options.setTimer ?? ((fn: () => void, ms: number) => setTimeout(fn, ms));
   const clearTimer = options.clearTimer ?? ((handle: unknown) => clearTimeout(handle as NodeJS.Timeout));
   const pending = new Map<string, PendingDialog>();
+  const componentDeps = {
+    newId,
+    theme: ANSI_THEME,
+    ...(options.renderTimers ? { timers: options.renderTimers } : {}),
+    onError: (event: string, error: unknown) => {
+      try {
+        send(toExtensionErrorRecord({ extensionPath: "pi-host:ui", event, error: messageOf(error) }));
+      } catch {
+        // The daemon link is gone: there is nobody left to tell.
+      }
+    },
+  };
+  const panels: CustomPanels = createCustomPanels(send, componentDeps);
+  const widgets = createWidgetComponents(send, componentDeps);
 
   function dialog<T>(
     request: Request,
@@ -66,16 +101,21 @@ export function createUiBridge(send: (record: UiOutbound) => void, options: UiBr
       });
       opts?.signal?.addEventListener("abort", close, { once: true });
       if (opts?.timeout) timer = setTimer(close, opts.timeout);
-      try {
-        send({
-          type: "extension_ui_request",
-          id,
-          ...request,
-          ...(opts?.timeout ? { timeout: opts.timeout } : {}),
-        });
-      } catch {
-        if (release()) resolve(fallback);
-      }
+      const sent = (() => {
+        try {
+          return send({
+            type: "extension_ui_request",
+            id,
+            ...request,
+            ...(opts?.timeout ? { timeout: opts.timeout } : {}),
+          });
+        } catch {
+          return false;
+        }
+      })();
+      // Too large for the channel, or the channel is gone: no answer can come, so the extension gets its fallback now
+      // instead of waiting for ever (R106).
+      if (!sent && release()) resolve(fallback);
     });
   }
 
@@ -87,12 +127,26 @@ export function createUiBridge(send: (record: UiOutbound) => void, options: UiBr
     }
   };
   const setWidget = ((key: string, content: unknown, widgetOptions?: { placement?: string }) => {
+    const placement = widgetOptions?.placement;
+    if (typeof content === "function") {
+      widgets.set(key, content as WidgetFactory, placement);
+      return;
+    }
+    // One record per call: a cleared component widget has told the daemon already; a replaced one is overwritten below.
+    if (content === undefined ? widgets.clear(key) : (widgets.release(key), false)) return;
     if (content === undefined || Array.isArray(content)) {
       fire({
         method: "setWidget",
         widgetKey: key,
-        widgetLines: content,
-        ...(widgetOptions?.placement ? { widgetPlacement: widgetOptions.placement } : {}),
+        widgetLines:
+          content === undefined
+            ? undefined
+            : boundLines(content, {
+                lines: UI_LIMITS.widgetLines,
+                lineChars: UI_LIMITS.widgetLineChars,
+                bytes: UI_RECORD_BYTES,
+              }),
+        ...(placement ? { widgetPlacement: placement } : {}),
       });
     }
   }) as ExtensionUIContext["setWidget"];
@@ -131,14 +185,14 @@ export function createUiBridge(send: (record: UiOutbound) => void, options: UiBr
     setFooter: () => {},
     setHeader: () => {},
     setTitle: (title) => fire({ method: "setTitle", title }),
-    custom: <T>() => Promise.resolve(undefined as T),
+    custom: (factory) => panels.open(factory),
     pasteToEditor: (text) => fire({ method: "set_editor_text", text }),
     setEditorText: (text) => fire({ method: "set_editor_text", text }),
     getEditorText: () => "",
     addAutocompleteProvider: () => {},
     setEditorComponent: () => {},
     getEditorComponent: () => undefined,
-    theme: PLAIN_THEME,
+    theme: ANSI_THEME,
     getAllThemes: () => [],
     getTheme: () => undefined,
     setTheme: () => ({ success: false, error: "Themes are not supported in pap." }),
@@ -157,8 +211,12 @@ export function createUiBridge(send: (record: UiOutbound) => void, options: UiBr
       const id = (response as { id?: unknown } | null)?.id;
       if (typeof id === "string") pending.get(id)?.close();
     },
+    panelInput: (id, data) => panels.input(id, data),
+    panelCancel: (id) => panels.cancel(id),
     cancelAll: () => {
       for (const dialogHandle of [...pending.values()]) dialogHandle.close();
+      panels.cancelAll();
+      widgets.clearAll();
     },
     pendingCount: () => pending.size,
   };

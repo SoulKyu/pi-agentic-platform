@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import type { Runtime } from "../runtime/index.ts";
-import type { RpcClient } from "../runtime/rpc.ts";
+import type { CallOptions, RpcClient } from "../runtime/rpc.ts";
 import { createSubscriptions } from "../runtime/subscriptions.ts";
 import { fakeConnection } from "../runtime/testing.ts";
 import type { ConnectionState } from "../runtime/connection.ts";
@@ -13,18 +13,25 @@ type Handler = (params: unknown) => unknown;
  */
 export function fakeRuntime(state: ConnectionState = "open") {
   const fake = fakeConnection(state);
-  const calls: Array<{ method: string; params: unknown }> = [];
+  const calls: Array<{ method: string; params: unknown; options?: CallOptions }> = [];
   const handlers: Record<string, Handler> = {};
   let subs = 0;
   let seq = 0;
-  const call = vi.fn(async (method: string, params: unknown) => {
-    calls.push({ method, params });
+  let commandIds = 0;
+  const call = vi.fn(async (method: string, params: unknown, options?: CallOptions) => {
+    calls.push({ method, params, ...(options ? { options } : {}) });
     const handler = handlers[method];
     if (handler) return handler(params);
     if (method === "subscribe.session") return { sub: `s${++subs}` };
+    if (method === "sessions.clearQueue") return { steering: [], followUp: [], truncated: false };
+    if (method === "sessions.branches") return { leafId: null, points: [], truncated: false };
+    if (method === "policy.listRules") return { rules: [], truncated: false };
     return method === "sessions.list" ? { sessions: [] } : { ok: true };
   });
-  const rpc = { call } as unknown as RpcClient;
+  const rpc = {
+    call,
+    newCommandId: () => `bed-cmd-${String(++commandIds).padStart(8, "0")}`,
+  } as unknown as RpcClient;
   const subscriptions = createSubscriptions(fake.connection, rpc, { set: () => 0, clear: () => {} });
   const runtime: Runtime = { connection: fake.connection, rpc, subscriptions };
   return {

@@ -17,6 +17,8 @@ type ScriptStep = z.infer<typeof ScriptStep>;
 export const ProviderScript = z.object({
   modelId: z.string().min(1).default("scripted"),
   steps: z.array(ScriptStep).min(1),
+  /** Answer to Pi's compaction request: it is not a step, so a long session can compact without eating the script. */
+  summary: z.string().min(1).optional(),
 });
 export type ProviderScript = z.infer<typeof ProviderScript>;
 
@@ -34,6 +36,24 @@ function stepMessage(step: ScriptStep) {
   });
 }
 
+const SUMMARIZATION_PROMPT = "You are a context summarization assistant";
+interface ModelCall {
+  readonly messages: ReadonlyArray<{ readonly content: unknown }>;
+}
+
+/** One reply per call: the next step, or the script's summary when Pi asks for a compaction summary. */
+export function scriptedReplies(script: ProviderScript): (call: ModelCall) => ReturnType<typeof stepMessage> {
+  let next = 0;
+  return (call) => {
+    const first = call.messages[0]?.content;
+    if (script.summary !== undefined && typeof first === "string" && first.startsWith(SUMMARIZATION_PROMPT))
+      return fauxAssistantMessage([fauxText(script.summary)], { stopReason: "stop" });
+    const step = script.steps[next++];
+    if (!step) throw new Error("script exhausted");
+    return stepMessage(step);
+  };
+}
+
 export function buildScriptedProvider(script: ProviderScript) {
   // A fixed api id and chunk size keep runs identical: the defaults embed the clock and a random chunk size (S2).
   const faux = fauxProvider({
@@ -41,7 +61,13 @@ export function buildScriptedProvider(script: ProviderScript) {
     models: [{ id: script.modelId }],
     tokenSize: { min: 4, max: 4 },
   });
-  faux.setResponses(script.steps.map((step) => () => stepMessage(step)));
+  if (script.summary === undefined) {
+    faux.setResponses(script.steps.map((step) => () => stepMessage(step)));
+  } else {
+    // Summaries take slots without taking steps, so the queue is longer than the script.
+    const reply = scriptedReplies(script);
+    faux.setResponses(Array.from({ length: script.steps.length * 3 + 100 }, () => reply));
+  }
   const model = faux.getModel(script.modelId);
   if (!model) throw new Error(`scripted model ${script.modelId} is missing`);
   return { provider: faux.provider, model };

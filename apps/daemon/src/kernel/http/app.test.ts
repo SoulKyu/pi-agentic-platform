@@ -286,3 +286,78 @@ describe("static path safety", () => {
     expect(lines[0]).not.toContain("https");
   });
 });
+
+describe("a route's own CSP (ADR 0006)", () => {
+  const withOwn = () =>
+    createHttpApp({
+      allowedOrigins: new Set([ORIGIN]),
+      staticRoot: null,
+      logger: silentLogger,
+      mount: (app) => {
+        app.get("/own", (c) => {
+          c.set("ownCsp", "sandbox; default-src 'none'");
+          return c.text("own");
+        });
+        app.get("/plain", (c) => c.text("plain"));
+        app.get("/own-error", (c) => {
+          c.set("ownCsp", "sandbox; default-src 'none'");
+          throw new Error("boom");
+        });
+      },
+      wsProbe: (c) => c.text("ws"),
+    });
+
+  it("gives exactly that policy to the route that sets it, and the global one to every other", async () => {
+    const app = withOwn();
+    const own = await app.request("/own");
+    expect(own.headers.get("content-security-policy")).toBe("sandbox; default-src 'none'");
+    expect(own.headers.getSetCookie()).toEqual([]);
+    for (const path of ["/plain", "/healthz", "/missing", "/ws"]) {
+      const csp = (await app.request(path)).headers.get("content-security-policy") ?? "";
+      expect(csp, path).toContain("default-src 'self'");
+      expect(csp, path).toContain("frame-ancestors 'none'");
+      expect(csp, path).not.toContain("sandbox");
+    }
+  });
+
+  it("does not let a route that failed keep its own policy on the error page", async () => {
+    const reply = await withOwn().request("/own-error");
+    expect(reply.status).toBe(500);
+    expect(reply.headers.get("content-security-policy")).toContain("default-src 'self'");
+  });
+
+  it("does not carry the policy over from one request to the next", async () => {
+    const app = withOwn();
+    await app.request("/own");
+    expect((await app.request("/plain")).headers.get("content-security-policy")).toContain(
+      "default-src 'self'",
+    );
+  });
+});
+
+describe("what the error log keeps of an export URL", () => {
+  it("never writes the single-use token of /api/sessions/:id/export/:token", async () => {
+    const lines: string[] = [];
+    const logger = createLogger({
+      level: "debug",
+      clock: createFakeClock(0),
+      write: (line) => lines.push(line),
+    });
+    const token = "T".repeat(43);
+    const app = createHttpApp({
+      allowedOrigins: new Set([ORIGIN]),
+      staticRoot: null,
+      logger,
+      mount: (hono) => {
+        hono.get("/api/sessions/:id/export/:token", () => {
+          throw new Error("database is locked");
+        });
+      },
+      wsProbe: (c) => c.json({ protocol: 1 }),
+    });
+    expect((await app.request(`/api/sessions/s1/export/${token}`)).status).toBe(500);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).not.toContain(token);
+    expect(lines[0]).toContain("/api/sessions/s1/export/[redacted]");
+  });
+});

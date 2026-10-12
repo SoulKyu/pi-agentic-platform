@@ -11,7 +11,7 @@ import { MigrationError } from "./kernel/db/migrate.ts";
 import { HomeError, InstanceLockError } from "./kernel/home.ts";
 import { createLogger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
-import { createShutdown, watchSignals, type Shutdown } from "./shutdown.ts";
+import { createShutdown, forceKill, watchSignals, type Shutdown } from "./shutdown.ts";
 
 const USAGE =
   "usage: pap serve [--dev] [--host <address>] [--port <port>] [--tls-cert <file> --tls-key <file>]\n";
@@ -55,21 +55,28 @@ async function serve(config: Config): Promise<void> {
   const logger = createLogger({ level: config.logLevel, clock, write });
   const operator = createLogger({ level: "info", clock, write });
   let shutdown: Shutdown | undefined;
+  // Held until the signal handlers exist: a person who reads the address may stop the daemon at once.
+  let setupUrl: { readonly url: string; readonly hint: string } | undefined;
   try {
     const daemon = await createDaemon(config, {
       clock,
       logger,
-      announceSetupUrl: (fields) => operator.info("setup_url", fields),
+      announceSetupUrl: (fields) => (setupUrl = fields),
       onFatal: () => (shutdown ? shutdown.trigger("server_error", 1) : process.exit(1)),
     });
     shutdown = createShutdown({
       stop: () => daemon.stop(),
-      killWorkers: killAllWorkerGroups,
+      killWorkers: forceKill({
+        killWorkerGroups: killAllWorkerGroups,
+        killScopes: () => daemon.killScopes(),
+        logger,
+      }),
       exit: (code) => process.exit(code),
       clock,
       logger,
     });
     watchSignals(shutdown, process);
+    if (setupUrl) operator.info("setup_url", setupUrl);
   } catch (error) {
     if (!isStartupRefusal(error)) throw error;
     process.stderr.write(`pap: ${error.message}\n`);

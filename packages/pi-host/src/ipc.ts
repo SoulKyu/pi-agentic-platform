@@ -17,7 +17,8 @@ export const MAX_RECORD_BYTES = 4 * 1024 * 1024;
 const worthReporting = (count: number): boolean => (count & (count - 1)) === 0;
 
 export interface Ipc {
-  send(record: Outbound): void;
+  /** True when the record was handed to the channel; false when it was dropped or the channel is closed. */
+  send(record: Outbound): boolean;
   /** `onMalformed` hears what did not parse (the raw value), so a caller can fail fast instead of waiting for it. */
   onMessage(listener: (record: DaemonToWorker) => void, onMalformed?: (raw: unknown) => void): () => void;
   /** Called once, when the channel to the daemon is gone, however the worker found out. */
@@ -43,7 +44,7 @@ export function createIpc(proc: NodeJS.Process): Ipc {
   });
   let dropped = 0;
   // Called with a record that is too large to send: say so on stderr and to the daemon, in small records.
-  const refuse = (record: Outbound, size: number, send: (small: Outbound) => void): void => {
+  const refuse = (record: Outbound, size: number, send: (small: Outbound) => boolean): void => {
     dropped++;
     const type = logLineOf(record.type).slice(0, 64);
     // A response is what the daemon is waiting for: it always gets one, however many records were dropped.
@@ -70,18 +71,41 @@ export function createIpc(proc: NodeJS.Process): Ipc {
       });
     }
   };
-  const deliver = (record: Outbound): void => {
+  const deliver = (record: Outbound): boolean => {
+    let size: number;
     try {
-      const size = Buffer.byteLength(JSON.stringify(record));
-      if (size > MAX_RECORD_BYTES) {
-        refuse(record, size, deliver);
-        return;
+      size = Buffer.byteLength(JSON.stringify(record));
+    } catch (error) {
+      proc.stderr.write(
+        `pi-host: a ${logLineOf(record.type).slice(0, 64)} record could not be serialised: ${logLineOf(error)}\n`,
+      );
+      // A response is what the daemon waits for: it gets one, failed, under the same id.
+      if (record.type === "response" && typeof record.id === "string") {
+        deliver({
+          type: "response",
+          id: record.id,
+          command: logLineOf(record.command).slice(0, 64),
+          success: false,
+          error: "response could not be serialised",
+        });
       }
+      return false;
+    }
+    if (size > MAX_RECORD_BYTES) {
+      refuse(record, size, deliver);
+      return false;
+    }
+    try {
       // False is also what a backed-up channel returns, and the record is still sent then: only a channel that
       // is no longer connected is a closed one.
-      if (!send(record) && !proc.connected) markClosed();
+      if (!send(record) && !proc.connected) {
+        markClosed();
+        return false;
+      }
+      return true;
     } catch (error) {
       proc.stderr.write(`pi-host: ipc send failed: ${logLineOf(error)}\n`);
+      return false;
     }
   };
   return {

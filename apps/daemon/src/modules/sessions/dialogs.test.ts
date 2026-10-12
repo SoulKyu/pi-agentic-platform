@@ -1,3 +1,4 @@
+import { Dialog } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { createDialogRegistry, DIALOG_FRAME_BYTES } from "./dialogs.ts";
 
@@ -130,5 +131,144 @@ describe("dialog size", () => {
     expect(timeoutOf(1.5)).toBeUndefined();
     expect(timeoutOf(-1)).toBeUndefined();
     expect(timeoutOf("soon")).toBeUndefined();
+  });
+
+  it("cuts text to the limits the Dialog schema declares", () => {
+    const dialogs = createDialogRegistry();
+    // The exact cap is pinned too, so a cap raised in the contract is noticed here and not only a lowered one.
+    expect(Dialog.shape.title.maxLength).toBe(4096);
+    const verdict = dialogs.offer(
+      request("d", { title: "t".repeat(Number(Dialog.shape.title.maxLength) + 10) }),
+    );
+    expect(verdict.kind === "opened" && verdict.dialog.title.length).toBe(4096);
+  });
+
+  it("opens a select of 100 options and cancels one of 101, so a change of the schema limit shows here", () => {
+    const dialogs = createDialogRegistry();
+    const options = (count: number) => Array.from({ length: count }, (_, i) => `option ${i}`);
+    expect(dialogs.offer(request("a", { method: "select", options: options(100) })).kind).toBe("opened");
+    expect(dialogs.offer(request("b", { method: "select", options: options(101) }))).toEqual({
+      kind: "cancel",
+      reason: "too_large",
+    });
+  });
+});
+
+const approval = (id: string, fields: Record<string, unknown> = {}) => ({
+  type: "approval_request" as const,
+  id,
+  category: "exec" as const,
+  title: "Run a command?",
+  message: "1 line\nbash: ls",
+  answers: ["deny", "once"] as ("deny" | "once")[],
+  tool: "bash",
+  key: "c".repeat(64),
+  ...fields,
+});
+
+describe("approvals", () => {
+  it("opens an approval as its own kind of dialog and keeps the grant beside it", () => {
+    const dialogs = createDialogRegistry();
+    expect(dialogs.offerApproval(approval("a1"))).toEqual({
+      kind: "opened",
+      dialog: {
+        id: "a1",
+        method: "approval",
+        title: "Run a command?",
+        message: "1 line\nbash: ls",
+        category: "exec",
+        answers: ["deny", "once"],
+      },
+    });
+    expect(dialogs.peek("a1")?.method).toBe("approval");
+    expect(dialogs.takeEntry("a1")?.grant).toEqual({
+      tool: "bash",
+      key: "c".repeat(64),
+      label: "1 line\nbash: ls",
+    });
+    expect(dialogs.peek("a1")).toBeNull();
+  });
+
+  it("never cuts an approval's message: one over the limit is cancelled", () => {
+    expect(createDialogRegistry().offerApproval(approval("a1", { message: "x".repeat(65_537) }))).toEqual({
+      kind: "cancel",
+      reason: "too_large",
+    });
+  });
+
+  it("cancels an approval that carries no answers or no category (fails closed)", () => {
+    const dialogs = createDialogRegistry();
+    expect(dialogs.offerApproval(approval("a1", { answers: [] }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
+    expect(dialogs.offerApproval(approval("a2", { answers: undefined }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
+    expect(dialogs.offerApproval(approval("a3", { category: undefined }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
+    expect(dialogs.offerApproval(approval("a4", { answers: ["once", "once"] }))).toEqual({
+      kind: "cancel",
+      reason: "malformed",
+    });
+    expect(dialogs.list()).toEqual([]);
+  });
+
+  it("cuts the label of the grant to 4096 characters and leaves the dialog whole", () => {
+    const dialogs = createDialogRegistry();
+    const message = "m".repeat(10_000);
+    const verdict = dialogs.offerApproval(approval("a1", { message }));
+    expect(verdict.kind === "opened" && verdict.dialog.message).toBe(message);
+    expect(dialogs.takeEntry("a1")?.grant?.label).toBe("m".repeat(4096));
+  });
+
+  it("counts approvals in the same limits as other dialogs, and frees their bytes when taken", () => {
+    const dialogs = createDialogRegistry();
+    for (let i = 0; i < 63; i++) dialogs.offer(request(`c${i}`));
+    expect(dialogs.offerApproval(approval("a1")).kind).toBe("opened");
+    expect(dialogs.offerApproval(approval("a2"))).toEqual({ kind: "cancel", reason: "limit" });
+    dialogs.takeEntry("a1");
+    expect(dialogs.offerApproval(approval("a3")).kind).toBe("opened");
+  });
+
+  it("gives an extension's dialog no grant, and take() still hands out the dialog alone", () => {
+    const dialogs = createDialogRegistry();
+    dialogs.offer(request("d1"));
+    expect(dialogs.takeEntry("d1")?.grant).toBeNull();
+    dialogs.offerApproval(approval("a1"));
+    expect(dialogs.take("a1")?.id).toBe("a1");
+    expect(dialogs.take("a1")).toBeNull();
+  });
+
+  it("cuts the label on a character boundary: a pair of surrogates is never split", () => {
+    const dialogs = createDialogRegistry();
+    // The emoji is two UTF-16 units, the 4095th and 4096th: keeping half of it would leave a lone surrogate.
+    dialogs.offerApproval(approval("a1", { message: `${"m".repeat(4095)}\u{1F600}tail` }));
+    const label = dialogs.takeEntry("a1")?.grant?.label;
+    expect(label).toBe("m".repeat(4095));
+    expect(Buffer.from(label ?? "").toString()).toBe(label); // a lone surrogate would not survive UTF-8
+    dialogs.offerApproval(approval("a2", { message: `${"m".repeat(4094)}\u{1F600}tail` }));
+    expect(dialogs.takeEntry("a2")?.grant?.label).toBe(`${"m".repeat(4094)}\u{1F600}`);
+  });
+
+  it("refuses to mix the two kinds under one id, whichever came first", () => {
+    const dialogs = createDialogRegistry();
+    dialogs.offer(request("x1"));
+    expect(dialogs.offerApproval(approval("x1"))).toEqual({ kind: "cancel", reason: "collision" });
+    expect(dialogs.peek("x1")?.method).toBe("confirm");
+    dialogs.offerApproval(approval("a1"));
+    expect(dialogs.offer(request("a1"))).toEqual({ kind: "cancel", reason: "collision" });
+    expect(dialogs.peek("a1")?.method).toBe("approval");
+    expect(dialogs.offer(request("x1", { message: "again" })).kind).toBe("opened");
+  });
+
+  it("cancels an extension's request that names itself an approval", () => {
+    expect(createDialogRegistry().offer(request("x1", { method: "approval" }))).toEqual({
+      kind: "cancel",
+      reason: "unknown_method",
+    });
   });
 });

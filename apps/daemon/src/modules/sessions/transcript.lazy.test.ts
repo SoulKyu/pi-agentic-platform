@@ -5,9 +5,9 @@ const sdk = vi.hoisted(() => ({ loads: 0 }));
 vi.mock("@earendil-works/pi-coding-agent", () => {
   sdk.loads++;
   return {
-    parseSessionEntries: () => [],
+    CURRENT_SESSION_VERSION: 3,
     migrateSessionEntries: () => {},
-    buildSessionContext: () => ({ messages: [] }),
+    sessionEntryToContextMessages: () => [],
   };
 });
 
@@ -22,6 +22,6 @@ describe("the Pi SDK", () => {
     expect(sdk.loads).toBe(1);
     expect(await loadTranscriptReader()).toBe(first);
     expect(sdk.loads).toBe(1);
-    expect(first.tail("/does/not/exist.jsonl")).toEqual([]);
+    expect(first.page("/does/not/exist.jsonl").rows).toEqual([]);
   });
 });

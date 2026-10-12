@@ -1,0 +1,76 @@
+import type { AlwaysRule } from "@pap/contracts";
+import type { PolicyPort } from "../../policy/index.ts";
+
+export interface FakePolicyOptions {
+  /** `addAlways` answers "full". */
+  full?: boolean;
+  /** `addAlways` throws, as the real one does for a bug (a tool, scope or key outside its bounds). */
+  throws?: boolean;
+}
+
+export interface AddedRule {
+  ownerId: string;
+  scope: string;
+  tool: string;
+  key: string;
+  label: string;
+}
+
+const slot = (ownerId: string, scope: string) => `${ownerId}\u0000${scope}`;
+
+/** A `PolicyPort` for the sessions tests: the identity for `scopeOf`, rules kept per owner and project, listeners told on every change. */
+export function fakePolicyPort(options: FakePolicyOptions = {}) {
+  const rules = new Map<string, AlwaysRule[]>();
+  const added: AddedRule[] = [];
+  const listeners = new Set<(ownerId: string, scope: string) => void>();
+  let failReads = false;
+  const of = (ownerId: string, scope: string): AlwaysRule[] => {
+    let list = rules.get(slot(ownerId, scope));
+    if (!list) rules.set(slot(ownerId, scope), (list = []));
+    return list;
+  };
+  const tell = (ownerId: string, scope: string) => {
+    for (const listener of [...listeners]) listener(ownerId, scope);
+  };
+  const port: PolicyPort = {
+    scopeOf: (cwd) => cwd,
+    rulesFor(ownerId, scope) {
+      if (failReads) throw new Error("rulesFor failed");
+      return [...of(ownerId, scope)];
+    },
+    addAlways(input) {
+      if (options.throws) throw new Error("addAlways failed");
+      if (options.full) return "full";
+      const list = of(input.ownerId, input.scope);
+      if (list.some((rule) => rule.tool === input.tool && rule.key === input.key)) return "exists";
+      added.push(input);
+      list.push({ tool: input.tool, key: input.key });
+      tell(input.ownerId, input.scope);
+      return "added";
+    },
+    onChange(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
+  return {
+    ...port,
+    added,
+    listenerCount: () => listeners.size,
+    /** What the policy module does when a rule is revoked: the rule is gone, the listeners are told. */
+    revoke(ownerId: string, scope: string, key: string) {
+      const list = of(ownerId, scope);
+      const at = list.findIndex((rule) => rule.key === key);
+      if (at >= 0) list.splice(at, 1);
+      tell(ownerId, scope);
+    },
+    /** Sets the rules of an owner's project without telling anyone (to set up a worker's start). */
+    seed(ownerId: string, scope: string, next: AlwaysRule[]) {
+      rules.set(slot(ownerId, scope), [...next]);
+    },
+    /** `rulesFor` throws from now on. */
+    failReads() {
+      failReads = true;
+    },
+  };
+}

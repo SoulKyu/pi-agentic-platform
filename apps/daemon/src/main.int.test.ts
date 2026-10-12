@@ -43,6 +43,7 @@ function run(args: string[], home = join(root, "home"), env: Record<string, stri
         PAP_HOME: home,
         PI_CODING_AGENT_DIR: join(root, "agent"),
         PI_TELEMETRY: "0",
+        PAP_WORKER_SCOPE: "off",
         ...env,
       },
     },
@@ -104,6 +105,16 @@ describe("pap serve", () => {
     expect((await serve.exit()).code).toBe(0);
     expect(serve.lines.map((line) => line.msg)).toEqual(["setup_url"]);
   });
+
+  it("exits cleanly with 0 on a SIGTERM sent the moment the setup address is announced (startup window)", async () => {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const serve = run(["serve", "--port", String(await freePort())], join(root, `home-${attempt}`));
+      serve.child.stdout?.on("data", (chunk: Buffer) => {
+        if (chunk.includes("setup_url")) serve.child.kill("SIGTERM");
+      });
+      expect(await serve.exit()).toEqual({ code: 0, signal: null });
+    }
+  }, 60_000);
 
   it.each(["SIGINT", "SIGHUP"] as const)("stops cleanly on %s as well", async (signal) => {
     const serve = run(["serve", "--port", String(await freePort())]);

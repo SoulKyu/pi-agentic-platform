@@ -93,13 +93,16 @@ export function SessionListScreen() {
         <ul className="flex flex-col gap-1">
           {sessions.map((session) => (
             <li key={session.id} className="flex items-center gap-2">
-              <Link
-                to="/s/$sessionId"
-                params={{ sessionId: session.id }}
-                className={cn("break-all text-agent underline", FOCUS_RING)}
-              >
-                {session.cwd}
-              </Link>
+              <div className="flex min-w-0 flex-col">
+                <Link
+                  to="/s/$sessionId"
+                  params={{ sessionId: session.id }}
+                  className={cn("break-all text-agent underline", FOCUS_RING)}
+                >
+                  {session.name ?? session.cwd}
+                </Link>
+                {session.name ? <span className="break-all text-ui text-muted">{session.cwd}</span> : null}
+              </div>
               <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
                 {t(`session.status.${session.status}`)}
               </span>

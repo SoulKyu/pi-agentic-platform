@@ -1,22 +1,6 @@
 import { z } from "zod";
-
-export const PolicyRules = z.object({
-  profile: z.literal("interactive"),
-  approvalMode: z.enum(["auto-accept-edits"]),
-});
-export type PolicyRules = z.infer<typeof PolicyRules>;
-
-export const TOOL_CATEGORIES = ["read", "edit", "exec", "network", "external-write", "unknown"] as const;
-export type ToolCategory = (typeof TOOL_CATEGORIES)[number];
-
-export const AuditEntry = z.object({
-  toolCallId: z.string().max(256),
-  tool: z.string().max(256),
-  category: z.enum(TOOL_CATEGORIES),
-  decision: z.enum(["allow", "block", "approved", "denied"]),
-  reason: z.string().max(1024).optional(),
-});
-export type AuditEntry = z.infer<typeof AuditEntry>;
+import { ApprovalAnswer, ApprovalAnswers, AuditEntry, GrantKey, TOOL_CATEGORIES } from "./policy.ts";
+import { SessionName } from "./streams.ts";
 
 // daemon → worker
 // pap targets Linux, so an absolute path starts with "/". A relative path would be resolved against the
@@ -62,18 +46,74 @@ export type UiResponseRecord = z.infer<typeof UiResponseRecord>;
 const ShutdownRecord = z.object({ type: z.literal("shutdown"), graceMs: z.number().int().nonnegative() });
 const PolicyUpdateRecord = z.object({ type: z.literal("policy_update"), rules: z.unknown() });
 
+/**
+ * The `error` of a refused `compact` or `navigate_tree` when Pi is not idle: a typed refusal the daemon maps to
+ * `session_busy`, whatever it knew when it sent the command (a run an extension started, a slow hook).
+ */
+export const WORKER_BUSY = "pap:session_busy";
+
+const Id = z.string().min(1).max(128);
+const ClearQueueCommand = z.object({ type: z.literal("clear_queue"), id: z.string() });
+const CompactCommand = z.object({
+  type: z.literal("compact"),
+  id: z.string(),
+  customInstructions: z.string().max(4096).optional(),
+});
+const NavigateTreeCommand = z.object({ type: z.literal("navigate_tree"), id: z.string(), targetId: Id });
+const SetSessionNameCommand = z.object({
+  type: z.literal("set_session_name"),
+  id: z.string(),
+  name: SessionName.min(1),
+});
+/** The daemon picks the path (under `$PAP_HOME/exports`, Task 18): a worker never writes where a client says. */
+const ExportHtmlCommand = z.object({
+  type: z.literal("export_html"),
+  id: z.string(),
+  outputPath: AbsolutePath,
+});
+const AutoNameCommand = z.object({ type: z.literal("auto_name"), id: z.string() });
+const CustomInputRecord = z.object({ type: z.literal("custom_input"), id: Id, data: z.string().max(4096) });
+const CustomCancelRecord = z.object({ type: z.literal("custom_cancel"), id: Id });
+/**
+ * `cancelled`: the daemon could not show the question (limits, malformed, an id already in use). pap-policy treats it as a closed
+ * question (fail closed, audit "dialog closed"), never as the user's refusal (M2-RT-22).
+ */
+const ApprovalResponseRecord = z.object({
+  type: z.literal("approval_response"),
+  id: Id,
+  answer: ApprovalAnswer,
+  cancelled: z.literal(true).optional(),
+});
+
 export const DaemonToWorker = z.discriminatedUnion("type", [
   InitRecord,
   PromptCommand,
   AbortCommand,
   GetStateCommand,
+  ClearQueueCommand,
+  CompactCommand,
+  NavigateTreeCommand,
+  SetSessionNameCommand,
+  ExportHtmlCommand,
+  AutoNameCommand,
   UiResponseRecord,
+  CustomInputRecord,
+  CustomCancelRecord,
+  ApprovalResponseRecord,
   ShutdownRecord,
   PolicyUpdateRecord,
 ]);
 export type DaemonToWorker = z.infer<typeof DaemonToWorker>;
 type CommandRecord =
-  z.infer<typeof PromptCommand> | z.infer<typeof AbortCommand> | z.infer<typeof GetStateCommand>;
+  | z.infer<typeof PromptCommand>
+  | z.infer<typeof AbortCommand>
+  | z.infer<typeof GetStateCommand>
+  | z.infer<typeof ClearQueueCommand>
+  | z.infer<typeof CompactCommand>
+  | z.infer<typeof NavigateTreeCommand>
+  | z.infer<typeof SetSessionNameCommand>
+  | z.infer<typeof ExportHtmlCommand>
+  | z.infer<typeof AutoNameCommand>;
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 export type CommandInput = DistributiveOmit<CommandRecord, "id">;
 
@@ -83,8 +123,36 @@ export const ReadyRecord = z.object({
   sessionFile: z.string(),
   sessionId: z.string(),
   piVersion: z.string(),
+  /**
+   * Pi's current leaf: where the next entry goes and what the transcript of a hot session shows (Task 10b). Not
+   * bounded here: the daemon treats one over 128 characters as unknown (M2-RT-06).
+   */
+  leafId: z.string().nullable().default(null),
+  /** The session's name in Pi; the daemon clips it with `nameOf` (Task 17b). */
+  sessionName: z.string().nullable().default(null),
 });
 export type ReadyRecord = z.infer<typeof ReadyRecord>;
+export const CustomRenderRecord = z.object({
+  type: z.literal("custom_render"),
+  id: Id,
+  lines: z.array(z.string()),
+});
+const CustomCloseRecord = z.object({ type: z.literal("custom_close"), id: Id });
+/**
+ * The policy's own question (Task 13b). The extension API cannot send it (`ctx.ui` has no approval method); code
+ * inside the worker process could, which is R101's residual (ADR 0008).
+ */
+export const ApprovalRequestRecord = z.object({
+  type: z.literal("approval_request"),
+  id: Id,
+  category: z.enum(TOOL_CATEGORIES),
+  title: z.string().max(4096),
+  message: z.string().max(65_536),
+  answers: ApprovalAnswers,
+  tool: z.string().min(1).max(256),
+  key: GrantKey,
+});
+export type ApprovalRequestRecord = z.infer<typeof ApprovalRequestRecord>;
 export const ResponseRecord = z.object({
   type: z.literal("response"),
   id: z.string(),
@@ -102,35 +170,81 @@ export const UiRequestRecord = z.looseObject({
 export type UiRequestRecord = z.infer<typeof UiRequestRecord>;
 const UiClosedRecord = z.object({ type: z.literal("extension_ui_closed"), id: z.string() });
 const AuditRecord = z.object({ type: z.literal("audit"), entry: AuditEntry });
-const HealthRecord = z.object({ type: z.literal("health"), rssMb: z.number().nonnegative() });
+/**
+ * Every 30 s. `descendants`: the live processes below the worker that are outside its process group, which are the
+ * ones the agent started (M2R107); 0 when an older worker does not say, and off Linux.
+ */
+const HealthRecord = z.object({
+  type: z.literal("health"),
+  rssMb: z.number().nonnegative(),
+  descendants: z.number().int().nonnegative().default(0),
+});
 const ExtensionErrorRecord = z.object({
   type: z.literal("extension_error"),
   extensionPath: z.string(),
   event: z.string(),
   error: z.string(),
 });
+/**
+ * Where Pi's leaf is now, when the worker cannot say it with `entry_appended` records: it moved without new entries
+ * (a navigation), the newest entry was one Pi announced itself, or more entries are new than one flush sends (`resync`:
+ * the daemon's ids for the rows of the run are incomplete until it reads the file after `agent_settled`). Not bounded
+ * here: the daemon treats an id over 128 characters as unknown.
+ */
+export const LeafRecord = z.object({
+  type: z.literal("leaf"),
+  leafId: z.string().nullable(),
+  resync: z.boolean(),
+});
+export type LeafRecord = z.infer<typeof LeafRecord>;
 const PapRecord = z.discriminatedUnion("type", [
   ReadyRecord,
+  LeafRecord,
   ResponseRecord,
   UiRequestRecord,
   UiClosedRecord,
   AuditRecord,
   HealthRecord,
   ExtensionErrorRecord,
+  CustomRenderRecord,
+  CustomCloseRecord,
+  ApprovalRequestRecord,
 ]);
 const PiEventRecord = z.looseObject({ type: z.string() });
 // Derived, so a record added to PapRecord can never be forwarded as a Pi event by mistake.
 const PAP_TYPES: ReadonlySet<string> = new Set(PapRecord.options.map((option) => option.shape.type.value));
 
+/**
+ * Made by the daemon's parser, never sent by a worker (a worker that sends this type gets a Pi event): an
+ * `approval_request` the schema refuses but that has an id to answer, so the policy is told and fails closed.
+ */
+export interface ApprovalInvalidRecord {
+  readonly type: "approval_request_invalid";
+  readonly id: string;
+  readonly reason: "malformed" | "too_large";
+}
+
 export type WorkerRecord =
-  z.infer<typeof PapRecord> | { type: "pi_event"; event: z.infer<typeof PiEventRecord> };
+  | z.infer<typeof PapRecord>
+  | ApprovalInvalidRecord
+  | { type: "pi_event"; event: z.infer<typeof PiEventRecord> };
+
+const textOver = (value: unknown, max: number): boolean => typeof value === "string" && value.length > max;
+
+function invalidApproval(raw: Record<string, unknown>): ApprovalInvalidRecord | null {
+  const id = Id.safeParse(raw.id);
+  if (!id.success) return null;
+  const tooLarge = textOver(raw.title, 4096) || textOver(raw.message, 65_536);
+  return { type: "approval_request_invalid", id: id.data, reason: tooLarge ? "too_large" : "malformed" };
+}
 
 export function parseWorkerRecord(raw: unknown): WorkerRecord | null {
   const base = PiEventRecord.safeParse(raw);
   if (!base.success) return null;
   if (PAP_TYPES.has(base.data.type)) {
     const parsed = PapRecord.safeParse(raw);
-    return parsed.success ? parsed.data : null;
+    if (parsed.success) return parsed.data;
+    return base.data.type === "approval_request" ? invalidApproval(base.data) : null;
   }
   return { type: "pi_event", event: base.data };
 }

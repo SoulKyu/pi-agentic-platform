@@ -1,6 +1,4 @@
 import {
-  type Dialog,
-  type DialogResponse,
   GetStateData,
   type InitRecord,
   PapError,
@@ -8,20 +6,25 @@ import {
   type ReadyRecord,
   type SessionStatus,
   type SessionStreamEvent,
-  type UiRequestRecord,
   type WorkerRecord,
 } from "@pap/contracts";
-import type { Clock } from "../../kernel/clock.ts";
-import type { Logger } from "../../kernel/logger.ts";
-import { describeExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
-import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
-import { type CancelReason, createDialogRegistry } from "./dialogs.ts";
-import { fileSizeOrZero } from "./pi-files.ts";
+import { describeExit } from "../../kernel/supervisor/exit.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
-import { createRunTracker, isIdle } from "./run-tracker.ts";
-import { createRunView, type RunViewState } from "./run-view.ts";
+import { createCoalescer } from "./coalescer.ts";
+import type { LiveSession, LiveSessionDeps } from "./live-types.ts";
+import { slimEntryRef, summaryRow } from "./entry-events.ts";
+import type { IdleState } from "./idle-release.ts";
+import { createLiveCommands } from "./live-commands.ts";
+import { createLiveIdle } from "./live-idle.ts";
+import { createLiveRun, isSystemMessage } from "./live-run.ts";
+import { createLiveUi } from "./live-ui.ts";
+import { nameOf } from "./names.ts";
+import { createNoticeRing } from "./notices.ts";
+import { createPartialReply } from "./partial.ts";
+import { clearWorkerQueue, createQueueGuard } from "./queue-guard.ts";
+import { clipMessage, clipPiEvent } from "./wire-clip.ts";
+import { clip, outputTailOf } from "./worker-text.ts";
 
-const ABORT_SETTLE_MS = 5000;
 const GET_STATE_TIMEOUT_MS = 2000;
 /** Fork to `ready` takes about 0.7 s (S1): a worker that has not said so after this is stuck, not slow. */
 export const READY_TIMEOUT_MS = 30_000;
@@ -29,52 +32,12 @@ export const READY_TIMEOUT_MS = 30_000;
 const MAX_EVENT_BYTES = 1_000_000;
 /** The user and the log hear of a thing the daemon keeps doing (cancelling a dialog, dropping an event) this often. */
 const SAY_EVERY_MS = 10_000;
-/** What the daemon logs of a worker's output or error text, counted from the end for output (R66, R102). */
-const LOG_CHARS = 2000;
-/** An event name an extension error may show to the user; anything else is left out, never cut. */
-const SAFE_EVENT_NAME = /^[a-z][a-z0-9_:.-]{0,63}$/;
+/** The client contract carries ids up to this long; a longer one counts as unknown (M2R52). */
+const MAX_ID_CHARS = 128;
+const knownId = (id: unknown): string | null =>
+  typeof id === "string" && id.length > 0 && id.length <= MAX_ID_CHARS ? id : null;
 
-const CANCEL_NOTICES: Partial<Record<CancelReason, string>> = {
-  too_large: "An extension asked a question that was too large to show. It was cancelled.",
-  limit: "An extension asked a question while too many were waiting. It was cancelled.",
-};
-
-export interface LiveSessionDeps {
-  readonly handle: WorkerHandle;
-  readonly clock: Clock;
-  readonly logger: Logger;
-  publish(event: SessionStreamEvent): void;
-  record(kind: string, data: unknown): void;
-  /** Called after every Pi event, when a run ends and when the worker is gone: the moments Pi's file may have appeared. */
-  onActivity(): void;
-  onExit(exit: WorkerExit): void;
-}
-
-export interface LiveSession {
-  readonly ready: Promise<ReadyRecord>;
-  status(): SessionStatus;
-  rssMb(): number | null;
-  pid(): number | undefined;
-  /** Where Pi writes (or wrote) this session, from `ready`. It does not exist until the first user message. */
-  piFile(): string | undefined;
-  /** Pi's id for the session, from `ready`. */
-  piSessionId(): string | undefined;
-  dialogs(): Dialog[];
-  /** What a run in progress has produced that the session file does not have yet; null between runs. */
-  runView(): RunViewState | null;
-  prompt(
-    text: string,
-    streamingBehavior?: "steer" | "followUp",
-  ): Promise<{ disposition: "started" | "queued" | "handled" }>;
-  abort(): Promise<void>;
-  answer(dialogId: string, response: DialogResponse): void;
-  stop(): Promise<void>;
-}
-
-const isSystemMessage = (event: PiEvent): boolean =>
-  (event.message as { role?: unknown } | null | undefined)?.role === "system";
-
-const clip = (text: string): string => (text.length > LOG_CHARS ? `${text.slice(0, LOG_CHARS)}…` : text);
+export type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 
 export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveSession {
   const { handle, logger } = deps;
@@ -82,12 +45,46 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   let rss: number | null = null;
   let piFile: string | undefined;
   let piSessionId: string | undefined;
-  const dialogs = createDialogRegistry();
-  const view = createRunView();
+  let leafId: string | null = null;
+  let name: string | null = null;
+  // From the worker's `health`: processes the agent started that still run (M2R107).
+  let agentProcesses = 0;
   const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
+  const partial = createPartialReply();
+  const notices = createNoticeRing();
+  // Every notice is kept for the snapshot, whoever says it (M2R85).
+  const emit = (event: SessionStreamEvent): void => {
+    if (event.kind === "notice") {
+      notices.add({
+        level: event.level,
+        text: event.text,
+        ...(event.source ? { source: event.source } : {}),
+      });
+    }
+    deps.publish(event);
+  };
+  // Every event this session publishes sends the pending deltas first, so text never arrives after what follows it.
+  const publish = (event: SessionStreamEvent): void => {
+    coalescer.flush();
+    emit(event);
+  };
+  const coalescer = createCoalescer({
+    clock: deps.clock,
+    emit: (event) => {
+      // Only the content is gated: a lifecycle event (a message's end) too large to stream still ends the partial reply.
+      if (publishMeasured(event) || event.type !== "message_update") partial.apply(event);
+    },
+  });
   const setStatus = (next: SessionStatus, cause?: string) => {
     status = next;
-    deps.publish({ kind: "status", status: next, ...(cause ? { cause } : {}) });
+    publish({ kind: "status", status: next, ...(cause ? { cause } : {}) });
+  };
+  // Pi's name, through the one clip (M2R92). Only a change is handed on, so a loop in an extension stores and says nothing twice.
+  const setName = (next: string | null, announce: boolean): void => {
+    if (next === name) return;
+    name = next;
+    deps.onName(next);
+    if (announce) publish({ kind: "name", name: next });
   };
   const getState = async (): Promise<GetStateData> => {
     const response = await handle.request({ type: "get_state" }, GET_STATE_TIMEOUT_MS);
@@ -95,40 +92,68 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     if (!response.success || !parsed.success) throw new PapError("worker_failed");
     return parsed.data;
   };
-  const tracker = createRunTracker({
+
+  // An event is sent whole or not at all, and every kind of event is measured: a `text_end` carries the whole text of
+  // a block and a `toolcall_end` the whole call, so a delta is the only small one and it costs nothing to look.
+  /** The stream's own frame for a Pi event, whole or not at all; false when it was too large and left out. */
+  function publishMeasured(event: PiEvent): boolean {
+    if (Buffer.byteLength(JSON.stringify(event)) > MAX_EVENT_BYTES) {
+      const said = limiter.check("event_too_large");
+      if (said.allowed) {
+        logger.warn("pi_event_too_large", { type: clip(event.type), suppressed: said.suppressed });
+        emit({ kind: "notice", level: "warning", text: "A message was too large to stream." });
+      }
+      return false;
+    }
+    deps.publish({ kind: "pi", event });
+    return true;
+  }
+
+  const queue = createQueueGuard();
+  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish });
+  const commands = createLiveCommands({ handle, logger });
+  const run = createLiveRun({
+    handle,
     clock: deps.clock,
-    probe: getState,
-    onRunStart: () => {
-      // The file is complete up to here: the last run settled before this one began (R38).
-      view.begin(piFile ? fileSizeOrZero(piFile) : 0);
-      setStatus("running");
-      deps.record("run_start", { origin: "user" });
-    },
-    onRunEnd: ({ aborted }) => {
-      view.end();
-      setStatus("idle");
-      deps.record("run_end", { aborted });
-      deps.onActivity();
-    },
+    logger,
+    setStatus,
+    record: deps.record,
+    onActivity: deps.onActivity,
+    piFile: () => piFile,
+    leafId: () => leafId,
+    getState,
+    queue,
+    promptBlocked: () => commands.activity().compacting || commands.structuralInFlight() > 0,
   });
 
-  // Input Pi rejected or handled without a turn leaves no agent_settled to wait for. If the daemon holds a run open and
-  // Pi shows nothing running, the run is over (R111b). Not awaited: the answer to the client does not wait for a
-  // probe. The generation read first keeps it from ending a run that began since.
-  function closeStaleRun(): void {
-    if (!tracker.running) return;
-    const generation = tracker.generation;
-    void getState()
-      .then((state) => {
-        if (isIdle(state)) tracker.finish(false, generation);
-      })
-      .catch(() => undefined);
-  }
+  // What a user waits on keeps the worker (the status is `running` while a run is open); processes the agent left
+  // running keep it for 8 h at most (M2R107).
+  const state = (): IdleState => {
+    const busy =
+      status !== "idle" ||
+      run.promptPending() ||
+      ui.dialogs().length > 0 ||
+      ui.panels().length > 0 ||
+      queue.view().count > 0 ||
+      commands.inFlight() > 0 ||
+      commands.activity().compacting ||
+      commands.activity().retry !== null;
+    return busy ? "busy" : agentProcesses > 0 ? "background" : "quiet";
+  };
+  const idle = createLiveIdle({
+    clock: deps.clock,
+    idleMs: deps.idleMs,
+    logger,
+    handle,
+    cancelPanels: () => ui.cancelPanels(),
+    setStatus,
+    state,
+  });
 
   const ready = new Promise<ReadyRecord>((resolve, reject) => {
     const timer = deps.clock.setTimeout(() => {
       off();
-      logger.warn("worker_not_ready", { output: outputTail() });
+      logger.warn("worker_not_ready", { output: outputTailOf(handle) });
       void handle.stop();
       reject(new PapError("worker_failed"));
     }, READY_TIMEOUT_MS);
@@ -138,7 +163,10 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       deps.clock.clearTimeout(timer);
       piFile = record.sessionFile;
       piSessionId = record.sessionId;
+      leafId = knownId(record.leafId);
+      setName(nameOf(record.sessionName), false);
       setStatus("idle");
+      idle.touch();
       resolve(record);
     });
     void handle.exited.then(() => {
@@ -149,84 +177,99 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   // Whoever starts a session awaits this; one that is torn down meanwhile must not leave an unhandled rejection.
   ready.catch(() => undefined);
 
-  // The end of what the worker printed, not the start: that is where it says why it stopped. Exactly LOG_CHARS at
-  // most, marker included, so that the logger's own clip (which keeps the start) leaves it alone.
-  function outputTail(): string {
-    const tail = handle.outputTail();
-    return tail.length > LOG_CHARS ? `…${tail.slice(-(LOG_CHARS - 1))}` : tail;
-  }
-
-  // An event is sent whole or not at all, and every kind of event is measured: a `text_end` carries the whole text of
-  // a block and a `toolcall_end` the whole call, so a delta is the only small one and it costs nothing to look.
-  function publishPi(event: PiEvent): void {
-    if (Buffer.byteLength(JSON.stringify(event)) > MAX_EVENT_BYTES) {
-      const said = limiter.check("event_too_large");
-      if (said.allowed) {
-        logger.warn("pi_event_too_large", { type: clip(event.type), suppressed: said.suppressed });
-        deps.publish({ kind: "notice", level: "warning", text: "A message was too large to stream." });
-      }
+  // The worker sends an entry Pi appended as the slim record `toWireEvent` defines. It becomes an `entry` event (the
+  // client binds the id to the message it already has); a compaction or a branch summary has no message event, so it
+  // is also a `row`. Pi's own event is never forwarded.
+  function onEntry(raw: unknown): void {
+    const entry = slimEntryRef(raw);
+    if (!entry) {
+      logger.debug("entry_ignored");
       return;
     }
-    deps.publish({ kind: "pi", event });
-  }
-
-  function onUiRequest(record: UiRequestRecord): void {
-    const verdict = dialogs.offer(record);
-    if (verdict.kind === "opened") {
-      deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
-    } else if (verdict.kind === "cancel") {
-      // Every dialog is answered; only the telling is spaced out, so an extension that asks in a loop cannot flood
-      // the user's screen or the log.
-      handle.send({ type: "extension_ui_response", id: record.id, cancelled: true });
-      const said = limiter.check(`dialog_${verdict.reason}`);
-      if (!said.allowed) return;
-      logger.warn("dialog_cancelled", {
-        reason: verdict.reason,
-        method: clip(record.method).slice(0, 64),
-        suppressed: said.suppressed,
-      });
-      const notice = CANCEL_NOTICES[verdict.reason];
-      if (notice) deps.publish({ kind: "notice", level: "warning", text: notice });
-    } else {
-      publishPi(record);
+    leafId = entry.id;
+    // Pi's system prompt is an entry like any other; the client never shows it, so it never hears of it (R107).
+    if (entry.type === "message" && entry.role === "system") return;
+    run.bindEntry(entry);
+    publish({ kind: "entry", entry });
+    const message = summaryRow(raw);
+    if (message) {
+      const row = { entryId: entry.id, message: clipMessage(message) };
+      run.addRow(row);
+      publish({ kind: "row", row });
     }
-  }
-
-  // The worker's own words are logged, clipped, and never sent on: a client gets a fixed text (R66).
-  function onExtensionError(record: Extract<WorkerRecord, { type: "extension_error" }>): void {
-    logger.warn("extension_error", {
-      extensionPath: clip(record.extensionPath),
-      event: clip(record.event),
-      error: clip(record.error),
-    });
-    const during = SAFE_EVENT_NAME.test(record.event) ? ` during ${record.event}` : "";
-    deps.publish({ kind: "notice", level: "error", text: `An extension failed${during}.` });
   }
 
   function onRecord(record: WorkerRecord): void {
     switch (record.type) {
       case "extension_ui_request":
-        onUiRequest(record);
+        // Only a dialog is a person's work: a status bar that ticks must not keep the worker (M2R108).
+        if (ui.onUiRequest(record)) idle.touch();
+        return;
+      case "approval_request":
+        idle.touch();
+        ui.onApprovalRequest(record);
+        return;
+      case "approval_request_invalid":
+        ui.onApprovalInvalid(record);
         return;
       case "extension_ui_closed":
-        if (dialogs.take(record.id)) deps.publish({ kind: "dialog_closed", id: record.id });
+        ui.onUiClosed(record.id);
+        return;
+      case "custom_render":
+        idle.touch();
+        ui.onPanelRender(record.id, record.lines);
+        return;
+      case "custom_close":
+        ui.onPanelClose(record.id);
         return;
       case "audit":
         deps.record("policy", record.entry);
         return;
       case "health":
         rss = record.rssMb;
+        agentProcesses = record.descendants;
         return;
       case "extension_error":
-        onExtensionError(record);
+        ui.onExtensionError(record);
         return;
+      case "leaf": {
+        leafId = knownId(record.leafId);
+        // More entries are new than the worker sends at once: the rows of the run keep no id until the file is read.
+        if (record.resync) {
+          const said = limiter.check("entries_resync");
+          if (said.allowed) logger.warn("entries_resync_needed", { suppressed: said.suppressed });
+        }
+        return;
+      }
       case "pi_event": {
+        idle.touch();
         const event = record.event;
-        tracker.onEvent(event);
+        // The raw event is never forwarded: the stream carries the guard's bounded view of it.
+        // Never forwarded raw: a name is text an extension or the model wrote (M2R92).
+        if (event.type === "session_info_changed") {
+          setName(nameOf(event.name), true);
+          return;
+        }
+        if (event.type === "queue_update") {
+          publish({ kind: "queue", queue: queue.onQueueUpdate(event as never) });
+          deps.onActivity();
+          return;
+        }
+        if (event.type === "entry_appended") {
+          onEntry(event.entry);
+          deps.onActivity();
+          return;
+        }
         // Pi's system prompt travels as a message. It stays here: it is internal and may carry the user's AGENTS.md (R107).
-        if (!isSystemMessage(event)) {
-          if (event.type === "message_end") view.push(event.message);
-          publishPi(event);
+        if (isSystemMessage(event)) {
+          run.onPiEvent(event);
+        } else {
+          // Clipped before the run view and the coalescer see it: the snapshot and the stream hold the same rows.
+          const clipped = clipPiEvent(event);
+          run.onPiEvent(clipped ?? event);
+          if (clipped) coalescer.push(clipped);
+          const activity = commands.onPiEvent(event);
+          if (activity) publish(activity);
         }
         deps.onActivity();
         return;
@@ -238,19 +281,31 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   }
   handle.onRecord(onRecord);
 
-  void handle.exited.then((exit) => {
-    const wasRunning = tracker.running;
-    tracker.reset();
-    view.end();
-    for (const dialog of dialogs.clear()) deps.publish({ kind: "dialog_closed", id: dialog.id });
-    if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
-    deps.record("worker_exit", exit);
-    if (exit.cause === "clean") logger.info("worker_exited", { ...exit });
-    else logger.warn("worker_exited", { ...exit, output: outputTail() });
-    setStatus("cold", describeExit(exit));
-    deps.onActivity();
-    deps.onExit(exit);
-  });
+  const gone = handle.exited
+    .then((exit) => {
+      // Whatever fails while the exit is told, the session is forgotten: it must come back with the next prompt.
+      try {
+        idle.end();
+        coalescer.flush();
+        partial.reset();
+        coalescer.dispose();
+        queue.reset();
+        commands.reset();
+        const wasRunning = run.onExit();
+        for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
+        for (const id of ui.clearDecorations()) publish({ kind: "panel_closed", id });
+        if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
+        deps.record("worker_exit", exit);
+        if (exit.cause === "clean") logger.info("worker_exited", { ...exit });
+        else logger.warn("worker_exited", { ...exit, output: outputTailOf(handle) });
+        setStatus("cold", idle.stopping() && exit.cause !== "oom" ? undefined : describeExit(exit));
+        deps.onActivity();
+      } finally {
+        deps.onExit(exit);
+      }
+      deps.onWorkerExit?.({ exit, outputTail: handle.outputTail() });
+    })
+    .catch((error: unknown) => logger.error("worker_exit_handling_failed", { err: error }));
   if (!handle.send(init)) logger.warn("worker_init_not_sent");
 
   return {
@@ -260,56 +315,49 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     pid: () => handle.pid,
     piFile: () => piFile,
     piSessionId: () => piSessionId,
-    dialogs: () => dialogs.list(),
-    runView: () => view.state(),
-    async prompt(text, streamingBehavior) {
-      tracker.onInput();
-      // No timeout: an extension command answers only when it ends, possibly after a dialog the user takes minutes
-      // over (R99). The wait ends with the worker. Answers to dialogs do not depend on it.
-      const response = await handle.request({
-        type: "prompt",
-        message: text,
-        ...(streamingBehavior ? { streamingBehavior } : {}),
-      });
-      if (!response.success) {
-        logger.info("prompt_rejected", { error: clip(response.error ?? "") });
-        closeStaleRun();
-        throw new PapError("prompt_rejected");
-      }
-      const disposition = (response.data as { disposition?: unknown } | undefined)?.disposition;
-      if (disposition === "handled") closeStaleRun();
-      return { disposition: disposition === "queued" || disposition === "handled" ? disposition : "started" };
+    name: () => name,
+    dialogs: () => ui.dialogs(),
+    statuses: () => ui.statuses(),
+    widgets: () => ui.widgets(),
+    title: () => ui.title(),
+    panels: () => ui.panels(),
+    notices: () => notices.list(),
+    notice: (notice) => publish({ kind: "notice", ...notice }),
+    panelInput(id, data) {
+      idle.touch();
+      ui.panelInput(id, data);
     },
-    // One deadline for the whole abort: a worker that has not settled 5 s after it was asked is terminated.
+    partial: () => partial.current(),
+    leafId: () => leafId,
+    runView: () => run.runView(),
+    prompt: (text, streamingBehavior) => idle.active(() => run.prompt(text, streamingBehavior)),
     async abort() {
-      // Read before asking: a run that begins while get_state is on its way is not the run this abort found.
-      const generation = tracker.generation;
-      const state = await getState().catch(() => null);
-      if (!state || state.isCompacting) {
-        await handle.stop();
-        return;
-      }
-      if (isIdle(state)) {
-        // Pi had nothing running when it answered, so the run the daemon still holds open (input Pi rejected or
-        // handled without a turn) is over, unless Pi started again since: records arrive in a batch, and this
-        // continuation can run after a prompt's `started` and its `agent_start` (R111b). Pi is told to abort all the
-        // same. It does nothing if it is idle, and stops the run if the answer was stale. The worker is left alone.
-        handle.request({ type: "abort" }, ABORT_SETTLE_MS).catch(() => undefined);
-        tracker.finish(true, generation);
-        return;
-      }
-      const settled = tracker.waitIdle(ABORT_SETTLE_MS);
-      handle.request({ type: "abort" }, ABORT_SETTLE_MS).catch(() => undefined);
-      if (!(await settled)) await handle.stop();
+      if (idle.stopping()) return;
+      await idle.active(() => run.abort());
     },
+    busy: () =>
+      run.tracker.running ||
+      run.promptPending() ||
+      commands.activity().compacting ||
+      commands.structuralInFlight() > 0,
+    command: (input) => idle.active(() => commands.command(input)),
+    commandsInFlight: () => commands.inFlight(),
+    navigated(next) {
+      leafId = knownId(next);
+    },
+    activity: () => commands.activity(),
+    queue: queue.view,
+    clearQueue: () =>
+      idle.stopping()
+        ? Promise.resolve({ steering: [], followUp: [], truncated: false })
+        : idle.active(() => clearWorkerQueue(handle, logger)),
     answer(dialogId, response) {
-      if (!dialogs.take(dialogId)) throw new PapError("not_found");
-      const delivered = handle.send({ type: "extension_ui_response", id: dialogId, ...response });
-      deps.publish({ kind: "dialog_closed", id: dialogId });
-      if (!delivered) throw new PapError("worker_failed");
+      idle.touch();
+      return ui.answer(dialogId, response);
     },
-    stop: async () => {
-      await handle.stop();
-    },
+    send: (record) => handle.send(record),
+    stop: idle.stop,
+    stopping: () => idle.stopping(),
+    exited: () => gone,
   };
 }

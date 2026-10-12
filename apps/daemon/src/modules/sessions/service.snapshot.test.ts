@@ -23,7 +23,7 @@ const build = (options?: Parameters<typeof createServiceBed>[1]) =>
 let bed: ReturnType<typeof build>;
 afterEach(() => bed.dispose());
 const rowsOf = (event: unknown): string[] =>
-  (event as { messages: Array<{ role: string; content: unknown }> }).messages.map((m) =>
+  (event as { rows: Array<{ message: { role: string; content: unknown } }> }).rows.map(({ message: m }) =>
     typeof m.content === "string" ? m.content : JSON.stringify(m.content),
   );
 const kindsOf = (frames: EventFrame[]) => frames.map((frame) => (frame.event as { kind: string }).kind);
@@ -50,10 +50,10 @@ describe("snapshot", () => {
     bed = build();
     await bed.service.create(bed.work, owner);
     bed.spawned[0]?.emit(confirm);
-    expect(await bed.snapshot("p1")).toEqual({
+    expect(await bed.snapshot("p1")).toMatchObject({
       kind: "snapshot",
       status: "idle",
-      messages: [],
+      rows: [],
       dialogs: [{ id: "d1", method: "confirm", title: "Run?", message: "bash: ls" }],
     });
   });
@@ -127,6 +127,23 @@ describe("snapshot", () => {
     expect(rows.at(-1)).toBe('[{"type":"text","text":"answer 99"}]');
   });
 
+  it("carries the file's entry ids and what lies above the 75 rows shown", async () => {
+    bed = build();
+    await bed.service.create(bed.work, owner);
+    bed.writePiFile(
+      0,
+      Array.from({ length: 100 }, (_, i) => [`question ${i}`, `answer ${i}`] as const),
+    );
+    bed.emit(0, { type: "turn_start" });
+    const snapshot = (await bed.snapshot("p1")) as {
+      rows: Array<{ entryId: string | null }>;
+      history: unknown;
+    };
+    expect(snapshot.rows.at(0)?.entryId).toBe("a62");
+    expect(snapshot.rows.at(-1)?.entryId).toBe("a99");
+    expect(snapshot.history).toEqual({ hasMore: true, oldestEntryId: "a62", turnsBefore: 63 });
+  });
+
   it("shows a row too big for a snapshot as a placeholder, and the rows around it as they are (R109)", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);
@@ -136,10 +153,12 @@ describe("snapshot", () => {
       Array.from({ length: 10 }, (_, i) => [`${i}${big}`, `answer ${i}`] as const),
     );
     bed.emit(0, { type: "turn_start" });
-    const snapshot = (await bed.snapshot("p1")) as { messages: Array<{ role: string; omitted?: boolean }> };
+    const snapshot = (await bed.snapshot("p1")) as {
+      rows: Array<{ message: { role: string; omitted?: boolean } }>;
+    };
     expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThan(1024 * 1024 - 1024);
-    expect(snapshot.messages).toHaveLength(20);
-    expect(snapshot.messages.filter((message) => message.omitted)).toHaveLength(10);
+    expect(snapshot.rows).toHaveLength(20);
+    expect(snapshot.rows.filter((row) => row.message.omitted)).toHaveLength(10);
     expect(rowsOf(snapshot).at(-1)).toBe('[{"type":"text","text":"answer 9"}]');
   });
 
@@ -151,11 +170,16 @@ describe("snapshot", () => {
     bed.emit(0, { type: "agent_start" });
     bed.emit(0, {
       type: "message_end",
-      message: { role: "toolResult", timestamp: 5, content: "y".repeat(2_000_000) },
+      message: { role: "assistant", timestamp: 5, content: "y".repeat(2_000_000) },
     });
-    const snapshot = (await bed.snapshot("p1")) as { messages: Array<Record<string, unknown>> };
-    expect(snapshot.messages).toHaveLength(3);
-    expect(snapshot.messages.at(-1)).toMatchObject({ role: "toolResult", timestamp: 5, omitted: true });
+    const snapshot = (await bed.snapshot("p1")) as {
+      rows: Array<{ entryId: null; message: Record<string, unknown> }>;
+    };
+    expect(snapshot.rows).toHaveLength(3);
+    expect(snapshot.rows.at(-1)).toEqual({
+      entryId: null,
+      message: expect.objectContaining({ role: "assistant", timestamp: 5, omitted: true }),
+    });
   });
 });
 
@@ -269,5 +293,51 @@ describe("what is recorded about a session", () => {
     bed.emit(0, { type: "agent_start" });
     expect(bed.service.list(owner)[0]?.status).toBe("running");
     expect(await codeOf(bed.service.prompt({ sessionId: "p1", text: "go" }, owner))).toBeNull();
+  });
+});
+
+describe("snapshot of a reply being written", () => {
+  const text = (d: string) => ({
+    type: "message_update",
+    assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: d },
+  });
+  const deltaOf = (frame: EventFrame): string =>
+    (frame.event as { event?: { assistantMessageEvent?: { delta?: string } } }).event?.assistantMessageEvent
+      ?.delta ?? "";
+
+  it("rebuilds the reply exactly from a snapshot taken between two flushes and the frames after it", async () => {
+    bed = build();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    bed.emit(0, { type: "agent_start" });
+    bed.emit(0, { type: "message_start", message: { role: "assistant", content: [] } });
+    bed.emit(0, text("a"));
+    bed.emit(0, text("b"));
+    await bed.clock.advance(50);
+    bed.emit(0, text("c"));
+    const frames = await bed.subscribe(sessionId);
+    bed.emit(0, text("d"));
+    await bed.clock.advance(50);
+    const snapshot = frames[0]?.event as { kind: string; partial: { blocks: Array<{ text: string }> } };
+    expect(snapshot.kind).toBe("snapshot");
+    expect(snapshot.partial.blocks[0]?.text).toBe("ab");
+    expect(frames.slice(1).map(deltaOf).join("")).toBe("cd");
+  });
+
+  it("rebuilds the reply exactly when a message_end flushes the pending deltas after the snapshot", async () => {
+    bed = build();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    bed.emit(0, { type: "agent_start" });
+    bed.emit(0, { type: "message_start", message: { role: "assistant", content: [] } });
+    bed.emit(0, text("a"));
+    const frames = await bed.subscribe(sessionId);
+    bed.emit(0, text("b"));
+    bed.emit(0, {
+      type: "message_end",
+      message: { role: "assistant", content: [{ type: "text", text: "ab" }] },
+    });
+    const snapshot = frames[0]?.event as { partial: { blocks: Array<{ text: string }> } | null };
+    expect(snapshot.partial?.blocks[0]?.text ?? "").toBe("");
+    expect(frames.slice(1).map(deltaOf).join("")).toBe("ab");
+    expect((await bed.snapshot(sessionId)) as { partial: unknown }).toMatchObject({ partial: null });
   });
 });

@@ -23,7 +23,7 @@ const PI_HOST = join(REPO, "packages/pi-host/dist/main.js");
 const WEB_INDEX = join(REPO, "apps/web/dist/index.html");
 // Plain TypeScript with node:net only: Node strips the types, so it needs no build.
 const NETWORK_GUARD = join(REPO, "packages/pi-host/src/testing/network-guard.ts");
-const PROTOCOL = 1;
+const PROTOCOL = 2;
 const STEP_MS = 60_000;
 const STOP_MS = 20_000;
 const REAP_MS = 5_000;
@@ -271,6 +271,8 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
     await session.call("subscribe.session", { sessionId });
     await session.waitFor((event) => event.kind === "snapshot", "the snapshot");
     step(`session ${sessionId} created and subscribed`);
+    const rules = JSON.stringify(await session.call("policy.listRules", { cwd: work }));
+    if (rules !== '{"rules":[],"truncated":false}') throw new Error(`policy.listRules answered ${rules}`);
     await session.call("sessions.prompt", { sessionId, text: "Run the check" }, true);
     const dialog = asJson(
       (await session.waitFor((event) => event.kind === "dialog_open", "the approval card")).dialog,
@@ -279,12 +281,18 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
       throw new Error(`the approval card does not show the command: ${JSON.stringify(dialog)}`);
     await session.call(
       "sessions.respondDialog",
-      { sessionId, dialogId: String(dialog.id), response: { confirmed: true } },
+      { sessionId, dialogId: String(dialog.id), response: { answer: "once" } },
       true,
     );
-    const toolEnd = await session.waitFor(isPi("tool_execution_end"), "the tool result");
-    if (asJson(toolEnd.event).isError === true || !JSON.stringify(toolEnd).includes(MARKER))
-      throw new Error(`the tool did not print ${MARKER}: ${JSON.stringify(toolEnd).slice(0, 500)}`);
+    // The stream keeps the tool's output off `tool_execution_end` (spec C §4.3): it arrives as the tool result message.
+    const toolEnd = await session.waitFor(isPi("tool_execution_end"), "the tool end");
+    if (asJson(toolEnd.event).isError !== false)
+      throw new Error(`the tool failed: ${JSON.stringify(toolEnd)}`);
+    const printed = (event: Json) => {
+      const text = JSON.stringify(event);
+      return isPi("message_end")(event) && text.includes('"role":"toolResult"') && text.includes(MARKER);
+    };
+    await session.waitFor(printed, `the tool result printing ${MARKER}`);
     await session.waitFor(isPi("agent_settled"), "agent_settled");
     step("prompt -> approval -> tool output -> agent_settled");
   } finally {
@@ -296,10 +304,9 @@ async function drive(daemon: Daemon, port: number, work: string, userHome: strin
   const workers = descendantsOf(daemonPid);
   const hosts = workers.filter((pid) => cmdlineOf(pid).includes(PI_HOST));
   if (hosts.length === 0) throw new Error(`no worker running ${PI_HOST} was found under the daemon`);
-  for (const pid of hosts) {
-    if (!cmdlineOf(pid).includes(`--import=${NETWORK_GUARD}`))
-      throw new Error(`worker ${pid} runs without the network guard`);
-  }
+  const flags = [`--import=${NETWORK_GUARD}`, "--max-semi-space-size=16"]; // the second one: WORKER_BUDGET_MB
+  const bare = hosts.flatMap((pid) => flags.filter((f) => !cmdlineOf(pid).includes(f)));
+  if (bare.length > 0) throw new Error(`a worker runs without ${bare.join(", ")}`);
   // The leftover check below must be able to see a worker, or it proves nothing.
   const visible = runningUnder(userHome);
   if (!workers.every((pid) => visible.includes(pid)))

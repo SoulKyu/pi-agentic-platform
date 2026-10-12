@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "./kernel/clock.ts";
 import { silentLogger } from "./kernel/logger.ts";
-import { createShutdown, STOP_DEADLINE_MS, watchSignals } from "./shutdown.ts";
+import { createShutdown, forceKill, STOP_DEADLINE_MS, watchSignals } from "./shutdown.ts";
 
 function bed(stop: () => Promise<void>) {
   const clock = createFakeClock();
@@ -77,5 +77,55 @@ describe("shutdown", () => {
     source.emit("SIGHUP");
     source.emit("SIGTERM");
     expect(calls).toEqual(["stop", "killWorkers", "exit 1"]);
+  });
+});
+
+describe("forceKill", () => {
+  const bedFor = (options: { groups?: () => number; scopes?: () => void } = {}) => {
+    const calls: string[] = [];
+    const lines: Array<{ msg: string; fields: unknown }> = [];
+    const logger = {
+      ...silentLogger,
+      error: (msg: string, fields: unknown) => void lines.push({ msg, fields }),
+    };
+    const kill = forceKill({
+      killWorkerGroups: () => {
+        calls.push("groups");
+        return options.groups?.() ?? 2;
+      },
+      killScopes: () => {
+        calls.push("scopes");
+        options.scopes?.();
+      },
+      logger,
+    });
+    return { kill, calls, lines };
+  };
+
+  it("SIGKILLs the worker groups, then every worker scope, and returns the groups killed", () => {
+    const { kill, calls } = bedFor();
+    expect(kill()).toBe(2);
+    expect(calls).toEqual(["groups", "scopes"]);
+  });
+
+  it("still kills the groups when the scopes cannot be killed, and says so", () => {
+    const { kill, calls, lines } = bedFor({
+      scopes: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(kill()).toBe(2);
+    expect(calls).toEqual(["groups", "scopes"]);
+    expect(lines.map((line) => line.msg)).toEqual(["force_kill_scopes_failed"]);
+  });
+
+  it("still kills the scopes when the groups cannot be killed", () => {
+    const { kill, calls } = bedFor({
+      groups: () => {
+        throw new Error("boom");
+      },
+    });
+    expect(kill()).toBe(0);
+    expect(calls).toEqual(["groups", "scopes"]);
   });
 });

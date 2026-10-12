@@ -158,7 +158,7 @@ describe("createIpc: the channel closing", () => {
     ipc.send({ type: "health", rssMb: 10n });
     expect(listener).not.toHaveBeenCalled();
     expect(stderr).toHaveLength(1);
-    expect(stderr[0]).toMatch(/^pi-host: ipc send failed: .*BigInt/);
+    expect(stderr[0]).toMatch(/^pi-host: a health record could not be serialised: .*BigInt/);
   });
 });
 
@@ -271,5 +271,30 @@ describe("createIpc: record size", () => {
       });
     }
     expect(sent.map((record) => record.type)).toEqual(["response", "response", "response"]);
+  });
+
+  it("answers a response it cannot serialise with a failed response of the same id", () => {
+    const sent: unknown[] = [];
+    const { proc } = fakeProcess({ onSend: (record) => void sent.push(record) });
+    const ipc = createIpc(proc);
+    expect(
+      ipc.send({ type: "response", id: "r7", command: "get_state", success: true, data: { big: 1n } }),
+    ).toBe(false);
+    expect(sent).toEqual([
+      {
+        type: "response",
+        id: "r7",
+        command: "get_state",
+        success: false,
+        error: "response could not be serialised",
+      },
+    ]);
+  });
+
+  it("says whether a record left", () => {
+    const { proc } = fakeProcess();
+    const ipc = createIpc(proc);
+    expect(ipc.send({ type: "health", rssMb: 1 })).toBe(true);
+    expect(ipc.send({ type: "health", blob: "x".repeat(MAX_RECORD_BYTES) })).toBe(false);
   });
 });

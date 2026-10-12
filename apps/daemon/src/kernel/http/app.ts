@@ -6,6 +6,13 @@ import type { Logger } from "../logger.ts";
 import { originGuard, type OriginRefused } from "./origin.ts";
 import { createStaticHandler, isSpaRoute } from "./static.ts";
 
+declare module "hono" {
+  interface ContextVariableMap {
+    /** A route that answers with a Content-Security-Policy of its own (the export download, ADR 0006). */
+    ownCsp?: string;
+  }
+}
+
 export interface HttpAppOptions {
   readonly allowedOrigins: ReadonlySet<string>;
   readonly staticRoot: string | null;
@@ -35,6 +42,9 @@ const CONTENT_SECURITY_POLICY = {
   objectSrc: ["'none'"],
 };
 
+// The token of an export download is a credential until it is used: it is never logged.
+const loggablePath = (path: string): string => path.replace(/(\/export\/)[^/]+$/, "$1[redacted]");
+
 const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 
 // Routes and WebSocket live under these prefixes: a miss is a 404, never index.html, so a typo in an
@@ -55,6 +65,13 @@ function isReserved(path: string): boolean {
 // Scheme and client address come from the socket only: no X-Forwarded-* / Forwarded header is read (R72).
 export function createHttpApp(options: HttpAppOptions): Hono {
   const app = new Hono();
+  // A route that answers with a policy of its own keeps it, on a successful answer only: registered first, so that this part runs
+  // after `secureHeaders` has set the global one. Every other route, and an error page, keeps the global policy.
+  app.use("*", async (c, next) => {
+    await next();
+    const own = c.get("ownCsp");
+    if (own !== undefined && c.res.ok) c.res.headers.set("content-security-policy", own);
+  });
   app.use(
     "*",
     secureHeaders({
@@ -88,10 +105,10 @@ export function createHttpApp(options: HttpAppOptions): Hono {
     }
     // A database written by a newer pap is read-only here: say so (as the RPC does) instead of a bare 500.
     if (isReadOnlyError(error)) {
-      options.logger.warn("http_read_only", { path: c.req.path });
+      options.logger.warn("http_read_only", { path: loggablePath(c.req.path) });
       return c.json({ error: { code: "read_only" } }, 503);
     }
-    options.logger.error("http_error", { err: error, path: c.req.path });
+    options.logger.error("http_error", { err: error, path: loggablePath(c.req.path) });
     return c.json({ error: { code: "internal" } }, 500);
   });
   return app;

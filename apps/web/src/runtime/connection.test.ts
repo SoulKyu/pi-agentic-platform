@@ -18,14 +18,14 @@ describe("connection supervisor", () => {
   it("marks the tab outdated on a hello from another protocol version", () => {
     const { connection, hello } = setup();
     connection.start();
-    hello(2);
+    hello(0);
     expect(connection.state).toBe("outdated");
   });
 
   it("closes the socket it rejects as outdated and does not retry", async () => {
     const { connection, hello, latest, delays } = setup();
     connection.start();
-    hello(2);
+    hello(0);
     await flush();
     expect(latest().closed).toBe(true);
     expect(connection.state).toBe("outdated");

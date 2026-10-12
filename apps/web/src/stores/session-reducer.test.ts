@@ -3,30 +3,68 @@ import { EMPTY_VIEW, reduceSession } from "./session-reducer.ts";
 
 const user = { role: "user", content: "hi", timestamp: 1 };
 const reply = { role: "assistant", content: [{ type: "text", text: "Hello!" }], timestamp: 2 };
+const snap = (status: string, messages: unknown[] = [], entryIds: Array<string | null> = []) => ({
+  kind: "snapshot",
+  status,
+  rows: messages.map((message, i) => ({ entryId: entryIds[i] ?? null, message })),
+  dialogs: [],
+  partial: null,
+  queue: { steering: [], followUp: [], count: 0, bytes: 0 },
+  statuses: [],
+  widgets: [],
+  title: null,
+  panels: [],
+  notices: [],
+  decorationsTruncated: false,
+  history: { hasMore: false, oldestEntryId: null, turnsBefore: 0 },
+  activity: { compacting: false, retry: null },
+  leafId: null,
+  name: null,
+});
 const pi = (event: Record<string, unknown>) => ({ kind: "pi", event });
 
 describe("reduceSession", () => {
   it("replaces the view on a snapshot", () => {
-    const view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "idle",
-      messages: [user],
-      dialogs: [],
-    });
+    const view = reduceSession(EMPTY_VIEW, snap("idle", [user], ["e1"]));
     expect(view).toMatchObject({
       status: "idle",
       loaded: true,
-      messages: [{ key: "user:1", role: "user", text: "hi" }],
+      unreadable: false,
+      messages: [{ key: "user:1", entryId: "e1", role: "user", text: "hi" }],
     });
   });
 
-  it("keeps the placeholder of an oversize row as a message that says how big it was (R109)", () => {
+  it("counts the snapshots: each one is a new generation, other events keep it (M2-RT-12)", () => {
+    expect(EMPTY_VIEW.generation).toBe(0);
+    const first = reduceSession(EMPTY_VIEW, snap("idle", [user], ["e1"]));
+    const second = reduceSession(first, snap("idle", [user], ["e1"]));
+    expect([first.generation, second.generation]).toEqual([1, 2]);
+    expect(reduceSession(second, { kind: "status", status: "running" }).generation).toBe(2);
+    expect(reduceSession(second, { kind: "row", row: { entryId: "e7", message: user } }).generation).toBe(2);
+  });
+
+  it("says a snapshot it cannot read is unreadable instead of staying blank (M2-RT-06)", () => {
+    const view = reduceSession(EMPTY_VIEW, { kind: "snapshot", status: "idle", rows: "not rows" });
+    expect(view).toMatchObject({ loaded: true, unreadable: true });
+    expect(reduceSession(view, { kind: "status", status: 7 })).toBe(view);
+    expect(reduceSession(view, snap("idle", [user]))).toMatchObject({ unreadable: false });
+  });
+
+  it("keeps the source of a notice", () => {
     const view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "idle",
-      messages: [{ role: "toolResult", timestamp: 5, omitted: true, bytes: 300_000 }, user],
-      dialogs: [],
+      kind: "notice",
+      level: "info",
+      text: "hi",
+      source: "extension",
     });
+    expect(view.notices).toEqual([{ level: "info", text: "hi", source: "extension" }]);
+  });
+
+  it("keeps the placeholder of an oversize row as a message that says how big it was (R109)", () => {
+    const view = reduceSession(
+      EMPTY_VIEW,
+      snap("idle", [{ role: "toolResult", timestamp: 5, omitted: true, bytes: 300_000 }, user]),
+    );
     expect(view.messages).toMatchObject([
       { key: "toolResult:5", role: "toolResult", text: "", omittedBytes: 300_000 },
       { key: "user:1", omittedBytes: null },
@@ -34,12 +72,10 @@ describe("reduceSession", () => {
   });
 
   it("ignores an omitted flag that comes without a size", () => {
-    const view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "idle",
-      messages: [{ role: "user", content: "hi", timestamp: 1, omitted: true }],
-      dialogs: [],
-    });
+    const view = reduceSession(
+      EMPTY_VIEW,
+      snap("idle", [{ role: "user", content: "hi", timestamp: 1, omitted: true }]),
+    );
     expect(view.messages[0]).toMatchObject({ text: "hi", omittedBytes: null });
   });
 
@@ -59,19 +95,14 @@ describe("reduceSession", () => {
         assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "lo!" },
       }),
     );
-    expect(view.partialText).toBe("Hello!");
+    expect(view.partial).toEqual({ blocks: [{ type: "text", text: "Hello!" }] });
     view = reduceSession(view, pi({ type: "message_end", message: reply }));
-    expect(view.partialText).toBeNull();
+    expect(view.partial).toBeNull();
     expect(view.messages.map((m) => m.text)).toEqual(["Hello!"]);
   });
 
   it("does not duplicate a message present in both the snapshot and a live event", () => {
-    let view = reduceSession(EMPTY_VIEW, {
-      kind: "snapshot",
-      status: "running",
-      messages: [user, reply],
-      dialogs: [],
-    });
+    let view = reduceSession(EMPTY_VIEW, snap("running", [user, reply]));
     view = reduceSession(view, pi({ type: "message_end", message: reply }));
     expect(view.messages).toHaveLength(2);
   });
@@ -123,18 +154,16 @@ describe("reduceSession", () => {
     });
 
     it("gives a snapshot with same-millisecond results and repeated messages unique keys", () => {
-      const view = reduceSession(EMPTY_VIEW, {
-        kind: "snapshot",
-        status: "idle",
-        dialogs: [],
-        messages: [
+      const view = reduceSession(
+        EMPTY_VIEW,
+        snap("idle", [
           result("a", "one"),
           result("b", "two"),
           { role: "user", content: "again", timestamp: 9 },
           { role: "user", content: "again!", timestamp: 9 },
           { role: "user", content: "again", timestamp: 9 },
-        ],
-      });
+        ]),
+      );
       expect(view.messages.map((m) => m.text)).toEqual(["one", "two", "again", "again!", "again"]);
       expect(new Set(keysOf(view)).size).toBe(5);
     });
@@ -152,12 +181,7 @@ describe("reduceSession", () => {
 
     it("recognises, from the snapshot, a live message that repeats its key", () => {
       const message = result("a", "once");
-      let view = reduceSession(EMPTY_VIEW, {
-        kind: "snapshot",
-        status: "running",
-        messages: [message],
-        dialogs: [],
-      });
+      let view = reduceSession(EMPTY_VIEW, snap("running", [message]));
       view = reduceSession(view, pi({ type: "message_end", message }));
       expect(view.messages).toHaveLength(1);
     });
@@ -205,12 +229,7 @@ describe("reduceSession", () => {
     });
 
     it("finds the failure in a snapshot too", () => {
-      const view = reduceSession(EMPTY_VIEW, {
-        kind: "snapshot",
-        status: "idle",
-        messages: [user, failed("boom")],
-        dialogs: [],
-      });
+      const view = reduceSession(EMPTY_VIEW, snap("idle", [user, failed("boom")]));
       expect(view.messages.map((m) => m.error)).toEqual([null, "boom"]);
     });
   });
@@ -219,10 +238,150 @@ describe("reduceSession", () => {
     let view = reduceSession(EMPTY_VIEW, pi({ type: "message_start", message: { role: "assistant" } }));
     view = reduceSession(
       view,
-      pi({ type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "Half a sen" } }),
+      pi({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Half a sen" },
+      }),
     );
-    expect(view.partialText).toBe("Half a sen");
-    expect(reduceSession(view, { kind: "status", status: "running" }).partialText).toBe("Half a sen");
-    expect(reduceSession(view, { kind: "status", status: "cold" }).partialText).toBeNull();
+    expect(view.partial).toEqual({ blocks: [{ type: "text", text: "Half a sen" }] });
+    expect(reduceSession(view, { kind: "status", status: "running" }).partial).toEqual(view.partial);
+    expect(reduceSession(view, { kind: "status", status: "cold" }).partial).toBeNull();
+  });
+
+  it("starts from the partial reply of a snapshot and keeps growing it", () => {
+    const resumed = {
+      ...snap("running"),
+      partial: {
+        blocks: [
+          { type: "text", text: "So far" },
+          { type: "toolCall", text: "{", id: "c1", name: "bash" },
+        ],
+      },
+    };
+    let view = reduceSession(EMPTY_VIEW, resumed);
+    expect(view.partial).toEqual(resumed.partial);
+    view = reduceSession(
+      view,
+      pi({
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "!" },
+      }),
+    );
+    expect(view.partial?.blocks[0]).toEqual({ type: "text", text: "So far!" });
+    expect(reduceSession(view, pi({ type: "agent_settled" })).partial).toBeNull();
+  });
+
+  it("does not start a partial reply from a delta outside a reply, nor past 64 blocks", () => {
+    const delta = (contentIndex: number) =>
+      pi({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex, delta: "x" } });
+    expect(reduceSession(EMPTY_VIEW, delta(0)).partial).toBeNull();
+    let view = reduceSession(EMPTY_VIEW, pi({ type: "message_start", message: { role: "assistant" } }));
+    view = reduceSession(view, delta(64));
+    expect(view.partial).toEqual({ blocks: [] });
+  });
+
+  describe("tool views", () => {
+    const start = (id: string, name = "bash") =>
+      pi({ type: "tool_execution_start", toolCallId: id, toolName: name, args: {} });
+    const update = (id: string, text: string) =>
+      pi({
+        type: "tool_execution_update",
+        toolCallId: id,
+        partialResult: { content: [{ type: "text", text }] },
+      });
+    const end = (id: string, isError = false) => pi({ type: "tool_execution_end", toolCallId: id, isError });
+
+    it("follows a tool from running to done or failed with its latest preview", () => {
+      let view = reduceSession(EMPTY_VIEW, start("a"));
+      view = reduceSession(view, start("b", "read"));
+      view = reduceSession(view, update("a", "line 1"));
+      expect([...view.tools]).toEqual([
+        ["a", { name: "bash", status: "running", preview: "line 1" }],
+        ["b", { name: "read", status: "running", preview: "" }],
+      ]);
+      view = reduceSession(reduceSession(view, end("a")), end("b", true));
+      expect([...view.tools]).toEqual([
+        ["a", { name: "bash", status: "done", preview: "line 1" }],
+        ["b", { name: "read", status: "failed", preview: "" }],
+      ]);
+    });
+
+    it("ignores progress and ends of a tool it never saw start", () => {
+      const view = reduceSession(reduceSession(EMPTY_VIEW, update("z", "x")), end("z"));
+      expect(view.tools.size).toBe(0);
+    });
+
+    it("cuts a preview to 2000 characters", () => {
+      const view = reduceSession(reduceSession(EMPTY_VIEW, start("a")), update("a", "p".repeat(2500)));
+      expect(view.tools.get("a")?.preview).toHaveLength(2000);
+    });
+
+    it("keeps 200 tool views: the 201st drops the oldest finished one, the oldest of all when none finished", () => {
+      let view = EMPTY_VIEW;
+      for (let i = 0; i < 200; i++) view = reduceSession(view, start(`t${i}`));
+      view = reduceSession(reduceSession(view, end("t5")), end("t7"));
+      view = reduceSession(view, start("t200"));
+      expect(view.tools.size).toBe(200);
+      expect(view.tools.has("t5")).toBe(false);
+      expect(view.tools.has("t7")).toBe(true);
+      expect(view.tools.get("t200")?.status).toBe("running");
+      let running = EMPTY_VIEW;
+      for (let i = 0; i < 201; i++) running = reduceSession(running, start(`r${i}`));
+      expect(running.tools.size).toBe(200);
+      expect(running.tools.has("r0")).toBe(false);
+    });
+
+    it("keeps ids like toString or 10 as ordinary keys, evicting by insertion order", () => {
+      let view = reduceSession(EMPTY_VIEW, start("toString"));
+      view = reduceSession(view, start("constructor"));
+      expect(view.tools.get("toString")?.status).toBe("running");
+      expect(view.tools.get("constructor")?.status).toBe("running");
+      expect(reduceSession(EMPTY_VIEW, end("toString")).tools.size).toBe(0);
+      let numeric = reduceSession(EMPTY_VIEW, start("10"));
+      numeric = reduceSession(numeric, start("2"));
+      expect([...numeric.tools.keys()]).toEqual(["10", "2"]);
+      for (let i = 0; i < 198; i++) numeric = reduceSession(numeric, start(`t${i}`));
+      numeric = reduceSession(numeric, start("last"));
+      expect(numeric.tools.size).toBe(200);
+      expect(numeric.tools.has("10")).toBe(false);
+      expect(numeric.tools.has("2")).toBe(true);
+    });
+
+    it("marks every running tool failed when the session goes cold", () => {
+      let view = reduceSession(reduceSession(EMPTY_VIEW, start("a")), start("b"));
+      view = reduceSession(view, end("a"));
+      view = reduceSession(view, { kind: "status", status: "cold" });
+      expect(view.tools.get("a")?.status).toBe("done");
+      expect(view.tools.get("b")?.status).toBe("failed");
+    });
+
+    it("reads how much of a clipped result was cut", () => {
+      const view = reduceSession(
+        EMPTY_VIEW,
+        pi({
+          type: "message_end",
+          message: {
+            role: "toolResult",
+            toolCallId: "c1",
+            content: [{ type: "text", text: "head" }],
+            papTruncated: { chars: 30_000 },
+            timestamp: 1,
+          },
+        }),
+      );
+      expect(view.messages[0]?.truncatedChars).toBe(30_000);
+      expect(
+        reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: reply })).messages[0]?.truncatedChars,
+      ).toBeNull();
+    });
+  });
+});
+
+describe("a snapshot the client cannot read", () => {
+  it("is a new generation too, so a page asked before it is dropped (M2-RT-12)", () => {
+    const first = reduceSession(EMPTY_VIEW, snap("idle", [user], ["e1"]));
+    const unreadable = reduceSession(first, { kind: "snapshot", status: "idle", rows: "not rows" });
+    expect(unreadable).toMatchObject({ unreadable: true, generation: first.generation + 1 });
+    expect(unreadable.messages).toEqual(first.messages);
   });
 });

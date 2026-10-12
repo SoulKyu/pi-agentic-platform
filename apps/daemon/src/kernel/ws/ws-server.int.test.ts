@@ -1,6 +1,7 @@
 import {
   ALL_PERMISSIONS,
   PapError,
+  PROTOCOL_VERSION,
   type Caller,
   type Cursor,
   type HandlerContext,
@@ -102,7 +103,11 @@ interface Client {
   call(frame: object): Promise<unknown>;
 }
 
-function connect(headers: Record<string, string>, path = "/ws?proto=1", options: ClientOptions = {}) {
+function connect(
+  headers: Record<string, string>,
+  path = `/ws?proto=${PROTOCOL_VERSION}`,
+  options: ClientOptions = {},
+) {
   return new Promise<Client>((resolve, reject) => {
     const socket = new WebSocket(`ws://127.0.0.1:${server.port}${path}`, { ...options, headers });
     const queue: unknown[] = [];
@@ -133,7 +138,7 @@ function connect(headers: Record<string, string>, path = "/ws?proto=1", options:
 }
 
 async function greeted(options: ClientOptions = {}): Promise<Client> {
-  const client = await connect(good, "/ws?proto=1", options);
+  const client = await connect(good, `/ws?proto=${PROTOCOL_VERSION}`, options);
   await client.next();
   return client;
 }
@@ -146,7 +151,7 @@ describe("/ws upgrade gate", () => {
   });
 
   it("rejects any other path and a request without an Origin", async () => {
-    await expect(connect(good, "/other?proto=1")).rejects.toThrow("status 404");
+    await expect(connect(good, `/other?proto=${PROTOCOL_VERSION}`)).rejects.toThrow("status 404");
     await expect(connect({ cookie: good.cookie })).rejects.toThrow("status 403");
   });
 
@@ -160,7 +165,7 @@ describe("/ws requests", () => {
   it("greets with hello, then answers requests", async () => {
     const client = await connect(good);
     expect(await client.next()).toEqual({
-      protocol: 1,
+      protocol: PROTOCOL_VERSION,
       capabilities: ["rpc", "subscribe"],
       serverVersion: "0.0.0-test",
     });

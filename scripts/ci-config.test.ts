@@ -137,6 +137,19 @@ describe("CI configuration", () => {
   });
 });
 
+describe("systemd user manager (owner M2-Q8)", () => {
+  it("starts a lingering systemd user manager before the integration tests", () => {
+    const jobs = [workflow("ci").jobs["integration"], Object.values(workflow("pi-compat").jobs)[0]];
+    for (const job of jobs) {
+      const steps = job?.steps ?? [];
+      const linger = steps.findIndex((step) => step.run?.includes("loginctl enable-linger"));
+      const tests = steps.findIndex((step) => step.run?.includes("pnpm test:int"));
+      expect(linger).toBeGreaterThanOrEqual(0);
+      expect(linger).toBeLessThan(tests);
+    }
+  });
+});
+
 describe("root typecheck (R25)", () => {
   it("covers scripts and the root config files with strict, noEmit options, and not an e2e folder", () => {
     const root = JSON.parse(read("tsconfig.json")) as {

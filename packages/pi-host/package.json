@@ -16,6 +16,7 @@
   "dependencies": {
     "@earendil-works/pi-ai": "catalog:",
     "@earendil-works/pi-coding-agent": "catalog:",
+    "@earendil-works/pi-tui": "catalog:",
     "@pap/contracts": "workspace:*",
     "zod": "4.6.5"
   }

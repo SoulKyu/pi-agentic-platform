@@ -3,19 +3,7 @@ import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
-import {
-  alerts,
-  button,
-  click,
-  field,
-  hasButton,
-  mount,
-  press,
-  settle,
-  text,
-  typeInto,
-  type Mounted,
-} from "../../testing/dom.ts";
+import { alerts, button, click, mount, settle, text, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { SessionScreen } from "./SessionScreen.tsx";
 
@@ -29,6 +17,7 @@ vi.mock("@tanstack/react-router", async () => {
   return {
     Link: (props: { to: string; children: ReactNode }) =>
       createElement("a", { href: props.to }, props.children),
+    useNavigate: () => () => Promise.resolve(),
   };
 });
 
@@ -40,10 +29,30 @@ const reply = { role: "assistant", content: [{ type: "text", text: "All green." 
 const snapshot = (status: string, messages: unknown[] = [], dialogs: unknown[] = []) => ({
   kind: "snapshot",
   status,
-  messages,
+  rows: messages.map((message) => ({ entryId: null, message })),
   dialogs,
+  partial: null,
+  queue: { steering: [], followUp: [], count: 0, bytes: 0 },
+  statuses: [],
+  widgets: [],
+  title: null,
+  panels: [],
+  notices: [],
+  decorationsTruncated: false,
+  history: { hasMore: false, oldestEntryId: null, turnsBefore: 0 },
+  activity: { compacting: false, retry: null },
+  leafId: null,
+  name: null,
 });
 const confirm = (message: string) => ({ id: "d1", method: "confirm", title: "Run a command?", message });
+const approval = (message: string) => ({
+  id: "d1",
+  method: "approval",
+  title: "Run a command?",
+  message,
+  category: "exec",
+  answers: ["deny", "once"],
+});
 
 async function show(strict = false) {
   const screen = <SessionScreen sessionId="sess-1" />;
@@ -88,7 +97,10 @@ describe("SessionScreen feed", () => {
     await emit({ kind: "pi", event: { type: "message_start", message: { role: "assistant" } } });
     await emit({
       kind: "pi",
-      event: { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "All " } },
+      event: {
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "All " },
+      },
     });
     expect(text(container)).toContain("All");
     await emit({ kind: "pi", event: { type: "message_end", message: reply } });
@@ -158,97 +170,13 @@ describe("SessionScreen provider failures", () => {
   });
 });
 
-describe("SessionScreen composer", () => {
-  it("sends the message, empties the composer and keeps Send off while it is empty", async () => {
+describe("SessionScreen unreadable snapshot", () => {
+  it("says so instead of staying blank (M2-RT-06)", async () => {
     const container = await show();
-    await emit(snapshot("idle"));
-    expect(button(container, "Send").disabled).toBe(true);
-    await typeInto(field(container, "Message"), "  hello  ");
-    await click(button(container, "Send"));
-    await settle();
-    expect(bed.called("sessions.prompt")).toEqual([
-      { method: "sessions.prompt", params: { sessionId: "sess-1", text: "hello" } },
-    ]);
-    expect(field(container, "Message").value).toBe("");
-  });
-
-  it("sends on Ctrl+Enter and keeps the browser from also adding a newline", async () => {
-    const container = await show();
-    await typeInto(field(container, "Message"), "hello");
-    const plain = await press(field(container, "Message"), { key: "Enter" });
-    expect(plain.defaultPrevented).toBe(false);
-    expect(bed.called("sessions.prompt")).toEqual([]);
-    const shortcut = await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
-    await settle();
-    expect(shortcut.defaultPrevented).toBe(true);
-    expect(bed.called("sessions.prompt")[0]?.params).toEqual({ sessionId: "sess-1", text: "hello" });
-    expect(field(container, "Message").value).toBe("");
-  });
-
-  it("queues a follow-up while the session is running", async () => {
-    const container = await show();
-    await emit(snapshot("running"));
-    await typeInto(field(container, "Message"), "and then?");
-    await click(button(container, "Send"));
-    await settle();
-    expect(bed.called("sessions.prompt")[0]?.params).toEqual({
-      sessionId: "sess-1",
-      text: "and then?",
-      streamingBehavior: "followUp",
-    });
-  });
-
-  it("puts the text back when the prompt was refused, so it is not lost", async () => {
-    bed.handlers["sessions.prompt"] = () => {
-      throw new RpcError("prompt_rejected");
-    };
-    const container = await show();
-    await typeInto(field(container, "Message"), "do it");
-    await click(button(container, "Send"));
-    await settle();
-    expect(alerts(container)).toEqual([
-      "The session could not start this prompt. Check the model and provider settings.",
-    ]);
-    expect(field(container, "Message").value).toBe("do it");
-  });
-
-  it("keeps the text out of the composer when the outcome is unknown (R105)", async () => {
-    bed.handlers["sessions.prompt"] = () => {
-      throw new RpcError("timeout");
-    };
-    const container = await show();
-    await typeInto(field(container, "Message"), "do it");
-    await click(button(container, "Send"));
-    await settle();
-    expect(alerts(container)[0]).toContain("may still have gone through");
-    expect(field(container, "Message").value).toBe("");
-  });
-
-  it("does not overwrite what was typed meanwhile when it puts a refused message back", async () => {
-    let refuse: (error: unknown) => void = () => {};
-    bed.handlers["sessions.prompt"] = () => new Promise((_resolve, reject) => (refuse = reject));
-    const container = await show();
-    await typeInto(field(container, "Message"), "first");
-    await click(button(container, "Send"));
-    await typeInto(field(container, "Message"), "second");
-    refuse(new RpcError("capacity"));
-    await settle();
-    expect(field(container, "Message").value).toBe("second");
-  });
-
-  it("offers Stop only while running, as a secondary button (R21), and aborts the session", async () => {
-    const container = await show();
-    await emit(snapshot("idle"));
-    expect(hasButton(container, "Stop")).toBe(false);
-    await emit({ kind: "status", status: "running" });
-    const stop = button(container, "Stop");
-    expect(stop.className).toContain("bg-panel");
-    expect(stop.className).not.toContain("border-error");
-    await click(stop);
-    await settle();
-    expect(bed.called("sessions.abort")).toEqual([
-      { method: "sessions.abort", params: { sessionId: "sess-1" } },
-    ]);
+    await emit({ kind: "snapshot", rows: 5 });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      "This session could not be shown. Reload the page; if it stays, the session file may be damaged.",
+    );
   });
 });
 
@@ -257,10 +185,11 @@ describe("SessionScreen approvals", () => {
 
   it("shows the approval card with the question and the size header pinned above the command", async () => {
     const container = await show();
-    await emit(snapshot("running", [], [confirm("12 characters, 1 line\nbash: echo hello")]));
-    expect(card(container).getAttribute("aria-label")).toBe("Approval needed");
+    await emit(snapshot("running", [], [approval("12 characters, 1 line\nbash: echo hello")]));
+    expect(card(container).getAttribute("aria-labelledby")).toBe(container.querySelector("h3")?.id);
+    expect(container.querySelector("h3")?.textContent).toBe("Approval · exec");
     expect(card(container).querySelector("[data-approval-header]")?.textContent).toBe(
-      "Run a command? · 12 characters, 1 line",
+      "12 characters, 1 line",
     );
     expect(card(container).querySelector("[data-approval-scroll]")?.textContent).toBe("bash: echo hello");
   });
@@ -268,33 +197,35 @@ describe("SessionScreen approvals", () => {
   it("keeps the header outside the scrolling region however long the command is (R91)", async () => {
     const padded = `start${"\n".repeat(400)}TAIL-OF-THE-COMMAND`;
     const container = await show();
-    await emit(snapshot("running", [], [confirm(`${padded.length} characters, 401 lines\nbash: ${padded}`)]));
+    await emit(
+      snapshot("running", [], [approval(`${padded.length} characters, 401 lines\nbash: ${padded}`)]),
+    );
     const header = card(container).querySelector("[data-approval-header]");
     const scroll = card(container).querySelector("[data-approval-scroll]");
     expect(header?.textContent).toContain("401 lines");
     expect(scroll?.contains(header ?? null)).toBe(false);
+    // 401 lines are clipped to 200 until the owner asks for the rest; the header says how much there is.
+    expect(scroll?.textContent?.includes("TAIL-OF-THE-COMMAND")).toBe(false);
+    await click(button(container, "Show more"));
     expect(scroll?.textContent?.endsWith("TAIL-OF-THE-COMMAND")).toBe(true);
     expect(scroll?.className).toContain("overflow-auto");
   });
 
-  it("answers Allow once with confirmed: true, exactly once", async () => {
+  it("answers Yes with confirmed: true, exactly once", async () => {
     const container = await show();
     await emit(snapshot("running", [], [confirm("1 character, 1 line\nbash: ls")]));
-    await click(button(container, "Allow once"));
-    await click(button(container, "Deny"));
+    await click(button(container, "Yes"));
+    await click(button(container, "No"));
     await settle();
-    expect(bed.called("sessions.respondDialog")).toEqual([
-      {
-        method: "sessions.respondDialog",
-        params: { sessionId: "sess-1", dialogId: "d1", response: { confirmed: true } },
-      },
+    expect(bed.called("sessions.respondDialog").map((call) => call.params)).toEqual([
+      { sessionId: "sess-1", dialogId: "d1", response: { confirmed: true } },
     ]);
   });
 
-  it("answers Deny with confirmed: false, and the card goes when the server closes the dialog", async () => {
+  it("answers No with confirmed: false, and the card goes when the server closes the dialog", async () => {
     const container = await show();
     await emit(snapshot("running", [], [confirm("1 character, 1 line\nbash: ls")]));
-    await click(button(container, "Deny"));
+    await click(button(container, "No"));
     await settle();
     expect(bed.called("sessions.respondDialog")[0]?.params).toMatchObject({ response: { confirmed: false } });
     await emit({ kind: "dialog_closed", id: "d1" });
@@ -309,12 +240,12 @@ describe("SessionScreen approvals", () => {
     };
     const container = await show();
     await emit(snapshot("running", [], [confirm("1 character, 1 line\nbash: ls")]));
-    await click(button(container, "Allow once"));
+    await click(button(container, "Yes"));
     await settle();
     expect(alerts(container)).toEqual(["pap is unreachable right now."]);
-    expect(button(container, "Allow once").disabled).toBe(false);
-    expect(button(container, "Deny").disabled).toBe(false);
-    await click(button(container, "Allow once"));
+    expect(button(container, "Yes").disabled).toBe(false);
+    expect(button(container, "No").disabled).toBe(false);
+    await click(button(container, "Yes"));
     await settle();
     expect(bed.called("sessions.respondDialog").map((call) => call.params)).toEqual([
       { sessionId: "sess-1", dialogId: "d1", response: { confirmed: true } },
@@ -323,7 +254,7 @@ describe("SessionScreen approvals", () => {
     expect(alerts(container)).toEqual([]);
   });
 
-  it("re-arms the card after a lost connection even when the snapshot brings the same dialog back", async () => {
+  it("keeps the card shut after a lost connection, even when the snapshot brings the same dialog back, and sends the same answer again with the same command id (R105)", async () => {
     let tries = 0;
     bed.handlers["sessions.respondDialog"] = () => {
       if (++tries === 1) throw new RpcError("connection_lost");
@@ -332,20 +263,23 @@ describe("SessionScreen approvals", () => {
     const container = await show();
     const dialogs = [confirm("1 character, 1 line\nbash: ls")];
     await emit(snapshot("running", [], dialogs));
-    await click(button(container, "Deny"));
+    await click(button(container, "No"));
     await settle();
-    await emit(snapshot("running", [], dialogs));
-    await click(button(container, "Deny"));
+    await emit(snapshot("running", [], [...dialogs]));
+    expect(button(container, "No").disabled).toBe(true);
+    await click(button(container, "Send again"));
     await settle();
-    expect(bed.called("sessions.respondDialog")).toHaveLength(2);
+    const calls = bed.called("sessions.respondDialog");
+    expect(calls.map((call) => call.params)).toHaveLength(2);
+    expect(calls[1]?.options?.commandId).toBe(calls[0]?.options?.commandId);
   });
 
-  it("cancels a dialog it cannot show, and says so", async () => {
+  it("shows an extension's select and answers its Cancel", async () => {
     const container = await show();
     await emit(
       snapshot("running", [], [{ id: "d2", method: "select", title: "Pick one", options: ["a", "b"] }]),
     );
-    expect(alerts(container)).toEqual(["An extension asked for input that this screen cannot show yet."]);
+    expect(alerts(container)).toEqual([]);
     await click(button(container, "Cancel"));
     await settle();
     expect(bed.called("sessions.respondDialog")[0]?.params).toEqual({
@@ -355,13 +289,19 @@ describe("SessionScreen approvals", () => {
     });
   });
 
+  it("says how many dialogs the snapshot could not carry", async () => {
+    const container = await show();
+    await emit({ ...snapshot("running", [], []), hiddenDialogs: 2 });
+    expect(container.textContent).toContain("2 more dialogs are waiting");
+  });
+
   it("shows a failure to deliver the answer", async () => {
     bed.handlers["sessions.respondDialog"] = () => {
       throw new RpcError("not_found");
     };
     const container = await show();
     await emit(snapshot("running", [], [confirm("1 character, 1 line\nbash: ls")]));
-    await click(button(container, "Allow once"));
+    await click(button(container, "Yes"));
     await settle();
     expect(alerts(container)).toEqual(["Not found."]);
   });

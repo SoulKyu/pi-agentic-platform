@@ -1,6 +1,10 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { bashScript, createHostBed, isConfirm } from "./testing/host-bed.ts";
+import { fileURLToPath } from "node:url";
+import { bashScript, createHostBed, isApproval, type LaunchOptions } from "./testing/host-bed.ts";
+
+const FAST_HEALTH = fileURLToPath(new URL("./testing/fast-health.ts", import.meta.url));
 
 let bed: ReturnType<typeof createHostBed>;
 let pattern = "";
@@ -17,25 +21,34 @@ afterEach(async () => {
 // The commands the model's bash tool runs. Pi starts each one detached, so it leads a group of its own: the
 // daemon's signal to the worker's group does not reach it. The second form starts a grandchild in yet another
 // session, which not even Pi's own bookkeeping knows about.
+// The third element is what `health` counts while it runs: the shell Pi started, and the sleep in the second form.
 const COMMANDS = [
-  ["a command Pi started detached", (seconds: string) => `sleep ${seconds}`],
-  ["a grandchild in a session of its own", (seconds: string) => `setsid sleep ${seconds} & wait`],
+  ["a command Pi started detached", (seconds: string) => `sleep ${seconds}`, 1],
+  ["a grandchild in a session of its own", (seconds: string) => `setsid sleep ${seconds} & wait`, 2],
 ] as const;
 
-async function runCommand(command: (seconds: string) => string) {
+async function runCommand(command: (seconds: string) => string, options: LaunchOptions = {}) {
   const seconds = `20.${Math.floor(Math.random() * 900) + 100}`;
   pattern = `^sleep ${seconds.replace(".", "[.]")}`;
   const running = () => spawnSync("pgrep", ["-f", pattern]).status === 0;
-  await bed.start(bashScript(command(seconds)));
+  await bed.start(bashScript(command(seconds)), options);
   const host = bed.host();
   await host.request({ type: "prompt", message: "go" });
-  host.send({ type: "extension_ui_response", id: (await host.waitFor(isConfirm)).id, confirmed: true });
+  host.send({ type: "approval_response", id: (await host.waitFor(isApproval)).id, answer: "once" });
   await vi.waitFor(() => expect(running()).toBe(true), { timeout: 5000, interval: 50 });
   const gone = () => vi.waitFor(() => expect(running()).toBe(false), { timeout: 5000, interval: 50 });
   return { host, gone };
 }
 
-describe.each(COMMANDS)("pi-host worker: %s", (_name, command) => {
+describe.each(COMMANDS)("pi-host worker: %s", (_name, command, counted) => {
+  it("counts it in its health record (M2-RT-14)", async () => {
+    const { host, gone } = await runCommand(command, { env: { NODE_OPTIONS: `--import ${FAST_HEALTH}` } });
+    await host.waitFor((record) => record.type === "health" && record.descendants === counted);
+    host.send({ type: "shutdown", graceMs: 100 });
+    expect(await host.exited).toBe(0);
+    await gone();
+  });
+
   it.each(["SIGTERM", "SIGHUP"] as const)(
     "is gone after the worker gets %s, and the worker dies of it",
     async (signal) => {
@@ -62,5 +75,59 @@ describe.each(COMMANDS)("pi-host worker: %s", (_name, command) => {
     host.send({ type: "shutdown", graceMs: 100 });
     expect(await host.exited).toBe(0);
     await gone();
+  });
+});
+
+// What the bash tool's own shell started and left behind: when the shell exits, Linux gives the process to pid 1 and it
+// is no descendant of the worker any more. No scope here, so the worker's marker in the environment finds it (M2-RT-14).
+describe.each([
+  ["`cmd &`", (seconds: string) => `sleep ${seconds} >/dev/null 2>&1 & echo started`],
+  ["`nohup cmd &`", (seconds: string) => `nohup sleep ${seconds} >/dev/null 2>&1 & echo started`],
+] as const)("pi-host worker: %s left running after the tool call ended", (_name, command) => {
+  it("is counted by the next health record, once the run has settled", async () => {
+    const { host } = await runCommand(command, {
+      env: { NODE_OPTIONS: `--import ${FAST_HEALTH}`, PAP_WORKER_UNIT: "pap-x-worker-y-1.scope" },
+    });
+    await host.waitFor((record) => record.type === "agent_settled");
+    // What the agent's processes inherit: the worker's marker, and not the unit the daemon named (it would let a worker
+    // an agent starts inside this one believe it sits in this one's scope).
+    const sleeper = spawnSync("pgrep", ["-f", pattern]).stdout.toString().trim().split("\n")[0];
+    const inherited = readFileSync(`/proc/${sleeper}/environ`, "utf8").split("\0");
+    expect(inherited.some((entry) => entry.startsWith("PAP_WORKER_TOKEN="))).toBe(true);
+    expect(inherited.some((entry) => entry.startsWith("PAP_WORKER_UNIT="))).toBe(false);
+    const from = host.records.length;
+    const health = await host.waitFor(
+      (record) =>
+        record.type === "health" && typeof record.descendants === "number" && record.descendants >= 1,
+      { from },
+    );
+    expect(health.descendants).toBe(1);
+  });
+});
+
+// The worker believes it sits in the unit the daemon named only when its cgroup's leaf is that name. Here the bed does not
+// scope the worker, so it shares the runner's cgroup: naming that leaf makes the cgroup path count its neighbours.
+const ownLeaf = (() => {
+  try {
+    const line = readFileSync("/proc/self/cgroup", "utf8")
+      .split("\n")
+      .find((l) => l.startsWith("0::"));
+    return line?.slice(3).split("/").pop() ?? "";
+  } catch {
+    return "";
+  }
+})();
+describe.runIf(ownLeaf !== "")("pi-host worker: the unit the daemon names", () => {
+  it("is what makes it read its cgroup", async () => {
+    await bed.start(bashScript("echo ok"), {
+      env: { NODE_OPTIONS: `--import ${FAST_HEALTH}`, PAP_WORKER_UNIT: ownLeaf },
+    });
+    const named = await bed
+      .host()
+      .waitFor(
+        (record) =>
+          record.type === "health" && typeof record.descendants === "number" && record.descendants >= 1,
+      );
+    expect(named.descendants).toBeGreaterThanOrEqual(1);
   });
 });

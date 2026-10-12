@@ -1,3 +1,4 @@
+import { PROTOCOL_VERSION } from "@pap/contracts";
 import { vi } from "vitest";
 import {
   createConnection,
@@ -172,7 +173,7 @@ export function connectionBed(
     }
   };
   const latest = () => sockets[sockets.length - 1] as FakeSocket;
-  const hello = (protocol = 1) =>
+  const hello = (protocol = PROTOCOL_VERSION) =>
     latest().receive({ protocol, capabilities: ["rpc"], serverVersion: "0.0.0" });
   return {
     connection,

@@ -2,7 +2,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { ConfigError, defaultMaxWorkers, loadConfig, workerExecArgv, type ConfigInput } from "./config.ts";
+import {
+  ConfigError,
+  defaultMaxWorkers,
+  loadConfig,
+  WORKER_BUDGET_MB,
+  workerExecArgv,
+  type ConfigInput,
+} from "./config.ts";
 
 let cwd: string;
 let base: ConfigInput;
@@ -99,8 +106,20 @@ describe("loadConfig", () => {
         "development",
         "--conditionsX=1",
       ]),
-    ).toEqual(["--conditions=development"]);
-    expect(workerExecArgv([])).toEqual([]);
+    ).toEqual(["--conditions=development", "--max-semi-space-size=16"]);
+    expect(workerExecArgv([])).toEqual(["--max-semi-space-size=16"]);
+  });
+
+  it("always gives the workers a 16 MiB semi-space, whatever the daemon was started with (R45)", () => {
+    for (const given of [
+      [],
+      ["--max-semi-space-size=1"],
+      ["--max-semi-space-size", "1"],
+      ["--max-semi-space-size=64", "--conditions=development"],
+    ]) {
+      const flags = workerExecArgv(given).filter((arg) => arg.includes("semi-space"));
+      expect(flags).toEqual(["--max-semi-space-size=16"]);
+    }
   });
 
   describe("PAP_TEST_WORKER_IMPORT (R130)", () => {
@@ -144,10 +163,13 @@ describe("loadConfig", () => {
     expect(defaultMaxWorkers(12_000, 600)).toBe(10);
   });
 
-  it("applies the S4 worker budget by default (docs/spikes/s4.md)", () => {
+  it("applies the worker budget of 285 MB by default (docs/spikes/s4-m2-long-session.md)", () => {
+    expect(WORKER_BUDGET_MB).toBe(285);
     expect(defaultMaxWorkers(19_995)).toBe(16);
-    expect(defaultMaxWorkers(4_096)).toBe(8);
-    expect(defaultMaxWorkers(2_048)).toBe(4);
+    expect(defaultMaxWorkers(16_384)).toBe(16);
+    expect(defaultMaxWorkers(8_192)).toBe(14);
+    expect(defaultMaxWorkers(4_096)).toBe(7);
+    expect(defaultMaxWorkers(2_048)).toBe(3);
   });
 
   it("treats an empty PAP_HOME or PI_CODING_AGENT_DIR as unset", () => {
@@ -241,5 +263,49 @@ describe("loadConfig", () => {
       expect(failure).toBeInstanceOf(ConfigError);
       expect((failure as ConfigError).message).not.toContain(secret);
     }
+  });
+});
+
+describe("worker settings", () => {
+  it("defaults to 30 idle minutes, automatic scopes, half the RAM (at least 2 GiB) and 4096 tasks", () => {
+    const config = loadConfig(base);
+    expect(config.workerIdleMs).toBe(30 * 60_000);
+    expect(config.workerScope).toBe("auto");
+    expect(config.workerLimits).toEqual({ memoryMaxMb: 8192, tasksMax: 4096 });
+    expect(loadConfig({ ...base, totalMemMb: 2048 }).workerLimits.memoryMaxMb).toBe(2048);
+  });
+
+  it("reads them from the environment", () => {
+    const config = loadConfig({
+      ...base,
+      env: {
+        PAP_WORKER_IDLE_MINUTES: "0",
+        PAP_WORKER_SCOPE: "off",
+        PAP_WORKER_MEMORY_MAX_MB: "1024",
+        PAP_WORKER_TASKS_MAX: "512",
+      },
+    });
+    expect(config.workerIdleMs).toBe(0);
+    expect(config.workerScope).toBe("off");
+    expect(config.workerLimits).toEqual({ memoryMaxMb: 1024, tasksMax: 512 });
+  });
+
+  it.each([
+    [{ PAP_WORKER_SCOPE: "maybe" }, "PAP_WORKER_SCOPE must be auto or off"],
+    [{ PAP_WORKER_MEMORY_MAX_MB: "128" }, "PAP_WORKER_MEMORY_MAX_MB must be an integer ≥ 1024"],
+    [{ PAP_WORKER_MEMORY_MAX_MB: "1023" }, "PAP_WORKER_MEMORY_MAX_MB must be an integer ≥ 1024"],
+    [{ PAP_WORKER_TASKS_MAX: "8" }, "PAP_WORKER_TASKS_MAX must be an integer ≥ 64"],
+    [{ PAP_WORKER_IDLE_MINUTES: "-1" }, "PAP_WORKER_IDLE_MINUTES must be an integer ≥ 0"],
+    [{ PAP_WORKER_IDLE_MINUTES: "35792" }, "PAP_WORKER_IDLE_MINUTES must be an integer ≤ 35791"],
+  ])("refuses %j", (env, message) => {
+    expect(() => loadConfig({ ...base, env })).toThrow(message);
+  });
+});
+
+describe("worker idle limit", () => {
+  it("accepts the largest delay a timer can hold", () => {
+    const config = loadConfig({ ...base, env: { PAP_WORKER_IDLE_MINUTES: "35791" } });
+    expect(config.workerIdleMs).toBe(35_791 * 60_000);
+    expect(config.workerIdleMs).toBeLessThan(2 ** 31);
   });
 });

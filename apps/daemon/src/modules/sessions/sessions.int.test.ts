@@ -5,13 +5,16 @@ import { fileURLToPath } from "node:url";
 import { ProjectTrustStore } from "@earendil-works/pi-coding-agent";
 import { ALL_PERMISSIONS, type Caller, type EventFrame, type HandlerContext } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createSystemClock } from "../../kernel/clock.ts";
+import { type Clock, createSystemClock } from "../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { silentLogger } from "../../kernel/logger.ts";
+import { NO_SCOPES } from "../../kernel/supervisor/scope.ts";
 import { createStreamHub, type StreamHub } from "../../kernel/ws/stream-hub.ts";
+import { DELTA_FLUSH_MS } from "./coalescer.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "./index.ts";
 import { createSessionsStore, type SessionsStore } from "./store.ts";
+import { fakePolicyPort } from "./testing/fake-policy.ts";
 
 // The real pi-host in a real forked process, on a scripted model, with the network closed (never a real provider).
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
@@ -34,12 +37,13 @@ let frames: EventFrame[];
 let agentDir: string;
 let work: string;
 
-function moduleWith(testProviderScript: string): SessionsModule {
+function moduleWith(testProviderScript: string, clock: Clock = createSystemClock()): SessionsModule {
   return createSessionsModule({
     db,
-    clock: createSystemClock(),
+    clock,
     logger: silentLogger,
     hub,
+    policy: fakePolicyPort(),
     config: {
       home: join(root, "pap"),
       piAgentDir: agentDir,
@@ -48,9 +52,11 @@ function moduleWith(testProviderScript: string): SessionsModule {
       testProviderScript,
       maxWorkers: 2,
       minFreeMemMb: 0,
+      workerIdleMs: 30 * 60_000,
     },
     workerUmask: 0o022,
     env: { PATH: process.env.PATH, LANG: process.env.LANG, HOME: join(root, "home"), PI_OFFLINE: "1" },
+    scopes: NO_SCOPES,
   });
 }
 
@@ -89,7 +95,7 @@ const ctx: HandlerContext = {
   closeSubscription: () => {},
 };
 const events = () =>
-  frames.map((frame) => frame.event as { kind: string; status?: string; messages?: unknown[] });
+  frames.map((frame) => frame.event as { kind: string; status?: string; rows?: unknown[] });
 const statuses = () => events().flatMap((event) => (event.kind === "status" ? [event.status] : []));
 const listed = (id: string) =>
   sessions.rpc["sessions.list"]({}, ctx).then(({ sessions: all }) => all.find((s) => s.id === id));
@@ -109,8 +115,8 @@ async function snapshotRows(id: string): Promise<string[]> {
     },
   );
   hub.close("probe");
-  const messages = (seen[0]?.event as { messages: Array<{ role: string }> }).messages;
-  return messages.map((message) => message.role);
+  const rows = (seen[0]?.event as { rows: Array<{ message: { role: string } }> }).rows;
+  return rows.map((row) => row.message.role);
 }
 
 async function promptAndSettle(id: string, text: string): Promise<void> {
@@ -128,7 +134,7 @@ describe("sessions with the real pi-host", () => {
   it("creates, prompts, streams, survives a killed worker and picks up where Pi's file left off", async () => {
     const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: work }, ctx);
     await sessions.rpc["subscribe.session"]({ sessionId }, ctx);
-    expect(events()[0]).toMatchObject({ kind: "snapshot", status: "idle", messages: [] });
+    expect(events()[0]).toMatchObject({ kind: "snapshot", status: "idle", rows: [] });
     // Pi has not written a file for a session nobody has spoken to.
     expect(store.get(sessionId)).toMatchObject({ piPath: null, piSessionId: null, cwd: realpathSync(work) });
 
@@ -188,5 +194,41 @@ describe("sessions with the real pi-host", () => {
     expect(outcome).toEqual({ code: "worker_failed", message: "The session process failed." });
     expect((await broken.rpc["sessions.list"]({}, ctx)).sessions).toEqual([]);
     await broken.shutdownAll();
+  });
+
+  it("streams a long reply merged into one frame, and the text comes out exactly", async () => {
+    const reply = "word ".repeat(80);
+    // The scripted provider sends this reply as 25 deltas (measured with the coalescer bypassed).
+    writeFileSync(join(root, "long.json"), JSON.stringify({ steps: [{ text: reply }] }));
+    await sessions.shutdownAll();
+    // The coalescer's window becomes a minute: only the end of the text block (`text_end`) sends what is pending.
+    const system = createSystemClock();
+    const slowWindow: Clock = {
+      ...system,
+      setTimeout: (fn, ms) => system.setTimeout(fn, ms === DELTA_FLUSH_MS ? 60_000 : ms),
+    };
+    sessions = moduleWith(join(root, "long.json"), slowWindow);
+    const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: work }, ctx);
+    await sessions.rpc["subscribe.session"]({ sessionId }, ctx);
+    await promptAndSettle(sessionId, "talk");
+    const updates = frames
+      .map(
+        (frame) =>
+          frame.event as {
+            kind: string;
+            event?: { type: string; assistantMessageEvent?: { type?: string; delta?: string } };
+          },
+      )
+      .filter(
+        (event) =>
+          event.kind === "pi" &&
+          event.event?.type === "message_update" &&
+          event.event.assistantMessageEvent?.type === "text_delta",
+      )
+      .map(
+        (event) =>
+          event.event?.assistantMessageEvent as { type: string; contentIndex: number; delta: string },
+      );
+    expect(updates).toEqual([{ type: "text_delta", contentIndex: 0, delta: reply }]);
   });
 });

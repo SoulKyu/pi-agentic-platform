@@ -2,7 +2,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { buildScriptedProvider, loadScriptedProvider, ProviderScript } from "./scripted-provider.ts";
+import {
+  buildScriptedProvider,
+  loadScriptedProvider,
+  ProviderScript,
+  scriptedReplies,
+} from "./scripted-provider.ts";
 
 describe("ProviderScript", () => {
   it("rejects a script without steps", () => {
@@ -62,5 +67,38 @@ describe("loadScriptedProvider", () => {
     await expect(loadScriptedProvider(path)).rejects.toThrow();
     await writeFile(path, "not json");
     await expect(loadScriptedProvider(path)).rejects.toThrow();
+  });
+});
+
+describe("scriptedReplies", () => {
+  const ask = (content: unknown) => ({ messages: [{ role: "user", content }] });
+  const SUMMARIZE = "You are a context summarization assistant. Summarize.";
+  const textOf = (message: { content: Array<{ type: string; text?: string }> }) => message.content[0]?.text;
+
+  it("hands the steps out in order, one per call", () => {
+    const reply = scriptedReplies(ProviderScript.parse({ steps: [{ text: "one" }, { text: "two" }] }));
+    expect(textOf(reply(ask("a")))).toBe("one");
+    expect(textOf(reply(ask("b")))).toBe("two");
+  });
+
+  it("answers a compaction request with the summary and keeps the steps for the turns", () => {
+    const reply = scriptedReplies(
+      ProviderScript.parse({ summary: "## Goal\nread", steps: [{ text: "one" }, { text: "two" }] }),
+    );
+    expect(textOf(reply(ask("a")))).toBe("one");
+    expect(textOf(reply(ask(SUMMARIZE)))).toBe("## Goal\nread");
+    expect(textOf(reply(ask(SUMMARIZE)))).toBe("## Goal\nread");
+    expect(textOf(reply(ask("b")))).toBe("two");
+  });
+
+  it("refuses a call after the last step instead of repeating one", () => {
+    const reply = scriptedReplies(ProviderScript.parse({ summary: "s", steps: [{ text: "one" }] }));
+    reply(ask("a"));
+    expect(() => reply(ask("b"))).toThrow("script exhausted");
+  });
+
+  it("treats a summarization prompt as an ordinary call when the script has no summary", () => {
+    const reply = scriptedReplies(ProviderScript.parse({ steps: [{ text: "one" }] }));
+    expect(textOf(reply(ask(SUMMARIZE)))).toBe("one");
   });
 });

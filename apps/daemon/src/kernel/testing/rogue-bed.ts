@@ -5,6 +5,7 @@ import { PapError, type WorkerRecord } from "@pap/contracts";
 import { expect, vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../clock.ts";
 import { createLogger } from "../logger.ts";
+import type { WorkerScope } from "../supervisor/scope.ts";
 import { spawnWorker, type WorkerHandle } from "../supervisor/worker.ts";
 
 // A worker that misbehaves on purpose. Each mode is one way a real worker could go wrong.
@@ -22,6 +23,20 @@ if (mode === "stubborn" || mode === "orphan-maker") {
 if (mode === "setsid-child") {
   // The way Pi's bash tool starts a command: detached, so it leads a session and a group of its own.
   const sleeper = spawn("sleep", ["300"], { stdio: "ignore", detached: true });
+  send({ type: "grandchild", pid: sleeper.pid });
+}
+// 1 GiB is the stop: a missing memory limit fails the test with exit code 3 instead of eating the host's memory.
+if (mode === "hog") {
+  const kept = [];
+  const timer = setInterval(() => { if (kept.length >= 64) { clearInterval(timer); process.exit(3); } kept.push(Buffer.alloc(16 * 1024 * 1024, 1)); }, 10);
+}
+if (mode === "child-hog") {
+  const hog = spawn(process.execPath, ["-e", "const k=[];setInterval(()=>{if(k.length>=64)process.exit(3);k.push(Buffer.alloc(16*1024*1024,1))},10)"], { stdio: "ignore" });
+  hog.on("exit", (code, signal) => send({ type: "extension_error", extensionPath: "rogue", event: "child_exit", error: String(signal ?? code) }));
+}
+if (mode === "term-proof-child") {
+  // A group of its own and SIGTERM ignored (the disposition survives exec): only SIGKILL ends it.
+  const sleeper = spawn("sh", ["-c", "trap '' TERM; exec sleep 300"], { stdio: "ignore", detached: true });
   send({ type: "grandchild", pid: sleeper.pid });
 }
 if (mode === "stubborn") process.on("SIGTERM", () => {});
@@ -99,7 +114,7 @@ export interface RogueBed {
   readonly clock: FakeClock;
   readonly logged: Array<{ msg: string; fields: unknown }>;
   logger(): ReturnType<typeof createLogger>;
-  rogue(mode: string, options?: { cwd?: string }): WorkerHandle;
+  rogue(mode: string, options?: { cwd?: string; scope?: WorkerScope }): WorkerHandle;
   collect(handle: WorkerHandle): WorkerRecord[];
   /** The pid the rogue worker reported as its child; the bed kills it at the end if it is still there. */
   grandchildOf(records: WorkerRecord[]): Promise<number>;
@@ -135,9 +150,14 @@ export function createRogueBed(): RogueBed {
         entry: join(root, "rogue.mjs"),
         execArgv: [],
         cwd: options.cwd ?? root,
-        env: { PATH: process.env.PATH, ROGUE: mode },
+        env: {
+          PATH: process.env.PATH,
+          ROGUE: mode,
+          ...(options.scope ? { XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR } : {}),
+        },
         clock,
         logger: logger(),
+        ...(options.scope ? { scope: options.scope } : {}),
       });
       handles.push(handle);
       void handle.exited.then(() => reported.add(handle));

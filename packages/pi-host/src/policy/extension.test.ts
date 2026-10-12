@@ -6,10 +6,11 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { AuditEntry, type PolicyRules } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createUiBridge } from "../ui-bridge.ts";
+import { createApprovals } from "../approvals.ts";
 import { createPolicyBed, interactiveRules as rules } from "../testing/policy-bed.ts";
 import {
   createPapPolicyExtension,
+  createPolicyGrants,
   DENIED_REASON,
   evaluateToolCall,
   FAIL_CLOSED_REASON,
@@ -45,7 +46,13 @@ describe("pap-policy approval stage", () => {
     const h = harness();
     expect(await h.run("bash", { command: "echo hi" })).toBeUndefined();
     expect(h.asked).toEqual(["Run a command?|7 characters, 1 line\nbash: echo hi"]);
-    expect(h.audits[0]).toEqual({ toolCallId: "c1", tool: "bash", category: "exec", decision: "approved" });
+    expect(h.audits[0]).toEqual({
+      toolCallId: "c1",
+      tool: "bash",
+      category: "exec",
+      decision: "approved",
+      reason: "answer: once",
+    });
   });
 
   it("asks before a tool it does not know, and audits it as unknown", async () => {
@@ -58,7 +65,7 @@ describe("pap-policy approval stage", () => {
   });
 
   it("blocks with the user's reason when denied", async () => {
-    const h = harness({ confirm: async () => false });
+    const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     expect(await h.run("bash", { command: "rm -rf build" })).toEqual({ block: true, reason: DENIED_REASON });
     expect(h.audits[0]?.decision).toBe("denied");
   });
@@ -100,7 +107,7 @@ describe("pap-policy approval stage", () => {
 
   it("blocks when the dialog throws, when no UI is bound, or when the audit line fails", async () => {
     const throwing = harness({
-      confirm: async () => {
+      ask: async () => {
         throw new Error("ui gone");
       },
     });
@@ -177,43 +184,47 @@ describe("pap-policy approval stage", () => {
 });
 
 describe("pap-policy hardening", () => {
-  it("hands the approval dialog the abort signal of the run, so Stop closes it and the call is blocked", async () => {
+  it("hands the question the abort signal of the run, so Stop closes it and the call fails closed", async () => {
     const controller = new AbortController();
     const h = harness({
       signal: controller.signal,
-      confirm: (_title, _message, opts) =>
+      ask: (_request, signal) =>
         new Promise((resolve) =>
-          opts?.signal?.addEventListener("abort", () => resolve(false), { once: true }),
+          signal?.addEventListener("abort", () => resolve({ answer: "deny", closed: true }), { once: true }),
         ),
     });
     const pending = h.run("bash", { command: "ls" });
     await vi.waitFor(() => expect(h.asked).toHaveLength(1));
     controller.abort();
-    expect(await pending).toEqual({ block: true, reason: DENIED_REASON });
-    expect(h.audits[0]).toMatchObject({ decision: "denied" });
+    expect(await pending).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
+    expect(h.audits[0]).toMatchObject({ decision: "denied", reason: "dialog closed" });
   });
 
-  it("closes the real bridge dialog when the run is aborted", async () => {
+  it("closes the real approval when the run is aborted", async () => {
     const sent: Array<{ type: string; id: string }> = [];
-    const bridge = createUiBridge((record) => sent.push(record));
+    const approvals = createApprovals((record) => (sent.push(record), true), { newId: () => "q1" });
     const controller = new AbortController();
     const audits: AuditEntry[] = [];
     const answer = evaluateToolCall(
       { toolCallId: "c1", toolName: "bash", input: { command: "ls" } },
-      { hasUI: true, cwd, signal: controller.signal, ui: bridge.context },
+      { hasUI: true, cwd, signal: controller.signal },
       {
         rules: () => rules,
+        grants: createPolicyGrants(() => 0),
         audit: (e) => audits.push(e),
         agentDir: bed.agentDir,
         papHome: bed.papHome,
         isBuiltinTool: () => true,
+        ask: (request, signal) => approvals.ask(request, signal),
       },
     );
-    await vi.waitFor(() => expect(bridge.pendingCount()).toBe(1));
+    await vi.waitFor(() => expect(approvals.pendingCount()).toBe(1));
     controller.abort();
-    expect(await answer).toEqual({ block: true, reason: DENIED_REASON });
-    expect(sent.map((r) => r.type)).toEqual(["extension_ui_request", "extension_ui_closed"]);
-    expect(bridge.pendingCount()).toBe(0);
+    expect(await answer).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
+    expect(sent.map((r) => r.type)).toEqual(["approval_request", "extension_ui_closed"]);
+    expect(sent.at(-1)).toEqual({ type: "extension_ui_closed", id: "q1" });
+    expect(approvals.pendingCount()).toBe(0);
+    expect(audits[0]).toMatchObject({ decision: "denied", reason: "dialog closed" });
   });
 
   it("does not trust the name of a tool that is not the built-in one", async () => {
@@ -257,11 +268,17 @@ describe("createPapPolicyExtension", () => {
   const tool = (name: string, path: string) => ({ name, sourceInfo: { path } });
   async function load(tools: Array<ReturnType<typeof tool>>) {
     const audits: AuditEntry[] = [];
+    const asked: string[] = [];
     const extension = createPapPolicyExtension({
       rules: () => rules,
+      rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
       agentDir: bed.agentDir,
       papHome: bed.papHome,
+      ask: async (request) => {
+        asked.push(request.title);
+        return { answer: "deny", closed: false };
+      },
     });
     const handlers = new Map<
       string,
@@ -271,17 +288,7 @@ describe("createPapPolicyExtension", () => {
       on: (name: string, handler: never) => handlers.set(name, handler),
       getAllTools: () => tools,
     } as unknown as ExtensionAPI);
-    const asked: string[] = [];
-    const ctx = {
-      hasUI: true,
-      cwd,
-      ui: {
-        confirm: async (title: string) => {
-          asked.push(title);
-          return false;
-        },
-      },
-    };
+    const ctx = { hasUI: true, cwd };
     const call = (toolName: string, input: unknown) =>
       handlers.get("tool_call")?.({ toolCallId: "c9", toolName, input }, ctx);
     return { extension, handlers, audits, asked, call };
@@ -328,9 +335,11 @@ describe("createPapPolicyExtension", () => {
     const audits: AuditEntry[] = [];
     const extension = createPapPolicyExtension({
       rules: () => rules,
+      rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
       agentDir: bed.agentDir,
       papHome: bed.papHome,
+      ask: async () => ({ answer: "once", closed: false }),
     });
     let handler: ((event: unknown, ctx: unknown) => Promise<ToolCallEventResult | undefined>) | undefined;
     await extension.factory({
@@ -341,7 +350,7 @@ describe("createPapPolicyExtension", () => {
     } as unknown as ExtensionAPI);
     const result = await handler?.(
       { toolCallId: "c1", toolName: "read", input: { path: "a" } },
-      { hasUI: true, cwd, ui: { confirm: async () => true } },
+      { hasUI: true, cwd },
     );
     expect(result).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
   });

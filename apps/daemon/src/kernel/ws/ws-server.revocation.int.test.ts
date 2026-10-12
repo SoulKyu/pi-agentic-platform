@@ -1,4 +1,10 @@
-import { ALL_PERMISSIONS, type Caller, type HandlerContext, type HandlerTable } from "@pap/contracts";
+import {
+  ALL_PERMISSIONS,
+  PROTOCOL_VERSION,
+  type Caller,
+  type HandlerContext,
+  type HandlerTable,
+} from "@pap/contracts";
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WebSocket } from "ws";
@@ -91,7 +97,7 @@ interface Client {
 }
 
 async function connect(): Promise<Client> {
-  const socket = new WebSocket(`ws://127.0.0.1:${server.port}/ws?proto=1`, {
+  const socket = new WebSocket(`ws://127.0.0.1:${server.port}/ws?proto=${PROTOCOL_VERSION}`, {
     headers: { origin: ORIGIN, cookie: COOKIE },
   });
   const answers = new Map<number, (frame: unknown) => void>();

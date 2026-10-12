@@ -4,13 +4,16 @@ import { isAbsolute, join } from "node:path";
 import { createSecureContext } from "node:tls";
 import { parseArgs } from "node:util";
 import type { LogLevel } from "./logger.ts";
+import { defaultMemoryMaxMb, type ScopeLimits } from "./supervisor/scope.ts";
 
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 7777;
 const DEFAULT_MIN_FREE_MEM_MB = 512;
+// Timers hold at most 2^31 - 1 ms; a longer idle delay would fire at once.
+const MAX_IDLE_MINUTES = Math.floor((2 ** 31 - 1) / 60_000);
 export const VITE_DEV_ORIGIN = "http://localhost:5173";
-// Measured in docs/spikes/s4.md: idle worker ≈156 MB RSS / ≈103 MB PSS; ceil(157 × 1.5).
-export const WORKER_BUDGET_MB = 236;
+// docs/spikes/s4-m2-long-session.md: a 300-turn session with compaction on, run with WORKER_SEMI_SPACE_FLAG (owner, R45).
+export const WORKER_BUDGET_MB = 285;
 
 // Messages are fixed text: no flag value, environment value or path is ever echoed (spec C §4.1),
 // so a mistyped secret cannot reach a terminal, a log line or a crash report through a config error.
@@ -35,6 +38,11 @@ export interface Config {
   readonly testProviderScript: string | null;
   readonly maxWorkers: number;
   readonly minFreeMemMb: number;
+  /** A worker with nothing to do is released after this long; 0 never releases (`PAP_WORKER_IDLE_MINUTES`). */
+  readonly workerIdleMs: number;
+  /** `auto` puts each worker in a systemd user scope when a lingering user manager answers; `off` never does. */
+  readonly workerScope: "auto" | "off";
+  readonly workerLimits: ScopeLimits;
   readonly staticRoot: string | null;
   readonly logLevel: LogLevel;
 }
@@ -56,13 +64,20 @@ const isLoopback = (host: string) => host === "127.0.0.1" || host === "localhost
 const isWildcard = (host: string) => host === "0.0.0.0" || host === "::";
 
 /**
+ * Part of what `WORKER_BUDGET_MB` was measured with (docs/spikes/s4-m2-long-session.md): it caps V8's semi-space
+ * at 16 MiB, which brought the measured RSS of a long session down. It is a command-line flag (which takes
+ * precedence over `NODE_OPTIONS`) and it is always appended here, never inherited from the daemon.
+ */
+export const WORKER_SEMI_SPACE_FLAG = "--max-semi-space-size=16";
+
+/**
  * The node flags a worker inherits from the daemon: the development condition (`--conditions=development`, so a
  * worker finds the TypeScript sources too) and nothing else. In particular no `--import`: a worker starts in the
  * session's project, where a relative or bare specifier would load the project's own code before the policy runs.
  */
 export function workerExecArgv(execArgv: readonly string[]): string[] {
   // `=` form only: a lone `--conditions` would take the worker entry path as its value.
-  return execArgv.filter((arg) => arg.startsWith("--conditions="));
+  return [...execArgv.filter((arg) => arg.startsWith("--conditions=")), WORKER_SEMI_SPACE_FLAG];
 }
 
 export function defaultMaxWorkers(totalMemMb: number, budgetMb = WORKER_BUDGET_MB): number {
@@ -137,6 +152,19 @@ export function loadConfig(input: ConfigInput): Config {
     minFreeMemMb: input.env.PAP_MIN_FREE_MEM_MB
       ? parseCount(input.env.PAP_MIN_FREE_MEM_MB, "PAP_MIN_FREE_MEM_MB", 0)
       : DEFAULT_MIN_FREE_MEM_MB,
+    workerIdleMs:
+      (input.env.PAP_WORKER_IDLE_MINUTES
+        ? parseCount(input.env.PAP_WORKER_IDLE_MINUTES, "PAP_WORKER_IDLE_MINUTES", 0, MAX_IDLE_MINUTES)
+        : 30) * 60_000,
+    workerScope: parseScope(input.env.PAP_WORKER_SCOPE),
+    workerLimits: {
+      memoryMaxMb: input.env.PAP_WORKER_MEMORY_MAX_MB
+        ? parseCount(input.env.PAP_WORKER_MEMORY_MAX_MB, "PAP_WORKER_MEMORY_MAX_MB", 1024)
+        : defaultMemoryMaxMb(input.totalMemMb),
+      tasksMax: input.env.PAP_WORKER_TASKS_MAX
+        ? parseCount(input.env.PAP_WORKER_TASKS_MAX, "PAP_WORKER_TASKS_MAX", 64)
+        : 4096,
+    },
     staticRoot: input.staticRoot,
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),
   };
@@ -229,9 +257,10 @@ function parsePort(raw: string): number {
   return port;
 }
 
-function parseCount(raw: string, name: string, min: number): number {
+function parseCount(raw: string, name: string, min: number, max?: number): number {
   const value = Number(raw);
   if (!Number.isInteger(value) || value < min) throw new ConfigError(`${name} must be an integer ≥ ${min}`);
+  if (max !== undefined && value > max) throw new ConfigError(`${name} must be an integer ≤ ${max}`);
   return value;
 }
 
@@ -250,4 +279,10 @@ function parseLevel(raw: string | undefined): LogLevel {
   if (raw === undefined) return "info";
   if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") return raw;
   throw new ConfigError("PAP_LOG_LEVEL must be debug, info, warn or error");
+}
+
+function parseScope(raw: string | undefined): "auto" | "off" {
+  if (raw === undefined || raw === "" || raw === "auto") return "auto";
+  if (raw === "off") return "off";
+  throw new ConfigError("PAP_WORKER_SCOPE must be auto or off");
 }

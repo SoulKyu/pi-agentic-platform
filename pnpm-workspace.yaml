@@ -4,6 +4,7 @@ packages:
 catalog:
   "@earendil-works/pi-coding-agent": 1.1.0
   "@earendil-works/pi-ai": 1.1.0
+  "@earendil-works/pi-tui": 1.1.0
 minimumReleaseAge: 4320
 onlyBuiltDependencies: []
 # macOS-only optional file watcher; its node-gyp build is acknowledged and never run.

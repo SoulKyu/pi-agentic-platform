@@ -4,7 +4,14 @@ import { createFakeClock } from "../clock.ts";
 import { DEFAULT_REQUEST_TIMEOUT_MS, MAX_SHUTDOWN_GRACE_MS } from "../supervisor/worker.ts";
 import { createFakeWorker } from "./fake-worker.ts";
 
-const READY: WorkerRecord = { type: "ready", sessionFile: "/s.jsonl", sessionId: "s", piVersion: "1" };
+const READY: WorkerRecord = {
+  type: "ready",
+  sessionFile: "/s.jsonl",
+  sessionId: "s",
+  piVersion: "1",
+  leafId: null,
+  sessionName: null,
+};
 
 describe("fake worker", () => {
   it("answers scripted requests, holds others, and rejects them on a crash", async () => {
@@ -135,5 +142,33 @@ describe("fake worker", () => {
     const crashed = createFakeWorker();
     crashed.crash({ code: 70, signal: null, cause: "exit_code" });
     expect((await crashed.stop()).cause).toBe("exit_code");
+  });
+});
+
+describe("fake worker with holdShutdown", () => {
+  it("is told to shut down and exits only when the test crashes it", async () => {
+    const worker = createFakeWorker({ holdShutdown: true });
+    const stopping = worker.stop();
+    let exited = false;
+    void worker.exited.then(() => void (exited = true));
+    await Promise.resolve();
+    expect(worker.sent).toEqual([{ type: "shutdown", graceMs: 1500 }]);
+    expect(worker.stopped()).toBe(true);
+    expect(exited).toBe(false);
+    worker.crash({ code: 0, signal: null, cause: "clean" });
+    expect((await stopping).cause).toBe("clean");
+    expect(exited).toBe(true);
+  });
+});
+
+describe("fake worker, raw records", () => {
+  it("parses a raw record as the real handle does, and counts one it drops", () => {
+    const worker = createFakeWorker();
+    const seen: WorkerRecord[] = [];
+    worker.onRecord((record) => seen.push(record));
+    worker.emitRaw({ type: "approval_request", id: "a1", answers: [] });
+    worker.emitRaw({ type: "approval_request", answers: [] });
+    expect(seen).toEqual([{ type: "approval_request_invalid", id: "a1", reason: "malformed" }]);
+    expect(worker.stats().droppedRecords).toBe(1);
   });
 });

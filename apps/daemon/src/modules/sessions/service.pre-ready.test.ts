@@ -49,11 +49,19 @@ describe("what a new session's worker says before it is ready", () => {
 
   it("holds a bounded number of events and says how many it dropped", async () => {
     const { logger, lines } = captureLogger();
-    const flood = Array.from({ length: MAX_PRE_READY_EVENTS + 8 }, (_, n) => extensionError(n));
+    // Questions are neither limited nor folded, so each one is an event of its own to hold.
+    const flood = Array.from({ length: MAX_PRE_READY_EVENTS + 8 }, (_, n) => ({
+      type: "extension_ui_request" as const,
+      id: `q${n}`,
+      method: "confirm",
+      title: "Run?",
+    }));
     bed = build({ logger, start: () => ({ kind: "ready", before: flood }) });
     await bed.service.create(bed.work, { userId: "u1", permissions: new Set() });
     const frames = await bed.subscribe("p1", { epoch: bed.hub.epoch, seq: 0 });
-    expect(noticeTexts(frames)).toHaveLength(MAX_PRE_READY_EVENTS);
+    expect(frames.filter(({ event }) => (event as { kind?: string }).kind === "dialog_open")).toHaveLength(
+      MAX_PRE_READY_EVENTS,
+    );
     expect(lines.find((line) => line.msg === "session_start_events_dropped")).toMatchObject({
       sessionId: "p1",
       dropped: 8,
@@ -78,5 +86,16 @@ describe("what a new session's worker says before it is ready", () => {
     expect(frames).toHaveLength(1);
     await bed.service.prompt({ sessionId: "p1", text: "hi" }, { userId: "u1", permissions: new Set() });
     expect(noticeTexts(frames)).toEqual(["An extension failed during session_start."]);
+  });
+});
+
+describe("recent notices in the snapshot", () => {
+  it("hands start-up notices to a subscriber that has no cursor (roadmap: recent notices in the snapshot)", async () => {
+    bed = build({ start: () => ({ kind: "ready", before: [extensionError(1)] }) });
+    const { sessionId } = await bed.service.create(bed.work, { userId: "u1", permissions: new Set() });
+    const snapshot = await bed.snapshot(sessionId);
+    expect(snapshot).toMatchObject({
+      notices: [{ level: "error", text: "An extension failed during session_start." }],
+    });
   });
 });

@@ -40,7 +40,7 @@ describe("create", () => {
       agentDir: bed.agentDir,
       papHome: join(bed.dir, "pap"),
       umask: 0o022,
-      policy: { profile: "interactive", approvalMode: "auto-accept-edits" },
+      policy: { profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow: [] },
     });
   });
 
@@ -198,6 +198,21 @@ describe("a session whose worker is gone", () => {
     expect(bed.service.list(owner)[0]?.status).toBe("cold");
   });
 
+  it("publishes starting when it reopens a cold session (R112)", async () => {
+    open();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    bed.spawned[0]?.crash({ code: null, signal: "SIGKILL", cause: "killed" });
+    await bed.clock.advance(0);
+    const frames = await bed.subscribe(sessionId);
+    void bed.service.prompt({ sessionId, text: "again" }, owner);
+    await bed.clock.advance(0);
+    const statuses = frames
+      .map((frame) => frame.event as { kind: string; status?: string })
+      .filter((event) => event.kind === "status")
+      .map((event) => event.status);
+    expect(statuses).toEqual(["starting", "idle"]);
+  });
+
   it("is not restarted by itself: only a prompt brings it back", async () => {
     open();
     await bed.service.create(bed.work, owner);
@@ -313,7 +328,7 @@ describe("abort and prompt", () => {
     open();
     await bed.service.create(bed.work, owner);
     expect(bed.service.inspect("p1")).toEqual({ pid: 4242, rssMb: null });
-    bed.spawned[0]?.emit({ type: "health", rssMb: 150 });
+    bed.spawned[0]?.emit({ type: "health", rssMb: 150, descendants: 0 });
     expect(bed.service.inspect("p1")?.rssMb).toBe(150);
     expect(bed.service.inspect("nope")).toBeNull();
   });

@@ -1,195 +1,126 @@
-import { SessionStreamEvent, type Dialog, type SessionStatus } from "@pap/contracts";
+import {
+  EMPTY_QUEUE,
+  type EntryRef,
+  type HistoryMeta,
+  NO_HISTORY,
+  type PartialMessage,
+  type QueueView,
+  SessionStreamEvent,
+  type Dialog,
+  type SessionStatus,
+} from "@pap/contracts";
 
-export interface ToolCallView {
-  readonly id: string;
+import { failRunningTools, reducePi, withNotice } from "./reduce-pi.ts";
+import { clearedUi, EMPTY_UI, reduceUi, uiOfSnapshot, type UiState } from "./reduce-ui.ts";
+import { toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
+
+export interface ToolView {
   readonly name: string;
-  readonly summary: string;
+  readonly status: "running" | "done" | "failed";
+  /** The tail of what the tool has printed so far (at most 2000 characters). */
+  readonly preview: string;
 }
 
-export interface MessageView {
-  /** Unique in a view: `ref`, plus a counter when another message has the same one. */
-  readonly key: string;
-  /** What names the message in Pi's data: a tool result by its call, any other by role and time. */
-  readonly ref: string;
-  readonly role: "user" | "assistant" | "toolResult" | "other";
-  readonly text: string;
-  readonly toolCalls: readonly ToolCallView[];
-  /** Why the provider failed (clipped), "" when it gave no reason, null when the message did not fail. */
-  readonly error: string | null;
-  /** Size in bytes of a row the server did not send because it was too big (a placeholder), null otherwise. */
-  readonly omittedBytes: number | null;
-}
-
-export interface SessionView {
+export interface SessionView extends UiState {
   readonly status: SessionStatus;
   readonly messages: readonly MessageView[];
-  readonly partialText: string | null;
+  /** The reply being written, by content index; null between replies. */
+  readonly partial: PartialMessage | null;
+  /** Tool calls by id, latest wins, oldest first; at most 200. */
+  readonly tools: ReadonlyMap<string, ToolView>;
   readonly dialogs: readonly Dialog[];
-  readonly notices: ReadonlyArray<{ readonly level: string; readonly text: string }>;
+  /** Open dialogs the snapshot could not carry: something is pending that this view cannot show. */
+  readonly hiddenDialogs: number;
+  /** What waits in Pi's steering and follow-up queue; empty while the session is cold. */
+  readonly queue: QueueView;
+  readonly notices: ReadonlyArray<{
+    readonly level: string;
+    readonly text: string;
+    readonly source?: "pap" | "extension";
+  }>;
+  /** What lies above the messages: where the next page starts and how many turns it holds. */
+  readonly history: HistoryMeta;
+  /** Pi's current leaf as far as the stream has said so; null when unknown. */
+  readonly leafId: string | null;
   readonly loaded: boolean;
+  /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
+  readonly generation: number;
+  /** A snapshot arrived that the contract could not parse: the screen says so instead of staying blank. */
+  readonly unreadable: boolean;
 }
 
 export const EMPTY_VIEW: SessionView = {
   status: "cold",
   messages: [],
-  partialText: null,
+  partial: null,
+  tools: new Map(),
   dialogs: [],
+  hiddenDialogs: 0,
+  queue: EMPTY_QUEUE,
   notices: [],
+  ...EMPTY_UI,
+  history: NO_HISTORY,
+  leafId: null,
   loaded: false,
+  generation: 0,
+  unreadable: false,
 };
-const MAX_NOTICES = 20;
-const MAX_ERROR = 500;
+const appendMessage = (list: readonly MessageView[], message: MessageView | null): readonly MessageView[] =>
+  message ? [...list, withUniqueKey(list, message)] : list;
 
-const summarize = (args: unknown): string => {
-  const command = (args as { command?: unknown } | null)?.command;
-  const text = typeof command === "string" ? command : JSON.stringify(args ?? {});
-  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
-};
-
-const clip = (text: string, max: number): string =>
-  text.length > max ? `${[...text.slice(0, max * 2)].slice(0, max).join("")}…` : text;
-
-// A turn's tool results all come in the same millisecond, so time alone cannot tell messages apart.
-function refOf(message: { role?: unknown; toolCallId?: unknown; timestamp?: unknown }, role: string): string {
-  if (role === "toolResult" && typeof message.toolCallId === "string" && message.toolCallId !== "") {
-    return `toolResult:${message.toolCallId}`;
-  }
-  return `${role}:${typeof message.timestamp === "number" ? message.timestamp : "none"}`;
-}
-
-function toMessageView(raw: unknown): MessageView {
-  const message = (raw ?? {}) as {
-    role?: unknown;
-    content?: unknown;
-    timestamp?: unknown;
-    toolCallId?: unknown;
-    stopReason?: unknown;
-    errorMessage?: unknown;
-    omitted?: unknown;
-    bytes?: unknown;
-  };
-  const role =
-    message.role === "user" || message.role === "assistant" || message.role === "toolResult"
-      ? message.role
-      : "other";
-  const blocks: Array<Record<string, unknown>> =
-    typeof message.content === "string"
-      ? [{ type: "text", text: message.content }]
-      : Array.isArray(message.content)
-        ? (message.content as Array<Record<string, unknown>>)
-        : [];
-  const text = blocks
-    .filter((block) => block.type === "text" && typeof block.text === "string")
-    .map((block) => block.text as string)
-    .join("");
-  const toolCalls = blocks
-    .filter((block) => block.type === "toolCall")
-    .map((block) => ({
-      id: String(block.id ?? ""),
-      name: String(block.name ?? "tool"),
-      summary: summarize(block.arguments ?? block.args ?? block.input),
-    }));
-  const failed = role === "assistant" && message.stopReason === "error";
-  const omitted =
-    message.omitted === true && typeof message.bytes === "number" && Number.isFinite(message.bytes);
-  const ref = refOf(message, role);
-  return {
-    key: ref,
-    ref,
-    role,
-    text,
-    toolCalls,
-    error: failed
-      ? clip(typeof message.errorMessage === "string" ? message.errorMessage : "", MAX_ERROR)
-      : null,
-    omittedBytes: omitted ? (message.bytes as number) : null,
-  };
-}
-
-const sameContent = (a: MessageView, b: MessageView): boolean =>
-  a.role === b.role &&
-  a.text === b.text &&
-  a.error === b.error &&
-  a.omittedBytes === b.omittedBytes &&
-  a.toolCalls.length === b.toolCalls.length &&
-  a.toolCalls.every((call, i) => {
-    const other = b.toolCalls[i];
-    return (
-      other !== undefined &&
-      call.id === other.id &&
-      call.name === other.name &&
-      call.summary === other.summary
-    );
-  });
-
-/** The message under a key no other message in `list` has. */
-function withUniqueKey(list: readonly MessageView[], message: MessageView): MessageView {
-  const taken = new Set(list.map((existing) => existing.key));
-  let key = message.ref;
-  for (let n = 1; taken.has(key); n++) key = `${message.ref}#${n}`;
-  return { ...message, key };
-}
-
-const withNotice = (view: SessionView, level: string, text: string): SessionView => ({
-  ...view,
-  notices: [...view.notices, { level, text }].slice(-MAX_NOTICES),
-});
-
-function reducePi(view: SessionView, event: { type: string } & Record<string, unknown>): SessionView {
-  switch (event.type) {
-    case "message_start":
-      return (event.message as { role?: unknown } | undefined)?.role === "assistant"
-        ? { ...view, partialText: "" }
-        : view;
-    case "message_update": {
-      const update = event.assistantMessageEvent as { type?: unknown; delta?: unknown } | undefined;
-      return update?.type === "text_delta" && typeof update.delta === "string"
-        ? { ...view, partialText: (view.partialText ?? "") + update.delta }
-        : view;
-    }
-    case "message_end": {
-      const message = toMessageView(event.message);
-      // The snapshot and the live stream can both carry a message: the same one is not added twice.
-      const replay = view.messages.some(
-        (existing) => existing.ref === message.ref && sameContent(existing, message),
-      );
-      return {
-        ...view,
-        messages: replay ? view.messages : [...view.messages, withUniqueKey(view.messages, message)],
-        partialText: message.role === "assistant" ? null : view.partialText,
-      };
-    }
-    case "extension_ui_request":
-      return event.method === "notify" && typeof event.message === "string"
-        ? withNotice(view, String(event.notifyType ?? "info"), event.message)
-        : view;
-    default:
-      return view;
-  }
+/** The entry Pi wrote for a message the view already has: the newest one without an id that has its name in Pi's data. */
+function bindEntry(messages: readonly MessageView[], entry: EntryRef): readonly MessageView[] {
+  if (entry.type !== "message") return messages;
+  const ref =
+    entry.role === "toolResult" && entry.toolCallId !== undefined
+      ? `toolResult:${entry.toolCallId}`
+      : entry.role !== undefined && entry.messageTimestamp !== undefined
+        ? `${entry.role}:${entry.messageTimestamp}`
+        : null;
+  if (ref === null) return messages;
+  const index = messages.findLastIndex((message) => message.entryId === null && message.ref === ref);
+  const found = messages[index];
+  return found ? messages.with(index, { ...found, entryId: entry.id }) : messages;
 }
 
 export function reduceSession(view: SessionView, raw: unknown): SessionView {
   const parsed = SessionStreamEvent.safeParse(raw);
-  if (!parsed.success) return view;
+  if (!parsed.success) {
+    // A snapshot the client cannot read would leave the view blank for ever: say so (M2-RT-06). Other events are dropped.
+    return (raw as { kind?: unknown } | null)?.kind === "snapshot"
+      ? { ...view, loaded: true, unreadable: true, generation: view.generation + 1 }
+      : view;
+  }
   const event = parsed.data;
   switch (event.kind) {
     case "snapshot":
       return {
         ...EMPTY_VIEW,
         status: event.status,
-        messages: event.messages.reduce<MessageView[]>(
-          (list, raw) => [...list, withUniqueKey(list, toMessageView(raw))],
+        messages: event.rows.reduce<readonly MessageView[]>(
+          (list, row) => appendMessage(list, toMessageView(row.message, row.entryId)),
           [],
         ),
         dialogs: event.dialogs,
+        hiddenDialogs: event.hiddenDialogs,
+        partial: event.partial,
+        queue: event.queue,
+        notices: event.notices,
+        ...uiOfSnapshot(event, view),
+        history: event.history,
+        leafId: event.leafId,
         loaded: true,
+        generation: view.generation + 1,
       };
     case "status": {
       // A half-written reply of a session that stopped will never be finished.
+      const base = event.status === "cold" ? clearedUi(view) : view;
       const next = {
-        ...view,
+        ...base,
         status: event.status,
-        partialText: event.status === "cold" ? null : view.partialText,
+        partial: event.status === "cold" ? null : view.partial,
+        queue: event.status === "cold" ? EMPTY_QUEUE : view.queue,
+        tools: event.status === "cold" ? failRunningTools(view.tools) : view.tools,
       };
       return event.cause ? withNotice(next, "error", event.cause) : next;
     }
@@ -199,9 +130,23 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         : { ...view, dialogs: [...view.dialogs, event.dialog] };
     case "dialog_closed":
       return { ...view, dialogs: view.dialogs.filter((dialog) => dialog.id !== event.id) };
+    case "queue":
+      return { ...view, queue: event.queue };
     case "notice":
-      return withNotice(view, event.level, event.text);
+      return withNotice(view, event.level, event.text, event.source);
     case "pi":
       return reducePi(view, event.event);
+    case "entry":
+      return { ...view, messages: bindEntry(view.messages, event.entry), leafId: event.entry.id };
+    case "row":
+      return event.row.entryId !== null &&
+        view.messages.some((message) => message.entryId === event.row.entryId)
+        ? view
+        : {
+            ...view,
+            messages: appendMessage(view.messages, toMessageView(event.row.message, event.row.entryId)),
+          };
+    default:
+      return reduceUi(view, event) ?? view;
   }
 }

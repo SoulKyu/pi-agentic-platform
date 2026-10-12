@@ -10,14 +10,19 @@ import { acquireInstanceLock, prepareHome } from "./kernel/home.ts";
 import { createHttpApp } from "./kernel/http/app.ts";
 import { createOriginRefusalLog } from "./kernel/http/origin-refusals.ts";
 import { startServer } from "./kernel/http/server.ts";
+import { newId } from "./kernel/ids.ts";
 import { createLogger, type Logger } from "./kernel/logger.ts";
+import type { WorkerExit } from "./kernel/supervisor/exit.ts";
+import { probeScopes } from "./kernel/supervisor/scope.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
 import { VERSION } from "./kernel/version.ts";
+import { execFileCode, execFileText, whichOnPath } from "./kernel/which.ts";
 import { createDispatcher } from "./kernel/ws/dispatcher.ts";
 import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
+import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 
 export interface DaemonHandle {
@@ -31,6 +36,8 @@ export interface DaemonHandle {
   };
   /** Idempotent. Workers go first (R104), then the sockets, the receipt purge, the database and the instance lock. */
   stop(): Promise<void>;
+  /** A stop was given up: SIGKILLs every worker scope of this home, synchronously and bounded. Never throws. */
+  killScopes(): void;
 }
 
 export interface DaemonDeps {
@@ -47,6 +54,10 @@ export interface DaemonDeps {
    * PAP_LOG_LEVEL is, because without it nobody can create the owner (R117).
    */
   readonly announceSetupUrl?: (fields: { readonly url: string; readonly hint: string }) => void;
+  /** A worker exited: its session and the end of what it printed (at most the supervisor's 8 KiB tail). */
+  readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
+  /** Tests only: replaces the boot probe of the worker scopes. */
+  readonly probeScopes?: typeof probeScopes;
 }
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -87,7 +98,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const { db, readOnly } = migrate({
       dbPath: join(config.home, "state.db"),
       backupsDir: join(config.home, "backups"),
-      sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS, SESSIONS_MIGRATIONS],
+      sources: [KERNEL_MIGRATIONS, AUTH_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS],
       clock,
       logger,
     });
@@ -111,16 +122,33 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       allowedOrigins: config.allowedOrigins,
       insecureHttp: config.insecureHttp,
     });
+    const env = deps.env ?? process.env;
+    const scopes = await (deps.probeScopes ?? probeScopes)(config.workerScope, config.workerLimits, {
+      home: config.home,
+      uid: process.getuid?.() ?? -1,
+      exec: execFileText,
+      execSync: execFileCode,
+      env,
+      which: (command) => whichOnPath(command, env),
+      clock,
+      logger,
+    });
+    // What an earlier daemon of this home left behind dies before any new worker starts (M2-RT-13).
+    await scopes.sweep();
+    const policy = createPolicyModule({ db, clock, logger, newId });
     const sessions = createSessionsModule({
       db,
       clock,
       logger,
       hub,
+      policy: policy.port,
       config,
       workerUmask,
-      env: deps.env ?? process.env,
+      env,
+      scopes,
+      ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
-    const handlers: HandlerTable = { ...systemHandlers(clock), ...sessions.rpc };
+    const handlers: HandlerTable = { ...systemHandlers(clock), ...policy.rpc, ...sessions.rpc };
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
@@ -147,7 +175,10 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
       servesTls: config.tls !== null,
       onOriginRefused,
-      mount: (hono) => auth.mount(hono),
+      mount: (hono) => {
+        auth.mount(hono);
+        sessions.mountExportRoute(hono, auth.authenticateCookieHeader);
+      },
       wsProbe,
     });
     let fatal = false;
@@ -194,6 +225,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         workerPid: (id) => sessions.inspect(id)?.pid,
         workerRssMb: (id) => sessions.inspect(id)?.rssMb ?? null,
       },
+      killScopes: () => scopes.killAllNow(),
       stop() {
         stopping ??= (async () => {
           // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash

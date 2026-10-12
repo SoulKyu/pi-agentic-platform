@@ -106,3 +106,70 @@ describe("toExtensionErrorRecord", () => {
     ]);
   });
 });
+
+describe("slim wire events", () => {
+  it("keeps an entry's identity and drops its body", () => {
+    const event = {
+      type: "entry_appended",
+      entry: {
+        type: "message",
+        id: "e2",
+        parentId: "e1",
+        timestamp: "2026-10-11T00:00:00.000Z",
+        message: {
+          role: "toolResult",
+          toolCallId: "c1",
+          content: [{ type: "text", text: "x".repeat(100_000) }],
+          timestamp: 5,
+        },
+      },
+    };
+    expect(toWireEvent(event as never)).toEqual({
+      type: "entry_appended",
+      entry: {
+        id: "e2",
+        parentId: "e1",
+        type: "message",
+        timestamp: "2026-10-11T00:00:00.000Z",
+        role: "toolResult",
+        toolCallId: "c1",
+        messageTimestamp: 5,
+      },
+    });
+  });
+
+  it("keeps a compaction's summary, clipped", () => {
+    const event = {
+      type: "entry_appended",
+      entry: {
+        type: "compaction",
+        id: "c",
+        parentId: "e2",
+        timestamp: "t",
+        summary: "s".repeat(70_000),
+        tokensBefore: 900,
+        firstKeptEntryId: "e1",
+      },
+    };
+    const wire = toWireEvent(event as never) as unknown as {
+      entry: { summary: string; tokensBefore: number };
+    };
+    expect(wire.entry.summary).toHaveLength(65_536);
+    expect(wire.entry.tokensBefore).toBe(900);
+  });
+
+  it("sends queue previews with the full count and size", () => {
+    const wire = toWireEvent({
+      type: "queue_update",
+      steering: ["é".repeat(3000)],
+      followUp: ["b"],
+    } as never);
+    expect(wire).toEqual({
+      type: "queue_update",
+      steering: ["é".repeat(2000)],
+      followUp: ["b"],
+      count: 2,
+      bytes: 6001,
+    });
+  });
+});

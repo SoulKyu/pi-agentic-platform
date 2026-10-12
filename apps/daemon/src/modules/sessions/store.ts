@@ -9,6 +9,8 @@ export interface SessionRow {
   readonly piSessionId: string | null;
   readonly cwd: string;
   readonly ownerId: string;
+  /** Pi's name for the session as the worker last said it (clipped by `nameOf`); null when it has none. */
+  readonly name: string | null;
   readonly createdAt: number;
   readonly updatedAt: number;
 }
@@ -18,19 +20,21 @@ export interface SessionsStore {
   get(id: string): SessionRow | undefined;
   listByOwner(ownerId: string): SessionRow[];
   touch(id: string, at: number): void;
+  /** Caches Pi's name for listings; the CHECK refuses what `nameOf` would not return. */
+  setName(id: string, name: string | null): void;
   /** Sets the Pi file of a draft, once. False when the session already has one. Throws when another session owns the path. */
   bindPiFile(id: string, piPath: string, piSessionId: string): boolean;
   appendEvent(sessionId: string, kind: string, data: unknown, at: number): void;
 }
 
 const COLUMNS =
-  "id, pi_path AS piPath, pi_session_id AS piSessionId, cwd, owner_id AS ownerId, created_at AS createdAt, updated_at AS updatedAt";
+  "id, pi_path AS piPath, pi_session_id AS piSessionId, cwd, owner_id AS ownerId, name, created_at AS createdAt, updated_at AS updatedAt";
 
 export function createSessionsStore(db: Db): SessionsStore {
   return {
     insert: (row) => {
       db.run(
-        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, created_at, updated_at) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $createdAt, $updatedAt)",
+        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, name, created_at, updated_at) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $name, $createdAt, $updatedAt)",
         { ...row },
       );
     },
@@ -42,6 +46,9 @@ export function createSessionsStore(db: Db): SessionsStore {
       ),
     touch: (id, at) => {
       db.run("UPDATE sessions SET updated_at = $at WHERE id = $id", { id, at });
+    },
+    setName: (id, name) => {
+      db.run("UPDATE sessions SET name = $name WHERE id = $id", { id, name });
     },
     bindPiFile: (id, piPath, piSessionId) =>
       db.run(

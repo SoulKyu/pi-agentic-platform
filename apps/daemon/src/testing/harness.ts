@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { PROTOCOL_VERSION } from "@pap/contracts";
 import { createDaemon, type DaemonDeps, type DaemonHandle } from "../daemon.ts";
 import type { Config } from "../kernel/config.ts";
+import type { WorkerExit } from "../kernel/supervisor/exit.ts";
 import { silentLogger } from "../kernel/logger.ts";
 import { freePort } from "./free-port.ts";
 import { httpRequest } from "./http-client.ts";
@@ -31,6 +32,8 @@ export interface TestDaemonOptions {
   /** Serve TLS with a throwaway self-signed certificate: for HTTP checks only, `connect()` speaks plain ws. */
   readonly tls?: boolean;
   readonly config?: Partial<Config>;
+  /** Pi extensions written as `<agent dir>/extensions/<name>.js` before the daemon starts. */
+  readonly extensions?: Record<string, string>;
   readonly deps?: Omit<DaemonDeps, "env">;
 }
 
@@ -56,6 +59,11 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
   for (const dir of [agentDir, cwd, userHome]) mkdirSync(dir);
   const scriptPath = join(root, "script.json");
   writeFileSync(scriptPath, JSON.stringify(script));
+  if (options.extensions) {
+    mkdirSync(join(agentDir, "extensions"));
+    for (const [name, source] of Object.entries(options.extensions))
+      writeFileSync(join(agentDir, "extensions", `${name}.js`), source);
+  }
   const port = await freePort();
   const scheme = options.tls ? "https" : "http";
   const origin = `${scheme}://localhost:${port}`;
@@ -82,13 +90,25 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     testProviderScript: scriptPath,
     maxWorkers: 4,
     minFreeMemMb: 0,
+    workerIdleMs: 30 * 60_000,
+    workerScope: "off",
+    workerLimits: { memoryMaxMb: 2048, tasksMax: 4096 },
     staticRoot: null,
     logLevel: "warn",
     ...options.config,
   };
   // Not the whole environment: whatever PI_* and HOME the outer process has must not reach a worker.
   const env = { PATH: process.env.PATH, LANG: process.env.LANG, HOME: userHome, PI_OFFLINE: "1" };
-  const daemon = await createDaemon(config, { logger: silentLogger, ...options.deps, env });
+  const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
+  const daemon = await createDaemon(config, {
+    logger: silentLogger,
+    ...options.deps,
+    onWorkerExit: (sessionId, info) => {
+      exits.push({ sessionId, ...info });
+      options.deps?.onWorkerExit?.(sessionId, info);
+    },
+    env,
+  });
   return {
     daemon,
     origin,
@@ -113,8 +133,18 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
       return connectTestClient(`ws://127.0.0.1:${port}/ws?proto=${PROTOCOL_VERSION}`, { origin, cookie });
     },
     async stop() {
-      await daemon.stop();
-      rmSync(root, { recursive: true, force: true });
+      try {
+        await daemon.stop();
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+      // A connection the guard refused may have been swallowed by the code that tried it: the worker's output still
+      // says so (R94, R118). Only the last 8 KiB of each worker's output are kept (R102): a refusal followed by more
+      // than that of other output is not seen.
+      const blocked = exits
+        .flatMap((exit) => exit.outputTail.split("\n"))
+        .filter((line) => line.startsWith("pap-network-guard: blocked"));
+      if (blocked.length > 0) throw new Error(`a worker tried to reach the network:\n${blocked.join("\n")}`);
     },
   };
 }

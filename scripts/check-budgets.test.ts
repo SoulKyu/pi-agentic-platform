@@ -61,12 +61,16 @@ describe("bundle budget", () => {
       }
     };
 
-    it("passes under the budget and says which budgets it does not measure", () => {
+    it("passes under the budget and names the test that measures the other two budgets", () => {
       const result = run({ initialBundleGzipKb: 180 });
       expect(result.status).toBe(0);
       expect(result.stdout).toMatch(/initial bundle: [\d.]+ KB gzip \(budget 180 KB\)/);
-      expect(result.stdout).toContain("session open payload: not measured in M1");
-      expect(result.stdout).toContain("idle worker RSS: not measured in M1");
+      expect(result.stdout).toContain(
+        "session open payload: measured by apps/daemon/src/modules/sessions/sessions.budgets.int.test.ts",
+      );
+      expect(result.stdout).toContain(
+        "idle worker RSS: measured by apps/daemon/src/modules/sessions/sessions.budgets.int.test.ts",
+      );
     });
 
     it("fails over the budget and prints the budget it failed", () => {

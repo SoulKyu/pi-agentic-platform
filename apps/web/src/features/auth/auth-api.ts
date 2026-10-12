@@ -5,6 +5,7 @@ import {
   type PublicKeyCredentialRequestOptionsJSON,
 } from "@simplewebauthn/browser";
 import { getJson, postJson } from "../../runtime/index.ts";
+import { clearSessionDrafts, deviceStorage } from "../../stores/drafts.ts";
 
 export interface AuthStatus {
   readonly setupRequired: boolean;
@@ -68,6 +69,9 @@ export async function logout(): Promise<void> {
     await postJson("/auth/logout", {});
   } catch {
     // The caller asks /auth/status next, which tells whether the session is still there.
+  } finally {
+    // Whatever the server answered: no draft or pending message stays on a device the owner signed out of (R2-4).
+    clearSessionDrafts(deviceStorage());
   }
 }
 

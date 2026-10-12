@@ -12,6 +12,7 @@ export interface TextFieldProps {
   readonly error?: string | null;
   readonly multiline?: boolean;
   readonly name?: string;
+  readonly placeholder?: string;
   readonly autoComplete?: string;
   readonly disabled?: boolean;
   onSubmitShortcut?(): void;
@@ -31,6 +32,7 @@ export function TextField(props: TextFieldProps) {
   const shared = {
     id,
     name: props.name,
+    placeholder: props.placeholder,
     value: props.value,
     disabled: props.disabled,
     autoComplete: props.autoComplete,

@@ -3,8 +3,11 @@ import { fileURLToPath } from "node:url";
 
 export const PI_HOST_MAIN = fileURLToPath(new URL("../main.ts", import.meta.url));
 export const NETWORK_GUARD = fileURLToPath(new URL("./network-guard.ts", import.meta.url));
+// The daemon's own worker flags (`workerExecArgv` in apps/daemon/src/kernel/config.ts), so that memory readings
+// taken on a bed match production.
 export const DEV_EXEC_ARGV = [
   "--conditions=development",
+  "--max-semi-space-size=16",
   "--disable-warning=ExperimentalWarning",
   "--import",
   NETWORK_GUARD,

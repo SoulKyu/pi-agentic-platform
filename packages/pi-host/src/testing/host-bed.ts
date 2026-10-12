@@ -1,9 +1,14 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { PolicyRules } from "@pap/contracts";
 import { type ForkedHost, forkHost, type HostRecord } from "./fork-host.ts";
 
-export const RULES = { profile: "interactive", approvalMode: "auto-accept-edits" } as const;
+export const RULES: PolicyRules = {
+  profile: "interactive",
+  approvalMode: "auto-accept-edits",
+  alwaysAllow: [],
+};
 
 export interface LaunchOptions {
   /** The `policy` field of the init record. */
@@ -30,8 +35,7 @@ export const textOf = (message: unknown) =>
     .map((block) => block.text)
     .join("");
 export const toolText = (record: HostRecord) => JSON.stringify(record.result);
-export const isConfirm = (record: HostRecord) =>
-  record.type === "extension_ui_request" && record.method === "confirm";
+export const isApproval = (record: HostRecord) => record.type === "approval_request";
 
 /** Something outside the worker's group could hold its output open; the bed does not wait for that for ever. */
 const CLOSE_WAIT_MS = 5000;

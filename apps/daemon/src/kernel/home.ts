@@ -13,7 +13,7 @@ import {
 import { join } from "node:path";
 
 /** Directories under $PAP_HOME that the daemon owns; all of them 0700. */
-const HOME_DIRS = ["backups", "secrets", "logs"] as const;
+const HOME_DIRS = ["backups", "secrets", "logs", "exports"] as const;
 /** The database and the files SQLite keeps next to it: 0600, whatever an earlier run left them as. */
 const DATABASE_FILES = ["state.db", "state.db-wal", "state.db-shm"] as const;
 const LOCK_FILE = "pap.lock";

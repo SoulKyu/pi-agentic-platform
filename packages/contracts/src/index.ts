@@ -4,5 +4,6 @@ export * from "./frames.ts";
 export * from "./handlers.ts";
 export * from "./methods.ts";
 export * from "./permissions.ts";
+export * from "./policy.ts";
 export * from "./pi-host.ts";
 export * from "./streams.ts";

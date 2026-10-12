@@ -7,10 +7,10 @@
     },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts"],
-      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd"]
+      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run"]
     },
     "apps/daemon": {
-      "ignoreBinaries": ["openssl"]
+      "ignoreBinaries": ["openssl", "loginctl", "systemd-run", "mkfifo"]
     }
   }
 }

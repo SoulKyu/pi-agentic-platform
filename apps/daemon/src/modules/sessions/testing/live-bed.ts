@@ -24,7 +24,14 @@ export const piEvent = (event: { type: string } & Record<string, unknown>) => ({
   type: "pi_event" as const,
   event,
 });
-export const READY = { type: "ready" as const, sessionFile: "/f", sessionId: "s1", piVersion: "1.1.0" };
+export const READY = {
+  type: "ready" as const,
+  sessionFile: "/f",
+  sessionId: "s1",
+  piVersion: "1.1.0",
+  leafId: null,
+  sessionName: null,
+};
 
 export interface Options {
   compacting?: boolean;
@@ -33,10 +40,22 @@ export interface Options {
   /** How the worker answers a prompt that starts nothing, when it answers at all (default `started`). */
   disposition?: "started" | "queued" | "handled";
   promptFails?: boolean;
+  /** How the worker answers `clear_queue` (default: success with no data). */
+  clearQueue?: { success?: boolean; error?: string; data?: unknown; hold?: boolean };
   holdPrompt?: boolean;
+  /** Commands (by type) the worker leaves unanswered until the test calls `worker.respond`. */
+  hold?: readonly string[];
   neverReady?: boolean;
+  /** The idle release delay; 0 (the default) turns the release off, so a test that moves the clock far is not released. */
+  idleMs?: number;
+  /** `stop()` sends `shutdown` and the worker exits only when the test crashes it. */
+  holdShutdown?: boolean;
   logger?: Logger;
   sessionFile?: string;
+  /** Pi's leaf in `ready` (default null). */
+  leafId?: string | null;
+  /** Pi's session name in `ready` (default null). */
+  sessionName?: string | null;
 }
 
 /** What `startLiveSession` is given. A helper in `testing/` may import a module only through its index, so the test files pass the function in. */
@@ -48,6 +67,8 @@ export interface LiveParts {
   record(kind: string, data: unknown): void;
   onActivity(): void;
   onExit(exit: WorkerExit): void;
+  onName(name: string | null): void;
+  readonly idleMs: number;
 }
 
 export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) => Live) =>
@@ -56,11 +77,13 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
     const published: SessionStreamEvent[] = [];
     const recorded: Array<[string, unknown]> = [];
     const exits: WorkerExit[] = [];
+    const names: Array<string | null> = [];
     const activity = { count: 0 };
     /** What the worker's `get_state` answers (or whether it answers at all): a test changes it as Pi's run progresses. */
     const pi = { streaming: options.streaming ?? false, holdState: false };
     const worker = createFakeWorker({
       clock,
+      ...(options.holdShutdown ? { holdShutdown: true } : {}),
       reply: (command) => {
         if (command.type === "get_state") {
           // Held until the test answers it, to put the answer where it wants it among other records.
@@ -81,6 +104,10 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
             ? { success: false, error: "No API key for provider x" }
             : { data: { disposition: options.disposition ?? "started" } };
         }
+        if (command.type === "clear_queue" && options.clearQueue) {
+          return options.clearQueue.hold ? undefined : options.clearQueue;
+        }
+        if (options.hold?.includes(command.type)) return undefined;
         return {};
       },
     });
@@ -93,9 +120,17 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
         record: (kind, data) => recorded.push([kind, data]),
         onActivity: () => void activity.count++,
         onExit: (exit) => exits.push(exit),
+        onName: (name) => void names.push(name),
+        idleMs: options.idleMs ?? 0,
       },
       INIT,
     );
-    if (!options.neverReady) worker.emit({ ...READY, sessionFile: options.sessionFile ?? "/f" });
-    return { clock, published, recorded, exits, activity, worker, live, pi };
+    if (!options.neverReady)
+      worker.emit({
+        ...READY,
+        sessionFile: options.sessionFile ?? "/f",
+        leafId: options.leafId ?? null,
+        sessionName: options.sessionName ?? null,
+      });
+    return { clock, published, recorded, exits, names, activity, worker, live, pi };
   };

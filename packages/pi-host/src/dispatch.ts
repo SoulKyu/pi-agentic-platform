@@ -1,0 +1,112 @@
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
+import { type DaemonToWorker, PolicyRules } from "@pap/contracts";
+import type { Approvals } from "./approvals.ts";
+import { logLineOf } from "./bounded.ts";
+import { handleAutoName } from "./auto-name.ts";
+import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
+import type { Ipc } from "./ipc.ts";
+import { POLICY_EXTENSION_PATH } from "./policy/extension.ts";
+import {
+  handleClearQueue,
+  handleCompact,
+  handleExportHtml,
+  handleNavigateTree,
+  handleSetSessionName,
+} from "./session-commands.ts";
+import type { UiBridge } from "./ui-bridge.ts";
+
+export type Command = Exclude<DaemonToWorker, { type: "init" | "shutdown" }>;
+
+export interface DispatchDeps {
+  readonly session: AgentSession;
+  readonly ipc: Ipc;
+  readonly ui: UiBridge;
+  readonly approvals: Approvals;
+  /** Called after a command that may have moved Pi's leaf has answered. */
+  leafMayHaveMoved(): void;
+  rules(): PolicyRules;
+  setRules(rules: PolicyRules): void;
+}
+
+/** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
+export function createDispatch(deps: DispatchDeps): (record: Command) => void {
+  const { session, ipc, ui } = deps;
+  const send = (record: Parameters<Ipc["send"]>[0]) => ipc.send(record);
+  // The handlers answer their own failures; this only catches a failure after the answer (a throwing `send`).
+  const background = (command: string, work: Promise<void>): void => {
+    work.catch((error: unknown) =>
+      process.stderr.write(`pi-host: ${command} failed after it answered: ${logLineOf(error)}\n`),
+    );
+  };
+  return (record) => {
+    switch (record.type) {
+      case "prompt":
+        handlePrompt(session, record, send);
+        return;
+      case "abort":
+        background("abort", handleAbort(session, record, send));
+        return;
+      case "get_state":
+        handleGetState(session, record, send);
+        return;
+      case "clear_queue":
+        handleClearQueue(session, record, send);
+        return;
+      case "compact":
+        background("compact", handleCompact(session, record, send));
+        return;
+      case "navigate_tree":
+        background(
+          "navigate_tree",
+          handleNavigateTree(session, record, send).then(() => deps.leafMayHaveMoved()),
+        );
+        return;
+      case "set_session_name":
+        if (handleSetSessionName(session, record, send)) deps.leafMayHaveMoved();
+        return;
+      case "export_html":
+        background("export_html", handleExportHtml(session, record, send));
+        return;
+      case "auto_name":
+        background(
+          "auto_name",
+          // The title is a `session_info` entry, which advances the leaf (a look after a refusal finds nothing).
+          handleAutoName(session, record, send).then(() => deps.leafMayHaveMoved()),
+        );
+        return;
+      case "extension_ui_response":
+        ui.resolve(record);
+        return;
+      case "approval_response":
+        deps.approvals.resolve(record);
+        return;
+      case "policy_update": {
+        const update = PolicyRules.safeParse(record.rules);
+        if (update.success) {
+          deps.setRules(update.data);
+          return;
+        }
+        // Fail closed (M2-RT-17): after a revoke, "the previous rules" would still hold the revoked always rule.
+        deps.setRules({ ...deps.rules(), alwaysAllow: [] });
+        send({
+          type: "extension_error",
+          extensionPath: POLICY_EXTENSION_PATH,
+          event: "policy_update",
+          error: "invalid policy rules: always rules are suspended until the next valid update",
+        });
+        return;
+      }
+      case "custom_input":
+        ui.panelInput(record.id, record.data);
+        return;
+      case "custom_cancel":
+        ui.panelCancel(record.id);
+        return;
+      default: {
+        // Compile-time guard (M2R81): a command added to the contract without a case here fails the build.
+        const unhandled: never = record;
+        return void unhandled;
+      }
+    }
+  };
+}

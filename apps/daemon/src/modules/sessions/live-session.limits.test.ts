@@ -19,7 +19,7 @@ describe("system messages stay inside the daemon (R107)", () => {
     worker.emit(piEvent({ type: "message_start", message: system }));
     worker.emit(piEvent({ type: "message_end", message: system }));
     worker.emit(piEvent({ type: "message_end", message: { role: "user", content: "hi" } }));
-    expect(live.runView()?.messages).toEqual([{ role: "user", content: "hi" }]);
+    expect(live.runView()?.rows).toEqual([{ entryId: null, message: { role: "user", content: "hi" } }]);
     expect(JSON.stringify(published)).not.toContain("expert coding assistant");
     expect(JSON.stringify(published)).not.toContain('"role":"system"');
     const piTypes = published.flatMap((event) => (event.kind === "pi" ? [event.event.type] : []));
@@ -38,10 +38,17 @@ describe("events too large for one frame", () => {
     piEvent({ type: "message_update", assistantMessageEvent: { type, contentIndex: 0, ...extra } });
 
   it.each([
-    ["text_end", { content: "x".repeat(1_100_000) }],
+    ["text_delta", { delta: "x".repeat(1_100_000) }],
     [
       "toolcall_end",
-      { toolCall: { id: "c1", name: "write", arguments: { content: "x".repeat(1_100_000) } } },
+      // Each string is cut to 8 000 characters on the wire; 200 of them are still over a frame.
+      {
+        toolCall: {
+          id: "c1",
+          name: "write",
+          arguments: Object.fromEntries(Array.from({ length: 200 }, (_, i) => [`k${i}`, "x".repeat(8000)])),
+        },
+      },
     ],
   ])("drops a %s that is, and says so", (type, extra) => {
     const { worker, published } = setup();
@@ -64,7 +71,7 @@ describe("events too large for one frame", () => {
   it("says so once every 10 s, however many there are, and logs the ones it did not say", async () => {
     const { logger, lines } = captureLogger();
     const { worker, published, clock } = setup({ logger });
-    const huge = update("text_end", { content: "x".repeat(1_100_000) });
+    const huge = update("text_delta", { delta: "x".repeat(1_100_000) });
     for (let i = 0; i < 3; i++) worker.emit(huge);
     expect(published.filter((event) => event.kind === "notice")).toHaveLength(1);
     await clock.advance(10_000);
@@ -80,13 +87,13 @@ describe("rows too large for a snapshot (R109)", () => {
   it("are kept for the run as a placeholder that says what they were", () => {
     const { worker, live } = setup();
     worker.emit(piEvent({ type: "agent_start" }));
-    const huge = { role: "toolResult", timestamp: 7, content: [{ type: "text", text: "x".repeat(300_000) }] };
+    const huge = { role: "assistant", timestamp: 7, content: [{ type: "text", text: "x".repeat(300_000) }] };
     worker.emit(piEvent({ type: "message_end", message: huge }));
     worker.emit(piEvent({ type: "message_end", message: { role: "user", content: "hi" } }));
-    const messages = live.runView()?.messages ?? [];
+    const messages = (live.runView()?.rows ?? []).map((row) => row.message);
     expect(messages).toHaveLength(2);
     expect(messages[0]).toEqual({
-      role: "toolResult",
+      role: "assistant",
       timestamp: 7,
       omitted: true,
       bytes: Buffer.byteLength(JSON.stringify(huge)),

@@ -112,11 +112,11 @@ describe("dialogs", () => {
     expect(Buffer.byteLength(JSON.stringify(opened))).toBeLessThan(1024 * 1024 - 1024);
   });
 
-  it("passes decorations on as Pi events", () => {
+  it("rebuilds decorations as their own events, never as Pi events", () => {
     const { worker, published } = setup();
-    const notify = { type: "extension_ui_request" as const, id: "n1", method: "notify", message: "hi" };
-    worker.emit(notify);
-    expect(published.at(-1)).toEqual({ kind: "pi", event: notify });
+    worker.emit({ type: "extension_ui_request" as const, id: "n1", method: "notify", message: "hi" });
+    expect(published.at(-1)).toEqual({ kind: "notice", level: "info", text: "hi", source: "extension" });
+    expect(published.filter((event) => event.kind === "pi")).toEqual([]);
   });
 
   it("answers a dialog while a prompt that waits for it is still pending, and the prompt then completes", async () => {
@@ -142,7 +142,7 @@ describe("runs", () => {
     await clock.advance(0);
     expect(live.status()).toBe("idle");
     expect(recorded).toEqual([
-      ["run_start", { origin: "user" }],
+      ["run_start", { origin: "extension" }],
       ["run_end", { aborted: false }],
     ]);
   });
@@ -157,7 +157,11 @@ describe("runs", () => {
       worker.emit(piEvent({ type: "agent_start" }));
       worker.emit(piEvent({ type: "message_end", message: { role: "user", content: "hi" } }));
       worker.emit(piEvent({ type: "message_update", message: { role: "assistant" } }));
-      expect(live.runView()).toEqual({ baselineBytes: 5, messages: [{ role: "user", content: "hi" }] });
+      expect(live.runView()).toEqual({
+        baselineBytes: 5,
+        leafAtStart: null,
+        rows: [{ entryId: null, message: { role: "user", content: "hi" } }],
+      });
       worker.emit(piEvent({ type: "agent_settled", aborted: false }));
       await clock.advance(0);
       expect(live.runView()).toBeNull();
@@ -176,7 +180,9 @@ describe("runs", () => {
 
   it("replaces an event too large for one frame with a notice", () => {
     const { worker, published } = setup();
-    worker.emit(piEvent({ type: "tool_execution_end", result: "x".repeat(1_100_000) }));
+    worker.emit(
+      piEvent({ type: "message_end", message: { role: "assistant", content: "x".repeat(1_100_000) } }),
+    );
     expect(published.at(-1)).toEqual({
       kind: "notice",
       level: "warning",
@@ -200,7 +206,7 @@ describe("runs", () => {
   it("remembers the worker's memory use", () => {
     const { worker, live } = setup();
     expect(live.rssMb()).toBeNull();
-    worker.emit({ type: "health", rssMb: 156 });
+    worker.emit({ type: "health", rssMb: 156, descendants: 0 });
     expect(live.rssMb()).toBe(156);
   });
 });
@@ -237,5 +243,29 @@ describe("a worker that goes away", () => {
     const output = String(logged?.output);
     expect(output.endsWith("the last words")).toBe(true);
     expect(output.length).toBeLessThanOrEqual(2000);
+  });
+});
+
+describe("LiveSession.notice (final review M3)", () => {
+  it("sends the pending text first, keeps the notice in the ring and gives it no source", () => {
+    const { worker, published, live } = setup();
+    worker.emit(piEvent({ type: "message_start", message: { role: "assistant", content: [] } }));
+    worker.emit(
+      piEvent({
+        type: "message_update",
+        message: {},
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "late" },
+      }),
+    );
+    live.notice({ level: "warning", text: "from pap" });
+    const kinds = published.map((event) => event.kind);
+    const deltaAt = published.findIndex(
+      (event) =>
+        event.kind === "pi" &&
+        (event.event.assistantMessageEvent as { delta?: string } | undefined)?.delta === "late",
+    );
+    expect(deltaAt).toBeGreaterThanOrEqual(0);
+    expect(deltaAt).toBeLessThan(kinds.indexOf("notice"));
+    expect(live.notices()).toEqual([{ level: "warning", text: "from pap" }]);
   });
 });

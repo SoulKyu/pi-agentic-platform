@@ -56,6 +56,8 @@ describe("abort", () => {
   it("never ends a run that began while it was asking, however the records arrive (R111b)", async () => {
     const { worker, live, clock, pi, recorded } = setup({ holdPrompt: true });
     pi.holdState = true;
+    // A run is open (an extension's, or one whose end was not seen), so Stop takes the get_state path, not the R113 one.
+    worker.emit(piEvent({ type: "agent_start" }));
     // The user presses Stop as the prompt goes out. Pi's answers come in one batch: get_state (idle, as it was when
     // asked), the prompt's `started`, then agent_start. Node delivers each record before the continuation of the
     // response before it, so abort() resumes after all three.
@@ -76,7 +78,7 @@ describe("abort", () => {
     await Promise.all([prompt, aborting]);
     await clock.advance(0);
     expect(live.status()).toBe("running");
-    expect(recorded).toEqual([["run_start", { origin: "user" }]]);
+    expect(recorded).toEqual([["run_start", { origin: "extension" }]]);
     // Pi was told to stop, and that is what ends the run.
     expect(worker.requests.some((request) => request.type === "abort")).toBe(true);
     pi.holdState = false;
@@ -106,6 +108,8 @@ describe("abort", () => {
         record: () => {},
         onActivity: () => {},
         onExit: () => {},
+        onName: () => {},
+        idleMs: 0,
       },
       INIT,
     );
@@ -218,6 +222,6 @@ describe("a run left open by a prompt that started nothing (R111b)", () => {
     await rejected;
     await clock.advance(0);
     expect(live.status()).toBe("running");
-    expect(recorded).toEqual([["run_start", { origin: "user" }]]);
+    expect(recorded).toEqual([["run_start", { origin: "extension" }]]);
   });
 });

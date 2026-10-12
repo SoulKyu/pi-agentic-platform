@@ -15,6 +15,10 @@ describe("error codes", () => {
     expect(ERROR_MESSAGES.timeout).not.toBe(ERROR_MESSAGES.worker_failed);
   });
 
+  it("has a fixed message for a command the worker refused, which names nothing the worker said", () => {
+    expect(new PapError("command_failed").message).toBe("The session could not complete this command.");
+  });
+
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
   });

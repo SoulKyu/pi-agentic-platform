@@ -247,7 +247,7 @@ describe("stopping", () => {
       await client.call("sessions.prompt", { sessionId, text: "Run the check" });
       const open = await client.waitForEvent((f) => (f.event as { kind?: string }).kind === "dialog_open");
       const dialogId = (open.event as { dialog: { id: string } }).dialog.id;
-      await client.call("sessions.respondDialog", { sessionId, dialogId, response: { confirmed: true } });
+      await client.call("sessions.respondDialog", { sessionId, dialogId, response: { answer: "once" } });
       await vi.waitFor(() => expect(readFileSync(pidFile, "utf8").trim()).toMatch(/^\d+$/), {
         timeout: 20_000,
       });

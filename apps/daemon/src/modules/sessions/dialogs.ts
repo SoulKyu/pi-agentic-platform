@@ -1,4 +1,5 @@
-import { Dialog, type UiRequestRecord } from "@pap/contracts";
+import { type ApprovalRequestRecord, Dialog, type UiRequestRecord } from "@pap/contracts";
+import { z } from "zod";
 
 const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
 const DECORATION_METHODS = new Set(["notify", "setStatus", "setWidget", "setTitle", "set_editor_text"]);
@@ -7,20 +8,46 @@ const MAX_DIALOG_BYTES = 8 * 1024 * 1024;
 /** One dialog as sent: the socket allows 1 MiB per frame, and the frame's own fields need a few hundred bytes. */
 export const DIALOG_FRAME_BYTES = 1_000_000;
 
-// The limits of `Dialog` in the contracts; the parse below fails (and the dialog is cancelled) if they ever differ.
-const TEXT_LIMITS = { title: 4096, message: 65_536, placeholder: 4096, prefill: 1_000_000 } as const;
+const maxLengthOf = (schema: z.ZodType): number => {
+  const inner = schema instanceof z.ZodOptional ? schema.unwrap() : schema;
+  const max = (inner as z.ZodString).maxLength;
+  if (typeof max !== "number") throw new Error("every Dialog text field needs a maximum length");
+  return max;
+};
+// Read from the contract, so a limit changed there is the limit applied here.
+const TEXT_LIMITS = {
+  title: maxLengthOf(Dialog.shape.title),
+  message: maxLengthOf(Dialog.shape.message),
+  placeholder: maxLengthOf(Dialog.shape.placeholder),
+  prefill: maxLengthOf(Dialog.shape.prefill),
+} as const;
 type TextField = keyof typeof TEXT_LIMITS;
 const TEXT_FIELDS = Object.keys(TEXT_LIMITS) as TextField[];
 const MAX_OPTIONS = 100;
-const MAX_OPTION_CHARS = 4096;
+const MAX_OPTION_CHARS = maxLengthOf(Dialog.shape.options.unwrap().element);
 
-export type CancelReason = "unknown_method" | "malformed" | "too_large" | "limit";
+export type CancelReason = "unknown_method" | "malformed" | "too_large" | "limit" | "collision";
 export type DialogVerdict =
   { kind: "opened"; dialog: Dialog } | { kind: "cancel"; reason: CancelReason } | { kind: "decoration" };
 
+/** What an approval grants if the user answers "session" or "always" (Task 14b), kept beside its dialog. */
+export interface Grant {
+  readonly tool: string;
+  readonly key: string;
+  /** What the "always" list shows for the rule: the call as the card showed it, cut to 4096 characters. */
+  readonly label: string;
+}
+const MAX_LABEL_CHARS = 4096;
+
 export interface DialogRegistry {
   offer(request: UiRequestRecord): DialogVerdict;
+  /** The policy's own question. Never cut (R86): one that is malformed or does not fit is cancelled. */
+  offerApproval(record: ApprovalRequestRecord): DialogVerdict;
+  /** The open dialog, without taking it. */
+  peek(id: string): Dialog | null;
   take(id: string): Dialog | null;
+  /** Takes the dialog with the grant of an approval (null for any other dialog). */
+  takeEntry(id: string): { dialog: Dialog; grant: Grant | null } | null;
   list(): Dialog[];
   clear(): Dialog[];
 }
@@ -108,37 +135,81 @@ function fitFrame(dialog: Dialog): Dialog | null {
   return sizeOf(current) <= DIALOG_FRAME_BYTES ? current : null;
 }
 
+/** At most 4096 characters, never ending between the two halves of a surrogate pair. */
+function labelOf(message: string): string {
+  const label = message.slice(0, MAX_LABEL_CHARS);
+  const last = label.charCodeAt(label.length - 1);
+  return last >= 0xd800 && last <= 0xdbff ? label.slice(0, -1) : label;
+}
+
+/** The card must show the whole call, so a request is the dialog as it is or no dialog (R86). */
+function approvalDialog(record: ApprovalRequestRecord): Built {
+  if (!record.answers?.length || !record.category) return { reason: "malformed" };
+  const parsed = Dialog.safeParse({
+    id: record.id,
+    method: "approval",
+    title: record.title,
+    message: record.message,
+    category: record.category,
+    answers: record.answers,
+  });
+  if (!parsed.success) {
+    const longer = (text: unknown, max: number) => typeof text === "string" && text.length > max;
+    const tooLong = longer(record.title, TEXT_LIMITS.title) || longer(record.message, TEXT_LIMITS.message);
+    return { reason: tooLong ? "too_large" : "malformed" };
+  }
+  return sizeOf(parsed.data) > DIALOG_FRAME_BYTES ? { reason: "too_large" } : { dialog: parsed.data };
+}
+
 export function createDialogRegistry(): DialogRegistry {
-  const open = new Map<string, { dialog: Dialog; bytes: number }>();
+  const open = new Map<string, { dialog: Dialog; bytes: number; grant: Grant | null }>();
   let bytes = 0;
-  return {
+  function place(dialog: Dialog, grant: Grant | null): DialogVerdict {
+    const size = sizeOf(dialog);
+    // A dialog offered again under an id that is open replaces it, as it does in the worker.
+    const replaced = open.get(dialog.id);
+    // Only one extension's dialog replaces another's. An approval and a dialog of the other kind never share an id:
+    // the newcomer is refused and the open one stays, so neither waiter is left without an answer.
+    if (replaced && (replaced.dialog.method === "approval") !== (dialog.method === "approval")) {
+      return cancel("collision");
+    }
+    if (
+      open.size - (replaced ? 1 : 0) >= MAX_DIALOGS ||
+      bytes - (replaced?.bytes ?? 0) + size > MAX_DIALOG_BYTES
+    ) {
+      return cancel("limit");
+    }
+    bytes += size - (replaced?.bytes ?? 0);
+    open.set(dialog.id, { dialog, bytes: size, grant });
+    return { kind: "opened", dialog };
+  }
+  const registry: DialogRegistry = {
     offer(request) {
       if (DECORATION_METHODS.has(request.method)) return { kind: "decoration" };
       if (!DIALOG_METHODS.has(request.method)) return cancel("unknown_method");
       const built = build(request);
       if ("reason" in built) return cancel(built.reason);
       const dialog = fitFrame(built.dialog);
-      if (!dialog) return cancel("too_large");
-      const size = sizeOf(dialog);
-      // A dialog offered again under an id that is open replaces it, as it does in the worker.
-      const replaced = open.get(dialog.id);
-      if (
-        open.size - (replaced ? 1 : 0) >= MAX_DIALOGS ||
-        bytes - (replaced?.bytes ?? 0) + size > MAX_DIALOG_BYTES
-      ) {
-        return cancel("limit");
-      }
-      bytes += size - (replaced?.bytes ?? 0);
-      open.set(dialog.id, { dialog, bytes: size });
-      return { kind: "opened", dialog };
+      return dialog ? place(dialog, null) : cancel("too_large");
     },
-    take(id) {
+    offerApproval(record) {
+      const built = approvalDialog(record);
+      if ("reason" in built) return cancel(built.reason);
+      return place(built.dialog, {
+        tool: record.tool,
+        key: record.key,
+        label: labelOf(built.dialog.message ?? ""),
+      });
+    },
+    peek: (id) => open.get(id)?.dialog ?? null,
+    takeEntry(id) {
       const entry = open.get(id);
       if (!entry) return null;
       open.delete(id);
       bytes -= entry.bytes;
-      return entry.dialog;
+      return { dialog: entry.dialog, grant: entry.grant };
     },
+    take: (id) => registry.takeEntry(id)?.dialog ?? null,
     list: () => [...open.values()].map((entry) => entry.dialog),
     clear() {
       const all = [...open.values()].map((entry) => entry.dialog);
@@ -147,4 +218,5 @@ export function createDialogRegistry(): DialogRegistry {
       return all;
     },
   };
+  return registry;
 }

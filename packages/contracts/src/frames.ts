@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ERROR_CODES } from "./errors.ts";
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 export const MAX_FRAME_BYTES = 1024 * 1024;
 export const CAPABILITIES = ["rpc", "subscribe"] as const;
 

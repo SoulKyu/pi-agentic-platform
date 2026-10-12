@@ -24,4 +24,9 @@ jobs:
       - run: pnpm install --no-frozen-lockfile --config.minimum-release-age=0
       - run: pnpm typecheck
       - run: pnpm test:unit
+      # Worker scopes need a lingering systemd user manager; the scope tests fail in CI without one (owner M2-Q8, R92).
+      - run: |
+          sudo loginctl enable-linger "$(id -un)"
+          sudo systemctl start "user@$(id -u).service"
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
       - run: pnpm test:int

@@ -14,6 +14,9 @@ describe("exit causes", () => {
       "Agent process killed (SIGKILL), possibly out of memory.",
     );
     expect(describeExit(classifyExit(70, null))).toBe("Agent process exited with code 70.");
+    expect(describeExit({ code: null, signal: "SIGKILL", cause: "oom" })).toBe(
+      "Agent process ran out of memory and was stopped.",
+    );
     expect(describeExit({ code: null, signal: null, cause: "spawn_failure" })).toBe(
       "Agent process could not start.",
     );
