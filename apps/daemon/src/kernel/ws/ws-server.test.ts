@@ -125,7 +125,11 @@ function refusalSetup(authenticate: () => Caller | null = () => owner, onOriginR
   });
   const destroy = vi.spyOn(socket, "destroy");
   const upgrade = (url: string, origin: string | undefined = "http://localhost:7777") =>
-    server.handleUpgrade({ url, headers: { origin } } as unknown as IncomingMessage, socket, Buffer.alloc(0));
+    server.handleUpgrade(
+      { url, headers: { origin }, headersDistinct: {} } as unknown as IncomingMessage,
+      socket,
+      Buffer.alloc(0),
+    );
   return { upgrade, socket, destroy, written };
 }
 

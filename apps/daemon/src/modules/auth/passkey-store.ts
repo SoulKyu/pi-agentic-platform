@@ -1,4 +1,5 @@
 import type { Db } from "../../kernel/db/database.ts";
+import { sha256Hex } from "../../kernel/ids.ts";
 
 export interface PasskeyRow {
   readonly id: string;
@@ -14,6 +15,9 @@ export interface PasskeyStore {
   insertPasskey(row: PasskeyRow & { readonly createdAt: number }): void;
   updatePasskeyCounter(id: string, counter: number): void;
 }
+
+/** The short id of a passkey (M5R128): the first 32 hex characters of the sha256 of its credential id. */
+export const passkeyRefOf = (credentialId: string): string => sha256Hex(credentialId).slice(0, 32);
 
 const KNOWN_TRANSPORTS: ReadonlySet<string> = new Set([
   "usb",

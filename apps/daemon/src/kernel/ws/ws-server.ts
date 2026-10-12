@@ -291,7 +291,11 @@ export function createWsServer(options: WsServerOptions): WsServer {
         options.onOriginRefused?.("ws", origin);
         return reject(socket, 403);
       }
-      if (credential === "conflict") return reject(socket, 400);
+      // `req.headers` keeps the first of two `Authorization` headers and drops the rest: a proxy and a server may
+      // not agree on which one counts, so a request with more than one is refused.
+      if (credential === "conflict" || (req.headersDistinct.authorization?.length ?? 0) > 1) {
+        return reject(socket, 400);
+      }
       // A browser always sends Origin on an upgrade and attaches its cookies by itself: a cookie needs an Origin.
       // A bearer is presented on purpose by a program: it may come without one.
       if (origin === undefined && credential?.kind !== "bearer") {

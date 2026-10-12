@@ -1,6 +1,8 @@
 import { PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { sha256Hex } from "../../kernel/ids.ts";
 import { createPasskeyService, rpIdFor, type WebAuthnLib } from "./passkeys.ts";
+import { passkeyRefOf } from "./passkey-store.ts";
 import { createAuthStore, type AuthStore } from "./store.ts";
 import { createAuthTestBed, type AuthTestBed } from "./testing/fixture.ts";
 
@@ -88,6 +90,16 @@ const rejection = (promise: Promise<unknown>) =>
     (error: unknown) => error,
   );
 
+const SIGNED_IN = { userId: "u1", passkeyRef: passkeyRefOf("cred-1") };
+
+describe("passkeyRefOf", () => {
+  it("is the first 32 hex characters of the sha256 of the credential id", () => {
+    expect(passkeyRefOf("cred-1")).toBe(sha256Hex("cred-1").slice(0, 32));
+    expect(passkeyRefOf("cred-1")).toMatch(/^[0-9a-f]{32}$/);
+    expect(passkeyRefOf("cred-2")).not.toBe(passkeyRefOf("cred-1"));
+  });
+});
+
 describe("passkeys", () => {
   it("an IP origin disables passkeys instead of failing", async () => {
     expect(rpIdFor("http://127.0.0.1:7777")).toBeNull();
@@ -111,7 +123,7 @@ describe("passkeys", () => {
       publicKey: new Uint8Array([1, 2, 3]),
     });
     const login = await passkeys.loginOptions();
-    expect(await passkeys.loginVerify(login.flowId, { id: "cred-1" })).toBe("u1");
+    expect(await passkeys.loginVerify(login.flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
     expect(store.findPasskey("cred-1")?.counter).toBe(5);
   });
 
@@ -151,7 +163,7 @@ describe("passkeys", () => {
     await enroll(passkeys);
     const inTime = await passkeys.loginOptions();
     await bed.clock.advance(5 * 60_000 - 1);
-    expect(await passkeys.loginVerify(inTime.flowId, { id: "cred-1" })).toBe("u1");
+    expect(await passkeys.loginVerify(inTime.flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
     const late = await passkeys.loginOptions();
     const lateRegistration = await passkeys.registerOptions("u1");
     await bed.clock.advance(5 * 60_000 + 1);
@@ -197,7 +209,7 @@ describe("passkeys", () => {
     const registration = await passkeys.registerOptions("u1");
     const first = await passkeys.loginOptions();
     for (let i = 0; i < 1000; i++) await passkeys.loginOptions();
-    expect(await passkeys.loginVerify(first.flowId, { id: "cred-1" })).toBe("u1");
+    expect(await passkeys.loginVerify(first.flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
     await passkeys.registerVerify("u1", registration.flowId, { id: "cred-2" });
     expect(store.listPasskeys("u1")).toHaveLength(2);
   });
@@ -221,7 +233,7 @@ describe("passkeys", () => {
     await expect(passkeys.loginVerify(bytes.toString("base64url"), { id: "cred-1" })).rejects.toThrow(
       PapError,
     );
-    expect(await passkeys.loginVerify(flowId, { id: "cred-1" })).toBe("u1");
+    expect(await passkeys.loginVerify(flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
     await expect(passkeys.loginVerify(flowId, { id: "cred-1", counter: 6 })).rejects.toThrow(PapError);
     expect(calls.verifyAuthenticationResponse).toHaveLength(1);
   });
@@ -236,8 +248,8 @@ describe("passkeys", () => {
     expect(await rejection(attempt({ response: { userHandle: 7 } }, 6))).toBeInstanceOf(PapError);
     expect(await rejection(attempt({ response: { userHandle: "" } }, 6))).toBeInstanceOf(PapError);
     expect(calls.verifyAuthenticationResponse).toHaveLength(0);
-    expect(await attempt({ response: handle("u1") }, 6)).toBe("u1");
-    expect(await attempt({}, 7)).toBe("u1");
+    expect(await attempt({ response: handle("u1") }, 6)).toEqual(SIGNED_IN);
+    expect(await attempt({}, 7)).toEqual(SIGNED_IN);
   });
 
   it("stores only known transports, whatever the registration response claims", async () => {

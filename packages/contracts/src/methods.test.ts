@@ -16,6 +16,8 @@ describe("method catalogue", () => {
       .map((def) => def.name)
       .sort();
     expect(mutations).toEqual([
+      "auth.devices.revoke",
+      "auth.devices.revokeOthers",
       "auth.tokens.create",
       "auth.tokens.revoke",
       "policy.clearTaint",

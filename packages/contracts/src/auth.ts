@@ -36,6 +36,27 @@ export const TokenView = z.object({
 });
 export type TokenView = z.infer<typeof TokenView>;
 
+/** Browser and system families as codes: the web translates them, the daemon never sends the raw user agent. */
+export const DEVICE_BROWSERS = ["chrome", "firefox", "safari", "edge", "other"] as const;
+export const DEVICE_SYSTEMS = ["linux", "macos", "windows", "ios", "android", "other"] as const;
+export type DeviceBrowser = (typeof DEVICE_BROWSERS)[number];
+export type DeviceOs = (typeof DEVICE_SYSTEMS)[number];
+export const MAX_DEVICES_LISTED = 200;
+
+/** A browser session as the list shows it: its public id is random and is never the cookie or its hash (M5R73). */
+export const DeviceView = z.object({
+  id: z.string().min(1).max(128),
+  current: z.boolean(),
+  browser: z.enum(DEVICE_BROWSERS),
+  os: z.enum(DEVICE_SYSTEMS),
+  ip: z.string().max(64).nullable(),
+  method: z.enum(["password", "passkey", "setup"]).nullable(),
+  createdAt: z.number().int(),
+  lastSeenAt: z.number().int(),
+  expiresAt: z.number().int(),
+});
+export type DeviceView = z.infer<typeof DeviceView>;
+
 const Ok = z.object({ ok: z.literal(true) });
 
 export const authMethods = {
@@ -72,5 +93,30 @@ export const authMethods = {
     params: z.object({ tokenId: z.string().min(1).max(128) }),
     result: Ok,
     errors: ["not_found"],
+  }),
+  "auth.devices.list": defineMethod({
+    name: "auth.devices.list",
+    permission: "auth:read",
+    idempotent: true,
+    params: z.object({}),
+    result: z.object({ devices: z.array(DeviceView).max(MAX_DEVICES_LISTED) }),
+    errors: [],
+  }),
+  // Signing out this browser is revoking its own id. Neither device method needs a step-up: they only take access away.
+  "auth.devices.revoke": defineMethod({
+    name: "auth.devices.revoke",
+    permission: "auth:admin",
+    idempotent: false,
+    params: z.object({ deviceId: z.string().min(1).max(128) }),
+    result: Ok,
+    errors: ["not_found"],
+  }),
+  "auth.devices.revokeOthers": defineMethod({
+    name: "auth.devices.revokeOthers",
+    permission: "auth:admin",
+    idempotent: false,
+    params: z.object({}),
+    result: z.object({ revoked: z.number().int().nonnegative() }),
+    errors: [],
   }),
 } as const;

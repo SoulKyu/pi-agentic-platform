@@ -81,4 +81,20 @@ describe("dispatcher secret receipts (M5R68)", () => {
     expect(await second).toEqual({ id: 2, ok: true, result: { token: TOKEN_VIEW, value: VALUE } });
     expect(spy).toHaveBeenCalledTimes(1);
   });
+
+  it("never hands an in-flight secret to another credential of the same user: conflict, the handler runs once", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const { dispatch, spy } = dispatcherBed(async () => {
+      await gate;
+      return { token: TOKEN_VIEW, value: VALUE };
+    });
+    const elsewhere: HandlerContext = { ...ctx, caller: testCaller({ credentialId: "another-device" }) };
+    const first = dispatch(frame, ctx);
+    const second = dispatch({ ...frame, id: 2 }, elsewhere);
+    release();
+    expect(await second).toEqual({ id: 2, ok: false, error: { code: "conflict" } });
+    expect(await first).toEqual({ id: 1, ok: true, result: { token: TOKEN_VIEW, value: VALUE } });
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
 });

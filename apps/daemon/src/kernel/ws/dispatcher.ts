@@ -25,6 +25,7 @@ type ReceiptBody =
 
 interface Inflight {
   readonly method: string;
+  readonly credentialId: string;
   readonly paramsHash: string;
   readonly response: Promise<ResponseFrame>;
 }
@@ -130,10 +131,14 @@ export function createDispatcher(options: {
     if (running) {
       if (running.method !== frame.method || running.paramsHash !== paramsHash)
         return fail(frame.id, "bad_request");
+      // The key is the user, not the credential, so a duplicate from another device or token would be handed the
+      // first caller's answer, a secret included. Only the credential that started it is answered from it; the
+      // others are told the command is taken, and the handler still runs once.
+      if (running.credentialId !== ctx.caller.credentialId) return fail(frame.id, "conflict");
       return { ...(await running.response), id: frame.id };
     }
     const response = run(frame.id, def, params, ctx, { commandId, paramsHash });
-    inflight.set(key, { method: frame.method, paramsHash, response });
+    inflight.set(key, { method: frame.method, credentialId: ctx.caller.credentialId, paramsHash, response });
     try {
       return await response;
     } finally {

@@ -12,6 +12,7 @@ import {
   startDaemon,
   verifyLogin,
 } from "./testing/ceremony.ts";
+import { passkeyRefOf } from "./passkey-store.ts";
 import { createAuthTestBed, type AuthTestBed } from "./testing/fixture.ts";
 import { createSoftwareAuthenticator } from "./testing/software-authenticator.ts";
 
@@ -52,6 +53,9 @@ describe("passkey ceremonies against the real verifier", () => {
     expect(await status.json()).toMatchObject({ authenticated: true, username: "owner" });
     expect(daemon.auth.authenticateCookieHeader(planted)).toBeNull();
     expect(counterOf(daemon)).toBe(1);
+    expect(
+      bed.db.get("SELECT method, passkey_ref AS passkeyRef, ip FROM auth_sessions WHERE method = 'passkey'"),
+    ).toEqual({ method: "passkey", passkeyRef: passkeyRefOf(daemon.authenticator.credentialId), ip: null });
   });
 
   it("sets Secure on the sign-in cookie when the public origin is https", async () => {

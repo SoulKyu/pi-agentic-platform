@@ -105,7 +105,7 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
     const body = await readJson(c, FlowBody);
     if (!body) return badRequest(c);
     try {
-      const userId = await throttled(
+      const { userId, passkeyRef } = await throttled(
         c,
         deps,
         () => deps.passkeys.loginVerify(body.flowId, body.response),
@@ -113,7 +113,14 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
         [`ip:${clientIp(c)}`],
       );
       // Always a new session, never the one the request came with: a cookie planted beforehand gains nothing.
-      setSessionCookie(c, deps.auth.startSession(userId, c.req.header("user-agent")));
+      setSessionCookie(
+        c,
+        deps.auth.startSession(userId, c.req.header("user-agent"), {
+          ip: clientIp(c),
+          method: "passkey",
+          passkeyRef,
+        }),
+      );
       return c.json({ ok: true });
     } catch (error) {
       return errorResponse(c, error);

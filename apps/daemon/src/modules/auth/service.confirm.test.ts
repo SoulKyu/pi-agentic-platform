@@ -78,6 +78,18 @@ const loginInput = (password: string, ip = "10.0.0.1", username = "owner") => ({
   userAgent: undefined,
 });
 
+const rowFor = (idHash: string, userId: string) => ({
+  idHash,
+  userId,
+  createdAt: clock.now(),
+  lastSeenAt: clock.now(),
+  expiresAt: clock.now() + DAY,
+  userAgent: null,
+  ip: null,
+  method: null,
+  passkeyRef: null,
+});
+
 describe("auth service step-up and throttle", () => {
   describe("a table full of live lockouts", () => {
     it("keeps every lockout, refuses new keys without hashing, and leaves the session keys alone", async () => {
@@ -85,6 +97,7 @@ describe("auth service step-up and throttle", () => {
       const stolen = await service.startSession(
         createAuthStore(db).findUserByName("owner")?.id ?? "",
         undefined,
+        { ip: "10.0.0.1", method: "password" },
       );
       for (let i = 0; i < 10; i++) throttle.fail(["user:owner"]);
       for (let i = 0; i < 10; i++) sessionThrottle.fail([sessionKey(stolen.cookieValue)]);
@@ -146,7 +159,10 @@ describe("auth service step-up and throttle", () => {
   describe("confirmSession", () => {
     it("leaves a second session of the same owner unconfirmed", async () => {
       const first = await service.setup(setupInput(tokenOf(service.setupUrl())));
-      const second = service.startSession(createAuthStore(db).findUserByName("owner")?.id ?? "", undefined);
+      const second = service.startSession(createAuthStore(db).findUserByName("owner")?.id ?? "", undefined, {
+        ip: "10.0.0.1",
+        method: "password",
+      });
       await service.confirmSession({ cookieValue: first.cookieValue, password: PASSWORD, ip: "10.0.0.1" });
       expect(service.authenticate(first.cookieValue)?.stepUpUntil).toBe(clock.now() + 5 * 60_000);
       expect(service.authenticate(second.cookieValue)?.stepUpUntil).toBe(0);
@@ -159,15 +175,38 @@ describe("auth service step-up and throttle", () => {
       service.logout(session.cookieValue);
       const idHash = sha256Hex(session.cookieValue);
       const userId = createAuthStore(db).findUserByName("owner")?.id ?? "";
-      createAuthStore(db).insertSession({
-        idHash,
-        userId,
-        createdAt: clock.now(),
-        lastSeenAt: clock.now(),
-        expiresAt: clock.now() + DAY,
-        userAgent: null,
-      });
+      createAuthStore(db).insertSession({ ...rowFor(idHash, userId), publicId: "a".repeat(32) });
       expect(service.authenticate(session.cookieValue)?.stepUpUntil).toBe(0);
+    });
+
+    it("forgets the mark of a revoked device and of the devices signed out, even if the same session id came back (M13a)", async () => {
+      const first = await service.setup(setupInput(tokenOf(service.setupUrl())));
+      const userId = createAuthStore(db).findUserByName("owner")?.id ?? "";
+      const second = service.startSession(userId, undefined, { ip: "10.0.0.1", method: "password" });
+      const third = service.startSession(userId, undefined, { ip: "10.0.0.1", method: "password" });
+      for (const s of [first, second, third]) {
+        await service.confirmSession({ cookieValue: s.cookieValue, password: PASSWORD, ip: "10.0.0.1" });
+        await clock.advance(2000);
+      }
+      const publicId = (s: { cookieValue: string }) =>
+        service.authenticate(s.cookieValue)?.credentialId ?? "";
+      const [firstId, secondId] = [publicId(first), publicId(second)];
+      expect(service.revokeDevice(userId, secondId)).toBe(true);
+      expect(service.revokeDevice(userId, secondId)).toBe(false);
+      expect(service.revokeOtherDevices(userId, firstId)).toBe(1);
+      expect(service.authenticate(first.cookieValue)?.stepUpUntil).toBeGreaterThan(0);
+      expect(service.authenticate(second.cookieValue)).toBeNull();
+      expect(service.authenticate(third.cookieValue)).toBeNull();
+      for (const [s, id] of [
+        [second, "b"],
+        [third, "c"],
+      ] as const) {
+        createAuthStore(db).insertSession({
+          ...rowFor(sha256Hex(s.cookieValue), userId),
+          publicId: id.repeat(32),
+        });
+        expect(service.authenticate(s.cookieValue)?.stepUpUntil).toBe(0);
+      }
     });
 
     it("marks nothing for a session that signs out while the password is being hashed", async () => {

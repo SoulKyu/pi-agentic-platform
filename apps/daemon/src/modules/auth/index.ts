@@ -10,6 +10,7 @@ import { newId } from "../../kernel/ids.ts";
 import type { Credential } from "../../kernel/ws/ws-server.ts";
 import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
 import { credentialOf } from "./credentials.ts";
+import { createDevices } from "./devices.ts";
 import { mountAuthRoutes } from "./http.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
 import { createPasskeyService } from "./passkeys.ts";
@@ -21,8 +22,16 @@ import { createTokenStore } from "./token-store.ts";
 import { createTokenService } from "./tokens.ts";
 import { createAuthThrottles } from "./throttle.ts";
 
-// Built by the module itself; exported so a bed can put a counting store under the real service.
-export { createTokenService, createTokenStore };
+// Built by the module itself; exported so a bed can put a counting store under the real services.
+export {
+  createAuthService,
+  createAuthStore,
+  createAuthThrottles,
+  createDevices,
+  createSetupToken,
+  createTokenService,
+  createTokenStore,
+};
 
 export const AUTH_MIGRATIONS: MigrationSource = {
   module: "auth",
@@ -53,11 +62,7 @@ export interface AuthModule {
     credential: Credential | undefined,
     options?: { readonly slide?: boolean },
   ): Caller | null;
-  /** `slide: false` checks without extending the session (see `AuthService.authenticate`). */
-  authenticateSession(value: string | undefined, options?: { readonly slide?: boolean }): Caller | null;
   authenticateCookieHeader(header: string | undefined): Caller | null;
-  /** Who a `pap_` bearer value belongs to, or null. `slide: false` checks without writing the last use. */
-  authenticateBearer(value: string | undefined, options?: { readonly slide?: boolean }): Caller | null;
   /** The one-time owner setup URL while no owner exists, else null. The only secret meant to be shown. */
   setupUrl(): string | null;
   /** The instance owner: the oldest user, the one definition of it (M4R61, agreement 6). */
@@ -91,10 +96,11 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     newId,
     ownerPermissions: () => OWNER_PERMISSIONS,
   });
+  const devices = createDevices({ store, service, clock: deps.clock, audit: deps.audit });
   // Separate from the password throttle: a lockout of one must never lock the other (R80).
   const secureByConfig = cookieNeedsSecure(deps.publicOrigin);
   return {
-    rpc: authRpc(tokens),
+    rpc: authRpc(tokens, devices),
     mount: (app) => {
       mountAuthRoutes(app, {
         service,
@@ -116,9 +122,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
         ? service.authenticate(credential.value, options)
         : tokens.authenticate(credential.value, { slide: options?.slide !== false });
     },
-    authenticateSession: (value, options) => service.authenticate(value, options),
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
-    authenticateBearer: (value, options) => tokens.authenticate(value, { slide: options?.slide !== false }),
     setupUrl: () => service.setupUrl(),
     ownerId: () => store.firstUserId(),
   };

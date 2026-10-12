@@ -28,6 +28,8 @@ function credentialOf(headers: {
 interface Headers {
   cookie?: string;
   authorization?: string;
+  /** The same header sent more than once: `headers` keeps the first, `headersDistinct` all of them. */
+  authorizations?: string[];
   origin?: string;
   url?: string;
 }
@@ -53,7 +55,14 @@ async function upgrade(headers: Headers, refusals: Array<[string, string | undef
       done();
     },
   });
-  const { url, ...rest } = headers;
+  const { url, authorizations, ...rest } = headers;
+  const sent = authorizations ? { ...rest, authorization: authorizations[0] } : rest;
+  const distinct = Object.fromEntries(
+    Object.entries(sent).map(([name, value]) => [
+      name,
+      name === "authorization" && authorizations ? authorizations : [value],
+    ]),
+  );
   const finished = once(socket, "finish");
   // The method is POST on purpose: a request that passes every check of this server reaches `ws`, which refuses
   // it with 405, so 405 reads "accepted here" without a real handshake.
@@ -61,7 +70,8 @@ async function upgrade(headers: Headers, refusals: Array<[string, string | undef
     {
       method: "POST",
       url: url ?? `/ws?proto=${PROTOCOL_VERSION}`,
-      headers: rest,
+      headers: sent,
+      headersDistinct: distinct,
     } as unknown as IncomingMessage,
     socket,
     Buffer.alloc(0),
@@ -95,6 +105,21 @@ describe("credentials on the upgrade (M5R70)", () => {
     [
       "a cookie and a bearer with a foreign Origin",
       { cookie: `pap_session=${COOKIE}`, authorization: `Bearer ${TOKEN}`, origin: "https://evil.test" },
+      403,
+    ],
+    [
+      "two Authorization headers, with an allowed Origin",
+      { authorizations: [`Bearer ${TOKEN}`, `Bearer ${TOKEN}`], origin: ALLOWED },
+      400,
+    ],
+    [
+      "two Authorization headers, without Origin",
+      { authorizations: [`Bearer ${TOKEN}`, "Basic dXNlcjpwYXNz"] },
+      400,
+    ],
+    [
+      "two Authorization headers with a foreign Origin",
+      { authorizations: [`Bearer ${TOKEN}`, `Bearer ${TOKEN}`], origin: "https://evil.test" },
       403,
     ],
     ["nothing, without Origin", {}, 403],

@@ -136,6 +136,50 @@ describe("auth service", () => {
     expect(session.cookieValue.length).toBeGreaterThanOrEqual(43);
   });
 
+  it("stores a public id, the socket address and the method on every browser session, never the cookie", async () => {
+    const setup = await service.setup(setupInput(tokenOf(service.setupUrl())));
+    await clock.advance(2000);
+    const login = await service.login(loginInput(PASSWORD, "2001:db8::1"));
+    const passkey = service.startSession(createAuthStore(db).findUserByName("owner")?.id ?? "", "ua", {
+      ip: "10.0.0.7",
+      method: "passkey",
+      passkeyRef: "c".repeat(32),
+    });
+    const rows = db.all<{
+      id_hash: string;
+      public_id: string;
+      ip: string;
+      method: string;
+      passkey_ref: string | null;
+    }>("SELECT id_hash, public_id, ip, method, passkey_ref FROM auth_sessions ORDER BY created_at, rowid");
+    expect(rows.map((r) => [r.ip, r.method, r.passkey_ref])).toEqual([
+      ["127.0.0.1", "setup", null],
+      ["2001:db8::1", "password", null],
+      ["10.0.0.7", "passkey", "c".repeat(32)],
+    ]);
+    for (const [row, started] of [
+      [rows[0], setup],
+      [rows[1], login],
+      [rows[2], passkey],
+    ] as const) {
+      expect(row?.public_id).toMatch(/^[0-9a-f]{32}$/);
+      expect(row?.public_id).not.toBe(row?.id_hash);
+      expect(started.cookieValue).not.toContain(row?.public_id ?? "?");
+      expect(service.authenticate(started.cookieValue)?.credentialId).toBe(row?.public_id);
+    }
+    expect(new Set(rows.map((r) => r.public_id)).size).toBe(3);
+  });
+
+  it("keeps at most 64 characters of the address and stores no address when the socket had none", () => {
+    const userId = "u1";
+    db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'x', 'x', 0)");
+    service.startSession(userId, undefined, { ip: "9".repeat(100), method: "password" });
+    service.startSession(userId, undefined, { ip: "unknown", method: "password" });
+    expect(
+      db.all<{ ip: string | null }>("SELECT ip FROM auth_sessions ORDER BY rowid").map((r) => r.ip),
+    ).toEqual(["9".repeat(64), null]);
+  });
+
   it("logs in with the right password, rejects a wrong one, then throttles", async () => {
     await service.setup(setupInput(tokenOf(service.setupUrl())));
     const session = await service.login(loginInput(PASSWORD, "10.0.0.1", "OWNER"));

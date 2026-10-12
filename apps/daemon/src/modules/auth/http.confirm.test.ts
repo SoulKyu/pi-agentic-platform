@@ -42,7 +42,6 @@ const enrollOptions = (app: Hono, input: { cookie: string; password: string }) =
 const logout = (app: Hono, cookie: string) => post(app, "/auth/logout", {}, { cookie });
 const sessionCookieOf = (response: Response): string =>
   (response.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
-const cookieValue = (cookie: string): string => cookie.replace("pap_session=", "");
 
 async function authBed(): Promise<{ app: Hono; auth: AuthModule; clock: AuthTestBed["clock"] }> {
   const { auth, app } = bed.start(ORIGIN);
@@ -64,11 +63,11 @@ describe("POST /auth/confirm", () => {
     expect((await confirm(app, { cookie, password: BAD })).status).toBe(401);
     await clock.advance(1000);
     expect((await confirm(app, { cookie, password: GOOD })).status).toBe(204);
-    expect(auth.authenticateSession(cookieValue(cookie))?.stepUpUntil).toBe(clock.now() + 5 * 60_000);
+    expect(auth.authenticateCookieHeader(cookie)?.stepUpUntil).toBe(clock.now() + 5 * 60_000);
     await logout(app, cookie);
     const again = sessionCookieOf(await login(app, { password: GOOD }));
-    expect(auth.authenticateSession(cookieValue(again))?.stepUpUntil).toBe(0);
-    expect(auth.authenticateSession(cookieValue(cookie))).toBeNull();
+    expect(auth.authenticateCookieHeader(again)?.stepUpUntil).toBe(0);
+    expect(auth.authenticateCookieHeader(cookie)).toBeNull();
   });
 
   it("leaves a second session of the owner unconfirmed while the first is marked", async () => {
@@ -76,18 +75,18 @@ describe("POST /auth/confirm", () => {
     const first = sessionCookieOf(await login(app, { password: GOOD }));
     const second = sessionCookieOf(await login(app, { password: GOOD }));
     await confirm(app, { cookie: first, password: GOOD });
-    expect(auth.authenticateSession(cookieValue(first))?.stepUpUntil).toBeGreaterThan(0);
-    expect(auth.authenticateSession(cookieValue(second))?.stepUpUntil).toBe(0);
+    expect(auth.authenticateCookieHeader(first)?.stepUpUntil).toBeGreaterThan(0);
+    expect(auth.authenticateCookieHeader(second)?.stepUpUntil).toBe(0);
   });
 
   it("lets the mark run out after 5 minutes", async () => {
     const { app, auth, clock } = await authBed();
     const cookie = sessionCookieOf(await login(app, { password: GOOD }));
     await confirm(app, { cookie, password: GOOD });
-    const until = auth.authenticateSession(cookieValue(cookie))?.stepUpUntil ?? 0;
+    const until = auth.authenticateCookieHeader(cookie)?.stepUpUntil ?? 0;
     await clock.advance(5 * 60_000);
     expect(until).toBe(clock.now());
-    expect(auth.authenticateSession(cookieValue(cookie))?.stepUpUntil).toBe(until);
+    expect(auth.authenticateCookieHeader(cookie)?.stepUpUntil).toBe(until);
   });
 
   it("confirms the password and enrolls a passkey while the username is under attack (RT-06, Q10)", async () => {
@@ -172,7 +171,7 @@ describe("POST /auth/confirm", () => {
     expect(bed.audited).toEqual([]);
     await bed.clock.advance(1000);
     await confirm(app, { cookie, password: GOOD });
-    const userId = auth.authenticateSession(cookieValue(cookie))?.userId ?? "";
+    const userId = auth.authenticateCookieHeader(cookie)?.userId ?? "";
     expect(bed.audited).toEqual([{ ownerId: userId, actor: "user", kind: "auth", reason: "step_up" }]);
   });
 
@@ -182,7 +181,7 @@ describe("POST /auth/confirm", () => {
     const pending = confirm(app, { cookie, password: GOOD });
     await logout(app, cookie);
     expect((await pending).status).toBe(401);
-    expect(auth.authenticateSession(cookieValue(cookie))).toBeNull();
+    expect(auth.authenticateCookieHeader(cookie)).toBeNull();
     expect(bed.audited).toEqual([]);
   });
 });

@@ -10,7 +10,7 @@ import {
 import type { Clock } from "../../kernel/clock.ts";
 import { randomToken } from "../../kernel/ids.ts";
 import { createLoginChallenges } from "./login-challenge.ts";
-import { sanitizeTransports } from "./passkey-store.ts";
+import { passkeyRefOf, sanitizeTransports } from "./passkey-store.ts";
 import type { AuthStore } from "./store.ts";
 
 const FLOW_TTL_MS = 5 * 60_000;
@@ -44,7 +44,8 @@ export interface PasskeyService {
   registerOptions(userId: string): Promise<{ flowId: string; options: unknown }>;
   registerVerify(userId: string, flowId: string, response: unknown): Promise<void>;
   loginOptions(): Promise<{ flowId: string; options: unknown }>;
-  loginVerify(flowId: string, response: unknown): Promise<string>;
+  /** The user the passkey belongs to, and the passkey's short id: the session it opens remembers it (M5R128). */
+  loginVerify(flowId: string, response: unknown): Promise<{ userId: string; passkeyRef: string }>;
 }
 
 export interface PasskeyDeps {
@@ -203,7 +204,7 @@ export function createPasskeyService(deps: PasskeyDeps): PasskeyService {
         throw new PapError("unauthenticated");
       }
       deps.store.updatePasskeyCounter(passkey.id, result.authenticationInfo.newCounter);
-      return passkey.userId;
+      return { userId: passkey.userId, passkeyRef: passkeyRefOf(passkey.id) };
     },
   };
 }

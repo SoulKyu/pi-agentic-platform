@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { ALL_PERMISSIONS, PapError, type Caller, type Permission } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import { isReadOnlyError } from "../../kernel/db/read-only.ts";
@@ -8,7 +9,7 @@ import { SESSION_TTL_MS } from "./cookies.ts";
 import { dummyHash, hashPassword, isAcceptablePassword, verifyPassword } from "./passwords.ts";
 import type { SetupToken } from "./setup-token.ts";
 import { createStepUps } from "./step-up.ts";
-import type { AuthStore, UserRow } from "./store.ts";
+import type { AuthStore, SignInMethod, UserRow } from "./store.ts";
 import { sessionKey } from "./throttle-keys.ts";
 import { MAX_BACKOFF_MS, type Throttle } from "./throttle.ts";
 
@@ -16,6 +17,7 @@ import { MAX_BACKOFF_MS, type Throttle } from "./throttle.ts";
 const SLIDE_AFTER_MS = 24 * 3600 * 1000;
 const MAX_COOKIE_LENGTH = 128;
 const MAX_USER_AGENT_LENGTH = 256;
+const MAX_IP_LENGTH = 64;
 // A throttled client may retry every few milliseconds: one log line per address and window, not one per request.
 const THROTTLE_LOG_WINDOW_MS = 10_000;
 const MAX_THROTTLE_LOG_KEYS = 1000;
@@ -33,6 +35,13 @@ export class RateLimitedError extends PapError {
 export interface StartedSession {
   readonly cookieValue: string;
   readonly maxAgeSeconds: number;
+}
+
+/** How a browser signed in: the socket address of that request (R72), the method, and for a passkey which one (M5R75, M5R128). */
+export interface SessionOrigin {
+  readonly ip: string;
+  readonly method: SignInMethod;
+  readonly passkeyRef?: string;
 }
 
 export interface AuthServiceDeps {
@@ -80,7 +89,11 @@ export interface AuthService {
     cookieValue: string | undefined,
     options?: { readonly slide?: boolean },
   ): (Caller & { username: string }) | null;
-  startSession(userId: string, userAgent: string | undefined): StartedSession;
+  startSession(userId: string, userAgent: string | undefined, origin: SessionOrigin): StartedSession;
+  /** Deletes one of the user's browser sessions by public id and drops its step-up mark; false when there is none. */
+  revokeDevice(userId: string, publicId: string): boolean;
+  /** Deletes every browser session of the user but `keepPublicId`, drops their marks, answers how many. */
+  revokeOtherDevices(userId: string, keepPublicId: string): number;
   setupUrl(): string | null;
 }
 
@@ -112,12 +125,17 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     }
     throw new RateLimitedError(wait);
   };
-  const startSession = (userId: string, userAgent: string | undefined): StartedSession => {
+  const startSession: AuthService["startSession"] = (userId, userAgent, origin) => {
     const cookieValue = randomToken(32);
     const now = deps.clock.now();
     deps.store.deleteExpiredSessions(now);
     deps.store.insertSession({
       idHash: sha256Hex(cookieValue),
+      // The public id names the device in the list; it shares nothing with the cookie, so it can be shown.
+      publicId: randomBytes(16).toString("hex"),
+      ip: origin.ip === "unknown" ? null : origin.ip.slice(0, MAX_IP_LENGTH),
+      method: origin.method,
+      passkeyRef: origin.passkeyRef ?? null,
       userId,
       createdAt: now,
       lastSeenAt: now,
@@ -167,7 +185,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       username: session.username,
       permissions: OWNER_PERMISSIONS,
       kind: "session",
-      credentialId: "",
+      credentialId: session.publicId,
       stepUpUntil: stepUps.until(session.idHash),
     };
   };
@@ -218,7 +236,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       deps.setupToken.consume();
       deps.throttle.succeed(keys);
       deps.logger.info("owner_created", { userId: id });
-      return startSession(id, input.userAgent);
+      return startSession(id, input.userAgent, { ip: input.ip, method: "setup" });
     },
     async login(input) {
       const keys = [`ip:${input.ip}`, `user:${input.username.toLowerCase()}`];
@@ -229,7 +247,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
         deps.store.findUserByName(input.username),
         input.password,
       );
-      return startSession(user.id, input.userAgent);
+      return startSession(user.id, input.userAgent, { ip: input.ip, method: "password" });
     },
     confirmPassword,
     async confirmSession(input) {
@@ -254,6 +272,16 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     },
     authenticate,
     startSession,
+    revokeDevice(userId, publicId) {
+      const gone = deps.store.deleteDevice(userId, publicId);
+      for (const idHash of gone) stepUps.forget(idHash);
+      return gone.length > 0;
+    },
+    revokeOtherDevices(userId, keepPublicId) {
+      const gone = deps.store.deleteOtherDevices(userId, keepPublicId);
+      for (const idHash of gone) stepUps.forget(idHash);
+      return gone.length;
+    },
     setupUrl() {
       const token = deps.setupToken.current();
       return token && deps.store.countUsers() === 0 ? `${deps.publicOrigin}/setup#token=${token}` : null;
