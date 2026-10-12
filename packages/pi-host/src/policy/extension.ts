@@ -10,7 +10,10 @@ import { toolCategory } from "./categories.ts";
 import { type Decision, decide, decideEdit } from "./decide.ts";
 import { describeCall } from "./describe-call.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
+import { createPolicyGrants, type PolicyGrants } from "./grants.ts";
 import { checkEditTarget, type EditReview } from "./target-path.ts";
+
+export { createPolicyGrants, MAX_SESSION_GRANTS, type PolicyGrants } from "./grants.ts";
 
 export const POLICY_EXTENSION_NAME = "pap-policy";
 // What Pi reports as the path of an inline extension (measured in docs/spikes/s1.md).
@@ -20,9 +23,6 @@ export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so i
 export const TOO_LONG_REASON = "too long to review — split the work";
 
 const MAX_AUDIT_FIELD = 256;
-/** Session grants, and provisional always grants, kept per worker: the oldest is dropped past this (M2R74). */
-export const MAX_SESSION_GRANTS = 1000;
-
 const TITLES: Readonly<Record<ToolCategory, string>> = {
   read: "Allow reading?",
   edit: "Allow this edit?",
@@ -72,38 +72,6 @@ export function answersFor(category: ToolCategory, review: EditReview | undefine
   // A tool pap cannot classify may do anything: it is never remembered beyond this worker.
   if (category === "unknown") return ["deny", "session", "once"];
   return ["deny", "session", "always", "once"];
-}
-
-export interface PolicyGrants {
-  hasSession(key: string): boolean;
-  rememberSession(key: string): void;
-  /** The rules version now: read when a question is asked, and handed back to `rememberAlways` with its answer. */
-  version(): number;
-  /** An "always" answer the daemon has not pushed back yet: it lasts until the next policy update (M2-RT-01). */
-  hasProvisionalAlways(key: string): boolean;
-  /** `askedAt` is the version when the question was asked: an update that landed since then has already ended it. */
-  rememberAlways(key: string, askedAt: number): void;
-}
-
-/** One per worker; insertion-ordered, so the oldest grant is the first dropped at the cap. */
-export function createPolicyGrants(rulesVersion: () => number, max = MAX_SESSION_GRANTS): PolicyGrants {
-  const session = new Set<string>();
-  const provisional = new Map<string, number>();
-  return {
-    hasSession: (key) => session.has(key),
-    rememberSession(key) {
-      session.delete(key);
-      session.add(key);
-      if (session.size > max) session.delete(session.values().next().value as string);
-    },
-    version: rulesVersion,
-    hasProvisionalAlways: (key) => provisional.get(key) === rulesVersion(),
-    rememberAlways(key, askedAt) {
-      provisional.delete(key);
-      provisional.set(key, askedAt);
-      if (provisional.size > max) provisional.delete(provisional.keys().next().value as string);
-    },
-  };
 }
 
 async function decideCall(

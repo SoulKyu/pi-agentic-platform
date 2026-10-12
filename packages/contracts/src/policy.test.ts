@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  AUDIT_ARGS_MAX,
   DEFAULT_GUARD,
   DenyPattern,
   HostPattern,
+  PolicyAuditEntry,
   PolicyRules,
   PolicySettings,
   SessionPolicyView,
@@ -115,5 +117,63 @@ describe("taint, settings, views and verdicts", () => {
       explicit: true,
       tainted: true,
     });
+  });
+});
+
+describe("PolicyAuditEntry", () => {
+  const verdict = { stage: "03", outcome: "allow" } as const;
+  const call = {
+    kind: "call",
+    toolCallId: "c1",
+    tool: "read",
+    category: "read",
+    decision: "allow",
+    stages: [verdict],
+    args: "{}",
+  } as const;
+
+  it("accepts a call, a result and a session entry", () => {
+    expect(PolicyAuditEntry.safeParse(call).success).toBe(true);
+    expect(
+      PolicyAuditEntry.safeParse({
+        kind: "result",
+        toolCallId: "c1",
+        tool: "read",
+        stages: [{ stage: "07", outcome: "acted" }],
+        redactions: 0,
+        external: true,
+      }).success,
+    ).toBe(true);
+    expect(
+      PolicyAuditEntry.safeParse({
+        kind: "session",
+        stages: [],
+        tools: ["read"],
+        toolsTruncated: false,
+        mode: "supervised",
+      }).success,
+    ).toBe(true);
+  });
+
+  it("bounds a call entry: verdicts, arguments and names", () => {
+    expect(PolicyAuditEntry.safeParse({ ...call, stages: Array(9).fill(verdict) }).success).toBe(false);
+    expect(PolicyAuditEntry.safeParse({ ...call, stages: Array(8).fill(verdict) }).success).toBe(true);
+    expect(AUDIT_ARGS_MAX).toBe(2048);
+    expect(PolicyAuditEntry.safeParse({ ...call, args: "a".repeat(4112) }).success).toBe(true);
+    expect(PolicyAuditEntry.safeParse({ ...call, args: "a".repeat(4113) }).success).toBe(false);
+    expect(PolicyAuditEntry.safeParse({ ...call, tool: "t".repeat(257) }).success).toBe(false);
+  });
+
+  it("bounds the tool list of a session entry", () => {
+    const session = { kind: "session", stages: [], toolsTruncated: false, mode: "supervised" };
+    expect(PolicyAuditEntry.safeParse({ ...session, tools: Array(256).fill("t") }).success).toBe(true);
+    expect(PolicyAuditEntry.safeParse({ ...session, tools: Array(257).fill("t") }).success).toBe(false);
+  });
+
+  it("needs redactions and external on a result entry", () => {
+    const result = { kind: "result", toolCallId: "c1", tool: "read", stages: [] };
+    expect(PolicyAuditEntry.safeParse({ ...result, external: false }).success).toBe(false);
+    expect(PolicyAuditEntry.safeParse({ ...result, redactions: 1 }).success).toBe(false);
+    expect(PolicyAuditEntry.safeParse({ ...result, redactions: 1, external: false }).success).toBe(true);
   });
 });

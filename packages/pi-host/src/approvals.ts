@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { type ApprovalAnswer, ApprovalRequestRecord, type ToolCategory } from "@pap/contracts";
+import {
+  type ApprovalAnswer,
+  ApprovalRequestRecord,
+  type GuardRule,
+  type ToolCategory,
+} from "@pap/contracts";
 
 export interface ApprovalAsk {
   readonly category: ToolCategory;
@@ -8,6 +13,10 @@ export interface ApprovalAsk {
   readonly tool: string;
   readonly key: string;
   readonly answers: readonly ApprovalAnswer[];
+  /** Untrusted content reached the session before this call (stage 07). */
+  readonly tainted?: boolean | undefined;
+  /** The stage-04 rule that raised this question, if the guard did. */
+  readonly guard?: GuardRule | undefined;
 }
 export interface ApprovalOutcome {
   readonly answer: ApprovalAnswer;

@@ -121,6 +121,45 @@ export const StageVerdict = z.object({
 });
 export type StageVerdict = z.infer<typeof StageVerdict>;
 
+export const AUDIT_ARGS_MAX = 2048;
+const AuditId = z.string().max(256);
+const Verdicts = z.array(StageVerdict).max(STAGE_IDS.length);
+export const CallAudit = z.object({
+  kind: z.literal("call"),
+  toolCallId: AuditId,
+  parentToolCallId: AuditId.optional(),
+  tool: AuditId,
+  category: z.enum(TOOL_CATEGORIES),
+  decision: z.enum(["allow", "block", "approved", "denied"]),
+  reason: z.string().max(1024).optional(),
+  /** 01–04 in order; a 06 verdict when markers were restored into the input (Task 8b). */
+  stages: Verdicts,
+  /** Escaped, redacted and clipped arguments (M5R13), markers never restored here; never a result. */
+  args: z.string().max(AUDIT_ARGS_MAX * 2 + 16),
+});
+export type CallAuditEntry = z.infer<typeof CallAudit>;
+/** Sent only when stage 06 or 07 acted on the result (M5R10, owner MQ9). */
+export const ResultAudit = z.object({
+  kind: z.literal("result"),
+  toolCallId: AuditId,
+  parentToolCallId: AuditId.optional(),
+  tool: AuditId,
+  stages: Verdicts,
+  redactions: z.number().int().nonnegative().max(1_000_000),
+  /** The result came from outside (stage 07): it was fenced and the session is tainted. */
+  external: z.boolean(),
+});
+export const SessionAudit = z.object({
+  kind: z.literal("session"),
+  stages: Verdicts,
+  tools: z.array(z.string().max(256)).max(256),
+  toolsTruncated: z.boolean(),
+  mode: ApprovalMode,
+});
+export type SessionAuditEntry = z.infer<typeof SessionAudit>;
+export const PolicyAuditEntry = z.discriminatedUnion("kind", [CallAudit, ResultAudit, SessionAudit]);
+export type PolicyAuditEntry = z.infer<typeof PolicyAuditEntry>;
+
 export const AuditEntry = z.object({
   toolCallId: z.string().max(256),
   tool: z.string().max(256),

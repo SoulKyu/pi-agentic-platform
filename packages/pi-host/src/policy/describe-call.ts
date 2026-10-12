@@ -29,7 +29,7 @@ function blankRunMarker(run: string): string {
   return `⟨${parts.join(", ")}⟩`;
 }
 
-function showHidden(text: string, counter: { hidden: number }): string {
+export function showHidden(text: string, counter: { hidden: number }): string {
   return text.replace(HIDDEN_OR_BLANK_RUN, (match) => {
     if (match.length > 32) return blankRunMarker(match);
     if (match === "\n" || match === "\t") return match;
