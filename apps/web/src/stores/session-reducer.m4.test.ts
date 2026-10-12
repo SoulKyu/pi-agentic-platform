@@ -36,6 +36,22 @@ describe("reduceSession (M4 carries)", () => {
     expect(view.staleDialogs).toBe(false);
   });
 
+  it("keeps the hidden count at 0 for an unknown closed dialog", () => {
+    const view = reduceSession(EMPTY_VIEW, sessionSnapshot({ dialogs: [confirm] }));
+    const next = reduceSession(view, { kind: "dialog_closed", id: "unknown" });
+    expect([next.hiddenDialogs, next.staleDialogs, next.dialogs.length]).toEqual([0, false, 1]);
+  });
+
+  it("binds three twins oldest-first (M4R110)", () => {
+    const twin = { role: "user", content: "hi", timestamp: 5 };
+    let view = reduceSession(
+      EMPTY_VIEW,
+      sessionSnapshot({ rows: [1, 2, 3].map(() => ({ entryId: null, message: twin })) }),
+    );
+    for (const id of ["u1", "u2", "u3"]) view = reduceSession(view, entry(id, "user", 5));
+    expect(view.messages.map((message) => message.entryId)).toEqual(["u1", "u2", "u3"]);
+  });
+
   it("does not go stale when a shown dialog closes and none is hidden", () => {
     const view = reduceSession(reduceSession(EMPTY_VIEW, sessionSnapshot({ dialogs: [confirm] })), {
       kind: "dialog_closed",
