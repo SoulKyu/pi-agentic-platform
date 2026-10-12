@@ -239,9 +239,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   async function ensureLive(row: SessionRow): Promise<LiveSession> {
     const closing = live.get(row.id);
     // No deadline of its own: the worker's kill ladder ends it within seconds (spec C 2.5).
-    if (closing?.status() === "releasing") await closing.exited();
+    if (closing?.stopping()) await closing.exited();
+    // One whose exit could not be handled is still listed, and is not a worker to give a prompt to.
     const current = live.get(row.id);
-    if (current) return current;
+    if (current && !current.stopping()) return current;
     const pending = reopening.get(row.id);
     if (pending) return pending;
     const reopened = launch(row, false);
@@ -262,7 +263,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   // The worker a dialog or a panel answer may go to: none once it is being released, whose dialogs closed with it.
   const openWorker = (id: string): LiveSession => {
     const session = live.get(id);
-    if (!session || session.status() === "releasing") throw new PapError("not_found");
+    if (!session || session.stopping()) throw new PapError("not_found");
     return session;
   };
 
@@ -331,9 +332,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
     async abort(sessionId, caller) {
       owned(sessionId, caller);
-      // A worker being released has no run, and a closing one drops requests (M2R112).
-      const session = live.get(sessionId);
-      if (session && session.status() !== "releasing") await session.abort();
+      // A closing worker answers ok without being asked (M2R112): the live session sees to it.
+      await live.get(sessionId)?.abort();
     },
     navigate: (input, caller) => commands.navigate(input, caller),
     compact: (input, caller) => commands.compact(input, caller),
@@ -347,11 +347,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
-      const session = live.get(sessionId);
-      // A worker being released has an empty queue and drops requests: nothing to ask it (M2-RT-39).
-      if (!session || session.status() === "releasing")
-        return { steering: [], followUp: [], truncated: false };
-      return session.clearQueue();
+      // A closing worker has an empty queue and drops requests: the live session answers without asking it (M2-RT-39).
+      return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };
     },
     respondDialog(input, caller) {
       owned(input.sessionId, caller);

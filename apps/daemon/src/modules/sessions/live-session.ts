@@ -352,6 +352,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     },
     send: (record) => handle.send(record),
     stop: idle.stop,
+    stopping: () => idle.stopping(),
     exited: () => gone,
   };
 }

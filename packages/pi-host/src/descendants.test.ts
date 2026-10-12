@@ -285,11 +285,20 @@ describe("countAgentProcesses", () => {
     expect(count([entries[0] as ProcEntry, ...chain])).toBe(6);
   });
 
-  it("walks a wide table once: 20000 processes in a few milliseconds", () => {
-    const wide = Array.from({ length: 20_000 }, (_, i) => ({ pid: 1000 + i, ppid: 100 + (i % 50), pgrp: 1 }));
-    const started = performance.now();
-    expect(count([...entries, ...wide])).toBe(2);
-    expect(performance.now() - started).toBeLessThan(250);
+  it("walks a wide table once: each entry's parent is read one time, not once per level or per process", () => {
+    let parentReads = 0;
+    const wide = Array.from({ length: 2000 }, (_, i) => ({
+      pid: 1000 + i,
+      pgrp: 1,
+      get ppid() {
+        parentReads++;
+        return 100 + (i % 50);
+      },
+    }));
+    const table = [...entries, ...wide];
+    parentReads = 0;
+    expect(count(table)).toBe(2);
+    expect(parentReads).toBe(wide.length);
   });
 });
 

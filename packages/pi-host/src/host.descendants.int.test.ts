@@ -76,3 +76,22 @@ describe.each(COMMANDS)("pi-host worker: %s", (_name, command, counted) => {
     await gone();
   });
 });
+
+// What the bash tool's own shell started and left behind: when the shell exits, Linux gives the process to pid 1 and it
+// is no descendant of the worker any more. No scope here, so the worker's marker in the environment finds it (M2-RT-14).
+describe.each([
+  ["`cmd &`", (seconds: string) => `sleep ${seconds} >/dev/null 2>&1 & echo started`],
+  ["`nohup cmd &`", (seconds: string) => `nohup sleep ${seconds} >/dev/null 2>&1 & echo started`],
+] as const)("pi-host worker: %s left running after the tool call ended", (_name, command) => {
+  it("is counted by the next health record, once the run has settled", async () => {
+    const { host } = await runCommand(command, { env: { NODE_OPTIONS: `--import ${FAST_HEALTH}` } });
+    await host.waitFor((record) => record.type === "agent_settled");
+    const from = host.records.length;
+    const health = await host.waitFor(
+      (record) =>
+        record.type === "health" && typeof record.descendants === "number" && record.descendants >= 1,
+      { from },
+    );
+    expect(health.descendants).toBe(1);
+  });
+});

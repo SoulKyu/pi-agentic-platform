@@ -1,8 +1,8 @@
 import { readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, it, vi } from "vitest";
-import { shutdownProbe } from "./testing/extensions.ts";
+import { expect, it } from "vitest";
+import { shutdownProbe, slowShutdownProbe } from "./testing/extensions.ts";
 import { createIntBed, promptAndSettle } from "./testing/int-bed.ts";
 
 it("releases an idle worker, tells its extensions, and the next prompt reopens the same file", async () => {
@@ -42,21 +42,29 @@ it("releases an idle worker, tells its extensions, and the next prompt reopens t
 });
 
 it("a prompt sent while the worker is being released waits for the exit and is answered by the next worker", async () => {
-  const bed = await createIntBed({ steps: [{ text: "first" }, { text: "second" }] }, { workerIdleMs: 1500 });
+  // The extension holds the closing worker for a second: the prompt is sent while it is still there, not after it.
+  const probe = join(tmpdir(), `pap-release-slow-${process.pid}-${Date.now()}.txt`);
+  const bed = await createIntBed(
+    { steps: [{ text: "first" }, { text: "second" }] },
+    { workerIdleMs: 1500, extensions: { probe: slowShutdownProbe(probe, 1000) } },
+  );
   try {
     const { sessionId } = await bed.rpc["sessions.create"]({ cwd: bed.work }, bed.ctx);
     const sub = await bed.subscribe(sessionId);
     await promptAndSettle(bed, sub, sessionId, "hello");
     await sub.waitFor((event) => event.kind === "status" && event.status === "releasing", 10_000);
+    const statusesNow = () =>
+      sub.events().flatMap((event) => (event.kind === "status" ? [event.status] : []));
+    expect(statusesNow().at(-1)).toBe("releasing");
+    expect(bed.exits).toEqual([]);
     await promptAndSettle(bed, sub, sessionId, "during");
-    const statuses = sub.events().flatMap((event) => (event.kind === "status" ? [event.status] : []));
-    expect(statuses.slice(statuses.indexOf("releasing"), statuses.indexOf("releasing") + 3)).toEqual([
-      "releasing",
-      "cold",
-      "starting",
-    ]);
-    await vi.waitFor(() => expect(bed.exits).toHaveLength(1), { timeout: 10_000 });
+    const statuses = statusesNow();
+    const from = statuses.indexOf("releasing");
+    expect(statuses.slice(from, from + 3)).toEqual(["releasing", "cold", "starting"]);
+    expect(readFileSync(probe, "utf8")).toBe("quit\n");
+    expect(bed.exits.map((exit) => exit.exit.cause)).toEqual(["clean"]);
   } finally {
+    rmSync(probe, { force: true });
     await bed.dispose();
   }
 });

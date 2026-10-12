@@ -93,6 +93,18 @@ describe("idle release (spec C 2.1)", () => {
     expect(worker.stopped()).toBe(true);
   });
 
+  it("counts the quiet from the end of a command, not only from its start", async () => {
+    const { live, worker, clock } = setup({ idleMs: 1000, hold: ["set_session_name"] });
+    const pending = live.command({ type: "set_session_name", name: "n" });
+    await clock.advance(5500);
+    worker.respond(worker.requests.find((r) => r.type === "set_session_name")?.id ?? "", {});
+    await pending;
+    await clock.advance(999);
+    expect(worker.stopped()).toBe(false);
+    await clock.advance(1);
+    expect(worker.stopped()).toBe(true);
+  });
+
   it("never releases while a prompt is on its way, and counts from its answer", async () => {
     const { live, worker, clock } = setup({ idleMs: 1000, holdPrompt: true });
     const prompted = live.prompt("go");
@@ -128,6 +140,16 @@ describe("idle release (spec C 2.1)", () => {
       worker.emit({ type: "audit", entry: { at, decision: "approved" } } as never);
       await clock.advance(10_000);
     }
+    expect(shutdowns(worker)).toBe(1);
+  });
+
+  it("is not kept by requests the daemon cancelled: unknown methods are not a person's work", async () => {
+    const { clock, worker } = setup({ idleMs: HALF_HOUR });
+    for (let at = 0; at < HALF_HOUR; at += 10_000) {
+      worker.emit(request("not_a_method", { id: `u${at}` }));
+      await clock.advance(10_000);
+    }
+    expect(worker.sent.filter((record) => record.type === "extension_ui_response").length).toBeGreaterThan(0);
     expect(shutdowns(worker)).toBe(1);
   });
 
@@ -167,7 +189,7 @@ describe("idle release (spec C 2.1)", () => {
     await act(live);
     await clock.advance(HALF_HOUR - 1);
     expect(shutdowns(worker)).toBe(0);
-    await clock.advance(5001);
+    await clock.advance(1);
     expect(shutdowns(worker)).toBe(1);
   });
 
@@ -266,6 +288,19 @@ describe("a released worker", () => {
     crashed.worker.crash({ code: 1, signal: null, cause: "exit_code" });
     await crashed.clock.advance(0);
     expect(statuses(crashed.published).at(-1)).toMatchObject({ status: "cold", cause: expect.any(String) });
+  });
+
+  it("says it is stopping from the moment a release or a stop begins, whatever the status shows", async () => {
+    const released = setup({ idleMs: HALF_HOUR, holdShutdown: true });
+    expect(released.live.stopping()).toBe(false);
+    await released.clock.advance(HALF_HOUR);
+    released.worker.emit(piEvent({ type: "agent_start" }));
+    expect(released.live.status()).toBe("running");
+    expect(released.live.stopping()).toBe(true);
+    const stopped = setup({ holdShutdown: true });
+    void stopped.live.stop();
+    expect(stopped.live.stopping()).toBe(true);
+    expect(stopped.live.status()).toBe("idle");
   });
 
   it("exited() resolves after the exit has been handled, also when the exit is not the release's", async () => {

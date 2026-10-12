@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { closeSync, openSync, readdirSync, readFileSync, readSync } from "node:fs";
 
 /**
  * Pi's bash tool starts every command with `detached: true`, so each command leads a session and a process group
@@ -168,13 +168,56 @@ export function installSignalCleanup(
 /** What one count looks at, at most: a worker's scope allows 4096 tasks (spec C 2.5), and no process tree is deeper than a few levels. */
 export const MAX_COUNTED_PROCESSES = 4096;
 export const MAX_COUNT_DEPTH = 32;
+/** The most of one process's environment that is read to look for the worker's marker, and of all of them in one count. */
+export const MAX_ENVIRON_BYTES = 256 * 1024;
+export const MAX_ENVIRON_TOTAL_BYTES = 16 * 1024 * 1024;
+const MAX_SCOPE_FILE_BYTES = 1024 * 1024;
+export const SCOPE_PROCS_FILE = "cgroup.procs";
+/** The variable pi-host sets in its own environment before Pi starts: the shells Pi's tools run inherit it. */
+export const TOKEN_VAR = "PAP_WORKER_TOKEN";
+const MIN_TOKEN_CHARS = 16;
+/** The unit of a worker the daemon scoped (`scope.ts`): `pap-<home>-worker-<id>-<n>.scope`. Any other scope is not the worker's. */
+const SCOPE_LEAF = /^pap-.+-worker-.+\.scope$/;
+const CGROUP_ROOT = "/sys/fs/cgroup";
+
+/** At most `max` bytes of a file as text; null when it cannot be opened or read. Never throws. */
+export function readBounded(path: string, max: number): string | null {
+  let fd = -1;
+  try {
+    fd = openSync(path, "r");
+    const chunk = Buffer.allocUnsafe(Math.min(max, 16 * 1024));
+    const parts: Buffer[] = [];
+    for (let total = 0; total < max;) {
+      const read = readSync(fd, chunk, 0, Math.min(chunk.length, max - total), null);
+      if (read === 0) break;
+      parts.push(Buffer.from(chunk.subarray(0, read)));
+      total += read;
+    }
+    return Buffer.concat(parts).toString("utf8");
+  } catch {
+    return null;
+  } finally {
+    if (fd >= 0) {
+      try {
+        closeSync(fd);
+      } catch {
+        // nothing left to release
+      }
+    }
+  }
+}
 
 export interface CountEnv {
   platform: NodeJS.Platform;
   pid: number;
   readTable(): ProcEntry[];
+  /** A file as text, at most `max` bytes of it; null when it cannot be read. Tests hand in a world of files. */
+  readFile(path: string, max: number): string | null;
+  /** The worker's marker (`PAP_WORKER_TOKEN`): what its tools' processes carry in their environment. */
+  token: string | undefined;
   maxVisited: number;
   maxDepth: number;
+  maxEnvironTotal: number;
   warn(line: string): void;
 }
 
@@ -183,36 +226,92 @@ const realCountEnv = (): CountEnv => ({
   platform: process.platform,
   pid: process.pid,
   readTable: readProcTable,
+  readFile: readBounded,
+  token: process.env[TOKEN_VAR],
   maxVisited: MAX_COUNTED_PROCESSES,
   maxDepth: MAX_COUNT_DEPTH,
+  maxEnvironTotal: MAX_ENVIRON_TOTAL_BYTES,
   warn: (line) => void process.stderr.write(line),
 });
 
+/** The pids in the worker's own scope, or null when the worker is not in one of pap's or the file cannot be read. */
+function scopeMembers(env: CountEnv): number[] | null {
+  const line = env
+    .readFile("/proc/self/cgroup", MAX_SCOPE_FILE_BYTES)
+    ?.split("\n")
+    .find((l) => l.startsWith("0::"));
+  const path = line?.slice(3).trim();
+  if (
+    !path?.startsWith("/") ||
+    path.split("/").includes("..") ||
+    !SCOPE_LEAF.test(path.slice(path.lastIndexOf("/") + 1))
+  ) {
+    return null;
+  }
+  const members = env.readFile(`${CGROUP_ROOT}${path}/${SCOPE_PROCS_FILE}`, MAX_SCOPE_FILE_BYTES);
+  if (members === null) return null;
+  return members
+    .split("\n")
+    .map(Number)
+    .filter((pid) => Number.isInteger(pid) && pid > 0)
+    .slice(0, env.maxVisited);
+}
+
+/** The processes outside the worker's group whose environment carries its marker; reads are bounded per process and in all. */
+function markedProcesses(env: CountEnv, table: readonly ProcEntry[]): number[] {
+  const { token } = env;
+  if (token === undefined || token.length < MIN_TOKEN_CHARS) return [];
+  const wanted = `${TOKEN_VAR}=${token}`;
+  const found: number[] = [];
+  let spent = 0;
+  for (const entry of table) {
+    if (entry.pgrp === env.pid || entry.pid === env.pid) continue;
+    if (spent >= env.maxEnvironTotal) break;
+    const text = env.readFile(
+      `/proc/${entry.pid}/environ`,
+      Math.min(MAX_ENVIRON_BYTES, env.maxEnvironTotal - spent),
+    );
+    if (text === null) continue;
+    spent += text.length;
+    if (text.split("\0").includes(wanted)) found.push(entry.pid);
+  }
+  return found;
+}
+
 /**
- * How many live processes below this worker the agent started: its descendants outside the worker's own process group
- * (Pi's bash tool starts each command in a group of its own; the helpers the worker runs itself, such as MCP servers,
- * share its group and do not count). The daemon keeps a worker whose agent left some running (M2R107). 0 off Linux and
- * when the worker does not lead its group (run by hand). Never throws; a failed read says so once on stderr.
- *
- * One pass over /proc, a walk of the table by parent that visits each pid once (a pid listed twice, a loop back to
- * the worker or a parent that left the table end nothing early), bounded by `maxVisited` processes and `maxDepth`
- * levels. A process that exits during the pass is either counted (it was alive when read) or not: never an error.
+ * How many live processes the agent started that still run for this worker (M2R107), outside the worker's own process
+ * group (Pi's bash tool starts each command in a group of its own; the helpers the worker runs itself, such as MCP
+ * servers, share its group and do not count). The daemon keeps a worker whose agent left some running. Three sources,
+ * one count of the union:
+ * - the worker's descendants, which is all there is while a tool call still runs;
+ * - once the tool's shell has exited, what it started with `cmd &` belongs to pid 1 and is no descendant: in a scoped
+ *   worker (`systemd-run --scope`, spec C 2.5) the members of the worker's own cgroup;
+ * - without a scope, the processes whose environment carries `PAP_WORKER_TOKEN`, which pi-host set before Pi started
+ *   (same-user processes only are readable, and a process that scrubs its environment is not seen).
+ * 0 off Linux and when the worker does not lead its group (run by hand). Never throws; a failed read says so once on
+ * stderr. Bounded: `maxVisited` processes and `maxDepth` levels for the walk, `maxVisited` scope members, and
+ * `MAX_ENVIRON_BYTES` per environment, `MAX_ENVIRON_TOTAL_BYTES` in all. A process that exits during the pass is
+ * either counted (it was alive when read) or not, never an error; each pid counts once.
  */
 export function countAgentProcesses(env: Partial<CountEnv> = {}): number {
-  const { platform, pid, readTable, maxVisited, maxDepth, warn } = { ...realCountEnv(), ...env };
+  const resolved = { ...realCountEnv(), ...env };
+  const { platform, pid, readTable, maxVisited, maxDepth, warn } = resolved;
   if (platform !== "linux") return 0;
   try {
     const table = readTable();
     const self = table.find((entry) => entry.pid === pid);
     if (!self || self.pgrp !== pid) return 0;
+    const byPid = new Map<number, ProcEntry>();
     const children = new Map<number, ProcEntry[]>();
     for (const entry of table) {
-      const siblings = children.get(entry.ppid);
+      if (!byPid.has(entry.pid)) byPid.set(entry.pid, entry);
+      const parent = entry.ppid;
+      const siblings = children.get(parent);
       if (siblings) siblings.push(entry);
-      else children.set(entry.ppid, [entry]);
+      else children.set(parent, [entry]);
     }
     const seen = new Set<number>([pid]);
-    let counted = 0;
+    const agents = new Set<number>();
     let visited = 0;
     let level = [pid];
     for (let depth = 0; depth < maxDepth && level.length > 0; depth++) {
@@ -220,16 +319,23 @@ export function countAgentProcesses(env: Partial<CountEnv> = {}): number {
       for (const parent of level) {
         for (const child of children.get(parent) ?? []) {
           if (seen.has(child.pid)) continue;
-          if (visited >= maxVisited) return counted;
+          if (visited >= maxVisited) break;
           visited++;
           seen.add(child.pid);
           next.push(child.pid);
-          if (child.pgrp !== pid) counted++;
+          if (child.pgrp !== pid) agents.add(child.pid);
         }
       }
       level = next;
     }
-    return counted;
+    const members = scopeMembers(resolved);
+    const reparented =
+      members?.flatMap((member) => {
+        const entry = byPid.get(member);
+        return entry && entry.pgrp !== pid ? [entry.pid] : [];
+      }) ?? markedProcesses(resolved, table);
+    for (const found of reparented) agents.add(found);
+    return agents.size;
   } catch (error) {
     if (!warnedOnce) {
       warnedOnce = true;

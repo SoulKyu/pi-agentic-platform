@@ -88,6 +88,80 @@ describe("a prompt while a worker is released (Review Focus 5)", () => {
   });
 });
 
+describe("a worker that is closing is told by its own flag, not by the status (one source of truth)", () => {
+  // An extension may start a run from its `session_shutdown` handler: the status moves to `running` while the worker closes.
+  const runStartedByAnExtension = () => bed.emit(0, { type: "agent_start" });
+
+  it("a prompt still waits for the exit and reopens the session", async () => {
+    const { sessionId } = await releasing();
+    runStartedByAnExtension();
+    expect(bed.service.list(OWNER)[0]?.status).toBe("running");
+    const prompted = bed.service.prompt({ sessionId, text: "again" }, OWNER);
+    await bed.clock.advance(0);
+    expect(requestTypes(0)).toEqual([]);
+    // Not before the exit: two workers on one Pi file is what the wait is for.
+    expect(bed.spawned).toHaveLength(1);
+    exitFirst();
+    expect(await prompted).toEqual({ disposition: "started" });
+    expect(bed.spawned).toHaveLength(2);
+    expect(requestTypes(0)).toEqual([]);
+  });
+
+  it("a rule pushed meanwhile is not sent to it either", async () => {
+    const policy = fakePolicyPort();
+    await releasing({ policy });
+    runStartedByAnExtension();
+    const before = bed.spawned[0]?.sent.length;
+    policy.addAlways({
+      ownerId: OWNER.userId,
+      scope: realpathSync(bed.work),
+      tool: "bash",
+      key: "b".repeat(64),
+      label: "x",
+    });
+    await bed.clock.advance(0);
+    expect(bed.spawned[0]?.sent).toHaveLength(before ?? -1);
+  });
+
+  it("a dialog answer and a panel input are still not_found, and reach nobody", async () => {
+    const { sessionId } = await releasing();
+    runStartedByAnExtension();
+    bed.spawned[0]?.emit({
+      type: "extension_ui_request",
+      id: "d1",
+      method: "confirm",
+      title: "t",
+      message: "m",
+    });
+    const sent = bed.spawned[0]?.sent.length;
+    expect(() =>
+      bed.service.respondDialog({ sessionId, dialogId: "d1", response: { confirmed: true } }, OWNER),
+    ).toThrow(new PapError("not_found"));
+    expect(bed.spawned[0]?.sent).toHaveLength(sent ?? -1);
+  });
+
+  it("a session whose exit could not be handled is not left on worker_failed: the next prompt starts a new worker", async () => {
+    const { sessionId } = await releasing();
+    const publish = bed.hub.publish.bind(bed.hub);
+    // The exit handler stops at `cold` (its subscribers cannot be told) and never tells the service the worker is gone.
+    bed.hub.publish = (stream, key, event) => {
+      if (
+        (event as { kind: string; status?: string }).kind === "status" &&
+        (event as { status?: string }).status === "cold"
+      ) {
+        throw new Error("hub down");
+      }
+      publish(stream, key, event);
+    };
+    const prompted = bed.service.prompt({ sessionId, text: "again" }, OWNER);
+    await bed.clock.advance(0);
+    exitFirst();
+    expect(await prompted).toEqual({ disposition: "started" });
+    expect(bed.spawned).toHaveLength(2);
+    expect(requestTypes(1)).toEqual(["prompt"]);
+  });
+});
+
 describe("a daemon that closes", () => {
   it("shows cold with no cause for a worker it stopped, as for a released one (M2R111)", async () => {
     bed = build();

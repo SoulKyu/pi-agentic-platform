@@ -107,6 +107,12 @@ export interface LiveSession {
    * and `clearQueue` are refused with `worker_failed` (empty for the queue) and nothing is sent to the worker.
    */
   stop(): Promise<void>;
+  /**
+   * The worker was asked to stop (a release, the daemon closing, a policy update it could not be given): it drops what
+   * it is sent from then on. The one answer to "is it closing", whatever `status()` shows: an extension may start a run
+   * while the worker closes.
+   */
+  stopping(): boolean;
   /** Resolves, never rejects, once the worker has exited and the exit has been handled (the service has forgotten the session by then). */
   exited(): Promise<void>;
 }

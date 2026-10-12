@@ -1,9 +1,10 @@
+import { randomBytes } from "node:crypto";
 import { type AgentSession, VERSION } from "@earendil-works/pi-coding-agent";
 import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contracts";
 import { createApprovals } from "./approvals.ts";
 import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
-import { countAgentProcesses, killDetachedDescendants } from "./descendants.ts";
+import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { closeSession } from "./shutdown.ts";
@@ -30,6 +31,9 @@ function exit(session: AgentSession | null, code: number): never {
 }
 
 export async function runHost(ipc: Ipc): Promise<void> {
+  // A marker for this worker alone, before Pi starts: the shells its tools run inherit the environment, so a process the
+  // agent leaves running keeps it after Linux has given it to pid 1, and the count can find it without a scope (M2R107).
+  process.env[TOKEN_VAR] = randomBytes(16).toString("hex");
   let session: AgentSession | null = null;
   let dispatch: ((record: Command) => void) | null = null;
   const early: Command[] = [];

@@ -107,12 +107,13 @@ describe("createIdleRelease", () => {
       state: () => state,
       release: () => void released.push(clock.now()),
     });
+    const start = clock.now();
     idle.touch();
     await clock.advance(5000);
     expect(released).toEqual([]);
     state = "quiet";
     await clock.advance(1000);
-    expect(released).toHaveLength(1);
+    expect(released).toEqual([start + 6000]);
   });
 
   it("stop() clears the timer and later touches arm nothing; it releases once", async () => {
