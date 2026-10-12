@@ -252,4 +252,93 @@ describe("subscriptions", () => {
       expect(events).toEqual([]);
     });
   });
+
+  describe("streams and resync (R125)", () => {
+    it("a session and the shell with the same key are two subscriptions", async () => {
+      const { fake, calls, subscriptions } = setup();
+      const a: unknown[] = [];
+      const b: unknown[] = [];
+      subscriptions.subscribe("session", "me", (event) => a.push(event));
+      subscriptions.subscribe("shell", "me", (event) => b.push(event));
+      await flush();
+      expect(calls).toEqual([
+        ["subscribe.session", { sessionId: "me" }],
+        ["subscribe.shell", {}],
+      ]);
+      fake.deliver({ sub: "s1", epoch: "e1", seq: 0, event: "for-session" });
+      fake.deliver({ sub: "s2", epoch: "e1", seq: 0, event: "for-shell" });
+      expect(a).toEqual(["for-session"]);
+      expect(b).toEqual(["for-shell"]);
+    });
+
+    it("the shell stream resumes from its cursor", async () => {
+      const { fake, calls, subscriptions } = setup();
+      subscriptions.subscribe("shell", "me", () => {});
+      await flush();
+      fake.deliver({ sub: "s1", epoch: "e", seq: 4, event: {} });
+      fake.setState("waiting");
+      fake.setState("open");
+      await flush();
+      expect(calls.at(-1)).toEqual(["subscribe.shell", { after: { epoch: "e", seq: 4 } }]);
+    });
+
+    it("resync asks again without a cursor and frees the old sub", async () => {
+      const { fake, calls, replies, subscriptions } = setup({ manual: true });
+      const events: unknown[] = [];
+      subscriptions.subscribe("session", "x", (event) => events.push(event));
+      replies[0]?.resolve({ sub: "s1" });
+      await flush();
+      fake.deliver({ sub: "s1", epoch: "e1", seq: 4, event: "old" });
+      subscriptions.resync("session", "x");
+      expect(calls.slice(1)).toEqual([
+        ["unsubscribe", { sub: "s1" }],
+        ["subscribe.session", { sessionId: "x" }],
+      ]);
+      // A frame of the released sub is ignored; the answer to the new request serves the listener.
+      fake.deliver({ sub: "s1", epoch: "e1", seq: 5, event: "late" });
+      replies[2]?.resolve({ sub: "s3" });
+      await flush();
+      fake.deliver({ sub: "s3", epoch: "e2", seq: 0, event: "snapshot" });
+      expect(events).toEqual(["old", "snapshot"]);
+    });
+
+    it("resync releases the answer to a request made before it", async () => {
+      const { calls, replies, subscriptions } = setup({ manual: true });
+      subscriptions.subscribe("shell", "me", () => {});
+      subscriptions.resync("shell", "me");
+      expect(calls.filter(([method]) => method === "subscribe.shell")).toHaveLength(2);
+      replies[0]?.resolve({ sub: "stale" });
+      replies[1]?.resolve({ sub: "fresh" });
+      await flush();
+      expect(calls.filter(([method]) => method === "unsubscribe")).toEqual([
+        ["unsubscribe", { sub: "stale" }],
+      ]);
+    });
+
+    it("resync does nothing without listeners", async () => {
+      const { calls, subscriptions } = setup();
+      subscriptions.resync("session", "never");
+      const off = subscriptions.subscribe("session", "x", () => {});
+      await flush();
+      off();
+      const before = calls.length;
+      subscriptions.resync("session", "x");
+      expect(calls).toHaveLength(before);
+    });
+
+    it("resync while offline makes the reconnect ask without a cursor", async () => {
+      const { fake, calls, subscriptions } = setup();
+      subscriptions.subscribe("shell", "me", () => {});
+      await flush();
+      fake.deliver({ sub: "s1", epoch: "e", seq: 4, event: {} });
+      fake.setState("waiting");
+      const before = calls.length;
+      subscriptions.resync("shell", "me");
+      expect(calls).toHaveLength(before);
+      fake.setState("open");
+      await flush();
+      expect(calls.at(-1)).toEqual(["subscribe.shell", {}]);
+      expect(calls.filter(([method]) => method === "subscribe.shell")).toHaveLength(2);
+    });
+  });
 });

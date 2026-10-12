@@ -16,13 +16,18 @@ export function fakeRuntime(state: ConnectionState = "open") {
   const calls: Array<{ method: string; params: unknown; options?: CallOptions }> = [];
   const handlers: Record<string, Handler> = {};
   let subs = 0;
+  const opened: Array<[method: string, sub: string]> = [];
   let seq = 0;
   let commandIds = 0;
   const call = vi.fn(async (method: string, params: unknown, options?: CallOptions) => {
     calls.push({ method, params, ...(options ? { options } : {}) });
     const handler = handlers[method];
     if (handler) return handler(params);
-    if (method === "subscribe.session") return { sub: `s${++subs}` };
+    if (method === "subscribe.session" || method === "subscribe.shell") {
+      const sub = `s${++subs}`;
+      opened.push([method, sub]);
+      return { sub };
+    }
     if (method === "sessions.clearQueue") return { steering: [], followUp: [], truncated: false };
     if (method === "sessions.branches") return { leafId: null, points: [], truncated: false };
     if (method === "policy.listRules") return { rules: [], truncated: false };
@@ -40,7 +45,19 @@ export function fakeRuntime(state: ConnectionState = "open") {
     calls,
     handlers,
     called: (method: string) => calls.filter((entry) => entry.method === method),
-    /** An event of the session stream, as the server's first (and only) sub would send it. */
-    emit: (event: unknown) => fake.deliver({ sub: "s1", epoch: "e1", seq: seq++, event }),
+    /** An event to the nth sub opened with `method`, as the server would send it. */
+    emitTo: (method: "subscribe.session" | "subscribe.shell", event: unknown, nth = 0) => {
+      const sub = opened.filter(([opener]) => opener === method)[nth]?.[1];
+      if (sub === undefined) throw new Error(`no ${method} sub #${nth} was opened`);
+      fake.deliver({ sub, epoch: "e1", seq: seq++, event });
+    },
+    /** An event of the session stream, as the server's first session sub would send it. */
+    emit: (event: unknown) =>
+      fake.deliver({
+        sub: opened.find(([method]) => method === "subscribe.session")?.[1] ?? "s1",
+        epoch: "e1",
+        seq: seq++,
+        event,
+      }),
   };
 }
