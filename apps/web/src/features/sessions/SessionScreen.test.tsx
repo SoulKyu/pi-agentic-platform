@@ -17,6 +17,7 @@ vi.mock("@tanstack/react-router", async () => {
   return {
     Link: (props: { to: string; children: ReactNode }) =>
       createElement("a", { href: props.to }, props.children),
+    useNavigate: () => () => Promise.resolve(),
   };
 });
 

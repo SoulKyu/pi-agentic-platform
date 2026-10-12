@@ -24,12 +24,25 @@ import {
 } from "./composer.vm.ts";
 import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 
+/** Text put in the composer from outside the stream ("Edit from here"); `n` rises with each one. */
+export interface Injected {
+  readonly n: number;
+  readonly text: string;
+}
+
 /**
  * The composer's state: the draft (saved as it changes), the way a message goes while the agent works, a send whose
  * outcome is unknown, and the error of the last action. The text lives in a ref as well, so an answer that arrives
  * later merges with what was typed meanwhile instead of replacing it.
  */
-export function useComposer(sessionId: string, view: SessionView) {
+export function useComposer(
+  sessionId: string,
+  view: SessionView,
+  outside: { readonly injected: Injected | null; readonly structuralBusy: boolean } = {
+    injected: null,
+    structuralBusy: false,
+  },
+) {
   const runtime = getRuntime();
   const [storage] = useState(deviceStorage);
   const [text, setText] = useState(() => loadDraft(storage, sessionId));
@@ -49,6 +62,9 @@ export function useComposer(sessionId: string, view: SessionView) {
   const textRef = useRef(text);
   // The editor text this screen has already applied (or found at mount): a remount never replays it (M2-RT-10).
   const seenSeq = useRef(view.editorText?.seq ?? 0);
+  // "Edit from here" has a counter of its own, so it never moves `seenSeq`: an extension's text with a sequence this
+  // screen has applied is not replayed over it, and a newer extension text still wins (M2R121).
+  const seenInjected = useRef(outside.injected?.n ?? 0);
 
   // What is shown is what is stored and sent: the input stops at the draft cap.
   const commit = useCallback(
@@ -85,6 +101,16 @@ export function useComposer(sessionId: string, view: SessionView) {
       commit(instruction.text);
     }
   }, [view.editorText, commit]);
+  // It replaces the text typed so far (the TUI does). A send of unknown outcome is untouched: it stays stored and
+  // offered, "Edit" merges its text with this one, and Send waits for it as before. A send in flight gives its text
+  // back by merging with what is here (`giveBack`, `deliver`).
+  const injected = outside.injected;
+  useEffect(() => {
+    if (injected && injected.n > seenInjected.current) {
+      seenInjected.current = injected.n;
+      commit(injected.text);
+    }
+  }, [injected, commit]);
 
   // The message is stored before the call (write-ahead): a reload while it is in flight offers "Send again" with the
   // same command id, which the daemon answers from its receipt. A definite outcome removes it; `timeout` and
@@ -170,7 +196,7 @@ export function useComposer(sessionId: string, view: SessionView) {
     compacting,
     sending,
     running: view.status === "running",
-    canStop: view.status === "running" || compacting || refusedAsBusy,
+    canStop: view.status === "running" || compacting || refusedAsBusy || outside.structuralBusy,
     changeText: commit,
     send,
     sendAgain: async () => {

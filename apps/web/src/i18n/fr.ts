@@ -135,5 +135,18 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "panel.leave": "Ctrl+] pour quitter le panneau",
   "status.label": "État des extensions",
   "source.extension": "d'une extension",
+  "actions.rename": "Renommer",
+  "actions.save": "Enregistrer",
+  "actions.autoName": "Nommer",
+  "actions.naming": "Nommage…",
+  "actions.working": "En cours…",
+  "actions.compact": "Compacter",
+  "actions.export": "Exporter",
+  "actions.exportWarning": "Le fichier contient tout ce que l'agent a vu, secrets compris.",
+  "actions.download": "Télécharger",
+  "actions.duplicate": "Dupliquer",
+  "actions.label": "Actions de la session",
+  "row.fork": "Bifurquer ici",
+  "row.edit": "Modifier à partir d'ici",
   // ── end sessions (M2) ──
 };

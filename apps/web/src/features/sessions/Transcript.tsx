@@ -8,11 +8,18 @@ import { failureText } from "./failure.ts";
 import { MessageRow, SummaryRow } from "./MessageRow.tsx";
 import { ToolRow } from "./ToolRow.tsx";
 import { transcriptItems } from "./transcript.vm.ts";
+import type { Track } from "./use-action.ts";
 import { useStickToBottom } from "./use-stick-to-bottom.ts";
 
 interface TranscriptProps {
   readonly sessionId: string;
   readonly view: SessionView;
+  /** Row actions ("Fork from here", "Edit from here"): absent where a transcript is only read. */
+  readonly rowActions?: {
+    readonly track: Track;
+    readonly busy: boolean;
+    readonly onEdit: (text: string) => void;
+  };
 }
 
 /** One page of older rows at a time, asked for the view as it is now and dropped by the store if it changed since. */
@@ -55,7 +62,7 @@ function useOlderHistory(sessionId: string, view: SessionView, preserve: () => (
   return { load, loading, error };
 }
 
-export function Transcript({ sessionId, view }: TranscriptProps) {
+export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
   const items = transcriptItems(view);
   const last = items.at(-1);
   const { attach, onScroll, preserveOnPrepend } = useStickToBottom(
@@ -123,7 +130,17 @@ export function Transcript({ sessionId, view }: TranscriptProps) {
                 <p className="mt-1 whitespace-pre-wrap break-words">{item.text}</p>
               </div>
             ) : (
-              <MessageRow item={item} />
+              <MessageRow
+                item={item}
+                actions={
+                  rowActions && {
+                    sessionId,
+                    track: rowActions.track,
+                    onEdit: rowActions.onEdit,
+                    blocked: rowActions.busy || view.status === "running" || view.activity.compacting,
+                  }
+                }
+              />
             )}
           </li>
         ))}

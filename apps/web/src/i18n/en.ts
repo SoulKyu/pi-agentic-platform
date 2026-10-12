@@ -132,5 +132,18 @@ export const en = {
   "panel.leave": "Ctrl+] to leave the panel",
   "status.label": "Extension status",
   "source.extension": "from an extension",
+  "actions.rename": "Rename",
+  "actions.save": "Save",
+  "actions.autoName": "Name it",
+  "actions.naming": "Naming…",
+  "actions.working": "Working…",
+  "actions.compact": "Compact",
+  "actions.export": "Export",
+  "actions.exportWarning": "The file holds everything the agent saw, secrets included.",
+  "actions.download": "Download",
+  "actions.duplicate": "Duplicate",
+  "actions.label": "Session actions",
+  "row.fork": "Fork from here",
+  "row.edit": "Edit from here",
   // ── end sessions (M2) ──
 } as const;

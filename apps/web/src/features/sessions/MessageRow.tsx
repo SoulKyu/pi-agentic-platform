@@ -1,5 +1,10 @@
-import { Message } from "@pap/ui";
+import { Button, Message } from "@pap/ui";
+import { useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { t } from "../../i18n/index.ts";
+import { getRuntime } from "../../runtime/index.ts";
+import { deviceStorage, saveDraft } from "../../stores/drafts.ts";
+import { useAction, type Track } from "./use-action.ts";
 import type { MessageItem, PartialItem, SummaryItem } from "./transcript.vm.ts";
 
 function Thinking({ text }: { text: string }) {
@@ -13,14 +18,80 @@ function Thinking({ text }: { text: string }) {
   );
 }
 
-/** A message, or the reply being written: plain text, the thinking folded above it. */
-export function MessageRow({ item }: { item: MessageItem | PartialItem }) {
-  const author = item.kind === "partial" ? "agent" : item.author;
+/** What a user row needs to offer "Fork from here" and "Edit from here". */
+export interface RowActions {
+  readonly sessionId: string;
+  /** The agent works, or another structural call of the screen is in flight: both buttons wait. */
+  readonly blocked: boolean;
+  readonly track: Track;
+  /** The text "Edit from here" puts in the composer. */
+  readonly onEdit: (text: string) => void;
+}
+
+function RowButtons({ entryId, actions }: { entryId: string; actions: RowActions }) {
+  const runtime = getRuntime();
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+  const fork = useAction(actions.track, setError);
+  const edit = useAction(actions.track, setError);
+  const { sessionId } = actions;
+  const wait = actions.blocked || fork.busy || edit.busy;
   return (
-    <Message author={author} label={t(`author.${author}`)}>
-      {item.thinking ? <Thinking text={item.thinking} /> : null}
-      {item.text}
-    </Message>
+    <div className="mt-1 flex flex-col items-end gap-1">
+      <div className="flex gap-2">
+        <Button
+          disabled={wait}
+          onClick={() =>
+            void fork.run(async () => {
+              const forked = await runtime.rpc.call(
+                "sessions.fork",
+                { sessionId, entryId },
+                { commandId: runtime.rpc.newCommandId() },
+              );
+              saveDraft(deviceStorage(), forked.sessionId, forked.text);
+              await navigate({ to: "/s/$sessionId", params: { sessionId: forked.sessionId } });
+            })
+          }
+        >
+          {fork.slow ? t("actions.working") : t("row.fork")}
+        </Button>
+        <Button
+          disabled={wait}
+          onClick={() =>
+            void edit.run(async () => {
+              const moved = await runtime.rpc.call(
+                "sessions.navigate",
+                { sessionId, targetId: entryId },
+                { commandId: runtime.rpc.newCommandId() },
+              );
+              if (!moved.cancelled && moved.editorText !== undefined) actions.onEdit(moved.editorText);
+            })
+          }
+        >
+          {edit.slow ? t("actions.working") : t("row.edit")}
+        </Button>
+      </div>
+      {error ? (
+        <p role="alert" className="text-ui text-attention">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** A message, or the reply being written: plain text, the thinking folded above it; your own rows can fork or be edited. */
+export function MessageRow({ item, actions }: { item: MessageItem | PartialItem; actions?: RowActions }) {
+  const author = item.kind === "partial" ? "agent" : item.author;
+  const entryId = item.kind === "message" && author === "you" ? item.entryId : null;
+  return (
+    <>
+      <Message author={author} label={t(`author.${author}`)}>
+        {item.thinking ? <Thinking text={item.thinking} /> : null}
+        {item.text}
+      </Message>
+      {actions && entryId !== null ? <RowButtons entryId={entryId} actions={actions} /> : null}
+    </>
   );
 }
 

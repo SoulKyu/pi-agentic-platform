@@ -2,17 +2,24 @@ import { Button, TextField } from "@pap/ui";
 import { t } from "../../i18n/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
-import { useComposer } from "./use-composer.ts";
+import { useComposer, type Injected } from "./use-composer.ts";
 
 interface ComposerProps {
   readonly sessionId: string;
   readonly view: SessionView;
   /** Moves focus to an open custom panel; true when it did (Task 27 wires it). */
   readonly onTabToPanel?: () => boolean;
+  /** Text "Edit from here" puts in the field; `n` rises with each one, and a text is applied once. */
+  readonly injected?: Injected | null;
+  /** A navigation or compaction the view does not show is in flight: Stop stays reachable. */
+  readonly structuralBusy?: boolean;
 }
 
-export function Composer({ sessionId, view, onTabToPanel }: ComposerProps) {
-  const c = useComposer(sessionId, view);
+export function Composer({ sessionId, view, onTabToPanel, injected, structuralBusy }: ComposerProps) {
+  const c = useComposer(sessionId, view, {
+    injected: injected ?? null,
+    structuralBusy: structuralBusy ?? false,
+  });
   const blocked = c.pending !== null || c.compacting || c.sending;
   return (
     <div

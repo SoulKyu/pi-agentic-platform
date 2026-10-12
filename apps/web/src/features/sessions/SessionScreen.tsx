@@ -7,12 +7,14 @@ import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { Composer } from "./Composer.tsx";
+import { SessionActions } from "./SessionActions.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
 import { plainText } from "./ansi.ts";
 import { AnsiText } from "./AnsiText.tsx";
 import { CustomPanel } from "./CustomPanel.tsx";
 import { codeText, failureText } from "./failure.ts";
 import { StatusBar } from "./StatusBar.tsx";
+import { useStructural } from "./use-action.ts";
 import { Transcript } from "./Transcript.tsx";
 import { Widgets } from "./Widgets.tsx";
 
@@ -46,6 +48,9 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
     input?.focus();
     return input != null;
   };
+  const structural = useStructural();
+  const [edit, setEdit] = useState<{ sessionId: string; n: number; text: string } | null>(null);
+  const editHere = (text: string) => setEdit((was) => ({ sessionId, n: (was?.n ?? 0) + 1, text }));
   const title = view.title === null ? "" : plainText(view.title).trim();
 
   return (
@@ -73,8 +78,20 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
           {t("sessions.unreadable")}
         </p>
       ) : null}
+      <SessionActions
+        key={`actions:${sessionId}`}
+        sessionId={sessionId}
+        view={view}
+        track={structural.track}
+        blocked={structural.active}
+      />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
-      <Transcript key={`transcript:${sessionId}`} sessionId={sessionId} view={view} />
+      <Transcript
+        key={`transcript:${sessionId}`}
+        sessionId={sessionId}
+        view={view}
+        rowActions={{ track: structural.track, busy: structural.active, onEdit: editHere }}
+      />
       <DialogList
         key={`dialogs:${sessionId}`}
         sessionId={sessionId}
@@ -106,7 +123,14 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
         </p>
       ) : null}
       <Widgets widgets={view.widgets} placement="aboveEditor" />
-      <Composer key={sessionId} sessionId={sessionId} view={view} onTabToPanel={focusPanel} />
+      <Composer
+        key={sessionId}
+        sessionId={sessionId}
+        view={view}
+        onTabToPanel={focusPanel}
+        injected={edit?.sessionId === sessionId ? edit : null}
+        structuralBusy={structural.active}
+      />
       <Widgets widgets={view.widgets} placement="belowEditor" />
       <StatusBar
         statuses={view.statuses}
