@@ -13,6 +13,7 @@ import {
 import type { InitRecord } from "@pap/contracts";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApprovals } from "./approvals.ts";
+import { closeSession } from "./shutdown.ts";
 import { openSession } from "./open-session.ts";
 import { CODEMODE_SOURCE, MCP_SOURCE, TOOL_SEARCH_SOURCE } from "./policy/tool-kind.ts";
 import { writeMcpFixture } from "./testing/mcp-fixture.ts";
@@ -36,7 +37,9 @@ beforeEach(() => {
   vi.stubEnv("PI_TELEMETRY", "0");
   vi.stubEnv("PAP_TEST_PROVIDER", "1");
 });
-afterEach(() => {
+afterEach(async () => {
+  // session_shutdown stops the MCP server child; dispose alone would leave the fixture running.
+  if (session) await closeSession(session, 5_000);
   session?.dispose();
   session = undefined;
   vi.unstubAllEnvs();

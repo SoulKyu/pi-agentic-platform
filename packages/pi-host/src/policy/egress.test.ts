@@ -142,7 +142,13 @@ describe("MCP tools in read-only mode (stage 02)", () => {
   it("blocks an MCP tool that is not read-only, with a reason that carries no input, and lets a read-only one through", async () => {
     const h = bed.harness({ rules: readOnly, tools, stages: ALLOW_03 });
     expect(await h.run("mcp__fix__write", { q: "secret-token" })).toEqual(MCP_BLOCK);
-    expect(h.entries.at(-1)).toMatchObject({ decision: "block", reason: "MCP tool that is not read-only" });
+    expect(h.entries.at(-1)).toMatchObject({
+      decision: "block",
+      reason: "MCP tool that is not read-only",
+      stages: expect.arrayContaining([
+        { stage: "02", outcome: "block", reason: "MCP tool that is not read-only" },
+      ]),
+    });
     expect(JSON.stringify(h.entries.at(-1)?.stages)).not.toContain("secret-token");
     expect(await h.run("mcp__fix__plain", { q: 1 })).toEqual(MCP_BLOCK);
     expect(await h.run("mcp__fix__lookup", { q: 1 })).toBeUndefined();
@@ -161,6 +167,7 @@ describe("MCP tools in read-only mode (stage 02)", () => {
   it("does not take a spoofed MCP name for an MCP read (it is no MCP tool, so another stage judges it)", async () => {
     const h = bed.harness({ rules: readOnly, tools, stages: ALLOW_03 });
     expect(await h.run("mcp__fix__spoof", { q: 1 })).toBeUndefined();
+    expect(h.entries.at(-1)).toMatchObject({ category: "unknown" });
     expect(h.entries.at(-1)?.stages.find((stage) => stage.stage === "02")?.reason).not.toBe(
       "MCP tool that is not read-only",
     );

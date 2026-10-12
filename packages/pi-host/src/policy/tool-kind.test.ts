@@ -78,25 +78,29 @@ describe("MCP, codemode and tool_search are classified by source (M5R24)", () =>
   it.each([
     ["a read-only hint", { readOnlyHint: true }, mcp],
     [
-      "a read-only hint and openWorldHint false",
+      "a read-only hint and openWorldHint false (still external)",
       { readOnlyHint: true, openWorldHint: false },
-      { ...mcp, external: false },
+      mcp,
     ],
     ["a read-only hint and openWorldHint true", { readOnlyHint: true, openWorldHint: true }, mcp],
     ["no hint", {}, { ...mcp, category: "external-write" }],
     ["readOnlyHint false", { readOnlyHint: false }, { ...mcp, category: "external-write" }],
     [
-      "only openWorldHint false",
+      "only openWorldHint false (still external)",
       { openWorldHint: false },
-      { ...mcp, category: "external-write", external: false },
+      { ...mcp, category: "external-write" },
     ],
   ])("an MCP tool with %s", (_label, hints, expected) => {
     expect(classifyTool("mcp__fix__lookup", { path: MCP_SOURCE, ...hints })).toEqual(expected);
   });
 
-  it("takes the resource reader as an external read", () => {
-    expect(classifyTool("read_mcp_resource", { path: MCP_SOURCE })).toEqual(mcp);
-  });
+  it.each(["read_mcp_resource", "list_mcp_resources", "list_mcp_resource_templates"])(
+    "takes %s as an external read",
+    (name) => {
+      expect(classifyTool(name, { path: MCP_SOURCE })).toEqual(mcp);
+      expect(classifyTool(name, { path: "/ext/spoof.js" })).toEqual(none);
+    },
+  );
 
   it("takes codemode and tool_search as reads that are not external", () => {
     expect(classifyTool("codemode", { path: CODEMODE_SOURCE })).toEqual({
