@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ForkedHost } from "./testing/fork-host.ts";
-import { bashScript, createHostBed, isApproval } from "./testing/host-bed.ts";
+import { bashScript, createHostBed, isApproval, isCallAudit, RULES } from "./testing/host-bed.ts";
 
 const SECRET = "ghp_testsecret_0123456789";
 const within = { timeout: 20_000 };
@@ -73,5 +73,42 @@ describe("pi-host worker: secret redaction", () => {
     const host = bed.host();
     await run(host);
     expect(resultAudits(host.records)).toEqual([]);
+  });
+
+  it("the call entry's arguments hold the marker when the command carries the value itself", async () => {
+    await bed.start(bashScript(`echo ${SECRET} | wc -c`), { env: { GITHUB_TOKEN: SECRET } });
+    const host = bed.host();
+    await run(host);
+    const call = host.records.find(isCallAudit);
+    expect(call).toMatchObject({ entry: { args: "echo [SECRET:GITHUB_TOKEN] | wc -c" } });
+    expect(JSON.stringify(host.records.filter((r) => r.type === "audit"))).not.toContain(SECRET);
+  });
+
+  it("a secret in the output of a failing command is redacted too", async () => {
+    const ready = await bed.start(bashScript('echo "$GITHUB_TOKEN"; exit 3'), {
+      env: { GITHUB_TOKEN: SECRET },
+    });
+    const host = bed.host();
+    await run(host);
+    const end = host.records.find((r) => r.type === "tool_execution_end");
+    expect(end).toMatchObject({ isError: true });
+    expect(JSON.stringify(end)).toContain("[SECRET:GITHUB_TOKEN]");
+    expect(JSON.stringify(end)).not.toContain(SECRET);
+    expect(readFileSync(String(ready.sessionFile), "utf8")).not.toContain(SECRET);
+  });
+
+  it("an audit reason that names a secret host is redacted although stage 02 wrote it in lower case", async () => {
+    const host_ = "Secret-Host-0123.invalid";
+    await bed.start(bashScript(`echo http://${host_}/x`), {
+      env: { EVIL_TOKEN: host_ },
+      policy: { ...RULES, allowHosts: ["allowed.example"] },
+    });
+    const host = bed.host();
+    await run(host, false);
+    const call = host.records.find(isCallAudit);
+    expect(call).toMatchObject({ entry: { decision: "block" } });
+    const text = JSON.stringify(call);
+    expect(text).toContain("[SECRET:EVIL_TOKEN]");
+    expect(text.toLowerCase()).not.toContain(host_.toLowerCase());
   });
 });

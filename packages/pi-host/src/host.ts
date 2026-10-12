@@ -8,7 +8,7 @@ import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } fro
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
-import { redactAuditReasons } from "./policy/results.ts";
+import { redactingAuditSink } from "./policy/results.ts";
 import { createSecretSource } from "./policy/secrets.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
@@ -128,7 +128,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
     approvals,
     rules: () => rules,
     rulesVersion: () => rulesVersion,
-    audit: (entry) => sendAudit(redactAuditReasons(entry, secrets.current())),
+    audit: redactingAuditSink(sendAudit, secrets),
     onAgentStart: (names) => entries.agentStart(names, rules?.approvalMode ?? first.data.approvalMode),
     onEvent: (event) => {
       ipc.send(toWireEvent(event));

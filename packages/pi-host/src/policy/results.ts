@@ -1,3 +1,4 @@
+import type { JsonValue } from "@earendil-works/pi-ai";
 import type { ToolResultEvent, ToolResultEventResult } from "@earendil-works/pi-coding-agent";
 import type { PolicyAuditEntry, StageVerdict } from "@pap/contracts";
 import { errorClass } from "./pipeline.ts";
@@ -77,7 +78,7 @@ export function onToolResult(event: ToolResultEvent, deps: ResultDeps): ToolResu
     );
     return {
       content,
-      ...(structured === undefined ? {} : { structuredContent: structured.value as never }),
+      ...(structured === undefined ? {} : { structuredContent: structured.value as JsonValue }),
       ...(details === undefined ? {} : { details: details.value }),
     };
   } catch (error) {
@@ -108,4 +109,12 @@ export function redactAuditReasons(entry: PolicyAuditEntry, redactor: Redactor):
   return entry.kind === "call"
     ? { ...entry, stages, ...(reason === undefined ? {} : { reason }) }
     : { ...entry, stages };
+}
+
+/** The worker's audit sink with the reasons redacted against the secrets known at that moment. */
+export function redactingAuditSink(
+  send: (entry: PolicyAuditEntry) => void,
+  secrets: SecretSource,
+): (entry: PolicyAuditEntry) => void {
+  return (entry) => send(redactAuditReasons(entry, secrets.current()));
 }

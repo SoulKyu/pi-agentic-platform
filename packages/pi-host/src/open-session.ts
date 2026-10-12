@@ -92,9 +92,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     rules: deps.rules,
     rulesVersion: deps.rulesVersion,
     audit: deps.audit,
-    ...(deps.secrets
-      ? { secrets: deps.secrets, redact: (text) => deps.secrets?.current().text(text).text ?? text }
-      : {}),
+    ...(deps.secrets ? { secrets: deps.secrets } : {}),
     ...(deps.onAgentStart ? { onAgentStart: deps.onAgentStart } : {}),
     agentDir,
     papHome,

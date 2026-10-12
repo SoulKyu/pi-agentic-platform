@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -107,6 +108,14 @@ describe("collectSecrets from the environment", () => {
     ]);
   });
 
+  it("one repeated character is weak, in any length and case", () => {
+    expect(isWeakEnvValue("xxxxxxxxxxxx")).toBe(true);
+    expect(isWeakEnvValue("A".repeat(300))).toBe(true);
+    expect(isWeakEnvValue("1111111111")).toBe(true);
+    expect(isWeakEnvValue("xxxxxxxxxxxy")).toBe(false);
+    expect(names({ A_TOKEN: "ZZZZZZZZZZZZZZ" })).toEqual([]);
+  });
+
   it("isWeakEnvValue: lower-case letters under 12, or a listed placeholder in any case", () => {
     expect(isWeakEnvValue("abcdefgh")).toBe(true);
     expect(isWeakEnvValue("abcdefghijkl")).toBe(false);
@@ -142,6 +151,42 @@ describe("collectSecrets from the environment", () => {
   });
 });
 
+describe("credential names (the daemon logger's words, widened)", () => {
+  const value = (tag: string) => `Xk-9f3a7c1e5b-${tag}`;
+  const table: Array<[string, boolean]> = [
+    ["GITHUB_TOKEN2", true],
+    ["GITHUB_TOKEN_2", true],
+    ["MY_SECRETS", true],
+    ["DB_PASSWORDS", true],
+    ["CLIENTSECRET", true],
+    ["ACCESSTOKEN", true],
+    ["NGROK_AUTHTOKEN", true],
+    ["HTTP_AUTHORIZATION", true],
+    ["WEBHOOK_HMAC", true],
+    ["HMAC_KEY", true],
+    ["JWT_SIGNING_KEY", true],
+    ["SIGNINGKEY", true],
+    ["DATA_ENCRYPTION_KEY", true],
+    ["PGPASSWORD", true],
+    ["MYSQL_PWD", true],
+    ["SSHPASS", true],
+    ["GITHUB_TOKENS", true],
+    ["authToken", true],
+    ["AUTHOR_NAME", false],
+    ["COMPASS_DIR", false],
+    ["PUBLIC_KEY", false],
+    ["TOKENIZER_MODE", false],
+    ["PASSENGER_COUNT", false],
+    ["MAX_TOKENS_X", false],
+  ];
+  it.each(table)("%s -> %s", (name, secret) => {
+    expect(names({ [name]: value(name) })).toEqual(secret ? [name] : []);
+  });
+  it("the strength floor still applies to a widened name", () => {
+    expect(names({ PGPASSWORD: "postgres", SSHPASS: "xxxxxxxxxxxx", MYSQL_PWD: "abcdefghij" })).toEqual([]);
+  });
+});
+
 describe("collectSecrets from auth.json", () => {
   const auth = JSON.stringify({
     anthropic: { type: "api_key", key: "sk-ant-0123456789" },
@@ -167,6 +212,21 @@ describe("collectSecrets from auth.json", () => {
       name: "AUTH_MY_PROVIDER_TOKEN",
       value: "password",
     });
+  });
+
+  it("a Pi reference ($VAR, ${VAR}) is no secret; escaped $$ and $! literals are", () => {
+    const set = collectSecrets({
+      env: {},
+      authJson: JSON.stringify({
+        a: { key: "$OPENAI_API_KEY" },
+        b: { key: "prefix-${SECRET_VAR}" },
+        c: { key: "pa$$word-0123456789" },
+        d: { key: "$!bang-0123456789" },
+        e: { key: "$$$VAR-0123456789" },
+        f: { key: "cost-in-$-0123456789" },
+      }),
+    });
+    expect(set.entries.map((entry) => entry.name)).toEqual(["AUTH_C_KEY", "AUTH_D_KEY", "AUTH_F_KEY"]);
   });
 
   it("an environment name wins a duplicate value over the auth.json name", () => {
@@ -261,6 +321,45 @@ describe("createSecretSource", () => {
     captureStderr();
     const source = createSecretSource({ env: {}, agentDir: dir });
     expect(source.current().size).toBe(0);
+    expect(lines()).toEqual(["pi-host: auth.json not read for redaction (too-large)\n"]);
+  });
+
+  it("rebuilds when the file was replaced with the same size and mtime (ctime is in the signature)", () => {
+    const dir = agentDir({ openai: { access: "at-0123456789" } });
+    const path = join(dir, "auth.json");
+    const fixed = 1_700_000_000;
+    utimesSync(path, fixed, fixed);
+    const source = createSecretSource({ env: {}, agentDir: dir });
+    const first = source.current();
+    writeFileSync(path, JSON.stringify({ openai: { access: "at-9876543210" } }));
+    utimesSync(path, fixed, fixed);
+    source.refresh();
+    expect(source.current()).not.toBe(first);
+    expect(source.current().text("at-9876543210").count).toBe(1);
+  });
+
+  it("a FIFO or a link to /dev/zero is not read, does not hang, and is reported once", () => {
+    const dir = agentDir();
+    const path = join(dir, "auth.json");
+    execFileSync("mkfifo", [path]);
+    captureStderr();
+    const source = createSecretSource({ env: {}, agentDir: dir });
+    source.refresh();
+    expect(source.current().size).toBe(0);
+    rmSync(path);
+    symlinkSync("/dev/zero", path);
+    source.refresh();
+    expect(source.current().size).toBe(0);
+    expect(lines()).toEqual(["pi-host: auth.json not read for redaction (not-a-file)\n"]);
+  });
+
+  it("a file that grew past 1 MiB after the stat is cut at the bound and refused", () => {
+    const dir = agentDir();
+    writeFileSync(join(dir, "auth.json"), "{}");
+    captureStderr();
+    const source = createSecretSource({ env: {}, agentDir: dir });
+    writeFileSync(join(dir, "auth.json"), " ".repeat(1024 * 1024 + 5));
+    source.refresh();
     expect(lines()).toEqual(["pi-host: auth.json not read for redaction (too-large)\n"]);
   });
 });

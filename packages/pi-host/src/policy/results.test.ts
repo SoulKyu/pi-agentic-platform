@@ -1,9 +1,15 @@
 import type { ToolResultEvent } from "@earendil-works/pi-coding-agent";
 import type { PolicyAuditEntry } from "@pap/contracts";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditSinkOf } from "./audit-sink.ts";
 import { createRedactor, type Redactor } from "./redact.ts";
-import { onToolResult, redactAuditReasons, type ResultDeps, WITHHELD_TEXT } from "./results.ts";
+import {
+  onToolResult,
+  redactAuditReasons,
+  redactingAuditSink,
+  type ResultDeps,
+  WITHHELD_TEXT,
+} from "./results.ts";
 import { collectSecrets, type SecretSource } from "./secrets.ts";
 import { classifyTool } from "./tool-kind.ts";
 
@@ -39,6 +45,13 @@ function resultEvent(text: string, extra: Record<string, unknown> = {}): ToolRes
   } as unknown as ToolResultEvent;
 }
 const sourceWith = (redactor: Redactor): SecretSource => ({ current: () => redactor, refresh: () => {} });
+
+// The withheld path writes a line to stderr: the unit run prints nothing.
+let quiet: { mockRestore(): void } | undefined;
+beforeEach(() => {
+  quiet = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+});
+afterEach(() => quiet?.mockRestore());
 
 describe("tool_result hook", () => {
   it("redacts text, structured content and details, and audits the count", () => {
@@ -209,5 +222,40 @@ describe("audit reasons", () => {
 
   it("uses the redactor given: sourceWith keeps the helper honest", () => {
     expect(sourceWith(redactor).current()).toBe(redactor);
+  });
+});
+
+describe("the audit sink wrapper", () => {
+  const source = (): SecretSource => ({
+    current: () => createRedactor({ entries: [{ name: "H", value: "Internal-Host.Example.COM" }] }),
+    refresh: () => {},
+  });
+  it("sends the entry with its reasons redacted, whatever the case", () => {
+    const sent: PolicyAuditEntry[] = [];
+    redactingAuditSink(
+      (entry) => void sent.push(entry),
+      source(),
+    )({
+      kind: "call",
+      toolCallId: "c",
+      tool: "bash",
+      category: "exec",
+      decision: "block",
+      reason: "host internal-host.example.com is not allowed",
+      stages: [{ stage: "02", outcome: "block", reason: "internal-host.example.com" }],
+      args: "x",
+    });
+    expect(sent).toMatchObject([
+      { reason: "host [SECRET:H] is not allowed", stages: [{ reason: "[SECRET:H]" }] },
+    ]);
+  });
+  it("lets the sink's refusal through, so the pipeline blocks", () => {
+    const sink = redactingAuditSink(
+      auditSinkOf(() => false),
+      source(),
+    );
+    expect(() =>
+      sink({ kind: "session", stages: [], tools: [], toolsTruncated: false, mode: "auto-accept-edits" }),
+    ).toThrow();
   });
 });

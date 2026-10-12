@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { closeSync, openSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createRedactor, type Redactor, type SecretSet } from "./redact.ts";
 
@@ -8,22 +8,16 @@ const MAX_AUTH_BYTES = 1024 * 1024;
 const MAX_SECRETS = 256;
 const MAX_NAME = 64;
 
-const CREDENTIAL_WORDS: ReadonlySet<string> = new Set([
-  "token",
-  "secret",
-  "password",
-  "passwd",
-  "pass",
-  "passphrase",
-  "apikey",
-  "auth",
-  "credential",
-  "credentials",
-  "cookie",
-  "bearer",
-  "jwt",
-]);
-const CREDENTIAL_PAIRS: ReadonlySet<string> = new Set(["api key", "access key", "private key", "secret key"]);
+const NAME_PREFIX = "(?:access|refresh|id|auth|session|bearer|api|csrf|xsrf|oauth|client|app|shared|webhook)";
+/**
+ * The words that make an environment variable a credential, over the lower-case words of its name joined by `_`: the
+ * daemon logger's list (a digit may follow a word, a word may be plural or glued to a prefix: `CLIENTSECRET`,
+ * `NGROK_AUTHTOKEN`, `DB_PASSWORDS`, `GITHUB_TOKEN2`) plus bare `auth` and the client variables `PGPASSWORD`,
+ * `MYSQL_PWD`, `SSHPASS`.
+ */
+const CREDENTIAL_NAME = new RegExp(
+  `(?:^|_)(?:${NAME_PREFIX}?_?(?:token|secrets?)|pass|passwd|passwords?|passphrase|pgpassword|sshpass|pwd|cookies?|authorization|auth|credentials?|(?:api|private|signing|encryption|secret|access|hmac)_?keys?|hmac|bearer|jwt)\\d*(?:_|$)`,
+);
 /** Values pap treats as placeholders, compared case-folded (owner MQ5). */
 const PLACEHOLDERS: ReadonlySet<string> = new Set([
   "password",
@@ -58,7 +52,7 @@ const AUTH_FIELDS: ReadonlySet<string> = new Set([
   "password",
 ]);
 
-/** A copy of the daemon's helper: pi-host cannot import the daemon, and its own test pins this one. */
+/** The words of a name, lower case: pi-host cannot import the daemon, so this is its own copy, pinned by its own test. */
 export function credentialWords(name: string): string[] {
   return name
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -68,16 +62,20 @@ export function credentialWords(name: string): string[] {
     .map((word) => word.toLowerCase());
 }
 
+// A list of tokens is a secret list; `max_tokens` in the middle of a name is a count.
+const TOKEN_LIST = /tokens\d*$/;
 const isCredentialName = (name: string): boolean => {
-  const words = credentialWords(name);
-  return words.some(
-    (word, i) => CREDENTIAL_WORDS.has(word) || CREDENTIAL_PAIRS.has(`${word} ${words[i + 1]}`),
-  );
+  const words = credentialWords(name).join("_");
+  return CREDENTIAL_NAME.test(words) || TOKEN_LIST.test(words);
 };
 
-/** A value of lower-case letters only and under 12, or a common placeholder: a guess, not a credential (owner MQ5). */
+/** A value of lower-case letters only and under 12, one character repeated, or a common placeholder: a guess, not a credential (owner MQ5). */
 export function isWeakEnvValue(value: string): boolean {
-  return (/^[a-z]+$/.test(value) && value.length < 12) || PLACEHOLDERS.has(value.toLowerCase());
+  return (
+    (/^[a-z]+$/.test(value) && value.length < 12) ||
+    PLACEHOLDERS.has(value.toLowerCase()) ||
+    /^(.)\1*$/su.test(value)
+  );
 }
 
 const isEnvSecret = (value: string): boolean =>
@@ -87,6 +85,9 @@ const isEnvSecret = (value: string): boolean =>
   !/^[0-9]+$/.test(value) &&
   !["true", "false"].includes(value.toLowerCase()) &&
   !isWeakEnvValue(value);
+
+/** Pi resolves `$VAR` and `${VAR}` from the environment; `$$` and `$!` are escaped literals: a reference is no secret. */
+const isPiReference = (value: string): boolean => /\$[{A-Za-z_]/.test(value.replace(/\$[$!]/g, ""));
 
 type Candidate = { name: string; value: string };
 
@@ -108,7 +109,7 @@ function authCandidates(authJson: string): { found: Candidate[]; problem?: strin
     const providerName = provider.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
     for (const [field, value] of Object.entries(record)) {
       if (!AUTH_FIELDS.has(field) || typeof value !== "string") continue;
-      if (value.length < MIN_LENGTH || value.startsWith("!")) continue;
+      if (value.length < MIN_LENGTH || value.startsWith("!") || isPiReference(value)) continue;
       const fieldName = credentialWords(field).join("_").toUpperCase();
       found.push({ name: `AUTH_${providerName}_${fieldName}`.slice(0, MAX_NAME), value });
     }
@@ -178,6 +179,23 @@ const codeOf = (error: unknown): string => {
   return typeof code === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(code) ? code : "unknown";
 };
 
+/** At most `MAX_AUTH_BYTES + 1` bytes of a regular file: one more than allowed says "too large" without reading on. */
+function readBounded(path: string): string | null {
+  const fd = openSync(path, "r");
+  try {
+    const buffer = Buffer.alloc(MAX_AUTH_BYTES + 1);
+    let length = 0;
+    while (length < buffer.length) {
+      const read = readSync(fd, buffer, length, buffer.length - length, null);
+      if (read === 0) break;
+      length += read;
+    }
+    return length > MAX_AUTH_BYTES ? null : buffer.toString("utf8", 0, length);
+  } finally {
+    closeSync(fd);
+  }
+}
+
 /** Built at session open and refreshed once per tool result: an OAuth refresh rewrites the tokens (M5R121). */
 export function createSecretSource({
   env,
@@ -203,15 +221,20 @@ export function createSecretSource({
         lastCode = undefined;
         return;
       }
-      next = `${stat.mtimeMs}:${stat.size}`;
+      next = `${stat.ino}:${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}`;
       if (next === signature) return;
-      if (stat.size > MAX_AUTH_BYTES) {
+      if (!stat.isFile()) {
         signature = next;
+        fail("not-a-file");
+        return;
+      }
+      const text = stat.size > MAX_AUTH_BYTES ? null : readBounded(path);
+      signature = next;
+      if (text === null) {
         fail("too-large");
         return;
       }
-      const built = build(env, readFileSync(path, "utf8"));
-      signature = next;
+      const built = build(env, text);
       if (built.problem !== undefined) {
         fail(built.problem);
         return;
