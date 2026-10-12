@@ -251,6 +251,7 @@ describe("the session stream", () => {
       kind: "status",
       status: "cold",
       cause: "Agent process killed (SIGKILL), possibly out of memory.",
+      causeCode: "process_killed",
     });
   });
 

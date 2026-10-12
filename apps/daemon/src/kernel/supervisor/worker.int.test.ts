@@ -108,7 +108,7 @@ describe("spawnWorker against the real worker", () => {
     const handle = launch({ bogus: true });
     const exit = await handle.exited;
     expect(exit).toMatchObject({ code: 70, cause: "exit_code" });
-    expect(describeExit(exit)).toBe("Agent process exited with code 70.");
+    expect(describeExit(exit).text).toBe("Agent process exited with code 70.");
     expect(handle.outputTail()).toContain("invalid policy rules");
   });
 

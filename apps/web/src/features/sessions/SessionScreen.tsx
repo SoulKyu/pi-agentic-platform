@@ -2,11 +2,13 @@ import { cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { useT } from "../../i18n/index.ts";
+import { useLocale, useT } from "../../i18n/index.ts";
+import { codedServerText } from "../../i18n/server-text.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
+import "./register-server-catalog.ts";
 import { SessionRules } from "./AlwaysRules.tsx";
 import { Composer } from "./Composer.tsx";
 import { useAnnouncer } from "./announce.ts";
@@ -34,6 +36,7 @@ export function SessionScreen({
   toolDetail?: ToolDetail;
 }) {
   const t = useT();
+  const locale = useLocale();
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
   const [error, setError] = useState<string | null>(null);
@@ -145,7 +148,7 @@ export function SessionScreen({
               <AnsiText text={notice.text} />
             </>
           ) : (
-            notice.text
+            codedServerText(notice, locale)
           )}
         </p>
       ))}

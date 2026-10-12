@@ -110,9 +110,49 @@ export const Panel = z.object({
   lines: z.array(z.string().max(UI_LIMITS.panelLineChars)).max(UI_LIMITS.panelLines),
 });
 export type Panel = z.infer<typeof Panel>;
+/**
+ * The stable id of a sentence pap writes itself (R128), so a client can show it in its own language. The English `text`
+ * stays beside it. A code is open-ended on the wire: a client shows the English text for a code it does not know, and a
+ * daemon that sends none (older) is read by the pattern fallback.
+ */
+export const SERVER_CODES = {
+  messageTooLarge: "message_too_large",
+  dialogTooLarge: "dialog_too_large",
+  dialogLimit: "dialog_limit",
+  approvalUnshown: "approval_unshown",
+  extensionFailed: "extension_failed",
+  extensionFailedDuring: "extension_failed_during",
+  panelsLimit: "panels_limit",
+  noticesHeldOne: "notices_held_one",
+  noticesHeldMany: "notices_held_many",
+  rulesFull: "rules_full",
+  rulesNotSaved: "rules_not_saved",
+  viewNotRefreshed: "view_not_refreshed",
+  processStopped: "process_stopped",
+  processExitCode: "process_exit_code",
+  processSignal: "process_signal",
+  processSignalUnknown: "process_signal_unknown",
+  processKilled: "process_killed",
+  processOom: "process_oom",
+  processSpawnFailure: "process_spawn_failure",
+} as const;
+export const ServerCode = z.string().min(1).max(64);
+/** Values for the `{name}` slots of the client's sentence: short strings, at most four. */
+export const ServerParams = z
+  .record(z.string().min(1).max(32), z.string().max(64))
+  .refine((params) => Object.keys(params).length <= 4, "at most four params");
+/** A sentence of pap's own with its stable code: what an emitter hands to the stream next to the English text. */
+export interface ServerText {
+  readonly text: string;
+  readonly code: string;
+  readonly params?: Readonly<Record<string, string>>;
+}
 export const Notice = z.object({
   level: z.enum(["info", "warning", "error"]),
   text: z.string().max(UI_LIMITS.noticeText),
+  /** Present on pap's own fixed sentences; never on an extension's text. */
+  code: ServerCode.optional(),
+  params: ServerParams.optional(),
   /** `extension`: the text is an extension's own (`ctx.ui.notify`), labelled so in the UI (owner R2-8). Absent: pap's text. */
   source: z.enum(["pap", "extension"]).optional(),
 });
@@ -192,7 +232,13 @@ const Snapshot = z.object({
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
   Snapshot,
-  z.object({ kind: z.literal("status"), status: SessionStatus, cause: z.string().max(256).optional() }),
+  z.object({
+    kind: z.literal("status"),
+    status: SessionStatus,
+    cause: z.string().max(256).optional(),
+    causeCode: ServerCode.optional(),
+    causeParams: ServerParams.optional(),
+  }),
   z.object({ kind: z.literal("pi"), event: PiEvent }),
   z.object({ kind: z.literal("dialog_open"), dialog: Dialog }),
   z.object({ kind: z.literal("dialog_closed"), id: z.string() }),
@@ -201,6 +247,8 @@ export const SessionStreamEvent = z.discriminatedUnion("kind", [
     level: Notice.shape.level,
     text: Notice.shape.text,
     source: Notice.shape.source,
+    code: Notice.shape.code,
+    params: Notice.shape.params,
   }),
   z.object({ kind: z.literal("row"), row: TranscriptRow }),
   z.object({ kind: z.literal("entry"), entry: EntryRef }),

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { commandsEn, commandsFr } from "./catalog/commands.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
+import { serverEn, serverFr } from "./catalog/server.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { shellEn, shellFr } from "./catalog/shell.ts";
 
@@ -37,6 +38,7 @@ describe("catalog keys never collide", () => {
         dev: Object.keys(devEn),
         settingsScreen: Object.keys(settingsScreenEn),
         gallery: Object.keys(galleryEn),
+        server: Object.keys(serverEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -50,6 +52,7 @@ describe("catalog keys never collide", () => {
         dev: Object.keys(devFr),
         settingsScreen: Object.keys(settingsScreenFr),
         gallery: Object.keys(galleryFr),
+        server: Object.keys(serverFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);

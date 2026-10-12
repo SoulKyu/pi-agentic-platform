@@ -1,4 +1,4 @@
-import { type Notice, type Panel, type SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
+import { type Notice, type Panel, SERVER_CODES, type SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import type { KeyedThrottle } from "./keyed-throttle.ts";
@@ -46,7 +46,8 @@ export function createPanels(deps: PanelsDeps): Panels {
       }
       if (!open.has(id) && open.size >= UI_LIMITS.panels) {
         deps.cancel(id);
-        if (limiter.check("too_many").allowed) deps.say({ level: "warning", text: TOO_MANY });
+        if (limiter.check("too_many").allowed)
+          deps.say({ level: "warning", text: TOO_MANY, code: SERVER_CODES.panelsLimit });
         return;
       }
       const panel: Panel = {

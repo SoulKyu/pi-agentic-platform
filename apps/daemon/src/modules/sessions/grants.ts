@@ -1,4 +1,11 @@
-import { AlwaysRule, type ApprovalAnswer, MAX_ALWAYS_RULES, type PolicyRules } from "@pap/contracts";
+import {
+  AlwaysRule,
+  type ApprovalAnswer,
+  MAX_ALWAYS_RULES,
+  type Notice,
+  type PolicyRules,
+  SERVER_CODES,
+} from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import { sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -16,10 +23,16 @@ export const GRANT_NOTICE_EVERY_MS = 60_000;
  * six bytes a character) come to about 1.6 MB, and a list past this is sent as no rule at all.
  */
 export const MAX_POLICY_BYTES = 2 * 1024 * 1024;
-// English only, like every daemon notice; the web shows the text as it is.
-export const FULL_NOTICE = `This project already has ${MAX_ALWAYS_RULES} always-allowed calls: this one is allowed until this project's rules change.`;
-export const NOT_SAVED_NOTICE =
-  "This call is allowed until this project's rules change: its always rule could not be saved.";
+// The English text and its stable code (R128): the web shows the text in its own language by the code.
+export const FULL_NOTICE: Pick<Notice, "text" | "code" | "params"> = {
+  text: `This project already has ${MAX_ALWAYS_RULES} always-allowed calls: this one is allowed until this project's rules change.`,
+  code: SERVER_CODES.rulesFull,
+  params: { max: String(MAX_ALWAYS_RULES) },
+};
+export const NOT_SAVED_NOTICE: Pick<Notice, "text" | "code" | "params"> = {
+  text: "This call is allowed until this project's rules change: its always rule could not be saved.",
+  code: SERVER_CODES.rulesNotSaved,
+};
 const LOG_EVERY_MS = 60_000;
 
 interface Launched {
@@ -111,11 +124,11 @@ export function createGrantLink(deps: GrantLinkDeps) {
     }
   });
 
-  function tellSessionOnly(session: LiveSession, at: Launched, text: string): void {
+  function tellSessionOnly(session: LiveSession, at: Launched, notice: typeof FULL_NOTICE): void {
     const now = deps.clock.now();
     if (at.noticeAt !== null && now - at.noticeAt < GRANT_NOTICE_EVERY_MS) return;
     at.noticeAt = now;
-    session.notice({ level: "warning", text });
+    session.notice({ level: "warning", ...notice });
   }
 
   return {

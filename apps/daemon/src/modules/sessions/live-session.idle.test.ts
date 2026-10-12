@@ -281,7 +281,12 @@ describe("a released worker", () => {
     await oom.clock.advance(0);
     expect(statuses(oom.published).slice(-2)).toEqual([
       { kind: "status", status: "releasing" },
-      { kind: "status", status: "cold", cause: "Agent process ran out of memory and was stopped." },
+      {
+        kind: "status",
+        status: "cold",
+        cause: "Agent process ran out of memory and was stopped.",
+        causeCode: "process_oom",
+      },
     ]);
 
     const crashed = setup();

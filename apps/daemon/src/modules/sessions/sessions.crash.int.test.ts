@@ -27,7 +27,12 @@ describe("crash containment: extensions that throw, workers that die or hang (sp
     const sub = await bed.subscribe(sessionId);
     const snapshot = sub.events()[0];
     expect(snapshot?.kind === "snapshot" && snapshot.notices).toEqual([
-      { level: "error", text: "An extension failed during session_start." },
+      {
+        level: "error",
+        text: "An extension failed during session_start.",
+        code: "extension_failed_during",
+        params: { event: "session_start" },
+      },
     ]);
     await promptAndSettle(bed, sub, sessionId, "read it");
     // Pi turns a throwing tool_call handler into an error result for that call (pi_host emits no extension_error for it), and the run goes on.
@@ -68,6 +73,7 @@ describe("crash containment: extensions that throw, workers that die or hang (sp
       kind: "status",
       status: "cold",
       cause: "Agent process killed (SIGKILL), possibly out of memory.",
+      causeCode: "process_killed",
     });
     if (card.kind !== "dialog_open" || panel.kind !== "panel") throw new Error("missing events");
     expect(sub.events()).toEqual(

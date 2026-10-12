@@ -5,14 +5,9 @@ import type { SessionView, ToolView } from "./session-reducer.ts";
 export const MAX_TOOL_VIEWS = 200;
 const MAX_NOTICES = 20;
 
-export const withNotice = (
-  view: SessionView,
-  level: string,
-  text: string,
-  source?: "pap" | "extension",
-): SessionView => ({
+export const withNotice = (view: SessionView, notice: SessionView["notices"][number]): SessionView => ({
   ...view,
-  notices: [...view.notices, source ? { level, text, source } : { level, text }].slice(-MAX_NOTICES),
+  notices: [...view.notices, notice].slice(-MAX_NOTICES),
 });
 const MAX_PREVIEW_CHARS = 2000;
 

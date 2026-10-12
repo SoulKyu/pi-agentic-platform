@@ -35,8 +35,11 @@ export interface SessionView extends UiState {
   readonly queue: QueueView;
   readonly notices: ReadonlyArray<{
     readonly level: string;
+    /** The English text; the screen shows it by `code` in the session's language (R128). */
     readonly text: string;
     readonly source?: "pap" | "extension";
+    readonly code?: string;
+    readonly params?: Readonly<Record<string, string>>;
   }>;
   /** What lies above the messages: where the next page starts and how many turns it holds. */
   readonly history: HistoryMeta;
@@ -122,7 +125,14 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         queue: event.status === "cold" ? EMPTY_QUEUE : view.queue,
         tools: event.status === "cold" ? failRunningTools(view.tools) : view.tools,
       };
-      return event.cause ? withNotice(next, "error", event.cause) : next;
+      return event.cause
+        ? withNotice(next, {
+            level: "error",
+            text: event.cause,
+            ...(event.causeCode ? { code: event.causeCode } : {}),
+            ...(event.causeParams ? { params: event.causeParams } : {}),
+          })
+        : next;
     }
     case "dialog_open":
       return view.dialogs.some((dialog) => dialog.id === event.dialog.id)
@@ -133,7 +143,13 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
     case "queue":
       return { ...view, queue: event.queue };
     case "notice":
-      return withNotice(view, event.level, event.text, event.source);
+      return withNotice(view, {
+        level: event.level,
+        text: event.text,
+        ...(event.source ? { source: event.source } : {}),
+        ...(event.code ? { code: event.code } : {}),
+        ...(event.params ? { params: event.params } : {}),
+      });
     case "pi":
       return reducePi(view, event.event);
     case "entry":

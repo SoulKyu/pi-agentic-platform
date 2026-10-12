@@ -1,4 +1,4 @@
-import { type Caller, type CommandInput, PapError, UI_LIMITS } from "@pap/contracts";
+import { type Caller, type CommandInput, PapError, SERVER_CODES, UI_LIMITS } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { patchExportFile } from "./export-patch.ts";
@@ -91,9 +91,11 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
     }
   }
   const reloadNotice = (row: SessionRow): void =>
-    deps.live
-      .get(row.id)
-      ?.notice({ level: "warning", text: "The view could not be refreshed. Reload the page." });
+    deps.live.get(row.id)?.notice({
+      level: "warning",
+      text: "The view could not be refreshed. Reload the page.",
+      code: SERVER_CODES.viewNotRefreshed,
+    });
 
   // One title request per session at a time: a double click must not pay for the model twice.
   const naming = new Map<string, Promise<{ name: string }>>();

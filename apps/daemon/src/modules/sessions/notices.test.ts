@@ -40,6 +40,8 @@ describe("extension notice limiter", () => {
       kind: "notice",
       level: "warning",
       text: "5 more notices from extensions were not shown.",
+      code: "notices_held_many",
+      params: { count: "5" },
     });
     expect(clock.pending()).toBe(0);
   });
@@ -64,6 +66,7 @@ describe("extension notice limiter", () => {
       kind: "notice",
       level: "warning",
       text: "1 more notice from extensions was not shown.",
+      code: "notices_held_one",
     });
   });
 
@@ -84,6 +87,8 @@ describe("extension notice limiter", () => {
       kind: "notice",
       level: "warning",
       text: "2 more notices from extensions were not shown.",
+      code: "notices_held_many",
+      params: { count: "2" },
     });
     expect(clock.pending()).toBe(0);
     limiter.stop();

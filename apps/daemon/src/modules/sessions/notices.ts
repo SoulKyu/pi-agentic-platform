@@ -1,4 +1,4 @@
-import { type Notice, type SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
+import { type Notice, SERVER_CODES, type SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
 import type { Clock, TimerHandle } from "../../kernel/clock.ts";
 
 export interface NoticeRing {
@@ -12,9 +12,13 @@ export function createNoticeRing(max: number = UI_LIMITS.notices): NoticeRing {
   return {
     add(notice) {
       const text = notice.text.slice(0, UI_LIMITS.noticeText);
-      notices.push(
-        notice.source ? { level: notice.level, text, source: notice.source } : { level: notice.level, text },
-      );
+      notices.push({
+        level: notice.level,
+        text,
+        ...(notice.source ? { source: notice.source } : {}),
+        ...(notice.code ? { code: notice.code } : {}),
+        ...(notice.params ? { params: notice.params } : {}),
+      });
       if (notices.length > max) notices.splice(0, notices.length - max);
     },
     list: () => [...notices],
@@ -34,10 +38,19 @@ export interface NoticeLimiter {
   stop(): void;
 }
 
-const summary = (count: number): string =>
+const summary = (count: number): Notice =>
   count === 1
-    ? "1 more notice from extensions was not shown."
-    : `${count} more notices from extensions were not shown.`;
+    ? {
+        level: "warning",
+        text: "1 more notice from extensions was not shown.",
+        code: SERVER_CODES.noticesHeldOne,
+      }
+    : {
+        level: "warning",
+        text: `${count} more notices from extensions were not shown.`,
+        code: SERVER_CODES.noticesHeldMany,
+        params: { count: String(count) },
+      };
 
 /**
  * M2R84. At most `max` notices per window; the rest are counted, and one pap notice with the count ends the window. The
@@ -59,7 +72,7 @@ export function createNoticeLimiter(deps: NoticeLimiterDeps): NoticeLimiter {
           const count = held;
           held = 0;
           shown = 0;
-          if (count > 0) deps.publish({ kind: "notice", level: "warning", text: summary(count) });
+          if (count > 0) deps.publish({ kind: "notice", ...summary(count) });
         }, windowMs);
       }
       if (shown >= max) {
@@ -75,7 +88,7 @@ export function createNoticeLimiter(deps: NoticeLimiterDeps): NoticeLimiter {
       const count = held;
       shown = 0;
       held = 0;
-      if (count > 0) deps.publish({ kind: "notice", level: "warning", text: summary(count) });
+      if (count > 0) deps.publish({ kind: "notice", ...summary(count) });
     },
   };
 }

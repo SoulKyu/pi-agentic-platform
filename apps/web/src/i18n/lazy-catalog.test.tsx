@@ -5,6 +5,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
+import { serverEn, serverFr } from "./catalog/server.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { registerCatalog, setLocale, translate, useT } from "./index.ts";
 
@@ -107,5 +108,44 @@ describe("lazy catalog (gallery)", () => {
     const { fr } = await import("./fr.ts");
     expect(Object.keys(en).filter((key) => key.startsWith("gallery."))).toEqual([]);
     expect(Object.keys(fr).filter((key) => key.startsWith("gallery."))).toEqual([]);
+  });
+});
+
+describe("lazy catalog (server texts)", () => {
+  it("registers its strings with the session screen, English and French, the same slots in both", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await act(async () => registerCatalog({ en: serverEn, fr: serverFr }));
+    expect(translate("en", "server.cause.exitCode", { code: "70" })).toBe(
+      "Agent process exited with code 70.",
+    );
+    expect(translate("fr", "server.cause.exitCode", { code: "70" })).toBe(
+      "Le processus de l'agent s'est arrêté avec le code 70.",
+    );
+    const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(serverEn) as Array<keyof typeof serverEn>)
+      expect(slots(serverFr[key]), key).toEqual(slots(serverEn[key]));
+  });
+
+  it("is loaded only by the session screen: nothing eager imports the texts or the catalog", () => {
+    const offenders: string[] = [];
+    for (const file of files(src)) {
+      const name = relative(src, file).split("\\").join("/");
+      if (!/\.tsx?$/.test(name) || /\.test\.|^i18n\/|^testing\//.test(name)) continue;
+      const code = readFileSync(file, "utf8");
+      if (
+        /server-text\.ts"|catalog\/server\.ts"|register-server-catalog\.ts"/.test(code) &&
+        !name.startsWith("features/sessions/")
+      )
+        offenders.push(name);
+      if (/["'`]server\.(?:notice|cause)\./.test(code)) offenders.push(`${name}: server key`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the server strings out of the eager catalogs", async () => {
+    const { en } = await import("./en.ts");
+    const { fr } = await import("./fr.ts");
+    expect(Object.keys(en).filter((key) => key.startsWith("server."))).toEqual([]);
+    expect(Object.keys(fr).filter((key) => key.startsWith("server."))).toEqual([]);
   });
 });
