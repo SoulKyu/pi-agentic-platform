@@ -21,31 +21,47 @@ interface SessionActionsProps {
 
 const untracked: Track = (call) => call;
 
-/** Starts a download of a same-origin URL the way a click on a link does: a detached anchor, no fetch, no Blob. */
+/** The export is a path on this origin under `/api/sessions/`; anything else (another host, `//host`, a scheme) is refused. */
+function sameOriginExport(url: string): boolean {
+  if (!url.startsWith("/api/sessions/")) return false;
+  return new URL(url, location.origin).origin === location.origin;
+}
+
+/**
+ * Starts a download the way a click on a link does: no fetch, no Blob, no new tab. The anchor is attached while it is
+ * clicked (a click on a detached one after an awaited call is unreliable on iOS Safari) and removed straight after.
+ */
 function download(url: string): void {
+  if (!sameOriginExport(url)) throw new Error("export url refused");
   const anchor = document.createElement("a");
   anchor.href = url;
   anchor.download = "";
-  anchor.click();
-  anchor.remove();
+  document.body.append(anchor);
+  try {
+    anchor.click();
+  } finally {
+    anchor.remove();
+  }
 }
 
 export function SessionActions({ sessionId, view, track = untracked, blocked = false }: SessionActionsProps) {
   const runtime = getRuntime();
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
   const [draftName, setDraftName] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
   const root = useRef<HTMLElement | null>(null);
-  const rename = useAction(track, setError);
-  const autoName = useAction(track, setError);
-  const compact = useAction(track, setError);
-  const exportHtml = useAction(track, setError);
-  const duplicate = useAction(track, setError);
+  const rename = useAction(track);
+  const autoName = useAction(track);
+  const compact = useAction(track);
+  const exportHtml = useAction(track);
+  const duplicate = useAction(track);
 
+  // The field or its buttons held the focus; the trigger comes back once the screen has drawn it.
+  const focusTrigger = () =>
+    requestAnimationFrame(() => root.current?.querySelector<HTMLElement>("[data-rename]")?.focus());
   const cancelRename = () => {
     setDraftName(null);
-    requestAnimationFrame(() => root.current?.querySelector<HTMLElement>("[data-rename]")?.focus());
+    focusTrigger();
   };
   const saveRename = async () => {
     const name = (draftName ?? "").trim();
@@ -57,10 +73,10 @@ export function SessionActions({ sessionId, view, track = untracked, blocked = f
         { commandId: runtime.rpc.newCommandId() },
       ),
     );
-    if (saved) setDraftName(null);
+    if (saved) cancelRename();
   };
   const startRename = () => {
-    setError(null);
+    rename.clear();
     setDraftName(clipName(view.name ?? ""));
     requestAnimationFrame(() => root.current?.querySelector("input")?.focus());
   };
@@ -75,6 +91,7 @@ export function SessionActions({ sessionId, view, track = untracked, blocked = f
           </Button>
         ) : (
           <div
+            data-inline-edit
             className="flex items-end gap-2"
             onKeyDown={(event) => {
               // Escape in this field cancels the edit only: the page's Escape-to-Stop must not see it.
@@ -82,7 +99,11 @@ export function SessionActions({ sessionId, view, track = untracked, blocked = f
                 event.preventDefault();
                 event.stopPropagation();
                 cancelRename();
-              } else if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+              } else if (
+                event.key === "Enter" &&
+                event.target instanceof HTMLInputElement &&
+                !event.nativeEvent.isComposing
+              ) {
                 event.preventDefault();
                 void saveRename();
               }
@@ -164,11 +185,13 @@ export function SessionActions({ sessionId, view, track = untracked, blocked = f
           <Button onClick={() => setExporting(false)}>{t("dialog.cancel")}</Button>
         </div>
       ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attention">
-          {error}
-        </p>
-      ) : null}
+      {[rename, autoName, compact, exportHtml, duplicate].map((action, index) =>
+        action.error ? (
+          <p key={index} role="alert" className="text-ui text-attention">
+            {action.error}
+          </p>
+        ) : null,
+      )}
     </section>
   );
 }

@@ -230,6 +230,7 @@ describe("SessionActions export", () => {
     const blobSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
     vi.stubGlobal("open", openSpy);
+    const hadBlobUrl = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
     URL.createObjectURL = blobSpy;
     const clicked: Array<{
       href: string | null;
@@ -259,7 +260,7 @@ describe("SessionActions export", () => {
           options: { commandId: "bed-cmd-00000001" },
         },
       ]);
-      expect(clicked).toEqual([{ href: EXPORT_URL, download: "", attached: false, target: null }]);
+      expect(clicked).toEqual([{ href: EXPORT_URL, download: "", attached: true, target: null }]);
       expect(document.querySelectorAll("a[download]")).toHaveLength(0);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(openSpy).not.toHaveBeenCalled();
@@ -267,6 +268,8 @@ describe("SessionActions export", () => {
       expect(text(container)).not.toContain("secrets included");
     } finally {
       click$.mockRestore();
+      if (hadBlobUrl) Object.defineProperty(URL, "createObjectURL", hadBlobUrl);
+      else Reflect.deleteProperty(URL, "createObjectURL");
     }
   });
 

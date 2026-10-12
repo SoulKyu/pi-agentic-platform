@@ -1,7 +1,10 @@
 // @vitest-environment happy-dom
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { alerts, button, click, field, hasButton, settle, text, typeInto } from "../../testing/dom.ts";
+import { SessionScreen } from "./SessionScreen.tsx";
+import { sessionSnapshot as sessionSnapshotOf } from "../../testing/session-snapshot.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined, navigate: vi.fn() }));
@@ -190,5 +193,50 @@ describe("edit from here", () => {
     await click(button(container, "Edit from here"));
     await settle();
     expect(alerts(container)).toEqual(["The session is working. Wait for it to finish, or stop it first."]);
+  });
+});
+
+describe("fork when the draft cannot be stored", () => {
+  it("still opens the new session and logs the failure", async () => {
+    screen.bed.handlers["sessions.fork"] = () => ({ sessionId: "new-2", text: "first question" });
+    navigateMock();
+    const container = await screen.show(withRows);
+    const setItem = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("full", "QuotaExceededError");
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await click(button(container, "Fork from here"));
+      await settle();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(current.navigate).toHaveBeenCalledWith({ to: "/s/$sessionId", params: { sessionId: "new-2" } });
+    } finally {
+      setItem.mockRestore();
+      warn.mockRestore();
+    }
+  });
+});
+
+describe("edit from here after a remount", () => {
+  it("does not put the old edit text over what was typed since", async () => {
+    screen.bed.handlers["sessions.navigate"] = () => ({ cancelled: false, editorText: "first question" });
+    function Switch() {
+      const [id, setId] = useState("sess-1");
+      return (
+        <>
+          <button onClick={() => setId(id === "sess-1" ? "sess-2" : "sess-1")}>switch</button>
+          <SessionScreen sessionId={id} />
+        </>
+      );
+    }
+    const container = await screen.remount(<Switch />);
+    await screen.emit(sessionSnapshotOf(withRows));
+    await click(button(container, "Edit from here"));
+    await settle();
+    expect(composer(container).value).toBe("first question");
+    await typeInto(composer(container), "typed since");
+    await click(button(container, "switch"));
+    await click(button(container, "switch"));
+    expect(composer(container).value).toBe("typed since");
   });
 });

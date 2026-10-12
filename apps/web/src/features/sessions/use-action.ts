@@ -23,13 +23,18 @@ export function useStructural(): { readonly track: Track; readonly active: boole
 
 /**
  * One action button's state: disabled from the click to the answer, `slow` once the answer takes a second, and a
- * failure reported through `report` with the i18n text of its code only. A mutation is never repeated here: after a
+ * failure kept in `error` (and passed to `report` when given) with the i18n text of its code only. A mutation is never repeated here: after a
  * `timeout` its outcome is unknown, and the text of that code says so (R105).
  */
-export function useAction(track: Track, report: (message: string | null) => void) {
+export function useAction(track: Track, report?: (message: string | null) => void) {
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [slow, setSlow] = useState(false);
   const running = useRef(false);
+  const say = (message: string | null) => {
+    setError(message);
+    report?.(message);
+  };
   useEffect(() => {
     if (!busy) return;
     const timer = setTimeout(() => setSlow(true), SLOW_MS);
@@ -42,17 +47,17 @@ export function useAction(track: Track, report: (message: string | null) => void
     if (running.current) return false;
     running.current = true;
     setBusy(true);
-    report(null);
+    say(null);
     try {
       await track(call());
       return true;
     } catch (failure) {
-      report(failureText(failure));
+      say(failureText(failure));
       return false;
     } finally {
       running.current = false;
       setBusy(false);
     }
   };
-  return { busy, slow, run };
+  return { busy, slow, error, run, clear: () => say(null) };
 }
