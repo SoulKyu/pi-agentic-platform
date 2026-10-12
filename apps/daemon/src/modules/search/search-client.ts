@@ -8,6 +8,7 @@ export const QUERY_TIMEOUT_MS = 2_000;
 export const MAX_IN_FLIGHT = 4;
 export const IDLE_STOP_MS = 5 * 60_000;
 export const MAX_SPAWNS_PER_MINUTE = 3;
+export const STOP_TIMEOUT_MS = 2_000;
 
 export interface ThreadLike {
   postMessage(message: unknown): void;
@@ -67,6 +68,7 @@ export function createSearchClient(deps: {
   let nextId = 1;
   let stopped = false;
   let saidRestarts = false;
+  let saidSpawnFailed = false;
 
   const clearIdle = () => {
     if (idle) deps.clock.clearTimeout(idle);
@@ -107,6 +109,7 @@ export function createSearchClient(deps: {
     }
     saidRestarts = false;
     const created = spawn(deps.dbPath);
+    saidSpawnFailed = false;
     spawns.push(now);
     created.unref();
     // Events of a thread that was replaced since are ignored: only the current one settles queries.
@@ -118,7 +121,11 @@ export function createSearchClient(deps: {
       pending.delete(answer.id);
       deps.clock.clearTimeout(entry.timer);
       if (answer.ok) entry.resolve(answer.rows);
-      else {
+      else if (answer.code === "timeout") {
+        // The thread aborted the statement itself and is healthy.
+        deps.logger.warn("search_query_timeout", { ms: QUERY_TIMEOUT_MS });
+        entry.reject(new PapError("timeout"));
+      } else {
         deps.logger.warn("search_query_failed", { code: answer.code });
         if (answer.code === "damaged") deps.onDamaged?.();
         entry.reject(new PapError("internal"));
@@ -132,7 +139,14 @@ export function createSearchClient(deps: {
       deps.logger.warn("search_thread_failed", { kind, code });
       rejectAll("internal");
     };
-    created.on("error", (error) => gone("error", (error as { code?: string }).code ?? error.name));
+    created.on("error", (error) =>
+      gone(
+        "error",
+        String(
+          (error as { code?: unknown } | null)?.code ?? (error as { name?: unknown } | null)?.name,
+        ).slice(0, 64),
+      ),
+    );
     created.on("exit", (code) => gone("exit", String(code)));
     thread = created;
     return created;
@@ -146,14 +160,17 @@ export function createSearchClient(deps: {
       try {
         current = ensure();
       } catch (error) {
-        if (!(error instanceof PapError)) deps.logger.warn("search_thread_spawn_failed", { err: error });
+        if (!(error instanceof PapError) && !saidSpawnFailed)
+          deps.logger.warn("search_thread_spawn_failed", { err: error });
+        if (!(error instanceof PapError)) saidSpawnFailed = true;
         return Promise.reject(error instanceof PapError ? error : new PapError("internal"));
       }
       clearIdle();
       const id = nextId++;
       return new Promise<QueryRow[]>((resolve, reject) => {
         const timer = deps.clock.setTimeout(() => {
-          // The thread may be stuck inside this query: it goes, and what waits behind it times out too (M4R50).
+          // The thread may be stuck inside this query (terminate() does not interrupt SQLite; the thread's own deadline
+          // aborts it between rows): the thread is abandoned, and what waits behind it times out too (M4R50).
           pending.delete(id);
           deps.logger.warn("search_query_timeout", { ms: QUERY_TIMEOUT_MS });
           rejectAll("timeout");
@@ -162,7 +179,7 @@ export function createSearchClient(deps: {
         }, QUERY_TIMEOUT_MS);
         pending.set(id, { resolve, reject, timer });
         try {
-          current.postMessage({ id, input });
+          current.postMessage({ id, input, budgetMs: QUERY_TIMEOUT_MS });
         } catch (error) {
           pending.delete(id);
           deps.clock.clearTimeout(timer);
@@ -178,11 +195,21 @@ export function createSearchClient(deps: {
       rejectAll("internal");
       const current = thread;
       thread = null;
-      // A thread that already exited rejects `terminate()`; `stop()` must settle all the same.
-      if (current)
-        await current
-          .terminate()
-          .catch((error: unknown) => deps.logger.debug("search_thread_terminate_failed", { err: error }));
+      if (!current) return;
+      // terminate() waits for the thread, which may sit inside SQLite: stop() waits a bounded time, then moves on.
+      const slow: { handle: TimerHandle | null } = { handle: null };
+      const bound = new Promise<void>((resolve) => {
+        slow.handle = deps.clock.setTimeout(() => {
+          deps.logger.warn("search_thread_stop_slow", { ms: STOP_TIMEOUT_MS });
+          resolve();
+        }, STOP_TIMEOUT_MS);
+      });
+      const done = current
+        .terminate()
+        .then(() => undefined)
+        .catch((error: unknown) => deps.logger.debug("search_thread_terminate_failed", { err: error }));
+      await Promise.race([done, bound]);
+      if (slow.handle) deps.clock.clearTimeout(slow.handle);
     },
   };
 }

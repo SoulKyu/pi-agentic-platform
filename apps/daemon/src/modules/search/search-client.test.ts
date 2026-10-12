@@ -9,6 +9,7 @@ import {
   MAX_SPAWNS_PER_MINUTE,
   QUERY_TIMEOUT_MS,
   type SearchClient,
+  STOP_TIMEOUT_MS,
   threadEntry,
   type ThreadLike,
 } from "./search-client.ts";
@@ -206,13 +207,66 @@ describe("search client", () => {
     await expect(client.stop()).resolves.toBeUndefined();
   });
 
-  it("a postMessage that throws rejects that query `internal` and logs search_thread_post_failed", async () => {
-    void settle(client.query(INPUT));
+  it("a postMessage that throws rejects that query `internal`, logs search_thread_post_failed, and the thread still idles out", async () => {
+    const warm = client.query(INPUT);
+    threads[0]?.answer(1);
+    await warm;
     const thread = threads[0];
     if (thread) thread.throwOnPost = true;
     expect(await settle(client.query(INPUT))).toBe("internal");
     expect(lines.filter((line) => line["msg"] === "search_thread_post_failed")).toHaveLength(1);
     expect(clock.pending()).toBe(1);
+    await clock.advance(IDLE_STOP_MS);
+    expect(thread?.terminated).toBe(1);
+  });
+
+  it("a spawn that throws answers `internal` and logs once", async () => {
+    const failing = createSearchClient({
+      dbPath: "/x/search.db",
+      clock,
+      logger: createLogger({
+        level: "debug",
+        clock: createFakeClock(),
+        write: (line) => void lines.push(JSON.parse(line) as Record<string, unknown>),
+      }),
+      spawn: () => {
+        throw new Error("no thread");
+      },
+    });
+    expect(await settle(failing.query(INPUT))).toBe("internal");
+    expect(await settle(failing.query(INPUT))).toBe("internal");
+    expect(lines.filter((line) => line["msg"] === "search_thread_spawn_failed")).toHaveLength(1);
+    expect(clock.pending()).toBe(0);
+  });
+
+  it("a `timeout` answer from the thread rejects that query `timeout` and keeps the thread", async () => {
+    const a = settle(client.query(INPUT));
+    const b = client.query(INPUT);
+    threads[0]?.emit("message", { id: 1, ok: false, code: "timeout" });
+    expect(await a).toBe("timeout");
+    expect(threads[0]?.terminated).toBe(0);
+    threads[0]?.answer(2);
+    expect(await b).toEqual([]);
+  });
+
+  it("posts the query with its time budget", () => {
+    void settle(client.query(INPUT));
+    expect(threads[0]?.posted[0]).toEqual({ id: 1, input: INPUT, budgetMs: QUERY_TIMEOUT_MS });
+  });
+
+  it("stop() settles within its bound when terminate() never resolves, and says so", async () => {
+    void settle(client.query(INPUT));
+    const thread = threads[0];
+    if (thread) thread.terminate = () => new Promise<number>(() => undefined);
+    let done = false;
+    const stopping = client.stop().then(() => void (done = true));
+    await clock.advance(STOP_TIMEOUT_MS - 1);
+    expect(done).toBe(false);
+    await clock.advance(1);
+    await stopping;
+    expect(done).toBe(true);
+    expect(lines.filter((line) => line["msg"] === "search_thread_stop_slow")).toHaveLength(1);
+    expect(clock.pending()).toBe(0);
   });
 
   it("a `damaged` answer rejects `internal` and calls onDamaged once; `query_failed` does not", async () => {

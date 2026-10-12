@@ -7,7 +7,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { openSearchIndex } from "./index-db.ts";
 import { createSearchIndexStore, type FileCursor, type SearchIndexStore } from "./index-store.ts";
-import { runQuery } from "./query.ts";
+import { QueryDeadlineError, runQuery } from "./query.ts";
 
 type Row = [entryId: string, role: "user" | "assistant", text: string];
 
@@ -89,5 +89,43 @@ describe("runQuery", () => {
       "light4",
     ]);
     expect(new Set(rows.map((row) => row.sessionId)).size).toBe(6);
+  });
+
+  it("ranks sessions by bm25 and answers each session's best row", () => {
+    commit("/s/weak.jsonl", "weak", "u1", [
+      [
+        "w1",
+        "user",
+        "one more word about kubernetes and then a very long tail of other words that dilute the match",
+      ],
+    ]);
+    commit("/s/strong.jsonl", "strong", "u1", [
+      ["x1", "user", "some padding words that are long and unrelated to the topic at hand here"],
+      ["x2", "user", "kubernetes"],
+      [
+        "x3",
+        "user",
+        "a long reply that mentions kubernetes once among many other unrelated words in the sentence",
+      ],
+    ]);
+    const rows = runQuery(reader, { match: '"kubernetes"', ownerId: "u1", limit: 20 });
+    expect(rows.map((row) => [row.sessionId, row.entryId])).toEqual([
+      ["strong", "x2"],
+      ["weak", "w1"],
+    ]);
+  });
+
+  it("snippets are owner-filtered too: a rowid of another owner never comes back", () => {
+    commit("/s/a.jsonl", "s1", "u1", [["e1", "user", "kubernetes here"]]);
+    commit("/s/c.jsonl", "s3", "u2", [["e4", "user", "kubernetes there"]]);
+    const rows = runQuery(reader, { match: '"kubernetes"', ownerId: "u2", limit: 20 });
+    expect(rows.map((row) => row.sessionId)).toEqual(["s3"]);
+  });
+
+  it("aborts a statement that outlives its deadline, from inside SQLite", () => {
+    commit("/s/a.jsonl", "s1", "u1", [["e1", "user", "kubernetes here"]]);
+    const input = { match: '"kubernetes"', ownerId: "u1", limit: 20 };
+    expect(() => runQuery(reader, input, { at: 100, now: () => 100 })).toThrow(QueryDeadlineError);
+    expect(runQuery(reader, input, { at: 101, now: () => 100 })).toHaveLength(1);
   });
 });
