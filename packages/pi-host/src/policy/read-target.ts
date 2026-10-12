@@ -1,4 +1,5 @@
 import { join, resolve } from "node:path";
+import { kernelResolve } from "./kernel-path.ts";
 import { asPiResolves, type EditReview, realTarget, within } from "./target-path.ts";
 
 /** What lives in pap's home that no tool call of a session has a reason to read (M5R29, R97). */
@@ -69,17 +70,29 @@ export async function checkReadTarget(
   const roots = [...papHomes, ...agentDirs];
 
   let target: string | undefined;
+  let kernelTarget: string | undefined;
   let protectedPath = false;
   let searches = false;
+  const judge = (candidates: readonly string[]) => ({
+    protectedPath: sensitive.some((entry) => candidates.some((candidate) => within(entry, candidate))),
+    searches:
+      SEARCH_TOOLS.has(toolName) &&
+      roots.some((root) => candidates.some((candidate) => within(candidate, root))),
+  });
   for (const spelling of new Set([asPiResolves(path), path])) {
     const lexical = resolve(dirs.cwd, spelling);
     const real = await realTarget(lexical);
     target ??= real;
-    for (const candidate of [lexical, real]) {
-      protectedPath ||= sensitive.some((entry) => within(entry, candidate));
-      searches ||= SEARCH_TOOLS.has(toolName) && roots.some((root) => within(candidate, root));
-    }
+    // Pi collapses `..` before it follows a symlink, the kernel after: both readings are judged (probed).
+    const kernel = await kernelResolve(dirs.cwd, spelling);
+    const pi = judge([lexical, real]);
+    const other = judge([kernel]);
+    if (other.protectedPath || other.searches) kernelTarget ??= kernel;
+    protectedPath ||= pi.protectedPath || other.protectedPath;
+    searches ||= pi.searches || other.searches;
   }
+  // The card names the file Pi acts on, unless the kernel's reading is a problem too: then the one it reaches.
+  target = kernelTarget ?? target;
   if (protectedPath) return { why: "protected path", target };
   if (searches) return { why: "searches pap's data directory", target };
   return undefined;

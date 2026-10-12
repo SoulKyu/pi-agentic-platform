@@ -94,4 +94,16 @@ describe("decide: read-only, review and protected reads", () => {
       TypeError,
     );
   });
+
+  it.each(["toString", "constructor", "__proto__", "hasOwnProperty"])(
+    "fails closed on the prototype key %s as a mode and as a category",
+    (key) => {
+      const mode = key as unknown as ApprovalMode;
+      expect(() => decide({ mode, category: "read", tainted: false, external: false })).toThrow(TypeError);
+      const category = key as unknown as "read";
+      expect(() => decide({ mode: "full-access", category, tainted: false, external: false })).toThrow(
+        TypeError,
+      );
+    },
+  );
 });

@@ -2,6 +2,7 @@ import { lstat, readlink, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { kernelResolve } from "./kernel-path.ts";
 
 const MAX_LINK_HOPS = 40;
 // Pi's own class (probed by `host.paths.int.test.ts`): U+1680 stays a name character, U+2800 is no blank at all.
@@ -63,16 +64,12 @@ const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([
   ".zed",
   ".devcontainer",
   ".lefthook",
+  ".mise",
 ]);
-const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([
-  ".envrc",
-  "mise.toml",
-  ".mise.toml",
-  "lefthook.yml",
-  ".lefthook.yml",
-  "lefthook-local.yml",
-  ".lefthook-local.yml",
-]);
+const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([".envrc", ".pre-commit-config.yaml"]);
+// Configuration of tools that run commands later: lefthook (`lefthook`, `.lefthook`, `lefthook-local`, in the
+// project root or `.config/`) and mise (`mise.toml`, `mise.local.toml`, `mise.<env>.toml`, with or without a dot).
+const HOOK_CONFIG_NAME = /^\.?(lefthook|lefthook-local)\.(ya?ml|toml|json)$|^\.?mise(\.[^.]+)?\.toml$/;
 
 // Files that run later, outside any approval: git hooks and config (core.fsmonitor), Pi settings
 // (shellCommandPrefix) and extensions, agent skills, hook managers, editor tasks, direnv. The segments of the
@@ -82,7 +79,15 @@ function hasProtectedName(absolutePath: string): boolean {
     .split(sep)
     .filter(Boolean)
     .map((segment) => segment.normalize("NFC").toLowerCase());
-  return segments.some((s) => PROTECTED_SEGMENTS.has(s)) || PROTECTED_BASENAMES.has(segments.at(-1) ?? "");
+  const last = segments.at(-1) ?? "";
+  const inConfigMise = segments.some((segment, i) => segment === "mise" && segments[i - 1] === ".config");
+  return (
+    segments.some((s) => PROTECTED_SEGMENTS.has(s)) ||
+    PROTECTED_BASENAMES.has(last) ||
+    HOOK_CONFIG_NAME.test(last) ||
+    inConfigMise ||
+    (segments.at(-2) === "mise" && last === "config.toml")
+  );
 }
 
 export type ReviewReason =
@@ -126,19 +131,29 @@ export async function checkEditTarget(
   const inProtectedRoot = (candidate: string) =>
     roots.some((variants) => variants.some((dir) => within(dir, candidate)));
   let target: string | undefined;
+  let kernelTarget: string | undefined;
   let outside = false;
   let protectedPath = false;
   for (const spelling of new Set([asPiResolves(path), path])) {
     const lexical = resolve(cwd, spelling);
     const real = await realTarget(lexical);
     target ??= real;
-    outside ||= !within(root, real);
-    protectedPath ||=
+    const piOutside = !within(root, real);
+    const piProtected =
       inProtectedRoot(real) ||
       inProtectedRoot(lexical) ||
       hasProtectedName(real) ||
       hasProtectedName(lexical);
+    // The kernel applies `..` after a symlink, Pi collapses it first (probed): either reading that leaves asks.
+    const kernel = await kernelResolve(cwd, spelling);
+    const kernelOutside = !within(root, kernel);
+    const kernelProtected = inProtectedRoot(kernel) || hasProtectedName(kernel);
+    if (kernelOutside || kernelProtected) kernelTarget ??= kernel;
+    outside ||= piOutside || kernelOutside;
+    protectedPath ||= piProtected || kernelProtected;
   }
+  // The card names the file Pi writes, unless the kernel's reading is a problem too: then the one it reaches.
+  target = kernelTarget ?? target;
   if (protectedPath) return { auto: false, review: { why: "protected path", target } };
   if (outside) return { auto: false, review: { why: "outside the session directory", target } };
   if (tooBroad) {

@@ -1,7 +1,9 @@
+import { join } from "node:path";
 import { type PolicyRules } from "@pap/contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { ALLOW_ASK, createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
-import { type CallFacts, FAIL_CLOSED_REASON, READ_ONLY_REASON } from "./pipeline.ts";
+import { type CallFacts, FAIL_CLOSED_REASON } from "./pipeline.ts";
+import { READ_ONLY_REASON } from "./reasons.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeAll(async () => {
@@ -79,4 +81,22 @@ it("does not re-check an answered call when the rules did not move", async () =>
     stages: ALLOW_ASK,
   });
   expect(await h.run("bash", { command: "make" })).toBeUndefined();
+});
+
+it('blocks a protected read answered "once" when the session became read-only while its question was open', async () => {
+  const h = bed.harness(tighten({ approvalMode: "read-only" }));
+  expect(await h.run("read", { path: join(bed.papHome, "secrets", "device.key") })).toEqual({
+    block: true,
+    reason: READ_ONLY_REASON,
+  });
+  expect(h.asks).toHaveLength(1);
+  expect(h.entries.at(-1)).toMatchObject({
+    decision: "block",
+    reason: "policy changed while the question was open: read-only",
+  });
+});
+
+it("still lets an answered plain read run when the session became read-only", async () => {
+  const h = bed.harness({ ...tighten({ approvalMode: "read-only" }), stages: ALLOW_ASK });
+  expect(await h.run("read", { path: "src/a.ts" })).toBeUndefined();
 });

@@ -4,7 +4,8 @@ import type { PolicyRules } from "@pap/contracts";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
-import { FAIL_CLOSED_REASON, READ_ONLY_REASON } from "./pipeline.ts";
+import { FAIL_CLOSED_REASON } from "./pipeline.ts";
+import { READ_ONLY_REASON } from "./reasons.ts";
 import { MCP_SOURCE } from "./tool-kind.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
@@ -210,16 +211,42 @@ describe("stage 03: hostile inputs", () => {
     expect(h.asks.map((ask) => ask.message.includes("(protected path)"))).toEqual([true, true]);
   });
 
+  it("a symlink or /proc/self/root followed by .. cannot hide pap's files, in any mode", async () => {
+    const key = join(bed.papHome, "secrets", "device.key");
+    for (const approvalMode of ["supervised", "auto-accept-edits", "full-access"] as const) {
+      const h = bed.harness(withMode(approvalMode));
+      await h.run("read", { path: `/proc/self/root/..${key}` });
+      await h.run("read", { path: `${bed.cwd}/link/../state.db` });
+      await h.run("grep", { pattern: "k", path: `/proc/self/root/..${dirname(bed.papHome)}` });
+      await h.run("write", { path: `${bed.cwd}/link/../new.key`, content: "x" });
+      expect(h.asks.map((ask) => ask.answers)).toEqual([DENY_ONCE, DENY_ONCE, DENY_ONCE, DENY_ONCE]);
+    }
+    const ro = bed.harness(withMode("read-only"));
+    expect(await ro.run("read", { path: `/proc/self/root/..${key}` })).toEqual({
+      block: true,
+      reason: READ_ONLY_REASON,
+    });
+  });
+
+  it("a prototype key as the mode blocks like any unknown mode", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const h = bed.harness({
+      rules: () => ({ ...interactiveRules, approvalMode: "toString" }) as unknown as PolicyRules,
+    });
+    expect(await h.run("read", { path: "src/a.ts" })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
+    expect(stderr).toHaveBeenCalledWith("pi-host: policy evaluation failed (TypeError)\n");
+  });
+
   it("case spellings of protected names ask", async () => {
     const h = bed.harness();
-    for (const path of [".IDEA/x", ".Zed/tasks.json", "Lefthook.yml", "é/.devcontainer/x.json"])
+    for (const path of [".IDEA/x", ".Zed/tasks.json", "Lefthook.yml", "e\u0301/.devcontainer/x.json"])
       await h.run("write", { path, content: "x" });
     expect(h.asks.map((ask) => ask.answers)).toEqual([DENY_ONCE, DENY_ONCE, DENY_ONCE, DENY_ONCE]);
   });
 
   it("a blank-spelled path shows the escaped name, so the card names the file", async () => {
     const h = bed.harness();
-    await h.run("write", { path: "../ out.txt", content: "x" });
+    await h.run("write", { path: "../\u1680out.txt", content: "x" });
     expect(h.asks[0]?.message).toContain(`→ ${bed.base}/\\u{1680}out.txt (outside the session directory)`);
   });
 

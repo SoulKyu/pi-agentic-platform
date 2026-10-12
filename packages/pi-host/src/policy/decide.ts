@@ -72,8 +72,8 @@ export function decide(input: DecideInput): Verdict {
     why,
     answers: decision === "ask" ? ONE_CALL : [],
   });
+  if (!Object.hasOwn(MATRIX, input.mode)) throw new TypeError("the approval mode is not in the matrix");
   const row = MATRIX[input.mode];
-  if (row === undefined) throw new TypeError("the approval mode is not in the matrix");
   // M5R27: after untrusted content, whatever can carry data out asks — an external read included (MQ1).
   const exposed = input.tainted && (EXFILTRATION_CAPABLE.has(input.category) || input.external);
   if (input.mode === "read-only") {
@@ -91,19 +91,20 @@ export function decide(input: DecideInput): Verdict {
   if (input.review) return once("ask", input.review.why);
   if (input.protectedRead !== undefined) return once("ask", input.protectedRead);
   if (exposed) return once("ask", "external content");
+  if (!Object.hasOwn(row, input.category)) throw new TypeError("the tool category is not in the matrix");
   const decision = row[input.category];
-  if (decision !== "ask")
+  if (decision === "ask")
     return {
       decision,
-      grantable: false,
-      why: `${input.category} ${decision === "allow" ? "allowed" : "blocked"}`,
-      answers: [],
+      grantable: true,
+      why: `${input.category} asks`,
+      answers:
+        input.category === "unknown" ? ["deny", "session", "once"] : ["deny", "session", "always", "once"],
     };
   return {
     decision,
-    grantable: true,
-    why: `${input.category} asks`,
-    answers:
-      input.category === "unknown" ? ["deny", "session", "once"] : ["deny", "session", "always", "once"],
+    grantable: false,
+    why: `${input.category} ${decision === "allow" ? "allowed" : "blocked"}`,
+    answers: [],
   };
 }

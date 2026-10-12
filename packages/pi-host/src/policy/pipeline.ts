@@ -15,7 +15,7 @@ import { describeCall } from "./describe-call.ts";
 import { egressStage } from "./egress.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import type { PolicyGrants } from "./grants.ts";
-import { approvalStage } from "./stage-approval.ts";
+import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
 import { clipUnits, createTrail } from "./trail.ts";
@@ -23,7 +23,6 @@ import { clipUnits, createTrail } from "./trail.ts";
 export const DENIED_REASON = "Denied by the user.";
 export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so it was blocked (fail closed).";
 export const TOO_LONG_REASON = "too long to review — split the work";
-export const READ_ONLY_REASON = "pap-policy blocked this call: the session is read-only.";
 export const TOO_LARGE_REASON = "pap-policy blocked this call: its input is too large to judge.";
 const NO_RULES = "no valid policy rules";
 const MAX_FIELD = 256;
@@ -258,12 +257,7 @@ function recheckAnswered(
   const now: CallFacts = { ...call, rules, tainted: deps.taint.current() };
   for (const verdict of [checkStage(stages.denylist(now)), checkStage(stages.egress(now))])
     if (verdict.outcome === "block") return { reason: verdict.reason, modelReason: verdict.modelReason };
-  if (
-    rules.approvalMode === "read-only" &&
-    (now.kind.category !== "read" || (now.tainted && now.kind.external))
-  )
-    return { reason: "read-only", modelReason: READ_ONLY_REASON };
-  return null;
+  return rules.approvalMode === "read-only" ? readOnlyRefusal(call, now) : null;
 }
 
 async function evaluateOnce(

@@ -1,7 +1,7 @@
 import type { ApprovalPlan, CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
-import { READ_ONLY_REASON } from "./pipeline.ts";
 import { decide } from "./decide.ts";
 import { checkReadTarget } from "./read-target.ts";
+import { READ_ONLY_REASON } from "./reasons.ts";
 import { checkEditTarget, type EditReview } from "./target-path.ts";
 
 const inputPath = (input: unknown): unknown =>
@@ -27,6 +27,27 @@ async function reviewOf(
   return protectedRead ? { protectedRead } : {};
 }
 
+/** What `approvalStage` found out about a built-in read of pap's own files, by call: the MQ6 re-check needs it. */
+const PROTECTED_READS = new WeakMap<CallFacts, string>();
+
+/**
+ * MQ6: whether a call a person answered must still be refused because the rules moved to read-only while the question
+ * was open. `now` is the call under the new rules and taint; `call` the one the stage judged. Same rule as `decide`.
+ */
+export function readOnlyRefusal(
+  call: CallFacts,
+  now: CallFacts,
+): { reason: string; modelReason: string } | null {
+  const verdict = decide({
+    mode: "read-only",
+    category: now.kind.category,
+    tainted: now.tainted,
+    external: now.kind.external,
+    protectedRead: PROTECTED_READS.get(call),
+  });
+  return verdict.decision === "block" ? { reason: "read-only", modelReason: READ_ONLY_REASON } : null;
+}
+
 /** Stage 03: the approval matrix (`decide`) over the facts of the call. It never puts input text in a reason. */
 export async function approvalStage(
   call: CallFacts,
@@ -35,6 +56,7 @@ export async function approvalStage(
 ): Promise<ApprovalPlan> {
   const { category } = call.kind;
   const { review, protectedRead } = await reviewOf(call, ctx, deps);
+  if (protectedRead) PROTECTED_READS.set(call, protectedRead.why);
   // Rules of a profile this build does not know open nothing (M1 has no unattended rules): fail closed.
   if (call.rules.profile !== "interactive")
     return {
