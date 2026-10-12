@@ -55,6 +55,8 @@ export function createScanner(deps: {
     say,
   };
   let stopped = true;
+  /** A stopped scanner cannot start again: a rebuild makes a new one. */
+  let closed = false;
   let reconcileTimer: TimerHandle | null = null;
   let soonTimer: TimerHandle | null = null;
   let reconciling: Promise<void> | null = null;
@@ -140,7 +142,7 @@ export function createScanner(deps: {
 
   return {
     start() {
-      if (!stopped) return;
+      if (!stopped || closed) return;
       stopped = false;
       engine.watchRoot();
       runReconcile().catch(failed);
@@ -148,6 +150,7 @@ export function createScanner(deps: {
     },
     async stop() {
       stopped = true;
+      closed = true;
       if (reconcileTimer) deps.clock.clearTimeout(reconcileTimer);
       if (soonTimer) deps.clock.clearTimeout(soonTimer);
       reconcileTimer = null;

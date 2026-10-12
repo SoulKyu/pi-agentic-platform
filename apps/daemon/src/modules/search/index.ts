@@ -35,7 +35,7 @@ export function createSearchModule(deps: {
   readonly agentDir: string;
   readonly installedAt: number;
   /** The home was written by a newer pap: search.db may be a newer one too, so it is left alone (C §3.4). */
-  readonly readOnly?: boolean;
+  readonly readOnly: boolean;
   readonly clock: Clock;
   readonly logger: Logger;
   readonly sessions: SessionsScanPort;
@@ -67,18 +67,16 @@ export function createSearchModule(deps: {
     logger.warn("search_index_count_failed", { err: error });
   }
 
-  let generation = 0;
   let started = false;
   let stopped = false;
   let unusable = false;
   let rebuilding: Promise<void> | null = null;
   const rebuilds: number[] = [];
 
-  // A stale part (replaced by a rebuild) that still reports damage must not start another rebuild.
+  // Parts replaced by a rebuild are stopped first, so they report nothing more.
   const build = (index: Db): Parts => {
-    const mine = ++generation;
     const onDamaged = () => {
-      if (mine === generation) void rebuild();
+      void rebuild();
     };
     const client = createSearchClient({
       dbPath,
@@ -117,8 +115,11 @@ export function createSearchModule(deps: {
     const now = deps.clock.now();
     while (rebuilds.length > 0 && now - (rebuilds[0] ?? 0) >= HOUR_MS) rebuilds.shift();
     const old = parts;
+    // `module.stop()` closes the database it finds: after a stop nothing is deleted or created (a stop wins).
     await old.scanner.stop();
+    if (stopped) return;
     await old.client.stop();
+    if (stopped) return;
     closeDb(old);
     if (rebuilds.length >= MAX_REBUILDS_PER_HOUR) {
       unusable = true;
@@ -142,7 +143,11 @@ export function createSearchModule(deps: {
     rebuilding ??= rebuildNow()
       .catch((error: unknown) => {
         unusable = true;
-        logger.error("search_rebuild_failed", { err: error });
+        try {
+          logger.error("search_rebuild_failed", { err: error });
+        } catch {
+          // A broken logger must not turn into an unhandled rejection.
+        }
       })
       .finally(() => {
         rebuilding = null;
@@ -159,7 +164,8 @@ export function createSearchModule(deps: {
     start() {
       if (started || stopped) return;
       started = true;
-      if (!unusable) parts.scanner.start();
+      // During a rebuild the old scanner is stopped for good; the new one starts when the rebuild ends.
+      if (!unusable && !rebuilding) parts.scanner.start();
     },
     async stop() {
       if (stopped) return;

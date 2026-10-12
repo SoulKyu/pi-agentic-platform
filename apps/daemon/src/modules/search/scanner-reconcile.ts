@@ -1,6 +1,6 @@
 import { lstatSync, type Stats } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { FileCursor, SearchIndexStore } from "./index-store.ts";
 import type { ScanEngine } from "./scanner-engine.ts";
 
@@ -57,6 +57,9 @@ export async function reconcilePass(deps: {
     for (const gone of deps.state.folders) deps.engine.unwatch(gone);
     deps.state.folders.clear();
     deps.engine.watchRoot();
+    // `sessions/` is gone: every cursor is of a vanished file, and the gone pass lets its rows go (M4R72). Any other
+    // error says nothing about the files.
+    if (codeOf(error) === "ENOENT") for (const path of deps.store.paths()) deps.engine.enqueue(path);
     return;
   }
   if (deps.stopped()) return;
@@ -64,17 +67,23 @@ export async function reconcilePass(deps: {
   const listed = new Set<string>();
   const compare: FileCursor[] = [];
   const present = new Set<string>();
+  /** Folders that could not be listed: their files are not known to be gone. */
+  const unlisted = new Set<string>();
   let seen = 0;
   for (const folder of folders) {
     const files = await readdir(folder, { withFileTypes: true }).catch((error: unknown) => {
       // A folder that vanished since the root was listed is not an error: the next listing drops it.
-      if (codeOf(error) !== "ENOENT") deps.say("session_list_failed", { code: codeOf(error) });
+      if (codeOf(error) === "ENOENT") return null;
+      deps.say("session_list_failed", { code: codeOf(error) });
+      unlisted.add(folder);
       return null;
     });
     if (deps.stopped()) return;
-    if (files === null) continue;
+    // A folder that exists but could not be listed stays present: it is not gone, and its files are not either.
+    if (files === null && !unlisted.has(folder)) continue;
     present.add(folder);
     deps.engine.watchFolder(folder);
+    if (files === null) continue;
     const cursors = deps.store.cursorsIn(folder);
     for (const file of files) {
       if (++seen % LIST_YIELD_EVERY === 0) {
@@ -107,5 +116,6 @@ export async function reconcilePass(deps: {
   }
   deps.state.at = start + max;
   if (deps.stopped()) return;
-  for (const path of deps.store.paths()) if (!listed.has(path)) deps.engine.enqueue(path);
+  for (const path of deps.store.paths())
+    if (!listed.has(path) && !unlisted.has(dirname(path))) deps.engine.enqueue(path);
 }

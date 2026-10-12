@@ -241,6 +241,9 @@ describe("scanner reconcile and lifecycle", () => {
     expect(first).toHaveLength(2);
     expect(second).toHaveLength(2);
     expect(new Set([...first, ...second]).size).toBe(4);
+    // The third pass wraps around: its first file is one the first pass had, its other one the last file left.
+    expect(third).toHaveLength(2);
+    expect(third).toContain(first[0]);
     expect(new Set([...first, ...second, ...third])).toEqual(new Set(grown));
     expect([...first, ...second, ...third]).not.toContain(excluded);
   });
@@ -249,12 +252,10 @@ describe("scanner reconcile and lifecycle", () => {
     const unhandled = vi.fn();
     process.on("unhandledRejection", unhandled);
     try {
-      const broken = {
-        ...store,
-        paths: () => {
-          throw new Error("secret path /home/x");
-        },
-      };
+      const paths = vi.fn((): string[] => {
+        throw new Error("secret path /home/x");
+      });
+      const broken = { ...store, paths };
       const s = make({ store: broken });
       s.start();
       await s.idle();
@@ -262,6 +263,11 @@ describe("scanner reconcile and lifecycle", () => {
       const said = lines.filter((line) => line.msg === "session_list_failed");
       expect(said).toHaveLength(1);
       expect(JSON.stringify(said)).not.toContain("secret");
+      expect(clock.pending()).toBe(1);
+      // The timer's pass fails too, and the timer is armed again.
+      await clock.advance(60_000);
+      await s.idle();
+      expect(paths).toHaveBeenCalledTimes(2);
       expect(clock.pending()).toBe(1);
       expect(unhandled).not.toHaveBeenCalled();
     } finally {
