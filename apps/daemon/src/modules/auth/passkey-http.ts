@@ -20,8 +20,6 @@ export interface PasskeyRouteDeps {
   readonly auth: AuthService;
   /** Its own instance, keyed by socket address only: never the password keys (R80, R81). */
   readonly throttle: Throttle;
-  /** The `session:` keys of enrollment, apart from the address keys (M5R127). */
-  readonly sessionThrottle: Throttle;
   readonly logger: Logger;
 }
 
@@ -87,7 +85,7 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
         c,
         deps,
         () => deps.passkeys.registerVerify(owner.userId, body.flowId, body.response),
-        deps.sessionThrottle,
+        deps.throttle,
         [sessionKey(cookie)],
       );
       deps.logger.info("auth_passkey_enrolled", { ip: clientIp(c) });

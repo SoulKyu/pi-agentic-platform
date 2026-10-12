@@ -91,6 +91,16 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   // people type one into the other's field, and a log is read by more eyes than a database.
   const stepUps = createStepUps(deps.clock);
   const lastThrottleLog = new Map<string, number>();
+  let lastFullLog = -Infinity;
+  // A table of live lockouts is full: refuse before any hash, and say so (no key, no address) at most once per window.
+  const refuseFull = (): never => {
+    const now = deps.clock.now();
+    if (now - lastFullLog >= THROTTLE_LOG_WINDOW_MS) {
+      lastFullLog = now;
+      deps.logger.warn("auth_throttle_full", {});
+    }
+    throw new RateLimitedError(MAX_BACKOFF_MS);
+  };
   const guard = (throttle: Throttle, keys: string[], ip: string) => {
     const wait = throttle.retryAfterMs(keys);
     if (wait <= 0) return;
@@ -129,7 +139,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     guard(throttle, keys, ip);
     // Counted before the slow hash, so parallel guesses queue behind the first instead of all passing the guard.
     // A full table of live lockouts refuses the attempt instead of forgetting one.
-    if (!throttle.fail(keys)) throw new RateLimitedError(MAX_BACKOFF_MS);
+    if (!throttle.fail(keys)) refuseFull();
     const stored = user?.passwordHash ?? (await dummyHash().catch(() => ""));
     const valid = await verifyPassword(password, stored);
     if (!user || !valid) {
@@ -185,7 +195,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       // Nothing is left to guess once an owner exists: refuse without counting, so a spray costs nothing and fills nothing.
       if (deps.store.countUsers() > 0) throw new PapError("unauthenticated");
       if (!deps.setupToken.verify(input.token)) {
-        if (!deps.throttle.fail(keys)) throw new RateLimitedError(MAX_BACKOFF_MS);
+        if (!deps.throttle.fail(keys)) refuseFull();
         deps.logger.warn("auth_setup_failed", {
           ip: input.ip,
           retryAfterMs: deps.throttle.retryAfterMs(keys),

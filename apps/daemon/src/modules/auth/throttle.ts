@@ -67,3 +67,19 @@ export function createThrottle(clock: Clock, options: ThrottleOptions): Throttle
     size: () => entries.size,
   };
 }
+
+/**
+ * The three tables, each with the policy that fits it (M5R127). Password and session tables never forget a live
+ * lockout; the passkey table may, because nothing behind it can be guessed and a spray must not lock the recovery path.
+ */
+export function createAuthThrottles(clock: Clock): {
+  password: Throttle;
+  session: Throttle;
+  passkey: Throttle;
+} {
+  return {
+    password: createThrottle(clock, { whenFull: "refuse" }),
+    session: createThrottle(clock, { whenFull: "refuse" }),
+    passkey: createThrottle(clock, { whenFull: "evict" }),
+  };
+}

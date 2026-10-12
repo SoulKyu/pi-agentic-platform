@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
-import { createThrottle } from "./throttle.ts";
+import { createAuthThrottles, createThrottle } from "./throttle.ts";
 
 describe("login throttle", () => {
   it("doubles the wait per failure up to 60 s and takes the max over keys", () => {
@@ -75,5 +75,22 @@ describe("login throttle bound", () => {
     expect(throttle.retryAfterMs(["ip:1"])).toBe(0);
     expect(throttle.retryAfterMs(["ip:2"])).toBe(1000);
     expect(throttle.retryAfterMs(["ip:newer"])).toBe(1000);
+  });
+});
+
+describe("the auth throttle tables", () => {
+  it("are three distinct instances: password and session refuse when full, passkey evicts", () => {
+    const tables = createAuthThrottles(createFakeClock());
+    expect(new Set(Object.values(tables)).size).toBe(3);
+    for (const [name, table] of Object.entries(tables)) {
+      for (let i = 0; i < 10; i++) table.fail(["user:owner"]);
+      for (let i = 0; i < 9_999; i++) table.fail([`ip:${i}`]);
+      expect(table.size(), name).toBe(10_000);
+      const accepted = table.fail(["ip:new"]);
+      expect(accepted, name).toBe(name === "passkey");
+      expect(table.size(), name).toBe(10_000);
+      expect(table.retryAfterMs(["ip:new"]), name).toBe(name === "passkey" ? 1000 : 0);
+      expect(table.retryAfterMs(["user:owner"]), name).toBe(name === "passkey" ? 0 : 60_000);
+    }
   });
 });

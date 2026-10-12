@@ -121,6 +121,28 @@ describe("auth service step-up and throttle", () => {
     });
   });
 
+  describe("auth_throttle_full", () => {
+    it("is logged once per 10 s, without a key or an address", async () => {
+      await service.setup(setupInput(tokenOf(service.setupUrl())));
+      for (let i = 0; i < 10_000; i++) throttle.fail([`ip:2001:db8::${i}`]);
+      lines.length = 0;
+      const refuse = (username: string) =>
+        service.login(loginInput(PASSWORD, "10.9.9.9", username)).catch(() => 0);
+      await refuse("nobody");
+      await refuse("nobody2");
+      const logged = () =>
+        lines
+          .map((l) => JSON.parse(l) as Record<string, unknown>)
+          .filter((e) => e.msg === "auth_throttle_full");
+      expect(logged()).toHaveLength(1);
+      expect(lines.join("")).not.toContain("10.9.9.9");
+      expect(lines.join("")).not.toContain("nobody");
+      await clock.advance(10_000);
+      await refuse("nobody3");
+      expect(logged()).toHaveLength(2);
+    });
+  });
+
   describe("confirmSession", () => {
     it("leaves a second session of the same owner unconfirmed", async () => {
       const first = await service.setup(setupInput(tokenOf(service.setupUrl())));

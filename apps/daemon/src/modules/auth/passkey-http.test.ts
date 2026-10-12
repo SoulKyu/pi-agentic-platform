@@ -222,7 +222,6 @@ describe("step-up before enrollment", () => {
           passkeys,
           auth: service,
           throttle: createThrottle(bed.clock, { whenFull: "evict" }),
-          sessionThrottle,
           logger: bed.logger,
         });
       },
@@ -301,6 +300,16 @@ describe("step-up before enrollment", () => {
     expect((await verify(cookie)).status).toBe(429);
     expect((await verify(other)).status).toBe(401);
     expect((await verify(cookie, "10.0.0.77")).status).toBe(429);
+  });
+
+  it("keeps a failed enrollment verify off the step-up and enrollment-password throttle of the same session", async () => {
+    const { app, cookie } = await spied();
+    const failed = await post(app, "/auth/passkey/register/verify", GARBAGE, { cookie });
+    expect(failed.status).toBe(401);
+    expect((await post(app, "/auth/passkey/register/verify", GARBAGE, { cookie })).status).toBe(429);
+    expect((await post(app, "/auth/confirm", { password: PASSWORD }, { cookie })).status).toBe(204);
+    const options = await post(app, "/auth/passkey/register/options", { password: PASSWORD }, { cookie });
+    expect(options.status).toBe(200);
   });
 
   it("needs the session before it looks at the body or the password", async () => {
