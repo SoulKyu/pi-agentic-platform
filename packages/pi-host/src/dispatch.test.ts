@@ -1,5 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { PolicyRules } from "@pap/contracts";
+import { POLICY_EXTENSION_PATH, PolicyRules } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import type { Approvals } from "./approvals.ts";
 import { createDispatch } from "./dispatch.ts";
@@ -13,25 +13,32 @@ const withAlways = PolicyRules.parse({
 });
 
 describe("dispatch", () => {
-  it("drops the always rules when a policy update is malformed, and says so (M2-RT-17)", () => {
+  it("makes the rules null when a policy update is malformed, says so, and restores them on a valid one (M5R11)", () => {
     const sent: Array<Record<string, unknown>> = [];
-    let rules = withAlways;
+    let rules: PolicyRules | null = withAlways;
     const dispatch = createDispatch({
       session: {} as AgentSession,
       ipc: { send: (record: Record<string, unknown>) => void sent.push(record) } as unknown as Ipc,
       ui: {} as UiBridge,
       approvals: {} as Approvals,
       leafMayHaveMoved: () => {},
-      rules: () => rules,
       setRules: (next) => {
         rules = next;
       },
     });
     dispatch({ type: "policy_update", rules: { profile: "interactive", approvalMode: "yolo" } });
-    expect(rules).toEqual({ ...withAlways, alwaysAllow: [] });
-    expect(sent).toEqual([expect.objectContaining({ type: "extension_error", event: "policy_update" })]);
+    expect(rules).toBeNull();
+    expect(sent).toEqual([
+      {
+        type: "extension_error",
+        extensionPath: POLICY_EXTENSION_PATH,
+        event: "policy_update",
+        error: "invalid policy rules: every call is blocked until the next valid update",
+      },
+    ]);
     dispatch({ type: "policy_update", rules: withAlways });
     expect(rules).toEqual(withAlways);
+    expect(sent).toHaveLength(1);
   });
 
   it("asks for a look at the leaf after navigate_tree has answered, in that order", async () => {
@@ -46,7 +53,6 @@ describe("dispatch", () => {
       ui: {} as UiBridge,
       approvals: {} as Approvals,
       leafMayHaveMoved: () => void order.push("look"),
-      rules: () => withAlways,
       setRules: () => {},
     });
     dispatch({ type: "navigate_tree", id: "n1", targetId: "e7" });
@@ -70,7 +76,6 @@ describe("dispatch", () => {
         ui: {} as UiBridge,
         approvals: {} as Approvals,
         leafMayHaveMoved: () => void order.push("look"),
-        rules: () => withAlways,
         setRules: () => {},
       });
       dispatch(command);
@@ -91,7 +96,6 @@ describe("dispatch", () => {
       ui: {} as UiBridge,
       approvals: {} as Approvals,
       leafMayHaveMoved: () => void order.push("look"),
-      rules: () => withAlways,
       setRules: () => {},
     });
     dispatch({ type: "set_session_name", id: "n1", name: "Fix" });
@@ -108,7 +112,6 @@ describe("dispatch", () => {
       ui: {} as UiBridge,
       approvals: { resolve: (record: unknown) => void resolved.push(record) } as unknown as Approvals,
       leafMayHaveMoved: () => {},
-      rules: () => withAlways,
       setRules: () => {},
     });
     dispatch({ type: "approval_response", id: "a1", answer: "once" });

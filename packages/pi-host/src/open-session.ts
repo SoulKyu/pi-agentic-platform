@@ -10,7 +10,7 @@ import {
   SessionManager,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import type { AuditEntry, InitRecord, PolicyRules } from "@pap/contracts";
+import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./policy/extension.ts";
@@ -30,7 +30,9 @@ export interface OpenSessionDeps {
   rules(): PolicyRules | null;
   /** Moves on every policy update (the host bumps it), valid or not. */
   rulesVersion(): number;
-  audit(entry: AuditEntry): void;
+  audit(entry: PolicyAuditEntry): void;
+  /** Told the active tool names at each `agent_start` (the session entry, M5R15). */
+  onAgentStart?(activeToolNames: string[]): void;
   onEvent(event: AgentSessionEvent): void;
   onExtensionError(error: ExtensionErrorReport): void;
   /** Inline extensions that load next to the policy (it always runs after them): the Pi built-ins, and tests. */
@@ -87,6 +89,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     rules: deps.rules,
     rulesVersion: deps.rulesVersion,
     audit: deps.audit,
+    ...(deps.onAgentStart ? { onAgentStart: deps.onAgentStart } : {}),
     agentDir,
     papHome,
     ask: (request, signal) => deps.approvals.ask(request, signal),

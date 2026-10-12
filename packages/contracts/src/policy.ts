@@ -159,12 +159,3 @@ export const SessionAudit = z.object({
 export type SessionAuditEntry = z.infer<typeof SessionAudit>;
 export const PolicyAuditEntry = z.discriminatedUnion("kind", [CallAudit, ResultAudit, SessionAudit]);
 export type PolicyAuditEntry = z.infer<typeof PolicyAuditEntry>;
-
-export const AuditEntry = z.object({
-  toolCallId: z.string().max(256),
-  tool: z.string().max(256),
-  category: z.enum(TOOL_CATEGORIES),
-  decision: z.enum(["allow", "block", "approved", "denied"]),
-  reason: z.string().max(1024).optional(),
-});
-export type AuditEntry = z.infer<typeof AuditEntry>;

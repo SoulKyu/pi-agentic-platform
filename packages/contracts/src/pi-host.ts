@@ -1,12 +1,5 @@
 import { z } from "zod";
-import {
-  ApprovalAnswer,
-  ApprovalAnswers,
-  AuditEntry,
-  GrantKey,
-  GuardRule,
-  TOOL_CATEGORIES,
-} from "./policy.ts";
+import { ApprovalAnswer, ApprovalAnswers, GrantKey, GuardRule, TOOL_CATEGORIES } from "./policy.ts";
 import { SessionName } from "./streams.ts";
 
 // daemon → worker
@@ -178,7 +171,13 @@ export const UiRequestRecord = z.looseObject({
 });
 export type UiRequestRecord = z.infer<typeof UiRequestRecord>;
 const UiClosedRecord = z.object({ type: z.literal("extension_ui_closed"), id: z.string() });
-const AuditRecord = z.object({ type: z.literal("audit"), entry: AuditEntry });
+/**
+ * `entry` travels as unknown: the audit module parses it with `PolicyAuditEntry`, so a malformed one becomes an
+ * `invalid` row there instead of vanishing in the parser (M5R113).
+ */
+const AuditRecord = z.object({ type: z.literal("audit"), entry: z.unknown().optional() });
+/** Where Pi reports the policy's inline extension, and the `extension_error` source the daemon recognises it by. */
+export const POLICY_EXTENSION_PATH = "<inline:pap-policy>";
 /**
  * Every 30 s. `descendants`: the live processes below the worker that are outside its process group, which are the
  * ones the agent started (M2R107); 0 when an older worker does not say, and off Linux.

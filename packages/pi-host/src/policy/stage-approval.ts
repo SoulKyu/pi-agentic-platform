@@ -5,7 +5,9 @@ import { checkEditTarget, type EditReview } from "./target-path.ts";
 
 /** The answers a card offers, in DESIGN.md order (Deny / Session / Always / Allow once). */
 export function answersFor(category: ToolCategory, review: EditReview | undefined): ApprovalAnswer[] {
+  // A write outside the project or to a protected path is judged one call at a time: no grant covers the next one.
   if (review) return ["deny", "once"];
+  // A tool pap cannot classify may do anything: it is never remembered beyond this worker.
   if (category === "unknown") return ["deny", "session", "once"];
   return ["deny", "session", "always", "once"];
 }

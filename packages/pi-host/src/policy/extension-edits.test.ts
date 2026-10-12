@@ -2,15 +2,15 @@ import { mkdir, rm, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import type { PolicyRules } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPolicyBed } from "../testing/policy-bed.ts";
+import { createPipelineBed } from "../testing/pipeline-bed.ts";
 import { DENIED_REASON, FAIL_CLOSED_REASON } from "./extension.ts";
 
-let bed: Awaited<ReturnType<typeof createPolicyBed>>;
+let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 const harness = (...args: Parameters<typeof bed.harness>) => bed.harness(...args);
 const secondLine = (asked: string | undefined) => asked?.split("\n")[1];
 
 beforeEach(async () => {
-  bed = await createPolicyBed();
+  bed = await createPipelineBed();
   vi.stubEnv("HOME", join(bed.base, "home"));
   await mkdir(join(bed.base, "home"), { recursive: true });
 });
@@ -26,7 +26,7 @@ describe("pap-policy edits outside the session directory", () => {
     expect(await h.run("write", { path: join(bed.outside, "a.txt"), content: "x" })).toBeUndefined();
     expect(await h.run("edit", { path: "../outside/b.txt", edits: [] })).toBeUndefined();
     expect(h.asked.map((m) => m.split("|")[0])).toEqual(["Allow this edit?", "Allow this edit?"]);
-    expect(h.audits).toEqual([
+    expect(h.entries).toMatchObject([
       {
         toolCallId: "c1",
         tool: "write",
@@ -52,7 +52,7 @@ describe("pap-policy edits outside the session directory", () => {
       reason: DENIED_REASON,
     });
     expect(h.asked).toHaveLength(1);
-    expect(h.audits[0]).toMatchObject({ decision: "denied", reason: "outside the session directory" });
+    expect(h.entries[0]).toMatchObject({ decision: "denied", reason: "outside the session directory" });
   });
 
   it("shows where a write lands when a harmless-looking relative symlink points out of the directory", async () => {
@@ -102,7 +102,7 @@ describe("pap-policy protected paths", () => {
     const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     expect(await h.run("write", { path, content: "x" })).toEqual({ block: true, reason: DENIED_REASON });
     expect(secondLine(h.asked[0])).toBe(`→ ${join(bed.cwd, path)} (protected path)`);
-    expect(h.audits).toEqual([
+    expect(h.entries).toMatchObject([
       { toolCallId: "c1", tool: "write", category: "edit", decision: "denied", reason: "protected path" },
     ]);
   });
@@ -110,7 +110,7 @@ describe("pap-policy protected paths", () => {
   it("lets an approved edit of a protected path run, and audits the approval with the reason", async () => {
     const h = harness();
     expect(await h.run("edit", { path: ".git/config", edits: [] })).toBeUndefined();
-    expect(h.audits[0]).toMatchObject({ decision: "approved", reason: "answer: once; protected path" });
+    expect(h.entries[0]).toMatchObject({ decision: "approved", reason: "answer: once; protected path" });
   });
 
   it("blocks a protected path without asking when the rules are not interactive", async () => {
@@ -123,7 +123,7 @@ describe("pap-policy protected paths", () => {
       block: true,
     });
     expect(h.asked).toEqual([]);
-    expect(h.audits).toEqual([
+    expect(h.entries).toMatchObject([
       { toolCallId: "c1", tool: "write", category: "edit", decision: "block", reason: "protected path" },
     ]);
   });
@@ -157,7 +157,7 @@ describe("pap-policy protected paths", () => {
     const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     await h.run("write", { path: join(bed.papHome, "state.db"), content: "x" });
     expect(secondLine(h.asked[0])).toBe(`→ ${join(bed.papHome, "state.db")} (protected path)`);
-    expect(h.audits).toEqual([
+    expect(h.entries).toMatchObject([
       { toolCallId: "c1", tool: "write", category: "edit", decision: "denied", reason: "protected path" },
     ]);
   });
@@ -171,9 +171,9 @@ describe("pap-policy protected paths", () => {
       `→ ${join(home, ".bashrc")} (session directory too broad for automatic edits)`,
       `→ ${join(home, "notes", "todo.md")} (session directory too broad for automatic edits)`,
     ]);
-    expect(h.audits.map((a) => a.reason)).toEqual([
-      "session directory too broad for automatic edits",
-      "session directory too broad for automatic edits",
+    expect(h.entries).toMatchObject([
+      { reason: "session directory too broad for automatic edits" },
+      { reason: "session directory too broad for automatic edits" },
     ]);
   });
 

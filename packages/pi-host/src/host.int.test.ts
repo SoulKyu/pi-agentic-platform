@@ -2,7 +2,15 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { join } from "node:path";
 import { ProjectTrustStore, VERSION } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { bashScript, createHostBed, isApproval, textOf, toolScript, toolText } from "./testing/host-bed.ts";
+import {
+  bashScript,
+  createHostBed,
+  isApproval,
+  isCallAudit,
+  textOf,
+  toolScript,
+  toolText,
+} from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -189,6 +197,26 @@ describe("pi-host worker: runs", () => {
 });
 
 describe("pi-host worker: policy", () => {
+  it("sends the session entry before ready, with the tools the model can call (M5R15)", async () => {
+    await bed.start({ steps: [{ text: "hi" }] });
+    const records = bed.host().records;
+    const first = records.findIndex((r) => r.type === "audit");
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(first).toBeLessThan(records.findIndex((r) => r.type === "ready"));
+    const entry = records[first]?.entry as { tools: string[] };
+    expect(entry).toMatchObject({
+      kind: "session",
+      stages: [
+        { stage: "00", outcome: "pass" },
+        { stage: "05", outcome: "skip", reason: "no sandbox profile for interactive sessions" },
+      ],
+      mode: "auto-accept-edits",
+      toolsTruncated: false,
+    });
+    expect(entry.tools).toContain("read");
+    expect(entry.tools).toContain("bash");
+  });
+
   it("asks before bash and runs it once approved", async () => {
     await bed.start(bashScript("echo pap-ok"));
     const host = bed.host();
@@ -199,16 +227,17 @@ describe("pi-host worker: policy", () => {
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(false);
     expect(toolText(end)).toContain("pap-ok");
-    expect(host.records.filter((r) => r.type === "audit")).toEqual([
+    expect(host.records.filter(isCallAudit)).toEqual([
       {
         type: "audit",
-        entry: {
+        entry: expect.objectContaining({
+          kind: "call",
           toolCallId: "call-1",
           tool: "bash",
           category: "exec",
           decision: "approved",
           reason: "answer: once",
-        },
+        }),
       },
     ]);
   });
@@ -222,7 +251,7 @@ describe("pi-host worker: policy", () => {
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(true);
     expect(toolText(end)).toContain("Denied by the user.");
-    expect(host.records.find((r) => r.type === "audit")).toMatchObject({ entry: { decision: "denied" } });
+    expect(host.records.find(isCallAudit)).toMatchObject({ entry: { decision: "denied" } });
   });
 
   it("writes inside the session directory without asking", async () => {
@@ -232,7 +261,7 @@ describe("pi-host worker: policy", () => {
     expect((await host.waitFor((r) => r.type === "tool_execution_end")).isError).toBe(false);
     expect(readFileSync(join(bed.cwd, "note.txt"), "utf8")).toBe("hello");
     expect(host.records.some(isApproval)).toBe(false);
-    expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+    expect(host.records.find(isCallAudit)).toMatchObject({
       entry: { category: "edit", decision: "allow" },
     });
   });
@@ -289,8 +318,8 @@ describe("pi-host worker: policy", () => {
     expect(String(report.error).startsWith("x")).toBe(true);
   });
 
-  it("keeps the profile and mode, drops the always rules and says so, when a policy update is invalid", async () => {
-    await bed.start(bashScript("echo still-asked"));
+  it("blocks every call after a malformed policy update, and says so (M5R11)", async () => {
+    await bed.start(bashScript("echo never-runs"));
     const host = bed.host();
     host.send({ type: "policy_update", rules: { bogus: true } });
     const report = await host.waitFor((r) => r.type === "extension_error");
@@ -298,10 +327,17 @@ describe("pi-host worker: policy", () => {
       type: "extension_error",
       extensionPath: "<inline:pap-policy>",
       event: "policy_update",
-      error: "invalid policy rules: always rules are suspended until the next valid update",
+      error: "invalid policy rules: every call is blocked until the next valid update",
     });
     await host.request({ type: "prompt", message: "go" });
-    await host.waitFor(isApproval);
+    const end = await host.waitFor((r) => r.type === "tool_execution_end");
+    expect(end.isError).toBe(true);
+    expect(toolText(end)).toContain("could not evaluate this call");
+    expect(toolText(end)).not.toContain("never-runs");
+    expect(host.records.some(isApproval)).toBe(false);
+    expect(host.records.find(isCallAudit)).toMatchObject({
+      entry: { decision: "block", reason: "no valid policy rules" },
+    });
   });
 
   it("accepts a valid policy update without a report", async () => {

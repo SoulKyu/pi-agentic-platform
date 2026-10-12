@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { chmodSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, type TestContext } from "vitest";
-import { createHostBed, isApproval, toolScript, toolText } from "./testing/host-bed.ts";
+import { createHostBed, isApproval, isCallAudit, toolScript, toolText } from "./testing/host-bed.ts";
 
 // grep and find are "read" tools: the policy lets them through without asking. A model-chosen pattern or path that
 // a search binary read as an option (`rg --pre`, `fd -x`) would run code with no approval at all. Each probe asks
@@ -45,7 +45,7 @@ async function probe(tool: string, args: Record<string, string>): Promise<string
   await host.request({ type: "prompt", message: "go" });
   await host.waitFor((r) => r.type === "agent_settled");
   expect(host.records.some(isApproval)).toBe(false);
-  expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+  expect(host.records.find(isCallAudit)).toMatchObject({
     entry: { tool, category: "read", decision: "allow" },
   });
   const end = host.records.find((r) => r.type === "tool_execution_end");

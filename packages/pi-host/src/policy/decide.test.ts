@@ -1,8 +1,10 @@
 import { PolicyRules } from "@pap/contracts";
 import { TOOL_CATEGORIES } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
-import { toolCategory } from "./categories.ts";
 import { decide, decideEdit } from "./decide.ts";
+import { classifyTool } from "./tool-kind.ts";
+
+const toolCategory = (tool: string) => classifyTool(tool, { path: `builtin:${tool}` }).category;
 
 const interactive = PolicyRules.parse({
   profile: "interactive",

@@ -1,18 +1,17 @@
 import { describe, expect, it } from "vitest";
-import {
-  AuditEntry,
-  DaemonToWorker,
-  InitRecord,
-  PolicyRules,
-  TOOL_CATEGORIES,
-  parseWorkerRecord,
-} from "./index.ts";
+import { DaemonToWorker, InitRecord, PolicyRules, TOOL_CATEGORIES, parseWorkerRecord } from "./index.ts";
 
 describe("worker records", () => {
   it("parses pap records strictly", () => {
     const ready = { type: "ready", sessionFile: "/s.jsonl", sessionId: "abc", piVersion: "1.1.0" };
     expect(parseWorkerRecord(ready)).toEqual({ ...ready, leafId: null, sessionName: null });
     expect(parseWorkerRecord({ type: "ready", sessionId: "abc" })).toBeNull();
+  });
+
+  it("passes an audit record through with its entry untouched: the daemon judges it (M5R113)", () => {
+    const entry = { kind: "call", tool: 7 };
+    expect(parseWorkerRecord({ type: "audit", entry })).toEqual({ type: "audit", entry });
+    expect(parseWorkerRecord({ type: "audit" })).toEqual({ type: "audit", entry: undefined });
   });
 
   it("keeps extra fields of extension_ui_request", () => {
@@ -51,7 +50,6 @@ describe("worker record routing", () => {
     "response",
     "extension_ui_request",
     "extension_ui_closed",
-    "audit",
     "health",
     "extension_error",
     "custom_render",
@@ -61,6 +59,10 @@ describe("worker record routing", () => {
 
   it.each(PAP_RECORD_TYPES)("never forwards a malformed %s as a Pi event", (type) => {
     expect(parseWorkerRecord({ type })).toBeNull();
+  });
+
+  it("never forwards an audit record without an entry as a Pi event (the daemon judges the entry, M5R113)", () => {
+    expect(parseWorkerRecord({ type: "audit" })).toEqual({ type: "audit" });
   });
 });
 
@@ -122,17 +124,6 @@ describe("InitRecord", () => {
 describe("tool categories", () => {
   it("includes unknown for tools with no known category", () => {
     expect(TOOL_CATEGORIES).toEqual(["read", "edit", "exec", "network", "external-write", "unknown"]);
-  });
-
-  it("accepts every category in an audit entry and rejects others", () => {
-    for (const category of TOOL_CATEGORIES) {
-      expect(AuditEntry.safeParse({ toolCallId: "t1", tool: "x", category, decision: "block" }).success).toBe(
-        true,
-      );
-    }
-    expect(
-      AuditEntry.safeParse({ toolCallId: "t1", tool: "x", category: "other", decision: "block" }).success,
-    ).toBe(false);
   });
 });
 

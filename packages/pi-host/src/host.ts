@@ -7,6 +7,8 @@ import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
+import { auditSinkOf } from "./policy/audit-sink.ts";
+import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 import { logLineOf } from "./bounded.ts";
@@ -108,9 +110,12 @@ export async function runHost(ipc: Ipc): Promise<void> {
   const initial = await init;
   const first = PolicyRules.safeParse(initial.policy);
   if (!first.success) throw new Error("the init record carries invalid policy rules: refusing to start");
-  let rules: PolicyRules = first.data;
-  // Moves on every policy update, a malformed one too (M2R16): provisional "always" grants end with it (M2R73).
+  // `null` after a malformed update: every call blocks (M5R11). Both are assigned in one synchronous step below,
+  // so the pipeline, which reads the version and the rules without awaiting between them, never sees one moved alone.
+  let rules: PolicyRules | null = first.data;
+  // Moves on every policy update, a malformed one too: provisional "always" grants end with it (M2R73).
   let rulesVersion = 0;
+  const entries = createSessionEntries((record) => ipc.send(record));
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
   const opened = await openSession(initial, {
@@ -118,7 +123,8 @@ export async function runHost(ipc: Ipc): Promise<void> {
     approvals,
     rules: () => rules,
     rulesVersion: () => rulesVersion,
-    audit: (entry) => ipc.send({ type: "audit", entry }),
+    audit: auditSinkOf((record) => ipc.send(record)),
+    onAgentStart: (names) => entries.agentStart(names, rules?.approvalMode ?? first.data.approvalMode),
     onEvent: (event) => {
       ipc.send(toWireEvent(event));
       tracker?.observe(event);
@@ -126,6 +132,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
     onExtensionError: (error) => ipc.send(toExtensionErrorRecord(error)),
   });
   session = opened;
+  entries.opened(opened.getActiveToolNames(), first.data.approvalMode);
   tracker = createEntryTracker({
     manager: opened.sessionManager,
     send: (record) => ipc.send(record),
@@ -138,7 +145,6 @@ export async function runHost(ipc: Ipc): Promise<void> {
     ipc,
     ui,
     approvals,
-    rules: () => rules,
     setRules: (next) => {
       rules = next;
       rulesVersion++;

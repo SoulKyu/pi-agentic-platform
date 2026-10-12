@@ -2,7 +2,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { grantKey, grantPayload } from "./policy/grant-key.ts";
-import { bashScript, createHostBed, isApproval, RULES, toolScript, toolText } from "./testing/host-bed.ts";
+import {
+  bashScript,
+  createHostBed,
+  isApproval,
+  isCallAudit,
+  RULES,
+  toolScript,
+  toolText,
+} from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -43,7 +51,7 @@ describe("pi-host worker: approval channel", () => {
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(true);
     expect(toolText(end)).toContain("could not evaluate this call");
-    expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+    expect(host.records.find(isCallAudit)).toMatchObject({
       entry: { decision: "denied", reason: "dialog closed" },
     });
   });
@@ -71,7 +79,7 @@ describe("pi-host worker: approval channel", () => {
       id: ask.id,
     });
     expect(await host.waitFor((r) => r.type === "agent_settled")).toMatchObject({ aborted: true });
-    expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+    expect(host.records.find(isCallAudit)).toMatchObject({
       entry: { decision: "denied", reason: "dialog closed" },
     });
   });
@@ -89,7 +97,7 @@ describe("pi-host worker: approval channel", () => {
     expect(await host.exited).toBe(0);
   });
 
-  it("ends a provisional always answer at every policy update, valid or malformed (M2R73, M2R16)", async () => {
+  it("ends a provisional always answer at every policy update, valid or malformed (M2R73, M5R11)", async () => {
     const call = { toolCalls: [{ name: "bash", args: { command: "echo granted" }, id: "c" }] };
     await bed.start({ steps: Array.from({ length: 5 }, (_, i) => [call, { text: String(i) }]).flat() });
     const host = bed.host();
@@ -110,13 +118,16 @@ describe("pi-host worker: approval channel", () => {
     // Held until the daemon's push: the identical call runs without a question.
     await runHeld("p2", 2);
     expect(asks()).toHaveLength(1);
+    // Malformed: the rules are null, the held answer is gone, and the call is blocked without a question.
     host.send({ type: "policy_update", rules: { profile: "nonsense" } });
-    await askAndAnswerAlways("p3", 2);
-    await runHeld("p4", 4);
-    expect(asks()).toHaveLength(2);
+    await runHeld("p3", 3);
+    expect(asks()).toHaveLength(1);
+    expect(host.records.filter(isCallAudit).at(-1)).toMatchObject({
+      entry: { decision: "block", reason: "no valid policy rules" },
+    });
     host.send({ type: "policy_update", rules: RULES });
-    host.send({ type: "prompt", id: "p5", message: "p5" });
-    await vi.waitFor(() => expect(asks()).toHaveLength(3), within);
+    host.send({ type: "prompt", id: "p4", message: "p4" });
+    await vi.waitFor(() => expect(asks()).toHaveLength(2), within);
   });
 
   it("takes a policy update that arrives before ready, and applies it before the first prompt", async () => {
@@ -129,7 +140,7 @@ describe("pi-host worker: approval channel", () => {
     host.send({ type: "prompt", id: "p1", message: "go" });
     await host.waitFor((r) => r.type === "tool_execution_end" && r.isError === false);
     expect(host.records.filter(isApproval)).toEqual([]);
-    expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+    expect(host.records.find(isCallAudit)).toMatchObject({
       entry: { decision: "allow", reason: "always rule" },
     });
   });

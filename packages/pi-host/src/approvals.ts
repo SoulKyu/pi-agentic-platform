@@ -14,7 +14,7 @@ export interface ApprovalAsk {
   readonly key: string;
   readonly answers: readonly ApprovalAnswer[];
   /** Untrusted content reached the session before this call (stage 07). */
-  readonly tainted?: boolean | undefined;
+  readonly tainted: boolean;
   /** The stage-04 rule that raised this question, if the guard did. */
   readonly guard?: GuardRule | undefined;
 }

@@ -4,10 +4,10 @@ import type {
   LoadExtensionsResult,
   ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
-import { AuditEntry, type PolicyRules } from "@pap/contracts";
+import { POLICY_EXTENSION_PATH, PolicyAuditEntry, type PolicyRules } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApprovals } from "../approvals.ts";
-import { createPolicyBed, interactiveRules as rules } from "../testing/policy-bed.ts";
+import { createPipelineBed, interactiveRules as rules } from "../testing/pipeline-bed.ts";
 import {
   createPapPolicyExtension,
   createPolicyGrants,
@@ -15,16 +15,15 @@ import {
   evaluateToolCall,
   FAIL_CLOSED_REASON,
   movePolicyLast,
-  POLICY_EXTENSION_PATH,
   TOO_LONG_REASON,
 } from "./extension.ts";
 
-let bed: Awaited<ReturnType<typeof createPolicyBed>>;
+let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 let cwd: string;
 const harness = (...args: Parameters<typeof bed.harness>) => bed.harness(...args);
 
 beforeEach(async () => {
-  bed = await createPolicyBed();
+  bed = await createPipelineBed();
   cwd = bed.cwd;
 });
 
@@ -39,14 +38,14 @@ describe("pap-policy approval stage", () => {
     expect(await h.run("write", { path: "src/a.ts", content: "x" })).toBeUndefined();
     expect(await h.run("edit", { path: join(cwd, "src", "b.ts"), edits: [] })).toBeUndefined();
     expect(h.asked).toEqual([]);
-    expect(h.audits.map((a) => a.decision)).toEqual(["allow", "allow", "allow"]);
+    expect(h.entries).toMatchObject([{ decision: "allow" }, { decision: "allow" }, { decision: "allow" }]);
   });
 
   it("asks before bash and lets it run when approved", async () => {
     const h = harness();
     expect(await h.run("bash", { command: "echo hi" })).toBeUndefined();
     expect(h.asked).toEqual(["Run a command?|7 characters, 1 line\nbash: echo hi"]);
-    expect(h.audits[0]).toEqual({
+    expect(h.entries[0]).toMatchObject({
       toolCallId: "c1",
       tool: "bash",
       category: "exec",
@@ -61,20 +60,20 @@ describe("pap-policy approval stage", () => {
     expect(h.asked).toEqual([
       'Allow this tool?|13 characters, 1 line\nmcp__github__create_issue: {"title":"t"}',
     ]);
-    expect(h.audits[0]).toMatchObject({ category: "unknown", decision: "approved" });
+    expect(h.entries[0]).toMatchObject({ category: "unknown", decision: "approved" });
   });
 
   it("blocks with the user's reason when denied", async () => {
     const h = harness({ ask: async () => ({ answer: "deny", closed: false }) });
     expect(await h.run("bash", { command: "rm -rf build" })).toEqual({ block: true, reason: DENIED_REASON });
-    expect(h.audits[0]?.decision).toBe("denied");
+    expect(h.entries[0]).toMatchObject({ decision: "denied" });
   });
 
   it("blocks every call, even reads, when the rules are missing (fail closed)", async () => {
     const h = harness({ rules: () => null });
     expect(await h.run("read", { path: "a.ts" })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
     expect(h.asked).toEqual([]);
-    expect(h.audits).toEqual([
+    expect(h.entries).toMatchObject([
       {
         toolCallId: "c1",
         tool: "read",
@@ -102,7 +101,7 @@ describe("pap-policy approval stage", () => {
       expect((await h.run(tool, { path: "a", command: "ls" }))?.block).toBe(true);
     }
     expect(h.asked).toEqual([]);
-    expect(h.audits.every((a) => a.decision === "block")).toBe(true);
+    expect(h.entries.every((e) => e.kind === "call" && e.decision === "block")).toBe(true);
   });
 
   it("blocks when the dialog throws, when no UI is bound, or when the audit line fails", async () => {
@@ -115,7 +114,7 @@ describe("pap-policy approval stage", () => {
       block: true,
       reason: FAIL_CLOSED_REASON,
     });
-    expect(throwing.audits).toEqual([
+    expect(throwing.entries).toMatchObject([
       { toolCallId: "c1", tool: "bash", category: "exec", decision: "block", reason: "evaluation error" },
     ]);
     expect((await harness({ hasUI: false }).run("bash", { command: "ls" }))?.block).toBe(true);
@@ -151,7 +150,7 @@ describe("pap-policy approval stage", () => {
       reason: "pap-policy blocked this exec call.",
     });
     expect(h.asked).toEqual([]);
-    expect(h.audits[0]).toMatchObject({ decision: "block", reason: "no UI to ask" });
+    expect(h.entries[0]).toMatchObject({ decision: "block", reason: "no UI to ask" });
   });
 
   it("shows the complete command, even a long one whose tail differs", async () => {
@@ -169,7 +168,7 @@ describe("pap-policy approval stage", () => {
     });
     expect(TOO_LONG_REASON).toBe("too long to review — split the work");
     expect(h.asked).toEqual([]);
-    expect(h.audits).toEqual([
+    expect(h.entries).toMatchObject([
       { toolCallId: "c1", tool: "bash", category: "exec", decision: "block", reason: "too long to review" },
     ]);
   });
@@ -197,24 +196,27 @@ describe("pap-policy hardening", () => {
     await vi.waitFor(() => expect(h.asked).toHaveLength(1));
     controller.abort();
     expect(await pending).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
-    expect(h.audits[0]).toMatchObject({ decision: "denied", reason: "dialog closed" });
+    expect(h.entries[0]).toMatchObject({ decision: "denied", reason: "dialog closed" });
   });
 
   it("closes the real approval when the run is aborted", async () => {
     const sent: Array<{ type: string; id: string }> = [];
     const approvals = createApprovals((record) => (sent.push(record), true), { newId: () => "q1" });
     const controller = new AbortController();
-    const audits: AuditEntry[] = [];
+    const audits: PolicyAuditEntry[] = [];
     const answer = evaluateToolCall(
       { toolCallId: "c1", toolName: "bash", input: { command: "ls" } },
       { hasUI: true, cwd, signal: controller.signal },
       {
         rules: () => rules,
+        rulesVersion: () => 0,
         grants: createPolicyGrants(() => 0),
         audit: (e) => audits.push(e),
         agentDir: bed.agentDir,
         papHome: bed.papHome,
-        isBuiltinTool: () => true,
+        toolFacts: (name) => ({ path: `builtin:${name}` }),
+        taint: { current: () => false },
+        redact: (text) => text,
         ask: (request, signal) => approvals.ask(request, signal),
       },
     );
@@ -228,46 +230,47 @@ describe("pap-policy hardening", () => {
   });
 
   it("does not trust the name of a tool that is not the built-in one", async () => {
-    const h = harness({ isBuiltinTool: () => false });
+    const h = harness({
+      tools: { read: { path: "/user/extensions/read.ts" }, write: { path: "/user/extensions/write.ts" } },
+    });
     expect(await h.run("read", { path: "a.ts" })).toBeUndefined();
     expect(h.asked).toEqual(['Allow this tool?|15 characters, 1 line\nread: {"path":"a.ts"}']);
     expect(await h.run("write", { path: "a.ts", content: "x" })).toBeUndefined();
     expect(h.asked).toHaveLength(2);
-    expect(h.audits.map((a) => [a.category, a.decision])).toEqual([
-      ["unknown", "approved"],
-      ["unknown", "approved"],
+    expect(h.entries).toMatchObject([
+      { category: "unknown", decision: "approved" },
+      { category: "unknown", decision: "approved" },
     ]);
   });
 
   it("shows every field of a shell-named tool that is not the built-in one", async () => {
-    const h = harness({ isBuiltinTool: () => false });
+    const h = harness({ tools: { bash: { path: "/user/extensions/bash.ts" } } });
     await h.run("bash", { command: "status", env: { TOKEN: "x" } });
     const json = '{"command":"status","env":{"TOKEN":"x"}}';
     expect(h.asked).toEqual([`Allow this tool?|${json.length} characters, 1 line\nbash: ${json}`]);
   });
 
   it("only takes the built-ins it was told about for their category", async () => {
-    const h = harness({ isBuiltinTool: (name) => name === "read" });
+    const h = harness({ tools: { bash: { path: "/user/extensions/bash.ts" } } });
     expect(await h.run("read", { path: "a.ts" })).toBeUndefined();
     expect(h.asked).toEqual([]);
     await h.run("bash", { command: "ls" });
-    expect(h.audits.map((a) => a.category)).toEqual(["read", "unknown"]);
+    expect(h.entries).toMatchObject([{ category: "read" }, { category: "unknown" }]);
   });
 
   it("keeps the audit line within the contract's 256 characters", async () => {
     const h = harness();
     await h.run("x".repeat(300), {}, "i".repeat(300));
-    expect(h.audits).toHaveLength(1);
-    expect(h.audits[0]?.tool).toBe("x".repeat(256));
-    expect(h.audits[0]?.toolCallId).toBe("i".repeat(256));
-    expect(AuditEntry.safeParse(h.audits[0]).success).toBe(true);
+    expect(h.entries).toHaveLength(1);
+    expect(h.entries[0]).toMatchObject({ tool: "x".repeat(256), toolCallId: "i".repeat(256) });
+    expect(PolicyAuditEntry.safeParse(h.entries[0]).success).toBe(true);
   });
 });
 
 describe("createPapPolicyExtension", () => {
   const tool = (name: string, path: string) => ({ name, sourceInfo: { path } });
   async function load(tools: Array<ReturnType<typeof tool>>) {
-    const audits: AuditEntry[] = [];
+    const audits: PolicyAuditEntry[] = [];
     const asked: string[] = [];
     const extension = createPapPolicyExtension({
       rules: () => rules,
@@ -299,10 +302,10 @@ describe("createPapPolicyExtension", () => {
     expect([extension.name, extension.hidden, [...handlers.keys()]]).toEqual([
       "pap-policy",
       true,
-      ["tool_call"],
+      ["tool_call", "agent_start"],
     ]);
     expect(await call("bash", { command: "ls" })).toEqual({ block: true, reason: DENIED_REASON });
-    expect(audits).toEqual([{ toolCallId: "c9", tool: "bash", category: "exec", decision: "denied" }]);
+    expect(audits).toMatchObject([{ toolCallId: "c9", tool: "bash", category: "exec", decision: "denied" }]);
   });
 
   it("auto-allows a built-in read but asks for an extension that re-registered the name", async () => {
@@ -332,7 +335,7 @@ describe("createPapPolicyExtension", () => {
   });
 
   it("blocks when the tool registry cannot be read", async () => {
-    const audits: AuditEntry[] = [];
+    const audits: PolicyAuditEntry[] = [];
     const extension = createPapPolicyExtension({
       rules: () => rules,
       rulesVersion: () => 0,
@@ -343,7 +346,7 @@ describe("createPapPolicyExtension", () => {
     });
     let handler: ((event: unknown, ctx: unknown) => Promise<ToolCallEventResult | undefined>) | undefined;
     await extension.factory({
-      on: (_name: string, h: never) => (handler = h),
+      on: (name: string, h: never) => void (name === "tool_call" && (handler = h)),
       getAllTools: () => {
         throw new Error("not initialised");
       },
