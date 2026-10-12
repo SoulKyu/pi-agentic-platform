@@ -57,7 +57,7 @@ describe("matchExpression (M4R47)", () => {
       "١٢٣",
       "\u{1F642} ok",
       "x'); DROP TABLE t; --",
-      "été",
+      "e\u0301té",
       "\u{10400}\u{10400}\u{10400}",
     ];
     for (const input of hostile) {
