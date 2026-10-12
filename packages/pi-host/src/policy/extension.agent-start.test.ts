@@ -1,11 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { interactiveRules, NO_SECRETS } from "../testing/pipeline-bed.ts";
+import { idleTaint, interactiveRules, NO_SECRETS } from "../testing/pipeline-bed.ts";
 import { createPapPolicyExtension, type PolicyConfig } from "./extension.ts";
 
 async function agentStartHandler(onAgentStart: PolicyConfig["onAgentStart"]) {
   const handlers = new Map<string, () => void>();
   const extension = createPapPolicyExtension({
+    taint: idleTaint(),
     rules: () => interactiveRules,
     rulesVersion: () => 0,
     audit: () => {},

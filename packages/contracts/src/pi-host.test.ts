@@ -66,6 +66,12 @@ describe("worker record routing", () => {
   });
 });
 
+describe("taint record", () => {
+  it("is a worker record of its own, never forwarded as a Pi event (M5R122)", () => {
+    expect(parseWorkerRecord({ type: "taint" })).toEqual({ type: "taint" });
+  });
+});
+
 describe("health record", () => {
   it("counts the processes the agent left running, 0 when an older worker does not say", () => {
     expect(parseWorkerRecord({ type: "health", rssMb: 80 })).toEqual({

@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { fauxAssistantMessage, fauxProvider, fauxText, fauxToolCall } from "@earendil-works/pi-ai";
 import { z } from "zod";
@@ -19,6 +20,8 @@ export const ProviderScript = z.object({
   steps: z.array(ScriptStep).min(1),
   /** Answer to Pi's compaction request: it is not a step, so a long session can compact without eating the script. */
   summary: z.string().min(1).optional(),
+  /** Test only: a file to which each reply appends the system messages of the request, one JSON line per call. */
+  captureSystemPrompt: z.string().min(1).optional(),
 });
 export type ProviderScript = z.infer<typeof ProviderScript>;
 
@@ -38,13 +41,21 @@ function stepMessage(step: ScriptStep) {
 
 const SUMMARIZATION_PROMPT = "You are a context summarization assistant";
 interface ModelCall {
-  readonly messages: ReadonlyArray<{ readonly content: unknown }>;
+  readonly messages: ReadonlyArray<{ readonly content: unknown; readonly role?: string }>;
+}
+
+// `TranscriptContext` carries the system prompt as leading `system` messages (pi-ai `types.d.ts`).
+function capture(script: ProviderScript, call: ModelCall): void {
+  if (script.captureSystemPrompt === undefined) return;
+  const system = call.messages.filter((message) => message.role === "system");
+  appendFileSync(script.captureSystemPrompt, `${JSON.stringify(system)}\n`);
 }
 
 /** One reply per call: the next step, or the script's summary when Pi asks for a compaction summary. */
 export function scriptedReplies(script: ProviderScript): (call: ModelCall) => ReturnType<typeof stepMessage> {
   let next = 0;
   return (call) => {
+    capture(script, call);
     const first = call.messages[0]?.content;
     if (script.summary !== undefined && typeof first === "string" && first.startsWith(SUMMARIZATION_PROMPT))
       return fauxAssistantMessage([fauxText(script.summary)], { stopReason: "stop" });
@@ -62,7 +73,12 @@ export function buildScriptedProvider(script: ProviderScript) {
     tokenSize: { min: 4, max: 4 },
   });
   if (script.summary === undefined) {
-    faux.setResponses(script.steps.map((step) => () => stepMessage(step)));
+    faux.setResponses(
+      script.steps.map((step) => (call: ModelCall) => {
+        capture(script, call);
+        return stepMessage(step);
+      }),
+    );
   } else {
     // Summaries take slots without taking steps, so the queue is longer than the script.
     const reply = scriptedReplies(script);

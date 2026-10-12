@@ -1,5 +1,6 @@
 // A local MCP server for tests: newline-delimited JSON-RPC 2.0 over stdio, no socket (M5R25).
 // argv[2] is JSON: { tools: [{ name, annotations?, reply }], resources?: [{ uri, name, text }] }.
+import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const config = JSON.parse(process.argv[2] ?? "{}");
@@ -25,6 +26,7 @@ const handlers = {
     })),
   }),
   "tools/call": (params) => {
+    if (config.callsOut) appendFileSync(config.callsOut, `${JSON.stringify(params ?? null)}\n`);
     const tool = tools.find((candidate) => candidate.name === params?.name);
     return tool ? text(tool.reply) : { ...text("unknown tool"), isError: true };
   },

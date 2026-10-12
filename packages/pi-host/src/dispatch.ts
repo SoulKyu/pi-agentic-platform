@@ -1,5 +1,5 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { type DaemonToWorker, POLICY_EXTENSION_PATH, PolicyRules } from "@pap/contracts";
+import { type DaemonToWorker, POLICY_EXTENSION_PATH, PolicyRules, type TaintState } from "@pap/contracts";
 import type { Approvals } from "./approvals.ts";
 import { logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";
@@ -25,6 +25,8 @@ export interface DispatchDeps {
   leafMayHaveMoved(): void;
   /** `null`: the update was malformed and every call is blocked until a valid one (M5R11). */
   setRules(rules: PolicyRules | null): void;
+  /** The taint of a valid update: a newer epoch replaces the state, the same epoch only raises it (M5R6). */
+  applyTaint(taint: TaintState): void;
 }
 
 /** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
@@ -83,6 +85,7 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         const update = PolicyRules.safeParse(record.rules);
         if (update.success) {
           deps.setRules(update.data);
+          deps.applyTaint(update.data.taint);
           return;
         }
         // Fail closed (M5R11): "the previous rules" could still hold a revoked rule or a looser mode.

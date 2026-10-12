@@ -18,7 +18,7 @@ import { openSession } from "./open-session.ts";
 import { CODEMODE_SOURCE, MCP_SOURCE, TOOL_SEARCH_SOURCE } from "./policy/tool-kind.ts";
 import { writeMcpFixture } from "./testing/mcp-fixture.ts";
 import { RULES } from "./testing/host-bed.ts";
-import { NO_SECRETS } from "./testing/pipeline-bed.ts";
+import { idleTaint, NO_SECRETS } from "./testing/pipeline-bed.ts";
 import { blockedAttempts } from "./testing/network-guard.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 
@@ -89,6 +89,7 @@ it("records the source path Pi gives MCP, codemode and tool_search tools (M5R24 
     approvals: createApprovals(() => true),
     rules: () => RULES,
     rulesVersion: () => 0,
+    taint: idleTaint(),
     audit: () => {},
     secrets: NO_SECRETS,
     onEvent: () => {},

@@ -1,3 +1,4 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -100,5 +101,27 @@ describe("scriptedReplies", () => {
   it("treats a summarization prompt as an ordinary call when the script has no summary", () => {
     const reply = scriptedReplies(ProviderScript.parse({ steps: [{ text: "one" }] }));
     expect(textOf(reply(ask(SUMMARIZE)))).toBe("one");
+  });
+
+  it("appends the system messages of each request to the capture file, when the script names one", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pap-capture-"));
+    try {
+      const file = join(dir, "system.jsonl");
+      const reply = scriptedReplies(
+        ProviderScript.parse({ captureSystemPrompt: file, steps: [{ text: "one" }, { text: "two" }] }),
+      );
+      reply({
+        messages: [
+          { role: "system", content: "base rule" },
+          { role: "user", content: "a" },
+        ],
+      });
+      reply({ messages: [{ role: "user", content: "b" }] });
+      expect(readFileSync(file, "utf8")).toBe(
+        `${JSON.stringify([{ role: "system", content: "base rule" }])}\n[]\n`,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

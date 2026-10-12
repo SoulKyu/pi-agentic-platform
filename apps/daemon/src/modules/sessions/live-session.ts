@@ -243,6 +243,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       case "audit":
         deps.record("policy", record.entry);
         return;
+      case "taint":
+        return;
       case "health":
         rss = record.rssMb;
         agentProcesses = record.descendants;

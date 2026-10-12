@@ -1,15 +1,18 @@
 import type { ToolResultEvent } from "@earendil-works/pi-coding-agent";
-import type { PolicyAuditEntry } from "@pap/contracts";
+import { NO_TAINT, type PolicyAuditEntry } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { restoreMarkers } from "./restore.ts";
 import { createRedactor } from "./redact.ts";
 import { onToolResult } from "./results.ts";
+import { createExternalRoots, createTaint } from "./taint.ts";
 import { classifyTool } from "./tool-kind.ts";
 
 const SECRET = "ghp_testsecret_0123456789";
 const redactor = createRedactor({ entries: [{ name: "GH", value: SECRET }] });
 const audits: PolicyAuditEntry[] = [];
 const deps = {
+  taint: createTaint(NO_TAINT, () => {}),
+  roots: createExternalRoots(),
   secrets: { current: () => redactor, refresh: () => {} },
   audit: (entry: PolicyAuditEntry) => void audits.push(entry),
   classify: (name: string) => classifyTool(name, { path: `builtin:${name}` }),

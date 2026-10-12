@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
-import { interactiveRules, NO_SECRETS } from "../testing/pipeline-bed.ts";
+import { idleTaint, interactiveRules, NO_SECRETS } from "../testing/pipeline-bed.ts";
 import { createPapPolicyExtension } from "./extension.ts";
 import { GUARD_MODEL_REASON } from "./run-guard.ts";
 
@@ -9,6 +9,7 @@ type Handler = (event: unknown, ctx: unknown) => unknown;
 async function load() {
   const handlers = new Map<string, Handler>();
   const extension = createPapPolicyExtension({
+    taint: idleTaint(),
     rules: () => ({ ...interactiveRules, guard: { identicalCalls: 100, toolCalls: 150, turns: 1 } }),
     rulesVersion: () => 0,
     audit: () => {},

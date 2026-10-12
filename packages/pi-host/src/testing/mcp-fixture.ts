@@ -14,8 +14,8 @@ const FIXTURE_PATH = fileURLToPath(new URL("./mcp-fixture.mjs", import.meta.url)
 const RESOURCES = [{ uri: "fixture://note", name: "note", text: "a note" }];
 
 /** The files of an agent directory that make Pi start the fixture as MCP server `fix` (tools are `mcp__fix__<name>`). */
-export function mcpFixtureFiles(tools: readonly McpFixtureTool[]): Record<string, string> {
-  const config = JSON.stringify({ tools, resources: RESOURCES });
+export function mcpFixtureFiles(tools: readonly McpFixtureTool[], callsOut?: string): Record<string, string> {
+  const config = JSON.stringify({ tools, resources: RESOURCES, ...(callsOut ? { callsOut } : {}) });
   return {
     "mcp.json": JSON.stringify({
       mcpServers: { fix: { command: process.execPath, args: [FIXTURE_PATH, config] } },
@@ -23,8 +23,12 @@ export function mcpFixtureFiles(tools: readonly McpFixtureTool[]): Record<string
   };
 }
 
-export function writeMcpFixture(agentDir: string, options: { tools: readonly McpFixtureTool[] }): void {
-  for (const [file, content] of Object.entries(mcpFixtureFiles(options.tools))) {
+/** `callsOut`: a file to which the fixture appends the params of each `tools/call`, one JSON line per call. */
+export function writeMcpFixture(
+  agentDir: string,
+  options: { tools: readonly McpFixtureTool[]; callsOut?: string },
+): void {
+  for (const [file, content] of Object.entries(mcpFixtureFiles(options.tools, options.callsOut))) {
     mkdirSync(dirname(join(agentDir, file)), { recursive: true });
     writeFileSync(join(agentDir, file), content);
   }

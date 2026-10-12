@@ -1,8 +1,9 @@
 import { mkdir, mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
+import { NO_TAINT, type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
+import { createTaint } from "../policy/taint.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
 import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
 import { NO_REDACTOR } from "../policy/redact.ts";
@@ -10,6 +11,9 @@ import { restoreStage, unrestoreInput } from "../policy/restore.ts";
 import type { SecretSource } from "../policy/secrets.ts";
 import { createRunGuard, guardStages } from "../policy/run-guard.ts";
 import type { ToolFacts } from "../policy/tool-kind.ts";
+
+/** A taint that starts clean and reports to nobody, for a test that is not about taint. */
+export const idleTaint = () => createTaint(NO_TAINT, () => {});
 
 /** A secret source that knows nothing, for a test that is not about secrets. */
 export const NO_SECRETS: SecretSource = { current: () => NO_REDACTOR, refresh: () => {} };

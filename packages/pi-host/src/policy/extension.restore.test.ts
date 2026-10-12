@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
+import { createPipelineBed, idleTaint, interactiveRules } from "../testing/pipeline-bed.ts";
 import { createPapPolicyExtension } from "./extension.ts";
 import { createRedactor } from "./redact.ts";
 
@@ -21,6 +21,7 @@ describe("the policy extension restores markers from the secret source", () => {
     });
     const handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<unknown>>();
     const extension = createPapPolicyExtension({
+      taint: idleTaint(),
       rules: () => interactiveRules,
       rulesVersion: () => 0,
       audit: () => {},

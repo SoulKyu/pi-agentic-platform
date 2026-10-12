@@ -15,6 +15,8 @@ import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import type { SecretSource } from "./policy/secrets.ts";
 import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./policy/extension.ts";
+import { UNTRUSTED_RULE } from "./policy/fence.ts";
+import type { Taint } from "./policy/taint.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
@@ -31,6 +33,8 @@ export interface OpenSessionDeps {
   rules(): PolicyRules | null;
   /** Moves on every policy update (the host bumps it), valid or not. */
   rulesVersion(): number;
+  /** The session's taint (stage 07). */
+  readonly taint: Taint;
   audit(entry: PolicyAuditEntry): void;
   /** The secrets the worker knows (stage 06). */
   readonly secrets: SecretSource;
@@ -91,6 +95,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   const policy = (deps.createPolicy ?? createPapPolicyExtension)({
     rules: deps.rules,
     rulesVersion: deps.rulesVersion,
+    taint: deps.taint,
     audit: deps.audit,
     secrets: deps.secrets,
     ...(deps.onAgentStart ? { onAgentStart: deps.onAgentStart } : {}),
@@ -108,6 +113,8 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
       // its extension sources.
       extensionFactories: [policy, ...(deps.extraExtensions ?? [])],
       extensionsOverride: movePolicyLast,
+      // Once, at session creation: Pi's session files do not store the system prompt (M5R42).
+      appendSystemPromptOverride: (base) => [...base, UNTRUSTED_RULE],
     },
     resourceLoaderReloadOptions: {
       resolveProjectTrust: projectTrustResolver(agentDir, cwd, deps.onExtensionError),

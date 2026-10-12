@@ -12,6 +12,7 @@ import { restoreStage, unrestoreInput } from "./restore.ts";
 import { onToolResult } from "./results.ts";
 import { createRunGuard, guardStages } from "./run-guard.ts";
 import type { SecretSource } from "./secrets.ts";
+import { createExternalRoots, type Taint } from "./taint.ts";
 import { classifyTool, type ToolFacts } from "./tool-kind.ts";
 
 export { createPolicyGrants, MAX_SESSION_GRANTS } from "./grants.ts";
@@ -30,8 +31,8 @@ export interface PolicyConfig {
   ask(request: ApprovalAsk, signal?: AbortSignal): Promise<ApprovalOutcome>;
   /** Moves on every policy update, valid or not: a provisional "always" grant ends with it. */
   rulesVersion(): number;
-  /** Task 9 makes this required. */
-  taint?: PipelineDeps["taint"];
+  /** The session's taint: stage 07 raises it, the pipeline reads it. */
+  taint: Taint;
   /** The secrets the worker knows (stage 06). */
   secrets: SecretSource;
   /** Redacts audit arguments; by default what `secrets` knows. */
@@ -67,7 +68,7 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
         ...config,
         grants: createPolicyGrants(config.rulesVersion),
         toolFacts,
-        taint: config.taint ?? { current: () => false },
+        taint: config.taint,
         redact: config.redact ?? ((text) => secrets.current().text(text).text),
         redactReason: (text) => secrets.current().textFolded(text).text,
         stages: {
@@ -76,15 +77,19 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
           unrestore: unrestoreInput,
         },
       };
+      const roots = createExternalRoots();
       pi.on("tool_result", (event) =>
         onToolResult(event, {
           secrets,
+          taint: config.taint,
+          roots,
           audit: config.audit,
           classify: (name) => classifyTool(name, toolFacts(name)),
         }),
       );
       pi.on("tool_call", (event, ctx) => evaluateToolCall(event, ctx, deps));
       pi.on("agent_start", () => {
+        roots.clear();
         try {
           guard.onRunStart();
         } catch (error) {

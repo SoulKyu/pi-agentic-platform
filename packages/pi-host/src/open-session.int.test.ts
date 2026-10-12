@@ -15,7 +15,7 @@ import { type ApprovalOutbound, createApprovals } from "./approvals.ts";
 import { type ExtensionErrorReport, openSession, type OpenSessionDeps } from "./open-session.ts";
 import { POLICY_EXTENSION_NAME } from "./policy/extension.ts";
 import { RULES } from "./testing/host-bed.ts";
-import { NO_SECRETS } from "./testing/pipeline-bed.ts";
+import { idleTaint, NO_SECRETS } from "./testing/pipeline-bed.ts";
 import { blockedAttempts } from "./testing/network-guard.ts";
 import { createUiBridge, type UiOutbound } from "./ui-bridge.ts";
 
@@ -73,6 +73,7 @@ async function open(overrides: Partial<OpenSessionDeps> = {}) {
     approvals,
     rules: () => RULES,
     rulesVersion: () => 0,
+    taint: idleTaint(),
     audit: (entry) => audits.push(entry),
     secrets: NO_SECRETS,
     onEvent: () => {},

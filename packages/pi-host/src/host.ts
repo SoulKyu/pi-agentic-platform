@@ -10,6 +10,7 @@ import { openSession } from "./open-session.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
 import { redactingAuditSink } from "./policy/results.ts";
 import { NO_REDACTOR } from "./policy/redact.ts";
+import { createTaint } from "./policy/taint.ts";
 import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
 import { createRedactingIpc } from "./redacting-ipc.ts";
 import { redactStdio, type Writable } from "./redact-stdio.ts";
@@ -130,6 +131,11 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   let rules: PolicyRules | null = first.data;
   // Moves on every policy update, a malformed one too: provisional "always" grants end with it (M2R73).
   let rulesVersion = 0;
+  const reportTaint = () => {
+    if (!ipc.send({ type: "taint" }))
+      process.stderr.write("pi-host: taint record not sent; the next agent_end repeats it\n");
+  };
+  const taint = createTaint(first.data.taint, reportTaint);
   const entries = createSessionEntries((record) => ipc.send(record));
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
@@ -144,11 +150,13 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     approvals,
     rules: () => rules,
     rulesVersion: () => rulesVersion,
+    taint,
     audit: redactingAuditSink(sendAudit, source),
     onAgentStart: (names) => entries.agentStart(names, rules?.approvalMode ?? first.data.approvalMode),
     onEvent: (event) => {
       ipc.send(toWireEvent(event));
       tracker?.observe(event);
+      if (event.type === "agent_end" && taint.current()) reportTaint();
     },
     onExtensionError: (error) => ipc.send(toExtensionErrorRecord(error)),
   });
@@ -170,6 +178,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
       rules = next;
       rulesVersion++;
     },
+    applyTaint: (update) => taint.apply(update),
   });
   ipc.send({
     type: "ready",

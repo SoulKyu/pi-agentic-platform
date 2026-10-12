@@ -7,7 +7,7 @@ import type {
 import { POLICY_EXTENSION_PATH, PolicyAuditEntry, type PolicyRules } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApprovals } from "../approvals.ts";
-import { createPipelineBed, interactiveRules as rules } from "../testing/pipeline-bed.ts";
+import { createPipelineBed, idleTaint, interactiveRules as rules } from "../testing/pipeline-bed.ts";
 import {
   createPapPolicyExtension,
   createPolicyGrants,
@@ -274,6 +274,7 @@ describe("createPapPolicyExtension", () => {
     const audits: PolicyAuditEntry[] = [];
     const asked: string[] = [];
     const extension = createPapPolicyExtension({
+      taint: idleTaint(),
       rules: () => rules,
       rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
@@ -337,6 +338,7 @@ describe("createPapPolicyExtension", () => {
   it("blocks when the tool registry cannot be read", async () => {
     const audits: PolicyAuditEntry[] = [];
     const extension = createPapPolicyExtension({
+      taint: idleTaint(),
       rules: () => rules,
       rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),

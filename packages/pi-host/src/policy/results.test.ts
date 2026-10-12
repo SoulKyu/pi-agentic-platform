@@ -1,5 +1,5 @@
 import type { ToolResultEvent } from "@earendil-works/pi-coding-agent";
-import type { PolicyAuditEntry } from "@pap/contracts";
+import { NO_TAINT, type PolicyAuditEntry } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { auditSinkOf } from "./audit-sink.ts";
 import { createRedactor, type Redactor } from "./redact.ts";
@@ -11,6 +11,7 @@ import {
   WITHHELD_TEXT,
 } from "./results.ts";
 import { collectSecrets, type SecretSource } from "./secrets.ts";
+import { createExternalRoots, createTaint } from "./taint.ts";
 import { classifyTool } from "./tool-kind.ts";
 
 const set = { entries: [{ name: "GH", value: "ghp_abcdefgh" }] };
@@ -30,6 +31,8 @@ function deps(options: {
     secrets: secrets ?? (redactor ? sourceWith(redactor) : sourceOf(set)),
     audit: audit ?? ((entry) => void audits?.push(entry)),
     classify: (name) => classifyTool(name, { path: `builtin:${name}` }),
+    taint: createTaint(NO_TAINT, () => {}),
+    roots: createExternalRoots(),
   };
 }
 function resultEvent(text: string, extra: Record<string, unknown> = {}): ToolResultEvent {
@@ -77,7 +80,7 @@ describe("tool_result hook", () => {
         external: false,
         stages: [
           { stage: "06", outcome: "acted", reason: "3 secrets redacted" },
-          { stage: "07", outcome: "skip", reason: "not in force" },
+          { stage: "07", outcome: "pass" },
         ],
       },
     ]);

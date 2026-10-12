@@ -3,6 +3,7 @@ import { POLICY_EXTENSION_PATH, PolicyRules } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import type { Approvals } from "./approvals.ts";
 import { createDispatch } from "./dispatch.ts";
+import { createTaint } from "./policy/taint.ts";
 import type { Ipc } from "./ipc.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
@@ -17,6 +18,7 @@ describe("dispatch", () => {
     const sent: Array<Record<string, unknown>> = [];
     let rules: PolicyRules | null = withAlways;
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session: {} as AgentSession,
       ipc: { send: (record: Record<string, unknown>) => void sent.push(record) } as unknown as Ipc,
       ui: {} as UiBridge,
@@ -48,6 +50,7 @@ describe("dispatch", () => {
       sessionManager: { getLeafId: () => "e7" },
     } as unknown as AgentSession;
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session,
       ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
       ui: {} as UiBridge,
@@ -71,6 +74,7 @@ describe("dispatch", () => {
         model: undefined,
       } as unknown as AgentSession;
       const dispatch = createDispatch({
+        applyTaint: () => {},
         session,
         ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
         ui: {} as UiBridge,
@@ -91,6 +95,7 @@ describe("dispatch", () => {
       },
     } as unknown as AgentSession;
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session,
       ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
       ui: {} as UiBridge,
@@ -107,6 +112,7 @@ describe("dispatch", () => {
     const resolved: unknown[] = [];
     const sent: unknown[] = [];
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session: {} as AgentSession,
       ipc: { send: (record: unknown) => void sent.push(record) } as unknown as Ipc,
       ui: {} as UiBridge,
@@ -121,5 +127,46 @@ describe("dispatch", () => {
       { type: "approval_response", id: "a2", answer: "deny", cancelled: true },
     ]);
     expect(sent).toEqual([]);
+  });
+
+  describe("the taint of a policy update (M5R6, M5R41)", () => {
+    const update = (taint: { tainted: boolean; epoch: number }) =>
+      ({ type: "policy_update", rules: { ...withAlways, taint } }) as const;
+    function bed() {
+      const taint = createTaint({ tainted: false, epoch: 0 }, () => {});
+      const sent: unknown[] = [];
+      const dispatch = createDispatch({
+        applyTaint: (next) => taint.apply(next),
+        session: {} as AgentSession,
+        ipc: { send: (record: unknown) => void sent.push(record) } as unknown as Ipc,
+        ui: {} as UiBridge,
+        approvals: {} as Approvals,
+        leafMayHaveMoved: () => {},
+        setRules: () => {},
+      });
+      return { taint, dispatch, sent };
+    }
+
+    it("lowers a raised taint only with a newer epoch", () => {
+      const { taint, dispatch } = bed();
+      taint.apply({ tainted: true, epoch: 1 });
+      dispatch(update({ tainted: false, epoch: 1 }));
+      expect(taint.state()).toEqual({ tainted: true, epoch: 1 });
+      dispatch(update({ tainted: false, epoch: 0 }));
+      expect(taint.state()).toEqual({ tainted: true, epoch: 1 });
+      dispatch(update({ tainted: false, epoch: 2 }));
+      expect(taint.state()).toEqual({ tainted: false, epoch: 2 });
+    });
+
+    it("leaves the taint as it was when the update is malformed", () => {
+      const { taint, dispatch, sent } = bed();
+      taint.raise();
+      dispatch({
+        type: "policy_update",
+        rules: { profile: "interactive", taint: { tainted: false, epoch: 9 } },
+      });
+      expect(taint.state()).toEqual({ tainted: true, epoch: 0 });
+      expect(sent).toHaveLength(1);
+    });
   });
 });

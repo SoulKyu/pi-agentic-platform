@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { PolicyAuditEntry } from "@pap/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
+import { createPipelineBed, idleTaint, interactiveRules } from "../testing/pipeline-bed.ts";
 import { createPapPolicyExtension } from "./extension.ts";
 import { createRedactor } from "./redact.ts";
 
@@ -18,6 +18,7 @@ describe("the policy extension redacts reasons whatever their case", () => {
     const audits: PolicyAuditEntry[] = [];
     const handlers = new Map<string, (event: unknown, ctx: unknown) => Promise<unknown>>();
     const extension = createPapPolicyExtension({
+      taint: idleTaint(),
       rules: () => ({ ...interactiveRules, allowHosts: ["allowed.example"] }),
       rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
