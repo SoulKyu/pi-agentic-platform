@@ -9,7 +9,9 @@ import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
 import { redactingAuditSink } from "./policy/results.ts";
-import { createSecretSource } from "./policy/secrets.ts";
+import { NO_REDACTOR } from "./policy/redact.ts";
+import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
+import { createRedactingIpc } from "./redacting-ipc.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
@@ -34,7 +36,11 @@ function exit(session: AgentSession | null, code: number): never {
   }
 }
 
-export async function runHost(ipc: Ipc): Promise<void> {
+export async function runHost(rawIpc: Ipc): Promise<void> {
+  // Until the session knows its secrets nothing is redacted; the first records are small ones the worker made itself.
+  let secrets: SecretSource | null = null;
+  // Every sender below uses `ipc`: each record leaves through the redaction (M5R36). Receiving stays on the raw channel.
+  const ipc = createRedactingIpc(rawIpc, () => secrets?.current() ?? NO_REDACTOR);
   // A marker for this worker alone, before Pi starts: the shells its tools run inherit the environment, so a process the
   // agent leaves running keeps it after Linux has given it to pid 1, and the count can find it without a scope (M2R107).
   process.env[TOKEN_VAR] = randomBytes(16).toString("hex");
@@ -71,7 +77,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
   };
   // One listener from the first record on, so nothing sent while the session opens is lost: records after
   // `init` wait here until the session is ready, then run in order.
-  ipc.onMessage(
+  rawIpc.onMessage(
     (record) => {
       if (record.type === "init") receiveInit(record);
       else if (record.type === "shutdown") shutdown(record.graceMs);
@@ -107,7 +113,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
       }
     },
   );
-  ipc.onDisconnect(() => exit(session, 0));
+  rawIpc.onDisconnect(() => exit(session, 0));
 
   const initial = await init;
   const first = PolicyRules.safeParse(initial.policy);
@@ -120,15 +126,16 @@ export async function runHost(ipc: Ipc): Promise<void> {
   const entries = createSessionEntries((record) => ipc.send(record));
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
-  const secrets = createSecretSource({ env: process.env, agentDir: initial.agentDir });
+  const source = createSecretSource({ env: process.env, agentDir: initial.agentDir });
+  secrets = source;
   const sendAudit = auditSinkOf((record) => ipc.send(record));
   const opened = await openSession(initial, {
-    secrets,
+    secrets: source,
     ui,
     approvals,
     rules: () => rules,
     rulesVersion: () => rulesVersion,
-    audit: redactingAuditSink(sendAudit, secrets),
+    audit: redactingAuditSink(sendAudit, source),
     onAgentStart: (names) => entries.agentStart(names, rules?.approvalMode ?? first.data.approvalMode),
     onEvent: (event) => {
       ipc.send(toWireEvent(event));

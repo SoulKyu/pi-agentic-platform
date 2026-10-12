@@ -7,6 +7,7 @@ import { POLICY_EXTENSION_PATH, type PolicyAuditEntry, type PolicyRules } from "
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants } from "./grants.ts";
 import { errorClass, evaluateToolCall, type PipelineDeps } from "./pipeline.ts";
+import { restoreStage, unrestoreInput } from "./restore.ts";
 import { onToolResult } from "./results.ts";
 import { createRunGuard, guardStages } from "./run-guard.ts";
 import { NO_REDACTOR } from "./redact.ts";
@@ -70,7 +71,11 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
         toolFacts,
         taint: config.taint ?? { current: () => false },
         redact: config.redact ?? ((text) => secrets.current().text(text).text),
-        stages: guardStages(guard),
+        stages: {
+          ...guardStages(guard),
+          restore: restoreStage(() => secrets.current().values()),
+          unrestore: unrestoreInput,
+        },
       };
       pi.on("tool_result", (event) =>
         onToolResult(event, {

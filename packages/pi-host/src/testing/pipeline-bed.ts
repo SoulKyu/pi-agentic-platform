@@ -5,6 +5,7 @@ import { type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
 import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
+import { restoreStage, unrestoreInput } from "../policy/restore.ts";
 import { createRunGuard, guardStages } from "../policy/run-guard.ts";
 import type { ToolFacts } from "../policy/tool-kind.ts";
 
@@ -39,6 +40,8 @@ export interface PipelineHarnessOptions {
   taint?: boolean | { current(): boolean };
   stages?: Partial<Stages>;
   redact?: (text: string) => string;
+  /** Secret values by name: wires the restore stage (stage 06, M5R119). */
+  secretValues?: Readonly<Record<string, string>>;
 }
 
 /** Temporary directories for a pipeline test: `cwd` is the session directory, `outside`, `agentDir` and `papHome` are not. */
@@ -78,7 +81,16 @@ export async function createPipelineBed() {
             asks.push(request);
             return options.ask?.(request, signal) ?? scripted.shift() ?? { answer: "once", closed: false };
           },
-          stages: { ...guardStages(guard), ...options.stages },
+          stages: {
+            ...guardStages(guard),
+            ...(options.secretValues
+              ? {
+                  restore: restoreStage(() => new Map(Object.entries(options.secretValues ?? {}))),
+                  unrestore: unrestoreInput,
+                }
+              : {}),
+            ...options.stages,
+          },
         },
       );
     return {

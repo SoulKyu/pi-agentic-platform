@@ -17,6 +17,7 @@ import { egressStage } from "./egress.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import type { PolicyGrants } from "./grants.ts";
 import { GUARD_MODEL_REASON, guardTitle } from "./run-guard.ts";
+import { withRestored } from "./restore.ts";
 import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
@@ -93,6 +94,8 @@ export interface Stages {
   commit(call: CallFacts, decision: CallDecision, guardReleased: GuardRule | null): void;
   /** For a call that runs: puts secret values back where the model wrote markers (Task 8b); returns how many. */
   restore(call: CallFacts): number;
+  /** Puts back what `restore` wrote, when the call is blocked after all (the audit or the commit failed). */
+  unrestore(call: CallFacts): void;
 }
 
 export interface PipelineDeps {
@@ -115,6 +118,7 @@ const PASS_THROUGH: Omit<Stages, "approval"> = {
   guard: () => ({ outcome: "pass" }),
   commit: () => {},
   restore: () => 0,
+  unrestore: () => {},
 };
 
 interface Evaluation {
@@ -228,24 +232,17 @@ function settle(
       result = { block: true, reason: refusal.modelReason };
     }
   }
-  if (call && result === undefined) {
-    const restored = stages.restore(call);
-    if (restored > 0)
-      entry = {
-        ...entry,
-        stages: [
-          ...entry.stages,
-          {
-            stage: "06",
-            outcome: "acted",
-            reason: `${restored} secret marker${restored === 1 ? "" : "s"} restored`,
-          },
-        ],
-      };
+  const runs = call !== null && result === undefined;
+  // Restoring is the last step that can change the input; the line and the commit may throw, and then it is undone.
+  if (runs) entry = withRestored(entry, stages.restore(call));
+  try {
+    // The line first: a sink that throws blocks the call, and a blocked call the guard never counted stays uncounted.
+    deps.audit(entry);
+    if (call) stages.commit(call, entry.decision, result === undefined ? evaluation.guardReleased : null);
+  } catch (error) {
+    if (runs) stages.unrestore(call);
+    throw error;
   }
-  // The line first: a sink that throws blocks the call, and a blocked call the guard never counted stays uncounted.
-  deps.audit(entry);
-  if (call) stages.commit(call, entry.decision, result === undefined ? evaluation.guardReleased : null);
   return result;
 }
 

@@ -5,6 +5,15 @@ import type { ForkedHost } from "./testing/fork-host.ts";
 import { bashScript, createHostBed, isApproval, isCallAudit, RULES } from "./testing/host-bed.ts";
 
 const SECRET = "ghp_testsecret_0123456789";
+const LEAKY_EXTENSION = `export default function (pi) {
+  pi.on("agent_start", async (_event, ctx) => {
+    ctx.ui.notify(process.env.GITHUB_TOKEN, "info");
+  });
+  pi.on("agent_end", async () => {
+    throw new Error(process.env.GITHUB_TOKEN);
+  });
+}
+`;
 const within = { timeout: 20_000 };
 
 let bed: ReturnType<typeof createHostBed>;
@@ -110,5 +119,45 @@ describe("pi-host worker: secret redaction", () => {
     const text = JSON.stringify(call);
     expect(text).toContain("[SECRET:EVIL_TOKEN]");
     expect(text.toLowerCase()).not.toContain(host_.toLowerCase());
+  });
+
+  it("no record leaving the worker holds a known secret value, an extension's notice and error included (M5R36)", async () => {
+    await bed.start(bashScript('echo "$GITHUB_TOKEN"; printenv GITHUB_TOKEN'), {
+      env: { GITHUB_TOKEN: SECRET },
+      agentFiles: { "extensions/leaky.js": LEAKY_EXTENSION },
+    });
+    const host = bed.host();
+    await run(host);
+    await vi.waitFor(() => expect(host.records.map((r) => r.type)).toContain("extension_error"), within);
+    const types = host.records.map((record) => record.type);
+    expect(types).toEqual(
+      expect.arrayContaining(["extension_ui_request", "extension_error", "tool_execution_update"]),
+    );
+    expect(JSON.stringify(host.records)).not.toContain(SECRET);
+    expect(JSON.stringify(host.records)).toContain("[SECRET:GITHUB_TOKEN]");
+  });
+
+  it("a file read then written back is unchanged: the marker the model saw goes back to the value (M5R119)", async () => {
+    const value = "s3cr3t-Value-1";
+    writeFileSync(join(bed.cwd, "cfg.txt"), `db_token=${value}\n`);
+    const script = {
+      steps: [
+        { toolCalls: [{ name: "read", args: { path: "cfg.txt" }, id: "r" }] },
+        {
+          toolCalls: [
+            { name: "write", args: { path: "cfg.txt", content: "db_token=[SECRET:DB_TOKEN]\n" }, id: "w" },
+          ],
+        },
+        { text: "done" },
+      ],
+    };
+    const ready = await bed.start(script, { env: { DB_TOKEN: value } });
+    const host = bed.host();
+    host.send({ type: "prompt", id: "p1", message: "rewrite it" });
+    await host.waitFor((r) => r.type === "agent_settled");
+    expect(readFileSync(join(bed.cwd, "cfg.txt"), "utf8")).toBe(`db_token=${value}\n`);
+    expect(readFileSync(String(ready.sessionFile), "utf8")).not.toContain(value);
+    expect(JSON.stringify(host.records)).not.toContain(value);
+    expect(host.records.find(isCallAudit)).toBeDefined();
   });
 });
