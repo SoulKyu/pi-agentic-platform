@@ -6,6 +6,7 @@ import { getRuntime } from "../../runtime/index.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
+import { SessionRules } from "./AlwaysRules.tsx";
 import { Composer } from "./Composer.tsx";
 import { SessionActions } from "./SessionActions.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
@@ -85,6 +86,7 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
         track={structural.track}
         blocked={structural.active}
       />
+      <SessionRules key={`rules:${sessionId}`} sessionId={sessionId} />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
       <Transcript
         key={`transcript:${sessionId}`}

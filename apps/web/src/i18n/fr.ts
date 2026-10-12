@@ -148,5 +148,13 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "actions.label": "Actions de la session",
   "row.fork": "Bifurquer ici",
   "row.edit": "Modifier à partir d'ici",
+  "branch.previous": "Branche précédente",
+  "branch.next": "Branche suivante",
+  "branch.position": "{index} sur {total}",
+  "rules.title": "Toujours autorisé dans ce projet",
+  "rules.revoke": "Révoquer",
+  "rules.empty": "Rien n'est toujours autorisé ici.",
+  "rules.more": "Il existe plus de règles que celles affichées.",
+  "rules.loading": "Chargement…",
   // ── end sessions (M2) ──
 };

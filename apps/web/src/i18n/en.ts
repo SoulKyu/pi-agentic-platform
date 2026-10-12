@@ -145,5 +145,13 @@ export const en = {
   "actions.label": "Session actions",
   "row.fork": "Fork from here",
   "row.edit": "Edit from here",
+  "branch.previous": "Previous branch",
+  "branch.next": "Next branch",
+  "branch.position": "{index}/{total}",
+  "rules.title": "Always allowed in this project",
+  "rules.revoke": "Revoke",
+  "rules.empty": "Nothing is always allowed here.",
+  "rules.more": "More rules exist than the ones shown.",
+  "rules.loading": "Loading…",
   // ── end sessions (M2) ──
 } as const;

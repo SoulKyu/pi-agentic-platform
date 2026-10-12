@@ -9,6 +9,7 @@ import { MessageRow, SummaryRow } from "./MessageRow.tsx";
 import { ToolRow } from "./ToolRow.tsx";
 import { transcriptItems } from "./transcript.vm.ts";
 import type { Track } from "./use-action.ts";
+import { useBranches } from "./use-branches.ts";
 import { useStickToBottom } from "./use-stick-to-bottom.ts";
 
 interface TranscriptProps {
@@ -69,6 +70,7 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
     `${items.length}:${last && "text" in last ? last.text.length : 0}:${view.history.oldestEntryId}`,
   );
   const older = useOlderHistory(sessionId, view, preserveOnPrepend);
+  const branches = useBranches(sessionId, view);
   const canLoad = view.history.hasMore && view.history.oldestEntryId !== null;
   const sentinel = useRef<HTMLLIElement | null>(null);
   const loadRef = useRef(older.load);
@@ -137,6 +139,7 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
                     sessionId,
                     track: rowActions.track,
                     onEdit: rowActions.onEdit,
+                    branches: branches.points,
                     blocked: rowActions.busy || view.status === "running" || view.activity.compacting,
                   }
                 }
@@ -145,6 +148,11 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
           </li>
         ))}
       </ol>
+      {branches.error ? (
+        <p role="alert" className="text-ui text-attention">
+          {branches.error}
+        </p>
+      ) : null}
       {activity ? (
         <p role="status" className="text-ui text-muted">
           {activity}

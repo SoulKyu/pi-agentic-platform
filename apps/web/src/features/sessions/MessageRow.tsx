@@ -1,9 +1,12 @@
+import type { ForkPoint } from "@pap/contracts";
 import { Button, Message } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { t } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { deviceStorage, saveDraft } from "../../stores/drafts.ts";
+import { BranchSwitcher } from "./BranchSwitcher.tsx";
+import { branchChoicesFor } from "./branches.vm.ts";
 import { useAction, type Track } from "./use-action.ts";
 import type { MessageItem, PartialItem, SummaryItem } from "./transcript.vm.ts";
 
@@ -26,6 +29,8 @@ export interface RowActions {
   readonly track: Track;
   /** The text "Edit from here" puts in the composer. */
   readonly onEdit: (text: string) => void;
+  /** The session's fork points, for the branch switcher of a user row. */
+  readonly branches?: readonly ForkPoint[];
 }
 
 function RowButtons({ entryId, actions }: { entryId: string; actions: RowActions }) {
@@ -35,10 +40,27 @@ function RowButtons({ entryId, actions }: { entryId: string; actions: RowActions
   const fork = useAction(actions.track, setError);
   const edit = useAction(actions.track, setError);
   const { sessionId } = actions;
-  const wait = actions.blocked || fork.busy || edit.busy;
+  const switchBranch = useAction(actions.track, setError);
+  const wait = actions.blocked || fork.busy || edit.busy || switchBranch.busy;
+  const choices = branchChoicesFor(actions.branches ?? [], entryId);
   return (
     <div className="mt-1 flex flex-col items-end gap-1">
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
+        {choices ? (
+          <BranchSwitcher
+            choices={choices}
+            disabled={wait}
+            onGo={(targetId) =>
+              void switchBranch.run(() =>
+                runtime.rpc.call(
+                  "sessions.navigate",
+                  { sessionId, targetId },
+                  { commandId: runtime.rpc.newCommandId() },
+                ),
+              )
+            }
+          />
+        ) : null}
         <Button
           disabled={wait}
           onClick={() =>
