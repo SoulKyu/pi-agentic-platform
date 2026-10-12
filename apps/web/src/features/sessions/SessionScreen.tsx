@@ -1,5 +1,5 @@
 import type { DialogResponse } from "@pap/contracts";
-import { ApprovalCard, Button, cn, FOCUS_RING, Message, TextField } from "@pap/ui";
+import { ApprovalCard, Button, cn, FOCUS_RING, Message } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.ts";
@@ -8,14 +8,14 @@ import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { approvalDetail } from "./approval-detail.ts";
-import { codeText, failureText, outcomeUnknown } from "./failure.ts";
+import { Composer } from "./Composer.tsx";
+import { codeText, failureText } from "./failure.ts";
 import { transcriptItems } from "./transcript.vm.ts";
 import { useStickToBottom } from "./use-stick-to-bottom.ts";
 
 export function SessionScreen({ sessionId }: { sessionId: string }) {
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
-  const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
   // Counts the answers to a dialog that could not be delivered: it keys the card, see `answer`.
   const [refused, setRefused] = useState<Readonly<Record<string, number>>>({});
@@ -29,22 +29,6 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
   );
 
   const fail = (failure: unknown) => setError(failureText(failure));
-  const send = () => {
-    const message = text.trim();
-    if (!message) return;
-    setText("");
-    setError(null);
-    runtime.rpc
-      .call("sessions.prompt", {
-        sessionId,
-        text: message,
-        ...(view.status === "running" ? { streamingBehavior: "followUp" as const } : {}),
-      })
-      .catch((failure: unknown) => {
-        fail(failure);
-        if (!outcomeUnknown(failure)) setText((current) => (current === "" ? message : current));
-      });
-  };
   const answer = (dialogId: string, response: DialogResponse) => {
     setError(null);
     runtime.rpc
@@ -63,6 +47,11 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
         <Link to="/" className={cn("text-agent underline", FOCUS_RING)}>
           {t("sessions.title")}
         </Link>
+        {view.name ? (
+          <h1 data-session-name className="min-w-0 flex-1 truncate px-3 text-ui font-semibold text-fg">
+            {view.name}
+          </h1>
+        ) : null}
         <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
           {t(`session.status.${view.status}`)}
         </span>
@@ -136,37 +125,7 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
           {error}
         </p>
       ) : null}
-      <form
-        className="flex flex-col gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          send();
-        }}
-      >
-        <TextField
-          label={t("session.composer")}
-          value={text}
-          onChange={setText}
-          multiline
-          name="message"
-          onSubmitShortcut={send}
-        />
-        <div className="flex gap-2">
-          <Button type="submit" variant="primary" disabled={text.trim() === ""}>
-            {t("session.send")}
-          </Button>
-          {view.status === "running" ? (
-            <Button
-              variant="secondary"
-              onClick={() => {
-                runtime.rpc.call("sessions.abort", { sessionId }).catch(fail);
-              }}
-            >
-              {t("session.stop")}
-            </Button>
-          ) : null}
-        </div>
-      </form>
+      <Composer key={sessionId} sessionId={sessionId} view={view} />
     </main>
   );
 }

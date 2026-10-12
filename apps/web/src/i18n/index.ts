@@ -34,6 +34,19 @@ export function translate(
   );
 }
 
+type PluralBase = {
+  [K in MessageKey]: K extends `${infer Base}.one` ? Base : never;
+}[MessageKey];
+
+/** A message that depends on a count: `<base>.one`, `<base>.other`... by the locale's plural rules, `.other` when a form is missing. */
+export function plural(locale: Locale, base: PluralBase, count: number): string {
+  const form = new Intl.PluralRules(locale).select(count);
+  const key = `${base}.${form}`;
+  return translate(locale, (Object.hasOwn(en, key) ? key : `${base}.other`) as MessageKey, { count });
+}
+
+export const tp = (base: PluralBase, count: number): string => plural(current, base, count);
+
 export const t = (key: MessageKey, vars?: Record<string, string | number>): string =>
   translate(current, key, vars);
 

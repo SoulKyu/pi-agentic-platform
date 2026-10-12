@@ -3,19 +3,7 @@ import { StrictMode, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
-import {
-  alerts,
-  button,
-  click,
-  field,
-  hasButton,
-  mount,
-  press,
-  settle,
-  text,
-  typeInto,
-  type Mounted,
-} from "../../testing/dom.ts";
+import { alerts, button, click, mount, settle, text, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { SessionScreen } from "./SessionScreen.tsx";
 
@@ -180,100 +168,6 @@ describe("SessionScreen unreadable snapshot", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toBe(
       "This session could not be shown. Reload the page; if it stays, the session file may be damaged.",
     );
-  });
-});
-
-describe("SessionScreen composer", () => {
-  it("sends the message, empties the composer and keeps Send off while it is empty", async () => {
-    const container = await show();
-    await emit(snapshot("idle"));
-    expect(button(container, "Send").disabled).toBe(true);
-    await typeInto(field(container, "Message"), "  hello  ");
-    await click(button(container, "Send"));
-    await settle();
-    expect(bed.called("sessions.prompt")).toEqual([
-      { method: "sessions.prompt", params: { sessionId: "sess-1", text: "hello" } },
-    ]);
-    expect(field(container, "Message").value).toBe("");
-  });
-
-  it("sends on Ctrl+Enter and keeps the browser from also adding a newline", async () => {
-    const container = await show();
-    await typeInto(field(container, "Message"), "hello");
-    const plain = await press(field(container, "Message"), { key: "Enter" });
-    expect(plain.defaultPrevented).toBe(false);
-    expect(bed.called("sessions.prompt")).toEqual([]);
-    const shortcut = await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
-    await settle();
-    expect(shortcut.defaultPrevented).toBe(true);
-    expect(bed.called("sessions.prompt")[0]?.params).toEqual({ sessionId: "sess-1", text: "hello" });
-    expect(field(container, "Message").value).toBe("");
-  });
-
-  it("queues a follow-up while the session is running", async () => {
-    const container = await show();
-    await emit(snapshot("running"));
-    await typeInto(field(container, "Message"), "and then?");
-    await click(button(container, "Send"));
-    await settle();
-    expect(bed.called("sessions.prompt")[0]?.params).toEqual({
-      sessionId: "sess-1",
-      text: "and then?",
-      streamingBehavior: "followUp",
-    });
-  });
-
-  it("puts the text back when the prompt was refused, so it is not lost", async () => {
-    bed.handlers["sessions.prompt"] = () => {
-      throw new RpcError("prompt_rejected");
-    };
-    const container = await show();
-    await typeInto(field(container, "Message"), "do it");
-    await click(button(container, "Send"));
-    await settle();
-    expect(alerts(container)).toEqual([
-      "The session could not start this prompt. Check the model and provider settings.",
-    ]);
-    expect(field(container, "Message").value).toBe("do it");
-  });
-
-  it("keeps the text out of the composer when the outcome is unknown (R105)", async () => {
-    bed.handlers["sessions.prompt"] = () => {
-      throw new RpcError("timeout");
-    };
-    const container = await show();
-    await typeInto(field(container, "Message"), "do it");
-    await click(button(container, "Send"));
-    await settle();
-    expect(alerts(container)[0]).toContain("may still have gone through");
-    expect(field(container, "Message").value).toBe("");
-  });
-
-  it("does not overwrite what was typed meanwhile when it puts a refused message back", async () => {
-    let refuse: (error: unknown) => void = () => {};
-    bed.handlers["sessions.prompt"] = () => new Promise((_resolve, reject) => (refuse = reject));
-    const container = await show();
-    await typeInto(field(container, "Message"), "first");
-    await click(button(container, "Send"));
-    await typeInto(field(container, "Message"), "second");
-    refuse(new RpcError("capacity"));
-    await settle();
-    expect(field(container, "Message").value).toBe("second");
-  });
-
-  it("offers Stop only while running, as a secondary button (R21), and aborts the session", async () => {
-    const container = await show();
-    await emit(snapshot("idle"));
-    expect(hasButton(container, "Stop")).toBe(false);
-    await emit({ kind: "status", status: "running" });
-    const stop = button(container, "Stop");
-    expect(stop.className).toContain("bg-panel");
-    expect(stop.className).not.toContain("border-error");
-    await click(stop);
-    await settle();
-    expect(bed.called("sessions.abort")).toEqual([
-      { method: "sessions.abort", params: { sessionId: "sess-1" } },
-    ]);
   });
 });
 

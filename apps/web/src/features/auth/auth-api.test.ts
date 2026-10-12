@@ -251,6 +251,29 @@ describe("password requests", () => {
     await expect(logout()).resolves.toBeUndefined();
   });
 
+  it("logout leaves no draft or pending send behind, whether the server answered or not (owner R2-4)", async () => {
+    const data = new Map<string, string>();
+    const storage = {
+      get length() {
+        return data.size;
+      },
+      key: (index: number) => [...data.keys()][index] ?? null,
+      getItem: (key: string) => data.get(key) ?? null,
+      setItem: (key: string, value: string) => void data.set(key, value),
+      removeItem: (key: string) => void data.delete(key),
+    };
+    vi.stubGlobal("localStorage", storage);
+    for (const answer of [reply(200, {}), new TypeError("Failed to fetch")]) {
+      data.clear();
+      for (const key of ["pap.draft.s1", "pap.pending.s1", "pap.pending.s2", "pap.sessions.streaming"]) {
+        data.set(key, "x");
+      }
+      server(answer);
+      await logout();
+      expect([...data.keys()]).toEqual(["pap.sessions.streaming"]);
+    }
+  });
+
   it("reads the status, and throws when there is none", async () => {
     server(authenticated(true), reply(500, {}));
     expect(await fetchAuthStatus()).toMatchObject({ authenticated: true, username: "ana" });

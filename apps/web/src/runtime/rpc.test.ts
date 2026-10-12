@@ -71,6 +71,26 @@ describe("rpc client", () => {
     ]);
   });
 
+  it("sends the command id it is given on a mutation, a fresh one otherwise, and reads ignore it", () => {
+    const fake = fakeConnection();
+    const rpc = createRpcClient(fake.connection, {
+      newCommandId: commandIds(),
+      timers: manualTimers().timers,
+    });
+    const first = rpc.newCommandId();
+    void rpc.call("sessions.abort", { sessionId: "s1" }, { commandId: "kept-id-001" });
+    void rpc.call("sessions.abort", { sessionId: "s1" }, { commandId: "kept-id-001" });
+    void rpc.call("sessions.abort", { sessionId: "s1" });
+    void rpc.call("sessions.list", {}, { commandId: "ignored-id-1" });
+    expect([first, ...fake.sent.map((frame) => frame.commandId)]).toEqual([
+      "cmd-00000001",
+      "kept-id-001",
+      "kept-id-001",
+      "cmd-00000002",
+      undefined,
+    ]);
+  });
+
   it("rejects with the server error code", async () => {
     const fake = fakeConnection();
     const rpc = createRpcClient(fake.connection, {

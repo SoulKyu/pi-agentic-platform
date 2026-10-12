@@ -2,7 +2,7 @@ import { ERROR_CODES } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
-import { CLIENT_ERROR_CODES, errorKey, pickLocale, translate } from "./index.ts";
+import { CLIENT_ERROR_CODES, errorKey, pickLocale, plural, translate } from "./index.ts";
 
 describe("i18n", () => {
   it("every error code has an en and fr message", () => {
@@ -31,5 +31,12 @@ describe("i18n", () => {
   it("interpolates variables", () => {
     expect(translate("en", "login.throttled", { seconds: 4 })).toBe("Too many attempts. Wait 4 s.");
     expect(translate("fr", "login.throttled", { seconds: 4 })).toBe("Trop de tentatives. Attendez 4 s.");
+  });
+
+  it("picks the plural form of the locale, with the count, and falls back to the other form", () => {
+    expect(plural("en", "sessions.queue.more", 1)).toBe("1 more");
+    expect(plural("en", "sessions.queue.more", 7)).toBe("7 more");
+    expect(plural("fr", "sessions.queue.more", 0)).toBe("0 de plus");
+    expect(plural("fr", "sessions.queue.more", 1_000_000)).toBe("1000000 de plus");
   });
 });
