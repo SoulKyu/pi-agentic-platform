@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pap · Design explorations</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --bg-side:#14111D; --surface:#1A1724; --surface-2:#241F33; --border:#2D2840; --border-strong:#3D3657;
+          --text:#F2EFFA; --text-muted:#9C95B5; --grid:#FFFFFF06; --agent:#A78BFA; --you:#FB923C; --you-fill:#FB923C; --ok:#34D399;
+          --ui:'Manrope',system-ui,sans-serif; --mono:'JetBrains Mono',ui-monospace,monospace; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#FAF9F6; --bg-side:#F3F1EC; --surface:#FFFFFF; --surface-2:#EEEBE4; --border:#E2DED5; --border-strong:#CFC9BC;
+            --text:#1C1917; --text-muted:#6B645A; --grid:#1C19170A; --agent:#6D28D9; --you:#C2410C; --ok:#047857; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.55 var(--ui); padding: 32px 24px 64px;
+         background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+         background-size: 24px 24px; }
+  main { max-width: 880px; margin: 0 auto; }
+  header { display: flex; align-items: center; gap: 12px; }
+  h1 { font: 800 28px var(--ui); letter-spacing: -.02em; }
+  .tag, .hud, .chip, th { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .12em; color: var(--text-muted); }
+  .intro { color: var(--text-muted); margin: 12px 0 28px; max-width: 640px; }
+  .hud { margin: 0 0 8px; }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 3px; }
+  th { text-align: left; padding: 8px 12px; background: var(--bg-side); border-bottom: 1px solid var(--border-strong); }
+  td { padding: 8px 12px; border-top: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: var(--surface-2); }
+  td.n { font: 500 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--text-muted); white-space: nowrap; }
+  a { color: var(--text); text-decoration: none; font-weight: 600; }
+  a:hover { color: var(--agent); }
+  a:focus-visible { outline: 2px solid var(--you-fill); outline-offset: 2px; }
+  .meta { color: var(--text-muted); }
+  .chip { display: inline-block; padding: 1px 6px; border: 1px solid var(--ok); border-radius: 2px; color: var(--ok); white-space: nowrap; }
+  footer { margin-top: 24px; color: var(--text-muted); }
+  code { font: 12px var(--mono); background: var(--surface-2); padding: 0 4px; border-radius: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg width="40" height="40" viewBox="0 0 32 32" aria-hidden="true">
+      <rect x="6" y="9" width="20" height="3.2" fill="var(--text)"/>
+      <rect x="10.4" y="12" width="3.2" height="13" fill="var(--agent)"/>
+      <path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="var(--you)"/>
+    </svg>
+    <div>
+      <h1>pap</h1>
+      <div class="tag">pi agentic platform · design explorations</div>
+    </div>
+  </header>
+
+  <p class="intro">The ten visual rounds behind <code>DESIGN.md</code> (Night Control, v1, validated 2026-10-10).
+    Pages marked <span class="chip">Reference</span> are the screen references of DESIGN.md §10; the others are history.</p>
+
+  <p class="hud">Rounds</p>
+  <table>
+    <thead><tr><th>Page</th><th>Round</th><th>Subject</th><th>Status</th></tr></thead>
+    <tbody>
+      <tr><td class="n">01</td><td class="n">1</td><td><a href="01-brand-directions.html">Brand directions</a> <span class="meta">· Mission Control, Aurora…</span></td><td></td></tr>
+      <tr><td class="n">02</td><td class="n">1b</td><td><a href="02-night-control-variants.html">Night Control variants</a> <span class="meta">· C × D, no gradient</span></td><td></td></tr>
+      <tr><td class="n">03</td><td class="n">2</td><td><a href="03-night-control-light.html">Light mode</a> <span class="meta">· Day · Papier</span></td><td></td></tr>
+      <tr><td class="n">04</td><td class="n">3</td><td><a href="04-shell-layouts.html">App layouts</a></td><td></td></tr>
+      <tr><td class="n">05</td><td class="n">3b</td><td><a href="05-shell-mix-ac.html">Shell · mix A × C</a> <span class="meta">· rail, tree drawer, tabs, panes</span></td><td><span class="chip">Reference</span></td></tr>
+      <tr><td class="n">06</td><td class="n">4</td><td><a href="06-logo-wordmark.html">Logo and wordmark</a></td><td></td></tr>
+      <tr><td class="n">07</td><td class="n">5</td><td><a href="07-type-density.html">Typography and density</a></td><td></td></tr>
+      <tr><td class="n">08</td><td class="n">6</td><td><a href="08-settings-appearance.html">Settings › Appearance</a> <span class="meta">· account vs device, theme editor</span></td><td><span class="chip">Reference</span></td></tr>
+      <tr><td class="n">09</td><td class="n">7</td><td><a href="09-agent-space-inbox.html">Agent space and Inbox</a> <span class="meta">· thread, event cards, fence</span></td><td><span class="chip">Reference</span></td></tr>
+      <tr><td class="n">10</td><td class="n">8</td><td><a href="10-lanes.html">Lanes</a> <span class="meta">· checkpoint, review, fan-out compare</span></td><td><span class="chip">Reference</span></td></tr>
+      <tr><td class="n">11</td><td class="n">9</td><td><a href="11-automation.html">Automation</a> <span class="meta">· triggers, dry-run, tasks board</span></td><td><span class="chip">Reference</span></td></tr>
+      <tr><td class="n">12</td><td class="n">10</td><td><a href="12-mobile-system.html">Mobile and system screens</a> <span class="meta">· push approval, setup, ⌘K</span></td><td><span class="chip">Reference</span></td></tr>
+    </tbody>
+  </table>
+
+  <footer>Pages 01–12 are in French. Decisions: <code>docs/research/decisions-log.md</code> (11, 25–32).</footer>
+</main>
+</body>
+</html>
