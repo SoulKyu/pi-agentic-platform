@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { DENYLIST_MODEL_REASON } from "./denylist.ts";
 import { ALLOW_03, createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
@@ -20,8 +21,21 @@ it.each([
   ["arguments from standard input", "echo / | xargs rm -rf"],
   ["a here-string fed to a shell", 'bash <<< "rm -rf /"'],
   ["output piped to a shell", "printf 'rm -rf /' | sh"],
+  ["an alias defined earlier", "alias z='rm -rf'; z /"],
+  ["a function defined earlier, fed a variable", "f() { rm -rf $1; }; f /"],
+  ["a here-document fed to a shell, its body holding a variable", "T=/ bash <<EOF\nrm -rf $T\nEOF"],
+  ["a script written then run", "echo 'rm -rf /' > x.sh; sh x.sh"],
   ["an interpreter", `python3 -c "import shutil; shutil.rmtree('/')"`],
 ])("documented pass: %s", async (_name, command) => {
   const h = bed.harness({ rules: () => interactiveRules, stages: ALLOW_03 });
   expect(await h.run("bash", { command })).toBeUndefined();
+});
+
+// The next two are read as commands of their own, so they block: pinned so a reader change shows up here.
+it.each([
+  ["a function defined earlier, its body spelled out", "f() { rm -rf /; }; f"],
+  ["a here-document fed to a shell, its body spelled out", "bash <<EOF\nrm -rf /\nEOF"],
+])("caught anyway: %s", async (_name, command) => {
+  const h = bed.harness({ rules: () => interactiveRules, stages: ALLOW_03 });
+  expect(await h.run("bash", { command })).toEqual({ block: true, reason: DENYLIST_MODEL_REASON });
 });

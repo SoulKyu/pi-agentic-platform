@@ -1,5 +1,6 @@
 import { CALL_BUDGET, globMatch, PAIR_BUDGET, type StepBudget } from "./glob.ts";
 import type { CallFacts, StageResult } from "./pipeline.ts";
+import { clipUnits } from "./trail.ts";
 import { argvOf, CommandTooComplex, CommandTooLong, readCommands, type Segment } from "./shell-words.ts";
 
 export const DENYLIST_MODEL_REASON = "pap-policy blocked this command: it is on the blocked-command list.";
@@ -44,12 +45,7 @@ export const BUILTIN_CHECKS: ReadonlyArray<{
   },
   {
     id: "redirect-device",
-    matches: (a) =>
-      a.some(
-        (x, i) =>
-          (/^>{1,2}$/.test(x) && DISK.test(a[i + 1] ?? "")) ||
-          (/^>{1,2}\//.test(x) && DISK.test(x.replace(/^>{1,2}/, ""))),
-      ),
+    matches: (a) => a.some((x, i) => /^\d*>[>|&]?$/.test(x) && DISK.test(a[i + 1] ?? "")),
   },
 ];
 const FORK_BOMB_ID = "fork-bomb";
@@ -147,7 +143,7 @@ export function denylistStage(call: CallFacts): StageResult {
   }
   try {
     const hit = matchOwnerPatterns(segments, call.rules.denylist, powershell, { left: CALL_BUDGET });
-    if (hit !== null) return block(`denied: ${hit.slice(0, MAX_NAMED_PATTERN)}`);
+    if (hit !== null) return block(`denied: ${clipUnits(hit, MAX_NAMED_PATTERN)}`);
   } catch (error) {
     if (error instanceof CommandTooComplex) return block(TOO_COMPLEX, TOO_COMPLEX);
     throw error;

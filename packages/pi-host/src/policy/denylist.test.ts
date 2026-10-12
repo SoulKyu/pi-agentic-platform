@@ -164,6 +164,13 @@ describe("the owner's patterns", () => {
     expect(entry?.kind === "call" && entry.stages[0]?.reason).toBe(`denied: ${"x".repeat(100)}`);
   });
 
+  it("clip the named pattern without splitting a surrogate pair", async () => {
+    const face = "\uD83D\uDE00";
+    const h = bed.harness({ rules: full({ denylist: [`x${face.repeat(60)}*`] }), stages: ALLOW_03 });
+    await h.run("bash", { command: `x${face.repeat(60)}` });
+    expect(stage01(h)?.reason).toBe(`denied: x${face.repeat(49)}`);
+  });
+
   it("match PowerShell commands without case and leave the bash preset out of PowerShell", async () => {
     const h = bed.harness({ rules: full({ denylist: ["remove-item -recurse*"] }), stages: ALLOW_03 });
     expect(await h.run("powershell", { command: "Remove-Item -Recurse C:\\" })).toEqual(BLOCKED);

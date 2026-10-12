@@ -1,3 +1,4 @@
+import type { PolicyAuditEntry, StageVerdict } from "@pap/contracts";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ALLOW_03, createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
 import { DENYLIST_MODEL_REASON, matchOwnerPatterns } from "./denylist.ts";
@@ -16,6 +17,19 @@ const BLOCKED = { block: true, reason: DENYLIST_MODEL_REASON };
 const rules =
   (denylist: string[] = []) =>
   () => ({ ...interactiveRules, denylist });
+// A throw inside the stage would still end as a fail-closed block of the pipeline: only stage 01's own verdict proves it ran.
+const stage01 = (h: { entries: readonly PolicyAuditEntry[] }) => {
+  const entry = h.entries.at(-1);
+  return entry?.kind === "call" ? entry.stages[0] : undefined;
+};
+const expectOwnVerdict = (verdict: StageVerdict | undefined) => {
+  expect(verdict?.stage).toBe("01");
+  if (verdict?.outcome === "pass") expect(verdict.reason).toMatch(/^\d+ commands? checked$/);
+  else {
+    expect(verdict?.outcome).toBe("block");
+    expect(verdict?.reason).toMatch(/^(?:denied: .+|command too (?:long|complex) for the policy check)$/);
+  }
+};
 const letterRun = `*${"a".repeat(64)}b`;
 const adversarial: ReadonlyArray<readonly [string, string]> = [
   ["a run of recursive flags", "rm " + "-r ".repeat(21_000)],
@@ -31,12 +45,13 @@ const adversarial: ReadonlyArray<readonly [string, string]> = [
 
 describe("bounded work", () => {
   it.each(adversarial)(
-    "ends in a block or a pass for %s, never in a throw",
+    "gives a verdict of its own (a block or a pass, never an evaluation error) for %s",
     async (_name, command) => {
       const h = bed.harness({ rules: rules(Array.from({ length: 64 }, () => letterRun)), stages: ALLOW_03 });
       const result = await h.run("bash", { command });
       expect(result === undefined || result.block === true).toBe(true);
       expect(h.entries).toHaveLength(1);
+      expectOwnVerdict(stage01(h));
       // Safety net only (RT-16): the work itself is pinned by step counts below.
     },
     1500,
@@ -78,7 +93,7 @@ describe("blanks", () => {
     expect(await h.run("bash", { command })).toEqual(BLOCKED);
   });
 
-  it.each(["rm -rf /", "rm　-rf /"])(
+  it.each(["rm\u00A0-rf /", "rm\u3000-rf /"])(
     "does not block %j: bash does not split on it, so the command word is one that does not exist",
     async (command) => {
       const h = bed.harness({ rules: rules(), stages: ALLOW_03 });
@@ -88,18 +103,24 @@ describe("blanks", () => {
 });
 
 describe("control and format characters", () => {
-  it("never throws on any of them", async () => {
+  it("gives stage 01 a verdict of its own for every one of them", async () => {
     const h = bed.harness({ rules: rules(["pap-test-blocked *"]), stages: ALLOW_03 });
-    for (let code = 0; code < 0x20; code++)
-      await h.run("bash", { command: `echo ${String.fromCharCode(code)}x; rm -rf ./y` });
-    for (const char of ["\u0085", "​", " ", " ", "﻿", "\uD800", "\uDFFF"])
-      await h.run("bash", { command: `echo ${char}x` });
-    expect(h.entries).toHaveLength(32 + 7);
+    const commands = [
+      ...Array.from({ length: 0x20 }, (_v, code) => `echo ${String.fromCharCode(code)}x; rm -rf ./y`),
+      ...["\u0085", "\u200B", "\u2028", "\u2029", "\uFEFF", "\uD800", "\uDFFF"].map(
+        (char) => `echo ${char}x`,
+      ),
+    ];
+    for (const command of commands) {
+      await h.run("bash", { command });
+      expectOwnVerdict(stage01(h));
+    }
+    expect(h.entries).toHaveLength(commands.length);
   });
 
   it("blocks a bidi override after the operand: the root is a word of its own", async () => {
     const h = bed.harness({ rules: rules(), stages: ALLOW_03 });
-    expect(await h.run("bash", { command: "rm -rf / ‮" })).toEqual(BLOCKED);
+    expect(await h.run("bash", { command: "rm -rf / \u202E" })).toEqual(BLOCKED);
   });
 
   it("documented pass: a NUL inside the operand makes it a path that is not the root", async () => {
@@ -109,7 +130,7 @@ describe("control and format characters", () => {
 
   it("documented pass: a zero-width joiner makes the command word another command, as in bash", async () => {
     const h = bed.harness({ rules: rules(), stages: ALLOW_03 });
-    expect(await h.run("bash", { command: "r‍m -rf /" })).toBeUndefined();
+    expect(await h.run("bash", { command: "r\u200Dm -rf /" })).toBeUndefined();
   });
 });
 

@@ -191,6 +191,20 @@ function lex(text: string, depth: number, reading: Reading): void {
     else if (c === " " || c === "\t") {
       endWord();
       i++;
+    } else if ((c === ">" || c === "<") && next !== "(") {
+      // A redirection operator is a word of its own, whatever it touches: `echo>/dev/sda`, `rm -rf />/dev/null`.
+      const fd = inWord && /^\d+$/.test(current) ? current : "";
+      if (fd === "") endWord();
+      else {
+        current = "";
+        inWord = false;
+      }
+      let end = i + 1;
+      if (text[end] === c) end++;
+      else if (c === "<" && text[end] === ">") end++;
+      if ((c === ">" || text[end - 1] === ">") && (text[end] === "|" || text[end] === "&")) end++;
+      words.push(fd + text.slice(i, end));
+      i = end;
     } else if (";&|\n()".includes(c)) {
       endCommand();
       i++;

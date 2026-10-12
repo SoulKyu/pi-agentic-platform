@@ -40,6 +40,12 @@ describe("readCommands", () => {
     expect(() => readCommands(`bash -c "bash -c 'bash -c \\"bash -c ls\\"'"`)).toThrow(CommandTooComplex);
   });
 
+  it("makes a redirection operator a word of its own, wherever it touches", () => {
+    expect(argvs("echo>/dev/sda")).toEqual(["echo > /dev/sda"]);
+    expect(argvs("echo x 2>&1 >>log <in")).toEqual(["echo x 2>& 1 >> log < in"]);
+    expect(argvs('echo ">"|rm -rf /')).toEqual(["echo >", "rm -rf /"]);
+  });
+
   it("does not read a -c that belongs to a script", () => {
     expect(argvs("bash script.sh -c 'rm -rf /'")).toEqual(["bash script.sh -c rm -rf /"]);
   });
