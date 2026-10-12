@@ -2,7 +2,7 @@ import { SERVER_CODES } from "@pap/contracts";
 import { beforeAll, describe, expect, it } from "vitest";
 import { serverEn, serverFr } from "./catalog/server.ts";
 import { registerCatalog } from "./index.ts";
-import { codedServerText, serverText } from "./server-text.ts";
+import { codedServerText, serverText, translatedServerCodes } from "./server-text.ts";
 
 beforeAll(() => registerCatalog({ en: serverEn, fr: serverFr }));
 
@@ -87,5 +87,33 @@ describe("server texts by code (R128)", () => {
       expect(en, code).not.toMatch(/[{}]/);
       expect(fr, code).not.toMatch(/[{}]/);
     }
+  });
+
+  it("pins the web table to the contract's list in both directions", () => {
+    expect([...translatedServerCodes()].sort()).toEqual(Object.values(SERVER_CODES).sort());
+  });
+
+  it("shows the English text as sent when a known code lacks a param, never a raw slot", () => {
+    expect(
+      codedServerText(
+        { text: "An extension failed during tool_call.", code: "extension_failed_during" },
+        "fr",
+      ),
+    ).toBe("An extension failed during tool_call.");
+    expect(
+      codedServerText({ text: "x", code: "extension_failed_during", params: { other: "y" } }, "fr"),
+    ).toBe("x");
+  });
+
+  it("never lets a code select a key outside the server texts", () => {
+    for (const code of ["ui.close", "shell.tab.home", "server.cause.stopped"])
+      expect(codedServerText({ text: "Sent as is.", code }, "fr")).toBe("Sent as is.");
+  });
+
+  it("puts params in as plain text, markup included", () => {
+    const event = "<img src=x onerror=alert(1)>";
+    expect(codedServerText({ text: "t", code: "extension_failed_during", params: { event } }, "fr")).toBe(
+      `Une extension a échoué pendant ${event}.`,
+    );
   });
 });

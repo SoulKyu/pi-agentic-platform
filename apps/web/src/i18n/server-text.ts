@@ -133,5 +133,11 @@ export function codedServerText(
 ): string {
   if (server.code === undefined) return serverText(server.text, locale);
   const sentence = SENTENCES.find(({ code }) => code === server.code);
-  return sentence ? translate(locale, sentence.key, { ...server.params }) : clipped(server.text);
+  // A slot with no value (version skew) would show as a raw `{event}`: the English text as sent is better.
+  if (!sentence || (sentence.vars ?? []).some((name) => server.params?.[name] === undefined))
+    return clipped(server.text);
+  return translate(locale, sentence.key, { ...server.params });
 }
+
+/** The codes this table translates, for the test that pins it to the contract's list. */
+export const translatedServerCodes = (): string[] => SENTENCES.map(({ code }) => code);

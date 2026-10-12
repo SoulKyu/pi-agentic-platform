@@ -87,4 +87,27 @@ describe("SessionScreen server texts (R128)", () => {
     expect(alerts(container)).toEqual(["Brand new sentence."]);
     expect(text(container)).toContain("An extension failed.");
   });
+
+  it("keeps an extension's notice as its own text even when it carries a code, and renders markup in params as text", async () => {
+    setLocale("fr");
+    const container = await show();
+    await emit({
+      kind: "notice",
+      level: "info",
+      text: "My own words.",
+      source: "extension",
+      code: "extension_failed",
+    });
+    await emit({
+      kind: "notice",
+      level: "info",
+      text: "t",
+      code: "extension_failed_during",
+      params: { event: "<b>x</b>" },
+    });
+    expect(text(container)).toContain("My own words.");
+    expect(text(container)).not.toContain("Une extension a échoué.");
+    expect(container.querySelector("[data-notice] b")).toBeNull();
+    expect(text(container)).toContain("Une extension a échoué pendant <b>x</b>.");
+  });
 });
