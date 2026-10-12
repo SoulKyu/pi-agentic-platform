@@ -134,7 +134,7 @@ describe("input and editor", () => {
   });
 
   it("an editor prefill is shown without bidi or control characters", async () => {
-    const page = await show([{ id: "e1", method: "editor", title: "Edit", prefill: "a‮b\u0007c\td" }]);
+    const page = await show([{ id: "e1", method: "editor", title: "Edit", prefill: "a\u202Eb\u0007c\td" }]);
     expect(field(page, "Edit").value).toBe("abc\td");
   });
 

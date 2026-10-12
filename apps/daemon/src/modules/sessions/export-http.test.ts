@@ -272,7 +272,7 @@ describe("the download's file name", () => {
       "..\\..\\windows",
       "a\u0000b\u001fc\u007fd",
       "it's (a) *test*",
-      "‮exe.txt",
+      "\u202Eexe.txt",
       "con:aux|nul?<>",
       "\ud800 lone",
       "...",

@@ -45,7 +45,7 @@ describe("minimapTurns", () => {
   });
 
   it("shows text only: control and bidi characters go, white space collapses to one line", () => {
-    const items = [user("u1", "‮evil\u0007 \t a\n\n b​  c")];
+    const items = [user("u1", "\u202Eevil\u0007 \t a\n\n b\u200B  c")];
     expect(minimapTurns(items as never, 0)[0]?.preview).toBe("evil a b c");
   });
 

@@ -48,12 +48,14 @@ describe("ANSI colours in extension text (owner C2)", () => {
 
   it("drops other escapes, bidi and control characters, keeps tabs (M2-RT-42)", () => {
     expect(
-      plainText("\u001b]8;;https://x\u0007link\u001b]8;;\u0007 \u001b_pi:c\u0007\u001b[2K→ ✓‮\u0007\tend"),
+      plainText(
+        "\u001b]8;;https://x\u0007link\u001b]8;;\u0007 \u001b_pi:c\u0007\u001b[2K→ ✓\u202E\u0007\tend",
+      ),
     ).toBe("link → ✓\tend");
   });
 
   it("removes every bidi control (U+202A-202E, U+2066-2069, U+200E/F, U+061C) and C0/C1 controls", () => {
-    const bidi = "‪‫‬‭‮⁦⁧⁨⁩‎‏؜";
+    const bidi = "\u202A\u202B\u202C\u202D\u202E\u2066\u2067\u2068\u2069\u200E\u200F\u061C";
     expect(plainText(`a${bidi}b\u0000\u0008\u000a\u000d\u007f\u0085\u009bc`)).toBe("abc");
   });
 

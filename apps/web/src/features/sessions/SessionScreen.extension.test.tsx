@@ -24,7 +24,7 @@ const screen = screenBed(current);
 describe("extension decorations in the session screen", () => {
   it("shows the title in the header and leaves document.title alone (M2R139)", async () => {
     document.title = "pap";
-    const container = await screen.show({ title: "\u001b[31mRelease‮ 1.2\u001b[0m" });
+    const container = await screen.show({ title: "\u001b[31mRelease\u202E 1.2\u001b[0m" });
     expect(container.querySelector("header [data-session-title]")?.textContent).toBe("Release 1.2");
     expect(document.title).toBe("pap");
     await screen.emit({ kind: "title", title: "Next" });
