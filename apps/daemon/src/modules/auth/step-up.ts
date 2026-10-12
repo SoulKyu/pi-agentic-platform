@@ -5,7 +5,7 @@ const STEP_UP_MS = 5 * 60_000;
 const MAX_MARKS = 1024;
 
 export function requireStepUp(caller: Caller, now: number): void {
-  if (caller.kind === "token" || caller.stepUpUntil <= now) throw new PapError("step_up_required");
+  if (caller.kind !== "session" || caller.stepUpUntil <= now) throw new PapError("step_up_required");
 }
 
 /** Browser sessions that confirmed the password lately, by id hash; insertion-ordered, the oldest dropped at the cap. */

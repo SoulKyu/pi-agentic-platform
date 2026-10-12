@@ -47,12 +47,14 @@ export interface AuthModule {
 export function createAuthModule(deps: AuthModuleDeps): AuthModule {
   const store = createAuthStore(deps.db);
   const logger = deps.logger.child({ module: "auth" });
+  const sessionThrottle = createThrottle(deps.clock, { whenFull: "refuse" });
   const service = createAuthService({
     store,
     clock: deps.clock,
     logger,
     publicOrigin: deps.publicOrigin,
-    throttle: createThrottle(deps.clock),
+    throttle: createThrottle(deps.clock, { whenFull: "refuse" }),
+    sessionThrottle,
     setupToken: createSetupToken(store.countUsers() === 0),
     audit: deps.audit,
   });
@@ -63,7 +65,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     allowedOrigins: deps.allowedOrigins,
   });
   // Separate from the password throttle: a lockout of one must never lock the other (R80).
-  const passkeyThrottle = createThrottle(deps.clock);
+  const passkeyThrottle = createThrottle(deps.clock, { whenFull: "evict" });
   const secureByConfig = cookieNeedsSecure(deps.publicOrigin);
   return {
     mount: (app) => {
@@ -73,7 +75,13 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
         secureByConfig,
         insecureHttp: deps.insecureHttp === true,
       });
-      mountPasskeyRoutes(app, { passkeys, auth: service, throttle: passkeyThrottle, logger });
+      mountPasskeyRoutes(app, {
+        passkeys,
+        auth: service,
+        throttle: passkeyThrottle,
+        sessionThrottle,
+        logger,
+      });
     },
     sessionValueOf: (header) => readCookie(header, SESSION_COOKIE),
     authenticateSession: (value, options) => service.authenticate(value, options),

@@ -192,18 +192,26 @@ describe("passkey routes", () => {
 describe("step-up before enrollment", () => {
   async function spied() {
     const setupToken = createSetupToken(true);
+    const sessionThrottle = createThrottle(bed.clock, { whenFull: "refuse" });
     const service = createAuthService({
       store: createAuthStore(bed.db),
       clock: bed.clock,
       logger: bed.logger.child({ module: "auth" }),
       publicOrigin: ORIGIN,
-      throttle: createThrottle(bed.clock),
+      throttle: createThrottle(bed.clock, { whenFull: "refuse" }),
+      sessionThrottle,
       setupToken,
       audit: { append: () => undefined },
     });
     const registerOptions = vi.fn(() => Promise.resolve({ flowId: "flow-1", options: {} }));
     const registerVerify = vi.fn(() => Promise.reject(new PapError("unauthenticated")));
-    const passkeys = { available: true, registerOptions, registerVerify } as unknown as PasskeyService;
+    const loginVerify = vi.fn(() => Promise.reject(new PapError("unauthenticated")));
+    const passkeys = {
+      available: true,
+      registerOptions,
+      registerVerify,
+      loginVerify,
+    } as unknown as PasskeyService;
     const app = createHttpApp({
       allowedOrigins: new Set([ORIGIN]),
       staticRoot: null,
@@ -213,7 +221,8 @@ describe("step-up before enrollment", () => {
         mountPasskeyRoutes(a, {
           passkeys,
           auth: service,
-          throttle: createThrottle(bed.clock),
+          throttle: createThrottle(bed.clock, { whenFull: "evict" }),
+          sessionThrottle,
           logger: bed.logger,
         });
       },
@@ -282,9 +291,12 @@ describe("step-up before enrollment", () => {
     const other = (second.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
     const verify = (as: string, address = "10.0.0.9") =>
       post(app, "/auth/passkey/register/verify", GARBAGE, { cookie: as }, socketAt(address));
-    for (let i = 0; i < 3; i++) {
-      await post(app, "/auth/passkey/login/verify", GARBAGE, {}, socketAt("10.0.0.9"));
-    }
+    const loginAttempt = () => post(app, "/auth/passkey/login/verify", GARBAGE, {}, socketAt("10.0.0.9"));
+    expect([401, 429, 429]).toEqual([
+      (await loginAttempt()).status,
+      (await loginAttempt()).status,
+      (await loginAttempt()).status,
+    ]);
     expect((await verify(cookie)).status).toBe(401);
     expect((await verify(cookie)).status).toBe(429);
     expect((await verify(other)).status).toBe(401);

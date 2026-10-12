@@ -20,6 +20,8 @@ export interface PasskeyRouteDeps {
   readonly auth: AuthService;
   /** Its own instance, keyed by socket address only: never the password keys (R80, R81). */
   readonly throttle: Throttle;
+  /** The `session:` keys of enrollment, apart from the address keys (M5R127). */
+  readonly sessionThrottle: Throttle;
   readonly logger: Logger;
 }
 
@@ -29,19 +31,20 @@ async function throttled<T>(
   c: Context,
   deps: PasskeyRouteDeps,
   run: () => Promise<T>,
+  throttle: Throttle,
   keys: string[],
 ): Promise<T> {
   const ip = clientIp(c);
-  const wait = deps.throttle.retryAfterMs(keys);
+  const wait = throttle.retryAfterMs(keys);
   if (wait > 0) throw new RateLimitedError(wait);
   try {
     const result = await run();
-    deps.throttle.succeed(keys);
+    throttle.succeed(keys);
     return result;
   } catch (error) {
     if (error instanceof PapError && error.code === "unauthenticated") {
-      deps.throttle.fail(keys);
-      deps.logger.warn("auth_passkey_failed", { ip, retryAfterMs: deps.throttle.retryAfterMs(keys) });
+      throttle.fail(keys);
+      deps.logger.warn("auth_passkey_failed", { ip, retryAfterMs: throttle.retryAfterMs(keys) });
     }
     throw error;
   }
@@ -80,9 +83,13 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
     const body = await readJson(c, FlowBody);
     if (!body) return badRequest(c);
     try {
-      await throttled(c, deps, () => deps.passkeys.registerVerify(owner.userId, body.flowId, body.response), [
-        sessionKey(cookie),
-      ]);
+      await throttled(
+        c,
+        deps,
+        () => deps.passkeys.registerVerify(owner.userId, body.flowId, body.response),
+        deps.sessionThrottle,
+        [sessionKey(cookie)],
+      );
       deps.logger.info("auth_passkey_enrolled", { ip: clientIp(c) });
       return c.json({ ok: true });
     } catch (error) {
@@ -100,9 +107,13 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
     const body = await readJson(c, FlowBody);
     if (!body) return badRequest(c);
     try {
-      const userId = await throttled(c, deps, () => deps.passkeys.loginVerify(body.flowId, body.response), [
-        `ip:${clientIp(c)}`,
-      ]);
+      const userId = await throttled(
+        c,
+        deps,
+        () => deps.passkeys.loginVerify(body.flowId, body.response),
+        deps.throttle,
+        [`ip:${clientIp(c)}`],
+      );
       // Always a new session, never the one the request came with: a cookie planted beforehand gains nothing.
       setSessionCookie(c, deps.auth.startSession(userId, c.req.header("user-agent")));
       return c.json({ ok: true });

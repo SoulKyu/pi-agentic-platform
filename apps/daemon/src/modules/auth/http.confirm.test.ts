@@ -71,6 +71,15 @@ describe("POST /auth/confirm", () => {
     expect(auth.authenticateSession(cookieValue(cookie))).toBeNull();
   });
 
+  it("leaves a second session of the owner unconfirmed while the first is marked", async () => {
+    const { app, auth } = await authBed();
+    const first = sessionCookieOf(await login(app, { password: GOOD }));
+    const second = sessionCookieOf(await login(app, { password: GOOD }));
+    await confirm(app, { cookie: first, password: GOOD });
+    expect(auth.authenticateSession(cookieValue(first))?.stepUpUntil).toBeGreaterThan(0);
+    expect(auth.authenticateSession(cookieValue(second))?.stepUpUntil).toBe(0);
+  });
+
   it("lets the mark run out after 5 minutes", async () => {
     const { app, auth, clock } = await authBed();
     const cookie = sessionCookieOf(await login(app, { password: GOOD }));
@@ -102,6 +111,36 @@ describe("POST /auth/confirm", () => {
     expect((await confirm(app, { cookie: owner, password: GOOD })).status).toBe(204);
     expect((await login(app, { password: GOOD })).status).toBe(200);
   });
+
+  it("keeps the lockouts of an account and of a stolen session through a spray of setup requests from 10 000 addresses", async () => {
+    const { app } = await authBed();
+    const stolen = sessionCookieOf(await login(app, { password: GOOD }));
+    const owner = sessionCookieOf(await login(app, { password: GOOD }));
+    for (let i = 0; i < 10; i++) {
+      await confirm(app, { cookie: stolen, password: BAD });
+      await login(app, { password: BAD });
+      if (i < 9) await bed.clock.advance(60_000);
+    }
+    const wait = async (response: Response | Promise<Response>) => {
+      const reply = await response;
+      return [reply.status, reply.headers.get("retry-after")];
+    };
+    expect(await wait(login(app, { password: GOOD, ip: "10.8.8.8" }))).toEqual([429, "60"]);
+    expect(await wait(confirm(app, { cookie: stolen, password: GOOD }))).toEqual([429, "60"]);
+    for (let i = 0; i < 10_000; i++) {
+      const spray = await post(
+        app,
+        "/auth/setup",
+        { token: "t", username: "x", password: BAD },
+        {},
+        `2001:db8::${i.toString(16)}`,
+      );
+      expect(spray.status).toBe(401);
+    }
+    expect(await wait(login(app, { password: GOOD, ip: "10.8.8.9" }))).toEqual([429, "60"]);
+    expect(await wait(confirm(app, { cookie: stolen, password: GOOD }))).toEqual([429, "60"]);
+    expect((await confirm(app, { cookie: owner, password: GOOD })).status).toBe(204);
+  }, 60_000);
 
   it("refuses a foreign origin and a malformed body", async () => {
     const { app } = await authBed();
@@ -137,7 +176,7 @@ describe("POST /auth/confirm", () => {
     expect(bed.audited).toEqual([{ ownerId: userId, actor: "user", kind: "auth", reason: "step_up" }]);
   });
 
-  it("does not mark a session that signed out while the password was being checked", async () => {
+  it("answers 401 to a confirm sent after the session signed out, and marks and audits nothing", async () => {
     const { app, auth } = await authBed();
     const cookie = sessionCookieOf(await login(app, { password: GOOD }));
     const pending = confirm(app, { cookie, password: GOOD });

@@ -10,7 +10,7 @@ import type { SetupToken } from "./setup-token.ts";
 import { createStepUps } from "./step-up.ts";
 import type { AuthStore, UserRow } from "./store.ts";
 import { sessionKey } from "./throttle-keys.ts";
-import type { Throttle } from "./throttle.ts";
+import { MAX_BACKOFF_MS, type Throttle } from "./throttle.ts";
 
 // A session's expiry is pushed forward at most once a day: a read is not a write on every request.
 const SLIDE_AFTER_MS = 24 * 3600 * 1000;
@@ -41,6 +41,8 @@ export interface AuthServiceDeps {
   readonly logger: Logger;
   readonly publicOrigin: string;
   readonly throttle: Throttle;
+  /** Keys minted only by a valid cookie (`session:`): a spray of addresses or names can never fill it (RT-06). */
+  readonly sessionThrottle: Throttle;
   readonly setupToken: SetupToken;
   readonly audit: Pick<AuditPort, "append">;
 }
@@ -89,8 +91,8 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   // people type one into the other's field, and a log is read by more eyes than a database.
   const stepUps = createStepUps(deps.clock);
   const lastThrottleLog = new Map<string, number>();
-  const guard = (keys: string[], ip: string) => {
-    const wait = deps.throttle.retryAfterMs(keys);
+  const guard = (throttle: Throttle, keys: string[], ip: string) => {
+    const wait = throttle.retryAfterMs(keys);
     if (wait <= 0) return;
     const now = deps.clock.now();
     if (now - (lastThrottleLog.get(ip) ?? -Infinity) >= THROTTLE_LOG_WINDOW_MS) {
@@ -118,21 +120,23 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   // (an unknown name against the dummy one; if even that cannot be computed it is a plain mismatch, never an
   // error that a known name would not produce).
   const checkPassword = async (
+    throttle: Throttle,
     keys: string[],
     ip: string,
     user: UserRow | undefined,
     password: string,
   ): Promise<UserRow> => {
-    guard(keys, ip);
+    guard(throttle, keys, ip);
     // Counted before the slow hash, so parallel guesses queue behind the first instead of all passing the guard.
-    deps.throttle.fail(keys);
+    // A full table of live lockouts refuses the attempt instead of forgetting one.
+    if (!throttle.fail(keys)) throw new RateLimitedError(MAX_BACKOFF_MS);
     const stored = user?.passwordHash ?? (await dummyHash().catch(() => ""));
     const valid = await verifyPassword(password, stored);
     if (!user || !valid) {
-      deps.logger.warn("auth_login_failed", { ip, retryAfterMs: deps.throttle.retryAfterMs(keys) });
+      deps.logger.warn("auth_login_failed", { ip, retryAfterMs: throttle.retryAfterMs(keys) });
       throw new PapError("unauthenticated");
     }
-    deps.throttle.succeed(keys);
+    throttle.succeed(keys);
     return user;
   };
   const authenticate: AuthService["authenticate"] = (cookieValue, options) => {
@@ -158,7 +162,13 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     };
   };
   const confirmPassword: AuthService["confirmPassword"] = async (input) => {
-    await checkPassword([input.throttleKey], input.ip, deps.store.findUserById(input.userId), input.password);
+    await checkPassword(
+      deps.sessionThrottle,
+      [input.throttleKey],
+      input.ip,
+      deps.store.findUserById(input.userId),
+      input.password,
+    );
   };
   return {
     status(cookieValue) {
@@ -171,9 +181,11 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     },
     async setup(input) {
       const keys = [`ip:${input.ip}`];
-      guard(keys, input.ip);
-      if (deps.store.countUsers() > 0 || !deps.setupToken.verify(input.token)) {
-        deps.throttle.fail(keys);
+      guard(deps.throttle, keys, input.ip);
+      // Nothing is left to guess once an owner exists: refuse without counting, so a spray costs nothing and fills nothing.
+      if (deps.store.countUsers() > 0) throw new PapError("unauthenticated");
+      if (!deps.setupToken.verify(input.token)) {
+        if (!deps.throttle.fail(keys)) throw new RateLimitedError(MAX_BACKOFF_MS);
         deps.logger.warn("auth_setup_failed", {
           ip: input.ip,
           retryAfterMs: deps.throttle.retryAfterMs(keys),
@@ -201,6 +213,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
     async login(input) {
       const keys = [`ip:${input.ip}`, `user:${input.username.toLowerCase()}`];
       const user = await checkPassword(
+        deps.throttle,
         keys,
         input.ip,
         deps.store.findUserByName(input.username),
