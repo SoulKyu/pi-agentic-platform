@@ -9,11 +9,11 @@ import {
   usePendingFeedback,
 } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { groupSessions } from "./session-groups.ts";
-import { useSessionsCache } from "./sessions-cache.ts";
 import { useShortcut } from "./shortcut.ts";
 
 /** Nothing for the first moments of a first load, then a spinner (DESIGN.md §7.3). Mounted only while loading. */
@@ -26,17 +26,20 @@ function LoadingSessions({ label }: { readonly label: string }) {
 /** Sessions by working directory (project → lane → session arrives with M4 and M9). Shared with the phone "Lists" tab. */
 export function SessionTree({ onPick }: { onPick(id: string): void }) {
   const t = useT();
-  const sessions = useSessionsCache((state) => state.sessions);
-  const status = useSessionsCache((state) => state.status);
+  const held = useShellStore((state) => state.view.sessions);
+  const loaded = useShellStore((state) => state.view.loaded);
+  const broken = useShellStore((state) => state.view.unreadable || state.view.failed !== null);
+  const sessions = useMemo(() => [...held.values()], [held]);
   const [filter, setFilter] = useState("");
   const palette = useShortcut("palette.toggle");
   const { groups, hidden } = groupSessions(sessions, filter);
-  const firstLoad = sessions.length === 0 && (status === "loading" || status === "idle");
-  const retry = () => void useSessionsCache.getState().refresh(getRuntime().rpc);
+  const firstLoad = !loaded && !broken;
+  // A person's click asks the stream for a fresh snapshot; nothing retries by itself.
+  const retry = () => getRuntime().subscriptions.resync("shell", "me");
   return (
     <div className="flex flex-col gap-s3 p-s3">
       <TextField label={t("shell.tree.filter")} value={filter} onChange={setFilter} />
-      {status === "error" ? (
+      {broken ? (
         <Banner
           tone="capacity"
           title={t("shell.tree.error")}
@@ -81,7 +84,7 @@ export function SessionTree({ onPick }: { onPick(id: string): void }) {
             : t("shell.tree.moreNoChord", { count: hidden })}
         </p>
       ) : null}
-      {groups.length === 0 && !firstLoad && status !== "error" ? (
+      {groups.length === 0 && !firstLoad && !broken ? (
         <p className="text-ui text-muted">
           {t(filter.trim() === "" ? "shell.tree.none" : "shell.tree.empty")}
         </p>

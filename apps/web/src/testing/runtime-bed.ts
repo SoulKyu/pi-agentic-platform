@@ -31,7 +31,7 @@ export function fakeRuntime(state: ConnectionState = "open") {
     if (method === "sessions.clearQueue") return { steering: [], followUp: [], truncated: false };
     if (method === "sessions.branches") return { leafId: null, points: [], truncated: false };
     if (method === "policy.listRules") return { rules: [], truncated: false };
-    return method === "sessions.list" ? { sessions: [] } : { ok: true };
+    return { ok: true };
   });
   const rpc = {
     call,

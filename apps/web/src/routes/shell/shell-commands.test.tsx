@@ -8,7 +8,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import { press, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 const auth = vi.hoisted(() => ({ logout: vi.fn() }));
@@ -51,7 +51,7 @@ beforeEach(() => {
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;
   localStorage.clear();
-  useSessionsCache.setState({ sessions: [], status: "idle" });
+  useShellStore.getState().reset();
   useWorkspaceStore.setState({ ws: { tabs: [tab("a"), tab("b")], active: "session:b" } });
   auth.logout.mockReset().mockResolvedValue(undefined);
 });

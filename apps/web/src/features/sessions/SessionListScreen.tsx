@@ -1,13 +1,13 @@
-import type { SessionSummary } from "@pap/contracts";
 import { Button, cn, FOCUS_RING, TextField } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
-import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { failureText } from "./failure.ts";
 
-// A dropped connection has its own banner and the next connection lists again: only a real refusal is shown.
-const isConnectionLoss = (code: string): boolean => code === "offline" || code === "connection_lost";
+/** The most rows this list shows; the full home is the archive and search screens (M4). */
+const MAX_LISTED = 50;
 
 export function SessionListScreen() {
   const t = useT();
@@ -15,30 +15,17 @@ export function SessionListScreen() {
   const connection = useConnectionState(runtime.connection);
   const navigate = useNavigate();
   const [cwd, setCwd] = useState("");
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [listError, setListError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  // Bumped to list again without a new connection.
-  const [listings, setListings] = useState(0);
-
-  useEffect(() => {
-    if (connection !== "open") return;
-    let current = true;
-    runtime.rpc.call("sessions.list", {}).then(
-      (result) => {
-        if (!current) return;
-        setListError(null);
-        setSessions([...result.sessions].sort((a, b) => b.updatedAt - a.updatedAt));
-      },
-      (failure: unknown) => {
-        if (current) setListError(isConnectionLoss(failureCode(failure)) ? null : failureText(failure));
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [connection, runtime, listings]);
+  const held = useShellStore((state) => state.view.sessions);
+  const sessions = useMemo(
+    () =>
+      [...held.values()]
+        .filter((session) => session.archivedAt === null)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, MAX_LISTED),
+    [held],
+  );
 
   const create = async () => {
     setBusy(true);
@@ -47,9 +34,8 @@ export function SessionListScreen() {
       const { sessionId } = await runtime.rpc.call("sessions.create", { cwd: cwd.trim() });
       await navigate({ to: "/s/$sessionId", params: { sessionId } });
     } catch (failure) {
+      // The session may have been made though no answer came (R105): the stream shows it if it was.
       setError(failureText(failure));
-      // The session may have been made though no answer came (R105): the list tells.
-      if (outcomeUnknown(failure)) setListings((count) => count + 1);
     }
     setBusy(false);
   };
@@ -82,11 +68,6 @@ export function SessionListScreen() {
           </Button>
         </div>
       </form>
-      {listError ? (
-        <p role="alert" className="text-ui text-attn">
-          {listError}
-        </p>
-      ) : null}
       {sessions.length === 0 ? (
         <p className="text-muted">{t("sessions.empty")}</p>
       ) : (

@@ -5,7 +5,7 @@ export type ClientIssue =
   | "setting_load_failed"
   | "setting_save_failed"
   | "keybindings_invalid"
-  | "sessions_list_failed"
+  | "shell_feed_failed"
   | "lazy_chunk_failed"
   | "render_failed"
   | "command_failed"

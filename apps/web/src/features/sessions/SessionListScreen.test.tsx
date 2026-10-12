@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import type { ShellSession } from "@pap/contracts";
 import { act, type ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
@@ -14,6 +15,8 @@ import {
   type Mounted,
 } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
+import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { SessionListScreen } from "./SessionListScreen.tsx";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined, navigate: vi.fn() }));
@@ -33,20 +36,7 @@ vi.mock("@tanstack/react-router", async () => {
 let bed: ReturnType<typeof fakeRuntime>;
 let page: Mounted | null = null;
 
-const summary = (
-  id: string,
-  cwd: string,
-  updatedAt: number,
-  status = "idle",
-  name: string | null = null,
-) => ({
-  id,
-  cwd,
-  name,
-  status,
-  createdAt: 1,
-  updatedAt,
-});
+const listed = (...sessions: ShellSession[]) => useShellStore.getState().apply(shellSnapshot(sessions));
 
 async function show(state: "open" | "waiting" = "open") {
   bed = fakeRuntime(state);
@@ -57,6 +47,7 @@ async function show(state: "open" | "waiting" = "open") {
 }
 
 beforeEach(() => {
+  useShellStore.getState().reset();
   current.navigate.mockReset();
 });
 afterEach(async () => {
@@ -65,39 +56,60 @@ afterEach(async () => {
 });
 
 describe("SessionListScreen", () => {
-  it("lists the sessions, the most recently used first, each linking to its screen", async () => {
-    const list = vi.fn(() => ({
-      sessions: [summary("a", "/work/old", 10), summary("b", "/work/new", 20, "running")],
-    }));
-    bed = fakeRuntime();
-    bed.handlers["sessions.list"] = list;
-    current.runtime = bed.runtime;
-    page = await mount(<SessionListScreen />);
-    await settle();
-    const links = [...page.container.querySelectorAll("a")];
+  it("lists the sessions of the store, the most recently used first, each linking to its screen", async () => {
+    listed(
+      shellSession({ id: "a", cwd: "/work/old", updatedAt: 10 }),
+      shellSession({ id: "b", cwd: "/work/new", updatedAt: 20, status: "running" }),
+    );
+    const container = await show();
+    const links = [...container.querySelectorAll("a")];
     expect(links.map((link) => [link.textContent, link.getAttribute("href")])).toEqual([
       ["/work/new", "/s/b"],
       ["/work/old", "/s/a"],
     ]);
-    expect(text(page.container)).toContain("Working");
+    expect(text(container)).toContain("Working");
+    expect(bed.called("sessions.list")).toEqual([]);
   });
 
   it("shows the name as the link and the folder below it, and a name that looks like markup as text only", async () => {
-    bed = fakeRuntime();
-    bed.handlers["sessions.list"] = () => ({
-      sessions: [
-        summary("a", "/work/a", 20, "idle", "Fix login"),
-        summary("b", "/work/b", 10, "idle", "<b>x</b>"),
-      ],
-    });
-    current.runtime = bed.runtime;
-    page = await mount(<SessionListScreen />);
-    await settle();
-    const links = [...page.container.querySelectorAll("a")];
+    listed(
+      shellSession({ id: "a", cwd: "/work/a", updatedAt: 20, name: "Fix login" }),
+      shellSession({ id: "b", cwd: "/work/b", updatedAt: 10, name: "<b>x</b>" }),
+    );
+    const container = await show();
+    const links = [...container.querySelectorAll("a")];
     expect(links.map((link) => link.textContent)).toEqual(["Fix login", "<b>x</b>"]);
-    expect(page.container.querySelector("b")).toBeNull();
-    expect(text(page.container)).toContain("/work/a");
-    expect(text(page.container)).toContain("/work/b");
+    expect(container.querySelector("b")).toBeNull();
+    expect(text(container)).toContain("/work/a");
+    expect(text(container)).toContain("/work/b");
+  });
+
+  it("shows the 50 newest sessions that are not archived", async () => {
+    listed(
+      ...Array.from({ length: 60 }, (_, i) =>
+        shellSession({ id: `s${i}`, cwd: `/w/${i}`, updatedAt: i + 1 }),
+      ),
+      shellSession({ id: "gone", cwd: "/w/gone", updatedAt: 1000, archivedAt: 5 }),
+    );
+    const container = await show();
+    const hrefs = [...container.querySelectorAll("a")].map((link) => link.getAttribute("href"));
+    expect(hrefs).toHaveLength(50);
+    expect(hrefs[0]).toBe("/s/s59");
+    expect(hrefs.at(-1)).toBe("/s/s10");
+  });
+
+  it("follows the stream: a session that arrives as an event appears", async () => {
+    listed(shellSession({ id: "a", cwd: "/work/a" }));
+    const container = await show();
+    await act(async () =>
+      useShellStore
+        .getState()
+        .apply({ kind: "session", session: shellSession({ id: "n", cwd: "/work/n", updatedAt: 9 }) }),
+    );
+    expect([...container.querySelectorAll("a")].map((link) => link.textContent)).toEqual([
+      "/work/n",
+      "/work/a",
+    ]);
   });
 
   it("says there is no session yet", async () => {
@@ -142,64 +154,19 @@ describe("SessionListScreen", () => {
     expect(bed.called("sessions.list")).toEqual([]);
   });
 
-  it("lists once the connection opens", async () => {
-    const container = await show("waiting");
-    bed.handlers["sessions.list"] = () => ({ sessions: [summary("a", "/work/x", 1)] });
-    await act(async () => {
-      bed.fake.setState("open");
-    });
-    await settle();
-    expect(text(container)).toContain("/work/x");
-  });
-
-  it("shows a refused listing, but not a dropped connection", async () => {
-    bed = fakeRuntime();
-    current.runtime = bed.runtime;
-    bed.handlers["sessions.list"] = () => {
-      throw new RpcError("internal");
-    };
-    page = await mount(<SessionListScreen />);
-    await settle();
-    expect(alerts(page.container)).toEqual(["Something went wrong."]);
-    await page.unmount();
-    bed = fakeRuntime();
-    current.runtime = bed.runtime;
-    bed.handlers["sessions.list"] = () => {
-      throw new RpcError("connection_lost");
-    };
-    page = await mount(<SessionListScreen />);
-    await settle();
-    expect(alerts(page.container)).toEqual([]);
-  });
-
-  it("lists again after a create whose outcome is unknown, since the session may exist (R105)", async () => {
+  it("shows a create whose outcome is unknown and does not list: the stream shows the session if it was made (R105)", async () => {
     for (const code of ["timeout", "connection_lost"] as const) {
       const container = await show();
-      const listed = bed.called("sessions.list").length;
-      bed.handlers["sessions.list"] = () => ({ sessions: [summary("made", "/work/maybe", 5)] });
       bed.handlers["sessions.create"] = () => {
         throw new RpcError(code);
       };
       await typeInto(field(container, "Working directory"), "/work/maybe");
       await click(button(container, "New session"));
       await settle();
-      expect(bed.called("sessions.list").length, code).toBe(listed + 1);
-      expect(text(container), code).toContain("/work/maybe");
+      expect(bed.called("sessions.list"), code).toEqual([]);
       expect(alerts(container)[0], code).toContain("may still have gone through");
       await page?.unmount();
       page = null;
     }
-  });
-
-  it("does not list again after a refusal that settles the matter", async () => {
-    const container = await show();
-    const listed = bed.called("sessions.list").length;
-    bed.handlers["sessions.create"] = () => {
-      throw new RpcError("invalid_cwd");
-    };
-    await typeInto(field(container, "Working directory"), "nope");
-    await click(button(container, "New session"));
-    await settle();
-    expect(bed.called("sessions.list")).toHaveLength(listed);
   });
 });

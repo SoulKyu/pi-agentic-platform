@@ -27,6 +27,7 @@ const build = (extra: Partial<Parameters<typeof buildPaletteItems>[0]> = {}) => 
     names: keyNames(t),
     tabs: [],
     sessions: [],
+    views: {},
     t,
     navigate,
     run,

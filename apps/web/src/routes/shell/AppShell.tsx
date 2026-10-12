@@ -5,6 +5,10 @@ import { detectPlatform } from "../../features/commands/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
+import { reportClientIssue } from "../../lib/report.ts";
+import { getRuntime } from "../../runtime/index.ts";
+import { feedShell } from "../../stores/shell-feed.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
 import { MobileShell } from "./MobileShell.tsx";
@@ -13,11 +17,11 @@ import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
 import { ShellContext } from "./shell-context.ts";
-import { useSessionsCache } from "./sessions-cache.ts";
 import { useShellCommands } from "./shell-commands.ts";
 import { TabBar } from "./TabBar.tsx";
 import { TopBar } from "./TopBar.tsx";
 import { useShellEffects } from "./use-shell-effects.ts";
+import { useViewLabels } from "./use-view-labels.ts";
 import { useViewportHeight } from "./use-viewport-height.ts";
 
 interface AppShellProps {
@@ -49,6 +53,14 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
     [username, passkeysAvailable, onSignedOut],
   );
   useViewportHeight();
+  // The one reader of the `shell` stream while the shell is mounted; the next account starts from nothing.
+  useEffect(() => {
+    const stop = feedShell(getRuntime().subscriptions, () => reportClientIssue("shell_feed_failed"));
+    return () => {
+      stop();
+      useShellStore.getState().reset();
+    };
+  }, []);
   useShellEffects({ mobile, treeOpen: readTreeOpen });
   useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, onSignedOut });
   return (
@@ -84,9 +96,10 @@ function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" 
   const t = useT();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
-  const sessions = useSessionsCache((state) => state.sessions);
+  const sessions = useShellStore((state) => state.view.sessions);
+  const views = useViewLabels();
   const item = itemFromPath(pathname, import.meta.env.DEV);
-  const title = item ? itemTitle(item, sessions, t) : t("shell.notFound.title");
+  const title = item ? itemTitle(item, sessions, views, t) : t("shell.notFound.title");
   return (
     <div data-shell="desktop" className="flex h-app rail-right:flex-row-reverse">
       <Rail username={username} onSignedOut={onSignedOut} />

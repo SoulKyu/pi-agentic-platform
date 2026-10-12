@@ -8,7 +8,9 @@ import type { Runtime } from "../../runtime/index.ts";
 import { click, press, settle, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { RpcError } from "../../runtime/rpc.ts";
+import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({
@@ -24,8 +26,11 @@ vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   return { SessionScreen: () => createElement("p", { "data-stub": "session", tabIndex: 0 }) };
 });
 
-const session = (id: string, cwd: string, updatedAt: number, status = "idle") =>
-  ({ id, cwd, name: null as string | null, status, createdAt: 1, updatedAt }) as const;
+const session = (id: string, cwd: string, updatedAt: number, status: "idle" | "running" = "idle") =>
+  shellSession({ id, cwd, status, updatedAt });
+/** The first event of the shell stream, as the server sends it once the page is connected. */
+const feed = (sessions: ReturnType<typeof session>[], patch: Parameters<typeof shellSnapshot>[1] = {}) =>
+  act(async () => bed.emitTo("subscribe.shell", shellSnapshot(sessions, patch)));
 
 let bed: ReturnType<typeof fakeRuntime>;
 let started: Array<{ stop(): void }> = [];
@@ -37,12 +42,9 @@ beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
   bed = fakeRuntime("open");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
-  bed.handlers["sessions.list"] = () => ({
-    sessions: [session("one", "/w/api", 1), session("two", "/w/api", 2, "running")],
-  });
   current.runtime = bed.runtime;
   localStorage.clear();
-  useSessionsCache.setState({ sessions: [], status: "idle" });
+  useShellStore.getState().reset();
   useWorkspaceStore.setState({ ws: EMPTY_WORKSPACE });
 });
 
@@ -55,6 +57,7 @@ describe("tree drawer", () => {
   it("is not in the document until opened, then Ctrl+B lists the sessions grouped by folder", async () => {
     const page = await renderShell("/");
     await settle();
+    await feed([session("one", "/w/api", 1), session("two", "/w/api", 2, "running")]);
     expect(dialog()).toBeNull();
     await ctrlB();
     await opened("Sessions");
@@ -69,11 +72,12 @@ describe("tree drawer", () => {
   });
 
   it("labels a named row with its name and an unnamed one with its id", async () => {
-    bed.handlers["sessions.list"] = () => ({
-      sessions: [{ ...session("one", "/w/api", 1), name: "Fix login" }, session("two", "/w/api", 2)],
-    });
     const page = await renderShell("/");
     await settle();
+    await feed([
+      shellSession({ id: "one", cwd: "/w/api", name: "Fix login", updatedAt: 1 }),
+      session("two", "/w/api", 2),
+    ]);
     await ctrlB();
     await opened("Sessions");
     await vi.waitFor(() => expect(dialog()?.querySelectorAll("a")).toHaveLength(2), { timeout: 2_000 });
@@ -87,6 +91,7 @@ describe("tree drawer", () => {
   it("opening a row navigates to the session and closes the drawer", async () => {
     const page = await renderShell("/");
     await settle();
+    await feed([session("one", "/w/api", 1), session("two", "/w/api", 2)]);
     await ctrlB();
     await opened("Sessions");
     await click(dialog()?.querySelector('a[href="/s/one"]') as HTMLElement);
@@ -99,6 +104,7 @@ describe("tree drawer", () => {
   it("filters by folder and says so when nothing matches", async () => {
     const page = await renderShell("/");
     await settle();
+    await feed([session("one", "/w/api", 1)]);
     await ctrlB();
     await opened("Sessions");
     const filter = dialog()?.querySelector("input") as HTMLInputElement;
@@ -109,11 +115,9 @@ describe("tree drawer", () => {
   });
 
   it("shows 200 rows and says how many more, pointing to the palette chord", async () => {
-    bed.handlers["sessions.list"] = () => ({
-      sessions: Array.from({ length: 250 }, (_, i) => session(`s${i}`, `/w/p${i % 3}`, i)),
-    });
     const page = await renderShell("/");
     await settle();
+    await feed(Array.from({ length: 250 }, (_, i) => session(`s${i}`, `/w/p${i % 3}`, i)));
     await ctrlB();
     await opened("Sessions");
     expect(dialog()?.querySelectorAll("a")).toHaveLength(200);
@@ -121,14 +125,18 @@ describe("tree drawer", () => {
     await page.unmount();
   });
 
-  it("a failed list shows a banner with Retry, which asks again", async () => {
+  it.each([
+    ["refused", "failed"],
+    ["unreadable", "unreadable"],
+  ])("a %s shell stream shows a banner with Retry, which asks the stream again", async (kind) => {
     let answers = 0;
-    bed.handlers["sessions.list"] = () => {
-      if (++answers <= 2) throw new Error("boom");
-      return { sessions: [session("one", "/w/api", 1)] };
+    bed.handlers["subscribe.shell"] = () => {
+      if (kind === "refused" && ++answers === 1) throw new RpcError("capacity");
+      return { sub: `again-${++answers}` };
     };
     const page = await renderShell("/");
     await settle();
+    if (kind === "unreadable") await act(async () => useShellStore.getState().apply({ kind: "snapshot" }));
     await ctrlB();
     await opened("Sessions");
     await vi.waitFor(() => expect(dialog()?.querySelector('[data-slot="banner"]')).not.toBeNull(), {
@@ -138,7 +146,8 @@ describe("tree drawer", () => {
     const retry = [...(dialog()?.querySelectorAll("button") ?? [])].find((b) => b.textContent === "Retry");
     await click(retry as HTMLElement);
     await settle();
-    expect(dialog()?.querySelectorAll("a")).toHaveLength(1);
+    expect(bed.called("subscribe.shell")).toHaveLength(2);
+    expect(bed.called("sessions.list")).toEqual([]);
     await page.unmount();
   });
 
@@ -174,9 +183,7 @@ describe("tree drawer", () => {
 });
 
 describe("tree drawer, first load", () => {
-  it("shows nothing at first, then a labelled spinner while the list is slow", async () => {
-    let release: (value: unknown) => void = () => {};
-    bed.handlers["sessions.list"] = () => new Promise((resolve) => (release = resolve));
+  it("shows nothing at first, then a labelled spinner while the snapshot is slow, then the rows", async () => {
     const page = await renderShell("/");
     await settle();
     await ctrlB();
@@ -187,11 +194,9 @@ describe("tree drawer, first load", () => {
         expect(dialog()?.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe(
           "Loading sessions",
         ),
-      {
-        timeout: 2_000,
-      },
+      { timeout: 2_000 },
     );
-    await act(async () => release({ sessions: [session("one", "/w/api", 1)] }));
+    await feed([session("one", "/w/api", 1)]);
     await settle();
     expect(dialog()?.querySelector('[data-slot="spinner"]')).toBeNull();
     expect(dialog()?.querySelectorAll("a")).toHaveLength(1);

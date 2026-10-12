@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   COMMANDS,
   detectPlatform,
@@ -13,9 +13,9 @@ import { pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { reportClientIssue } from "../../lib/report.ts";
-import { getRuntime } from "../../runtime/index.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { buildPaletteItems } from "./palette-items.ts";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useViewLabels } from "./use-view-labels.ts";
 import { go } from "./tab-actions.ts";
 
 const loadPalette = () => import("../../features/commands/palette/CommandPalette.tsx");
@@ -29,16 +29,8 @@ export function PaletteHost() {
   useCommand("palette.toggle", () => setOpen((current) => !current));
   const rules = useKeybindingsStore((state) => state.rules);
   const tabs = useWorkspaceStore((state) => state.ws.tabs);
-  const sessions = useSessionsCache((state) => state.sessions);
-  const runtime = getRuntime();
-
-  useEffect(() => {
-    if (!open) return;
-    void useSessionsCache
-      .getState()
-      .refresh(runtime.rpc)
-      .catch(() => reportClientIssue("sessions_list_failed"));
-  }, [open, runtime]);
+  const held = useShellStore((state) => state.view.sessions);
+  const views = useViewLabels();
 
   const items = useMemo(
     () =>
@@ -50,7 +42,8 @@ export function PaletteHost() {
             platform: detectPlatform(),
             names: keyNames(t),
             tabs,
-            sessions,
+            sessions: [...held.values()],
+            views,
             t,
             navigate: (item) => go(navigate, pathOfItem(item)),
             run: (id) => {
@@ -62,7 +55,7 @@ export function PaletteHost() {
             },
           })
         : [],
-    [open, rules, tabs, sessions, t, navigate],
+    [open, rules, tabs, held, views, t, navigate],
   );
   return (
     <LazyPanel

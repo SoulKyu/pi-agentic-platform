@@ -7,7 +7,10 @@ import type { Runtime } from "../../runtime/index.ts";
 import { click, press, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
+import { useSessionStore } from "../../stores/session-store.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({
@@ -38,10 +41,11 @@ beforeEach(() => {
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;
   localStorage.clear();
-  useSessionsCache.setState({
-    sessions: [{ id: "a", cwd: "/home/ana/a", name: null, status: "running", createdAt: 1, updatedAt: 2 }],
-    status: "loaded",
-  });
+  useShellStore.getState().reset();
+  useSessionStore.setState({ views: {} });
+  useShellStore
+    .getState()
+    .apply(shellSnapshot([shellSession({ id: "a", cwd: "/home/ana/a", status: "running", updatedAt: 2 })]));
   useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "session:a" } });
 });
 
@@ -51,14 +55,21 @@ const named = (root: ParentNode, label: string) =>
 
 describe("TabBar", () => {
   it("labels a session tab with its name, else its folder", async () => {
-    useSessionsCache.setState({
-      sessions: [
-        { id: "a", cwd: "/home/ana/a", name: "Fix login", status: "idle", createdAt: 1, updatedAt: 2 },
-      ],
-      status: "loaded",
-    });
+    useShellStore
+      .getState()
+      .apply(
+        shellSnapshot([shellSession({ id: "a", cwd: "/home/ana/a", name: "Fix login", status: "idle" })]),
+      );
     const page = await renderShell("/s/a");
     expect(tabs(page.container).map((one) => one.textContent)).toContain("Fix login");
+    await page.unmount();
+  });
+
+  it("titles the tab of a session the store lacks from that session's own view", async () => {
+    useShellStore.getState().reset();
+    useSessionStore.setState({ views: { a: { ...EMPTY_VIEW, name: "From view", cwd: "/x/y" } } });
+    const page = await renderShell("/s/a");
+    expect(tabs(page.container).map((one) => one.textContent)).toContain("From view");
     await page.unmount();
   });
 

@@ -8,10 +8,11 @@ import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
+import { useViewLabels } from "./use-view-labels.ts";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { SessionTree } from "./SessionTree.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
 const loadTabSwitcher = () => import("./TabSwitcher.tsx");
@@ -22,7 +23,8 @@ export function MobileShell() {
   const lazyText = useLazyFailureText();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
-  const sessions = useSessionsCache((state) => state.sessions);
+  const sessions = useShellStore((state) => state.view.sessions);
+  const views = useViewLabels();
   const [section, setSection] = useState<MobileSection>("work");
   const [seenPath, setSeenPath] = useState(pathname);
   const [tabsOpen, setTabsOpen] = useState(false);
@@ -39,7 +41,7 @@ export function MobileShell() {
     };
   }, []);
   const item = itemFromPath(pathname, import.meta.env.DEV);
-  const title = item ? itemTitle(item, sessions, t) : t("shell.notFound.title");
+  const title = item ? itemTitle(item, sessions, views, t) : t("shell.notFound.title");
   return (
     <div data-shell="mobile" className="flex h-app flex-col">
       <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
