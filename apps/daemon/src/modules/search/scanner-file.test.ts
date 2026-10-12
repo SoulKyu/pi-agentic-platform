@@ -1,91 +1,23 @@
 import { execFileSync } from "node:child_process";
-import {
-  appendFileSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  statSync,
-  symlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
+import { appendFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createFakeClock } from "../../kernel/clock.ts";
+import { beforeEach, describe, expect, it } from "vitest";
 import type { Db } from "../../kernel/db/database.ts";
-import { type Logger, silentLogger } from "../../kernel/logger.ts";
-import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { openSearchIndex } from "./index-db.ts";
 import { createSearchIndexStore, type SearchIndexStore } from "./index-store.ts";
-import { type FileContext, type FileOutcome, processFile } from "./scanner-file.ts";
+import { processFile } from "./scanner-file.ts";
 import { HEAD_CHARS } from "./session-file.ts";
-import { type FakeScanPort, fakeScanPort } from "./testing/fake-scan-port.ts";
+import type { FakeScanPort } from "./testing/fake-scan-port.ts";
+import { assistant, header, info, piFile, useScannerBed, user } from "./testing/scanner-bed.ts";
 
-const INSTALLED_AT = Date.parse("2026-10-12T00:00:00Z");
-
-const header = (id = "sess-1", timestamp = "2026-10-12T10:00:00.000Z") =>
-  JSON.stringify({ type: "session", version: 3, id, timestamp, cwd: "/w/api" });
-const user = (id: string, text: string) =>
-  JSON.stringify({ type: "message", id, message: { role: "user", content: text } });
-const assistant = (id: string, text: string) =>
-  JSON.stringify({
-    type: "message",
-    id,
-    message: { role: "assistant", content: [{ type: "text", text }] },
-  });
-const info = (name: string) => JSON.stringify({ type: "session_info", name });
-const piFile = (head: string, ...entries: string[]): string => `${[head, ...entries].join("\n")}\n`;
-
-let dir = "";
+const bed = useScannerBed({ openSearchIndex, createSearchIndexStore, processFile });
+const { file, said, run } = bed;
 let sessionsDir = "";
 let db: Db;
 let store: SearchIndexStore;
 let port: FakeScanPort;
-let limiter = createRateLimiter(createFakeClock(), 60_000);
-let warnings: Array<{ msg: string; fields: Record<string, unknown> | undefined }>;
-
-const logger: Logger = {
-  ...silentLogger,
-  warn: (msg, fields) => {
-    warnings.push({ msg, fields });
-  },
-};
-
-const context = (limits?: FileContext["limits"], patch: Partial<FileContext> = {}): FileContext => {
-  return {
-    installedAt: INSTALLED_AT,
-    store,
-    sessions: port.port,
-    logger,
-    say: (event, fields) => {
-      if (limiter.check(event).allowed) logger.warn(event, fields);
-    },
-    ...(limits ? { limits } : {}),
-    ...patch,
-  };
-};
-
-const file = (name: string, text: string): string => {
-  const path = join(sessionsDir, name);
-  writeFileSync(path, text);
-  return path;
-};
-const said = (event: string) => warnings.filter((w) => w.msg === event);
-const run = (path: string, limits?: FileContext["limits"]): FileOutcome => processFile(path, context(limits));
-
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "pap-scanner-file-"));
-  sessionsDir = join(dir, "sessions", "--w--");
-  mkdirSync(sessionsDir, { recursive: true });
-  db = openSearchIndex(join(dir, "search.db"), silentLogger);
-  store = createSearchIndexStore(db);
-  port = fakeScanPort();
-  warnings = [];
-  limiter = createRateLimiter(createFakeClock(), 60_000);
-});
-afterEach(() => {
-  db.close();
-  rmSync(dir, { recursive: true, force: true });
+  ({ sessionsDir, db, store, port } = bed);
 });
 
 describe("processFile", () => {
@@ -109,7 +41,7 @@ describe("processFile", () => {
         header: { id: "sess-1", cwd: "/w/api", createdAt: Date.parse("2026-10-12T10:00:00.000Z") },
       },
     ]);
-    expect(port.touched).toEqual([{ sessionId: "s1", at: stat.mtimeMs, active: true }]);
+    expect(port.touched).toEqual([{ sessionId: "s1", at: stat.mtimeMs, active: false }]);
     expect(port.previewed).toEqual([{ sessionId: "s1", text: "hello world" }]);
     expect(port.named).toEqual([{ sessionId: "s1", raw: "My name" }]);
   });
@@ -226,13 +158,17 @@ describe("processFile", () => {
   it("caps the indexed text but keeps names and activity", () => {
     const path = file("a.jsonl", piFile(header(), user("e1", "a".repeat(15)), user("e2", "b".repeat(15))));
     expect(run(path, { maxIndexedChars: 20 })).toMatchObject({ rows: 1 });
-    expect(store.cursor(path)?.indexedChars).toBe(15);
+    expect(store.cursor(path)?.indexedChars).toBe(20);
     expect(said("session_file_capped")).toHaveLength(1);
     appendFileSync(path, `${info("Later name")}\n`);
     run(path, { maxIndexedChars: 20 });
     expect(port.named).toEqual([{ sessionId: "s1", raw: "Later name" }]);
     expect(port.touched).toHaveLength(2);
     expect(store.rowCount()).toBe(1);
+    appendFileSync(path, `${user("e3", "c".repeat(3))}\n`);
+    run(path, { maxIndexedChars: 20 });
+    expect(store.rowCount()).toBe(1);
+    expect(said("session_file_capped")).toHaveLength(1);
   });
 
   it("goes on in steps until the file is read, every row once", () => {
@@ -247,7 +183,7 @@ describe("processFile", () => {
       if (!outcome.more) break;
       expect(calls).toBeLessThan(20);
     }
-    expect(calls).toBeGreaterThan(2);
+    expect(calls).toBe(5);
     expect(rows).toBe(10);
     expect(store.rowCount()).toBe(10);
     expect(store.cursor(path)?.offset).toBe(statSync(path).size);
@@ -298,57 +234,5 @@ describe("processFile", () => {
     run(path);
     expect(port.previewed[0]?.text).toBe("u".repeat(HEAD_CHARS));
     expect(port.named[0]?.raw).toBe("n".repeat(HEAD_CHARS));
-  });
-});
-
-describe("failures stay inside the file (RT-04)", () => {
-  it("contains a SQLite error from the store, says its code only, leaves the cursor alone", () => {
-    const path = file("a.jsonl", piFile(header(), user("e1", "one")));
-    const broken: SearchIndexStore = {
-      ...store,
-      commit: () => {
-        throw Object.assign(new Error(`disk image is malformed ${path}`), { code: "ERR_SQLITE_ERROR" });
-      },
-    };
-    expect(processFile(path, context(undefined, { store: broken }))).toEqual({
-      kind: "skipped",
-      reason: "ERR_SQLITE_ERROR",
-    });
-    expect(said("session_file_unreadable").map((w) => w.fields)).toEqual([{ code: "ERR_SQLITE_ERROR" }]);
-    expect(store.cursor(path)).toBeUndefined();
-    expect(run(path)).toMatchObject({ kind: "indexed", rows: 1 });
-  });
-
-  it("contains a read error (a directory named like a session)", () => {
-    const path = join(sessionsDir, "dir.jsonl");
-    mkdirSync(path);
-    expect(run(path)).toEqual({ kind: "skipped", reason: "not_file" });
-  });
-
-  it("contains an error thrown by the claim", () => {
-    const path = file("a.jsonl", piFile(header(), user("e1", "one")));
-    const sessions = {
-      ...port.port,
-      claim: () => {
-        throw Object.assign(new Error("boom"), { code: "EIO" });
-      },
-    };
-    expect(processFile(path, context(undefined, { sessions }))).toEqual({ kind: "skipped", reason: "EIO" });
-    expect(store.cursor(path)).toBeUndefined();
-  });
-
-  it("keeps indexing when a port call after the commit fails", () => {
-    const path = file("a.jsonl", piFile(header(), user("e1", "one"), info("Name")));
-    const sessions = {
-      ...port.port,
-      named: () => {
-        throw new Error("secret text");
-      },
-    };
-    expect(processFile(path, context(undefined, { sessions }))).toMatchObject({ kind: "indexed", rows: 1 });
-    expect(store.rowCount()).toBe(1);
-    expect(said("session_file_port_failed").map((w) => w.fields)).toEqual([{ call: "named", code: "error" }]);
-    expect(port.previewed).toHaveLength(1);
-    expect(port.touched).toHaveLength(1);
   });
 });

@@ -4,10 +4,19 @@ import { cutUnits } from "../../kernel/text.ts";
 import type { SessionsScanPort } from "../sessions/index.ts";
 import { extract } from "./extract.ts";
 import type { FileCursor, IndexRow, SearchIndexStore } from "./index-store.ts";
-import { HEAD_CHARS, openRegular, parseHeader, readHeaderLine, readLines } from "./session-file.ts";
+import {
+  HEAD_CHARS,
+  HEADER_MAX_BYTES,
+  openRegular,
+  parseHeader,
+  readHeaderLine,
+  readLines,
+} from "./session-file.ts";
 
 export const STEP_BYTES = 4 * 1024 * 1024;
 export const MAX_INDEXED_CHARS = 4_000_000;
+
+const FORGOTTEN: ReadonlySet<string> = new Set(["ENOENT", "ELOOP", "ENOTDIR", "not_file"]);
 
 export type FileOutcome =
   | { readonly kind: "gone" }
@@ -74,8 +83,29 @@ function step(
       return { kind: "indexed", sessionId: cursor.sessionId, rows: 0, more: false };
   }
   const header = readHeaderLine(fd, stat.size);
-  if (!header) return { kind: "skipped", reason: "no_header_yet" };
-  const head = header.line.slice(0, HEAD_CHARS);
+  if (!header) {
+    // 64 KiB without a newline will never be a header: marked, not read again until the file changes.
+    if (stat.size < HEADER_MAX_BYTES) return { kind: "skipped", reason: "no_header_yet" };
+    if (cursor) ctx.store.forget(path);
+    ctx.store.commit(
+      {
+        path,
+        ...stat,
+        head: "",
+        offset: stat.size,
+        skipLine: false,
+        state: "bad",
+        sessionId: null,
+        ownerId: null,
+        indexedChars: 0,
+      },
+      [],
+    );
+    ctx.say("session_file_bad_header");
+    return { kind: "skipped", reason: "bad_header" };
+  }
+  // Cut on a code point: a split surrogate pair would be stored as U+FFFD and never equal again.
+  const head = cutUnits(header.line, HEAD_CHARS);
   // Pi only appends: another inode, a shorter file or another header is a different file (M4R66).
   if (cursor && (cursor.ino !== stat.ino || stat.size < cursor.offset || cursor.head !== head)) {
     ctx.store.forget(path);
@@ -117,9 +147,11 @@ function step(
   // Inside a line over the cap last time: go on skipping it from there (M4R135).
   const read = readLines(fd, from, stat.size, ctx.limits?.stepBytes ?? STEP_BYTES, known?.skipLine ?? false);
   const found = extract(read.records);
+  const max = ctx.limits?.maxIndexedChars ?? MAX_INDEXED_CHARS;
   const before = known?.indexedChars ?? 0;
-  const room = Math.max(0, (ctx.limits?.maxIndexedChars ?? MAX_INDEXED_CHARS) - before);
-  const { kept, chars, capped } = withinBudget(found.rows, room);
+  const { kept, chars, capped } = withinBudget(found.rows, Math.max(0, max - before));
+  // Dropping rows stores the capped state (`indexedChars` at the cap): later chunks add no rows and say nothing more.
+  const reached = capped || before >= max;
   ctx.store.commit(
     {
       ...base,
@@ -128,11 +160,11 @@ function step(
       state: "indexed",
       sessionId,
       ownerId,
-      indexedChars: before + chars,
+      indexedChars: reached ? Math.max(max, before) : before + chars,
     },
     kept,
   );
-  if (capped) ctx.say("session_file_capped");
+  if (capped && before < max) ctx.say("session_file_capped");
   if (read.bad > 0 || read.skipped > 0)
     ctx.say("session_file_lines_skipped", { bad: read.bad, skipped: read.skipped });
   const id = sessionId;
@@ -144,20 +176,26 @@ function step(
     const text = cutUnits(found.firstUser, HEAD_CHARS);
     attempt(ctx, "previewed", () => ctx.sessions.previewed(id, text));
   }
-  if (read.next > from) attempt(ctx, "touched", () => ctx.sessions.touched(id, stat.mtimeMs, found.active));
+  if (read.next > from)
+    attempt(ctx, "touched", () =>
+      ctx.sessions.touched(id, stat.mtimeMs, known !== undefined && found.active),
+    );
   return { kind: "indexed", sessionId, rows: kept.length, more: read.next > from && read.next < stat.size };
 }
 
 /**
  * One step of one Pi file (M4R65–M4R69). Synchronous: the engine yields between calls. Any I/O or SQLite error is
  * contained here and said with its code; the cursor then stays where it was, so the next pass tries again (RT-04).
+ * An open refused with ENOENT, ELOOP, ENOTDIR or not_file forgets the file's cursor and rows; other refusals keep them.
+ * `touched` carries `active` only for entries read on from a stored cursor, never for a re-read (M4R41).
  * The path is the cursor's key and is used as given: the caller spells it as the sessions module does.
  */
 export function processFile(path: string, ctx: FileContext): FileOutcome {
   try {
     const opened = openRegular(path);
     if ("refused" in opened) {
-      ctx.store.forget(path);
+      // The file is not there or not a regular file: forgotten. A transient refusal (EACCES, EMFILE, EIO) keeps its rows.
+      if (FORGOTTEN.has(opened.refused)) ctx.store.forget(path);
       if (opened.refused === "ENOENT") return { kind: "gone" };
       if (opened.refused !== "ELOOP" && opened.refused !== "not_file")
         ctx.say("session_file_unreadable", { code: opened.refused });
