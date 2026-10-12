@@ -93,7 +93,16 @@ describe("shell summaries", () => {
     expect(snapshot.sessions.map((s) => s.id)).toEqual(
       sessions.slice(0, snapshot.sessions.length).map((s) => s.id),
     );
-    expect(snapshot.more).toBe(10 - snapshot.sessions.length);
+    expect(snapshot.sessions).toHaveLength(2);
+    expect(snapshot.more).toBe(8);
+  });
+
+  it("keeps at most 550 rows whatever the budget, and the frame parses", () => {
+    const sessions = Array.from({ length: 600 }, (_, i) => summary(`s${String(i).padStart(3, "0")}`, null));
+    const snapshot = fitShellSnapshot({ sessions, projects: [], active: 700, archived: 0 });
+    expect(snapshot.sessions.map((s) => s.id)).toEqual(sessions.slice(0, 550).map((s) => s.id));
+    expect(snapshot.more).toBe(150);
+    expect(ShellStreamEvent.safeParse(snapshot).success).toBe(true);
   });
 
   it("keeps a sixth of the budget for the projects no held session names", () => {
@@ -104,7 +113,7 @@ describe("shell summaries", () => {
     expect(sizeOf(snapshot)).toBeLessThanOrEqual(1351);
   });
 
-  it("fits the largest window of 10 000 sessions and 2 000 projects with 4096-character folders in one frame", () => {
+  it("fits 550 sessions and 2 000 projects with 4096-character folders in one frame", () => {
     const sessions = Array.from({ length: SHELL_LIMITS.sessions + SHELL_LIMITS.pins }, (_, i) =>
       summary(`s${String(i).padStart(4, "0")}`, `p${i}`, `/${"d".repeat(4095)}`),
     );

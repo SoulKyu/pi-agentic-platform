@@ -14,6 +14,9 @@ export type ShellSnapshot = Extract<ShellStreamEvent, { kind: "snapshot" }>;
 /** The share of the budget kept for the projects no held session names (M4R32): budget / 6, 150 000 of a page. */
 export const PROJECT_SHARE = 6;
 
+/** The contract's bound on the snapshot's sessions: the newest window plus the pins. */
+const MAX_ROWS = SHELL_LIMITS.sessions + SHELL_LIMITS.pins;
+
 export function summaryOf(
   row: ShellRow,
   live: { readonly status: SessionStatus; readonly needsInput: boolean },
@@ -64,6 +67,7 @@ export function fitShellSnapshot(
   const named = new Set<string>();
   const sessionRoom = budget - Math.floor(budget / PROJECT_SHARE);
   for (const session of input.sessions) {
+    if (snapshot.sessions.length >= MAX_ROWS) break;
     const project =
       session.projectId !== null && !named.has(session.projectId) ? byId.get(session.projectId) : undefined;
     const size = sizeOf(session) + 1 + (project ? sizeOf(project) + 1 : 0);
