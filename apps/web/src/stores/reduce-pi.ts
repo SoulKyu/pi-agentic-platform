@@ -1,5 +1,5 @@
 import { applyPartial } from "./partial-view.ts";
-import { hasFallbackRef, sameContent, toMessageView, withUniqueKey } from "./row-view.ts";
+import { hasFallbackRef, sameContent, toMessageView, uniqueKeyOf, withUniqueKey } from "./row-view.ts";
 import type { SessionView, ToolView } from "./session-reducer.ts";
 
 export const MAX_TOOL_VIEWS = 200;
@@ -45,16 +45,27 @@ export function failRunningTools(tools: ReadonlyMap<string, ToolView>): Map<stri
 export function reducePi(view: SessionView, event: { type: string } & Record<string, unknown>): SessionView {
   const next: SessionView = { ...view, partial: applyPartial(view.partial, event) };
   switch (event.type) {
+    case "message_start": {
+      const started = event.message as { role?: unknown; timestamp?: unknown } | undefined;
+      if (started?.role !== "assistant") return next;
+      const stamp = typeof started.timestamp === "number" ? started.timestamp : "none";
+      return { ...next, partialKey: uniqueKeyOf(view.messages, `assistant:${stamp}`) };
+    }
     case "message_end": {
       const message = toMessageView(event.message);
-      if (!message) return next;
+      // The reply is written: its row now carries the key the partial had.
+      const written =
+        (event.message as { role?: unknown } | undefined)?.role === "assistant"
+          ? { ...next, partialKey: null }
+          : next;
+      if (!message) return written;
       // The snapshot and the live stream can both carry a message: the same one is not added twice. A message with no
       // timestamp has no name to tell a replay from a second equal message (`role:none`), so it is always added (M3R134).
       const replay =
         !hasFallbackRef(message) &&
         view.messages.some((existing) => existing.ref === message.ref && sameContent(existing, message));
       return {
-        ...next,
+        ...written,
         messages: replay ? view.messages : [...view.messages, withUniqueKey(view.messages, message)],
       };
     }

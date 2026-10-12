@@ -300,6 +300,17 @@ describe("SessionScreen approvals", () => {
     expect(container.textContent).toContain("2 more dialogs are waiting");
   });
 
+  it("asks one fresh snapshot when a shown dialog closes while others are hidden (M4R111)", async () => {
+    await show();
+    await emit({ ...snapshot("running", [], [confirm("ls")]), hiddenDialogs: 1 });
+    expect(bed.called("subscribe.session")).toHaveLength(1);
+    await emit({ kind: "dialog_closed", id: "d1" });
+    expect(bed.called("subscribe.session")).toEqual([
+      { method: "subscribe.session", params: { sessionId: "sess-1" } },
+      { method: "subscribe.session", params: { sessionId: "sess-1" } },
+    ]);
+  });
+
   it("shows a failure to deliver the answer", async () => {
     bed.handlers["sessions.respondDialog"] = () => {
       throw new RpcError("not_found");

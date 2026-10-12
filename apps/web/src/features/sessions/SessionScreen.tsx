@@ -47,6 +47,11 @@ export function SessionScreen({
     [runtime, sessionId],
   );
 
+  // A dialog closed while others were hidden: one fresh snapshot lets the hidden ones reach this client (M4R111).
+  useEffect(() => {
+    if (view.staleDialogs) runtime.subscriptions.resync("session", sessionId);
+  }, [view.staleDialogs, runtime, sessionId]);
+
   // A status button's command goes out as a prompt; its failure shows like any other (the bar is disabled while busy).
   const commandInFlight = useRef(false);
   const runCommand = (command: string) => {
