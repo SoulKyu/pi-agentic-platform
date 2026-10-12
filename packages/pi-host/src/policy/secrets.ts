@@ -1,4 +1,4 @@
-import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createRedactor, type Redactor, type SecretSet } from "./redact.ts";
 
@@ -109,9 +109,15 @@ function authCandidates(authJson: string): { found: Candidate[]; problem?: strin
     const providerName = provider.toUpperCase().replace(/[^A-Z0-9]+/g, "_");
     for (const [field, value] of Object.entries(record)) {
       if (!AUTH_FIELDS.has(field) || typeof value !== "string") continue;
-      if (value.length < MIN_LENGTH || value.startsWith("!") || isPiReference(value)) continue;
+      // Pi resolves `key` alone (a command, `$VAR` references, escapes); every other field is a literal.
+      let literal = value;
+      if (field === "key") {
+        if (value.startsWith("!") || isPiReference(value)) continue;
+        literal = value.replace(/\$([$!])/g, "$1");
+      }
+      if (literal.length < MIN_LENGTH) continue;
       const fieldName = credentialWords(field).join("_").toUpperCase();
-      found.push({ name: `AUTH_${providerName}_${fieldName}`.slice(0, MAX_NAME), value });
+      found.push({ name: `AUTH_${providerName}_${fieldName}`.slice(0, MAX_NAME), value: literal });
     }
   }
   return { found };
@@ -179,18 +185,25 @@ const codeOf = (error: unknown): string => {
   return typeof code === "string" && /^[A-Za-z0-9_-]{1,32}$/.test(code) ? code : "unknown";
 };
 
-/** At most `MAX_AUTH_BYTES + 1` bytes of a regular file: one more than allowed says "too large" without reading on. */
-function readBounded(path: string): string | null {
-  const fd = openSync(path, "r");
+/**
+ * At most `maxBytes + 1` bytes of a regular file. Opened without blocking and checked after the open, so a FIFO put in
+ * place after the `stat` cannot hang the worker; one byte more than allowed says "too large" without reading on.
+ */
+export function readBounded(
+  path: string,
+  maxBytes = MAX_AUTH_BYTES,
+): { text: string } | { problem: "not-a-file" | "too-large" } {
+  const fd = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK);
   try {
-    const buffer = Buffer.alloc(MAX_AUTH_BYTES + 1);
+    if (!fstatSync(fd).isFile()) return { problem: "not-a-file" };
+    const buffer = Buffer.alloc(maxBytes + 1);
     let length = 0;
     while (length < buffer.length) {
       const read = readSync(fd, buffer, length, buffer.length - length, null);
       if (read === 0) break;
       length += read;
     }
-    return length > MAX_AUTH_BYTES ? null : buffer.toString("utf8", 0, length);
+    return length > maxBytes ? { problem: "too-large" } : { text: buffer.toString("utf8", 0, length) };
   } finally {
     closeSync(fd);
   }
@@ -228,13 +241,13 @@ export function createSecretSource({
         fail("not-a-file");
         return;
       }
-      const text = stat.size > MAX_AUTH_BYTES ? null : readBounded(path);
+      const read = stat.size > MAX_AUTH_BYTES ? { problem: "too-large" as const } : readBounded(path);
       signature = next;
-      if (text === null) {
-        fail("too-large");
+      if ("problem" in read) {
+        fail(read.problem);
         return;
       }
-      const built = build(env, text);
+      const built = build(env, read.text);
       if (built.problem !== undefined) {
         fail(built.problem);
         return;

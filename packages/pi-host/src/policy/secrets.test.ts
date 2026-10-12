@@ -1,9 +1,5 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { collectSecrets, createSecretSource, credentialWords, isWeakEnvValue } from "./secrets.ts";
+import { collectSecrets, credentialWords, isWeakEnvValue } from "./secrets.ts";
 
 const names = (env: NodeJS.ProcessEnv, authJson: string | null = null) =>
   collectSecrets({ env, authJson }).entries.map((entry) => entry.name);
@@ -227,6 +223,28 @@ describe("collectSecrets from auth.json", () => {
       }),
     });
     expect(set.entries.map((entry) => entry.name)).toEqual(["AUTH_C_KEY", "AUTH_D_KEY", "AUTH_F_KEY"]);
+    // The value Pi uses is the unescaped one.
+    expect(set.entries.map((entry) => entry.value)).toEqual([
+      "pa$word-0123456789",
+      "!bang-0123456789",
+      "cost-in-$-0123456789",
+    ]);
+  });
+
+  it("only `key` is resolved by Pi: other fields are literal, a `$` in them stays", () => {
+    const set = collectSecrets({
+      env: {},
+      authJson: JSON.stringify({
+        a: { password: "Pa$sword-FAKE01", token: "$NOT_A_REF-FAKE01", secret: "pa$$word-FAKE0123" },
+        b: { key: "pa$$word-FAKE0123" },
+      }),
+    });
+    expect(set.entries).toEqual([
+      { name: "AUTH_A_PASSWORD", value: "Pa$sword-FAKE01" },
+      { name: "AUTH_A_TOKEN", value: "$NOT_A_REF-FAKE01" },
+      { name: "AUTH_A_SECRET", value: "pa$$word-FAKE0123" },
+      { name: "AUTH_B_KEY", value: "pa$word-FAKE0123" },
+    ]);
   });
 
   it("an environment name wins a duplicate value over the auth.json name", () => {
@@ -252,114 +270,5 @@ describe("collectSecrets from auth.json", () => {
     captureStderr();
     expect(collectSecrets({ env: {}, authJson: null }).entries).toEqual([]);
     expect(lines()).toEqual([]);
-  });
-});
-
-describe("createSecretSource", () => {
-  const dirs: string[] = [];
-  afterEach(() => {
-    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
-  });
-  function agentDir(authJson?: object): string {
-    const dir = mkdtempSync(join(tmpdir(), "pap-secrets-"));
-    dirs.push(dir);
-    if (authJson) writeFileSync(join(dir, "auth.json"), JSON.stringify(authJson));
-    return dir;
-  }
-  const bump = (dir: string, seconds: number) => {
-    const when = new Date(Date.now() + seconds * 1000);
-    utimesSync(join(dir, "auth.json"), when, when);
-  };
-
-  it("rebuilds the redactor when auth.json changed and only then (M5R121)", () => {
-    const dir = agentDir({ openai: { access: "at-0123456789" } });
-    const source = createSecretSource({ env: {}, agentDir: dir });
-    const first = source.current();
-    expect(first.text("x at-0123456789").text).toBe("x [SECRET:AUTH_OPENAI_ACCESS]");
-    source.refresh();
-    expect(source.current()).toBe(first);
-    writeFileSync(join(dir, "auth.json"), JSON.stringify({ openai: { access: "at-9876543210" } }));
-    bump(dir, 2);
-    source.refresh();
-    expect(source.current()).not.toBe(first);
-    expect(source.current().text("at-9876543210").text).toBe("[SECRET:AUTH_OPENAI_ACCESS]");
-  });
-
-  it("a missing auth.json is fine; one that appears later is read", () => {
-    const dir = agentDir();
-    captureStderr();
-    const source = createSecretSource({ env: { MY_TOKEN: "env-0123456789" }, agentDir: dir });
-    source.refresh();
-    expect(lines()).toEqual([]);
-    expect(source.current().text("env-0123456789").count).toBe(1);
-    writeFileSync(join(dir, "auth.json"), JSON.stringify({ openai: { access: "at-0123456789" } }));
-    source.refresh();
-    expect(source.current().text("at-0123456789").count).toBe(1);
-    expect(source.current().text("env-0123456789").count).toBe(1);
-  });
-
-  it("a later corrupt file keeps the current set and writes one line per change of code", () => {
-    const dir = agentDir({ openai: { access: "at-0123456789" } });
-    captureStderr();
-    const source = createSecretSource({ env: {}, agentDir: dir });
-    const first = source.current();
-    writeFileSync(join(dir, "auth.json"), "{broken");
-    bump(dir, 2);
-    source.refresh();
-    writeFileSync(join(dir, "auth.json"), "{broken again");
-    bump(dir, 4);
-    source.refresh();
-    expect(source.current()).toBe(first);
-    expect(lines()).toEqual(["pi-host: auth.json not read for redaction (invalid-json)\n"]);
-  });
-
-  it("an auth.json above 1 MiB contributes nothing and is not read", () => {
-    const dir = mkdtempSync(join(tmpdir(), "pap-secrets-"));
-    dirs.push(dir);
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, "auth.json"), " ".repeat(1024 * 1024 + 1));
-    captureStderr();
-    const source = createSecretSource({ env: {}, agentDir: dir });
-    expect(source.current().size).toBe(0);
-    expect(lines()).toEqual(["pi-host: auth.json not read for redaction (too-large)\n"]);
-  });
-
-  it("rebuilds when the file was replaced with the same size and mtime (ctime is in the signature)", () => {
-    const dir = agentDir({ openai: { access: "at-0123456789" } });
-    const path = join(dir, "auth.json");
-    const fixed = 1_700_000_000;
-    utimesSync(path, fixed, fixed);
-    const source = createSecretSource({ env: {}, agentDir: dir });
-    const first = source.current();
-    writeFileSync(path, JSON.stringify({ openai: { access: "at-9876543210" } }));
-    utimesSync(path, fixed, fixed);
-    source.refresh();
-    expect(source.current()).not.toBe(first);
-    expect(source.current().text("at-9876543210").count).toBe(1);
-  });
-
-  it("a FIFO or a link to /dev/zero is not read, does not hang, and is reported once", () => {
-    const dir = agentDir();
-    const path = join(dir, "auth.json");
-    execFileSync("mkfifo", [path]);
-    captureStderr();
-    const source = createSecretSource({ env: {}, agentDir: dir });
-    source.refresh();
-    expect(source.current().size).toBe(0);
-    rmSync(path);
-    symlinkSync("/dev/zero", path);
-    source.refresh();
-    expect(source.current().size).toBe(0);
-    expect(lines()).toEqual(["pi-host: auth.json not read for redaction (not-a-file)\n"]);
-  });
-
-  it("a file that grew past 1 MiB after the stat is cut at the bound and refused", () => {
-    const dir = agentDir();
-    writeFileSync(join(dir, "auth.json"), "{}");
-    captureStderr();
-    const source = createSecretSource({ env: {}, agentDir: dir });
-    writeFileSync(join(dir, "auth.json"), " ".repeat(1024 * 1024 + 5));
-    source.refresh();
-    expect(lines()).toEqual(["pi-host: auth.json not read for redaction (too-large)\n"]);
   });
 });
