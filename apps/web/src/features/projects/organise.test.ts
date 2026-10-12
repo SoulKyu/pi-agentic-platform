@@ -92,6 +92,30 @@ describe("organise (M4R96)", () => {
     expect(session("p1")?.name).toBe("fresh");
   });
 
+  it("builds the change from the store's session, not a stale caller copy", async () => {
+    const stale = held("a");
+    store().apply({ kind: "session", session: shellSession({ id: "a", name: "newer", status: "running" }) });
+    await organise(
+      { session: stale, change: { kind: "settle" }, now: NOW },
+      deps(rpc(async () => ({ ok: true }))),
+    );
+    expect(session("a")).toMatchObject({ name: "newer", status: "running", settledAt: NOW });
+  });
+
+  it("a non-RpcError throw is refused as internal and rolled back", async () => {
+    const result = await organise(
+      { session: held("a"), change: { kind: "settle" }, now: NOW },
+      deps(
+        rpc(async () => {
+          throw new TypeError("boom");
+        }),
+      ),
+    );
+    expect(result).toEqual({ result: "refused", code: "internal" });
+    expect(session("a")?.settledAt).toBeNull();
+    expect(store().view.pending.size).toBe(0);
+  });
+
   it("a server echo supersedes the optimistic state; the confirm leaves it alone", async () => {
     let answer: (value: unknown) => void = () => {};
     const call = rpc(() => new Promise((resolve) => (answer = resolve)));
@@ -158,6 +182,7 @@ describe("organise (M4R96)", () => {
     await expect(
       organise({ session: held("p1"), change: { kind: "unpin" }, now: NOW }, deps(call)),
     ).resolves.toEqual({ result: "busy" });
+    expect(calls(call)).toHaveBeenCalledTimes(1);
     answer({ ok: true });
     await first;
   });

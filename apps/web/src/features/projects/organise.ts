@@ -9,10 +9,10 @@ import {
   type ShellSession,
 } from "@pap/contracts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import type { Timers } from "../../runtime/connection.ts";
 import { pinnedIds } from "../../stores/shell-reducer.ts";
 import type { useShellStore } from "../../stores/shell-store.ts";
 
+type Timers = { set(fn: () => void, ms: number): number; clear(id: number): void };
 export type ShellStoreApi = Pick<typeof useShellStore, "getState" | "subscribe">;
 export type Outcome = { result: "ok" | "busy" | "refused" | "unknown"; code?: string; undo?: MarkState };
 
@@ -49,6 +49,7 @@ const unknownOutcome = (code: string): boolean => code === "connection_lost" || 
 /** The answer of a mutation shown before it came (M4R96): confirmed, rolled back, or read back from a snapshot. */
 async function settle(commandId: string, send: () => Promise<unknown>, deps: OrganiseDeps): Promise<Outcome> {
   try {
+    // No deadline of its own: the runtime settles every call when the socket is declared dead (spec C §4.2).
     await send();
     deps.store.getState().confirm(commandId);
     return { result: "ok" };
@@ -73,11 +74,13 @@ export async function organise(
   const view = deps.store.getState().view;
   if (view.pending.size > 0) return { result: "busy" };
   const pins = pinnedIds(view);
-  const outcome = applyMark(input.session.id, marksOf(input.session), input.change, pins, input.now);
+  // The store's copy is the newer one: a stale caller copy must not overwrite its fields.
+  const current = view.sessions.get(input.session.id) ?? input.session;
+  const outcome = applyMark(current.id, marksOf(current), input.change, pins, input.now);
   if (!outcome.ok) return { result: "refused", code: outcome.code };
-  const captured = markStateOf(input.session.id, marksOf(input.session), pins, input.now);
+  const captured = markStateOf(current.id, marksOf(current), pins, input.now);
   const after: ShellSession = {
-    ...input.session,
+    ...current,
     pinRank: outcome.marks.pinRank,
     archivedAt: outcome.marks.archivedAt,
     settledAt: outcome.marks.settledAt,

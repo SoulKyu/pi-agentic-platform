@@ -87,13 +87,21 @@ describe("shell reducer", () => {
   });
 
   it("keeps the projects held sessions name, and evicts empty unnamed ones first (M4R80)", () => {
-    let view = loaded([shellSession({ id: "a", projectId: "named" })]);
-    view = reduceShell(view, { kind: "project", project: shellProject({ id: "named", sessions: 0 }) });
-    view = reduceShell(view, { kind: "project", project: shellProject({ id: "empty", sessions: 0 }) });
-    for (let i = 0; i < MAX_STORE_PROJECTS; i++)
+    let view = reduceShell(
+      EMPTY_SHELL,
+      shellSnapshot([shellSession({ id: "a", projectId: "named" })], {
+        projects: [
+          shellProject({ id: "named", sessions: 0 }),
+          shellProject({ id: "full", sessions: 1 }),
+          shellProject({ id: "empty", sessions: 0 }),
+        ],
+      }),
+    );
+    for (let i = 0; i < MAX_STORE_PROJECTS - 2; i++)
       view = reduceShell(view, { kind: "project", project: shellProject({ id: `q${i}`, sessions: 1 }) });
     expect(view.projects.size).toBe(MAX_STORE_PROJECTS);
-    expect([view.projects.has("named"), view.projects.has("empty")]).toEqual([true, false]);
+    expect(view.projects.has("empty")).toBe(false);
+    expect([view.projects.has("named"), view.projects.has("full")]).toEqual([true, true]);
   });
 
   it("shows an optimistic change, confirms it, or rolls it back (M4R82)", () => {
