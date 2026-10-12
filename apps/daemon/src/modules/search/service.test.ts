@@ -113,4 +113,13 @@ describe("search service", () => {
     const service = createSearchService({ client: { query }, sessions: { summary: session } });
     await expect(service.query(testCaller(), { q: "kube" })).rejects.toMatchObject({ code: "timeout" });
   });
+
+  it("answers at most the limit when the client returns more rows", async () => {
+    const rows = Array.from({ length: 30 }, (_, n) => row({ entryId: `e${n}` }));
+    const { service } = setup(rows);
+    const { hits } = await service.query(testCaller(), { q: "kube", limit: 3 });
+    expect(hits.map((hit) => hit.entryId)).toEqual(["e0", "e1", "e2"]);
+    const all = await service.query(testCaller(), { q: "kube" });
+    expect(all.hits).toHaveLength(20);
+  });
 });

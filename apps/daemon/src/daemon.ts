@@ -160,7 +160,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       scopes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
-    const search = createSearchModule({ home: config.home, clock, logger, sessions: sessions.scanPort });
+    const search = createSearchModule({
+      home: config.home,
+      clock,
+      logger,
+      sessions: sessions.scanPort,
+      readOnly,
+    });
     closers.push({ name: "search", close: () => search.stop() });
     const settings = createSettingsModule({ db, clock, logger });
     const handlers: HandlerTable = {

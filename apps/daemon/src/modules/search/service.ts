@@ -15,13 +15,12 @@ export function createSearchService(deps: {
     ): Promise<{ hits: SearchHit[] }> {
       const match = matchExpression(params.q);
       if (match === null) return { hits: [] };
-      const rows = await deps.client.query({
-        match,
-        ownerId: caller.userId,
-        limit: params.limit ?? SHELL_LIMITS.searchHits,
-      });
+      const limit = params.limit ?? SHELL_LIMITS.searchHits;
+      const rows = await deps.client.query({ match, ownerId: caller.userId, limit });
       const hits: SearchHit[] = [];
       for (const row of rows) {
+        // A thread that answers more than asked cannot push the answer past the contract's cap.
+        if (hits.length >= limit) break;
         const session = deps.sessions.summary(row.sessionId, caller.userId);
         if (!session) continue;
         const hit = SearchHit.safeParse({
@@ -35,7 +34,7 @@ export function createSearchService(deps: {
         // A row the contract cannot carry is dropped, never the whole answer (M4R134).
         if (hit.success) hits.push(hit.data);
       }
-      // 20 hits of at most ~9 KB each: always far under the frame.
+      // At most `limit` (<= 20) hits, each a 400-unit snippet plus one summary: far under the frame.
       return { hits };
     },
   };
