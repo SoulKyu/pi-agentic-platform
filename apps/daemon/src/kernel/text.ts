@@ -31,7 +31,7 @@ const INVISIBLE_ONLY = /^(?:\u200D|\uFE0E|\uFE0F| )*$/u;
 export function cleanLabel(raw: unknown, maxCodePoints: number): string | null {
   if (typeof raw !== "string") return null;
   const flat = raw
-    .replace(LONE_SURROGATE, "�")
+    .replace(LONE_SURROGATE, "\uFFFD")
     .replace(FORMAT_EXCEPT_ZWJ, "")
     .replace(LINE_OR_SPACE, " ")
     .replace(/\p{Cc}/gu, "")

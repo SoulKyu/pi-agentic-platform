@@ -1,5 +1,6 @@
 import { type Dialog, SessionStreamEvent, UI_LIMITS } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
+import { sizeOf } from "../../kernel/json-bytes.ts";
 import {
   fitSnapshot,
   PARTIAL_BYTES,
@@ -9,7 +10,6 @@ import {
   withTrimmedHistory,
 } from "./snapshot.ts";
 
-const sizeOf = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 const message = (n: number, filler = "") => ({ role: "user", content: `m${n}${filler}` });
 const row = (n: number, filler = "") => ({ entryId: `e${n}`, message: message(n, filler) });
 const dialog = (id: string, filler = ""): Dialog => ({

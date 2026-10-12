@@ -1,5 +1,6 @@
 import { Dialog } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
+import { sizeOf } from "../../kernel/json-bytes.ts";
 import { createDialogRegistry, DIALOG_FRAME_BYTES } from "./dialogs.ts";
 
 const request = (id: string, fields: Record<string, unknown> = {}) => ({
@@ -10,7 +11,6 @@ const request = (id: string, fields: Record<string, unknown> = {}) => ({
   message: "bash: ls",
   ...fields,
 });
-const sizeOf = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 
 describe("dialog registry", () => {
   it("opens known dialogs, hands each one out once, and clears", () => {

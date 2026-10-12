@@ -28,9 +28,9 @@ describe("cutUnits", () => {
 
 describe("LONE_SURROGATE", () => {
   it("finds halves without their other half, never a whole pair", () => {
-    expect("a\ud800b".replace(LONE_SURROGATE, "�")).toBe("a�b");
-    expect("a\udc00b".replace(LONE_SURROGATE, "�")).toBe("a�b");
-    expect("a\u{1F600}b".replace(LONE_SURROGATE, "�")).toBe("a\u{1F600}b");
+    expect("a\ud800b".replace(LONE_SURROGATE, "\uFFFD")).toBe("a\uFFFDb");
+    expect("a\udc00b".replace(LONE_SURROGATE, "\uFFFD")).toBe("a\uFFFDb");
+    expect("a\u{1F600}b".replace(LONE_SURROGATE, "\uFFFD")).toBe("a\u{1F600}b");
   });
 });
 
