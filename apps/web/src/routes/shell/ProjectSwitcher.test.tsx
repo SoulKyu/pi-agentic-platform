@@ -25,7 +25,7 @@ vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
 });
 
 let bed: ReturnType<typeof fakeRuntime>;
-// The menus and the drawer are lazy chunks; loaded once up front, a press mounts them within its own act().
+// Works around act() meeting a cold lazy chunk (its retry waits for act to exit); not a product bug: the menu opens on the first press.
 beforeAll(async () => {
   await import("@pap/ui/overlays");
   await import("./TreeDrawer.tsx");

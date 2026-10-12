@@ -123,6 +123,7 @@ export function SessionListScreen() {
             <Button
               variant="ghost"
               size="sm"
+              // "mobile.lists.open" is registered by MobileShell and only used on a phone.
               onClick={() => void runCommand(phone ? "mobile.lists.open" : "drawer.tree.toggle")}
             >
               {t("sessions.all")}
