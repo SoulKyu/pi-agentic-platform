@@ -1,54 +1,71 @@
-import type { ApprovalAnswer, ToolCategory } from "@pap/contracts";
-import { type Decision, decide, decideEdit } from "./decide.ts";
 import type { ApprovalPlan, CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
+import { READ_ONLY_REASON } from "./pipeline.ts";
+import { decide } from "./decide.ts";
+import { checkReadTarget } from "./read-target.ts";
 import { checkEditTarget, type EditReview } from "./target-path.ts";
 
-/** The answers a card offers, in DESIGN.md order (Deny / Session / Always / Allow once). */
-export function answersFor(category: ToolCategory, review: EditReview | undefined): ApprovalAnswer[] {
-  // A write outside the project or to a protected path is judged one call at a time: no grant covers the next one.
-  if (review) return ["deny", "once"];
-  // A tool pap cannot classify may do anything: it is never remembered beyond this worker.
-  if (category === "unknown") return ["deny", "session", "once"];
-  return ["deny", "session", "always", "once"];
-}
+const inputPath = (input: unknown): unknown =>
+  typeof input === "object" && input !== null ? (input as { path?: unknown }).path : undefined;
 
-async function decideCall(
+/** A write outside the folder or to a protected path (R14); a built-in read of pap's own files (M5R29). */
+async function reviewOf(
   call: CallFacts,
   ctx: PolicyContext,
-  protectedRoots: readonly string[],
-): Promise<{ decision: Decision; review?: EditReview }> {
+  deps: PipelineDeps,
+): Promise<{ review?: EditReview; protectedRead?: EditReview }> {
   const { category } = call.kind;
-  if (category !== "edit") return { decision: decide(category, call.rules) };
-  const target =
-    typeof call.event.input === "object" && call.event.input !== null
-      ? (call.event.input as { path?: unknown }).path
-      : undefined;
-  const check = await checkEditTarget(target, ctx.cwd, protectedRoots);
-  return check.auto
-    ? { decision: decideEdit(call.rules, true) }
-    : { decision: decideEdit(call.rules, false), review: check.review };
+  if (category === "edit") {
+    const check = await checkEditTarget(inputPath(call.event.input), ctx.cwd, [deps.agentDir, deps.papHome]);
+    return check.auto ? {} : { review: check.review };
+  }
+  if (category !== "read" || !call.kind.builtin) return {};
+  const protectedRead = await checkReadTarget(call.event.toolName, call.event.input, {
+    cwd: ctx.cwd,
+    papHome: deps.papHome,
+    agentDir: deps.agentDir,
+  });
+  return protectedRead ? { protectedRead } : {};
 }
 
-/** Stage 03 as M2 judged a call (Task 6 rewrites it): the category and the mode decide, an edit outside the folder asks. */
+/** Stage 03: the approval matrix (`decide`) over the facts of the call. It never puts input text in a reason. */
 export async function approvalStage(
   call: CallFacts,
   ctx: PolicyContext,
   deps: PipelineDeps,
 ): Promise<ApprovalPlan> {
   const { category } = call.kind;
-  const { decision, review } = await decideCall(call, ctx, [deps.agentDir, deps.papHome]);
-  if (decision === "allow") return { outcome: "allow", reason: `${category} allowed` };
-  if (decision === "block")
+  const { review, protectedRead } = await reviewOf(call, ctx, deps);
+  // Rules of a profile this build does not know open nothing (M1 has no unattended rules): fail closed.
+  if (call.rules.profile !== "interactive")
     return {
       outcome: "block",
-      reason: review?.why ?? `${category} blocked`,
+      reason: review?.why ?? protectedRead?.why ?? `${category} blocked`,
       modelReason: `pap-policy blocked this ${category} call.`,
     };
+  const verdict = decide({
+    mode: call.rules.approvalMode,
+    category,
+    tainted: call.tainted,
+    external: call.kind.external,
+    review,
+    protectedRead: protectedRead?.why,
+  });
+  if (verdict.decision === "allow") return { outcome: "allow", reason: verdict.why };
+  if (verdict.decision === "block")
+    return {
+      outcome: "block",
+      reason: verdict.why,
+      modelReason:
+        call.rules.approvalMode === "read-only"
+          ? READ_ONLY_REASON
+          : `pap-policy blocked this ${category} call.`,
+    };
+  const shown = review ?? protectedRead;
   return {
     outcome: "ask",
-    reason: review?.why ?? `${category} asks`,
-    answers: answersFor(category, review),
-    ...(review ? { review } : {}),
-    grantable: review === undefined,
+    reason: verdict.why,
+    answers: verdict.answers,
+    ...(shown ? { review: shown } : {}),
+    grantable: verdict.grantable,
   };
 }

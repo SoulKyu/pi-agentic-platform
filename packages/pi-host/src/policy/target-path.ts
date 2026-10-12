@@ -4,11 +4,12 @@ import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "nod
 import { fileURLToPath } from "node:url";
 
 const MAX_LINK_HOPS = 40;
-const UNICODE_SPACES = /\p{Zs}/gu;
+// Pi's own class (probed by `host.paths.int.test.ts`): U+1680 stays a name character, U+2800 is no blank at all.
+const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 
 // Pi rewrites a tool path before it opens the file (`~`, a leading `@`, file: URLs, unicode spaces).
 // The policy must judge where the write really lands, so it follows the same rewrites.
-function asPiResolves(path: string): string {
+export function asPiResolves(path: string): string {
   const unprefixed = path.replace(UNICODE_SPACES, " ").replace(/^@/, "");
   if (unprefixed === "~") return homedir();
   if (unprefixed.startsWith("~/")) return join(homedir(), unprefixed.slice(2));
@@ -31,7 +32,7 @@ async function lstatIfPresent(path: string) {
 }
 
 // realpath of the nearest existing ancestor plus the segments that do not exist yet, following dangling symlinks.
-async function realTarget(path: string, hops = 0): Promise<string> {
+export async function realTarget(path: string, hops = 0): Promise<string> {
   try {
     return await realpath(path);
   } catch (error) {
@@ -47,13 +48,31 @@ async function realTarget(path: string, hops = 0): Promise<string> {
   return join(await realTarget(parent, hops), basename(path));
 }
 
-function within(root: string, target: string): boolean {
+export function within(root: string, target: string): boolean {
   const path = relative(root, target);
   return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
 }
 
-const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([".git", ".pi", ".agents", ".husky", ".vscode"]);
-const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([".envrc"]);
+const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([
+  ".git",
+  ".pi",
+  ".agents",
+  ".husky",
+  ".vscode",
+  ".idea",
+  ".zed",
+  ".devcontainer",
+  ".lefthook",
+]);
+const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([
+  ".envrc",
+  "mise.toml",
+  ".mise.toml",
+  "lefthook.yml",
+  ".lefthook.yml",
+  "lefthook-local.yml",
+  ".lefthook-local.yml",
+]);
 
 // Files that run later, outside any approval: git hooks and config (core.fsmonitor), Pi settings
 // (shellCommandPrefix) and extensions, agent skills, hook managers, editor tasks, direnv. The segments of the
@@ -67,7 +86,10 @@ function hasProtectedName(absolutePath: string): boolean {
 }
 
 export type ReviewReason =
-  "outside the session directory" | "protected path" | "session directory too broad for automatic edits";
+  | "outside the session directory"
+  | "protected path"
+  | "session directory too broad for automatic edits"
+  | "searches pap's data directory";
 
 export interface EditReview {
   readonly why: ReviewReason;

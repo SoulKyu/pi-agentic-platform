@@ -49,14 +49,14 @@ describe("the question", () => {
     expect(h.entries[1]).toMatchObject({ decision: "allow", reason: "session rule" });
   });
 
-  it("passes the taint and the category to the question", async () => {
+  it("passes the taint and the category to the question, which then offers one call only", async () => {
     const h = bed.harness({ taint: true });
     await h.run("bash", { command: "ls" });
     expect(h.asks[0]).toMatchObject({
       category: "exec",
       tainted: true,
       tool: "bash",
-      answers: ["deny", "session", "always", "once"],
+      answers: ["deny", "once"],
     });
   });
 });

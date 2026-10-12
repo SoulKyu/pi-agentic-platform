@@ -4,7 +4,6 @@ import { createApprovals } from "../approvals.ts";
 import { createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
 import { createPolicyGrants, DENIED_REASON, FAIL_CLOSED_REASON, MAX_SESSION_GRANTS } from "./extension.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
-import { answersFor } from "./stage-approval.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeEach(async () => {
@@ -180,21 +179,6 @@ describe("pap-policy grants", () => {
     expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
     expect(h.asks).toHaveLength(2);
     expect(h.entries.at(-1)).toMatchObject({ decision: "approved", reason: "answer: always" });
-  });
-
-  it("pins the answers of every category", () => {
-    expect(
-      (["read", "edit", "exec", "network", "external-write", "unknown"] as const).map((category) =>
-        answersFor(category, undefined),
-      ),
-    ).toEqual([
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "once"],
-    ]);
   });
 
   it("offers a network call all four answers", async () => {

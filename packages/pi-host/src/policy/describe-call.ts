@@ -9,10 +9,12 @@ export type CallDescription =
 
 // Whitespace runs longer than 32 characters collapse into a marker; every other character the eye cannot
 // see (controls except \n and \t, format, separator, private-use, unassigned, default-ignorable, lone
-// surrogates) is spelled out.
+// surrogates) is spelled out. So are the lookalike blanks (R91, M5R31): U+00A0, U+1680, U+2000-U+200A, U+202F,
+// U+205F, U+3000 and the braille blank U+2800, which pass for a space or an empty name.
 const LONG_BLANK_RUN = /[\p{Zs}\t\n]{33,}/u;
+const LOOKALIKE_BLANKS = "\\u{00A0}\\u{1680}\\u{2000}-\\u{200A}\\u{202F}\\u{205F}\\u{3000}\\u{2800}";
 const HIDDEN_OR_BLANK_RUN = new RegExp(
-  `${LONG_BLANK_RUN.source}|[\\p{Cc}\\p{Cf}\\p{Cs}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}]`,
+  `${LONG_BLANK_RUN.source}|[\\p{Cc}\\p{Cf}\\p{Cs}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}${LOOKALIKE_BLANKS}]`,
   "gu",
 );
 
