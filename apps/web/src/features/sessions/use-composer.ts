@@ -162,14 +162,15 @@ export function useComposer(
     (note === "sending" && !sending)
   )
     setNote(null);
-  const send = (way?: Behavior) => {
+  /** `remember: false` sends this message the given way without changing the saved choice (the one-shot chord). */
+  const send = (way?: Behavior, options?: { readonly remember?: boolean }) => {
     if (pending || compacting || sendingRef.current) {
       setNote(pending ? "pending" : compacting ? "compacting" : "sending");
       return;
     }
     const plan = planSend(textRef.current, way ?? behavior);
     if (!plan) return;
-    if (way && way !== behavior) {
+    if (way && way !== behavior && options?.remember !== false) {
       setBehavior(way);
       saveBehavior(storage, way);
     }

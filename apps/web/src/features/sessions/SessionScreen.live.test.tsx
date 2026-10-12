@@ -48,6 +48,12 @@ describe("polite live regions (DESIGN §12)", () => {
     expect(live(container)?.textContent).toBe("The agent has finished.");
   });
 
+  it("does not say the agent finished when the session went cold", async () => {
+    const container = await screen.show({ status: "running" });
+    await screen.emit({ kind: "status", status: "cold" });
+    expect(live(container)?.textContent).toBe("");
+  });
+
   it("announces a new approval", async () => {
     const container = await screen.show({ status: "running" });
     await screen.emit({ kind: "dialog_open", dialog: approval });

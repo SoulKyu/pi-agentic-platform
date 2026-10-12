@@ -25,7 +25,7 @@ export function useAnnouncer(view: SessionView): {
   if (seen.running !== running || seen.approvals !== approvals) {
     setSeen({ running, approvals });
     if (running) setSaid(null);
-    else if (seen.running) setSaid({ key: "sessions.announce.runEnded" });
+    else if (seen.running && view.status === "idle") setSaid({ key: "sessions.announce.runEnded" });
     if (approvals > seen.approvals) setSaid({ key: "sessions.announce.approval" });
   }
   return {

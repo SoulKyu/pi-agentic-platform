@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { button, click, field, mount, press, settle, typeInto, type Mounted } from "../../testing/dom.ts";
+import { runCommand } from "../../lib/command-registry.ts";
 import { screenBed, seedSessionViews } from "../../testing/screen-bed.tsx";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
 import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../../features/commands/defaults.ts";
@@ -142,7 +143,7 @@ describe("Mod+Shift+Enter sends the other way", () => {
     press(target, { key: "Enter", code: "Enter", ctrlKey: true, shiftKey: true });
   const prompts = () => screen.bed.called("sessions.prompt").map((call) => call.params);
 
-  it("follows up when steering is the way, and steers when follow-up is", async () => {
+  it("is one-shot: it sends this message the other way and never changes the saved default", async () => {
     const container = await mount1({ status: "running" });
     const composer = field(container, "Message");
     await typeInto(composer, "check the tests");
@@ -156,11 +157,66 @@ describe("Mod+Shift+Enter sends the other way", () => {
     await typeInto(composer, "and the lint");
     await sendOther(composer);
     await settle();
+    // The default is still steer, so the other way is follow-up again; nothing was saved.
     expect(prompts().at(-1)).toEqual({
       sessionId: "sess-1",
       text: "and the lint",
-      streamingBehavior: "steer",
+      streamingBehavior: "followUp",
     });
+    expect(localStorage.getItem("pap.sessions.streaming")).toBeNull();
+  });
+
+  it("leaves the persistent choice to the buttons: a click saves, the chord then goes the other way", async () => {
+    const container = await mount1({ status: "running" });
+    const composer = field(container, "Message");
+    await typeInto(composer, "one");
+    await click(button(container, "Follow up"));
+    await settle();
+    expect(localStorage.getItem("pap.sessions.streaming")).toBe("followUp");
+    await typeInto(composer, "two");
+    composer.focus();
+    await sendOther(composer);
+    await settle();
+    expect(prompts().at(-1)).toMatchObject({ text: "two", streamingBehavior: "steer" });
+    expect(localStorage.getItem("pap.sessions.streaming")).toBe("followUp");
+  });
+
+  it("never sends the composer's draft from the rename field", async () => {
+    const container = await mount1({ status: "running" });
+    await typeInto(field(container, "Message"), "unrelated draft");
+    await click(button(container, "Rename"));
+    const name = field(container, "Rename");
+    name.focus();
+    await sendOther(name);
+    await settle();
+    expect(prompts()).toEqual([]);
+  });
+
+  it("never sends the composer's draft from an extension's text dialog", async () => {
+    const container = await mount1({
+      status: "running",
+      dialogs: [{ id: "i1", method: "input", title: "Your name" }],
+    });
+    await typeInto(field(container, "Message"), "unrelated draft");
+    const input = container.querySelector(
+      "[data-inline-edit] input, [data-inline-edit] textarea",
+    ) as HTMLElement;
+    input.focus();
+    expect(document.activeElement).toBe(input);
+    await sendOther(input);
+    await settle();
+    expect(prompts()).toEqual([]);
+  });
+
+  it("does not send during an IME composition", async () => {
+    const container = await mount1({ status: "running" });
+    const composer = field(container, "Message");
+    await typeInto(composer, "draft");
+    composer.focus();
+    await press(composer, { key: "Enter", code: "Enter", ctrlKey: true, shiftKey: true, isComposing: true });
+    await press(composer, { key: "Process", code: "Enter", ctrlKey: true, shiftKey: true, keyCode: 229 });
+    await settle();
+    expect(prompts()).toEqual([]);
   });
 
   it("sends nothing from an empty field", async () => {
@@ -213,5 +269,70 @@ describe("two session screens at once", () => {
       { sessionId: "sess-1" },
       { sessionId: "sess-2" },
     ]);
+  });
+});
+
+describe("commands run from the palette (focus is in the palette, not in a screen)", () => {
+  let page: Mounted | null = null;
+  afterEach(async () => {
+    await page?.unmount();
+    page = null;
+  });
+  const outside = () => {
+    const palette = document.createElement("input");
+    palette.setAttribute("data-test-menu", "");
+    document.body.append(palette);
+    palette.focus();
+    return palette;
+  };
+  const twoScreens = async () => {
+    seedSessionViews({ "sess-1": { status: "running" }, "sess-2": { status: "running" } });
+    current.runtime = screen.bed.runtime;
+    page = await mount(
+      <div data-pane-kind="session">
+        <SessionScreen sessionId="sess-1" />
+        <SessionScreen sessionId="sess-2" />
+      </div>,
+    );
+    await settle();
+    const [first, second] = [...page.container.querySelectorAll("[data-session-screen]")];
+    const composerOf = (host: Element | undefined) =>
+      host?.querySelector("[data-composer] textarea") as HTMLTextAreaElement;
+    return { first: composerOf(first), second: composerOf(second) };
+  };
+
+  it("Stop the run acts on the session that had the focus before the palette opened", async () => {
+    const { first, second } = await twoScreens();
+    first.focus();
+    outside();
+    expect(runCommand("session.stop")).toBe(true);
+    await settle();
+    expect(aborted().map((call) => call.params)).toEqual([{ sessionId: "sess-1" }]);
+    second.focus();
+    outside();
+    expect(runCommand("session.stop")).toBe(true);
+    await settle();
+    expect(aborted().map((call) => call.params)).toEqual([{ sessionId: "sess-1" }, { sessionId: "sess-2" }]);
+  });
+
+  it("Send the other way sends that session's draft", async () => {
+    const { first, second } = await twoScreens();
+    await typeInto(first, "draft one");
+    await typeInto(second, "draft two");
+    first.focus();
+    outside();
+    expect(runCommand("session.sendOther")).toBe(true);
+    await settle();
+    expect(screen.bed.called("sessions.prompt").map((call) => call.params)).toEqual([
+      { sessionId: "sess-1", text: "draft one", streamingBehavior: "followUp" },
+    ]);
+  });
+
+  it("still declines while the focus is inside another screen than the handler's", async () => {
+    const { first } = await twoScreens();
+    first.focus();
+    expect(runCommand("session.stop")).toBe(true);
+    await settle();
+    expect(aborted().map((call) => call.params)).toEqual([{ sessionId: "sess-1" }]);
   });
 });

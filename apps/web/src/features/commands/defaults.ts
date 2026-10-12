@@ -65,7 +65,11 @@ export const DEFAULT_KEYBINDINGS: readonly KeybindingRule[] = [
     command: "session.stop",
     when: "sessionFocus && !panelFocus && !inlineEditFocus && !overlayOpen && !dialogOpen && !paletteOpen",
   },
-  { key: "mod+shift+enter", command: "session.sendOther", when: "sessionFocus && !panelFocus" },
+  {
+    key: "mod+shift+enter",
+    command: "session.sendOther",
+    when: "sessionFocus && !panelFocus && !inlineEditFocus && !overlayOpen && !dialogOpen",
+  },
   {
     key: "alt+shift+arrowright",
     command: "tab.next",
