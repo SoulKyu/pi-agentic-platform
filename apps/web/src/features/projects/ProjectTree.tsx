@@ -1,12 +1,13 @@
 import "../../i18n/register-sidebar.ts";
 import type { ShellSession } from "@pap/contracts";
 import { Banner, Button, Collapsible, TextField } from "@pap/ui";
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { errorKey, plural, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { ArchivedShelf } from "./ArchivedShelf.tsx";
 import { Loading } from "./Loading.tsx";
+import { useFocusFallback } from "./menu-focus.ts";
 import { ProjectHeading } from "./ProjectHeading.tsx";
 import { SessionRow } from "./SessionRow.tsx";
 import { buildTree, clampShown, ROWS_PER_PROJECT } from "./tree.vm.ts";
@@ -25,6 +26,28 @@ function useNow(interval: number): number {
     return () => clearInterval(timer);
   }, [interval]);
   return now;
+}
+
+/** How long a change may take before the tree says it is saving (DESIGN §7.3: nothing under 100 ms). */
+const SAVING_AFTER_MS = 100;
+
+/** A polite live region: "Saving…" once a change has waited for its answer for 100 ms. */
+function SavingStatus({ pending }: { readonly pending: boolean }) {
+  const t = useT();
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setTimeout(() => setSlow(true), SAVING_AFTER_MS);
+    return () => {
+      clearTimeout(timer);
+      setSlow(false);
+    };
+  }, [pending]);
+  return (
+    <div role="status" aria-live="polite" className="text-ui text-muted">
+      {pending && slow ? t("sidebar.saving") : ""}
+    </div>
+  );
 }
 
 interface ShelfProps {
@@ -71,6 +94,9 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState<ReadonlyMap<string, number>>(new Map());
   const uid = useId();
+  const box = useRef<HTMLDivElement>(null);
+  const pending = view.pending.size > 0;
+  useFocusFallback(pending, () => box.current?.querySelector("input") ?? null);
   const model = buildTree({
     sessions: view.sessions.values(),
     projects: view.projects,
@@ -81,6 +107,10 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
   });
   const broken = view.unreadable || view.failed !== null;
   const filtering = filter.trim() !== "";
+  // A session archived here counts at once: the daemon's count follows (M4R84).
+  const archivedHeld = [...view.sessions.values()].filter((session) => session.archivedAt !== null).length;
+  const archived = Math.max(view.archived, archivedHeld);
+  const order = model.groups.flatMap((group) => (group.project ? [group.project] : []));
   const showMore = (key: string) =>
     setShown((previous) => new Map(previous).set(key, clampShown(previous.get(key)) + ROWS_PER_PROJECT));
   const retry = () => getRuntime().subscriptions.resync("shell", "me");
@@ -105,8 +135,9 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
     banner = <Banner tone="capacity" title={t("sidebar.unreadable")} actions={retryAction} />;
 
   return (
-    <div data-project-tree className="flex flex-col gap-s3 p-s3">
+    <div ref={box} data-project-tree className="flex flex-col gap-s3 p-s3">
       <TextField label={t("sidebar.filter")} value={filter} onChange={setFilter} />
+      <SavingStatus pending={pending} />
       {banner}
       {!view.loaded && !broken ? <Loading label={t("sidebar.loading")} /> : null}
       {model.pinned.length > 0 ? (
@@ -131,6 +162,9 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
               name={group.project?.name ?? t("sidebar.otherFolders")}
               root={group.project?.root ?? null}
               count={group.project?.sessions ?? group.sessions.length + group.hidden}
+              project={group.project}
+              order={order}
+              movable={!filtering}
             />
             {group.sessions.length > 0 ? (
               <ul className="flex flex-col gap-s1">
@@ -168,10 +202,10 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
           onPick={onPick}
         />
       ) : null}
-      {view.archived > 0 && !filtering ? (
-        <ArchivedShelf count={view.archived} chord={chord} now={now} onPick={onPick} />
+      {archived > 0 && !filtering ? (
+        <ArchivedShelf count={archived} chord={chord} now={now} onPick={onPick} />
       ) : null}
-      {view.archived > 0 && filtering ? (
+      {archived > 0 && filtering ? (
         <p className="text-ui text-muted">{t("sidebar.archivedNotSearched")}</p>
       ) : null}
       {model.empty && view.loaded && !broken ? (

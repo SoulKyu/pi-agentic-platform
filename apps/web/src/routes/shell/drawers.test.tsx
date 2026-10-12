@@ -193,7 +193,7 @@ describe("tree drawer, first load", () => {
     expect(dialog()?.querySelector('[data-slot="spinner"]')).toBeNull();
     await vi.waitFor(
       () =>
-        expect(dialog()?.querySelector('[role="status"]')?.getAttribute("aria-label")).toBe(
+        expect(dialog()?.querySelector('[role="status"][aria-label]')?.getAttribute("aria-label")).toBe(
           "Loading sessions",
         ),
       { timeout: 2_000 },

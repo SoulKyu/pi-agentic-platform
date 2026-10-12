@@ -122,6 +122,21 @@ function whenIdle(store: ShellStoreApi, timers: Timers, ms: number): Promise<boo
   });
 }
 
+/**
+ * A `restore` for a session the store no longer holds (evicted from the full store, archived first): there is nothing
+ * to show, the daemon still accepts it and the shell stream sends the session back. It counts as the one pending change.
+ */
+async function restoreUnseen(sessionId: string, state: MarkState, deps: OrganiseDeps): Promise<Outcome> {
+  if (deps.store.getState().view.pending.size > 0) return { result: "busy" };
+  const commandId = deps.rpc.newCommandId();
+  deps.store.getState().optimistic(commandId, {});
+  return settle(
+    commandId,
+    () => deps.rpc.call("sessions.mark", { sessionId, change: { kind: "restore", state } }, { commandId }),
+    deps,
+  );
+}
+
 /** Undo from a toast (M4R97): a `restore`, sent like any change; behind another change it waits for it once. */
 export async function undo(
   input: { readonly sessionId: string; readonly state: MarkState; now(): number },
@@ -129,7 +144,7 @@ export async function undo(
 ): Promise<Outcome> {
   const attempt = (): Promise<Outcome> => {
     const session = deps.store.getState().view.sessions.get(input.sessionId);
-    if (!session) return Promise.resolve({ result: "refused", code: "not_found" });
+    if (!session) return restoreUnseen(input.sessionId, input.state, deps);
     return organise({ session, change: { kind: "restore", state: input.state }, now: input.now() }, deps);
   };
   const first = await attempt();
@@ -156,6 +171,9 @@ export async function organiseProject(
   },
   deps: OrganiseDeps,
 ): Promise<Outcome> {
+  if (input.change.kind === "rename" && input.change.name.trim() === "") {
+    return { result: "refused", code: "bad_request" };
+  }
   if (deps.store.getState().view.pending.size > 0) return { result: "busy" };
   const after: ProjectSummary =
     input.change.kind === "rename"

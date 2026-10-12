@@ -1,21 +1,19 @@
 import type { ShellSession } from "@pap/contracts";
 import { cn, FOCUS_RING, RunStatusChip } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
-import type { ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { sessionLabel } from "../../lib/session-label.ts";
 import { formatAge } from "./age.ts";
+import { SessionMenu } from "./SessionMenu.tsx";
 
 interface SessionRowProps {
   readonly session: ShellSession;
   readonly now: number;
   onPick(id: string): void;
-  /** The row menu (Task 23). */
-  readonly menu?: ReactNode;
 }
 
-/** One session: its label, a chip when it works or waits for the user, its age. Every string is React text. */
-export function SessionRow({ session, now, onPick, menu }: SessionRowProps) {
+/** One session: its label, a chip when it works or waits for the user, its age, its menu. Every string is React text. */
+export function SessionRow({ session, now, onPick }: SessionRowProps) {
   const t = useT();
   return (
     <li className="flex items-center gap-s1">
@@ -40,7 +38,7 @@ export function SessionRow({ session, now, onPick, menu }: SessionRowProps) {
           {formatAge(now, session.updatedAt, t)}
         </span>
       </Link>
-      {menu}
+      <SessionMenu session={session} now={now} />
     </li>
   );
 }

@@ -235,11 +235,39 @@ describe("organise (M4R96)", () => {
     await expect(pressed).resolves.toEqual({ result: "busy" });
   });
 
-  it("an Undo of a session that left the store is refused as not_found", async () => {
+  it("an Undo of a session evicted from the store is sent without a display, as the one pending change while it saves", async () => {
     const state = { pinned: false, pinBefore: null, archived: false, settled: false, snoozedUntil: null };
-    await expect(
-      undo({ sessionId: "gone", state, now: () => NOW }, deps(rpc(async () => ({ ok: true })))),
-    ).resolves.toEqual({ result: "refused", code: "not_found" });
+    const call = rpc(async () => ({ ok: true }));
+    await expect(undo({ sessionId: "gone", state, now: () => NOW }, deps(call))).resolves.toEqual({
+      result: "ok",
+    });
+    expect(calls(call)).toHaveBeenCalledWith(
+      "sessions.mark",
+      { sessionId: "gone", change: { kind: "restore", state } },
+      { commandId: "cmd-1" },
+    );
+    expect(session("gone")).toBeUndefined();
+    expect(store().view.pending.size).toBe(0);
+    // One change at a time: the unseen restore is pending while it waits for its answer.
+    let answer: (value: unknown) => void = () => {};
+    const slow = rpc(() => new Promise((resolve) => (answer = resolve)));
+    const sent = undo({ sessionId: "gone", state, now: () => NOW }, deps(slow));
+    expect(store().view.pending.size).toBe(1);
+    answer({ ok: true });
+    await sent;
+    expect(store().view.pending.size).toBe(0);
+  });
+
+  it("an Undo of an evicted session that the daemon refuses says why", async () => {
+    const state = { pinned: true, pinBefore: null, archived: false, settled: false, snoozedUntil: null };
+    const refused = rpc(async () => {
+      throw new RpcError("limit_reached");
+    });
+    await expect(undo({ sessionId: "gone", state, now: () => NOW }, deps(refused))).resolves.toEqual({
+      result: "refused",
+      code: "limit_reached",
+    });
+    expect(store().view.pending.size).toBe(0);
   });
 });
 
@@ -277,6 +305,18 @@ describe("organiseProject", () => {
     expect(store().view.projects.get("y")?.position).toBe(0);
     await expect(done).resolves.toEqual({ result: "refused", code: "not_found" });
     expect(store().view.projects.get("y")?.position).toBe(2);
+  });
+
+  it("refuses a name that is blank once trimmed, before showing or sending anything", async () => {
+    const call = rpc(async () => ({ ok: true }));
+    for (const name of ["", "   ", "\t\n"]) {
+      await expect(
+        organiseProject({ project: nth(0), change: { kind: "rename", name }, order: order() }, deps(call)),
+      ).resolves.toEqual({ result: "refused", code: "bad_request" });
+    }
+    expect(calls(call)).not.toHaveBeenCalled();
+    expect(store().view.projects.get("x")?.name).toBe("x");
+    expect(store().view.pending.size).toBe(0);
   });
 
   it("answers busy while a change is pending, and resyncs on an unknown outcome", async () => {
