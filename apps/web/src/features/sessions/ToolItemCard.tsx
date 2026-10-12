@@ -1,6 +1,5 @@
-import { Button, ToolCard, type ToolStatus } from "@pap/ui";
+import { Button, ToolCard, type ToolDetail, type ToolStatus } from "@pap/ui";
 import { useRef, useState } from "react";
-import { useAppearanceStore } from "../appearance/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { codeText, failureCode } from "./failure.ts";
@@ -23,9 +22,17 @@ const CARD_STATUS = {
 } as const satisfies Record<ToolItem["status"], ToolStatus>;
 
 /** A tool call as a card: the account's detail setting decides whether it opens, and the whole output is one request away. */
-export function ToolItemCard({ item, sessionId }: { item: ToolItem; sessionId: string }) {
+export function ToolItemCard({
+  item,
+  sessionId,
+  detail,
+}: {
+  item: ToolItem;
+  sessionId: string;
+  /** Settings › Appearance › tool card detail: the account's setting, given by the shell. */
+  detail: ToolDetail;
+}) {
   const t = useT();
-  const detail = useAppearanceStore((state) => state.account.toolDetail);
   const [output, setOutput] = useState<Output>({ state: "idle" });
   const inFlight = useRef(false);
 

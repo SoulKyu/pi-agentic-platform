@@ -127,8 +127,6 @@ export function plural(locale: Locale, base: PluralBase, count: number): string 
   return translate(locale, (Object.hasOwn(en, key) ? key : `${base}.other`) as MessageKey, { count });
 }
 
-export const tp = (base: PluralBase, count: number): string => plural(current, base, count);
-
 export const t = (key: MessageKey, vars?: Record<string, string | number>): string =>
   translate(current, key, vars);
 

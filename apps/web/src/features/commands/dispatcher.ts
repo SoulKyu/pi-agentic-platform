@@ -2,7 +2,7 @@ import { cancelsComposition } from "@pap/ui";
 import { reportClientIssue } from "../../lib/report.ts";
 import { readContext, type ShellContext } from "./context.ts";
 import type { Platform } from "./keys.ts";
-import { runCommand } from "./registry.ts";
+import { runCommand } from "../../lib/command-registry.ts";
 import { matchingCommands, type ResolvedRule } from "./resolve.ts";
 
 export interface DispatcherDeps {

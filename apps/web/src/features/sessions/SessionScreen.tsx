@@ -1,4 +1,4 @@
-import { cn, FOCUS_RING, RunStatusChip, type RunStatus } from "@pap/ui";
+import { cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -27,7 +27,14 @@ function runStatusOf(view: SessionView): RunStatus {
   return view.status === "idle" ? "settled" : "working";
 }
 
-export function SessionScreen({ sessionId }: { sessionId: string }) {
+export function SessionScreen({
+  sessionId,
+  toolDetail,
+}: {
+  sessionId: string;
+  /** The account's tool card detail (Settings › Appearance), given by the pane that hosts the screen. */
+  toolDetail?: ToolDetail;
+}) {
   const t = useT();
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
@@ -111,6 +118,7 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
         key={`transcript:${sessionId}`}
         sessionId={sessionId}
         view={view}
+        toolDetail={toolDetail ?? "compact"}
         rowActions={{
           track: structural.track,
           busy: structural.active,

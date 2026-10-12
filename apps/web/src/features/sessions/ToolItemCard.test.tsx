@@ -1,7 +1,6 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import { useAppearanceStore } from "../appearance/index.ts";
 import { alerts, button, click, hasButton, mount, settle, text, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 
@@ -31,18 +30,20 @@ const item = (patch: Partial<ToolItem> = {}): ToolItem => ({
   ...patch,
 });
 async function show(tool: ToolItem) {
-  page = await mount(<ToolItemCard item={tool} sessionId="sess-1" />);
+  page = await mount(<ToolItemCard item={tool} sessionId="sess-1" detail={detail} />);
   await settle();
   return page.container;
 }
 
-const setDetail = (toolDetail: "compact" | "expanded" | "full") =>
-  useAppearanceStore.setState((state) => ({ account: { ...state.account, toolDetail } }));
+let detail: "compact" | "expanded" | "full" = "expanded"; // the setting under test is the card's, not the default's
+const setDetail = (next: typeof detail) => {
+  detail = next;
+};
 
 beforeEach(() => {
   bed = fakeRuntime();
   current.runtime = bed.runtime;
-  setDetail("expanded"); // the setting under test is the card's, not the default's
+  setDetail("expanded");
 });
 afterEach(async () => {
   await page?.unmount();

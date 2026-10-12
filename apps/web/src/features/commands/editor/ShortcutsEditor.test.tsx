@@ -3,7 +3,7 @@ import { act } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { button, click, field, press, text, typeInto } from "../../../testing/dom.ts";
 import { installDispatcher } from "../dispatcher.ts";
-import { registerCommand } from "../registry.ts";
+import { registerCommand } from "../../../lib/command-registry.ts";
 import {
   ctrl,
   later,

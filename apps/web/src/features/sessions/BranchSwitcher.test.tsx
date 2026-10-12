@@ -92,6 +92,28 @@ describe("branch switcher", () => {
     });
   });
 
+  it("names the group with the position and announces the branch a switch landed on", async () => {
+    screen.bed.handlers["sessions.branches"] = () => three;
+    screen.bed.handlers["sessions.navigate"] = () => ({ cancelled: false });
+    const container = await screen.show(rows);
+    expect(container.querySelector("[data-branch-switcher]")?.getAttribute("aria-label")).toBe(
+      "Branch 2 of 3",
+    );
+    expect(container.querySelector("[data-announcer]")?.textContent).toBe("");
+    await click(control(container, "Next branch") as HTMLElement);
+    await settle();
+    expect(container.querySelector("[data-announcer]")?.textContent).toBe("Branch 3 of 3");
+  });
+
+  it("announces nothing when the navigation was cancelled", async () => {
+    screen.bed.handlers["sessions.branches"] = () => three;
+    screen.bed.handlers["sessions.navigate"] = () => ({ cancelled: true });
+    const container = await screen.show(rows);
+    await click(control(container, "Next branch") as HTMLElement);
+    await settle();
+    expect(container.querySelector("[data-announcer]")?.textContent).toBe("");
+  });
+
   it("disables the arrow that has no neighbour", async () => {
     screen.bed.handlers["sessions.branches"] = () => ({
       ...three,

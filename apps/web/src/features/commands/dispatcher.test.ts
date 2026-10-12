@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { reportClientIssue } from "../../lib/report.ts";
 import { installDispatcher } from "./dispatcher.ts";
-import { registerCommand } from "./registry.ts";
+import { registerCommand } from "../../lib/command-registry.ts";
 import { mergeWithDefaults } from "./resolve.ts";
 
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));

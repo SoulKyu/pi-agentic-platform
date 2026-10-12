@@ -37,3 +37,32 @@ describe("SessionScreen header name", () => {
     expect(container.querySelectorAll("header button, header input")).toHaveLength(0);
   });
 });
+
+describe("SessionScreen run status chip", () => {
+  const chip = (container: HTMLElement) => container.querySelector("header [data-slot='chip']");
+  const state = (container: HTMLElement) => [
+    chip(container)?.getAttribute("data-tone"),
+    chip(container)?.textContent,
+  ];
+
+  it("shows what the run needs from you before how the process is", async () => {
+    const container = await screen.show({ status: "idle" });
+    expect(state(container)).toEqual(["ok", "Ready"]);
+    await screen.emit({ kind: "status", status: "running" });
+    expect(state(container)).toEqual(["run", "Working"]);
+    await screen.emit({
+      kind: "dialog_open",
+      dialog: {
+        id: "a1",
+        method: "approval",
+        title: "Run?",
+        message: "1 line\nls",
+        category: "exec",
+        answers: ["deny", "once"],
+      },
+    });
+    expect(state(container)).toEqual(["att", "Needs you"]);
+    await screen.emit({ kind: "status", status: "cold" });
+    expect(state(container)).toEqual(["mut", "Stopped"]);
+  });
+});

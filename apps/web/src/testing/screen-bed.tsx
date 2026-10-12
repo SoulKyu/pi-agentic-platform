@@ -3,10 +3,20 @@ import type { ReactElement } from "react";
 import { afterEach, beforeEach } from "vitest";
 import { SessionScreen } from "../features/sessions/SessionScreen.tsx";
 import type { Runtime } from "../runtime/index.ts";
+import { EMPTY_VIEW, type SessionView } from "../stores/session-reducer.ts";
 import { useSessionStore } from "../stores/session-store.ts";
 import { mount, settle, type Mounted } from "./dom.ts";
 import { fakeRuntime } from "./runtime-bed.ts";
 import { sessionSnapshot } from "./session-snapshot.ts";
+
+/** Puts loaded views in the store before a screen mounts (a second screen has no event stream in the bed). */
+export function seedSessionViews(views: Record<string, Partial<SessionView>>): void {
+  useSessionStore.setState({
+    views: Object.fromEntries(
+      Object.entries(views).map(([id, view]) => [id, { ...EMPTY_VIEW, loaded: true, ...view }]),
+    ),
+  });
+}
 
 /**
  * Mounts `SessionScreen` for session `sess-1` on a fake runtime. The test file keeps its own `vi.mock` of `getRuntime`

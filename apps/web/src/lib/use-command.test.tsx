@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, expect, it, vi } from "vitest";
-import { mount } from "../../testing/dom.ts";
-import { hasCommand, runCommand } from "./registry.ts";
+import { mount } from "../testing/dom.ts";
+import { hasCommand, runCommand } from "./command-registry.ts";
 import { useCommand } from "./use-command.ts";
-import type { CommandHandler } from "./registry.ts";
+import type { CommandHandler } from "./command-registry.ts";
 
 function Probe({ handler, enabled = true }: { handler: CommandHandler; enabled?: boolean }) {
   useCommand("x.probe", handler, enabled);

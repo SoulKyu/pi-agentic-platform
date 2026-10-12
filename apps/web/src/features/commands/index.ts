@@ -5,6 +5,6 @@ export type { KeyNames } from "./labels.ts";
 export type { Platform } from "./keys.ts";
 export { startKeybindings, syncKeybindings, useKeybindingsStore } from "./keybindings-store.ts";
 export type { PaletteItem } from "./palette/rank.ts";
-export { hasCommand, registerCommand, runCommand } from "./registry.ts";
+export { hasCommand, registerCommand, runCommand } from "../../lib/command-registry.ts";
 export type { ResolvedRule } from "./resolve.ts";
-export { useCommand } from "./use-command.ts";
+export { useCommand } from "../../lib/use-command.ts";

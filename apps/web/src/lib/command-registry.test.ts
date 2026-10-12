@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { hasCommand, registerCommand, runCommand } from "./registry.ts";
+import { hasCommand, registerCommand, runCommand } from "./command-registry.ts";
 
 describe("command registry (Orca app-command-handlers)", () => {
   it("lets the latest registration answer and re-exposes the earlier one when it leaves", () => {

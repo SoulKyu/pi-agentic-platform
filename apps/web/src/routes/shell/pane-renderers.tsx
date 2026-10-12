@@ -1,4 +1,5 @@
 import { lazy, Suspense, type ReactNode } from "react";
+import { useAppearanceStore } from "../../features/appearance/index.ts";
 import type { ItemRef, SettingsSection } from "../../features/workspace/index.ts";
 import { SessionListScreen } from "../../features/sessions/SessionListScreen.tsx";
 import { LazyPane } from "./LazyPane.tsx";
@@ -15,6 +16,12 @@ const loadSettings = () =>
 const loadSession = () =>
   import("../../features/sessions/SessionScreen.tsx").then((module) => ({ default: module.SessionScreen }));
 
+/** The session screen gets the account's tool card detail from here: features do not read each other's stores. */
+function SessionPane({ sessionId }: { readonly sessionId: string }) {
+  const toolDetail = useAppearanceStore((state) => state.account.toolDetail);
+  return <LazyPane load={loadSession} props={{ sessionId, toolDetail }} />;
+}
+
 /** A failed chunk shows a Retry state in the pane (LazyPane); it is never retried by itself. */
 function LazySettings({ section }: { readonly section: SettingsSection }) {
   return <LazyPane load={loadSettings} props={{ section }} />;
@@ -29,7 +36,7 @@ const DevGallery = import.meta.env.DEV
 /** One renderer per item kind. */
 export const PANE_RENDERERS: Renderers = {
   home: () => <SessionListScreen />,
-  session: (item) => <LazyPane key={item.id} load={loadSession} props={{ sessionId: item.id }} />,
+  session: (item) => <SessionPane key={item.id} sessionId={item.id} />,
   settings: (item) => <LazySettings section={item.section} />,
   "dev-ui": () =>
     DevGallery ? (

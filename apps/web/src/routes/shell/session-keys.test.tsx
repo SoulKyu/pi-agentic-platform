@@ -2,14 +2,13 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
-import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
-import { useSessionStore } from "../../stores/session-store.ts";
 import { button, click, field, mount, press, settle, typeInto, type Mounted } from "../../testing/dom.ts";
-import { screenBed } from "../../testing/screen-bed.tsx";
-import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../commands/defaults.ts";
-import { installDispatcher } from "../commands/dispatcher.ts";
-import { mergeWithDefaults } from "../commands/resolve.ts";
-import { SessionScreen } from "./SessionScreen.tsx";
+import { screenBed, seedSessionViews } from "../../testing/screen-bed.tsx";
+import { sessionSnapshot } from "../../testing/session-snapshot.ts";
+import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../../features/commands/defaults.ts";
+import { installDispatcher } from "../../features/commands/dispatcher.ts";
+import { mergeWithDefaults } from "../../features/commands/resolve.ts";
+import { SessionScreen } from "../../features/sessions/SessionScreen.tsx";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (importOriginal) => ({
@@ -48,7 +47,7 @@ const escape = (target: Element) => press(target, { key: "Escape", code: "Escape
 const aborted = () => screen.bed.called("sessions.abort");
 const mount1 = async (patch: Record<string, unknown>) => {
   const container = await screen.remount(inPane(<SessionScreen sessionId="sess-1" />));
-  await screen.emit({ ...(await import("../../testing/session-snapshot.ts")).sessionSnapshot(patch) });
+  await screen.emit(sessionSnapshot(patch));
   return container;
 };
 const approval = {
@@ -192,8 +191,7 @@ describe("two session screens at once", () => {
   });
 
   it("stops the run of the screen that holds the focus, not the other", async () => {
-    const running = (id: string) => ({ ...EMPTY_VIEW, status: "running" as const, loaded: true, name: id });
-    useSessionStore.setState({ views: { "sess-1": running("one"), "sess-2": running("two") } });
+    seedSessionViews({ "sess-1": { status: "running" }, "sess-2": { status: "running" } });
     current.runtime = screen.bed.runtime;
     page = await mount(
       <div data-pane-kind="session">

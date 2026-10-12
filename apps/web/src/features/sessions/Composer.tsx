@@ -1,7 +1,7 @@
 import { Button, TextField } from "@pap/ui";
 import { useRef } from "react";
 import { useT } from "../../i18n/index.ts";
-import { useCommand } from "../commands/index.ts";
+import { useCommand } from "../../lib/use-command.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
 import { useComposer, type Injected } from "./use-composer.ts";

@@ -1,4 +1,4 @@
-import { AuthorGroup, Button } from "@pap/ui";
+import { AuthorGroup, Button, type ToolDetail } from "@pap/ui";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -18,6 +18,8 @@ import { useStickToBottom } from "./use-stick-to-bottom.ts";
 interface TranscriptProps {
   readonly sessionId: string;
   readonly view: SessionView;
+  /** The account's tool card detail; compact until the shell says otherwise. */
+  readonly toolDetail?: ToolDetail;
   /** Row actions ("Fork from here", "Edit from here"): absent where a transcript is only read. */
   readonly rowActions?: {
     readonly track: Track;
@@ -76,7 +78,7 @@ function prepend(
   if (unchanged) release();
 }
 
-export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
+export function Transcript({ sessionId, view, toolDetail, rowActions }: TranscriptProps) {
   const t = useT();
   const items = transcriptItems(view, t);
   const groups = groupItems(items);
@@ -154,7 +156,7 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
                   {group.items.map((item) => (
                     <div key={item.key} id={rowId(scope, item.key)}>
                       {item.kind === "tool" ? (
-                        <ToolItemCard item={item} sessionId={sessionId} />
+                        <ToolItemCard item={item} sessionId={sessionId} detail={toolDetail ?? "compact"} />
                       ) : (
                         <MessageRow item={item} grouped actions={actionsFor(item)} />
                       )}

@@ -5,7 +5,6 @@ import { startAppearance } from "../../features/appearance/index.ts";
 import { startKeybindings } from "../../features/commands/index.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
-import { useSessionStore } from "../../stores/session-store.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
@@ -22,7 +21,6 @@ let started: Array<{ stop(): void }> = [];
 beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
   useSessionsCache.setState({ sessions: [], status: "idle" });
-  useSessionStore.setState({ views: {} });
   bed = fakeRuntime("idle");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;

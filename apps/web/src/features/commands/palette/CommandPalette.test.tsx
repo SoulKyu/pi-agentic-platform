@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
 import { COMMANDS, DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../defaults.ts";
 import { installDispatcher } from "../dispatcher.ts";
-import { registerCommand } from "../registry.ts";
+import { registerCommand } from "../../../lib/command-registry.ts";
 import { mergeWithDefaults } from "../resolve.ts";
 import { mount, press, settle, typeInto, type Mounted } from "../../../testing/dom.ts";
 import CommandPalette from "./CommandPalette.tsx";
