@@ -1,14 +1,14 @@
-import { cn } from "@pap/ui";
+import { cn } from "../cn.ts";
 import { parseAnsi, type AnsiTone } from "./ansi.ts";
 
-// M1 token classes; P1 renames them after the M3 merge (`text-muted` stands for `--text-dim`, M1 has none).
+// `text-muted` stands for `--text-dim` (dim).
 const TONE_CLASS: Record<AnsiTone, string> = {
   dim: "text-muted",
-  error: "text-error",
+  error: "text-err",
   ok: "text-ok",
-  you: "text-human",
+  you: "text-you",
   agent: "text-agent",
-  attention: "text-attention",
+  attention: "text-attn",
   text: "text-fg",
 };
 

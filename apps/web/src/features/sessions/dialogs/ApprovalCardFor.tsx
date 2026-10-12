@@ -2,7 +2,7 @@ import type { Dialog, DialogResponse } from "@pap/contracts";
 import { ApprovalCard, cn, FOCUS_RING } from "@pap/ui";
 import { useT } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
-import { timeoutLine } from "./ExtensionCard.tsx";
+import { timeoutLine } from "./request-frame.tsx";
 import { plain } from "./untrusted.ts";
 import { ExpandToggle, useClipped } from "./use-clipped.tsx";
 

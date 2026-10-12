@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./overlays": "./src/overlays.ts",
+    "./extensions": "./src/extensions.ts",
     "./tokens.css": "./src/tokens.css",
     "./utilities.css": "./src/utilities.css",
     "./fonts.css": "./src/fonts.css"

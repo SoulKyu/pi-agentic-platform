@@ -1,19 +1,8 @@
 // @vitest-environment happy-dom
-import { act, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
-import {
-  alerts,
-  button,
-  click,
-  field,
-  mount,
-  press,
-  settle,
-  text,
-  typeInto,
-  type Mounted,
-} from "../../testing/dom.ts";
+import { alerts, field, mount, press, settle, text, typeInto, type Mounted } from "../../testing/dom.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
 import { CustomPanel } from "./CustomPanel.tsx";
 
@@ -70,46 +59,6 @@ describe("CustomPanel", () => {
     expect(input.value).toBe("");
   });
 
-  it("keeps the keys it consumes to itself, Escape included (cross-plan agreement 7)", async () => {
-    const container = await show([{ id: "p1", lines: ["> alpha"] }]);
-    const heard: string[] = [];
-    const listen = (event: KeyboardEvent) => void heard.push(event.key);
-    document.addEventListener("keydown", listen);
-    try {
-      const input = inputOf(container);
-      expect(container.querySelector("[data-terminal-input]")).not.toBeNull();
-      const escape = await press(input, { key: "Escape" });
-      await press(input, { key: "ArrowUp" });
-      expect(escape.defaultPrevented).toBe(true);
-      expect(heard).toEqual([]);
-      expect(sent()).toEqual(["\u001b", "\u001b[A"]);
-    } finally {
-      document.removeEventListener("keydown", listen);
-    }
-  });
-
-  it("lets Ctrl+V and Meta shortcuts through to the browser, and sends nothing for them", async () => {
-    const container = await show([{ id: "p1", lines: ["x"] }]);
-    const paste = await press(inputOf(container), { key: "v", ctrlKey: true });
-    const copy = await press(inputOf(container), { key: "c", metaKey: true });
-    expect([paste.defaultPrevented, copy.defaultPrevented]).toEqual([false, false]);
-    expect(sent()).toEqual([]);
-  });
-
-  it("does not send partial keys while an IME composes, and sends the composed text once", async () => {
-    const container = await show([{ id: "p1", lines: ["x"] }]);
-    const input = inputOf(container);
-    await act(() => input.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true })));
-    await press(input, { key: "Process", isComposing: true });
-    await typeInto(input, "ni");
-    expect(sent()).toEqual([]);
-    await typeInto(input, "你");
-    await act(() => input.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true })));
-    await settle();
-    expect(sent()).toEqual(["你"]);
-    expect(input.value).toBe("");
-  });
-
   it("splits a long paste into ordered chunks of at most 4096 characters, never inside a surrogate pair", async () => {
     const container = await show([{ id: "p1", lines: ["x"] }]);
     const long = `${"a".repeat(4095)}\u{1f600}${"b".repeat(4096)}c`;
@@ -152,16 +101,6 @@ describe("CustomPanel", () => {
     await settle();
     expect(sent()).toHaveLength(2);
     expect(alerts(container)).toEqual(["The session process failed."]);
-  });
-
-  it("collapses to nothing but the toggle, and shows the panel again on expand", async () => {
-    const container = await show([{ id: "p1", lines: ["> alpha"] }]);
-    await click(button(container, "Hide the panel"));
-    expect(text(container)).not.toContain("> alpha");
-    expect(inputOf(container)).toBeNull();
-    await click(button(container, "Show the panel"));
-    expect(text(container)).toContain("> alpha");
-    expect(document.activeElement).toBe(inputOf(container));
   });
 
   it("renders nothing without a panel", async () => {

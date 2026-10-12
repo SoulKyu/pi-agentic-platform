@@ -1,4 +1,5 @@
 import { cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
+import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -11,14 +12,11 @@ import { Composer } from "./Composer.tsx";
 import { useAnnouncer } from "./announce.ts";
 import { SessionActions } from "./SessionActions.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
-import { plainText } from "./ansi.ts";
-import { AnsiText } from "./AnsiText.tsx";
 import { CustomPanel } from "./CustomPanel.tsx";
 import { codeText, failureText } from "./failure.ts";
-import { StatusBar } from "./StatusBar.tsx";
+import { statusCells } from "./status-cells.ts";
 import { useStructural } from "./use-action.ts";
 import { Transcript } from "./Transcript.tsx";
-import { Widgets } from "./Widgets.tsx";
 
 /** The chip says what the run needs from you before it says how the process is. */
 function runStatusOf(view: SessionView): RunStatus {
@@ -167,7 +165,9 @@ export function SessionScreen({
       />
       <Widgets widgets={view.widgets} placement="belowEditor" />
       <StatusBar
-        statuses={view.statuses}
+        cells={statusCells(view.statuses)}
+        label={t("status.label")}
+        sourceLabel={t("source.extension")}
         busy={["running", "starting", "releasing"].includes(view.status)}
         onCommand={runCommand}
       />

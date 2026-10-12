@@ -1,9 +1,5 @@
 import type { StatusEntry } from "@pap/contracts";
-import { plainText } from "./ansi.ts";
-
-export type StatusCell =
-  | { readonly kind: "text"; readonly key: string; readonly text: string }
-  | { readonly kind: "command"; readonly key: string; readonly command: string; readonly label: string };
+import { plainText, type StatusCell } from "@pap/ui/extensions";
 
 const COMMAND_PREFIX = "command:";
 /** Runs of spaces and tabs become one space and the line is trimmed; escape sequences carry none, so ANSI survives. */

@@ -70,6 +70,18 @@ export async function click(element: Element): Promise<void> {
   });
 }
 
+/** Sets a field's value the way a user typing does, so React's onChange fires. */
+export async function typeInto(field: HTMLInputElement | HTMLTextAreaElement, value: string): Promise<void> {
+  const prototype =
+    field instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+  const setValue = Object.getOwnPropertyDescriptor(prototype, "value")?.set;
+  if (!setValue) throw new Error("no value setter on the field");
+  await act(async () => {
+    setValue.call(field, value);
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+
 /** Presses a key on an element and says whether the page left it to the browser (`defaultPrevented` is false). */
 export async function press(element: Element, init: KeyboardEventInit): Promise<KeyboardEvent> {
   const event = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
