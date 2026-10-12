@@ -23,6 +23,7 @@ import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
 import { clipUnits, createTrail } from "./trail.ts";
+import { canAskUnchecked, checkStage, type Unchecked, uncheckedPlan } from "./unchecked.ts";
 
 export const DENIED_REASON = "Denied by the user.";
 export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so it was blocked (fail closed).";
@@ -67,7 +68,8 @@ export interface CallFacts {
 }
 export type StageResult =
   | { readonly outcome: "pass" | "skip"; readonly reason?: string }
-  | { readonly outcome: "block"; readonly reason: string; readonly modelReason: string };
+  | { readonly outcome: "block"; readonly reason: string; readonly modelReason: string }
+  | { readonly outcome: "unchecked"; readonly reason: string; readonly modelReason: string };
 export type ApprovalPlan =
   | { readonly outcome: "allow"; readonly reason: string }
   | { readonly outcome: "block"; readonly reason: string; readonly modelReason: string }
@@ -145,11 +147,6 @@ interface Prepared {
   readonly exec: boolean;
   readonly args: string;
   readonly key: string;
-}
-
-function checkStage(result: StageResult): StageResult {
-  if (result.outcome === "pass" || result.outcome === "skip" || result.outcome === "block") return result;
-  throw new TypeError("a stage returned an outcome the pipeline does not know");
 }
 
 export async function evaluateToolCall(
@@ -256,7 +253,7 @@ function recheckAnswered(
   const rules = deps.rules();
   if (rules === null) return { reason: NO_RULES, modelReason: FAIL_CLOSED_REASON };
   const now: CallFacts = { ...call, rules, tainted: deps.taint.current() };
-  for (const verdict of [checkStage(stages.denylist(now)), checkStage(stages.egress(now))])
+  for (const verdict of [checkStage(stages.denylist(now), true), checkStage(stages.egress(now))])
     if (verdict.outcome === "block") return { reason: verdict.reason, modelReason: verdict.modelReason };
   return rules.approvalMode === "read-only" ? readOnlyRefusal(call, now) : null;
 }
@@ -304,15 +301,19 @@ async function evaluateOnce(
     return finish(call, "block", reason, { block: true, reason: modelReason });
   };
 
+  let unchecked: Unchecked | null = null;
   for (const [stage, next, run] of [
     ["01", "02", () => stages.denylist(call)],
     ["02", "03", () => stages.egress(call)],
   ] as const) {
-    const verdict = checkStage(run());
-    if (verdict.outcome === "block") return blocked(stage, next, verdict.reason, verdict.modelReason);
-    trail.add(stage, verdict.outcome, verdict.reason);
+    const verdict = checkStage(run(), stage === "01");
+    // A command the reader could not check is asked about where a person can answer, and blocks where none can.
+    if (verdict.outcome === "unchecked" && canAskUnchecked(ctx, call)) unchecked = verdict;
+    else if (verdict.outcome === "block" || verdict.outcome === "unchecked")
+      return blocked(stage, next, verdict.reason, verdict.modelReason);
+    trail.add(stage, verdict.outcome === "unchecked" ? "ask" : verdict.outcome, verdict.reason);
   }
-  const plan = await stages.approval(call, ctx, deps);
+  const plan = uncheckedPlan(await stages.approval(call, ctx, deps), unchecked);
   if (plan.outcome === "block") return blocked("03", "04", plan.reason, plan.modelReason);
   if (plan.outcome !== "allow" && plan.outcome !== "ask")
     throw new TypeError("the approval stage returned an unknown outcome");

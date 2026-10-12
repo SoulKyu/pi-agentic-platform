@@ -174,8 +174,9 @@ describe("depth and count", () => {
     if (expected === OK) expect(await verdictOf("web", input)).toBe(expected);
   });
   it("a command of too many words is blocked, not an evaluation error", async () => {
+    // Stage 01 only asks about a command it cannot read (Task 8c); stage 02 still blocks it.
     expect(await verdictOf("bash", { command: "echo " + "x ".repeat(40_000) })).toBe(
-      "unexpected: command too long for the policy check",
+      "input too complex for the egress check",
     );
   });
 });

@@ -134,6 +134,8 @@ const block = (reason: string, modelReason = DENYLIST_MODEL_REASON): StageResult
   reason,
   modelReason,
 });
+// The reader's limits: the command was not judged, which the pipeline turns into a question or a block (Task 8c).
+const unchecked = (reason: string): StageResult => ({ outcome: "unchecked", reason, modelReason: reason });
 
 /** Stage 01 (M5R16 to M5R20, M5R117): reasons name a check or a pattern, never the command. */
 export function denylistStage(call: CallFacts): StageResult {
@@ -146,9 +148,11 @@ export function denylistStage(call: CallFacts): StageResult {
   try {
     segments = readCommands(command);
   } catch (error) {
-    if (error instanceof CommandTooLong) return block(TOO_LONG, TOO_LONG);
-    if (error instanceof CommandTooComplex) return block(TOO_COMPLEX, TOO_COMPLEX);
-    throw error;
+    if (!(error instanceof CommandTooLong || error instanceof CommandTooComplex)) throw error;
+    // The fork bomb needs no reader: it stays a block, never a question.
+    if (!powershell && call.rules.builtinDenylist && isForkBomb(command))
+      return block(`denied: ${FORK_BOMB_ID}`);
+    return unchecked(error instanceof CommandTooLong ? TOO_LONG : TOO_COMPLEX);
   }
   if (!powershell && call.rules.builtinDenylist) {
     if (isForkBomb(command)) return block(`denied: ${FORK_BOMB_ID}`);
@@ -162,7 +166,7 @@ export function denylistStage(call: CallFacts): StageResult {
     const hit = matchOwnerPatterns(segments, call.rules.denylist, powershell, { left: CALL_BUDGET });
     if (hit !== null) return block(`denied: ${clipUnits(hit, MAX_NAMED_PATTERN)}`);
   } catch (error) {
-    if (error instanceof CommandTooComplex) return block(TOO_COMPLEX, TOO_COMPLEX);
+    if (error instanceof CommandTooComplex) return unchecked(TOO_COMPLEX);
     throw error;
   }
   return { outcome: "pass", reason: `${segments.length} command${segments.length === 1 ? "" : "s"} checked` };

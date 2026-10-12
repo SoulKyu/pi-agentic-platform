@@ -26,7 +26,8 @@ const expectOwnVerdict = (verdict: StageVerdict | undefined) => {
   expect(verdict?.stage).toBe("01");
   if (verdict?.outcome === "pass") expect(verdict.reason).toMatch(/^\d+ commands? checked$/);
   else {
-    expect(verdict?.outcome).toBe("block");
+    // A command the reader cannot check blocks, or asks where a person can answer (Task 8c).
+    expect(["block", "ask"]).toContain(verdict?.outcome);
     expect(verdict?.reason).toMatch(/^(?:denied: .+|command too (?:long|complex) for the policy check)$/);
   }
 };
@@ -66,7 +67,11 @@ describe("bounded work", () => {
   );
 
   it("blocks the letter run as too complex under 64 patterns", async () => {
-    const h = bed.harness({ rules: rules(Array.from({ length: 64 }, () => letterRun)), stages: ALLOW_03 });
+    const h = bed.harness({
+      rules: rules(Array.from({ length: 64 }, () => letterRun)),
+      stages: ALLOW_03,
+      hasUI: false,
+    });
     expect(await h.run("bash", { command: "a".repeat(65_530) })).toEqual({
       block: true,
       reason: TOO_COMPLEX,
@@ -159,13 +164,13 @@ describe("unclosed quotes and substitutions", () => {
 
 describe("nesting and size", () => {
   it("blocks four levels of bash -c as too complex", async () => {
-    const h = bed.harness({ rules: rules(), stages: ALLOW_03 });
+    const h = bed.harness({ rules: rules(), stages: ALLOW_03, hasUI: false });
     const command = `bash -c "bash -c 'bash -c \\"bash -c ls\\"'"`;
     expect(await h.run("bash", { command })).toEqual({ block: true, reason: TOO_COMPLEX });
   });
 
   it("blocks 1001 commands as too complex", async () => {
-    const h = bed.harness({ rules: rules(), stages: ALLOW_03 });
+    const h = bed.harness({ rules: rules(), stages: ALLOW_03, hasUI: false });
     expect(await h.run("bash", { command: "true;".repeat(1001) })).toEqual({
       block: true,
       reason: TOO_COMPLEX,
@@ -173,7 +178,7 @@ describe("nesting and size", () => {
   });
 
   it("blocks a 65 537-character command as too long, and keeps the command out of the audit", async () => {
-    const h = bed.harness({ rules: rules(), stages: ALLOW_03 });
+    const h = bed.harness({ rules: rules(), stages: ALLOW_03, hasUI: false });
     expect(await h.run("bash", { command: "zz".repeat(32_768) + "z" })).toEqual({
       block: true,
       reason: TOO_LONG,
