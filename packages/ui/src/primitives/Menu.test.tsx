@@ -53,6 +53,23 @@ describe("Menu", () => {
     await page.unmount();
   });
 
+  it("bounds the desktop menu to the viewport and scrolls it, so a long list stays reachable", async () => {
+    stubMatchMedia(false);
+    const page = await mountWithTooltips(
+      <Menu
+        label="Actions"
+        closeLabel="Close"
+        defaultOpen
+        trigger={<button type="button">Actions</button>}
+        items={[{ id: "one", label: "One", onSelect: () => {} }]}
+      />,
+    );
+    const content = document.querySelector('[role="menu"]');
+    expect(content?.classList.contains("max-h-app")).toBe(true);
+    expect(content?.classList.contains("overflow-y-auto")).toBe(true);
+    await page.unmount();
+  });
+
   it("reports closing on desktop (Escape) and on a phone (choosing an item)", async () => {
     stubMatchMedia(false);
     const closed = vi.fn();
