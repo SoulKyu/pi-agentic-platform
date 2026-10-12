@@ -1,5 +1,5 @@
 import { applyPartial } from "./partial-view.ts";
-import { sameContent, toMessageView, withUniqueKey } from "./row-view.ts";
+import { hasFallbackRef, sameContent, toMessageView, withUniqueKey } from "./row-view.ts";
 import type { SessionView, ToolView } from "./session-reducer.ts";
 
 export const MAX_TOOL_VIEWS = 200;
@@ -48,10 +48,11 @@ export function reducePi(view: SessionView, event: { type: string } & Record<str
     case "message_end": {
       const message = toMessageView(event.message);
       if (!message) return next;
-      // The snapshot and the live stream can both carry a message: the same one is not added twice.
-      const replay = view.messages.some(
-        (existing) => existing.ref === message.ref && sameContent(existing, message),
-      );
+      // The snapshot and the live stream can both carry a message: the same one is not added twice. A message with no
+      // timestamp has no name to tell a replay from a second equal message (`role:none`), so it is always added (M3R134).
+      const replay =
+        !hasFallbackRef(message) &&
+        view.messages.some((existing) => existing.ref === message.ref && sameContent(existing, message));
       return {
         ...next,
         messages: replay ? view.messages : [...view.messages, withUniqueKey(view.messages, message)],

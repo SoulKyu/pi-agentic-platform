@@ -12,7 +12,7 @@ import {
 
 import { failRunningTools, reducePi, withNotice } from "./reduce-pi.ts";
 import { clearedUi, EMPTY_UI, reduceUi, uiOfSnapshot, type UiState } from "./reduce-ui.ts";
-import { toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
+import { keyMessages, toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
 
 export interface ToolView {
   readonly name: string;
@@ -100,10 +100,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       return {
         ...EMPTY_VIEW,
         status: event.status,
-        messages: event.rows.reduce<readonly MessageView[]>(
-          (list, row) => appendMessage(list, toMessageView(row.message, row.entryId)),
-          [],
-        ),
+        messages: keyMessages(event.rows.flatMap((row) => toMessageView(row.message, row.entryId) ?? [])),
         dialogs: event.dialogs,
         hiddenDialogs: event.hiddenDialogs,
         partial: event.partial,
