@@ -108,3 +108,13 @@ describe("reduceSession, the session's folder (M4)", () => {
     expect(view.cwd).toBe("");
   });
 });
+
+describe("reduceSession, a write outside pap (owner Q13)", () => {
+  it("keeps the flag from the snapshot, false before one and from an older daemon", () => {
+    expect(EMPTY_VIEW.outsideWrite).toBe(false);
+    expect(reduceSession(EMPTY_VIEW, sessionSnapshot({ outsideWrite: true })).outsideWrite).toBe(true);
+    const older: Record<string, unknown> = sessionSnapshot();
+    delete older["outsideWrite"];
+    expect(reduceSession(EMPTY_VIEW, older).outsideWrite).toBe(false);
+  });
+});

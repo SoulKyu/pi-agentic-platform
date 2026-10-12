@@ -76,6 +76,8 @@ export interface SessionReadsDeps {
   readonly live: ReadonlyMap<string, LiveSession>;
   statusOf(id: string): SessionStatus;
   owned(id: string, caller: Caller): SessionRow;
+  /** The Pi file changed outside pap in the last 2 minutes (owner Q13). */
+  outsideWrite(id: string): boolean;
 }
 
 export interface SessionReads {
@@ -219,6 +221,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         leafId: session?.leafId() ?? page.leafId,
         name: row.name,
         cwd: row.cwd,
+        outsideWrite: deps.outsideWrite(sessionId),
       });
       return withTrimmedHistory(snapshot, rows, history);
     },

@@ -18,6 +18,7 @@ export function sessionSnapshot(patch: Record<string, unknown> = {}) {
     leafId: null,
     name: null,
     cwd: "/w",
+    outsideWrite: false,
     ...patch,
   };
 }

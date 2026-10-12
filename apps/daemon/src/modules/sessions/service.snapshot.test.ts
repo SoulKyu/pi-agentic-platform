@@ -65,6 +65,32 @@ describe("snapshot", () => {
     expect(await bed.snapshot("p1")).toMatchObject({ cwd: bed.work });
   });
 
+  it("says a cold session's file changed outside pap for 2 minutes after the write (owner Q13)", async () => {
+    bed = build();
+    const add = (id: string) =>
+      bed.store.insert(
+        {
+          id,
+          piPath: null,
+          piSessionId: null,
+          cwd: bed.work,
+          ownerId: "u1",
+          name: null,
+          createdAt: 1,
+          updatedAt: 1,
+        },
+        null,
+      );
+    add("quiet");
+    add("written");
+    await bed.clock.advance(60_000);
+    bed.service.scanPort.touched("written", bed.clock.now() - 30_000, false);
+    expect(await bed.snapshot("written")).toMatchObject({ outsideWrite: true });
+    expect(await bed.snapshot("quiet")).toMatchObject({ outsideWrite: false });
+    await bed.clock.advance(91_000);
+    expect(await bed.snapshot("written")).toMatchObject({ outsideWrite: false });
+  });
+
   it("reads the transcript from the file, also of a session without a worker", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);

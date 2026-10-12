@@ -94,6 +94,10 @@ export const sessionScreenEn = {
   "sessions.minimap.turnBare": "Turn {number}",
   "sessions.minimap.earlier.one": "{count} earlier turn",
   "sessions.minimap.earlier.other": "{count} earlier turns",
+  "session.outsideWrite.title": "Another Pi process may be using this session",
+  "session.outsideWrite.body":
+    "Its file changed in the last 2 minutes outside pap, from the pi CLI or pi-web for example. Messages sent from both can interleave: close the other one before you continue here.",
+  "session.outsideWrite.dismiss": "Dismiss",
 } as const;
 
 export const sessionScreenFr = {
@@ -191,4 +195,8 @@ export const sessionScreenFr = {
   "sessions.minimap.turnBare": "Tour {number}",
   "sessions.minimap.earlier.one": "{count} tour plus ancien",
   "sessions.minimap.earlier.other": "{count} tours plus anciens",
+  "session.outsideWrite.title": "Un autre processus Pi utilise peut-être cette session",
+  "session.outsideWrite.body":
+    "Son fichier a changé dans les 2 dernières minutes hors de pap, depuis la CLI pi ou pi-web par exemple. Des messages envoyés des deux côtés peuvent s'entremêler : fermez l'autre avant de continuer ici.",
+  "session.outsideWrite.dismiss": "Masquer",
 } as const;

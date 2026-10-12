@@ -25,6 +25,8 @@ export interface LaunchContext {
   onPublished?(sessionId: string, event: SessionStreamEvent): void;
   /** After a reopen settled, success or failure: `reopening` no longer holds the session, so its status has changed. */
   onReopened?(sessionId: string): void;
+  /** In the worker's `onExit`, after `live` forgot the session (owner Q13). */
+  onWorkerEnd?(sessionId: string): void;
 }
 
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
@@ -92,6 +94,7 @@ export function createLaunch(ctx: LaunchContext) {
         },
         onExit: () => {
           if (live.get(row.id) === session) live.delete(row.id);
+          ctx.onWorkerEnd?.(row.id);
         },
         onWorkerExit: (info) => deps.onWorkerExit?.(row.id, info),
       },

@@ -1,5 +1,5 @@
 import "./register-session-catalog.ts";
-import { cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
+import { Banner, Button, cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -42,6 +42,7 @@ export function SessionScreen({
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
   const [error, setError] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<number | null>(null);
   // One feed per session id: the events build the view in the store, not in this component.
   useEffect(
     () => feedSession(runtime.subscriptions, sessionId, (code) => setError(codeText(code))),
@@ -112,6 +113,19 @@ export function SessionScreen({
         <p role="alert" className="border-l-2 border-err px-3 py-2 text-ui text-err">
           {t("sessions.unreadable")}
         </p>
+      ) : null}
+      {view.outsideWrite && dismissed !== view.generation ? (
+        <Banner
+          tone="capacity"
+          title={t("session.outsideWrite.title")}
+          actions={
+            <Button variant="ghost" size="sm" onClick={() => setDismissed(view.generation)}>
+              {t("session.outsideWrite.dismiss")}
+            </Button>
+          }
+        >
+          {t("session.outsideWrite.body")}
+        </Banner>
       ) : null}
       <SessionActions
         key={`actions:${sessionId}`}

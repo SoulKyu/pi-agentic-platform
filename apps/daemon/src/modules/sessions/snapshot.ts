@@ -95,6 +95,7 @@ export interface SnapshotInput {
   readonly leafId?: string | null;
   readonly name?: string | null;
   readonly cwd?: string;
+  readonly outsideWrite?: boolean;
 }
 
 /** A row as it goes into a snapshot: its message bounded like `boundedRow`, its entry id kept. */
@@ -137,6 +138,7 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     leafId: input.leafId ?? null,
     name: input.name ?? null,
     cwd: input.cwd ?? "",
+    outsideWrite: input.outsideWrite ?? false,
   };
   let used = sizeOf(snapshot);
   // Everything but approvals and rows stays under `room`: the rows keep their floor (M4R7).

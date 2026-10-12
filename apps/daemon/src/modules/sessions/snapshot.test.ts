@@ -41,7 +41,14 @@ describe("fitSnapshot", () => {
       leafId: null,
       name: null,
       cwd: "",
+      outsideWrite: false,
     });
+  });
+
+  it("carries whether the file changed outside pap (owner Q13)", () => {
+    expect(fitSnapshot({ status: "idle", rows: [], dialogs: [], outsideWrite: true }).outsideWrite).toBe(
+      true,
+    );
   });
 
   it("carries the session's folder", () => {

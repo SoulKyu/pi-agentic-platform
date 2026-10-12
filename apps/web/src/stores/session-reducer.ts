@@ -51,6 +51,8 @@ export interface SessionView extends UiState {
   readonly leafId: string | null;
   /** The session's folder, from the snapshot ("" until one arrives). */
   readonly cwd: string;
+  /** The Pi file changed outside pap in the last 2 minutes, as of the last snapshot (owner Q13). */
+  readonly outsideWrite: boolean;
   readonly loaded: boolean;
   /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
   readonly generation: number;
@@ -73,6 +75,7 @@ export const EMPTY_VIEW: SessionView = {
   history: NO_HISTORY,
   leafId: null,
   cwd: "",
+  outsideWrite: false,
   loaded: false,
   generation: 0,
   unreadable: false,
@@ -119,6 +122,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         history: event.history,
         leafId: event.leafId,
         cwd: event.cwd,
+        outsideWrite: event.outsideWrite,
         loaded: true,
         generation: view.generation + 1,
       };

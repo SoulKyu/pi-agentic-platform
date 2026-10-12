@@ -34,6 +34,9 @@ interface Adopted {
   readonly projectId: string | null;
 }
 
+/** Sessions whose latest outside write is remembered; the oldest is forgotten past this (M4R141). */
+export const MAX_OUTSIDE_WRITES = 1024;
+
 export function createScanPort(deps: {
   /** The sessions table, its marks and whether it may be written (M4R124). */
   readonly store: SessionsStore;
@@ -50,12 +53,25 @@ export function createScanPort(deps: {
   summary(sessionId: string, ownerId: string): ShellSession | null;
   /** Once per row this port inserts (agreement 8); M5 wires it to `policy.markTainted`. */
   onAdopted(sessionId: string): void;
-}): SessionsScanPort {
+  /** When this daemon started: earlier writes are pap's own (M4R141). */
+  readonly startedAt: number;
+  isLive(sessionId: string): boolean;
+  /** When the session's last pap worker ended in this process. */
+  workerEndedAt(sessionId: string): number | null;
+}): SessionsScanPort & { outsideWriteAt(sessionId: string): number | null } {
   const { store } = deps;
   const limiter = createRateLimiter(deps.clock, 60_000);
   const say = (event: string, fields: Record<string, unknown>) => {
     const said = limiter.check(event);
     if (said.allowed) deps.logger.warn(event, { ...fields, suppressed: said.suppressed });
+  };
+  // The latest write the scanner saw without a pap worker, by session (owner Q13): insertion order is age order.
+  const outside = new Map<string, number>();
+  const noteOutside = (sessionId: string, at: number) => {
+    if (deps.isLive(sessionId) || at <= Math.max(deps.startedAt, deps.workerEndedAt(sessionId) ?? 0)) return;
+    outside.delete(sessionId);
+    outside.set(sessionId, at);
+    if (outside.size > MAX_OUTSIDE_WRITES) outside.delete(outside.keys().next().value as string);
   };
   const duplicate = (): Claim => {
     say("session_file_duplicate_id", {});
@@ -117,6 +133,7 @@ export function createScanPort(deps: {
       return { kind: "session", sessionId: row.id, ownerId: row.ownerId };
     },
     touched(sessionId, at, active) {
+      noteOutside(sessionId, Math.trunc(at));
       if (store.readOnly) return;
       const row = store.get(sessionId);
       if (!row) return;
@@ -140,5 +157,6 @@ export function createScanPort(deps: {
       if (preview !== null && store.marks.setPreview(sessionId, preview)) deps.publisher.changed(sessionId);
     },
     summary: deps.summary,
+    outsideWriteAt: (sessionId) => outside.get(sessionId) ?? null,
   };
 }

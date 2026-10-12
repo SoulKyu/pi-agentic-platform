@@ -253,7 +253,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (event.kind === "status" && event.status === "running") organiser.activity(sessionId);
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
     },
-    onDraftReady: (sessionId, piSessionId) => adoption.onDraftReady(sessionId, piSessionId),
+    ...adoption.launchHooks,
   });
 
   const owned = (sessionId: string, caller: Caller): SessionRow => {
@@ -276,6 +276,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     live,
     statusOf,
     owned,
+    outsideWrite: adoption.outsideWrite,
   });
 
   const commands = createSessionCommands({
@@ -287,7 +288,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     exports: deps.exports,
     logger: deps.logger,
   });
-
   const forks = createForks({
     store: deps.store,
     clock: deps.clock,

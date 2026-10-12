@@ -197,7 +197,7 @@ describe("lazy catalog (session screen)", () => {
     await act(async () => registerCatalog({ en: sessionScreenEn, fr: sessionScreenFr }));
     expect(translate("en", "sessions.composer.send")).toBe("Send");
     expect(translate("fr", "sessions.composer.send")).toBe("Envoyer");
-    expect(Object.keys(sessionScreenEn)).toHaveLength(93);
+    expect(Object.keys(sessionScreenEn)).toHaveLength(96);
     expect(Object.keys(sessionScreenFr)).toEqual(Object.keys(sessionScreenEn));
     const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
     for (const key of Object.keys(sessionScreenEn) as Array<keyof typeof sessionScreenEn>)
@@ -241,7 +241,11 @@ describe("lazy catalog (session screen)", () => {
       const code = readFileSync(file, "utf8");
       for (const key of Object.keys(sessionScreenEn))
         if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
-      if (/["'\x60](?:sessions\.(?:queue|composer|tool|minimap)|dialog|panel|actions|rules)\./.test(code))
+      if (
+        /["'\x60](?:sessions\.(?:queue|composer|tool|minimap)|session\.outsideWrite|dialog|panel|actions|rules)\./.test(
+          code,
+        )
+      )
         offenders.push(`${name}: session prefix`);
     }
     expect(offenders).toEqual([]);

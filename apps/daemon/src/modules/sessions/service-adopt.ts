@@ -3,7 +3,8 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { LiveSession } from "./live-session.ts";
 import type { ProjectLink } from "./project-link.ts";
-import { createScanPort, type SessionsScanPort } from "./scan-port.ts";
+import { createOutsideWrites } from "./outside-writes.ts";
+import { createScanPort } from "./scan-port.ts";
 import type { ShellPublisher } from "./shell-publisher.ts";
 import type { SessionsStore } from "./store.ts";
 
@@ -24,7 +25,8 @@ export interface AdoptionContext {
 }
 
 export function createAdoption(ctx: AdoptionContext) {
-  const scanPort: SessionsScanPort = createScanPort({
+  const outside = createOutsideWrites(ctx.clock);
+  const scanPort = createScanPort({
     store: ctx.store,
     agentDir: ctx.agentDir,
     clock: ctx.clock,
@@ -41,6 +43,9 @@ export function createAdoption(ctx: AdoptionContext) {
     activity: ctx.activity,
     summary: ctx.summary,
     onAdopted: ctx.onAdopted ?? (() => {}),
+    startedAt: outside.startedAt,
+    isLive: (id) => ctx.live.has(id),
+    workerEndedAt: outside.workerEndedAt,
   });
   /** A draft's worker reported its Pi id at `ready`: kept in the table, so a restart forgets nothing (RT-01). */
   const onDraftReady = (sessionId: string, piSessionId: string): void => {
@@ -50,5 +55,11 @@ export function createAdoption(ctx: AdoptionContext) {
       ctx.logger.warn("session_pending_id_not_stored", { sessionId, err: error });
     }
   };
-  return { scanPort, onDraftReady };
+  return {
+    scanPort,
+    /** Whether the session's Pi file changed outside pap within the last 2 minutes (owner Q13). */
+    outsideWrite: (sessionId: string): boolean => outside.recent(scanPort.outsideWriteAt(sessionId)),
+    /** The worker's side of the table and of the outside-write memory, for `LaunchContext`. */
+    launchHooks: { onDraftReady, onWorkerEnd: outside.workerEnded },
+  };
 }
