@@ -113,7 +113,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
     });
     closers.push({ name: "database", close: () => db.close() });
-    ensureInstallTimestamp(db, clock);
+    const installedAt = ensureInstallTimestamp(db, clock);
     if (readOnly)
       logger.warn("read_only_mode", {
         hint: "This database was written by a newer pap. Upgrade pap or restore a backup.",
@@ -163,10 +163,12 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     const search = createSearchModule({
       home: config.home,
+      agentDir: config.piAgentDir,
+      installedAt,
+      readOnly,
       clock,
       logger,
       sessions: sessions.scanPort,
-      readOnly,
     });
     closers.push({ name: "search", close: () => search.stop() });
     const settings = createSettingsModule({ db, clock, logger });
@@ -243,6 +245,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         hint: "--insecure-http: session cookies travel without Secure over plain HTTP, readable by anyone on the network. For testing on a trusted LAN only.",
       });
     }
+    search.start();
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });
 
     let stopping: Promise<void> | undefined;

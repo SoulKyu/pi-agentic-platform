@@ -61,6 +61,8 @@ describe("search module", () => {
     });
     const module = createSearchModule({
       home,
+      agentDir: home,
+      installedAt: 0,
       clock: createFakeClock(),
       logger,
       sessions,
@@ -77,14 +79,28 @@ describe("search module", () => {
   it("a size that cannot be read is logged and does not stop the boot", async () => {
     bytes.fail = true;
     const { logger, lines } = capture();
-    const module = createSearchModule({ home, clock: createFakeClock(), logger, sessions });
+    const module = createSearchModule({
+      home,
+      agentDir: home,
+      installedAt: 0,
+      clock: createFakeClock(),
+      logger,
+      sessions,
+    });
     expect(lines.map((line) => line.msg)).toEqual(["search_index_count_failed"]);
     await module.stop();
   });
 
   it("says the size once at boot", async () => {
     const { logger, lines } = capture();
-    const module = createSearchModule({ home, clock: createFakeClock(), logger, sessions });
+    const module = createSearchModule({
+      home,
+      agentDir: home,
+      installedAt: 0,
+      clock: createFakeClock(),
+      logger,
+      sessions,
+    });
     expect(lines.filter((line) => line.msg === "search_index_size")).toHaveLength(1);
     await module.stop();
   });
