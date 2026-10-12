@@ -7,8 +7,11 @@ import { POLICY_EXTENSION_PATH, type PolicyAuditEntry, type PolicyRules } from "
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants } from "./grants.ts";
 import { errorClass, evaluateToolCall, type PipelineDeps } from "./pipeline.ts";
+import { onToolResult } from "./results.ts";
 import { createRunGuard, guardStages } from "./run-guard.ts";
-import type { ToolFacts } from "./tool-kind.ts";
+import { NO_REDACTOR } from "./redact.ts";
+import type { SecretSource } from "./secrets.ts";
+import { classifyTool, type ToolFacts } from "./tool-kind.ts";
 
 export { createPolicyGrants, MAX_SESSION_GRANTS } from "./grants.ts";
 export { DENIED_REASON, evaluateToolCall, FAIL_CLOSED_REASON, TOO_LONG_REASON } from "./pipeline.ts";
@@ -26,12 +29,17 @@ export interface PolicyConfig {
   ask(request: ApprovalAsk, signal?: AbortSignal): Promise<ApprovalOutcome>;
   /** Moves on every policy update, valid or not: a provisional "always" grant ends with it. */
   rulesVersion(): number;
-  /** Tasks 8a and 9 make these two required. */
+  /** Task 9 makes this required. */
   taint?: PipelineDeps["taint"];
+  /** The secrets the worker knows (stage 06); none when absent (tests). */
+  secrets?: SecretSource;
+  /** Redacts audit arguments; by default what `secrets` knows. */
   redact?: PipelineDeps["redact"];
   /** Told the tools declared to the model at each `agent_start`; a throw is logged, never raised into the run. */
   onAgentStart?(activeToolNames: string[]): void;
 }
+
+const NO_SOURCE: SecretSource = { current: () => NO_REDACTOR, refresh: () => {} };
 
 type NamedInlineExtension = Exclude<InlineExtension, ExtensionFactory>;
 
@@ -55,14 +63,22 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
           : undefined;
       };
       const guard = createRunGuard();
+      const secrets = config.secrets ?? NO_SOURCE;
       const deps: PipelineDeps = {
         ...config,
         grants: createPolicyGrants(config.rulesVersion),
         toolFacts,
         taint: config.taint ?? { current: () => false },
-        redact: config.redact ?? ((text) => text),
+        redact: config.redact ?? ((text) => secrets.current().text(text).text),
         stages: guardStages(guard),
       };
+      pi.on("tool_result", (event) =>
+        onToolResult(event, {
+          secrets,
+          audit: config.audit,
+          classify: (name) => classifyTool(name, toolFacts(name)),
+        }),
+      );
       pi.on("tool_call", (event, ctx) => evaluateToolCall(event, ctx, deps));
       pi.on("agent_start", () => {
         try {

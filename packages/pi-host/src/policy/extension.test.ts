@@ -302,7 +302,7 @@ describe("createPapPolicyExtension", () => {
     expect([extension.name, extension.hidden, [...handlers.keys()]]).toEqual([
       "pap-policy",
       true,
-      ["tool_call", "agent_start", "message_end"],
+      ["tool_result", "tool_call", "agent_start", "message_end"],
     ]);
     expect(await call("bash", { command: "ls" })).toEqual({ block: true, reason: DENIED_REASON });
     expect(audits).toMatchObject([{ toolCallId: "c9", tool: "bash", category: "exec", decision: "denied" }]);

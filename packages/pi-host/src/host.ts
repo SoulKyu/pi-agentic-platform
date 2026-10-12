@@ -8,6 +8,8 @@ import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } fro
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
+import { redactAuditReasons } from "./policy/results.ts";
+import { createSecretSource } from "./policy/secrets.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
@@ -118,12 +120,15 @@ export async function runHost(ipc: Ipc): Promise<void> {
   const entries = createSessionEntries((record) => ipc.send(record));
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
+  const secrets = createSecretSource({ env: process.env, agentDir: initial.agentDir });
+  const sendAudit = auditSinkOf((record) => ipc.send(record));
   const opened = await openSession(initial, {
+    secrets,
     ui,
     approvals,
     rules: () => rules,
     rulesVersion: () => rulesVersion,
-    audit: auditSinkOf((record) => ipc.send(record)),
+    audit: (entry) => sendAudit(redactAuditReasons(entry, secrets.current())),
     onAgentStart: (names) => entries.agentStart(names, rules?.approvalMode ?? first.data.approvalMode),
     onEvent: (event) => {
       ipc.send(toWireEvent(event));

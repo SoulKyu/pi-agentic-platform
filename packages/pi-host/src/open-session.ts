@@ -13,6 +13,7 @@ import {
 import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
+import type { SecretSource } from "./policy/secrets.ts";
 import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./policy/extension.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
@@ -31,6 +32,8 @@ export interface OpenSessionDeps {
   /** Moves on every policy update (the host bumps it), valid or not. */
   rulesVersion(): number;
   audit(entry: PolicyAuditEntry): void;
+  /** The secrets the worker knows (stage 06). */
+  readonly secrets?: SecretSource;
   /** Told the active tool names at each `agent_start` (the session entry, M5R15). */
   onAgentStart?(activeToolNames: string[]): void;
   onEvent(event: AgentSessionEvent): void;
@@ -89,6 +92,9 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     rules: deps.rules,
     rulesVersion: deps.rulesVersion,
     audit: deps.audit,
+    ...(deps.secrets
+      ? { secrets: deps.secrets, redact: (text) => deps.secrets?.current().text(text).text ?? text }
+      : {}),
     ...(deps.onAgentStart ? { onAgentStart: deps.onAgentStart } : {}),
     agentDir,
     papHome,
