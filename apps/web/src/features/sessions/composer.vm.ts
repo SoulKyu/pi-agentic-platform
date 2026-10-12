@@ -5,6 +5,8 @@ export type Behavior = "steer" | "followUp";
 export interface Cleared {
   readonly steering: readonly string[];
   readonly followUp: readonly string[];
+  /** The daemon left texts out to stay in a frame: not everything that was queued is here. */
+  readonly truncated?: boolean;
 }
 const BEHAVIOR_KEY = "pap.sessions.streaming";
 
@@ -59,7 +61,7 @@ export async function stopSession(
     cleared.status === "fulfilled"
       ? { steering: cleared.value.steering, followUp: cleared.value.followUp }
       : { steering: [], followUp: [] };
-  if (cleared.status === "fulfilled") onCleared?.(texts);
+  if (cleared.status === "fulfilled") onCleared?.({ ...texts, truncated: cleared.value.truncated });
   if (aborted.status === "rejected") throw aborted.reason;
   return texts;
 }

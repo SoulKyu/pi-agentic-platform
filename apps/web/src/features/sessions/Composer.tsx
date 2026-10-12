@@ -35,6 +35,11 @@ export function Composer({ sessionId, view, onTabToPanel }: ComposerProps) {
           </Button>
         </div>
       ) : null}
+      {c.note ? (
+        <p role="status" aria-live="polite" className="text-ui text-muted">
+          {c.note}
+        </p>
+      ) : null}
       {c.error ? (
         <p role="alert" className="text-ui text-attention">
           {c.error}

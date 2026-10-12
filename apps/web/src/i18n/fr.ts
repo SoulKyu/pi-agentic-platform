@@ -85,6 +85,9 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "sessions.composer.whenWorking": "Pendant que l'agent travaille",
   "sessions.composer.mayHaveBeenSent": "Le message a peut-être été envoyé.",
   "sessions.composer.sendAgain": "Renvoyer",
+  "sessions.composer.blockedPending": "Renvoyez ou modifiez d'abord le message précédent.",
+  "sessions.composer.blockedCompacting": "La session compacte son historique. Réessayez quand c'est fini.",
+  "sessions.composer.truncated": "Une partie du texte en attente n'a pas pu être restaurée.",
   "sessions.composer.edit": "Modifier",
   "session.status.releasing": "Libération",
   "sessions.unreadable":

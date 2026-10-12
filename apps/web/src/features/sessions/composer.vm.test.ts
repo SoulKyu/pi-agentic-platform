@@ -51,7 +51,7 @@ describe("stopSession", () => {
     };
     const restored = vi.fn();
     await expect(stopSession(bed.runtime, "s1", restored)).rejects.toMatchObject({ code: "worker_failed" });
-    expect(restored).toHaveBeenCalledWith({ steering: ["a"], followUp: ["b"] });
+    expect(restored).toHaveBeenCalledWith({ steering: ["a"], followUp: ["b"], truncated: false });
   });
 
   it("aborts anyway, and rejects with nothing, when only clearQueue fails", async () => {

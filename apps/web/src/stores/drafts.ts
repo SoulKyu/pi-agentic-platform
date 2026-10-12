@@ -97,8 +97,13 @@ export function savePending(storage: Storage | null, sessionId: string, pending:
   }
 }
 
+let signOuts = 0;
+/** Counts the sign-outs of this page: an answer that arrives after one must not write what the sign-out removed. */
+export const signOutCount = (): number => signOuts;
+
 /** Sign-out (owner R2-4): no draft or pending message stays on a shared device. The streaming preference stays. */
 export function clearSessionDrafts(storage: Storage | null): void {
+  signOuts++;
   try {
     const keys = Array.from({ length: storage?.length ?? 0 }, (_, index) => storage?.key(index) ?? "");
     for (const key of keys) {

@@ -82,6 +82,9 @@ export const en = {
   "sessions.composer.whenWorking": "While the agent works",
   "sessions.composer.mayHaveBeenSent": "The message may have been sent.",
   "sessions.composer.sendAgain": "Send again",
+  "sessions.composer.blockedPending": "Send the earlier message again, or edit it, first.",
+  "sessions.composer.blockedCompacting": "The session is compacting. Try again when it is done.",
+  "sessions.composer.truncated": "Some queued text could not be restored.",
   "sessions.composer.edit": "Edit",
   "session.status.releasing": "Releasing",
   "sessions.unreadable":
