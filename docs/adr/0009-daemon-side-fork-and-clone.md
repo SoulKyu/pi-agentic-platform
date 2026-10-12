@@ -25,6 +25,9 @@ no newline (a line a worker is writing, or a torn one); it rewrites in place a f
 - A source whose first line is not a current-format Pi header, or that is empty, is refused (`unreadable` -> `internal`):
   the daemon does not migrate files. A source over 32 MiB is refused (`too_large` -> `capacity`, logged as such),
   because parsing it is synchronous work on the daemon's thread. The fork's `text` is clipped to 800 000 JSON bytes.
+- Error codes: a branch with no user or assistant message is `session_empty`; a fork point that is not a user message
+  is `bad_request`; a header naming a parent other than the real source (`lineage_mismatch`, logged
+  `fork_lineage_mismatch`) is `internal`, like the other refusals above.
 - A clone copies the branch as written on disk, ending at the worker's leaf (or the file's last entry when the leaf is
   not written yet). A fork at the first message makes a draft row with no file; Pi writes one with the first message.
 - The new row is inserted cold, owned by the caller, in the source's cwd; no worker starts.
