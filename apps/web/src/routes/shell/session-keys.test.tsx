@@ -201,11 +201,17 @@ describe("two session screens at once", () => {
     );
     await settle();
     const [first, second] = [...page.container.querySelectorAll("[data-session-screen]")];
-    const composer = second?.querySelector("[data-composer] textarea") as HTMLTextAreaElement;
-    composer.focus();
-    await escape(composer);
-    const stopped = screen.bed.called("sessions.abort").map((call) => call.params);
-    expect(stopped).toEqual([{ sessionId: "sess-2" }]);
-    expect(first).not.toBeUndefined();
+    // The second screen registered last, so only the focus check can send the key to the first.
+    const firstComposer = first?.querySelector("[data-composer] textarea") as HTMLTextAreaElement;
+    firstComposer.focus();
+    await escape(firstComposer);
+    expect(screen.bed.called("sessions.abort").map((call) => call.params)).toEqual([{ sessionId: "sess-1" }]);
+    const secondComposer = second?.querySelector("[data-composer] textarea") as HTMLTextAreaElement;
+    secondComposer.focus();
+    await escape(secondComposer);
+    expect(screen.bed.called("sessions.abort").map((call) => call.params)).toEqual([
+      { sessionId: "sess-1" },
+      { sessionId: "sess-2" },
+    ]);
   });
 });
