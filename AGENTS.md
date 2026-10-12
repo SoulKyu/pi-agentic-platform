@@ -12,7 +12,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 
 ## Worker settings
 
-- Env: `PAP_MAX_WORKERS`, `PAP_MIN_FREE_MEM_MB`, `PAP_WORKER_IDLE_MINUTES` (30, `0` = never release), `PAP_WORKER_SCOPE` (`auto` | `off`), `PAP_WORKER_MEMORY_MAX_MB` (default max(2 GiB, 50 % RAM)), `PAP_WORKER_TASKS_MAX` (4096). Details: `docs/agents/daemon.md`.
+- Env: `PAP_MAX_WORKERS`, `PAP_MIN_FREE_MEM_MB`, `PAP_WORKER_IDLE_MINUTES` (30, `0` = never release), `PAP_WORKER_SCOPE` (`auto` | `off`), `PAP_WORKER_MEMORY_MAX_MB` (default max(2 GiB, 50 % RAM), at least 1024: a lower value stops the daemon at boot), `PAP_WORKER_TASKS_MAX` (4096). Details: `docs/agents/daemon.md`.
 - Workers run in a `systemd-run --user --scope` only with a lingering user manager: `loginctl enable-linger <user>` once, `XDG_RUNTIME_DIR` set. Otherwise scopes are off with a boot warning. Tests run with `PAP_WORKER_SCOPE=off`; the scope tests need the manager (CI starts one): under `CI=1` they fail without it, locally they skip with a warning.
 
 ## Rules (CI-enforced)
