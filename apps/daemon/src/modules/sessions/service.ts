@@ -73,6 +73,7 @@ export interface PromptInput {
 
 export interface SessionsService extends SessionCommands {
   create(cwd: string, caller: Caller): Promise<{ sessionId: string }>;
+  /** Every session of the caller, unbounded: tests and internal use only; RPC handlers use `listFitted`. */
   list(caller: Caller): SessionSummary[];
   /** `list` cut to the page in JSON bytes, the newest kept (M4R35). */
   listFitted(caller: Caller): { sessions: SessionSummary[]; truncated: boolean };
@@ -203,6 +204,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     grants,
     checkCapacity,
     projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
+    onReopened: (sessionId) => publisher.changed(sessionId),
     onPublished: (sessionId, event) => {
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
     },

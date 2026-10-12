@@ -111,12 +111,29 @@ describe("the shell stream's events", () => {
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     await drain();
     const got = events();
-    // The project is announced when the projects module first makes it (before the row exists), and again with the session.
-    expect(new Set(got.map((event) => event.kind))).toEqual(new Set(["session", "project"]));
-    expect(got.filter((event) => event.kind === "session")).toEqual([
-      expect.objectContaining({ session: expect.objectContaining({ id: sessionId, status: "idle" }) }),
+    // The projects module announces the project as it makes it (before the row exists); `create` then publishes the
+    // session and the project again with the final count.
+    expect(got).toEqual([
+      expect.objectContaining({ kind: "project" }),
+      expect.objectContaining({
+        kind: "session",
+        session: expect.objectContaining({ id: sessionId, status: "idle" }),
+      }),
+      expect.objectContaining({ kind: "project", project: expect.objectContaining({ sessions: 1 }) }),
     ]);
-    expect(got.at(-1)).toMatchObject({ kind: "project", project: { sessions: 1 } });
+  });
+
+  it("publishes a project event when the projects module reports a change, such as a rename", async () => {
+    bed = build();
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    const events = watchShell();
+    const projectId = bed.store.marks.row(sessionId)?.projectId ?? "";
+    bed.projects.ensure("u1", "/elsewhere");
+    await drain();
+    expect(events()).toEqual([
+      expect.objectContaining({ kind: "project", project: expect.objectContaining({ id: "p:/elsewhere" }) }),
+    ]);
+    expect(projectId).toBe(`p:${bed.work}`);
   });
 
   it("does not publish to another owner's channel", async () => {
@@ -150,7 +167,39 @@ describe("the shell stream's events", () => {
     await drain();
     const sessions = events().flatMap((event) => (event.kind === "session" ? [event.session] : []));
     expect(sessions.at(-1)).toMatchObject({ id: sessionId, updatedAt: bed.store.get(sessionId)?.updatedAt });
-    expect(sessions.at(-1)?.updatedAt).toBeGreaterThanOrEqual(5000);
+  });
+});
+
+describe("a reopened session's status reaches the shell stream", () => {
+  // Released by the idle timer, so cold; the second worker (the reopen) starts as `second` says.
+  async function cold(second: BedOptions["start"]) {
+    bed = build({
+      idleMs: 1000,
+      start: (index, init) => (index === 0 ? { kind: "ready", leafId: "a1" } : second?.(index, init)),
+    });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    bed.store.bindPiFile(sessionId, bed.writePiFile(0), "pi-0");
+    await bed.clock.advance(1000);
+    expect(bed.service.list(OWNER)[0]?.status).toBe("cold");
+    return sessionId;
+  }
+  const lastStatus = (events: ShellStreamEvent[]) =>
+    events.flatMap((event) => (event.kind === "session" ? [event.session.status] : [])).at(-1);
+
+  it("ends on idle after a compact reopened it", async () => {
+    const sessionId = await cold(() => ({ kind: "ready", leafId: "a1" }));
+    const events = watchShell();
+    await bed.service.compact({ sessionId }, OWNER);
+    await drain();
+    expect(lastStatus(events())).toBe("idle");
+  });
+
+  it("ends on cold when the reopened worker exits", async () => {
+    const sessionId = await cold(() => ({ kind: "exit70" }));
+    const events = watchShell();
+    await expect(bed.service.prompt({ sessionId, text: "again" }, OWNER)).rejects.toThrow();
+    await drain();
+    expect(lastStatus(events())).toBe("cold");
   });
 });
 

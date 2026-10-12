@@ -18,8 +18,13 @@ export interface LaunchContext {
   projectFor?(row: SessionRow): string | null;
   /** After `ready`, for a row without a Pi file: the Pi id its worker reported (M4R123). */
   onDraftReady?(sessionId: string, piSessionId: string): void;
-  /** After an event reached the session's subscribers; never for what a new session said before its row was stored. */
+  /**
+   * After an event reached the session's subscribers. Skipped for what a new session said before its row was stored
+   * (replayed from the buffer without it) and for the `status` events of `live-session` while `stored` is false.
+   */
   onPublished?(sessionId: string, event: SessionStreamEvent): void;
+  /** After a reopen settled, success or failure: `reopening` no longer holds the session, so its status has changed. */
+  onReopened?(sessionId: string): void;
 }
 
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
@@ -109,8 +114,11 @@ export function createLaunch(ctx: LaunchContext) {
       syncName(row.id, session.name());
       if (preReady) replayPreReady(row.id, preReady.drain());
       // Whoever watches the session while it was cold saw the cached name (R112).
-      if (session.name() !== row.name)
-        deps.hub.publish("session", row.id, { kind: "name", name: session.name() });
+      if (session.name() !== row.name) {
+        const named: SessionStreamEvent = { kind: "name", name: session.name() };
+        deps.hub.publish("session", row.id, named);
+        ctx.onPublished?.(row.id, named);
+      }
       live.set(row.id, session);
       bound = bound || bindPiFile(row, session);
       return session;
@@ -139,6 +147,8 @@ export function createLaunch(ctx: LaunchContext) {
       return await reopened;
     } finally {
       reopening.delete(row.id);
+      // The status published during the reopen was read while `reopening` still held the session.
+      ctx.onReopened?.(row.id);
     }
   }
 
