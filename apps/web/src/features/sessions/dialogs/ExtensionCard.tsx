@@ -32,6 +32,7 @@ export function ExtensionCard(props: {
   return (
     <section
       role="group"
+      data-inline-edit
       aria-labelledby={props.titleInField ? undefined : headingId}
       aria-label={props.titleInField ? title.shown : undefined}
       className="flex flex-col gap-2 rounded-md border border-line bg-panel p-3"

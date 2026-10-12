@@ -45,6 +45,7 @@ export function ApprovalDialog(props: ApprovalDialogProps) {
   return (
     <section
       role="alertdialog"
+      data-inline-edit
       aria-labelledby={titleId}
       aria-describedby={described || undefined}
       className="flex flex-col gap-2 rounded-md border border-attention-line bg-attention-tint p-3"
