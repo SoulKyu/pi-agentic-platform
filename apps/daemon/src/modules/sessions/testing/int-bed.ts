@@ -137,6 +137,8 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       exits,
       rpc: sessions.rpc,
       policyRpc: policy.rpc,
+      /** The real policy module on the bed's database: its `rpc` and its `port`. */
+      policy,
       auditRpc: audit.rpc,
       /** The `policy` rows of the session journal (`session_events`), as their kinds, oldest first. */
       sessionEvents: () => db.all<{ kind: string }>("SELECT kind FROM session_events WHERE kind = 'policy'"),
@@ -144,6 +146,11 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       auditRows: () =>
         db.all<{ kind: string; actor: string; sessionId: string | null }>(
           "SELECT kind, actor, session_id AS sessionId FROM audit ORDER BY id",
+        ),
+      /** The judged calls in the audit table (tool and decision), oldest first. */
+      auditCalls: () =>
+        db.all<{ tool: string | null; decision: string }>(
+          "SELECT tool, decision FROM audit WHERE kind = 'call' ORDER BY id",
         ),
       ctx: owner,
       async subscribe(sessionId: string, after?: Cursor): Promise<Subscription> {

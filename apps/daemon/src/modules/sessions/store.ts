@@ -26,6 +26,8 @@ export interface SessionsStore {
   get(id: string): SessionRow | undefined;
   listByOwner(ownerId: string): SessionRow[];
   touch(id: string, at: number): void;
+  /** Removes a row (and, by cascade, what hangs on it); for a fork or clone that failed after its insert. */
+  remove(id: string): void;
   /** Caches Pi's name for listings; the CHECK refuses what `nameOf` would not return. */
   setName(id: string, name: string | null): void;
   /** Sets the Pi file of a draft, once. False when the session already has one. Throws when another session owns the path. */
@@ -56,6 +58,9 @@ export function createSessionsStore(db: Db): SessionsStore {
       ),
     touch: (id, at) => {
       db.run("UPDATE sessions SET updated_at = $at WHERE id = $id", { id, at });
+    },
+    remove: (id) => {
+      db.run("DELETE FROM sessions WHERE id = $id", { id });
     },
     setName: (id, name) => {
       db.run("UPDATE sessions SET name = $name WHERE id = $id", { id, name });

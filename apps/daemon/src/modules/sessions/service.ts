@@ -150,6 +150,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     newId: deps.newId,
     loadWriter: deps.loadWriter,
     onMade: adoption.fileMade,
+    onAdopted: (source, id) => policyLink.inherit(source, id),
   });
   const sessionMarks = createSessionMarks({
     store: marks,

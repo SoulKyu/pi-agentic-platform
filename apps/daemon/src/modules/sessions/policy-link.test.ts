@@ -185,6 +185,18 @@ describe("refused", () => {
     ]);
   });
 
+  it("names every session that was refused, each said once in its window", async () => {
+    const { link, lines, track } = build();
+    const first = await track();
+    const second = await track({ ...ROW, id: "s2" });
+    link.refused(ROW, first.session);
+    link.refused({ ...ROW, id: "s2" }, second.session);
+    link.refused(ROW, first.session);
+    expect(
+      lines.filter((line) => line.msg === "policy_update_refused").map((line) => line.sessionId),
+    ).toEqual(["s1", "s2"]);
+  });
+
   it("logs a stop that fails", async () => {
     const { link, lines, track } = build();
     const { session } = await track();

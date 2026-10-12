@@ -32,9 +32,13 @@ export interface SessionPolicyPort {
   ): { mode: ApprovalMode; explicit: boolean; taint: TaintState };
   /** The settings a worker is given: the defaults when nothing is stored, `RESTRICTIVE_SETTINGS` when the document is unreadable. */
   settings(ownerId: string): PolicySettings;
-  /** Raises the session's taint. True when it was not up yet. `not_found` for a session the owner does not have. */
-  markTainted(ownerId: string, sessionId: string): boolean;
-  /** The target takes the source's mode and taint with epoch 0, for a fork or a clone. Tells no listener. */
+  /**
+   * Raises the session's taint. True when it was not up yet. `observedEpoch` is the worker's taint epoch at its report: a
+   * report older than the last clear is ignored (false). Without it (the audit fallback) the taint is raised whatever
+   * the epoch. `not_found` for a session the owner does not have.
+   */
+  markTainted(ownerId: string, sessionId: string, observedEpoch?: number): boolean;
+  /** The target takes the source's mode and taint, for a fork or a clone; its epoch is never lowered. Tells no listener. */
   inherit(ownerId: string, sourceId: string, targetId: string): void;
   /** Called after a session's mode or taint changed. The returned function removes the listener. */
   onSessionChange(listener: (ownerId: string, sessionId: string) => void): () => void;
@@ -117,9 +121,9 @@ export function createSessionPolicyService(deps: {
       };
     },
     settings,
-    markTainted(ownerId: string, sessionId: string): boolean {
+    markTainted(ownerId: string, sessionId: string, observedEpoch?: number): boolean {
       owns(ownerId, sessionId);
-      const raised = deps.sessions.markTainted(ownerId, sessionId, deps.clock.now());
+      const raised = deps.sessions.markTainted(ownerId, sessionId, observedEpoch ?? null, deps.clock.now());
       if (raised) sessionChanged(ownerId, sessionId);
       return raised;
     },

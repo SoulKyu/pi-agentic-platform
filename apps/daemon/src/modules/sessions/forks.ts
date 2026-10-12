@@ -36,6 +36,8 @@ export interface ForksDeps {
   loadWriter(): Promise<PiWriter>;
   /** After a new session's row is stored: pap wrote its file, so the scanner's first read is not an outside write. */
   onMade?(sessionId: string): void;
+  /** Called once the fork's or clone's row is stored, inside the adopt that stores it: a throw removes the new file and row. */
+  onAdopted?(source: SessionRow, targetId: string): void;
 }
 
 export interface Forks {
@@ -64,6 +66,14 @@ export function createForks(deps: ForksDeps): Forks {
     return new PapError("internal");
   };
 
+  function removeStoredRow(id: string): void {
+    try {
+      deps.store.remove(id);
+    } catch (error) {
+      deps.logger.error("fork_row_not_removed", { sessionId: id, err: error });
+    }
+  }
+
   // The file is Pi's, made by Pi's own manager; before the daemon remembers it, it must be where Pi keeps sessions.
   function adopt(
     source: SessionRow,
@@ -72,6 +82,7 @@ export function createForks(deps: ForksDeps): Forks {
   ): string {
     const now = deps.clock.now();
     const id = deps.newId();
+    let stored = false;
     try {
       if (made.file !== null && (made.piSessionId === null || !isPiSessionFile(deps.agentDir, made.file))) {
         deps.logger.warn("fork_file_refused", { sessionId: source.id });
@@ -87,9 +98,12 @@ export function createForks(deps: ForksDeps): Forks {
         createdAt: now,
         updatedAt: now,
       });
+      stored = true;
       deps.onMade?.(id);
+      deps.onAdopted?.(source, id);
     } catch (error) {
       if (made.file !== null) rmSync(made.file, { force: true });
+      if (stored) removeStoredRow(id);
       if (error instanceof PapError) throw error;
       deps.logger.error("fork_row_not_stored", { sessionId: source.id, err: error });
       throw new PapError("internal");

@@ -89,7 +89,10 @@ describe("pi-host worker: untrusted content and taint", () => {
       reason: expect.stringContaining("external content"),
     });
     // Once when it rose, once more at agent_end while it holds (M5R122).
-    expect(taints(host)).toHaveLength(2);
+    expect(taints(host)).toEqual([
+      { type: "taint", epoch: 0 },
+      { type: "taint", epoch: 0 },
+    ]);
     expect(host.records.findLastIndex((r) => r.type === "taint")).toBeGreaterThan(
       host.records.findIndex((r) => r.type === "agent_end"),
     );

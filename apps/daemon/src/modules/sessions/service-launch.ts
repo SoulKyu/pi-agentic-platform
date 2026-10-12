@@ -45,6 +45,7 @@ export function createLaunch(ctx: LaunchContext) {
     hub: deps.hub,
     agentDir: deps.worker.agentDir,
     onPolicyRecord: (row, raw) => policyLink.audited(row, raw),
+    onTaint: (row, epoch) => policyLink.tainted(row, epoch),
   });
 
   // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already

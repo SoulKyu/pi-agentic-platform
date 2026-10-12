@@ -245,6 +245,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         deps.record("policy", record.entry);
         return;
       case "taint":
+        deps.record("taint", record.epoch);
         return;
       case "health":
         rss = record.rssMb;

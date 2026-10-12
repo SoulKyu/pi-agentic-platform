@@ -68,7 +68,12 @@ describe("worker record routing", () => {
 
 describe("taint record", () => {
   it("is a worker record of its own, never forwarded as a Pi event (M5R122)", () => {
-    expect(parseWorkerRecord({ type: "taint" })).toEqual({ type: "taint" });
+    expect(parseWorkerRecord({ type: "taint", epoch: 3 })).toEqual({ type: "taint", epoch: 3 });
+  });
+
+  it("carries the worker's taint epoch, a non-negative integer (M5R60)", () => {
+    for (const epoch of [undefined, -1, 1.5, "1"])
+      expect(parseWorkerRecord({ type: "taint", epoch })).toBeNull();
   });
 });
 

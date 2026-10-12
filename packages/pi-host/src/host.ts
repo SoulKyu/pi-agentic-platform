@@ -132,7 +132,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   // Moves on every policy update, a malformed one too: provisional "always" grants end with it (M2R73).
   let rulesVersion = 0;
   const reportTaint = () => {
-    if (!ipc.send({ type: "taint" }))
+    if (!ipc.send({ type: "taint", epoch: taint.state().epoch }))
       process.stderr.write("pi-host: taint record not sent; the next agent_end repeats it\n");
   };
   const taint = createTaint(first.data.taint, reportTaint);

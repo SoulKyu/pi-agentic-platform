@@ -1,4 +1,5 @@
 import { DEFAULT_GUARD, PolicyRules, type PolicySettings, type SessionPolicyView } from "@pap/contracts";
+import { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
@@ -10,6 +11,13 @@ import type { LiveSession } from "./live-session.ts";
 import type { SessionRow } from "./store.ts";
 
 const SAY_EVERY_MS = 60_000;
+const MAX_WINDOWS = 1_024;
+
+/**
+ * The least an audit record must say to taint the session (M5R60, path 2): checked before the full audit schema, so an
+ * entry the schema refuses still taints. It carries no epoch, so it raises whatever a clear did.
+ */
+export const TaintFact = z.object({ kind: z.literal("result"), external: z.literal(true) });
 
 export interface PolicyLinkDeps {
   readonly policy: PolicyPort;
@@ -29,8 +37,12 @@ export interface PolicyLink {
   compose(row: SessionRow, scope: string): PolicyRules;
   /** The mode in force, whether the session chose it, and whether it is tainted: what a snapshot and a `policy` event carry. */
   viewOf(row: SessionRow): SessionPolicyView;
-  /** A worker's audit record (as unknown) goes to the audit module. */
+  /** A worker's audit record (as unknown) goes to the audit module; one that says `external` taints the session first. */
   audited(row: SessionRow, raw: unknown): void;
+  /** The worker's own taint report with its epoch (M5R60): stored unless a clear came after it. The port's listener pushes and publishes. */
+  tainted(row: SessionRow, epoch: number): void;
+  /** A fork or clone takes its source's mode and taint (owner Q15). A throw is the caller's to handle. */
+  inherit(source: SessionRow, targetId: string): void;
   /** The worker refused a policy update (M5R11): it blocks every call, so it is stopped and the next prompt starts a worker with composed rules. */
   refused(row: SessionRow, session: LiveSession): void;
   stop(): void;
@@ -41,9 +53,17 @@ export interface PolicyLink {
  * policy view for the snapshot and the `policy` event (M5R61), the audit hand-over, and a worker that refused an update.
  */
 export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
-  const limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
+  let limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
+  const windows = new Set<string>();
+  // One window per code and session, so every session is named. The windows start over when MAX_WINDOWS are held.
   const say = (code: string, fields: Record<string, unknown>) => {
-    const { allowed, suppressed } = limiter.check(code);
+    const key = `${code}:${String(fields.sessionId ?? "")}`;
+    if (!windows.has(key) && windows.size >= MAX_WINDOWS) {
+      windows.clear();
+      limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
+    }
+    windows.add(key);
+    const { allowed, suppressed } = limiter.check(key);
     if (allowed) deps.logger.warn(code, { ...fields, ...(suppressed > 0 ? { suppressed } : {}) });
   };
 
@@ -84,6 +104,15 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
     return { profile: "interactive", approvalMode: "read-only", taint } as PolicyRules;
   }
 
+  // A taint that cannot be stored is logged; the worker keeps its own and repeats it at its next agent_end.
+  function markTainted(row: SessionRow, epoch?: number): void {
+    try {
+      deps.policy.markTainted(row.ownerId, row.id, epoch);
+    } catch (error) {
+      say("taint_not_stored", { sessionId: row.id, err: error });
+    }
+  }
+
   const viewOfId = (ownerId: string, sessionId: string): SessionPolicyView => {
     const { mode, explicit, taint } = deps.policy.sessionPolicy(ownerId, sessionId);
     return { mode, explicit, tainted: taint.tainted };
@@ -106,7 +135,12 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
     grants,
     compose,
     viewOf: (row) => viewOfId(row.ownerId, row.id),
-    audited: (row, raw) => void deps.audit.fromWorker(row, raw, { containment: deps.containment }),
+    audited(row, raw) {
+      if (TaintFact.safeParse(raw).success) markTainted(row);
+      void deps.audit.fromWorker(row, raw, { containment: deps.containment });
+    },
+    tainted: (row, epoch) => markTainted(row, epoch),
+    inherit: (source, targetId) => deps.policy.inherit(source.ownerId, source.id, targetId),
     refused(row, session) {
       say("policy_update_refused", { sessionId: row.id });
       session.stop().catch((error: unknown) => {

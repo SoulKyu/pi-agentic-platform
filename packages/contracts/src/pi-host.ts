@@ -176,8 +176,11 @@ const UiClosedRecord = z.object({ type: z.literal("extension_ui_closed"), id: z.
  * `invalid` row there instead of vanishing in the parser (M5R113).
  */
 const AuditRecord = z.object({ type: z.literal("audit"), entry: z.unknown().optional() });
-/** Sent when untrusted content raises the worker's taint, and again at each `agent_end` while it holds (M5R122). */
-export const TaintRecord = z.object({ type: z.literal("taint") });
+/**
+ * Sent when untrusted content raises the worker's taint, and again at each `agent_end` while it holds (M5R122).
+ * `epoch` is the worker's current taint epoch: the daemon ignores a report older than the last clear (M5R60).
+ */
+export const TaintRecord = z.object({ type: z.literal("taint"), epoch: z.number().int().nonnegative() });
 export type TaintRecord = z.infer<typeof TaintRecord>;
 /** Where Pi reports the policy's inline extension, and the `extension_error` source the daemon recognises it by. */
 export const POLICY_EXTENSION_PATH = "<inline:pap-policy>";

@@ -14,6 +14,8 @@ export interface StoreSyncDeps {
   readonly agentDir: string;
   /** A worker's policy record (an audit entry, as unknown): it goes to the audit module, not to `session_events`. */
   onPolicyRecord(row: SessionRow, raw: unknown): void;
+  /** The worker reports its taint, with the taint epoch it holds (M5R60): the daemon stores it, not `session_events`. */
+  onTaint(row: SessionRow, epoch: number): void;
 }
 
 /** What the service writes to the store as a worker goes about its work: the file Pi wrote, events, the name. */
@@ -38,10 +40,11 @@ export function createStoreSync(deps: StoreSyncDeps) {
 
   function recordEvent(sessionId: string, kind: string, data: unknown): void {
     try {
-      if (kind === "policy") {
+      if (kind === "policy" || kind === "taint") {
         const row = deps.store.get(sessionId);
-        if (row) deps.onPolicyRecord(row, data);
-        else deps.logger.warn("session_event_dropped", { sessionId, kind });
+        if (!row) deps.logger.warn("session_event_dropped", { sessionId, kind });
+        else if (kind === "policy") deps.onPolicyRecord(row, data);
+        else if (typeof data === "number") deps.onTaint(row, data);
         return;
       }
       deps.store.appendEvent(sessionId, kind, data, deps.clock.now());

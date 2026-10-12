@@ -82,15 +82,19 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
       if (failSettings) throw new Error("settings failed");
       return settingsOf.get(ownerId) ?? DEFAULT_POLICY_SETTINGS;
     },
-    markTainted(ownerId, sessionId) {
+    markTainted(ownerId, sessionId, observedEpoch) {
       const current = taints.get(sessionId) ?? NO_TAINT;
-      if (current.tainted) return false;
+      if (current.tainted || (observedEpoch !== undefined && current.epoch > observedEpoch)) return false;
       taints.set(sessionId, { tainted: true, epoch: current.epoch });
       for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
       return true;
     },
-    // Task 12b-2 gives the fake its inheritance.
-    inherit: () => {},
+    inherit(_ownerId, sourceId, targetId) {
+      const mode = modes.get(sourceId);
+      if (mode !== undefined) modes.set(targetId, mode);
+      const taint = taints.get(sourceId);
+      if (taint) taints.set(targetId, { tainted: taint.tainted, epoch: taints.get(targetId)?.epoch ?? 0 });
+    },
     onSessionChange(listener) {
       sessionListeners.add(listener);
       return () => void sessionListeners.delete(listener);
@@ -118,6 +122,12 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
     /** What the policy module does when a session's mode is set: it is kept, the listeners are told. */
     setMode(ownerId: string, sessionId: string, mode: ApprovalMode) {
       modes.set(sessionId, mode);
+      for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
+    },
+    /** What the policy module does when the owner clears the taint: lowered, the epoch up by one, the listeners told. */
+    clearTaint(ownerId: string, sessionId: string) {
+      const current = taints.get(sessionId) ?? NO_TAINT;
+      taints.set(sessionId, { tainted: false, epoch: current.epoch + 1 });
       for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
     },
     taintOf: (sessionId: string): TaintState => taints.get(sessionId) ?? NO_TAINT,
