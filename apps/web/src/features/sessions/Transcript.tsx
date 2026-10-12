@@ -1,11 +1,13 @@
 import { Button } from "@pap/ui";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { t } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { failureText } from "./failure.ts";
 import { MessageRow, SummaryRow } from "./MessageRow.tsx";
+import { Minimap } from "./Minimap.tsx";
+import { rowId } from "./minimap.vm.ts";
 import { ToolRow } from "./ToolRow.tsx";
 import { transcriptItems } from "./transcript.vm.ts";
 import type { Track } from "./use-action.ts";
@@ -65,6 +67,7 @@ function useOlderHistory(sessionId: string, view: SessionView, preserve: () => (
 
 export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
   const items = transcriptItems(view);
+  const scope = useId();
   const last = items.at(-1);
   const { attach, onScroll, preserveOnPrepend } = useStickToBottom(
     `${items.length}:${last && "text" in last ? last.text.length : 0}:${view.history.oldestEntryId}`,
@@ -101,53 +104,56 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
 
   return (
     <>
-      <ol ref={attach} onScroll={onScroll} className="flex flex-1 flex-col gap-2 overflow-y-auto">
-        {canLoad ? (
-          <li ref={sentinel} className="flex flex-col items-center gap-1">
-            {older.error ? (
-              <p role="alert" className="text-ui text-attention">
-                {older.error}
-              </p>
-            ) : null}
-            <Button disabled={older.loading} onClick={() => void older.load()}>
-              {t("sessions.transcript.loadOlder")}
-            </Button>
-          </li>
-        ) : null}
-        {items.map((item, index) => (
-          <li key={item.key}>
-            {item.kind === "tool" ? (
-              <ToolRow item={item} sessionId={sessionId} />
-            ) : item.kind === "summary" ? (
-              <SummaryRow item={item} />
-            ) : item.kind === "failure" ? (
-              <div
-                data-failure
-                role={index === items.length - 1 ? "alert" : undefined}
-                className="border-l-2 border-error px-3 py-2 text-ui text-error"
-              >
-                <p className="font-mono text-label font-semibold uppercase tracking-label">
-                  {t("session.failure")}
+      <div className="flex min-h-0 flex-1 gap-2">
+        <ol ref={attach} onScroll={onScroll} className="flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+          {canLoad ? (
+            <li ref={sentinel} className="flex flex-col items-center gap-1">
+              {older.error ? (
+                <p role="alert" className="text-ui text-attention">
+                  {older.error}
                 </p>
-                <p className="mt-1 whitespace-pre-wrap break-words">{item.text}</p>
-              </div>
-            ) : (
-              <MessageRow
-                item={item}
-                actions={
-                  rowActions && {
-                    sessionId,
-                    track: rowActions.track,
-                    onEdit: rowActions.onEdit,
-                    branches: branches.points,
-                    blocked: rowActions.busy || view.status === "running" || view.activity.compacting,
+              ) : null}
+              <Button disabled={older.loading} onClick={() => void older.load()}>
+                {t("sessions.transcript.loadOlder")}
+              </Button>
+            </li>
+          ) : null}
+          {items.map((item, index) => (
+            <li key={item.key} id={rowId(scope, item.key)}>
+              {item.kind === "tool" ? (
+                <ToolRow item={item} sessionId={sessionId} />
+              ) : item.kind === "summary" ? (
+                <SummaryRow item={item} />
+              ) : item.kind === "failure" ? (
+                <div
+                  data-failure
+                  role={index === items.length - 1 ? "alert" : undefined}
+                  className="border-l-2 border-error px-3 py-2 text-ui text-error"
+                >
+                  <p className="font-mono text-label font-semibold uppercase tracking-label">
+                    {t("session.failure")}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap break-words">{item.text}</p>
+                </div>
+              ) : (
+                <MessageRow
+                  item={item}
+                  actions={
+                    rowActions && {
+                      sessionId,
+                      track: rowActions.track,
+                      onEdit: rowActions.onEdit,
+                      branches: branches.points,
+                      blocked: rowActions.busy || view.status === "running" || view.activity.compacting,
+                    }
                   }
-                }
-              />
-            )}
-          </li>
-        ))}
-      </ol>
+                />
+              )}
+            </li>
+          ))}
+        </ol>
+        <Minimap scope={scope} items={items} view={view} onLoadOlder={() => void older.load()} />
+      </div>
       {branches.error ? (
         <p role="alert" className="text-ui text-attention">
           {branches.error}

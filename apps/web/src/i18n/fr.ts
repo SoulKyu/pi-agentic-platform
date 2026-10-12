@@ -158,5 +158,10 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "rules.loading": "Chargement…",
   "navigation.cancelled": "La navigation a été annulée.",
   "rules.notFound": "Le projet de cette session est introuvable.",
+  "sessions.minimap.label": "Tours",
+  "sessions.minimap.turn": "Tour {number} : {preview}",
+  "sessions.minimap.turnBare": "Tour {number}",
+  "sessions.minimap.earlier.one": "{count} tour plus ancien",
+  "sessions.minimap.earlier.other": "{count} tours plus anciens",
   // ── end sessions (M2) ──
 };

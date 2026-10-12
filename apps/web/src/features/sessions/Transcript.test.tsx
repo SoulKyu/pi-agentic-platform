@@ -182,9 +182,9 @@ describe("Transcript older history", () => {
     expect(hasButton(container, "Load older messages")).toBe(true);
   });
 
-  it("disconnects the sentinel observer when the transcript goes away", async () => {
+  it("disconnects the sentinel and minimap observers when the transcript goes away", async () => {
     await show({ rows: [row("e5", "newest")], history: cursor("e5") });
-    expect(observers.filter((observer) => !observer.disconnected)).toHaveLength(1);
+    expect(observers.filter((observer) => !observer.disconnected)).toHaveLength(2);
     await page?.unmount();
     page = null;
     expect(observers.every((observer) => observer.disconnected)).toBe(true);
