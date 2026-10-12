@@ -4,7 +4,7 @@ import { argvOf, CommandTooComplex, CommandTooLong, readCommands } from "./shell
 // A segment left empty once its wrappers are gone (`}` alone) has no command: it is dropped here as the stage drops it.
 const argvs = (command: string) =>
   readCommands(command)
-    .map((segment) => argvOf(segment.words).join(" "))
+    .map((segment) => argvOf(segment).join(" "))
     .filter((argv) => argv !== "");
 
 describe("readCommands", () => {
@@ -40,10 +40,49 @@ describe("readCommands", () => {
     expect(() => readCommands(`bash -c "bash -c 'bash -c \\"bash -c ls\\"'"`)).toThrow(CommandTooComplex);
   });
 
-  it("makes a redirection operator a word of its own, wherever it touches", () => {
-    expect(argvs("echo>/dev/sda")).toEqual(["echo > /dev/sda"]);
-    expect(argvs("echo x 2>&1 >>log <in")).toEqual(["echo x 2>& 1 >> log < in"]);
-    expect(argvs('echo ">"|rm -rf /')).toEqual(["echo >", "rm -rf /"]);
+  const wordsOf = (command: string) => readCommands(command).map((segment) => segment.words.join(" "));
+
+  it("makes a redirection operator a word of its own, wherever it touches, and drops it from the argv", () => {
+    expect(wordsOf("echo>/dev/sda")).toEqual(["echo > /dev/sda"]);
+    expect(wordsOf("echo x 2>&1 >>log <in &>all 3<>dev <&0")).toEqual([
+      "echo x 2>& 1 >> log < in &> all 3<> dev <& 0",
+    ]);
+    expect(wordsOf('echo ">"|rm -rf /')).toEqual(["echo >", "rm -rf /"]);
+    expect(argvs("echo>/dev/sda")).toEqual(["echo"]);
+    expect(argvs(">/dev/null 2>&1 rm -rf /")).toEqual(["rm -rf /"]);
+    expect(argvs("sudo 2>/dev/null rm -rf /")).toEqual(["rm -rf /"]);
+    expect(argvs('echo ">" file')).toEqual(["echo > file"]);
+  });
+
+  it("skips a comment up to the newline, which still ends the command", () => {
+    expect(argvs("# it's safe\nrm -rf /")).toEqual(["rm -rf /"]);
+    expect(argvs("ls # don't\nterraform destroy")).toEqual(["ls", "terraform destroy"]);
+    expect(argvs("echo a#b")).toEqual(["echo a#b"]);
+  });
+
+  it("strips the compound-command keywords", () => {
+    expect(argvs("if true; then rm -rf /; fi")).toEqual(["true", "rm -rf /", "fi"]);
+    expect(argvs("for i in 1; do rm -rf /; done")).toEqual(["for i in 1", "rm -rf /", "done"]);
+    expect(argvs("while :; do terraform destroy; done")).toEqual([":", "terraform destroy", "done"]);
+  });
+
+  it('keeps quoting in step across ANSI-C quotes, $"…" and here-documents', () => {
+    expect(argvs("$'it\\'s'; rm -rf /")).toEqual(["$it\\'s", "rm -rf /"]);
+    expect(argvs('echo $"hi"')).toEqual(["echo hi"]);
+    expect(argvs("cat <<EOF\nit's\nEOF\nrm -rf /")).toEqual(["cat", "its\n", "rm -rf /"]);
+    expect(argvs("cat <<-'EOF'\n\tx\n\tEOF\nls")).toEqual(["cat", "x", "ls"]);
+  });
+
+  it("reads ${IFS} and $IFS as a blank", () => {
+    expect(argvs("rm${IFS}-rf$IFS/")).toEqual(["rm -rf /"]);
+    expect(argvs("echo $IFSX")).toEqual(["echo $IFSX"]);
+  });
+
+  it("reads the command of -c after options and --, and of su, ssh and fish", () => {
+    expect(argvs("bash -c -- 'rm -rf /'")).toContain("rm -rf /");
+    expect(argvs("fish -c 'rm -rf /'")).toContain("rm -rf /");
+    expect(argvs("su -c 'rm -rf /' nobody")).toContain("rm -rf /");
+    expect(argvs("ssh -p 22 host 'rm -rf /'")).toContain("rm -rf /");
   });
 
   it("does not read a -c that belongs to a script", () => {

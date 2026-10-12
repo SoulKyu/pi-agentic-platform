@@ -1,3 +1,5 @@
+import { argvOf, nestedText, type Segment } from "./shell-argv.ts";
+
 /** Reads a shell command line the way bash splits it into simple commands (M5R18, M5R20). Best effort, see docs/agents/policy.md. */
 
 export const MAX_CHECKED_COMMAND = 65_536;
@@ -15,85 +17,9 @@ export class CommandTooComplex extends Error {
   }
 }
 
-export interface Segment {
-  readonly words: readonly string[];
-  /** 0 for the text as written; one more for each substitution, `-c` argument or `eval` read again. */
-  readonly depth: number;
-}
-
-const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
-const SHELL_OPTIONS_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
-const COMMAND_OPTION = /^-[a-z]*c[a-z]*$/;
-const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
-const NO_VALUES: ReadonlySet<string> = new Set();
-const values = (...options: string[]): ReadonlySet<string> => new Set(options);
-
-/** Wrappers that only run the next word: the options that take a value, and whether a positional (a duration) precedes the command. */
-const WRAPPERS: ReadonlyMap<string, { readonly valued: ReadonlySet<string>; readonly positional?: true }> =
-  new Map([
-    ["sudo", { valued: values("-u", "-g", "-C", "-h", "-p", "-r", "-t", "-U") }],
-    ["doas", { valued: values("-u", "-C") }],
-    ["env", { valued: values("-u", "-C") }],
-    ["command", { valued: NO_VALUES }],
-    ["exec", { valued: values("-a") }],
-    ["nohup", { valued: NO_VALUES }],
-    ["time", { valued: NO_VALUES }],
-    ["nice", { valued: values("-n") }],
-    ["ionice", { valued: values("-c", "-n") }],
-    ["stdbuf", { valued: values("-i", "-o", "-e") }],
-    ["timeout", { valued: values("-s", "-k"), positional: true }],
-    ["xargs", { valued: values("-a", "-d", "-E", "-I", "-L", "-n", "-P", "-s") }],
-    ["busybox", { valued: NO_VALUES }],
-  ]);
-const SINGLE_WRAPPER_WORDS = new Set(["{", "}", "!"]);
-
-const baseName = (word: string): string => word.slice(word.lastIndexOf("/") + 1);
-const commandName = (word: string): string => baseName(word.replace(/^\\+/, ""));
-
-/** The words from the command word on, with the wrappers gone and the command word reduced to its basename (M5R20). */
-export function argvOf(words: readonly string[]): readonly string[] {
-  let i = 0;
-  while (i < words.length) {
-    const word = words[i] as string;
-    if (ASSIGNMENT.test(word) || SINGLE_WRAPPER_WORDS.has(word)) {
-      i++;
-      continue;
-    }
-    const wrapper = WRAPPERS.get(commandName(word));
-    if (!wrapper) break;
-    i++;
-    while (i < words.length) {
-      const option = words[i] as string;
-      if (option === "--") {
-        i++;
-        break;
-      }
-      if (option === "-" || !option.startsWith("-")) break;
-      i++;
-      if (wrapper.valued.has(option) && i < words.length) i++;
-    }
-    if (wrapper.positional && i < words.length) i++;
-  }
-  if (i >= words.length) return [];
-  return [commandName(words[i] as string), ...words.slice(i + 1)];
-}
-
+export { argvOf, type Segment } from "./shell-argv.ts";
 interface Reading {
   readonly out: Segment[];
-}
-
-/** The text of a `-c` argument or `eval` command that a segment runs, if it is one. */
-function nestedText(argv: readonly string[]): string | null {
-  const [name, ...rest] = argv;
-  if (name === "eval") return rest.length > 0 ? rest.join(" ") : null;
-  if (name === undefined || !SHELLS.has(name)) return null;
-  for (let i = 0; i < rest.length; i++) {
-    const option = rest[i] as string;
-    if (!option.startsWith("-") && !option.startsWith("+")) return null;
-    if (COMMAND_OPTION.test(option)) return rest[i + 1] ?? null;
-    if (SHELL_OPTIONS_WITH_VALUE.has(option)) i++;
-  }
-  return null;
 }
 
 /** Index of the `)` closing a `$(` whose content starts at `from` (quotes skipped); the text length when it never closes. */
@@ -123,11 +49,30 @@ function closingBackquote(text: string, from: number): number {
   return Math.min(i, text.length);
 }
 
+/** End of the redirection operator that starts at `i` (`>`, `>>`, `>|`, `>&`, `<`, `<<`, `<<-`, `<<<`, `<&`, `<>`, `&>`, `&>>`). */
+function operatorEnd(text: string, i: number): number {
+  const c = text[i];
+  const n = text[i + 1];
+  if (c === "&") return text[i + 2] === ">" ? i + 3 : i + 2;
+  if (c === ">") return n === ">" || n === "|" || n === "&" ? i + 2 : i + 1;
+  if (n === "<") return text[i + 2] === "<" || text[i + 2] === "-" ? i + 3 : i + 2;
+  return n === "&" || n === ">" ? i + 2 : i + 1;
+}
+
+const isBlank = (c: string | undefined): boolean => c === " " || c === "\t";
+
+interface HereDocument {
+  readonly delimiter: string;
+  readonly stripTabs: boolean;
+}
+
 function lex(text: string, depth: number, reading: Reading): void {
   if (depth > MAX_NESTING) throw new CommandTooComplex("nested too deep");
   let words: string[] = [];
+  let operators = new Set<number>();
   let current = "";
   let inWord = false;
+  const pending: HereDocument[] = [];
   const endWord = (): void => {
     if (inWord) words.push(current);
     current = "";
@@ -136,11 +81,12 @@ function lex(text: string, depth: number, reading: Reading): void {
   const endCommand = (): void => {
     endWord();
     if (words.length === 0) return;
-    const segment: Segment = { words, depth };
+    const segment: Segment = { words, depth, operators };
     words = [];
+    operators = new Set();
     if (reading.out.length >= MAX_SEGMENTS) throw new CommandTooComplex("too many commands");
     reading.out.push(segment);
-    const inner = nestedText(argvOf(segment.words));
+    const inner = nestedText(argvOf(segment));
     if (inner !== null) lex(inner, depth + 1, reading);
   };
   /** Reads the substitution opened at `i` (`$(` or a backquote); returns the index after it. */
@@ -152,6 +98,57 @@ function lex(text: string, depth: number, reading: Reading): void {
     current += backquote ? "`…`" : "$(…)";
     inWord = true;
     return end + 1;
+  };
+  /** The redirection operator at `i` becomes a word of its own; a here-document also queues its delimiter. */
+  const operator = (i: number): number => {
+    const fd = inWord && /^\d+$/.test(current) && text[i] !== "&" ? current : "";
+    if (fd === "") endWord();
+    else {
+      current = "";
+      inWord = false;
+    }
+    const end = operatorEnd(text, i);
+    const op = fd + text.slice(i, end);
+    operators.add(words.length);
+    words.push(op);
+    if (op !== "<<" && op !== "<<-") return end;
+    let at = end;
+    while (isBlank(text[at])) at++;
+    const start = at;
+    while (at < text.length && !" \t;&|\n()<>".includes(text[at] as string)) at++;
+    const delimiter = text.slice(start, at).replace(/['"\\]/g, "");
+    if (delimiter !== "") {
+      words.push(delimiter);
+      pending.push({ delimiter, stripTabs: op === "<<-" });
+    }
+    return at;
+  };
+  /** After a newline: each queued here-document body, up to its delimiter line, is read as a text of its own. */
+  const hereDocuments = (from: number): number => {
+    let i = from;
+    for (const doc of pending.splice(0)) {
+      const start = i;
+      let lineStart = i;
+      let body: string;
+      for (;;) {
+        const newline = text.indexOf("\n", lineStart);
+        const lineEnd = newline === -1 ? text.length : newline;
+        const line = text.slice(lineStart, lineEnd);
+        if ((doc.stripTabs ? line.replace(/^\t+/, "") : line) === doc.delimiter) {
+          body = text.slice(start, lineStart);
+          i = newline === -1 ? text.length : newline + 1;
+          break;
+        }
+        if (newline === -1) {
+          body = text.slice(start);
+          i = text.length;
+          break;
+        }
+        lineStart = newline + 1;
+      }
+      lex(body, depth + 1, reading);
+    }
+    return i;
   };
 
   let i = 0;
@@ -187,25 +184,34 @@ function lex(text: string, depth: number, reading: Reading): void {
         }
       }
       i++;
+    } else if (c === "$" && next === "'") {
+      // ANSI-C quoting: a backslash pair never closes the quote. The text stays undecoded (a documented pass).
+      let end = i + 2;
+      while (end < text.length && text[end] !== "'") end += text[end] === "\\" ? 2 : 1;
+      current += `$${text.slice(i + 2, Math.min(end, text.length))}`;
+      inWord = true;
+      i = end + 1;
+    } else if (c === "$" && next === '"') i++;
+    else if (
+      c === "$" &&
+      (text.startsWith("{IFS}", i + 1) ||
+        (text.startsWith("IFS", i + 1) && !/[A-Za-z0-9_]/.test(text[i + 4] ?? "")))
+    ) {
+      endWord();
+      i += next === "{" ? 6 : 4;
     } else if (c === "`" || (c === "$" && next === "(")) i = substitution(i);
-    else if (c === " " || c === "\t") {
+    else if (isBlank(c)) {
       endWord();
       i++;
-    } else if ((c === ">" || c === "<") && next !== "(") {
-      // A redirection operator is a word of its own, whatever it touches: `echo>/dev/sda`, `rm -rf />/dev/null`.
-      const fd = inWord && /^\d+$/.test(current) ? current : "";
-      if (fd === "") endWord();
-      else {
-        current = "";
-        inWord = false;
-      }
-      let end = i + 1;
-      if (text[end] === c) end++;
-      else if (c === "<" && text[end] === ">") end++;
-      if ((c === ">" || text[end - 1] === ">") && (text[end] === "|" || text[end] === "&")) end++;
-      words.push(fd + text.slice(i, end));
-      i = end;
-    } else if (";&|\n()".includes(c)) {
+    } else if (c === "#" && !inWord) {
+      const newline = text.indexOf("\n", i);
+      i = newline === -1 ? text.length : newline;
+    } else if (((c === ">" || c === "<") && next !== "(") || (c === "&" && next === ">")) i = operator(i);
+    else if (c === "\n") {
+      endCommand();
+      i++;
+      if (pending.length > 0) i = hereDocuments(i);
+    } else if (";&|()".includes(c)) {
       endCommand();
       i++;
     } else {

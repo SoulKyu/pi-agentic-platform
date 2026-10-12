@@ -8,19 +8,23 @@ const TOO_LONG = "command too long for the policy check";
 const TOO_COMPLEX = "command too complex for the policy check";
 const MAX_NAMED_PATTERN = 100;
 const DISK = /^\/dev\/(?:sd|hd|vd|xvd|nvme|mmcblk|disk|md|dm-|mapper\/)/;
-const recursive = (arg: string) => arg === "--recursive" || /^-[a-zA-Z]*[rR][a-zA-Z]*$/.test(arg);
-// Slashes are squeezed first, so no expression below has two quantifiers over the same character (linear on any word).
-const squeeze = (arg: string) => arg.replace(/\/+/g, "/");
-// `/`, `//`, `/.`, `/./`, `/*`, `~`, `~/`, `~/*`, `$HOME`, `${HOME}/`… once quotes are gone (the lexer removed them).
-const rootLike = (arg: string) =>
-  /^\/\.?\/?\*?$/.test(squeeze(arg)) || /^(?:~|\$HOME|\$\{HOME\})\/?\*?$/.test(squeeze(arg));
-const isRoot = (arg: string) => /^\/\.?\/?$/.test(squeeze(arg));
+// Slashes and stars are squeezed first, so no expression below has two quantifiers over the same character (linear on any word).
+const squeeze = (arg: string) => arg.replace(/\/+/g, "/").replace(/\*+/g, "*");
+const isDisk = (arg: string) => DISK.test(squeeze(arg));
+// `--recursive` and its unambiguous abbreviations: `rm` has no other `--r…` option, the ownership tools have `--reference`.
+const longRecursive = (arg: string, shortest: number) =>
+  arg.length >= shortest && arg.length <= 11 && "--recursive".startsWith(arg);
+const recursive = (arg: string) => longRecursive(arg, 3) || /^-[a-zA-Z]*[rR][a-zA-Z]*$/.test(arg);
+const recursiveOwnership = (arg: string) => longRecursive(arg, 5) || /^-[a-zA-Z]*R/.test(arg);
+// `/`, `//`, `/.`, `/./`, `/*`, `/**`: the root.
+const isRoot = (arg: string) => /^\/\.?\/?\*?$/.test(squeeze(arg));
+// ... or the home directory: `~`, `~/`, `~/*`, `$HOME`, `${HOME}/` once quotes are gone (the lexer removed them).
+const rootLike = (arg: string) => isRoot(arg) || /^(?:~|\$HOME|\$\{HOME\})\/?\*?$/.test(squeeze(arg));
 const operands = (argv: readonly string[]) => argv.slice(1).filter((arg) => !arg.startsWith("-"));
+const REDIRECT_TO_FILE = /^(?:\d*>[>|&]?|\d*<>|&>>?)$/;
 
-export const BUILTIN_CHECKS: ReadonlyArray<{
-  readonly id: string;
-  matches(argv: readonly string[]): boolean;
-}> = [
+type Check = { readonly id: string; matches(argv: readonly string[], segment: Segment): boolean };
+export const BUILTIN_CHECKS: ReadonlyArray<Check> = [
   {
     id: "rm-root",
     matches: (a) => a[0] === "rm" && a.slice(1).some(recursive) && operands(a).some(rootLike),
@@ -29,23 +33,26 @@ export const BUILTIN_CHECKS: ReadonlyArray<{
     id: "chmod-root",
     matches: (a) =>
       ["chmod", "chown", "chgrp"].includes(a[0] ?? "") &&
-      a.slice(1).some((x) => x === "-R" || x === "--recursive" || /^-[a-zA-Z]*R/.test(x)) &&
+      a.slice(1).some(recursiveOwnership) &&
       operands(a).some(isRoot),
   },
   { id: "mkfs", matches: (a) => /^(?:mkfs(?:\.[a-z0-9]+)?|mke2fs|mkswap)$/.test(a[0] ?? "") },
   {
     id: "dd-device",
-    matches: (a) => a[0] === "dd" && a.slice(1).some((x) => x.startsWith("of=") && DISK.test(x.slice(3))),
+    matches: (a) => a[0] === "dd" && a.slice(1).some((x) => x.startsWith("of=") && isDisk(x.slice(3))),
   },
   {
     id: "wipe-device",
     matches: (a) =>
       ["shred", "wipefs", "blkdiscard"].includes(a[0] ?? "") &&
-      operands(a).some((x) => x.startsWith("/dev/")),
+      operands(a).some((x) => squeeze(x).startsWith("/dev/")),
   },
   {
     id: "redirect-device",
-    matches: (a) => a.some((x, i) => /^\d*>[>|&]?$/.test(x) && DISK.test(a[i + 1] ?? "")),
+    matches: (_a, segment) =>
+      [...segment.operators].some(
+        (at) => REDIRECT_TO_FILE.test(segment.words[at] as string) && isDisk(segment.words[at + 1] ?? ""),
+      ),
   },
 ];
 const FORK_BOMB_ID = "fork-bomb";
@@ -56,15 +63,19 @@ const FORK_BOMB_ID = "fork-bomb";
  * run of letters).
  */
 export function isForkBomb(command: string): boolean {
+  const selfPiping = (name: string, after: number): boolean =>
+    command
+      .slice(after, after + 256)
+      .replace(/\s+/g, "")
+      .startsWith(`${name}|${name}&`);
   for (const match of command.matchAll(/\(\s*\)\s*\{/g)) {
     const before = command.slice(Math.max(0, match.index - 64), match.index).trimEnd();
     const name = /(?:[A-Za-z_][A-Za-z0-9_]{0,62}|:)$/.exec(before)?.[0];
-    if (!name) continue;
-    const body = command
-      .slice(match.index + match[0].length, match.index + match[0].length + 256)
-      .replace(/\s+/g, "");
-    if (body.startsWith(`${name}|${name}&`)) return true;
+    if (name && selfPiping(name, match.index + match[0].length)) return true;
   }
+  // `function f { f|f& }` has no parentheses.
+  for (const match of command.matchAll(/\bfunction\s+([A-Za-z_][A-Za-z0-9_]{0,62})\s*\{/g))
+    if (selfPiping(match[1] as string, match.index + match[0].length)) return true;
   return false;
 }
 
@@ -74,6 +85,11 @@ export function isForkBomb(command: string): boolean {
  * lookalike blank would otherwise never match. The preset does not use this: bash does not split on those blanks.
  */
 const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+// A pattern is spaced around redirection operators the way the lexer spaces a command: `*>/etc/*` -> `* > /etc/*`.
+const OPERATORS = /\s*(&>>|&>|<<<|<<-|<<|<>|<&|<|>>|>\||>&|>)\s*/g;
+const FD_OPERATORS = /(^| )(\d+) (>>|>\||>&|>|<<<|<<-|<<|<>|<&|<) /g;
+const spaceOperators = (pattern: string): string =>
+  pattern.replace(OPERATORS, " $1 ").replace(FD_OPERATORS, "$1$2$3 ").trim();
 const plainBlanks = (text: string): string =>
   text
     .replace(LONE_SURROGATE, "\uFFFD")
@@ -89,12 +105,12 @@ export function matchOwnerPatterns(
 ): string | null {
   const fold = (text: string) => plainBlanks(ignoreCase ? text.toLowerCase() : text);
   const folded = patterns.map((pattern) => {
-    const text = fold(pattern);
+    const text = fold(spaceOperators(pattern));
     const wild = text.search(/[*?]/);
     return { pattern, text, wild, prefix: wild === -1 ? text : text.slice(0, wild) };
   });
   for (const segment of segments) {
-    const forms = [...new Set([segment.words.join(" "), argvOf(segment.words).join(" ")])].map(fold);
+    const forms = [...new Set([segment.words.join(" "), argvOf(segment).join(" ")])].map(fold);
     for (const { pattern, text, wild, prefix } of folded) {
       for (const form of forms) {
         // The literal prefix first: most pairs end here without a glob step.
@@ -136,8 +152,8 @@ export function denylistStage(call: CallFacts): StageResult {
   if (!powershell && call.rules.builtinDenylist) {
     if (isForkBomb(command)) return block(`denied: ${FORK_BOMB_ID}`);
     for (const segment of segments) {
-      const argv = argvOf(segment.words);
-      const hit = BUILTIN_CHECKS.find((check) => check.matches(argv));
+      const argv = argvOf(segment);
+      const hit = BUILTIN_CHECKS.find((check) => check.matches(argv, segment));
       if (hit) return block(`denied: ${hit.id}`);
     }
   }
