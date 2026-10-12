@@ -6,14 +6,18 @@ import { sessionLabel } from "../../../lib/session-label.ts";
 import { formatAge } from "../../../i18n/age.ts";
 import { snippetParts } from "./snippet.ts";
 
-const ROW_CLASSES = "flex flex-col gap-s1 rounded-sm px-s2 py-s1 text-ui text-fg aria-selected:bg-surface-2";
+const ROW_CLASSES =
+  "flex flex-col gap-s1 rounded-sm px-s2 py-s1 text-ui text-fg aria-selected:bg-surface-2 data-disabled:opacity-50";
 
 /** The transcript hits (M4R107): the daemon's order, one row per session, each match marked, never as HTML. */
 export function TranscriptHits({
   hits,
+  loading,
   onChoose,
 }: {
   hits: readonly SearchHit[];
+  /** A newer query is on its way: these rows belong to the old one and cannot be chosen. */
+  loading: boolean;
   onChoose(hit: SearchHit): void;
 }) {
   const t = useT();
@@ -24,6 +28,7 @@ export function TranscriptHits({
         <Command.Item
           key={`${hit.sessionId}:${hit.entryId}`}
           value={`hit:${hit.sessionId}:${hit.entryId}`}
+          disabled={loading}
           onSelect={() => onChoose(hit)}
           className={ROW_CLASSES}
         >

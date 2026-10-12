@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import "../../i18n/register-sidebar.ts";
 import type { Runtime } from "../../runtime/index.ts";
@@ -103,6 +103,36 @@ describe("Transcript focus entry", () => {
     expect(container.querySelector('[role="status"]')?.textContent).toBe(
       "This message is not shown in the transcript.",
     );
+    expect(useFocusEntry.getState().target).toBeNull();
+  });
+
+  it("does not bring the notice or a jump back on a later visit of the same session", async () => {
+    useFocusEntry.getState().ask({ sessionId: "s1", entryId: "e0" });
+    await show(false);
+    await page?.unmount();
+    page = await mount(<Live id="s1" />);
+    await settle();
+    expect(page.container.querySelector('[role="status"]')).toBeNull();
+    expect(scrolled).toEqual([]);
+  });
+
+  it("focuses once under StrictMode", async () => {
+    useFocusEntry.getState().ask({ sessionId: "s1", entryId: "e2" });
+    useSessionStore.getState().apply(
+      "s1",
+      sessionSnapshot({
+        rows: [row("e1", "first question"), row("e2", "second question")],
+        history: { hasMore: false, oldestEntryId: "e1", turnsBefore: 0 },
+      }),
+    );
+    page = await mount(
+      <StrictMode>
+        <Live id="s1" />
+      </StrictMode>,
+    );
+    await settle();
+    expect(scrolled).toHaveLength(1);
+    expect(document.activeElement?.textContent).toContain("second question");
   });
 
   it("clears the notice and focuses the row once the entry is among the rows", async () => {

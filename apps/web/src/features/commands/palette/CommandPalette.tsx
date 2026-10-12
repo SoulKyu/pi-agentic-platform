@@ -111,7 +111,9 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
               </Command.Empty>
             ) : null}
             {ranked.groups.filter((entry) => entry.group !== "settings").map(renderGroup)}
-            {search.hits.length > 0 ? <TranscriptHits hits={search.hits} onChoose={choose} /> : null}
+            {search.hits.length > 0 ? (
+              <TranscriptHits hits={search.hits} loading={search.status === "loading"} onChoose={choose} />
+            ) : null}
             {ranked.groups.filter((entry) => entry.group === "settings").map(renderGroup)}
           </Command.List>
           {searchLine === null ? null : (

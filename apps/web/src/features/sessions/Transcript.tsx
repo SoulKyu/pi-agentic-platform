@@ -81,8 +81,9 @@ function prepend(
 
 /**
  * Acts on the entry a search hit asked for once this session's rows are loaded (M4R108): scrolls to its row, focuses
- * it and takes the request. While the entry is not among the rows the request stays and the hook returns the notice
- * to show; it goes away when the row appears (for example after "Load older messages").
+ * it and takes the request. While the entry is not among the rows but "Load older messages" exists, the request stays
+ * (loading satisfies it) and the hook returns the older-messages notice. When nothing can load, the request is taken
+ * at once and the "not shown" notice lives in this mount only, so no later visit sees it again.
  */
 function useFocusMatch(
   sessionId: string,
@@ -94,18 +95,23 @@ function useFocusMatch(
   const asked = useFocusEntry((state) =>
     state.target?.sessionId === sessionId ? state.target.entryId : null,
   );
+  const [notShown, setNotShown] = useState(false);
   const item = asked === null ? undefined : items.find((row) => "entryId" in row && row.entryId === asked);
   const itemKey = item?.key;
+  const unshowable = asked !== null && view.loaded && itemKey === undefined && !canLoad;
+  // Derived during render (the request is gone from the store by the next one): this mount remembers it.
+  if (unshowable !== notShown && (unshowable || itemKey !== undefined)) setNotShown(unshowable);
   useEffect(() => {
+    if (unshowable) useFocusEntry.getState().take(sessionId);
     if (itemKey === undefined || !view.loaded) return;
     const element = document.getElementById(rowId(scope, itemKey));
     if (element === null || useFocusEntry.getState().take(sessionId) === null) return;
     element.tabIndex = -1;
     element.focus({ preventScroll: true });
     element.scrollIntoView({ block: "center" });
-  }, [itemKey, scope, sessionId, view.loaded]);
-  if (asked === null || !view.loaded || itemKey !== undefined) return null;
-  return canLoad ? "search.olderMatch" : "search.notShown";
+  }, [unshowable, itemKey, scope, sessionId, view.loaded]);
+  if (notShown) return "search.notShown";
+  return asked !== null && view.loaded && itemKey === undefined ? "search.olderMatch" : null;
 }
 
 export function Transcript({ sessionId, view, toolDetail, rowActions }: TranscriptProps) {

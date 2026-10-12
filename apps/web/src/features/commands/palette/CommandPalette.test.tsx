@@ -234,6 +234,20 @@ describe("CommandPalette", () => {
       expect(useFocusEntry.getState().target).toEqual({ sessionId: "h1", entryId: "h1-e" });
     });
 
+    it("cannot open a stale hit while a newer query loads", async () => {
+      search.call.mockResolvedValueOnce({ hits });
+      search.call.mockReturnValueOnce(new Promise(() => {}));
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      await typeInto(input(), "kubes");
+      expect(rows()).toHaveLength(2);
+      expect(rows().every((row) => row.getAttribute("aria-disabled") === "true")).toBe(true);
+      await press(input(), { key: "Enter" });
+      expect(openSession).not.toHaveBeenCalled();
+      expect(useFocusEntry.getState().target).toBeNull();
+    });
+
     it("shows no Transcripts group for an actions-only query nor below 3 characters", async () => {
       search.call.mockResolvedValue({ hits });
       await open();
