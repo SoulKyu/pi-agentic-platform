@@ -51,7 +51,7 @@ describe("projects", () => {
       expect(service.ensure("u1", root), JSON.stringify(root)).toBeNull();
   });
 
-  it("answers null past MAX_PROJECTS, and says so once a minute", () => {
+  it("answers null past MAX_PROJECTS, and says so once a minute", async () => {
     const store = createProjectsStore(bed.db);
     // One transaction: 2 000 autocommits are 2 000 fsyncs (M4R130).
     bed.db.transaction(() => {
@@ -68,6 +68,9 @@ describe("projects", () => {
     expect(service.ensure("u1", "/w/new")).toBeNull();
     expect(service.ensure("u1", "/w/new2")).toBeNull();
     expect(bed.lines.filter((line) => line.msg === "projects_full")).toHaveLength(1);
+    await bed.clock.advance(60_000);
+    expect(service.ensure("u1", "/w/new3")).toBeNull();
+    expect(bed.lines.filter((line) => line.msg === "projects_full")).toHaveLength(2);
   });
 
   it("renames with a clean name, refuses an empty one and another owner's project", () => {
@@ -120,5 +123,24 @@ describe("projects", () => {
     service.ensure("u1", "/w/y");
     expect(after).toHaveBeenCalledOnce();
     expect(bed.lines.some((line) => line.msg === "projects_listener_failed")).toBe(true);
+  });
+
+  it("lists only the owner's projects", () => {
+    service.ensure("u1", "/w/api");
+    expect(service.list("u2", ["p1"])).toEqual([]);
+    expect(service.list("u1", ["p1"])).toHaveLength(1);
+  });
+
+  it("sends a project to the end when it is moved before itself, an unknown id or another owner's", () => {
+    for (const root of ["/w/a", "/w/b"]) service.ensure("u1", root); // order p2, p1
+    service.ensure("u2", "/w/c"); // p3
+    const order = () => service.list("u1", ["p1", "p2"]).map((p) => p.id);
+    service.update(caller("u1"), "p2", { kind: "move", before: "p2" });
+    expect(order()).toEqual(["p1", "p2"]);
+    service.update(caller("u1"), "p2", { kind: "move", before: "p2" });
+    service.update(caller("u1"), "p1", { kind: "move", before: "nope" });
+    expect(order()).toEqual(["p2", "p1"]);
+    service.update(caller("u1"), "p2", { kind: "move", before: "p3" });
+    expect(order()).toEqual(["p1", "p2"]);
   });
 });
