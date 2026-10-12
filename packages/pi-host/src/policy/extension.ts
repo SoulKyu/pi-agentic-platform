@@ -6,11 +6,11 @@ import type {
 import { POLICY_EXTENSION_PATH, type PolicyAuditEntry, type PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants } from "./grants.ts";
-import { errorClass, evaluateToolCall, type PipelineDeps } from "./pipeline.ts";
+import { errorClass } from "../bounded.ts";
+import { evaluateToolCall, type PipelineDeps } from "./pipeline.ts";
 import { restoreStage, unrestoreInput } from "./restore.ts";
 import { onToolResult } from "./results.ts";
 import { createRunGuard, guardStages } from "./run-guard.ts";
-import { NO_REDACTOR } from "./redact.ts";
 import type { SecretSource } from "./secrets.ts";
 import { classifyTool, type ToolFacts } from "./tool-kind.ts";
 
@@ -32,15 +32,13 @@ export interface PolicyConfig {
   rulesVersion(): number;
   /** Task 9 makes this required. */
   taint?: PipelineDeps["taint"];
-  /** The secrets the worker knows (stage 06); none when absent (tests). */
-  secrets?: SecretSource;
+  /** The secrets the worker knows (stage 06). */
+  secrets: SecretSource;
   /** Redacts audit arguments; by default what `secrets` knows. */
   redact?: PipelineDeps["redact"];
   /** Told the tools declared to the model at each `agent_start`; a throw is logged, never raised into the run. */
   onAgentStart?(activeToolNames: string[]): void;
 }
-
-const NO_SOURCE: SecretSource = { current: () => NO_REDACTOR, refresh: () => {} };
 
 type NamedInlineExtension = Exclude<InlineExtension, ExtensionFactory>;
 
@@ -64,7 +62,7 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
           : undefined;
       };
       const guard = createRunGuard();
-      const secrets = config.secrets ?? NO_SOURCE;
+      const { secrets } = config;
       const deps: PipelineDeps = {
         ...config,
         grants: createPolicyGrants(config.rulesVersion),
@@ -73,7 +71,7 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
         redact: config.redact ?? ((text) => secrets.current().text(text).text),
         stages: {
           ...guardStages(guard),
-          restore: restoreStage(() => secrets.current().values()),
+          restore: restoreStage(() => secrets.current().restorable()),
           unrestore: unrestoreInput,
         },
       };

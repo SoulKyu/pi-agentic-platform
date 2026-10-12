@@ -276,8 +276,7 @@ describe("createPapPolicyExtension", () => {
       rules: () => rules,
       rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
-      agentDir: bed.agentDir,
-      papHome: bed.papHome,
+      ...bed.config,
       ask: async (request) => {
         asked.push(request.title);
         return { answer: "deny", closed: false };
@@ -340,8 +339,7 @@ describe("createPapPolicyExtension", () => {
       rules: () => rules,
       rulesVersion: () => 0,
       audit: (entry) => audits.push(entry),
-      agentDir: bed.agentDir,
-      papHome: bed.papHome,
+      ...bed.config,
       ask: async () => ({ answer: "once", closed: false }),
     });
     let handler: ((event: unknown, ctx: unknown) => Promise<ToolCallEventResult | undefined>) | undefined;

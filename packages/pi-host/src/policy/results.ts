@@ -1,7 +1,8 @@
 import type { JsonValue } from "@earendil-works/pi-ai";
 import type { ToolResultEvent, ToolResultEventResult } from "@earendil-works/pi-coding-agent";
 import type { PolicyAuditEntry, StageVerdict } from "@pap/contracts";
-import { errorClass } from "./pipeline.ts";
+import { errorClass } from "../bounded.ts";
+import { EDGE_BUDGET, maskCuts } from "./edges.ts";
 import type { Redactor } from "./redact.ts";
 import type { SecretSource } from "./secrets.ts";
 import type { ToolKind } from "./tool-kind.ts";
@@ -52,17 +53,28 @@ function withheld(event: ToolResultEvent, deps: ResultDeps, error: unknown): Too
   return { content: [{ type: "text", text: WITHHELD_TEXT }], isError: true, details: {} };
 }
 
+/** Pi's `details.truncation.truncated` of bash and read: the start of the output may have been dropped. */
+function hasTruncatedHead(details: unknown): boolean {
+  const truncation = (details as { truncation?: { truncated?: unknown } } | null | undefined)?.truncation;
+  return truncation?.truncated === true;
+}
+
 /** Stage 06 on a result: every text part, `structuredContent` and `details` (M5R36). A throw withholds the result (M5R37). */
 export function onToolResult(event: ToolResultEvent, deps: ResultDeps): ToolResultEventResult | undefined {
   try {
     deps.secrets.refresh();
     const redactor = deps.secrets.current();
     let count = 0;
+    // Pi cut the output before this hook ran: what it says it cut may start or end inside a secret.
+    const budget = { left: EDGE_BUDGET };
+    let headCut = hasTruncatedHead(event.details);
     const content = event.content.map((part) => {
       if (part.type !== "text") return part;
       const done = redactor.text(part.text);
-      count += done.count;
-      return done.count === 0 ? part : { ...part, text: done.text };
+      const cut = maskCuts(done.text, redactor.entries, budget, headCut);
+      headCut = false;
+      count += done.count + cut.count;
+      return done.count + cut.count === 0 ? part : { ...part, text: cut.text };
     });
     const structured =
       event.structuredContent === undefined ? undefined : redactor.deep(event.structuredContent);

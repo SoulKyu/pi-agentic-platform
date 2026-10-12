@@ -1,15 +1,14 @@
-import { logLineOf } from "./bounded.ts";
-import { EDGE_WITHHELD_TEXT, maskEdges } from "./policy/edges.ts";
-import { errorClass } from "./policy/pipeline.ts";
+import { errorClass, logLineOf } from "./bounded.ts";
+import { EDGE_BUDGET, EDGE_WITHHELD_TEXT, maskCuts, maskEdges } from "./policy/edges.ts";
 import type { Redactor } from "./policy/redact.ts";
 import type { Ipc, Outbound } from "./ipc.ts";
 
-/** Character comparisons one record may spend on the edges of its live output (M5R120). */
-const EDGE_BUDGET = 1_000_000;
 /** The fields pap writes from Pi's own ids and paths: a secret inside a path must not unbind the session file. */
 const READY_FIELDS = ["sessionFile", "sessionId"] as const;
 
 type Part = { type?: unknown; text?: unknown };
+/** pap's own identifiers: the exact pass covers them, the edge masks never rewrite them. */
+const IDENTIFIERS = ["type", "id", "toolCallId"] as const;
 
 function maskParts(parts: unknown, redactor: Redactor, budget: { left: number }): unknown {
   if (!Array.isArray(parts)) return parts;
@@ -17,7 +16,8 @@ function maskParts(parts: unknown, redactor: Redactor, budget: { left: number })
     if (typeof part !== "object" || part === null || part.type !== "text" || typeof part.text !== "string")
       return part;
     try {
-      return { ...part, text: maskEdges(part.text, redactor.entries, budget).text };
+      // The head (a rolling window starts anywhere) and the lines Pi clipped; the tail was masked with every string.
+      return { ...part, text: maskCuts(part.text, redactor.entries, budget, true).text };
     } catch (error) {
       if (!(error instanceof RangeError)) throw error;
       return { ...part, text: EDGE_WITHHELD_TEXT };
@@ -25,15 +25,29 @@ function maskParts(parts: unknown, redactor: Redactor, budget: { left: number })
   });
 }
 
-/** M5R36 and M5R120: the record with every known secret value replaced, and the cut edges of a live output masked. */
+/**
+ * M5R36 and M5R120: the record with every known secret value replaced. Strings a module clipped, and live outputs a window
+ * cut, may end inside a secret: the end of every string is edge-masked, the start of a live or final output too.
+ */
 export function redactRecord(record: Outbound, redactor: Redactor): Outbound {
   if (redactor.size === 0) return record;
-  let out = redactor.deep(record, { tooDeep: "replace" }).value as Outbound;
-  if (record.type === "ready") {
-    const kept: Record<string, unknown> = {};
+  const budget = { left: EDGE_BUDGET };
+  const tail = (text: string): string => {
+    try {
+      return maskEdges(text, redactor.entries, budget, { tail: true }).text;
+    } catch (error) {
+      if (!(error instanceof RangeError)) throw error;
+      return EDGE_WITHHELD_TEXT;
+    }
+  };
+  let out = redactor.deep(record, { tooDeep: "replace", text: tail }).value as Outbound;
+  const kept: Record<string, unknown> = {};
+  for (const field of IDENTIFIERS)
+    if (typeof record[field] === "string") kept[field] = redactor.text(record[field]).text;
+  // A secret inside a path must not unbind the session file.
+  if (record.type === "ready")
     for (const field of READY_FIELDS) if (field in record) kept[field] = record[field];
-    out = { ...out, ...kept };
-  }
+  out = { ...out, ...kept };
   const key =
     record.type === "tool_execution_update"
       ? "partialResult"
@@ -41,10 +55,8 @@ export function redactRecord(record: Outbound, redactor: Redactor): Outbound {
         ? "result"
         : null;
   const holder = key === null ? undefined : (out[key] as { content?: unknown } | null | undefined);
-  if (key !== null && typeof holder === "object" && holder !== null && "content" in holder) {
-    const budget = { left: EDGE_BUDGET };
+  if (key !== null && typeof holder === "object" && holder !== null && "content" in holder)
     out = { ...out, [key]: { ...holder, content: maskParts(holder.content, redactor, budget) } };
-  }
   return out;
 }
 
@@ -56,7 +68,7 @@ const safeField = (record: Outbound, key: string): unknown => {
   }
 };
 
-// Powers of two: the first record is reported, then the 2nd, 4th, 8th…, so a hostile extension cannot flood stderr.
+// Powers of two: the 1st, 2nd, 4th, 8th… dropped record is reported, so stderr grows with the logarithm of the drops.
 const worthReporting = (count: number): boolean => (count & (count - 1)) === 0;
 
 /**

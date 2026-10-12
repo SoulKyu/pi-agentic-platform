@@ -89,7 +89,7 @@ const isEnvSecret = (value: string): boolean =>
 /** Pi resolves `$VAR` and `${VAR}` from the environment; `$$` and `$!` are escaped literals: a reference is no secret. */
 const isPiReference = (value: string): boolean => /\$[{A-Za-z_]/.test(value.replace(/\$[$!]/g, ""));
 
-type Candidate = { name: string; value: string };
+type Candidate = { name: string; value: string; restorable?: false };
 
 /** Parses Pi's `auth.json`; `problem` is a stable code, never a message (it can quote the file). */
 function authCandidates(authJson: string): { found: Candidate[]; problem?: string } {
@@ -117,7 +117,11 @@ function authCandidates(authJson: string): { found: Candidate[]; problem?: strin
       }
       if (literal.length < MIN_LENGTH) continue;
       const fieldName = credentialWords(field).join("_").toUpperCase();
-      found.push({ name: `AUTH_${providerName}_${fieldName}`.slice(0, MAX_NAME), value: literal });
+      found.push({
+        name: `AUTH_${providerName}_${fieldName}`.slice(0, MAX_NAME),
+        value: literal,
+        restorable: false,
+      });
     }
   }
   return { found };
@@ -136,13 +140,13 @@ function build(env: NodeJS.ProcessEnv, authJson: string | null): { set: SecretSe
   const values = new Set<string>();
   const names = new Set<string>();
   let unique: Candidate[] = [];
-  for (const { name, value } of candidates) {
+  for (const { name, value, restorable } of candidates) {
     if (values.has(value)) continue;
     values.add(value);
     let final = name;
     for (let n = 2; names.has(final); n++) final = `${name.slice(0, MAX_NAME - 3)}_${n}`;
     names.add(final);
-    unique.push({ name: final, value });
+    unique.push({ name: final, value, ...(restorable === false ? { restorable } : {}) });
   }
   if (unique.length > MAX_SECRETS) {
     const keep = new Set(

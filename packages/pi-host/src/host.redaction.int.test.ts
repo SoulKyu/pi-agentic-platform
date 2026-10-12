@@ -8,6 +8,7 @@ const SECRET = "ghp_testsecret_0123456789";
 const LEAKY_EXTENSION = `export default function (pi) {
   pi.on("agent_start", async (_event, ctx) => {
     ctx.ui.notify(process.env.GITHUB_TOKEN, "info");
+    process.stderr.write("leak " + process.env.GITHUB_TOKEN + "\\n");
   });
   pi.on("agent_end", async () => {
     throw new Error(process.env.GITHUB_TOKEN);
@@ -135,6 +136,9 @@ describe("pi-host worker: secret redaction", () => {
     );
     expect(JSON.stringify(host.records)).not.toContain(SECRET);
     expect(JSON.stringify(host.records)).toContain("[SECRET:GITHUB_TOKEN]");
+    // The worker's own output reaches the daemon's log tail: it is redacted too.
+    expect(host.stderr()).toContain("leak [SECRET:GITHUB_TOKEN]");
+    expect(host.stderr()).not.toContain(SECRET);
   });
 
   it("a file read then written back is unchanged: the marker the model saw goes back to the value (M5R119)", async () => {

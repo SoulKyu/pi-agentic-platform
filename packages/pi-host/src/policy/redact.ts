@@ -1,15 +1,27 @@
 export interface SecretSet {
-  readonly entries: ReadonlyArray<{ readonly name: string; readonly value: string }>;
+  /** `restorable: false`: a marker for this secret is never turned back into the value (a provider credential). */
+  readonly entries: ReadonlyArray<{
+    readonly name: string;
+    readonly value: string;
+    readonly restorable?: boolean;
+  }>;
 }
 export interface Redactor {
   text(text: string): { text: string; count: number; steps: number };
   /** Like `text`, but a secret is found whatever its case: for short texts the policy wrote itself (audit reasons). */
   textFolded(text: string): { text: string; count: number; steps: number };
+  /**
+   * Replaces every secret in the strings and the keys of a value, drops function values (a `toJSON` would bring a
+   * secret back) and gives keys that collide after redaction a `~n` suffix. `text` runs on each string and key
+   * after the exact pass.
+   */
   deep(
     value: unknown,
-    options?: { readonly tooDeep?: "throw" | "replace" },
+    options?: { readonly tooDeep?: "throw" | "replace"; readonly text?: (text: string) => string },
   ): { value: unknown; count: number };
   values(): ReadonlyMap<string, string>;
+  /** The secrets a marker may be restored for: the environment's, not a provider credential. */
+  restorable(): ReadonlyMap<string, string>;
   readonly entries: SecretSet["entries"];
   readonly size: number;
 }
@@ -92,15 +104,20 @@ export function createRedactor(set: SecretSet): Redactor {
     return lower.length === input.length ? scan(folded, input, lower) : scan(folded, lower, lower);
   };
   const byName = new Map(set.entries.map((entry) => [entry.name, entry.value]));
+  const restorable = new Map(
+    set.entries.filter((entry) => entry.restorable !== false).map((entry) => [entry.name, entry.value]),
+  );
   const deep = (
     value: unknown,
     tooDeep: "throw" | "replace",
+    after: (text: string) => string,
     depth: number,
   ): { value: unknown; count: number } => {
     if (typeof value === "string") {
       const done = text(value);
-      return { value: done.text, count: done.count };
+      return { value: after(done.text), count: done.count };
     }
+    if (typeof value === "function") return { value: null, count: 0 };
     if (value === null || typeof value !== "object") return { value, count: 0 };
     if (depth >= MAX_DEPTH) {
       if (tooDeep === "throw") throw new RangeError("value too deep to redact");
@@ -108,7 +125,7 @@ export function createRedactor(set: SecretSet): Redactor {
     }
     let count = 0;
     const walk = (item: unknown) => {
-      const done = deep(item, tooDeep, depth + 1);
+      const done = deep(item, tooDeep, after, depth + 1);
       count += done.count;
       return done.value;
     };
@@ -119,7 +136,13 @@ export function createRedactor(set: SecretSet): Redactor {
     const copy: Record<string, unknown> = {};
     // defineProperty: an own key named `__proto__` must stay a key, not replace the prototype of the copy.
     for (const [key, item] of Object.entries(value)) {
-      Object.defineProperty(copy, key, {
+      if (typeof item === "function") continue;
+      const named = text(key);
+      count += named.count;
+      const base = after(named.text);
+      let name = base;
+      for (let n = 2; Object.hasOwn(copy, name); n++) name = `${base}~${n}`;
+      Object.defineProperty(copy, name, {
         value: walk(item),
         enumerable: true,
         writable: true,
@@ -131,8 +154,9 @@ export function createRedactor(set: SecretSet): Redactor {
   return {
     text,
     textFolded,
-    deep: (value, options) => deep(value, options?.tooDeep ?? "throw", 0),
+    deep: (value, options) => deep(value, options?.tooDeep ?? "throw", options?.text ?? ((text) => text), 0),
     values: () => byName,
+    restorable: () => restorable,
     entries: set.entries,
     size: set.entries.length,
   };

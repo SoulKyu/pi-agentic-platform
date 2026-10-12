@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createRedactor } from "./redact.ts";
 import { MCP_SOURCE, classifyTool } from "./tool-kind.ts";
 import type { CallFacts } from "./pipeline.ts";
 import { restoreInput, restoreMarkers, unrestoreInput } from "./restore.ts";
@@ -108,5 +109,31 @@ describe("restoreInput", () => {
       },
     });
     expect(restoreInput(call("write", getter), values)).toBe(0);
+  });
+});
+
+describe("documented limit: a secret with a quote or a backslash inside a JSON file", () => {
+  it("is shown as a marker in its escaped form and written back unescaped, so the file differs (known, Task 26)", () => {
+    const value = 'ab"cd\\ef-12345';
+    const redactor = createRedactor({ entries: [{ name: "J", value }] });
+    const original = `{"k":"${JSON.stringify(value).slice(1, -1)}"}`;
+    const seen = redactor.text(original).text;
+    expect(seen).toBe('{"k":"[SECRET:J]"}');
+    const back = restoreMarkers(seen, redactor.restorable()).text;
+    expect(back).toBe(`{"k":"${value}"}`);
+    expect(back).not.toBe(original);
+  });
+
+  it("restores only the secrets the redactor lists as restorable: a provider credential keeps its marker", () => {
+    const redactor = createRedactor({
+      entries: [
+        { name: "ENV", value: "env-value-123" },
+        { name: "AUTH_OPENAI_ACCESS", value: "auth-value-123", restorable: false },
+      ],
+    });
+    expect(restoreMarkers("[SECRET:ENV] [SECRET:AUTH_OPENAI_ACCESS]", redactor.restorable())).toEqual({
+      text: "env-value-123 [SECRET:AUTH_OPENAI_ACCESS]",
+      count: 1,
+    });
   });
 });

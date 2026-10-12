@@ -19,12 +19,44 @@ describe("redactor", () => {
     expect(r.text("nothing")).toEqual({ text: "nothing", count: 0, steps: 0 });
   });
 
-  it("walks JSON values without touching keys or the input", () => {
+  it("walks JSON values, keys included, without touching the input", () => {
     const input = { ghp_abcdefgh: ["x ghp_abcdefgh"], n: 1, deep: { s: "ghp_abcdefgh" } };
     const { value, count } = createRedactor(set).deep(input);
-    expect(value).toEqual({ ghp_abcdefgh: ["x [SECRET:GH]"], n: 1, deep: { s: "[SECRET:GH]" } });
-    expect(count).toBe(2);
+    expect(value).toEqual({ "[SECRET:GH]": ["x [SECRET:GH]"], n: 1, deep: { s: "[SECRET:GH]" } });
+    expect(count).toBe(3);
     expect(input.deep.s).toBe("ghp_abcdefgh");
+  });
+
+  it("gives keys that collide after redaction distinct names, in key order", () => {
+    const { value } = createRedactor(set).deep({ ghp_abcdefgh: 1, "[SECRET:GH]": 2, "[SECRET:GH]~2": 3 });
+    expect(value).toEqual({ "[SECRET:GH]": 1, "[SECRET:GH]~2": 2, "[SECRET:GH]~2~2": 3 });
+  });
+
+  it("drops function values, which JSON would call or skip: a toJSON cannot bring the secret back", () => {
+    const withToJson = { toJSON: () => "ghp_abcdefgh", keep: 1, list: [() => 1, "x"] };
+    const { value } = createRedactor(set).deep(withToJson);
+    expect(value).toEqual({ keep: 1, list: [null, "x"] });
+    expect(JSON.stringify(value)).toBe('{"keep":1,"list":[null,"x"]}');
+    expect(createRedactor(set).deep(() => "ghp_abcdefgh").value).toBeNull();
+  });
+
+  it("runs a text hook on every string and key after the exact pass", () => {
+    const { value } = createRedactor(set).deep(
+      { a: "ghp_abcdefgh x", "k ghp_abcdefgh": "y" },
+      { text: (text) => text.toUpperCase() },
+    );
+    expect(value).toEqual({ A: "[SECRET:GH] X", "K [SECRET:GH]": "Y" });
+  });
+
+  it("lists as restorable every secret except the ones marked as not", () => {
+    const r = createRedactor({
+      entries: [
+        { name: "ENV", value: "env-value-123" },
+        { name: "AUTH", value: "auth-value-123", restorable: false },
+      ],
+    });
+    expect([...r.restorable().entries()]).toEqual([["ENV", "env-value-123"]]);
+    expect(r.values().get("AUTH")).toBe("auth-value-123");
   });
 
   it("is linear: 4 MiB of near misses against 256 secrets costs one comparison per near miss (M5R37)", () => {

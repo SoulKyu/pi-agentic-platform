@@ -5,9 +5,14 @@ import { type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
 import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
+import { NO_REDACTOR } from "../policy/redact.ts";
 import { restoreStage, unrestoreInput } from "../policy/restore.ts";
+import type { SecretSource } from "../policy/secrets.ts";
 import { createRunGuard, guardStages } from "../policy/run-guard.ts";
 import type { ToolFacts } from "../policy/tool-kind.ts";
+
+/** A secret source that knows nothing, for a test that is not about secrets. */
+export const NO_SECRETS: SecretSource = { current: () => NO_REDACTOR, refresh: () => {} };
 
 export const interactiveRules = PolicyRules.parse({
   profile: "interactive",
@@ -107,6 +112,8 @@ export async function createPipelineBed() {
 
   return {
     base,
+    /** The directories and the (empty) secret source a policy extension is configured with. */
+    config: { agentDir, papHome, secrets: NO_SECRETS },
     cwd,
     outside,
     agentDir,

@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { interactiveRules } from "../testing/pipeline-bed.ts";
+import { interactiveRules, NO_SECRETS } from "../testing/pipeline-bed.ts";
 import { createPapPolicyExtension, type PolicyConfig } from "./extension.ts";
 
 async function agentStartHandler(onAgentStart: PolicyConfig["onAgentStart"]) {
@@ -9,6 +9,7 @@ async function agentStartHandler(onAgentStart: PolicyConfig["onAgentStart"]) {
     rules: () => interactiveRules,
     rulesVersion: () => 0,
     audit: () => {},
+    secrets: NO_SECRETS,
     agentDir: "/agent",
     papHome: "/pap",
     ask: async () => ({ answer: "once", closed: false }),

@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { createPipelineBed } from "../testing/pipeline-bed.ts";
+import { grantKey, grantPayload } from "./grant-key.ts";
 import { FAIL_CLOSED_REASON } from "./pipeline.ts";
 import { MCP_SOURCE } from "./tool-kind.ts";
 
@@ -111,5 +112,41 @@ describe("markers restored into built-in writes (M5R119)", () => {
     const write = { path: join(bed.cwd, "h.txt"), content: "[SECRET:GH]" };
     expect(await h.run("write", write)).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
     expect(write.content).toBe("[SECRET:GH]");
+  });
+
+  it("judges, asks and audits on the marker: the redaction only ever sees the marker, the key is the marker's", async () => {
+    const seen: string[] = [];
+    const h = bed.harness({
+      secretValues,
+      redact: (text) => (seen.push(text), text),
+    });
+    const inside = { path: join(bed.cwd, "i.txt"), content: "TOKEN=[SECRET:GH]\n" };
+    await h.run("write", inside);
+    expect(inside.content).toBe("TOKEN=ghp_abcdefgh\n");
+    expect(seen.join("")).toContain("[SECRET:GH]");
+    expect(seen.join("")).not.toContain("ghp_abcdefgh");
+    expect(h.entries.at(-1)).toMatchObject({
+      args: JSON.stringify({ content: "TOKEN=[SECRET:GH]\n", path: join(bed.cwd, "i.txt") }),
+    });
+    const markerInput = { path: join(bed.outside, "o.txt"), content: "TOKEN=[SECRET:GH]\n" };
+    await h.run("write", structuredClone(markerInput), "c2");
+    expect(h.asks[0]?.key).toBe(grantKey("write", grantPayload(markerInput, false)));
+    expect(h.asks[0]?.message).not.toContain("ghp_abcdefgh");
+  });
+
+  it("blocks, with nothing restored, when the restore stage itself throws", async () => {
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const h = bed.harness({
+      secretValues,
+      stages: {
+        restore: () => {
+          throw new Error("restore down");
+        },
+      },
+    });
+    const write = { path: join(bed.cwd, "t.txt"), content: "[SECRET:GH]" };
+    expect(await h.run("write", write)).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
+    expect(write.content).toBe("[SECRET:GH]");
+    expect(h.entries.at(-1)).toMatchObject({ decision: "block", reason: "evaluation error" });
   });
 });

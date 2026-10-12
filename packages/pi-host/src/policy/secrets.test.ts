@@ -207,6 +207,7 @@ describe("collectSecrets from auth.json", () => {
     expect(collectSecrets({ env: {}, authJson: auth }).entries).toContainEqual({
       name: "AUTH_MY_PROVIDER_TOKEN",
       value: "password",
+      restorable: false,
     });
   });
 
@@ -240,10 +241,10 @@ describe("collectSecrets from auth.json", () => {
       }),
     });
     expect(set.entries).toEqual([
-      { name: "AUTH_A_PASSWORD", value: "Pa$sword-FAKE01" },
-      { name: "AUTH_A_TOKEN", value: "$NOT_A_REF-FAKE01" },
-      { name: "AUTH_A_SECRET", value: "pa$$word-FAKE0123" },
-      { name: "AUTH_B_KEY", value: "pa$word-FAKE0123" },
+      { name: "AUTH_A_PASSWORD", value: "Pa$sword-FAKE01", restorable: false },
+      { name: "AUTH_A_TOKEN", value: "$NOT_A_REF-FAKE01", restorable: false },
+      { name: "AUTH_A_SECRET", value: "pa$$word-FAKE0123", restorable: false },
+      { name: "AUTH_B_KEY", value: "pa$word-FAKE0123", restorable: false },
     ]);
   });
 
@@ -270,5 +271,21 @@ describe("collectSecrets from auth.json", () => {
     captureStderr();
     expect(collectSecrets({ env: {}, authJson: null }).entries).toEqual([]);
     expect(lines()).toEqual([]);
+  });
+});
+
+describe("which secrets a marker may be restored for (owner ruling, stricter than MQ4)", () => {
+  const auth = JSON.stringify({ openai: { access: "at-0123456789" } });
+  it("marks the environment's secrets restorable and auth.json's not, and the environment wins a shared value", () => {
+    const set = collectSecrets({
+      env: { MY_TOKEN: "env-0123456789", OTHER_TOKEN: "at-0123456789" },
+      authJson: auth,
+    });
+    expect(set.entries).toEqual([
+      { name: "MY_TOKEN", value: "env-0123456789" },
+      { name: "OTHER_TOKEN", value: "at-0123456789" },
+    ]);
+    const only = collectSecrets({ env: {}, authJson: auth });
+    expect(only.entries).toEqual([{ name: "AUTH_OPENAI_ACCESS", value: "at-0123456789", restorable: false }]);
   });
 });

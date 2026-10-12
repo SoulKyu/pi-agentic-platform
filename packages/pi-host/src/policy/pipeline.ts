@@ -10,6 +10,7 @@ import type {
 } from "@pap/contracts";
 import { GUARD_RULES } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
+import { errorClass } from "../bounded.ts";
 import { auditArgs, InputTooLarge, UNREADABLE_INPUT } from "./audit-args.ts";
 import { denylistStage } from "./denylist.ts";
 import { describeCall } from "./describe-call.ts";
@@ -148,11 +149,6 @@ function checkStage(result: StageResult): StageResult {
   if (result.outcome === "pass" || result.outcome === "skip" || result.outcome === "block") return result;
   throw new TypeError("a stage returned an outcome the pipeline does not know");
 }
-
-export const errorClass = (error: unknown): string =>
-  (error instanceof Error ? error.constructor.name : typeof error)
-    .replace(/[^A-Za-z0-9_]/g, "")
-    .slice(0, 64) || "unknown";
 
 export async function evaluateToolCall(
   event: PolicyEvent,

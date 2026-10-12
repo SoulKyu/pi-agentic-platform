@@ -12,6 +12,7 @@ import { redactingAuditSink } from "./policy/results.ts";
 import { NO_REDACTOR } from "./policy/redact.ts";
 import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
 import { createRedactingIpc } from "./redacting-ipc.ts";
+import { redactStdio, type Writable } from "./redact-stdio.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
@@ -128,6 +129,8 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   process.umask(initial.umask);
   const source = createSecretSource({ env: process.env, agentDir: initial.agentDir });
   secrets = source;
+  for (const stream of [process.stdout, process.stderr])
+    redactStdio(stream as unknown as Writable, () => source.current());
   const sendAudit = auditSinkOf((record) => ipc.send(record));
   const opened = await openSession(initial, {
     secrets: source,
