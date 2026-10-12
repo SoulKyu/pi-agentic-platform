@@ -28,8 +28,8 @@ it("shows the outside-write notice and the new entries when a session is reopene
       file,
       entry("cli-u", leaf, { role: "user", content: "typed in the terminal", timestamp: 3 }),
     );
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    bed.sessions.scanPort.touched(sessionId, Date.now(), false);
+    // A later mtime than the worker's end, computed: no sleep.
+    bed.sessions.scanPort.touched(sessionId, Date.now() + 1, false);
 
     const reopened = await bed.subscribe(sessionId, cursor);
     const first = reopened.events()[0];
