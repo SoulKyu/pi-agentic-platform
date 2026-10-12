@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
 const BUDGET_TEST = "apps/daemon/src/modules/sessions/sessions.budgets.int.test.ts";
+const SEARCH_TEST = "apps/daemon/src/modules/search/search.budget.int.test.ts";
+const SCANNER_TEST = "apps/daemon/src/modules/search/scanner.exit.int.test.ts";
 
 export function initialAssets(indexHtml: string): string[] {
   const assets = new Set<string>();
@@ -63,6 +65,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       console.log(`lazy ${file}: ${gzipKb} KB gzip`);
     console.log(`session open payload: measured by ${BUDGET_TEST} (pnpm test:int)`);
     console.log(`idle worker RSS: measured by ${BUDGET_TEST} (pnpm test:int)`);
+    console.log(`search p95: measured by ${SEARCH_TEST} (pnpm test:int)`);
+    console.log(`scanner latency: measured by ${SCANNER_TEST} (pnpm test:int)`);
     if (measured > budget) process.exitCode = 1;
   } catch (error) {
     console.error(`check-budgets: ${error instanceof Error ? error.message : String(error)}`);
