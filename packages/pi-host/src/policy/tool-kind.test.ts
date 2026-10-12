@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyTool } from "./tool-kind.ts";
+import { classifyTool, CODEMODE_SOURCE, MCP_SOURCE, TOOL_SEARCH_SOURCE } from "./tool-kind.ts";
 
 const unknown = { category: "unknown", urlBearing: true, mcp: false, builtin: false } as const;
 
@@ -68,5 +68,78 @@ describe("classifyTool (M5R116)", () => {
   it("does not mistake an Object.prototype key for a built-in", () => {
     for (const name of ["constructor", "__proto__", "toString", "hasOwnProperty"])
       expect(classifyTool(name, { path: `builtin:${name}` })).toEqual({ ...unknown, external: true });
+  });
+});
+
+describe("MCP, codemode and tool_search are classified by source (M5R24)", () => {
+  const mcp = { category: "read", external: true, urlBearing: true, mcp: true, builtin: false } as const;
+  const none = { category: "unknown", external: true, urlBearing: true, mcp: false, builtin: false } as const;
+
+  it.each([
+    ["a read-only hint", { readOnlyHint: true }, mcp],
+    [
+      "a read-only hint and openWorldHint false",
+      { readOnlyHint: true, openWorldHint: false },
+      { ...mcp, external: false },
+    ],
+    ["a read-only hint and openWorldHint true", { readOnlyHint: true, openWorldHint: true }, mcp],
+    ["no hint", {}, { ...mcp, category: "external-write" }],
+    ["readOnlyHint false", { readOnlyHint: false }, { ...mcp, category: "external-write" }],
+    [
+      "only openWorldHint false",
+      { openWorldHint: false },
+      { ...mcp, category: "external-write", external: false },
+    ],
+  ])("an MCP tool with %s", (_label, hints, expected) => {
+    expect(classifyTool("mcp__fix__lookup", { path: MCP_SOURCE, ...hints })).toEqual(expected);
+  });
+
+  it("takes the resource reader as an external read", () => {
+    expect(classifyTool("read_mcp_resource", { path: MCP_SOURCE })).toEqual(mcp);
+  });
+
+  it("takes codemode and tool_search as reads that are not external", () => {
+    expect(classifyTool("codemode", { path: CODEMODE_SOURCE })).toEqual({
+      category: "read",
+      external: false,
+      urlBearing: false,
+      mcp: false,
+      builtin: false,
+    });
+    expect(classifyTool("tool_search", { path: TOOL_SEARCH_SOURCE })).toEqual({
+      category: "read",
+      external: false,
+      urlBearing: false,
+      mcp: false,
+      builtin: false,
+    });
+  });
+
+  it("does not let an extension borrow an MCP name, a read-only hint included (spoofed names)", () => {
+    expect(classifyTool("mcp__fix__lookup", { path: "/ext/spoof.js", readOnlyHint: true })).toEqual(none);
+    expect(classifyTool("read_mcp_resource", { path: "/ext/spoof.js" })).toEqual(none);
+    expect(classifyTool("mcp__fix__lookup", { path: "builtin:codemode", readOnlyHint: true })).toEqual(none);
+    expect(classifyTool("mcp__fix__lookup", undefined)).toEqual(none);
+  });
+
+  it("does not let another source claim codemode or tool_search, nor MCP's source claim them", () => {
+    for (const name of ["codemode", "tool_search"]) {
+      expect(classifyTool(name, { path: "/ext/y.js" })).toEqual(none);
+      expect(classifyTool(name, { path: MCP_SOURCE })).toEqual(none);
+    }
+    expect(classifyTool("codemode", { path: TOOL_SEARCH_SOURCE })).toEqual(none);
+  });
+
+  it("matches the MCP prefix exactly and needs a server and a tool name", () => {
+    for (const name of ["mcp__", "mcp__fix", "MCP__fix__lookup", " mcp__fix__lookup", "xmcp__fix__lookup"])
+      expect(classifyTool(name, { path: MCP_SOURCE, readOnlyHint: true })).toEqual(none);
+  });
+
+  it("reads a hint only when it is the boolean (hint shapes)", () => {
+    const hostile = { readOnlyHint: "true", openWorldHint: 0 } as unknown as { readOnlyHint: boolean };
+    expect(classifyTool("mcp__fix__lookup", { path: MCP_SOURCE, ...hostile })).toEqual({
+      ...mcp,
+      category: "external-write",
+    });
   });
 });

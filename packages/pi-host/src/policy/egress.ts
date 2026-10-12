@@ -3,6 +3,9 @@ import { argvOf, CommandTooComplex, CommandTooLong, readCommands } from "./shell
 
 export const EGRESS_MODEL_REASON =
   "pap-policy blocked this call: it reaches a web host that is not on the allowed list.";
+const MCP_READ_ONLY = "MCP tool that is not read-only";
+const MCP_READ_ONLY_MODEL_REASON =
+  "pap-policy blocked this call: the session is read-only and this MCP tool may change things.";
 const TOO_COMPLEX = "input too complex for the egress check";
 const NETWORK_PROTOCOLS = new Set(["http:", "https:", "ws:", "wss:"]);
 const URL_START = /^[a-z][a-z0-9+.-]{0,31}:\/\//i;
@@ -272,8 +275,10 @@ const block = (reason: string): StageResult => ({
   modelReason: EGRESS_MODEL_REASON,
 });
 
-/** Stage 02 (M5R21 to M5R23, M5R118): a reason carries the judged host or scheme (clipped) or a fixed client name, nothing else of the input. */
+/** Stage 02 (M5R21 to M5R24, M5R118): a reason carries the judged host or scheme (clipped) or a fixed client name, nothing else of the input. */
 export function egressStage(call: CallFacts): StageResult {
+  if (call.rules.approvalMode === "read-only" && call.kind.mcp && call.kind.category !== "read")
+    return { outcome: "block", reason: MCP_READ_ONLY, modelReason: MCP_READ_ONLY_MODEL_REASON };
   const allow = call.rules.allowHosts;
   if (allow === null) return { outcome: "skip", reason: "no egress list" };
   if (!call.kind.urlBearing) return { outcome: "skip", reason: "no URL-bearing input" };

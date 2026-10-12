@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ALLOW_03, createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
 import { EGRESS_MODEL_REASON, judgeUrl, urlsInString, urlsOf } from "./egress.ts";
 import type { CallFacts } from "./pipeline.ts";
-import { classifyTool } from "./tool-kind.ts";
+import { classifyTool, MCP_SOURCE } from "./tool-kind.ts";
 
 let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeAll(async () => {
@@ -120,6 +120,59 @@ describe("a list that is empty", () => {
   it("restricts every URL", async () => {
     const h = bed.harness({ rules: () => ({ ...interactiveRules, allowHosts: [] }), stages: ALLOW_03 });
     expect(await h.run("web_fetch", { url: "https://example.com" })).toEqual({
+      block: true,
+      reason: EGRESS_MODEL_REASON,
+    });
+  });
+});
+
+describe("MCP tools in read-only mode (stage 02)", () => {
+  const tools = {
+    mcp__fix__write: { path: MCP_SOURCE, readOnlyHint: false },
+    mcp__fix__plain: { path: MCP_SOURCE },
+    mcp__fix__lookup: { path: MCP_SOURCE, readOnlyHint: true },
+    mcp__fix__spoof: { path: "/ext/spoof.js", readOnlyHint: true },
+  };
+  const readOnly = () => ({ ...interactiveRules, approvalMode: "read-only" as const });
+  const MCP_BLOCK = {
+    block: true,
+    reason: "pap-policy blocked this call: the session is read-only and this MCP tool may change things.",
+  };
+
+  it("blocks an MCP tool that is not read-only, with a reason that carries no input, and lets a read-only one through", async () => {
+    const h = bed.harness({ rules: readOnly, tools, stages: ALLOW_03 });
+    expect(await h.run("mcp__fix__write", { q: "secret-token" })).toEqual(MCP_BLOCK);
+    expect(h.entries.at(-1)).toMatchObject({ decision: "block", reason: "MCP tool that is not read-only" });
+    expect(JSON.stringify(h.entries.at(-1)?.stages)).not.toContain("secret-token");
+    expect(await h.run("mcp__fix__plain", { q: 1 })).toEqual(MCP_BLOCK);
+    expect(await h.run("mcp__fix__lookup", { q: 1 })).toBeUndefined();
+  });
+
+  it("applies the rule before the egress list, even without a list", async () => {
+    const h = bed.harness({ rules: () => ({ ...readOnly(), allowHosts: null }), tools, stages: ALLOW_03 });
+    expect(await h.run("mcp__fix__write", {})).toEqual(MCP_BLOCK);
+  });
+
+  it("leaves other modes alone: the same tool is not stopped by stage 02 outside read-only mode", async () => {
+    const h = bed.harness({ rules: () => interactiveRules, tools, stages: ALLOW_03 });
+    expect(await h.run("mcp__fix__write", { q: 1 })).toBeUndefined();
+  });
+
+  it("does not take a spoofed MCP name for an MCP read (it is no MCP tool, so another stage judges it)", async () => {
+    const h = bed.harness({ rules: readOnly, tools, stages: ALLOW_03 });
+    expect(await h.run("mcp__fix__spoof", { q: 1 })).toBeUndefined();
+    expect(h.entries.at(-1)?.stages.find((stage) => stage.stage === "02")?.reason).not.toBe(
+      "MCP tool that is not read-only",
+    );
+  });
+
+  it("still judges the URLs of a read-only MCP tool against the list", async () => {
+    const h = bed.harness({
+      rules: () => ({ ...readOnly(), allowHosts: ["example.com"] }),
+      tools,
+      stages: ALLOW_03,
+    });
+    expect(await h.run("mcp__fix__lookup", { url: "https://evil.test" })).toEqual({
       block: true,
       reason: EGRESS_MODEL_REASON,
     });

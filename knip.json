@@ -6,7 +6,7 @@
       "entry": ["scripts/*.ts", "eslint/*.js"]
     },
     "packages/pi-host": {
-      "entry": ["src/testing/*.ts"],
+      "entry": ["src/testing/*.ts", "src/testing/mcp-fixture.mjs"],
       "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run"]
     },
     "apps/web": {

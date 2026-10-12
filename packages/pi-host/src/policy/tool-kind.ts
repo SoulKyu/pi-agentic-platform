@@ -31,6 +31,12 @@ const BUILTIN_CATEGORY: Readonly<Record<string, ToolCategory>> = {
   web_search: "network",
   fetch: "network",
 };
+/** `ToolInfo.sourceInfo.path` of the tools Pi's own MCP, codemode and tool-search extensions register (recorded by `host.mcp.int.test.ts`). */
+export const MCP_SOURCE = "builtin:mcp";
+export const CODEMODE_SOURCE = "builtin:codemode";
+export const TOOL_SEARCH_SOURCE = "builtin:tool-search";
+// `mcp__<server>__<tool>`: Pi maps every other character of both names to `_`.
+const MCP_TOOL_NAME = /^mcp__\w+?__\w+$/;
 const URL_BEARING = new Set<ToolCategory>(["exec", "network"]);
 
 /** M5R116. Names are matched exactly; the registration decides whether the name is Pi's own. */
@@ -44,11 +50,36 @@ export function classifyTool(name: string, facts: ToolFacts | undefined): ToolKi
       mcp: false,
       builtin: true,
     };
+  const extension = extensionKind(name, facts);
+  if (extension) return extension;
   return {
     category: "unknown",
     external: facts?.openWorldHint !== false,
     urlBearing: true,
     mcp: false,
+    builtin: false,
+  };
+}
+
+/**
+ * M5R24. Only the registration by Pi's own extension makes a name MCP, codemode or tool search: an extension that
+ * claims one of these names is an ordinary unknown tool and gets no read-only status from the hint it declares.
+ * The hints of an MCP tool are its server author's claim: only a boolean counts, and every MCP tool is external
+ * unless it says `openWorldHint: false`.
+ */
+function extensionKind(name: string, facts: ToolFacts | undefined): ToolKind | null {
+  const pure = { external: false, urlBearing: false, mcp: false, builtin: false } as const;
+  if (facts?.path === CODEMODE_SOURCE && name === "codemode") return { category: "read", ...pure };
+  if (facts?.path === TOOL_SEARCH_SOURCE && name === "tool_search") return { category: "read", ...pure };
+  if (facts?.path !== MCP_SOURCE) return null;
+  if (name === "read_mcp_resource")
+    return { category: "read", external: true, urlBearing: true, mcp: true, builtin: false };
+  if (!MCP_TOOL_NAME.test(name)) return null;
+  return {
+    category: facts.readOnlyHint === true ? "read" : "external-write",
+    external: facts.openWorldHint !== false,
+    urlBearing: true,
+    mcp: true,
     builtin: false,
   };
 }

@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { PolicyRules } from "@pap/contracts";
 import { type ForkedHost, forkHost, type HostRecord } from "./fork-host.ts";
 
@@ -15,6 +15,8 @@ export interface LaunchOptions {
   policy?: unknown;
   /** Written to `<agentDir>/settings.json` before the worker starts. */
   settings?: object;
+  /** Files written under the agent directory before the worker starts, by relative path (`mcp.json`, `extensions/x.js`). */
+  agentFiles?: Readonly<Record<string, string>>;
   /** Replaces PI_CODING_AGENT_DIR in the worker environment. */
   agentDirEnv?: string;
   /** Extra fields of the init record. */
@@ -65,6 +67,13 @@ export function createHostBed(fork: typeof forkHost = forkHost) {
   function launch(script: object, options: LaunchOptions = {}): ForkedHost {
     const scriptPath = join(root, "script.json");
     writeFileSync(scriptPath, JSON.stringify(script));
+    for (const [file, content] of Object.entries(options.agentFiles ?? {})) {
+      const target = join(agentDir, file);
+      if (relative(agentDir, target).startsWith(".."))
+        throw new Error(`agent file outside the agent directory: ${file}`);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, content);
+    }
     if (options.settings) writeFileSync(join(agentDir, "settings.json"), JSON.stringify(options.settings));
     const env: NodeJS.ProcessEnv = {
       PATH: process.env.PATH,

@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { ForkedHost } from "./fork-host.ts";
 import { createHostBed } from "./host-bed.ts";
@@ -94,5 +95,27 @@ describe("host bed cleanup", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("agent files", () => {
+  it("writes them under the agent directory, subdirectories included, before the worker starts", async () => {
+    const { bed } = bedWithLogs("");
+    bed.launch(
+      { steps: [] },
+      { agentFiles: { "mcp.json": "{}", "extensions/x.js": "export default () => {};" } },
+    );
+    expect(readFileSync(join(bed.agentDir, "mcp.json"), "utf8")).toBe("{}");
+    expect(readFileSync(join(bed.agentDir, "extensions", "x.js"), "utf8")).toBe("export default () => {};");
+    await bed.dispose();
+  });
+
+  it("refuses a path that leaves the agent directory", async () => {
+    const { bed } = bedWithLogs("");
+    expect(() => bed.launch({ steps: [] }, { agentFiles: { "../escape": "x" } })).toThrow(
+      "agent file outside the agent directory: ../escape",
+    );
+    expect(existsSync(join(bed.root, "escape"))).toBe(false);
+    await bed.dispose();
   });
 });
