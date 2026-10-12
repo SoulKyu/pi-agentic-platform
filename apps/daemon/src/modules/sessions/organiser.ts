@@ -79,7 +79,7 @@ export function createOrganiser(deps: {
     if (stopped) return;
     const done = attempt("sessions_wake_failed", () => {
       for (const id of deps.store.dueSnoozes(deps.clock.now(), SWEEP_BATCH))
-        update(id, { snoozedUntil: null });
+        update(id, { snoozedUntil: null, unsettledAt: deps.clock.now() });
       return true;
     });
     if (done) rearm();
@@ -98,7 +98,7 @@ export function createOrganiser(deps: {
 
   return {
     start() {
-      if (deps.readOnly) return;
+      if (deps.readOnly || !stopped) return;
       stopped = false;
       sweep();
       rearm();
@@ -117,7 +117,12 @@ export function createOrganiser(deps: {
         const row = deps.store.row(sessionId);
         if (!row || (row.marks.settledAt === null && row.marks.snoozedUntil === null)) return;
         const wasSnoozed = row.marks.snoozedUntil !== null;
-        update(sessionId, { settledAt: null, settledAuto: false, snoozedUntil: null });
+        update(sessionId, {
+          settledAt: null,
+          settledAuto: false,
+          snoozedUntil: null,
+          unsettledAt: deps.clock.now(),
+        });
         if (wasSnoozed) rearm();
       });
     },

@@ -151,6 +151,50 @@ describe("organiser", () => {
     expect(changed).toEqual(["s", "z"]);
   });
 
+  it("activity restarts the 3-day count: an un-settled session is not settled again at the next sweep", async () => {
+    write("s", { settledAt: T - DAY, settledAuto: true }, T - 4 * DAY);
+    organiser.start();
+    organiser.activity("s");
+    expect(marks.row("s")?.marks).toMatchObject({ settledAt: null, unsettledAt: T });
+    await clock.advance(SWEEP_EVERY_MS);
+    expect(marks.row("s")?.marks.settledAt).toBeNull();
+  });
+
+  it("a woken snooze restarts the 3-day count too", async () => {
+    write("s", { snoozedUntil: T + 60_000 }, T - 4 * DAY);
+    organiser.start();
+    await clock.advance(SWEEP_EVERY_MS);
+    expect(marks.row("s")?.marks).toMatchObject({
+      snoozedUntil: null,
+      unsettledAt: T + 60_000,
+      settledAt: null,
+    });
+  });
+
+  it("start twice arms the timers once", () => {
+    write("a", { snoozedUntil: T + 60_000 });
+    organiser.start();
+    organiser.start();
+    expect(clock.pending()).toBe(2);
+  });
+
+  it("a store that throws in activity is said once and nothing escapes (RT-04)", () => {
+    const broken = createOrganiser({
+      ...deps,
+      store: {
+        ...marks,
+        row: () => {
+          throw new Error("SQLITE_BUSY");
+        },
+      },
+    });
+    expect(() => {
+      broken.activity("s");
+      broken.activity("s");
+    }).not.toThrow();
+    expect(failures("sessions_activity_failed")).toHaveLength(1);
+  });
+
   it("a store that throws inside the sweep is said once and the sweep stays armed (RT-04)", async () => {
     addIdle("idle", T - 4 * DAY);
     const broken = createOrganiser({
