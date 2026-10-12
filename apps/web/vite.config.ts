@@ -20,6 +20,13 @@ export default defineConfig({
     // The daemon's CSP is `font-src 'self'` (no data:). Vite inlines assets under 4 KiB as data: URIs by
     // default; a font always stays a file (R118). Everything else keeps the default size limit.
     assetsInlineLimit: (file) => (file.endsWith(".woff2") ? false : undefined),
+    // One shared chunk for the modules already in the initial closure: without it Rolldown cuts them into several
+    // small chunks as soon as a lazy chunk reuses them (about 3 KB gzip of glue). Lazy-only modules are untouched.
+    rolldownOptions: {
+      output: {
+        codeSplitting: { groups: [{ name: "shared", tags: ["$initial"], test: /node_modules|packages\// }] },
+      },
+    },
   },
   server: {
     port: 5173,
