@@ -1,4 +1,5 @@
-import type { AlwaysRule } from "@pap/contracts";
+import { type AlwaysRule, type DaemonToWorker, PolicyRules } from "@pap/contracts";
+import type { FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import type { PolicyPort } from "../../policy/index.ts";
 
 export interface FakePolicyOptions {
@@ -74,3 +75,29 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
     },
   };
 }
+
+/** The i-th distinct rule: a tool named after `i` and a 64-hex key. */
+export const testRule = (i: number): AlwaysRule => ({
+  tool: `tool-${i}`,
+  key: i.toString(16).padStart(64, "0"),
+});
+
+/** Adds the i-th test rule to an owner's project through the port, as an "always" answer would. */
+export const addTestRule = (
+  policy: ReturnType<typeof fakePolicyPort>,
+  scope: string,
+  i: number,
+  ownerId = "u1",
+): void => {
+  policy.addAlways({ ownerId, scope, tool: testRule(i).tool, key: testRule(i).key, label: "x" });
+};
+
+/** The `policy_update` record the grant link sends for these rules (interactive profile, default mode). */
+export const pushedRules = (alwaysAllow: AlwaysRule[]) => ({
+  type: "policy_update",
+  rules: PolicyRules.parse({ profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow }),
+});
+
+/** The `policy_update` records a fake worker was sent, in order. */
+export const policyUpdatesOf = (worker: FakeWorker | undefined): DaemonToWorker[] =>
+  worker?.sent.filter((record) => record.type === "policy_update") ?? [];

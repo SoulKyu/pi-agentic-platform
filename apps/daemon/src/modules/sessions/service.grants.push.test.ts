@@ -1,12 +1,18 @@
 import { realpathSync } from "node:fs";
-import { type AlwaysRule, type Caller, type DaemonToWorker, PolicyRules } from "@pap/contracts";
+import type { AlwaysRule, Caller } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { sizeOf } from "../../kernel/json-bytes.ts";
 import { fitRules } from "./grants.ts";
 import { READY_TIMEOUT_MS } from "./live-session.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
-import { fakePolicyPort } from "./testing/fake-policy.ts";
+import {
+  addTestRule,
+  fakePolicyPort,
+  policyUpdatesOf,
+  pushedRules,
+  testRule,
+} from "./testing/fake-policy.ts";
 import { captureLogger } from "./testing/helpers.ts";
 import { type BedOptions, createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
@@ -19,14 +25,10 @@ let bed: ReturnType<typeof build>;
 const open = (options?: BedOptions): typeof bed => (bed = build(options));
 afterEach(() => bed.dispose());
 
-const rule = (i: number): AlwaysRule => ({ tool: `tool-${i}`, key: i.toString(16).padStart(64, "0") });
+const rule = testRule;
 const rules = (n: number): AlwaysRule[] => Array.from({ length: n }, (_, i) => rule(i));
-const updates = (index: number): DaemonToWorker[] =>
-  bed.spawned[index]?.sent.filter((record) => record.type === "policy_update") ?? [];
-const update = (alwaysAllow: AlwaysRule[]) => ({
-  type: "policy_update",
-  rules: PolicyRules.parse({ profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow }),
-});
+const updates = (index: number) => policyUpdatesOf(bed.spawned[index]);
+const update = pushedRules;
 const initRules = (index: number) =>
   (
     bed.spawned[index]?.sent.find((record) => record.type === "init") as {
@@ -34,13 +36,7 @@ const initRules = (index: number) =>
     }
   ).policy.alwaysAllow;
 const add = (policy: ReturnType<typeof fakePolicyPort>, i: number, ownerId = OWNER.userId) =>
-  policy.addAlways({
-    ownerId,
-    scope: realpathSync(bed.work),
-    tool: rule(i).tool,
-    key: rule(i).key,
-    label: "x",
-  });
+  addTestRule(policy, realpathSync(bed.work), i, ownerId);
 
 describe("pushing rules to workers", () => {
   it("holds a burst of changes for a worker still starting and sends one update with the final rules after ready", async () => {
@@ -69,18 +65,16 @@ describe("pushing rules to workers", () => {
     expect(bed.spawned[0]?.sent.map((record) => record.type)).toEqual(["init", "shutdown"]);
   });
 
-  it("sends a burst of changes to a live worker as one update with the final rules", async () => {
+  it("sends each change of a burst at once; the last update carries the final rules", async () => {
     const policy = fakePolicyPort();
     open({ policy });
     await bed.service.create(bed.work, OWNER);
     for (let i = 0; i < 200; i++) add(policy, i);
     policy.revoke(OWNER.userId, realpathSync(bed.work), rule(0).key);
-    expect(updates(0)).toEqual([]);
-    await bed.clock.advance(0);
-    expect(updates(0)).toEqual([update(rules(200).slice(1))]);
+    expect(updates(0)).toHaveLength(201);
+    expect(updates(0).at(-1)).toEqual(update(rules(200).slice(1)));
     add(policy, 500);
-    await bed.clock.advance(0);
-    expect(updates(0)).toHaveLength(2);
+    expect(updates(0)).toHaveLength(202);
   });
 
   it("gives each session its own owner's rules for its own project, at start and on a push", async () => {
@@ -95,7 +89,6 @@ describe("pushing rules to workers", () => {
     await bed.service.create(bed.otherWork, OWNER);
     expect([initRules(0), initRules(1), initRules(2)]).toEqual([[rule(1)], [rule(2)], [rule(3)]]);
     add(policy, 4, SECOND.userId);
-    await bed.clock.advance(0);
     expect([updates(0), updates(1), updates(2)]).toEqual([[], [update([rule(2), rule(4)])], []]);
   });
 });
@@ -134,7 +127,6 @@ describe("the rules pushed to a worker are bounded and valid", () => {
     expect(initRules(0)).toEqual([rule(1), rule(2)]);
     expect(lines.filter((line) => line.msg === "policy_rule_invalid")).toHaveLength(1);
     policy.revoke(OWNER.userId, here, "none");
-    await bed.clock.advance(0);
     expect(updates(0).at(-1)).toEqual(update([rule(1), rule(2)]));
   });
 
@@ -146,7 +138,6 @@ describe("the rules pushed to a worker are bounded and valid", () => {
     await bed.service.create(bed.work, OWNER);
     policy.failReads();
     policy.revoke(OWNER.userId, realpathSync(bed.work), "none");
-    await bed.clock.advance(0);
     expect(lines.filter((line) => line.msg === "policy_update_failed")).toHaveLength(1);
     expect(bed.spawned.map((worker) => worker.stopped())).toEqual([true, true]);
   });

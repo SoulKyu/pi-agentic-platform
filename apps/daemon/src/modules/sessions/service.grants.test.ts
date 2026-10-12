@@ -134,8 +134,9 @@ describe("always and session answers", () => {
     const worker = bed.spawned[0];
     if (!worker) throw new Error("no worker");
     const stop = vi.spyOn(worker, "stop");
-    // The exit is settled first (its listeners run before the queued update does), the change comes after.
+    // The exit is settled first (the update is sent inside the change, so the exit must have been handled by then).
     worker.crash({ code: 1, signal: null, cause: "exit_code" });
+    await bed.clock.advance(0);
     policy.revoke(OWNER.userId, realpathSync(bed.work), KEY);
     await bed.clock.advance(0);
     expect(updates(0)).toEqual([]);

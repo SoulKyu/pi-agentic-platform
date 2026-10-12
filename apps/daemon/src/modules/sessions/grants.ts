@@ -43,7 +43,6 @@ interface Launched {
   ready: boolean;
   /** The rules the worker holds are older than the project's. */
   dirty: boolean;
-  scheduled: boolean;
 }
 
 /** The rules as they are, or null when there are more than the policy module keeps or they come to more than `maxBytes` of JSON. */
@@ -111,14 +110,13 @@ export function createGrantLink(deps: GrantLinkDeps) {
   // Every update carries the whole list, so only the latest matters: a burst of changes is one update per worker, sent
   // once the burst's tick is over, and a worker still starting gets its one update right after `ready` (it holds at
   // most 128 records before then).
+  // Every update carries the whole list. A live worker gets it at once, inside the call that changed the rules, so a
+  // request handled after that call (the next frame of the same socket read included) reaches the worker after it,
+  // whatever that request awaits or not (carry #30, M5R7). A worker still starting gets one update right after `ready`
+  // (it holds at most 128 records before then).
   function markDirty(session: LiveSession, at: Launched): void {
     at.dirty = true;
-    if (!at.ready || at.scheduled) return;
-    at.scheduled = true;
-    queueMicrotask(() => {
-      at.scheduled = false;
-      flush(session, at);
-    });
+    if (at.ready) flush(session, at);
   }
 
   const unlisten = deps.policy.onChange((ownerId, scope) => {
@@ -140,7 +138,7 @@ export function createGrantLink(deps: GrantLinkDeps) {
     policyFor,
     /** Called right after the session's worker was started, before anything can await. */
     track(session: LiveSession, row: SessionRow, scope: string): void {
-      const at: Launched = { row, scope, noticeAt: null, ready: false, dirty: false, scheduled: false };
+      const at: Launched = { row, scope, noticeAt: null, ready: false, dirty: false };
       launched.set(session, at);
       // Registered before the caller awaits `ready`, so the update is out before the caller can hand the worker a prompt.
       session.ready.then(
