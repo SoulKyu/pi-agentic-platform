@@ -69,6 +69,7 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
         toolFacts,
         taint: config.taint ?? { current: () => false },
         redact: config.redact ?? ((text) => secrets.current().text(text).text),
+        redactReason: (text) => secrets.current().textFolded(text).text,
         stages: {
           ...guardStages(guard),
           restore: restoreStage(() => secrets.current().restorable()),

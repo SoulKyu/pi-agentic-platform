@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { maskCuts, maskEdges } from "./edges.ts";
 import { createRedactor } from "./redact.ts";
 import { redactRecord } from "../redacting-ipc.ts";
+const builtin = (name: string) => name === "grep";
 
 const GITHUB = { name: "GITHUB_TOKEN", value: "ghp_testsecret_0123456789" };
 const fresh = () => ({ left: 1_000_000 });
@@ -42,7 +43,7 @@ describe("maskEdges (M5R120)", () => {
     };
     const hostile = createRedactor({ entries: [{ name: "X", value: `${"a".repeat(4095)}b` }] });
     const big = { ...record, partialResult: { content: [{ type: "text", text: `${"a".repeat(65_535)}c` }] } };
-    expect(() => redactRecord(big, hostile)).toThrow(RangeError);
+    expect(() => redactRecord(big, hostile, builtin)).toThrow(RangeError);
   });
 
   it("hostile secret of identical letters against a text of the same letter ends at once, never a hang", () => {
@@ -52,7 +53,7 @@ describe("maskEdges (M5R120)", () => {
       toolCallId: "c",
       result: { content: [{ type: "text", text: "a".repeat(65_536) }] },
     };
-    const done = redactRecord(record, same) as typeof record;
+    const done = redactRecord(record, same, builtin) as typeof record;
     expect(done.result.content[0]?.text).toBe("[SECRET:X]".repeat(16));
   });
 
@@ -65,7 +66,7 @@ describe("maskEdges (M5R120)", () => {
       partialResult: { content: [part, part, part, part, part, part, part, part, part, part] },
     };
     // Each part costs about 2 million comparisons on its own: the budget is spent by the first one.
-    expect(() => redactRecord(record, hostile)).toThrow(RangeError);
+    expect(() => redactRecord(record, hostile, builtin)).toThrow(RangeError);
   });
 
   it("masks the JSON-escaped forms too: a secret with a quote and a backslash (a documented 7-15 of 21 leak before)", () => {

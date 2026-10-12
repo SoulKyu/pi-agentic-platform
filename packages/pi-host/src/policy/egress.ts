@@ -88,7 +88,7 @@ export function judgeUrl(
   const allowed = allow.some((entry) =>
     entry.startsWith("*.") ? host.endsWith(entry.slice(1)) && host.length > entry.length - 1 : host === entry,
   );
-  return allowed ? { ok: true, host } : { ok: false, why: `web host not allowed: ${host.slice(0, 200)}` };
+  return allowed ? { ok: true, host } : { ok: false, why: `web host not allowed: ${host}` };
 }
 
 function push(out: string[], url: string): void {

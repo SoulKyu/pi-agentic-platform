@@ -110,6 +110,8 @@ export interface PipelineDeps {
   toolFacts(toolName: string): ToolFacts | undefined;
   readonly taint: { current(): boolean };
   redact(text: string): string;
+  /** Redacts a reason, whatever its case, before a verdict or an entry clips it. */
+  redactReason(text: string): string;
   readonly stages?: Partial<Stages>;
 }
 
@@ -166,7 +168,7 @@ export async function evaluateToolCall(
   // What the audit can say of the call if the evaluation dies: the real category and arguments once they are known.
   let audited: { category: ToolCategory; args: string } = { category: "unknown", args: UNREADABLE_INPUT };
   const fail = (reason: string): CallAuditEntry => {
-    const trail = createTrail();
+    const trail = createTrail(deps.redactReason);
     trail.add("03", "block", reason);
     trail.skipFrom("01", reason);
     return { kind: "call", ...ids, ...audited, decision: "block", reason, stages: trail.list() };
@@ -223,7 +225,10 @@ function settle(
       entry = {
         ...entry,
         decision: "block",
-        reason: clipUnits(`policy changed while the question was open: ${refusal.reason}`, MAX_ENTRY_REASON),
+        reason: clipUnits(
+          deps.redactReason(`policy changed while the question was open: ${refusal.reason}`),
+          MAX_ENTRY_REASON,
+        ),
       };
       result = { block: true, reason: refusal.modelReason };
     }
@@ -264,7 +269,7 @@ async function evaluateOnce(
   ids: Ids,
   { kind, exec, args, key }: Prepared,
 ): Promise<Evaluation> {
-  const trail = createTrail();
+  const trail = createTrail(deps.redactReason);
   const finish = (
     call: CallFacts | null,
     decision: CallDecision,
@@ -278,7 +283,7 @@ async function evaluateOnce(
       ...ids,
       category: kind.category,
       decision,
-      ...(reason === undefined ? {} : { reason: clipUnits(reason, MAX_ENTRY_REASON) }),
+      ...(reason === undefined ? {} : { reason: clipUnits(deps.redactReason(reason), MAX_ENTRY_REASON) }),
       stages: trail.list(),
       args,
     },

@@ -11,7 +11,8 @@ export function clipUnits(text: string, max: number): string {
 }
 
 /** The verdicts of stages 01–04 for one call, built as the pipeline goes and listed in stage order. */
-export function createTrail() {
+/** `redact` runs on every reason before it is clipped: a clip must never cut a secret in two before it is looked for. */
+export function createTrail(redact: (reason: string) => string = (reason) => reason) {
   const verdicts = new Map<StageId, StageVerdict>();
   return {
     add(stage: StageId, outcome: StageVerdict["outcome"], reason?: string): void {
@@ -19,7 +20,7 @@ export function createTrail() {
       verdicts.set(stage, {
         stage,
         outcome,
-        ...(reason === undefined ? {} : { reason: clipUnits(reason, MAX_REASON) }),
+        ...(reason === undefined ? {} : { reason: clipUnits(redact(reason), MAX_REASON) }),
       });
     },
     /** Marks `stage` to 04 as skipped when they have no verdict yet: a block ended the run before them. */

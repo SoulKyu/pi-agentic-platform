@@ -34,7 +34,11 @@ type Part = { type?: unknown; text?: unknown };
  * and the cut edges of a tool output masked. A record whose edges cannot be checked within the budget throws, like any
  * record that cannot be checked: it is never sent reshaped.
  */
-export function redactRecord(record: Outbound, redactor: Redactor): Outbound {
+export function redactRecord(
+  record: Outbound,
+  redactor: Redactor,
+  isBuiltin: (toolName: string) => boolean,
+): Outbound {
   if (redactor.size === 0) return record;
   const budget = { left: EDGE_BUDGET };
   const clippedTail = (text: string, field: string | undefined, original: string): string =>
@@ -55,7 +59,7 @@ export function redactRecord(record: Outbound, redactor: Redactor): Outbound {
   if (key === null || typeof holder !== "object" || holder === null) return out;
   // A rolling window starts and ends anywhere; a final result lost its start only when bash cut its last line.
   const head = live || isHeadCut(holder.details);
-  const cuts = { head, tail: live, notice: record.toolName === "grep" };
+  const cuts = { head, tail: live, notice: record.toolName === "grep" && isBuiltin("grep") };
   const content = Array.isArray(holder.content)
     ? holder.content.map((part: Part | null) =>
         typeof part === "object" && part !== null && part.type === "text" && typeof part.text === "string"
@@ -91,7 +95,11 @@ const worthReporting = (count: number): boolean => (count & (count - 1)) === 0;
  * record that cannot be checked is dropped, and a `response` becomes a failed response so the daemon never waits for it
  * (M5R36).
  */
-export function createRedactingIpc(ipc: Ipc, current: () => Redactor): Ipc {
+export function createRedactingIpc(
+  ipc: Ipc,
+  current: () => Redactor,
+  isBuiltin: (toolName: string) => boolean,
+): Ipc {
   let dropped = 0;
   const unchecked = (record: Outbound, error: unknown): false => {
     dropped++;
@@ -117,7 +125,7 @@ export function createRedactingIpc(ipc: Ipc, current: () => Redactor): Ipc {
     send(record) {
       let checked: Outbound;
       try {
-        checked = redactRecord(record, current());
+        checked = redactRecord(record, current(), isBuiltin);
       } catch (error) {
         return unchecked(record, error);
       }

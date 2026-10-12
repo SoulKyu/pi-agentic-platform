@@ -45,6 +45,8 @@ export interface PipelineHarnessOptions {
   taint?: boolean | { current(): boolean };
   stages?: Partial<Stages>;
   redact?: (text: string) => string;
+  /** Redacts the reason of a stage verdict and of the entry (case-folded in production). */
+  redactReason?: (text: string) => string;
   /** Secret values by name: wires the restore stage (stage 06, M5R119). */
   secretValues?: Readonly<Record<string, string>>;
 }
@@ -81,6 +83,7 @@ export async function createPipelineBed() {
           toolFacts: (name) => options.tools?.[name] ?? { path: `builtin:${name}` },
           taint,
           redact: options.redact ?? ((text) => text),
+          redactReason: options.redactReason ?? ((text) => text),
           ask: async (request, signal) => {
             asked.push(`${request.title}|${request.message}`);
             asks.push(request);

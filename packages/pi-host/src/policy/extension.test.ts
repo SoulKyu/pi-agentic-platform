@@ -217,6 +217,7 @@ describe("pap-policy hardening", () => {
         toolFacts: (name) => ({ path: `builtin:${name}` }),
         taint: { current: () => false },
         redact: (text) => text,
+        redactReason: (text) => text,
         ask: (request, signal) => approvals.ask(request, signal),
       },
     );

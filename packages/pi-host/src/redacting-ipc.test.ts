@@ -4,6 +4,7 @@ import { createRedactor, NO_REDACTOR, TOO_DEEP_TEXT } from "./policy/redact.ts";
 import { clipText } from "./bounded.ts";
 import { createRedactingIpc } from "./redacting-ipc.ts";
 import { toExtensionErrorRecord } from "./wire-events.ts";
+const builtin = (name: string) => name === "grep";
 
 const redactor = createRedactor({ entries: [{ name: "GH", value: "ghp_testsecret_01" }] });
 let stderr: string[];
@@ -54,7 +55,7 @@ describe("the redacting ipc (M5R36)", () => {
     { type: "message_update", assistantMessageEvent: { type: "text_delta", delta: "ghp_testsecret_01" } },
   ])("redacts a $type record before it leaves", (record) => {
     const sent = fakeIpc();
-    createRedactingIpc(sent.ipc, () => redactor).send(record);
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send(record);
     expect(JSON.stringify(sent.records)).not.toContain("ghp_testsecret_01");
     expect(JSON.stringify(sent.records)).toContain("[SECRET:GH]");
   });
@@ -69,10 +70,10 @@ describe("the redacting ipc (M5R36)", () => {
       leafId: null,
       sessionName: "ghp_testsecret_01",
     };
-    createRedactingIpc(sent.ipc, () => redactor).send(ready);
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send(ready);
     expect(sent.records[0]).toEqual({ ...ready, sessionName: "[SECRET:GH]" });
     const plain = { type: "health", rssMb: 10, descendants: 0 };
-    createRedactingIpc(sent.ipc, () => NO_REDACTOR).send(plain);
+    createRedactingIpc(sent.ipc, () => NO_REDACTOR, builtin).send(plain);
     expect(sent.records[1]).toBe(plain);
   });
 
@@ -84,7 +85,7 @@ describe("the redacting ipc (M5R36)", () => {
         throw new Error("x");
       },
     });
-    expect(createRedactingIpc(sent.ipc, () => redactor).send(hostile)).toBe(false);
+    expect(createRedactingIpc(sent.ipc, () => redactor, builtin).send(hostile)).toBe(false);
     expect(sent.records).toEqual([]);
     expect(stderr).toEqual([
       "pi-host: a extension_ui_request record could not be checked for secrets (Error): dropped\n",
@@ -99,7 +100,7 @@ describe("the redacting ipc (M5R36)", () => {
         },
       },
     );
-    createRedactingIpc(sent.ipc, () => redactor).send(response);
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send(response);
     expect(sent.records).toEqual([
       {
         type: "response",
@@ -114,7 +115,7 @@ describe("the redacting ipc (M5R36)", () => {
   it("replaces a too-deep subtree instead of dropping the record", () => {
     const sent = fakeIpc();
     const deep = Array.from({ length: 70 }).reduce<unknown>((inner) => ({ inner }), "ghp_testsecret_01");
-    createRedactingIpc(sent.ipc, () => redactor).send({
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send({
       type: "tool_execution_end",
       toolCallId: "c",
       result: { content: [], details: deep },
@@ -132,8 +133,8 @@ describe("the redacting ipc (M5R36)", () => {
       args: {},
       partialResult: { content: [{ type: "text", text }], details: {} },
     });
-    createRedactingIpc(sent.ipc, () => redactor).send(update("secret_01\nnext line"));
-    createRedactingIpc(sent.ipc, () => redactor).send(update("output line\nghp_tests"));
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send(update("secret_01\nnext line"));
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send(update("output line\nghp_tests"));
     expect(sent.records.map((r) => (r as ReturnType<typeof update>).partialResult.content[0]?.text)).toEqual([
       "[SECRET:GH]\nnext line",
       "output line\n[SECRET:GH]",
@@ -142,7 +143,7 @@ describe("the redacting ipc (M5R36)", () => {
 
   it("head-masks a final result and the copy in details.truncation.content only when Pi cut its last line", () => {
     const sent = fakeIpc();
-    const out = createRedactingIpc(sent.ipc, () => redactor);
+    const out = createRedactingIpc(sent.ipc, () => redactor, builtin);
     const result = (partial: boolean) => ({
       type: "tool_execution_end",
       toolCallId: "c",
@@ -168,7 +169,7 @@ describe("the redacting ipc (M5R36)", () => {
 
   it("head-masks a live update and its truncation copy whatever Pi says", () => {
     const sent = fakeIpc();
-    createRedactingIpc(sent.ipc, () => redactor).send({
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send({
       type: "tool_execution_update",
       toolCallId: "c",
       toolName: "bash",
@@ -184,7 +185,7 @@ describe("the redacting ipc (M5R36)", () => {
   it("leaves identifiers alone at any depth: an id that ends in a secret's first characters stays an id", () => {
     const hex = createRedactor({ entries: [{ name: "HEX", value: "84f2b1c9deadbeef0123" }] });
     const sent = fakeIpc();
-    const out = createRedactingIpc(sent.ipc, () => hex);
+    const out = createRedactingIpc(sent.ipc, () => hex, builtin);
     const approval = {
       type: "approval_request",
       id: "a184f2b1",
@@ -217,7 +218,7 @@ describe("the redacting ipc (M5R36)", () => {
   it("fails a record whose edges cannot be checked like any unchecked record: dropped, reported, never reshaped", () => {
     const sent = fakeIpc();
     const hostile = createRedactor({ entries: [{ name: "X", value: `${"a".repeat(4095)}b` }] });
-    const out = createRedactingIpc(sent.ipc, () => hostile);
+    const out = createRedactingIpc(sent.ipc, () => hostile, builtin);
     const update = {
       type: "tool_execution_update",
       toolCallId: "c",
@@ -250,7 +251,7 @@ describe("the redacting ipc (M5R36)", () => {
 
   it("is hostile-input safe: a Map, a class, a cycle, a secret as a key and a toJSON are replaced, never thrown out of send", () => {
     const sent = fakeIpc();
-    const out = createRedactingIpc(sent.ipc, () => redactor);
+    const out = createRedactingIpc(sent.ipc, () => redactor, builtin);
     class Holder {
       get secret(): string {
         throw new Error("getter");
@@ -283,7 +284,7 @@ describe("the redacting ipc (M5R36)", () => {
     for (let offset = 1976; offset <= 2000; offset++) {
       const sent = fakeIpc();
       const text = clipText("x".repeat(offset) + secret);
-      createRedactingIpc(sent.ipc, () => redactor).send(
+      createRedactingIpc(sent.ipc, () => redactor, builtin).send(
         toExtensionErrorRecord({ extensionPath: "/e.js", event: "e", error: text }),
       );
       const left = Math.max(0, 2000 - offset);
@@ -297,7 +298,7 @@ describe("the redacting ipc (M5R36)", () => {
 
   it("masks the cut end of a grep result's line that Pi marked as truncated, and no other tool's", () => {
     const sent = fakeIpc();
-    createRedactingIpc(sent.ipc, () => redactor).send({
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send({
       type: "tool_execution_end",
       toolCallId: "c",
       toolName: "grep",
@@ -321,13 +322,13 @@ describe("the redacting ipc (M5R36)", () => {
       toolName: "bash",
       result: { content: [{ type: "text", text: "a.ts:3: ghp_testsec... [truncated]" }] },
     };
-    createRedactingIpc(sent.ipc, () => redactor).send(record);
+    createRedactingIpc(sent.ipc, () => redactor, builtin).send(record);
     expect(sent.records).toEqual([record]);
   });
 
   it("reports the first, second and fourth unchecked record only, and answers every response", () => {
     const sent = fakeIpc();
-    const out = createRedactingIpc(sent.ipc, () => redactor);
+    const out = createRedactingIpc(sent.ipc, () => redactor, builtin);
     const hostile = (id: string) =>
       Object.defineProperty({ type: "response", id, command: "compact", success: true }, "data", {
         enumerable: true,
@@ -349,7 +350,7 @@ describe("the redacting ipc (M5R36)", () => {
       },
     });
     expect(() =>
-      createRedactingIpc(sent.ipc, () => redactor).send(record as unknown as Outbound),
+      createRedactingIpc(sent.ipc, () => redactor, builtin).send(record as unknown as Outbound),
     ).not.toThrow();
     expect(sent.records).toEqual([]);
   });
@@ -361,7 +362,7 @@ describe("the redacting ipc (M5R36)", () => {
       onMessage: () => (calls.push("m"), () => calls.push("off")),
       onDisconnect: () => void calls.push("d"),
     };
-    const wrapped = createRedactingIpc(base, () => redactor);
+    const wrapped = createRedactingIpc(base, () => redactor, builtin);
     wrapped.onDisconnect(() => {});
     wrapped.onMessage(() => {})();
     expect(calls).toEqual(["d", "m", "off"]);
