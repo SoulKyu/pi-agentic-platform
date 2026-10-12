@@ -162,6 +162,64 @@ describe("Composer sign-out and unmount races", () => {
   });
 });
 
+describe("Composer banner after a remount mid-flight (M2 #44)", () => {
+  const MAY_HAVE_BEEN_SENT = "The message may have been sent.";
+  const remountMidFlight = async () => {
+    const call = inFlight();
+    const container = await show({ status: "idle" });
+    await sendFrom(container, "deploy");
+    const newer = await remount();
+    // The send is still in flight: its outcome is not known yet, so the banner is right.
+    expect(text(newer)).toContain(MAY_HAVE_BEEN_SENT);
+    return { call, newer };
+  };
+
+  it("drops the banner when the send the old screen made fails definitely", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(text(newer)).not.toContain(MAY_HAVE_BEEN_SENT);
+    expect(hasButton(newer, "Send again")).toBe(false);
+    expect(localStorage.getItem("pap.draft.sess-1")).toBe("deploy");
+    expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
+  });
+
+  it("drops the banner when the send the old screen made succeeds", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.resolve({ disposition: "started" });
+    await settle();
+    expect(text(newer)).not.toContain(MAY_HAVE_BEEN_SENT);
+    expect(hasButton(newer, "Send again")).toBe(false);
+  });
+
+  it("keeps the banner, and Send again, when the outcome stays unknown", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.reject(new RpcError("timeout"));
+    await settle();
+    expect(text(newer)).toContain(MAY_HAVE_BEEN_SENT);
+    expect(hasButton(newer, "Send again")).toBe(true);
+    expect(localStorage.getItem("pap.pending.sess-1")).not.toBeNull();
+  });
+
+  it("shows no banner on a remount after a definite failure", async () => {
+    const call = inFlight();
+    const container = await show({ status: "idle" });
+    await sendFrom(container, "deploy");
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(text(await remount())).not.toContain(MAY_HAVE_BEEN_SENT);
+  });
+
+  it("shows the banner on a remount after an unknown outcome", async () => {
+    const call = inFlight();
+    const container = await show({ status: "idle" });
+    await sendFrom(container, "deploy");
+    call.reject(new RpcError("connection_lost"));
+    await settle();
+    expect(text(await remount())).toContain(MAY_HAVE_BEEN_SENT);
+  });
+});
+
 describe("Composer input cap", () => {
   it("keeps what is shown, stored and sent at the draft cap", async () => {
     const container = await show({ status: "idle" });

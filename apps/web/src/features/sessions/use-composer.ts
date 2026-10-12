@@ -8,6 +8,7 @@ import {
   loadPending,
   MAX_DRAFT_CHARS,
   mergeRestored,
+  onPendingChange,
   saveDraft,
   savePending,
   signOutCount,
@@ -95,6 +96,17 @@ export function useComposer(
       mounted.current = false;
     };
   }, []);
+  // A send of the screen before this one may still be in flight when this one mounts: the record is kept as unknown
+  // until that send ends, and a definite end removes it here too.
+  useEffect(
+    () =>
+      onPendingChange(sessionId, () => {
+        if (sendingRef.current) return; // this screen's own send writes its record itself
+        const stored = loadPending(storage, sessionId);
+        setPending((shown) => (shown?.commandId === stored?.commandId ? shown : stored));
+      }),
+    [storage, sessionId],
+  );
   useEffect(() => {
     const instruction = view.editorText;
     if (instruction && instruction.seq > seenSeq.current) {
@@ -120,8 +132,8 @@ export function useComposer(
   const deliver = async (params: PendingSend["params"], commandId: string) => {
     setError(null);
     const signOuts = signOutCount();
-    savePending(storage, sessionId, { params, commandId });
     sendingRef.current = true;
+    savePending(storage, sessionId, { params, commandId });
     setSending(true);
     try {
       await runtime.rpc.call("sessions.prompt", params, { commandId });

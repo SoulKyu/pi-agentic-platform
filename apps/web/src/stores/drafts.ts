@@ -95,6 +95,21 @@ export function savePending(storage: Storage | null, sessionId: string, pending:
   } catch (error) {
     warnOnce(error);
   }
+  for (const listener of pendingListeners.get(sessionId) ?? []) listener();
+}
+
+const pendingListeners = new Map<string, Set<() => void>>();
+/**
+ * Calls `listener` after every write of this session's pending record in this page. A screen that came back while a
+ * send of the screen before it was in flight learns that way how the send ended (M2 #44).
+ */
+export function onPendingChange(sessionId: string, listener: () => void): () => void {
+  const listeners = pendingListeners.get(sessionId) ?? new Set();
+  pendingListeners.set(sessionId, listeners.add(listener));
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) pendingListeners.delete(sessionId);
+  };
 }
 
 let signOuts = 0;
