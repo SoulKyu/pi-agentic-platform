@@ -98,6 +98,10 @@ it.runIf(BUDGET_RUN)(
     );
     expect(shape.rows).toBeGreaterThan(1_000_000);
     expect(p95).toBeLessThanOrEqual(budgets.searchP95Ms);
+    // I1: marks FTS5 splits at must not make a one-letter prefix (it took 13 s on 3 000 sessions).
+    const started = performance.now();
+    await run("b\u093F\u093F");
+    expect(performance.now() - started).toBeLessThanOrEqual(budgets.searchP95Ms);
   },
   300_000,
 );

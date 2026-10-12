@@ -22,8 +22,8 @@ Code: `apps/daemon/src/modules/search/`. The index is a cache of Pi's files (ADR
 
 ## Queries
 
-- `search.query {q, limit?}` runs in a worker thread (`search-thread.ts`; `.js` next to the module in the build, `pnpm smoke` proves it). Deadline 2 s (`timeout`), at most 4 in flight (`capacity`), thread started on demand, stopped after 5 idle minutes, at most 3 starts a minute.
-- `matchExpression`: every word of the input (letters, digits, marks, NFKC) quoted, all required (at most 8); the last word is a prefix while it is being typed and has 3 code points or more. Nothing else of the input reaches FTS5.
+- `search.query {q, limit?}` runs in a worker thread (`search-thread.ts`; `.js` next to the module in the build, `pnpm smoke` proves it). Deadline 2 s (`timeout`: the client stops waiting and abandons the thread, which keeps its core until its statement ends — `terminate()` cannot interrupt SQLite, and `pap_deadline()` is only checked per matched row, not while FTS5 loads a prefix's doclists), at most 4 in flight (`capacity`), thread started on demand, stopped after 5 idle minutes, at most 3 starts a minute.
+- `matchExpression`: every word of the input (letters, digits, marks, NFKC) quoted, all required (at most 8); the last word is a prefix while it is being typed and its last FTS5 token has 3 characters or more. Marks that FTS5's tokenizer splits at (asked of the real tokenizer, e.g. the Devanagari vowel signs) count as separators, so `bिि` or `किताब` never makes a one-letter prefix (I1). That minimum is what bounds a query's cost. Nothing else of the input reaches FTS5.
 - Rows are filtered by the caller's `owner_id`. The best row of each session is chosen in SQL (`bm25`, one place per session); the answer carries up to 20 hits with a snippet of at most 400 units. Snippet highlights are the control markers `\u0002` and `\u0003`, turned into `<mark>` by the web, never HTML.
 
 ## Measured budgets

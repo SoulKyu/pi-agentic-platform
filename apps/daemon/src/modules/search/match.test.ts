@@ -70,4 +70,57 @@ describe("matchExpression (M4R47)", () => {
     }
     db.close();
   });
+
+  describe("prefix minimum on the tokens FTS5 really produces (I1)", () => {
+    // U+093F (Devanagari vowel sign I) and U+20D0 are marks outside unicode61's diacritic table: FTS5 splits at them.
+    const vowel = "\u093F";
+    const ring = "\u20D0";
+    const index = (...texts: string[]) => {
+      const db = new DatabaseSync(":memory:");
+      db.exec("CREATE VIRTUAL TABLE t USING fts5(text, tokenize='unicode61 remove_diacritics 2')");
+      for (const text of texts) db.prepare("INSERT INTO t VALUES (?)").run(text);
+      const find = (input: string) => {
+        const expression = matchExpression(input);
+        if (expression === null) return null;
+        return (
+          db.prepare("SELECT text FROM t WHERE t MATCH ? ORDER BY rowid").all(expression) as Array<{
+            text: string;
+          }>
+        ).map((row) => row.text);
+      };
+      return { find };
+    };
+
+    it("never makes a prefix of fewer than 3 characters, whatever separates them", () => {
+      for (const input of [
+        `b${vowel}${vowel}`,
+        `${vowel}${vowel}b`,
+        `abc${ring}z`,
+        `a${vowel}b${vowel}c`,
+        `ab${ring}`,
+      ])
+        expect(matchExpression(input), JSON.stringify(input)).not.toContain("*");
+    });
+
+    it("keeps the prefix when the last piece has 3 characters, and for ordinary Hindi it is a phrase without prefix", () => {
+      expect(matchExpression(`ab${vowel}cde`)).toBe(`"ab${vowel}cde"*`);
+      expect(matchExpression("\u0915\u093F\u0924\u093E\u092C")).not.toContain("*");
+      expect(matchExpression("cafe\u0301s")).toBe('"caf\u00E9s"*');
+    });
+
+    it("on a real index, a one-letter prefix does not expand", () => {
+      const { find } = index("b", "b1 b2 b3", "bar", "xyz abcdef", "ab c");
+      expect(find(`b${vowel}${vowel}`)).toEqual(["b"]);
+      expect(find(`${vowel}${vowel}b`)).toEqual(["b"]);
+      expect(find(`abc${ring}d`)).toEqual([]);
+      expect(find("ab")).toEqual(["ab c"]);
+      expect(find("abc")).toEqual(["xyz abcdef"]);
+    });
+
+    it("a Hindi word typed normally finds itself", () => {
+      const word = "\u0915\u093F\u0924\u093E\u092C";
+      const { find } = index(`un ${word} deux`, "autre");
+      expect(find(word)).toEqual([`un ${word} deux`]);
+    });
+  });
 });

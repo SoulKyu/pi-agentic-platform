@@ -25,7 +25,12 @@ The FTS5 index and the scanner's byte-offset cursors live in `$PAP_HOME/search.d
 - `state.db` stays small, so its pre-migration snapshots and `pap backup` (M6) stay cheap; the backup can leave
   `search.db` out.
 - The daemon is still the single writer (the scanner, on the main thread, in short transactions). Queries run in one
-  worker thread with its own read-only connection (WAL), as spec C asks; a query past 2 s terminates the thread.
+  worker thread with its own read-only connection (WAL), as spec C asks. A query past 2 s is answered `timeout` and its
+  thread is abandoned, not terminated: `terminate()` cannot interrupt a running SQLite statement, so the thread keeps
+  its core until the statement ends. The deadline (`pap_deadline()`) is checked per matched row only; FTS5 loads a
+  prefix's doclists before any row is filtered, and `node:sqlite` has no progress handler to stop that. What bounds the
+  cost is the 3-character prefix minimum, decided on the tokens FTS5 itself produces (a mark FTS5 splits at cannot
+  make a one-letter prefix), at most 4 queries in flight and at most 3 thread starts a minute.
 
 ## Consequences
 
