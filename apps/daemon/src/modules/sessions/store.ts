@@ -1,4 +1,5 @@
 import type { Db } from "../../kernel/db/database.ts";
+import { createMarksStore, type MarksStore } from "./marks-store.ts";
 
 export interface SessionRow {
   /** The session's own id: what the client and the stream use. Pi's id for the same session lives in `piSessionId`. */
@@ -16,7 +17,12 @@ export interface SessionRow {
 }
 
 export interface SessionsStore {
-  insert(row: SessionRow): void;
+  /** The database is one a newer pap wrote: nothing may be written (RT-04). */
+  readonly readOnly: boolean;
+  /** The M4 columns of the same table: marks, project, preview, pending Pi id. */
+  readonly marks: MarksStore;
+  /** `projectId` comes from `project-link.ts`; none when the session is filed later. */
+  insert(row: SessionRow, projectId?: string | null): void;
   get(id: string): SessionRow | undefined;
   listByOwner(ownerId: string): SessionRow[];
   touch(id: string, at: number): void;
@@ -32,10 +38,12 @@ const COLUMNS =
 
 export function createSessionsStore(db: Db): SessionsStore {
   return {
-    insert: (row) => {
+    readOnly: db.readOnly,
+    marks: createMarksStore(db),
+    insert: (row, projectId = null) => {
       db.run(
-        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, name, created_at, updated_at) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $name, $createdAt, $updatedAt)",
-        { ...row },
+        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, name, project_id, created_at, updated_at) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $name, $projectId, $createdAt, $updatedAt)",
+        { ...row, projectId },
       );
     },
     get: (id) => db.get<SessionRow>(`SELECT ${COLUMNS} FROM sessions WHERE id = $id`, { id }),

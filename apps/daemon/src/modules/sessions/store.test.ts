@@ -96,6 +96,16 @@ describe("sessions store", () => {
   });
 });
 
+describe("marks columns on the store", () => {
+  it("stores the project given to insert, none otherwise, and mirrors the database's read-only flag", () => {
+    store.insert(draft("a"), "p1");
+    store.insert(draft("b"));
+    expect(createSessionsStore(db).marks.row("a")?.projectId).toBe("p1");
+    expect(createSessionsStore(db).marks.row("b")?.projectId).toBeNull();
+    expect(createSessionsStore(db).readOnly).toBe(false);
+  });
+});
+
 describe("the session_name migration", () => {
   it("is accepted by a database that already holds the policy migration, and adds the column", () => {
     const old = join(dir, "old-sessions");
@@ -120,7 +130,10 @@ describe("the session_name migration", () => {
       ...options,
       sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS],
     });
-    expect(second.applied).toEqual(["sessions/202610110200_session_name.sql"]);
+    expect(second.applied).toEqual([
+      "sessions/202610110200_session_name.sql",
+      "sessions/202610121500_session_marks.sql",
+    ]);
     expect(second.readOnly).toBe(false);
     second.db.close();
   });
