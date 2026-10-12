@@ -25,7 +25,9 @@ function textOf(role: "user" | "assistant", content: unknown): string {
   if (typeof content === "string") return role === "user" ? content : "";
   if (!Array.isArray(content)) return "";
   return content
-    .filter((block) => (block as { type?: unknown }).type === "text")
+    .filter(
+      (block) => typeof block === "object" && block !== null && (block as { type?: unknown }).type === "text",
+    )
     .map((block) => (block as { text?: unknown }).text)
     .filter((text): text is string => typeof text === "string")
     .join("\n");

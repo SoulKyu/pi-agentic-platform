@@ -54,6 +54,7 @@ export function openRegular(
   return { refused: "not_file" };
 }
 
+/** I/O errors (a file removed or unreadable mid-read) propagate to the caller, which catches them (Task 15). */
 function readAt(fd: number, position: number, length: number): Buffer {
   const buffer = Buffer.alloc(length);
   let filled = 0;

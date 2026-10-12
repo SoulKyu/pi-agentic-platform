@@ -1,10 +1,9 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { closeSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { extract } from "./extract.ts";
-import { closeSync } from "node:fs";
 import { openRegular, parseHeader, readHeaderLine, readLines } from "./session-file.ts";
 import { sessionFileText } from "../sessions/testing/pi-file-writers.ts";
 
@@ -71,6 +70,12 @@ describe("extract (M4R59)", () => {
       user("u1", [{ type: "text", text: "x" }, { type: "image" }, { type: "text", text: "y" }]),
     ]);
     expect(out.rows.map((row) => row.text)).toEqual(["a\nb", "x\ny"]);
+  });
+
+  it("ignores non-object content entries without throwing", () => {
+    const content = [null, 5, "s", { type: "text", text: "ok" }];
+    const out = extract([user("u1", content), assistant("a1", content)]);
+    expect(out.rows.map((row) => row.text)).toEqual(["ok", "ok"]);
   });
 
   it("does not index an assistant string content, nor an overlong entry id", () => {

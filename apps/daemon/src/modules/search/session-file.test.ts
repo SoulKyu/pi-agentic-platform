@@ -141,6 +141,48 @@ describe("reading lines from an offset (M4R58)", () => {
     closeSync(file.fd);
   });
 
+  it("clamps a call at budget + MAX_LINE_BYTES for a non-aligned budget", () => {
+    const MiB = 1024 * 1024;
+    const file = open(write("clamp.jsonl", `${"x".repeat(20 * MiB)}\n`));
+    const read = readLines(file.fd, 0, file.size, 1000);
+    expect([read.next, read.skipping, read.records]).toEqual([1000 + MAX_LINE_BYTES, true, []]);
+    closeSync(file.fd);
+  });
+
+  it("keeps a multi-byte character straddling a 1 MiB read boundary intact", () => {
+    const MiB = 1024 * 1024;
+    const text = `${"a".repeat(MiB - 1)}\u00e9\u{1F600}`;
+    const body = `${JSON.stringify({ type: "m", text })}\n`;
+    const file = open(write("utf.jsonl", body));
+    const read = readLines(file.fd, 0, file.size, 4 * MiB);
+    expect(read.records).toEqual([{ type: "m", text }]);
+    expect(read.next).toBe(Buffer.byteLength(body));
+    closeSync(file.fd);
+  });
+
+  it("reads nothing from an empty file or past a header-only one", () => {
+    const empty = open(write("empty.jsonl", ""));
+    expect(readLines(empty.fd, 0, empty.size)).toEqual({
+      records: [],
+      next: 0,
+      bad: 0,
+      skipped: 0,
+      skipping: false,
+    });
+    closeSync(empty.fd);
+    const only = open(write("only.jsonl", `${header()}\n`));
+    const head = readHeaderLine(only.fd, only.size);
+    const from = (head?.end ?? 0) + 1;
+    expect(readLines(only.fd, from, only.size)).toEqual({
+      records: [],
+      next: from,
+      bad: 0,
+      skipped: 0,
+      skipping: false,
+    });
+    closeSync(only.fd);
+  });
+
   it("finds no header line until its newline is written, nor one past 64 KiB", () => {
     const partial = open(write("d.jsonl", header()));
     expect(readHeaderLine(partial.fd, partial.size)).toBeNull();
