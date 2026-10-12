@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { useCommand } from "../../lib/use-command.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
@@ -11,6 +12,7 @@ import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
+import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
 import { usePaletteChord } from "./shortcut.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
@@ -42,12 +44,15 @@ export function MobileShell() {
       delete document.documentElement.dataset["shell"];
     };
   }, []);
+  // The home's "All sessions" on a phone: the Lists section, where the tree lives.
+  useCommand("mobile.lists.open", () => setSection("lists"));
   const item = itemFromPath(pathname, import.meta.env.DEV);
   const title = item ? itemTitle(item, sessions, views, t) : t("shell.notFound.title");
   return (
     <div data-shell="mobile" className="flex h-app flex-col">
       <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
         <Mark size={20} />
+        <ProjectSwitcher />
         <span className="min-w-0 flex-1 truncate text-ui font-semibold">{title}</span>
         <IconButton
           icon={IconSearch}
@@ -68,7 +73,7 @@ export function MobileShell() {
             text={lazyText}
             load={loadTree}
             open={section === "lists"}
-            props={{ onPick: () => setSection("work"), chord }}
+            props={{ onPick: () => setSection("work"), onNewSession: () => setSection("work"), chord }}
             onFailed={() => setSection("work")}
           />
         ) : section === "inbox" ? (

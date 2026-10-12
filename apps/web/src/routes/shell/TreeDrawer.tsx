@@ -20,7 +20,11 @@ export default function TreeDrawer({ open, onOpenChange }: DrawerProps) {
       closeLabel={t("ui.close")}
       variant="drawer-left"
     >
-      <ProjectTree onPick={() => onOpenChange(false)} chord={chord} />
+      <ProjectTree
+        onPick={() => onOpenChange(false)}
+        onNewSession={() => onOpenChange(false)}
+        chord={chord}
+      />
     </Dialog>
   );
 }

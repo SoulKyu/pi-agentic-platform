@@ -2,9 +2,11 @@ import "../../i18n/register-sidebar.ts";
 import { type ProjectSummary, SHELL_LIMITS } from "@pap/contracts";
 import { IconButton, IconMore, TextField } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { type MessageKey, useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
+import { useCurrentProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useMenuFocus, wantFocus } from "./menu-focus.ts";
 import { organiseProject } from "./organise.ts";
@@ -21,11 +23,14 @@ interface ProjectMenuProps {
   /** False while the tree is filtered: the shown order is then not the whole order. */
   readonly movable: boolean;
   onRename(): void;
+  /** After "New session here" went to the start. */
+  onNewSession?(): void;
 }
 
-/** The "⋯" menu of a project heading: Rename, Move up, Move down (M4R98, no drag and drop, M4R99). */
-export function ProjectMenu({ project, order, movable, onRename }: ProjectMenuProps) {
+/** The "⋯" menu of a project heading: New session here, Rename, Move up, Move down (M4R98, no drag and drop, M4R99). */
+export function ProjectMenu({ project, order, movable, onRename, onNewSession }: ProjectMenuProps) {
   const t = useT();
+  const navigate = useNavigate();
   const lazyText = useLazyFailureText();
   const pending = useShellStore((state) => state.view.pending.size > 0);
   const key = keyOf(project);
@@ -47,7 +52,15 @@ export function ProjectMenu({ project, order, movable, onRename }: ProjectMenuPr
     label: t(label),
     onSelect,
   });
-  const items = [item("rename", "sidebar.action.rename", onRename)];
+  const items = [
+    item("new", "sidebar.action.newHere", () => {
+      // The person starts from this project: the home reads the choice for its folder and Recent list.
+      useCurrentProject.getState().choose(project.id);
+      onNewSession?.();
+      void navigate({ to: "/" });
+    }),
+    item("rename", "sidebar.action.rename", onRename),
+  ];
   if (movable && at > 0) {
     items.push(item("up", "sidebar.action.moveUp", () => move((order[at - 1] as ProjectSummary).id)));
   }

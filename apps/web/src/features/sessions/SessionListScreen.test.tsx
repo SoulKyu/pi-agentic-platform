@@ -15,11 +15,17 @@ import {
   type Mounted,
 } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
-import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { shellProject, shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { useCurrentProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { SessionListScreen } from "./SessionListScreen.tsx";
 
-const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined, navigate: vi.fn() }));
+const current = vi.hoisted(() => ({
+  runtime: undefined as Runtime | undefined,
+  navigate: vi.fn(),
+  runCommand: vi.fn(),
+}));
+vi.mock("../../lib/command-registry.ts", () => ({ runCommand: current.runCommand }));
 vi.mock("../../runtime/index.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
@@ -50,6 +56,8 @@ async function show(state: "open" | "waiting" = "open") {
 beforeEach(() => {
   useShellStore.getState().reset();
   current.navigate.mockReset();
+  current.runCommand.mockReset();
+  useCurrentProject.setState({ projectId: null, storageRefused: false });
 });
 afterEach(async () => {
   await page?.unmount();
@@ -99,7 +107,7 @@ describe("SessionListScreen", () => {
     expect(text(container)).toContain("/work/b");
   });
 
-  it("shows the 50 newest sessions that are not archived", async () => {
+  it("shows the 10 newest sessions that are not archived", async () => {
     listed(
       ...Array.from({ length: 60 }, (_, i) =>
         shellSession({ id: `s${i}`, cwd: `/w/${i}`, updatedAt: i + 1 }),
@@ -108,9 +116,9 @@ describe("SessionListScreen", () => {
     );
     const container = await show();
     const hrefs = [...container.querySelectorAll("a")].map((link) => link.getAttribute("href"));
-    expect(hrefs).toHaveLength(50);
+    expect(hrefs).toHaveLength(10);
     expect(hrefs[0]).toBe("/s/s59");
-    expect(hrefs.at(-1)).toBe("/s/s10");
+    expect(hrefs.at(-1)).toBe("/s/s50");
   });
 
   it("follows the stream: a session that arrives as an event appears", async () => {
@@ -200,5 +208,98 @@ describe("SessionListScreen", () => {
       await page?.unmount();
       page = null;
     }
+  });
+});
+
+describe("the home narrowed to the current project", () => {
+  const twoProjects = (extra: ShellSession[] = []) =>
+    useShellStore.getState().apply(
+      shellSnapshot(
+        [
+          shellSession({ id: "a", cwd: "/w/api/a", projectId: "api", updatedAt: 30 }),
+          shellSession({ id: "w1", cwd: "/w/web/1", projectId: "web", updatedAt: 20 }),
+          shellSession({ id: "w2", cwd: "/w/web/2", projectId: "web", updatedAt: 40 }),
+          shellSession({ id: "gone", cwd: "/w/web/g", projectId: "web", updatedAt: 99, archivedAt: 5 }),
+          ...extra,
+        ],
+        {
+          projects: [
+            shellProject({ id: "api", name: "api", root: "/w/api", position: 1, sessions: 1 }),
+            shellProject({ id: "web", name: "web", root: "/w/web", position: 2, sessions: 2 }),
+          ],
+        },
+      ),
+    );
+
+  it("starts the folder field with the project's root and lists only its sessions, newest first, under Recent", async () => {
+    useCurrentProject.setState({ projectId: "web" });
+    twoProjects();
+    const container = await show();
+    expect(field(container, "Working directory").value).toBe("/w/web");
+    expect(container.querySelector("h2")?.textContent).toBe("Recent");
+    expect([...container.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([
+      "/s/w2",
+      "/s/w1",
+    ]);
+  });
+
+  it("lists 10 at most", async () => {
+    useCurrentProject.setState({ projectId: "web" });
+    twoProjects(
+      Array.from({ length: 15 }, (_, i) =>
+        shellSession({ id: `m${i}`, projectId: "web", updatedAt: 100 + i, cwd: `/w/web/m${i}` }),
+      ),
+    );
+    const container = await show();
+    const hrefs = [...container.querySelectorAll("a")].map((link) => link.getAttribute("href"));
+    expect(hrefs).toHaveLength(10);
+    expect(hrefs[0]).toBe("/s/m14");
+  });
+
+  it("with no project, the field is empty and every project's sessions are listed", async () => {
+    twoProjects();
+    const container = await show();
+    expect(field(container, "Working directory").value).toBe("");
+    expect([...container.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([
+      "/s/w2",
+      "/s/a",
+      "/s/w1",
+    ]);
+  });
+
+  it("a stored project the store does not know narrows nothing and leaves the field empty (RT-36)", async () => {
+    useCurrentProject.setState({ projectId: "ghost" });
+    twoProjects();
+    const container = await show();
+    expect(field(container, "Working directory").value).toBe("");
+    expect(container.querySelectorAll("a")).toHaveLength(3);
+  });
+
+  it("typed text stays when the project changes; an untouched field follows the project", async () => {
+    useCurrentProject.setState({ projectId: "web" });
+    twoProjects();
+    const container = await show();
+    await act(async () => useCurrentProject.getState().choose("api"));
+    expect(field(container, "Working directory").value).toBe("/w/api");
+    await typeInto(field(container, "Working directory"), "/typed");
+    await act(async () => useCurrentProject.getState().choose("web"));
+    expect(field(container, "Working directory").value).toBe("/typed");
+  });
+
+  it("creates the session in the project's root when the field is untouched", async () => {
+    useCurrentProject.setState({ projectId: "web" });
+    twoProjects();
+    const container = await show();
+    bed.handlers["sessions.create"] = () => ({ sessionId: "new-2" });
+    await click(button(container, "New session"));
+    await settle();
+    expect(bed.called("sessions.create")[0]?.params).toEqual({ cwd: "/w/web" });
+  });
+
+  it("All sessions opens the tree through the command", async () => {
+    twoProjects();
+    const container = await show();
+    await click(button(container, "All sessions"));
+    expect(current.runCommand).toHaveBeenCalledExactlyOnceWith("drawer.tree.toggle");
   });
 });

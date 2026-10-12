@@ -1,6 +1,7 @@
 import { Button, Icon, IconButton, IconInbox, IconSearch, IconTree, Kbd } from "@pap/ui";
 import { runCommand } from "../../features/commands/index.ts";
 import { useT } from "../../i18n/index.ts";
+import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
 import { useShortcut } from "./shortcut.ts";
 
 /** The active item's title between the drawer buttons; their handlers arrive with the drawers. */
@@ -11,6 +12,7 @@ export function TopBar({ title }: { readonly title: string }) {
   const palette = useShortcut("palette.toggle");
   return (
     <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
+      <ProjectSwitcher />
       <IconButton
         icon={IconTree}
         label={t("shell.top.tree")}

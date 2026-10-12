@@ -4,6 +4,7 @@ import { Banner, Button, Collapsible, TextField } from "@pap/ui";
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { errorKey, plural, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { useEffectiveProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { ArchivedShelf } from "./ArchivedShelf.tsx";
 import { Loading } from "./Loading.tsx";
@@ -14,6 +15,8 @@ import { buildTree, clampShown, ROWS_PER_PROJECT } from "./tree.vm.ts";
 
 interface ProjectTreeProps {
   onPick(id: string): void;
+  /** A project's "New session here" went to the start: close the drawer, or leave the Lists section. */
+  onNewSession?(): void;
   /** The palette's effective chord, formatted ("Ctrl+K"); null when it has none. */
   readonly chord: string | null;
 }
@@ -43,9 +46,11 @@ function SavingStatus({ pending }: { readonly pending: boolean }) {
       setSlow(false);
     };
   }, [pending]);
+  const saying = pending && slow;
+  // Always in the layout, so a screen reader has the region before its first message; invisible while empty.
   return (
-    <div role="status" aria-live="polite" className="text-ui text-muted empty:hidden">
-      {pending && slow ? t("sidebar.saving") : ""}
+    <div role="status" aria-live="polite" className={saying ? "text-ui text-muted" : "sr-only"}>
+      {saying ? t("sidebar.saving") : ""}
     </div>
   );
 }
@@ -86,10 +91,11 @@ function Shelf({ title, sessions, more, now, onPick }: ShelfProps) {
 }
 
 /** The ⌘B tree: pinned, then projects with their sessions, then the Snoozed, Settled and Archived shelves. */
-export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
+export default function ProjectTree({ onPick, onNewSession, chord }: ProjectTreeProps) {
   const t = useT();
   const locale = useLocale();
   const view = useShellStore((state) => state.view);
+  const current = useEffectiveProject();
   const now = useNow(60_000);
   const [filter, setFilter] = useState("");
   const [shown, setShown] = useState<ReadonlyMap<string, number>>(new Map());
@@ -101,7 +107,7 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
     sessions: view.sessions.values(),
     projects: view.projects,
     filter,
-    projectId: null,
+    projectId: current?.id ?? null,
     shown,
     now,
   });
@@ -165,6 +171,7 @@ export default function ProjectTree({ onPick, chord }: ProjectTreeProps) {
               project={group.project}
               order={order}
               movable={!filtering}
+              onNewSession={onNewSession}
             />
             {group.sessions.length > 0 ? (
               <ul className="flex flex-col gap-s1">

@@ -3,6 +3,7 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { RpcError } from "../../runtime/rpc.ts";
+import { useCurrentProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { click, field, press, settle, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
@@ -11,6 +12,7 @@ import {
   DAY,
   choose,
   closeToasts,
+  currentPath,
   deferred,
   load,
   menuItems,
@@ -33,6 +35,7 @@ beforeEach(() => {
   bed = fakeRuntime("open");
   current.runtime = bed.runtime;
   useShellStore.getState().reset();
+  useCurrentProject.setState({ projectId: null, storageRefused: false });
 });
 afterEach(async () => {
   vi.useRealTimers();
@@ -78,6 +81,8 @@ describe("the snooze dialog", () => {
   });
 
   it("limits the field to a minute ahead .. 366 days", async () => {
+    // A fixed clock mid-minute (only Date; waitFor ticks it by 50 ms): no read can straddle a minute boundary.
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 9, 12, 10, 30, 10) });
     await openDialog();
     const when = field(document, "Date and time");
     expect(when.getAttribute("min")).toBe(toLocalInput(Date.now() + 60_000));
@@ -122,19 +127,31 @@ describe("the project menu", () => {
       },
     );
 
-  it("lists Rename, and Move up / Move down where they apply", async () => {
+  it("lists New session here, Rename, and Move up / Move down where they apply", async () => {
     await projects();
     const box = await show();
     await openMenu(projectTrigger(box, "Alpha"));
-    expect(menuItems()).toEqual(["Rename", "Move down"]);
+    expect(menuItems()).toEqual(["New session here", "Rename", "Move down"]);
     await press(document.activeElement as HTMLElement, { key: "Escape" });
     await settle();
     await openMenu(projectTrigger(box, "Bravo"));
-    expect(menuItems()).toEqual(["Rename", "Move up", "Move down"]);
+    expect(menuItems()).toEqual(["New session here", "Rename", "Move up", "Move down"]);
     await press(document.activeElement as HTMLElement, { key: "Escape" });
     await settle();
     await openMenu(projectTrigger(box, "Charlie"));
-    expect(menuItems()).toEqual(["Rename", "Move up"]);
+    expect(menuItems()).toEqual(["New session here", "Rename", "Move up"]);
+  });
+
+  it("New session here chooses the project, goes to the start and closes the drawer", async () => {
+    await projects();
+    const left = vi.fn();
+    const box = await show("/s/a1", left);
+    await openMenu(projectTrigger(box, "Bravo"));
+    await choose("New session here");
+    expect(useCurrentProject.getState().projectId).toBe("b");
+    expect(currentPath()).toBe("/");
+    expect(left).toHaveBeenCalledTimes(1);
+    expect(updates()).toEqual([]);
   });
 
   it("Move up on the second project sends before = the first; Move down on the first, before = the third", async () => {

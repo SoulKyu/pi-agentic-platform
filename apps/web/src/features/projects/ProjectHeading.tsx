@@ -13,10 +13,20 @@ interface ProjectHeadingProps {
   /** The projects as the tree shows them, first first. */
   readonly order: readonly ProjectSummary[];
   readonly movable: boolean;
+  onNewSession?(): void;
 }
 
 /** A project's name (the heading), its folder, how many active sessions it has, and its menu. */
-export function ProjectHeading({ id, name, root, count, project, order, movable }: ProjectHeadingProps) {
+export function ProjectHeading({
+  id,
+  name,
+  root,
+  count,
+  project,
+  order,
+  movable,
+  onNewSession,
+}: ProjectHeadingProps) {
   const [renaming, setRenaming] = useState(false);
   return (
     <div className="flex flex-col gap-s1">
@@ -41,6 +51,7 @@ export function ProjectHeading({ id, name, root, count, project, order, movable 
                   project={project}
                   order={order}
                   movable={movable}
+                  onNewSession={onNewSession}
                   onRename={() => setRenaming(true)}
                 />
               )}

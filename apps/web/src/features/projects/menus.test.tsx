@@ -254,6 +254,9 @@ describe("the row menu", () => {
     const box = await show();
     const slow = deferred();
     bed.handlers["sessions.mark"] = () => slow.promise;
+    const region = () => box.querySelector('[role="status"]');
+    // Present from the first render, so a screen reader has it before the first message; no visible gap while empty.
+    expect(region()?.classList.contains("sr-only")).toBe(true);
     await openMenu(sessionTrigger(box, "Fix login"));
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const item = [...document.querySelectorAll('[role="menuitem"]')].find((i) => i.textContent === "Settle");
@@ -269,6 +272,7 @@ describe("the row menu", () => {
       vi.advanceTimersByTime(1);
     });
     expect(box.querySelector('[role="status"]')?.textContent).toBe("Saving…");
+    expect(region()?.classList.contains("sr-only")).toBe(false);
     slow.resolve({ ok: true });
     await act(async () => {});
     expect(sessionTrigger(box, "Other").disabled).toBe(false);

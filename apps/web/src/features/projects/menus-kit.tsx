@@ -20,11 +20,15 @@ export const DAY = 24 * HOUR;
 export const load = (sessions: ShellSession[], patch: Parameters<typeof shellSnapshot>[1] = {}) =>
   act(async () => useShellStore.getState().apply(shellSnapshot(sessions, patch)));
 
-export async function show() {
+let lastRouter: { state: { location: { pathname: string } } } | null = null;
+/** Where the last `show()` router is now. */
+export const currentPath = (): string => lastRouter?.state.location.pathname ?? "";
+
+export async function show(at = "/", onNewSession: () => void = () => {}) {
   const Tree = () => (
     <>
       <Toaster closeLabel="Close" regionLabel="Notifications" />
-      <ProjectTree onPick={() => {}} chord="Ctrl+K" />
+      <ProjectTree onPick={() => {}} onNewSession={onNewSession} chord="Ctrl+K" />
     </>
   );
   const root = createRootRoute({ component: Tree });
@@ -32,8 +36,9 @@ export async function show() {
   const session = createRoute({ getParentRoute: () => root, path: "/s/$sessionId", component: () => null });
   const router = createRouter({
     routeTree: root.addChildren([index, session]),
-    history: createMemoryHistory({ initialEntries: ["/"] }),
+    history: createMemoryHistory({ initialEntries: [at] }),
   });
+  lastRouter = router;
   const page = await mount(<RouterProvider router={router} />);
   await settle();
   return page.container;
