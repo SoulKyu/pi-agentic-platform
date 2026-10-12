@@ -132,7 +132,7 @@ describe("adopting a Pi file", () => {
     });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     // The worker is the proof: the pending id, which could have failed to be stored, is not what finds the row.
-    bed.db.run("UPDATE sessions SET pending_pi_session_id = NULL");
+    bed.db.run("DELETE FROM session_pending_ids");
     const path = fileOf("pi-7");
     expect(bed.service.scanPort.claim(path, headerOf("pi-7"))).toEqual({
       kind: "session",
@@ -183,6 +183,31 @@ describe("adopting a Pi file", () => {
     });
     expect(rowCount()).toBe(1);
     expect(bed.store.get(sessionId)?.piPath).toBe(path);
+    expect(spy.calls).toEqual([]);
+  });
+
+  it("a crashed draft that is prompted again still binds its first file back to itself, never under the instance owner (M4R60)", async () => {
+    const spy = adoptions();
+    const ids = ["pi-first", "pi-second"];
+    bed = build({
+      onAdopted: spy.hook,
+      ownerId: () => "u-instance",
+      start: (index) => ({ kind: "ready", piId: ids[index] ?? "pi-late" }),
+    });
+    const caller = testCaller({ userId: "u2" });
+    const { sessionId } = await bed.service.create(bed.work, caller);
+    bed.spawned[0]?.crash({ code: 1, signal: null, cause: "exit_code" });
+    await drain();
+    await bed.service.prompt({ sessionId, text: "again" }, caller);
+    await drain();
+    expect(bed.spawned).toHaveLength(2);
+    // Two ids were reported for the one draft; the first is still its own.
+    expect(bed.store.marks.findByPendingPiId("pi-first")?.id).toBe(sessionId);
+    expect(bed.store.marks.findByPendingPiId("pi-second")?.id).toBe(sessionId);
+    const path = fileOf("pi-first");
+    const claim = bed.service.scanPort.claim(path, headerOf("pi-first"));
+    expect(claim).toEqual({ kind: "session", sessionId, ownerId: "u2" });
+    expect(rowCount()).toBe(1);
     expect(spy.calls).toEqual([]);
   });
 

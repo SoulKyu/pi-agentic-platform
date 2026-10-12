@@ -31,6 +31,9 @@ interface RawRow {
   snoozedUntil: number | null;
 }
 
+/** The Pi ids kept for one draft: one per worker it was started with, the most a person would cause. */
+const MAX_PENDING_IDS = 32;
+
 const COLUMNS =
   "id, owner_id AS ownerId, cwd, name, preview, project_id AS projectId, created_at AS createdAt, updated_at AS updatedAt, " +
   "pin_rank AS pinRank, archived_at AS archivedAt, settled_at AS settledAt, settled_auto AS settledAuto, " +
@@ -178,10 +181,26 @@ export function createMarksStore(db: Db): MarksStore {
       db.run("UPDATE sessions SET preview = $preview WHERE id = $id AND preview IS NULL", { id, preview })
         .changes > 0,
     setPendingPiId: (id, piSessionId) =>
-      db.run("UPDATE sessions SET pending_pi_session_id = $piSessionId WHERE id = $id AND pi_path IS NULL", {
-        id,
-        piSessionId,
-      }).changes > 0,
+      db.transaction(() => {
+        const draft = db.get<{ id: string }>("SELECT id FROM sessions WHERE id = $id AND pi_path IS NULL", {
+          id,
+        });
+        if (!draft) return false;
+        // The column keeps the first id; a later one never replaces it (M4R60).
+        db.run(
+          "UPDATE sessions SET pending_pi_session_id = $piSessionId WHERE id = $id AND pending_pi_session_id IS NULL",
+          {
+            id,
+            piSessionId,
+          },
+        );
+        db.run(
+          "INSERT OR IGNORE INTO session_pending_ids (session_id, pi_session_id) SELECT $id, $piSessionId " +
+            `WHERE (SELECT count(*) FROM session_pending_ids WHERE session_id = $id) < ${MAX_PENDING_IDS}`,
+          { id, piSessionId },
+        );
+        return true;
+      }),
     withoutProject: (afterId, limit) =>
       db.all<{ id: string; ownerId: string; cwd: string }>(
         "SELECT id, owner_id AS ownerId, cwd FROM sessions WHERE project_id IS NULL AND id > $afterId ORDER BY id LIMIT $limit",
@@ -201,8 +220,9 @@ export function createMarksStore(db: Db): MarksStore {
       ),
     findByPendingPiId: (piSessionId) =>
       db.get<PiMatch>(
-        "SELECT id, owner_id AS ownerId, pi_path AS piPath FROM sessions WHERE pending_pi_session_id = $piSessionId " +
-          "ORDER BY created_at DESC, id LIMIT 1",
+        "SELECT s.id AS id, s.owner_id AS ownerId, s.pi_path AS piPath FROM session_pending_ids p " +
+          "JOIN sessions s ON s.id = p.session_id WHERE p.pi_session_id = $piSessionId " +
+          "ORDER BY s.created_at DESC, s.id LIMIT 1",
         { piSessionId },
       ),
     dueSnoozes: (now, limit) =>

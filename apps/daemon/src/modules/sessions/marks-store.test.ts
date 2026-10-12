@@ -136,14 +136,20 @@ describe("marks store", () => {
     expect(marks.findByPiPath("/nope")).toBeUndefined();
   });
 
-  it("keeps a draft's pending Pi id, the latest one, only while the draft has no file, and after the bind (M4R123)", () => {
+  it("keeps every Pi id a draft's workers reported, only while the draft has no file, and after the bind (M4R123, M4R60)", () => {
     add("draft", 1);
     add("bound", 1, { piPath: "/agent/sessions/x/b.jsonl", piId: "pi-b" });
     expect(marks.setPendingPiId("draft", "pi-1")).toBe(true);
     expect(marks.setPendingPiId("draft", "pi-2")).toBe(true);
+    expect(marks.setPendingPiId("draft", "pi-2")).toBe(true);
     expect(marks.setPendingPiId("bound", "pi-3")).toBe(false);
-    expect(marks.findByPendingPiId("pi-1")).toBeUndefined();
+    // A later id never replaces an earlier one: the column keeps the first, the table keeps both.
+    expect(db.get("SELECT pending_pi_session_id AS id FROM sessions WHERE id = 'draft'")).toEqual({
+      id: "pi-1",
+    });
+    expect(marks.findByPendingPiId("pi-1")).toEqual({ id: "draft", ownerId: "u1", piPath: null });
     expect(marks.findByPendingPiId("pi-2")).toEqual({ id: "draft", ownerId: "u1", piPath: null });
+    expect(marks.findByPendingPiId("pi-3")).toBeUndefined();
     createSessionsStore(db).bindPiFile("draft", "/agent/sessions/x/d.jsonl", "pi-2");
     expect(marks.findByPendingPiId("pi-2")).toEqual({
       id: "draft",
@@ -152,6 +158,13 @@ describe("marks store", () => {
     });
     add("long", 1);
     expect(() => marks.setPendingPiId("long", "x".repeat(129))).toThrow();
+  });
+
+  it("keeps at most 32 pending ids per draft", () => {
+    add("many", 1);
+    for (let i = 0; i < 40; i++) marks.setPendingPiId("many", `pi-${i}`);
+    expect(marks.findByPendingPiId("pi-31")?.id).toBe("many");
+    expect(marks.findByPendingPiId("pi-32")).toBeUndefined();
   });
 
   it("lists sessions without a project page by page", () => {
