@@ -292,7 +292,8 @@ describe("worker settings", () => {
 
   it.each([
     [{ PAP_WORKER_SCOPE: "maybe" }, "PAP_WORKER_SCOPE must be auto or off"],
-    [{ PAP_WORKER_MEMORY_MAX_MB: "128" }, "PAP_WORKER_MEMORY_MAX_MB must be an integer ≥ 256"],
+    [{ PAP_WORKER_MEMORY_MAX_MB: "128" }, "PAP_WORKER_MEMORY_MAX_MB must be an integer ≥ 1024"],
+    [{ PAP_WORKER_MEMORY_MAX_MB: "1023" }, "PAP_WORKER_MEMORY_MAX_MB must be an integer ≥ 1024"],
     [{ PAP_WORKER_TASKS_MAX: "8" }, "PAP_WORKER_TASKS_MAX must be an integer ≥ 64"],
     [{ PAP_WORKER_IDLE_MINUTES: "-1" }, "PAP_WORKER_IDLE_MINUTES must be an integer ≥ 0"],
     [{ PAP_WORKER_IDLE_MINUTES: "35792" }, "PAP_WORKER_IDLE_MINUTES must be an integer ≤ 35791"],

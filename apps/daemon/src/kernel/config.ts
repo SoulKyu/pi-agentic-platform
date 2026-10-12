@@ -159,7 +159,7 @@ export function loadConfig(input: ConfigInput): Config {
     workerScope: parseScope(input.env.PAP_WORKER_SCOPE),
     workerLimits: {
       memoryMaxMb: input.env.PAP_WORKER_MEMORY_MAX_MB
-        ? parseCount(input.env.PAP_WORKER_MEMORY_MAX_MB, "PAP_WORKER_MEMORY_MAX_MB", 256)
+        ? parseCount(input.env.PAP_WORKER_MEMORY_MAX_MB, "PAP_WORKER_MEMORY_MAX_MB", 1024)
         : defaultMemoryMaxMb(input.totalMemMb),
       tasksMax: input.env.PAP_WORKER_TASKS_MAX
         ? parseCount(input.env.PAP_WORKER_TASKS_MAX, "PAP_WORKER_TASKS_MAX", 64)
