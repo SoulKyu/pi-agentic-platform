@@ -40,6 +40,8 @@ export interface IntBedOptions {
   readonly workerIdleMs?: number;
   /** Real scopes for the tests that need them (Task 22); every other test runs workers unscoped (owner R2-3). */
   readonly scopes?: WorkerScopes;
+  /** How the daemon is told where the agent folder is (default: as is); `agentDir` stays the plain path. */
+  readonly spellAgentDir?: (agentDir: string) => string;
 }
 
 export interface Subscription {
@@ -85,7 +87,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       ownerId: () => "u1",
       config: {
         home: papHome,
-        piAgentDir: agentDir,
+        piAgentDir: options.spellAgentDir?.(agentDir) ?? agentDir,
         piHostEntry: join(REPO, "packages/pi-host/src/main.ts"),
         piHostExecArgv: EXEC_ARGV,
         testProviderScript: join(root, "script.json"),
