@@ -7,6 +7,7 @@ import { mount, text } from "../testing/dom.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
+import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 import { registerCatalog, setLocale, translate, useT } from "./index.ts";
 
 const src = join(import.meta.dirname, "..");
@@ -147,5 +148,39 @@ describe("lazy catalog (server texts)", () => {
     const { fr } = await import("./fr.ts");
     expect(Object.keys(en).filter((key) => key.startsWith("server."))).toEqual([]);
     expect(Object.keys(fr).filter((key) => key.startsWith("server."))).toEqual([]);
+  });
+});
+
+describe("lazy catalog (sidebar)", () => {
+  it("registers its strings with the tree chunk, English and French, the same slots in both", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await act(async () => registerCatalog({ en: sidebarEn, fr: sidebarFr }));
+    expect(translate("en", "sidebar.showMore")).toBe("Show 20 more");
+    expect(translate("fr", "sidebar.showMore")).toBe("En afficher 20 de plus");
+    const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(sidebarEn) as Array<keyof typeof sidebarEn>)
+      expect(slots(sidebarFr[key]), key).toEqual(slots(sidebarEn[key]));
+  });
+
+  it("is referenced only from features/projects (and, from Task 25, the palette and transcript files)", () => {
+    // Later tasks add their lazy files here; the register file is the only other importer.
+    const inChunk = (file: string) => file.startsWith("features/projects/");
+    const offenders: string[] = [];
+    for (const file of files(src)) {
+      const name = relative(src, file).split("\\").join("/");
+      if (!/\.tsx?$/.test(name) || /\.test\.|^i18n\/|^testing\//.test(name) || inChunk(name)) continue;
+      const code = readFileSync(file, "utf8");
+      for (const key of Object.keys(sidebarEn))
+        if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
+      if (/["'`]sidebar\./.test(code)) offenders.push(`${name}: sidebar prefix`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the sidebar strings out of the eager catalogs", async () => {
+    const { en } = await import("./en.ts");
+    const { fr } = await import("./fr.ts");
+    expect(Object.keys(en).filter((key) => key.startsWith("sidebar."))).toEqual([]);
+    expect(Object.keys(fr).filter((key) => key.startsWith("sidebar."))).toEqual([]);
   });
 });

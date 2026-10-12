@@ -9,7 +9,7 @@ import { click, press, settle, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { RpcError } from "../../runtime/rpc.ts";
-import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { shellProject, shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
@@ -54,15 +54,24 @@ const opened = (title: string) =>
   vi.waitFor(() => expect(dialog()?.querySelector("h2")?.textContent).toBe(title), { timeout: 2_000 });
 
 describe("tree drawer", () => {
-  it("is not in the document until opened, then Ctrl+B lists the sessions grouped by folder", async () => {
+  it("is not in the document until opened, then Ctrl+B lists the sessions grouped by project", async () => {
     const page = await renderShell("/");
     await settle();
-    await feed([session("one", "/w/api", 1), session("two", "/w/api", 2, "running")]);
+    await feed(
+      [
+        shellSession({ id: "one", projectId: "api", updatedAt: 1 }),
+        shellSession({ id: "two", projectId: "api", updatedAt: 2, status: "running" }),
+      ],
+      { projects: [shellProject({ id: "api", name: "api", sessions: 2 })] },
+    );
     expect(dialog()).toBeNull();
     await ctrlB();
     await opened("Sessions");
+    await vi.waitFor(() => expect(dialog()?.querySelector("[data-project-tree]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
     const groups = [...(dialog()?.querySelectorAll("[data-group]") ?? [])];
-    expect(groups.map((group) => group.getAttribute("data-group"))).toEqual(["/w/api"]);
+    expect(groups.map((group) => group.getAttribute("data-group"))).toEqual(["api"]);
     expect(groups[0]?.querySelector("h3")?.textContent).toBe("api");
     expect([...(groups[0]?.querySelectorAll("a") ?? [])].map((row) => row.getAttribute("href"))).toEqual([
       "/s/two",
@@ -82,11 +91,9 @@ describe("tree drawer", () => {
     await ctrlB();
     await opened("Sessions");
     await vi.waitFor(() => expect(dialog()?.querySelectorAll("a")).toHaveLength(3), { timeout: 2_000 });
-    expect([...(dialog()?.querySelectorAll("a") ?? [])].map((row) => row.textContent)).toEqual([
-      "api",
-      "fix the flaky test",
-      "Fix login",
-    ]);
+    expect(
+      [...(dialog()?.querySelectorAll("[data-session-label]") ?? [])].map((row) => row.textContent),
+    ).toEqual(["api", "fix the flaky test", "Fix login"]);
     await page.unmount();
   });
 
@@ -116,17 +123,6 @@ describe("tree drawer", () => {
     await page.unmount();
   });
 
-  it("shows 200 rows and says how many more, pointing to the palette chord", async () => {
-    const page = await renderShell("/");
-    await settle();
-    await feed(Array.from({ length: 250 }, (_, i) => session(`s${i}`, `/w/p${i % 3}`, i)));
-    await ctrlB();
-    await opened("Sessions");
-    expect(dialog()?.querySelectorAll("a")).toHaveLength(200);
-    expect(dialog()?.textContent).toContain("50 more. Use Ctrl+K to find older sessions.");
-    await page.unmount();
-  });
-
   it.each([
     ["refused", "failed"],
     ["unreadable", "unreadable"],
@@ -144,7 +140,11 @@ describe("tree drawer", () => {
     await vi.waitFor(() => expect(dialog()?.querySelector('[data-slot="banner"]')).not.toBeNull(), {
       timeout: 2_000,
     });
-    expect(dialog()?.textContent).toContain("The session list did not load.");
+    expect(dialog()?.textContent).toContain(
+      kind === "refused"
+        ? "The session list could not be loaded."
+        : "The session list could not be read. Reload the page.",
+    );
     const retry = [...(dialog()?.querySelectorAll("button") ?? [])].find((b) => b.textContent === "Retry");
     await click(retry as HTMLElement);
     await settle();

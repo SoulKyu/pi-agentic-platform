@@ -128,10 +128,17 @@ type PluralBase = {
 }[MessageKey];
 
 /** A message that depends on a count: `<base>.one`, `<base>.other`... by the locale's plural rules, `.other` when a form is missing. */
-export function plural(locale: Locale, base: PluralBase, count: number): string {
+export function plural(
+  locale: Locale,
+  base: PluralBase,
+  count: number,
+  vars: Record<string, string | number> = {},
+): string {
   const form = new Intl.PluralRules(locale).select(count);
   const key = `${base}.${form}`;
-  return translate(locale, (Object.hasOwn(en, key) ? key : `${base}.other`) as MessageKey, { count });
+  // The live catalogs: a lazy chunk's forms count once it registered them (M4R139).
+  const known = Object.hasOwn(CATALOGS[locale], key);
+  return translate(locale, (known ? key : `${base}.other`) as MessageKey, { ...vars, count });
 }
 
 export const t = (key: MessageKey, vars?: Record<string, string | number>): string =>

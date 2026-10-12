@@ -11,16 +11,18 @@ import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
-import { SessionTree } from "./SessionTree.tsx";
+import { usePaletteChord } from "./shortcut.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
 const loadTabSwitcher = () => import("./TabSwitcher.tsx");
+const loadTree = () => import("../../features/projects/ProjectTree.tsx");
 
 /** Below 768 px (DESIGN.md §8): one pane at a time, the four sections in a bottom nav. No split, no rail. */
 export function MobileShell() {
   const t = useT();
   const lazyText = useLazyFailureText();
+  const chord = usePaletteChord();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const sessions = useShellStore((state) => state.view.sessions);
@@ -62,7 +64,13 @@ export function MobileShell() {
             <EmptyState title={t("shell.agents.emptyTitle")} purpose={t("shell.agents.emptyPurpose")} />
           </div>
         ) : section === "lists" ? (
-          <SessionTree onPick={() => setSection("work")} />
+          <LazyPanel
+            text={lazyText}
+            load={loadTree}
+            open={section === "lists"}
+            props={{ onPick: () => setSection("work"), chord }}
+            onFailed={() => setSection("work")}
+          />
         ) : section === "inbox" ? (
           <div className="p-s3">
             <EmptyState title={t("shell.inbox.emptyTitle")} purpose={t("shell.inbox.emptyPurpose")} />

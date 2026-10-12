@@ -4,6 +4,12 @@ import { sessionLabel } from "../../lib/session-label.ts";
 export const ROWS_PER_PROJECT = 20;
 export const SHELF_ROWS = 50;
 
+/** A stored "rows shown" count that is safe to `slice` with: a whole number, never below the default (NaN, negatives, fractions). */
+export const clampShown = (count: number | undefined): number =>
+  count === undefined || Number.isNaN(count)
+    ? ROWS_PER_PROJECT
+    : Math.max(ROWS_PER_PROJECT, Math.floor(count));
+
 export interface TreeGroup {
   /** null: sessions without a project, or of a project the store does not know ("Other folders"); at most one such group. */
   readonly project: ProjectSummary | null;
@@ -82,7 +88,7 @@ export function buildTree(input: TreeInput): TreeModel {
     needle === "" ? Math.max(0, project.sessions - (held.get(project.id) ?? 0)) : 0;
   const groups = [...active].map(([key, list]): TreeGroup => {
     const sorted = list.toSorted(newest);
-    const cap = input.shown.get(key ?? "") ?? ROWS_PER_PROJECT;
+    const cap = clampShown(input.shown.get(key ?? ""));
     const project = key === null ? null : (input.projects.get(key) ?? null);
     return {
       project,

@@ -111,9 +111,10 @@ describe("phone shell", () => {
     await settle();
     await click(button(nav(page.container) as HTMLElement, "Lists"));
     await settle();
-    const row = page.container.querySelector<HTMLElement>('a[href="/s/one"]');
-    expect(row).not.toBeNull();
-    await click(row as HTMLElement);
+    await vi.waitFor(() => expect(page.container.querySelector('a[href="/s/one"]')).not.toBeNull(), {
+      timeout: 2_000,
+    }); // the tree is a lazy chunk
+    await click(page.container.querySelector('a[href="/s/one"]') as HTMLElement);
     await settle();
     expect(page.router.state.location.pathname).toBe("/s/one");
     expect(button(nav(page.container) as HTMLElement, "Work").getAttribute("aria-current")).toBe("page");

@@ -87,6 +87,27 @@ describe("the palette in the shell", () => {
     await page.unmount();
   });
 
+  it("spends no row on an archived session", async () => {
+    const page = await renderShell("/");
+    await settle();
+    await act(async () =>
+      bed.emitTo(
+        "subscribe.shell",
+        shellSnapshot([
+          shellSession({ id: "live", cwd: "/w/live", updatedAt: 1 }),
+          shellSession({ id: "gone", cwd: "/w/gone", updatedAt: 9, archivedAt: 5 }),
+        ]),
+      ),
+    );
+    await ctrlK();
+    await waitOpen();
+    await settle();
+    const rows = [...document.querySelectorAll('[role="option"]')].map((el) => el.textContent);
+    expect(rows).toContain("live/w/live");
+    expect(rows).not.toContain("gone/w/gone");
+    await page.unmount();
+  });
+
   it("Escape inside the palette closes the palette and never stops the run", async () => {
     const stop = vi.fn();
     const off = registerCommand("session.stop", stop);

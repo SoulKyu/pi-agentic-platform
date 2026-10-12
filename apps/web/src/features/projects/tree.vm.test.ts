@@ -53,6 +53,23 @@ describe("the project tree", () => {
     expect([more.groups[0]?.sessions.length, more.groups[0]?.hidden]).toEqual([30, 0]);
   });
 
+  it("clamps a bad shown count: below the cap, NaN or negative reads as the default, huge stays finite", () => {
+    const many = Array.from({ length: 30 }, (_, i) =>
+      shellSession({ id: `s${i}`, projectId: "p1", updatedAt: i }),
+    );
+    const sizeFor = (count: number) =>
+      buildTree({ ...base, sessions: many, shown: new Map([["p1", count]]) }).groups.find(
+        (group) => group.project?.id === "p1",
+      )?.sessions.length;
+    expect([sizeFor(Number.NaN), sizeFor(-5), sizeFor(0), sizeFor(2.5), sizeFor(Infinity)]).toEqual([
+      ROWS_PER_PROJECT,
+      ROWS_PER_PROJECT,
+      ROWS_PER_PROJECT,
+      ROWS_PER_PROJECT,
+      30,
+    ]);
+  });
+
   it("shows a project whose active sessions the browser does not hold as a heading with its older line (RT-09)", () => {
     const withOld = new Map([
       ...projects,

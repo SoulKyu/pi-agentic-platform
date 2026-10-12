@@ -24,3 +24,9 @@ export function useShortcut(command: string): {
     };
   }, [rules, command, t]);
 }
+
+/** The palette's chord as one string ("Ctrl+K"), null when it has none: the tree and its shelves point to it. */
+export function usePaletteChord(): string | null {
+  const palette = useShortcut("palette.toggle");
+  return palette.keys.length > 0 ? palette.keys.join(palette.joiner) : null;
+}

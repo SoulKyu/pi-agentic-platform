@@ -4,6 +4,7 @@ import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
+import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 import {
@@ -13,6 +14,7 @@ import {
   onLocaleChange,
   pickLocale,
   plural,
+  registerCatalog,
   setLocale,
   switchLocale,
   translate,
@@ -56,6 +58,8 @@ const IDENTICAL_IN_FR = new Set([
   "commands.key.ctrl",
   "commands.key.alt",
   "commands.key.tab",
+  "sidebar.age.min", // SI abbreviations
+  "sidebar.age.hour",
 ]);
 
 describe("i18n", () => {
@@ -70,8 +74,8 @@ describe("i18n", () => {
   });
 
   it("translates every key into French", () => {
-    const english: Record<string, string> = { ...en, ...settingsScreenEn };
-    const french: Record<string, string> = { ...fr, ...settingsScreenFr };
+    const english: Record<string, string> = { ...en, ...settingsScreenEn, ...sidebarEn };
+    const french: Record<string, string> = { ...fr, ...settingsScreenFr, ...sidebarFr };
     expect(Object.keys(french).sort()).toEqual(Object.keys(english).sort());
     for (const key of Object.keys(english)) {
       expect(french[key], key).toBeTruthy();
@@ -95,6 +99,15 @@ describe("i18n", () => {
     expect(plural("en", "sessions.queue.more", 7)).toBe("7 more");
     expect(plural("fr", "sessions.queue.more", 0)).toBe("0 de plus");
     expect(plural("fr", "sessions.queue.more", 1_000_000)).toBe("1000000 de plus");
+  });
+
+  it("picks the plural form of a lazy catalog once registered, with extra variables", () => {
+    registerCatalog({ en: sidebarEn, fr: sidebarFr });
+    expect(plural("en", "sidebar.older", 1, { chord: "⌘K" })).toBe("1 older session · search with ⌘K");
+    expect(plural("en", "sidebar.older", 2, { chord: "⌘K" })).toBe("2 older sessions · search with ⌘K");
+    expect(plural("fr", "sidebar.older", 0, { chord: "⌘K" })).toBe(
+      "0 session plus ancienne · cherchez avec ⌘K",
+    );
   });
 });
 

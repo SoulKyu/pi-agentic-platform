@@ -42,7 +42,8 @@ export function PaletteHost() {
             platform: detectPlatform(),
             names: keyNames(t),
             tabs,
-            sessions: [...held.values()],
+            // Archived sessions belong to the Archived shelf and to search; they take no palette slot.
+            sessions: [...held.values()].filter((session) => session.archivedAt === null),
             views,
             t,
             navigate: (item) => go(navigate, pathOfItem(item)),

@@ -188,6 +188,9 @@ describe("the built web app under the daemon's CSP", () => {
   it("loads the Settings strings with the Settings chunk, not with the initial catalog", () =>
     keepsLazyOnly([/Saved to your account/, /Enregistré dans votre compte/]));
 
+  it("keeps the project tree and its strings out of the initial assets", () =>
+    keepsLazyOnly([/data-project-tree/, /Show 20 more/]));
+
   it("keeps the markdown renderer and the highlighter out of the initial assets (owner R3-1, R3-5)", async () => {
     const initial = [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((m) => m[1] ?? "");
     for (const name of initial)
