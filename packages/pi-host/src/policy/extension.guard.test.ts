@@ -48,8 +48,11 @@ describe("pap-policy run guard hooks", () => {
   it("lets a malformed message_end go by without raising into the run", async () => {
     const write = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const { fire } = await load();
-    expect(() => fire("message_end", {})).not.toThrow();
-    expect(write).toHaveBeenCalledWith("pi-host: run guard failed (TypeError)\n");
-    write.mockRestore();
+    try {
+      expect(() => fire("message_end", {})).not.toThrow();
+      expect(write).toHaveBeenCalledWith("pi-host: run guard failed (TypeError)\n");
+    } finally {
+      write.mockRestore();
+    }
   });
 });

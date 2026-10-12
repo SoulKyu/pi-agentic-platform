@@ -20,6 +20,11 @@ const LIMIT_OF: Readonly<Record<GuardRule, keyof GuardLimits>> = {
 export const guardTitle = (rule: GuardRule, limits: GuardLimits): string =>
   GUARD_TITLES[rule](limits[LIMIT_OF[rule]]);
 
+/**
+ * "Identical" means the exact canonical input: a small change of argument starts a new streak, and the call and turn caps
+ * bound the run anyway. When two rules trip at once only the first by priority (identical, calls, turns) is reported,
+ * and "Allow once" releases that one.
+ */
 /** The reason a trip writes in the trail: the rule and its limit, never a word of the call. */
 const REASONS: Readonly<Record<GuardRule, (limit: number) => string>> = {
   "identical-calls": (n) => `the same call ${n} times in a row`,

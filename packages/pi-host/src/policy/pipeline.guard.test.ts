@@ -85,20 +85,27 @@ describe("stage 04: the run guard", () => {
     expect(await turns.run("read", { path: "a" })).toBeUndefined();
   });
 
-  it("counts nested calls for nothing and blocked calls for one", async () => {
+  it("counts a nested call for nothing", async () => {
     const h = bed.harness({ rules: guarded(), hasUI: false });
     h.runStart();
     expect(await h.run("read", { path: "a" }, "c1")).toBeUndefined();
     expect(await h.run("read", { path: "a" }, "c2", "parent")).toBeUndefined();
-    expect(await h.run("read", { path: "a" }, "c3")).toMatchObject({ block: true });
-    const blocked = bed.harness({ rules: guarded(), hasUI: false });
-    blocked.runStart();
-    const refused = { command: "rm -rf /" };
-    expect(await blocked.run("bash", refused, "c1")).toMatchObject({ block: true });
-    expect(blocked.entries.at(-1)).toMatchObject({ decision: "block" });
-    expect(await blocked.run("bash", refused, "c2")).toMatchObject({ block: true });
-    // The second refused call was the 2nd in a row: stage 04 never ran on it (already blocked), the count still holds.
-    expect(await blocked.run("bash", refused, "c3")).toMatchObject({ block: true });
+    expect(await h.run("read", { path: "a" }, "c3")).toEqual({ block: true, reason: GUARD_MODEL_REASON });
+  });
+
+  it("counts a call that stage 01 blocked (a model retrying a refused call is a loop)", async () => {
+    const h = bed.harness({ rules: guarded({ identicalCalls: 100, toolCalls: 2, turns: 60 }), hasUI: false });
+    h.runStart();
+    const refused = await h.run("bash", { command: "rm -rf /" }, "c1");
+    expect(refused).toMatchObject({ block: true });
+    expect(refused).not.toEqual({ block: true, reason: GUARD_MODEL_REASON });
+    expect(h.entries.at(-1)).toMatchObject({
+      decision: "block",
+      stages: expect.arrayContaining([expect.objectContaining({ stage: "01", outcome: "block" })]),
+    });
+    expect(await h.run("read", { path: "a" }, "c2")).toBeUndefined();
+    // Two calls were evaluated, one of them blocked: the third is past the limit.
+    expect(await h.run("read", { path: "b" }, "c3")).toEqual({ block: true, reason: GUARD_MODEL_REASON });
   });
 
   it("a trip on a call stage 03 blocked changes nothing", async () => {
