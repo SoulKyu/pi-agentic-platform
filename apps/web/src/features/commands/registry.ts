@@ -19,10 +19,11 @@ export function registerCommand(id: string, handler: CommandHandler): () => void
   };
 }
 
-/** True when the latest handler claimed the command (it returned anything but false). */
+/** True when a handler claimed the command (it returned anything but false): the latest is asked first, then the earlier ones. */
 export function runCommand(id: string): boolean {
-  const entry = handlers.get(id)?.at(-1);
-  return entry ? entry.handler() !== false : false;
+  const stack = handlers.get(id) ?? [];
+  for (const entry of [...stack].reverse()) if (entry.handler() !== false) return true;
+  return false;
 }
 
 export const hasCommand = (id: string): boolean => (handlers.get(id)?.length ?? 0) > 0;

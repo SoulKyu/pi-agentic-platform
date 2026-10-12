@@ -98,6 +98,25 @@ describe("the default bindings (agreement 7, M3-RT-30)", () => {
     expect(escape({ sessionFocus: true, overlayOpen: true })).toEqual([]);
     expect(escape({ sessionFocus: true, panelFocus: true })).toEqual([]);
   });
+  it("keep Escape from stopping the run inside an inline edit (final review I3)", () => {
+    const escape = (context: Record<string, boolean>) =>
+      matchingCommands(ev({ key: "Escape", code: "Escape" }), rules, context, "other");
+    expect(escape({ sessionFocus: true, inlineEditFocus: true })).toEqual([]);
+    expect(escape({ sessionFocus: true, inlineEditFocus: false })).toEqual(["session.stop"]);
+  });
+  it("bind mod+shift+enter to the other streaming behaviour in a session, never in a panel", () => {
+    const send = (context: Record<string, boolean>) =>
+      matchingCommands(
+        ev({ ctrlKey: true, shiftKey: true, key: "Enter", code: "Enter" }),
+        rules,
+        context,
+        "other",
+      );
+    expect(send({ sessionFocus: true })).toEqual(["session.sendOther"]);
+    expect(send({ sessionFocus: false })).toEqual([]);
+    expect(send({ sessionFocus: true, panelFocus: true })).toEqual([]);
+    expect(KNOWN_COMMANDS.has("session.sendOther")).toBe(true);
+  });
   it("let mod+b close the tree drawer, which is itself a modal", () => {
     const modB = (context: Record<string, boolean>) =>
       matchingCommands(ev({ ctrlKey: true, key: "b", code: "KeyB" }), rules, context, "other");

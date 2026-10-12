@@ -16,6 +16,16 @@ describe("command registry (Orca app-command-handlers)", () => {
     expect(hasCommand("x.one")).toBe(false);
   });
 
+  it("offers the key to an earlier registration when the latest declines (two session panes)", () => {
+    const first = vi.fn();
+    const offFirst = registerCommand("x.three", first);
+    const offSecond = registerCommand("x.three", () => false);
+    expect(runCommand("x.three")).toBe(true);
+    expect(first).toHaveBeenCalledOnce();
+    offSecond();
+    offFirst();
+  });
+
   it("reports a declined or unknown command as unclaimed", () => {
     const off = registerCommand("x.two", () => false);
     expect(runCommand("x.two")).toBe(false);

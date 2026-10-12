@@ -7,6 +7,7 @@ export const CONTEXT_KEYS = [
   "dialogOpen",
   "overlayOpen",
   "panelFocus",
+  "inlineEditFocus",
   "paletteOpen",
   "treeOpen",
   "sessionFocus",
@@ -30,6 +31,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: "shortcuts.help", titleKey: "commands.shortcuts.help", group: "app" },
   { id: "session.new", titleKey: "commands.session.new", group: "session" },
   { id: "session.stop", titleKey: "commands.session.stop", group: "session" },
+  { id: "session.sendOther", titleKey: "commands.session.sendOther", group: "session" },
   { id: "tab.next", titleKey: "commands.tab.next", group: "tabs" },
   { id: "tab.prev", titleKey: "commands.tab.prev", group: "tabs" },
   { id: "tab.close", titleKey: "commands.tab.close", group: "tabs" },
@@ -50,7 +52,8 @@ export const COMMANDS: readonly CommandSpec[] = [
 
 // pi-web's shortcuts (spec C §7.3) plus the shell's; chords browsers keep are avoided (Review Focus 4). Every chord
 // stays out of an extension's terminal-input panel (`!panelFocus`); Escape also leaves an open menu, select or popover
-// to Radix (`!overlayOpen`), so it stops the run only when neither holds (agreement 7, owner R3-6).
+// to Radix (`!overlayOpen`) and an inline edit to itself (`!inlineEditFocus`), so it stops the run only when none holds
+// (agreement 7, owner R3-6).
 export const DEFAULT_KEYBINDINGS: readonly KeybindingRule[] = [
   { key: "mod+k", command: "palette.toggle", when: "!panelFocus" },
   { key: "mod+b", command: "drawer.tree.toggle", when: "!panelFocus && (!dialogOpen || treeOpen)" },
@@ -60,8 +63,9 @@ export const DEFAULT_KEYBINDINGS: readonly KeybindingRule[] = [
   {
     key: "escape",
     command: "session.stop",
-    when: "sessionFocus && !panelFocus && !overlayOpen && !dialogOpen && !paletteOpen",
+    when: "sessionFocus && !panelFocus && !inlineEditFocus && !overlayOpen && !dialogOpen && !paletteOpen",
   },
+  { key: "mod+shift+enter", command: "session.sendOther", when: "sessionFocus && !panelFocus" },
   {
     key: "alt+shift+arrowright",
     command: "tab.next",

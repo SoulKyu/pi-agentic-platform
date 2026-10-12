@@ -26,6 +26,8 @@ export function readContext(
     dialogOpen: doc.querySelector('[data-pap-modal][data-state="open"]') !== null,
     overlayOpen: overlayOpen(doc),
     panelFocus: active?.closest("[data-terminal-input]") != null,
+    // A rename field, an extension's dialog or an approval: Escape cancels or closes it and never stops the run.
+    inlineEditFocus: active?.closest("[data-inline-edit]") != null,
     paletteOpen: doc.querySelector("[data-command-palette]") !== null,
     treeOpen: shell.treeOpen,
     sessionFocus: active?.closest('[data-pane-kind="session"]') != null,
