@@ -6,6 +6,7 @@ import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { shellEn, shellFr } from "./catalog/shell.ts";
+import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 
 /** Keys written directly in en.ts / fr.ts: one `"key": value` per line at the object's top level. */
 function literalKeys(file: string): string[] {
@@ -39,6 +40,7 @@ describe("catalog keys never collide", () => {
         settingsScreen: Object.keys(settingsScreenEn),
         gallery: Object.keys(galleryEn),
         server: Object.keys(serverEn),
+        sidebar: Object.keys(sidebarEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -53,6 +55,7 @@ describe("catalog keys never collide", () => {
         settingsScreen: Object.keys(settingsScreenFr),
         gallery: Object.keys(galleryFr),
         server: Object.keys(serverFr),
+        sidebar: Object.keys(sidebarFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);

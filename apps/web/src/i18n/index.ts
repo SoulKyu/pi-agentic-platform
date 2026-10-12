@@ -7,10 +7,15 @@ import { fr } from "./fr.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
 import type { serverEn } from "./catalog/server.ts";
 import type { settingsScreenEn } from "./catalog/settings-screen.ts";
+import type { sidebarEn } from "./catalog/sidebar.ts";
 
 /** The eager keys plus the keys of lazy catalogs (type-only import: nothing of them is bundled eagerly). */
 export type MessageKey =
-  keyof typeof en | keyof typeof settingsScreenEn | keyof typeof galleryEn | keyof typeof serverEn;
+  | keyof typeof en
+  | keyof typeof settingsScreenEn
+  | keyof typeof galleryEn
+  | keyof typeof serverEn
+  | keyof typeof sidebarEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */
