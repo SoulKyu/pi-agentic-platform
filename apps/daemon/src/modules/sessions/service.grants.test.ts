@@ -144,6 +144,22 @@ describe("always and session answers", () => {
     expect(lines.filter((line) => line.msg === "policy_update_not_sent")).toEqual([]);
   });
 
+  it("stops a worker that crashed but whose exit is not settled yet, and logs it, without throwing into the caller", async () => {
+    const { logger, lines } = captureLogger();
+    const policy = fakePolicyPort();
+    open({ policy, logger });
+    await bed.service.create(bed.work, OWNER);
+    const worker = bed.spawned[0];
+    if (!worker) throw new Error("no worker");
+    const stop = vi.spyOn(worker, "stop");
+    worker.crash({ code: 1, signal: null, cause: "exit_code" });
+    // No await: the exit listeners have not run, so the session still counts as live and `send` answers false.
+    expect(() => policy.revoke(OWNER.userId, realpathSync(bed.work), KEY)).not.toThrow();
+    expect(updates(0)).toEqual([]);
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(lines.filter((line) => line.msg === "policy_update_not_sent")).toHaveLength(1);
+  });
+
   it("stops a worker that could not be told of a change: it must not keep a revoked rule", async () => {
     const { logger, lines } = captureLogger();
     const policy = fakePolicyPort();

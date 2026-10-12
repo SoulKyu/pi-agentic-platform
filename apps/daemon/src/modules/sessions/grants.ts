@@ -107,9 +107,6 @@ export function createGrantLink(deps: GrantLinkDeps) {
     });
   }
 
-  // Every update carries the whole list, so only the latest matters: a burst of changes is one update per worker, sent
-  // once the burst's tick is over, and a worker still starting gets its one update right after `ready` (it holds at
-  // most 128 records before then).
   // Every update carries the whole list. A live worker gets it at once, inside the call that changed the rules, so a
   // request handled after that call (the next frame of the same socket read included) reaches the worker after it,
   // whatever that request awaits or not (carry #30, M5R7). A worker still starting gets one update right after `ready`
