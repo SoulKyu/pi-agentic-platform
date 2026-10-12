@@ -3,6 +3,7 @@ import { ERROR_CODES } from "@pap/contracts";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
+import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 import { en } from "./en.ts";
@@ -75,8 +76,8 @@ describe("i18n", () => {
   });
 
   it("translates every key into French", () => {
-    const english: Record<string, string> = { ...en, ...settingsScreenEn, ...sidebarEn };
-    const french: Record<string, string> = { ...fr, ...settingsScreenFr, ...sidebarFr };
+    const english: Record<string, string> = { ...en, ...sessionScreenEn, ...settingsScreenEn, ...sidebarEn };
+    const french: Record<string, string> = { ...fr, ...sessionScreenFr, ...settingsScreenFr, ...sidebarFr };
     expect(Object.keys(french).sort()).toEqual(Object.keys(english).sort());
     for (const key of Object.keys(english)) {
       expect(french[key], key).toBeTruthy();
@@ -96,6 +97,8 @@ describe("i18n", () => {
   });
 
   it("picks the plural form of the locale, with the count, and falls back to the other form", () => {
+    // The session chunk registers these strings when it loads.
+    registerCatalog({ en: sessionScreenEn, fr: sessionScreenFr });
     expect(plural("en", "sessions.queue.more", 1)).toBe("1 more");
     expect(plural("en", "sessions.queue.more", 7)).toBe("7 more");
     expect(plural("fr", "sessions.queue.more", 0)).toBe("0 de plus");

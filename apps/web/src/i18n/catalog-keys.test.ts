@@ -4,6 +4,7 @@ import { commandsEn, commandsFr } from "./catalog/commands.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
+import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { shellEn, shellFr } from "./catalog/shell.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
@@ -37,6 +38,7 @@ describe("catalog keys never collide", () => {
         shell: Object.keys(shellEn),
         commands: Object.keys(commandsEn),
         dev: Object.keys(devEn),
+        sessionScreen: Object.keys(sessionScreenEn),
         settingsScreen: Object.keys(settingsScreenEn),
         gallery: Object.keys(galleryEn),
         server: Object.keys(serverEn),
@@ -52,6 +54,7 @@ describe("catalog keys never collide", () => {
         shell: Object.keys(shellFr),
         commands: Object.keys(commandsFr),
         dev: Object.keys(devFr),
+        sessionScreen: Object.keys(sessionScreenFr),
         settingsScreen: Object.keys(settingsScreenFr),
         gallery: Object.keys(galleryFr),
         server: Object.keys(serverFr),
@@ -64,6 +67,6 @@ describe("catalog keys never collide", () => {
   it("finds the literal keys it is meant to guard", () => {
     expect(literalKeys("./en.ts")).toContain("app.name");
     expect(literalKeys("./fr.ts")).toContain("app.name");
-    expect(literalKeys("./en.ts").length).toBeGreaterThan(100);
+    expect(literalKeys("./en.ts").length).toBeGreaterThan(50);
   });
 });

@@ -6,12 +6,14 @@ import { fr } from "./fr.ts";
 
 import type { galleryEn } from "./catalog/gallery.ts";
 import type { serverEn } from "./catalog/server.ts";
+import type { sessionScreenEn } from "./catalog/session-screen.ts";
 import type { settingsScreenEn } from "./catalog/settings-screen.ts";
 import type { sidebarEn } from "./catalog/sidebar.ts";
 
 /** The eager keys plus the keys of lazy catalogs (type-only import: nothing of them is bundled eagerly). */
 export type MessageKey =
   | keyof typeof en
+  | keyof typeof sessionScreenEn
   | keyof typeof settingsScreenEn
   | keyof typeof galleryEn
   | keyof typeof serverEn

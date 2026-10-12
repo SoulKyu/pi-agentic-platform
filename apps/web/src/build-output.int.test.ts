@@ -188,6 +188,9 @@ describe("the built web app under the daemon's CSP", () => {
   it("loads the Settings strings with the Settings chunk, not with the initial catalog", () =>
     keepsLazyOnly([/Saved to your account/, /Enregistré dans votre compte/]));
 
+  it("loads M2's session strings with the session chunk, not with the initial catalog", () =>
+    keepsLazyOnly([/Load older messages/, /Charger les messages plus anciens/]));
+
   it("keeps the project tree and its strings out of the initial assets", () =>
     keepsLazyOnly([/data-project-tree/, /Show 20 more/]));
 

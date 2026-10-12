@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// The session chunk registers these strings when it loads; the component is rendered here without it.
+import "../register-session-catalog.ts";
 import type { Dialog } from "@pap/contracts";
 import type { InputRequestCardProps } from "@pap/ui/extensions";
 import { describe, expect, it, vi } from "vitest";

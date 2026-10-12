@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// The session chunk registers these strings when it loads; the component is rendered here without it.
+import "./register-session-catalog.ts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
 import { button, click, hasButton, mount, text, type Mounted } from "../../testing/dom.ts";
