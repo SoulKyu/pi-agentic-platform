@@ -1,6 +1,9 @@
 import { Button, TextField } from "@pap/ui";
-import { t } from "../../i18n/index.ts";
+import { useEffect, useRef } from "react";
+import { useT } from "../../i18n/index.ts";
+import { useCommand } from "../../lib/use-command.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
+import { rememberScreen, targetScreen } from "./last-screen.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
 import { useComposer, type Injected } from "./use-composer.ts";
 
@@ -16,15 +19,43 @@ interface ComposerProps {
 }
 
 export function Composer({ sessionId, view, onTabToPanel, injected, structuralBusy }: ComposerProps) {
+  const t = useT();
   const c = useComposer(sessionId, view, {
     injected: injected ?? null,
     structuralBusy: structuralBusy ?? false,
   });
   const blocked = c.pending !== null || c.compacting || c.sending;
+  const root = useRef<HTMLDivElement | null>(null);
+  // Two session screens can be mounted (a split): a key belongs to the one that holds the focus, and a command run from
+  // the palette to the one that held it before. With no such screen the latest one answers.
+  const ownScreen = () => root.current?.closest("[data-session-screen]") ?? null;
+  const mine = () => {
+    const target = targetScreen(document.activeElement);
+    return target === null || target === ownScreen();
+  };
+  useEffect(() => {
+    const noteFocus = (event: FocusEvent) => {
+      const screen = ownScreen();
+      if (screen && event.target instanceof Node && screen.contains(event.target)) rememberScreen(screen);
+    };
+    document.addEventListener("focusin", noteFocus);
+    return () => document.removeEventListener("focusin", noteFocus);
+  }, []);
+  // Escape stops the run like the pi TUI's; the dispatcher already keeps it out of a panel, a menu and an inline edit.
+  useCommand("session.stop", () => {
+    if (!mine() || !c.canStop) return false;
+    c.stop();
+  });
+  // Mod+Shift+Enter sends this message the other way while the agent works, once: the saved choice is the buttons'.
+  useCommand("session.sendOther", () => {
+    if (!mine() || c.text.trim() === "") return false;
+    c.send(c.running ? (c.behavior === "steer" ? "followUp" : "steer") : undefined, { remember: false });
+  });
   return (
     <div
+      ref={root}
       data-composer
-      className="flex flex-col gap-2"
+      className="mx-auto flex w-full max-w-chat flex-col gap-2"
       onKeyDown={(event) => {
         const plain = !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
         if (event.key === "Tab" && plain && onTabToPanel?.()) event.preventDefault();
@@ -32,7 +63,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
     >
       <QueueStrip queue={view.queue} onClear={c.clearQueue} />
       {c.pending ? (
-        <div role="status" className="flex items-center gap-2 border-l-2 border-attention-line px-3 py-2">
+        <div role="status" className="flex items-center gap-2 border-l-2 border-attn-line px-3 py-2">
           <p className="flex-1 text-ui text-fg">{t("sessions.composer.mayHaveBeenSent")}</p>
           <Button variant="primary" disabled={c.resending} onClick={() => void c.sendAgain()}>
             {t("sessions.composer.sendAgain")}
@@ -48,7 +79,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
         </p>
       ) : null}
       {c.error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {c.error}
         </p>
       ) : null}

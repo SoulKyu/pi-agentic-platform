@@ -28,6 +28,7 @@ describe("method catalogue", () => {
       "sessions.prompt",
       "sessions.rename",
       "sessions.respondDialog",
+      "settings.set",
     ]);
   });
 

@@ -53,6 +53,7 @@ describe.skipIf(!scopesAvailable)("a worker's memory limit (M2R114)", () => {
       kind: "status",
       status: "cold",
       cause: "Agent process ran out of memory and was stopped.",
+      causeCode: "process_oom",
     });
     expect(bed.exits.map((exit) => exit.exit.cause)).toEqual(["oom"]);
   });

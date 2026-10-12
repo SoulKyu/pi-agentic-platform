@@ -1,12 +1,10 @@
 import type { Panel } from "@pap/contracts";
 import { UI_LIMITS } from "@pap/contracts";
-import { Button, FOCUS_RING } from "@pap/ui";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { t } from "../../i18n/index.ts";
+import { CustomPanel as CustomPanelView } from "@pap/ui/extensions";
+import { useState, useSyncExternalStore } from "react";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
-import { AnsiText } from "./AnsiText.tsx";
 import { failureText } from "./failure.ts";
-import { terminalKeyData } from "./terminal-keys.ts";
 
 /** A paste longer than this many UTF-16 units is refused, not sent; shorter ones are cut into chunks of the contract's size. */
 const MAX_PASTE_UNITS = 16 * UI_LIMITS.panelInput;
@@ -37,37 +35,18 @@ function subscribeToFocus(notify: () => void): () => void {
 const composerField = () => document.querySelector<HTMLElement>("[data-composer] textarea");
 
 /**
- * The oldest open custom panel (`ctx.ui.custom`): its lines in mono, re-rendered whole on each update, and a small
- * input that turns key presses into terminal input. Keys are sent once each and never retried; a failure is shown.
- * Every key it consumes stays inside (`stopPropagation`), Escape included, so a global Escape never stops the run
- * while a panel has the focus (M2R137).
+ * The oldest open custom panel (`ctx.ui.custom`) on the session's wire: the view is `@pap/ui`'s `CustomPanel`; this
+ * sends what it hands over. Keys are sent once each and never retried; a failure is shown.
  */
 export function CustomPanel(props: { readonly sessionId: string; readonly panels: readonly Panel[] }) {
+  const t = useT();
   const runtime = getRuntime();
   const panel = props.panels[0];
-  const [collapsed, setCollapsed] = useState(false);
   const composerHasFocus = useSyncExternalStore(subscribeToFocus, composerFocused);
   const [error, setError] = useState<string | null>(null);
-  const composing = useRef(false);
-  const input = useRef<HTMLTextAreaElement | null>(null);
-  const heldFocus = useRef(false);
-  const panelId = panel?.id;
-
-  // The panel closed while it held the focus (Enter or Escape is its normal exit): the focus goes to the composer, not to the body.
-  useEffect(() => {
-    if (!panelId && heldFocus.current) {
-      heldFocus.current = false;
-      composerField()?.focus();
-    }
-  }, [panelId]);
-  // Opening or expanding takes the focus, unless the composer has it: then the panel says how to get there (M2R136).
-  useEffect(() => {
-    if (panelId && !collapsed && !composerFocused()) input.current?.focus();
-  }, [panelId, collapsed]);
-
-  if (!panel) return null;
 
   const send = (chunks: readonly string[]) => {
+    if (!panel) return;
     setError(null);
     void (async () => {
       for (const data of chunks) {
@@ -94,98 +73,23 @@ export function CustomPanel(props: { readonly sessionId: string; readonly panels
   };
 
   return (
-    <section className="flex flex-col gap-2 border-l-2 border-agent px-3 py-2">
-      <div className="flex items-center gap-2">
-        {props.panels.length > 1 ? (
-          <span className="flex-1 font-mono text-label uppercase tracking-label text-muted">
-            {t("panel.waiting", { count: props.panels.length - 1 })}
-          </span>
-        ) : (
-          <span className="flex-1" />
-        )}
-        <Button onClick={() => setCollapsed(!collapsed)}>
-          {collapsed ? t("panel.expand") : t("panel.collapse")}
-        </Button>
-      </div>
-      {collapsed ? null : (
-        <div data-terminal-input className="flex flex-col gap-2">
-          <div className="max-h-64 overflow-auto font-mono text-ui whitespace-pre text-fg">
-            {panel.lines.map((line, index) => (
-              // The lines are replaced whole on each update: the index is their identity.
-              <div key={index} className="min-h-4">
-                <AnsiText text={line} />
-              </div>
-            ))}
-          </div>
-          <p className="text-ui text-muted">{t("panel.leave")}</p>
-          {composerHasFocus ? (
-            <p role="status" className="text-ui text-muted">
-              {t("panel.reach")}
-            </p>
-          ) : null}
-          <label className="flex flex-col gap-1">
-            <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
-              {t("panel.input")}
-            </span>
-            <textarea
-              ref={input}
-              onFocus={() => {
-                heldFocus.current = true;
-              }}
-              onBlur={(event) => {
-                if (event.relatedTarget !== null) heldFocus.current = false;
-              }}
-              rows={1}
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              className={`w-full rounded-sm border border-line bg-bg px-2 py-1 font-mono text-ui text-fg ${FOCUS_RING}`}
-              onCompositionStart={() => {
-                composing.current = true;
-              }}
-              onCompositionEnd={(event) => {
-                composing.current = false;
-                const composed = event.currentTarget.value;
-                event.currentTarget.value = "";
-                sendText(composed);
-              }}
-              onChange={(event) => {
-                if (composing.current || (event.nativeEvent as InputEvent).isComposing) return;
-                const typed = event.currentTarget.value;
-                event.currentTarget.value = "";
-                sendText(typed);
-              }}
-              onKeyDown={(event) => {
-                if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) {
-                  event.stopPropagation();
-                  return;
-                }
-                if (event.ctrlKey && event.key === "]") {
-                  // The way out of a panel that never closes (WCAG 2.1.2); never sent to the worker.
-                  event.preventDefault();
-                  event.stopPropagation();
-                  composerField()?.focus();
-                  return;
-                }
-                const data = terminalKeyData(event);
-                if (data === null) {
-                  const typing = event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey;
-                  if (typing) event.stopPropagation();
-                  return;
-                }
-                event.preventDefault();
-                event.stopPropagation();
-                send([data]);
-              }}
-            />
-          </label>
-          {error ? (
-            <p role="alert" className="text-ui text-attention">
-              {error}
-            </p>
-          ) : null}
-        </div>
-      )}
-    </section>
+    <CustomPanelView
+      panelId={panel?.id}
+      lines={panel?.lines ?? []}
+      waitingLabel={props.panels.length > 1 ? t("panel.waiting", { count: props.panels.length - 1 }) : null}
+      error={error}
+      reachHint={composerHasFocus}
+      labels={{
+        collapse: t("panel.collapse"),
+        expand: t("panel.expand"),
+        input: t("panel.input"),
+        leave: t("panel.leave"),
+        reach: t("panel.reach"),
+      }}
+      shouldTakeFocus={() => !composerFocused()}
+      onKeyData={(data) => send([data])}
+      onText={sendText}
+      onLeave={() => composerField()?.focus()}
+    />
   );
 }

@@ -8,6 +8,8 @@ interface Seen {
   readonly onClick: (() => void) | undefined;
 }
 
+const LABELS = { deny: "Deny", session: "Session", always: "Always", once: "Allow once" } as const;
+
 const seen = vi.hoisted((): Seen[] => []);
 
 vi.mock("../primitives/Button.tsx", () => ({
@@ -23,9 +25,9 @@ describe("ApprovalCard answers once", () => {
   });
 
   it("sends the first answer only, whichever button follows", () => {
-    const onAnswer = vi.fn();
+    const onChoose = vi.fn();
     renderToStaticMarkup(
-      <ApprovalCard title="t" detail="h" allowLabel="Allow once" denyLabel="Deny" onAnswer={onAnswer} />,
+      <ApprovalCard title="t" detail="h" answers={["deny", "once"]} labels={LABELS} onChoose={onChoose} />,
     );
     const allow = seen.find((button) => button.variant === "primary");
     const deny = seen.find((button) => button.variant === "secondary");
@@ -34,16 +36,16 @@ describe("ApprovalCard answers once", () => {
     allow?.onClick?.();
     allow?.onClick?.();
     deny?.onClick?.();
-    expect(onAnswer).toHaveBeenCalledExactlyOnceWith(true);
+    expect(onChoose).toHaveBeenCalledExactlyOnceWith("once");
   });
 
-  it("answers false when Deny comes first", () => {
-    const onAnswer = vi.fn();
+  it("answers deny when Deny comes first", () => {
+    const onChoose = vi.fn();
     renderToStaticMarkup(
-      <ApprovalCard title="t" detail="h" allowLabel="Allow once" denyLabel="Deny" onAnswer={onAnswer} />,
+      <ApprovalCard title="t" detail="h" answers={["deny", "once"]} labels={LABELS} onChoose={onChoose} />,
     );
     seen.find((button) => button.variant === "secondary")?.onClick?.();
     seen.find((button) => button.variant === "primary")?.onClick?.();
-    expect(onAnswer).toHaveBeenCalledExactlyOnceWith(false);
+    expect(onChoose).toHaveBeenCalledExactlyOnceWith("deny");
   });
 });

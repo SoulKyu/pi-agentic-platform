@@ -1,7 +1,8 @@
-import { z } from "zod";
+// Every `import … from "zod"` of the web build resolves to this module (vite.config.ts `resolve.alias`), so zod is
+// switched to jitless before any schema is built, whatever chunk the schemas end up in.
+import * as z from "zod/v4";
 
-// zod builds a `new Function` fast path for object schemas unless told not to, and probes for `eval` with
-// `Function("")` when it builds the first one. The daemon's CSP has no 'unsafe-eval' (R74), so that probe would be
-// a violation on every page load. Schemas read this setting when they are built: main.tsx imports this file
-// before anything that defines one.
 z.config({ jitless: true });
+
+export * from "zod/v4";
+export { z, z as default };

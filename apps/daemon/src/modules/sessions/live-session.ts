@@ -4,6 +4,8 @@ import {
   PapError,
   type PiEvent,
   type ReadyRecord,
+  SERVER_CODES,
+  type ServerText,
   type SessionStatus,
   type SessionStreamEvent,
   type WorkerRecord,
@@ -59,6 +61,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         level: event.level,
         text: event.text,
         ...(event.source ? { source: event.source } : {}),
+        ...(event.code ? { code: event.code } : {}),
+        ...(event.params ? { params: event.params } : {}),
       });
     }
     deps.publish(event);
@@ -75,9 +79,19 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       if (publishMeasured(event) || event.type !== "message_update") partial.apply(event);
     },
   });
-  const setStatus = (next: SessionStatus, cause?: string) => {
+  const setStatus = (next: SessionStatus, cause?: ServerText) => {
     status = next;
-    publish({ kind: "status", status: next, ...(cause ? { cause } : {}) });
+    publish({
+      kind: "status",
+      status: next,
+      ...(cause
+        ? {
+            cause: cause.text,
+            causeCode: cause.code,
+            ...(cause.params ? { causeParams: cause.params } : {}),
+          }
+        : {}),
+    });
   };
   // Pi's name, through the one clip (M2R92). Only a change is handed on, so a loop in an extension stores and says nothing twice.
   const setName = (next: string | null, announce: boolean): void => {
@@ -101,7 +115,12 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       const said = limiter.check("event_too_large");
       if (said.allowed) {
         logger.warn("pi_event_too_large", { type: clip(event.type), suppressed: said.suppressed });
-        emit({ kind: "notice", level: "warning", text: "A message was too large to stream." });
+        emit({
+          kind: "notice",
+          level: "warning",
+          text: "A message was too large to stream.",
+          code: SERVER_CODES.messageTooLarge,
+        });
       }
       return false;
     }

@@ -1,12 +1,11 @@
 import { Button } from "@pap/ui";
-import { Outlet } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { AccountBar } from "../features/auth/AccountBar.tsx";
 import { LoginScreen } from "../features/auth/LoginScreen.tsx";
 import { SetupScreen } from "../features/auth/SetupScreen.tsx";
 import { useAuthGate } from "../features/auth/use-auth-gate.ts";
 import { errorKey, t } from "../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../runtime/index.ts";
+import { AppShell } from "./shell/AppShell.tsx";
 
 export function RootLayout() {
   const { state, refresh, retry } = useAuthGate();
@@ -25,7 +24,7 @@ export function RootLayout() {
   if (state.phase === "error") {
     return (
       <main className="flex flex-col items-start gap-3 p-6">
-        <p role="alert" className="text-attention">
+        <p role="alert" className="text-err">
           {t(state.code === null ? "error.offline" : errorKey(state.code))}
         </p>
         <Button onClick={retry}>{t("gate.retry")}</Button>
@@ -36,23 +35,6 @@ export function RootLayout() {
   if (state.phase === "login")
     return <LoginScreen passkeysAvailable={state.passkeysAvailable} onDone={refresh} />;
   return (
-    <div className="flex h-full flex-col">
-      <AccountBar
-        username={state.username}
-        passkeysAvailable={state.passkeysAvailable}
-        onSignedOut={refresh}
-      />
-      {connection === "outdated" ? (
-        <p role="alert" className="px-4 py-2 text-ui text-attention">
-          {t("connection.outdated")}
-        </p>
-      ) : null}
-      {connection === "waiting" ? (
-        <p role="status" className="px-4 py-2 text-ui text-muted">
-          {t("connection.reconnecting")}
-        </p>
-      ) : null}
-      <Outlet />
-    </div>
+    <AppShell username={state.username} passkeysAvailable={state.passkeysAvailable} onSignedOut={refresh} />
   );
 }

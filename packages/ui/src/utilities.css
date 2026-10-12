@@ -1,0 +1,155 @@
+/* Night Control variants, utilities, keyframes and motion rules (DESIGN.md §4, §7). The variables they read are in
+   tokens.css; apps/web/src/styles.css imports both. */
+
+@custom-variant can-hover (@media (hover: hover));
+@custom-variant rail-right (&:where([data-rail="right"], [data-rail="right"] *));
+@custom-variant state-open (&[data-state="open"]);
+@custom-variant state-closed (&[data-state="closed"]);
+@custom-variant state-checked (&[data-state="checked"]);
+@custom-variant state-on (&[data-state="on"]);
+@custom-variant state-active (&[data-state="active"]);
+
+[data-motion="reduced"] .animate-indeterminate,
+[data-motion="none"] .animate-indeterminate,
+[data-motion="reduced"] .animate-spin,
+[data-motion="none"] .animate-spin {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .animate-indeterminate,
+  :root:not([data-motion]) .animate-spin,
+  [data-motion="system"] .animate-indeterminate,
+  [data-motion="system"] .animate-spin {
+    animation: none;
+  }
+}
+
+/* Orca theme swap (src/renderer/src/lib/document-theme.ts): no staggered fades while the theme changes. */
+.theme-swap,
+.theme-swap *,
+.theme-swap *::before,
+.theme-swap *::after {
+  transition: none !important;
+}
+
+html[data-keyboard-open] .pb-safe {
+  padding-bottom: 0;
+}
+
+@keyframes pap-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+@keyframes pap-overlay-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* DESIGN.md §4 HUD label: mono 10.5 px, 600, 0.12em, upper case unless the owner turned it off. */
+@utility label-hud {
+  font-family: var(--font-code);
+  font-size: 0.65625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: var(--label-transform);
+}
+
+/* DESIGN.md §7.4 as amended by ADR 0012: the --focus-ring token. Never removed. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+}
+
+/* Only drawers, the palette, dialogs and toasts (DESIGN.md §3.4). */
+@utility shadow-overlay {
+  box-shadow: var(--shadow-overlay);
+}
+
+/* The faint background grid (DESIGN.md §1): two 1 px line patterns, not a visual gradient. */
+@utility bg-grid {
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+/* pw: hooks/useViewportHeight.ts keeps --app-viewport-height at the visual viewport while a keyboard is open. */
+@utility h-app {
+  height: var(--app-viewport-height, 100dvh);
+}
+
+@utility max-h-app {
+  max-height: var(--app-viewport-height, 100dvh);
+}
+
+/* Safe-area insets for notches and home indicators. */
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Transition durations that follow the motion setting (0 ms under reduced motion). */
+@utility duration-fast {
+  transition-duration: var(--motion-fast);
+}
+
+@utility duration-base {
+  transition-duration: var(--motion-base);
+}
+
+/* The one continuous animation DESIGN.md §7.2 allows: the running tool card's bar. Static under reduced motion. */
+@utility animate-indeterminate {
+  animation: pap-indeterminate 1.4s linear infinite;
+}
+
+/* Overlay entrance: fade and 4 px rise, as long as --motion-base. */
+@utility animate-overlay-in {
+  animation: pap-overlay-in var(--motion-base) ease-out;
+}
+
+/* Chat column width from the owner's setting (none, wide or narrow). */
+@utility max-w-chat {
+  max-width: var(--chat-max-width);
+}
+
+/* Code highlighting (Task 10b): shiki's css-variables theme mapped to role tokens on the block itself, so a themed
+   subtree re-themes it. Only the agent hue appears: code blocks are agent output (DESIGN.md §2). */
+[data-slot="code-block"] {
+  --shiki-foreground: var(--text);
+  --shiki-background: transparent;
+  --shiki-token-keyword: var(--agent);
+  --shiki-token-comment: var(--text-muted);
+  --shiki-token-string: var(--text);
+  --shiki-token-string-expression: var(--text);
+  --shiki-token-constant: var(--text);
+  --shiki-token-function: var(--text);
+  --shiki-token-parameter: var(--text);
+  --shiki-token-punctuation: var(--text-muted);
+  --shiki-token-link: var(--agent);
+}

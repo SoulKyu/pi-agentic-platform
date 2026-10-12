@@ -100,9 +100,22 @@ describe("decorations in the live session", () => {
     worker.emit({ type: "extension_error", extensionPath: "/x.js", event: "session_start", error: "boom" });
     await clock.advance(0);
     expect(published.filter((event) => event.kind === "notice")).toEqual([
-      { kind: "notice", level: "error", text: "An extension failed during session_start." },
+      {
+        kind: "notice",
+        level: "error",
+        text: "An extension failed during session_start.",
+        code: "extension_failed_during",
+        params: { event: "session_start" },
+      },
     ]);
-    expect(live.notices()).toEqual([{ level: "error", text: "An extension failed during session_start." }]);
+    expect(live.notices()).toEqual([
+      {
+        level: "error",
+        text: "An extension failed during session_start.",
+        code: "extension_failed_during",
+        params: { event: "session_start" },
+      },
+    ]);
   });
 
   it("counts extension errors and extension notices in the same window of 10", async () => {

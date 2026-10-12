@@ -1,13 +1,15 @@
 import { Button, TextField } from "@pap/ui";
 import { useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { setupOwner } from "./auth-api.ts";
+import { AuthFrame } from "./AuthFrame.tsx";
 import { authErrorText } from "./auth-error.ts";
 
 // What the server accepts as a username (apps/daemon, auth/http.ts): a name it would refuse is not sent.
 const USERNAME = /^[A-Za-z0-9_.-]{1,64}$/;
 
 export function SetupScreen({ onDone }: { onDone(): void }) {
+  const t = useT();
   const [token] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -28,10 +30,9 @@ export function SetupScreen({ onDone }: { onDone(): void }) {
     onDone();
   };
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-col gap-4 p-6">
-      <h1 className="text-xl font-extrabold text-fg">{t("setup.title")}</h1>
+    <AuthFrame title={t("setup.title")}>
       <form
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-s3"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
@@ -63,10 +64,10 @@ export function SetupScreen({ onDone }: { onDone(): void }) {
         </Button>
       </form>
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-err">
           {error}
         </p>
       ) : null}
-    </main>
+    </AuthFrame>
   );
 }

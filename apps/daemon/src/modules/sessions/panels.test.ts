@@ -45,7 +45,11 @@ describe("panels", () => {
     panels.render("p5", ["x"]);
     expect(cancelled).toEqual(["p5"]);
     expect(said).toEqual([
-      { level: "warning", text: "An extension opened too many panels. The extra one was cancelled." },
+      {
+        level: "warning",
+        text: "An extension opened too many panels. The extra one was cancelled.",
+        code: "panels_limit",
+      },
     ]);
     panels.render("p6", ["x"]);
     expect(cancelled).toEqual(["p5", "p6"]);

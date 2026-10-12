@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import {
@@ -8,6 +8,7 @@ import {
   loadPending,
   MAX_DRAFT_CHARS,
   mergeRestored,
+  onPendingChange,
   saveDraft,
   savePending,
   signOutCount,
@@ -44,6 +45,7 @@ export function useComposer(
   },
 ) {
   const runtime = getRuntime();
+  const t = useT();
   const [storage] = useState(deviceStorage);
   const [text, setText] = useState(() => loadDraft(storage, sessionId));
   const [behavior, setBehavior] = useState(() => loadBehavior(storage));
@@ -60,6 +62,7 @@ export function useComposer(
   const resendingRef = useRef(false);
   const mounted = useRef(true);
   const textRef = useRef(text);
+  const pendingRef = useRef(pending);
   // The editor text this screen has already applied (or found at mount): a remount never replays it (M2-RT-10).
   const seenSeq = useRef(view.editorText?.seq ?? 0);
   // "Edit from here" has a counter of its own, so it never moves `seenSeq`: an extension's text with a sequence this
@@ -89,11 +92,30 @@ export function useComposer(
   };
 
   useEffect(() => {
+    pendingRef.current = pending;
+  }, [pending]);
+  useEffect(() => {
     mounted.current = true;
     return () => {
       mounted.current = false;
     };
   }, []);
+  // A send of the screen before this one may still be in flight when this one mounts: the record is kept as unknown
+  // until that send ends, and a definite end removes it here too.
+  useEffect(
+    () =>
+      onPendingChange(sessionId, () => {
+        if (sendingRef.current) return; // this screen's own send writes its record itself
+        const stored = loadPending(storage, sessionId);
+        if (pendingRef.current && !stored) {
+          // The send ended with a refusal in an older screen, which stored the text it gives back as the draft.
+          const returned = loadDraft(storage, sessionId);
+          if (returned !== textRef.current) commit(returned);
+        }
+        setPending((shown) => (shown?.commandId === stored?.commandId ? shown : stored));
+      }),
+    [storage, sessionId, commit],
+  );
   useEffect(() => {
     const instruction = view.editorText;
     if (instruction && instruction.seq > seenSeq.current) {
@@ -119,8 +141,8 @@ export function useComposer(
   const deliver = async (params: PendingSend["params"], commandId: string) => {
     setError(null);
     const signOuts = signOutCount();
-    savePending(storage, sessionId, { params, commandId });
     sendingRef.current = true;
+    savePending(storage, sessionId, { params, commandId });
     setSending(true);
     try {
       await runtime.rpc.call("sessions.prompt", params, { commandId });
@@ -133,17 +155,19 @@ export function useComposer(
         if (mounted.current) setPending({ params, commandId });
         return;
       }
-      remember(null);
-      if (mounted.current) {
-        if (failureCode(failure) === "session_busy") setRefusedAsBusy(true);
-        commit(mergeRestored(params.text, textRef.current));
-        setError(failureText(failure));
-      } else {
+      // The draft is stored first: a screen that came back follows the record's removal and reads it then.
+      if (!mounted.current) {
         saveDraft(
           storage,
           sessionId,
           mergeRestored(params.text, loadDraft(storage, sessionId)).slice(0, MAX_DRAFT_CHARS),
         );
+      }
+      remember(null);
+      if (mounted.current) {
+        if (failureCode(failure) === "session_busy") setRefusedAsBusy(true);
+        commit(mergeRestored(params.text, textRef.current));
+        setError(failureText(failure));
       }
       return;
     }
@@ -161,14 +185,15 @@ export function useComposer(
     (note === "sending" && !sending)
   )
     setNote(null);
-  const send = (way?: Behavior) => {
+  /** `remember: false` sends this message the given way without changing the saved choice (the one-shot chord). */
+  const send = (way?: Behavior, options?: { readonly remember?: boolean }) => {
     if (pending || compacting || sendingRef.current) {
       setNote(pending ? "pending" : compacting ? "compacting" : "sending");
       return;
     }
     const plan = planSend(textRef.current, way ?? behavior);
     if (!plan) return;
-    if (way && way !== behavior) {
+    if (way && way !== behavior && options?.remember !== false) {
       setBehavior(way);
       saveBehavior(storage, way);
     }

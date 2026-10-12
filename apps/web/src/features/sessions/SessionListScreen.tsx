@@ -2,7 +2,7 @@ import type { SessionSummary } from "@pap/contracts";
 import { Button, cn, FOCUS_RING, TextField } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
 import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 
@@ -10,6 +10,7 @@ import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 const isConnectionLoss = (code: string): boolean => code === "offline" || code === "connection_lost";
 
 export function SessionListScreen() {
+  const t = useT();
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
   const navigate = useNavigate();
@@ -49,13 +50,12 @@ export function SessionListScreen() {
       setError(failureText(failure));
       // The session may have been made though no answer came (R105): the list tells.
       if (outcomeUnknown(failure)) setListings((count) => count + 1);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-y-auto p-4">
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-y-auto p-4">
       <h1 className="text-xl font-extrabold text-fg">{t("sessions.title")}</h1>
       <form
         className="flex flex-col gap-2"
@@ -83,7 +83,7 @@ export function SessionListScreen() {
         </div>
       </form>
       {listError ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {listError}
         </p>
       ) : null}
@@ -110,6 +110,6 @@ export function SessionListScreen() {
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

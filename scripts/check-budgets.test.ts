@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initialAssets, initialBundleGzipKb } from "./check-budgets.ts";
+import { initialAssets, initialBundleGzipKb, lazyAssets } from "./check-budgets.ts";
 
 const INDEX_HTML =
   '<script type="module" crossorigin src="/assets/index-a1.js"></script><link rel="modulepreload" crossorigin href="/assets/vendor-b2.js"><link rel="stylesheet" crossorigin href="/assets/index-c3.css">';
@@ -37,6 +37,11 @@ describe("bundle budget", () => {
     const expectedBytes = INITIAL.reduce((sum, asset) => sum + gzipBytes(asset), 0);
     expect(initialBundleGzipKb(dist)).toBe(Math.round((expectedBytes / 1024) * 10) / 10);
     expect(gzipBytes("/assets/lazy-d4.js")).toBeGreaterThan(expectedBytes * 10);
+  });
+
+  it("lists every other asset as lazy, with its gzip size", () => {
+    const lazyKb = Math.round((gzipBytes("/assets/lazy-d4.js") / 1024) * 10) / 10;
+    expect(lazyAssets(dist)).toEqual([{ file: "/assets/lazy-d4.js", gzipKb: lazyKb }]);
   });
 
   it("throws when index.html loads no script or stylesheet, instead of passing on nothing", () => {
@@ -71,6 +76,11 @@ describe("bundle budget", () => {
       expect(result.stdout).toContain(
         "idle worker RSS: measured by apps/daemon/src/modules/sessions/sessions.budgets.int.test.ts",
       );
+    });
+
+    it("prints each lazy chunk", () => {
+      const result = run({ initialBundleGzipKb: 180 });
+      expect(result.stdout).toMatch(/^lazy \/assets\/lazy-d4\.js: [\d.]+ KB gzip$/m);
     });
 
     it("fails over the budget and prints the budget it failed", () => {

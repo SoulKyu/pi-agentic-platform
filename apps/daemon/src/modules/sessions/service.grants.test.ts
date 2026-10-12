@@ -170,6 +170,8 @@ describe("an always rule that cannot be saved", () => {
         kind: "notice",
         level: "warning",
         text: "This project already has 1000 always-allowed calls: this one is allowed until this project's rules change.",
+        code: "rules_full",
+        params: { max: "1000" },
       },
     ]);
     // The worker still got the answer: the call it asked about runs.
@@ -202,6 +204,7 @@ describe("an always rule that cannot be saved", () => {
         kind: "notice",
         level: "warning",
         text: "This call is allowed until this project's rules change: its always rule could not be saved.",
+        code: "rules_not_saved",
       },
     ]);
   });

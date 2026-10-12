@@ -1,7 +1,7 @@
 import type { Dialog, DialogResponse } from "@pap/contracts";
 import { Button } from "@pap/ui";
 import { useRef, useState } from "react";
-import { t, tp } from "../../../i18n/index.ts";
+import { plural, useLocale, useT } from "../../../i18n/index.ts";
 import { getRuntime } from "../../../runtime/index.ts";
 import { failureText, outcomeUnknown } from "../failure.ts";
 import { ApprovalCardFor } from "./ApprovalCardFor.tsx";
@@ -43,6 +43,8 @@ export function DialogList(props: {
   readonly hidden: number;
 }) {
   const runtime = getRuntime();
+  const t = useT();
+  const locale = useLocale();
   const { sessionId, dialogs } = props;
   const [slots, setSlots] = useState<Slots>({});
   const inFlight = useRef(new Set<string>());
@@ -54,9 +56,10 @@ export function DialogList(props: {
   const patch = (id: string, change: (slot: Slot) => Slot) =>
     setSlots((current) => ({ ...current, [id]: change(current[id] ?? { attempt: 0 }) }));
 
-  const send = (dialog: Dialog, response: DialogResponse, commandId = runtime.rpc.newCommandId()) => {
+  const send = (dialog: Dialog, response: DialogResponse, retryId?: string) => {
     if (inFlight.current.has(dialog.id)) return;
     inFlight.current.add(dialog.id);
+    const commandId = retryId ?? runtime.rpc.newCommandId();
     patch(dialog.id, (slot) => ({ ...slot, unsure: undefined, error: undefined }));
     runtime.rpc
       .call("sessions.respondDialog", { sessionId, dialogId: dialog.id, response }, { commandId })
@@ -99,15 +102,12 @@ export function DialogList(props: {
               <TextDialog key={key} dialog={dialog} initial={slot?.typed} onAnswer={onAnswer} />
             )}
             {slot?.error ? (
-              <p role="alert" className="text-ui text-attention">
+              <p role="alert" className="text-ui text-attn">
                 {slot.error}
               </p>
             ) : null}
             {slot?.unsure ? (
-              <div
-                role="status"
-                className="flex items-center gap-2 border-l-2 border-attention-line px-3 py-2"
-              >
+              <div role="status" className="flex items-center gap-2 border-l-2 border-attn-line px-3 py-2">
                 <p className="flex-1 text-ui text-fg">{slot.unsure.message}</p>
                 <Button
                   variant="primary"
@@ -122,7 +122,7 @@ export function DialogList(props: {
       })}
       {props.hidden > 0 ? (
         <p role="status" className="text-ui text-muted">
-          {tp("dialog.hidden", props.hidden)}
+          {plural(locale, "dialog.hidden", props.hidden)}
         </p>
       ) : null}
     </>

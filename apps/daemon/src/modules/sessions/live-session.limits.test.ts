@@ -57,6 +57,7 @@ describe("events too large for one frame", () => {
       kind: "notice",
       level: "warning",
       text: "A message was too large to stream.",
+      code: "message_too_large",
     });
     expect(published.some((event) => event.kind === "pi")).toBe(false);
   });

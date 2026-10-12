@@ -5,7 +5,7 @@ const press = (key: string, modifiers: { metaKey?: boolean; ctrlKey?: boolean },
   key,
   metaKey: modifiers.metaKey ?? false,
   ctrlKey: modifiers.ctrlKey ?? false,
-  nativeEvent: { isComposing },
+  nativeEvent: { isComposing, keyCode: 13 },
 });
 
 describe("isSubmitShortcut", () => {
@@ -21,5 +21,16 @@ describe("isSubmitShortcut", () => {
 
   it("ignores the keystroke that confirms an input-method composition", () => {
     expect(isSubmitShortcut(press("Enter", { ctrlKey: true }, true))).toBe(false);
+  });
+
+  it("ignores the Enter that ends a Safari composition (keyCode 229)", () => {
+    expect(
+      isSubmitShortcut({
+        key: "Enter",
+        metaKey: true,
+        ctrlKey: false,
+        nativeEvent: { isComposing: false, keyCode: 229 },
+      }),
+    ).toBe(false);
   });
 });

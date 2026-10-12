@@ -10,8 +10,7 @@ describe("TextField", () => {
     const labelFor = /<label for="([^"]+)"/.exec(html)?.[1];
     expect(labelFor).toBeDefined();
     expect(html).toContain(`id="${labelFor}"`);
-    expect(html).toContain("tracking-label");
-    expect(html).toContain("uppercase");
+    expect(html).toContain("label-hud");
     expect(html).toContain('value="Ada"');
   });
 
@@ -59,8 +58,7 @@ describe("TextField", () => {
 
   it("shows the focus ring offset 2 px", () => {
     const html = renderToStaticMarkup(<TextField label="Name" value="" onChange={noop} />);
-    expect(html).toContain("focus-visible:outline-offset-2");
-    expect(html).toContain("focus-visible:outline-human-fill");
+    expect(html).toContain("focus-ring");
   });
 
   it("passes a placeholder to the input and the textarea, and none when absent", () => {
@@ -74,6 +72,12 @@ describe("TextField", () => {
     expect(/<textarea[^>]*placeholder="Ada"/.test(multi)).toBe(true);
     expect(renderToStaticMarkup(<TextField label="Name" value="" onChange={noop} />)).not.toContain(
       "placeholder",
+    );
+  });
+
+  it("uses 16 px text on coarse pointers so iOS does not zoom", () => {
+    expect(renderToStaticMarkup(<TextField label="Name" value="" onChange={() => {}} />)).toContain(
+      "pointer-coarse:text-base",
     );
   });
 });

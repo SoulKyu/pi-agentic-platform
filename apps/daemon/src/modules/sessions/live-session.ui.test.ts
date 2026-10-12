@@ -27,6 +27,8 @@ const responses = (worker: Bed["worker"]) =>
   );
 const notices = (published: Bed["published"]) =>
   published.flatMap((event) => (event.kind === "notice" ? [event.text] : []));
+const codes = (published: Bed["published"]) =>
+  published.flatMap((event) => (event.kind === "notice" ? [event.code] : []));
 const cancelled = (id: string) => ({ type: "approval_response", id, answer: "deny", cancelled: true });
 
 describe("answering an approval", () => {
@@ -124,6 +126,7 @@ describe("an approval the daemon cannot show", () => {
     expect(responses(worker)).toEqual([cancelled("a1")]);
     expect(published.filter((event) => event.kind === "dialog_open" && event.dialog.id === "a1")).toEqual([]);
     expect(notices(published)).toEqual([NOTICE]);
+    expect(codes(published)).toEqual(["approval_unshown"]);
   });
 
   // Through the real parser: this is what reaches the live session from a worker process.
@@ -202,6 +205,7 @@ describe("an approval the daemon cannot show", () => {
       "An extension asked a question while too many were waiting. It was cancelled.",
       NOTICE,
     ]);
+    expect(codes(published)).toEqual(["dialog_limit", "approval_unshown"]);
   });
 });
 

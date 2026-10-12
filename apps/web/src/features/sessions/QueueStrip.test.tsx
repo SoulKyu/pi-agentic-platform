@@ -61,7 +61,7 @@ describe("QueueStrip", () => {
     const onClear = vi.fn();
     const container = await strip({ steering: ["s"], followUp: ["f"], count: 2 }, onClear);
     const rows = [...container.querySelectorAll("li")];
-    expect(rows[0]?.className).toContain("text-human-text");
+    expect(rows[0]?.className).toContain("text-you-text");
     expect(rows[1]?.className).toContain("text-muted");
     expect(hasButton(container, "Clear")).toBe(true);
     await click(button(container, "Clear"));

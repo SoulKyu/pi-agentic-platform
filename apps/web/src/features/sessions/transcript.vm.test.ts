@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { setLocale } from "../../i18n/index.ts";
+import { setLocale, t } from "../../i18n/index.ts";
 import { EMPTY_VIEW, reduceSession } from "../../stores/session-reducer.ts";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
 import { transcriptItems, type TranscriptItem } from "./transcript.vm.ts";
+
+const rowsOf = (view: Parameters<typeof transcriptItems>[0]) => transcriptItems(view, t);
 
 const textOf = (item: TranscriptItem | undefined) => (item && "text" in item ? item.text : undefined);
 
@@ -39,7 +41,7 @@ describe("transcriptItems", () => {
         assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Done" },
       },
     });
-    expect(transcriptItems(view)).toMatchObject([
+    expect(rowsOf(view)).toMatchObject([
       { kind: "message", author: "you", text: "Run the check" },
       { kind: "message", author: "agent", text: "Checking", thinking: "" },
       { kind: "tool", name: "bash", summary: "echo ok", status: "done", preview: "ok\n" },
@@ -61,9 +63,7 @@ describe("transcriptItems", () => {
         },
       ]),
     );
-    expect(transcriptItems(view)).toMatchObject([
-      { kind: "message", text: "Answer", thinking: "let me see" },
-    ]);
+    expect(rowsOf(view)).toMatchObject([{ kind: "message", text: "Answer", thinking: "let me see" }]);
   });
 
   it("shows a compaction as a summary item and the partial reply with its thinking", () => {
@@ -86,7 +86,7 @@ describe("transcriptItems", () => {
         },
       }),
     );
-    expect(transcriptItems(view)).toEqual([
+    expect(rowsOf(view)).toEqual([
       {
         kind: "summary",
         key: "compactionSummary:1",
@@ -108,7 +108,7 @@ describe("transcriptItems", () => {
         { role: "custom", customType: "note", display: false, content: "kept private", timestamp: 4 },
       ]),
     );
-    expect(transcriptItems(view)).toEqual([
+    expect(rowsOf(view)).toEqual([
       {
         kind: "summary",
         key: "branchSummary:2",
@@ -142,7 +142,7 @@ describe("transcriptItems", () => {
         },
       ]),
     );
-    const items = transcriptItems(view);
+    const items = rowsOf(view);
     expect(items.map((item) => [item.kind, textOf(item)])).toEqual([
       ["message", "go"],
       ["message", "Starting..."],
@@ -156,7 +156,7 @@ describe("transcriptItems", () => {
       EMPTY_VIEW,
       snapshotOf("idle", [{ role: "assistant", content: [], stopReason: "error", timestamp: 2 }]),
     );
-    expect(transcriptItems(view)).toMatchObject([{ kind: "failure", text: "Something went wrong." }]);
+    expect(rowsOf(view)).toMatchObject([{ kind: "failure", text: "Something went wrong." }]);
   });
 
   it("shows an oversize row as an item with its size instead of dropping it, in English and French (R109)", () => {
@@ -168,13 +168,13 @@ describe("transcriptItems", () => {
       ]),
     );
     expect(
-      transcriptItems(view).map((item) => [item.kind === "message" ? item.author : item.kind, textOf(item)]),
+      rowsOf(view).map((item) => [item.kind === "message" ? item.author : item.kind, textOf(item)]),
     ).toEqual([
       ["tool", "Message too large to show (293 KB)."],
       ["you", "next"],
     ]);
     setLocale("fr");
-    expect(textOf(transcriptItems(view)[0])).toBe("Message trop volumineux pour être affiché (293 Ko).");
+    expect(textOf(rowsOf(view)[0])).toBe("Message trop volumineux pour être affiché (293 Ko).");
   });
 
   it("rounds a small placeholder up to 1 KB", () => {
@@ -182,8 +182,6 @@ describe("transcriptItems", () => {
       EMPTY_VIEW,
       snapshotOf("idle", [{ role: "assistant", timestamp: 5, omitted: true, bytes: 10 }]),
     );
-    expect(transcriptItems(view)).toMatchObject([
-      { author: "agent", text: "Message too large to show (1 KB)." },
-    ]);
+    expect(rowsOf(view)).toMatchObject([{ author: "agent", text: "Message too large to show (1 KB)." }]);
   });
 });

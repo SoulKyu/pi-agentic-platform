@@ -39,6 +39,8 @@ describe("live session start", () => {
       kind: "status",
       status: "cold",
       cause: "Agent process exited with code 70.",
+      causeCode: "process_exit_code",
+      causeParams: { code: "70" },
     });
     expect(exits).toHaveLength(1);
     // The ready timer went with the worker.
@@ -102,6 +104,7 @@ describe("dialogs", () => {
       kind: "notice",
       level: "warning",
       text: "An extension asked a question that was too large to show. It was cancelled.",
+      code: "dialog_too_large",
     });
   });
 
@@ -187,6 +190,7 @@ describe("runs", () => {
       kind: "notice",
       level: "warning",
       text: "A message was too large to stream.",
+      code: "message_too_large",
     });
     expect(published.some((event) => event.kind === "pi")).toBe(false);
   });
@@ -224,6 +228,7 @@ describe("a worker that goes away", () => {
       kind: "status",
       status: "cold",
       cause: "Agent process killed (SIGKILL), possibly out of memory.",
+      causeCode: "process_killed",
     });
     expect(recorded).toContainEqual(["run_end", { interrupted: "killed" }]);
     expect(recorded).toContainEqual(["worker_exit", { code: null, signal: "SIGKILL", cause: "killed" }]);

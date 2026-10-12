@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@pap/ui/tokens.css";
-@import "./fonts.css";
+@import "@pap/ui/utilities.css";
+@import "@pap/ui/fonts.css";
 @source "../../../packages/ui/src";
 
 html,
@@ -10,5 +11,28 @@ body,
 }
 
 body {
-  @apply bg-bg font-sans text-ui text-fg;
+  @apply bg-grid font-sans text-ui text-fg;
+}
+
+html[data-keyboard-open] [data-slot="bottom-nav"] {
+  display: none;
+}
+
+/* <html> carries the layout: the Toaster is a sibling of the router and cannot inherit from the shell element. */
+html[data-shell="mobile"] {
+  --bottom-nav-height: 3rem;
+  --toast-bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+}
+
+[data-slot="bottom-nav"] {
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+}
+
+html[data-shell="mobile"] [data-slot="toast-viewport"] {
+  bottom: var(--toast-bottom, 0.5rem);
+}
+
+/* The keyboard hides the bottom nav, and the layout viewport stays behind it: lift toasts by what the keyboard covers. */
+html[data-keyboard-open] [data-slot="toast-viewport"] {
+  bottom: calc(100dvh - var(--app-viewport-height, 100dvh) + 0.5rem);
 }

@@ -150,6 +150,10 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
   };
 }
 
+/** The ref fell back to `role:none` (no timestamp): it does not name one message. A tool result is named by its call. */
+export const hasFallbackRef = (message: MessageView): boolean =>
+  message.toolCallId === null && message.ref.endsWith(":none");
+
 export const sameContent = (a: MessageView, b: MessageView): boolean =>
   a.role === b.role &&
   a.text === b.text &&
@@ -168,10 +172,30 @@ export const sameContent = (a: MessageView, b: MessageView): boolean =>
     );
   });
 
-/** The message under a key no other message in `list` has. */
+/** The message under a key no other message in `list` has. For one live message; a whole list goes through `keyMessages`. */
 export function withUniqueKey(list: readonly MessageView[], message: MessageView): MessageView {
-  const taken = new Set(list.map((existing) => existing.key));
+  const taken = new Map<string, number>();
+  for (const existing of list) taken.set(existing.key, 0);
+  return keyOne(message, taken);
+}
+
+// `taken` maps each key in use to the highest `#n` suffix already tried for it as a ref, so alike messages stay linear.
+function keyOne(message: MessageView, taken: Map<string, number>): MessageView {
   let key = message.ref;
-  for (let n = 1; taken.has(key); n++) key = `${message.ref}#${n}`;
+  if (taken.has(key)) {
+    let n = taken.get(key) ?? 0;
+    do key = `${message.ref}#${++n}`;
+    while (taken.has(key));
+    taken.set(message.ref, n);
+  }
+  taken.set(key, 0);
   return { ...message, key };
+}
+
+/** Gives every message a key no other has, in one pass over a running map (`taken` is injectable for the cost test). */
+export function keyMessages(
+  messages: Iterable<MessageView>,
+  taken: Map<string, number> = new Map(),
+): MessageView[] {
+  return Array.from(messages, (message) => keyOne(message, taken));
 }

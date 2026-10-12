@@ -1,4 +1,4 @@
-import { t } from "../../i18n/index.ts";
+import type { Translate } from "../../i18n/index.ts";
 import type { MessageView, ToolCallView } from "../../stores/row-view.ts";
 import type { SessionView, ToolView } from "../../stores/session-reducer.ts";
 
@@ -65,7 +65,7 @@ interface OpenCall {
   readonly item: ToolItem;
 }
 
-const omittedText = (message: MessageView): string =>
+const omittedText = (message: MessageView, t: Translate): string =>
   t("session.omitted", { size: Math.max(1, Math.round((message.omittedBytes ?? 0) / BYTES_PER_KB)) });
 
 function toolItem(owner: string, call: ToolCallView, occurrence: number): ToolItem {
@@ -108,11 +108,12 @@ function uniqueKeys(items: TranscriptItem[]): TranscriptItem[] {
   });
 }
 
-export function transcriptItems(view: SessionView): TranscriptItem[] {
+/** The rows of a view; the words they carry (the omitted-message note, the model-error fallback) come in `translate`, so a locale switch shows in them. */
+export function transcriptItems(view: SessionView, translate: Translate): TranscriptItem[] {
   const items: TranscriptItem[] = [];
   const open: OpenCall[] = [];
   view.messages.forEach((message, at) => {
-    const placeholder = message.omittedBytes === null ? null : omittedText(message);
+    const placeholder = message.omittedBytes === null ? null : omittedText(message, translate);
     if (message.role === "toolResult" && message.toolCallId !== null) {
       const call = answered(open, message);
       if (call) {
@@ -165,7 +166,7 @@ export function transcriptItems(view: SessionView): TranscriptItem[] {
       items.push({
         kind: "failure",
         key: `${message.key}:failure`,
-        text: message.error || t("error.internal"),
+        text: message.error || translate("error.internal"),
       });
     }
   });

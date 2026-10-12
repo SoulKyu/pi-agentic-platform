@@ -4,8 +4,10 @@ import {
   type ApprovalRequestRecord,
   type Dialog,
   type DialogResponse,
+  type Notice,
   PapError,
   type Panel,
+  SERVER_CODES,
   type SessionStreamEvent,
   type StatusEntry,
   UI_LIMITS,
@@ -24,12 +26,22 @@ import { createNoticeLimiter } from "./notices.ts";
 import { createPanels } from "./panels.ts";
 import { clip, SAFE_EVENT_NAME } from "./worker-text.ts";
 
-const CANCEL_NOTICES: Partial<Record<CancelReason, string>> = {
-  too_large: "An extension asked a question that was too large to show. It was cancelled.",
-  limit: "An extension asked a question while too many were waiting. It was cancelled.",
+type FixedNotice = Pick<Notice, "text" | "code">;
+const CANCEL_NOTICES: Partial<Record<CancelReason, FixedNotice>> = {
+  too_large: {
+    text: "An extension asked a question that was too large to show. It was cancelled.",
+    code: SERVER_CODES.dialogTooLarge,
+  },
+  limit: {
+    text: "An extension asked a question while too many were waiting. It was cancelled.",
+    code: SERVER_CODES.dialogLimit,
+  },
 };
 
-const APPROVAL_CANCEL_NOTICE = "A question about a tool call could not be shown. The call was blocked.";
+const APPROVAL_CANCEL_NOTICE: FixedNotice = {
+  text: "A question about a tool call could not be shown. The call was blocked.",
+  code: SERVER_CODES.approvalUnshown,
+};
 
 export interface LiveUiDeps {
   readonly handle: WorkerHandle;
@@ -105,7 +117,7 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
 
   // Every dialog is answered; only the telling is spaced out, so an extension that asks in a loop cannot flood the
   // user's screen or the log. Approvals have a key of their own: an extension's noise cannot hide their notice.
-  function said(key: string, reason: CancelReason, method: string, notice: string | undefined): void {
+  function said(key: string, reason: CancelReason, method: string, notice: FixedNotice | undefined): void {
     const verdict = limiter.check(key);
     if (!verdict.allowed) return;
     logger.warn("dialog_cancelled", {
@@ -113,7 +125,7 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
       method: clip(method).slice(0, 64),
       suppressed: verdict.suppressed,
     });
-    if (notice) deps.publish({ kind: "notice", level: "warning", text: notice });
+    if (notice) deps.publish({ kind: "notice", level: "warning", ...notice });
   }
   // The policy hears a closed question, never a refusal: the model must not be told a person said no (M2R62).
   function refuseApproval(id: string, reason: CancelReason): void {
@@ -197,9 +209,17 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
         event: clip(record.event),
         error: clip(record.error),
       });
-      const during = SAFE_EVENT_NAME.test(record.event) ? ` during ${record.event}` : "";
       // pap's own sentence about an extension, not text the extension wrote: no `source` (only an extension's own text has one).
-      extensionNotices.add({ level: "error", text: `An extension failed${during}.` });
+      extensionNotices.add(
+        SAFE_EVENT_NAME.test(record.event)
+          ? {
+              level: "error",
+              text: `An extension failed during ${record.event}.`,
+              code: SERVER_CODES.extensionFailedDuring,
+              params: { event: record.event },
+            }
+          : { level: "error", text: "An extension failed.", code: SERVER_CODES.extensionFailed },
+      );
     },
     answer(dialogId, response) {
       const open = dialogs.peek(dialogId); // looks without taking

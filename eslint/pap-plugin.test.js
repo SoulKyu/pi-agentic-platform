@@ -327,3 +327,15 @@ describe("module boundaries", () => {
     expect(await boundaryRulesFor("@pap/ui")).toContain("boundaries/element-types");
   });
 });
+
+tester.run("no-native-title", pap.rules["no-native-title"], {
+  valid: [
+    { code: 'const x = <button aria-label="Close">x</button>;' },
+    { code: 'const x = <iframe title="preview" />;' },
+    { code: 'const x = <Tooltip title="ok"><b /></Tooltip>;' },
+  ],
+  invalid: [
+    { code: 'const x = <button title="Close">x</button>;', errors: [{ messageId: "title" }] },
+    { code: "const x = <span title={label}>x</span>;", errors: [{ messageId: "title" }] },
+  ],
+});

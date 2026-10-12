@@ -1,5 +1,16 @@
+import { commandsEn } from "./catalog/commands.ts";
+import { devEn } from "./catalog/dev.ts";
+import { shellEn } from "./catalog/shell.ts";
+
+// A build-time constant: production drops the branch and the key with it. The cast keeps the key in `MessageKey`.
+const dev = (import.meta.env.DEV ? devEn : {}) as typeof devEn;
+
 export const en = {
+  ...shellEn,
+  ...commandsEn,
+  ...dev,
   "app.name": "pap",
+  "app.tagline": "pi agentic platform",
   "app.loading": "Loading…",
   "gate.retry": "Retry",
   "setup.title": "Create the owner account",
@@ -12,13 +23,14 @@ export const en = {
   "login.title": "Sign in",
   "login.submit": "Sign in",
   "login.passkey": "Sign in with a passkey",
+  "login.throttleNote":
+    "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. It resets after 5 minutes without a failure.",
   "login.failed": "Wrong username or password.",
   "login.throttled": "Too many attempts. Wait {seconds} s.",
   "account.addPasskey": "Add a passkey",
   "account.passkeyPasswordHint": "Enter your password to add a passkey.",
   "account.passkeyAdded": "Passkey added.",
   "account.cancel": "Cancel",
-  "account.logout": "Sign out",
   "sessions.title": "Sessions",
   "sessions.cwd": "Working directory",
   "sessions.cwdHint": "Absolute path of an existing folder.",
@@ -99,7 +111,7 @@ export const en = {
   "sessions.tool.notYet": "The output is not available yet.",
   "sessions.tool.retry": "Try again",
   "sessions.tool.tooLarge": "Output too large to show here.",
-  "dialog.approval": "Approval · {category}",
+  "dialog.approval": "Approval",
   "dialog.answer.deny": "Deny",
   "dialog.answer.session": "Session",
   "dialog.answer.always": "Always",
@@ -161,4 +173,13 @@ export const en = {
   "sessions.minimap.earlier.one": "{count} earlier turn",
   "sessions.minimap.earlier.other": "{count} earlier turns",
   // ── end sessions (M2) ──
+  // ── session screen in the shell (P3) ──
+  "sessions.announce.runEnded": "The agent has finished.",
+  "sessions.announce.approval": "The agent is waiting for your approval.",
+  "sessions.transcript.thought": "Thought",
+  "sessions.transcript.label": "Conversation",
+  "session.status.needsInput": "Needs you",
+  "row.actions": "Message actions",
+  "branch.group": "Branch {index} of {total}",
+  "connection.draftsStay": "Your drafts stay on this device.",
 } as const;

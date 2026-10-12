@@ -11,6 +11,7 @@ import {
   TranscriptRow,
   UI_LIMITS,
 } from "./streams.ts";
+import { settingsMethods } from "./settings.ts";
 
 const SessionId = z.string().min(1).max(128);
 const Ok = z.object({ ok: z.literal(true) });
@@ -28,6 +29,7 @@ function catalogue<const T extends { readonly [K in keyof T]: MethodDef<K & stri
 }
 
 export const methods = catalogue({
+  ...settingsMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",

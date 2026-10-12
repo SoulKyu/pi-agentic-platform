@@ -1,13 +1,18 @@
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { BROWSER_TARGETS } from "./browser-targets.ts";
+import { appearanceBoot } from "./vite/appearance-boot.ts";
 
 const daemon = process.env.PAP_DEV_DAEMON ?? "http://127.0.0.1:7777";
 
 export default defineConfig({
-  plugins: [react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
+  plugins: [appearanceBoot(), react(), babel({ presets: [reactCompilerPreset()] }), tailwindcss()],
+  resolve: {
+    alias: [{ find: /^zod$/, replacement: fileURLToPath(new URL("./src/csp-safe-zod.ts", import.meta.url)) }],
+  },
   build: {
     target: BROWSER_TARGETS,
     outDir: "dist",

@@ -60,7 +60,7 @@ export interface LiveSession {
   /** The last notices this session published, of every source, oldest first (start-up notices included). */
   notices(): Notice[];
   /** Says a notice now, after any pending deltas, and keeps it in the ring for later subscribers. Pap's notices carry no source. */
-  notice(notice: { level: Notice["level"]; text: string }): void;
+  notice(notice: Pick<Notice, "level" | "text" | "code" | "params">): void;
   /** Keystrokes for an open panel: `not_found` when it is not open, `bad_request` for data outside 1..4096 characters. */
   panelInput(id: string, data: string): void;
   /** The reply being written, as the stream has sent it so far (never deltas still pending); null between replies. */

@@ -1,5 +1,5 @@
 import type { HistoryMeta, TranscriptRow } from "@pap/contracts";
-import { toMessageView, withUniqueKey, type MessageView } from "./row-view.ts";
+import { keyMessages, toMessageView } from "./row-view.ts";
 import type { SessionView } from "./session-reducer.ts";
 
 /**
@@ -19,10 +19,7 @@ export function prependHistory(
     return message ? [message] : [];
   });
   // Keys are made again from the top, so the older rows cannot take a key a later one has.
-  const messages = [...older, ...view.messages].reduce<MessageView[]>(
-    (list, message) => [...list, withUniqueKey(list, message)],
-    [],
-  );
+  const messages = keyMessages([...older, ...view.messages]);
   return {
     ...view,
     messages,

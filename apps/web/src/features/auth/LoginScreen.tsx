@@ -1,10 +1,12 @@
 import { Button, TextField } from "@pap/ui";
 import { useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { login, loginWithPasskey, type AuthResult } from "./auth-api.ts";
+import { AuthFrame } from "./AuthFrame.tsx";
 import { authErrorText } from "./auth-error.ts";
 
 export function LoginScreen({ passkeysAvailable, onDone }: { passkeysAvailable: boolean; onDone(): void }) {
+  const t = useT();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -19,8 +21,7 @@ export function LoginScreen({ passkeysAvailable, onDone }: { passkeysAvailable: 
     });
   };
   return (
-    <main className="mx-auto flex w-full max-w-sm flex-col gap-4 p-6">
-      <h1 className="text-xl font-extrabold text-fg">{t("login.title")}</h1>
+    <AuthFrame title={t("login.title")}>
       {passkeysAvailable ? (
         <div>
           <Button variant="primary" disabled={busy} onClick={() => attempt(loginWithPasskey())}>
@@ -29,7 +30,7 @@ export function LoginScreen({ passkeysAvailable, onDone }: { passkeysAvailable: 
         </div>
       ) : null}
       <form
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-s3"
         onSubmit={(event) => {
           event.preventDefault();
           attempt(login(username, password));
@@ -58,11 +59,12 @@ export function LoginScreen({ passkeysAvailable, onDone }: { passkeysAvailable: 
           {t("login.submit")}
         </Button>
       </form>
+      <p className="text-ui text-muted">{t("login.throttleNote")}</p>
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-err">
           {error}
         </p>
       ) : null}
-    </main>
+    </AuthFrame>
   );
 }

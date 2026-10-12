@@ -104,7 +104,7 @@ describe("Composer serialized sends", () => {
     await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
     expect(screen.bed.called("sessions.prompt")).toHaveLength(1);
     expect(field(container, "Message").value).toBe("second");
-    expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe(
+    expect(container.querySelector('[data-composer] [role="status"][aria-live="polite"]')?.textContent).toBe(
       "A message is being sent. Wait a moment.",
     );
     expect(JSON.parse(localStorage.getItem("pap.pending.sess-1") ?? "null").commandId).toBe(
@@ -113,7 +113,7 @@ describe("Composer serialized sends", () => {
     call.resolve({ disposition: "queued" });
     await settle();
     expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
-    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('[data-composer] [role="status"]')).toBeNull();
     expect(button(container, "Steer").disabled).toBe(false);
   });
 
@@ -159,6 +159,91 @@ describe("Composer sign-out and unmount races", () => {
     await settle();
     expect(localStorage.getItem("pap.draft.sess-1")).toBe("sent\n\nnewer");
     expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
+  });
+});
+
+describe("Composer banner after a remount mid-flight (M2 #44)", () => {
+  const MAY_HAVE_BEEN_SENT = "The message may have been sent.";
+  const remountMidFlight = async () => {
+    const call = inFlight();
+    const container = await show({ status: "idle" });
+    await sendFrom(container, "deploy");
+    const newer = await remount();
+    // The send is still in flight: its outcome is not known yet, so the banner is right.
+    expect(text(newer)).toContain(MAY_HAVE_BEEN_SENT);
+    return { call, newer };
+  };
+
+  it("drops the banner when the send the old screen made fails definitely", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(text(newer)).not.toContain(MAY_HAVE_BEEN_SENT);
+    expect(hasButton(newer, "Send again")).toBe(false);
+    expect(localStorage.getItem("pap.draft.sess-1")).toBe("deploy");
+    expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
+  });
+
+  it("shows the returned text on the screen that came back, and a keystroke after it keeps it", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(field(newer, "Message").value).toBe("deploy");
+    await typeInto(field(newer, "Message"), "deploy!");
+    expect(localStorage.getItem("pap.draft.sess-1")).toBe("deploy!");
+  });
+
+  it("merges the returned text with what was typed meanwhile, as Stop does", async () => {
+    const { call, newer } = await remountMidFlight();
+    await typeInto(field(newer, "Message"), "newer");
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(field(newer, "Message").value).toBe("deploy\n\nnewer");
+    await typeInto(field(newer, "Message"), "deploy\n\nnewer!");
+    expect(localStorage.getItem("pap.draft.sess-1")).toBe("deploy\n\nnewer!");
+  });
+
+  it("brings no text back when the send succeeds", async () => {
+    const { call, newer } = await remountMidFlight();
+    await typeInto(field(newer, "Message"), "newer");
+    call.resolve({ disposition: "started" });
+    await settle();
+    expect(field(newer, "Message").value).toBe("newer");
+  });
+
+  it("drops the banner when the send the old screen made succeeds", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.resolve({ disposition: "started" });
+    await settle();
+    expect(text(newer)).not.toContain(MAY_HAVE_BEEN_SENT);
+    expect(hasButton(newer, "Send again")).toBe(false);
+  });
+
+  it("keeps the banner, and Send again, when the outcome stays unknown", async () => {
+    const { call, newer } = await remountMidFlight();
+    call.reject(new RpcError("timeout"));
+    await settle();
+    expect(text(newer)).toContain(MAY_HAVE_BEEN_SENT);
+    expect(hasButton(newer, "Send again")).toBe(true);
+    expect(localStorage.getItem("pap.pending.sess-1")).not.toBeNull();
+  });
+
+  it("shows no banner on a remount after a definite failure", async () => {
+    const call = inFlight();
+    const container = await show({ status: "idle" });
+    await sendFrom(container, "deploy");
+    call.reject(new RpcError("queue_full"));
+    await settle();
+    expect(text(await remount())).not.toContain(MAY_HAVE_BEEN_SENT);
+  });
+
+  it("shows the banner on a remount after an unknown outcome", async () => {
+    const call = inFlight();
+    const container = await show({ status: "idle" });
+    await sendFrom(container, "deploy");
+    call.reject(new RpcError("connection_lost"));
+    await settle();
+    expect(text(await remount())).toContain(MAY_HAVE_BEEN_SENT);
   });
 });
 
@@ -211,7 +296,9 @@ describe("Composer feedback when a send is refused locally", () => {
   const ctrlEnter = (container: HTMLElement) =>
     press(field(container, "Message"), { key: "Enter", ctrlKey: true });
   const statusText = (container: HTMLElement) =>
-    [...container.querySelectorAll('[role="status"][aria-live="polite"]')].map((node) => node.textContent);
+    [...container.querySelectorAll('[data-composer] [role="status"][aria-live="polite"]')].map(
+      (node) => node.textContent,
+    );
 
   it("says why when Ctrl+Enter meets a pending send", async () => {
     localStorage.setItem(

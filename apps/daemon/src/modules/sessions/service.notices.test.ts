@@ -37,6 +37,7 @@ describe("pap's own notices reach the ring (final review M3)", () => {
     const notices = await snapshotNotices(sessionId);
     expect(notices).toHaveLength(1);
     expect(notices[0]?.text).toContain("always-allowed calls");
+    expect(notices[0]).toMatchObject({ code: "rules_full", params: { max: "1000" } });
     expect(notices[0]).not.toHaveProperty("source");
   });
 
@@ -55,6 +56,7 @@ describe("pap's own notices reach the ring (final review M3)", () => {
     const notices = await snapshotNotices(sessionId);
     expect(notices).toHaveLength(1);
     expect(notices[0]?.text).toContain("Reload the page");
+    expect(notices[0]).toMatchObject({ code: "view_not_refreshed" });
     expect(notices[0]).not.toHaveProperty("source");
   });
 });

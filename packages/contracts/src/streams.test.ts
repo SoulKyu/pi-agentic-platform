@@ -5,6 +5,7 @@ import {
   EMPTY_QUEUE,
   IDLE_ACTIVITY,
   NO_HISTORY,
+  SERVER_CODES,
   Notice,
   Panel,
   SessionName,
@@ -145,5 +146,65 @@ describe("session names (M2R92)", () => {
       expect(SessionSummary.safeParse({ ...summary, name }).success).toBe(false);
     }
     expect(SessionName.safeParse("😀".repeat(257)).success).toBe(false);
+  });
+});
+
+describe("server texts by code (R128)", () => {
+  it("lets a notice carry a code and params next to its English text, and a status its cause's", () => {
+    const notice = {
+      kind: "notice",
+      level: "error",
+      text: "An extension failed during tool_call.",
+      code: "extension_failed_during",
+      params: { event: "tool_call" },
+    };
+    expect(SessionStreamEvent.parse(notice)).toEqual(notice);
+    const status = {
+      kind: "status",
+      status: "cold",
+      cause: "Agent process exited with code 70.",
+      causeCode: "process_exit_code",
+      causeParams: { code: "70" },
+    };
+    expect(SessionStreamEvent.parse(status)).toEqual(status);
+    expect(
+      Notice.parse({ level: "warning", text: "x", code: "rules_full", params: { max: "200" } }).code,
+    ).toBe("rules_full");
+  });
+
+  it("keeps the code optional, so a newer web still reads an older daemon", () => {
+    expect(SessionStreamEvent.parse({ kind: "notice", level: "info", text: "hi" })).toEqual({
+      kind: "notice",
+      level: "info",
+      text: "hi",
+    });
+    expect(SessionStreamEvent.parse({ kind: "status", status: "cold", cause: "c" })).toEqual({
+      kind: "status",
+      status: "cold",
+      cause: "c",
+    });
+    expect(SessionStreamEvent.parse({ ...snapshot, notices: [{ level: "info", text: "old" }] }).kind).toBe(
+      "snapshot",
+    );
+  });
+
+  it("accepts a code this contract does not list (a newer daemon) and bounds codes and params", () => {
+    expect(
+      SessionStreamEvent.safeParse({ kind: "notice", level: "info", text: "t", code: "from_the_future" })
+        .success,
+    ).toBe(true);
+    const bad = (extra: object) =>
+      SessionStreamEvent.safeParse({ kind: "notice", level: "info", text: "t", ...extra }).success;
+    expect(bad({ code: "" })).toBe(false);
+    expect(bad({ code: "c".repeat(65) })).toBe(false);
+    expect(bad({ code: "x", params: { a: "v".repeat(65) } })).toBe(false);
+    expect(bad({ code: "x", params: { a: "1", b: "2", c: "3", d: "4", e: "5" } })).toBe(false);
+    expect(bad({ code: "x", params: { a: 1 } })).toBe(false);
+  });
+
+  it("lists every code the daemon sends", () => {
+    expect(new Set(Object.values(SERVER_CODES)).size).toBe(Object.keys(SERVER_CODES).length);
+    expect(SERVER_CODES.messageTooLarge).toBe("message_too_large");
+    expect(SERVER_CODES.processExitCode).toBe("process_exit_code");
   });
 });

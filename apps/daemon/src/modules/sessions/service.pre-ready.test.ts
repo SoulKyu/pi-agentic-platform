@@ -95,7 +95,14 @@ describe("recent notices in the snapshot", () => {
     const { sessionId } = await bed.service.create(bed.work, { userId: "u1", permissions: new Set() });
     const snapshot = await bed.snapshot(sessionId);
     expect(snapshot).toMatchObject({
-      notices: [{ level: "error", text: "An extension failed during session_start." }],
+      notices: [
+        {
+          level: "error",
+          text: "An extension failed during session_start.",
+          code: "extension_failed_during",
+          params: { event: "session_start" },
+        },
+      ],
     });
   });
 });

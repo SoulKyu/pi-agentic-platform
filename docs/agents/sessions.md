@@ -13,6 +13,7 @@ Code: `apps/daemon/src/modules/sessions/`. Identity of a session and its Pi file
 
 - `PROTOCOL_VERSION` is 2 (`packages/contracts/src/frames.ts`). The snapshot (`streams.ts`) carries `status`, `rows`, `dialogs` (+ `hiddenDialogs`), `partial`, `queue`, `statuses`, `widgets`, `title`, `panels`, `notices` (+ `decorationsTruncated`), `history`, `activity`, `leafId` and `name`.
 - A transcript row is `TranscriptRow {entryId | null, message}`: the Pi message and the id of the Pi entry it came from, once known. Rows are live (from `message_end`, bound to their entry by the `entry` event) or read from the file; a summary (compaction, branch) is a row too.
+- Pap's own notices and status causes carry a `code` (`SERVER_CODES` in `streams.ts`, optional on the wire) and `params` beside the English text; extension-written text has none. A new fixed sentence needs a code, and an English and French entry in the web's `catalog/server.ts`.
 - Stream events: `snapshot`, `status`, `pi`, `dialog_open`/`dialog_closed`, `notice`, `row`, `entry`, `queue`, `status_bar`, `widget`, `title`, `editor_text`, `panel`/`panel_closed`, `name`, `activity`. Extension UI limits live in `UI_LIMITS` (`streams.ts`); the daemon rebuilds every decoration from the fields it knows and cuts them to it.
 - Run origin on the wire: `run_start {origin}` is recorded `user` or `extension` today; spec C also names `trigger` and `task`, which have no producer yet.
 

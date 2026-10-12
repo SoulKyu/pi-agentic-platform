@@ -1,28 +1,81 @@
+// @vitest-environment happy-dom
+import { act } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { mount } from "../testing/dom.ts";
 import { Button } from "./Button.tsx";
 
-describe("Button", () => {
+describe("Button (DESIGN.md §9.1)", () => {
   it("is a plain button unless told otherwise", () => {
     expect(renderToStaticMarkup(<Button>Save</Button>)).toContain('type="button"');
     expect(renderToStaticMarkup(<Button type="submit">Save</Button>)).toContain('type="submit"');
   });
 
-  it("shows the 2 px orange fill focus ring, offset 2 px, never the human text tone", () => {
+  it("fills primary with the you colour and its own ink", () => {
+    const html = renderToStaticMarkup(<Button variant="primary">Send</Button>);
+    expect(html).toContain("bg-you-fill");
+    expect(html).toContain("text-you-ink");
+  });
+
+  it("draws danger as an error outline and ghost without a border colour", () => {
+    expect(renderToStaticMarkup(<Button variant="danger">Delete</Button>)).toMatch(
+      /border-err[\s"].*text-err|text-err.*border-err/,
+    );
+    expect(renderToStaticMarkup(<Button variant="ghost">More</Button>)).toContain("border-transparent");
+  });
+
+  it("sets labels as HUD labels, keeps the focus ring and a 44 px target on touch", () => {
     const html = renderToStaticMarkup(<Button>Save</Button>);
-    expect(html).toContain("focus-visible:outline-2");
-    expect(html).toContain("focus-visible:outline-offset-2");
-    expect(html).toContain("focus-visible:outline-human-fill");
-    expect(html).not.toMatch(/outline-human(?!-fill)/);
+    for (const cls of [
+      "label-hud",
+      "focus-ring",
+      "pointer-coarse:min-h-11",
+      "pointer-coarse:min-w-11",
+      "h-control",
+    ])
+      expect(html).toContain(cls);
   });
 
-  it("keeps a 44 px target on coarse pointers", () => {
-    expect(renderToStaticMarkup(<Button>Save</Button>)).toContain("pointer-coarse:min-h-11");
+  it("keeps the DOM text in sentence case (selectors never depend on CSS text-transform, R121)", () => {
+    expect(renderToStaticMarkup(<Button>Allow once</Button>)).toContain(">Allow once<");
   });
 
-  it("danger is an error outline", () => {
-    const html = renderToStaticMarkup(<Button variant="danger">Delete</Button>);
-    expect(html).toContain("border-error");
-    expect(html).toContain("text-error");
+  it("uses a fixed 24 px row for the sm size", () => {
+    expect(renderToStaticMarkup(<Button size="sm">Go</Button>)).toContain("h-6");
+  });
+});
+
+describe("Button pending feedback (DESIGN.md §7.3)", () => {
+  let now = 0;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, "now").mockImplementation(() => now);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("disables a remote action at once, spins after 200 ms and shows the stage label after 3 s", async () => {
+    now = 10;
+    const page = await mount(
+      <Button pendingSince={10} stageLabel="Preparing worktree…">
+        Create
+      </Button>,
+    );
+    const button = page.container.querySelector("button") as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    expect(page.container.querySelector('[data-slot="spinner"]')).toBeNull();
+    await act(async () => {
+      now = 210;
+      vi.advanceTimersByTime(200);
+    });
+    expect(page.container.querySelector('[data-slot="spinner"]')).not.toBeNull();
+    await act(async () => {
+      now = 3010;
+      vi.advanceTimersByTime(2800);
+    });
+    expect(button.textContent).toBe("Preparing worktree…");
+    await page.unmount();
   });
 });

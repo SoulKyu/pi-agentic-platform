@@ -1,7 +1,16 @@
 import type { en } from "./en.ts";
+import { commandsFr } from "./catalog/commands.ts";
+import { devFr } from "./catalog/dev.ts";
+import { shellFr } from "./catalog/shell.ts";
+
+const dev = (import.meta.env.DEV ? devFr : {}) as typeof devFr;
 
 export const fr: { readonly [K in keyof typeof en]: string } = {
+  ...shellFr,
+  ...commandsFr,
+  ...dev,
   "app.name": "pap",
+  "app.tagline": "pi agentic platform",
   "app.loading": "Chargement…",
   "gate.retry": "Réessayer",
   "setup.title": "Créer le compte propriétaire",
@@ -14,13 +23,14 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "login.title": "Connexion",
   "login.submit": "Se connecter",
   "login.passkey": "Se connecter avec une clé d'accès",
+  "login.throttleNote":
+    "Chaque échec double l'attente avant l'essai suivant, de 1 seconde jusqu'à 1 minute, par adresse et par compte. Elle repart de zéro après 5 minutes sans échec.",
   "login.failed": "Nom d'utilisateur ou mot de passe incorrect.",
   "login.throttled": "Trop de tentatives. Attendez {seconds} s.",
   "account.addPasskey": "Ajouter une clé d'accès",
   "account.passkeyPasswordHint": "Saisissez votre mot de passe pour ajouter une clé d'accès.",
   "account.passkeyAdded": "Clé d'accès ajoutée.",
   "account.cancel": "Annuler",
-  "account.logout": "Se déconnecter",
   "sessions.title": "Sessions de travail",
   "sessions.cwd": "Dossier de travail",
   "sessions.cwdHint": "Chemin absolu d'un dossier existant.",
@@ -102,7 +112,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "sessions.tool.notYet": "La sortie n'est pas encore disponible.",
   "sessions.tool.retry": "Réessayer",
   "sessions.tool.tooLarge": "Sortie trop volumineuse pour être affichée ici.",
-  "dialog.approval": "Approbation · {category}",
+  "dialog.approval": "Approbation",
   "dialog.answer.deny": "Refuser",
   "dialog.answer.session": "Pour la session",
   "dialog.answer.always": "Toujours",
@@ -164,4 +174,13 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "sessions.minimap.earlier.one": "{count} tour plus ancien",
   "sessions.minimap.earlier.other": "{count} tours plus anciens",
   // ── end sessions (M2) ──
+  // ── session screen in the shell (P3) ──
+  "sessions.announce.runEnded": "L'agent a terminé.",
+  "sessions.announce.approval": "L'agent attend votre approbation.",
+  "sessions.transcript.thought": "Réflexion terminée",
+  "sessions.transcript.label": "Échanges",
+  "session.status.needsInput": "Attend votre réponse",
+  "row.actions": "Actions du message",
+  "branch.group": "Branche {index} sur {total}",
+  "connection.draftsStay": "Vos brouillons restent sur cet appareil.",
 };

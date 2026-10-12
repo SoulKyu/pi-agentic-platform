@@ -43,12 +43,9 @@ const composer = (container: HTMLElement) => field(container, "Message");
 describe("fork from here", () => {
   it("is offered on user rows only", async () => {
     const container = await screen.show(withRows);
-    expect(
-      [...container.querySelectorAll("button")].filter((b) => b.textContent === "Fork from here"),
-    ).toHaveLength(1);
-    expect(
-      [...container.querySelectorAll("button")].filter((b) => b.textContent === "Edit from here"),
-    ).toHaveLength(1);
+    for (const label of ["Fork from here", "Edit from here"]) {
+      expect(container.querySelectorAll(`button[aria-label="${label}"]`)).toHaveLength(1);
+    }
   });
 
   it("forks, stores the text as the new session's draft, and opens it", async () => {

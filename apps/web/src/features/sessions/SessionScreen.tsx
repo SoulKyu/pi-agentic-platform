@@ -1,25 +1,42 @@
-import { cn, FOCUS_RING } from "@pap/ui";
+import { cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
+import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useLocale, useT } from "../../i18n/index.ts";
+import { codedServerText } from "../../i18n/server-text.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { feedSession } from "../../stores/session-feed.ts";
-import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
+import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
+import "./register-server-catalog.ts";
 import { SessionRules } from "./AlwaysRules.tsx";
 import { Composer } from "./Composer.tsx";
+import { useAnnouncer } from "./announce.ts";
 import { SessionActions } from "./SessionActions.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
-import { plainText } from "./ansi.ts";
-import { AnsiText } from "./AnsiText.tsx";
 import { CustomPanel } from "./CustomPanel.tsx";
 import { codeText, failureText } from "./failure.ts";
-import { StatusBar } from "./StatusBar.tsx";
+import { statusCells } from "./status-cells.ts";
 import { useStructural } from "./use-action.ts";
 import { Transcript } from "./Transcript.tsx";
-import { Widgets } from "./Widgets.tsx";
 
-export function SessionScreen({ sessionId }: { sessionId: string }) {
+/** The chip says what the run needs from you before it says how the process is. */
+function runStatusOf(view: SessionView): RunStatus {
+  if (view.status !== "cold" && view.dialogs.length > 0) return "needs-input";
+  if (view.status === "cold") return "limited";
+  return view.status === "idle" ? "settled" : "working";
+}
+
+export function SessionScreen({
+  sessionId,
+  toolDetail,
+}: {
+  sessionId: string;
+  /** The account's tool card detail (Settings › Appearance), given by the pane that hosts the screen. */
+  toolDetail?: ToolDetail;
+}) {
+  const t = useT();
+  const locale = useLocale();
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +70,14 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
   const [edit, setEdit] = useState<{ sessionId: string; n: number; text: string } | null>(null);
   const editHere = (text: string) => setEdit((was) => ({ sessionId, n: (was?.n ?? 0) + 1, text }));
   const title = view.title === null ? "" : plainText(view.title).trim();
+  const announcer = useAnnouncer(view);
 
   return (
-    <main ref={screenRef} className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 p-4">
+    <section
+      ref={screenRef}
+      data-session-screen={sessionId}
+      className="flex min-h-0 w-full flex-1 flex-col gap-s3 p-s4"
+    >
       <header className="flex items-center justify-between">
         <Link to="/" className={cn("text-agent underline", FOCUS_RING)}>
           {t("sessions.title")}
@@ -70,12 +92,17 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
             {title}
           </span>
         ) : null}
-        <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
-          {t(`session.status.${view.status}`)}
-        </span>
+        <RunStatusChip
+          status={runStatusOf(view)}
+          label={t(
+            runStatusOf(view) === "needs-input"
+              ? "session.status.needsInput"
+              : `session.status.${view.status}`,
+          )}
+        />
       </header>
       {view.unreadable ? (
-        <p role="alert" className="border-l-2 border-error px-3 py-2 text-ui text-error">
+        <p role="alert" className="border-l-2 border-err px-3 py-2 text-ui text-err">
           {t("sessions.unreadable")}
         </p>
       ) : null}
@@ -92,7 +119,13 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
         key={`transcript:${sessionId}`}
         sessionId={sessionId}
         view={view}
-        rowActions={{ track: structural.track, busy: structural.active, onEdit: editHere }}
+        toolDetail={toolDetail ?? "compact"}
+        rowActions={{
+          track: structural.track,
+          busy: structural.active,
+          onEdit: editHere,
+          announce: announcer.say,
+        }}
       />
       <DialogList
         key={`dialogs:${sessionId}`}
@@ -105,7 +138,7 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
           key={`${index}:${notice.text}`}
           data-notice
           role={notice.level === "error" ? "alert" : undefined}
-          className={notice.level === "error" ? "text-ui text-error" : "text-ui text-muted"}
+          className={notice.level === "error" ? "text-ui text-err" : "text-ui text-muted"}
         >
           {notice.source === "extension" ? (
             <>
@@ -115,12 +148,12 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
               <AnsiText text={notice.text} />
             </>
           ) : (
-            notice.text
+            codedServerText(notice, locale)
           )}
         </p>
       ))}
       {error ? (
-        <p role="alert" className="text-ui text-attention">
+        <p role="alert" className="text-ui text-attn">
           {error}
         </p>
       ) : null}
@@ -135,10 +168,15 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
       />
       <Widgets widgets={view.widgets} placement="belowEditor" />
       <StatusBar
-        statuses={view.statuses}
+        cells={statusCells(view.statuses)}
+        label={t("status.label")}
+        sourceLabel={t("source.extension")}
         busy={["running", "starting", "releasing"].includes(view.status)}
         onCommand={runCommand}
       />
-    </main>
+      <p role="status" aria-live="polite" data-announcer className="sr-only">
+        {announcer.text}
+      </p>
+    </section>
   );
 }
