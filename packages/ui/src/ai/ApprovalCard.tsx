@@ -25,7 +25,7 @@ interface ApprovalCardCommon {
   /** A line under the answers ("Closes on its own after 30 s"). */
   readonly note?: ReactNode;
   /** Names the header when the caller lets it scroll (it then takes the keyboard like the body does). */
-  readonly headerLabel?: string;
+  readonly headerLabel?: string | undefined;
 }
 
 /** The converged API (agreement 6): the answers offered, their labels, one callback per click. */

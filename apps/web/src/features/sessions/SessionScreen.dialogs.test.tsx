@@ -75,7 +75,7 @@ describe("SessionScreen approval dialogs", () => {
   it("renders an approval as an approval dialog with its category", async () => {
     const container = await show([approval]);
     const card = container.querySelector('[role="alertdialog"]');
-    expect(card?.querySelector("h3")?.textContent).toBe("Approval · exec");
+    expect(card?.querySelector("h3")?.textContent).toBe("Approval·exec");
     expect(container.querySelector("[data-approval-scroll]")?.textContent).toBe("bash: ls");
   });
 

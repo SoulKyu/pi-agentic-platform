@@ -1,6 +1,6 @@
 import { Button } from "@pap/ui";
 import { useMemo, useState } from "react";
-import { t } from "../../../i18n/index.ts";
+import { useT } from "../../../i18n/index.ts";
 import { clip, plain, type ClipLimits } from "./untrusted.ts";
 
 /** The display text of an untrusted string: stripped of invisible characters, clipped until the owner expands it. */
@@ -23,6 +23,7 @@ export function ExpandToggle(props: {
   readonly expanded: boolean;
   toggle(): void;
 }) {
+  const t = useT();
   if (!props.clipped) return null;
   return (
     <div>

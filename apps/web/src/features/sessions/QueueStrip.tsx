@@ -1,10 +1,12 @@
 import type { QueueView } from "@pap/contracts";
 import { Button } from "@pap/ui";
-import { t, tp } from "../../i18n/index.ts";
+import { plural, useLocale, useT } from "../../i18n/index.ts";
 import { queueMore } from "./queue.vm.ts";
 
 /** What waits in Pi's queue: previews as plain text (they are message text), steering in the human colour, follow-ups dim. */
 export function QueueStrip({ queue, onClear }: { queue: QueueView; onClear(): void }) {
+  const t = useT();
+  const locale = useLocale();
   const more = queueMore(queue);
   if (queue.count === 0 && queue.steering.length === 0 && queue.followUp.length === 0) return null;
   const rows = [
@@ -37,7 +39,7 @@ export function QueueStrip({ queue, onClear }: { queue: QueueView; onClear(): vo
       </ul>
       {more > 0 ? (
         <p data-queue-more className="text-ui text-muted">
-          {tp("sessions.queue.more", more)}
+          {plural(locale, "sessions.queue.more", more)}
         </p>
       ) : null}
     </section>

@@ -2,7 +2,7 @@ import type { Panel } from "@pap/contracts";
 import { UI_LIMITS } from "@pap/contracts";
 import { Button, FOCUS_RING } from "@pap/ui";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { AnsiText } from "./AnsiText.tsx";
 import { failureText } from "./failure.ts";
@@ -43,6 +43,7 @@ const composerField = () => document.querySelector<HTMLElement>("[data-composer]
  * while a panel has the focus (M2R137).
  */
 export function CustomPanel(props: { readonly sessionId: string; readonly panels: readonly Panel[] }) {
+  const t = useT();
   const runtime = getRuntime();
   const panel = props.panels[0];
   const [collapsed, setCollapsed] = useState(false);

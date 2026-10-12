@@ -186,8 +186,9 @@ describe("SessionScreen approvals", () => {
   it("shows the approval card with the question and the size header pinned above the command", async () => {
     const container = await show();
     await emit(snapshot("running", [], [approval("12 characters, 1 line\nbash: echo hello")]));
-    expect(card(container).getAttribute("aria-labelledby")).toBe(container.querySelector("h3")?.id);
-    expect(container.querySelector("h3")?.textContent).toBe("Approval · exec");
+    expect(card(container).getAttribute("aria-label")).toBe("Approval exec");
+    // The separator is an aria-hidden span: the heading's text is "Approval·exec", never "Approval · exec".
+    expect(container.querySelector("h3")?.textContent).toBe("Approval·exec");
     expect(card(container).querySelector("[data-approval-header]")?.textContent).toBe(
       "12 characters, 1 line",
     );

@@ -1,7 +1,7 @@
 import { Button, TextField } from "@pap/ui";
 import { useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { useAction, type Track } from "./use-action.ts";
@@ -49,6 +49,7 @@ function download(url: string): void {
 }
 
 export function SessionActions(props: SessionActionsProps) {
+  const t = useT();
   const { sessionId, view } = props;
   const track = props.track ?? untracked;
   const blocked = props.blocked ?? false;

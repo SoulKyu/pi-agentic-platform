@@ -2,7 +2,7 @@ import type { SessionSummary } from "@pap/contracts";
 import { Button, cn, FOCUS_RING, TextField } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
 import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 
@@ -10,6 +10,7 @@ import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 const isConnectionLoss = (code: string): boolean => code === "offline" || code === "connection_lost";
 
 export function SessionListScreen() {
+  const t = useT();
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
   const navigate = useNavigate();

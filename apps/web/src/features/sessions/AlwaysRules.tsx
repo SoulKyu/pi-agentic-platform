@@ -1,6 +1,6 @@
 import { Button } from "@pap/ui";
 import { useEffect, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { failureText } from "./failure.ts";
 import { useAction } from "./use-action.ts";
@@ -23,6 +23,7 @@ const dayOf = (millis: number): string =>
   Number.isFinite(millis) && Math.abs(millis) <= 8.64e15 ? new Date(millis).toISOString().slice(0, 10) : "";
 
 function RuleLine({ rule, onSettled }: { rule: Rule; onSettled: () => void }) {
+  const t = useT();
   const [error, setError] = useState<string | null>(null);
   const revoke = useAction((call) => call, setError);
   return (
@@ -62,6 +63,7 @@ function RuleLine({ rule, onSettled }: { rule: Rule; onSettled: () => void }) {
 
 /** The always-rules of a project (its git root, as the daemon resolves `cwd`), newest first, each revocable. */
 export function AlwaysRules({ cwd }: { cwd: string }) {
+  const t = useT();
   const [rules, setRules] = useState<readonly Rule[] | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,9 +116,11 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
 
 /** The session header's disclosure: opened, it finds the session's folder and lists the rules of its project. */
 export function SessionRules({ sessionId }: { sessionId: string }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [cwd, setCwd] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   useEffect(() => {
     if (!open || cwd !== null) return;
     let current = true;
@@ -127,7 +131,8 @@ export function SessionRules({ sessionId }: { sessionId: string }) {
           if (!current) return;
           const found = result.sessions.find((session) => session.id === sessionId)?.cwd ?? null;
           setCwd(found);
-          setError(found === null ? t("rules.notFound") : null);
+          setNotFound(found === null);
+          setError(null);
         },
         (failure: unknown) => {
           if (current) setError(failureText(failure));
@@ -146,9 +151,9 @@ export function SessionRules({ sessionId }: { sessionId: string }) {
       <div className="mt-2">
         {open && cwd !== null ? <AlwaysRules cwd={cwd} /> : null}
         {open && cwd === null ? (
-          error ? (
+          error || notFound ? (
             <p role="alert" className="text-ui text-attention">
-              {error}
+              {notFound ? t("rules.notFound") : error}
             </p>
           ) : (
             <p className="text-ui text-muted">{t("rules.loading")}</p>

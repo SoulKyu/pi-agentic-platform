@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import {
@@ -44,6 +44,7 @@ export function useComposer(
   },
 ) {
   const runtime = getRuntime();
+  const t = useT();
   const [storage] = useState(deviceStorage);
   const [text, setText] = useState(() => loadDraft(storage, sessionId));
   const [behavior, setBehavior] = useState(() => loadBehavior(storage));

@@ -1,7 +1,7 @@
 import type { Dialog, DialogResponse } from "@pap/contracts";
 import { Button } from "@pap/ui";
 import { useRef, useState } from "react";
-import { t, tp } from "../../../i18n/index.ts";
+import { plural, useLocale, useT } from "../../../i18n/index.ts";
 import { getRuntime } from "../../../runtime/index.ts";
 import { failureText, outcomeUnknown } from "../failure.ts";
 import { ApprovalCardFor } from "./ApprovalCardFor.tsx";
@@ -43,6 +43,8 @@ export function DialogList(props: {
   readonly hidden: number;
 }) {
   const runtime = getRuntime();
+  const t = useT();
+  const locale = useLocale();
   const { sessionId, dialogs } = props;
   const [slots, setSlots] = useState<Slots>({});
   const inFlight = useRef(new Set<string>());
@@ -123,7 +125,7 @@ export function DialogList(props: {
       })}
       {props.hidden > 0 ? (
         <p role="status" className="text-ui text-muted">
-          {tp("dialog.hidden", props.hidden)}
+          {plural(locale, "dialog.hidden", props.hidden)}
         </p>
       ) : null}
     </>

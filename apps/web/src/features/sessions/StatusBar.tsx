@@ -1,7 +1,7 @@
 import type { StatusEntry } from "@pap/contracts";
 import { Button } from "@pap/ui";
 import { useMemo } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { AnsiText } from "./AnsiText.tsx";
 import { statusCells } from "./status-cells.ts";
 
@@ -16,6 +16,7 @@ export function StatusBar(props: {
   readonly busy: boolean;
   readonly onCommand: (command: string) => void;
 }) {
+  const t = useT();
   const cells = useMemo(() => statusCells(props.statuses), [props.statuses]);
   if (cells.length === 0) return null;
   return (

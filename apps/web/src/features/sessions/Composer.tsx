@@ -1,5 +1,5 @@
 import { Button, TextField } from "@pap/ui";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
 import { useComposer, type Injected } from "./use-composer.ts";
@@ -16,6 +16,7 @@ interface ComposerProps {
 }
 
 export function Composer({ sessionId, view, onTabToPanel, injected, structuralBusy }: ComposerProps) {
+  const t = useT();
   const c = useComposer(sessionId, view, {
     injected: injected ?? null,
     structuralBusy: structuralBusy ?? false,

@@ -1,7 +1,7 @@
 import type { Dialog } from "@pap/contracts";
 import { cn, FOCUS_RING } from "@pap/ui";
 import { useId, type ReactNode } from "react";
-import { t } from "../../../i18n/index.ts";
+import { useT, type Translate } from "../../../i18n/index.ts";
 import { plain, clip } from "./untrusted.ts";
 import { ExpandToggle, useClipped } from "./use-clipped.tsx";
 
@@ -9,7 +9,7 @@ const TITLE_LIMITS = { lines: 2, chars: 200 } as const;
 const MESSAGE_LIMITS = { lines: 8, chars: 1000 } as const;
 
 /** "Closes on its own after N s", static text: Pi resolves the dialog itself (M2R131). */
-export const timeoutLine = (timeout: number): string =>
+export const timeoutLine = (timeout: number, t: Translate): string =>
   t("dialog.timeout", { seconds: Math.max(1, Math.round(timeout / 1000)) });
 
 /** A title as a field label: invisible characters out, cut at the title limit, never expandable. */
@@ -26,6 +26,7 @@ export function ExtensionCard(props: {
   readonly children: ReactNode;
 }) {
   const { dialog } = props;
+  const t = useT();
   const headingId = useId();
   const title = useClipped(dialog.title, TITLE_LIMITS);
   const message = useClipped(dialog.message ?? "", MESSAGE_LIMITS);
@@ -73,7 +74,7 @@ export function ExtensionCard(props: {
       )}
       {props.children}
       {dialog.timeout === undefined ? null : (
-        <p className="text-label text-muted">{timeoutLine(dialog.timeout)}</p>
+        <p className="text-label text-muted">{timeoutLine(dialog.timeout, t)}</p>
       )}
     </section>
   );

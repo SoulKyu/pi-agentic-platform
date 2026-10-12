@@ -111,7 +111,7 @@ export const en = {
   "sessions.tool.notYet": "The output is not available yet.",
   "sessions.tool.retry": "Try again",
   "sessions.tool.tooLarge": "Output too large to show here.",
-  "dialog.approval": "Approval · {category}",
+  "dialog.approval": "Approval",
   "dialog.answer.deny": "Deny",
   "dialog.answer.session": "Session",
   "dialog.answer.always": "Always",
@@ -173,4 +173,13 @@ export const en = {
   "sessions.minimap.earlier.one": "{count} earlier turn",
   "sessions.minimap.earlier.other": "{count} earlier turns",
   // ── end sessions (M2) ──
+  // ── session screen in the shell (P3) ──
+  "sessions.announce.runEnded": "The agent has finished.",
+  "sessions.announce.approval": "The agent is waiting for your approval.",
+  "sessions.transcript.thought": "Thought",
+  "sessions.transcript.label": "Conversation",
+  "session.status.needsInput": "Needs you",
+  "row.actions": "Message actions",
+  "branch.group": "Branch {index} of {total}",
+  "connection.draftsStay": "Your drafts stay on this device.",
 } as const;

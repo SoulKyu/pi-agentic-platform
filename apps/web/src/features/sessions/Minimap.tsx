@@ -1,6 +1,6 @@
 import { cn, FOCUS_RING } from "@pap/ui";
 import { useEffect, useState } from "react";
-import { t, tp } from "../../i18n/index.ts";
+import { plural, useLocale, useT } from "../../i18n/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { minimapTurns, rowId } from "./minimap.vm.ts";
 import type { TranscriptItem } from "./transcript.vm.ts";
@@ -19,6 +19,8 @@ const prefersReducedMotion = (): boolean =>
 
 /** A narrow rail beside the transcript: one numbered button per turn, the one in view marked, a stub that pages older turns in. */
 export function Minimap({ scope, items, view, onLoadOlder }: MinimapProps) {
+  const t = useT();
+  const locale = useLocale();
   const { hasMore, oldestEntryId, turnsBefore } = view.history;
   const turns = minimapTurns(items, turnsBefore);
   const keys = JSON.stringify(turns.map((turn) => turn.key));
@@ -63,7 +65,7 @@ export function Minimap({ scope, items, view, onLoadOlder }: MinimapProps) {
     >
       {hasMore && oldestEntryId !== null ? (
         <button type="button" className={button} onClick={onLoadOlder}>
-          {tp("sessions.minimap.earlier", turnsBefore)}
+          {plural(locale, "sessions.minimap.earlier", turnsBefore)}
         </button>
       ) : null}
       {turns.map((turn) => (

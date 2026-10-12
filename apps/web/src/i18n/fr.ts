@@ -112,7 +112,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "sessions.tool.notYet": "La sortie n'est pas encore disponible.",
   "sessions.tool.retry": "Réessayer",
   "sessions.tool.tooLarge": "Sortie trop volumineuse pour être affichée ici.",
-  "dialog.approval": "Approbation · {category}",
+  "dialog.approval": "Approbation",
   "dialog.answer.deny": "Refuser",
   "dialog.answer.session": "Pour la session",
   "dialog.answer.always": "Toujours",
@@ -174,4 +174,13 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "sessions.minimap.earlier.one": "{count} tour plus ancien",
   "sessions.minimap.earlier.other": "{count} tours plus anciens",
   // ── end sessions (M2) ──
+  // ── session screen in the shell (P3) ──
+  "sessions.announce.runEnded": "L'agent a terminé.",
+  "sessions.announce.approval": "L'agent attend votre approbation.",
+  "sessions.transcript.thought": "Réflexion terminée",
+  "sessions.transcript.label": "Échanges",
+  "session.status.needsInput": "Attend votre réponse",
+  "row.actions": "Actions du message",
+  "branch.group": "Branche {index} sur {total}",
+  "connection.draftsStay": "Vos brouillons restent sur cet appareil.",
 };

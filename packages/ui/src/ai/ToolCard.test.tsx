@@ -92,4 +92,42 @@ describe("ToolCard (DESIGN.md §9.2)", () => {
     expect(html).toContain("animate-indeterminate");
     expect(html).not.toContain("<pre");
   });
+
+  it("shows a status word for a card that is neither running nor failed, and a footer under the output", async () => {
+    const page = await mount(
+      <ToolCard
+        name="read"
+        status="done"
+        detail="expanded"
+        statusLabel="Done"
+        footer={<button type="button">Show all</button>}
+        runningLabel="Running"
+        failedLabel="Failed"
+      >
+        out
+      </ToolCard>,
+    );
+    expect(page.container.textContent).toContain("Done");
+    expect(page.container.querySelector("button[type=button]:not([aria-expanded])")?.textContent).toBe(
+      "Show all",
+    );
+    expect(page.container.querySelector("pre")?.textContent).toBe("out");
+    await page.unmount();
+  });
+
+  it("opens a footer-only card (no output text) under 'expanded'", async () => {
+    const page = await mount(
+      <ToolCard
+        name="read"
+        status="done"
+        detail="expanded"
+        footer={<span data-footer>Output too large</span>}
+        runningLabel="Running"
+        failedLabel="Failed"
+      />,
+    );
+    expect(page.container.querySelector("[data-footer]")).not.toBeNull();
+    expect(page.container.querySelector("pre")).toBeNull();
+    await page.unmount();
+  });
 });

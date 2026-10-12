@@ -1,7 +1,7 @@
 import type { Dialog, DialogResponse } from "@pap/contracts";
 import { Button, TextField } from "@pap/ui";
 import { useState } from "react";
-import { t } from "../../../i18n/index.ts";
+import { useT } from "../../../i18n/index.ts";
 import { ExtensionCard, titleText } from "./ExtensionCard.tsx";
 import { clip, plain } from "./untrusted.ts";
 import { useAnswer } from "./use-answer.ts";
@@ -18,6 +18,7 @@ export function TextDialog(props: {
   readonly initial?: string | undefined;
   onAnswer(response: DialogResponse): void;
 }) {
+  const t = useT();
   const { dialog } = props;
   const editor = dialog.method === "editor";
   const { answered, answer } = useAnswer(props.onAnswer);

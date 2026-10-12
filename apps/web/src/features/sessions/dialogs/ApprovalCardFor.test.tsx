@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../../runtime/index.ts";
 import { button, click, mount, settle, text, type Mounted } from "../../../testing/dom.ts";
 import { fakeRuntime } from "../../../testing/runtime-bed.ts";
-import { ApprovalDialog } from "./ApprovalDialog.tsx";
+import { ApprovalCardFor } from "./ApprovalCardFor.tsx";
 import { DialogList } from "./DialogList.tsx";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
@@ -42,15 +42,17 @@ afterEach(async () => {
   mounted = null;
 });
 
-describe("ApprovalDialog", () => {
+describe("ApprovalCardFor", () => {
   it("offers exactly the dialog's answers in DESIGN order and sends the one clicked, once", async () => {
     const page = await show([
       exec({ message: "1 line\nbash: npm test", answers: ["deny", "session", "always", "once"] }),
     ]);
     expect(labels(page)).toEqual(["Deny", "Session", "Always", "Allow once"]);
-    // Sentence case in the DOM, uppercase by CSS (R121, M2R130).
-    expect(text(page)).toContain("Approval · exec");
-    expect(page.querySelector("h3")?.className).toContain("uppercase");
+    // Sentence case in the DOM, uppercase by CSS (R121, M2R130). The separator is an aria-hidden span, so the heading's
+    // text is "Approval·exec"; the card is found by role and accessible name instead.
+    expect(page.querySelector("h3")?.textContent).toBe("Approval·exec");
+    expect(page.querySelector("h3")?.className).toContain("label-hud");
+    expect(page.querySelector('[role="alertdialog"][aria-label="Approval exec"]')).not.toBeNull();
     expect(page.querySelector("[data-approval-header]")?.textContent).toBe("1 line");
     expect(page.querySelector("[data-approval-scroll]")?.textContent).toBe("bash: npm test");
     await click(button(page, "Always"));
@@ -79,12 +81,13 @@ describe("ApprovalDialog", () => {
     }
   });
 
-  it("is a labelled alertdialog whose header and body are described", async () => {
+  it("is a named alertdialog whose question, header and body are described", async () => {
     const page = await show([exec()]);
     const card = page.querySelector('[role="alertdialog"]');
-    expect(card?.getAttribute("aria-labelledby")).toBe(page.querySelector("h3")?.id);
+    expect(card?.getAttribute("aria-label")).toBe("Approval exec");
     const described = (card?.getAttribute("aria-describedby") ?? "").split(" ");
     expect(described).toContain(page.querySelector("[data-approval-header]")?.id);
+    expect(described.map((id) => document.getElementById(id)?.textContent)).toContain("Run a command?");
     expect(page.querySelector("[data-approval-scroll]")?.getAttribute("role")).toBe("region");
     expect(page.querySelector("[data-approval-scroll]")?.getAttribute("tabindex")).toBe("0");
   });
@@ -169,22 +172,15 @@ describe("ApprovalDialog", () => {
   );
 
   it("the card itself answers once, whatever is clicked next, before any re-render", async () => {
-    const chosen: string[] = [];
+    const chosen: unknown[] = [];
     mounted = await mount(
-      <ApprovalDialog
-        title="Approval · exec"
-        question="Run?"
-        detail={undefined}
-        answers={["deny", "once"]}
-        labels={{ deny: "Deny", session: "Session", always: "Always", once: "Allow once" }}
-        onChoose={(answer) => chosen.push(answer)}
-      />,
+      <ApprovalCardFor dialog={exec({ message: undefined })} onAnswer={(response) => chosen.push(response)} />,
     );
     const page = mounted.container;
     button(page, "Allow once").click();
     button(page, "Deny").click();
     await settle();
-    expect(chosen).toEqual(["once"]);
+    expect(chosen).toEqual([{ answer: "once" }]);
   });
 
   it("falls back to Deny for an approval that lists no answers", async () => {
