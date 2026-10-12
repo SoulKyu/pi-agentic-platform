@@ -2,6 +2,7 @@ import type { KeybindingRule } from "@pap/contracts";
 import { Toaster, TooltipProvider } from "@pap/ui";
 import { afterEach, beforeEach, vi } from "vitest";
 import { settingsScreenEn, settingsScreenFr } from "../../../i18n/catalog/settings-screen.ts";
+import { settingsShortcutsEn, settingsShortcutsFr } from "../../../i18n/catalog/settings-shortcuts.ts";
 import { registerCatalog, setLocale } from "../../../i18n/index.ts";
 import { button, click, mount, text } from "../../../testing/dom.ts";
 import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../defaults.ts";
@@ -10,6 +11,7 @@ import { mergeWithDefaults } from "../resolve.ts";
 import { ShortcutsEditor } from "./ShortcutsEditor.tsx";
 
 registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr });
+registerCatalog({ en: settingsShortcutsEn, fr: settingsShortcutsFr });
 
 export const seed = (user: readonly KeybindingRule[] = []) =>
   useKeybindingsStore.setState({

@@ -3,6 +3,7 @@ import { Toaster, TooltipProvider } from "@pap/ui";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { settingsScreenEn, settingsScreenFr } from "../../i18n/catalog/settings-screen.ts";
+import { settingsAppearanceEn, settingsAppearanceFr } from "../../i18n/catalog/settings-appearance.ts";
 import { registerCatalog } from "../../i18n/index.ts";
 import { click, mount } from "../../testing/dom.ts";
 import { CustomThemes } from "./CustomThemes.tsx";
@@ -10,6 +11,7 @@ import { useAppearanceStore } from "./appearance-store.ts";
 import { DEFAULT_ACCOUNT } from "./model.ts";
 
 registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr });
+registerCatalog({ en: settingsAppearanceEn, fr: settingsAppearanceFr });
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
 vi.mock("./ThemeEditor.tsx", () => {
   throw new Error("Failed to fetch dynamically imported module: chunk.js");

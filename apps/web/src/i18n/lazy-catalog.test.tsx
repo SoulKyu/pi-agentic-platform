@@ -8,6 +8,10 @@ import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
+import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
+import { settingsAppearanceEn, settingsAppearanceFr } from "./catalog/settings-appearance.ts";
+import { settingsApprovalsEn, settingsApprovalsFr } from "./catalog/settings-approvals.ts";
+import { settingsShortcutsEn, settingsShortcutsFr } from "./catalog/settings-shortcuts.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 import { registerCatalog, setLocale, translate, useT } from "./index.ts";
 
@@ -21,6 +25,17 @@ function files(dir: string): string[] {
 
 afterEach(() => setLocale("en"));
 
+function registerSettingsCatalogs() {
+  for (const entries of [
+    { en: settingsScreenEn, fr: settingsScreenFr },
+    { en: settingsAccessEn, fr: settingsAccessFr },
+    { en: settingsAppearanceEn, fr: settingsAppearanceFr },
+    { en: settingsApprovalsEn, fr: settingsApprovalsFr },
+    { en: settingsShortcutsEn, fr: settingsShortcutsFr },
+  ])
+    registerCatalog(entries);
+}
+
 describe("lazy catalog (Settings)", () => {
   it("shows the key and reports it until the chunk registers its strings, then resolves and re-renders mounted consumers", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -31,21 +46,35 @@ describe("lazy catalog (Settings)", () => {
     const page = await mount(<Probe />);
     expect(text(page.container)).toBe("settings.appearance.status.saved");
     expect(warn).toHaveBeenCalledWith("pap: message_missing");
-    await act(async () => registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr }));
+    await act(async () => registerSettingsCatalogs());
     expect(text(page.container)).toBe("Saved to your account");
     await act(async () => setLocale("fr"));
     expect(text(page.container)).toBe("Enregistré dans votre compte");
     expect(translate("en", "settings.appearance.px", { value: 13 })).toBe("13 px");
+    expect(translate("en", "approvals.intro")).toBe(
+      "What the agent may do without asking you, and what it may never do.",
+    );
+    expect(translate("fr", "approvals.intro")).toBe(
+      "Ce que l'agent peut faire sans vous demander, et ce qu'il ne peut jamais faire.",
+    );
     await page.unmount();
     warn.mockRestore();
   });
 
   it("is referenced only from the Settings chunk: eager code can never render a raw key", () => {
-    const lazy = Object.keys(settingsScreenEn);
+    const lazy = [
+      ...Object.keys(settingsScreenEn),
+      ...Object.keys(settingsAccessEn),
+      ...Object.keys(settingsAppearanceEn),
+      ...Object.keys(settingsApprovalsEn),
+      ...Object.keys(settingsShortcutsEn),
+    ];
     // Explicit: features/appearance also holds the eager boot files (index, controller, store, model).
     const chunk = new Set([
       "routes/settings/AccountSection.tsx",
+      "routes/settings/ApprovalsSection.tsx",
       "routes/settings/LanguageSection.tsx",
+      "routes/settings/register-settings-catalog.ts",
       "routes/settings/SettingsScreen.tsx",
       "routes/settings/sections.tsx",
       "features/commands/editor/KeybindingsJson.tsx",
@@ -72,7 +101,11 @@ describe("lazy catalog (Settings)", () => {
       const code = readFileSync(file, "utf8");
       for (const key of lazy)
         if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
-      if (/settings\.(?:appearance|theme|language|account|nav|section|shortcuts)\./.test(code))
+      if (
+        /settings\.(?:appearance|theme|language|account|nav|section|shortcuts)|["'`](?:approvals|audit|access)\./.test(
+          code,
+        )
+      )
         offenders.push(`${name}: settings prefix`);
     }
     expect(offenders).toEqual([]);

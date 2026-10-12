@@ -168,6 +168,9 @@ describe("the built web app under the daemon's CSP", () => {
 
   it("keeps the Settings screen out of the initial assets", () => keepsLazyOnly([/data-settings-screen/]));
 
+  it("keeps the Approvals strings out of the initial assets", () =>
+    keepsLazyOnly([/What the agent may do without asking you/]));
+
   it("keeps lazy-only primitives out of the initial assets", () =>
     keepsLazyOnly([
       /data-radix-select-viewport/,
