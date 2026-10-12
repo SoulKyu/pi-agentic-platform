@@ -16,6 +16,9 @@ session at start, and the processes a worker's agent left running.
 - worker → daemon: `approval_request{id, category, title, message, answers, tool, key}` (sent by pap-policy through
   the worker's approvals channel), `ready{…, leafId, sessionName}` (both default to null) and, from Task 20,
   `health{rssMb, descendants}`. `extension_ui_closed{id}` also closes an approval the worker withdrew.
+- worker → daemon, from Task 10b: `leaf{leafId, resync?}` says where Pi's leaf is when `entry_appended` records cannot
+  (a navigation, an entry Pi announced itself, or more new entries than one flush sends; `resync` means the daemon's
+  ids for the run's rows are incomplete until it reads the file after `agent_settled`).
 - `toWireEvent` slims two Pi events: `entry_appended` keeps the entry's identity (and a summary's text), and
   `queue_update` carries previews plus the full count and byte size.
 - `PROTOCOL_VERSION` (the client protocol) goes to 2 with the snapshot's new shape.

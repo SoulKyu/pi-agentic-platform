@@ -150,7 +150,7 @@ apps/daemon/src/
     service.ts · rpc.ts · index.ts · snapshot.ts · transcript.ts · dialogs.ts · store.ts   changed
     testing/int-bed.ts (10b) · testing/extensions.ts (21) · testing/pi-file-writers.ts (11) · testing/fake-policy.ts (14b)   NEW beds
     live-session.run.test.ts (8) · live-session.ui.test.ts (13a) · service.grants.test.ts (14b)                             NEW test files
-    migrations/202610110000_session_name.sql                                NEW (17b)
+    migrations/202610110200_session_name.sql                                NEW (17b)
   modules/policy/                 NEW module (14a): index.ts, service.ts, store.ts, rpc.ts, project-scope.ts,
                                   migrations/202610110100_policy.sql
 apps/web/src/
@@ -7255,7 +7255,7 @@ References: pi-web `app/api/sessions/[id]/auto-name/route.ts` (naming on demand,
 - **M2R94** [17b] Names are cached in `sessions.name` (an index of Pi's `session_info`, refreshed from `ready` and `session_info_changed`); `sessions.rename` lists `timeout` (outcome unknown, R105, M2-RT-08), and a `timeout` on `autoName` is outcome unknown too — Pi's file stays the source of truth; the column only serves listings — cost if wrong: a listed name behind Pi's until the worker next starts.
 
 **Files:**
-- Create: `apps/daemon/src/modules/sessions/names.ts`, `names.test.ts`, `migrations/202610110000_session_name.sql`
+- Create: `apps/daemon/src/modules/sessions/names.ts`, `names.test.ts`, `migrations/202610110200_session_name.sql`
 - Modify: `packages/contracts/src/{methods,streams}.ts` (+ tests), `apps/daemon/src/modules/sessions/{store,service,service-commands,live-session,rpc}.ts`, `store.test.ts`, `service.commands.test.ts`, `live-session.run.test.ts`, `sessions.commands.int.test.ts`
 - Modify: `apps/web/src/stores/reduce-ui.ts`, test, `apps/web/src/features/sessions/SessionListScreen.tsx` (shows the name when there is one), `SessionListScreen.test.tsx`
 
@@ -7312,7 +7312,7 @@ Expected: FAIL.
 
 - [ ] **Step 3: Implement**
 
-`migrations/202610110000_session_name.sql`:
+`migrations/202610110200_session_name.sql`:
 
 ```sql
 -- The name Pi keeps in the session file (`session_info`), cached for listings; refreshed from the worker.
@@ -9890,7 +9890,7 @@ Source: `/home/ubuntu/Workspace/soulkyu/pi-agentic-platform/.superpowers/owner-d
 
 These notes follow the controller's cross-plan agreements (`.superpowers/m2-m3-cross-plan-agreements.md`); M3's plan says the same.
 
-- **1. Order:** M2 merges first (owner T3); M3 rebases once on the `main` that holds M2 and runs its post-merge tasks before its PR. The branch that merges second re-stamps its migrations after the newest stamp on `main` during its rebase (never applied on `main`, so a rename is safe; M3-RT-10). M2's stamps: `sessions/migrations/202610110000_session_name.sql`, `policy/migrations/202610110100_policy.sql`.
+- **1. Order:** M2 merges first (owner T3); M3 rebases once on the `main` that holds M2 and runs its post-merge tasks before its PR. The branch that merges second re-stamps its migrations after the newest stamp on `main` during its rebase (never applied on `main`, so a rename is safe; M3-RT-10). M2's stamps: `sessions/migrations/202610110200_session_name.sql`, `policy/migrations/202610110100_policy.sql`.
 - **2. ADR numbers:** M2 0006 (export route), 0007 (hot-session reads), 0008 (protocol records), 0009 (daemon-side fork / clone, new files only); M3 0010 (collapsible primitive), 0011 (`/dev/ui` not shipped), 0012 (R120 contrast amendment).
 - **3. R125:** parked in both plans (stream keying `${stream}:${key}` until a second subscription stream lands in M4 or M10; hidden-tab throttling in M12). M2 adds no second stream.
 - **4. i18n:** every M2 key, `error.queue_full`, `error.session_busy`, `error.session_empty`, `error.command_failed` and `session.status.releasing` included, sits inside the delimited `// ── sessions (M2) ──` block; no exception (lookup is by key). M2 adds no key whose fr equals its en (fr "Pour la session" for `dialog.answer.session`, "{index} sur {total}" for `branch.position`); M3 keeps its `IDENTICAL_IN_FR` handling in its post-merge list.
