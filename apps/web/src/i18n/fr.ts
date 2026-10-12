@@ -124,5 +124,13 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "dialog.category.network": "réseau",
   "dialog.category.external-write": "écriture externe",
   "dialog.category.unknown": "inconnu",
+  "panel.waiting": "{count} de plus en attente",
+  "panel.input": "Saisie du panneau",
+  "panel.collapse": "Masquer le panneau",
+  "panel.expand": "Afficher le panneau",
+  "panel.reach": "Appuyez sur Tab pour atteindre le panneau",
+  "panel.tooLong": "Ce texte est trop long pour être envoyé au panneau.",
+  "status.label": "État des extensions",
+  "source.extension": "d'une extension",
   // ── end sessions (M2) ──
 };

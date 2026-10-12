@@ -121,5 +121,13 @@ export const en = {
   "dialog.category.network": "network",
   "dialog.category.external-write": "external write",
   "dialog.category.unknown": "unknown",
+  "panel.waiting": "{count} more waiting",
+  "panel.input": "Panel input",
+  "panel.collapse": "Hide the panel",
+  "panel.expand": "Show the panel",
+  "panel.reach": "Press Tab to reach the panel",
+  "panel.tooLong": "That text is too long to send to the panel.",
+  "status.label": "Extension status",
+  "source.extension": "from an extension",
   // ── end sessions (M2) ──
 } as const;

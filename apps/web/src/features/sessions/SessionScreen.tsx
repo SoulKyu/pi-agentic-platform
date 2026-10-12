@@ -8,8 +8,13 @@ import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { Composer } from "./Composer.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
-import { codeText } from "./failure.ts";
+import { plainText } from "./ansi.ts";
+import { AnsiText } from "./AnsiText.tsx";
+import { CustomPanel, focusPanel } from "./CustomPanel.tsx";
+import { codeText, failureText } from "./failure.ts";
+import { StatusBar } from "./StatusBar.tsx";
 import { Transcript } from "./Transcript.tsx";
+import { Widgets } from "./Widgets.tsx";
 
 export function SessionScreen({ sessionId }: { sessionId: string }) {
   const runtime = getRuntime();
@@ -20,6 +25,15 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
     () => feedSession(runtime.subscriptions, sessionId, (code) => setError(codeText(code))),
     [runtime, sessionId],
   );
+
+  // A status button's command goes out as a prompt; its failure shows like any other (the bar is disabled while busy).
+  const runCommand = (command: string) => {
+    setError(null);
+    runtime.rpc
+      .call("sessions.prompt", { sessionId, text: command }, { commandId: runtime.rpc.newCommandId() })
+      .catch((failure: unknown) => setError(failureText(failure)));
+  };
+  const title = view.title === null ? "" : plainText(view.title).trim();
 
   return (
     <main className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col gap-3 p-4">
@@ -32,6 +46,11 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
             {view.name}
           </h1>
         ) : null}
+        {title ? (
+          <span data-session-title className="min-w-0 truncate px-3 font-mono text-ui text-muted">
+            {title}
+          </span>
+        ) : null}
         <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
           {t(`session.status.${view.status}`)}
         </span>
@@ -41,6 +60,7 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
           {t("sessions.unreadable")}
         </p>
       ) : null}
+      <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
       <Transcript key={`transcript:${sessionId}`} sessionId={sessionId} view={view} />
       <DialogList
         key={`dialogs:${sessionId}`}
@@ -51,10 +71,20 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
       {view.notices.map((notice, index) => (
         <p
           key={`${index}:${notice.text}`}
+          data-notice
           role={notice.level === "error" ? "alert" : undefined}
           className={notice.level === "error" ? "text-ui text-error" : "text-ui text-muted"}
         >
-          {notice.text}
+          {notice.source === "extension" ? (
+            <>
+              <span className="mr-2 font-mono text-label uppercase tracking-label text-muted">
+                {t("source.extension")}
+              </span>
+              <AnsiText text={notice.text} />
+            </>
+          ) : (
+            notice.text
+          )}
         </p>
       ))}
       {error ? (
@@ -62,7 +92,14 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
           {error}
         </p>
       ) : null}
-      <Composer key={sessionId} sessionId={sessionId} view={view} />
+      <Widgets widgets={view.widgets} placement="aboveEditor" />
+      <Composer key={sessionId} sessionId={sessionId} view={view} onTabToPanel={focusPanel} />
+      <Widgets widgets={view.widgets} placement="belowEditor" />
+      <StatusBar
+        statuses={view.statuses}
+        busy={["running", "starting", "releasing"].includes(view.status)}
+        onCommand={runCommand}
+      />
     </main>
   );
 }

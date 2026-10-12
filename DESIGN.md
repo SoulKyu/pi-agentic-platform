@@ -281,6 +281,13 @@ All live in `packages/ui/src/ai`.
 | CompareColumn | fan-out result: tests, diff, files, duration, cost, summary, "pick winner" |
 | TriggerVerdict | dry-run outcome (would fire / would skip + reason), the fenced prompt preview |
 
+**ANSI colours in extension text.** Statuses, widgets and custom panels may carry ANSI SGR codes. The 8 colours and
+their bright variants map to role tokens: black → `--text-dim`, red → `--err`, green → `--ok`, yellow → `--you`,
+blue → `--agent`, magenta → `--attn`, cyan → `--agent`, white → `--text`. Bold is weight 600, dim is
+`--text-muted`, italic and underline are kept. Backgrounds, inverse, 256-colour and truecolor codes are ignored and
+their text is kept. Extension text is parsed into styled spans, never inserted as HTML, and loses bidi and control
+characters first.
+
 Every component is shown in **/dev/ui** in all three themes and three densities. The page returns 404 in production and sits behind auth.
 
 ## 10. Screens
