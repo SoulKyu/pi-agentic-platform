@@ -27,10 +27,12 @@ let dir: string;
 let db: Db;
 let clock: FakeClock;
 let service: AuthService;
+const audit = { append: vi.fn() };
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "pap-auth-"));
   clock = createFakeClock();
   lines = [];
+  audit.append.mockClear();
   const logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
   db = migrate({
     dbPath: join(dir, "s.db"),
@@ -47,6 +49,7 @@ beforeEach(() => {
     publicOrigin: "http://localhost:7777",
     throttle: createThrottle(clock),
     setupToken: createSetupToken(true),
+    audit,
   });
 });
 afterEach(() => {
@@ -243,6 +246,7 @@ describe("auth service", () => {
         publicOrigin: "http://localhost:7777",
         throttle: createThrottle(clock),
         setupToken: createSetupToken(false),
+        audit,
       });
 
     it("still knows the caller when only the slide fails, and does not slide", async () => {
@@ -329,6 +333,42 @@ describe("auth service", () => {
       await service.login(loginInput(PASSWORD, "10.0.0.7", "ada.lovelace")).catch(() => undefined);
       expect(lines.length).toBeGreaterThan(3);
       for (const secret of secrets) expect(lines.join(""), secret).not.toContain(secret);
+    });
+  });
+
+  describe("confirmSession", () => {
+    it("forgets the mark at sign-out, even if the same session id came back", async () => {
+      const session = await service.setup(setupInput(tokenOf(service.setupUrl())));
+      await service.confirmSession({ cookieValue: session.cookieValue, password: PASSWORD, ip: "10.0.0.1" });
+      expect(service.authenticate(session.cookieValue)?.stepUpUntil).toBe(clock.now() + 5 * 60_000);
+      service.logout(session.cookieValue);
+      const idHash = sha256Hex(session.cookieValue);
+      const userId = createAuthStore(db).findUserByName("owner")?.id ?? "";
+      createAuthStore(db).insertSession({
+        idHash,
+        userId,
+        createdAt: clock.now(),
+        lastSeenAt: clock.now(),
+        expiresAt: clock.now() + DAY,
+        userAgent: null,
+      });
+      expect(service.authenticate(session.cookieValue)?.stepUpUntil).toBe(0);
+    });
+
+    it("marks nothing for a session that signs out while the password is being hashed", async () => {
+      const session = await service.setup(setupInput(tokenOf(service.setupUrl())));
+      const actual = await vi.importActual<typeof import("./passwords.ts")>("./passwords.ts");
+      vi.mocked(verifyPassword).mockImplementationOnce(async (password, stored) => {
+        service.logout(session.cookieValue);
+        return actual.verifyPassword(password, stored);
+      });
+      const confirmation = service.confirmSession({
+        cookieValue: session.cookieValue,
+        password: PASSWORD,
+        ip: "10.0.0.1",
+      });
+      await expect(confirmation).rejects.toMatchObject({ code: "unauthenticated" });
+      expect(audit.append).not.toHaveBeenCalled();
     });
   });
 });

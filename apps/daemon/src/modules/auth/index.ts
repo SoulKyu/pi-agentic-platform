@@ -5,6 +5,7 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { AuditPort } from "../audit/index.ts";
 import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
 import { mountAuthRoutes } from "./http.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
@@ -27,6 +28,7 @@ export interface AuthModuleDeps {
   readonly allowedOrigins: ReadonlySet<string>;
   /** `--insecure-http`: session cookies without Secure on plain HTTP (LAN testing). */
   readonly insecureHttp?: boolean;
+  readonly audit: Pick<AuditPort, "append">;
 }
 
 export interface AuthModule {
@@ -52,6 +54,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     publicOrigin: deps.publicOrigin,
     throttle: createThrottle(deps.clock),
     setupToken: createSetupToken(store.countUsers() === 0),
+    audit: deps.audit,
   });
   const passkeys = createPasskeyService({
     store,

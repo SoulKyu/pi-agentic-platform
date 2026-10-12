@@ -3,10 +3,13 @@ import type { Clock } from "../../kernel/clock.ts";
 import { isReadOnlyError } from "../../kernel/db/read-only.ts";
 import { newId, randomToken, sha256Hex } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { AuditPort } from "../audit/index.ts";
 import { SESSION_TTL_MS } from "./cookies.ts";
 import { dummyHash, hashPassword, isAcceptablePassword, verifyPassword } from "./passwords.ts";
 import type { SetupToken } from "./setup-token.ts";
+import { createStepUps } from "./step-up.ts";
 import type { AuthStore, UserRow } from "./store.ts";
+import { sessionKey } from "./throttle-keys.ts";
 import type { Throttle } from "./throttle.ts";
 
 // A session's expiry is pushed forward at most once a day: a read is not a write on every request.
@@ -39,6 +42,7 @@ export interface AuthServiceDeps {
   readonly publicOrigin: string;
   readonly throttle: Throttle;
   readonly setupToken: SetupToken;
+  readonly audit: Pick<AuditPort, "append">;
 }
 
 export interface Credentials {
@@ -56,8 +60,15 @@ export interface AuthService {
   };
   setup(input: Credentials & { token: string }): Promise<StartedSession>;
   login(input: Credentials): Promise<StartedSession>;
-  /** Step-up for a signed-in caller: the account's password, checked and throttled exactly like a sign-in. */
-  confirmPassword(input: { userId: string; password: string; ip: string }): Promise<void>;
+  /** The account's password, checked like a sign-in but counted on the caller's own `throttleKey` (M5R127). */
+  confirmPassword(input: {
+    userId: string;
+    password: string;
+    ip: string;
+    throttleKey: string;
+  }): Promise<void>;
+  /** Step-up: the password of the browser session `cookieValue`, throttled on that session alone; marks it for 5 minutes. */
+  confirmSession(input: { cookieValue: string | undefined; password: string; ip: string }): Promise<void>;
   logout(cookieValue: string | undefined): void;
   /**
    * Who the session value belongs to. A request slides the expiry (at most once a day); `slide: false` only looks,
@@ -76,6 +87,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   void dummyHash().catch(() => undefined);
   // Security events carry the socket address and the delay in force, never a username, a password or a token:
   // people type one into the other's field, and a log is read by more eyes than a database.
+  const stepUps = createStepUps(deps.clock);
   const lastThrottleLog = new Map<string, number>();
   const guard = (keys: string[], ip: string) => {
     const wait = deps.throttle.retryAfterMs(keys);
@@ -142,8 +154,11 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       permissions: OWNER_PERMISSIONS,
       kind: "session",
       credentialId: "",
-      stepUpUntil: 0,
+      stepUpUntil: stepUps.until(session.idHash),
     };
+  };
+  const confirmPassword: AuthService["confirmPassword"] = async (input) => {
+    await checkPassword([input.throttleKey], input.ip, deps.store.findUserById(input.userId), input.password);
   };
   return {
     status(cookieValue) {
@@ -193,13 +208,26 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       );
       return startSession(user.id, input.userAgent);
     },
-    async confirmPassword(input) {
-      const user = deps.store.findUserById(input.userId);
-      const keys = [`ip:${input.ip}`, `user:${(user?.username ?? "").toLowerCase()}`];
-      await checkPassword(keys, input.ip, user, input.password);
+    confirmPassword,
+    async confirmSession(input) {
+      const caller = authenticate(input.cookieValue);
+      if (!input.cookieValue || !caller) throw new PapError("unauthenticated");
+      await confirmPassword({
+        userId: caller.userId,
+        password: input.password,
+        ip: input.ip,
+        throttleKey: sessionKey(input.cookieValue),
+      });
+      // The session may have signed out while the hash ran: a mark must not outlive it.
+      if (!authenticate(input.cookieValue, { slide: false })) throw new PapError("unauthenticated");
+      stepUps.mark(sha256Hex(input.cookieValue));
+      deps.audit.append({ ownerId: caller.userId, actor: "user", kind: "auth", reason: "step_up" });
     },
     logout(cookieValue) {
-      if (cookieValue) deps.store.deleteSession(sha256Hex(cookieValue));
+      if (!cookieValue) return;
+      const idHash = sha256Hex(cookieValue);
+      deps.store.deleteSession(idHash);
+      stepUps.forget(idHash);
     },
     authenticate,
     startSession,

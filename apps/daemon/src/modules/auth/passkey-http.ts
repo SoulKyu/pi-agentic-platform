@@ -5,6 +5,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import { badRequest, clientIp, errorResponse, readJson, sessionCookie, setSessionCookie } from "./http.ts";
 import type { PasskeyService } from "./passkeys.ts";
 import { RateLimitedError, type AuthService } from "./service.ts";
+import { sessionKey } from "./throttle-keys.ts";
 import type { Throttle } from "./throttle.ts";
 
 // A sign-in flow id is the 75-character challenge itself.
@@ -24,9 +25,13 @@ export interface PasskeyRouteDeps {
 
 // A verification that fails counts against the sender's address and is logged with the address and the
 // delay now in force, nothing else. A request with a body we cannot read, or a 404, is not a failure.
-async function throttled<T>(c: Context, deps: PasskeyRouteDeps, run: () => Promise<T>): Promise<T> {
+async function throttled<T>(
+  c: Context,
+  deps: PasskeyRouteDeps,
+  run: () => Promise<T>,
+  keys: string[],
+): Promise<T> {
   const ip = clientIp(c);
-  const keys = [`ip:${ip}`];
   const wait = deps.throttle.retryAfterMs(keys);
   if (wait > 0) throw new RateLimitedError(wait);
   try {
@@ -48,15 +53,21 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
   const unauthenticated = (c: Context) => errorResponse(c, new PapError("unauthenticated"));
   app.post("/auth/passkey/register/options", async (c) => {
     const owner = caller(c);
-    if (!owner) return unauthenticated(c);
+    const cookie = sessionCookie(c);
+    if (!owner || !cookie) return unauthenticated(c);
     // Nothing to enroll on an IP-address origin: do not spend a password attempt on it.
     if (!deps.passkeys.available) return errorResponse(c, new PapError("not_found"));
     const body = await readJson(c, EnrollBody);
     if (!body) return badRequest(c);
     try {
       // R83: a session alone must not add a credential that outlives it (a stolen cookie, ADR 0004). The
-      // password is checked like a sign-in, on the same throttle keys, before any flow exists.
-      await deps.auth.confirmPassword({ userId: owner.userId, password: body.password, ip: clientIp(c) });
+      // password is checked like a sign-in before any flow exists, but counted on the session's own key (M5R127).
+      await deps.auth.confirmPassword({
+        userId: owner.userId,
+        password: body.password,
+        ip: clientIp(c),
+        throttleKey: sessionKey(cookie),
+      });
       return c.json(await deps.passkeys.registerOptions(owner.userId));
     } catch (error) {
       return errorResponse(c, error);
@@ -64,11 +75,14 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
   });
   app.post("/auth/passkey/register/verify", async (c) => {
     const owner = caller(c);
-    if (!owner) return unauthenticated(c);
+    const cookie = sessionCookie(c);
+    if (!owner || !cookie) return unauthenticated(c);
     const body = await readJson(c, FlowBody);
     if (!body) return badRequest(c);
     try {
-      await throttled(c, deps, () => deps.passkeys.registerVerify(owner.userId, body.flowId, body.response));
+      await throttled(c, deps, () => deps.passkeys.registerVerify(owner.userId, body.flowId, body.response), [
+        sessionKey(cookie),
+      ]);
       deps.logger.info("auth_passkey_enrolled", { ip: clientIp(c) });
       return c.json({ ok: true });
     } catch (error) {
@@ -86,7 +100,9 @@ export function mountPasskeyRoutes(app: Hono, deps: PasskeyRouteDeps): void {
     const body = await readJson(c, FlowBody);
     if (!body) return badRequest(c);
     try {
-      const userId = await throttled(c, deps, () => deps.passkeys.loginVerify(body.flowId, body.response));
+      const userId = await throttled(c, deps, () => deps.passkeys.loginVerify(body.flowId, body.response), [
+        `ip:${clientIp(c)}`,
+      ]);
       // Always a new session, never the one the request came with: a cookie planted beforehand gains nothing.
       setSessionCookie(c, deps.auth.startSession(userId, c.req.header("user-agent")));
       return c.json({ ok: true });

@@ -12,6 +12,7 @@ const MAX_BODY_BYTES = 16 * 1024;
 const Username = z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/);
 const Password = z.string().refine(isAcceptablePassword);
 const SetupBody = z.object({ token: z.string().min(1).max(256), username: Username, password: Password });
+const ConfirmBody = z.object({ password: z.string().min(1).max(1024) });
 const LoginBody = z.object({ username: z.string().min(1).max(64), password: z.string().min(1).max(1024) });
 
 export async function readJson<T>(c: Context, schema: z.ZodType<T>): Promise<T | null> {
@@ -111,6 +112,20 @@ export function mountAuthRoutes(
   app.post("/auth/login", (c) =>
     startSessionFrom(c, LoginBody, (body) => deps.service.login({ ...body, ...client(c) }), 200),
   );
+  app.post("/auth/confirm", async (c) => {
+    const body = await readJson(c, ConfirmBody);
+    if (!body) return badRequest(c);
+    try {
+      await deps.service.confirmSession({
+        cookieValue: sessionCookie(c),
+        password: body.password,
+        ip: clientIp(c),
+      });
+      return c.body(null, 204);
+    } catch (error) {
+      return errorResponse(c, error);
+    }
+  });
   app.post("/auth/logout", (c) => {
     deps.service.logout(sessionCookie(c));
     deleteCookie(c, SESSION_COOKIE, cookieAttributes(c));

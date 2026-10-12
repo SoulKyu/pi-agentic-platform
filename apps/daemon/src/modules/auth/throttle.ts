@@ -9,6 +9,7 @@ export interface Throttle {
   retryAfterMs(keys: readonly string[]): number;
   fail(keys: readonly string[]): void;
   succeed(keys: readonly string[]): void;
+  size(): number;
 }
 
 interface Entry {
@@ -38,11 +39,15 @@ export function createThrottle(clock: Clock): Throttle {
         entry.failures += 1;
         entry.lastFailureAt = clock.now();
         entry.blockedUntil = clock.now() + backoffMs(entry.failures);
+        // Re-inserted last, so the oldest failure is the first to go when the cap is crossed.
+        entries.delete(key);
         entries.set(key, entry);
       }
+      while (entries.size > MAX_KEYS) entries.delete(entries.keys().next().value as string);
     },
     succeed(keys) {
       for (const key of keys) entries.delete(key);
     },
+    size: () => entries.size,
   };
 }

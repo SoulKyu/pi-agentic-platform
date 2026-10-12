@@ -35,3 +35,19 @@ describe("login throttle", () => {
     expect(throttle.retryAfterMs(["ip:a"])).toBe(0);
   });
 });
+
+describe("login throttle bound", () => {
+  it("never holds more than 10 000 live keys: the oldest failure goes first", () => {
+    const clock = createFakeClock();
+    const throttle = createThrottle(clock);
+    for (let i = 0; i < 10_000; i++) throttle.fail([`ip:${i}`]);
+    expect(throttle.retryAfterMs(["ip:0"])).toBe(1000);
+    throttle.fail(["ip:new"]);
+    throttle.fail(["ip:newer"]);
+    expect(throttle.size()).toBe(10_000);
+    expect(throttle.retryAfterMs(["ip:0"])).toBe(0);
+    expect(throttle.retryAfterMs(["ip:1"])).toBe(0);
+    expect(throttle.retryAfterMs(["ip:2"])).toBe(1000);
+    expect(throttle.retryAfterMs(["ip:newer"])).toBe(1000);
+  });
+});

@@ -7,11 +7,14 @@ import type { Db } from "../../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
 import { createHttpApp } from "../../../kernel/http/app.ts";
 import { createLogger, type Logger } from "../../../kernel/logger.ts";
+import type { AuditPort } from "../../audit/index.ts";
 import { AUTH_MIGRATIONS, createAuthModule, type AuthModule } from "../index.ts";
 
 // Shared by the auth tests (compiled out of the build with the rest of `testing/`): a migrated temporary
 // database, a fake clock, a logger whose lines the test can read, and the module behind the real HTTP app.
 export const PASSWORD = "correct horse battery staple";
+
+export type AuditedLine = Parameters<AuditPort["append"]>[0];
 
 export interface AuthTestBed {
   readonly db: Db;
@@ -21,6 +24,8 @@ export interface AuthTestBed {
   readonly logger: Logger;
   /** Every log line since the bed was created or last cleared; migration output is already dropped. */
   readonly lines: string[];
+  /** Every line the auth module handed to the audit port. */
+  readonly audited: AuditedLine[];
   start(
     publicOrigin: string,
     allowedOrigins?: ReadonlySet<string>,
@@ -34,6 +39,7 @@ export function createAuthTestBed(): AuthTestBed {
   const dir = mkdtempSync(join(tmpdir(), "pap-auth-"));
   const clock = createFakeClock();
   const lines: string[] = [];
+  const audited: AuditedLine[] = [];
   const logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
   const dbPath = join(dir, "s.db");
   const db = migrate({
@@ -50,8 +56,17 @@ export function createAuthTestBed(): AuthTestBed {
     clock,
     logger,
     lines,
+    audited,
     start(publicOrigin, allowedOrigins = new Set([publicOrigin]), insecureHttp = false) {
-      const auth = createAuthModule({ db, clock, logger, publicOrigin, allowedOrigins, insecureHttp });
+      const auth = createAuthModule({
+        db,
+        clock,
+        logger,
+        publicOrigin,
+        allowedOrigins,
+        insecureHttp,
+        audit: { append: (line) => void audited.push(line) },
+      });
       const app = createHttpApp({
         allowedOrigins,
         staticRoot: null,
