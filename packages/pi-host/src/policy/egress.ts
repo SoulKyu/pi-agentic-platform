@@ -25,6 +25,7 @@ const CURL_REROUTE: ReadonlySet<string> = new Set([
   "--proxy1.0",
   "--dns-servers",
 ]);
+const CURL_LONG_REROUTE = [...CURL_REROUTE].filter((flag) => flag.startsWith("--"));
 // These two send the request to another address whatever their value is.
 const CURL_ALWAYS_REROUTE: ReadonlySet<string> = new Set(["--connect-to", "--resolve"]);
 const GIT_VALUED_OPTIONS: ReadonlySet<string> = new Set([
@@ -133,22 +134,24 @@ export function urlsInString(value: string, out: string[]): void {
   if (whole) {
     push(out, whole.url);
     for (const piece of pieces(whole.url, whole.body).slice(1)) pushTrimmed(out, piece);
-    return;
+    // The no-`//` form is read up to its first space; what follows is free text.
+    if (!text.includes(" ")) return;
   }
   if (!text.includes("://")) return;
   for (const match of text.matchAll(URL_IN_TEXT))
     for (const piece of pieces(match[0], match[0].indexOf("://") + 3)) pushTrimmed(out, piece);
 }
 
-const isAlias = (setting: string | undefined) => (setting ?? "").toLowerCase().startsWith("alias.");
+// An alias may run any command, a proxy setting sends git elsewhere: the list can read neither.
+const isUnreadableSetting = (setting: string | undefined) => /^(?:alias\.|[^=]*proxy=)/i.test(setting ?? "");
 
-/** The subcommand, and whether a `-c` / `--config-env` before it defines an alias (which may run anything). */
+/** The subcommand, and whether a `-c` / `--config-env` before it defines an alias or a proxy. */
 function gitScan(rest: readonly string[]): { subcommand: string | undefined; alias: boolean } {
   let alias = false;
   for (let i = 0; i < rest.length; i++) {
     const word = rest[i] ?? "";
-    if (word === "-c" || word === "--config-env") alias ||= isAlias(rest[i + 1]);
-    else if (word.startsWith("--config-env=")) alias ||= isAlias(word.slice(13));
+    if (word === "-c" || word === "--config-env") alias ||= isUnreadableSetting(rest[i + 1]);
+    else if (word.startsWith("--config-env=")) alias ||= isUnreadableSetting(word.slice(13));
     if (GIT_VALUED_OPTIONS.has(word)) i++;
     else if (!word.startsWith("-")) return { subcommand: word, alias };
   }
@@ -198,7 +201,7 @@ function walk(value: unknown, depth: number, counters: Counters, out: string[], 
     }
 }
 
-/** `git -c alias.p=push p origin`: the alias may run any command, the list cannot read it. */
+/** `git -c alias.p=push p origin`, `git -c http.proxy=evil:80 fetch`. */
 const definesGitAlias = (argv: readonly string[]): boolean =>
   argv[0] === "git" && gitScan(argv.slice(1)).alias;
 
@@ -209,13 +212,19 @@ function reroutesCurl(argv: readonly string[]): boolean {
     const word = argv[i] ?? "";
     let value: string | undefined;
     const name = word.startsWith("--") && word.includes("=") ? word.slice(0, word.indexOf("=")) : word;
-    if (CURL_ALWAYS_REROUTE.has(name)) return true;
-    if (CURL_REROUTE.has(word) || /^-[a-zA-Z]*x$/.test(word)) value = argv[i + 1];
-    else if (name !== word && CURL_REROUTE.has(name)) value = word.slice(word.indexOf("=") + 1);
+    // curl takes a unique prefix of a long option for the option (`--preprox`, `--resolv`); here any prefix counts.
+    const flag =
+      name.length >= 5 && name.startsWith("--")
+        ? CURL_LONG_REROUTE.find((f) => f.startsWith(name))
+        : undefined;
+    if (flag !== undefined && CURL_ALWAYS_REROUTE.has(flag)) return true;
+    if (/^-[a-zA-Z]*x$/.test(word)) value = argv[i + 1];
+    else if (flag !== undefined) value = name === word ? argv[i + 1] : word.slice(word.indexOf("=") + 1);
     else if (/^-[a-wyzA-Z]*x./.test(word)) value = word.slice(word.indexOf("x") + 1);
     else continue;
     // Judged only when the whole value is one URL: `evil.test:80/https://example.com` is a host with a URL in its path.
-    if (wholeUrl(trimC0((value ?? "").trim())) === null) return true;
+    const trimmed = trimC0((value ?? "").trim());
+    if (wholeUrl(trimmed)?.url !== trimmed) return true;
   }
   return false;
 }

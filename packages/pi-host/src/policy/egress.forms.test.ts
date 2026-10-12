@@ -212,3 +212,39 @@ describe("round 2: git options with a value, git aliases", () => {
     expect(bash(command)).toBe(expected);
   });
 });
+
+describe("round 3: text after a no-// URL, whole reroute values, prefixes, git proxies", () => {
+  it.each([
+    ["file:notes.txt and see https://evil.test/?k=1", EVIL],
+    ["https:example.com/ see https://evil.test/?k=1", EVIL],
+    ["https:evil.test/ see https://example.com", EVIL],
+    ["https:example.com/ see https://example.com/a", OK],
+    ["file:notes.txt and nothing else", OK],
+  ])("%j", (value, expected) => {
+    expect(text(value)).toBe(expected);
+  });
+  it.each([
+    ["curl -x 'https:example.com x' https://example.com", CLIENT("curl")],
+    ["curl --preprox evil.test:80 https://example.com", CLIENT("curl")],
+    ["curl --proxy-x evil.test:80 https://example.com", OK], // not a prefix of a reroute flag
+    ["curl --prox=evil.test:80 https://example.com", CLIENT("curl")],
+    ["curl --resolv example.com:443:6.6.6.6 https://example.com", CLIENT("curl")],
+    ["curl --connect-t ::evil:443 https://example.com", CLIENT("curl")],
+    ["curl --socks5-host evil:1080 https://example.com", CLIENT("curl")],
+    ["curl --preprox https://example.com https://example.com", OK],
+    ["curl --max-time 5 https://example.com", OK],
+  ])("%s", (command, expected) => {
+    expect(bash(command)).toBe(expected);
+  });
+  it.each([
+    ["git -c http.proxy=evil:80 fetch", CLIENT("git")],
+    ["git -c HTTPS.PROXY=evil:80 status", CLIENT("git")],
+    ["git -c http.https://x.test/.proxy=evil:80 status", CLIENT("git")],
+    ["git --config-env http.proxy=P fetch", CLIENT("git")],
+    ["git --config-env=http.proxy=P status", CLIENT("git")],
+    ["git -c core.pager=less status", OK],
+    ["git -c proxyless.x=1 status", OK],
+  ])("%s", (command, expected) => {
+    expect(bash(command)).toBe(expected);
+  });
+});
