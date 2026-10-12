@@ -30,4 +30,4 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 ## Conventions
 
 - Conventional Commits; rebase on the target branch before a PR; no AI attribution trailers.
-- Topic notes: `docs/agents/<domain>.md` (`daemon`, `sessions`, `auth`; UI: `web`). Rulings: `docs/research/m2-rulings.md`, `docs/research/m3-rulings.md`. Deviations from spec C: an ADR in `docs/adr/`.
+- Topic notes: `docs/agents/<domain>.md` (`daemon`, `sessions`, `auth`, `search`; UI: `web`). Rulings: `docs/research/m2-rulings.md`, `docs/research/m3-rulings.md`. Deviations from spec C: an ADR in `docs/adr/`.
