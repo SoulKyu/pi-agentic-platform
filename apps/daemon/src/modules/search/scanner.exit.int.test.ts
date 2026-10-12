@@ -11,11 +11,18 @@ const budgets = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../../../../budgets.json", import.meta.url)), "utf8"),
 ) as { scannerLatencyMs: number };
 
+/** `pnpm test:budget` sets this: the wall-clock budget is asserted only there, never in the default `test:int`. */
+const BUDGET_RUN = process.env.PAP_BUDGET_RUN === "1";
+/** The wait for the session event: the budget in a budget run, a generous bound elsewhere. */
+const WAIT_MS = BUDGET_RUN ? budgets.scannerLatencyMs : 30_000;
+
 let t: TestDaemon;
 beforeEach(async () => {
   t = await startTestDaemon({ steps: [] });
+  vi.stubEnv("PI_CODING_AGENT_DIR", join(t.root, "agent"));
 });
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await t.stop();
 });
 
@@ -55,21 +62,27 @@ it("a session the pi CLI creates after the install is on the shell stream within
   const event = await client.waitForEvent(
     (frame) =>
       kindOf(frame) === "session" && (frame.event as { session: { cwd: string } }).session.cwd === t.cwd,
-    budgets.scannerLatencyMs,
+    WAIT_MS,
   );
   const elapsed = Math.round(performance.now() - started);
   console.log(
     `scanner: a CLI session reached the shell stream after ${elapsed} ms (budget ${budgets.scannerLatencyMs})`,
   );
-  expect(elapsed).toBeLessThanOrEqual(budgets.scannerLatencyMs);
+  if (BUDGET_RUN) expect(elapsed).toBeLessThanOrEqual(budgets.scannerLatencyMs);
   const sessionId = (event.event as { session: { id: string } }).session.id;
-  const answer = await client.call("search.query", { q: "kubernetes pi cli" });
-  expect(answer).toMatchObject({ ok: true });
-  expect(
-    (answer as unknown as { result: { hits: Array<{ sessionId: string }> } }).result.hits.map(
-      (hit) => hit.sessionId,
-    ),
-  ).toEqual([sessionId]);
+  // The session event can come before the index commit of its rows: search is read until it has them.
+  await vi.waitFor(
+    async () => {
+      const answer = await client.call("search.query", { q: "kubernetes pi cli" });
+      expect(answer).toMatchObject({ ok: true });
+      expect(
+        (answer as unknown as { result: { hits: Array<{ sessionId: string }> } }).result.hits.map(
+          (hit) => hit.sessionId,
+        ),
+      ).toEqual([sessionId]);
+    },
+    { timeout: 10_000 },
+  );
 });
 
 /** Pi's file format with a header dated `timestamp` (the SDK always stamps "now", so this one is written by hand). */
@@ -94,7 +107,7 @@ it("never shows a session created before the install, once it has been read (M4R
   await client.call("subscribe.shell", {});
   const oldPath = writeOldSession("2020-01-01T00:00:00.000Z", "an old session about kubernetes");
   writeCliSession("a new one");
-  await client.waitForEvent((frame) => kindOf(frame) === "session", budgets.scannerLatencyMs);
+  await client.waitForEvent((frame) => kindOf(frame) === "session", WAIT_MS);
   // The old file was processed and excluded, not merely not reached yet.
   const index = new DatabaseSync(join(t.home, "search.db"), { readOnly: true });
   try {
@@ -103,7 +116,7 @@ it("never shows a session created before the install, once it has been read (M4R
         expect(index.prepare("SELECT state FROM files WHERE path = ?").get(oldPath)).toEqual({
           state: "excluded",
         }),
-      { timeout: budgets.scannerLatencyMs },
+      { timeout: WAIT_MS },
     );
   } finally {
     index.close();

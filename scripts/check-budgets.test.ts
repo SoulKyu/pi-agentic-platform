@@ -77,10 +77,10 @@ describe("bundle budget", () => {
         "idle worker RSS: measured by apps/daemon/src/modules/sessions/sessions.budgets.int.test.ts",
       );
       expect(result.stdout).toContain(
-        "search p95: measured by apps/daemon/src/modules/search/search.budget.int.test.ts (pnpm test:int)",
+        "search p95: measured by apps/daemon/src/modules/search/search.budget.int.test.ts (pnpm test:budget)",
       );
       expect(result.stdout).toContain(
-        "scanner latency: measured by apps/daemon/src/modules/search/scanner.exit.int.test.ts (pnpm test:int)",
+        "scanner latency: measured by apps/daemon/src/modules/search/scanner.exit.int.test.ts (pnpm test:budget)",
       );
     });
 
