@@ -23,6 +23,8 @@ export interface TokenStore {
   /** Deletes the owner's expired tokens and returns their ids. */
   deleteExpired(userId: string, now: number): string[];
   delete(userId: string, id: string): boolean;
+  /** Every token of every user (`pap passkey reset --revoke-tokens`); how many went. */
+  deleteAll(): number;
 }
 
 interface RawRow extends Omit<TokenRow, "permissions"> {
@@ -90,5 +92,6 @@ export function createTokenStore(db: Db, logger: Logger): TokenStore {
         .map((row) => row.id),
     delete: (userId, id) =>
       db.run("DELETE FROM api_tokens WHERE user_id = $userId AND id = $id", { userId, id }).changes === 1,
+    deleteAll: () => db.run("DELETE FROM api_tokens").changes,
   };
 }

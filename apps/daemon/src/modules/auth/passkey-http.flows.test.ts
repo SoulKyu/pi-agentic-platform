@@ -3,6 +3,7 @@ import { PapError } from "@pap/contracts";
 import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHttpApp } from "../../kernel/http/app.ts";
+import { silentLogger } from "../../kernel/logger.ts";
 import { mountAuthRoutes } from "./http.ts";
 import { createKnownDevices } from "./known-device.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
@@ -172,6 +173,7 @@ describe("enrollment flows and their throttle", () => {
         publicOrigin: ORIGIN,
         allowedOrigins: new Set([ORIGIN]),
         lib: stubLib,
+        logger: silentLogger,
       }),
     );
     const other = service.startSession(userId, undefined, { ip: "10.0.0.2", method: "password" });

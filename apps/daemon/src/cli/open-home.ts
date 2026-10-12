@@ -9,7 +9,7 @@ import { silentLogger } from "../kernel/logger.ts";
 import { MIGRATION_SOURCES } from "../daemon.ts";
 
 export interface CliIo {
-  readonly stdin: NodeJS.ReadableStream & { isTTY?: boolean };
+  readonly stdin: NodeJS.ReadableStream & { isTTY?: boolean; setRawMode?(mode: boolean): unknown };
   readonly stdout: { write(text: string): unknown };
   readonly stderr: { write(text: string): unknown };
   readonly env: NodeJS.ProcessEnv;
@@ -17,9 +17,15 @@ export interface CliIo {
   readonly clock: Clock;
 }
 
-/** A refusal with a one-line message: `pap: <message>` and exit code 1. */
+/** A refusal with a one-line message: `pap: <message>` and an exit code (1 unless stated, 130 for Ctrl-C). */
 export class CliError extends Error {
   override name = "CliError";
+  readonly exitCode: number;
+
+  constructor(message: string, exitCode = 1) {
+    super(message);
+    this.exitCode = exitCode;
+  }
 }
 
 export interface OpenedHome {

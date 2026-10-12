@@ -64,6 +64,9 @@ export interface AuthServiceDeps {
   readonly devices: KnownDevices;
 }
 
+/** The username rule of `/auth/setup` and `pap user add`. */
+export const USERNAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
+
 export interface Credentials {
   readonly username: string;
   readonly password: string;

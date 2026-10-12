@@ -48,6 +48,15 @@ export function createKnownDevices(key: Uint8Array): KnownDevices {
       .update(nonce)
       .digest()
       .subarray(0, MAC_BYTES);
+  const keyOfOne = (cookie: string, userId: string): string | null => {
+    if (!SHAPE.test(cookie)) return null;
+    const raw = Buffer.from(cookie, "base64url");
+    if (raw.length !== NONCE_BYTES + MAC_BYTES) return null;
+    const nonce = raw.subarray(0, NONCE_BYTES);
+    return timingSafeEqual(raw.subarray(NONCE_BYTES), mac(userId, nonce))
+      ? `device:${nonce.toString("hex")}`
+      : null;
+  };
   return {
     issue(userId) {
       const nonce = randomBytes(NONCE_BYTES);
@@ -57,18 +66,12 @@ export function createKnownDevices(key: Uint8Array): KnownDevices {
       if (cookie === undefined || userId === undefined) return null;
       if (typeof cookie !== "string") {
         for (const value of cookie.slice(0, MAX_TRIED)) {
-          const key = this.keyOf(value, userId);
+          const key = keyOfOne(value, userId);
           if (key !== null) return key;
         }
         return null;
       }
-      if (!SHAPE.test(cookie)) return null;
-      const raw = Buffer.from(cookie, "base64url");
-      if (raw.length !== NONCE_BYTES + MAC_BYTES) return null;
-      const nonce = raw.subarray(0, NONCE_BYTES);
-      return timingSafeEqual(raw.subarray(NONCE_BYTES), mac(userId, nonce))
-        ? `device:${nonce.toString("hex")}`
-        : null;
+      return keyOfOne(cookie, userId);
     },
   };
 }

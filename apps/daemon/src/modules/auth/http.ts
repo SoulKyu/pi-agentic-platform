@@ -14,10 +14,10 @@ import {
 } from "./cookies.ts";
 import { DEVICE_COOKIE } from "./known-device.ts";
 import { isAcceptablePassword } from "./passwords.ts";
-import { RateLimitedError, type AuthService, type StartedSession } from "./service.ts";
+import { RateLimitedError, USERNAME_PATTERN, type AuthService, type StartedSession } from "./service.ts";
 
 const MAX_BODY_BYTES = 16 * 1024;
-const Username = z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/);
+const Username = z.string().regex(USERNAME_PATTERN);
 const Password = z.string().refine(isAcceptablePassword);
 const SetupBody = z.object({ token: z.string().min(1).max(256), username: Username, password: Password });
 const ConfirmBody = z.object({ password: z.string().min(1).max(1024) });

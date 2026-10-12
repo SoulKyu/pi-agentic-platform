@@ -2,9 +2,12 @@ import { parseArgs, type ParseArgsConfig } from "node:util";
 import { MigrationError } from "../kernel/db/migrate.ts";
 import { HomeError, InstanceLockError } from "../kernel/home.ts";
 import { ConfigError } from "../kernel/config.ts";
+import { AuthCliError } from "../modules/auth/index.ts";
 import { auditPrune } from "./audit-prune.ts";
 import { CliError, type CliIo } from "./open-home.ts";
+import { passkeyReset } from "./passkey-reset.ts";
 import { PREVIEW_STOP_COMMAND, USAGE, UsageError } from "./usage.ts";
+import { userAdd } from "./user-add.ts";
 
 export interface Command {
   readonly options: NonNullable<ParseArgsConfig["options"]>;
@@ -15,9 +18,11 @@ export interface Command {
   }): Promise<number>;
 }
 
-/** Keyed by the command words; a later task adds `user add` and `passkey reset`. */
+/** Keyed by the command words. `USAGE` lists the same commands. */
 export const COMMANDS: Readonly<Record<string, Command>> = {
   "audit prune": auditPrune,
+  "user add": userAdd,
+  "passkey reset": passkeyReset,
 };
 
 const usage = (io: CliIo, message?: string): number => {
@@ -44,6 +49,7 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
       return usage(io, (error as Error).message);
     if (
       error instanceof CliError ||
+      error instanceof AuthCliError ||
       error instanceof InstanceLockError ||
       error instanceof HomeError ||
       error instanceof MigrationError ||
@@ -52,7 +58,7 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<number
       io.stderr.write(`pap: ${error.message}\n`);
       if (error instanceof InstanceLockError && error.message.startsWith("pap is already running"))
         io.stderr.write(`pap: for the preview service: ${PREVIEW_STOP_COMMAND}\n`);
-      return 1;
+      return error instanceof CliError ? error.exitCode : 1;
     }
     throw error;
   }

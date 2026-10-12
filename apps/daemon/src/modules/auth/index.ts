@@ -26,6 +26,8 @@ import { createAuthThrottles } from "./throttle.ts";
 
 // The one export for `testing/` beds (R84): real services on a test database, no loose factories.
 export { createAuthTestHarness } from "./test-seam.ts";
+// The admin commands (`pap user add`, `pap passkey reset`).
+export { AuthCliError, createOwnerFromCli, hasOwner, resetCredentials } from "./cli.ts";
 
 export const AUTH_MIGRATIONS: MigrationSource = {
   module: "auth",

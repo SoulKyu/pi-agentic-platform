@@ -58,7 +58,7 @@ export interface PasskeyDeps {
   readonly allowedOrigins: ReadonlySet<string>;
   readonly lib?: WebAuthnLib;
   /** Receives `auth_login_challenges_full` (no fields), at most once per 10 s. */
-  readonly logger?: Logger;
+  readonly logger: Logger;
 }
 
 interface Flow {
@@ -123,7 +123,7 @@ export function createPasskeyService(deps: PasskeyDeps): PasskeyService {
     const now = deps.clock.now();
     if (now - lastFullLog < FULL_LOG_WINDOW_MS) return;
     lastFullLog = now;
-    deps.logger?.warn("auth_login_challenges_full", {});
+    deps.logger.warn("auth_login_challenges_full", {});
   });
   const requireRp = (): string => {
     if (!rpID) throw new PapError("not_found");
