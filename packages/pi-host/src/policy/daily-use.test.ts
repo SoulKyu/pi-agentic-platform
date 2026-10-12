@@ -50,8 +50,8 @@ describe("daily use: bash through the whole pipeline", () => {
     async (_name, entry) => {
       const h = bed.harness({ answers: [{ answer: "session", closed: false }] });
       await h.run("bash", { command: entry.command });
-      expect(entry.knownFriction).toBeTruthy();
-      expect(h.entries[0]?.stages[0]?.outcome).not.toBe("pass");
+      const { stage01, reason } = entry.knownFriction ?? { stage01: "pass", reason: "no friction pinned" };
+      expect(h.entries[0]?.stages[0]).toEqual({ stage: "01", outcome: stage01, reason });
     },
   );
 });

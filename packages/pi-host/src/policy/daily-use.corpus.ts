@@ -5,7 +5,12 @@
  */
 export interface CorpusEntry {
   readonly command: string;
-  readonly knownFriction?: string;
+  /** What the policy does today, asserted as it is: the reason for the owner, stage 01's verdict and its reason. */
+  readonly knownFriction?: {
+    readonly why: string;
+    readonly stage01: "ask" | "block";
+    readonly reason: string;
+  };
 }
 
 export const BASH_CORPUS: readonly CorpusEntry[] = [

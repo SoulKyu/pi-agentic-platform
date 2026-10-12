@@ -17,13 +17,13 @@ import { describeCall } from "./describe-call.ts";
 import { egressStage } from "./egress.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import type { PolicyGrants } from "./grants.ts";
-import { GUARD_MODEL_REASON, guardTitle } from "./run-guard.ts";
+import { GUARD_MODEL_REASON } from "./run-guard.ts";
 import { withRestored } from "./restore.ts";
 import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
 import { clipUnits, createTrail } from "./trail.ts";
-import { canAskUnchecked, checkStage, type Unchecked, uncheckedPlan } from "./unchecked.ts";
+import { canAsk, checkStage, refuses, type Unchecked, uncheckedCard, uncheckedPlan } from "./unchecked.ts";
 
 export const DENIED_REASON = "Denied by the user.";
 export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so it was blocked (fail closed).";
@@ -254,7 +254,7 @@ function recheckAnswered(
   if (rules === null) return { reason: NO_RULES, modelReason: FAIL_CLOSED_REASON };
   const now: CallFacts = { ...call, rules, tainted: deps.taint.current() };
   for (const verdict of [checkStage(stages.denylist(now), true), checkStage(stages.egress(now))])
-    if (verdict.outcome === "block") return { reason: verdict.reason, modelReason: verdict.modelReason };
+    if (refuses(verdict, call)) return { reason: verdict.reason, modelReason: verdict.modelReason };
   return rules.approvalMode === "read-only" ? readOnlyRefusal(call, now) : null;
 }
 
@@ -308,7 +308,7 @@ async function evaluateOnce(
   ] as const) {
     const verdict = checkStage(run(), stage === "01");
     // A command the reader could not check is asked about where a person can answer, and blocks where none can.
-    if (verdict.outcome === "unchecked" && canAskUnchecked(ctx, call)) unchecked = verdict;
+    if (verdict.outcome === "unchecked" && canAsk(ctx, call)) unchecked = verdict;
     else if (verdict.outcome === "block" || verdict.outcome === "unchecked")
       return blocked(stage, next, verdict.reason, verdict.modelReason);
     trail.add(stage, verdict.outcome === "unchecked" ? "ask" : verdict.outcome, verdict.reason);
@@ -356,8 +356,7 @@ async function evaluateOnce(
   const outcome = await deps.ask(
     {
       category: kind.category,
-      title: trip ? guardTitle(trip.rule, rules.guard) : TITLES[kind.category],
-      message: description.message,
+      ...uncheckedCard(unchecked, trip, rules.guard, TITLES[kind.category], description.message),
       tool: ids.tool,
       key,
       answers,

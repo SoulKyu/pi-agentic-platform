@@ -57,6 +57,32 @@ export const BUILTIN_CHECKS: ReadonlyArray<Check> = [
   },
 ];
 const FORK_BOMB_ID = "fork-bomb";
+const ROUGH_MAX_CHARS = 4 * 1024 * 1024;
+const ROUGH_TAIL_WORDS = 64;
+const DANGEROUS_NAME =
+  /^(?:rm|chmod|chown|chgrp|mkfs(?:\.[a-z0-9]+)?|mke2fs|mkswap|dd|shred|wipefs|blkdiscard)$/;
+
+/**
+ * When the reader gives up, the built-in checks still run over a rough split of the raw text: quotes, backslashes and
+ * brackets dropped, cut at newlines, `;`, `&`, `|`, then at blanks. Linear (fixed-string splits, at most
+ * `ROUGH_TAIL_WORDS` words per command name found). It can only add blocks to a command that would be asked about.
+ */
+export function roughBuiltinHit(command: string): string | null {
+  if (command.length > ROUGH_MAX_CHARS) return null;
+  const plain = command.replace(/['"\\]/g, "").replace(/[`(){}]/g, " ");
+  for (const piece of plain.split(/\n|;|&|\|/)) {
+    const words = piece.split(/\s+/);
+    for (const [at, word] of words.entries()) {
+      if (REDIRECT_TO_FILE.test(word) && isDisk(words[at + 1] ?? "")) return "redirect-device";
+      if (!DANGEROUS_NAME.test(word)) continue;
+      const argv = words.slice(at, at + ROUGH_TAIL_WORDS);
+      const operators = new Set(argv.flatMap((arg, n) => (REDIRECT_TO_FILE.test(arg) ? [n] : [])));
+      const hit = BUILTIN_CHECKS.find((check) => check.matches(argv, { words: argv, depth: 0, operators }));
+      if (hit) return hit.id;
+    }
+  }
+  return null;
+}
 
 /**
  * A function whose body pipes itself into itself in the background (`:(){ :|:& };:`, `f(){ f|f& }`). Linear: one scan for
@@ -149,9 +175,11 @@ export function denylistStage(call: CallFacts): StageResult {
     segments = readCommands(command);
   } catch (error) {
     if (!(error instanceof CommandTooLong || error instanceof CommandTooComplex)) throw error;
-    // The fork bomb needs no reader: it stays a block, never a question.
-    if (!powershell && call.rules.builtinDenylist && isForkBomb(command))
-      return block(`denied: ${FORK_BOMB_ID}`);
+    // The built-in checks need no reader: padding must not turn a catastrophic command into a question.
+    if (!powershell && call.rules.builtinDenylist) {
+      const hit = isForkBomb(command) ? FORK_BOMB_ID : roughBuiltinHit(command);
+      if (hit !== null) return block(`denied: ${hit}`);
+    }
     return unchecked(error instanceof CommandTooLong ? TOO_LONG : TOO_COMPLEX);
   }
   if (!powershell && call.rules.builtinDenylist) {

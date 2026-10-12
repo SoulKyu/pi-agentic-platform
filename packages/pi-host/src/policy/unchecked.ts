@@ -1,7 +1,12 @@
+import type { GuardRule } from "@pap/contracts";
+import { guardTitle } from "./run-guard.ts";
 import type { ApprovalPlan, CallFacts, PolicyContext, StageResult } from "./pipeline.ts";
 
 export const UNCHECKED_REASON =
   "pap could not check this command against the blocked-command list. Read it before you allow it.";
+
+/** Calls whose evaluation was itself unchecked and asked. */
+const WAS_UNCHECKED = new WeakSet<CallFacts>();
 
 export type Unchecked = Extract<StageResult, { outcome: "unchecked" }>;
 
@@ -13,9 +18,15 @@ export function checkStage(result: StageResult, mayBeUnchecked = false): StageRe
   throw new TypeError("a stage returned an outcome the pipeline does not know");
 }
 
-/** Whether a person can be asked about a call the denylist could not read: a UI, interactive rules, not read-only. */
-export const canAskUnchecked = (ctx: PolicyContext, call: CallFacts): boolean =>
-  ctx.hasUI && call.rules.profile === "interactive" && call.rules.approvalMode !== "read-only";
+/**
+ * Whether a person can be asked about a call the denylist could not read: a UI, interactive rules, not read-only. When
+ * they can, the call is marked: only its re-check may see `unchecked` again.
+ */
+export function canAsk(ctx: PolicyContext, call: CallFacts): boolean {
+  const yes = ctx.hasUI && call.rules.profile === "interactive" && call.rules.approvalMode !== "read-only";
+  if (yes) WAS_UNCHECKED.add(call);
+  return yes;
+}
 
 /**
  * The question for a call stage 01 could not read: stage 03's verdict made into a deny / once question that no grant
@@ -30,4 +41,26 @@ export function uncheckedPlan(plan: ApprovalPlan, unchecked: Unchecked | null): 
     ...(plan.outcome === "ask" && plan.review ? { review: plan.review } : {}),
     grantable: false,
   };
+}
+
+/** The MQ6 re-check: a block refuses an answered call, and so does `unchecked` when the question was not about it. */
+export const refuses = (
+  verdict: StageResult,
+  call: CallFacts,
+): verdict is Extract<StageResult, { outcome: "block" | "unchecked" }> =>
+  verdict.outcome === "block" || (verdict.outcome === "unchecked" && !WAS_UNCHECKED.has(call));
+
+/** The card: the unchecked reason as the title, or as the first line of the message next to a guard's title. */
+export function uncheckedCard(
+  unchecked: Unchecked | null,
+  trip: { readonly rule: GuardRule } | null,
+  guard: Parameters<typeof guardTitle>[1],
+  title: string,
+  message: string,
+): { title: string; message: string } {
+  const shown = trip ? guardTitle(trip.rule, guard) : title;
+  if (unchecked === null) return { title: shown, message };
+  return trip
+    ? { title: shown, message: `${UNCHECKED_REASON}\n${message}` }
+    : { title: UNCHECKED_REASON, message };
 }

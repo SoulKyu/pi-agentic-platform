@@ -269,10 +269,10 @@ export function urlsOf(call: CallFacts): { urls: string[]; uncheckable: string |
   return { urls: [...new Set(out)], uncheckable };
 }
 
-const block = (reason: string): StageResult => ({
+const block = (reason: string, modelReason = EGRESS_MODEL_REASON): StageResult => ({
   outcome: "block",
   reason,
-  modelReason: EGRESS_MODEL_REASON,
+  modelReason,
 });
 
 /** Stage 02 (M5R21 to M5R24, M5R118): a reason carries the judged host or scheme (clipped) or a fixed client name, nothing else of the input. */
@@ -291,7 +291,7 @@ export function egressStage(call: CallFacts): StageResult {
       error instanceof CommandTooComplex ||
       error instanceof CommandTooLong
     )
-      return block(TOO_COMPLEX);
+      return block(TOO_COMPLEX, TOO_COMPLEX);
     throw error;
   }
   if (found.uncheckable !== null) return block(`host not checkable: ${found.uncheckable}`);

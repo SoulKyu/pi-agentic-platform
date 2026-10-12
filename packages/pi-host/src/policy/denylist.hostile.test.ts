@@ -26,9 +26,13 @@ const expectOwnVerdict = (verdict: StageVerdict | undefined) => {
   expect(verdict?.stage).toBe("01");
   if (verdict?.outcome === "pass") expect(verdict.reason).toMatch(/^\d+ commands? checked$/);
   else {
-    // A command the reader cannot check blocks, or asks where a person can answer (Task 8c).
-    expect(["block", "ask"]).toContain(verdict?.outcome);
-    expect(verdict?.reason).toMatch(/^(?:denied: .+|command too (?:long|complex) for the policy check)$/);
+    // A command the reader cannot check asks where a person can answer (Task 8c); only a hit or a reader limit says more.
+    const limit = /^command too (?:long|complex) for the policy check$/;
+    if (verdict?.outcome === "ask") expect(verdict.reason).toMatch(limit);
+    else {
+      expect(verdict?.outcome).toBe("block");
+      expect(verdict?.reason).toMatch(/^denied: .+$/);
+    }
   }
 };
 const letterRun = `*${"a".repeat(64)}b`;
@@ -54,7 +58,7 @@ const adversarial: ReadonlyArray<readonly [string, string]> = [
 
 describe("bounded work", () => {
   it.each(adversarial)(
-    "gives a verdict of its own (a block or a pass, never an evaluation error) for %s",
+    "gives a verdict of its own (a pass, a block, or a question about what the reader cannot check; never an evaluation error) for %s",
     async (_name, command) => {
       const h = bed.harness({ rules: rules(Array.from({ length: 64 }, () => letterRun)), stages: ALLOW_03 });
       const result = await h.run("bash", { command });
