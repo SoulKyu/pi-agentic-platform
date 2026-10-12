@@ -40,7 +40,10 @@ export function useComposer(sessionId: string, view: SessionView) {
   // The daemon answered `session_busy`: something structural (a tree navigation...) runs that the view does not show.
   const [refusedAsBusy, setRefusedAsBusy] = useState(false);
   // Why the last action did nothing, or what it could not do; shown politely (a live region), never as an alert.
-  const [note, setNote] = useState<"pending" | "compacting" | "truncated" | null>(null);
+  const [note, setNote] = useState<"pending" | "compacting" | "sending" | "truncated" | null>(null);
+  // One prompt RPC at a time: the write-ahead entry always belongs to the send in flight.
+  const [sending, setSending] = useState(false);
+  const sendingRef = useRef(false);
   const resendingRef = useRef(false);
   const mounted = useRef(true);
   const textRef = useRef(text);
@@ -91,11 +94,16 @@ export function useComposer(sessionId: string, view: SessionView) {
     setError(null);
     const signOuts = signOutCount();
     savePending(storage, sessionId, { params, commandId });
+    sendingRef.current = true;
+    setSending(true);
     try {
       await runtime.rpc.call("sessions.prompt", params, { commandId });
     } catch (failure) {
+      sendingRef.current = false;
+      if (mounted.current) setSending(false);
       if (signOuts !== signOutCount()) return;
       if (outcomeUnknown(failure)) {
+        savePending(storage, sessionId, { params, commandId });
         if (mounted.current) setPending({ params, commandId });
         return;
       }
@@ -113,16 +121,23 @@ export function useComposer(sessionId: string, view: SessionView) {
       }
       return;
     }
+    sendingRef.current = false;
+    if (mounted.current) setSending(false);
     setRefusedAsBusy(false);
     remember(null);
   };
 
   const compacting = view.activity.compacting;
   // Adjusting state while rendering: a "blocked" note is only true while the block lasts.
-  if ((note === "pending" && !pending) || (note === "compacting" && !compacting)) setNote(null);
+  if (
+    (note === "pending" && !pending) ||
+    (note === "compacting" && !compacting) ||
+    (note === "sending" && !sending)
+  )
+    setNote(null);
   const send = (way?: Behavior) => {
-    if (pending || compacting) {
-      setNote(pending ? "pending" : "compacting");
+    if (pending || compacting || sendingRef.current) {
+      setNote(pending ? "pending" : compacting ? "compacting" : "sending");
       return;
     }
     const plan = planSend(textRef.current, way ?? behavior);
@@ -146,17 +161,20 @@ export function useComposer(sessionId: string, view: SessionView) {
         ? t("sessions.composer.blockedPending")
         : note === "compacting"
           ? t("sessions.composer.blockedCompacting")
-          : note === "truncated"
-            ? t("sessions.composer.truncated")
-            : null,
+          : note === "sending"
+            ? t("sessions.composer.blockedSending")
+            : note === "truncated"
+              ? t("sessions.composer.truncated")
+              : null,
     resending,
     compacting,
+    sending,
     running: view.status === "running",
     canStop: view.status === "running" || compacting || refusedAsBusy,
     changeText: commit,
     send,
     sendAgain: async () => {
-      if (!pending || resendingRef.current) return;
+      if (!pending || resendingRef.current || sendingRef.current) return;
       resendingRef.current = true;
       setResending(true);
       await deliver(pending.params, pending.commandId);

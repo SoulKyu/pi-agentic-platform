@@ -87,6 +87,46 @@ describe("Composer write-ahead pending send", () => {
   });
 });
 
+describe("Composer serialized sends", () => {
+  it("refuses a second send while the first is in flight, and the stored entry stays the first one's", async () => {
+    const call = inFlight();
+    const container = await show({ status: "running" });
+    await typeInto(field(container, "Message"), "first");
+    await click(button(container, "Steer"));
+    await settle();
+    const first = screen.bed.called("sessions.prompt")[0];
+    await typeInto(field(container, "Message"), "second");
+    expect([button(container, "Steer").disabled, button(container, "Follow up").disabled]).toEqual([
+      true,
+      true,
+    ]);
+    await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
+    expect(screen.bed.called("sessions.prompt")).toHaveLength(1);
+    expect(field(container, "Message").value).toBe("second");
+    expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe(
+      "A message is being sent. Wait a moment.",
+    );
+    expect(JSON.parse(localStorage.getItem("pap.pending.sess-1") ?? "null").commandId).toBe(
+      first?.options?.commandId,
+    );
+    call.resolve({ disposition: "queued" });
+    await settle();
+    expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
+    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(button(container, "Steer").disabled).toBe(false);
+  });
+
+  it("keeps the entry of a send whose outcome is unknown", async () => {
+    const call = inFlight();
+    const container = await show({ status: "idle" });
+    await sendFrom(container, "first");
+    const stored = localStorage.getItem("pap.pending.sess-1");
+    call.reject(new RpcError("timeout"));
+    await settle();
+    expect(localStorage.getItem("pap.pending.sess-1")).toBe(stored);
+  });
+});
+
 describe("Composer sign-out and unmount races", () => {
   it("never writes a pending send back after sign-out", async () => {
     const call = inFlight();

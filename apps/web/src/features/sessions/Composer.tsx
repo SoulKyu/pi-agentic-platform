@@ -13,7 +13,7 @@ interface ComposerProps {
 
 export function Composer({ sessionId, view, onTabToPanel }: ComposerProps) {
   const c = useComposer(sessionId, view);
-  const blocked = c.pending !== null || c.compacting;
+  const blocked = c.pending !== null || c.compacting || c.sending;
   return (
     <div
       data-composer

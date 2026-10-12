@@ -84,6 +84,7 @@ export const en = {
   "sessions.composer.sendAgain": "Send again",
   "sessions.composer.blockedPending": "Send the earlier message again, or edit it, first.",
   "sessions.composer.blockedCompacting": "The session is compacting. Try again when it is done.",
+  "sessions.composer.blockedSending": "A message is being sent. Wait a moment.",
   "sessions.composer.truncated": "Some queued text could not be restored.",
   "sessions.composer.edit": "Edit",
   "session.status.releasing": "Releasing",
