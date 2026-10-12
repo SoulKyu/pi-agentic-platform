@@ -111,6 +111,8 @@ export const en = {
   "dialog.timeout": "Closes on its own after {seconds} s",
   "dialog.more": "Show more",
   "dialog.less": "Show less",
+  "dialog.question": "Question",
+  "dialog.summary": "Summary",
   "dialog.details": "Details",
   "dialog.retry": "Send again",
   "dialog.hidden.one": "{count} more dialog is waiting",

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { FOCUS_RING } from "@pap/ui";
 import type { Dialog } from "@pap/contracts";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -216,11 +217,18 @@ describe("the list", () => {
 
   it("bounds the height of an expanded extension title", async () => {
     const page = await show([{ ...select, title: "t".repeat(4096) }]);
+    const scroll = () => page.querySelector("[data-title-scroll]");
+    expect(scroll()?.getAttribute("role")).toBeNull();
+    expect(scroll()?.getAttribute("tabindex")).toBeNull();
     await click(button(page, "Show more"));
-    const title = page.querySelector("h3");
-    expect(title?.className).toContain("max-h-32");
-    expect(title?.className).toContain("overflow-auto");
-    expect(title?.getAttribute("tabindex")).toBe("0");
+    const heading = page.querySelector("h3");
+    expect(scroll()?.contains(heading ?? null)).toBe(true);
+    expect(scroll()?.className).toContain("max-h-32");
+    expect(scroll()?.className).toContain("overflow-auto");
+    expect(scroll()?.className).toContain(FOCUS_RING);
+    expect(scroll()?.getAttribute("tabindex")).toBe("0");
+    expect(scroll()?.getAttribute("role")).toBe("region");
+    expect(scroll()?.getAttribute("aria-labelledby")).toBe(heading?.id);
   });
 
   it("ties a refusal to its own card and clears it when that dialog closes", async () => {

@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { FOCUS_RING } from "@pap/ui";
 import type { Dialog } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../../runtime/index.ts";
@@ -209,13 +210,24 @@ describe("ApprovalDialog", () => {
 
   it("bounds the height of an expanded question and header", async () => {
     const page = await show([exec({ title: "q".repeat(4096), message: `${"h".repeat(4000)}\nbody` })]);
-    for (const selector of ["[data-approval-question]", "[data-approval-header]"]) {
+    const areas = [
+      ["[data-approval-question]", "Question"],
+      ["[data-approval-header]", "Summary"],
+    ] as const;
+    for (const [selector] of areas) {
+      expect(page.querySelector(selector)?.getAttribute("role")).toBeNull();
+      expect(page.querySelector(selector)?.getAttribute("tabindex")).toBeNull();
+    }
+    for (const [selector, name] of areas) {
       const more = [...page.querySelectorAll("button")].find((b) => b.textContent === "Show more");
       await click(more as Element);
       const element = page.querySelector(selector);
       expect(element?.className).toContain("max-h-32");
       expect(element?.className).toContain("overflow-auto");
+      expect(element?.className).toContain(FOCUS_RING);
       expect(element?.getAttribute("tabindex")).toBe("0");
+      expect(element?.getAttribute("role")).toBe("region");
+      expect(element?.getAttribute("aria-label")).toBe(name);
     }
   });
 });

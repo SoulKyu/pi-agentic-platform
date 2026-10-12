@@ -1,6 +1,7 @@
 import type { ApprovalAnswer } from "@pap/contracts";
 import { Button, cn, FOCUS_RING } from "@pap/ui";
 import { useId } from "react";
+import { t } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
 import { ExpandToggle, useClipped } from "./use-clipped.tsx";
 import { useAnswer } from "./use-answer.ts";
@@ -26,6 +27,10 @@ export interface ApprovalDialogProps {
   onChoose(answer: ApprovalAnswer): void;
 }
 
+/** A clipped text that has been expanded can scroll: it becomes a named region the keyboard can reach. */
+const scrollArea = (expanded: boolean, name: string) =>
+  expanded ? ({ role: "region", tabIndex: 0, "aria-label": name } as const) : {};
+
 /** Pink = the policy waits for you. One card is one request: key it by request id and attempt. */
 export function ApprovalDialog(props: ApprovalDialogProps) {
   const { answered, answer } = useAnswer(props.onChoose);
@@ -49,8 +54,11 @@ export function ApprovalDialog(props: ApprovalDialogProps) {
       </h3>
       <p
         data-approval-question
-        tabIndex={question.expanded ? 0 : undefined}
-        className="max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg"
+        {...scrollArea(question.expanded, t("dialog.question"))}
+        className={cn(
+          "max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg",
+          FOCUS_RING,
+        )}
       >
         {question.shown}
       </p>
@@ -60,8 +68,11 @@ export function ApprovalDialog(props: ApprovalDialogProps) {
           <pre
             data-approval-header
             id={headerId}
-            tabIndex={headerText.expanded ? 0 : undefined}
-            className="max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-ui font-semibold text-fg"
+            {...scrollArea(headerText.expanded, t("dialog.summary"))}
+            className={cn(
+              "max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-ui font-semibold text-fg",
+              FOCUS_RING,
+            )}
           >
             {headerText.shown}
           </pre>

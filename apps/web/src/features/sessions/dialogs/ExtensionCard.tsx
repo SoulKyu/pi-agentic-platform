@@ -1,4 +1,5 @@
 import type { Dialog } from "@pap/contracts";
+import { cn, FOCUS_RING } from "@pap/ui";
 import { useId, type ReactNode } from "react";
 import { t } from "../../../i18n/index.ts";
 import { plain, clip } from "./untrusted.ts";
@@ -43,13 +44,15 @@ export function ExtensionCard(props: {
       </p>
       {props.titleInField ? null : (
         <>
-          <h3
-            id={headingId}
-            tabIndex={title.expanded ? 0 : undefined}
-            className="max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg"
+          <div
+            data-title-scroll
+            {...(title.expanded ? { role: "region", tabIndex: 0, "aria-labelledby": headingId } : {})}
+            className={cn("max-h-32 overflow-auto", FOCUS_RING)}
           >
-            {title.shown}
-          </h3>
+            <h3 id={headingId} className="whitespace-pre-wrap break-words text-ui font-semibold text-fg">
+              {title.shown}
+            </h3>
+          </div>
           <ExpandToggle {...title} />
         </>
       )}

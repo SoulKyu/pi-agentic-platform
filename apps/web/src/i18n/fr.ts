@@ -114,6 +114,8 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "dialog.timeout": "Se ferme seul après {seconds} s",
   "dialog.more": "Afficher plus",
   "dialog.less": "Afficher moins",
+  "dialog.question": "Demande",
+  "dialog.summary": "Résumé",
   "dialog.details": "Détails",
   "dialog.retry": "Renvoyer",
   "dialog.hidden.one": "{count} autre dialogue en attente",
