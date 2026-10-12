@@ -237,6 +237,21 @@ describe("stage 03: hostile inputs", () => {
     expect(stderr).toHaveBeenCalledWith("pi-host: policy evaluation failed (TypeError)\n");
   });
 
+  it("a prototype-key mode blocks even when a review, a protected read or taint would have asked", async () => {
+    vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const rules = () => ({ ...interactiveRules, approvalMode: "toString" }) as unknown as PolicyRules;
+    const calls = [
+      ["write", { path: join(bed.cwd, ".git", "hooks", "x"), content: "x" }, false],
+      ["read", { path: "link/device.key" }, false],
+      ["bash", { command: "make" }, true],
+    ] as const;
+    for (const [tool, input, taint] of calls) {
+      const h = bed.harness({ rules, taint });
+      expect(await h.run(tool, input)).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
+      expect(h.asks).toEqual([]);
+    }
+  });
+
   it("case spellings of protected names ask", async () => {
     const h = bed.harness();
     for (const path of [".IDEA/x", ".Zed/tasks.json", "Lefthook.yml", "e\u0301/.devcontainer/x.json"])

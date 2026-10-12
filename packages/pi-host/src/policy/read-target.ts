@@ -1,5 +1,5 @@
 import { join, resolve } from "node:path";
-import { kernelResolve } from "./kernel-path.ts";
+import { kernelResolve, tooLong } from "./kernel-path.ts";
 import { asPiResolves, type EditReview, realTarget, within } from "./target-path.ts";
 
 /** What lives in pap's home that no tool call of a session has a reason to read (M5R29, R97). */
@@ -55,7 +55,7 @@ export async function checkReadTarget(
       : null;
   // grep, find and ls default to the session folder; read has no default.
   const path = given === undefined && toolName !== "read" ? dirs.cwd : given;
-  if (typeof path !== "string" || path === "" || path.includes("\0")) return UNREADABLE_PATH;
+  if (typeof path !== "string" || path === "" || path.includes("\0") || tooLong(path)) return UNREADABLE_PATH;
 
   const papHomes = await variantsOf(dirs.papHome);
   const agentDirs = await variantsOf(dirs.agentDir);
@@ -91,9 +91,9 @@ export async function checkReadTarget(
     protectedPath ||= pi.protectedPath || other.protectedPath;
     searches ||= pi.searches || other.searches;
   }
-  // The card names the file Pi acts on, unless the kernel's reading is a problem too: then the one it reaches.
-  target = kernelTarget ?? target;
-  if (protectedPath) return { why: "protected path", target };
-  if (searches) return { why: "searches pap's data directory", target };
+  // The card names the file Pi acts on (R88b); the kernel's reading is a second line when it differs.
+  const also = kernelTarget !== undefined && kernelTarget !== target ? { kernelTarget } : {};
+  if (protectedPath) return { why: "protected path", target, ...also };
+  if (searches) return { why: "searches pap's data directory", target, ...also };
   return undefined;
 }

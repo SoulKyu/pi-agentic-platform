@@ -67,6 +67,9 @@ export function describeCall(toolName: string, input: unknown, view: CallView): 
   const destination = view.review
     ? [
         `→ ${view.review.target === undefined ? "unknown location" : showHidden(view.review.target, counter)} (${view.review.why})`,
+        ...(view.review.kernelTarget === undefined
+          ? []
+          : [`→ ${showHidden(view.review.kernelTarget, counter)} (also, if \`..\` follows a symlink first)`]),
       ]
     : [];
   const header = [

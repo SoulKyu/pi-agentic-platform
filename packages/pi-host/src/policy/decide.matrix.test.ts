@@ -106,4 +106,16 @@ describe("decide: read-only, review and protected reads", () => {
       );
     },
   );
+
+  it("fails closed on a prototype-key mode whatever else is present: review, protected read, taint, read-only look-alike", () => {
+    const mode = "toString" as unknown as ApprovalMode;
+    expect(() => decide({ mode, category: "edit", tainted: false, external: false, review })).toThrow(
+      TypeError,
+    );
+    expect(() =>
+      decide({ mode, category: "read", tainted: false, external: false, protectedRead: "protected path" }),
+    ).toThrow(TypeError);
+    expect(() => decide({ mode, category: "exec", tainted: true, external: false })).toThrow(TypeError);
+    expect(() => decide({ mode, category: "read", tainted: true, external: true })).toThrow(TypeError);
+  });
 });

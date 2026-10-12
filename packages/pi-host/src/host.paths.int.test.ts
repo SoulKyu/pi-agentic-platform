@@ -53,10 +53,14 @@ describe("pi-host worker: Pi collapses .. before it follows a symlink", () => {
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
     const ask = await host.waitFor(isApproval);
-    // The kernel's reading leaves the folder, so it asks, and the card names that file.
-    expect(String(ask.message)).toContain(
-      `\u2192 ${join(bed.root, "real", "probe.txt")} (outside the session directory)`,
-    );
+    // The kernel's reading leaves the folder, so it asks. The card names the file Pi writes first (R88b), the kernel's second.
+    const lines = String(ask.message)
+      .split("\n")
+      .filter((line) => line.startsWith("\u2192 "));
+    expect(lines).toEqual([
+      `\u2192 ${join(bed.cwd, "probe.txt")} (outside the session directory)`,
+      `\u2192 ${join(bed.root, "real", "probe.txt")} (also, if \`..\` follows a symlink first)`,
+    ]);
     host.send({ type: "approval_response", id: ask.id, answer: "once" });
     await host.waitFor((r) => r.type === "tool_execution_end");
     expect(existsSync(join(bed.cwd, "probe.txt"))).toBe(true);

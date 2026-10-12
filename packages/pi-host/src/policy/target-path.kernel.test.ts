@@ -1,10 +1,10 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPipelineBed } from "../testing/pipeline-bed.ts";
 import { kernelResolve } from "./kernel-path.ts";
 import { checkReadTarget } from "./read-target.ts";
-import { checkEditTarget } from "./target-path.ts";
+import { checkEditTarget, realTarget } from "./target-path.ts";
 
 // Pi collapses `..` before it opens a file (probed by the host tests); the kernel follows a symlink first. The
 // policy asks when either reading reaches something protected or outside.
@@ -13,12 +13,13 @@ beforeEach(async () => {
   bed = await createPipelineBed();
   vi.stubEnv("HOME", join(bed.base, "home"));
   await mkdir(join(bed.base, "home"), { recursive: true });
-  await mkdir(join(bed.outside, "deep"), { recursive: true });
+  await mkdir(join(bed.outside, "deep", "deeper"), { recursive: true });
   await mkdir(join(bed.papHome, "secrets"), { recursive: true });
   await mkdir(join(bed.cwd, ".git", "info"), { recursive: true });
   await writeFile(join(bed.papHome, "secrets", "device.key"), "k");
   await writeFile(join(bed.papHome, "state.db"), "d");
   await symlink(join(bed.outside, "deep"), join(bed.cwd, "out"), "dir");
+  await symlink(join(bed.outside, "deep", "deeper"), join(bed.cwd, "out2"), "dir");
   await symlink(join(bed.papHome, "secrets"), join(bed.cwd, "s"), "dir");
   await symlink(join(bed.cwd, "src"), join(bed.cwd, "in"), "dir");
   await symlink(join(bed.cwd, ".git", "info"), join(bed.cwd, "g"), "dir");
@@ -37,6 +38,7 @@ describe("kernelResolve", () => {
     expect(await kernelResolve(bed.cwd, "out/../x")).toBe(join(bed.outside, "x"));
     expect(await kernelResolve(bed.cwd, `${bed.cwd}/s/../state.db`)).toBe(join(bed.papHome, "state.db"));
     expect(await kernelResolve(bed.cwd, viaProcRoot(join(bed.base, "pap")))).toBe(bed.papHome);
+    await expect(kernelResolve(bed.cwd, "a/".repeat(2100))).rejects.toThrow(RangeError);
   });
 
   it("follows the last link, keeps what does not exist as spelled, and stops on a loop", async () => {
@@ -47,29 +49,39 @@ describe("kernelResolve", () => {
   });
 });
 
+// R88b: the card names the file Pi acts on (Pi collapses `..` first); the kernel's file is a second line.
+const piFile = (path: string) => realTarget(resolve(bed.cwd, path));
+
 describe("a symlink followed by .. (reads)", () => {
-  it("asks for a read through /proc/self/root/.. and through a link into secrets/", async () => {
+  it("asks for a read through /proc/self/root/.. and through a link into secrets/, naming Pi's file first", async () => {
     const key = join(bed.papHome, "secrets", "device.key");
-    expect(await checkReadTarget("read", { path: viaProcRoot(key) }, dirs())).toEqual({
+    const proc = viaProcRoot(key);
+    expect(await checkReadTarget("read", { path: proc }, dirs())).toEqual({
       why: "protected path",
-      target: key,
+      target: await piFile(proc),
+      kernelTarget: key,
     });
-    expect(await checkReadTarget("read", { path: "s/../state.db" }, dirs())).toEqual({
+    for (const path of ["s/../state.db", `${bed.cwd}/s/../state.db`])
+      expect(await checkReadTarget("read", { path }, dirs())).toEqual({
+        why: "protected path",
+        target: await piFile(path),
+        kernelTarget: join(bed.papHome, "state.db"),
+      });
+    expect(await piFile("s/../state.db")).toBe(join(bed.cwd, "state.db"));
+  });
+
+  it("names pap's own file first when Pi's reading is the protected one and the kernel's is elsewhere", async () => {
+    expect(await checkReadTarget("read", { path: "out2/../../pap/state.db" }, dirs())).toEqual({
       why: "protected path",
       target: join(bed.papHome, "state.db"),
-    });
-    expect(await checkReadTarget("read", { path: `${bed.cwd}/s/../state.db` }, dirs())).toEqual({
-      why: "protected path",
-      target: join(bed.papHome, "state.db"),
+      kernelTarget: undefined,
     });
   });
 
   it("asks through /proc/self/cwd/.. as well", async () => {
-    const parent = join(process.cwd(), "..");
-    const rel = (await import("node:path")).relative(parent, join(bed.papHome, "state.db"));
+    const rel = relative(join(process.cwd(), ".."), join(bed.papHome, "state.db"));
     expect(await checkReadTarget("read", { path: `/proc/self/cwd/../${rel}` }, dirs())).toMatchObject({
       why: "protected path",
-      target: join(bed.papHome, "state.db"),
     });
   });
 
@@ -77,7 +89,8 @@ describe("a symlink followed by .. (reads)", () => {
     for (const tool of ["grep", "find"])
       expect(await checkReadTarget(tool, { pattern: "x", path: viaProcRoot(bed.base) }, dirs())).toEqual({
         why: "searches pap's data directory",
-        target: bed.base,
+        target: await piFile(viaProcRoot(bed.base)),
+        kernelTarget: bed.base,
       });
     expect(await checkReadTarget("ls", { path: viaProcRoot(bed.base) }, dirs())).toBeUndefined();
   });
@@ -86,43 +99,92 @@ describe("a symlink followed by .. (reads)", () => {
     await writeFile(join(bed.cwd, "src", "a.ts"), "x");
     expect(await checkReadTarget("read", { path: "in/../src/a.ts" }, dirs())).toBeUndefined();
   });
+
+  it("asks, without walking, for a spelling longer than the kernel accepts", async () => {
+    expect(await checkReadTarget("read", { path: `src/${"a/".repeat(2100)}x` }, dirs())).toEqual({
+      why: "protected path",
+    });
+  });
 });
 
 describe("a symlink followed by .. (writes)", () => {
-  it("judges an absolute path through a link out of the folder as outside, naming the file", async () => {
-    expect(await checkEditTarget(`${bed.cwd}/out/../x`, bed.cwd, roots())).toEqual({
+  it("names the file Pi writes first and the kernel's file second", async () => {
+    for (const path of [`${bed.cwd}/out/../x`, "out/../x"])
+      expect(await checkEditTarget(path, bed.cwd, roots())).toEqual({
+        auto: false,
+        review: {
+          why: "outside the session directory",
+          target: join(bed.cwd, "x"),
+          kernelTarget: join(bed.outside, "x"),
+        },
+      });
+  });
+
+  it("names pap's database, not another file, when Pi's reading is the protected one", async () => {
+    const check = await checkEditTarget("out2/../../pap/state.db", bed.cwd, roots());
+    expect(check).toEqual({
       auto: false,
-      review: { why: "outside the session directory", target: join(bed.outside, "x") },
-    });
-    expect(await checkEditTarget("out/../x", bed.cwd, roots())).toEqual({
-      auto: false,
-      review: { why: "outside the session directory", target: join(bed.outside, "x") },
+      review: {
+        why: "protected path",
+        target: join(bed.papHome, "state.db"),
+        kernelTarget: join(bed.outside, "pap", "state.db"),
+      },
     });
   });
 
-  it("names the right file for /proc/self/root/.. into the home directory", async () => {
-    const target = join(bed.base, "home", ".bashrc");
-    expect(await checkEditTarget(viaProcRoot(target), bed.cwd, roots())).toEqual({
+  it("names the home file Pi writes for out2/../../.bashrc, with the kernel's file second", async () => {
+    const check = await checkEditTarget("out2/../../.bashrc", bed.cwd, roots());
+    expect(check).toEqual({
       auto: false,
-      review: { why: "outside the session directory", target },
+      review: {
+        why: "outside the session directory",
+        target: join(bed.base, ".bashrc"),
+        kernelTarget: join(bed.outside, ".bashrc"),
+      },
+    });
+  });
+
+  it("asks for /proc/self/root/.. into the home directory, naming Pi's file first", async () => {
+    const kernel = join(bed.base, "home", ".bashrc");
+    const check = await checkEditTarget(viaProcRoot(kernel), bed.cwd, roots());
+    expect(check).toEqual({
+      auto: false,
+      review: {
+        why: "outside the session directory",
+        target: await piFile(viaProcRoot(kernel)),
+        kernelTarget: kernel,
+      },
     });
   });
 
   it("asks when only the kernel reading reaches a protected name or root", async () => {
     expect(await checkEditTarget("g/../hooks/pre-commit", bed.cwd, roots())).toEqual({
       auto: false,
-      review: { why: "protected path", target: join(bed.cwd, ".git", "hooks", "pre-commit") },
+      review: {
+        why: "protected path",
+        target: join(bed.cwd, "hooks", "pre-commit"),
+        kernelTarget: join(bed.cwd, ".git", "hooks", "pre-commit"),
+      },
     });
     expect(await checkEditTarget("s/../state.db", bed.cwd, roots())).toEqual({
       auto: false,
-      review: { why: "protected path", target: join(bed.papHome, "state.db") },
+      review: {
+        why: "protected path",
+        target: join(bed.cwd, "state.db"),
+        kernelTarget: join(bed.papHome, "state.db"),
+      },
     });
   });
 
   it("leaves a link inside the folder followed by .. automatic", async () => {
     expect(await checkEditTarget("in/../x.ts", bed.cwd, roots())).toEqual({ auto: true });
-    expect(await checkEditTarget(`${bed.cwd}/in/../x.ts`, bed.cwd, roots())).toEqual({
-      auto: true,
+    expect(await checkEditTarget(`${bed.cwd}/in/../x.ts`, bed.cwd, roots())).toEqual({ auto: true });
+  });
+
+  it("asks, without walking, for a spelling longer than the kernel accepts", async () => {
+    expect(await checkEditTarget(`src/${"a/".repeat(2100)}x`, bed.cwd, roots())).toEqual({
+      auto: false,
+      review: { why: "outside the session directory" },
     });
   });
 });

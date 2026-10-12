@@ -235,3 +235,17 @@ describe("describeCall: lookalike blanks (R91, M5R31)", () => {
     expect(messageOf("bash", { command: "a b" })).toBe("3 characters, 1 line\nbash: a b");
   });
 });
+
+describe("describeCall: the kernel's reading", () => {
+  it("adds a second arrow line for the file the kernel would reach", () => {
+    const message = messageOf(
+      "write",
+      { path: "a", content: "" },
+      { why: "protected path", target: "/p/state.db", kernelTarget: "/q/state.db" },
+    );
+    expect(message.split("\n").slice(1, 3)).toEqual([
+      "\u2192 /p/state.db (protected path)",
+      "\u2192 /q/state.db (also, if `..` follows a symlink first)",
+    ]);
+  });
+});

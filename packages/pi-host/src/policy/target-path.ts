@@ -2,7 +2,7 @@ import { lstat, readlink, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { kernelResolve } from "./kernel-path.ts";
+import { kernelResolve, tooLong } from "./kernel-path.ts";
 
 const MAX_LINK_HOPS = 40;
 // Pi's own class (probed by `host.paths.int.test.ts`): U+1680 stays a name character, U+2800 is no blank at all.
@@ -99,6 +99,8 @@ export type ReviewReason =
 export interface EditReview {
   readonly why: ReviewReason;
   readonly target?: string;
+  /** Where the kernel would land when it follows a symlink before a `..`; only when that differs and is a problem too. */
+  readonly kernelTarget?: string;
 }
 
 export type EditCheck = { readonly auto: true } | { readonly auto: false; readonly review: EditReview };
@@ -116,7 +118,7 @@ export async function checkEditTarget(
   cwd: string,
   protectedRoots: readonly string[],
 ): Promise<EditCheck> {
-  if (typeof path !== "string" || path === "" || path.includes("\0")) {
+  if (typeof path !== "string" || path === "" || path.includes("\0") || tooLong(path)) {
     return { auto: false, review: { why: "outside the session directory" } };
   }
   const home = homedir();
@@ -152,10 +154,10 @@ export async function checkEditTarget(
     outside ||= piOutside || kernelOutside;
     protectedPath ||= piProtected || kernelProtected;
   }
-  // The card names the file Pi writes, unless the kernel's reading is a problem too: then the one it reaches.
-  target = kernelTarget ?? target;
-  if (protectedPath) return { auto: false, review: { why: "protected path", target } };
-  if (outside) return { auto: false, review: { why: "outside the session directory", target } };
+  // The card names the file Pi writes (R88b); the kernel's reading is a second line when it differs.
+  const also = kernelTarget !== undefined && kernelTarget !== target ? { kernelTarget } : {};
+  if (protectedPath) return { auto: false, review: { why: "protected path", target, ...also } };
+  if (outside) return { auto: false, review: { why: "outside the session directory", target, ...also } };
   if (tooBroad) {
     return { auto: false, review: { why: "session directory too broad for automatic edits", target } };
   }
