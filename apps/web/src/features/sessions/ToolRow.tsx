@@ -23,18 +23,18 @@ export function ToolRow({ item, sessionId }: { item: ToolItem; sessionId: string
     if (inFlight.current) return;
     inFlight.current = true;
     setOutput({ state: "loading" });
+    const params = {
+      sessionId,
+      toolCallId: item.toolCallId,
+      ...(item.resultEntryId ? { resultEntryId: item.resultEntryId } : {}),
+    };
     try {
-      const result = await getRuntime().rpc.call("sessions.toolOutput", {
-        sessionId,
-        toolCallId: item.toolCallId,
-        ...(item.resultEntryId ? { resultEntryId: item.resultEntryId } : {}),
-      });
+      const result = await getRuntime().rpc.call("sessions.toolOutput", params);
       setOutput({ state: "loaded", text: result.text, args: result.args });
     } catch (failure) {
       setOutput({ state: "failed", code: failureCode(failure) });
-    } finally {
-      inFlight.current = false;
     }
+    inFlight.current = false;
   };
 
   const whole = item.truncatedChars ?? item.omittedBytes;

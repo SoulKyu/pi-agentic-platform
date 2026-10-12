@@ -13,7 +13,7 @@ type Style = Omit<AnsiSpan, "text">;
 export const MAX_SPANS = 256;
 const PLAIN: Style = { tone: null, bold: false, faint: false, italic: false, underline: false };
 /** SGR 30–37 and 90–97, in order: black, red, green, yellow, blue, magenta, cyan, white (owner C2, DESIGN.md §9.2). */
-const TONES: readonly AnsiTone[] = ["dim", "error", "ok", "you", "agent", "attention", "agent", "text"];
+const SGR_COLOURS: readonly AnsiTone[] = ["dim", "error", "ok", "you", "agent", "attention", "agent", "text"];
 // Bidi controls and control characters go first, except tab, ESC and BEL (they start or end the sequences parsed
 // below); a BEL left in the text after parsing is removed with the sequences.
 // eslint-disable-next-line no-control-regex -- the point of this pattern is to match control characters
@@ -47,8 +47,8 @@ function applySgr(style: Style, params: string): Style {
     else if (code === 22) next = { ...next, bold: false, faint: false };
     else if (code === 23) next = { ...next, italic: false };
     else if (code === 24) next = { ...next, underline: false };
-    else if (code >= 30 && code <= 37) next = { ...next, tone: TONES[code - 30] ?? null };
-    else if (code >= 90 && code <= 97) next = { ...next, tone: TONES[code - 90] ?? null };
+    else if (code >= 30 && code <= 37) next = { ...next, tone: SGR_COLOURS[code - 30] ?? null };
+    else if (code >= 90 && code <= 97) next = { ...next, tone: SGR_COLOURS[code - 90] ?? null };
     else if (code === 39) next = { ...next, tone: null };
     // 256-colour and truecolor carry their own arguments: skipped, the colour ignored (owner C2).
     else if (code === 38 || code === 48) at += codes[at + 1] === 5 ? 2 : codes[at + 1] === 2 ? 4 : 0;

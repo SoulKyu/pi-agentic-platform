@@ -49,9 +49,8 @@ export function SessionListScreen() {
       setError(failureText(failure));
       // The session may have been made though no answer came (R105): the list tells.
       if (outcomeUnknown(failure)) setListings((count) => count + 1);
-    } finally {
-      setBusy(false);
     }
+    setBusy(false);
   };
 
   return (

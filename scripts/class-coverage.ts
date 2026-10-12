@@ -16,8 +16,6 @@ const CLASS_CONSTANT = /^(?:[A-Z][A-Z0-9_]*)?(?:CLASSES|VARIANTS|SIZES|TONES|STY
 const NOT_UTILITIES = /^(?:group|peer)(?:\/[\w-]+)?$/;
 const PLAIN_CLASSES = new Set(["theme-swap"]);
 const SCANNED = /^(?:packages\/ui\/src|apps\/web\/src)\/.*\.tsx?$/;
-/** M2's folder: scanned by post-merge task P7, which deletes this exclusion (M3-RT-24). */
-export const M2_OWNED_UNTIL_P7 = /^apps\/web\/src\/features\/sessions\//;
 
 export function classCandidates(file: string, text: string): Candidate[] {
   const source = ts.createSourceFile(
@@ -87,7 +85,7 @@ export function classCandidates(file: string, text: string): Candidate[] {
   return out.filter((c) => !NOT_UTILITIES.test(c.className) && !PLAIN_CLASSES.has(c.className));
 }
 
-function trackedSources(root: string): Array<{ file: string; text: string }> {
+export function trackedSources(root: string): Array<{ file: string; text: string }> {
   // Tracked and new (untracked, not ignored) files: a task's own new files are checked before its commit.
   return execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
     cwd: root,
@@ -97,7 +95,6 @@ function trackedSources(root: string): Array<{ file: string; text: string }> {
     .filter(
       (file) =>
         SCANNED.test(file) &&
-        !M2_OWNED_UNTIL_P7.test(file) &&
         !file.includes(".test.") &&
         !file.includes("/testing/") &&
         existsSync(join(root, file)),

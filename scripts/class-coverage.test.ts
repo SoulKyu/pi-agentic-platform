@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classCandidates, M2_OWNED_UNTIL_P7, unknownClasses } from "./class-coverage.ts";
+import { classCandidates, trackedSources, unknownClasses } from "./class-coverage.ts";
 import { fileURLToPath } from "node:url";
 
 const REPO = fileURLToPath(new URL("..", import.meta.url));
@@ -65,8 +65,9 @@ describe("class coverage", () => {
     expect(unknown.map((c) => c.className).sort()).toEqual(["bg-surfac", "text-mut", "w-"]);
   });
 
-  it("leaves M2's session screens to post-merge task P7", () => {
-    expect(M2_OWNED_UNTIL_P7.test("apps/web/src/features/sessions/SessionScreen.tsx")).toBe(true);
-    expect(M2_OWNED_UNTIL_P7.test("apps/web/src/features/auth/LoginScreen.tsx")).toBe(false);
+  it("scans M2's session screens", () => {
+    const files = trackedSources(REPO).map((source) => source.file);
+    expect(files).toContain("apps/web/src/features/sessions/SessionScreen.tsx");
+    expect(files).toContain("apps/web/src/features/auth/LoginScreen.tsx");
   });
 });

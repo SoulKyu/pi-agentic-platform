@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 // of the UI package and the web app goes through it here; any CompileError or PipelineError fails the gate.
 const REPO = resolve(import.meta.dirname, "../../..");
 // M2's folder: the compiler bails out on its try/finally; post-merge task P7 removes this exclusion (M3-RT-24).
-const M2_OWNED_UNTIL_P7 = /^apps\/web\/src\/features\/sessions\//;
 const ROOTS = ["packages/ui/src", "apps/web/src"];
 
 function tsxFiles(dir: string): string[] {
@@ -25,9 +24,9 @@ interface CompilerEvent {
   readonly data?: unknown;
 }
 
-async function compilerEvents(path: string): Promise<CompilerEvent[]> {
+async function compilerEvents(path: string, code = readFileSync(path, "utf8")): Promise<CompilerEvent[]> {
   const events: CompilerEvent[] = [];
-  await transformAsync(readFileSync(path, "utf8"), {
+  await transformAsync(code, {
     filename: path,
     babelrc: false,
     configFile: false,
@@ -46,9 +45,7 @@ async function compilerEvents(path: string): Promise<CompilerEvent[]> {
   return events;
 }
 
-const files = ROOTS.flatMap((root) => tsxFiles(join(REPO, root)))
-  .map((path) => relative(REPO, path))
-  .filter((file) => !M2_OWNED_UNTIL_P7.test(file));
+const files = ROOTS.flatMap((root) => tsxFiles(join(REPO, root))).map((path) => relative(REPO, path));
 
 describe("React Compiler gate", () => {
   it("covers the UI package and the web app", () => {
@@ -61,5 +58,12 @@ describe("React Compiler gate", () => {
       (e) => e.kind === "CompileError" || e.kind === "PipelineError",
     );
     expect(failures.map((e) => JSON.stringify(e.detail ?? e.data ?? e).slice(0, 400))).toEqual([]);
+  });
+
+  it("reports a component the compiler cannot compile (a finally clause)", async () => {
+    const code =
+      "export function C() { const run = async () => { try { await f(); } finally { g(); } }; return <b onClick={run} />; }";
+    const events = await compilerEvents("fixture.tsx", code);
+    expect(events.some((e) => e.kind === "CompileError" || e.kind === "PipelineError")).toBe(true);
   });
 });

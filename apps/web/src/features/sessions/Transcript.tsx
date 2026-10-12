@@ -43,26 +43,35 @@ function useOlderHistory(sessionId: string, view: SessionView, preserve: () => (
     setError(null);
     try {
       const page = await getRuntime().rpc.call("sessions.history", { sessionId, before });
-      const release = latest.current.preserve();
-      const was = useSessionStore.getState().views[sessionId];
-      useSessionStore.getState().prependHistory(sessionId, page, { generation, oldestEntryId: before });
-      const now = useSessionStore.getState().views[sessionId];
-      // A page the store dropped (another view), or one that added no row and moved no cursor, leaves nothing to keep in place.
-      if (
-        now === was ||
-        (now?.messages.length === was?.messages.length &&
-          now?.history.oldestEntryId === was?.history.oldestEntryId)
-      ) {
-        release();
-      }
+      prepend(sessionId, page, { generation, oldestEntryId: before }, latest.current.preserve());
     } catch (failure) {
       setError(failureText(failure));
-    } finally {
-      inFlight.current = false;
-      setLoading(false);
     }
+    inFlight.current = false;
+    setLoading(false);
   };
   return { load, loading, error };
+}
+
+type SessionStoreState = ReturnType<typeof useSessionStore.getState>;
+type HistoryPage = Parameters<SessionStoreState["prependHistory"]>[1];
+
+/** Prepends a fetched page and releases the scroll anchor when the page left nothing to keep in place. */
+function prepend(
+  sessionId: string,
+  page: HistoryPage,
+  guard: Parameters<SessionStoreState["prependHistory"]>[2],
+  release: () => void,
+): void {
+  const was = useSessionStore.getState().views[sessionId];
+  useSessionStore.getState().prependHistory(sessionId, page, guard);
+  const now = useSessionStore.getState().views[sessionId];
+  // A page the store dropped (another view), or one that added no row and moved no cursor, leaves nothing to keep in place.
+  const unchanged =
+    now === was ||
+    (now?.messages.length === was?.messages.length &&
+      now?.history.oldestEntryId === was?.history.oldestEntryId);
+  if (unchanged) release();
 }
 
 export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {

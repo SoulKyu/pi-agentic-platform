@@ -48,7 +48,10 @@ function download(url: string): void {
   }
 }
 
-export function SessionActions({ sessionId, view, track = untracked, blocked = false }: SessionActionsProps) {
+export function SessionActions(props: SessionActionsProps) {
+  const { sessionId, view } = props;
+  const track = props.track ?? untracked;
+  const blocked = props.blocked ?? false;
   const runtime = getRuntime();
   const navigate = useNavigate();
   const [draftName, setDraftName] = useState<string | null>(null);

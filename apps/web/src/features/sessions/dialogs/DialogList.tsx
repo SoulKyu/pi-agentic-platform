@@ -54,9 +54,10 @@ export function DialogList(props: {
   const patch = (id: string, change: (slot: Slot) => Slot) =>
     setSlots((current) => ({ ...current, [id]: change(current[id] ?? { attempt: 0 }) }));
 
-  const send = (dialog: Dialog, response: DialogResponse, commandId = runtime.rpc.newCommandId()) => {
+  const send = (dialog: Dialog, response: DialogResponse, retryId?: string) => {
     if (inFlight.current.has(dialog.id)) return;
     inFlight.current.add(dialog.id);
+    const commandId = retryId ?? runtime.rpc.newCommandId();
     patch(dialog.id, (slot) => ({ ...slot, unsure: undefined, error: undefined }));
     runtime.rpc
       .call("sessions.respondDialog", { sessionId, dialogId: dialog.id, response }, { commandId })
