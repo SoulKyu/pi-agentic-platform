@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
+import { useFocusEntry } from "../../stores/focus-entry.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { failureText } from "./failure.ts";
 import { MessageRow, SummaryRow, type RowActions } from "./MessageRow.tsx";
@@ -78,6 +79,41 @@ function prepend(
   if (unchanged) release();
 }
 
+/**
+ * Takes the entry a search hit asked for once this session's rows are loaded (M4R108): scrolls to its row and focuses
+ * it, or says the match lies in older messages when it is not among the rows and more can be loaded.
+ */
+function useFocusMatch(
+  sessionId: string,
+  view: SessionView,
+  items: readonly TranscriptItem[],
+  scope: string,
+  canLoad: boolean,
+): boolean {
+  const asked = useFocusEntry((state) =>
+    state.target?.sessionId === sessionId ? state.target.entryId : null,
+  );
+  const [olderMatch, setOlderMatch] = useState(false);
+  const latest = useRef({ items, scope, canLoad });
+  useLayoutEffect(() => {
+    latest.current = { items, scope, canLoad };
+  });
+  useEffect(() => {
+    if (asked === null || !view.loaded) return;
+    const entryId = useFocusEntry.getState().take(sessionId);
+    if (entryId === null) return;
+    const { items: rows, scope: owner, canLoad: more } = latest.current;
+    const item = rows.find((row) => "entryId" in row && row.entryId === entryId);
+    const element = item ? document.getElementById(rowId(owner, item.key)) : null;
+    setOlderMatch(element === null && more);
+    if (element === null) return;
+    element.tabIndex = -1;
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ block: "center" });
+  }, [asked, sessionId, view.loaded, view.generation]);
+  return olderMatch;
+}
+
 export function Transcript({ sessionId, view, toolDetail, rowActions }: TranscriptProps) {
   const t = useT();
   const items = transcriptItems(view, t);
@@ -96,6 +132,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
     loadRef.current = older.load;
   });
   const quiet = older.error !== null;
+  const olderMatch = useFocusMatch(sessionId, view, items, scope, canLoad);
   const actionsFor = (item: TranscriptItem): RowActions | undefined =>
     rowActions && item.kind === "message"
       ? {
@@ -189,6 +226,11 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
       {branches.error ? (
         <p role="alert" className="text-ui text-attn">
           {branches.error}
+        </p>
+      ) : null}
+      {olderMatch ? (
+        <p role="status" className="text-ui text-muted">
+          {t("search.olderMatch")}
         </p>
       ) : null}
       {activity ? (

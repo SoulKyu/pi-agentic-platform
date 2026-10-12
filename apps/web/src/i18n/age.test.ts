@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { sidebarEn, sidebarFr } from "../../i18n/catalog/sidebar.ts";
-import type { Translate } from "../../i18n/index.ts";
+import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
+import type { Translate } from "./index.ts";
 import { formatAge } from "./age.ts";
 
 const NOW = 1_800_000_000_000;

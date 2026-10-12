@@ -162,10 +162,13 @@ describe("lazy catalog (sidebar)", () => {
       expect(slots(sidebarFr[key]), key).toEqual(slots(sidebarEn[key]));
   });
 
-  it("is referenced only from features/projects/age.ts and its .tsx files (and, from Task 25, the palette and transcript files)", () => {
+  it("is referenced only from the projects .tsx files, the palette's search files and Transcript.tsx", () => {
     // Later tasks add their lazy files here; the register file is the only other importer.
     const inChunk = (file: string) =>
-      file === "features/projects/age.ts" || (file.startsWith("features/projects/") && file.endsWith(".tsx"));
+      (file.startsWith("features/projects/") && file.endsWith(".tsx")) ||
+      file === "features/commands/palette/CommandPalette.tsx" ||
+      file === "features/commands/palette/TranscriptHits.tsx" ||
+      file === "features/sessions/Transcript.tsx";
     const offenders: string[] = [];
     for (const file of files(src)) {
       const name = relative(src, file).split("\\").join("/");
@@ -181,7 +184,8 @@ describe("lazy catalog (sidebar)", () => {
   it("keeps the sidebar strings out of the eager catalogs", async () => {
     const { en } = await import("./en.ts");
     const { fr } = await import("./fr.ts");
-    expect(Object.keys(en).filter((key) => key.startsWith("sidebar."))).toEqual([]);
-    expect(Object.keys(fr).filter((key) => key.startsWith("sidebar."))).toEqual([]);
+    const sidebarKey = (key: string) => key.startsWith("sidebar.") || key.startsWith("search.");
+    expect(Object.keys(en).filter(sidebarKey)).toEqual([]);
+    expect(Object.keys(fr).filter(sidebarKey)).toEqual([]);
   });
 });

@@ -3,7 +3,7 @@ import { cn, FOCUS_RING, RunStatusChip } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useT } from "../../i18n/index.ts";
 import { sessionLabel } from "../../lib/session-label.ts";
-import { formatAge } from "./age.ts";
+import { formatAge } from "../../i18n/age.ts";
 import { SessionMenu } from "./SessionMenu.tsx";
 
 interface SessionRowProps {

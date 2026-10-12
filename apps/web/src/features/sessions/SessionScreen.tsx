@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { codedServerText } from "../../i18n/server-text.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import "../../i18n/register-sidebar.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";

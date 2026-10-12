@@ -1,4 +1,4 @@
-/** The project tree's words (⌘B drawer, phone Lists): a lazy catalog, registered by `register-sidebar.ts`. */
+/** The project tree's and the palette's transcript search words (⌘B drawer, phone Lists, ⌘K): a lazy catalog, registered by `register-sidebar.ts`. */
 export const sidebarEn = {
   "sidebar.filter": "Filter sessions",
   "sidebar.pinned": "Pinned",
@@ -63,6 +63,13 @@ export const sidebarEn = {
   "sidebar.snooze.tooLate": "Pick a time within a year.",
   "sidebar.rename.label": "Project name",
   "sidebar.rename.empty": "A project needs a name.",
+  "search.group": "Transcripts",
+  "search.loading": "Searching transcripts…",
+  "search.timeout": "Search took too long. Try more precise words.",
+  "search.busy": "Too many searches at once. Try again.",
+  "search.failed": "Search is not available right now.",
+  "search.detail": "{label} · {age}",
+  "search.olderMatch": "The match is in older messages. Use Load older messages.",
 } as const;
 
 export const sidebarFr: { readonly [K in keyof typeof sidebarEn]: string } = {
@@ -129,4 +136,12 @@ export const sidebarFr: { readonly [K in keyof typeof sidebarEn]: string } = {
   "sidebar.snooze.tooLate": "Choisissez une heure dans l'année.",
   "sidebar.rename.label": "Nom du projet",
   "sidebar.rename.empty": "Un projet a besoin d'un nom.",
+  "search.group": "Transcriptions",
+  "search.loading": "Recherche dans les transcriptions…",
+  "search.timeout": "La recherche a pris trop de temps. Essayez des mots plus précis.",
+  "search.busy": "Trop de recherches à la fois. Réessayez.",
+  "search.failed": "La recherche n'est pas disponible pour le moment.",
+  "search.detail": "{label} · {age}",
+  "search.olderMatch":
+    "Le passage est dans des messages plus anciens. Utilisez « Charger les messages plus anciens ».",
 };

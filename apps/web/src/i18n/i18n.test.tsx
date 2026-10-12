@@ -60,6 +60,7 @@ const IDENTICAL_IN_FR = new Set([
   "commands.key.tab",
   "sidebar.age.min", // SI abbreviations
   "sidebar.age.hour",
+  "search.detail", // placeholders only
 ]);
 
 describe("i18n", () => {

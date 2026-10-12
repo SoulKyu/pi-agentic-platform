@@ -63,7 +63,12 @@ export function PaletteHost() {
       text={lazyText}
       load={loadPalette}
       open={open}
-      props={{ open, onOpenChange: setOpen, items }}
+      props={{
+        open,
+        onOpenChange: setOpen,
+        items,
+        openSession: (id) => go(navigate, pathOfItem({ kind: "session", id })),
+      }}
       onFailed={() => setOpen(false)}
     />
   );

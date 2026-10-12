@@ -1,4 +1,4 @@
-import type { Translate } from "../../i18n/index.ts";
+import type { Translate } from "./index.ts";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
