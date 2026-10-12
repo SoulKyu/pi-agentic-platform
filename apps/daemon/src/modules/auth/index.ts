@@ -6,14 +6,21 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
+import { newId } from "../../kernel/ids.ts";
 import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
 import { mountAuthRoutes } from "./http.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
 import { createPasskeyService } from "./passkeys.ts";
-import { createAuthService } from "./service.ts";
+import { type AuthRpc, authRpc } from "./rpc.ts";
+import { createAuthService, OWNER_PERMISSIONS } from "./service.ts";
 import { createSetupToken } from "./setup-token.ts";
 import { createAuthStore } from "./store.ts";
+import { createTokenStore } from "./token-store.ts";
+import { createTokenService } from "./tokens.ts";
 import { createAuthThrottles } from "./throttle.ts";
+
+// Built by the module itself; exported so a bed can put a counting store under the real service.
+export { createTokenService, createTokenStore };
 
 export const AUTH_MIGRATIONS: MigrationSource = {
   module: "auth",
@@ -32,12 +39,15 @@ export interface AuthModuleDeps {
 }
 
 export interface AuthModule {
+  readonly rpc: AuthRpc;
   mount(app: Hono): void;
   /** The `pap_session` value in a Cookie header, the only part of it that is ever kept. */
   sessionValueOf(header: string | undefined): string | undefined;
   /** `slide: false` checks without extending the session (see `AuthService.authenticate`). */
   authenticateSession(value: string | undefined, options?: { readonly slide?: boolean }): Caller | null;
   authenticateCookieHeader(header: string | undefined): Caller | null;
+  /** Who a `pap_` bearer value belongs to, or null. `slide: false` checks without writing the last use. */
+  authenticateBearer(value: string | undefined, options?: { readonly slide?: boolean }): Caller | null;
   /** The one-time owner setup URL while no owner exists, else null. The only secret meant to be shown. */
   setupUrl(): string | null;
   /** The instance owner: the oldest user, the one definition of it (M4R61, agreement 6). */
@@ -64,9 +74,17 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     publicOrigin: deps.publicOrigin,
     allowedOrigins: deps.allowedOrigins,
   });
+  const tokens = createTokenService({
+    store: createTokenStore(deps.db),
+    clock: deps.clock,
+    audit: deps.audit,
+    newId,
+    ownerPermissions: () => OWNER_PERMISSIONS,
+  });
   // Separate from the password throttle: a lockout of one must never lock the other (R80).
   const secureByConfig = cookieNeedsSecure(deps.publicOrigin);
   return {
+    rpc: authRpc(tokens),
     mount: (app) => {
       mountAuthRoutes(app, {
         service,
@@ -84,6 +102,7 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     sessionValueOf: (header) => readCookie(header, SESSION_COOKIE),
     authenticateSession: (value, options) => service.authenticate(value, options),
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
+    authenticateBearer: (value, options) => tokens.authenticate(value, { slide: options?.slide !== false }),
     setupUrl: () => service.setupUrl(),
     ownerId: () => store.firstUserId(),
   };

@@ -27,6 +27,11 @@ describe("error codes", () => {
     expect(ERROR_MESSAGES.step_up_required).toBe("Confirm your password to continue.");
   });
 
+  it("has the shared full-list message, fixed (agreement 4)", () => {
+    expect(ERROR_MESSAGES.limit_reached).toBe("This list is full. Remove an entry first.");
+    expect(ERROR_CODES.indexOf("limit_reached")).toBe(ERROR_CODES.indexOf("command_failed") + 1);
+  });
+
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
   });

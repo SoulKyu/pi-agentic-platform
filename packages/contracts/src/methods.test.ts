@@ -16,6 +16,8 @@ describe("method catalogue", () => {
       .map((def) => def.name)
       .sort();
     expect(mutations).toEqual([
+      "auth.tokens.create",
+      "auth.tokens.revoke",
       "policy.clearTaint",
       "policy.revokeRule",
       "policy.setSessionMode",

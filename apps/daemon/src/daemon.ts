@@ -202,6 +202,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
+      ...auth.rpc,
       ...policy.rpc,
       ...projects.rpc,
       ...sessions.rpc,

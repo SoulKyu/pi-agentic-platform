@@ -1,5 +1,6 @@
 export const shellEn = {
   "ui.dismiss": "Dismiss",
+  "error.limit_reached": "This list is full. Remove an entry first.",
   "ui.notifications": "Notifications",
   "appearance.themeNotKept":
     "The theme library is full (16 themes at most), so a theme from this device was not kept. Delete one, then add it again.",
@@ -70,6 +71,7 @@ export const shellEn = {
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "ui.dismiss": "Fermer",
+  "error.limit_reached": "Cette liste est pleine. Retirez-en un élément d'abord.",
   "ui.notifications": "Notifications",
   "appearance.themeNotKept":
     "La bibliothèque de thèmes est pleine (16 thèmes au plus) : un thème de cet appareil n'a pas été conservé. Supprimez-en un, puis ajoutez-le de nouveau.",

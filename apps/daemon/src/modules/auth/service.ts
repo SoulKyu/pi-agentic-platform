@@ -19,7 +19,7 @@ const MAX_USER_AGENT_LENGTH = 256;
 // A throttled client may retry every few milliseconds: one log line per address and window, not one per request.
 const THROTTLE_LOG_WINDOW_MS = 10_000;
 const MAX_THROTTLE_LOG_KEYS = 1000;
-const OWNER_PERMISSIONS: ReadonlySet<Permission> = new Set(ALL_PERMISSIONS);
+export const OWNER_PERMISSIONS: ReadonlySet<Permission> = new Set(ALL_PERMISSIONS);
 
 export class RateLimitedError extends PapError {
   readonly retryAfterMs: number;

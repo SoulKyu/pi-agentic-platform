@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { auditMethods } from "./audit.ts";
+import { authMethods } from "./auth.ts";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { Cursor } from "./frames.ts";
 import { MAX_ALWAYS_RULES } from "./policy.ts";
@@ -35,6 +36,7 @@ export const methods = catalogue({
   ...settingsMethods,
   ...shellMethods,
   ...auditMethods,
+  ...authMethods,
   ...policyMethods,
   "system.ping": defineMethod({
     name: "system.ping",

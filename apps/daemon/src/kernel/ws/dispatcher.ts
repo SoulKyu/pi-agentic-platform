@@ -18,10 +18,10 @@ type AnyHandler = (params: unknown, ctx: HandlerContext) => Promise<unknown>;
 
 // What a receipt holds: the result plus the hash of the params it answered, so a reused commandId
 // can only ever replay the request it was minted for (R69).
-interface ReceiptBody {
-  readonly paramsHash: string;
-  readonly result: unknown;
-}
+// A method that returns a secret (`secretResult`) keeps `secret: true` and no result: the value is shown once (M5R68).
+type ReceiptBody =
+  | { readonly paramsHash: string; readonly result: unknown; readonly secret?: undefined }
+  | { readonly paramsHash: string; readonly secret: true };
 
 interface Inflight {
   readonly method: string;
@@ -53,10 +53,11 @@ function errorCode(error: unknown): string {
 }
 
 function readReceipt(stored: unknown): ReceiptBody {
-  const body = stored as Partial<ReceiptBody> | null;
+  const body = stored as { paramsHash?: unknown; result?: unknown; secret?: unknown } | null;
   if (typeof body !== "object" || body === null || typeof body.paramsHash !== "string") {
     throw new Error("malformed receipt");
   }
+  if (body.secret === true) return { paramsHash: body.paramsHash, secret: true };
   return { paramsHash: body.paramsHash, result: body.result };
 }
 
@@ -87,8 +88,12 @@ export function createDispatcher(options: {
       options.logger.error("rpc_handler_failed", { method: def.name, err: error });
       return fail(id, "internal");
     }
-    if (receipt)
-      remember(ctx.caller.userId, receipt.commandId, def.name, { paramsHash: receipt.paramsHash, result });
+    if (receipt) {
+      const body: ReceiptBody = def.secretResult
+        ? { paramsHash: receipt.paramsHash, secret: true }
+        : { paramsHash: receipt.paramsHash, result };
+      remember(ctx.caller.userId, receipt.commandId, def.name, body);
+    }
     return ok(id, result);
   }
 
@@ -115,7 +120,8 @@ export function createDispatcher(options: {
     if (stored) {
       const receipt = readReceipt(stored.result);
       const sameRequest = stored.method === frame.method && receipt.paramsHash === paramsHash;
-      return sameRequest ? ok(frame.id, receipt.result) : fail(frame.id, "bad_request");
+      if (!sameRequest) return fail(frame.id, "bad_request");
+      return receipt.secret ? fail(frame.id, "conflict") : ok(frame.id, receipt.result);
     }
     // A mutation could not be recorded: refuse it before its handler gets to produce a side effect.
     if (options.receipts.readOnly) return fail(frame.id, "read_only");
