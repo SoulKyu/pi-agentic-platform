@@ -106,6 +106,16 @@ describe("pap serve", () => {
     expect(serve.lines.map((line) => line.msg)).toEqual(["setup_url"]);
   });
 
+  it("exits cleanly with 0 on a SIGTERM sent the moment the setup address is announced (startup window)", async () => {
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      const serve = run(["serve", "--port", String(await freePort())], join(root, `home-${attempt}`));
+      serve.child.stdout?.on("data", (chunk: Buffer) => {
+        if (chunk.includes("setup_url")) serve.child.kill("SIGTERM");
+      });
+      expect(await serve.exit()).toEqual({ code: 0, signal: null });
+    }
+  }, 60_000);
+
   it.each(["SIGINT", "SIGHUP"] as const)("stops cleanly on %s as well", async (signal) => {
     const serve = run(["serve", "--port", String(await freePort())]);
     await vi.waitFor(() => expect(serve.line("listening")).toBeDefined(), { timeout: 20_000 });

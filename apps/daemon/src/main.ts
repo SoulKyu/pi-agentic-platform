@@ -55,11 +55,13 @@ async function serve(config: Config): Promise<void> {
   const logger = createLogger({ level: config.logLevel, clock, write });
   const operator = createLogger({ level: "info", clock, write });
   let shutdown: Shutdown | undefined;
+  // Held until the signal handlers exist: a person who reads the address may stop the daemon at once.
+  let setupUrl: { readonly url: string; readonly hint: string } | undefined;
   try {
     const daemon = await createDaemon(config, {
       clock,
       logger,
-      announceSetupUrl: (fields) => operator.info("setup_url", fields),
+      announceSetupUrl: (fields) => (setupUrl = fields),
       onFatal: () => (shutdown ? shutdown.trigger("server_error", 1) : process.exit(1)),
     });
     shutdown = createShutdown({
@@ -74,6 +76,7 @@ async function serve(config: Config): Promise<void> {
       logger,
     });
     watchSignals(shutdown, process);
+    if (setupUrl) operator.info("setup_url", setupUrl);
   } catch (error) {
     if (!isStartupRefusal(error)) throw error;
     process.stderr.write(`pap: ${error.message}\n`);
