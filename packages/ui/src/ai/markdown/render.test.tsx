@@ -6,11 +6,34 @@ import { safeHref } from "./safe-url.ts";
 const html = (text: string) => renderToStaticMarkup(<MarkdownBody text={text} />);
 
 describe("model markdown is untrusted text (checklist: no HTML or markdown injection)", () => {
-  it("never turns raw HTML into elements", () => {
+  it("never turns raw HTML into elements, and shows it as literal text instead of dropping it", () => {
     const out = html('hi <img src=x onerror="alert(1)"> <script>alert(2)</script> <b>bold</b> **strong**');
     expect(out).not.toMatch(/<img|<script|<b>/);
-    expect(out).not.toContain("onerror"); // dropped (skipHtml), not even shown as escaped text
+    expect(out).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(out).toContain("&lt;script&gt;");
+    expect(out).toContain("&lt;b&gt;bold&lt;/b&gt;");
     expect(out).toContain("<strong>strong</strong>");
+  });
+
+  it("keeps a generic type in prose: use Array<string> here", () => {
+    const out = html("use Array<string> here");
+    expect(out).toContain("use Array&lt;string&gt; here");
+    expect(out).not.toMatch(/<string/);
+  });
+
+  it("shows a block of raw HTML on its own line as text, in a paragraph, with no element made from it", () => {
+    const out = html("before\n\n<img src=x onerror=alert(1)>\n\nafter");
+    expect(out).not.toContain("<img");
+    expect(out).toContain("&lt;img src=x onerror=alert(1)&gt;");
+    expect(out).toContain("<p>before</p>");
+    expect(out).toContain("<p>after</p>");
+  });
+
+  it("leaves HTML inside code spans and fences as the code it is", () => {
+    const out = html("`<b>x</b>`\n\n```html\n<div>y</div>\n```");
+    expect(out).toContain("&lt;b&gt;x&lt;/b&gt;");
+    expect(out).toContain("&lt;div&gt;y&lt;/div&gt;");
+    expect(out).not.toMatch(/<div>y/);
   });
 
   it("keeps only absolute http, https and mailto links, opened safely; the others stay text", () => {

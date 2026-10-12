@@ -22,6 +22,8 @@ interface ApprovalCardCommon {
   readonly context?: ReactNode;
   /** What the policy asks, in its own words: shown under the heading, above the detail. Already escaped. */
   readonly question?: ReactNode;
+  /** Buttons that change what is shown (expand, collapse): under the context, never part of the description. */
+  readonly controls?: ReactNode;
   /** A line under the answers ("Closes on its own after 30 s"). */
   readonly note?: ReactNode;
   /** Names the header when the caller lets it scroll (it then takes the keyboard like the body does). */
@@ -172,6 +174,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
           {props.context}
         </div>
       ) : null}
+      {props.controls ? <div className="mt-s2 flex flex-wrap gap-s2">{props.controls}</div> : null}
       <div className="mt-s3 flex flex-wrap gap-s2">
         {answers.map((choice) => (
           <Button

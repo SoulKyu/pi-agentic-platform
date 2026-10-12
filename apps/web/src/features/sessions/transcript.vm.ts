@@ -1,4 +1,4 @@
-import { t, type Translate } from "../../i18n/index.ts";
+import type { Translate } from "../../i18n/index.ts";
 import type { MessageView, ToolCallView } from "../../stores/row-view.ts";
 import type { SessionView, ToolView } from "../../stores/session-reducer.ts";
 
@@ -109,7 +109,7 @@ function uniqueKeys(items: TranscriptItem[]): TranscriptItem[] {
 }
 
 /** The rows of a view; the words they carry (the omitted-message note, the model-error fallback) come in `translate`, so a locale switch shows in them. */
-export function transcriptItems(view: SessionView, translate: Translate = t): TranscriptItem[] {
+export function transcriptItems(view: SessionView, translate: Translate): TranscriptItem[] {
   const items: TranscriptItem[] = [];
   const open: OpenCall[] = [];
   view.messages.forEach((message, at) => {

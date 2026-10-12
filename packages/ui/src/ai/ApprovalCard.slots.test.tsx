@@ -93,4 +93,26 @@ describe("ApprovalCard as the session screen uses it", () => {
     await click(button(page.container, "Deny"));
     await page.unmount();
   });
+
+  it("keeps the controls out of the description and under the context", async () => {
+    const page = await mount(
+      <ApprovalCard
+        title="Approval"
+        detail={"header\nbody"}
+        question={<p>Run a command?</p>}
+        context={<span>+3 -1</span>}
+        controls={<button type="button">Show more</button>}
+        labels={LABELS}
+        onChoose={() => {}}
+      />,
+    );
+    const card = page.container.querySelector('[role="alertdialog"]');
+    const ids = (card?.getAttribute("aria-describedby") ?? "").split(" ");
+    const texts = ids.map((id) => document.getElementById(id)?.textContent);
+    expect(texts.join("|")).not.toContain("Show more");
+    const html = page.container.innerHTML;
+    expect(html.indexOf("Show more")).toBeGreaterThan(html.indexOf("+3 -1"));
+    expect(html.indexOf("Show more")).toBeLessThan(html.indexOf("Deny"));
+    await page.unmount();
+  });
 });

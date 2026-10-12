@@ -15,6 +15,35 @@ const TABLE_CLASSES = "w-full border-collapse text-ui";
 const CELL_CLASSES = "border border-border px-s2 py-s1 text-left align-top";
 const QUOTE_CLASSES = "border-l-2 border-border pl-s3 text-muted";
 
+/** A node of the markdown tree, read structurally (no direct dependency on mdast's types). */
+interface MdNode {
+  type: string;
+  value?: string;
+  children?: MdNode[];
+}
+
+const BLOCK_PARENTS = new Set(["root", "blockquote", "listItem"]);
+
+/**
+ * Raw HTML in model text is text: `Array<string>` and `<img ...>` show as typed. An `html` node becomes a `text` node
+ * (a paragraph holding one, where a block is expected); nothing is ever parsed as HTML, and nothing is dropped.
+ */
+function htmlAsText(): (tree: MdNode) => void {
+  const walk = (node: MdNode) => {
+    const children = node.children;
+    if (!children) return;
+    for (const [index, child] of children.entries()) {
+      if (child.type === "html") {
+        const text: MdNode = { type: "text", value: child.value ?? "" };
+        children[index] = BLOCK_PARENTS.has(node.type) ? { type: "paragraph", children: [text] } : text;
+      } else {
+        walk(child);
+      }
+    }
+  };
+  return walk;
+}
+
 /** The hast node react-markdown hands to a component, read structurally (no direct dependency on hast's types). */
 interface HastNode {
   readonly type?: string;
@@ -85,7 +114,7 @@ export default function MarkdownBody({ text }: { readonly text: string }) {
   }
   return (
     <div data-markdown-body="" className={BODY_CLASSES}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} skipHtml components={COMPONENTS}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, htmlAsText]} skipHtml components={COMPONENTS}>
         {text}
       </ReactMarkdown>
     </div>

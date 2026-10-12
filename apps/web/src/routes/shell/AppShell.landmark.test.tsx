@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { startAppearance } from "../../features/appearance/index.ts";
+import { startAppearance, useAppearanceStore } from "../../features/appearance/index.ts";
 import { startKeybindings } from "../../features/commands/index.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
@@ -69,6 +69,49 @@ describe("the reconnect banner", () => {
     await act(async () => bed.fake.setState("waiting"));
     const status = [...page.container.querySelectorAll('[data-slot="banner"]')].map((el) => el.textContent);
     expect(status).toEqual(["Reconnecting…Your drafts stay on this device."]);
+    await page.unmount();
+  });
+});
+
+describe("the account's tool card detail reaches the session screen", () => {
+  const withToolCall = {
+    rows: [
+      {
+        entryId: "a1",
+        message: {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "c1", name: "read", arguments: { path: "a.txt" } }],
+          timestamp: 1,
+        },
+      },
+      {
+        entryId: "t2",
+        message: {
+          role: "toolResult",
+          toolCallId: "c1",
+          content: [{ type: "text", text: "contents of a.txt" }],
+          timestamp: 2,
+        },
+      },
+    ],
+  };
+  const output = (page: { container: HTMLElement }) =>
+    page.container.querySelector('[data-slot="tool-card"] pre')?.textContent ?? null;
+
+  it("opens a tool row's output when the account says expanded, and folds it when compact", async () => {
+    useAppearanceStore.setState((state) => ({ account: { ...state.account, toolDetail: "expanded" } }));
+    const page = await renderShell("/s/abc", { phone: false });
+    await vi.waitFor(() => expect(page.container.querySelector("[data-session-screen]")).not.toBeNull(), {
+      timeout: 5_000,
+    });
+    await act(async () => bed.fake.setState("open"));
+    await vi.waitFor(() => expect(bed.called("subscribe.session")).toHaveLength(1));
+    await act(async () => bed.emit(sessionSnapshot(withToolCall)));
+    expect(output(page)).toBe("contents of a.txt");
+    await act(async () =>
+      useAppearanceStore.setState((state) => ({ account: { ...state.account, toolDetail: "compact" } })),
+    );
+    expect(output(page)).toBeNull();
     await page.unmount();
   });
 });

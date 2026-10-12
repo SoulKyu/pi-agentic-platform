@@ -56,6 +56,15 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 - Largest lazy chunks (gzip): shiki core `highlight` 47.3 KB, markdown `render` 46.3 KB, Settings 34.7 KB, `javascript`/`jsx`/`tsx`/`typescript` grammars about 15.5 KB each, `overlays` 14.4 KB, palette 5.9 KB, theme editor 3.7 KB. `pnpm budgets` prints all of them.
 - Biggest initial item after the entry: `settings-*` (zod and the contracts settings schemas, about 25 KB gzip). Not reduced (`zod/mini` and a lazy `MobileShell` were left out of M3).
 
+## The session screen in the shell (P3)
+
+- `AppShell` / `MobileShell` own the only `<main>`; session screens are sections (`data-session-screen`). A transcript groups consecutive rows of one author under one `AuthorGroup`; rows sit in a `max-w-chat` column.
+- Boundaries: features import no other feature. The command registry and `useCommand` live in `lib/` (`features/commands` re-exports them); the account's `toolDetail` reaches the screen as a prop from `routes/shell/pane-renderers.tsx` (`SessionPane`). `eslint.config.js` lets `web-root` files import `contracts` (`approval-answer.test.ts` pins `@pap/ui`'s `ApprovalAnswer` to the contracts one).
+- Keys: `session.stop` (Escape) and `session.sendOther` (Mod+Shift+Enter) are registered by each `Composer`. Both `when` clauses exclude `panelFocus`, `inlineEditFocus` (a `[data-inline-edit]` ancestor: rename field, extension card, approval card), `overlayOpen` and `dialogOpen` (Escape also `paletteOpen`). With two screens mounted a handler acts on the screen holding the focus; run from the palette it acts on the screen that held it last (`last-screen.ts`), and `runCommand` offers the key to earlier registrations when the latest declines.
+- `session.sendOther` is one-shot: it sends this message with the other streaming behaviour while the agent works and never saves it. Only the Steer / Follow up buttons change the saved choice.
+- Model text goes through `Markdown`; raw HTML in it is shown as literal text (never parsed, never dropped). Code is highlighted only after 400 ms without a change, so a streaming fence is not highlighted per delta.
+- A polite live region (`data-announcer`) says a run ended (running to idle), a new approval, and the branch a switch landed on.
+
 ## zod and the CSP
 
 - zod probes for `eval` (`new Function("")`) when it builds its first object schema, which the daemon's CSP forbids (R74). `vite.config.ts` aliases `zod` to `csp-safe-zod.ts` in the web build only: it calls `config({ jitless: true })` right after zod evaluates, so every chunk that builds schemas sees it, whatever the chunk order. `main.tsx` still imports the file first. `build-output.int.test.ts` loads the built zod chunk with string evaluation refused and expects zero attempts.

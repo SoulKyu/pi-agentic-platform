@@ -254,9 +254,9 @@ describe("Transcript rows", () => {
       await settle();
     expect(container.querySelector("[data-markdown-body]")).not.toBeNull();
     expect(container.querySelector("img")).toBeNull();
-    // Summary, thinking, tool name, command summary and output: each shown once, as text. The agent's own text goes
-    // through the markdown renderer, which drops raw HTML instead of showing it (its own tests pin that).
-    expect(text(container).split(bad).length - 1).toBe(5);
+    // Summary, thinking, the agent's text (markdown shows raw HTML as literal text), tool name, command summary and
+    // output: each shown once, as text.
+    expect(text(container).split(bad).length - 1).toBe(6);
   });
 
   it("shows a compaction summary collapsed in native details and thinking folded in a disclosure", async () => {

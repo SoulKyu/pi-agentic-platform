@@ -36,25 +36,23 @@ export function ApprovalCardFor(props: {
       title={t("dialog.approval")}
       category={t(`dialog.category.${dialog.category ?? "unknown"}`)}
       question={
-        <>
-          <p
-            data-approval-question
-            {...scrollArea(question.expanded, t("dialog.question"))}
-            className={cn(
-              "max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg",
-              FOCUS_RING,
-            )}
-          >
-            {question.shown}
-          </p>
-          <ExpandToggle {...question} />
-        </>
+        <p
+          data-approval-question
+          {...scrollArea(question.expanded, t("dialog.question"))}
+          className={cn(
+            "max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg",
+            FOCUS_RING,
+          )}
+        >
+          {question.shown}
+        </p>
       }
       detail={detail}
       headerLabel={headerText.expanded ? t("dialog.summary") : undefined}
-      context={
-        headerText.clipped || bodyText.clipped ? (
+      controls={
+        question.clipped || headerText.clipped || bodyText.clipped ? (
           <>
+            <ExpandToggle {...question} />
             <ExpandToggle {...headerText} />
             <ExpandToggle {...bodyText} />
           </>
