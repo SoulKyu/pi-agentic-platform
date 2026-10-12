@@ -248,6 +248,31 @@ describe("CommandPalette", () => {
       expect(useFocusEntry.getState().target).toBeNull();
     });
 
+    it("opens the first hit with Enter once a newer query lands on the same hits", async () => {
+      let answer: (value: unknown) => void = () => {};
+      search.call.mockResolvedValueOnce({ hits });
+      search.call.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      await typeInto(input(), "kubes");
+      await wait(150);
+      await act(async () => answer({ hits }));
+      expect(rows().some((row) => row.getAttribute("aria-disabled") === "true")).toBe(false);
+      await press(input(), { key: "Enter" });
+      expect(openSession).toHaveBeenCalledWith("h1");
+    });
+
+    it("moves from a ranked row to a hit with the arrow keys", async () => {
+      search.call.mockResolvedValue({ hits });
+      await open([kubeSession, ...items]);
+      await typeInto(input(), "kube");
+      await wait(150);
+      await press(input(), { key: "ArrowDown" });
+      await press(input(), { key: "Enter" });
+      expect(openSession).toHaveBeenCalledWith("h1");
+    });
+
     it("shows no Transcripts group for an actions-only query nor below 3 characters", async () => {
       search.call.mockResolvedValue({ hits });
       await open();

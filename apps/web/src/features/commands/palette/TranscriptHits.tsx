@@ -9,6 +9,9 @@ import { snippetParts } from "./snippet.ts";
 const ROW_CLASSES =
   "flex flex-col gap-s1 rounded-sm px-s2 py-s1 text-ui text-fg aria-selected:bg-surface-2 data-disabled:opacity-50";
 
+/** The row value of a hit: unique, since the daemon sends one hit per session. */
+export const hitValue = (hit: SearchHit): string => `hit:${hit.sessionId}:${hit.entryId}`;
+
 /** The transcript hits (M4R107): the daemon's order, one row per session, each match marked, never as HTML. */
 export function TranscriptHits({
   hits,
@@ -27,7 +30,7 @@ export function TranscriptHits({
       {hits.map((hit) => (
         <Command.Item
           key={`${hit.sessionId}:${hit.entryId}`}
-          value={`hit:${hit.sessionId}:${hit.entryId}`}
+          value={hitValue(hit)}
           disabled={loading}
           onSelect={() => onChoose(hit)}
           className={ROW_CLASSES}

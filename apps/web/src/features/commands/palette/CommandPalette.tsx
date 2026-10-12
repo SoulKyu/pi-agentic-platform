@@ -8,7 +8,7 @@ import "../../../i18n/register-sidebar.ts";
 import { useFocusEntry } from "../../../stores/focus-entry.ts";
 import { rankItems, type PaletteItem, type RankedItems } from "./rank.ts";
 import { resultCountLabel } from "./result-count.ts";
-import { TranscriptHits } from "./TranscriptHits.tsx";
+import { hitValue, TranscriptHits } from "./TranscriptHits.tsx";
 import { useTranscriptSearch } from "./transcript-search.ts";
 
 interface CommandPaletteProps {
@@ -73,6 +73,14 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
       : search.status === "error"
         ? t(searchErrorKey(search.code))
         : null;
+  // cmdk does not move its selection onto rows that were disabled and are enabled again: the selection is kept
+  // here, and falls back to the first row that can be chosen.
+  const [selected, setSelected] = useState("");
+  const choosable = [
+    ...ranked.groups.flatMap((entry) => entry.items.map((item) => item.id)),
+    ...(search.status === "loading" ? [] : search.hits.map(hitValue)),
+  ];
+  const value = choosable.includes(selected) ? selected : (choosable[0] ?? "");
   const choose = (hit: SearchHit) => {
     onOpenChange(false);
     useFocusEntry.getState().ask({ sessionId: hit.sessionId, entryId: hit.entryId });
@@ -96,7 +104,13 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
       initialFocus={input}
     >
       <div data-command-palette="">
-        <Command shouldFilter={false} loop label={t("commands.palette.dialog")}>
+        <Command
+          shouldFilter={false}
+          loop
+          value={value}
+          onValueChange={setSelected}
+          label={t("commands.palette.dialog")}
+        >
           <Command.Input
             ref={input}
             aria-label={t("commands.palette.input")}
