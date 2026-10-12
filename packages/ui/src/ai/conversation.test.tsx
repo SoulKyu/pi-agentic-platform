@@ -5,7 +5,8 @@ import { click, mountWithTooltips } from "../testing/dom.ts";
 import { AuthorGroup } from "./AuthorGroup.tsx";
 import { DaySeparator } from "./DaySeparator.tsx";
 import { Fence } from "./Fence.tsx";
-import { Message, MessageBranch } from "./Message.tsx";
+import { Message, MessageAction, MessageActions, MessageBranch } from "./Message.tsx";
+import { IconSplit } from "../icons.ts";
 import { RunStatusChip } from "./RunStatusChip.tsx";
 
 describe("conversation components (DESIGN.md §9.2)", () => {
@@ -80,6 +81,54 @@ describe("conversation components (DESIGN.md §9.2)", () => {
     expect(onChange).toHaveBeenCalledWith(2);
     await click(page.container.querySelector('button[aria-label="Next"]') as HTMLElement);
     expect(onChange).toHaveBeenLastCalledWith(1);
+    await page.unmount();
+  });
+
+  it("shows hostile content in a fence as text, and lets an unbroken string wrap inside the frame", () => {
+    const hostile = `<img src=x onerror="alert(1)"><script>alert(2)</script>${"A".repeat(5000)}`;
+    const html = renderToStaticMarkup(
+      <Fence label={'UNTRUSTED · <b onclick="x()">peer</b>'}>{hostile}</Fence>,
+    );
+    expect(html).not.toMatch(/<img|<script|<b[ >]/);
+    expect(html).toContain("&lt;img src=x onerror=&quot;alert(1)&quot;&gt;");
+    expect(html).toContain("&lt;b onclick=&quot;x()&quot;&gt;peer&lt;/b&gt;");
+    expect(html).toContain("break-words");
+    expect(html).toContain("whitespace-pre-wrap");
+  });
+
+  it("gives every run state a tone, and a dot only to the two that need a person's eye", () => {
+    const states = [
+      ["working", "run", true],
+      ["settled", "ok", false],
+      ["interrupted", "err", false],
+      ["limited", "mut", false],
+      ["needs-input", "att", true],
+    ] as const;
+    for (const [status, tone, dot] of states) {
+      const html = renderToStaticMarkup(<RunStatusChip status={status} label={status} />);
+      expect(html, status).toContain(`data-tone="${tone}"`);
+      expect(html.includes("chip-dot"), status).toBe(dot);
+      expect(html, status).toContain(`>${status}<`);
+    }
+  });
+
+  it("names the message actions as a group, and each icon action by its label, with no native title", async () => {
+    const onClick = vi.fn();
+    const page = await mountWithTooltips(
+      <MessageActions label="Message actions">
+        <MessageAction label="Fork from here" icon={IconSplit} onClick={onClick} />
+        <MessageAction label="Edit from here" icon={IconSplit} disabled />
+      </MessageActions>,
+    );
+    expect(page.container.querySelector('[role="group"]')?.getAttribute("aria-label")).toBe(
+      "Message actions",
+    );
+    await click(page.container.querySelector('button[aria-label="Fork from here"]') as HTMLElement);
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(
+      page.container.querySelector<HTMLButtonElement>('button[aria-label="Edit from here"]')?.disabled,
+    ).toBe(true);
+    expect(page.container.querySelector("[title]")).toBeNull();
     await page.unmount();
   });
 });

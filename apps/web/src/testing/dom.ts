@@ -93,15 +93,19 @@ export async function press(element: Element, init: KeyboardEventInit): Promise<
 
 const words = (element: Element): string => (element.textContent ?? "").trim();
 
-/** The button with this exact visible text; throws when there is none or several (an e2e would too). */
+/** What a person or a screen reader calls the button: its visible text, or its label when it is an icon. */
+const named = (candidate: Element, name: string): boolean =>
+  words(candidate) === name || candidate.getAttribute("aria-label") === name;
+
+/** The button with this exact visible text or label; throws when there is none or several (an e2e would too). */
 export function button(container: ParentNode, name: string): HTMLButtonElement {
-  const found = [...container.querySelectorAll("button")].filter((candidate) => words(candidate) === name);
+  const found = [...container.querySelectorAll("button")].filter((candidate) => named(candidate, name));
   if (found.length !== 1) throw new Error(`expected one button "${name}", found ${found.length}`);
   return found[0] as HTMLButtonElement;
 }
 
 export function hasButton(container: ParentNode, name: string): boolean {
-  return [...container.querySelectorAll("button")].some((candidate) => words(candidate) === name);
+  return [...container.querySelectorAll("button")].some((candidate) => named(candidate, name));
 }
 
 /** The input or textarea a `<label>` with this exact text points at. */

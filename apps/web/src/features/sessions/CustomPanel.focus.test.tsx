@@ -116,7 +116,7 @@ describe("two session screens at once", () => {
       </>,
     );
     await settle();
-    const [first, second] = [...page.container.querySelectorAll("main")];
+    const [first, second] = [...page.container.querySelectorAll("[data-session-screen]")];
     const composer = first?.querySelector("[data-composer] textarea") as HTMLTextAreaElement;
     composer.focus();
     await press(composer, { key: "Tab" });

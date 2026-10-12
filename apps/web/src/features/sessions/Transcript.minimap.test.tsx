@@ -55,7 +55,7 @@ describe("Transcript with its minimap", () => {
       </>,
     );
     await settle();
-    const ids = [...page.container.querySelectorAll("li[id^='row-']")].map((li) => li.id);
+    const ids = [...page.container.querySelectorAll("[id^='row-']")].map((li) => li.id);
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);
     const first = page.container.querySelector("nav") as HTMLElement;

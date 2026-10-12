@@ -1,5 +1,7 @@
 import { Button, TextField } from "@pap/ui";
+import { useRef } from "react";
 import { useT } from "../../i18n/index.ts";
+import { useCommand } from "../commands/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
 import { useComposer, type Injected } from "./use-composer.ts";
@@ -22,10 +24,25 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
     structuralBusy: structuralBusy ?? false,
   });
   const blocked = c.pending !== null || c.compacting || c.sending;
+  const root = useRef<HTMLDivElement | null>(null);
+  // Two session screens can be mounted (a split): a key belongs to the one that holds the focus.
+  const hasFocus = () =>
+    root.current?.closest("[data-session-screen]")?.contains(document.activeElement) === true;
+  // Escape stops the run like the pi TUI's; the dispatcher already keeps it out of a panel, a menu and an inline edit.
+  useCommand("session.stop", () => {
+    if (!hasFocus() || !c.canStop) return false;
+    c.stop();
+  });
+  // Mod+Shift+Enter sends the way the buttons do not: the other streaming behaviour while the agent works.
+  useCommand("session.sendOther", () => {
+    if (!hasFocus() || c.text.trim() === "") return false;
+    c.send(c.running ? (c.behavior === "steer" ? "followUp" : "steer") : undefined);
+  });
   return (
     <div
+      ref={root}
       data-composer
-      className="flex flex-col gap-2"
+      className="mx-auto flex w-full max-w-chat flex-col gap-2"
       onKeyDown={(event) => {
         const plain = !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
         if (event.key === "Tab" && plain && onTabToPanel?.()) event.preventDefault();

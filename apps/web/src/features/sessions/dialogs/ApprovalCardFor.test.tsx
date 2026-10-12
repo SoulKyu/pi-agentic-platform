@@ -174,7 +174,10 @@ describe("ApprovalCardFor", () => {
   it("the card itself answers once, whatever is clicked next, before any re-render", async () => {
     const chosen: unknown[] = [];
     mounted = await mount(
-      <ApprovalCardFor dialog={exec({ message: undefined })} onAnswer={(response) => chosen.push(response)} />,
+      <ApprovalCardFor
+        dialog={exec({ message: undefined })}
+        onAnswer={(response) => chosen.push(response)}
+      />,
     );
     const page = mounted.container;
     button(page, "Allow once").click();

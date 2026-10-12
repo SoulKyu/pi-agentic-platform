@@ -115,9 +115,11 @@ describe("AppShell", () => {
   it("says it is reconnecting, and offers a reload when the page is out of date", async () => {
     const page = await renderShell("/");
     await act(async () => bed.fake.setState("waiting"));
-    expect([...page.container.querySelectorAll('[role="status"]')].map((el) => el.textContent)).toContain(
-      "Reconnecting…",
-    );
+    expect(
+      [...page.container.querySelectorAll('[role="status"]')].some((el) =>
+        el.textContent?.startsWith("Reconnecting…"),
+      ),
+    ).toBe(true);
     await act(async () => bed.fake.setState("outdated"));
     expect(hasButton(page.container, "Reload")).toBe(true);
     await page.unmount();

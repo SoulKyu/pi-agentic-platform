@@ -7,6 +7,7 @@ import { useSessionStore } from "../../stores/session-store.ts";
 import { alerts, button, click, hasButton, mount, settle, text, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
+import { useAppearanceStore } from "../appearance/index.ts";
 import { Transcript } from "./Transcript.tsx";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
@@ -62,6 +63,7 @@ beforeEach(() => {
   bed = fakeRuntime();
   current.runtime = bed.runtime;
   useSessionStore.setState({ views: {} });
+  useAppearanceStore.setState((state) => ({ account: { ...state.account, toolDetail: "expanded" } }));
   observers.length = 0;
   vi.stubGlobal(
     "IntersectionObserver",
@@ -249,12 +251,18 @@ describe("Transcript rows", () => {
         },
       ],
     });
+    await click(button(container, "Thought"));
+    // Let the lazy markdown renderer arrive: until it has, the agent's text shows as plain text, once.
+    for (let turn = 0; turn < 500 && container.querySelector("[data-markdown-body]") === null; turn++)
+      await settle();
+    expect(container.querySelector("[data-markdown-body]")).not.toBeNull();
     expect(container.querySelector("img")).toBeNull();
-    // Summary, thinking, text, tool name, command summary and output: each shown once, as text.
-    expect(text(container).split(bad).length - 1).toBe(6);
+    // Summary, thinking, tool name, command summary and output: each shown once, as text. The agent's own text goes
+    // through the markdown renderer, which drops raw HTML instead of showing it (its own tests pin that).
+    expect(text(container).split(bad).length - 1).toBe(5);
   });
 
-  it("shows thinking and a compaction summary collapsed in native details", async () => {
+  it("shows a compaction summary collapsed in native details and thinking folded in a disclosure", async () => {
     const container = await show({
       rows: [
         {
@@ -277,8 +285,13 @@ describe("Transcript rows", () => {
     const details = [...container.querySelectorAll("details")];
     expect(details.map((d) => [d.open, d.querySelector("summary")?.textContent])).toEqual([
       [false, "Conversation compacted · from 900 tokens"],
-      [false, "Thinking"],
     ]);
+    const thought = button(container, "Thought");
+    expect(thought.getAttribute("aria-expanded")).toBe("false");
+    expect(text(container)).not.toContain("hmm");
+    await click(thought);
+    expect(thought.getAttribute("aria-expanded")).toBe("true");
+    expect(text(container)).toContain("hmm");
     expect(container.querySelector("[title]")).toBeNull();
   });
 
@@ -297,11 +310,15 @@ describe("Transcript rows", () => {
 describe("Transcript scroll position", () => {
   // happy-dom has no layout: a row is 100 px tall, and scrollTop is a plain number kept per element.
   const tops = new WeakMap<Element, number>();
+  // A row is a `[id^='row-']` element (rows of one author share an item), and so is the "load older" item.
+  const rowsIn = (list: HTMLElement) =>
+    list.querySelectorAll("[id^='row-']").length +
+    [...list.children].filter((item) => item.querySelector("[id^='row-']") === null).length;
   beforeEach(() => {
     Object.defineProperty(HTMLElement.prototype, "scrollHeight", {
       configurable: true,
       get(this: HTMLElement) {
-        return this.children.length * 100;
+        return rowsIn(this) * 100;
       },
     });
     Object.defineProperty(HTMLElement.prototype, "scrollTop", {
@@ -340,7 +357,7 @@ describe("Transcript scroll position", () => {
     const list = await scrolledTo(container, 40);
     await click(button(container, "Load older messages"));
     await settle();
-    expect(list.children.length).toBe(5);
+    expect(rowsIn(list)).toBe(5);
     expect(list.scrollTop).toBe(340);
   });
 

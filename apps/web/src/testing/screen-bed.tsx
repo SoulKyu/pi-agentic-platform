@@ -1,3 +1,4 @@
+import { TooltipProvider } from "@pap/ui";
 import type { ReactElement } from "react";
 import { afterEach, beforeEach } from "vitest";
 import { SessionScreen } from "../features/sessions/SessionScreen.tsx";
@@ -30,7 +31,10 @@ export function screenBed(current: { runtime: Runtime | undefined }) {
   /** Unmounts the screen and mounts it again on the same store; the new feed has a new subscription, so no snapshot arrives. */
   const remount = async (element?: ReactElement) => {
     await state.page?.unmount();
-    state.page = await mount(element ?? <SessionScreen sessionId="sess-1" />);
+    // Message actions are icon buttons with tooltips: the screen mounts inside the provider main.tsx supplies.
+    state.page = await mount(
+      <TooltipProvider>{element ?? <SessionScreen sessionId="sess-1" />}</TooltipProvider>,
+    );
     await settle();
     return state.page.container;
   };

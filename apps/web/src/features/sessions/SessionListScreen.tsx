@@ -55,7 +55,7 @@ export function SessionListScreen() {
   };
 
   return (
-    <main className="mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-y-auto p-4">
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-y-auto p-4">
       <h1 className="text-xl font-extrabold text-fg">{t("sessions.title")}</h1>
       <form
         className="flex flex-col gap-2"
@@ -110,6 +110,6 @@ export function SessionListScreen() {
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

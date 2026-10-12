@@ -24,7 +24,12 @@ afterEach(() => {
 });
 
 const escapeIn = (target: Element) => {
-  const event = new KeyboardEvent("keydown", { key: "Escape", code: "Escape", bubbles: true, cancelable: true });
+  const event = new KeyboardEvent("keydown", {
+    key: "Escape",
+    code: "Escape",
+    bubbles: true,
+    cancelable: true,
+  });
   target.dispatchEvent(event);
   return event;
 };

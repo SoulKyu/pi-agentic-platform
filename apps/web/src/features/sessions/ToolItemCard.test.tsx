@@ -1,9 +1,11 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
+import { useAppearanceStore } from "../appearance/index.ts";
 import { alerts, button, click, hasButton, mount, settle, text, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
-import { ToolRow } from "./ToolRow.tsx";
+
+import { ToolItemCard } from "./ToolItemCard.tsx";
 import type { ToolItem } from "./transcript.vm.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
@@ -29,26 +31,31 @@ const item = (patch: Partial<ToolItem> = {}): ToolItem => ({
   ...patch,
 });
 async function show(tool: ToolItem) {
-  page = await mount(<ToolRow item={tool} sessionId="sess-1" />);
+  page = await mount(<ToolItemCard item={tool} sessionId="sess-1" />);
   await settle();
   return page.container;
 }
 
+const setDetail = (toolDetail: "compact" | "expanded" | "full") =>
+  useAppearanceStore.setState((state) => ({ account: { ...state.account, toolDetail } }));
+
 beforeEach(() => {
   bed = fakeRuntime();
   current.runtime = bed.runtime;
+  setDetail("expanded"); // the setting under test is the card's, not the default's
 });
 afterEach(async () => {
   await page?.unmount();
   page = null;
 });
 
-describe("ToolRow", () => {
+describe("ToolItemCard", () => {
   it("shows the name, the summary, the status and the preview in a bounded block", async () => {
     const container = await show(item({ status: "running" }));
     expect(text(container)).toContain("read");
     expect(text(container)).toContain('{"path":"a.txt"}');
-    expect(text(container)).toContain("Running");
+    expect(container.querySelector('[data-slot="tool-card"]')?.getAttribute("data-status")).toBe("running");
+    expect(container.querySelector('[role="progressbar"]')?.getAttribute("aria-label")).toBe("Running");
     const pre = container.querySelector("pre");
     expect(pre?.textContent).toBe("first 8000 chars");
     expect(pre?.className).toContain("max-h-64");
@@ -63,8 +70,9 @@ describe("ToolRow", () => {
       args: null,
     });
     const container = await show(item());
-    await click(button(container, "Show the whole output (29 KB)"));
-    await click(container.querySelector("button") ?? container);
+    const showAll = button(container, "Show the whole output (29 KB)");
+    await click(showAll);
+    await click(showAll);
     await settle();
     expect(bed.called("sessions.toolOutput")).toEqual([
       { method: "sessions.toolOutput", params: { sessionId: "sess-1", toolCallId: "c1" } },
@@ -115,7 +123,8 @@ describe("ToolRow", () => {
 
   it("offers nothing when the preview is the whole output", async () => {
     const container = await show(item({ truncatedChars: null }));
-    expect(container.querySelector("button")).toBeNull();
+    expect(hasButton(container, "Show the whole output (29 KB)")).toBe(false);
+    expect(container.querySelector("[aria-expanded]")).not.toBeNull(); // the card's own disclosure only
   });
 
   it("renders the output as text", async () => {
@@ -183,8 +192,44 @@ describe("ToolRow", () => {
     await click(button(container, "Show the whole output (29 KB)"));
     await settle();
     expect([...container.querySelectorAll("pre")].map((pre) => pre.textContent)).toEqual([
-      '{"path":"long"}',
       "out",
+      '{"path":"long"}',
     ]);
+  });
+
+  it("keeps a hostile long tool name, summary and arguments inside the header (M3 triage)", async () => {
+    const hostile = `ext_${"w".repeat(5000)}`;
+    const container = await show(item({ name: hostile, summary: "s".repeat(5000) }));
+    const name = [...container.querySelectorAll("span")].find((span) => span.textContent === hostile);
+    expect(name?.className).toContain("min-w-0");
+    expect(name?.className).toContain("truncate");
+    expect(container.querySelector('[data-slot="tool-card"] span.flex')?.className).toContain("min-w-0");
+    expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("shows a failed call with its chip, its red frame and its output", async () => {
+    const container = await show(
+      item({ status: "failed", preview: "permission denied", truncatedChars: null }),
+    );
+    const card = container.querySelector('[data-slot="tool-card"]');
+    expect(card?.getAttribute("data-status")).toBe("error");
+    expect(card?.className).toContain("border-err");
+    expect(text(container)).toContain("Failed");
+    expect(container.querySelector("pre")?.textContent).toBe("permission denied");
+  });
+
+  it("shows a call with no output yet as a header only, saying it waits", async () => {
+    const container = await show(item({ status: "waiting", preview: "", truncatedChars: null }));
+    expect(container.querySelector("pre")).toBeNull();
+    expect(container.querySelector("[aria-expanded]")).toBeNull();
+    expect(text(container)).toContain("Waiting");
+  });
+
+  it("follows the account's detail setting: compact keeps the output folded until it is opened", async () => {
+    setDetail("compact");
+    const container = await show(item());
+    expect(container.querySelector("pre")).toBeNull();
+    await click(container.querySelector("[aria-expanded]") as Element);
+    expect(container.querySelector("pre")?.textContent).toBe("first 8000 chars");
   });
 });

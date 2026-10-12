@@ -104,7 +104,7 @@ describe("Composer serialized sends", () => {
     await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
     expect(screen.bed.called("sessions.prompt")).toHaveLength(1);
     expect(field(container, "Message").value).toBe("second");
-    expect(container.querySelector('[role="status"][aria-live="polite"]')?.textContent).toBe(
+    expect(container.querySelector('[data-composer] [role="status"][aria-live="polite"]')?.textContent).toBe(
       "A message is being sent. Wait a moment.",
     );
     expect(JSON.parse(localStorage.getItem("pap.pending.sess-1") ?? "null").commandId).toBe(
@@ -113,7 +113,7 @@ describe("Composer serialized sends", () => {
     call.resolve({ disposition: "queued" });
     await settle();
     expect(localStorage.getItem("pap.pending.sess-1")).toBeNull();
-    expect(container.querySelector('[role="status"]')).toBeNull();
+    expect(container.querySelector('[data-composer] [role="status"]')).toBeNull();
     expect(button(container, "Steer").disabled).toBe(false);
   });
 
@@ -211,7 +211,9 @@ describe("Composer feedback when a send is refused locally", () => {
   const ctrlEnter = (container: HTMLElement) =>
     press(field(container, "Message"), { key: "Enter", ctrlKey: true });
   const statusText = (container: HTMLElement) =>
-    [...container.querySelectorAll('[role="status"][aria-live="polite"]')].map((node) => node.textContent);
+    [...container.querySelectorAll('[data-composer] [role="status"][aria-live="polite"]')].map(
+      (node) => node.textContent,
+    );
 
   it("says why when Ctrl+Enter meets a pending send", async () => {
     localStorage.setItem(

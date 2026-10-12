@@ -1,15 +1,16 @@
-import { Button } from "@pap/ui";
+import { AuthorGroup, Button } from "@pap/ui";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { t } from "../../i18n/index.ts";
+import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { failureText } from "./failure.ts";
-import { MessageRow, SummaryRow } from "./MessageRow.tsx";
+import { MessageRow, SummaryRow, type RowActions } from "./MessageRow.tsx";
 import { Minimap } from "./Minimap.tsx";
 import { rowId } from "./minimap.vm.ts";
-import { ToolRow } from "./ToolRow.tsx";
-import { transcriptItems } from "./transcript.vm.ts";
+import { ToolItemCard } from "./ToolItemCard.tsx";
+import { groupItems } from "./transcript-groups.ts";
+import { transcriptItems, type TranscriptItem } from "./transcript.vm.ts";
 import type { Track } from "./use-action.ts";
 import { useBranches } from "./use-branches.ts";
 import { useStickToBottom } from "./use-stick-to-bottom.ts";
@@ -22,6 +23,7 @@ interface TranscriptProps {
     readonly track: Track;
     readonly busy: boolean;
     readonly onEdit: (text: string) => void;
+    readonly announce?: RowActions["announce"];
   };
 }
 
@@ -75,7 +77,9 @@ function prepend(
 }
 
 export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
-  const items = transcriptItems(view);
+  const t = useT();
+  const items = transcriptItems(view, t);
+  const groups = groupItems(items);
   const scope = useId();
   const last = items.at(-1);
   const { attach, onScroll, preserveOnPrepend } = useStickToBottom(
@@ -90,6 +94,17 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
     loadRef.current = older.load;
   });
   const quiet = older.error !== null;
+  const actionsFor = (item: TranscriptItem): RowActions | undefined =>
+    rowActions && item.kind === "message"
+      ? {
+          sessionId,
+          track: rowActions.track,
+          onEdit: rowActions.onEdit,
+          announce: rowActions.announce,
+          branches: branches.points,
+          blocked: rowActions.busy || view.status === "running" || view.activity.compacting,
+        }
+      : undefined;
 
   // The sentinel asks while the reader is near the top; after a failure only the button asks, so it cannot loop.
   useEffect(() => {
@@ -114,11 +129,16 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
   return (
     <>
       <div className="flex min-h-0 flex-1 gap-2">
-        <ol ref={attach} onScroll={onScroll} className="flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto">
+        <ol
+          ref={attach}
+          onScroll={onScroll}
+          aria-label={t("sessions.transcript.label")}
+          className="flex min-w-0 flex-1 flex-col gap-s3 overflow-y-auto"
+        >
           {canLoad ? (
-            <li ref={sentinel} className="flex flex-col items-center gap-1">
+            <li ref={sentinel} className="flex flex-col items-center gap-s1">
               {older.error ? (
-                <p role="alert" className="text-ui text-attention">
+                <p role="alert" className="text-ui text-attn">
                   {older.error}
                 </p>
               ) : null}
@@ -127,36 +147,37 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
               </Button>
             </li>
           ) : null}
-          {items.map((item, index) => (
-            <li key={item.key} id={rowId(scope, item.key)}>
-              {item.kind === "tool" ? (
-                <ToolRow item={item} sessionId={sessionId} />
-              ) : item.kind === "summary" ? (
-                <SummaryRow item={item} />
-              ) : item.kind === "failure" ? (
-                <div
-                  data-failure
-                  role={index === items.length - 1 ? "alert" : undefined}
-                  className="border-l-2 border-error px-3 py-2 text-ui text-error"
-                >
-                  <p className="font-mono text-label font-semibold uppercase tracking-label">
-                    {t("session.failure")}
-                  </p>
-                  <p className="mt-1 whitespace-pre-wrap break-words">{item.text}</p>
-                </div>
+          {groups.map((group) => (
+            <li key={group.key} className="mx-auto w-full max-w-chat">
+              {group.kind === "run" ? (
+                <AuthorGroup author={group.author} name={t(`author.${group.author}`)}>
+                  {group.items.map((item) => (
+                    <div key={item.key} id={rowId(scope, item.key)}>
+                      {item.kind === "tool" ? (
+                        <ToolItemCard item={item} sessionId={sessionId} />
+                      ) : (
+                        <MessageRow item={item} grouped actions={actionsFor(item)} />
+                      )}
+                    </div>
+                  ))}
+                </AuthorGroup>
               ) : (
-                <MessageRow
-                  item={item}
-                  actions={
-                    rowActions && {
-                      sessionId,
-                      track: rowActions.track,
-                      onEdit: rowActions.onEdit,
-                      branches: branches.points,
-                      blocked: rowActions.busy || view.status === "running" || view.activity.compacting,
-                    }
-                  }
-                />
+                <div id={rowId(scope, group.item.key)}>
+                  {group.item.kind === "summary" ? (
+                    <SummaryRow item={group.item} />
+                  ) : group.item.kind === "failure" ? (
+                    <div
+                      data-failure
+                      role={group.item === items.at(-1) ? "alert" : undefined}
+                      className="border-l-2 border-err px-s3 py-s2 text-ui text-err"
+                    >
+                      <p className="label-hud">{t("session.failure")}</p>
+                      <p className="mt-s1 whitespace-pre-wrap break-words">{group.item.text}</p>
+                    </div>
+                  ) : group.item.kind === "message" ? (
+                    <MessageRow item={group.item} actions={actionsFor(group.item)} />
+                  ) : null}
+                </div>
               )}
             </li>
           ))}

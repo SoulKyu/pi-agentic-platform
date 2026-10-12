@@ -94,10 +94,10 @@ function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" 
         <TopBar title={title} />
         <TabBar />
         <ConnectionBanner />
-        {/* Not <main>: M2's screens carry their own <main> until P3 turns them into sections. */}
-        <div id="pane-host" className="flex min-h-0 flex-1">
+        {/* The one main landmark: the screens inside it are sections. */}
+        <main id="pane-host" className="flex min-h-0 flex-1">
           {item ? <PaneHost tab={tab} /> : <NotFound />}
-        </div>
+        </main>
       </div>
     </div>
   );

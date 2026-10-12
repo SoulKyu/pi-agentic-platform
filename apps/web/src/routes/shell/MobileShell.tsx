@@ -53,8 +53,8 @@ export function MobileShell() {
         <IconButton icon={IconLists} label={t("shell.mobile.tabs")} onClick={() => setTabsOpen(true)} />
       </header>
       <ConnectionBanner />
-      {/* Not <main>: M2's screens carry their own <main> until P3 turns them into sections. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* The one main landmark: the screens inside it are sections. */}
+      <main className="min-h-0 flex-1 overflow-y-auto">
         {section === "agents" ? (
           <div className="p-s3">
             <EmptyState title={t("shell.agents.emptyTitle")} purpose={t("shell.agents.emptyPurpose")} />
@@ -70,7 +70,7 @@ export function MobileShell() {
         ) : (
           <NotFound />
         )}
-      </div>
+      </main>
       <BottomNav section={section} inboxCount={0} onSection={setSection} />
       <LazyPanel
         text={lazyText}

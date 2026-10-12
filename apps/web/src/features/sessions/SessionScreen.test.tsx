@@ -104,9 +104,13 @@ describe("SessionScreen feed", () => {
     });
     expect(text(container)).toContain("All");
     await emit({ kind: "pi", event: { type: "message_end", message: reply } });
-    expect(container.querySelectorAll('[data-author="agent"]')).toHaveLength(1);
-    expect(container.querySelector('[data-author="agent"]')?.textContent).toContain("All green.");
-    expect(container.querySelector('[data-author="you"]')?.textContent).toContain("Run the check");
+    expect(container.querySelectorAll('[data-slot="message"][data-author="agent"]')).toHaveLength(1);
+    expect(container.querySelector('[data-slot="message"][data-author="agent"]')?.textContent).toContain(
+      "All green.",
+    );
+    expect(container.querySelector('[data-slot="message"][data-author="you"]')?.textContent).toContain(
+      "Run the check",
+    );
   });
 
   it("shows why a subscription was refused, without subscribing again", async () => {

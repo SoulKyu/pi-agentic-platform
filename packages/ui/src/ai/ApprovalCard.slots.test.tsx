@@ -8,7 +8,13 @@ const LABELS = { deny: "Deny", session: "Session", always: "Always", once: "Allo
 describe("ApprovalCard as the session screen uses it", () => {
   it("is named by role and accessible name, and its heading separator is hidden from assistive technology", async () => {
     const page = await mount(
-      <ApprovalCard title="Approval" category="exec" detail="1 line\nls" labels={LABELS} onChoose={() => {}} />,
+      <ApprovalCard
+        title="Approval"
+        category="exec"
+        detail="1 line\nls"
+        labels={LABELS}
+        onChoose={() => {}}
+      />,
     );
     const card = page.container.querySelector('[role="alertdialog"]');
     expect(card?.getAttribute("aria-label")).toBe("Approval exec");
@@ -80,7 +86,9 @@ describe("ApprovalCard as the session screen uses it", () => {
   });
 
   it("is not a tab stop when nothing scrolls", async () => {
-    const page = await mount(<ApprovalCard title="Approval" detail={"h\nb"} labels={LABELS} onChoose={() => {}} />);
+    const page = await mount(
+      <ApprovalCard title="Approval" detail={"h\nb"} labels={LABELS} onChoose={() => {}} />,
+    );
     expect(page.container.querySelector("[data-approval-header]")?.getAttribute("tabindex")).toBeNull();
     await click(button(page.container, "Deny"));
     await page.unmount();

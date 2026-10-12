@@ -5,7 +5,13 @@ import { getRuntime, useConnectionState } from "../../runtime/index.ts";
 export function ConnectionBanner() {
   const t = useT();
   const connection = useConnectionState(getRuntime().connection);
-  if (connection === "waiting") return <Banner tone="offline" title={t("connection.reconnecting")} />;
+  if (connection === "waiting") {
+    return (
+      <Banner tone="offline" title={t("connection.reconnecting")}>
+        {t("connection.draftsStay")}
+      </Banner>
+    );
+  }
   if (connection === "outdated") {
     return (
       <Banner
