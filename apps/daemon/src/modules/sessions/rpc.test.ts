@@ -33,6 +33,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     snapshot: vi.fn(),
     shutdownAll: vi.fn(async () => {}),
     inspect: vi.fn(() => null),
+    mark: vi.fn(),
     backfillProjects: vi.fn(() => 0),
     ...overrides,
   };

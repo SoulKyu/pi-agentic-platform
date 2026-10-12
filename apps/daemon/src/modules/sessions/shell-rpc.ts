@@ -1,7 +1,7 @@
 import type { HandlerTable } from "@pap/contracts";
 import type { SessionsService } from "./service.ts";
 
-export type ShellRpc = Pick<HandlerTable, "subscribe.shell" | "sessions.listArchived">;
+export type ShellRpc = Pick<HandlerTable, "subscribe.shell" | "sessions.listArchived" | "sessions.mark">;
 
 export function shellRpc(service: SessionsService): ShellRpc {
   return {
@@ -10,5 +10,10 @@ export function shellRpc(service: SessionsService): ShellRpc {
       sub: ctx.openSubscription("shell", ctx.caller.userId, after),
     }),
     "sessions.listArchived": async (params, ctx) => service.listArchived(ctx.caller, params),
+    // The state changes before the first await (M4R126); the new state comes over the `shell` stream.
+    "sessions.mark": async (params, ctx) => {
+      service.mark(params, ctx.caller);
+      return { ok: true as const };
+    },
   };
 }

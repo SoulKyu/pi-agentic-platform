@@ -25,6 +25,7 @@ describe("method catalogue", () => {
       "sessions.create",
       "sessions.exportHtml",
       "sessions.fork",
+      "sessions.mark",
       "sessions.navigate",
       "sessions.prompt",
       "sessions.rename",

@@ -3,6 +3,7 @@ import {
   type DialogResponse,
   type ForkPoint,
   type HistoryMeta,
+  type MarkChange,
   PapError,
   type SessionStatus,
   type SessionStreamEvent,
@@ -27,6 +28,7 @@ import type { LiveSession } from "./live-session.ts";
 import type { PiWriter } from "./pi-writer.ts";
 import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
 import { createLaunch } from "./service-launch.ts";
+import { createSessionMarks } from "./service-marks.ts";
 import { createSessionReads } from "./service-reads.ts";
 import { createShellView } from "./service-shell.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
@@ -138,6 +140,12 @@ export interface SessionsService extends SessionCommands {
   snapshot(sessionId: string): SessionStreamEvent;
   shutdownAll(): Promise<void>;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
+  /**
+   * Files a session the caller owns: pin, archive, settle, snooze, or Undo (`restore`). Synchronous (M4R126); the
+   * worker is never touched (M4R39). `not_found` for another owner's session, `bad_request`/`limit_reached` from the
+   * shared rules, `read_only` when the database is read-only.
+   */
+  mark(input: { sessionId: string; change: MarkChange }, caller: Caller): void;
   /** Files the sessions stored before M4 under their folder's project; 0 and nothing written in read-only mode. */
   backfillProjects(): number;
 }
@@ -258,6 +266,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     loadWriter: deps.loadWriter,
   });
 
+  const sessionMarks = createSessionMarks({
+    store: marks,
+    clock: deps.clock,
+    owned,
+    publisher,
+    // Task 10 passes the organiser's `rearm`.
+    onSnoozeChange: () => {},
+  });
+
   const summaries = (caller: Caller): SessionSummary[] =>
     deps.store.listByOwner(caller.userId).map((row) => ({
       id: row.id,
@@ -353,6 +370,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       const session = live.get(sessionId);
       return session ? { pid: session.pid(), rssMb: session.rssMb() } : null;
     },
+    mark: (input, caller) => sessionMarks.mark(input, caller),
     backfillProjects: () => (deps.store.readOnly ? 0 : link.backfill()),
   };
 }

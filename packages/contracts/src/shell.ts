@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
 import { Cursor } from "./frames.ts";
-import { MAX_PINS } from "./marks.ts";
+import { MarkChange, MAX_PINS } from "./marks.ts";
 import { SessionName, SessionStatus } from "./streams.ts";
 
 /** The bounds of the sidebar's data (M4): what one snapshot, page or search answer may carry. */
@@ -108,6 +108,16 @@ export const shellMethods = {
     result: z.object({ ok: z.literal(true) }),
     // Another owner's project is `not_found` too (M4R25); `bad_request`: a name that is empty once cleaned.
     errors: ["not_found", "bad_request"],
+  }),
+  "sessions.mark": defineMethod({
+    name: "sessions.mark",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: Id, change: MarkChange }),
+    // The new state comes over the `shell` stream (M4R38).
+    result: z.object({ ok: z.literal(true) }),
+    // `bad_request`: a snooze out of range or of an archived session; `limit_reached`: 50 pins already.
+    errors: ["not_found", "bad_request", "limit_reached"],
   }),
   "subscribe.shell": defineMethod({
     name: "subscribe.shell",

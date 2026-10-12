@@ -6,7 +6,8 @@ import { shellRpc } from "./shell-rpc.ts";
 
 function setup() {
   const listArchived = vi.fn(() => ({ sessions: [], hasMore: false }));
-  const service = { listArchived } as unknown as SessionsService;
+  const mark = vi.fn();
+  const service = { listArchived, mark } as unknown as SessionsService;
   const openSubscription = vi.fn(() => "s7");
   const ctx: HandlerContext = {
     caller: testCaller({ userId: "u9" }),
@@ -14,7 +15,7 @@ function setup() {
     openSubscription,
     closeSubscription: vi.fn(),
   };
-  return { rpc: shellRpc(service), ctx, openSubscription, listArchived };
+  return { rpc: shellRpc(service), ctx, openSubscription, listArchived, mark };
 }
 
 describe("shell rpc", () => {
@@ -32,5 +33,13 @@ describe("shell rpc", () => {
     const params = { before: { archivedAt: 5, id: "x" }, limit: 10 };
     expect(await rpc["sessions.listArchived"](params, ctx)).toEqual({ sessions: [], hasMore: false });
     expect(listArchived).toHaveBeenCalledWith(ctx.caller, params);
+  });
+
+  it("marks synchronously, before the handler's promise is awaited (M4R126), and answers ok", async () => {
+    const { rpc, ctx, mark } = setup();
+    const params = { sessionId: "s1", change: { kind: "archive" as const } };
+    const pending = rpc["sessions.mark"](params, ctx);
+    expect(mark).toHaveBeenCalledWith(params, ctx.caller);
+    expect(await pending).toEqual({ ok: true });
   });
 });
