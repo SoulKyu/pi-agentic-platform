@@ -47,6 +47,7 @@ const WRAPPERS: ReadonlyMap<string, Wrapper> = new Map<string, Wrapper>([
   ["timeout", { valued: values("-s -k --signal --kill-after"), positional: 1 }],
   ["xargs", { valued: values("-a -d -E -I -L -n -P -s") }],
   ["busybox", { valued: NO_VALUES }],
+  ["function", { valued: NO_VALUES, positional: 1 }],
   ["setsid", { valued: NO_VALUES }],
   ["unshare", { valued: NO_VALUES }],
   ["watch", { valued: values("-n -d") }],
@@ -71,9 +72,20 @@ const SINGLE_WRAPPER_WORDS = new Set([
 const baseName = (word: string): string => word.slice(word.lastIndexOf("/") + 1);
 const commandName = (word: string): string => baseName(word.replace(/^\\+/, ""));
 
-/** An option cluster such as `-Eu` takes a value when its last letter does. */
-const takesValue = (option: string, valued: ReadonlySet<string>): boolean =>
-  valued.has(option) || (option.length > 2 && option[1] !== "-" && valued.has(`-${option.slice(-1)}`));
+/**
+ * Whether `option` takes the next word as its value. getopt rule for a cluster of short options: the first letter that
+ * takes a value takes the rest of the word (`-uroot`, `-k5s`), and the next word only when it is the last letter (`-Eu`).
+ */
+function takesNextWord(option: string, valued: ReadonlySet<string>): boolean {
+  if (option.startsWith("--") || option.length < 2) return valued.has(option);
+  for (let at = 1; at < option.length; at++)
+    if (valued.has(`-${option[at]}`)) return at === option.length - 1;
+  return false;
+}
+
+/** Whether a command reads its standard input as commands: a shell, or `ssh` (the remote shell). */
+export const readsCommands = (argv: readonly string[]): boolean =>
+  argv[0] !== undefined && (SHELLS.has(argv[0]) || argv[0] === "ssh");
 
 /** The words from the command word on, with the wrappers and redirections gone and the command word reduced to its basename. */
 export function argvOf(segment: Pick<Segment, "words" | "operators">): readonly string[] {
@@ -100,7 +112,7 @@ export function argvOf(segment: Pick<Segment, "words" | "operators">): readonly 
       }
       if (option === "-" || !option.startsWith("-")) break;
       i++;
-      if (takesValue(option, wrapper.valued) && i < words.length) i++;
+      if (takesNextWord(option, wrapper.valued) && i < words.length) i++;
     }
     i = Math.min(words.length, i + (wrapper.positional ?? 0));
   }
@@ -117,6 +129,7 @@ export function nestedText(argv: readonly string[]): string | null {
     let i = 0;
     while (i < rest.length && (rest[i] as string).startsWith("-"))
       i += SSH_OPTIONS_WITH_VALUE.has(rest[i] as string) ? 2 : 1;
+    if (rest[i + 1] === "--") i++;
     return rest.length > i + 1 ? rest.slice(i + 1).join(" ") : null;
   }
   if (COMMAND_STRING_PROGRAMS.has(name)) {

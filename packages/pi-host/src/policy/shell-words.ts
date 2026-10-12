@@ -1,4 +1,4 @@
-import { argvOf, nestedText, type Segment } from "./shell-argv.ts";
+import { argvOf, nestedText, readsCommands, type Segment } from "./shell-argv.ts";
 
 /** Reads a shell command line the way bash splits it into simple commands (M5R18, M5R20). Best effort, see docs/agents/policy.md. */
 
@@ -64,6 +64,35 @@ const isBlank = (c: string | undefined): boolean => c === " " || c === "\t";
 interface HereDocument {
   readonly delimiter: string;
   readonly stripTabs: boolean;
+  /** Whether the command that receives the body runs it as commands (a shell, `ssh`); known once its segment ends. */
+  reads: boolean | null;
+}
+
+/** Characters that end a word where a here-document delimiter is read. */
+const DELIMITER_END = " \t;&|\n()<>";
+/** Where a `#` starts a comment: at the start of the text or right after one of these. */
+const COMMENT_AFTER = " \t\n;&|()<>";
+
+/** The delimiter word at `from` with its quotes and backslashes resolved (`'END OF'`, `"EOF"`, `\EOF`) and the index after it. */
+function readDelimiter(text: string, from: number): { delimiter: string; end: number } {
+  let at = from;
+  let delimiter = "";
+  while (at < text.length && !DELIMITER_END.includes(text[at] as string)) {
+    const c = text[at] as string;
+    if (c === "'" || c === '"') {
+      const close = text.indexOf(c, at + 1);
+      const stop = close === -1 ? text.length : close;
+      delimiter += text.slice(at + 1, stop);
+      at = stop + 1;
+    } else if (c === "\\") {
+      delimiter += text[at + 1] ?? "";
+      at += 2;
+    } else {
+      delimiter += c;
+      at++;
+    }
+  }
+  return { delimiter, end: Math.min(at, text.length) };
 }
 
 function lex(text: string, depth: number, reading: Reading): void {
@@ -86,7 +115,9 @@ function lex(text: string, depth: number, reading: Reading): void {
     operators = new Set();
     if (reading.out.length >= MAX_SEGMENTS) throw new CommandTooComplex("too many commands");
     reading.out.push(segment);
-    const inner = nestedText(argvOf(segment));
+    const argv = argvOf(segment);
+    for (const doc of pending) doc.reads ??= readsCommands(argv);
+    const inner = nestedText(argv);
     if (inner !== null) lex(inner, depth + 1, reading);
   };
   /** Reads the substitution opened at `i` (`$(` or a backquote); returns the index after it. */
@@ -111,17 +142,15 @@ function lex(text: string, depth: number, reading: Reading): void {
     const op = fd + text.slice(i, end);
     operators.add(words.length);
     words.push(op);
-    if (op !== "<<" && op !== "<<-") return end;
+    if (!/^\d*<<-?$/.test(op)) return end;
     let at = end;
     while (isBlank(text[at])) at++;
-    const start = at;
-    while (at < text.length && !" \t;&|\n()<>".includes(text[at] as string)) at++;
-    const delimiter = text.slice(start, at).replace(/['"\\]/g, "");
-    if (delimiter !== "") {
-      words.push(delimiter);
-      pending.push({ delimiter, stripTabs: op === "<<-" });
+    const read = readDelimiter(text, at);
+    if (read.delimiter !== "") {
+      words.push(read.delimiter);
+      pending.push({ delimiter: read.delimiter, stripTabs: op.endsWith("-"), reads: null });
     }
-    return at;
+    return read.end;
   };
   /** After a newline: each queued here-document body, up to its delimiter line, is read as a text of its own. */
   const hereDocuments = (from: number): number => {
@@ -146,7 +175,8 @@ function lex(text: string, depth: number, reading: Reading): void {
         }
         lineStart = newline + 1;
       }
-      lex(body, depth + 1, reading);
+      // Only a body that a shell will run is read as commands; the text of a file written by `cat` is data.
+      if (doc.reads) lex(body, depth + 1, reading);
     }
     return i;
   };
@@ -203,7 +233,7 @@ function lex(text: string, depth: number, reading: Reading): void {
     else if (isBlank(c)) {
       endWord();
       i++;
-    } else if (c === "#" && !inWord) {
+    } else if (c === "#" && !inWord && (i === 0 || COMMENT_AFTER.includes(text[i - 1] as string))) {
       const newline = text.indexOf("\n", i);
       i = newline === -1 ? text.length : newline;
     } else if (((c === ">" || c === "<") && next !== "(") || (c === "&" && next === ">")) i = operator(i);

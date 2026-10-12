@@ -69,8 +69,35 @@ describe("readCommands", () => {
   it('keeps quoting in step across ANSI-C quotes, $"…" and here-documents', () => {
     expect(argvs("$'it\\'s'; rm -rf /")).toEqual(["$it\\'s", "rm -rf /"]);
     expect(argvs('echo $"hi"')).toEqual(["echo hi"]);
-    expect(argvs("cat <<EOF\nit's\nEOF\nrm -rf /")).toEqual(["cat", "its\n", "rm -rf /"]);
-    expect(argvs("cat <<-'EOF'\n\tx\n\tEOF\nls")).toEqual(["cat", "x", "ls"]);
+    expect(argvs("cat <<EOF\nit's\nEOF\nrm -rf /")).toEqual(["cat", "rm -rf /"]);
+    expect(argvs("cat <<-'EOF'\n\tx\n\tEOF\nls")).toEqual(["cat", "ls"]);
+    expect(argvs("bash <<EOF\nit's\nEOF\nrm -rf /")).toEqual(["bash", "its\n", "rm -rf /"]);
+    expect(argvs("cat <<'END OF'\nx\nEND OF\nrm -rf /")).toEqual(["cat", "rm -rf /"]);
+    expect(argvs("bash 0<<EOF\nls\nEOF")).toEqual(["bash", "ls"]);
+  });
+
+  it("reads a # right after an IFS blank as part of a word, not as a comment", () => {
+    expect(argvs("echo${IFS}#;rm -rf /")).toContain("rm -rf /");
+    expect(argvs("ls$IFS#;terraform destroy")).toContain("terraform destroy");
+    expect(argvs("echo a #;rm")).toEqual(["echo a"]);
+    expect(argvs("(#c\nrm -rf /)")).toEqual(["rm -rf /"]);
+  });
+
+  it("gives a glued option value to its option, as getopt does", () => {
+    expect(argvs("sudo -uroot rm -rf /")).toEqual(["rm -rf /"]);
+    expect(argvs("timeout -k5s 10 rm -rf /")).toEqual(["rm -rf /"]);
+    expect(argvs("xargs -d'\\n' rm -rf /")).toEqual(["rm -rf /"]);
+    expect(argvs("sudo -Eu root rm -rf /")).toEqual(["rm -rf /"]);
+    expect(argvs("function f { rm -rf /; }; f")).toContain("rm -rf /");
+  });
+
+  it("reads a here-document body as commands only for a shell or ssh, and a long data body costs no segment", () => {
+    const body = "x = 1\n".repeat(2000);
+    expect(readCommands(`cat <<'EOF' > f.py\n${body}EOF\nls`).map((s) => s.words.join(" "))).toEqual([
+      "cat << EOF > f.py",
+      "ls",
+    ]);
+    expect(argvs("ssh host <<EOF\nrm -rf /\nEOF")).toContain("rm -rf /");
   });
 
   it("reads ${IFS} and $IFS as a blank", () => {

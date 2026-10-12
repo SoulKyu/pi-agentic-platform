@@ -19,7 +19,8 @@ const recursiveOwnership = (arg: string) => longRecursive(arg, 5) || /^-[a-zA-Z]
 // `/`, `//`, `/.`, `/./`, `/*`, `/**`: the root.
 const isRoot = (arg: string) => /^\/\.?\/?\*?$/.test(squeeze(arg));
 // ... or the home directory: `~`, `~/`, `~/*`, `$HOME`, `${HOME}/` once quotes are gone (the lexer removed them).
-const rootLike = (arg: string) => isRoot(arg) || /^(?:~|\$HOME|\$\{HOME\})\/?\*?$/.test(squeeze(arg));
+const rootLike = (arg: string) =>
+  isRoot(arg) || /^(?:~|\$HOME|\$\{HOME(?:[-:=+?#%^,][^}]{0,32})?\})\/?\*?$/.test(squeeze(arg));
 const operands = (argv: readonly string[]) => argv.slice(1).filter((arg) => !arg.startsWith("-"));
 const REDIRECT_TO_FILE = /^(?:\d*>[>|&]?|\d*<>|&>>?)$/;
 
