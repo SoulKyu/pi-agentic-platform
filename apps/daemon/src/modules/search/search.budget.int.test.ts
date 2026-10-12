@@ -76,28 +76,38 @@ it.runIf(BUDGET_RUN)(
   async () => {
     for (const index of WARM_UP) await run(queries[index] ?? "");
     const best = queries.map(() => Number.POSITIVE_INFINITY);
+    const passes: number[][] = [];
     for (let pass = 0; pass < PASSES; pass++) {
+      const times: number[] = [];
+      passes.push(times);
       for (const [index, q] of queries.entries()) {
         const started = performance.now();
         const rows = await run(q);
-        best[index] = Math.min(best[index] ?? Number.POSITIVE_INFINITY, performance.now() - started);
+        const ms = performance.now() - started;
+        times.push(ms);
+        best[index] = Math.min(best[index] ?? Number.POSITIVE_INFINITY, ms);
         expect(rows.length, q).toBeGreaterThanOrEqual(1);
         expect(rows.length).toBeLessThanOrEqual(20);
       }
     }
-    const times = [...best].sort((a, b) => a - b);
-    const p95 = times[Math.ceil(times.length * 0.95) - 1] ?? Number.POSITIVE_INFINITY;
-    const p50 = times[Math.ceil(times.length * 0.5) - 1] ?? Number.POSITIVE_INFINITY;
+    const percentile = (values: readonly number[], p: number): number =>
+      [...values].sort((a, b) => a - b)[Math.ceil(values.length * p) - 1] ?? Number.POSITIVE_INFINITY;
+    const p95 = percentile(best, 0.95);
+    const p50 = percentile(best, 0.5);
+    // The plan's exit criterion is the p95 of 50 queries asked once: the slowest single pass must meet it too.
+    const singlePass = Math.max(...passes.map((times) => percentile(times, 0.95)));
     const slowest = queries
       .map((q, index) => ({ q, ms: best[index] ?? 0 }))
       .sort((a, b) => b.ms - a.ms)
       .slice(0, 5);
     console.log(
       `search: p50 ${p50.toFixed(1)} ms, p95 ${p95.toFixed(1)} ms over ${queries.length} queries, best of ${PASSES} passes (budget ${budgets.searchP95Ms}); ` +
+        `single-pass p95 ${passes.map((times) => percentile(times, 0.95).toFixed(1)).join(" / ")} ms; ` +
         `slowest ${slowest.map((entry) => `${JSON.stringify(entry.q)} ${entry.ms.toFixed(0)} ms`).join(", ")}`,
     );
     expect(shape.rows).toBeGreaterThan(1_000_000);
     expect(p95).toBeLessThanOrEqual(budgets.searchP95Ms);
+    expect(singlePass).toBeLessThanOrEqual(budgets.searchP95Ms);
     // I1: marks FTS5 splits at must not make a one-letter prefix (it took 13 s on 3 000 sessions).
     const started = performance.now();
     await run("b\u093F\u093F");
