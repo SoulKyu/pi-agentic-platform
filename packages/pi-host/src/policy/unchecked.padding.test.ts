@@ -67,7 +67,7 @@ describe("what the person sees", () => {
     expect(h.asks).toHaveLength(1);
     expect(h.asks[0]).toMatchObject({ answers: ["deny", "once"], guard: "tool-calls" });
     expect(h.asks[0]?.title).toBe(guardTitle("tool-calls", interactiveRules.guard));
-    expect(h.asks[0]?.message.split("\n")[0]).toBe(UNCHECKED_REASON);
+    expect(h.asks[0]?.message.split("\n")[0]).toBe(`${UNCHECKED_REASON} 5005 characters, 1 line`);
   });
 
   it("leaves the card of a command that was checked alone", async () => {

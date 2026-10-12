@@ -22,7 +22,7 @@ export function checkStage(result: StageResult, mayBeUnchecked = false): StageRe
  * Whether a person can be asked about a call the denylist could not read: a UI, interactive rules, not read-only. When
  * they can, the call is marked: only its re-check may see `unchecked` again.
  */
-export function canAsk(ctx: PolicyContext, call: CallFacts): boolean {
+export function markAskable(ctx: PolicyContext, call: CallFacts): boolean {
   const yes = ctx.hasUI && call.rules.profile === "interactive" && call.rules.approvalMode !== "read-only";
   if (yes) WAS_UNCHECKED.add(call);
   return yes;
@@ -50,7 +50,7 @@ export const refuses = (
 ): verdict is Extract<StageResult, { outcome: "block" | "unchecked" }> =>
   verdict.outcome === "block" || (verdict.outcome === "unchecked" && !WAS_UNCHECKED.has(call));
 
-/** The card: the unchecked reason as the title, or as the first line of the message next to a guard's title. */
+/** The card: the unchecked reason as the title, or as the start of the message's first line (before the size) next to a guard's title. */
 export function uncheckedCard(
   unchecked: Unchecked | null,
   trip: { readonly rule: GuardRule } | null,
@@ -61,6 +61,6 @@ export function uncheckedCard(
   const shown = trip ? guardTitle(trip.rule, guard) : title;
   if (unchecked === null) return { title: shown, message };
   return trip
-    ? { title: shown, message: `${UNCHECKED_REASON}\n${message}` }
+    ? { title: shown, message: `${UNCHECKED_REASON} ${message}` }
     : { title: UNCHECKED_REASON, message };
 }

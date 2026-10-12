@@ -58,24 +58,44 @@ export const BUILTIN_CHECKS: ReadonlyArray<Check> = [
 ];
 const FORK_BOMB_ID = "fork-bomb";
 const ROUGH_MAX_CHARS = 4 * 1024 * 1024;
+const ROUGH_BUDGET = 4_000_000;
 const ROUGH_TAIL_WORDS = 64;
 const DANGEROUS_NAME =
   /^(?:rm|chmod|chown|chgrp|mkfs(?:\.[a-z0-9]+)?|mke2fs|mkswap|dd|shred|wipefs|blkdiscard)$/;
+// `${…}` (bounded, so an unclosed run of openers is linear) and `$IFS` are read first; any other bracket is a blank.
+const ROUGH_BRACKETS = /\$\{[^}]{0,64}\}|\$IFS\b|[`(){}]|[<>]+/g;
+const roughBlank = (match: string): string => {
+  if (match === "${IFS}" || match === "$IFS") return " ";
+  return match.startsWith("$") ? match : ` ${/^[<>]/.test(match) ? `${match} ` : ""}`;
+};
 
 /**
- * When the reader gives up, the built-in checks still run over a rough split of the raw text: quotes, backslashes and
- * brackets dropped, cut at newlines, `;`, `&`, `|`, then at blanks. Linear (fixed-string splits, at most
- * `ROUGH_TAIL_WORDS` words per command name found). It can only add blocks to a command that would be asked about.
+ * When the reader gives up, the built-in checks still run over a rough split of the raw text, as the reader reads it:
+ * `\`+newline dropped, quotes and backslashes dropped, `$IFS` a blank, `${…}` kept whole, other brackets blanks,
+ * redirection operators apart from their words, cut at newlines, `;`, `&`, `|`, then at blanks, command words reduced to
+ * their basename. Every word and every word of a window costs a step; running out, or an input over the cap, throws
+ * `CommandTooComplex`. It can only add blocks to a command that would be asked about.
  */
-export function roughBuiltinHit(command: string): string | null {
-  if (command.length > ROUGH_MAX_CHARS) return null;
-  const plain = command.replace(/['"\\]/g, "").replace(/[`(){}]/g, " ");
+export function roughBuiltinHit(command: string, budget: StepBudget = { left: ROUGH_BUDGET }): string | null {
+  const spend = (steps: number) => {
+    budget.left -= steps;
+    if (budget.left < 0) throw new CommandTooComplex("rough scan budget spent");
+  };
+  if (command.length > ROUGH_MAX_CHARS) throw new CommandTooComplex("rough scan: input too long");
+  spend(command.length >> 3);
+  const plain = command
+    .replace(/\\\n/g, "")
+    .replace(/['"\\]/g, "")
+    .replace(ROUGH_BRACKETS, roughBlank);
   for (const piece of plain.split(/\n|;|&|\|/)) {
     const words = piece.split(/\s+/);
     for (const [at, word] of words.entries()) {
+      spend(1);
       if (REDIRECT_TO_FILE.test(word) && isDisk(words[at + 1] ?? "")) return "redirect-device";
-      if (!DANGEROUS_NAME.test(word)) continue;
-      const argv = words.slice(at, at + ROUGH_TAIL_WORDS);
+      const name = word.slice(word.lastIndexOf("/") + 1);
+      if (!DANGEROUS_NAME.test(name)) continue;
+      const argv = [name, ...words.slice(at + 1, at + ROUGH_TAIL_WORDS)];
+      spend(argv.length);
       const operators = new Set(argv.flatMap((arg, n) => (REDIRECT_TO_FILE.test(arg) ? [n] : [])));
       const hit = BUILTIN_CHECKS.find((check) => check.matches(argv, { words: argv, depth: 0, operators }));
       if (hit) return hit.id;
@@ -177,8 +197,14 @@ export function denylistStage(call: CallFacts): StageResult {
     if (!(error instanceof CommandTooLong || error instanceof CommandTooComplex)) throw error;
     // The built-in checks need no reader: padding must not turn a catastrophic command into a question.
     if (!powershell && call.rules.builtinDenylist) {
-      const hit = isForkBomb(command) ? FORK_BOMB_ID : roughBuiltinHit(command);
-      if (hit !== null) return block(`denied: ${hit}`);
+      try {
+        const hit = isForkBomb(command) ? FORK_BOMB_ID : roughBuiltinHit(command);
+        if (hit !== null) return block(`denied: ${hit}`);
+      } catch (inner) {
+        // An input too heavy even for the rough scan is not daily use: it blocks.
+        if (!(inner instanceof CommandTooComplex)) throw inner;
+        return block(TOO_COMPLEX, TOO_COMPLEX);
+      }
     }
     return unchecked(error instanceof CommandTooLong ? TOO_LONG : TOO_COMPLEX);
   }

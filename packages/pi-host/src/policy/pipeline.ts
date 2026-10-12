@@ -23,7 +23,14 @@ import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
 import { clipUnits, createTrail } from "./trail.ts";
-import { canAsk, checkStage, refuses, type Unchecked, uncheckedCard, uncheckedPlan } from "./unchecked.ts";
+import {
+  markAskable,
+  checkStage,
+  refuses,
+  type Unchecked,
+  uncheckedCard,
+  uncheckedPlan,
+} from "./unchecked.ts";
 
 export const DENIED_REASON = "Denied by the user.";
 export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so it was blocked (fail closed).";
@@ -308,7 +315,7 @@ async function evaluateOnce(
   ] as const) {
     const verdict = checkStage(run(), stage === "01");
     // A command the reader could not check is asked about where a person can answer, and blocks where none can.
-    if (verdict.outcome === "unchecked" && canAsk(ctx, call)) unchecked = verdict;
+    if (verdict.outcome === "unchecked" && markAskable(ctx, call)) unchecked = verdict;
     else if (verdict.outcome === "block" || verdict.outcome === "unchecked")
       return blocked(stage, next, verdict.reason, verdict.modelReason);
     trail.add(stage, verdict.outcome === "unchecked" ? "ask" : verdict.outcome, verdict.reason);
