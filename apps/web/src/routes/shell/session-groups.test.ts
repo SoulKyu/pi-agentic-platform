@@ -21,6 +21,12 @@ describe("session groups (the tree until M4's projects)", () => {
     const named = { ...s("a", "/w/api", 1), name: "Fix login" };
     expect(groupSessions([named, s("b", "/w/web", 2)], "login").groups.map((g) => g.label)).toEqual(["api"]);
   });
+  it("filters on the preview of an unnamed session, the label the tree shows", () => {
+    const unnamed = { ...s("a", "/w/api", 1), preview: "fix the flaky test" };
+    expect(groupSessions([unnamed, s("b", "/w/web", 2)], "flaky").groups.map((g) => g.label)).toEqual([
+      "api",
+    ]);
+  });
   it("shows at most 200 rows and counts the rest", () => {
     const many = Array.from({ length: 250 }, (_, i) => s(String(i), `/w/p${i % 3}`, i));
     const { groups, hidden } = groupSessions(many, "");

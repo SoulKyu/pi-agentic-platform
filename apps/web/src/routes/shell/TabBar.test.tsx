@@ -32,6 +32,7 @@ const home: Tab = tab("home", { kind: "home" });
 
 let started: Array<{ stop(): void }> = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   started.forEach((one) => one.stop());
   started = [];
 });
@@ -104,8 +105,7 @@ describe("TabBar", () => {
   });
 
   it("scrolls the new active tab into view when the active tab changes (M4R90)", async () => {
-    const scrollIntoView = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoView;
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
     const page = await renderShell("/s/a");
     scrollIntoView.mockClear();
     await act(async () => {
