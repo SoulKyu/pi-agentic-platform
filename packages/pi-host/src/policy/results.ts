@@ -79,29 +79,33 @@ function withheld(
   return { content: [{ type: "text", text: WITHHELD_TEXT }], isError: true, details: {} };
 }
 
-/** Raises the taint of a result that is external. A taint that cannot be raised is a block, never a quiet pass. */
+/** Raises the taint of a result that is external. `raise()` sets the flag before it reports, so a throw after that is a failed report. */
 function raiseVerdict(deps: ResultDeps, reason: string): StageVerdict {
   try {
     deps.taint.raise();
     return { stage: "07", outcome: "acted", reason };
   } catch (error) {
-    process.stderr.write(`pi-host: taint not raised (${errorClass(error)})\n`);
-    return { stage: "07", outcome: "block", reason: "taint not raised" };
+    process.stderr.write(`pi-host: taint not raised or not reported (${errorClass(error)})\n`);
+    const raised = deps.taint.current();
+    return {
+      stage: "07",
+      outcome: raised ? "acted" : "block",
+      reason: raised ? "session tainted; taint report failed" : "taint not raised",
+    };
   }
 }
 
-/** M5R39. A classifier that throws counts as external: an unknown result is never trusted. */
+/** M5R39. Anything that throws while deciding counts as external: an unknown result is never trusted. */
 function isExternal(event: ToolResultEvent, deps: ResultDeps): boolean {
-  const rooted = deps.roots.take(clipUnits(event.toolCallId, MAX_ID));
-  let external: boolean;
   try {
-    external = deps.classify(event.toolName).external || rooted;
+    const rooted = deps.roots.take(clipUnits(event.toolCallId, MAX_ID));
+    const external = deps.classify(event.toolName).external || rooted;
+    if (external && event.parentToolCallId !== undefined)
+      deps.roots.add(clipUnits(event.parentToolCallId, MAX_ID));
+    return external;
   } catch {
-    external = true;
+    return true;
   }
-  if (external && event.parentToolCallId !== undefined)
-    deps.roots.add(clipUnits(event.parentToolCallId, MAX_ID));
-  return external;
 }
 
 interface Redacted {

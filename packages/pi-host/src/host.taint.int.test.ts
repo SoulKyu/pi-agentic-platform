@@ -19,6 +19,11 @@ const LOOKUP_EXTENSION = `export default function (pi) {
   });
 }
 `;
+// An external tool whose `execute` throws: Pi turns the throw into an error result (checked by the test below).
+const FAILING_EXTENSION = LOOKUP_EXTENSION.replace('name: "lookup"', 'name: "failing"').replace(
+  /execute: async \(\) => \(\{.*\}\),/,
+  `execute: async () => { throw new Error(${JSON.stringify(REPLY)}); },`,
+);
 const always = (tool: string, input: Record<string, unknown>, exec: boolean) => ({
   tool,
   key: grantKey(tool, grantPayload(input, exec)),
@@ -126,4 +131,27 @@ describe("pi-host worker: untrusted content and taint", () => {
       isError: false,
     });
   }, 90_000);
+
+  it("fences and taints the error result of an external tool whose execute throws", async () => {
+    const rules = PolicyRules.parse({
+      ...RULES,
+      alwaysAllow: [...RULES.alwaysAllow, always("failing", { q: "x" }, false)],
+    });
+    const ready = bed.start(
+      { steps: [{ toolCalls: [{ name: "failing", args: { q: "x" }, id: "f1" }] }, { text: "done" }] },
+      { policy: rules, agentFiles: { "extensions/failing.js": FAILING_EXTENSION } },
+    );
+    const sessionFile = String((await ready).sessionFile);
+    const host = bed.host();
+    host.send({ type: "prompt", id: "p1", message: "go" });
+    const end = await host.waitFor((r) => r.type === "tool_execution_end" && r.toolCallId === "f1", WORKER);
+    expect(end.isError).toBe(true);
+    await host.waitFor((r) => r.type === "agent_settled", WORKER);
+    const audits = host.records
+      .filter((r) => r.type === "audit")
+      .map((r) => r.entry as Record<string, unknown>);
+    expect(audits.find((e) => e.kind === "result" && e.tool === "failing")).toMatchObject({ external: true });
+    expect(taints(host).length).toBeGreaterThanOrEqual(1);
+    expect(readFileSync(sessionFile, "utf8")).toContain('<untrusted source=\\"failing\\" id=\\"');
+  }, 60_000);
 });

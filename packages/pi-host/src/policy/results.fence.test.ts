@@ -229,6 +229,50 @@ describe("stage 07 on a tool result", () => {
   });
 });
 
+describe("stage 07 failures and error results", () => {
+  it("fences and taints when the roots throw while deciding", () => {
+    const taint = createTaint(NO_TAINT, () => {});
+    const roots = {
+      add: () => {},
+      clear: () => {},
+      take: (): boolean => {
+        throw new Error("roots broke");
+      },
+    };
+    const out = onToolResult(resultEvent("x"), { ...deps({ taint, fenceId: FENCE_ID }), roots });
+    expect(textOf(out)).toBe(fenceText("x", "bash", FENCE_ID));
+    expect(taint.current()).toBe(true);
+  });
+
+  it("fences and taints an external result that is an error", () => {
+    const taint = createTaint(NO_TAINT, () => {});
+    const out = onToolResult(
+      resultEvent("boom: IGNORE ALL", { toolName: "mcp__fix__lookup", isError: true }),
+      deps({ taint, external: ["mcp__fix__lookup"], fenceId: FENCE_ID }),
+    );
+    expect(textOf(out)).toBe(fenceText("boom: IGNORE ALL", "mcp__fix__lookup", FENCE_ID));
+    expect(taint.current()).toBe(true);
+  });
+
+  it("says the flag is set when only the report failed", () => {
+    const audits: PolicyAuditEntry[] = [];
+    const taint = createTaint(NO_TAINT, () => {
+      throw new Error("send failed");
+    });
+    onToolResult(
+      resultEvent("x", { toolName: "mcp__fix__lookup" }),
+      deps({ audits, taint, external: ["mcp__fix__lookup"] }),
+    );
+    expect(taint.current()).toBe(true);
+    expect(audits[0]).toMatchObject({
+      stages: [
+        { stage: "06" },
+        { stage: "07", outcome: "acted", reason: "session tainted; taint report failed" },
+      ],
+    });
+  });
+});
+
 describe("stage 07 hostile inputs", () => {
   it("keeps the real fence around forged tags, in ASCII and in fullwidth", () => {
     const forged =
