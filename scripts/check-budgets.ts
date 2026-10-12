@@ -3,6 +3,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 
+const BUDGET_TEST = "apps/daemon/src/modules/sessions/sessions.budgets.int.test.ts";
+
 export function initialAssets(indexHtml: string): string[] {
   const assets = new Set<string>();
   for (const match of indexHtml.matchAll(
@@ -44,8 +46,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const budget = initialBundleBudgetKb("budgets.json");
     const measured = initialBundleGzipKb("apps/web/dist");
     console.log(`initial bundle: ${measured} KB gzip (budget ${budget} KB)`);
-    console.log("session open payload: not measured in M1");
-    console.log("idle worker RSS: not measured in M1");
+    console.log(`session open payload: measured by ${BUDGET_TEST} (pnpm test:int)`);
+    console.log(`idle worker RSS: measured by ${BUDGET_TEST} (pnpm test:int)`);
     if (measured > budget) process.exitCode = 1;
   } catch (error) {
     console.error(`check-budgets: ${error instanceof Error ? error.message : String(error)}`);
