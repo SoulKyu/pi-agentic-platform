@@ -1,12 +1,19 @@
 import { Markdown, Message, Reasoning } from "@pap/ui";
+import { memo } from "react";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { RowButtons, type RowActions } from "./RowActions.tsx";
+import { splitBlocks } from "./streaming-blocks.ts";
 import type { MessageItem, PartialItem, SummaryItem } from "./transcript.vm.ts";
 
 export type { RowActions } from "./RowActions.tsx";
 
 const markdownFailed = () => reportClientIssue("lazy_chunk_failed");
+
+/** One block of a streaming reply: it renders again only when its own text changes (M4R113). */
+const MarkdownBlock = memo(function MarkdownBlock({ text }: { text: string }) {
+  return <Markdown text={text} onLoadError={markdownFailed} />;
+});
 
 /**
  * A message, or the reply being written: the agent's text as markdown (plain until the renderer arrives, and if it never
@@ -43,7 +50,12 @@ export function MessageRow({
         </Reasoning>
       ) : null}
       {author === "agent" && item.text ? (
-        <Markdown text={item.text} onLoadError={markdownFailed} />
+        item.kind === "partial" ? (
+          // Blocks only grow at the end, so an index names the same block until the message ends.
+          splitBlocks(item.text).map((block, index) => <MarkdownBlock key={index} text={block} />)
+        ) : (
+          <Markdown text={item.text} onLoadError={markdownFailed} />
+        )
       ) : (
         item.text
       )}

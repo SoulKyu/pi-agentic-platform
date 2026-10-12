@@ -56,6 +56,12 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
       ref={root}
       data-composer
       className="mx-auto flex w-full max-w-chat flex-col gap-2"
+      // Mod+Shift+Enter belongs to the "send the other way" command alone: the field's own Mod+Enter submit must not
+      // also send it the default way when the command declines (a menu or a dialog is open).
+      onKeyDownCapture={(event) => {
+        if (event.key === "Enter" && event.shiftKey && (event.ctrlKey || event.metaKey))
+          event.stopPropagation();
+      }}
       onKeyDown={(event) => {
         const plain = !event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey;
         if (event.key === "Tab" && plain && onTabToPanel?.()) event.preventDefault();
