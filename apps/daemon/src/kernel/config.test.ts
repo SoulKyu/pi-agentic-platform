@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   ConfigError,
   defaultMaxWorkers,
+  homeFrom,
   loadConfig,
   WORKER_BUDGET_MB,
   workerExecArgv,
@@ -307,5 +308,13 @@ describe("worker idle limit", () => {
     const config = loadConfig({ ...base, env: { PAP_WORKER_IDLE_MINUTES: "35791" } });
     expect(config.workerIdleMs).toBe(35_791 * 60_000);
     expect(config.workerIdleMs).toBeLessThan(2 ** 31);
+  });
+});
+
+describe("homeFrom", () => {
+  it("resolves $PAP_HOME like the daemon does", () => {
+    expect(homeFrom({}, "/h")).toBe("/h/.pap");
+    expect(homeFrom({ PAP_HOME: "~/x" }, "/h")).toBe("/h/x");
+    expect(() => homeFrom({ PAP_HOME: "rel" }, "/h")).toThrow(ConfigError);
   });
 });

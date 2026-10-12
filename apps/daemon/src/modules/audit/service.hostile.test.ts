@@ -160,7 +160,7 @@ describe("audit service against hostile entries and floods", () => {
     });
   });
 
-  it("budgets 600 worker rows per session per minute and leaves one marker row with the count (M6)", async () => {
+  it("budgets 600 worker rows per session per minute and marks the gap at its first drop (M6)", async () => {
     const { service, store, clock, lines } = bed();
     const call = {
       kind: "call",
@@ -174,22 +174,23 @@ describe("audit service against hostile entries and floods", () => {
     for (let i = 0; i < 700; i++)
       service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
     service.fromWorker({ id: "s2", ownerId: "u1" }, call, { containment: "none" });
-    expect(store.count(currentMonth(clock))).toBe(601);
-    expect(lines.filter((l) => l.msg === "audit_rows_dropped")).toHaveLength(1);
+    expect(store.count(currentMonth(clock))).toBe(602);
+    expect(lines.filter((l) => l.msg === "audit_rows_dropped")).toMatchObject([
+      { sessionId: "s1", dropped: 1 },
+    ]);
     await clock.advance(60_000);
     service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
-    const rows = store.page({ ownerId: "u1", limit: 3 });
-    expect(rows.map((r) => r.reason)).toEqual([null, "audit rows dropped: rate limit", null]);
-    expect(rows[1]).toMatchObject({
-      actor: "worker",
-      sessionId: "s1",
-      kind: "audit",
-      detail: { dropped: 100 },
-    });
+    expect(lines.filter((l) => l.msg === "audit_rows_dropped")).toMatchObject([
+      { sessionId: "s1", dropped: 1 },
+      { sessionId: "s1", dropped: 100 },
+    ]);
+    const rows = store.page({ ownerId: "u1", limit: 4 });
+    expect(rows.map((r) => r.reason)).toEqual([null, null, "audit rows dropped: rate limit", null]);
+    expect(rows[2]).toMatchObject({ actor: "worker", sessionId: "s1", kind: "audit", decision: "info" });
     expect(store.count(currentMonth(clock))).toBe(603);
   });
 
-  it("keeps the row budgets of at most 1024 sessions and flushes the marker of one it forgets (M6)", () => {
+  it("writes the marker for a session that goes quiet, once per window", async () => {
     const { service, store, clock } = bed();
     const call = {
       kind: "call",
@@ -200,16 +201,47 @@ describe("audit service against hostile entries and floods", () => {
       stages: [],
       args: "",
     };
+    const markers = () => store.page({ ownerId: "u1", limit: 5000 }).filter((r) => r.kind === "audit");
+    for (let i = 0; i < 600; i++)
+      service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
+    expect(markers()).toHaveLength(0);
+    service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
+    // The session says nothing more: the gap is already on record, where it began.
+    expect(markers()).toMatchObject([{ sessionId: "s1", reason: "audit rows dropped: rate limit" }]);
+    for (let i = 0; i < 50; i++)
+      service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
+    expect(markers()).toHaveLength(1);
+    await clock.advance(60_000);
     for (let i = 0; i < 601; i++)
+      service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
+    expect(markers()).toHaveLength(2);
+  });
+
+  it("keeps the row budgets of at most 1024 sessions and logs the count of one it forgets (M6)", () => {
+    const { service, store, clock, lines } = bed();
+    const call = {
+      kind: "call",
+      toolCallId: "c",
+      tool: "bash",
+      category: "exec",
+      decision: "allow",
+      stages: [],
+      args: "",
+    };
+    for (let i = 0; i < 602; i++)
       service.fromWorker({ id: "first", ownerId: "u1" }, call, { containment: "none" });
     for (let i = 0; i < 1024; i++)
       service.fromWorker({ id: `s${i}`, ownerId: "u1" }, call, { containment: "none" });
-    // "first" was forgotten: its marker was written then, and its budget starts again.
+    // "first" was forgotten with 2 drops: one marker, written at the first, and the count in the log.
     expect(store.page({ ownerId: "u1", limit: 2000 }).filter((r) => r.kind === "audit")).toMatchObject([
-      { sessionId: "first", detail: { dropped: 1 } },
+      { sessionId: "first", detail: null },
+    ]);
+    expect(lines.filter((l) => l.msg === "audit_rows_dropped")).toMatchObject([
+      { sessionId: "first", dropped: 1 },
+      { sessionId: "first", dropped: 2 },
     ]);
     service.fromWorker({ id: "first", ownerId: "u1" }, call, { containment: "none" });
-    expect(store.count(currentMonth(clock))).toBe(600 + 1024 + 1 + 1);
+    expect(store.count(currentMonth(clock))).toBe(600 + 1 + 1024 + 1);
   });
 
   it("counts the failures it did not log in the next line (M10)", async () => {

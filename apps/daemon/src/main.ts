@@ -4,6 +4,8 @@ import { createRequire } from "node:module";
 import { homedir, totalmem } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runCli } from "./cli/run-cli.ts";
+import { USAGE } from "./cli/usage.ts";
 import { createDaemon } from "./daemon.ts";
 import { createSystemClock } from "./kernel/clock.ts";
 import { ConfigError, loadConfig, workerExecArgv, type Config } from "./kernel/config.ts";
@@ -12,9 +14,6 @@ import { HomeError, InstanceLockError } from "./kernel/home.ts";
 import { createLogger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
 import { createShutdown, forceKill, watchSignals, type Shutdown } from "./shutdown.ts";
-
-const USAGE =
-  "usage: pap serve [--dev] [--host <address>] [--port <port>] [--tls-cert <file> --tls-key <file>]\n";
 
 function readConfig(argv: string[]): Config | null {
   const require = createRequire(import.meta.url);
@@ -85,11 +84,17 @@ async function serve(config: Config): Promise<void> {
 }
 
 const [command, ...rest] = process.argv.slice(2);
-if (command !== "serve") {
-  process.stderr.write(USAGE);
-  process.exitCode = 64;
-} else {
+if (command === "serve") {
   const config = readConfig(rest);
   if (config) await serve(config);
   else process.exitCode = 64;
+} else {
+  process.exitCode = await runCli(process.argv.slice(2), {
+    stdin: process.stdin,
+    stdout: process.stdout,
+    stderr: process.stderr,
+    env: process.env,
+    homedir: homedir(),
+    clock: createSystemClock(),
+  });
 }

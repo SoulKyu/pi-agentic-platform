@@ -129,7 +129,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       rpc: sessions.rpc,
       policyRpc: policy.rpc,
       auditRpc: audit.rpc,
-      /** The kinds in the session journal (`session_events`), oldest first. */
+      /** The `policy` rows of the session journal (`session_events`), as their kinds, oldest first. */
       sessionEvents: () => db.all<{ kind: string }>("SELECT kind FROM session_events WHERE kind = 'policy'"),
       /** What the audit table holds, oldest first (the int tests read the trail through this). */
       auditRows: () =>

@@ -28,7 +28,11 @@ export interface AuditLine {
 export interface AuditPort {
   /** Never throws: a failure logs `audit_append_failed` and the event goes on (M5R47). */
   append(line: AuditLine): void;
-  /** Parses, scrubs and stores a worker's entry (it arrives as `unknown`). Null when it was malformed. */
+  /**
+   * Parses, scrubs and stores a worker's entry (it arrives as `unknown`). Null when it was malformed. Otherwise the
+   * parsed, cleaned entry is returned whether or not it was stored: the session budget or a database failure can leave
+   * the row out of the table (the failure is logged), and the entry still reaches the caller.
+   */
   fromWorker(
     session: { readonly id: string; readonly ownerId: string },
     raw: unknown,
@@ -130,9 +134,10 @@ export function createAuditService(deps: {
     clock,
     perMinute: WORKER_ROWS_PER_MINUTE,
     maxSessions: MAX_TRACKED_SESSIONS,
-    onFirstDrop: (session) => logger.warn("audit_rows_dropped", { sessionId: session.id }),
-    onMarker: (session, dropped) =>
-      void tryAppend({
+    // The marker goes in where the gap begins, once per window; the count follows in the log when the window ends.
+    onFirstDrop(session) {
+      logger.warn("audit_rows_dropped", { sessionId: session.id, dropped: 1 });
+      tryAppend({
         at: clock.now(),
         ownerId: session.ownerId,
         actor: "worker",
@@ -140,8 +145,9 @@ export function createAuditService(deps: {
         sessionId: session.id,
         decision: "info",
         reason: "audit rows dropped: rate limit",
-        detail: { dropped },
-      }),
+      });
+    },
+    onWindowEnd: (session, dropped) => logger.warn("audit_rows_dropped", { sessionId: session.id, dropped }),
   });
 
   function countOf(sessionId: string): InvalidCount {

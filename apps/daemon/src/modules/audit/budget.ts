@@ -14,9 +14,10 @@ interface Window {
 
 /**
  * A per-session budget of worker rows per minute (M6): a worker that floods valid entries cannot fill an immutable
- * 12-month table. Rows past it are dropped and counted; the count goes out as one marker row when the window ends (or
- * when the session is forgotten), and the first drop of a window is reported at once. The map is bounded: past
- * `maxSessions` the oldest session is forgotten.
+ * 12-month table. Rows past it are dropped and counted. The first drop of a window is reported at once, where the gap
+ * begins (the caller writes the marker row there: a session that goes quiet still leaves its trace); the running count
+ * is reported when the window ends or the session is forgotten. The map is bounded: past `maxSessions` the oldest
+ * session is forgotten.
  */
 export function createRowBudget(deps: {
   readonly clock: Clock;
@@ -24,8 +25,8 @@ export function createRowBudget(deps: {
   readonly maxSessions: number;
   /** The first drop of a window. */
   onFirstDrop(session: BudgetedSession): void;
-  /** A window that dropped rows has ended. */
-  onMarker(session: BudgetedSession, dropped: number): void;
+  /** A window that dropped rows has ended (or its session was forgotten) with this many drops. */
+  onWindowEnd(session: BudgetedSession, dropped: number): void;
 }) {
   const windows = new Map<string, Window>();
   return {
@@ -39,7 +40,7 @@ export function createRowBudget(deps: {
           if (!oldest.done) {
             windows.delete(oldest.value[0]);
             if (oldest.value[1].dropped > 0)
-              deps.onMarker(
+              deps.onWindowEnd(
                 { id: oldest.value[0], ownerId: oldest.value[1].ownerId },
                 oldest.value[1].dropped,
               );
@@ -48,7 +49,7 @@ export function createRowBudget(deps: {
         window = { ownerId: session.ownerId, startedAt: now, used: 0, dropped: 0 };
         windows.set(session.id, window);
       } else if (now - window.startedAt >= 60_000) {
-        if (window.dropped > 0) deps.onMarker(session, window.dropped);
+        if (window.dropped > 0) deps.onWindowEnd(session, window.dropped);
         window.startedAt = now;
         window.used = 0;
         window.dropped = 0;
