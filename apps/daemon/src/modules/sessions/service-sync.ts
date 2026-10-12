@@ -12,6 +12,8 @@ export interface StoreSyncDeps {
   readonly logger: Logger;
   readonly hub: Pick<StreamHub, "publish">;
   readonly agentDir: string;
+  /** A worker's policy record (an audit entry, as unknown): it goes to the audit module, not to `session_events`. */
+  onPolicyRecord(row: SessionRow, raw: unknown): void;
 }
 
 /** What the service writes to the store as a worker goes about its work: the file Pi wrote, events, the name. */
@@ -36,6 +38,12 @@ export function createStoreSync(deps: StoreSyncDeps) {
 
   function recordEvent(sessionId: string, kind: string, data: unknown): void {
     try {
+      if (kind === "policy") {
+        const row = deps.store.get(sessionId);
+        if (row) deps.onPolicyRecord(row, data);
+        else deps.logger.warn("session_event_dropped", { sessionId, kind });
+        return;
+      }
       deps.store.appendEvent(sessionId, kind, data, deps.clock.now());
     } catch (error) {
       deps.logger.warn("session_event_dropped", { sessionId, kind, err: error });

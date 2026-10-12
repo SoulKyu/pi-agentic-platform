@@ -55,6 +55,7 @@ const ask = (id: string) => ({
   answers: ["deny", "once"] as Array<"deny" | "once">,
   tool: "bash",
   key: "a".repeat(64),
+  tainted: false,
 });
 
 describe("the shell snapshot", () => {

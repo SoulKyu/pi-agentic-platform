@@ -13,6 +13,7 @@ import type { WorkerScopes } from "../../kernel/supervisor/scope.ts";
 import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { Hono } from "hono";
+import type { AuditPort } from "../audit/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import { mountExportRoute } from "./export-http.ts";
@@ -43,6 +44,8 @@ export interface SessionsModuleDeps {
   readonly policy: PolicyPort;
   /** The projects module: each session is filed under the project of its folder (Task 7c). */
   readonly projects: ProjectsPort;
+  /** The audit module: where a worker's audit entries are validated, scrubbed and stored (Task 10). */
+  readonly audit: AuditPort;
   readonly config: Pick<
     Config,
     | "home"
@@ -105,6 +108,8 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     hub: deps.hub,
     policy: deps.policy,
     projects: deps.projects,
+    audit: deps.audit,
+    containment: deps.scopes.enabled ? "scope" : "none",
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
     idleMs: config.workerIdleMs,
     worker: {

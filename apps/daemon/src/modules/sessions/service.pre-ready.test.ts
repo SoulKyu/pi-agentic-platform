@@ -40,12 +40,21 @@ describe("what a new session's worker says before it is ready", () => {
     expect(frames).toHaveLength(1);
   });
 
-  it("writes the journal lines it held, after the row exists", async () => {
-    bed = build({ start: () => ({ kind: "ready", before: [audit] }) });
+  it("hands the audit entries it held to the audit module, after the row exists", async () => {
+    const delivered: Array<{ id: string; stored: boolean }> = [];
+    bed = build({
+      audit: {
+        append: () => {},
+        fromWorker: (session) => {
+          delivered.push({ id: session.id, stored: bed.store.get(session.id) !== undefined });
+          return null;
+        },
+      },
+      start: () => ({ kind: "ready", before: [audit] }),
+    });
     await bed.service.create(bed.work, testCaller({ permissions: new Set() }));
-    expect(bed.db.all("SELECT session_id, kind FROM session_events")).toEqual([
-      { session_id: "p1", kind: "policy" },
-    ]);
+    expect(delivered).toEqual([{ id: "p1", stored: true }]);
+    expect(bed.db.all("SELECT session_id, kind FROM session_events")).toEqual([]);
   });
 
   it("holds a bounded number of events and says how many it dropped", async () => {

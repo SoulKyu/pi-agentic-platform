@@ -21,6 +21,7 @@ import { createDispatcher } from "./kernel/ws/dispatcher.ts";
 import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
+import { AUDIT_MIGRATIONS, createAuditModule } from "./modules/audit/index.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
@@ -63,6 +64,20 @@ export interface DaemonDeps {
   readonly probeScopes?: typeof probeScopes;
 }
 
+/**
+ * Every migration source of the daemon, in order. The CLI migrates with this same constant, so a home the daemon
+ * created never looks newer than the CLI to the CLI (M5R126): never a list written beside it.
+ */
+export const MIGRATION_SOURCES = [
+  KERNEL_MIGRATIONS,
+  AUTH_MIGRATIONS,
+  POLICY_MIGRATIONS,
+  PROJECTS_MIGRATIONS,
+  SESSIONS_MIGRATIONS,
+  SETTINGS_MIGRATIONS,
+  AUDIT_MIGRATIONS,
+] as const;
+
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
 
 // In `--dev` the browser talks to Vite, which proxies to the daemon: that is the address to open (R31).
@@ -101,14 +116,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const { db, readOnly } = migrate({
       dbPath: join(config.home, "state.db"),
       backupsDir: join(config.home, "backups"),
-      sources: [
-        KERNEL_MIGRATIONS,
-        AUTH_MIGRATIONS,
-        POLICY_MIGRATIONS,
-        PROJECTS_MIGRATIONS,
-        SESSIONS_MIGRATIONS,
-        SETTINGS_MIGRATIONS,
-      ],
+      sources: MIGRATION_SOURCES,
       clock,
       logger,
     });
@@ -117,6 +125,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     if (readOnly)
       logger.warn("read_only_mode", {
         hint: "This database was written by a newer pap. Upgrade pap or restore a backup.",
+      });
+    const audit = createAuditModule({ db, clock, logger });
+    const prunable = audit.prunableAtBoot(clock.now());
+    if (prunable)
+      logger.info("audit_prunable", {
+        ...prunable,
+        hint: "Stop pap (systemctl --user stop pap-preview for the preview service), then run pap audit prune.",
       });
     const receipts = createReceiptStore(db, clock);
     const purge = startReceiptPurge(receipts, clock, logger);
@@ -155,6 +170,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       policy: policy.port,
       projects: projects.port,
       ownerId: () => auth.ownerId(),
+      audit: audit.port,
       config,
       workerUmask,
       env,
@@ -174,6 +190,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const settings = createSettingsModule({ db, clock, logger });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
+      ...audit.rpc,
       ...policy.rpc,
       ...projects.rpc,
       ...sessions.rpc,

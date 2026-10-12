@@ -14,7 +14,9 @@ describe("a worker that sends garbage", () => {
     const handle = bed.rogue("garbage");
     const records = bed.collect(handle);
     await waitForReady(records);
-    expect(records.map((record) => record.type)).toEqual(["ready"]);
+    // An audit record with a junk entry is a valid record: its entry travels as unknown and the audit module turns it
+    // into an `invalid` row (M5R113, M5R46), so it is delivered and not counted among the dropped.
+    expect(records.map((record) => record.type)).toEqual(["audit", "ready"]);
     expect(handle.stats().droppedRecords).toBe(10);
     expect(bed.logged.filter((entry) => entry.msg === "worker_record_dropped").length).toBeLessThan(10);
   });

@@ -113,6 +113,7 @@ function moduleWith(
     policy: fakePolicyPort(),
     projects: fakeProjectsPort(),
     ownerId: () => "u1",
+    audit: { append: () => {}, fromWorker: () => null },
     config: config(testProviderScript),
     workerUmask: 0o027,
     env: daemonEnv,

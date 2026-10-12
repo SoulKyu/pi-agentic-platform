@@ -1,0 +1,252 @@
+import {
+  type AuditView,
+  type Caller,
+  type PolicyAuditEntry,
+  PolicyAuditEntry as PolicyAuditEntrySchema,
+  type ParamsOf,
+  type ResultOf,
+} from "@pap/contracts";
+import type { Clock } from "../../kernel/clock.ts";
+import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
+import type { Logger } from "../../kernel/logger.ts";
+import { fitToolNames, scrubKnownSecrets } from "./scrub.ts";
+import type { AuditInsert, AuditRow, AuditStore } from "./store.ts";
+
+/** One security-relevant event of the daemon itself (M5R45). Never a secret, a result or a failed sign-in. */
+export interface AuditLine {
+  readonly ownerId: string | null;
+  readonly actor: "user" | "token" | "cli" | "system";
+  readonly actorId?: string;
+  readonly kind: "auth" | "policy" | "audit";
+  readonly reason: string;
+  readonly sessionId?: string;
+  readonly detail?: Record<string, string | number | boolean | null>;
+}
+
+export interface AuditPort {
+  /** Never throws: a failure logs `audit_append_failed` and the event goes on (M5R47). */
+  append(line: AuditLine): void;
+  /** Parses, scrubs and stores a worker's entry (it arrives as `unknown`). Null when it was malformed. */
+  fromWorker(
+    session: { readonly id: string; readonly ownerId: string },
+    raw: unknown,
+    context: { readonly containment: "scope" | "none" },
+  ): PolicyAuditEntry | null;
+}
+
+export interface AuditService extends AuditPort {
+  list(caller: Caller, params: ParamsOf<"audit.list">): ResultOf<"audit.list">;
+}
+
+const MAX_INVALID_PER_SESSION = 100;
+const MAX_TRACKED_SESSIONS = 1_024;
+const LOG_EVERY_MS = 60_000;
+const REASON_MAX = 1_024;
+const ARGS_MAX = 8_192;
+const DEFAULT_LIMIT = 100;
+
+interface InvalidCount {
+  stored: number;
+  dropped: number;
+  loggedAt: number;
+}
+
+const clip = (text: string, max: number): string => (text.length > max ? text.slice(0, max) : text);
+
+function scrubbed(text: string | undefined, max: number): string | undefined {
+  return text === undefined ? undefined : clip(scrubKnownSecrets(text).text, max);
+}
+
+// The worker is untrusted for content (R66); only the daemon knows whether the worker runs in a scope.
+function withScopeFact(entry: PolicyAuditEntry, containment: "scope" | "none"): PolicyAuditEntry {
+  if (entry.kind !== "session") return entry;
+  const fact = `worker scope ${containment === "scope" ? "on" : "off"}`;
+  return {
+    ...entry,
+    stages: entry.stages.map((verdict) =>
+      verdict.stage === "05"
+        ? { ...verdict, reason: verdict.reason ? `${verdict.reason}; ${fact}` : fact }
+        : verdict,
+    ),
+  };
+}
+
+// Field by field: the owner stays in the database, and a column added later reaches the wire only when named here.
+const viewOf = (row: AuditRow): AuditView => ({
+  id: row.id,
+  at: row.at,
+  actor: row.actor,
+  actorId: row.actorId,
+  kind: row.kind,
+  sessionId: row.sessionId,
+  toolCallId: row.toolCallId,
+  parentToolCallId: row.parentToolCallId,
+  tool: row.tool,
+  category: row.category,
+  decision: row.decision,
+  reason: row.reason,
+  stages: row.stages,
+  args: row.args,
+  detail: row.detail,
+});
+
+export function createAuditService(deps: {
+  readonly store: AuditStore;
+  readonly clock: Clock;
+  readonly logger: Logger;
+}): AuditService {
+  const { store, clock, logger } = deps;
+  // Session id -> invalid records so far. Bounded: the oldest session is forgotten past 1 024 (M5R46).
+  const invalid = new Map<string, InvalidCount>();
+  let failureLoggedAt = Number.NEGATIVE_INFINITY;
+
+  function tryAppend(row: AuditInsert): void {
+    try {
+      store.append(row);
+    } catch {
+      const now = clock.now();
+      if (now - failureLoggedAt < LOG_EVERY_MS) return;
+      failureLoggedAt = now;
+      logger.error("audit_append_failed", { kind: row.kind });
+    }
+  }
+
+  function countOf(sessionId: string): InvalidCount {
+    let count = invalid.get(sessionId);
+    if (!count) {
+      if (invalid.size >= MAX_TRACKED_SESSIONS) {
+        const oldest = invalid.keys().next();
+        if (!oldest.done) invalid.delete(oldest.value);
+      }
+      count = { stored: 0, dropped: 0, loggedAt: Number.NEGATIVE_INFINITY };
+      invalid.set(sessionId, count);
+    }
+    return count;
+  }
+
+  function noteInvalid(session: { id: string; ownerId: string }): void {
+    const count = countOf(session.id);
+    const now = clock.now();
+    if (count.stored < MAX_INVALID_PER_SESSION) {
+      count.stored++;
+      tryAppend({
+        at: now,
+        ownerId: session.ownerId,
+        actor: "worker",
+        kind: "invalid",
+        sessionId: session.id,
+        decision: "info",
+        reason: "malformed audit record",
+      });
+    } else count.dropped++;
+    if (now - count.loggedAt >= LOG_EVERY_MS) {
+      count.loggedAt = now;
+      logger.warn("audit_record_invalid", { sessionId: session.id, dropped: count.dropped });
+    }
+  }
+
+  function rowOf(session: { id: string; ownerId: string }, entry: PolicyAuditEntry): AuditInsert {
+    const base = {
+      at: clock.now(),
+      ownerId: session.ownerId,
+      actor: "worker",
+      sessionId: session.id,
+    } as const;
+    switch (entry.kind) {
+      case "call":
+        return {
+          ...base,
+          kind: "call",
+          toolCallId: entry.toolCallId,
+          ...(entry.parentToolCallId === undefined ? {} : { parentToolCallId: entry.parentToolCallId }),
+          tool: entry.tool,
+          category: entry.category,
+          decision: entry.decision,
+          reason: entry.reason,
+          stages: entry.stages,
+          args: entry.args,
+        };
+      case "result":
+        return {
+          ...base,
+          kind: "result",
+          toolCallId: entry.toolCallId,
+          ...(entry.parentToolCallId === undefined ? {} : { parentToolCallId: entry.parentToolCallId }),
+          tool: entry.tool,
+          decision: "info",
+          stages: entry.stages,
+          detail: { redactions: entry.redactions, external: entry.external },
+        };
+      case "session": {
+        const fitted = fitToolNames(entry.tools, entry.tools.length);
+        return {
+          ...base,
+          kind: "session",
+          decision: "info",
+          stages: entry.stages,
+          detail: { ...fitted, truncated: fitted.truncated || entry.toolsTruncated },
+        };
+      }
+    }
+  }
+
+  return {
+    append(line) {
+      tryAppend({
+        at: clock.now(),
+        ownerId: line.ownerId,
+        actor: line.actor,
+        actorId: line.actorId,
+        kind: line.kind,
+        sessionId: line.sessionId,
+        decision: "info",
+        reason: clip(line.reason, REASON_MAX),
+        detail: line.detail,
+      });
+    },
+    fromWorker(session, raw, context) {
+      const parsed = PolicyAuditEntrySchema.safeParse(raw);
+      if (!parsed.success) {
+        noteInvalid(session);
+        return null;
+      }
+      const entry = withScopeFact(parsed.data, context.containment);
+      const safe =
+        entry.kind === "call"
+          ? {
+              ...entry,
+              args: scrubbed(entry.args, ARGS_MAX) ?? "",
+              ...(entry.reason === undefined ? {} : { reason: scrubbed(entry.reason, REASON_MAX) ?? "" }),
+            }
+          : entry;
+      tryAppend(rowOf(session, safe));
+      return safe;
+    },
+    list(caller, params) {
+      const limit = params.limit ?? DEFAULT_LIMIT;
+      const rows = store.page({
+        ownerId: caller.userId,
+        sessionId: params.sessionId,
+        before: params.before,
+        limit,
+      });
+      const budget =
+        PAGE_BYTES - sizeOf({ entries: [], nextBefore: Number.MAX_SAFE_INTEGER, truncated: true });
+      const entries: AuditView[] = [];
+      let used = 0;
+      let truncated = false;
+      for (const row of rows) {
+        const view = viewOf(row);
+        const size = sizeOf(view) + 1;
+        if (used + size > budget) {
+          truncated = true;
+          break;
+        }
+        used += size;
+        entries.push(view);
+      }
+      const more = truncated || rows.length >= limit;
+      return { entries, nextBefore: more ? (entries.at(-1)?.id ?? null) : null, truncated };
+    },
+  };
+}

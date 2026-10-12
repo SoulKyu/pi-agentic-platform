@@ -10,7 +10,6 @@ import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import { type BedOptions, createServiceBed } from "./testing/service-bed.ts";
-import { testCaller } from "../../testing/caller.ts";
 
 const owner: Caller = testCaller();
 const stranger: Caller = testCaller({ userId: "u2" });

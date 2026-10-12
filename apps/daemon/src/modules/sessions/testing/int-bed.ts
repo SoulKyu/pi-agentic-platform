@@ -17,6 +17,7 @@ import type { WorkerExit } from "../../../kernel/supervisor/exit.ts";
 import { NO_SCOPES, type WorkerScopes } from "../../../kernel/supervisor/scope.ts";
 import { newId } from "../../../kernel/ids.ts";
 import { createStreamHub } from "../../../kernel/ws/stream-hub.ts";
+import { AUDIT_MIGRATIONS, createAuditModule } from "../../audit/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "../../policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "../../projects/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "../index.ts";
@@ -73,7 +74,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const db = migrate({
       dbPath: join(root, "state.db"),
       backupsDir: join(root, "backups"),
-      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS, PROJECTS_MIGRATIONS],
+      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS, PROJECTS_MIGRATIONS, AUDIT_MIGRATIONS],
       clock,
       logger: silentLogger,
     }).db;
@@ -81,6 +82,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
     const policy = createPolicyModule({ db, clock, logger: silentLogger, newId });
     const projects = createProjectsModule({ db, clock, logger: silentLogger, newId });
+    const audit = createAuditModule({ db, clock, logger: silentLogger });
     const sessions: SessionsModule = createSessionsModule({
       db,
       clock,
@@ -89,6 +91,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       policy: policy.port,
       projects: projects.port,
       ownerId: () => "u1",
+      audit: audit.port,
       config: {
         home: papHome,
         piAgentDir: options.spellAgentDir?.(agentDir) ?? agentDir,
@@ -125,6 +128,12 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       exits,
       rpc: sessions.rpc,
       policyRpc: policy.rpc,
+      auditRpc: audit.rpc,
+      /** What the audit table holds, oldest first (the int tests read the trail through this). */
+      auditRows: () =>
+        db.all<{ kind: string; actor: string; sessionId: string | null }>(
+          "SELECT kind, actor, session_id AS sessionId FROM audit ORDER BY id",
+        ),
       ctx: owner,
       async subscribe(sessionId: string, after?: Cursor): Promise<Subscription> {
         const frames: EventFrame[] = [];

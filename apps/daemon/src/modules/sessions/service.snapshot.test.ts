@@ -303,7 +303,7 @@ describe("the session stream", () => {
 });
 
 describe("what is recorded about a session", () => {
-  it("keeps run boundaries, policy decisions and worker exits, in order, and only for sessions that exist", async () => {
+  it("keeps run boundaries and worker exits, in order, and only for sessions that exist", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);
     bed.emit(0, { type: "agent_start" });
@@ -318,7 +318,8 @@ describe("what is recorded about a session", () => {
     const kinds = bed.db
       .all<{ kind: string }>("SELECT kind FROM session_events ORDER BY id")
       .map((row) => row.kind);
-    expect(kinds).toEqual(["run_start", "policy", "run_end", "worker_exit"]);
+    // The audit entry went to the audit module, not to the journal.
+    expect(kinds).toEqual(["run_start", "run_end", "worker_exit"]);
   });
 
   it("does not fail a command because an event could not be recorded", async () => {

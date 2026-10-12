@@ -41,6 +41,7 @@ export function createLaunch(ctx: LaunchContext) {
     logger: deps.logger,
     hub: deps.hub,
     agentDir: deps.worker.agentDir,
+    onPolicyRecord: (row, raw) => void deps.audit.fromWorker(row, raw, { containment: deps.containment }),
   });
 
   // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already

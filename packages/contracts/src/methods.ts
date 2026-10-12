@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { auditMethods } from "./audit.ts";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { Cursor } from "./frames.ts";
 import { MAX_ALWAYS_RULES } from "./policy.ts";
@@ -32,6 +33,7 @@ function catalogue<const T extends { readonly [K in keyof T]: MethodDef<K & stri
 export const methods = catalogue({
   ...settingsMethods,
   ...shellMethods,
+  ...auditMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",

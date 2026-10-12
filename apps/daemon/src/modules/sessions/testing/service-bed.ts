@@ -16,6 +16,7 @@ import { type Logger, silentLogger } from "../../../kernel/logger.ts";
 import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
+import type { AuditPort } from "../../audit/index.ts";
 import type { PolicyPort } from "../../policy/index.ts";
 import type { ProjectsPort } from "../../projects/index.ts";
 import { createExports, type Exports, loadPiWriter, type PiWriter, SESSIONS_MIGRATIONS } from "../index.ts";
@@ -56,6 +57,10 @@ export interface BedOptions {
   ownerId?(): string | null;
   /** Called once per adopted row (agreement 8). */
   onAdopted?(sessionId: string): void;
+  /** The audit module's port; defaults to one that takes everything and keeps nothing. */
+  audit?: AuditPort;
+  /** What the daemon knows of the worker's containment; defaults to "none". */
+  containment?: "scope" | "none";
   /** Replaces the writer of forks and clones (a test of how the service treats what it returns). */
   writer?: PiWriter;
   /** The transcript reader fails to load this many times before it loads. */
@@ -98,6 +103,8 @@ export interface ServiceParts<Store, Reader> {
   readonly hub: StreamHub;
   readonly policy: PolicyPort;
   readonly projects: ProjectsPort;
+  readonly audit: AuditPort;
+  readonly containment: "scope" | "none";
   readonly exports: Exports;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   readonly idleMs: number;
@@ -170,6 +177,8 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     hub,
     policy: options.policy ?? fakePolicyPort(),
     projects,
+    audit: options.audit ?? { append: () => {}, fromWorker: () => null },
+    containment: options.containment ?? "none",
     exports,
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
     idleMs: options.idleMs ?? 0,
