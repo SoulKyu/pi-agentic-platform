@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import * as ui from "@pap/ui";
+import * as extensions from "@pap/ui/extensions";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { act } from "react";
@@ -13,7 +14,7 @@ import { Gallery } from "./Gallery.tsx";
 const NOT_SHOWN = new Set(["TooltipProvider", "Toaster"]);
 // The glyph exports (IconAccount, IconBack...) are data for Icon; Icon and IconButton are components and are checked.
 const GLYPHS = /^Icon(?!Button$)[A-Z]/;
-const components = Object.entries(ui)
+const components = Object.entries({ ...ui, ...extensions })
   .filter(
     ([name, value]) =>
       typeof value === "function" && /^[A-Z]/.test(name) && !GLYPHS.test(name) && !NOT_SHOWN.has(name),
@@ -30,7 +31,7 @@ const ancestorsThatTakeThePress = (el: Element): Element[] =>
 
 const INTERACTIVE =
   'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
-const PROBED_CONTROLS = 68;
+const PROBED_CONTROLS = 79;
 // Both dimensions: `size-11`, or a minimum height together with a minimum width (`pointer-coarse:min-w-11`, or
 // `w-full` for a control that fills its row) (m2 of the final review).
 const hasClass = (classes: string, name: string) => classes.split(/\s+/).includes(name);
@@ -40,7 +41,7 @@ const isCoarseTarget = (classes: string) =>
     (hasClass(classes, "pointer-coarse:min-h-11") || hasClass(classes, "pointer-coarse:h-11")));
 
 describe("/dev/ui gallery", () => {
-  it("shows every component @pap/ui exports", async () => {
+  it("shows every component @pap/ui and @pap/ui/extensions export", async () => {
     window.history.replaceState(null, "", "/dev/ui");
     const page = await mount(<Gallery />);
     const shown = new Set(

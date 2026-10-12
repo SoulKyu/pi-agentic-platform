@@ -19,6 +19,7 @@ import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { CHAT, RUN_STATUSES, SAMPLE, TOOL_DETAILS } from "../fixtures.ts";
 import { GalleryItem, GallerySection } from "../GalleryItem.tsx";
+import { ExtensionFigures } from "./ExtensionFigures.tsx";
 
 function Messages() {
   const [branch, setBranch] = useState(1);
@@ -163,6 +164,7 @@ export function AiSection() {
     <GallerySection id="ai" title={t("gallery.section.ai")}>
       <Messages />
       <Runs />
+      <ExtensionFigures />
     </GallerySection>
   );
 }

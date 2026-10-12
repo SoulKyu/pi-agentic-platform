@@ -65,6 +65,12 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 - Model text goes through `Markdown`; raw HTML in it is shown as literal text (never parsed, never dropped). Code is highlighted only after 400 ms without a change, so a streaming fence is not highlighted per delta.
 - A polite live region (`data-announcer`) says a run ended (running to idle), a new approval, and the branch a switch landed on.
 
+## Extension surfaces (`@pap/ui/extensions`, P2)
+
+- `InputRequestCard` (select / confirm / text shells), `StatusBar`, `Widgets`, `CustomPanel` and `AnsiText` live in `packages/ui/src/ai/` behind their own subpath, never the eager barrel: `build-output.int.test.ts` keeps their markers out of the initial assets. They take labels and data as props; `@pap/ui` knows nothing of `@pap/contracts`.
+- The feature keeps the logic: `features/sessions/dialogs/` strips and clips the extension's words (`untrusted.ts`, `use-clipped.tsx`, `request-frame.tsx`) and answers once (`use-answer.ts`); `CustomPanel.tsx` sends keys and chunked pastes and returns the focus to the composer; `status-cells.ts` builds the cells. The extension's text stays text, and "from an extension" is pap's own fixed label.
+- Kept on purpose: `data-inline-edit` on the card root (Escape closes the card, never stops the run), `data-terminal-input` on the panel body, Ctrl+] to leave. `QueueStrip` and `Minimap` stay feature components.
+
 ## zod and the CSP
 
 - zod probes for `eval` (`new Function("")`) when it builds its first object schema, which the daemon's CSP forbids (R74). `vite.config.ts` aliases `zod` to `csp-safe-zod.ts` in the web build only: it calls `config({ jitless: true })` right after zod evaluates, so every chunk that builds schemas sees it, whatever the chunk order. `main.tsx` still imports the file first. `build-output.int.test.ts` loads the built zod chunk with string evaluation refused and expects zero attempts.

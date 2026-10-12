@@ -123,3 +123,36 @@ export const CHAT = {
     "```",
   ].join("\n"),
 } as const;
+
+// Sample extension content: text written by an extension, plus pap's fixed labels around it.
+export const EXT = {
+  source: "from an extension",
+  details: "Details",
+  statusLabel: "Status",
+  selectTitle: "Pick a deployment target",
+  options: ["staging", "production"],
+  cancel: "Cancel",
+  confirmTitle: "Apply the migration?",
+  yes: "Yes",
+  no: "No",
+  textTitle: "Branch name",
+  textValue: "feat/gallery",
+  submit: "Submit",
+  message: "The extension will run the script once.",
+  timeout: "Closes on its own after 30 s",
+  cells: [
+    { kind: "command", key: "command:/mode", command: "/mode build", label: "Build" },
+    { kind: "text", key: "ci", text: "\u001b[31mfailing\u001b[0m 2 checks" },
+  ],
+  widgets: [{ key: "todo", placement: "aboveEditor", lines: ["\u001b[32m2 done\u001b[0m", "1 left"] }],
+  ansi: "\u001b[1mbold\u001b[0m \u001b[33mwarn\u001b[0m \u001b[31merror\u001b[0m",
+  panelLines: ["\u001b[7m> alpha\u001b[0m", "  beta"],
+  panel: {
+    collapse: "Hide the panel",
+    expand: "Show the panel",
+    input: "Panel input",
+    leave: "Ctrl+] to leave the panel",
+    reach: "Press Tab to reach the panel",
+  },
+  panelWaiting: "1 more waiting",
+} as const;
