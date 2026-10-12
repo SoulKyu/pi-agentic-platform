@@ -73,12 +73,9 @@ describe("ApprovalDialog", () => {
 
   it("styles Allow once as primary and every refusal as secondary, never danger", async () => {
     const page = await show([exec({ answers: ["deny", "session", "always", "once"] })]);
-    const once = button(page, "Allow once").className;
-    expect(once).toContain("bg-human-fill");
+    expect(button(page, "Allow once").dataset.variant).toBe("primary");
     for (const name of ["Deny", "Session", "Always"]) {
-      expect(button(page, name).className).toBe(button(page, "Session").className);
-      expect(button(page, name).className).not.toContain("text-error");
-      expect(button(page, name).className).not.toContain("bg-human-fill");
+      expect(button(page, name).dataset.variant, name).toBe("secondary");
     }
   });
 

@@ -11,6 +11,7 @@ import {
 import { SETTINGS_SECTIONS, type ItemRef, type Tab } from "../../features/workspace/index.ts";
 import type { MessageKey, Translate } from "../../i18n/index.ts";
 import { itemTitle } from "./item-title.ts";
+import { basename, sessionLabel } from "./session-label.ts";
 
 export const MAX_PALETTE_SESSIONS = 50;
 
@@ -26,8 +27,6 @@ interface PaletteItemsInput {
   navigate(item: ItemRef): void;
   run(id: string): void;
 }
-
-const basename = (cwd: string): string => cwd.split("/").filter(Boolean).at(-1) ?? "";
 
 /** The palette's rows: open tabs, commands that have a handler, the 50 newest sessions, settings sections. */
 export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
@@ -65,13 +64,13 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
     .sort((a, b) => b.updatedAt - a.updatedAt)
     .slice(0, MAX_PALETTE_SESSIONS)
     .map((session): PaletteItem => {
-      const title = basename(session.cwd) || t("shell.tab.session");
+      const title = sessionLabel(session) || t("shell.tab.session");
       return {
         id: `session:${session.id}`,
         group: "sessions",
         title,
         detail: session.cwd,
-        searchTerms: [title, session.cwd],
+        searchTerms: [title, session.cwd, basename(session.cwd)],
         recency: session.updatedAt,
         run: () => navigate({ kind: "session", id: session.id }),
       };

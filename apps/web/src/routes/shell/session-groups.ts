@@ -1,4 +1,5 @@
 import type { SessionSummary } from "@pap/contracts";
+import { basename } from "./session-label.ts";
 
 export interface SessionGroup {
   readonly cwd: string;
@@ -7,7 +8,7 @@ export interface SessionGroup {
 }
 
 const normalize = (text: string) => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
-const basename = (cwd: string) => cwd.replace(/\/+$/, "").split("/").at(-1) || cwd;
+const folder = (cwd: string) => basename(cwd) || cwd;
 
 /** The tree until M4's projects: sessions by working directory, newest first, at most `cap` rows shown. */
 export function groupSessions(
@@ -18,7 +19,7 @@ export function groupSessions(
   const needle = normalize(filter.trim());
   const byCwd = new Map<string, SessionSummary[]>();
   for (const session of sessions) {
-    if (needle && !normalize(session.cwd).includes(needle)) continue;
+    if (needle && !normalize(`${session.name ?? ""} ${session.cwd}`).includes(needle)) continue;
     const list = byCwd.get(session.cwd) ?? [];
     list.push(session);
     byCwd.set(session.cwd, list);
@@ -26,7 +27,7 @@ export function groupSessions(
   const sorted = [...byCwd.entries()]
     .map(([cwd, list]) => ({
       cwd,
-      label: basename(cwd),
+      label: folder(cwd),
       sessions: [...list].sort((a, b) => b.updatedAt - a.updatedAt),
     }))
     .sort((a, b) => (b.sessions[0]?.updatedAt ?? 0) - (a.sessions[0]?.updatedAt ?? 0));

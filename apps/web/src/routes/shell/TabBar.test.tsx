@@ -39,7 +39,7 @@ beforeEach(() => {
   current.runtime = bed.runtime;
   localStorage.clear();
   useSessionsCache.setState({
-    sessions: [{ id: "a", cwd: "/home/ana/a", status: "running", createdAt: 1, updatedAt: 2 }],
+    sessions: [{ id: "a", cwd: "/home/ana/a", name: null, status: "running", createdAt: 1, updatedAt: 2 }],
     status: "loaded",
   });
   useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "session:a" } });
@@ -50,6 +50,18 @@ const named = (root: ParentNode, label: string) =>
   root.querySelector(`[aria-label="${label}"]`) as HTMLElement;
 
 describe("TabBar", () => {
+  it("labels a session tab with its name, else its folder", async () => {
+    useSessionsCache.setState({
+      sessions: [
+        { id: "a", cwd: "/home/ana/a", name: "Fix login", status: "idle", createdAt: 1, updatedAt: 2 },
+      ],
+      status: "loaded",
+    });
+    const page = await renderShell("/s/a");
+    expect(tabs(page.container).map((one) => one.textContent)).toContain("Fix login");
+    await page.unmount();
+  });
+
   it("is a labelled tablist with the active item selected and roving focus", async () => {
     useWorkspaceStore.setState({
       ws: {

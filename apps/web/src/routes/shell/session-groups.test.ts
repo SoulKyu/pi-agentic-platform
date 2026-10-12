@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { groupSessions } from "./session-groups.ts";
 
 const s = (id: string, cwd: string, updatedAt: number) =>
-  ({ id, cwd, status: "idle", createdAt: 0, updatedAt }) as const;
+  ({ id, cwd, name: null, status: "idle", createdAt: 0, updatedAt }) as const;
 
 describe("session groups (the tree until M4's projects)", () => {
   it("groups by working directory, newest group and newest row first", () => {
@@ -16,6 +16,10 @@ describe("session groups (the tree until M4's projects)", () => {
     expect(
       groupSessions([s("a", "/w/Café", 1), s("b", "/w/web", 2)], "cafe").groups.map((g) => g.label),
     ).toEqual(["Café"]);
+  });
+  it("filters on the session name too", () => {
+    const named = { ...s("a", "/w/api", 1), name: "Fix login" };
+    expect(groupSessions([named, s("b", "/w/web", 2)], "login").groups.map((g) => g.label)).toEqual(["api"]);
   });
   it("shows at most 200 rows and counts the rest", () => {
     const many = Array.from({ length: 250 }, (_, i) => s(String(i), `/w/p${i % 3}`, i));

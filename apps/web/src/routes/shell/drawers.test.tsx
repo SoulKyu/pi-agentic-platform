@@ -25,7 +25,7 @@ vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
 });
 
 const session = (id: string, cwd: string, updatedAt: number, status = "idle") =>
-  ({ id, cwd, status, createdAt: 1, updatedAt }) as const;
+  ({ id, cwd, name: null as string | null, status, createdAt: 1, updatedAt }) as const;
 
 let bed: ReturnType<typeof fakeRuntime>;
 let started: Array<{ stop(): void }> = [];
@@ -64,6 +64,22 @@ describe("tree drawer", () => {
     expect([...(groups[0]?.querySelectorAll("a") ?? [])].map((row) => row.getAttribute("href"))).toEqual([
       "/s/two",
       "/s/one",
+    ]);
+    await page.unmount();
+  });
+
+  it("labels a named row with its name and an unnamed one with its id", async () => {
+    bed.handlers["sessions.list"] = () => ({
+      sessions: [{ ...session("one", "/w/api", 1), name: "Fix login" }, session("two", "/w/api", 2)],
+    });
+    const page = await renderShell("/");
+    await settle();
+    await ctrlB();
+    await opened("Sessions");
+    await vi.waitFor(() => expect(dialog()?.querySelectorAll("a")).toHaveLength(2), { timeout: 2_000 });
+    expect([...(dialog()?.querySelectorAll("a") ?? [])].map((row) => row.textContent)).toEqual([
+      "two",
+      "Fix login",
     ]);
     await page.unmount();
   });

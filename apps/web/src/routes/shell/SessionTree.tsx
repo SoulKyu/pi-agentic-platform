@@ -64,7 +64,7 @@ export function SessionTree({ onPick }: { onPick(id: string): void }) {
                     FOCUS_RING,
                   )}
                 >
-                  <span className="min-w-0 truncate font-mono text-code">{session.id}</span>
+                  <span className="min-w-0 truncate font-mono text-code">{session.name ?? session.id}</span>
                   {session.status === "running" ? (
                     <RunStatusChip status="working" label={t("session.status.running")} />
                   ) : null}

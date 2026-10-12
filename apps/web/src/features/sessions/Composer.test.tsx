@@ -99,16 +99,16 @@ describe("Composer while the agent works", () => {
     expect(container.querySelector('[role="group"]')?.getAttribute("aria-label")).toBe(
       "While the agent works",
     );
-    expect(button(container, "Steer").className).toContain("bg-human-fill");
-    expect(button(container, "Follow up").className).not.toContain("bg-human-fill");
-    expect(button(container, "Stop").className).toContain("bg-panel");
+    expect(button(container, "Steer").dataset.variant).toBe("primary");
+    expect(button(container, "Follow up").dataset.variant).toBe("secondary");
+    expect(button(container, "Stop").dataset.variant).toBe("secondary");
     await typeInto(field(container, "Message"), "then this");
     await click(button(container, "Follow up"));
     await settle();
     expect(screen.bed.called("sessions.prompt")[0]?.params).toMatchObject({ streamingBehavior: "followUp" });
     expect(localStorage.getItem("pap.sessions.streaming")).toBe("followUp");
-    expect(button(container, "Follow up").className).toContain("bg-human-fill");
-    expect(button(container, "Steer").className).not.toContain("bg-human-fill");
+    expect(button(container, "Follow up").dataset.variant).toBe("primary");
+    expect(button(container, "Steer").dataset.variant).toBe("secondary");
     await typeInto(field(container, "Message"), "and this");
     await press(field(container, "Message"), { key: "Enter", ctrlKey: true });
     await settle();

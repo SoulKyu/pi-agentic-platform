@@ -11,6 +11,7 @@ const { rules } = mergeWithDefaults(DEFAULT_KEYBINDINGS, [], KNOWN_COMMANDS);
 const session = (id: string, cwd: string, updatedAt: number): SessionSummary => ({
   id,
   cwd,
+  name: null,
   status: "idle",
   createdAt: 1,
   updatedAt,
@@ -64,6 +65,14 @@ describe("buildPaletteItems", () => {
     expect(sessions.at(-1)?.title).toBe("p10");
     sessions[0]?.run();
     expect(navigate).toHaveBeenCalledWith({ kind: "session", id: "s59" });
+  });
+
+  it("titles a named session by its name and still finds it by folder", () => {
+    const named = { ...session("a", "/home/ana/api", 1), name: "Fix login" };
+    const { items } = build({ sessions: [named] });
+    const [entry] = items.filter((i) => i.group === "sessions");
+    expect(entry?.title).toBe("Fix login");
+    expect(entry?.searchTerms).toContain("api");
   });
 
   it("lists open tabs in group open and settings sections in group settings", () => {

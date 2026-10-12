@@ -7,6 +7,7 @@ const t = (key: Parameters<typeof translate>[1]) => translate("en", key);
 const session = (id: string, cwd: string): SessionSummary => ({
   id,
   cwd,
+  name: null,
   status: "idle",
   createdAt: 0,
   updatedAt: 0,
@@ -18,6 +19,10 @@ describe("itemTitle", () => {
       "pi-agentic",
     );
     expect(itemTitle({ kind: "session", id: "a" }, [session("a", "/home/ana/work")], t)).toBe("work");
+  });
+  it("titles a named session by its name, not its folder", () => {
+    const named = { ...session("a", "/home/ana/work"), name: "Fix login" };
+    expect(itemTitle({ kind: "session", id: "a" }, [named], t)).toBe("Fix login");
   });
   it("falls back to Session for an unknown id or an empty cwd", () => {
     expect(itemTitle({ kind: "session", id: "zz" }, [session("a", "/x")], t)).toBe("Session");
