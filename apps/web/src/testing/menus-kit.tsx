@@ -10,10 +10,10 @@ import {
 } from "@tanstack/react-router";
 import { act } from "react";
 import { expect, vi } from "vitest";
-import { useShellStore } from "../../stores/shell-store.ts";
-import { click, mount, press, settle } from "../../testing/dom.ts";
-import { shellSnapshot } from "../../testing/shell-snapshot.ts";
-import ProjectTree from "./ProjectTree.tsx";
+import { useShellStore } from "../stores/shell-store.ts";
+import { click, mount, press, settle } from "./dom.ts";
+import { shellSnapshot } from "./shell-snapshot.ts";
+import ProjectTree from "../features/projects/ProjectTree.tsx";
 
 export const HOUR = 3_600_000;
 export const DAY = 24 * HOUR;

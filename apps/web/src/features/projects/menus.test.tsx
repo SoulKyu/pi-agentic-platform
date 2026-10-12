@@ -20,7 +20,7 @@ import {
   show,
   toastTexts,
   undoButton,
-} from "./menus-kit.tsx";
+} from "../../testing/menus-kit.tsx";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({

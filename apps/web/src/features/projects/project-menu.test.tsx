@@ -21,7 +21,7 @@ import {
   sessionTrigger,
   show,
   toastTexts,
-} from "./menus-kit.tsx";
+} from "../../testing/menus-kit.tsx";
 import { toLocalInput } from "./snooze.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
