@@ -7,7 +7,9 @@ import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { newId } from "../../kernel/ids.ts";
+import type { Credential } from "../../kernel/ws/ws-server.ts";
 import { cookieNeedsSecure, readCookie, SESSION_COOKIE } from "./cookies.ts";
+import { credentialOf } from "./credentials.ts";
 import { mountAuthRoutes } from "./http.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
 import { createPasskeyService } from "./passkeys.ts";
@@ -41,8 +43,16 @@ export interface AuthModuleDeps {
 export interface AuthModule {
   readonly rpc: AuthRpc;
   mount(app: Hono): void;
-  /** The `pap_session` value in a Cookie header, the only part of it that is ever kept. */
-  sessionValueOf(header: string | undefined): string | undefined;
+  /** The one credential of a request: the session cookie or the bearer, "conflict" when both (M5R70, M5R71). */
+  credentialOf(headers: {
+    readonly cookie?: string | undefined;
+    readonly authorization?: string | undefined;
+  }): Credential | "conflict" | undefined;
+  /** Who a cookie or a bearer belongs to, or null. `slide: false` checks without extending or writing the last use. */
+  authenticateCredential(
+    credential: Credential | undefined,
+    options?: { readonly slide?: boolean },
+  ): Caller | null;
   /** `slide: false` checks without extending the session (see `AuthService.authenticate`). */
   authenticateSession(value: string | undefined, options?: { readonly slide?: boolean }): Caller | null;
   authenticateCookieHeader(header: string | undefined): Caller | null;
@@ -99,7 +109,13 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
         logger,
       });
     },
-    sessionValueOf: (header) => readCookie(header, SESSION_COOKIE),
+    credentialOf,
+    authenticateCredential: (credential, options) => {
+      if (!credential) return null;
+      return credential.kind === "cookie"
+        ? service.authenticate(credential.value, options)
+        : tokens.authenticate(credential.value, { slide: options?.slide !== false });
+    },
     authenticateSession: (value, options) => service.authenticate(value, options),
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
     authenticateBearer: (value, options) => tokens.authenticate(value, { slide: options?.slide !== false }),

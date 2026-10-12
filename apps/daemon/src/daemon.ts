@@ -212,8 +212,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
-      credentialOf: auth.sessionValueOf,
-      authenticate: auth.authenticateSession,
+      credentialOf: auth.credentialOf,
+      authenticate: auth.authenticateCredential,
       dispatch,
       hub,
       logger,
@@ -225,7 +225,12 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const wsProbe = (c: Context) => {
       if (c.req.query("proto") !== String(PROTOCOL_VERSION))
         return c.json({ protocol: PROTOCOL_VERSION }, 426);
-      if (!auth.authenticateCookieHeader(c.req.header("cookie")))
+      const credential = auth.credentialOf({
+        cookie: c.req.header("cookie"),
+        authorization: c.req.header("authorization"),
+      });
+      if (credential === "conflict") return c.json({ error: { code: "bad_request" } }, 400);
+      if (!auth.authenticateCredential(credential))
         return c.json({ error: { code: "unauthenticated" } }, 401);
       return c.json({ protocol: PROTOCOL_VERSION });
     };

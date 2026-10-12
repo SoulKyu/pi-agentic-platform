@@ -12,6 +12,7 @@ import { httpRequest } from "./http-client.ts";
 import { selfSignedCertificate } from "./self-signed.ts";
 import { connectTestClient, type TestClient } from "./ws-client.ts";
 
+const OWNER_PASSWORD = "correct horse battery staple";
 const REPO = fileURLToPath(new URL("../../../../", import.meta.url));
 
 export interface TestDaemon {
@@ -25,6 +26,10 @@ export interface TestDaemon {
   readonly home: string;
   login(): Promise<string>;
   connect(cookie: string): Promise<TestClient>;
+  /** A bearer-token connection: no cookie, and an Origin only when `origin` is given. */
+  connectBearer(token: string, origin?: string): Promise<TestClient>;
+  /** Confirms the harness owner's password for this session (`POST /auth/confirm`): step-up for the next minutes. */
+  confirmStepUp(cookie: string): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -122,7 +127,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
       const reply = await httpRequest(`${base}/auth/setup`, {
         method: "POST",
         headers: { origin, "content-type": "application/json" },
-        body: JSON.stringify({ token, username: "owner", password: "correct horse battery staple" }),
+        body: JSON.stringify({ token, username: "owner", password: OWNER_PASSWORD }),
       });
       if (reply.status !== 201) throw new Error(`setup failed: ${reply.status} ${reply.body}`);
       const header = reply.headers["set-cookie"];
@@ -131,6 +136,21 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     connect: async (cookie) => {
       if (tls) throw new Error("connect() is not available on a TLS test daemon");
       return connectTestClient(`ws://127.0.0.1:${port}/ws?proto=${PROTOCOL_VERSION}`, { origin, cookie });
+    },
+    connectBearer: async (token, bearerOrigin) => {
+      if (tls) throw new Error("connectBearer() is not available on a TLS test daemon");
+      return connectTestClient(`ws://127.0.0.1:${port}/ws?proto=${PROTOCOL_VERSION}`, {
+        authorization: `Bearer ${token}`,
+        ...(bearerOrigin === undefined ? {} : { origin: bearerOrigin }),
+      });
+    },
+    async confirmStepUp(cookie) {
+      const reply = await httpRequest(`${base}/auth/confirm`, {
+        method: "POST",
+        headers: { origin, cookie, "content-type": "application/json" },
+        body: JSON.stringify({ password: OWNER_PASSWORD }),
+      });
+      if (reply.status !== 204) throw new Error(`confirm failed: ${reply.status} ${reply.body}`);
     },
     async stop() {
       try {

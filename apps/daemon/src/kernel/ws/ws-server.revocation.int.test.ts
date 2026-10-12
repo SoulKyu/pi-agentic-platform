@@ -54,11 +54,14 @@ beforeEach(async () => {
   } as unknown as HandlerTable;
   ws = createWsServer({
     allowedOrigins: new Set([ORIGIN]),
-    credentialOf: (header) => /pap_session=([^;]+)/.exec(header ?? "")?.[1],
+    credentialOf: ({ cookie }) => {
+      const value = /pap_session=([^;]+)/.exec(cookie ?? "")?.[1];
+      return value === undefined ? undefined : { kind: "cookie", value };
+    },
     authenticate: (credential, options) => {
-      asked.push({ credential, slide: options?.slide ?? true });
+      asked.push({ credential: credential?.value, slide: options?.slide ?? true });
       if (session === "broken") throw new Error("database is locked");
-      return credential === "good" && session === "valid" ? owner : null;
+      return credential?.value === "good" && session === "valid" ? owner : null;
     },
     dispatch: createDispatcher({
       handlers,

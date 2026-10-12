@@ -97,9 +97,9 @@ export async function startWsServerForTest(options: { dispatch: Dispatch }): Pro
   const clock = createSystemClock();
   const ws = createWsServer({
     allowedOrigins: new Set([origin]),
-    credentialOf: (header) => header,
+    credentialOf: ({ cookie }) => (cookie ? { kind: "cookie", value: cookie } : undefined),
     authenticate: (credential) =>
-      credential === cookie
+      credential?.value === cookie
         ? { userId: "u1", permissions: new Set(), kind: "session", credentialId: "raw-ws", stepUpUntil: 0 }
         : null,
     dispatch: options.dispatch,

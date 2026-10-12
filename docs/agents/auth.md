@@ -38,3 +38,9 @@ Code: `passkeys.ts` (ceremonies), `login-challenge.ts` (stateless sign-in challe
 - A credential id that is already registered is refused with 409 `conflict`; the first row is left untouched.
 - Failed passkey verifications (either ceremony) count on a throttle of their own, keyed by the socket address only, never by account and never shared with the password keys, in both directions (R80, R81): password failures do not block passkey sign-in, passkey failures do not block password sign-in. Each failure is logged as `auth_passkey_failed` and doubles the wait from 1 s to 60 s like the password throttle; a request inside the wait gets 429 with `Retry-After` and no further log line, so the failure lines are the whole signal. Malformed bodies and 404s are not failures. The reason the library gave (wrong origin, no user verification, counter) is deliberately neither answered nor logged.
 - Verification against the real library, with a software authenticator, is in `passkey-ceremony.test.ts` and `passkey-challenge.test.ts` (helpers in `modules/auth/testing/`, compiled out of the build); browser behaviour is covered by the Chromium virtual-authenticator journey in Task 27.
+
+## Credentials on `/ws`
+
+- One credential per connection: the `pap_session` cookie or `Authorization: Bearer pap_…` (read only from that header, never a query string). Both: 400.
+- An `Origin` that is present must be allowed whatever the credential (403, `origin_refused`). Without `Origin` only a bearer is accepted (a browser always sends it; a program presenting a token is not a CSRF vector). ADR 0021 records the deviation from spec C 4.4.
+- Every request frame and every keepalive tick re-checks the credential (the tick does not slide), so a revoked or expired token closes its socket with 4401. `GET /ws` accepts the same two credentials.
