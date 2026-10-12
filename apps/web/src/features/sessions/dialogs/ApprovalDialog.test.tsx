@@ -188,4 +188,34 @@ describe("ApprovalDialog", () => {
     await settle();
     expect(chosen).toEqual(["once"]);
   });
+
+  it("falls back to Deny for an approval that lists no answers", async () => {
+    const page = await show([exec({ answers: [] })]);
+    expect(labels(page)).toEqual(["Deny"]);
+    await click(button(page, "Deny"));
+    await settle();
+    expect(bed.called("sessions.respondDialog").map((call) => call.params)).toEqual([
+      { sessionId: "sess-1", dialogId: "a1", response: { answer: "deny" } },
+    ]);
+    const missing = await show([{ ...exec({ id: "a3" }), answers: undefined }]);
+    expect(labels(missing)).toEqual(["Deny"]);
+  });
+
+  it("shows the static timeout line on an approval that carries one", async () => {
+    const page = await show([exec({ timeout: 30_000 })]);
+    expect(text(page)).toContain("Closes on its own after 30 s");
+    expect(text(await show([exec({ id: "a9" })]))).not.toContain("Closes on its own");
+  });
+
+  it("bounds the height of an expanded question and header", async () => {
+    const page = await show([exec({ title: "q".repeat(4096), message: `${"h".repeat(4000)}\nbody` })]);
+    for (const selector of ["[data-approval-question]", "[data-approval-header]"]) {
+      const more = [...page.querySelectorAll("button")].find((b) => b.textContent === "Show more");
+      await click(more as Element);
+      const element = page.querySelector(selector);
+      expect(element?.className).toContain("max-h-32");
+      expect(element?.className).toContain("overflow-auto");
+      expect(element?.getAttribute("tabindex")).toBe("0");
+    }
+  });
 });

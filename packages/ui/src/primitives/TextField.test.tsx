@@ -62,4 +62,18 @@ describe("TextField", () => {
     expect(html).toContain("focus-visible:outline-offset-2");
     expect(html).toContain("focus-visible:outline-human-fill");
   });
+
+  it("passes a placeholder to the input and the textarea, and none when absent", () => {
+    const single = renderToStaticMarkup(
+      <TextField label="Name" value="" onChange={noop} placeholder="Ada" />,
+    );
+    expect(/<input[^>]*placeholder="Ada"/.test(single)).toBe(true);
+    const multi = renderToStaticMarkup(
+      <TextField label="Name" value="" onChange={noop} multiline placeholder="Ada" />,
+    );
+    expect(/<textarea[^>]*placeholder="Ada"/.test(multi)).toBe(true);
+    expect(renderToStaticMarkup(<TextField label="Name" value="" onChange={noop} />)).not.toContain(
+      "placeholder",
+    );
+  });
 });

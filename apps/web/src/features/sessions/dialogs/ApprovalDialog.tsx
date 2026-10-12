@@ -20,6 +20,8 @@ export interface ApprovalDialogProps {
   /** The policy's message: a header line, then the call. Untrusted text. */
   readonly detail: string | undefined;
   readonly answers: readonly ApprovalAnswer[];
+  /** Static text for a dialog that closes on its own ("Closes on its own after 30 s"); Pi owns the timer. */
+  readonly timeoutNote?: string | undefined;
   readonly labels: Readonly<Record<ApprovalAnswer, string>>;
   onChoose(answer: ApprovalAnswer): void;
 }
@@ -45,7 +47,11 @@ export function ApprovalDialog(props: ApprovalDialogProps) {
       <h3 id={titleId} className="font-mono text-label font-semibold uppercase tracking-label text-attention">
         {props.title}
       </h3>
-      <p data-approval-question className="whitespace-pre-wrap break-words text-ui font-semibold text-fg">
+      <p
+        data-approval-question
+        tabIndex={question.expanded ? 0 : undefined}
+        className="max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg"
+      >
         {question.shown}
       </p>
       <ExpandToggle {...question} />
@@ -54,7 +60,8 @@ export function ApprovalDialog(props: ApprovalDialogProps) {
           <pre
             data-approval-header
             id={headerId}
-            className="whitespace-pre-wrap break-all font-mono text-ui font-semibold text-fg"
+            tabIndex={headerText.expanded ? 0 : undefined}
+            className="max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-ui font-semibold text-fg"
           >
             {headerText.shown}
           </pre>
@@ -91,6 +98,7 @@ export function ApprovalDialog(props: ApprovalDialogProps) {
           </Button>
         ))}
       </div>
+      {props.timeoutNote ? <p className="text-label text-muted">{props.timeoutNote}</p> : null}
     </section>
   );
 }

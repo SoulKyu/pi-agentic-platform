@@ -20,6 +20,7 @@ interface Slot {
   readonly attempt: number;
   readonly typed?: string | undefined;
   readonly unsure?: Unsure | undefined;
+  readonly error?: string | undefined;
 }
 type Slots = Readonly<Record<string, Slot>>;
 
@@ -44,7 +45,6 @@ export function DialogList(props: {
   const runtime = getRuntime();
   const { sessionId, dialogs } = props;
   const [slots, setSlots] = useState<Slots>({});
-  const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(new Set<string>());
 
   // Adjusting state while rendering: what is remembered of a dialog that has closed is dropped at once.
@@ -57,8 +57,7 @@ export function DialogList(props: {
   const send = (dialog: Dialog, response: DialogResponse, commandId = runtime.rpc.newCommandId()) => {
     if (inFlight.current.has(dialog.id)) return;
     inFlight.current.add(dialog.id);
-    setError(null);
-    patch(dialog.id, (slot) => ({ ...slot, unsure: undefined }));
+    patch(dialog.id, (slot) => ({ ...slot, unsure: undefined, error: undefined }));
     runtime.rpc
       .call("sessions.respondDialog", { sessionId, dialogId: dialog.id, response }, { commandId })
       .then(
@@ -69,9 +68,13 @@ export function DialogList(props: {
             // Said next to the card, with the way to repeat the answer; not again as an alert.
             patch(dialog.id, (slot) => ({ ...slot, unsure: { response, commandId, message } }));
           } else {
-            setError(message);
             const typed = "value" in response ? response.value : undefined;
-            patch(dialog.id, (slot) => ({ attempt: slot.attempt + 1, typed, unsure: undefined }));
+            patch(dialog.id, (slot) => ({
+              attempt: slot.attempt + 1,
+              typed,
+              unsure: undefined,
+              error: message,
+            }));
           }
         },
       )
@@ -85,7 +88,7 @@ export function DialogList(props: {
         const key = `${dialog.id}:${slot?.attempt ?? 0}`;
         const onAnswer = (response: DialogResponse) => send(dialog, response);
         return (
-          <div key={dialog.id} className="flex flex-col gap-2">
+          <div key={dialog.id} data-dialog className="flex flex-col gap-2">
             {dialog.method === "approval" ? (
               <ApprovalCardFor key={key} dialog={dialog} onAnswer={onAnswer} />
             ) : dialog.method === "select" ? (
@@ -95,6 +98,11 @@ export function DialogList(props: {
             ) : (
               <TextDialog key={key} dialog={dialog} initial={slot?.typed} onAnswer={onAnswer} />
             )}
+            {slot?.error ? (
+              <p role="alert" className="text-ui text-attention">
+                {slot.error}
+              </p>
+            ) : null}
             {slot?.unsure ? (
               <div
                 role="status"
@@ -115,11 +123,6 @@ export function DialogList(props: {
       {props.hidden > 0 ? (
         <p role="status" className="text-ui text-muted">
           {tp("dialog.hidden", props.hidden)}
-        </p>
-      ) : null}
-      {error ? (
-        <p role="alert" className="text-ui text-attention">
-          {error}
         </p>
       ) : null}
     </>

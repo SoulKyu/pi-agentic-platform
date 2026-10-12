@@ -111,18 +111,21 @@ describe("input and editor", () => {
     expect(sent()).toEqual([reply("i1", { cancelled: true })]);
   });
 
-  it("editor starts with its prefill; Enter types a newline, Ctrl+Enter and Cmd+Enter submit", async () => {
-    const dialogs: Dialog[] = [{ id: "e1", method: "editor", title: "Edit", prefill: "line one\nline two" }];
-    const page = await show(dialogs);
+  it("editor starts with its prefill and Enter types a newline instead of submitting", async () => {
+    const page = await show([{ id: "e1", method: "editor", title: "Edit", prefill: "line one\nline two" }]);
     const editor = field(page, "Edit");
     expect(editor.tagName).toBe("TEXTAREA");
     expect(editor.value).toBe("line one\nline two");
     const plain = await press(editor, { key: "Enter" });
     expect(plain.defaultPrevented).toBe(false);
     expect(sent()).toEqual([]);
+  });
+
+  it.each([{ ctrlKey: true }, { metaKey: true }])("editor submits on Enter with %o", async (modifier) => {
+    const page = await show([{ id: "e1", method: "editor", title: "Edit", prefill: "x" }]);
+    const editor = field(page, "Edit");
     await typeInto(editor, "changed");
-    await press(editor, { key: "Enter", ctrlKey: true });
-    await press(editor, { key: "Enter", metaKey: true });
+    await press(editor, { key: "Enter", ...modifier });
     await settle();
     expect(sent()).toEqual([reply("e1", { value: "changed" })]);
   });
@@ -159,8 +162,18 @@ describe("extension confirm", () => {
     expect(sent()).toEqual([reply("c1", { confirmed: false })]);
   });
 
-  it("an extension whose title says Approval gets no approval header or tint", async () => {
+  it("an extension card says it comes from an extension; a policy card never does", async () => {
+    expect(text(await show([confirm]))).toContain("from an extension");
+    await mounted?.unmount();
+    const policy = await show([
+      { id: "a1", method: "approval", category: "exec", title: "Run?", answers: ["deny"] },
+    ]);
+    expect(text(policy)).not.toContain("from an extension");
+  });
+
+  it("an extension whose title says Approval gets no approval header or tint, and keeps its label", async () => {
     const page = await show([{ ...confirm, title: "Approval · exec" }]);
+    expect(text(page)).toContain("from an extension");
     expect(page.querySelector("[data-approval-header]")).toBeNull();
     expect(page.innerHTML).not.toContain("bg-attention-tint");
   });
@@ -199,6 +212,39 @@ describe("the list", () => {
     expect(text(page).length).toBeLessThan(5000);
     await click(button(page, "Show more"));
     expect(page.querySelector("[data-clipped]")?.textContent).toBe(message);
+  });
+
+  it("bounds the height of an expanded extension title", async () => {
+    const page = await show([{ ...select, title: "t".repeat(4096) }]);
+    await click(button(page, "Show more"));
+    const title = page.querySelector("h3");
+    expect(title?.className).toContain("max-h-32");
+    expect(title?.className).toContain("overflow-auto");
+    expect(title?.getAttribute("tabindex")).toBe("0");
+  });
+
+  it("ties a refusal to its own card and clears it when that dialog closes", async () => {
+    bed.handlers["sessions.respondDialog"] = () => {
+      throw new RpcError("bad_request");
+    };
+    const other: Dialog = { id: "o1", method: "confirm", title: "Other" };
+    function Harness() {
+      const [open, setOpen] = useState(true);
+      return (
+        <>
+          <button onClick={() => setOpen(false)}>close</button>
+          <DialogList sessionId="sess-1" dialogs={open ? [select, other] : [other]} hidden={0} />
+        </>
+      );
+    }
+    mounted = await mount(<Harness />);
+    const page = mounted.container;
+    await click(button(page, "a"));
+    await settle();
+    const cards = [...page.querySelectorAll("[data-dialog]")];
+    expect(cards.map((card) => card.querySelector('[role="alert"]') !== null)).toEqual([true, false]);
+    await click(button(page, "close"));
+    expect(page.querySelector('[role="alert"]')).toBeNull();
   });
 
   it("clips a long title to a few characters more than the limit", async () => {
