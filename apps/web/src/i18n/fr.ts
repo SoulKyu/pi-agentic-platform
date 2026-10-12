@@ -167,7 +167,6 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "rules.more": "Il existe plus de règles que celles affichées.",
   "rules.loading": "Chargement…",
   "navigation.cancelled": "La navigation a été annulée.",
-  "rules.notFound": "Le projet de cette session est introuvable.",
   "sessions.minimap.label": "Tours",
   "sessions.minimap.turn": "Tour {number} : {preview}",
   "sessions.minimap.turnBare": "Tour {number}",

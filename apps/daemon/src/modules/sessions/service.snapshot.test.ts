@@ -58,6 +58,13 @@ describe("snapshot", () => {
     });
   });
 
+  it("carries the folder of the session's row", async () => {
+    bed = build();
+    await bed.service.create(bed.work, owner);
+    expect(bed.work).not.toBe("");
+    expect(await bed.snapshot("p1")).toMatchObject({ cwd: bed.work });
+  });
+
   it("reads the transcript from the file, also of a session without a worker", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);

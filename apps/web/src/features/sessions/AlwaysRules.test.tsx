@@ -52,20 +52,8 @@ async function open(container: HTMLElement) {
 const revokeButtons = (container: HTMLElement) =>
   [...container.querySelectorAll("button")].filter((b) => b.textContent === "Revoke");
 
-const summary = (id: string, cwd: string) => ({
-  id,
-  cwd,
-  name: null,
-  status: "idle",
-  createdAt: 1,
-  updatedAt: 1,
-});
-
 async function show() {
-  screen.bed.handlers["sessions.list"] = () => ({
-    sessions: [summary("other", "/elsewhere"), summary("sess-1", "/work/project")],
-  });
-  const container = await screen.show({});
+  const container = await screen.show({ cwd: "/work/project" });
   await open(container);
   return container;
 }
@@ -207,35 +195,19 @@ describe("always rules", () => {
     expect(revokeButtons(container)).toHaveLength(0);
   });
 
-  it("shows the loading text while the session's folder is being found", async () => {
-    const reply = deferred();
-    screen.bed.handlers["sessions.list"] = () => reply.promise;
-    const container = await screen.show({});
+  it("lists the rules of the snapshot's folder and never lists sessions", async () => {
+    screen.bed.handlers["policy.listRules"] = () => two;
+    const container = await screen.show({ cwd: "/w/api" });
+    await open(container);
+    expect(listed()).toEqual([{ method: "policy.listRules", params: { cwd: "/w/api" } }]);
+    expect(screen.bed.called("sessions.list")).toEqual([]);
+  });
+
+  it("shows the loading text, and asks nothing, while the snapshot has no folder", async () => {
+    const container = await screen.show({ cwd: "" });
     await open(container);
     expect(text(container)).toContain("Loading…");
     expect(listed()).toHaveLength(0);
-    reply.resolve({ sessions: [summary("sess-1", "/work/project")] });
-    await settle();
-    expect(text(container)).not.toContain("Loading…");
-    expect(listed()).toHaveLength(1);
-  });
-
-  it("says so when the session is not in the list", async () => {
-    screen.bed.handlers["sessions.list"] = () => ({ sessions: [summary("other", "/elsewhere")] });
-    const container = await screen.show({});
-    await open(container);
-    expect(alerts(container)).toEqual(["This session's project could not be found."]);
-    expect(listed()).toHaveLength(0);
-  });
-
-  it("shows the error of a failed session list", async () => {
-    screen.bed.handlers["sessions.list"] = () => {
-      throw new RpcError("internal");
-    };
-    const container = await screen.show({});
-    await open(container);
-    expect(alerts(container)).toHaveLength(1);
-    expect(text(container)).not.toContain("Loading…");
-    expect(listed()).toHaveLength(0);
+    expect(screen.bed.called("sessions.list")).toEqual([]);
   });
 });

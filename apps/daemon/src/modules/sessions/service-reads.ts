@@ -206,6 +206,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         history,
         leafId: session?.leafId() ?? page.leafId,
         name: row.name,
+        cwd: row.cwd,
       });
       return withTrimmedHistory(snapshot, rows, history);
     },

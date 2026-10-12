@@ -166,7 +166,6 @@ export const en = {
   "rules.more": "More rules exist than the ones shown.",
   "rules.loading": "Loading…",
   "navigation.cancelled": "The navigation was cancelled.",
-  "rules.notFound": "This session's project could not be found.",
   "sessions.minimap.label": "Turns",
   "sessions.minimap.turn": "Turn {number}: {preview}",
   "sessions.minimap.turnBare": "Turn {number}",

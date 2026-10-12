@@ -96,7 +96,14 @@ const snapshot = {
 
 describe("session stream v2", () => {
   it("parses a snapshot with every section", () => {
-    expect(SessionStreamEvent.parse(snapshot)).toEqual(snapshot);
+    expect(SessionStreamEvent.parse(snapshot)).toEqual({ ...snapshot, cwd: "" });
+  });
+
+  it("carries the session's folder, empty from an older daemon, at most 4096 characters", () => {
+    expect(SessionStreamEvent.parse(snapshot)).toMatchObject({ cwd: "" });
+    expect(SessionStreamEvent.parse({ ...snapshot, cwd: "/w/api" })).toMatchObject({ cwd: "/w/api" });
+    expect(SessionStreamEvent.safeParse({ ...snapshot, cwd: "x".repeat(4097) }).success).toBe(false);
+    expect(SessionStreamEvent.safeParse({ ...snapshot, cwd: "x".repeat(4096) }).success).toBe(true);
   });
 
   it("refuses sections over their limits", () => {

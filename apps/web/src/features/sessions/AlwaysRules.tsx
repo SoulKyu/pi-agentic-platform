@@ -114,49 +114,21 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
   );
 }
 
-/** The session header's disclosure: opened, it finds the session's folder and lists the rules of its project. */
-export function SessionRules({ sessionId }: { sessionId: string }) {
+/** The session header's disclosure: opened, it lists the rules of the project of the snapshot's folder. */
+export function SessionRules({ cwd }: { sessionId: string; cwd: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [cwd, setCwd] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notFound, setNotFound] = useState(false);
-  useEffect(() => {
-    if (!open || cwd !== null) return;
-    let current = true;
-    getRuntime()
-      .rpc.call("sessions.list", {})
-      .then(
-        (result) => {
-          if (!current) return;
-          const found = result.sessions.find((session) => session.id === sessionId)?.cwd ?? null;
-          setCwd(found);
-          setNotFound(found === null);
-          setError(null);
-        },
-        (failure: unknown) => {
-          if (current) setError(failureText(failure));
-        },
-      );
-    return () => {
-      current = false;
-    };
-  }, [open, cwd, sessionId]);
-
   return (
     <details data-always-rules className="text-ui" onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="cursor-pointer font-mono text-label uppercase tracking-label text-muted">
         {t("rules.title")}
       </summary>
       <div className="mt-2">
-        {open && cwd !== null ? <AlwaysRules cwd={cwd} /> : null}
-        {open && cwd === null ? (
-          error || notFound ? (
-            <p role="alert" className="text-ui text-attn">
-              {notFound ? t("rules.notFound") : error}
-            </p>
-          ) : (
+        {open ? (
+          cwd === "" ? (
             <p className="text-ui text-muted">{t("rules.loading")}</p>
+          ) : (
+            <AlwaysRules cwd={cwd} />
           )
         ) : null}
       </div>

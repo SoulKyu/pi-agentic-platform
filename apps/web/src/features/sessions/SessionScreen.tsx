@@ -113,7 +113,7 @@ export function SessionScreen({
         track={structural.track}
         blocked={structural.active}
       />
-      <SessionRules key={`rules:${sessionId}`} sessionId={sessionId} />
+      <SessionRules key={`rules:${sessionId}`} sessionId={sessionId} cwd={view.cwd} />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
       <Transcript
         key={`transcript:${sessionId}`}

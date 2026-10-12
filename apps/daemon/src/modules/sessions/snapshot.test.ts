@@ -40,7 +40,12 @@ describe("fitSnapshot", () => {
       activity: { compacting: false, retry: null },
       leafId: null,
       name: null,
+      cwd: "",
     });
+  });
+
+  it("carries the session's folder", () => {
+    expect(fitSnapshot({ status: "idle", rows: [], dialogs: [], cwd: "/w/api" }).cwd).toBe("/w/api");
   });
 
   it("keeps the newest rows, at most SNAPSHOT_ROWS of them", () => {

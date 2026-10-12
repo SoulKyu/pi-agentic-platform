@@ -45,6 +45,8 @@ export interface SessionView extends UiState {
   readonly history: HistoryMeta;
   /** Pi's current leaf as far as the stream has said so; null when unknown. */
   readonly leafId: string | null;
+  /** The session's folder, from the snapshot ("" until one arrives). */
+  readonly cwd: string;
   readonly loaded: boolean;
   /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
   readonly generation: number;
@@ -64,6 +66,7 @@ export const EMPTY_VIEW: SessionView = {
   ...EMPTY_UI,
   history: NO_HISTORY,
   leafId: null,
+  cwd: "",
   loaded: false,
   generation: 0,
   unreadable: false,
@@ -109,6 +112,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         ...uiOfSnapshot(event, view),
         history: event.history,
         leafId: event.leafId,
+        cwd: event.cwd,
         loaded: true,
         generation: view.generation + 1,
       };

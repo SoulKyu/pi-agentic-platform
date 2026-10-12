@@ -228,6 +228,8 @@ const Snapshot = z.object({
   activity: Activity,
   leafId: z.string().max(128).nullable(),
   name: SessionName.nullable(),
+  /** The session's working directory (M4): the session screen needs no list to find it. `""` from an older daemon. */
+  cwd: z.string().max(4096).default(""),
 });
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
