@@ -46,7 +46,7 @@ export function ToolCard({
   const open = chosen ?? detail !== "compact";
   const header = (
     <span className="flex min-w-0 flex-1 items-center gap-s2 px-s2 py-s1">
-      <span className="label-hud shrink-0 text-agent">{name}</span>
+      <span className="label-hud min-w-0 truncate text-agent">{name}</span>
       {summary ? (
         <span className="min-w-0 flex-1 truncate font-mono text-code text-muted">{summary}</span>
       ) : (

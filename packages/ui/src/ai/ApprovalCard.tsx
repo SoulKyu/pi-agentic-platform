@@ -20,6 +20,12 @@ interface ApprovalCardCommon {
   readonly taintLabel?: string;
   /** Diff stats, trigger, tests. */
   readonly context?: ReactNode;
+  /** What the policy asks, in its own words: shown under the heading, above the detail. Already escaped. */
+  readonly question?: ReactNode;
+  /** A line under the answers ("Closes on its own after 30 s"). */
+  readonly note?: ReactNode;
+  /** Names the header when the caller lets it scroll (it then takes the keyboard like the body does). */
+  readonly headerLabel?: string;
 }
 
 /** The converged API (agreement 6): the answers offered, their labels, one callback per click. */
@@ -92,14 +98,28 @@ export function ApprovalCard(props: ApprovalCardProps) {
     }
     guard.current(choice);
   };
+  const questionId = useId();
   const headerId = useId();
   const bodyId = useId();
+  const contextId = useId();
   const { header, body } = splitDetail(props.detail);
-  const described = [header === null ? "" : headerId, body === "" ? "" : bodyId].filter(Boolean).join(" ");
+  const described = [
+    props.question ? questionId : "",
+    header === null ? "" : headerId,
+    body === "" ? "" : bodyId,
+    props.context ? contextId : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const scrollingHeader = props.headerLabel
+    ? ({ role: "region", tabIndex: 0, "aria-label": props.headerLabel } as const)
+    : {};
   return (
     <section
       role="alertdialog"
-      aria-label={props.title}
+      // Escape closes or cancels the card's own surface and never stops the run (the dispatcher's `inlineEditFocus`).
+      data-inline-edit
+      aria-label={props.category ? `${props.title} ${props.category}` : props.title}
       aria-describedby={described || undefined}
       className="rounded-md border border-attn-line bg-attn-tint p-s3"
     >
@@ -107,17 +127,26 @@ export function ApprovalCard(props: ApprovalCardProps) {
         <span>{props.title}</span>
         {props.category ? (
           <>
-            <span aria-hidden>·</span>
+            <span aria-hidden="true">·</span>
             <span>{props.category}</span>
           </>
         ) : null}
         {props.taintLabel ? <Chip tone="ext" label={props.taintLabel} /> : null}
       </h3>
+      {props.question ? (
+        <div id={questionId} className="mt-s2">
+          {props.question}
+        </div>
+      ) : null}
       {header === null ? null : (
         <pre
           data-approval-header
           id={headerId}
-          className="mt-s2 whitespace-pre-wrap break-all font-mono text-ui font-semibold text-fg"
+          {...scrollingHeader}
+          className={cn(
+            "mt-s2 max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-ui font-semibold text-fg",
+            props.headerLabel ? FOCUS_RING : null,
+          )}
         >
           {header}
         </pre>
@@ -138,7 +167,11 @@ export function ApprovalCard(props: ApprovalCardProps) {
           {body}
         </pre>
       )}
-      {props.context ? <div className="mt-s2 text-ui text-muted">{props.context}</div> : null}
+      {props.context ? (
+        <div id={contextId} className="mt-s2 text-ui text-muted">
+          {props.context}
+        </div>
+      ) : null}
       <div className="mt-s3 flex flex-wrap gap-s2">
         {answers.map((choice) => (
           <Button
@@ -151,6 +184,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
           </Button>
         ))}
       </div>
+      {props.note ? <div className="mt-s2 text-label text-muted">{props.note}</div> : null}
     </section>
   );
 }

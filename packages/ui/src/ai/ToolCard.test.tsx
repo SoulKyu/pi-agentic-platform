@@ -51,4 +51,45 @@ describe("ToolCard (DESIGN.md §9.2)", () => {
     expect(page.container.textContent).toContain("out");
     await page.unmount();
   });
+
+  it("truncates a hostile long tool name instead of overflowing the header (M3 triage)", () => {
+    const name = `ext_${"w".repeat(5000)}`;
+    const html = renderToStaticMarkup(
+      <ToolCard name={name} status="done" detail="compact" runningLabel="Running" failedLabel="Failed" />,
+    );
+    const span = new RegExp(`<span class="([^"]*)">${name}</span>`).exec(html);
+    expect(span?.[1]).toContain("min-w-0");
+    expect(span?.[1]).toContain("truncate");
+    expect(span?.[1]).not.toContain("shrink-0");
+  });
+
+  it("shows the name, the failed chip and no body in a header-only error card", () => {
+    const html = renderToStaticMarkup(
+      <ToolCard name="bash" status="error" detail="full" runningLabel="Running" failedLabel="Failed" />,
+    );
+    expect(html).toContain('data-status="error"');
+    expect(html).toContain("border-err");
+    expect(html).toContain(">Failed<");
+    expect(html).not.toContain("<pre");
+    expect(html).not.toContain("collapsible");
+  });
+
+  it("shows an error card's output when there is one, open under 'expanded'", async () => {
+    const page = await mount(
+      <ToolCard name="bash" status="error" detail="expanded" runningLabel="Running" failedLabel="Failed">
+        permission denied
+      </ToolCard>,
+    );
+    expect(page.container.querySelector("pre")?.textContent).toBe("permission denied");
+    expect(page.container.textContent).toContain("Failed");
+    await page.unmount();
+  });
+
+  it("a header-only running card still shows the progress bar", () => {
+    const html = renderToStaticMarkup(
+      <ToolCard name="bash" status="running" detail="compact" runningLabel="Running" failedLabel="Failed" />,
+    );
+    expect(html).toContain("animate-indeterminate");
+    expect(html).not.toContain("<pre");
+  });
 });
