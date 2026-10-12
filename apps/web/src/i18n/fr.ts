@@ -93,5 +93,18 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "session.status.releasing": "Libération",
   "sessions.unreadable":
     "Cette session ne peut pas être affichée. Rechargez la page ; si cela persiste, le fichier de session est peut-être abîmé.",
+  "sessions.transcript.loadOlder": "Charger les messages plus anciens",
+  "sessions.transcript.thinking": "Réflexion",
+  "sessions.transcript.compacted": "Conversation compactée · à partir de {tokens} jetons",
+  "sessions.transcript.branchSummary": "Résumé d'une autre branche",
+  "sessions.transcript.compacting": "Compactage…",
+  "sessions.transcript.retrying": "Nouvel essai ({attempt}/{max})…",
+  "sessions.tool.running": "En cours",
+  "sessions.tool.done": "Terminé",
+  "sessions.tool.failed": "Échec",
+  "sessions.tool.waiting": "En attente",
+  "sessions.tool.showAll": "Afficher toute la sortie ({size} Ko)",
+  "sessions.tool.notYet": "La sortie n'est pas encore disponible.",
+  "sessions.tool.retry": "Réessayer",
   // ── end sessions (M2) ──
 };

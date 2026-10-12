@@ -1,5 +1,5 @@
 import type { DialogResponse } from "@pap/contracts";
-import { ApprovalCard, Button, cn, FOCUS_RING, Message } from "@pap/ui";
+import { ApprovalCard, Button, cn, FOCUS_RING } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { t } from "../../i18n/index.ts";
@@ -10,8 +10,7 @@ import { useSessionStore } from "../../stores/session-store.ts";
 import { approvalDetail } from "./approval-detail.ts";
 import { Composer } from "./Composer.tsx";
 import { codeText, failureText } from "./failure.ts";
-import { transcriptItems } from "./transcript.vm.ts";
-import { useStickToBottom } from "./use-stick-to-bottom.ts";
+import { Transcript } from "./Transcript.tsx";
 
 export function SessionScreen({ sessionId }: { sessionId: string }) {
   const runtime = getRuntime();
@@ -19,8 +18,6 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
   const [error, setError] = useState<string | null>(null);
   // Counts the answers to a dialog that could not be delivered: it keys the card, see `answer`.
   const [refused, setRefused] = useState<Readonly<Record<string, number>>>({});
-  const items = transcriptItems(view);
-  const [attachList, onListScroll] = useStickToBottom(`${items.length}:${items.at(-1)?.text.length ?? 0}`);
 
   // One feed per session id: the events build the view in the store, not in this component.
   useEffect(
@@ -61,29 +58,7 @@ export function SessionScreen({ sessionId }: { sessionId: string }) {
           {t("sessions.unreadable")}
         </p>
       ) : null}
-      <ol ref={attachList} onScroll={onListScroll} className="flex flex-1 flex-col gap-2 overflow-y-auto">
-        {items.map((item, index) =>
-          item.failure ? (
-            <li
-              key={item.key}
-              data-failure
-              role={index === items.length - 1 ? "alert" : undefined}
-              className="border-l-2 border-error px-3 py-2 text-ui text-error"
-            >
-              <p className="font-mono text-label font-semibold uppercase tracking-label">
-                {t("session.failure")}
-              </p>
-              <p className="mt-1 whitespace-pre-wrap break-words">{item.text}</p>
-            </li>
-          ) : (
-            <li key={item.key}>
-              <Message author={item.author} label={t(`author.${item.author}`)}>
-                {item.text}
-              </Message>
-            </li>
-          ),
-        )}
-      </ol>
+      <Transcript key={`transcript:${sessionId}`} sessionId={sessionId} view={view} />
       {view.dialogs.map((dialog) =>
         dialog.method === "confirm" || dialog.method === "approval" ? (
           <ApprovalCard

@@ -1,7 +1,10 @@
 export interface ToolCallView {
   readonly id: string;
   readonly name: string;
+  /** The command or the arguments' JSON, cut to 200 characters. */
   readonly summary: string;
+  /** The arguments were longer than the summary shows. */
+  readonly argsTruncated: boolean;
 }
 
 export type MessageRole =
@@ -25,6 +28,12 @@ export interface MessageView {
   readonly ref: string;
   readonly role: MessageRole;
   readonly text: string;
+  /** What the model thought, joined; "" when the message has no thinking. */
+  readonly thinking: string;
+  /** The call a tool result answers, null for any other message. */
+  readonly toolCallId: string | null;
+  /** A tool result that reports a failure. */
+  readonly isError: boolean;
   /** How many tokens a compaction summarised, null for any other message. */
   readonly tokensBefore: number | null;
   readonly toolCalls: readonly ToolCallView[];
@@ -37,11 +46,16 @@ export interface MessageView {
 }
 
 const MAX_ERROR = 500;
+const MAX_SUMMARY = 200;
+const MAX_NAME = 64;
+const MAX_CALL_ID = 256;
 
-const summarize = (args: unknown): string => {
+const summarize = (args: unknown): { readonly summary: string; readonly argsTruncated: boolean } => {
   const command = (args as { command?: unknown } | null)?.command;
-  const text = typeof command === "string" ? command : JSON.stringify(args ?? {});
-  return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+  const text = typeof command === "string" ? command : (JSON.stringify(args ?? {}) ?? "");
+  return text.length > MAX_SUMMARY
+    ? { summary: `${text.slice(0, MAX_SUMMARY)}…`, argsTruncated: true }
+    : { summary: text, argsTruncated: false };
 };
 
 const clip = (text: string, max: number): string =>
@@ -76,6 +90,7 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     summary?: unknown;
     tokensBefore?: unknown;
     display?: unknown;
+    isError?: unknown;
   };
   if (message.role === "custom" && message.display === false) return null;
   const role = KNOWN_ROLES.has(message.role) ? (message.role as MessageRole) : "other";
@@ -95,10 +110,15 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
   const toolCalls = blocks
     .filter((block) => block.type === "toolCall")
     .map((block) => ({
-      id: String(block.id ?? ""),
-      name: String(block.name ?? "tool"),
-      summary: summarize(block.arguments ?? block.args ?? block.input),
+      id: clip(String(block.id ?? ""), MAX_CALL_ID),
+      name: clip(String(block.name ?? "tool"), MAX_NAME),
+      ...summarize(block.arguments ?? block.args ?? block.input),
     }));
+  const thinking = blocks
+    .filter((block) => block.type === "thinking")
+    .map((block) => block.thinking ?? block.text)
+    .filter((part): part is string => typeof part === "string")
+    .join("\n");
   const failed = role === "assistant" && message.stopReason === "error";
   const omitted =
     message.omitted === true && typeof message.bytes === "number" && Number.isFinite(message.bytes);
@@ -109,6 +129,12 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     ref,
     role,
     text,
+    thinking,
+    toolCallId:
+      role === "toolResult" && typeof message.toolCallId === "string" && message.toolCallId !== ""
+        ? clip(message.toolCallId, MAX_CALL_ID)
+        : null,
+    isError: role === "toolResult" && message.isError === true,
     tokensBefore:
       role === "compactionSummary" &&
       typeof message.tokensBefore === "number" &&
@@ -127,6 +153,8 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
 export const sameContent = (a: MessageView, b: MessageView): boolean =>
   a.role === b.role &&
   a.text === b.text &&
+  a.thinking === b.thinking &&
+  a.isError === b.isError &&
   a.error === b.error &&
   a.omittedBytes === b.omittedBytes &&
   a.toolCalls.length === b.toolCalls.length &&

@@ -90,5 +90,18 @@ export const en = {
   "session.status.releasing": "Releasing",
   "sessions.unreadable":
     "This session could not be shown. Reload the page; if it stays, the session file may be damaged.",
+  "sessions.transcript.loadOlder": "Load older messages",
+  "sessions.transcript.thinking": "Thinking",
+  "sessions.transcript.compacted": "Conversation compacted · from {tokens} tokens",
+  "sessions.transcript.branchSummary": "Summary of another branch",
+  "sessions.transcript.compacting": "Compacting…",
+  "sessions.transcript.retrying": "Retrying ({attempt}/{max})…",
+  "sessions.tool.running": "Running",
+  "sessions.tool.done": "Done",
+  "sessions.tool.failed": "Failed",
+  "sessions.tool.waiting": "Waiting",
+  "sessions.tool.showAll": "Show the whole output ({size} KB)",
+  "sessions.tool.notYet": "The output is not available yet.",
+  "sessions.tool.retry": "Try again",
   // ── end sessions (M2) ──
 } as const;

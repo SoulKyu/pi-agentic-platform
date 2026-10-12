@@ -1,41 +1,178 @@
 import { t } from "../../i18n/index.ts";
-import type { SessionView } from "../../stores/session-reducer.ts";
-
-export interface TranscriptItem {
-  readonly key: string;
-  readonly author: "agent" | "you" | "tool";
-  readonly text: string;
-  /** The provider failed: the text is why, to be shown as an error. */
-  readonly failure?: true;
-}
+import type { MessageView, ToolCallView } from "../../stores/row-view.ts";
+import type { SessionView, ToolView } from "../../stores/session-reducer.ts";
 
 const BYTES_PER_KB = 1024;
 
+export type ToolStatus = "running" | "done" | "failed" | "waiting";
+
+export interface MessageItem {
+  readonly kind: "message";
+  readonly key: string;
+  readonly author: "agent" | "you" | "tool";
+  readonly text: string;
+  readonly thinking: string;
+  readonly entryId: string | null;
+}
+
+export interface ToolItem {
+  readonly kind: "tool";
+  /** `${owner}:${toolCallId}#${occurrence}`: Pi's call ids are not unique, so the id alone cannot key a row (M2R126). */
+  readonly key: string;
+  readonly toolCallId: string;
+  readonly name: string;
+  readonly summary: string;
+  readonly status: ToolStatus;
+  readonly preview: string;
+  /** How many characters the whole output has when `preview` is only its start, else null. */
+  readonly truncatedChars: number | null;
+  readonly argsTruncated: boolean;
+}
+
+export interface SummaryItem {
+  readonly kind: "summary";
+  readonly key: string;
+  readonly variant: "compaction" | "branch";
+  readonly text: string;
+  readonly tokensBefore: number | null;
+  readonly entryId: string | null;
+}
+
+export interface FailureItem {
+  readonly kind: "failure";
+  readonly key: string;
+  readonly text: string;
+}
+
+export interface PartialItem {
+  readonly kind: "partial";
+  readonly key: "partial";
+  readonly text: string;
+  readonly thinking: string;
+}
+
+export type TranscriptItem = MessageItem | ToolItem | SummaryItem | FailureItem | PartialItem;
+
+/** A call that has not been answered yet, while the items are being built. */
+interface OpenCall {
+  readonly index: number;
+  /** Position of the assistant message among the messages: "nearest" is measured in messages. */
+  readonly at: number;
+  readonly item: ToolItem;
+}
+
+const omittedText = (message: MessageView): string =>
+  t("session.omitted", { size: Math.max(1, Math.round((message.omittedBytes ?? 0) / BYTES_PER_KB)) });
+
+function toolItem(owner: string, call: ToolCallView, occurrence: number): ToolItem {
+  return {
+    kind: "tool",
+    key: `${owner}:${call.id}#${occurrence}`,
+    toolCallId: call.id,
+    name: call.name,
+    summary: call.summary,
+    status: "waiting",
+    preview: "",
+    truncatedChars: null,
+    argsTruncated: call.argsTruncated,
+  };
+}
+
+/**
+ * The answer goes to the nearest message before it that still has an open call of this id, and to the earliest
+ * open call in that message (a turn's results come in call order). A call nobody answered stays open, so an old
+ * one never takes the result of a later turn.
+ */
+function answered(open: OpenCall[], message: MessageView): OpenCall | undefined {
+  const mine = open.filter((call) => call.item.toolCallId === message.toolCallId);
+  const nearest = mine.at(-1)?.at;
+  return mine.find((call) => call.at === nearest);
+}
+
+const withLive = (item: ToolItem, live: ToolView | undefined): ToolItem =>
+  live ? { ...item, status: live.status, preview: live.preview } : item;
+
+function uniqueKeys(items: TranscriptItem[]): TranscriptItem[] {
+  const taken = new Set<string>();
+  return items.map((item) => {
+    let key = item.key;
+    for (let n = 1; taken.has(key); n++) key = `${item.key}~${n}`;
+    taken.add(key);
+    return key === item.key ? item : ({ ...item, key } as TranscriptItem);
+  });
+}
+
 export function transcriptItems(view: SessionView): TranscriptItem[] {
   const items: TranscriptItem[] = [];
-  for (const message of view.messages) {
-    const author = message.role === "user" ? "you" : message.role === "assistant" ? "agent" : "tool";
-    const text =
-      message.omittedBytes === null
-        ? [message.text, ...message.toolCalls.map((call) => `${call.name}: ${call.summary}`)]
-            .filter(Boolean)
-            .join("\n")
-        : t("session.omitted", { size: Math.max(1, Math.round(message.omittedBytes / BYTES_PER_KB)) });
-    if (text) items.push({ key: message.key, author, text });
-    if (message.error !== null) {
+  const open: OpenCall[] = [];
+  view.messages.forEach((message, at) => {
+    const placeholder = message.omittedBytes === null ? null : omittedText(message);
+    if (message.role === "toolResult" && message.toolCallId !== null && placeholder === null) {
+      const call = answered(open, message);
+      if (call) {
+        open.splice(open.indexOf(call), 1);
+        items[call.index] = {
+          ...call.item,
+          status: message.isError ? "failed" : "done",
+          preview: message.text,
+          truncatedChars: message.truncatedChars,
+        };
+        return;
+      }
+    }
+    if (message.role === "compactionSummary" || message.role === "branchSummary") {
       items.push({
-        key: `${message.key}:failure`,
-        author: "agent",
-        text: message.error || t("error.internal"),
-        failure: true,
+        kind: "summary",
+        key: message.key,
+        variant: message.role === "compactionSummary" ? "compaction" : "branch",
+        text: message.text,
+        tokensBefore: message.tokensBefore,
+        entryId: message.entryId,
+      });
+      return;
+    }
+    const author = message.role === "user" ? "you" : message.role === "assistant" ? "agent" : "tool";
+    const text = placeholder ?? message.text;
+    if (text || message.thinking) {
+      items.push({
+        kind: "message",
+        key: message.key,
+        author,
+        text,
+        thinking: message.thinking,
+        entryId: message.entryId,
       });
     }
-  }
-  // Thinking and tool-call blocks of the partial reply are not shown here.
-  const partialText = (view.partial?.blocks ?? [])
-    .filter((block) => block.type === "text")
-    .map((block) => block.text)
-    .join("");
-  if (partialText) items.push({ key: "partial", author: "agent", text: partialText });
-  return items;
+    const owner = message.entryId ?? message.key;
+    const seen = new Map<string, number>();
+    for (const call of message.toolCalls) {
+      const occurrence = seen.get(call.id) ?? 0;
+      seen.set(call.id, occurrence + 1);
+      const item = toolItem(owner, call, occurrence);
+      open.push({ index: items.length, at, item });
+      items.push(item);
+    }
+    if (message.error !== null) {
+      items.push({
+        kind: "failure",
+        key: `${message.key}:failure`,
+        text: message.error || t("error.internal"),
+      });
+    }
+  });
+  // M2-RT-11: the live status belongs to the newest call of an id that has no result; older ones only wait.
+  const newest = new Map<string, OpenCall>();
+  for (const call of open) newest.set(call.item.toolCallId, call);
+  for (const call of newest.values())
+    items[call.index] = withLive(call.item, view.tools.get(call.item.toolCallId));
+  const blocks = view.partial?.blocks ?? [];
+  const join = (type: string) =>
+    blocks
+      .filter((block) => block.type === type)
+      .map((block) => block.text)
+      .join("");
+  const text = join("text");
+  const thinking = join("thinking");
+  if (text || thinking) items.push({ kind: "partial", key: "partial", text, thinking });
+  return uniqueKeys(items);
 }
