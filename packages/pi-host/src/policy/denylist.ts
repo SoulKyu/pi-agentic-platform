@@ -63,10 +63,13 @@ const ROUGH_TAIL_WORDS = 64;
 const DANGEROUS_NAME =
   /^(?:rm|chmod|chown|chgrp|mkfs(?:\.[a-z0-9]+)?|mke2fs|mkswap|dd|shred|wipefs|blkdiscard)$/;
 // `${…}` (bounded, so an unclosed run of openers is linear) and `$IFS` are read first; any other bracket is a blank.
-const ROUGH_BRACKETS = /\$\{[^}]{0,64}\}|\$IFS\b|[`(){}]|[<>]+/g;
+const ROUGH_BRACKETS = /\$\{[^}]{0,64}\}|\$IFS\b|[`(){}]|&>>?|[<>]+[|&]?/g;
 const roughBlank = (match: string): string => {
   if (match === "${IFS}" || match === "$IFS") return " ";
-  return match.startsWith("$") ? match : ` ${/^[<>]/.test(match) ? `${match} ` : ""}`;
+  if (match.startsWith("$")) return match;
+  // A redirection to a file becomes a plain `>` before the cut at `|` and `&` parts it from its target; `<` stays apart.
+  if (match.includes(">")) return " > ";
+  return /^[<&]/.test(match) ? ` ${match} ` : " ";
 };
 
 /**

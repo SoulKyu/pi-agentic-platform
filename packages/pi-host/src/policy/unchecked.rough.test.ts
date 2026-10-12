@@ -25,6 +25,10 @@ describe("the rough scan follows the reader's own forms", () => {
     "cat /dev/zero >/dev/sda",
     "rm${IFS}-rf${IFS}~",
     "rm$IFS-rf$IFS~",
+    "echo x >|/dev/sda",
+    "echo x >| /dev/sda",
+    "echo x >&/dev/sda",
+    "echo x &>/dev/sda",
   ];
   it.each(forms)("blocks %j after 1001 commands", async (form) => {
     const h = bed.harness();
@@ -32,14 +36,18 @@ describe("the rough scan follows the reader's own forms", () => {
     expect(h.asks).toEqual([]);
   });
 
-  it.each(['rm -rf "${BUILD_DIR}/"', "rm -rf ${dir:?}/*", "rm -rf ${a} ${b:-x}/y"])(
-    "asks about %j after 1001 commands: braces of an expansion stay whole",
-    async (form) => {
-      const h = bed.harness();
-      expect(await h.run("bash", { command: `${PAD}${form}` })).toBeUndefined();
-      expect(h.asks).toHaveLength(1);
-    },
-  );
+  it.each([
+    'rm -rf "${BUILD_DIR}/"',
+    "rm -rf ${dir:?}/*",
+    "rm -rf ${a} ${b:-x}/y",
+    "cmd 2>&1 | tail",
+    "cmd >&2",
+    "cat <&3",
+  ])("asks about %j after 1001 commands: braces of an expansion stay whole", async (form) => {
+    const h = bed.harness();
+    expect(await h.run("bash", { command: `${PAD}${form}` })).toBeUndefined();
+    expect(h.asks).toHaveLength(1);
+  });
 });
 
 describe("the rough scan has a step budget (RT-16)", () => {
