@@ -61,7 +61,8 @@ export const methods = catalogue({
     permission: "sessions:read",
     idempotent: true,
     params: z.object({}),
-    result: z.object({ sessions: z.array(SessionSummary) }),
+    // Cut to the page in JSON bytes, the newest kept (M4R35).
+    result: z.object({ sessions: z.array(SessionSummary), truncated: z.literal(true).optional() }),
     errors: [],
   }),
   "sessions.prompt": defineMethod({

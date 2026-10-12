@@ -10,6 +10,10 @@ function setup(overrides: Partial<SessionsService> = {}) {
   const service: SessionsService = {
     create: vi.fn(async () => ({ sessionId: "p1" })),
     list: vi.fn(() => []),
+    listFitted: vi.fn(() => ({ sessions: [], truncated: false })),
+    shellSnapshot: vi.fn(),
+    listArchived: vi.fn(() => ({ sessions: [], hasMore: false })),
+    summary: vi.fn(() => null),
     prompt: vi.fn(async () => ({ disposition: "started" as const })),
     abort: vi.fn(async () => {}),
     navigate: vi.fn(async () => ({ cancelled: false, editorText: "q" })),

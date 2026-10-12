@@ -7,6 +7,8 @@ import {
   type SessionStatus,
   type SessionStreamEvent,
   type SessionSummary,
+  type ShellSession,
+  type ShellStreamEvent,
   type TranscriptRow,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
@@ -26,6 +28,9 @@ import type { PiWriter } from "./pi-writer.ts";
 import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
 import { createLaunch } from "./service-launch.ts";
 import { createSessionReads } from "./service-reads.ts";
+import { createShellView } from "./service-shell.ts";
+import { createShellPublisher } from "./shell-publisher.ts";
+import { fitSummaries } from "./shell.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 
@@ -69,6 +74,17 @@ export interface PromptInput {
 export interface SessionsService extends SessionCommands {
   create(cwd: string, caller: Caller): Promise<{ sessionId: string }>;
   list(caller: Caller): SessionSummary[];
+  /** `list` cut to the page in JSON bytes, the newest kept (M4R35). */
+  listFitted(caller: Caller): { sessions: SessionSummary[]; truncated: boolean };
+  /** The caller's own sidebar: what a `shell` subscription starts from. Filtered by the owner id the transport gave. */
+  shellSnapshot(ownerId: string): ShellStreamEvent;
+  /** Archived sessions of the caller, newest archive first, by `(archivedAt, id)`. */
+  listArchived(
+    caller: Caller,
+    params: { before?: { archivedAt: number; id: string } | undefined; limit?: number | undefined },
+  ): { sessions: ShellSession[]; hasMore: boolean };
+  /** A session's sidebar summary, only when `ownerId` owns it. */
+  summary(sessionId: string, ownerId: string): ShellSession | null;
   prompt(input: PromptInput, caller: Caller): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(sessionId: string, caller: Caller): Promise<void>;
   /** Empties the steering queue of a session the caller owns; a cold session has none (no worker is started). */
@@ -125,6 +141,9 @@ export interface SessionsService extends SessionCommands {
   backfillProjects(): number;
 }
 
+// What changes a sidebar summary: the status, an open dialog or approval, the name (M4R34).
+const SUMMARY_EVENTS: ReadonlySet<string> = new Set(["status", "dialog_open", "dialog_closed", "name"]);
+
 export function createSessionsService(deps: SessionsServiceDeps): SessionsService {
   // Workers that are up, by session id. A crashed worker leaves this map and is not replaced until the next prompt.
   const live = new Map<string, LiveSession>();
@@ -158,6 +177,24 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     logger: deps.logger,
   });
 
+  const statusOf = (id: string): SessionStatus =>
+    live.get(id)?.status() ?? (reopening.has(id) ? "starting" : "cold");
+
+  const shell = createShellView({
+    store: marks,
+    projects: deps.projects,
+    live: (id) => ({ status: statusOf(id), needsInput: (live.get(id)?.dialogs().length ?? 0) > 0 }),
+  });
+  const publisher = createShellPublisher({
+    hub: deps.hub,
+    summary: shell.summary,
+    project: shell.project,
+    archivedCount: marks.countArchived,
+    logger: deps.logger,
+    clock: deps.clock,
+  });
+  deps.projects.onChange((ownerId, view) => publisher.projectChanged(ownerId, view.id));
+
   const { launch, ensureLive } = createLaunch({
     deps,
     live,
@@ -166,6 +203,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     grants,
     checkCapacity,
     projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
+    onPublished: (sessionId, event) => {
+      if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
+    },
     onDraftReady: (sessionId, piSessionId) => {
       try {
         marks.setPendingPiId(sessionId, piSessionId);
@@ -187,9 +227,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     if (!session || session.stopping()) throw new PapError("not_found");
     return session;
   };
-
-  const statusOf = (id: string): SessionStatus =>
-    live.get(id)?.status() ?? (reopening.has(id) ? "starting" : "cold");
 
   const reads = createSessionReads({
     store: deps.store,
@@ -219,6 +256,16 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     loadWriter: deps.loadWriter,
   });
 
+  const summaries = (caller: Caller): SessionSummary[] =>
+    deps.store.listByOwner(caller.userId).map((row) => ({
+      id: row.id,
+      cwd: row.cwd,
+      name: row.name,
+      status: statusOf(row.id),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    }));
+
   return {
     async create(cwdInput, caller) {
       const cwd = resolveSessionCwd(cwdInput);
@@ -234,21 +281,20 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         updatedAt: now,
       };
       await launch(row, true);
+      publisher.changed(row.id);
+      publisher.projectChanged(caller.userId, marks.row(row.id)?.projectId ?? null);
       return { sessionId: row.id };
     },
-    list: (caller) =>
-      deps.store.listByOwner(caller.userId).map((row) => ({
-        id: row.id,
-        cwd: row.cwd,
-        name: row.name,
-        status: statusOf(row.id),
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      })),
+    listFitted: (caller) => fitSummaries(summaries(caller)),
+    list: (caller) => summaries(caller),
+    shellSnapshot: (ownerId) => shell.snapshot(ownerId),
+    listArchived: shell.listArchived,
+    summary: shell.summaryFor,
     async prompt(input, caller) {
       const row = owned(input.sessionId, caller);
       const session = await ensureLive(row);
       deps.store.touch(row.id, deps.clock.now());
+      publisher.changed(row.id);
       return session.prompt(input.text, input.streamingBehavior);
     },
     async abort(sessionId, caller) {
@@ -264,13 +310,17 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     fork: async ({ sessionId, entryId }, caller) => {
       const row = owned(sessionId, caller);
       const result = await forks.fork(row, entryId);
-      link.copy(row.id, result.sessionId);
+      const projectId = link.copy(row.id, result.sessionId);
+      publisher.changed(result.sessionId);
+      publisher.projectChanged(row.ownerId, projectId);
       return result;
     },
     clone: async ({ sessionId }, caller) => {
       const row = owned(sessionId, caller);
       const result = await forks.clone(row, live.get(row.id)?.leafId() ?? null);
-      link.copy(row.id, result.sessionId);
+      const projectId = link.copy(row.id, result.sessionId);
+      publisher.changed(result.sessionId);
+      publisher.projectChanged(row.ownerId, projectId);
       return result;
     },
     async clearQueue(sessionId, caller) {

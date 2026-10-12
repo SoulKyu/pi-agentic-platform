@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
+import { Cursor } from "./frames.ts";
 import { MAX_PINS } from "./marks.ts";
 import { SessionName, SessionStatus } from "./streams.ts";
 
@@ -107,5 +108,28 @@ export const shellMethods = {
     result: z.object({ ok: z.literal(true) }),
     // Another owner's project is `not_found` too (M4R25); `bad_request`: a name that is empty once cleaned.
     errors: ["not_found", "bad_request"],
+  }),
+  "subscribe.shell": defineMethod({
+    name: "subscribe.shell",
+    permission: "sessions:read",
+    idempotent: true,
+    // No key: the stream is the caller's own (M4R31).
+    params: z.object({ after: Cursor.optional() }),
+    result: z.object({ sub: z.string() }),
+    errors: ["capacity"],
+  }),
+  "sessions.listArchived": defineMethod({
+    name: "sessions.listArchived",
+    permission: "sessions:read",
+    idempotent: true,
+    params: z.object({
+      before: z.object({ archivedAt: Millis, id: Id }).optional(),
+      limit: z.number().int().min(1).max(SHELL_LIMITS.archivedPage).optional(),
+    }),
+    result: z.object({
+      sessions: z.array(ShellSession).max(SHELL_LIMITS.archivedPage),
+      hasMore: z.boolean(),
+    }),
+    errors: [],
   }),
 } as const;

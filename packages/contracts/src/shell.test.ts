@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { methods } from "./methods.ts";
 import { MarkChange } from "./marks.ts";
 import { ProjectChange, ProjectSummary, SHELL_LIMITS, ShellSession, ShellStreamEvent } from "./shell.ts";
 
@@ -108,5 +109,26 @@ describe("shell schemas (M4)", () => {
       ProjectChange.safeParse({ kind: "rename", name: "x".repeat(SHELL_LIMITS.projectName * 2 + 1) }).success,
     ).toBe(false);
     expect(ProjectChange.parse({ kind: "move", before: null })).toEqual({ kind: "move", before: null });
+  });
+
+  it("subscribe.shell takes no key, only a cursor", () => {
+    const { params } = methods["subscribe.shell"];
+    expect(params.parse({})).toEqual({});
+    expect(params.parse({ after: { epoch: "e", seq: 1 } })).toEqual({ after: { epoch: "e", seq: 1 } });
+    expect(params.parse({ userId: "u2" })).toEqual({});
+  });
+
+  it("pages the archive by (archivedAt, id), at most 100 a page", () => {
+    const { params } = methods["sessions.listArchived"];
+    expect(params.parse({ before: { archivedAt: 5, id: "x" }, limit: 100 }).limit).toBe(100);
+    expect(params.safeParse({ limit: 101 }).success).toBe(false);
+    expect(params.safeParse({ limit: 0 }).success).toBe(false);
+    expect(params.safeParse({ before: { archivedAt: -1, id: "x" } }).success).toBe(false);
+  });
+
+  it("sessions.list may say it was cut", () => {
+    const { result } = methods["sessions.list"];
+    expect(result.parse({ sessions: [], truncated: true })).toEqual({ sessions: [], truncated: true });
+    expect(result.safeParse({ sessions: [], truncated: false }).success).toBe(false);
   });
 });

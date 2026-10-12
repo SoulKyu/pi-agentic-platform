@@ -19,6 +19,7 @@ import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
+import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
@@ -60,7 +61,7 @@ export interface SessionsModuleDeps {
 }
 
 export interface SessionsModule {
-  readonly rpc: SessionsRpc;
+  readonly rpc: SessionsRpc & ShellRpc;
   /** The download route of HTML exports (ADR 0006). It checks the session cookie itself, with `authenticate`. */
   mountExportRoute(
     app: Hono,
@@ -129,8 +130,10 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     logger.error("session_projects_backfill_failed", { err: error });
   }
   deps.hub.registerSnapshot("session", (key) => service.snapshot(key));
+  // The key is the owner's id, taken from the transport: any key answers, empty for a person without sessions.
+  deps.hub.registerSnapshot("shell", (ownerId) => service.shellSnapshot(ownerId));
   return {
-    rpc: sessionsRpc(service),
+    rpc: { ...sessionsRpc(service), ...shellRpc(service) },
     mountExportRoute: (app, authenticate) => mountExportRoute(app, { exports, authenticate, logger }),
     async shutdownAll() {
       try {

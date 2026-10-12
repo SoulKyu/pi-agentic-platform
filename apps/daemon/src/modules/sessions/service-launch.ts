@@ -1,4 +1,4 @@
-import { type InitRecord, PapError } from "@pap/contracts";
+import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
 import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
@@ -18,6 +18,8 @@ export interface LaunchContext {
   projectFor?(row: SessionRow): string | null;
   /** After `ready`, for a row without a Pi file: the Pi id its worker reported (M4R123). */
   onDraftReady?(sessionId: string, piSessionId: string): void;
+  /** After an event reached the session's subscribers; never for what a new session said before its row was stored. */
+  onPublished?(sessionId: string, event: SessionStreamEvent): void;
 }
 
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
@@ -53,14 +55,21 @@ export function createLaunch(ctx: LaunchContext) {
     };
     const logger = deps.logger.child({ component: "session", sessionId: row.id });
     // A reopened session has subscribers who last saw it cold; a new one has none yet (R112).
-    if (!isNew) deps.hub.publish("session", row.id, { kind: "status", status: "starting" });
+    if (!isNew) {
+      const starting: SessionStreamEvent = { kind: "status", status: "starting" };
+      deps.hub.publish("session", row.id, starting);
+      ctx.onPublished?.(row.id, starting);
+    }
     const session: LiveSession = startLiveSession(
       {
         handle: deps.spawn(row.cwd),
         clock: deps.clock,
         logger,
         publish: (event) => {
-          if (stored) deps.hub.publish("session", row.id, event);
+          if (stored) {
+            deps.hub.publish("session", row.id, event);
+            ctx.onPublished?.(row.id, event);
+          }
           // A status is not held: the snapshot carries the status, and no one can have seen an earlier one.
           else if (event.kind !== "status") preReady?.add({ kind: "publish", event });
         },
