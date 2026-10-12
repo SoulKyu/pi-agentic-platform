@@ -9,6 +9,7 @@ import {
 } from "@simplewebauthn/server";
 import type { Clock } from "../../kernel/clock.ts";
 import { randomToken } from "../../kernel/ids.ts";
+import type { Logger } from "../../kernel/logger.ts";
 import { createLoginChallenges } from "./login-challenge.ts";
 import { passkeyRefOf, sanitizeTransports } from "./passkey-store.ts";
 import type { AuthStore } from "./store.ts";
@@ -16,6 +17,7 @@ import type { AuthStore } from "./store.ts";
 const FLOW_TTL_MS = 5 * 60_000;
 // Enrollment flows exist only for a signed-in caller who also gave the password, so 100 pending is plenty.
 const MAX_FLOWS = 100;
+const FULL_LOG_WINDOW_MS = 10_000;
 
 export interface WebAuthnLib {
   generateRegistrationOptions: typeof generateRegistrationOptions;
@@ -55,6 +57,8 @@ export interface PasskeyDeps {
   readonly publicOrigin: string;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly lib?: WebAuthnLib;
+  /** Receives `auth_login_challenges_full` (no fields), at most once per 10 s. */
+  readonly logger?: Logger;
 }
 
 interface Flow {
@@ -114,7 +118,13 @@ export function createPasskeyService(deps: PasskeyDeps): PasskeyService {
   const lib = deps.lib ?? realLib;
   const origins = rpID === null ? [] : [...deps.allowedOrigins].filter((origin) => rpIdFor(origin) === rpID);
   const registrations = createFlows(deps.clock);
-  const logins = createLoginChallenges(deps.clock, FLOW_TTL_MS);
+  let lastFullLog = -Infinity;
+  const logins = createLoginChallenges(deps.clock, FLOW_TTL_MS, undefined, () => {
+    const now = deps.clock.now();
+    if (now - lastFullLog < FULL_LOG_WINDOW_MS) return;
+    lastFullLog = now;
+    deps.logger?.warn("auth_login_challenges_full", {});
+  });
   const requireRp = (): string => {
     if (!rpID) throw new PapError("not_found");
     return rpID;
@@ -178,9 +188,6 @@ export function createPasskeyService(deps: PasskeyDeps): PasskeyService {
     },
     async loginVerify(flowId, response) {
       const rp = requireRp();
-      // The flow id is the challenge: taking it proves we issued it, and the library below checks that the
-      // authenticator signed exactly this one.
-      logins.take(flowId);
       const sent = response as { id?: unknown; response?: { userHandle?: unknown } } | null;
       const passkey = typeof sent?.id === "string" ? deps.store.findPasskey(sent.id) : undefined;
       if (!passkey) throw new PapError("unauthenticated");
@@ -189,6 +196,10 @@ export function createPasskeyService(deps: PasskeyDeps): PasskeyService {
       if (handle !== undefined && handle !== userHandleOf(passkey.userId)) {
         throw new PapError("unauthenticated");
       }
+      // The flow id is the challenge: taking it proves we issued it, and the library below checks that the
+      // authenticator signed exactly this one. Only an answer for a registered credential records its nonce, so a
+      // spray of garbage cannot fill the used-nonce map; the nonce is still spent before the slow verification (R85).
+      logins.take(flowId);
       const result = await attempt(() =>
         lib.verifyAuthenticationResponse({
           response: response as never,

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { sha256Hex } from "../../kernel/ids.ts";
 import { createLogger } from "../../kernel/logger.ts";
+import { createKnownDevices } from "./known-device.ts";
 import { AUTH_MIGRATIONS } from "./index.ts";
 import { dummyHash, verifyPassword } from "./passwords.ts";
 import { createAuthService, RateLimitedError, type AuthService } from "./service.ts";
@@ -47,6 +49,7 @@ beforeEach(() => {
   throttle = createThrottle(clock, { whenFull: "refuse" });
   sessionThrottle = createThrottle(clock, { whenFull: "refuse" });
   service = createAuthService({
+    devices: createKnownDevices(randomBytes(32)),
     store: createAuthStore(db),
     clock,
     logger,

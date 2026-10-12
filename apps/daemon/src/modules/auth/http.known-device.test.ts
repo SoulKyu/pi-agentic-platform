@@ -201,4 +201,24 @@ describe("a known device and the sign-in throttle", () => {
     });
     expect(other.status).toBe(429);
   });
+
+  it("takes the first pap_device value that validates: a cookie planted on a narrower path changes nothing", async () => {
+    const { app } = await authBed();
+    const device = deviceCookieOf(await login(app, { password: GOOD }));
+    for (let i = 0; i < 20; i++) await login(app, { password: BAD, ip: "198.51.100.7" });
+    const tossed = `pap_device=${"A".repeat(43)}; pap_device=junk; pap_device=${device}`;
+    expect((await login(app, { password: GOOD, cookie: tossed })).status).toBe(200);
+    expect((await login(app, { password: GOOD, cookie: `pap_device=${"A".repeat(43)}` })).status).toBe(429);
+  });
+
+  it("survives a restart: a second module on the same secrets directory honours the first one's cookie", async () => {
+    const { app } = await authBed();
+    const device = deviceCookieOf(await login(app, { password: GOOD }));
+    for (let i = 0; i < 20; i++) await login(app, { password: BAD, ip: "198.51.100.7" });
+    const second = bed.start(ORIGIN);
+    expect((await login(second.app, { password: GOOD })).status).toBe(200);
+    for (let i = 0; i < 20; i++) await login(second.app, { password: BAD, ip: "198.51.100.7" });
+    expect((await login(second.app, { password: GOOD })).status).toBe(429);
+    expect((await login(second.app, { password: GOOD, cookie: `pap_device=${device}` })).status).toBe(200);
+  });
 });

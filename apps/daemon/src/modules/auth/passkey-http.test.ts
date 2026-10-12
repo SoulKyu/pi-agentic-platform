@@ -196,6 +196,7 @@ describe("step-up before enrollment", () => {
     const setupToken = createSetupToken(true);
     const sessionThrottle = createThrottle(bed.clock, { whenFull: "refuse" });
     const service = createAuthService({
+      devices: createKnownDevices(randomBytes(32)),
       store: createAuthStore(bed.db),
       clock: bed.clock,
       logger: bed.logger.child({ module: "auth" }),

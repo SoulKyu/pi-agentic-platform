@@ -139,4 +139,31 @@ describe("what the authenticator reports", () => {
       expect(stored(extra.authenticator)).toBe(expected);
     }
   });
+
+  it("records no nonce for an answer that names no registered credential: a spray cannot fill the used-nonce map", async () => {
+    const socketAt = (address: string) => ({ incoming: { socket: { remoteAddress: address } } });
+    const post = (path: string, address: string, body?: unknown) =>
+      daemon.app.request(
+        new URL(path, daemon.origin).href,
+        {
+          method: "POST",
+          headers: { origin: daemon.origin, "content-type": "application/json" },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        },
+        socketAt(address),
+      );
+    for (let i = 0; i < 10_001; i++) {
+      const address = `10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`;
+      const { flowId } = (await (await post("/auth/passkey/login/options", address)).json()) as {
+        flowId: string;
+      };
+      const garbage = await post("/auth/passkey/login/verify", address, {
+        flowId,
+        response: { id: "garbage" },
+      });
+      expect([garbage.status, await garbage.json()]).toEqual([401, fixed("unauthenticated")]);
+    }
+    const result = await signIn(daemon);
+    expect(result.status).toBe(200);
+  }, 120_000);
 });

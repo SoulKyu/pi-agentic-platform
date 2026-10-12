@@ -79,6 +79,7 @@ const service = (publicOrigin = "http://localhost:7777") =>
     publicOrigin,
     allowedOrigins: new Set([publicOrigin, "http://127.0.0.1:7777", "https://other.example"]),
     lib,
+    logger: bed.logger,
   });
 const enroll = async (passkeys = service(), id = "cred-1") => {
   const registration = await passkeys.registerOptions("u1", SESSION);
@@ -202,7 +203,6 @@ describe("passkeys", () => {
     await enroll(passkeys);
     const login = await passkeys.loginOptions();
     await expect(passkeys.loginVerify(login.flowId, { id: "unknown" })).rejects.toThrow(PapError);
-    await expect(passkeys.loginVerify(login.flowId, { id: "cred-1" })).rejects.toThrow(PapError);
     expect(calls.verifyAuthenticationResponse).toHaveLength(0);
   });
 
@@ -368,4 +368,28 @@ describe("an enrollment flow belongs to the session that started it (R85)", () =
       at: bed.clock.now(),
     });
   });
+
+  it("spends no nonce on an answer for an unregistered credential, and logs a full nonce table once per window", async () => {
+    const refused = new PapError("unauthenticated");
+    const passkeys = service();
+    await enroll(passkeys);
+    const unknown = await passkeys.loginOptions();
+    expect(await rejection(passkeys.loginVerify(unknown.flowId, { id: "nobody" }))).toEqual(refused);
+    // The challenge was not used up by that answer.
+    expect(await passkeys.loginVerify(unknown.flowId, { id: "cred-1", counter: 1 })).toEqual(SIGNED_IN);
+
+    for (let i = 1; i < 10_000; i++) {
+      const { flowId } = await passkeys.loginOptions();
+      await passkeys.loginVerify(flowId, { id: "cred-1", counter: i + 1 });
+    }
+    const { flowId } = await passkeys.loginOptions();
+    const late = () => rejection(passkeys.loginVerify(flowId, { id: "cred-1", counter: 20_000 }));
+    expect([await late(), await late()]).toEqual([refused, refused]);
+    const [entry, ...others] = bed.events("auth_login_challenges_full");
+    expect(others).toEqual([]);
+    expect(Object.keys(entry ?? {}).sort()).toEqual(["level", "msg", "time"]);
+    await bed.clock.advance(10_000);
+    expect(await late()).toEqual(refused);
+    expect(bed.events("auth_login_challenges_full")).toHaveLength(2);
+  }, 60_000);
 });

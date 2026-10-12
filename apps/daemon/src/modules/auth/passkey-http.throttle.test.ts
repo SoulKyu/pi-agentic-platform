@@ -42,6 +42,7 @@ describe("sign-in failures are counted before the slow verification (R85)", () =
     const store = createAuthStore(bed.db);
     const setupToken = createSetupToken(true);
     const service = createAuthService({
+      devices: createKnownDevices(randomBytes(32)),
       store,
       clock: bed.clock,
       logger: bed.logger.child({ module: "auth" }),

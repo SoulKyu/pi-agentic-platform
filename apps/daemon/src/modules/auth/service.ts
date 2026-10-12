@@ -6,7 +6,7 @@ import { newId, randomToken, sha256Hex } from "../../kernel/ids.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { SESSION_TTL_MS } from "./cookies.ts";
-import { createKnownDevices, type KnownDevices } from "./known-device.ts";
+import type { KnownDevices } from "./known-device.ts";
 import { dummyHash, hashPassword, isAcceptablePassword, verifyPassword } from "./passwords.ts";
 import type { SetupToken } from "./setup-token.ts";
 import { createStepUps, type StepUps } from "./step-up.ts";
@@ -46,7 +46,7 @@ export interface SessionOrigin {
   readonly method: SignInMethod;
   readonly passkeyRef?: string;
   /** The `pap_device` value the request carried, valid or not: a valid one for this user is not issued again. */
-  readonly deviceCookie?: string | undefined;
+  readonly deviceCookie?: string | readonly string[] | undefined;
 }
 
 export interface AuthServiceDeps {
@@ -61,8 +61,7 @@ export interface AuthServiceDeps {
   readonly audit: Pick<AuditPort, "append">;
   /** The marks of confirmed sessions; a bed passes its own to look at them. */
   readonly stepUps?: StepUps;
-  /** Known-device cookies; without one a key of this process's own is made, so cookies last until a restart. */
-  readonly devices?: KnownDevices;
+  readonly devices: KnownDevices;
 }
 
 export interface Credentials {
@@ -71,7 +70,7 @@ export interface Credentials {
   readonly ip: string;
   readonly userAgent: string | undefined;
   /** The `pap_device` cookie of the request, as sent. */
-  readonly deviceCookie?: string | undefined;
+  readonly deviceCookie?: string | readonly string[] | undefined;
 }
 
 export interface AuthService {
@@ -119,7 +118,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
   // Security events carry the socket address and the delay in force, never a username, a password or a token:
   // people type one into the other's field, and a log is read by more eyes than a database.
   const stepUps = deps.stepUps ?? createStepUps(deps.clock);
-  const devices = deps.devices ?? createKnownDevices(randomBytes(32));
+  const devices = deps.devices;
   const lastThrottleLog = new Map<string, number>();
   let lastFullLog = -Infinity;
   // A table of live lockouts is full: refuse before any hash, and say so (no key, no address) at most once per window.

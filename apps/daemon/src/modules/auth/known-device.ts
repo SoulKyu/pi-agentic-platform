@@ -1,8 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
-  chmodSync,
   closeSync,
   constants,
+  fchmodSync,
   fstatSync,
   mkdirSync,
   openSync,
@@ -21,6 +21,8 @@ const KEY_FILE = "device.key";
 const KEY_BYTES = 32;
 const NONCE_BYTES = 16;
 const MAC_BYTES = 16;
+// A header can repeat the name (cookie tossing from a sibling path): only the first few values are tried.
+const MAX_TRIED = 16;
 const SHAPE = /^[A-Za-z0-9_-]{43}$/;
 const LABEL = Buffer.from("pap-known-device");
 const ZERO = Buffer.from([0]);
@@ -30,9 +32,10 @@ export interface KnownDevices {
   issue(userId: string): string;
   /**
    * The throttle key of a device this cookie was issued to for this user; null for anything else (absent, malformed,
-   * forged, another key, another user). It only chooses a throttle key: it never authenticates anything.
+   * forged, another key, another user). Given several values (a planted cookie can come first) the first that
+   * validates counts. It only chooses a throttle key: it never authenticates anything.
    */
-  keyOf(cookie: string | undefined, userId: string | undefined): string | null;
+  keyOf(cookie: string | readonly string[] | undefined, userId: string | undefined): string | null;
 }
 
 export function createKnownDevices(key: Uint8Array): KnownDevices {
@@ -51,7 +54,15 @@ export function createKnownDevices(key: Uint8Array): KnownDevices {
       return Buffer.concat([nonce, mac(userId, nonce)]).toString("base64url");
     },
     keyOf(cookie, userId) {
-      if (cookie === undefined || userId === undefined || !SHAPE.test(cookie)) return null;
+      if (cookie === undefined || userId === undefined) return null;
+      if (typeof cookie !== "string") {
+        for (const value of cookie.slice(0, MAX_TRIED)) {
+          const key = this.keyOf(value, userId);
+          if (key !== null) return key;
+        }
+        return null;
+      }
+      if (!SHAPE.test(cookie)) return null;
       const raw = Buffer.from(cookie, "base64url");
       if (raw.length !== NONCE_BYTES + MAC_BYTES) return null;
       const nonce = raw.subarray(0, NONCE_BYTES);
@@ -64,7 +75,7 @@ export function createKnownDevices(key: Uint8Array): KnownDevices {
 
 const codeOf = (error: unknown): string => (error as NodeJS.ErrnoException).code ?? "unknown";
 
-/** The key file's bytes; null when it is missing, a symlink, or not a regular file of exactly 32 bytes. */
+/** The key file's bytes; null when missing. A symlink, a file of another size or one others can read gives no key. */
 function readKeyFile(path: string): Buffer | null {
   let fd: number;
   try {
@@ -77,10 +88,10 @@ function readKeyFile(path: string): Buffer | null {
   }
   try {
     const stat = fstatSync(fd);
-    if (!stat.isFile() || stat.size !== KEY_BYTES) return Buffer.alloc(0);
+    // A key that group or others could read may have leaked, and a leaked key mints unlimited cookies: replace it.
+    if (!stat.isFile() || stat.size !== KEY_BYTES || (stat.mode & 0o077) !== 0) return Buffer.alloc(0);
     const bytes = Buffer.alloc(KEY_BYTES);
     if (readSync(fd, bytes, 0, KEY_BYTES, 0) !== KEY_BYTES) return Buffer.alloc(0);
-    if ((stat.mode & 0o077) !== 0) chmodSync(path, 0o600);
     return bytes;
   } finally {
     closeSync(fd);
@@ -101,6 +112,7 @@ function createKeyFile(path: string, key: Buffer): boolean {
     throw error;
   }
   try {
+    fchmodSync(fd, 0o600);
     writeSync(fd, key);
   } finally {
     closeSync(fd);
@@ -110,7 +122,7 @@ function createKeyFile(path: string, key: Buffer): boolean {
 
 /**
  * The HMAC key of the known-device cookies: 32 random bytes in `secrets/device.key`, 0600. Made when missing; a file
- * of another length (or a symlink) is replaced, which forgets every known device, and logged. Never logged itself.
+ * of another length, a symlink or a file others can read is replaced, which forgets every known device, and logged. Never logged itself.
  */
 export function loadDeviceKey(secretsDir: string, logger: Logger): Uint8Array {
   mkdirSync(secretsDir, { recursive: true, mode: 0o700 });

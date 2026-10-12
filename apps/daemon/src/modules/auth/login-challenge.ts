@@ -27,6 +27,8 @@ export function createLoginChallenges(
   clock: Clock,
   ttlMs: number,
   key: Buffer = randomBytes(32),
+  /** Called when an answer is refused because the table of used nonces is full of live entries. */
+  onFull: () => void = () => undefined,
 ): LoginChallenges {
   const taken = new Map<string, number>();
   const mac = (nonce: Buffer, expiry: Buffer) =>
@@ -53,8 +55,8 @@ export function createLoginChallenges(
       const expiresAt = Number(expiry.readBigUInt64BE());
       const now = clock.now();
       if (expiresAt <= now) throw refuse();
-      // Nonces go in with a rising expiry, so the lapsed ones are at the head; a clock stepped back may leave a few
-      // behind, and those are ignored below and swept when the table is full.
+      // Nonces go in in the order they are answered, and every challenge lives the same time, so the lapsed ones are
+      // mostly at the head. A clock stepped back may leave a few behind; those are ignored below and swept when full.
       for (const [seen, until] of taken) {
         if (until > now) break;
         taken.delete(seen);
@@ -64,7 +66,10 @@ export function createLoginChallenges(
       if (taken.size >= MAX_TAKEN) {
         for (const [seen, until] of taken) if (until <= now) taken.delete(seen);
         // Full of live nonces: a live one is never forgotten (a replay), so this answer is refused instead.
-        if (taken.size >= MAX_TAKEN) throw refuse();
+        if (taken.size >= MAX_TAKEN) {
+          onFull();
+          throw refuse();
+        }
       }
       taken.set(id, expiresAt + NONCE_SLACK_MS);
     },

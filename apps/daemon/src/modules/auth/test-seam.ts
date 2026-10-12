@@ -1,8 +1,10 @@
+import { randomBytes } from "node:crypto";
 import type { Permission } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { silentLogger, type Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
+import { createKnownDevices } from "./known-device.ts";
 import { createDevices } from "./devices.ts";
 import { createPasskeyManager } from "./passkey-manage.ts";
 import { createAuthService } from "./service.ts";
@@ -40,6 +42,7 @@ export function createAuthTestHarness(deps: AuthTestHarnessDeps) {
   const stepUps = createStepUps(deps.clock);
   const throttles = createAuthThrottles(deps.clock);
   const service = createAuthService({
+    devices: createKnownDevices(randomBytes(32)),
     store,
     clock: deps.clock,
     logger,

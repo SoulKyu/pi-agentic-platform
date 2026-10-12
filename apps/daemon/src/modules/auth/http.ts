@@ -5,13 +5,14 @@ import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
 import {
-  deviceCookieAttributes,
+  deviceCookieOptions,
   readCookie,
+  readCookies,
   SESSION_COOKIE,
   SESSION_TTL_MS,
   sessionCookieAttributes,
 } from "./cookies.ts";
-import { DEVICE_COOKIE, DEVICE_COOKIE_MAX_AGE_SECONDS } from "./known-device.ts";
+import { DEVICE_COOKIE } from "./known-device.ts";
 import { isAcceptablePassword } from "./passwords.ts";
 import { RateLimitedError, type AuthService, type StartedSession } from "./service.ts";
 
@@ -58,9 +59,11 @@ const SECURE_BY_CONFIG = "secureByConfig";
 const INSECURE_HTTP = "insecureHttp";
 const cookieAttributes = (c: Context) =>
   sessionCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true);
+const deviceCookieAttributes = (c: Context) =>
+  deviceCookieOptions(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true);
 
-export const deviceCookie = (c: Context): string | undefined =>
-  readCookie(c.req.header("cookie"), DEVICE_COOKIE);
+/** Every `pap_device` value of the request: the first that validates is the one that counts. */
+export const deviceCookie = (c: Context): string[] => readCookies(c.req.header("cookie"), DEVICE_COOKIE);
 
 export function setSessionCookie(c: Context, session: StartedSession): void {
   setCookie(c, SESSION_COOKIE, session.cookieValue, {
@@ -68,10 +71,7 @@ export function setSessionCookie(c: Context, session: StartedSession): void {
     maxAge: session.maxAgeSeconds,
   });
   if (session.deviceCookie !== undefined) {
-    setCookie(c, DEVICE_COOKIE, session.deviceCookie, {
-      ...deviceCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true),
-      maxAge: DEVICE_COOKIE_MAX_AGE_SECONDS,
-    });
+    setCookie(c, DEVICE_COOKIE, session.deviceCookie, deviceCookieAttributes(c));
   }
 }
 

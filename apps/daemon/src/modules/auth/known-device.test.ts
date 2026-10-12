@@ -32,6 +32,18 @@ describe("known devices", () => {
     expect(devices.keyOf(first, "u1")).not.toContain(first);
   });
 
+  it("takes the first of several values that validates: a planted one in front changes nothing", () => {
+    const devices = createKnownDevices(randomBytes(32));
+    const cookie = devices.issue("u1");
+    const planted = "A".repeat(43);
+    expect(devices.keyOf([planted, "junk", cookie], "u1")).toBe(devices.keyOf(cookie, "u1"));
+    expect(devices.keyOf([planted, "junk"], "u1")).toBeNull();
+    expect(devices.keyOf([], "u1")).toBeNull();
+    expect(devices.keyOf([cookie], "u2")).toBeNull();
+    // Only the first few values are tried.
+    expect(devices.keyOf([...Array<string>(16).fill(planted), cookie], "u1")).toBeNull();
+  });
+
   it("refuses an absent cookie without throwing", () => {
     expect(createKnownDevices(randomBytes(32)).keyOf(undefined, "u1")).toBeNull();
   });
@@ -72,11 +84,17 @@ describe("the device key file", () => {
     expect(loadDeviceKey(dir, logger())).toEqual(key);
   });
 
-  it("tightens a key file that others can read", () => {
+  it("replaces a key file that group or others can read: it may have leaked", () => {
     const key = loadDeviceKey(dir, logger());
-    chmodSync(path(), 0o644);
-    expect(loadDeviceKey(dir, logger())).toEqual(key);
-    expect(statSync(path()).mode & 0o777).toBe(0o600);
+    for (const mode of [0o640, 0o604, 0o644]) {
+      chmodSync(path(), mode);
+      lines.length = 0;
+      const fresh = loadDeviceKey(dir, logger());
+      expect(Buffer.from(fresh)).not.toEqual(Buffer.from(key));
+      expect(statSync(path()).mode & 0o777).toBe(0o600);
+      expect(readFileSync(path())).toEqual(Buffer.from(fresh));
+      expect(lines.map((l) => (JSON.parse(l) as { msg: string }).msg)).toEqual(["device_key_replaced"]);
+    }
   });
 
   it("replaces a symlink instead of following it", () => {
