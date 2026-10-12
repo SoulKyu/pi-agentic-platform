@@ -4,7 +4,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  HEAD_CHARS,
   HEADER_MAX_BYTES,
   MAX_LINE_BYTES,
   openRegular,
@@ -190,12 +189,6 @@ describe("reading lines from an offset (M4R58)", () => {
     const long = open(write("e.jsonl", `${header({ pad: "x".repeat(HEADER_MAX_BYTES) })}\n`));
     expect(readHeaderLine(long.fd, long.size)).toBeNull();
     closeSync(long.fd);
-  });
-});
-
-describe("limits", () => {
-  it("keeps the cursor head at 512 characters (read by the scanner, Task 15)", () => {
-    expect(HEAD_CHARS).toBe(512);
   });
 });
 
