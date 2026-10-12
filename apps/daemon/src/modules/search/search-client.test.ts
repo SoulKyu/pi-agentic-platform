@@ -10,6 +10,7 @@ import {
   QUERY_TIMEOUT_MS,
   type SearchClient,
   STOP_TIMEOUT_MS,
+  THREAD_BUDGET_MS,
   threadEntry,
   type ThreadLike,
 } from "./search-client.ts";
@@ -249,9 +250,22 @@ describe("search client", () => {
     expect(await b).toEqual([]);
   });
 
+  it("the thread's own timeout comes before the client's, so the thread is kept and no spawn is spent", async () => {
+    expect(THREAD_BUDGET_MS).toBeLessThan(QUERY_TIMEOUT_MS);
+    const slow = settle(client.query(INPUT));
+    await clock.advance(THREAD_BUDGET_MS);
+    threads[0]?.emit("message", { id: 1, ok: false, code: "timeout" });
+    expect(await slow).toBe("timeout");
+    expect(threads[0]?.terminated).toBe(0);
+    const next = client.query(INPUT);
+    expect(threads).toHaveLength(1);
+    threads[0]?.answer(2);
+    expect(await next).toEqual([]);
+  });
+
   it("posts the query with its time budget", () => {
     void settle(client.query(INPUT));
-    expect(threads[0]?.posted[0]).toEqual({ id: 1, input: INPUT, budgetMs: QUERY_TIMEOUT_MS });
+    expect(threads[0]?.posted[0]).toEqual({ id: 1, input: INPUT, budgetMs: THREAD_BUDGET_MS });
   });
 
   it("stop() settles within its bound when terminate() never resolves, and says so", async () => {

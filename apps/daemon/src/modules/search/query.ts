@@ -16,10 +16,12 @@ export interface QueryRow {
 
 // The best row of each of the owner's sessions, best sessions first (M4R54): ranked in SQL, so one long session takes
 // one place (RT-06). MATERIALIZED keeps bm25() inside the FTS query: SQLite refuses it once flattened into the GROUP BY.
-const RANK =
+// CROSS JOIN pins the order: FTS is the outer loop. Left to itself the planner starts from the owner index and runs an
+// FTS match per row, which grows quadratically with the owner's matching rows.
+export const RANK =
   "WITH matched AS MATERIALIZED (" +
   "SELECT rows_fts.rowid AS id, r.session_id AS sessionId, bm25(rows_fts) AS score " +
-  "FROM rows_fts JOIN rows r ON r.id = rows_fts.rowid WHERE rows_fts MATCH $match AND r.owner_id = $owner AND pap_deadline() = 0" +
+  "FROM rows_fts CROSS JOIN rows r ON r.id = rows_fts.rowid WHERE rows_fts MATCH $match AND r.owner_id = $owner AND pap_deadline() = 0" +
   ") SELECT id, sessionId, min(score) AS score FROM matched GROUP BY sessionId ORDER BY score, sessionId LIMIT $limit";
 
 // The snippets of the chosen rows only.

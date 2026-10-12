@@ -7,7 +7,7 @@ import type { Db } from "../../kernel/db/database.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { openSearchIndex } from "./index-db.ts";
 import { createSearchIndexStore, type FileCursor, type SearchIndexStore } from "./index-store.ts";
-import { QueryDeadlineError, runQuery } from "./query.ts";
+import { QueryDeadlineError, RANK, runQuery } from "./query.ts";
 
 type Row = [entryId: string, role: "user" | "assistant", text: string];
 
@@ -127,5 +127,18 @@ describe("runQuery", () => {
     const input = { match: '"kubernetes"', ownerId: "u1", limit: 20 };
     expect(() => runQuery(reader, input, { at: 100, now: () => 100 })).toThrow(QueryDeadlineError);
     expect(runQuery(reader, input, { at: 101, now: () => 100 })).toHaveLength(1);
+  });
+
+  it("plans the FTS match as the outer loop, before the search of `rows` (quadratic otherwise)", () => {
+    commit("/s/a.jsonl", "s1", "u1", [["e1", "user", "kubernetes here"]]);
+    runQuery(reader, { match: '"kubernetes"', ownerId: "u1", limit: 20 });
+    const plan = reader
+      .prepare(`EXPLAIN QUERY PLAN ${RANK}`)
+      .all({ match: '"kubernetes"', owner: "u1", limit: 20 })
+      .map((row) => String((row as { detail: unknown }).detail));
+    const fts = plan.findIndex((detail) => detail.includes("rows_fts VIRTUAL TABLE"));
+    const rowsSearch = plan.findIndex((detail) => /^SEARCH r\b/.test(detail));
+    expect(fts).toBeGreaterThanOrEqual(0);
+    expect(rowsSearch).toBeGreaterThan(fts);
   });
 });

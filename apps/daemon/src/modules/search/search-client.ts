@@ -9,6 +9,8 @@ export const MAX_IN_FLIGHT = 4;
 export const IDLE_STOP_MS = 5 * 60_000;
 export const MAX_SPAWNS_PER_MINUTE = 3;
 export const STOP_TIMEOUT_MS = 2_000;
+/** The thread aborts its own statement a little before the client gives up, so a slow query keeps the thread. */
+export const THREAD_BUDGET_MS = QUERY_TIMEOUT_MS - 250;
 
 export interface ThreadLike {
   postMessage(message: unknown): void;
@@ -179,7 +181,7 @@ export function createSearchClient(deps: {
         }, QUERY_TIMEOUT_MS);
         pending.set(id, { resolve, reject, timer });
         try {
-          current.postMessage({ id, input, budgetMs: QUERY_TIMEOUT_MS });
+          current.postMessage({ id, input, budgetMs: THREAD_BUDGET_MS });
         } catch (error) {
           pending.delete(id);
           deps.clock.clearTimeout(timer);
