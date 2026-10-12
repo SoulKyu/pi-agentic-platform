@@ -70,7 +70,7 @@ export function Transcript({ sessionId, view, rowActions }: TranscriptProps) {
     `${items.length}:${last && "text" in last ? last.text.length : 0}:${view.history.oldestEntryId}`,
   );
   const older = useOlderHistory(sessionId, view, preserveOnPrepend);
-  const branches = useBranches(sessionId, view);
+  const branches = useBranches(sessionId, view, rowActions !== undefined);
   const canLoad = view.history.hasMore && view.history.oldestEntryId !== null;
   const sentinel = useRef<HTMLLIElement | null>(null);
   const loadRef = useRef(older.load);

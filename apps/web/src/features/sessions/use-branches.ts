@@ -12,7 +12,7 @@ const NONE: readonly ForkPoint[] = [];
  * One request is in flight at a time and a burst of triggers folds into one more. An answer whose `generation` or
  * `leafId` is no longer the view's is dropped (M2R144, M2-RT-12).
  */
-export function useBranches(sessionId: string, view: SessionView) {
+export function useBranches(sessionId: string, view: SessionView, enabled = true) {
   const [points, setPoints] = useState<readonly ForkPoint[]>(NONE);
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -43,7 +43,10 @@ export function useBranches(sessionId: string, view: SessionView) {
           setPoints(answer.points);
           setError(null);
         } catch (failure) {
-          if (alive.current) setError(failureText(failure));
+          // A failure for a view that has moved on is as stale as an answer would be.
+          const now = useSessionStore.getState().views[sessionId];
+          if (alive.current && now?.generation === asked.generation && now.leafId === asked.leafId)
+            setError(failureText(failure));
         }
       } while (again.current);
     } finally {
@@ -53,10 +56,10 @@ export function useBranches(sessionId: string, view: SessionView) {
 
   const running = view.status === "running" || view.status === "starting";
   useEffect(() => {
-    if (view.loaded && !running) void refresh();
+    if (enabled && view.loaded && !running) void refresh();
     // refresh reads the store and refs only; the triggers are the view's generation, its leaf and the run state.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [sessionId, view.loaded, view.generation, view.leafId, running]);
+  }, [sessionId, enabled, view.loaded, view.generation, view.leafId, running]);
 
   return { points, error };
 }

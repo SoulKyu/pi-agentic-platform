@@ -21,10 +21,14 @@ interface SessionActionsProps {
 
 const untracked: Track = (call) => call;
 
-/** The export is a path on this origin under `/api/sessions/`; anything else (another host, `//host`, a scheme) is refused. */
+/**
+ * The export is a path on this origin that, once resolved (dot segments and `%2e` folded), is still under
+ * `/api/sessions/`; another host, `//host`, a scheme, `..` and a backslash are refused.
+ */
 function sameOriginExport(url: string): boolean {
-  if (!url.startsWith("/api/sessions/")) return false;
-  return new URL(url, location.origin).origin === location.origin;
+  if (!url.startsWith("/") || url.includes("\\")) return false;
+  const resolved = new URL(url, location.origin);
+  return resolved.origin === location.origin && resolved.pathname.startsWith("/api/sessions/");
 }
 
 /**

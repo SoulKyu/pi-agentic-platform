@@ -130,6 +130,11 @@ describe("SessionActions keyboard, focus and errors", () => {
     "https://evil.example/api/sessions/x",
     "/other/path",
     "api/sessions/x",
+    "/api/sessions/../../x",
+    "/api/sessions/%2e%2e/x",
+    "/api/sessions/%2E%2E/%2e%2e/x",
+    "/api/sessions/\\evil.com",
+    "/api/sessions/..\\..\\x",
   ])("refuses to download from %s", async (url) => {
     bed.handlers["sessions.exportHtml"] = () => ({ url });
     const clicked = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});

@@ -41,6 +41,16 @@ function RowButtons({ entryId, actions }: { entryId: string; actions: RowActions
   const edit = useAction(actions.track, setError);
   const { sessionId } = actions;
   const switchBranch = useAction(actions.track, setError);
+  /** One navigation for both buttons; an extension's hook can cancel it, and that is said, not ignored. */
+  const goTo = async (targetId: string) => {
+    const moved = await runtime.rpc.call(
+      "sessions.navigate",
+      { sessionId, targetId },
+      { commandId: runtime.rpc.newCommandId() },
+    );
+    if (moved.cancelled) setError(t("navigation.cancelled"));
+    return moved;
+  };
   const wait = actions.blocked || fork.busy || edit.busy || switchBranch.busy;
   const choices = branchChoicesFor(actions.branches ?? [], entryId);
   return (
@@ -50,15 +60,7 @@ function RowButtons({ entryId, actions }: { entryId: string; actions: RowActions
           <BranchSwitcher
             choices={choices}
             disabled={wait}
-            onGo={(targetId) =>
-              void switchBranch.run(() =>
-                runtime.rpc.call(
-                  "sessions.navigate",
-                  { sessionId, targetId },
-                  { commandId: runtime.rpc.newCommandId() },
-                ),
-              )
-            }
+            onGo={(targetId) => void switchBranch.run(() => goTo(targetId))}
           />
         ) : null}
         <Button
@@ -81,11 +83,7 @@ function RowButtons({ entryId, actions }: { entryId: string; actions: RowActions
           disabled={wait}
           onClick={() =>
             void edit.run(async () => {
-              const moved = await runtime.rpc.call(
-                "sessions.navigate",
-                { sessionId, targetId: entryId },
-                { commandId: runtime.rpc.newCommandId() },
-              );
+              const moved = await goTo(entryId);
               if (!moved.cancelled && moved.editorText !== undefined) actions.onEdit(moved.editorText);
             })
           }

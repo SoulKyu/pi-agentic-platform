@@ -127,7 +127,7 @@ export function SessionRules({ sessionId }: { sessionId: string }) {
           if (!current) return;
           const found = result.sessions.find((session) => session.id === sessionId)?.cwd ?? null;
           setCwd(found);
-          setError(null);
+          setError(found === null ? t("rules.notFound") : null);
         },
         (failure: unknown) => {
           if (current) setError(failureText(failure));
@@ -145,10 +145,14 @@ export function SessionRules({ sessionId }: { sessionId: string }) {
       </summary>
       <div className="mt-2">
         {open && cwd !== null ? <AlwaysRules cwd={cwd} /> : null}
-        {open && cwd === null && error ? (
-          <p role="alert" className="text-ui text-attention">
-            {error}
-          </p>
+        {open && cwd === null ? (
+          error ? (
+            <p role="alert" className="text-ui text-attention">
+              {error}
+            </p>
+          ) : (
+            <p className="text-ui text-muted">{t("rules.loading")}</p>
+          )
         ) : null}
       </div>
     </details>

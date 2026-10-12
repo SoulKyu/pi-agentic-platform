@@ -52,12 +52,18 @@ async function open(container: HTMLElement) {
 const revokeButtons = (container: HTMLElement) =>
   [...container.querySelectorAll("button")].filter((b) => b.textContent === "Revoke");
 
+const summary = (id: string, cwd: string) => ({
+  id,
+  cwd,
+  name: null,
+  status: "idle",
+  createdAt: 1,
+  updatedAt: 1,
+});
+
 async function show() {
   screen.bed.handlers["sessions.list"] = () => ({
-    sessions: [
-      { id: "other", cwd: "/elsewhere", name: null, status: "idle", createdAt: 1, updatedAt: 1 },
-      { id: "sess-1", cwd: "/work/project", name: null, status: "idle", createdAt: 1, updatedAt: 1 },
-    ],
+    sessions: [summary("other", "/elsewhere"), summary("sess-1", "/work/project")],
   });
   const container = await screen.show({});
   await open(container);
@@ -127,7 +133,9 @@ describe("always rules", () => {
     await settle();
     expect(screen.bed.called("policy.revokeRule")).toHaveLength(1);
     expect(listed()).toHaveLength(2);
-    expect(alerts(container)).toHaveLength(1);
+    expect(alerts(container)).toEqual([
+      "The session did not answer in time. The action may still have gone through: check before trying again.",
+    ]);
   });
 
   it("reloads after not_found: the rule was already gone", async () => {
@@ -197,5 +205,37 @@ describe("always rules", () => {
     await settle();
     expect(text(container)).toContain("Nothing is always allowed here.");
     expect(revokeButtons(container)).toHaveLength(0);
+  });
+
+  it("shows the loading text while the session's folder is being found", async () => {
+    const reply = deferred();
+    screen.bed.handlers["sessions.list"] = () => reply.promise;
+    const container = await screen.show({});
+    await open(container);
+    expect(text(container)).toContain("Loading…");
+    expect(listed()).toHaveLength(0);
+    reply.resolve({ sessions: [summary("sess-1", "/work/project")] });
+    await settle();
+    expect(text(container)).not.toContain("Loading…");
+    expect(listed()).toHaveLength(1);
+  });
+
+  it("says so when the session is not in the list", async () => {
+    screen.bed.handlers["sessions.list"] = () => ({ sessions: [summary("other", "/elsewhere")] });
+    const container = await screen.show({});
+    await open(container);
+    expect(alerts(container)).toEqual(["This session's project could not be found."]);
+    expect(listed()).toHaveLength(0);
+  });
+
+  it("shows the error of a failed session list", async () => {
+    screen.bed.handlers["sessions.list"] = () => {
+      throw new RpcError("internal");
+    };
+    const container = await screen.show({});
+    await open(container);
+    expect(alerts(container)).toHaveLength(1);
+    expect(text(container)).not.toContain("Loading…");
+    expect(listed()).toHaveLength(0);
   });
 });

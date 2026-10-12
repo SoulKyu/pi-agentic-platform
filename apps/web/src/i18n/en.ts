@@ -153,5 +153,7 @@ export const en = {
   "rules.empty": "Nothing is always allowed here.",
   "rules.more": "More rules exist than the ones shown.",
   "rules.loading": "Loading…",
+  "navigation.cancelled": "The navigation was cancelled.",
+  "rules.notFound": "This session's project could not be found.",
   // ── end sessions (M2) ──
 } as const;

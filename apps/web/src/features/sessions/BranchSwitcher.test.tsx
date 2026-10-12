@@ -202,4 +202,41 @@ describe("branch switcher", () => {
     expect(alerts(container)).toHaveLength(1);
     expect(text(container)).toContain("2/3");
   });
+
+  it("shows that a navigation an extension cancelled did not happen", async () => {
+    screen.bed.handlers["sessions.branches"] = () => three;
+    screen.bed.handlers["sessions.navigate"] = () => ({ cancelled: true });
+    const container = await screen.show(rows);
+    await click(control(container, "Next branch") as HTMLElement);
+    await settle();
+    expect(alerts(container)).toEqual(["The navigation was cancelled."]);
+  });
+
+  it("shows no error for a failed refresh that the view has moved past", async () => {
+    const first = deferred();
+    let calls = 0;
+    const second = deferred();
+    screen.bed.handlers["sessions.branches"] = () => (++calls === 1 ? first.promise : second.promise);
+    const container = await screen.show(rows);
+    await screen.emit(sessionSnapshot(rows));
+    first.resolve(Promise.reject(new RpcError("internal")));
+    await settle();
+    expect(alerts(container)).toEqual([]);
+    second.resolve(three);
+    await settle();
+    expect(text(container)).toContain("2/3");
+  });
+
+  it("asks nothing for a transcript that offers no row actions", async () => {
+    const { Transcript } = await import("./Transcript.tsx");
+    const { mount } = await import("../../testing/dom.ts");
+    const { EMPTY_VIEW } = await import("../../stores/session-reducer.ts");
+    const { useSessionStore } = await import("../../stores/session-store.ts");
+    const view = { ...EMPTY_VIEW, loaded: true, generation: 1 };
+    useSessionStore.setState({ views: { "sess-1": view } });
+    const page = await mount(<Transcript sessionId="sess-1" view={view} />);
+    await settle();
+    expect(asked()).toHaveLength(0);
+    await page.unmount();
+  });
 });

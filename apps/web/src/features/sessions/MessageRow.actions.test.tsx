@@ -131,6 +131,7 @@ describe("edit from here", () => {
     await click(button(container, "Edit from here"));
     await settle();
     expect(composer(container).value).toBe("kept");
+    expect(alerts(container)).toEqual(["The navigation was cancelled."]);
   });
 
   it("is not overwritten by an editor text the screen had already applied (stale replay), but a newer one still wins", async () => {

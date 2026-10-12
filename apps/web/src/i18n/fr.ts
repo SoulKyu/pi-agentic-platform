@@ -156,5 +156,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "rules.empty": "Rien n'est toujours autorisé ici.",
   "rules.more": "Il existe plus de règles que celles affichées.",
   "rules.loading": "Chargement…",
+  "navigation.cancelled": "La navigation a été annulée.",
+  "rules.notFound": "Le projet de cette session est introuvable.",
   // ── end sessions (M2) ──
 };
