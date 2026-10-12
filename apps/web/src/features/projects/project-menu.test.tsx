@@ -149,6 +149,7 @@ describe("the project menu", () => {
     await openMenu(projectTrigger(box, "Bravo"));
     await choose("New session here");
     expect(useCurrentProject.getState().projectId).toBe("b");
+    expect(useCurrentProject.getState().startedHere).toBe(1);
     expect(currentPath()).toBe("/");
     expect(left).toHaveBeenCalledTimes(1);
     expect(updates()).toEqual([]);

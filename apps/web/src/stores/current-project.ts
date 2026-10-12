@@ -26,13 +26,22 @@ interface CurrentProjectState {
   readonly projectId: string | null;
   /** The last choice could not be stored: it holds for this page only. */
   readonly storageRefused: boolean;
+  /** How many times "New session here" was asked: the home refills its folder field each time. Not stored. */
+  readonly startedHere: number;
   choose(projectId: string | null): void;
+  /** "New session here": chooses the project and asks the home to start from its folder, even over typed text. */
+  startHere(projectId: string): void;
 }
 
 /** The project the switcher shows, per device (M4R102). */
-export const useCurrentProject = create<CurrentProjectState>()((set) => ({
+export const useCurrentProject = create<CurrentProjectState>()((set, get) => ({
   projectId: read(storage()),
   storageRefused: false,
+  startedHere: 0,
+  startHere(projectId) {
+    get().choose(projectId);
+    set((state) => ({ startedHere: state.startedHere + 1 }));
+  },
   choose(projectId) {
     let refused = false;
     try {

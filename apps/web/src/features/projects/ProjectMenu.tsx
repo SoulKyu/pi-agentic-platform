@@ -55,7 +55,7 @@ export function ProjectMenu({ project, order, movable, onRename, onNewSession }:
   const items = [
     item("new", "sidebar.action.newHere", () => {
       // The person starts from this project: the home reads the choice for its folder and Recent list.
-      useCurrentProject.getState().choose(project.id);
+      useCurrentProject.getState().startHere(project.id);
       onNewSession?.();
       void navigate({ to: "/" });
     }),

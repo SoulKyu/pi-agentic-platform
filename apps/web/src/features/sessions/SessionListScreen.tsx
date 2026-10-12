@@ -1,11 +1,13 @@
 import { Button, cn, FOCUS_RING, TextField, useIsPhone } from "@pap/ui";
+import { isSnoozed } from "@pap/contracts";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { formatAge } from "../../i18n/age.ts";
 import { useT } from "../../i18n/index.ts";
 import { runCommand } from "../../lib/command-registry.ts";
 import { sessionLabel } from "../../lib/session-label.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
-import { useEffectiveProject } from "../../stores/current-project.ts";
+import { useCurrentProject, useEffectiveProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { failureText } from "./failure.ts";
 
@@ -21,6 +23,18 @@ export function SessionListScreen() {
   const project = useEffectiveProject();
   // The folder follows the current project's root until the person types in the field.
   const [typed, setTyped] = useState<string | null>(null);
+  // "New session here" is an explicit action: it refills the field even over what the person typed.
+  const startedHere = useCurrentProject((state) => state.startedHere);
+  const [seenStart, setSeenStart] = useState(startedHere);
+  if (seenStart !== startedHere) {
+    setSeenStart(startedHere);
+    setTyped(null);
+  }
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
   const cwd = typed ?? project?.root ?? "";
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -31,11 +45,12 @@ export function SessionListScreen() {
   const sessions = useMemo(
     () =>
       [...held.values()]
-        .filter((session) => session.archivedAt === null)
+        .filter((session) => session.archivedAt === null && session.settledAt === null)
+        .filter((session) => !isSnoozed(session, now))
         .filter((session) => projectId === null || session.projectId === projectId)
         .sort((a, b) => b.updatedAt - a.updatedAt)
         .slice(0, RECENT),
-    [held, projectId],
+    [held, projectId, now],
   );
 
   const create = async () => {
@@ -113,7 +128,7 @@ export function SessionListScreen() {
                     ) : null}
                   </div>
                   <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
-                    {t(`session.status.${session.status}`)}
+                    {formatAge(now, session.updatedAt, t)}
                   </span>
                 </li>
               );

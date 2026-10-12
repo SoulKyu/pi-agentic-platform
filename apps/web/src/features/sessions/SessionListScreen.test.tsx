@@ -76,7 +76,7 @@ describe("SessionListScreen", () => {
       ["new", "/s/b"],
       ["old", "/s/a"],
     ]);
-    expect(text(container)).toContain("Working");
+    expect(text(container)).not.toMatch(/Working(?! directory)/);
     expect(bed.called("sessions.list")).toEqual([]);
   });
 
@@ -119,6 +119,28 @@ describe("SessionListScreen", () => {
     expect(hrefs).toHaveLength(10);
     expect(hrefs[0]).toBe("/s/s59");
     expect(hrefs.at(-1)).toBe("/s/s50");
+  });
+
+  it("leaves out snoozed and settled sessions, like the tree, and shows each session's age, not its status", async () => {
+    vi.useFakeTimers({ now: 10 * 3_600_000, toFake: ["Date", "setInterval", "clearInterval"] });
+    try {
+      const now = Date.now();
+      listed(
+        shellSession({ id: "a", cwd: "/work/a", updatedAt: now - 3 * 3_600_000, status: "running" }),
+        shellSession({ id: "z", cwd: "/work/z", updatedAt: now - 60_000, snoozedUntil: now + 1_000 }),
+        shellSession({ id: "e", cwd: "/work/e", updatedAt: now - 60_000, snoozedUntil: now - 1 }),
+        shellSession({ id: "s", cwd: "/work/s", updatedAt: now - 60_000, settledAt: now - 5 }),
+      );
+      const container = await show();
+      expect([...container.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([
+        "/s/e",
+        "/s/a",
+      ]);
+      expect(text(container)).toContain("3 h");
+      expect(text(container)).not.toMatch(/Working(?! directory)/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("follows the stream: a session that arrives as an event appears", async () => {
@@ -284,6 +306,17 @@ describe("the home narrowed to the current project", () => {
     await typeInto(field(container, "Working directory"), "/typed");
     await act(async () => useCurrentProject.getState().choose("web"));
     expect(field(container, "Working directory").value).toBe("/typed");
+  });
+
+  it("New session here is an explicit action: it fills the folder even after the person typed in it", async () => {
+    useCurrentProject.setState({ projectId: "web" });
+    twoProjects();
+    const container = await show();
+    await typeInto(field(container, "Working directory"), "/typed");
+    await act(async () => useCurrentProject.getState().startHere("web"));
+    expect(field(container, "Working directory").value).toBe("/w/web");
+    await act(async () => useCurrentProject.getState().startHere("api"));
+    expect(field(container, "Working directory").value).toBe("/w/api");
   });
 
   it("creates the session in the project's root when the field is untouched", async () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
+import { shellEn, shellFr } from "./catalog/shell.ts";
 import type { Translate } from "./index.ts";
 import { formatAge } from "./age.ts";
 
@@ -8,8 +8,8 @@ const over =
   (catalog: Readonly<Record<string, string>>): Translate =>
   (key, vars = {}) =>
     (catalog[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(vars[name]));
-const en = over(sidebarEn);
-const fr = over(sidebarFr);
+const en = over(shellEn);
+const fr = over(shellFr);
 const MIN = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;

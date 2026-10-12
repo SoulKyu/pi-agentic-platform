@@ -59,8 +59,8 @@ const IDENTICAL_IN_FR = new Set([
   "commands.key.ctrl",
   "commands.key.alt",
   "commands.key.tab",
-  "sidebar.age.min", // SI abbreviations
-  "sidebar.age.hour",
+  "shell.age.min", // SI abbreviations
+  "shell.age.hour",
   "search.detail", // placeholders only
 ]);
 

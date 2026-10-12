@@ -60,6 +60,12 @@ export const shellEn = {
   "shell.lazyFailed": "This part of pap did not load. pap may have been updated: reload the page.",
   "shell.lazyBroken": "This part of pap stopped working. Reload the page.",
   "error.limit_reached": "This list is full. Remove an entry first.",
+  // The home's Recent list and the tree rows both show an age: eager, because the home paints before the tree.
+  "shell.age.now": "now",
+  "shell.age.min": "{n} min",
+  "shell.age.hour": "{n} h",
+  "shell.age.day": "{n} d",
+  "shell.age.week": "{n} wk",
 } as const;
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
@@ -127,4 +133,9 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
     "Cette partie de pap ne s'est pas chargée. pap a peut-être été mis à jour : rechargez la page.",
   "shell.lazyBroken": "Cette partie de pap a cessé de fonctionner. Rechargez la page.",
   "error.limit_reached": "Cette liste est pleine. Retirez-en un élément d'abord.",
+  "shell.age.now": "maintenant",
+  "shell.age.min": "{n} min",
+  "shell.age.hour": "{n} h",
+  "shell.age.day": "{n} j",
+  "shell.age.week": "{n} sem.",
 };
