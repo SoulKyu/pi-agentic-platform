@@ -150,8 +150,8 @@ function step(
   const max = ctx.limits?.maxIndexedChars ?? MAX_INDEXED_CHARS;
   const before = known?.indexedChars ?? 0;
   const { kept, chars, capped } = withinBudget(found.rows, Math.max(0, max - before));
-  // Dropping rows stores the capped state (`indexedChars` at the cap): later chunks add no rows and say nothing more.
-  const reached = capped || before >= max;
+  // Dropping rows stores the capped state (`indexedChars` one past the cap, so a file filled exactly still says it once): later chunks add no rows and say nothing more.
+  const reached = capped || before > max;
   ctx.store.commit(
     {
       ...base,
@@ -160,11 +160,11 @@ function step(
       state: "indexed",
       sessionId,
       ownerId,
-      indexedChars: reached ? Math.max(max, before) : before + chars,
+      indexedChars: reached ? Math.max(max + 1, before) : before + chars,
     },
     kept,
   );
-  if (capped && before < max) ctx.say("session_file_capped");
+  if (capped && before <= max) ctx.say("session_file_capped");
   if (read.bad > 0 || read.skipped > 0)
     ctx.say("session_file_lines_skipped", { bad: read.bad, skipped: read.skipped });
   const id = sessionId;
@@ -178,7 +178,7 @@ function step(
   }
   if (read.next > from)
     attempt(ctx, "touched", () =>
-      ctx.sessions.touched(id, stat.mtimeMs, known !== undefined && found.active),
+      ctx.sessions.touched(id, stat.mtimeMs, known !== undefined && stat.size > known.size && found.active),
     );
   return { kind: "indexed", sessionId, rows: kept.length, more: read.next > from && read.next < stat.size };
 }

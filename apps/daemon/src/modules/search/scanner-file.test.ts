@@ -158,7 +158,7 @@ describe("processFile", () => {
   it("caps the indexed text but keeps names and activity", () => {
     const path = file("a.jsonl", piFile(header(), user("e1", "a".repeat(15)), user("e2", "b".repeat(15))));
     expect(run(path, { maxIndexedChars: 20 })).toMatchObject({ rows: 1 });
-    expect(store.cursor(path)?.indexedChars).toBe(20);
+    expect(store.cursor(path)?.indexedChars).toBe(21);
     expect(said("session_file_capped")).toHaveLength(1);
     appendFileSync(path, `${info("Later name")}\n`);
     run(path, { maxIndexedChars: 20 });

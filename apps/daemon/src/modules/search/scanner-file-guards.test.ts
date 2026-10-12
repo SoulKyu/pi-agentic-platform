@@ -181,4 +181,46 @@ describe("fix round 1", () => {
     expect(run(path)).toEqual({ kind: "skipped", reason: "excluded" });
     expect(port.claims).toHaveLength(0);
   });
+
+  it("counts no activity for the later steps of a multi-step read, only for a file that grew", () => {
+    const entries = Array.from({ length: 10 }, (_, i) => user(`e${i}`, `message ${i} ${"x".repeat(150)}`));
+    const path = file("a.jsonl", piFile(header(), ...entries));
+    const limits = { stepBytes: 300 };
+    const drain = (): void => {
+      for (let i = 0; i < 20; i++) {
+        const outcome = run(path, limits);
+        if (outcome.kind !== "indexed" || !outcome.more) return;
+      }
+      throw new Error("did not finish");
+    };
+    drain();
+    expect(port.touched.length).toBeGreaterThan(1);
+    expect(port.touched.every((t) => !t.active)).toBe(true);
+    store.forget(path);
+    port.touched.length = 0;
+    drain();
+    expect(port.touched.length).toBeGreaterThan(1);
+    expect(port.touched.every((t) => !t.active)).toBe(true);
+    port.touched.length = 0;
+    appendFileSync(path, `${user("e10", "new")}\n`);
+    run(path, limits);
+    expect(port.touched.map((t) => t.active)).toEqual([true]);
+  });
+
+  it("says the cap when a file filled exactly to the budget drops a later row", () => {
+    const events: string[] = [];
+    const say = (event: string) => {
+      events.push(event);
+    };
+    const limits = { maxIndexedChars: 20 };
+    const path = file("a.jsonl", piFile(header(), user("e1", "a".repeat(20))));
+    processFile(path, context(limits, { say }));
+    expect(events).toEqual([]);
+    appendFileSync(path, `${user("e2", "b")}\n`);
+    processFile(path, context(limits, { say }));
+    appendFileSync(path, `${user("e3", "c")}\n`);
+    processFile(path, context(limits, { say }));
+    expect(events).toEqual(["session_file_capped"]);
+    expect(store.rowCount()).toBe(1);
+  });
 });
