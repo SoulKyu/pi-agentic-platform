@@ -31,8 +31,11 @@ describe.skipIf(!scopesAvailable)("a worker's memory limit (M2R114)", () => {
       { sessionId, dialogId: card.dialog.id, response: { answer: "once" } },
       bed.ctx,
     );
-    await sub.waitFor((e) => e.kind === "status" && e.status === "idle", 30_000);
-    expect(sub.events().some((e) => e.kind === "status" && e.status === "cold")).toBe(false);
+    const settled = await sub.waitFor(
+      (e) => e.kind === "status" && (e.status === "idle" || e.status === "cold"),
+      30_000,
+    );
+    expect(settled).toEqual({ kind: "status", status: "idle" });
     expect(bed.exits).toEqual([]);
   });
 

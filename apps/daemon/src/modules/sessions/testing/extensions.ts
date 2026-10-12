@@ -102,6 +102,6 @@ export const hog = (ceilingMb: number): string => `export default function (pi) 
 }
 `;
 
-/** The same hog as a shell command (node -e), for a command the agent runs. */
+/** The same hog as a shell command (node -e), for a command the agent runs. It raises its own oom_score_adj first: the worker sits at 800 and its children inherit it, so without this the kernel may pick the worker. */
 export const hogCommand = (ceilingMb: number): string =>
-  `node -e "const k=[];setInterval(()=>{if(k.length>=${Math.ceil(ceilingMb / HOG_STEP_MB)})process.exit(3);k.push(Buffer.alloc(${HOG_STEP_MB}*1024*1024,1))},10)"`;
+  `node -e "require('fs').writeFileSync('/proc/self/oom_score_adj','1000');const k=[];setInterval(()=>{if(k.length>=${Math.ceil(ceilingMb / HOG_STEP_MB)})process.exit(3);k.push(Buffer.alloc(${HOG_STEP_MB}*1024*1024,1))},10)"`;
