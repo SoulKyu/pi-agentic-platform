@@ -11,6 +11,7 @@ import { createSessionPolicyStore } from "./session-store.ts";
 import { createSettingsPolicyStore } from "./settings-store.ts";
 import { createPolicyStore } from "./store.ts";
 
+export { RESTRICTIVE_SETTINGS } from "./session-service.ts";
 export type { PolicyPort };
 
 export const POLICY_MIGRATIONS: MigrationSource = {

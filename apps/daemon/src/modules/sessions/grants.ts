@@ -3,7 +3,7 @@ import {
   type ApprovalAnswer,
   MAX_ALWAYS_RULES,
   type Notice,
-  PolicyRules,
+  type PolicyRules,
   SERVER_CODES,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
@@ -56,6 +56,8 @@ export interface GrantLinkDeps {
   readonly logger: Logger;
   /** The workers that are up and the ones still starting: a rule change reaches both (ADR 0001, M2R75). */
   sessions(): Iterable<LiveSession>;
+  /** The whole rules of a session's worker (mode, lists, guard, taint, "always" rules): the policy link composes them. */
+  compose(row: SessionRow, scope: string): PolicyRules;
 }
 
 /**
@@ -74,7 +76,7 @@ export function createGrantLink(deps: GrantLinkDeps) {
 
   // Fails closed: rules that are over what a worker takes are not sent in part, none of them is, so the worker asks again.
   // A stored rule outside the schema is skipped alone, so one bad row cannot keep a project's workers from starting.
-  function policyFor(row: SessionRow, scope: string): PolicyRules {
+  function alwaysFor(row: SessionRow, scope: string): AlwaysRule[] {
     const stored: AlwaysRule[] = deps.policy.rulesFor(row.ownerId, scope);
     const rules = stored.filter((rule) => AlwaysRule.safeParse(rule).success);
     if (rules.length !== stored.length) {
@@ -82,11 +84,7 @@ export function createGrantLink(deps: GrantLinkDeps) {
     }
     const fitted = fitRules(rules);
     if (!fitted) say("policy_rules_too_large", { sessionId: row.id, count: rules.length });
-    return PolicyRules.parse({
-      profile: "interactive",
-      approvalMode: "auto-accept-edits",
-      alwaysAllow: fitted ?? [],
-    });
+    return fitted ?? [];
   }
 
   // A worker that cannot be told keeps a rule that may be revoked: it is stopped, and the next prompt starts one with the current rules.
@@ -96,7 +94,7 @@ export function createGrantLink(deps: GrantLinkDeps) {
     at.dirty = false;
     let sent = false;
     try {
-      sent = session.send({ type: "policy_update", rules: policyFor(at.row, at.scope) });
+      sent = session.send({ type: "policy_update", rules: deps.compose(at.row, at.scope) });
     } catch (error) {
       say("policy_update_failed", { sessionId: at.row.id, err: error });
     }
@@ -116,12 +114,16 @@ export function createGrantLink(deps: GrantLinkDeps) {
     if (at.ready) flush(session, at);
   }
 
-  const unlisten = deps.policy.onChange((ownerId, scope) => {
+  function pushAt(matches: (at: Launched) => boolean): void {
     for (const session of [...deps.sessions()]) {
       const at = launched.get(session);
-      if (at && at.row.ownerId === ownerId && at.scope === scope) markDirty(session, at);
+      if (at && matches(at)) markDirty(session, at);
     }
-  });
+  }
+
+  const unlisten = deps.policy.onChange((ownerId, scope) =>
+    pushAt((at) => at.row.ownerId === ownerId && at.scope === scope),
+  );
 
   function tellSessionOnly(session: LiveSession, at: Launched, notice: typeof FULL_NOTICE): void {
     const now = deps.clock.now();
@@ -132,7 +134,18 @@ export function createGrantLink(deps: GrantLinkDeps) {
 
   return {
     scopeOf: (cwd: string): string => deps.policy.scopeOf(cwd),
-    policyFor,
+    alwaysFor,
+    /** Sends the whole rules to every tracked worker whose session matches, at once (one still starting gets them after `ready`). */
+    pushWhere: (matches: (row: SessionRow) => boolean): void => pushAt((at) => matches(at.row)),
+    /** The sessions of the workers tracked now (up or starting) whose row matches. */
+    rowsWhere(matches: (row: SessionRow) => boolean): SessionRow[] {
+      const rows: SessionRow[] = [];
+      for (const session of deps.sessions()) {
+        const at = launched.get(session);
+        if (at && matches(at.row)) rows.push(at.row);
+      }
+      return rows;
+    },
     /** Called right after the session's worker was started, before anything can await. */
     track(session: LiveSession, row: SessionRow, scope: string): void {
       const at: Launched = { row, scope, noticeAt: null, ready: false, dirty: false };
@@ -172,3 +185,5 @@ export function createGrantLink(deps: GrantLinkDeps) {
     stop: unlisten,
   };
 }
+
+export type GrantLink = ReturnType<typeof createGrantLink>;

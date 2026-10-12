@@ -6,6 +6,7 @@ import {
   type HistoryMeta,
   IDLE_ACTIVITY,
   PapError,
+  type SessionPolicyView,
   type SessionStatus,
   type SessionSummary,
   type SessionStreamEvent,
@@ -79,6 +80,8 @@ export interface SessionReadsDeps {
   owned(id: string, caller: Caller): SessionRow;
   /** The Pi file changed outside pap in the last 2 minutes (owner Q13). */
   outsideWrite(id: string): boolean;
+  /** The session's mode, whether it chose it, and its taint, read from the policy module (M5R61). */
+  policyView(row: SessionRow): SessionPolicyView;
 }
 
 export interface SessionReads {
@@ -227,6 +230,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         name: row.name,
         cwd: row.cwd,
         outsideWrite: deps.outsideWrite(sessionId),
+        policy: deps.policyView(row),
       });
       return withTrimmedHistory(snapshot, rows, history);
     },

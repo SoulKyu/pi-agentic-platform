@@ -1,7 +1,7 @@
 import { type Caller, PapError, type SessionStatus } from "@pap/contracts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
-import { createGrantLink } from "./grants.ts";
+import { createPolicyLink } from "./policy-link.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import { createOrganiser } from "./organiser.ts";
@@ -29,12 +29,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   // Workers between fork and `ready`. They count against the cap like running ones (R9).
   const starting = new Set<LiveSession>();
   let closing = false;
-  const grants = createGrantLink({
-    policy: deps.policy,
-    clock: deps.clock,
-    logger: deps.logger,
-    sessions: () => [...live.values(), ...starting],
-  });
+  const policyLink = createPolicyLink({ ...deps, sessions: () => [...live.values(), ...starting] });
+  const grants = policyLink.grants;
 
   const checkCapacity = () => {
     if (
@@ -101,6 +97,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     reopening,
     starting,
     grants,
+    policyLink,
     checkCapacity,
     projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
     onReopened: (sessionId) => publisher.changed(sessionId),
@@ -133,6 +130,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     statusOf,
     owned,
     outsideWrite: adoption.outsideWrite,
+    policyView: (row) => policyLink.viewOf(row),
   });
 
   const commands = createSessionCommands({
@@ -240,7 +238,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     async shutdownAll() {
       closing = true;
       organiser.stop();
-      grants.stop();
+      policyLink.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
     inspect(sessionId) {

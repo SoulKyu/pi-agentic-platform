@@ -38,6 +38,8 @@ export interface LiveSessionDeps {
   readonly idleMs: number;
   /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
   onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
+  /** The worker's policy extension refused a `policy_update`: it blocks every call from then on (M5R11). */
+  onPolicyRefused?(): void;
 }
 
 export interface LiveSession {
