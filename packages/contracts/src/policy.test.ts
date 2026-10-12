@@ -60,7 +60,7 @@ describe("PolicyRules v2", () => {
 describe("patterns the owner writes", () => {
   it("takes a deny pattern of 1..256 printable characters", () => {
     expect(DenyPattern.safeParse("git push --force*").success).toBe(true);
-    for (const bad of ["", "x".repeat(257), "rm\n-rf", "rm\u0000", "rm\u0085", "‮rm"])
+    for (const bad of ["", "x".repeat(257), "rm\n-rf", "rm\u0000", "rm\u0085", "\u202Erm"])
       expect(DenyPattern.safeParse(bad).success).toBe(false);
   });
 
