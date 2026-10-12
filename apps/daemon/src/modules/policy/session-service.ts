@@ -106,6 +106,15 @@ export function createSessionPolicyService(deps: {
     if (deps.sessionOwner(sessionId) !== ownerId) throw new PapError("not_found");
   };
 
+  // M5R47: an audit failure never fails the mutation that caused it.
+  const audit = (line: AuditLine): void => {
+    try {
+      deps.audit.append(line);
+    } catch (error) {
+      deps.logger.error("audit_append_failed", { reason: line.reason, err: error });
+    }
+  };
+
   const actorOf = (caller: Caller): { actor: AuditLine["actor"]; actorId?: string } => ({
     actor: caller.kind === "token" ? "token" : "user",
     ...(caller.credentialId ? { actorId: caller.credentialId } : {}),
@@ -136,7 +145,7 @@ export function createSessionPolicyService(deps: {
       owns(caller.userId, sessionId);
       deps.sessions.setMode(caller.userId, sessionId, mode, deps.clock.now());
       sessionChanged(caller.userId, sessionId);
-      deps.audit.append({
+      audit({
         ownerId: caller.userId,
         ...actorOf(caller),
         kind: "policy",
@@ -149,7 +158,7 @@ export function createSessionPolicyService(deps: {
       owns(caller.userId, sessionId);
       deps.sessions.clearTaint(caller.userId, sessionId, deps.clock.now());
       sessionChanged(caller.userId, sessionId);
-      deps.audit.append({
+      audit({
         ownerId: caller.userId,
         ...actorOf(caller),
         kind: "policy",
@@ -175,7 +184,7 @@ export function createSessionPolicyService(deps: {
       if (revision === null) throw new PapError("conflict");
       tell(settingsListeners, caller.userId);
       const value = parsed.data;
-      deps.audit.append({
+      audit({
         ownerId: caller.userId,
         ...actorOf(caller),
         kind: "policy",

@@ -66,6 +66,14 @@ export function createForks(deps: ForksDeps): Forks {
     return new PapError("internal");
   };
 
+  function removeFile(file: string): void {
+    try {
+      rmSync(file, { force: true });
+    } catch (error) {
+      deps.logger.error("fork_file_not_removed", { err: error });
+    }
+  }
+
   function removeStoredRow(id: string): void {
     try {
       deps.store.remove(id);
@@ -102,8 +110,9 @@ export function createForks(deps: ForksDeps): Forks {
       deps.onMade?.(id);
       deps.onAdopted?.(source, id);
     } catch (error) {
-      if (made.file !== null) rmSync(made.file, { force: true });
+      // The row first, so nothing points at a file that is going; a cleanup that throws is logged, the original error stands.
       if (stored) removeStoredRow(id);
+      if (made.file !== null) removeFile(made.file);
       if (error instanceof PapError) throw error;
       deps.logger.error("fork_row_not_stored", { sessionId: source.id, err: error });
       throw new PapError("internal");

@@ -1,9 +1,13 @@
+import { readdirSync } from "node:fs";
 import { PapError } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AuditPort } from "../audit/index.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { fakePolicyPort, initRecordOf, policyUpdatesOf } from "./testing/fake-policy.ts";
+import { createFakeClock } from "../../kernel/clock.ts";
+import { createStoreSync } from "./service-sync.ts";
+import { captureLogger } from "./testing/helpers.ts";
 import { type BedOptions, createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
@@ -82,6 +86,48 @@ describe("the taint a worker reports (M5R60)", () => {
   });
 });
 
+describe("which session a taint record belongs to", () => {
+  it("taints only the session of the worker that sent it", async () => {
+    const policy = fakePolicyPort();
+    open({ policy });
+    const first = await bed.service.create(bed.work, OWNER);
+    const second = await bed.service.create(bed.otherWork, OWNER);
+    bed.spawned[0]?.emit(taintRecord(0));
+    expect(policy.taintOf(first.sessionId)).toEqual({ tainted: true, epoch: 0 });
+    expect(policy.taintOf(second.sessionId)).toEqual({ tainted: false, epoch: 0 });
+  });
+
+  it("is logged and ignored when the session has no row", async () => {
+    const policy = fakePolicyPort();
+    const { logger, lines } = captureLogger();
+    open({ policy, logger });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    bed.db.run("DELETE FROM sessions WHERE id = $sessionId", { sessionId });
+    bed.spawned[0]?.emit(taintRecord(0));
+    expect(policy.taintOf(sessionId)).toEqual({ tainted: false, epoch: 0 });
+    expect(lines.filter((line) => line.msg === "session_event_dropped")).toHaveLength(1);
+  });
+
+  it("is logged and dropped when its epoch is not a number", () => {
+    open();
+    const { logger, lines } = captureLogger();
+    const told: number[] = [];
+    const sync = createStoreSync({
+      store: { get: () => ({ id: "s1" }) } as never,
+      clock: createFakeClock(),
+      logger,
+      hub: { publish: () => {} },
+      agentDir: "/a",
+      onPolicyRecord: () => {},
+      onTaint: (_row, epoch) => void told.push(epoch),
+    });
+    sync.recordEvent("s1", "taint", "x");
+    sync.recordEvent("s1", "taint", 2);
+    expect(told).toEqual([2]);
+    expect(lines.filter((line) => line.msg === "worker_record_dropped")).toHaveLength(1);
+  });
+});
+
 describe("the taint an external result entry says, even a refused one (M5R60, path 2)", () => {
   const entry = {
     kind: "result",
@@ -131,10 +177,12 @@ describe("the taint an external result entry says, even a refused one (M5R60, pa
       throw new PapError("not_found");
     };
     const audit = fakeAudit();
-    open({ policy, audit: audit.port });
+    const { logger, lines } = captureLogger();
+    open({ policy, audit: audit.port, logger });
     await bed.service.create(bed.work, OWNER);
     expect(() => bed.spawned[0]?.emit({ type: "audit", entry })).not.toThrow();
     expect(audit.calls).toEqual([entry]);
+    expect(lines.filter((line) => line.msg === "taint_not_stored")).toHaveLength(1);
   });
 });
 
@@ -163,8 +211,10 @@ describe("forks and clones (M5R55)", () => {
     open({ policy });
     const sessionId = await boundSession();
     const before = bed.service.list(OWNER).map((s) => s.id);
+    const filesBefore = readdirSync(bed.sessionsDir).sort();
     await expect(bed.service.clone({ sessionId }, OWNER)).rejects.toMatchObject({ code: "not_found" });
     expect(bed.service.list(OWNER).map((s) => s.id)).toEqual(before);
+    expect(readdirSync(bed.sessionsDir).sort()).toEqual(filesBefore);
     expect(bed.db.get("SELECT COUNT(*) AS n FROM sessions")).toEqual({ n: before.length });
   });
 });

@@ -96,8 +96,20 @@ describe("failures around a mutation", () => {
     expect(() => service.clearTaint(testCaller(), "s1")).toThrow(new PapError("not_found"));
   });
 
-  it("leaves the mutation done, and the listeners told, when the audit port throws", () => {
-    const { db, clock, logger } = current;
+  it("never lowers an existing target's taint on inherit", () => {
+    const { service } = current;
+    service.setSessionMode(testCaller(), "s1", "supervised");
+    service.markTainted("u1", "s2", 0);
+    service.inherit("u1", "s1", "s2");
+    expect(service.sessionPolicy("u1", "s2")).toMatchObject({
+      mode: "supervised",
+      taint: { tainted: true, epoch: 0 },
+    });
+  });
+
+  it("answers success, logs audit_append_failed and keeps the mutation when the audit port throws", () => {
+    const { db, clock, lines } = current;
+    const logger = current.logger;
     const told: string[] = [];
     const service = createSessionPolicyService({
       sessions: createSessionPolicyStore(db),
@@ -113,10 +125,11 @@ describe("failures around a mutation", () => {
       sessionOwner: () => "u1",
     });
     service.onSessionChange((_owner, sessionId) => void told.push(sessionId));
-    expect(() => service.setSessionMode(testCaller(), "s1", "read-only")).toThrow("audit down");
+    expect(() => service.setSessionMode(testCaller(), "s1", "read-only")).not.toThrow();
     expect(service.sessionPolicy("u1", "s1").mode).toBe("read-only");
     service.markTainted("u1", "s1", 0);
-    expect(() => service.clearTaint(testCaller(), "s1")).toThrow("audit down");
+    expect(() => service.clearTaint(testCaller(), "s1")).not.toThrow();
+    expect(lines.filter((line) => line.msg === "audit_append_failed")).toHaveLength(2);
     expect(service.sessionPolicy("u1", "s1").taint).toEqual({ tainted: false, epoch: 1 });
     expect(told).toEqual(["s1", "s1", "s1"]);
   });

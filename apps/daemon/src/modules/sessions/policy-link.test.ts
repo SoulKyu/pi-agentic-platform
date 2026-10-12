@@ -197,6 +197,17 @@ describe("refused", () => {
     ).toEqual(["s1", "s2"]);
   });
 
+  it("starts its windows over once 1024 are held, so the memory stays bounded", async () => {
+    const { link, lines, track } = build();
+    const { session } = await track();
+    link.refused(ROW, session);
+    for (let n = 0; n < 1024; n++) link.refused({ ...ROW, id: `other-${n}` }, session);
+    link.refused(ROW, session);
+    expect(
+      lines.filter((line) => line.msg === "policy_update_refused" && line.sessionId === "s1"),
+    ).toHaveLength(2);
+  });
+
   it("logs a stop that fails", async () => {
     const { link, lines, track } = build();
     const { session } = await track();

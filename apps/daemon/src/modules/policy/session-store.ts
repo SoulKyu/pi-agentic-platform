@@ -47,14 +47,14 @@ export function createSessionPolicyStore(db: Db) {
         { sessionId, ownerId, now },
       );
     },
-    /** The target takes the source's mode and taint (a fork or a clone carries the same context). A new row starts at epoch 0; an existing row keeps its epoch, which never goes down. */
+    /** The target takes the source's mode and taint (a fork or a clone carries the same context). A new row starts at epoch 0; an existing row keeps its epoch and its taint, neither of which goes down. */
     inherit: (ownerId: string, sourceId: string, targetId: string, now: number): void => {
       db.transaction(() => {
         const source = read(ownerId, sourceId);
         if (!source) return;
         db.run(
           "INSERT INTO session_policy (session_id, owner_id, approval_mode, tainted_at, taint_epoch, updated_at) VALUES ($targetId, $ownerId, $mode, $taintedAt, 0, $now) " +
-            "ON CONFLICT (session_id) DO UPDATE SET approval_mode = excluded.approval_mode, tainted_at = excluded.tainted_at, updated_at = excluded.updated_at " +
+            "ON CONFLICT (session_id) DO UPDATE SET approval_mode = excluded.approval_mode, tainted_at = COALESCE(session_policy.tainted_at, excluded.tainted_at), updated_at = excluded.updated_at " +
             "WHERE session_policy.owner_id = excluded.owner_id",
           { targetId, ownerId, mode: source.approvalMode, taintedAt: source.taintedAt, now },
         );

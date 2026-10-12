@@ -93,7 +93,9 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
       const mode = modes.get(sourceId);
       if (mode !== undefined) modes.set(targetId, mode);
       const taint = taints.get(sourceId);
-      if (taint) taints.set(targetId, { tainted: taint.tainted, epoch: taints.get(targetId)?.epoch ?? 0 });
+      const held = taints.get(targetId);
+      if (taint)
+        taints.set(targetId, { tainted: (held?.tainted ?? false) || taint.tainted, epoch: held?.epoch ?? 0 });
     },
     onSessionChange(listener) {
       sessionListeners.add(listener);

@@ -45,6 +45,7 @@ export function createStoreSync(deps: StoreSyncDeps) {
         if (!row) deps.logger.warn("session_event_dropped", { sessionId, kind });
         else if (kind === "policy") deps.onPolicyRecord(row, data);
         else if (typeof data === "number") deps.onTaint(row, data);
+        else deps.logger.warn("worker_record_dropped", { sessionId, kind });
         return;
       }
       deps.store.appendEvent(sessionId, kind, data, deps.clock.now());

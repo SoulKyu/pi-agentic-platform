@@ -15,7 +15,9 @@ const MAX_WINDOWS = 1_024;
 
 /**
  * The least an audit record must say to taint the session (M5R60, path 2): checked before the full audit schema, so an
- * entry the schema refuses still taints. It carries no epoch, so it raises whatever a clear did.
+ * entry the schema refuses still taints. It carries no epoch, so it raises whatever a clear did, on purpose: it is the
+ * safeguard for external content a worker reads between a Clear and the new epoch reaching it. A late entry that
+ * re-taints is a nuisance, never unsafe. Never add an epoch check to this path: that would turn it into a fail-open.
  */
 export const TaintFact = z.object({ kind: z.literal("result"), external: z.literal(true) });
 
