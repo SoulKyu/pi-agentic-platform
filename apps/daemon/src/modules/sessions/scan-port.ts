@@ -29,6 +29,11 @@ export interface SessionsScanPort {
   summary(sessionId: string, ownerId: string): ShellSession | null;
 }
 
+interface Adopted {
+  readonly row: SessionRow;
+  readonly projectId: string | null;
+}
+
 export function createScanPort(deps: {
   /** The sessions table, its marks and whether it may be written (M4R124). */
   readonly store: SessionsStore;
@@ -60,39 +65,56 @@ export function createScanPort(deps: {
     store.bindPiFile(row.id, path, piId)
       ? { kind: "session", sessionId: row.id, ownerId: row.ownerId }
       : duplicate();
+  const decide = (path: string, header: PiFileHeader): Claim | Adopted => {
+    const byPath = store.marks.findByPiPath(path);
+    if (byPath) return { kind: "session", sessionId: byPath.id, ownerId: byPath.ownerId };
+    if (store.marks.findByPiSessionId(header.id)) return duplicate();
+    if (!isPiSessionFile(deps.agentDir, path)) return { kind: "skip", reason: "not_pi_file" };
+    const live = deps.livePiSession(header.id);
+    if (live) return bind(live, path, header.id);
+    // A draft whose worker reported this id before Pi wrote the file: from the table, so a restart forgets nothing (RT-01).
+    const draft = store.marks.findByPendingPiId(header.id);
+    if (draft) return draft.piPath === null ? bind(draft, path, header.id) : duplicate();
+    const ownerId = deps.ownerId();
+    if (ownerId === null) return { kind: "wait" };
+    const at = Math.min(header.createdAt, deps.clock.now());
+    const row: SessionRow = {
+      id: deps.newId(),
+      piPath: path,
+      piSessionId: header.id,
+      cwd: header.cwd,
+      ownerId,
+      name: null,
+      createdAt: at,
+      updatedAt: at,
+    };
+    // One transaction: a hook that throws (M5 taints in the database) leaves no row, so the next pass adopts it again.
+    const projectId = store.transaction(() => {
+      store.insert(row, null);
+      const assigned = deps.assignProject(row.id, ownerId, row.cwd);
+      deps.onAdopted(row.id);
+      return assigned;
+    });
+    return { row, projectId };
+  };
   return {
     // Synchronous on purpose: no await between a check and the insert, so one file never becomes two sessions (M4R60).
     claim(path, header) {
       if (store.readOnly) return { kind: "wait" };
-      const byPath = store.marks.findByPiPath(path);
-      if (byPath) return { kind: "session", sessionId: byPath.id, ownerId: byPath.ownerId };
-      if (store.marks.findByPiSessionId(header.id)) return duplicate();
-      if (!isPiSessionFile(deps.agentDir, path)) return { kind: "skip", reason: "not_pi_file" };
-      const live = deps.livePiSession(header.id);
-      if (live) return bind(live, path, header.id);
-      // A draft whose worker reported this id before Pi wrote the file: from the table, so a restart forgets nothing (RT-01).
-      const draft = store.marks.findByPendingPiId(header.id);
-      if (draft) return draft.piPath === null ? bind(draft, path, header.id) : duplicate();
-      const ownerId = deps.ownerId();
-      if (ownerId === null) return { kind: "wait" };
-      const at = Math.min(header.createdAt, deps.clock.now());
-      const row: SessionRow = {
-        id: deps.newId(),
-        piPath: path,
-        piSessionId: header.id,
-        cwd: header.cwd,
-        ownerId,
-        name: null,
-        createdAt: at,
-        updatedAt: at,
-      };
-      store.insert(row, null);
-      const projectId = deps.assignProject(row.id, ownerId, row.cwd);
-      deps.onAdopted(row.id);
+      let decided: Claim | Adopted;
+      try {
+        decided = decide(path, header);
+      } catch (error) {
+        // Nothing was written (the insert, its project and the hook are one transaction): the next pass tries again.
+        say("session_claim_failed", { err: error });
+        return { kind: "wait" };
+      }
+      if (!("row" in decided)) return decided;
+      const { row, projectId } = decided;
       deps.publisher.changed(row.id);
-      deps.publisher.projectChanged(ownerId, projectId);
+      deps.publisher.projectChanged(row.ownerId, projectId);
       deps.logger.info("session_adopted", { sessionId: row.id });
-      return { kind: "session", sessionId: row.id, ownerId };
+      return { kind: "session", sessionId: row.id, ownerId: row.ownerId };
     },
     touched(sessionId, at, active) {
       if (store.readOnly) return;

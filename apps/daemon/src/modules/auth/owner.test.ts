@@ -20,4 +20,23 @@ describe("the instance owner", () => {
     });
     expect(auth.ownerId()).toBe("owner-1");
   });
+
+  it("is the oldest user, a tie in created_at broken by id", () => {
+    const { auth } = bed.start("https://pap.example");
+    const add = (id: string, createdAt: number) =>
+      bed.db.run(
+        "INSERT INTO users (id, username, password_hash, created_at) VALUES ($id, $id, 'x', $createdAt)",
+        {
+          id,
+          createdAt,
+        },
+      );
+    add("u-b", 5);
+    add("u-new", 9);
+    expect(auth.ownerId()).toBe("u-b");
+    add("u-old", 2);
+    expect(auth.ownerId()).toBe("u-old");
+    add("u-a", 2);
+    expect(auth.ownerId()).toBe("u-a");
+  });
 });

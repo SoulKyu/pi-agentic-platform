@@ -96,9 +96,13 @@ describe("adopting a Pi file", () => {
     expect(bed.store.marks.row(sessionId)?.projectId).toBe(`p:${bed.work}`);
     expect(spy.calls).toEqual([{ id: sessionId, stored: true }]);
     await drain();
-    const kinds = events().map((event) => event.kind);
-    expect(kinds).toContain("session");
-    expect(kinds).toContain("project");
+    const sent = events();
+    expect(sent.flatMap((event) => (event.kind === "session" ? [event.session.id] : []))).toEqual([
+      sessionId,
+    ]);
+    expect(sent.flatMap((event) => (event.kind === "project" ? [event.project.id] : []))).toEqual([
+      `p:${bed.work}`,
+    ]);
 
     expect(bed.service.scanPort.claim(path, headerOf("pi-1"))).toEqual({
       kind: "session",
@@ -156,6 +160,7 @@ describe("adopting a Pi file", () => {
       ownerId: "u1",
     });
     expect(rowCount()).toBe(1);
+    expect(bed.store.get(sessionId)?.piPath).toBe(path);
     expect(spy.calls).toEqual([]);
   });
 
@@ -194,7 +199,7 @@ describe("adopting a Pi file", () => {
     expect(rowCount()).toBe(1);
   });
 
-  it("skips a copy: an id already bound at another path, logged once for two attempts", () => {
+  it("skips a copy: an id already bound at another path, logged once for two attempts", async () => {
     const { logger, lines } = captureLogger();
     bed = build({ logger });
     expect(bed.service.scanPort.claim(fileOf("pi-1"), headerOf("pi-1")).kind).toBe("session");
@@ -208,7 +213,13 @@ describe("adopting a Pi file", () => {
       reason: "duplicate_id",
     });
     expect(rowCount()).toBe(1);
-    expect(lines.filter((line) => line.msg === "session_file_duplicate_id")).toHaveLength(1);
+    const said = () => lines.filter((line) => line.msg === "session_file_duplicate_id");
+    expect(said()).toHaveLength(1);
+    expect(said()[0]?.suppressed).toBe(0);
+    await bed.clock.advance(60_000);
+    expect(bed.service.scanPort.claim(copy, headerOf("pi-1")).kind).toBe("skip");
+    expect(said()).toHaveLength(2);
+    expect(said()[1]?.suppressed).toBe(1);
   });
 
   it("skips a file outside the agent directory's sessions", () => {
@@ -232,17 +243,61 @@ describe("adopting a Pi file", () => {
     expect(bed.service.scanPort.claim(path, headerOf("pi-1")).kind).toBe("session");
   });
 
-  it("writes nothing over a read-only store", () => {
+  it("a hook that throws leaves no row; the next claim adopts the file and calls the hook once", () => {
+    const { logger, lines } = captureLogger();
     bed = build();
+    let attempts = 0;
+    const told: string[] = [];
+    const port = portOver({
+      logger,
+      ownerId: () => "u1",
+      newId: () => `a${attempts}`,
+      assignProject: (id, ownerId, cwd) => bed.projects.ensure(ownerId, cwd)?.id ?? id,
+      onAdopted: (id) => {
+        if (++attempts === 1) throw new Error("taint failed");
+        told.push(id);
+      },
+    });
+    const path = fileOf("pi-1");
+    expect(port.claim(path, headerOf("pi-1"))).toEqual({ kind: "wait" });
+    expect(rowCount()).toBe(0);
+    expect(lines.filter((line) => line.msg === "session_claim_failed")).toHaveLength(1);
+    const second = port.claim(path, headerOf("pi-1"));
+    expect(second).toEqual({ kind: "session", sessionId: "a1", ownerId: "u1" });
+    expect(rowCount()).toBe(1);
+    expect(told).toEqual(["a1"]);
+    expect(port.claim(path, headerOf("pi-1"))).toEqual(second);
+    expect(told).toEqual(["a1"]);
+  });
+
+  it("answers wait and logs when a read before the insert fails", () => {
+    const { logger, lines } = captureLogger();
+    bed = build();
+    const marks = {
+      ...bed.store.marks,
+      findByPiPath: () => {
+        throw new Error("disk I/O error");
+      },
+    };
+    const port = portOver({ logger, store: { ...bed.store, marks } });
+    expect(port.claim(fileOf("pi-1"), headerOf("pi-1"))).toEqual({ kind: "wait" });
+    expect(lines.filter((line) => line.msg === "session_claim_failed")).toHaveLength(1);
+  });
+
+  it("writes nothing over a read-only store", async () => {
+    bed = build();
+    await bed.clock.advance(NOW - bed.clock.now());
     const adopted = bed.service.scanPort.claim(fileOf("pi-1"), headerOf("pi-1"));
     const id = adopted.kind === "session" ? adopted.sessionId : "";
     const before = bed.store.get(id);
     const readOnly: SessionsStore = { ...bed.store, readOnly: true };
-    const port = portOver({ store: readOnly, ownerId: () => "u1", newId: () => "x" });
+    const activity = vi.fn();
+    const port = portOver({ store: readOnly, ownerId: () => "u1", newId: () => "x", activity });
     expect(port.claim(fileOf("pi-2"), headerOf("pi-2"))).toEqual({ kind: "wait" });
     port.touched(id, NOW, true);
     port.named(id, "Name");
     port.previewed(id, "hello");
+    expect(activity).not.toHaveBeenCalled();
     expect(rowCount()).toBe(1);
     expect(bed.store.get(id)).toEqual(before);
     expect(bed.store.marks.row(id)?.preview).toBeNull();

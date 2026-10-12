@@ -30,6 +30,8 @@ export interface SessionsStore {
   setName(id: string, name: string | null): void;
   /** Sets the Pi file of a draft, once. False when the session already has one. Throws when another session owns the path. */
   bindPiFile(id: string, piPath: string, piSessionId: string): boolean;
+  /** Runs `fn` in one transaction (nesting joins the outer one): all of it is written, or none. */
+  transaction<T>(fn: () => T): T;
   appendEvent(sessionId: string, kind: string, data: unknown, at: number): void;
 }
 
@@ -63,6 +65,7 @@ export function createSessionsStore(db: Db): SessionsStore {
         "UPDATE sessions SET pi_path = $piPath, pi_session_id = $piSessionId WHERE id = $id AND pi_path IS NULL",
         { id, piPath, piSessionId },
       ).changes > 0,
+    transaction: (fn) => db.transaction(fn),
     appendEvent: (sessionId, kind, data, at) => {
       db.run(
         "INSERT INTO session_events (session_id, kind, data, created_at) VALUES ($sessionId, $kind, $data, $at)",
