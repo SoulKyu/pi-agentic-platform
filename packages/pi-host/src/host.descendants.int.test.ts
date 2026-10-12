@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fileURLToPath } from "node:url";
 import { bashScript, createHostBed, isApproval, type LaunchOptions } from "./testing/host-bed.ts";
@@ -84,8 +85,16 @@ describe.each([
   ["`nohup cmd &`", (seconds: string) => `nohup sleep ${seconds} >/dev/null 2>&1 & echo started`],
 ] as const)("pi-host worker: %s left running after the tool call ended", (_name, command) => {
   it("is counted by the next health record, once the run has settled", async () => {
-    const { host } = await runCommand(command, { env: { NODE_OPTIONS: `--import ${FAST_HEALTH}` } });
+    const { host } = await runCommand(command, {
+      env: { NODE_OPTIONS: `--import ${FAST_HEALTH}`, PAP_WORKER_UNIT: "pap-x-worker-y-1.scope" },
+    });
     await host.waitFor((record) => record.type === "agent_settled");
+    // What the agent's processes inherit: the worker's marker, and not the unit the daemon named (it would let a worker
+    // an agent starts inside this one believe it sits in this one's scope).
+    const sleeper = spawnSync("pgrep", ["-f", pattern]).stdout.toString().trim().split("\n")[0];
+    const inherited = readFileSync(`/proc/${sleeper}/environ`, "utf8").split("\0");
+    expect(inherited.some((entry) => entry.startsWith("PAP_WORKER_TOKEN="))).toBe(true);
+    expect(inherited.some((entry) => entry.startsWith("PAP_WORKER_UNIT="))).toBe(false);
     const from = host.records.length;
     const health = await host.waitFor(
       (record) =>
@@ -93,5 +102,32 @@ describe.each([
       { from },
     );
     expect(health.descendants).toBe(1);
+  });
+});
+
+// The worker believes it sits in the unit the daemon named only when its cgroup's leaf is that name. Here the bed does not
+// scope the worker, so it shares the runner's cgroup: naming that leaf makes the cgroup path count its neighbours.
+const ownLeaf = (() => {
+  try {
+    const line = readFileSync("/proc/self/cgroup", "utf8")
+      .split("\n")
+      .find((l) => l.startsWith("0::"));
+    return line?.slice(3).split("/").pop() ?? "";
+  } catch {
+    return "";
+  }
+})();
+describe.runIf(ownLeaf !== "")("pi-host worker: the unit the daemon names", () => {
+  it("is what makes it read its cgroup", async () => {
+    await bed.start(bashScript("echo ok"), {
+      env: { NODE_OPTIONS: `--import ${FAST_HEALTH}`, PAP_WORKER_UNIT: ownLeaf },
+    });
+    const named = await bed
+      .host()
+      .waitFor(
+        (record) =>
+          record.type === "health" && typeof record.descendants === "number" && record.descendants >= 1,
+      );
+    expect(named.descendants).toBeGreaterThanOrEqual(1);
   });
 });

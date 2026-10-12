@@ -133,10 +133,14 @@ describe("a worker that is closing is told by its own flag, not by the status (o
       title: "t",
       message: "m",
     });
+    bed.spawned[0]?.emit({ type: "custom_render", id: "p1", lines: ["x"] });
     const sent = bed.spawned[0]?.sent.length;
     expect(() =>
       bed.service.respondDialog({ sessionId, dialogId: "d1", response: { confirmed: true } }, OWNER),
     ).toThrow(new PapError("not_found"));
+    expect(() => bed.service.panelInput({ sessionId, panelId: "p1", data: "q" }, OWNER)).toThrow(
+      new PapError("not_found"),
+    );
     expect(bed.spawned[0]?.sent).toHaveLength(sent ?? -1);
   });
 
@@ -157,6 +161,23 @@ describe("a worker that is closing is told by its own flag, not by the status (o
     await bed.clock.advance(0);
     exitFirst();
     expect(await prompted).toEqual({ disposition: "started" });
+    expect(bed.spawned).toHaveLength(2);
+    expect(requestTypes(1)).toEqual(["prompt"]);
+  });
+});
+
+describe("a worker that dies on its own while its exit handler fails", () => {
+  it("is not left answering worker_failed: the next prompt starts a new worker", async () => {
+    bed = build();
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    const publish = bed.hub.publish.bind(bed.hub);
+    bed.hub.publish = (stream, key, event) => {
+      if ((event as { status?: string }).status === "cold") throw new Error("hub down");
+      publish(stream, key, event);
+    };
+    bed.spawned[0]?.crash({ code: 1, signal: null, cause: "exit_code" });
+    await bed.clock.advance(0);
+    expect(await bed.service.prompt({ sessionId, text: "again" }, OWNER)).toEqual({ disposition: "started" });
     expect(bed.spawned).toHaveLength(2);
     expect(requestTypes(1)).toEqual(["prompt"]);
   });

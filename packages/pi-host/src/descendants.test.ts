@@ -228,7 +228,15 @@ describe("countAgentProcesses", () => {
     { pid: 13, ppid: 12, pgrp: 12 },
   ];
   const count = (table: readonly ProcEntry[], extra: Parameters<typeof countAgentProcesses>[0] = {}) =>
-    countAgentProcesses({ platform: "linux", pid: 10, readTable: () => [...table], ...extra });
+    countAgentProcesses({
+      platform: "linux",
+      pid: 10,
+      readTable: () => [...table],
+      readFile: () => null,
+      token: undefined,
+      unit: undefined,
+      ...extra,
+    });
 
   it("counts the processes the agent started, not the worker's own helpers (M2-RT-14)", () => {
     expect(count(entries)).toBe(2);

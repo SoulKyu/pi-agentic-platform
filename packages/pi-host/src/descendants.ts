@@ -176,8 +176,8 @@ export const SCOPE_PROCS_FILE = "cgroup.procs";
 /** The variable pi-host sets in its own environment before Pi starts: the shells Pi's tools run inherit it. */
 export const TOKEN_VAR = "PAP_WORKER_TOKEN";
 const MIN_TOKEN_CHARS = 16;
-/** The unit of a worker the daemon scoped (`scope.ts`): `pap-<home>-worker-<id>-<n>.scope`. Any other scope is not the worker's. */
-const SCOPE_LEAF = /^pap-.+-worker-.+\.scope$/;
+/** The variable the daemon sets for a scoped worker (`scope.ts`): the name of its unit. pi-host reads it at boot and deletes it. */
+export const UNIT_VAR = "PAP_WORKER_UNIT";
 const CGROUP_ROOT = "/sys/fs/cgroup";
 
 /** At most `max` bytes of a file as text; null when it cannot be opened or read. Never throws. */
@@ -215,6 +215,11 @@ export interface CountEnv {
   readFile(path: string, max: number): string | null;
   /** The worker's marker (`PAP_WORKER_TOKEN`): what its tools' processes carry in their environment. */
   token: string | undefined;
+  /**
+   * The unit the daemon started this worker in, or none. A cgroup is the worker's only when its leaf is this name: a
+   * worker run by an agent inside another pap worker sits in that worker's scope and must not count it.
+   */
+  unit: string | undefined;
   maxVisited: number;
   maxDepth: number;
   maxEnvironTotal: number;
@@ -228,6 +233,7 @@ const realCountEnv = (): CountEnv => ({
   readTable: readProcTable,
   readFile: readBounded,
   token: process.env[TOKEN_VAR],
+  unit: undefined,
   maxVisited: MAX_COUNTED_PROCESSES,
   maxDepth: MAX_COUNT_DEPTH,
   maxEnvironTotal: MAX_ENVIRON_TOTAL_BYTES,
@@ -244,7 +250,8 @@ function scopeMembers(env: CountEnv): number[] | null {
   if (
     !path?.startsWith("/") ||
     path.split("/").includes("..") ||
-    !SCOPE_LEAF.test(path.slice(path.lastIndexOf("/") + 1))
+    env.unit === undefined ||
+    path.slice(path.lastIndexOf("/") + 1) !== env.unit
   ) {
     return null;
   }
@@ -272,7 +279,7 @@ function markedProcesses(env: CountEnv, table: readonly ProcEntry[]): number[] {
       Math.min(MAX_ENVIRON_BYTES, env.maxEnvironTotal - spent),
     );
     if (text === null) continue;
-    spent += text.length;
+    spent += Buffer.byteLength(text);
     if (text.split("\0").includes(wanted)) found.push(entry.pid);
   }
   return found;
@@ -285,7 +292,7 @@ function markedProcesses(env: CountEnv, table: readonly ProcEntry[]): number[] {
  * one count of the union:
  * - the worker's descendants, which is all there is while a tool call still runs;
  * - once the tool's shell has exited, what it started with `cmd &` belongs to pid 1 and is no descendant: in a scoped
- *   worker (`systemd-run --scope`, spec C 2.5) the members of the worker's own cgroup;
+ *   worker (`systemd-run --scope`, spec C 2.5, and the cgroup's leaf is the unit the daemon named) the members of the worker's own cgroup;
  * - without a scope, the processes whose environment carries `PAP_WORKER_TOKEN`, which pi-host set before Pi started
  *   (same-user processes only are readable, and a process that scrubs its environment is not seen).
  * 0 off Linux and when the worker does not lead its group (run by hand). Never throws; a failed read says so once on

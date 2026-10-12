@@ -50,6 +50,7 @@ afterEach(() => {
 describe.runIf(available && process.platform === "linux")("countAgentProcesses in a scope of pap's", () => {
   it("counts what the agent's shell left running, which is no descendant of the worker (M2-RT-14)", async () => {
     unit = `pap-test-worker-${randomBytes(4).toString("hex")}-1.scope`;
+    const named = unit;
     worker = spawn(
       "systemd-run",
       ["--user", "--scope", "--quiet", `--unit=${unit}`, "--", process.execPath, "-e", STAND_IN],
@@ -60,8 +61,11 @@ describe.runIf(available && process.platform === "linux")("countAgentProcesses i
     // This test's own /proc/self/cgroup is not the worker's: the worker's is read instead.
     const readFile = (path: string, max: number) =>
       readBounded(path === "/proc/self/cgroup" ? `/proc/${pid}/cgroup` : path, max);
-    await vi.waitFor(() => expect(countAgentProcesses({ pid, readFile })).toBe(1), { timeout: 10_000 });
+    await vi.waitFor(
+      () => expect(countAgentProcesses({ pid, readFile, unit: named, token: undefined })).toBe(1),
+      { timeout: 10_000 },
+    );
     // Without the scope it is not found: the sleep is not below the worker, and no marker is set here.
-    expect(countAgentProcesses({ pid, readFile: () => null })).toBe(0);
+    expect(countAgentProcesses({ pid, readFile: () => null, unit: named, token: undefined })).toBe(0);
   });
 });

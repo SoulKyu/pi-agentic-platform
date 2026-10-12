@@ -159,7 +159,8 @@ describe("probeScopes", () => {
         "--property=OOMPolicy=continue",
         "--",
       ],
-      env: ENV,
+      // The worker knows which scope is its own; pi-host deletes it from its environment at boot.
+      env: { ...ENV, PAP_WORKER_UNIT: next?.unit },
     });
   });
 

@@ -31,8 +31,17 @@ function files(contents: Record<string, string | null>) {
   };
   return { readFile, reads };
 }
+const UNIT_NAME = "pap-ab-worker-cd-1.scope";
+// The host's own environment (a token, a cgroup) is never read: a test of the count is the same inside any pap worker.
 const count = (extra: Parameters<typeof countAgentProcesses>[0]) =>
-  countAgentProcesses({ platform: "linux", pid: 10, readTable: () => table, ...extra });
+  countAgentProcesses({
+    platform: "linux",
+    pid: 10,
+    readTable: () => table,
+    token: undefined,
+    unit: undefined,
+    ...extra,
+  });
 
 describe("processes the agent left running, reparented away from the worker (the bash tool's `cmd &`)", () => {
   describe("in the worker's own scope", () => {
@@ -43,7 +52,7 @@ describe("processes the agent left running, reparented away from the worker (the
 
     it("counts the scope's members outside the worker's group, wherever they were reparented", () => {
       const { readFile, reads } = files(scoped("10\n11\n20\n21\n99\n"));
-      expect(count({ readFile })).toBe(2);
+      expect(count({ unit: UNIT_NAME, readFile })).toBe(2);
       // A scoped worker does not scan the environment of every process.
       expect(reads.map((read) => read.path)).toEqual([
         "/proc/self/cgroup",
@@ -55,23 +64,40 @@ describe("processes the agent left running, reparented away from the worker (the
     it("counts a process once when it is both a descendant and a member", () => {
       const withChild = [...table, { pid: 12, ppid: 10, pgrp: 12 }];
       const { readFile } = files(scoped("10\n11\n12\n20\n"));
-      expect(count({ readFile, readTable: () => withChild })).toBe(2);
+      expect(count({ unit: UNIT_NAME, readFile, readTable: () => withChild })).toBe(2);
     });
 
     it("still counts a detached descendant the scope file does not list", () => {
       const withChild = [...table, { pid: 12, ppid: 10, pgrp: 12 }];
       const { readFile } = files(scoped("10\n11\n20\n"));
-      expect(count({ readFile, readTable: () => withChild })).toBe(2);
+      expect(count({ unit: UNIT_NAME, readFile, readTable: () => withChild })).toBe(2);
     });
 
     it("leaves out members that are not live processes (gone, or a pid the table never had)", () => {
       const { readFile } = files(scoped("10\n99\n100\nnot-a-pid\n"));
-      expect(count({ readFile })).toBe(0);
+      expect(count({ unit: UNIT_NAME, readFile })).toBe(0);
+    });
+
+    it("is not the worker's scope unless the daemon said so: a unit it was not given, or another worker's, is not read", () => {
+      // pap's own tests, or a dev daemon, run from an agent inside a scoped worker: its scope is that worker's.
+      for (const unit of [undefined, "pap-ab-worker-zz-9.scope"]) {
+        const { readFile, reads } = files({
+          ...scoped("10\n11\n20\n21\n"),
+          "/proc/20/environ": `PAP_WORKER_TOKEN=${TOKEN}\0`,
+        });
+        expect(count({ unit, readFile, token: TOKEN })).toBe(1);
+        expect(reads.filter((read) => read.path.endsWith(SCOPE_PROCS_FILE))).toEqual([]);
+      }
+    });
+
+    it("is the worker's scope when its leaf is the unit the daemon named", () => {
+      const { readFile } = files(scoped("10\n11\n20\n21\n"));
+      expect(count({ unit: UNIT_NAME, readFile, token: TOKEN })).toBe(2);
     });
 
     it("reads no more than maxVisited members", () => {
       const { readFile } = files(scoped("20\n21\n30\n"));
-      expect(count({ readFile, maxVisited: 2 })).toBe(2);
+      expect(count({ unit: UNIT_NAME, readFile, maxVisited: 2 })).toBe(2);
     });
   });
 
@@ -115,7 +141,7 @@ describe("processes the agent left running, reparented away from the worker (the
 
     it("falls back to the marker when the scope cannot be read", () => {
       const { readFile } = files({ ...world, "/proc/self/cgroup": CGROUP(UNIT) });
-      expect(count({ readFile, token: TOKEN })).toBe(2);
+      expect(count({ unit: UNIT_NAME, readFile, token: TOKEN })).toBe(2);
     });
 
     it("does not follow a cgroup path that climbs out of the cgroup tree", () => {
@@ -132,6 +158,16 @@ describe("processes the agent left running, reparented away from the worker (the
       expect(count({ readFile })).toBe(0);
       expect(count({ readFile, token: "short" })).toBe(0);
       expect(reads.filter((read) => read.path.endsWith("/environ"))).toEqual([]);
+    });
+
+    it("counts the budget in bytes, not in characters", () => {
+      const wide = `HOME=${"é".repeat(40)}\0PAP_WORKER_TOKEN=${TOKEN}\0`;
+      const { readFile, reads } = files({ ...world, "/proc/20/environ": wide, "/proc/21/environ": wide });
+      expect(wide.length).toBeLessThan(Buffer.byteLength(wide));
+      expect(count({ readFile, token: TOKEN, maxEnvironTotal: Buffer.byteLength(wide) })).toBe(1);
+      expect(reads.filter((read) => read.path.endsWith("/environ")).map((read) => read.path)).toEqual([
+        "/proc/20/environ",
+      ]);
     });
 
     it("stops reading environments once the total budget is spent", () => {

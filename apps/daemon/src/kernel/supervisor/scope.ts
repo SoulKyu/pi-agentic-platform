@@ -223,7 +223,8 @@ export async function probeScopes(
             "--",
           ],
           // systemd-run reaches the user manager through it; the worker inherits it, as any child of the user would.
-          env: { XDG_RUNTIME_DIR: runtimeDir },
+          // The unit's name is the worker's own proof that this scope is its, not one it inherited (pi-host deletes it at boot).
+          env: { XDG_RUNTIME_DIR: runtimeDir, PAP_WORKER_UNIT: unit },
         },
         async reap(exit) {
           let oomKilled = false;

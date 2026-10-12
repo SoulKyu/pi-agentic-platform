@@ -4,7 +4,7 @@ import { type InitRecord, PolicyRules, type UiResponseRecord } from "@pap/contra
 import { createApprovals } from "./approvals.ts";
 import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
-import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR } from "./descendants.ts";
+import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
 import { closeSession } from "./shutdown.ts";
@@ -34,6 +34,10 @@ export async function runHost(ipc: Ipc): Promise<void> {
   // A marker for this worker alone, before Pi starts: the shells its tools run inherit the environment, so a process the
   // agent leaves running keeps it after Linux has given it to pid 1, and the count can find it without a scope (M2R107).
   process.env[TOKEN_VAR] = randomBytes(16).toString("hex");
+  // The scope the daemon started this worker in. Taken out of the environment so no process below inherits it: a worker
+  // an agent starts inside this one is not in a scope of the daemon's and must not count this one's.
+  const unit = process.env[UNIT_VAR];
+  Reflect.deleteProperty(process.env, UNIT_VAR);
   let session: AgentSession | null = null;
   let dispatch: ((record: Command) => void) | null = null;
   const early: Command[] = [];
@@ -153,7 +157,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
     ipc.send({
       type: "health",
       rssMb: Math.round(process.memoryUsage().rss / 1048576),
-      descendants: countAgentProcesses(),
+      descendants: countAgentProcesses({ unit }),
     });
   health();
   setInterval(health, HEALTH_INTERVAL_MS).unref();

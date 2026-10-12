@@ -283,22 +283,26 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
 
   const gone = handle.exited
     .then((exit) => {
-      idle.end();
-      coalescer.flush();
-      partial.reset();
-      coalescer.dispose();
-      queue.reset();
-      commands.reset();
-      const wasRunning = run.onExit();
-      for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
-      for (const id of ui.clearDecorations()) publish({ kind: "panel_closed", id });
-      if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
-      deps.record("worker_exit", exit);
-      if (exit.cause === "clean") logger.info("worker_exited", { ...exit });
-      else logger.warn("worker_exited", { ...exit, output: outputTailOf(handle) });
-      setStatus("cold", idle.stopping() && exit.cause !== "oom" ? undefined : describeExit(exit));
-      deps.onActivity();
-      deps.onExit(exit);
+      // Whatever fails while the exit is told, the session is forgotten: it must come back with the next prompt.
+      try {
+        idle.end();
+        coalescer.flush();
+        partial.reset();
+        coalescer.dispose();
+        queue.reset();
+        commands.reset();
+        const wasRunning = run.onExit();
+        for (const dialog of ui.clear()) publish({ kind: "dialog_closed", id: dialog.id });
+        for (const id of ui.clearDecorations()) publish({ kind: "panel_closed", id });
+        if (wasRunning) deps.record("run_end", { interrupted: exit.cause });
+        deps.record("worker_exit", exit);
+        if (exit.cause === "clean") logger.info("worker_exited", { ...exit });
+        else logger.warn("worker_exited", { ...exit, output: outputTailOf(handle) });
+        setStatus("cold", idle.stopping() && exit.cause !== "oom" ? undefined : describeExit(exit));
+        deps.onActivity();
+      } finally {
+        deps.onExit(exit);
+      }
       deps.onWorkerExit?.({ exit, outputTail: handle.outputTail() });
     })
     .catch((error: unknown) => logger.error("worker_exit_handling_failed", { err: error }));

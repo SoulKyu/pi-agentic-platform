@@ -12,6 +12,9 @@ console.log(JSON.stringify({ own: own.pid, helper: helper.pid }));
 setInterval(() => {}, 1000);
 `;
 
+// Nothing of the runner's own world (its cgroup, a PAP_WORKER_TOKEN of the worker it may run in) is read.
+const HOST_FREE = { readFile: () => null, token: undefined, unit: undefined };
+
 let standIn: ReturnType<typeof spawn> | null = null;
 const pids: number[] = [];
 afterEach(() => {
@@ -41,12 +44,14 @@ describe.runIf(process.platform === "linux")("countAgentProcesses on the real /p
     );
     const { own, helper } = JSON.parse(said) as { own: number; helper: number };
     pids.push(own, helper);
-    expect(countAgentProcesses({ pid: worker })).toBe(1);
+    expect(countAgentProcesses({ pid: worker, ...HOST_FREE })).toBe(1);
     process.kill(own, "SIGKILL");
-    await vi.waitFor(() => expect(countAgentProcesses({ pid: worker })).toBe(0), { timeout: 5000 });
+    await vi.waitFor(() => expect(countAgentProcesses({ pid: worker, ...HOST_FREE })).toBe(0), {
+      timeout: 5000,
+    });
   });
 
   it("is 0 for the test runner, which does not lead its group", () => {
-    expect(countAgentProcesses()).toBe(0);
+    expect(countAgentProcesses(HOST_FREE)).toBe(0);
   });
 });
