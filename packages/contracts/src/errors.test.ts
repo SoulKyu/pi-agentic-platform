@@ -19,6 +19,10 @@ describe("error codes", () => {
     expect(new PapError("command_failed").message).toBe("The session could not complete this command.");
   });
 
+  it("has one shared message for a full list", () => {
+    expect(ERROR_MESSAGES.limit_reached).toBe("This list is full. Remove an entry first.");
+  });
+
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
   });

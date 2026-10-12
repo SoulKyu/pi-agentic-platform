@@ -57,6 +57,7 @@ export const shellEn = {
   "shell.lazyPane.title": "This screen did not load",
   "shell.lazyFailed": "This part of pap did not load. pap may have been updated: reload the page.",
   "shell.lazyBroken": "This part of pap stopped working. Reload the page.",
+  "error.limit_reached": "This list is full. Remove an entry first.",
 } as const;
 
 export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
@@ -121,4 +122,5 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "shell.lazyFailed":
     "Cette partie de pap ne s'est pas chargée. pap a peut-être été mis à jour : rechargez la page.",
   "shell.lazyBroken": "Cette partie de pap a cessé de fonctionner. Rechargez la page.",
+  "error.limit_reached": "Cette liste est pleine. Retirez-en un élément d'abord.",
 };
