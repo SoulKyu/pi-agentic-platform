@@ -32,6 +32,29 @@ const codeOf = (fn: () => unknown): string | undefined => {
   return undefined;
 };
 
+describe("projects in read-only mode", () => {
+  it("maps SQLite's refusal to a write to read_only on update, rename and move alike", () => {
+    const store = createProjectsStore(bed.db);
+    service.ensure("u1", "/w/api");
+    service.ensure("u1", "/w/web");
+    const refuse = () => {
+      throw new Error("attempt to write a readonly database");
+    };
+    const readOnly = createProjectsService({
+      store: { ...store, rename: refuse, setPosition: refuse, renumber: refuse },
+      clock: bed.clock,
+      logger: bed.logger,
+      newId: bed.newId,
+    });
+    expect(codeOf(() => readOnly.update(caller("u1"), "p1", { kind: "rename", name: "X" }))).toBe(
+      "read_only",
+    );
+    expect(codeOf(() => readOnly.update(caller("u1"), "p1", { kind: "move", before: "p2" }))).toBe(
+      "read_only",
+    );
+  });
+});
+
 describe("projects", () => {
   it("makes a project once per owner and root, named after its folder, each new one on top", () => {
     expect(service.ensure("u1", "/w/api")).toEqual({ id: "p1", root: "/w/api", name: "api", position: -1 });

@@ -14,6 +14,10 @@ export interface LaunchContext {
   readonly starting: Set<LiveSession>;
   readonly grants: ReturnType<typeof createGrantLink>;
   checkCapacity(): void;
+  /** The project for a new session's row, called once after `ready` and before the row is stored (M4R28). */
+  projectFor?(row: SessionRow): string | null;
+  /** After `ready`, for a row without a Pi file: the Pi id its worker reported (M4R123). */
+  onDraftReady?(sessionId: string, piSessionId: string): void;
 }
 
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
@@ -87,8 +91,11 @@ export function createLaunch(ctx: LaunchContext) {
       // The file of a recorded session says who it is. Another id means the file was replaced under us.
       if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId)
         throw new PapError("worker_failed");
-      if (isNew) deps.store.insert(row);
+      if (isNew) deps.store.insert(row, ctx.projectFor?.(row) ?? null);
       stored = true;
+      // Pi writes the file with the first message: until then the row keeps the Pi id its worker reported (M4R123).
+      const piId = session.piSessionId();
+      if (row.piPath === null && piId) ctx.onDraftReady?.(row.id, piId);
       // `ready` said Pi's name before the row could hold it (a new session) or this worker's start may have changed it.
       syncName(row.id, session.name());
       if (preReady) replayPreReady(row.id, preReady.drain());

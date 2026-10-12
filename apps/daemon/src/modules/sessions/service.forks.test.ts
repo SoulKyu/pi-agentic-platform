@@ -6,6 +6,7 @@ import { type Logger, silentLogger } from "../../kernel/logger.ts";
 import { ForkRefusal, type PiWriter } from "./pi-writer.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
+import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { type BedOptions, createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
@@ -214,5 +215,20 @@ describe("what the service does with the writer's answer", () => {
     await expect(bed.service.clone({ sessionId }, OWNER)).rejects.toThrow(new PapError("internal"));
     expect(bed.service.list(OWNER)).toHaveLength(1);
     expect(readdirSync(bed.sessionsDir)).toEqual(["pi-0.jsonl"]);
+  });
+});
+
+describe("project of a fork and a clone", () => {
+  it("is the source's, without a second look at the folder (RT-20)", async () => {
+    const projects = fakeProjectsPort();
+    const { sessionId } = await boundSession(TWO, { projects });
+    expect(projects.ensured).toHaveLength(1);
+    const forked = await bed.service.fork({ sessionId, entryId: "u1" }, OWNER);
+    const cloned = await bed.service.clone({ sessionId }, OWNER);
+    const expected = bed.store.marks.row(sessionId)?.projectId;
+    expect(expected).toBe(`p:${bed.work}`);
+    expect(bed.store.marks.row(forked.sessionId)?.projectId).toBe(expected);
+    expect(bed.store.marks.row(cloned.sessionId)?.projectId).toBe(expected);
+    expect(projects.ensured).toHaveLength(1);
   });
 });

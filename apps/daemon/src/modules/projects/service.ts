@@ -2,6 +2,7 @@ import { basename, isAbsolute } from "node:path";
 import { type Caller, PapError, type ProjectChange, SHELL_LIMITS } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import { isReadOnlyError } from "../../kernel/db/read-only.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { cleanLabel } from "../../kernel/text.ts";
 import type { ProjectRow, ProjectsStore } from "./store.ts";
@@ -66,6 +67,32 @@ export function createProjectsService(deps: {
     return next.position - previous.position < MIN_GAP ? null : position;
   }
 
+  function applyUpdate(caller: Caller, projectId: string, change: ProjectChange): void {
+    const row = owned(caller.userId, projectId);
+    if (change.kind === "rename") {
+      const name = cleanLabel(change.name, SHELL_LIMITS.projectName);
+      if (name === null) throw new PapError("bad_request");
+      deps.store.rename(caller.userId, row.id, name);
+      changed(caller.userId, viewOf(owned(caller.userId, row.id)));
+      return;
+    }
+    const position = placeBefore(caller.userId, row.id, change.before);
+    if (position !== null) {
+      deps.store.setPosition(caller.userId, row.id, position);
+      changed(caller.userId, viewOf(owned(caller.userId, row.id)));
+      return;
+    }
+    // Too tight to split: renumber the order with the project in its new place, and publish every position.
+    const order = deps.store
+      .list(caller.userId)
+      .map((project) => project.id)
+      .filter((id) => id !== row.id);
+    const at = change.before === null ? -1 : order.indexOf(change.before);
+    order.splice(at === -1 ? order.length : at, 0, row.id);
+    deps.store.renumber(caller.userId, order);
+    for (const project of deps.store.list(caller.userId)) changed(caller.userId, viewOf(project));
+  }
+
   return {
     /** The owner's project for `root`, made on first use at the top; null for a root it cannot use or a full table. */
     ensure(ownerId: string, root: string): ProjectView | null {
@@ -94,29 +121,12 @@ export function createProjectsService(deps: {
     list: (ownerId: string, ids: readonly string[]): ProjectView[] =>
       deps.store.byIds(ownerId, ids).map(viewOf),
     update(caller: Caller, projectId: string, change: ProjectChange): void {
-      const row = owned(caller.userId, projectId);
-      if (change.kind === "rename") {
-        const name = cleanLabel(change.name, SHELL_LIMITS.projectName);
-        if (name === null) throw new PapError("bad_request");
-        deps.store.rename(caller.userId, row.id, name);
-        changed(caller.userId, viewOf(owned(caller.userId, row.id)));
-        return;
+      try {
+        applyUpdate(caller, projectId, change);
+      } catch (error) {
+        // A database a newer pap wrote refuses the write: a typed error, not SQLite's message.
+        throw isReadOnlyError(error) ? new PapError("read_only") : error;
       }
-      const position = placeBefore(caller.userId, row.id, change.before);
-      if (position !== null) {
-        deps.store.setPosition(caller.userId, row.id, position);
-        changed(caller.userId, viewOf(owned(caller.userId, row.id)));
-        return;
-      }
-      // Too tight to split: renumber the order with the project in its new place, and publish every position.
-      const order = deps.store
-        .list(caller.userId)
-        .map((project) => project.id)
-        .filter((id) => id !== row.id);
-      const at = change.before === null ? -1 : order.indexOf(change.before);
-      order.splice(at === -1 ? order.length : at, 0, row.id);
-      deps.store.renumber(caller.userId, order);
-      for (const project of deps.store.list(caller.userId)) changed(caller.userId, viewOf(project));
     },
     onChange(listener: (ownerId: string, project: ProjectView) => void): () => void {
       listeners.add(listener);

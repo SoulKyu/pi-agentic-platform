@@ -18,8 +18,10 @@ import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../../policy/index.ts";
+import type { ProjectsPort } from "../../projects/index.ts";
 import { createExports, type Exports, loadPiWriter, type PiWriter, SESSIONS_MIGRATIONS } from "../index.ts";
 import { fakePolicyPort } from "./fake-policy.ts";
+import { fakeProjectsPort } from "./fake-projects.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
 
 export { sessionFileText };
@@ -48,6 +50,8 @@ export interface BedOptions {
   logger?: Logger;
   /** The policy module's port; defaults to an empty fake (`fakePolicyPort()`). */
   policy?: PolicyPort;
+  /** The projects module's port; defaults to `fakeProjectsPort()`. */
+  projects?: ProjectsPort;
   /** Replaces the writer of forks and clones (a test of how the service treats what it returns). */
   writer?: PiWriter;
   /** The transcript reader fails to load this many times before it loads. */
@@ -89,6 +93,7 @@ export interface ServiceParts<Store, Reader> {
   readonly logger: Logger;
   readonly hub: StreamHub;
   readonly policy: PolicyPort;
+  readonly projects: ProjectsPort;
   readonly exports: Exports;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   readonly idleMs: number;
@@ -151,12 +156,14 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   const exportsDir = join(dir, "pap", "exports");
   const forkTmpDir = join(dir, "pap", "fork-tmp");
   const exports = createExports({ dir: exportsDir, clock, logger: options.logger ?? silentLogger });
+  const projects = options.projects ?? fakeProjectsPort();
   const service = factories.createSessionsService({
     store,
     clock,
     logger: options.logger ?? silentLogger,
     hub,
     policy: options.policy ?? fakePolicyPort(),
+    projects,
     exports,
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
     idleMs: options.idleMs ?? 0,
@@ -239,6 +246,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     clock,
     db,
     store,
+    projects,
     hub,
     service,
     spawned,

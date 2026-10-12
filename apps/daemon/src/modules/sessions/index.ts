@@ -14,6 +14,7 @@ import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { Hono } from "hono";
 import type { PolicyPort } from "../policy/index.ts";
+import type { ProjectsPort } from "../projects/index.ts";
 import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
@@ -37,6 +38,8 @@ export interface SessionsModuleDeps {
   readonly hub: StreamHub;
   /** The policy module: the project's "always" rules, and where an "always" answer is saved (Task 14b). */
   readonly policy: PolicyPort;
+  /** The projects module: each session is filed under the project of its folder (Task 7c). */
+  readonly projects: ProjectsPort;
   readonly config: Pick<
     Config,
     | "home"
@@ -92,6 +95,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     logger,
     hub: deps.hub,
     policy: deps.policy,
+    projects: deps.projects,
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
     idleMs: config.workerIdleMs,
     worker: {
@@ -118,6 +122,12 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
   });
+  // Rows stored before M4 get the project of their folder; a failure here never stops the boot (M4R29).
+  try {
+    service.backfillProjects();
+  } catch (error) {
+    logger.error("session_projects_backfill_failed", { err: error });
+  }
   deps.hub.registerSnapshot("session", (key) => service.snapshot(key));
   return {
     rpc: sessionsRpc(service),

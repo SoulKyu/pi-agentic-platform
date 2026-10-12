@@ -15,10 +15,12 @@ import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../policy/index.ts";
+import type { ProjectsPort } from "../projects/index.ts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
 import type { Exports } from "./exports.ts";
 import { createGrantLink } from "./grants.ts";
+import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import type { PiWriter } from "./pi-writer.ts";
 import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
@@ -34,6 +36,8 @@ export interface SessionsServiceDeps {
   readonly hub: Pick<StreamHub, "publish">;
   /** The project's "always" rules: what every worker starts with, and what an "always" answer is saved in. */
   readonly policy: PolicyPort;
+  /** Where a session's project is made (Task 6): one per folder scope, on demand. */
+  readonly projects: ProjectsPort;
   /** The pending HTML exports (ADR 0006). */
   readonly exports: Pick<Exports, "prepare" | "discard">;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
@@ -117,6 +121,8 @@ export interface SessionsService extends SessionCommands {
   snapshot(sessionId: string): SessionStreamEvent;
   shutdownAll(): Promise<void>;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
+  /** Files the sessions stored before M4 under their folder's project; 0 and nothing written in read-only mode. */
+  backfillProjects(): number;
 }
 
 export function createSessionsService(deps: SessionsServiceDeps): SessionsService {
@@ -144,7 +150,30 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     }
   };
 
-  const { launch, ensureLive } = createLaunch({ deps, live, reopening, starting, grants, checkCapacity });
+  const marks = deps.store.marks;
+  const link = createProjectLink({
+    store: marks,
+    projects: deps.projects,
+    scopeOf: deps.policy.scopeOf,
+    logger: deps.logger,
+  });
+
+  const { launch, ensureLive } = createLaunch({
+    deps,
+    live,
+    reopening,
+    starting,
+    grants,
+    checkCapacity,
+    projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
+    onDraftReady: (sessionId, piSessionId) => {
+      try {
+        marks.setPendingPiId(sessionId, piSessionId);
+      } catch (error) {
+        deps.logger.warn("session_pending_id_not_stored", { sessionId, err: error });
+      }
+    },
+  });
 
   const owned = (sessionId: string, caller: Caller): SessionRow => {
     const row = deps.store.get(sessionId);
@@ -232,10 +261,17 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     rename: (input, caller) => commands.rename(input, caller),
     autoName: (sessionId, caller) => commands.autoName(sessionId, caller),
     exportHtml: (sessionId, caller) => commands.exportHtml(sessionId, caller),
-    fork: async ({ sessionId, entryId }, caller) => forks.fork(owned(sessionId, caller), entryId),
+    fork: async ({ sessionId, entryId }, caller) => {
+      const row = owned(sessionId, caller);
+      const result = await forks.fork(row, entryId);
+      link.copy(row.id, result.sessionId);
+      return result;
+    },
     clone: async ({ sessionId }, caller) => {
       const row = owned(sessionId, caller);
-      return forks.clone(row, live.get(row.id)?.leafId() ?? null);
+      const result = await forks.clone(row, live.get(row.id)?.leafId() ?? null);
+      link.copy(row.id, result.sessionId);
+      return result;
     },
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
@@ -265,5 +301,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       const session = live.get(sessionId);
       return session ? { pid: session.pid(), rssMb: session.rssMb() } : null;
     },
+    backfillProjects: () => (deps.store.readOnly ? 0 : link.backfill()),
   };
 }

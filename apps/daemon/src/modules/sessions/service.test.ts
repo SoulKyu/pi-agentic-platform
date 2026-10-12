@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { ALL_PERMISSIONS, type Caller } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { READY_TIMEOUT_MS } from "./live-session.ts";
+import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { captureLogger, codeOf } from "./testing/helpers.ts";
+import { testCaller } from "../../testing/caller.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
@@ -331,5 +333,24 @@ describe("abort and prompt", () => {
     bed.spawned[0]?.emit({ type: "health", rssMb: 150, descendants: 0 });
     expect(bed.service.inspect("p1")?.rssMb).toBe(150);
     expect(bed.service.inspect("nope")).toBeNull();
+  });
+});
+
+describe("project and pending Pi id", () => {
+  it("files a new session under its folder's project once its worker is ready (RT-19)", async () => {
+    const projects = fakeProjectsPort();
+    open({ projects, start: (index) => (index === 0 ? { kind: "exit70" } : undefined) });
+    const caller = testCaller();
+    expect(await codeOf(bed.service.create(bed.work, caller))).toBe("worker_failed");
+    expect(projects.ensured).toEqual([]);
+    const { sessionId } = await bed.service.create(bed.work, caller);
+    expect(projects.ensured).toEqual([{ ownerId: "u1", root: realpathSync(bed.work) }]);
+    expect(bed.store.marks.row(sessionId)?.projectId).toBe(`p:${realpathSync(bed.work)}`);
+  });
+
+  it("keeps the Pi id a draft's worker reported until its file exists (M4R123)", async () => {
+    open({ start: () => ({ kind: "ready", piId: "pi-9" }) });
+    const { sessionId } = await bed.service.create(bed.work, testCaller());
+    expect(bed.store.marks.findByPendingPiId("pi-9")).toMatchObject({ id: sessionId, ownerId: "u1" });
   });
 });

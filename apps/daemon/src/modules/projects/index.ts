@@ -7,6 +7,8 @@ import { projectsRpc, type ProjectsRpc } from "./rpc.ts";
 import { createProjectsService, type ProjectView } from "./service.ts";
 import { createProjectsStore } from "./store.ts";
 
+export type { ProjectView } from "./service.ts";
+
 export const PROJECTS_MIGRATIONS: MigrationSource = {
   module: "projects",
   dir: fileURLToPath(new URL("./migrations/", import.meta.url)),

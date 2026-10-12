@@ -29,6 +29,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     snapshot: vi.fn(),
     shutdownAll: vi.fn(async () => {}),
     inspect: vi.fn(() => null),
+    backfillProjects: vi.fn(() => 0),
     ...overrides,
   };
   const openSubscription = vi.fn(() => "s1");
