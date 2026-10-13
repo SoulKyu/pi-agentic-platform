@@ -60,9 +60,11 @@ export function ToolItemCard({
   const size = Math.max(1, Math.round((whole ?? 0) / BYTES_PER_KB));
   const loaded = output.state === "loaded" ? output : null;
   // The whole output may hold pap's fences; the clipped preview may hold only one end of one, so it is stripped instead.
-  const parts: readonly FencePart[] = loaded ? splitFences(loaded.text) : [];
+  // Without a cut (`whole === null`) the preview is the complete output, so it is split too.
+  const complete = loaded ? loaded.text : whole === null ? item.preview : null;
+  const parts: readonly FencePart[] = complete === null ? [] : splitFences(complete);
   const fenced = parts.some((part) => part.kind === "fenced");
-  const shown = loaded ? loaded.text : stripFenceMarkers(item.preview);
+  const shown = complete ?? stripFenceMarkers(item.preview);
   const offerAll = whole !== null && !loaded;
   const showArgs = loaded?.args && item.argsTruncated;
   return (

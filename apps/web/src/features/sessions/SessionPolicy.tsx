@@ -10,8 +10,6 @@ import { useAction } from "./use-action.ts";
 type Choice = ApprovalMode | "default";
 type Asking = "full-access" | "clear" | null;
 
-const untracked = <T,>(call: Promise<T>): Promise<T> => call;
-
 /** An inline question: Escape closes it and nothing else, so it can never reach the page's Escape-to-Stop. */
 function Ask(props: {
   readonly question: string;
@@ -61,9 +59,11 @@ export function SessionPolicy({
   const root = useRef<HTMLElement | null>(null);
   const [asking, setAsking] = useState<Asking>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
-  const setMode = useAction(untracked);
-  const clearTaint = useAction(untracked);
+  const setMode = useAction();
+  const clearTaint = useAction();
 
+  // A cleared (or never set) taint leaves no question behind: a later taint must not bring the old one back.
+  if (!policy.tainted && asking === "clear") setAsking(null);
   const focus = (selector: string) =>
     requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(selector)?.focus());
   const forget = () => {

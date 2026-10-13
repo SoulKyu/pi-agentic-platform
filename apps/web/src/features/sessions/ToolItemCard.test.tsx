@@ -274,6 +274,20 @@ describe("ToolItemCard", () => {
       expect(container.querySelector("pre")?.textContent).toBe(forged);
     });
 
+    it("renders a short, untruncated fenced output in a Fence without a second request", async () => {
+      const container = await show(
+        item({
+          truncatedChars: null,
+          preview: `<untrusted source="mcp__fix__lookup" id="${id}">\nthe page\n</untrusted id="${id}">`,
+        }),
+      );
+      expect(container.querySelector('[data-slot="fence"] figcaption')?.textContent).toBe(
+        "Untrusted · mcp__fix__lookup",
+      );
+      expect(container.querySelector('[data-slot="fence"]')?.textContent).toContain("the page");
+      expect(bed.called("sessions.toolOutput")).toEqual([]);
+    });
+
     it("shows a preview without pap's opening marker", async () => {
       const container = await show(
         item({ preview: `<untrusted source="mcp__fix__lookup" id="${id}">\nfirst line of the page` }),

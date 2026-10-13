@@ -146,6 +146,16 @@ describe("SessionPolicy", () => {
     expect(trigger().closest("[data-inline-edit]")).not.toBeNull();
   });
 
+  it("does not bring the Clear question back when the taint returns after a clear", async () => {
+    const page = await show(policy({ tainted: true }));
+    await click(button(page.container, "Clear"));
+    expect(text(page.container)).toContain("Only clear this");
+    await page.rerender(<SessionPolicy sessionId="s1" policy={policy({ tainted: false })} />);
+    await page.rerender(<SessionPolicy sessionId="s1" policy={policy({ tainted: true })} />);
+    expect(text(page.container)).not.toContain("Only clear this");
+    expect(hasButton(page.container, "Clear")).toBe(true);
+  });
+
   it("answers the confirm once when it is clicked twice", async () => {
     const page = await show(policy({ tainted: true }));
     await click(button(page.container, "Clear"));

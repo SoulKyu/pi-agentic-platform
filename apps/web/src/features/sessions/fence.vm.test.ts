@@ -46,6 +46,22 @@ describe("splitFences", () => {
     expect(splitFences(upper)).toEqual([{ kind: "plain", text: upper }]);
   });
 
+  it.each([
+    [
+      "a bidi character in the source",
+      `<untrusted source="a\u202Eb" id="${id}">\nx\n</untrusted id="${id}">`,
+    ],
+    [
+      "a control character in the source",
+      `<untrusted source="a\u0007b" id="${id}">\nx\n</untrusted id="${id}">`,
+    ],
+    ["an 11 hex id", `<untrusted source="a" id="a1b2c3d4e5f">\nx\n</untrusted id="a1b2c3d4e5f">`],
+    ["a 13 hex id", `<untrusted source="a" id="a1b2c3d4e5f67">\nx\n</untrusted id="a1b2c3d4e5f67">`],
+    ["CRLF after the opening", `<untrusted source="a" id="${id}">\r\nx\n</untrusted id="${id}">`],
+  ])("keeps %s as plain text", (_name, text) => {
+    expect(splitFences(text)).toEqual([{ kind: "plain", text }]);
+  });
+
   it("renders an empty fence as an empty fenced part", () => {
     expect(splitFences(`<untrusted source="a" id="${id}">\n\n</untrusted id="${id}">`)).toEqual([
       { kind: "fenced", source: "a", text: "" },

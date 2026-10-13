@@ -100,3 +100,4 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 - IME `keyCode` 229 and AltGr produce false chords: see the dispatcher bail-outs above.
 - No native `title` attribute. Colours reach components through token utilities only; no raw colours, no `[…]` arbitrary values.
 - A lazy-only component imported through a barrel lands in the initial bundle; `build-output.int.test.ts` catches it.
+- Fenced tool output (`features/sessions/fence.vm.ts`): only pap's exact format with a matching 12-hex id is shown in `Fence` ("Untrusted · <source>", text only); anything else stays plain text. The id is not a secret to the web (the page sees the whole text), so a fully forged pair only puts the label "Untrusted · <source>" on content, which is harmless. A complete preview is split like the full output; a clipped preview only loses pap's markers (`stripFenceMarkers`).
