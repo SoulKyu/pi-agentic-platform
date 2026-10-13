@@ -1,4 +1,5 @@
 import { ApprovalsPanel } from "../../features/policy/ApprovalsPanel.tsx";
+import { AuditLog } from "../../features/policy/AuditLog.tsx";
 import { useT } from "../../i18n/index.ts";
 
 export function ApprovalsSection() {
@@ -7,6 +8,7 @@ export function ApprovalsSection() {
     <div className="flex flex-col gap-s4">
       <p className="text-ui text-muted">{t("approvals.intro")}</p>
       <ApprovalsPanel />
+      <AuditLog />
     </div>
   );
 }

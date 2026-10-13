@@ -82,6 +82,9 @@ describe("lazy catalog (Settings)", () => {
       "features/commands/editor/ShortcutRow.tsx",
       "features/commands/editor/ShortcutsEditor.tsx",
       "features/policy/ApprovalsPanel.tsx",
+      "features/policy/AuditLog.tsx",
+      "features/policy/AuditRow.tsx",
+      "features/policy/use-audit-log.ts",
       "features/policy/BuiltinPreset.tsx",
       "features/policy/PatternField.tsx",
       "features/policy/RulesByProject.tsx",
@@ -113,6 +116,18 @@ describe("lazy catalog (Settings)", () => {
         offenders.push(`${name}: settings prefix`);
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("lazy catalog (audit log)", () => {
+  it("has English and French strings with the same slots", async () => {
+    await act(async () => registerSettingsCatalogs());
+    expect(translate("en", "audit.title")).toBe("Audit log");
+    expect(translate("fr", "audit.title")).toBe("Journal d'audit");
+    expect(translate("fr", "audit.session.tools", { count: 2, names: "a, b" })).toBe("Outils (2) : a, b");
+    const slots = (message: string) => [...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(settingsApprovalsEn) as Array<keyof typeof settingsApprovalsEn>)
+      expect(slots(settingsApprovalsFr[key]), key).toEqual(slots(settingsApprovalsEn[key]));
   });
 });
 
