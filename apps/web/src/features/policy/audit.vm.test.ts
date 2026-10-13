@@ -1,4 +1,4 @@
-import type { AuditView } from "@pap/contracts";
+import { AUDIT_RATE_LIMIT_REASON, type AuditView } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import {
   clipPoints,
@@ -105,7 +105,7 @@ describe("resultDetail", () => {
 
 describe("isGap", () => {
   it("is the rate-limit marker of the audit kind only", () => {
-    const marker = { ...base, kind: "audit" as const, reason: "audit rows dropped: rate limit" };
+    const marker = { ...base, kind: "audit" as const, reason: AUDIT_RATE_LIMIT_REASON };
     expect(isGap(marker)).toBe(true);
     expect(isGap({ ...marker, kind: "call" })).toBe(false);
     expect(isGap({ ...marker, reason: "other" })).toBe(false);

@@ -1,4 +1,4 @@
-import type { AuditView, StageVerdict } from "@pap/contracts";
+import { AUDIT_RATE_LIMIT_REASON, type AuditView, type StageVerdict } from "@pap/contracts";
 import type { ChipTone } from "@pap/ui";
 import { plain } from "./policy-settings.vm.ts";
 
@@ -77,7 +77,7 @@ export function resultDetail(detail: unknown): { redactions: number; external: b
 
 /** The daemon writes this marker where a session's worker rows were dropped by the rate limit. */
 export const isGap = (row: AuditView): boolean =>
-  row.kind === "audit" && row.reason === "audit rows dropped: rate limit";
+  row.kind === "audit" && row.reason === AUDIT_RATE_LIMIT_REASON;
 
 export function timeOf(millis: number, locale: string): string {
   return Number.isFinite(millis) && Math.abs(millis) <= 8.64e15

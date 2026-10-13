@@ -1,4 +1,5 @@
 import {
+  AUDIT_RATE_LIMIT_REASON,
   AuditView as AuditViewSchema,
   type AuditView,
   type Caller,
@@ -144,7 +145,7 @@ export function createAuditService(deps: {
         kind: "audit",
         sessionId: session.id,
         decision: "info",
-        reason: "audit rows dropped: rate limit",
+        reason: AUDIT_RATE_LIMIT_REASON,
       });
     },
     onWindowEnd: (session, dropped) => logger.warn("audit_rows_dropped", { sessionId: session.id, dropped }),

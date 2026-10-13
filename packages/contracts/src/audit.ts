@@ -5,7 +5,11 @@ import { StageVerdict, STAGE_IDS } from "./policy.ts";
 export const AUDIT_ACTORS = ["worker", "user", "token", "cli", "system"] as const;
 export const AUDIT_KINDS = ["call", "result", "session", "invalid", "auth", "policy", "audit"] as const;
 
-const SessionId = z.string().min(1).max(128);
+/** The marker row the daemon writes where a session's worker rows were dropped by the rate limit. */
+export const AUDIT_RATE_LIMIT_REASON = "audit rows dropped: rate limit";
+export const AUDIT_SESSION_ID_MAX = 128;
+
+const SessionId = z.string().min(1).max(AUDIT_SESSION_ID_MAX);
 
 /**
  * One row of the audit trail as the viewer gets it. Every text here comes from a worker, a tool, the model or a

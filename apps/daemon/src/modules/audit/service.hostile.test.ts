@@ -1,4 +1,4 @@
-import { methods } from "@pap/contracts";
+import { AUDIT_RATE_LIMIT_REASON, methods } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { testCaller } from "../../testing/caller.ts";
 import { createAuditService } from "./service.ts";
@@ -185,7 +185,7 @@ describe("audit service against hostile entries and floods", () => {
       { sessionId: "s1", dropped: 100 },
     ]);
     const rows = store.page({ ownerId: "u1", limit: 4 });
-    expect(rows.map((r) => r.reason)).toEqual([null, null, "audit rows dropped: rate limit", null]);
+    expect(rows.map((r) => r.reason)).toEqual([null, null, AUDIT_RATE_LIMIT_REASON, null]);
     expect(rows[2]).toMatchObject({ actor: "worker", sessionId: "s1", kind: "audit", decision: "info" });
     expect(store.count(currentMonth(clock))).toBe(603);
   });
@@ -207,7 +207,7 @@ describe("audit service against hostile entries and floods", () => {
     expect(markers()).toHaveLength(0);
     service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
     // The session says nothing more: the gap is already on record, where it began.
-    expect(markers()).toMatchObject([{ sessionId: "s1", reason: "audit rows dropped: rate limit" }]);
+    expect(markers()).toMatchObject([{ sessionId: "s1", reason: AUDIT_RATE_LIMIT_REASON }]);
     for (let i = 0; i < 50; i++)
       service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
     expect(markers()).toHaveLength(1);

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import type { AuditView } from "@pap/contracts";
+import { AUDIT_RATE_LIMIT_REASON, type AuditView } from "@pap/contracts";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsApprovalsEn, settingsApprovalsFr } from "../../i18n/catalog/settings-approvals.ts";
@@ -277,9 +277,7 @@ describe("audit log rows", () => {
 
   it("reads a rate-limit marker as a gap", async () => {
     const container = await show(
-      answer([
-        row(5, { kind: "audit", tool: null, decision: "info", reason: "audit rows dropped: rate limit" }),
-      ]),
+      answer([row(5, { kind: "audit", tool: null, decision: "info", reason: AUDIT_RATE_LIMIT_REASON })]),
     );
     const gap = rows(container)[0] as HTMLElement;
     expect(gap.hasAttribute("data-audit-gap")).toBe(true);
