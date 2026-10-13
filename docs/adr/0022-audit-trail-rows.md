@@ -19,4 +19,5 @@ Spec C §5.1 says "Every stage writes an audit line: call, redacted arguments, d
 - About 0.5 KB per call row: 1 000 tool calls a day is about 180 MB a year, and nothing but the monthly prune removes it.
 - There is no per-session volume cap beyond the 600 rows a minute: a compromised worker can already write arbitrary files under the same account, so an audit cap would not stop disk exhaustion. A hostile session can grow the table by about 10 MB a minute until the owner stops it.
 - The triggers stop a bug, not a person: whoever can edit `state.db` can drop them. A row can be purged only by editing the file.
+- An answered call's row: `actor` / `actorId` name the person (`user`, the browser session's device id) or the token that answered; its content (decision, stages, args) is still the worker's report. The daemon matches the answer to the row by tool call id, once; a rogue worker can move one real answer onto another call row of the same session, once.
 - The audit never records results, only the fact that a stage acted on one.

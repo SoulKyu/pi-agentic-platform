@@ -148,7 +148,7 @@ export async function evaluateOnce(
       ...uncheckedCard(unchecked, trip, rules.guard, TITLES[kind.category], description.message),
       tool: ids.tool,
       key,
-      toolCallId: event.toolCallId,
+      toolCallId: ids.toolCallId,
       answers,
       tainted: call.tainted,
       ...(trip ? { guard: trip.rule } : {}),
