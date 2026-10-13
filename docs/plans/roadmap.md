@@ -1,6 +1,6 @@
 # pap roadmap after M1
 
-M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-spikes-skeleton.md](2026-10-10-m0-m1-spikes-skeleton.md). Each milestone below gets its own detailed plan before work starts. Order follows dependencies; milestones on separate lines of the graph can run in parallel. v1 = M2 to M13. Specs: [A](../specs/2026-10-10-A-product-scope.md), [C](../specs/2026-10-10-C-architecture.md), [D](../specs/2026-10-10-D-clean-start.md); decisions 1–30 in [decisions-log](../research/decisions-log.md).
+M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-spikes-skeleton.md](2026-10-10-m0-m1-spikes-skeleton.md). Each milestone below gets its own detailed plan before work starts. Order follows dependencies; milestones on separate lines of the graph can run in parallel. v1 = M2 to M13. Order after M5 (decision 75): two milestones in flight at a time, M8 + M7, then M9 + M10, then M11 + M6, then M12, then M13; M8 opens the critical path M8 → M9 → M11 → M12 → M13. Specs: [A](../specs/2026-10-10-A-product-scope.md), [C](../specs/2026-10-10-C-architecture.md), [D](../specs/2026-10-10-D-clean-start.md); decisions 1–30 in [decisions-log](../research/decisions-log.md).
 
 ## M2 — Sessions core and extension UI
 - Goal: the full Pi session experience on the worker model.
@@ -25,7 +25,7 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 - Exit: the C §8.1 security tests pass (fail-closed on bad rules or exceptions, taint then exfiltration asks, forged `Origin`, path traversal); every stage writes an audit line.
 
 ## M6 — Install, update and release
-- Domains: D21 (self-contained archive + `curl | sh`, OCI image with bubblewrap per S8, npm channel, cosign / SBOM / SLSA, `pap service install`, `pap doctor`, `pap backup` / `restore`, update with health-checked auto-rollback, release-please, stable / next channels, `PAP_UPDATE_CHECK=0`).
+- Domains: D21 (self-contained archive + `curl | sh`, OCI image with bubblewrap per S8, npm channel, `pap service install`, `pap doctor`, `pap backup` / `restore`, update with health-checked auto-rollback, release-please, stable / next channels, `PAP_UPDATE_CHECK=0`). Release signing (cosign), SBOM and SLSA provenance move after v1 (decision 75).
 - Depends on: M5 (no networked install before the policy pipeline), S8.
 - Exit: spec A success criterion 3 on each channel (one-step install, localhost bind, setup URL, passkey); a failed update rolls back on its own.
 
@@ -87,4 +87,4 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 | Security+ (`secret.request`, precheck, dynamic taint) | M11, M10, M5 |
 | File editing (CodeMirror 6) | M8 |
 
-After v1: spec A §7 (teams and OIDC, per-agent egress proxy, full self-update trial, nightly / Homebrew / apt, agent-managed schedules).
+After v1: release signing, SBOM and SLSA provenance (decision 75); spec A §7 (teams and OIDC, per-agent egress proxy, full self-update trial, nightly / Homebrew / apt, agent-managed schedules).
