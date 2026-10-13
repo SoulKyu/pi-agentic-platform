@@ -181,6 +181,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       policy: policy.port,
       projects: projects.port,
       ownerId: () => auth.ownerId(),
+      // An adopted session starts tainted (agreement 8). It runs inside the adopting transaction, where the row exists
+      // and no policy row does (epoch 0); a throw leaves no row, and the next scan adopts the file again.
+      onAdopted: (sessionId) => {
+        const owner = ownerOf(sessionId);
+        if (owner === null) throw new Error("adopted session has no owner");
+        policy.port.markTainted(owner, sessionId, 0);
+      },
       audit: audit.port,
       config,
       workerUmask,
@@ -188,6 +195,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       scopes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
+    ownerOf = sessions.ownerOf;
     const search = createSearchModule({
       home: config.home,
       agentDir: config.piAgentDir,
@@ -198,7 +206,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       sessions: sessions.scanPort,
     });
     closers.push({ name: "search", close: () => search.stop() });
-    ownerOf = sessions.ownerOf;
     const settings = createSettingsModule({ db, clock, logger });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),

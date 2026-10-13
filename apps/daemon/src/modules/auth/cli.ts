@@ -56,8 +56,8 @@ export async function resetCredentials(
 ): Promise<{ passkeys: number; sessions: number; tokens: number }> {
   const store = createAuthStore(db);
   const tokenStore = createTokenStore(db, silentLogger);
-  const ownerId = store.oldestUserId();
-  if (ownerId === undefined) throw new AuthCliError("no owner yet: run pap user add first");
+  const ownerId = store.firstUserId();
+  if (ownerId === null) throw new AuthCliError("no owner yet: run pap user add first");
   if (options.newPassword !== undefined && !isAcceptablePassword(options.newPassword))
     throw new AuthCliError(BAD_PASSWORD);
   const passwordHash =

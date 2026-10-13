@@ -46,8 +46,6 @@ export interface AuthStore extends PasskeyStore {
   /** The oldest user: the instance owner (M4R61). */
   firstUserId(): string | null;
   insertFirstUser(user: { id: string; username: string; passwordHash: string; createdAt: number }): boolean;
-  /** The instance owner: the oldest user (agreement 6). */
-  oldestUserId(): string | undefined;
   setPasswordHash(userId: string, passwordHash: string): void;
   /** Every browser session of every user, expired or not (`pap passkey reset`); how many went. */
   deleteAllSessions(): number;
@@ -89,7 +87,6 @@ export function createAuthStore(db: Db): AuthStore {
         "INSERT INTO users (id, username, password_hash, created_at) SELECT $id, $username, $passwordHash, $createdAt WHERE NOT EXISTS (SELECT 1 FROM users)",
         user,
       ).changes === 1,
-    oldestUserId: () => db.get<{ id: string }>("SELECT id FROM users ORDER BY created_at, rowid LIMIT 1")?.id,
     setPasswordHash: (userId, passwordHash) => {
       db.run("UPDATE users SET password_hash = $passwordHash WHERE id = $userId", { userId, passwordHash });
     },

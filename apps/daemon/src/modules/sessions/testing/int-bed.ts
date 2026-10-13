@@ -2,12 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  type Cursor,
-  type EventFrame,
-  type HandlerContext,
-  type SessionStreamEvent,
-} from "@pap/contracts";
+import { type Cursor, type EventFrame, type HandlerContext, type SessionStreamEvent } from "@pap/contracts";
 import { vi } from "vitest";
 import { workerExecArgv } from "../../../kernel/config.ts";
 import { createSystemClock } from "../../../kernel/clock.ts";
@@ -74,7 +69,13 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const db = migrate({
       dbPath: join(root, "state.db"),
       backupsDir: join(root, "backups"),
-      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS, PROJECTS_MIGRATIONS, AUDIT_MIGRATIONS],
+      sources: [
+        KERNEL_MIGRATIONS,
+        POLICY_MIGRATIONS,
+        SESSIONS_MIGRATIONS,
+        PROJECTS_MIGRATIONS,
+        AUDIT_MIGRATIONS,
+      ],
       clock,
       logger: silentLogger,
     }).db;
