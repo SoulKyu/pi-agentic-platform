@@ -1,4 +1,4 @@
-export const SETTINGS_SECTIONS = ["appearance", "shortcuts", "language", "account"] as const;
+export const SETTINGS_SECTIONS = ["appearance", "shortcuts", "language", "approvals", "account"] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 export type ItemRef =

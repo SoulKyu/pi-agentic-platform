@@ -1,11 +1,10 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { type DaemonToWorker, PolicyRules } from "@pap/contracts";
+import { type DaemonToWorker, POLICY_EXTENSION_PATH, PolicyRules, type TaintState } from "@pap/contracts";
 import type { Approvals } from "./approvals.ts";
 import { logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";
 import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
 import type { Ipc } from "./ipc.ts";
-import { POLICY_EXTENSION_PATH } from "./policy/extension.ts";
 import {
   handleClearQueue,
   handleCompact,
@@ -24,8 +23,10 @@ export interface DispatchDeps {
   readonly approvals: Approvals;
   /** Called after a command that may have moved Pi's leaf has answered. */
   leafMayHaveMoved(): void;
-  rules(): PolicyRules;
-  setRules(rules: PolicyRules): void;
+  /** `null`: the update was malformed and every call is blocked until a valid one (M5R11). */
+  setRules(rules: PolicyRules | null): void;
+  /** The taint of a valid update: a newer epoch replaces the state, the same epoch only raises it (M5R6). */
+  applyTaint(taint: TaintState): void;
 }
 
 /** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
@@ -84,15 +85,16 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         const update = PolicyRules.safeParse(record.rules);
         if (update.success) {
           deps.setRules(update.data);
+          deps.applyTaint(update.data.taint);
           return;
         }
-        // Fail closed (M2-RT-17): after a revoke, "the previous rules" would still hold the revoked always rule.
-        deps.setRules({ ...deps.rules(), alwaysAllow: [] });
+        // Fail closed (M5R11): "the previous rules" could still hold a revoked rule or a looser mode.
+        deps.setRules(null);
         send({
           type: "extension_error",
           extensionPath: POLICY_EXTENSION_PATH,
           event: "policy_update",
-          error: "invalid policy rules: always rules are suspended until the next valid update",
+          error: "invalid policy rules: every call is blocked until the next valid update",
         });
         return;
       }

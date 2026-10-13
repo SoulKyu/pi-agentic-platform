@@ -21,6 +21,7 @@ import { createDispatcher } from "./kernel/ws/dispatcher.ts";
 import { createStreamHub } from "./kernel/ws/stream-hub.ts";
 import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
+import { AUDIT_MIGRATIONS, createAuditModule } from "./modules/audit/index.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
@@ -63,6 +64,20 @@ export interface DaemonDeps {
   readonly probeScopes?: typeof probeScopes;
 }
 
+/**
+ * Every migration source of the daemon, in order. The CLI migrates with this same constant, so a home the daemon
+ * created never looks newer than the CLI to the CLI (M5R126): never a list written beside it.
+ */
+export const MIGRATION_SOURCES = [
+  KERNEL_MIGRATIONS,
+  AUTH_MIGRATIONS,
+  POLICY_MIGRATIONS,
+  PROJECTS_MIGRATIONS,
+  SESSIONS_MIGRATIONS,
+  SETTINGS_MIGRATIONS,
+  AUDIT_MIGRATIONS,
+] as const;
+
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
 
 // In `--dev` the browser talks to Vite, which proxies to the daemon: that is the address to open (R31).
@@ -101,14 +116,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const { db, readOnly } = migrate({
       dbPath: join(config.home, "state.db"),
       backupsDir: join(config.home, "backups"),
-      sources: [
-        KERNEL_MIGRATIONS,
-        AUTH_MIGRATIONS,
-        POLICY_MIGRATIONS,
-        PROJECTS_MIGRATIONS,
-        SESSIONS_MIGRATIONS,
-        SETTINGS_MIGRATIONS,
-      ],
+      sources: MIGRATION_SOURCES,
       clock,
       logger,
     });
@@ -117,6 +125,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     if (readOnly)
       logger.warn("read_only_mode", {
         hint: "This database was written by a newer pap. Upgrade pap or restore a backup.",
+      });
+    const audit = createAuditModule({ db, clock, logger });
+    const prunable = audit.prunableAtBoot(clock.now());
+    if (prunable)
+      logger.info("audit_prunable", {
+        ...prunable,
+        hint: "Stop pap (systemctl --user stop pap-preview for the preview service), then run pap audit prune.",
       });
     const receipts = createReceiptStore(db, clock);
     const purge = startReceiptPurge(receipts, clock, logger);
@@ -131,6 +146,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       publicOrigin: config.publicOrigin,
       allowedOrigins: config.allowedOrigins,
       insecureHttp: config.insecureHttp,
+      audit: audit.port,
+      secretsDir: join(config.home, "secrets"),
     });
     const env = deps.env ?? process.env;
     const scopes = await (deps.probeScopes ?? probeScopes)(config.workerScope, config.workerLimits, {
@@ -145,7 +162,16 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     // What an earlier daemon of this home left behind dies before any new worker starts (M2-RT-13).
     await scopes.sweep();
-    const policy = createPolicyModule({ db, clock, logger, newId });
+    // The sessions module is built after the policy module, which asks it who owns a session (M5R56).
+    let ownerOf: (sessionId: string) => string | null = () => null;
+    const policy = createPolicyModule({
+      db,
+      clock,
+      logger,
+      newId,
+      audit: audit.port,
+      sessionOwner: (sessionId) => ownerOf(sessionId),
+    });
     const projects = createProjectsModule({ db, clock, logger, newId });
     const sessions = createSessionsModule({
       db,
@@ -155,12 +181,21 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       policy: policy.port,
       projects: projects.port,
       ownerId: () => auth.ownerId(),
+      // An adopted session starts tainted (agreement 8). It runs inside the adopting transaction, where the row exists
+      // and no policy row does (epoch 0); a throw leaves no row, and the next scan adopts the file again.
+      onAdopted: (sessionId) => {
+        const owner = ownerOf(sessionId);
+        if (owner === null) throw new Error("adopted session has no owner");
+        policy.port.markTainted(owner, sessionId, 0);
+      },
+      audit: audit.port,
       config,
       workerUmask,
       env,
       scopes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
+    ownerOf = sessions.ownerOf;
     const search = createSearchModule({
       home: config.home,
       agentDir: config.piAgentDir,
@@ -174,6 +209,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const settings = createSettingsModule({ db, clock, logger });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
+      ...audit.rpc,
+      ...auth.rpc,
       ...policy.rpc,
       ...projects.rpc,
       ...sessions.rpc,
@@ -183,8 +220,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
-      credentialOf: auth.sessionValueOf,
-      authenticate: auth.authenticateSession,
+      credentialOf: auth.credentialOf,
+      authenticate: auth.authenticateCredential,
       dispatch,
       hub,
       logger,
@@ -196,7 +233,12 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const wsProbe = (c: Context) => {
       if (c.req.query("proto") !== String(PROTOCOL_VERSION))
         return c.json({ protocol: PROTOCOL_VERSION }, 426);
-      if (!auth.authenticateCookieHeader(c.req.header("cookie")))
+      const credential = auth.credentialOf({
+        cookie: c.req.header("cookie"),
+        authorization: c.req.header("authorization"),
+      });
+      if (credential === "conflict") return c.json({ error: { code: "bad_request" } }, 400);
+      if (!auth.authenticateCredential(credential))
         return c.json({ error: { code: "unauthenticated" } }, 401);
       return c.json({ protocol: PROTOCOL_VERSION });
     };

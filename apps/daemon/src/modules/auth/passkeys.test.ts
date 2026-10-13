@@ -1,6 +1,8 @@
 import { PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { sha256Hex } from "../../kernel/ids.ts";
 import { createPasskeyService, rpIdFor, type WebAuthnLib } from "./passkeys.ts";
+import { passkeyRefOf } from "./passkey-store.ts";
 import { createAuthStore, type AuthStore } from "./store.ts";
 import { createAuthTestBed, type AuthTestBed } from "./testing/fixture.ts";
 
@@ -77,16 +79,28 @@ const service = (publicOrigin = "http://localhost:7777") =>
     publicOrigin,
     allowedOrigins: new Set([publicOrigin, "http://127.0.0.1:7777", "https://other.example"]),
     lib,
+    logger: bed.logger,
   });
 const enroll = async (passkeys = service(), id = "cred-1") => {
-  const registration = await passkeys.registerOptions("u1");
-  await passkeys.registerVerify("u1", registration.flowId, { id });
+  const registration = await passkeys.registerOptions("u1", SESSION);
+  await passkeys.registerVerify("u1", SESSION, registration.flowId, { id });
 };
 const rejection = (promise: Promise<unknown>) =>
   promise.then(
     () => null,
     (error: unknown) => error,
   );
+
+const SESSION = sha256Hex("session-a");
+const SIGNED_IN = { userId: "u1", passkeyRef: passkeyRefOf("cred-1") };
+
+describe("passkeyRefOf", () => {
+  it("is the first 32 hex characters of the sha256 of the credential id", () => {
+    expect(passkeyRefOf("cred-1")).toBe(sha256Hex("cred-1").slice(0, 32));
+    expect(passkeyRefOf("cred-1")).toMatch(/^[0-9a-f]{32}$/);
+    expect(passkeyRefOf("cred-2")).not.toBe(passkeyRefOf("cred-1"));
+  });
+});
 
 describe("passkeys", () => {
   it("an IP origin disables passkeys instead of failing", async () => {
@@ -97,13 +111,13 @@ describe("passkeys", () => {
     const ip = service("http://127.0.0.1:7777");
     expect(ip.available).toBe(false);
     await expect(ip.loginOptions()).rejects.toThrow(PapError);
-    await expect(ip.registerOptions("u1")).rejects.toThrow(PapError);
+    await expect(ip.registerOptions("u1", SESSION)).rejects.toThrow(PapError);
   });
 
   it("registers, then signs in and stores the new counter", async () => {
     const passkeys = service();
-    const registration = await passkeys.registerOptions("u1");
-    await passkeys.registerVerify("u1", registration.flowId, { id: "cred-1" });
+    const registration = await passkeys.registerOptions("u1", SESSION);
+    await passkeys.registerVerify("u1", SESSION, registration.flowId, { id: "cred-1" });
     expect(store.findPasskey("cred-1")).toMatchObject({
       userId: "u1",
       counter: 0,
@@ -111,7 +125,7 @@ describe("passkeys", () => {
       publicKey: new Uint8Array([1, 2, 3]),
     });
     const login = await passkeys.loginOptions();
-    expect(await passkeys.loginVerify(login.flowId, { id: "cred-1" })).toBe("u1");
+    expect(await passkeys.loginVerify(login.flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
     expect(store.findPasskey("cred-1")?.counter).toBe(5);
   });
 
@@ -139,66 +153,67 @@ describe("passkeys", () => {
 
   it("uses a flow once, expires it after five minutes, and binds it to its user", async () => {
     const passkeys = service();
-    const registration = await passkeys.registerOptions("u1");
-    await expect(passkeys.registerVerify("u2", registration.flowId, { id: "cred-1" })).rejects.toThrow(
-      PapError,
-    );
-    await expect(passkeys.registerVerify("u1", registration.flowId, { id: "cred-1" })).rejects.toThrow(
-      PapError,
-    );
+    const registration = await passkeys.registerOptions("u1", SESSION);
+    await expect(
+      passkeys.registerVerify("u2", SESSION, registration.flowId, { id: "cred-1" }),
+    ).rejects.toThrow(PapError);
+    await expect(
+      passkeys.registerVerify("u1", SESSION, registration.flowId, { id: "cred-1" }),
+    ).rejects.toThrow(PapError);
     expect(store.listPasskeys("u1")).toEqual([]);
 
     await enroll(passkeys);
     const inTime = await passkeys.loginOptions();
     await bed.clock.advance(5 * 60_000 - 1);
-    expect(await passkeys.loginVerify(inTime.flowId, { id: "cred-1" })).toBe("u1");
+    expect(await passkeys.loginVerify(inTime.flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
     const late = await passkeys.loginOptions();
-    const lateRegistration = await passkeys.registerOptions("u1");
+    const lateRegistration = await passkeys.registerOptions("u1", SESSION);
     await bed.clock.advance(5 * 60_000 + 1);
     await expect(passkeys.loginVerify(late.flowId, { id: "cred-1", counter: 6 })).rejects.toThrow(PapError);
-    await expect(passkeys.registerVerify("u1", lateRegistration.flowId, { id: "cred-2" })).rejects.toThrow(
-      PapError,
-    );
+    await expect(
+      passkeys.registerVerify("u1", SESSION, lateRegistration.flowId, { id: "cred-2" }),
+    ).rejects.toThrow(PapError);
     expect(store.listPasskeys("u1")).toHaveLength(1);
   });
 
   it("does not let a registration flow log in, or a login flow register", async () => {
     const passkeys = service();
     await enroll(passkeys);
-    const registration = await passkeys.registerOptions("u1");
+    const registration = await passkeys.registerOptions("u1", SESSION);
     await expect(passkeys.loginVerify(registration.flowId, { id: "cred-1" })).rejects.toThrow(PapError);
     const login = await passkeys.loginOptions();
-    await expect(passkeys.registerVerify("u1", login.flowId, { id: "cred-2" })).rejects.toThrow(PapError);
+    await expect(passkeys.registerVerify("u1", SESSION, login.flowId, { id: "cred-2" })).rejects.toThrow(
+      PapError,
+    );
     expect(calls.verifyAuthenticationResponse).toHaveLength(0);
   });
 
   it("consumes a flow on its first attempt even when verification fails", async () => {
     const passkeys = service();
-    const registration = await passkeys.registerOptions("u1");
-    await expect(passkeys.registerVerify("u1", registration.flowId, { id: "boom" })).rejects.toThrow(
+    const registration = await passkeys.registerOptions("u1", SESSION);
+    await expect(passkeys.registerVerify("u1", SESSION, registration.flowId, { id: "boom" })).rejects.toThrow(
       PapError,
     );
-    await expect(passkeys.registerVerify("u1", registration.flowId, { id: "cred-1" })).rejects.toThrow(
-      PapError,
-    );
+    await expect(
+      passkeys.registerVerify("u1", SESSION, registration.flowId, { id: "cred-1" }),
+    ).rejects.toThrow(PapError);
     expect(calls.verifyRegistrationResponse).toHaveLength(1);
     expect(store.listPasskeys("u1")).toEqual([]);
 
     await enroll(passkeys);
     const login = await passkeys.loginOptions();
     await expect(passkeys.loginVerify(login.flowId, { id: "unknown" })).rejects.toThrow(PapError);
-    await expect(passkeys.loginVerify(login.flowId, { id: "cred-1" })).rejects.toThrow(PapError);
     expect(calls.verifyAuthenticationResponse).toHaveLength(0);
   });
 
   it("keeps nothing per sign-in challenge, so no number of them evicts another or an enrollment", async () => {
     const passkeys = service();
     await enroll(passkeys);
-    const registration = await passkeys.registerOptions("u1");
+    const registration = await passkeys.registerOptions("u1", SESSION);
     const first = await passkeys.loginOptions();
     for (let i = 0; i < 1000; i++) await passkeys.loginOptions();
-    expect(await passkeys.loginVerify(first.flowId, { id: "cred-1" })).toBe("u1");
-    await passkeys.registerVerify("u1", registration.flowId, { id: "cred-2" });
+    expect(await passkeys.loginVerify(first.flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
+    await passkeys.registerVerify("u1", SESSION, registration.flowId, { id: "cred-2" });
     expect(store.listPasskeys("u1")).toHaveLength(2);
   });
 
@@ -221,7 +236,7 @@ describe("passkeys", () => {
     await expect(passkeys.loginVerify(bytes.toString("base64url"), { id: "cred-1" })).rejects.toThrow(
       PapError,
     );
-    expect(await passkeys.loginVerify(flowId, { id: "cred-1" })).toBe("u1");
+    expect(await passkeys.loginVerify(flowId, { id: "cred-1" })).toEqual(SIGNED_IN);
     await expect(passkeys.loginVerify(flowId, { id: "cred-1", counter: 6 })).rejects.toThrow(PapError);
     expect(calls.verifyAuthenticationResponse).toHaveLength(1);
   });
@@ -236,8 +251,8 @@ describe("passkeys", () => {
     expect(await rejection(attempt({ response: { userHandle: 7 } }, 6))).toBeInstanceOf(PapError);
     expect(await rejection(attempt({ response: { userHandle: "" } }, 6))).toBeInstanceOf(PapError);
     expect(calls.verifyAuthenticationResponse).toHaveLength(0);
-    expect(await attempt({ response: handle("u1") }, 6)).toBe("u1");
-    expect(await attempt({}, 7)).toBe("u1");
+    expect(await attempt({ response: handle("u1") }, 6)).toEqual(SIGNED_IN);
+    expect(await attempt({}, 7)).toEqual(SIGNED_IN);
   });
 
   it("stores only known transports, whatever the registration response claims", async () => {
@@ -252,8 +267,8 @@ describe("passkeys", () => {
       [undefined, ["internal"]],
     ];
     for (const [index, [claimed, expected]] of claims.entries()) {
-      const { flowId } = await passkeys.registerOptions("u1");
-      await passkeys.registerVerify("u1", flowId, { id: `cred-${index + 1}`, transports: claimed });
+      const { flowId } = await passkeys.registerOptions("u1", SESSION);
+      await passkeys.registerVerify("u1", SESSION, flowId, { id: `cred-${index + 1}`, transports: claimed });
       expect(store.findPasskey(`cred-${index + 1}`)?.transports, JSON.stringify(claimed)).toEqual(expected);
     }
   });
@@ -270,10 +285,12 @@ describe("passkeys", () => {
 
   it("caps pending enrollments at 100 too, evicting the oldest", async () => {
     const passkeys = service();
-    const first = await passkeys.registerOptions("u1");
-    for (let i = 0; i < 99; i++) await passkeys.registerOptions("u1");
-    await passkeys.registerOptions("u1");
-    await expect(passkeys.registerVerify("u1", first.flowId, { id: "cred-1" })).rejects.toThrow(PapError);
+    const first = await passkeys.registerOptions("u1", SESSION);
+    for (let i = 0; i < 99; i++) await passkeys.registerOptions("u1", SESSION);
+    await passkeys.registerOptions("u1", SESSION);
+    await expect(passkeys.registerVerify("u1", SESSION, first.flowId, { id: "cred-1" })).rejects.toThrow(
+      PapError,
+    );
     expect(calls.verifyRegistrationResponse).toHaveLength(0);
   });
 
@@ -281,18 +298,18 @@ describe("passkeys", () => {
     const passkeys = service();
     await enroll(passkeys);
     const before = store.findPasskey("cred-1");
-    const again = await passkeys.registerOptions("u1");
+    const again = await passkeys.registerOptions("u1", SESSION);
     expect(calls.generateRegistrationOptions[1]).toMatchObject({
       excludeCredentials: [{ id: "cred-1", transports: ["internal"] }],
     });
-    const failure = await rejection(passkeys.registerVerify("u1", again.flowId, { id: "cred-1" }));
+    const failure = await rejection(passkeys.registerVerify("u1", SESSION, again.flowId, { id: "cred-1" }));
     expect(failure).toBeInstanceOf(PapError);
     expect((failure as PapError).code).toBe("conflict");
     expect(store.listPasskeys("u1")).toEqual([before]);
   });
 
   it("registers a passkey only for an existing user", async () => {
-    const failure = await rejection(service().registerOptions("ghost"));
+    const failure = await rejection(service().registerOptions("ghost", SESSION));
     expect(failure).toBeInstanceOf(PapError);
     expect((failure as PapError).code).toBe("unauthenticated");
   });
@@ -323,4 +340,56 @@ describe("passkeys", () => {
     expect(results.map((result) => result.status).sort()).toEqual(["fulfilled", "rejected"]);
     expect(store.findPasskey("cred-1")?.counter).toBe(6);
   });
+});
+
+describe("an enrollment flow belongs to the session that started it (R85)", () => {
+  it("is refused to another session of the same user, and is gone for the first one too", async () => {
+    const passkeys = service();
+    const registration = await passkeys.registerOptions("u1", SESSION);
+    const stolen = passkeys.registerVerify("u1", sha256Hex("session-b"), registration.flowId, {
+      id: "cred-1",
+    });
+    await expect(stolen).rejects.toThrow(new PapError("unauthenticated"));
+    await expect(
+      passkeys.registerVerify("u1", SESSION, registration.flowId, { id: "cred-1" }),
+    ).rejects.toThrow(new PapError("unauthenticated"));
+    expect(calls.verifyRegistrationResponse).toHaveLength(0);
+    expect(store.listPasskeys("u1")).toEqual([]);
+  });
+
+  it("stamps last use with the counter at each sign-in (M5R78)", async () => {
+    const passkeys = service();
+    await enroll(passkeys);
+    expect(bed.db.get("SELECT last_used_at AS at FROM passkeys WHERE id = 'cred-1'")).toEqual({ at: null });
+    await bed.clock.advance(1234);
+    const login = await passkeys.loginOptions();
+    await passkeys.loginVerify(login.flowId, { id: "cred-1" });
+    expect(bed.db.get("SELECT last_used_at AS at FROM passkeys WHERE id = 'cred-1'")).toEqual({
+      at: bed.clock.now(),
+    });
+  });
+
+  it("spends no nonce on an answer for an unregistered credential, and logs a full nonce table once per window", async () => {
+    const refused = new PapError("unauthenticated");
+    const passkeys = service();
+    await enroll(passkeys);
+    const unknown = await passkeys.loginOptions();
+    expect(await rejection(passkeys.loginVerify(unknown.flowId, { id: "nobody" }))).toEqual(refused);
+    // The challenge was not used up by that answer.
+    expect(await passkeys.loginVerify(unknown.flowId, { id: "cred-1", counter: 1 })).toEqual(SIGNED_IN);
+
+    for (let i = 1; i < 10_000; i++) {
+      const { flowId } = await passkeys.loginOptions();
+      await passkeys.loginVerify(flowId, { id: "cred-1", counter: i + 1 });
+    }
+    const { flowId } = await passkeys.loginOptions();
+    const late = () => rejection(passkeys.loginVerify(flowId, { id: "cred-1", counter: 20_000 }));
+    expect([await late(), await late()]).toEqual([refused, refused]);
+    const [entry, ...others] = bed.events("auth_login_challenges_full");
+    expect(others).toEqual([]);
+    expect(Object.keys(entry ?? {}).sort()).toEqual(["level", "msg", "time"]);
+    await bed.clock.advance(10_000);
+    expect(await late()).toEqual(refused);
+    expect(bed.events("auth_login_challenges_full")).toHaveLength(2);
+  }, 60_000);
 });

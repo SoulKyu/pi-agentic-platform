@@ -1,4 +1,4 @@
-export const DOMAINS = ["system", "auth", "sessions", "policy", "settings"] as const;
+export const DOMAINS = ["system", "auth", "sessions", "policy", "settings", "audit"] as const;
 export const LEVELS = ["read", "operate", "admin"] as const;
 export type Domain = (typeof DOMAINS)[number];
 export type Level = (typeof LEVELS)[number];

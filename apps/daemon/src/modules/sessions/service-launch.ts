@@ -1,6 +1,7 @@
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
 import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
+import type { PolicyLink } from "./policy-link.ts";
 import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
@@ -13,6 +14,8 @@ export interface LaunchContext {
   readonly reopening: Map<string, Promise<LiveSession>>;
   readonly starting: Set<LiveSession>;
   readonly grants: ReturnType<typeof createGrantLink>;
+  /** What ties the sessions to the policy module: the rules of each worker, its audit hand-over, a refused update. */
+  readonly policyLink: PolicyLink;
   checkCapacity(): void;
   /** The project for a new session's row, called once after `ready` and before the row is stored (M4R28). */
   projectFor?(row: SessionRow): string | null;
@@ -34,13 +37,15 @@ export interface LaunchContext {
 
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
 export function createLaunch(ctx: LaunchContext) {
-  const { deps, live, reopening, starting, grants } = ctx;
+  const { deps, live, reopening, starting, grants, policyLink } = ctx;
   const { bindPiFile, recordEvent, syncName, replayPreReady } = createStoreSync({
     store: deps.store,
     clock: deps.clock,
     logger: deps.logger,
     hub: deps.hub,
     agentDir: deps.worker.agentDir,
+    onPolicyRecord: (row, raw) => policyLink.audited(row, raw),
+    onTaint: (row, epoch) => policyLink.tainted(row, epoch),
   });
 
   // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already
@@ -58,7 +63,7 @@ export function createLaunch(ctx: LaunchContext) {
       agentDir: deps.worker.agentDir,
       papHome: deps.worker.papHome,
       umask: deps.worker.umask,
-      policy: grants.policyFor(row, scope),
+      policy: policyLink.compose(row, scope),
       // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
       ...(row.piPath ? { sessionFile: row.piPath } : {}),
       ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
@@ -100,6 +105,7 @@ export function createLaunch(ctx: LaunchContext) {
           ctx.onWorkerEnd?.(row.id);
         },
         onWorkerExit: (info) => deps.onWorkerExit?.(row.id, info),
+        onPolicyRefused: () => policyLink.refused(row, session),
       },
       init,
     );

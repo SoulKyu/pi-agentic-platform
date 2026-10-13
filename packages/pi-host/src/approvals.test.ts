@@ -10,6 +10,7 @@ const request: ApprovalAsk = {
   tool: "bash",
   key: KEY,
   answers: ["deny", "once"],
+  tainted: false,
 };
 const CLOSED = { answer: "deny", closed: true };
 

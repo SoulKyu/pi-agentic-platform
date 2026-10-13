@@ -7,7 +7,13 @@ let bed: ReturnType<typeof makeBed>;
 const makeBed = () => {
   const base = createPolicyBed();
   const store = createPolicyStore(base.db);
-  const service = createPolicyService({ store, clock: base.clock, logger: base.logger, newId: base.newId });
+  const service = createPolicyService({
+    store,
+    clock: base.clock,
+    logger: base.logger,
+    newId: base.newId,
+    audit: base.audit,
+  });
   return { ...base, store, service };
 };
 beforeEach(() => {

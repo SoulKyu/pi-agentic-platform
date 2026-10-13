@@ -1,37 +1,46 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import type { PolicyRules } from "@pap/contracts";
+import { POLICY_EXTENSION_PATH, PolicyRules } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import type { Approvals } from "./approvals.ts";
 import { createDispatch } from "./dispatch.ts";
+import { createTaint } from "./policy/taint.ts";
 import type { Ipc } from "./ipc.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
-const withAlways: PolicyRules = {
+const withAlways = PolicyRules.parse({
   profile: "interactive",
   approvalMode: "auto-accept-edits",
   alwaysAllow: [{ tool: "bash", key: "d".repeat(64) }],
-};
+});
 
 describe("dispatch", () => {
-  it("drops the always rules when a policy update is malformed, and says so (M2-RT-17)", () => {
+  it("makes the rules null when a policy update is malformed, says so, and restores them on a valid one (M5R11)", () => {
     const sent: Array<Record<string, unknown>> = [];
-    let rules = withAlways;
+    let rules: PolicyRules | null = withAlways;
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session: {} as AgentSession,
       ipc: { send: (record: Record<string, unknown>) => void sent.push(record) } as unknown as Ipc,
       ui: {} as UiBridge,
       approvals: {} as Approvals,
       leafMayHaveMoved: () => {},
-      rules: () => rules,
       setRules: (next) => {
         rules = next;
       },
     });
     dispatch({ type: "policy_update", rules: { profile: "interactive", approvalMode: "yolo" } });
-    expect(rules).toEqual({ ...withAlways, alwaysAllow: [] });
-    expect(sent).toEqual([expect.objectContaining({ type: "extension_error", event: "policy_update" })]);
+    expect(rules).toBeNull();
+    expect(sent).toEqual([
+      {
+        type: "extension_error",
+        extensionPath: POLICY_EXTENSION_PATH,
+        event: "policy_update",
+        error: "invalid policy rules: every call is blocked until the next valid update",
+      },
+    ]);
     dispatch({ type: "policy_update", rules: withAlways });
     expect(rules).toEqual(withAlways);
+    expect(sent).toHaveLength(1);
   });
 
   it("asks for a look at the leaf after navigate_tree has answered, in that order", async () => {
@@ -41,12 +50,12 @@ describe("dispatch", () => {
       sessionManager: { getLeafId: () => "e7" },
     } as unknown as AgentSession;
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session,
       ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
       ui: {} as UiBridge,
       approvals: {} as Approvals,
       leafMayHaveMoved: () => void order.push("look"),
-      rules: () => withAlways,
       setRules: () => {},
     });
     dispatch({ type: "navigate_tree", id: "n1", targetId: "e7" });
@@ -65,12 +74,12 @@ describe("dispatch", () => {
         model: undefined,
       } as unknown as AgentSession;
       const dispatch = createDispatch({
+        applyTaint: () => {},
         session,
         ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
         ui: {} as UiBridge,
         approvals: {} as Approvals,
         leafMayHaveMoved: () => void order.push("look"),
-        rules: () => withAlways,
         setRules: () => {},
       });
       dispatch(command);
@@ -86,12 +95,12 @@ describe("dispatch", () => {
       },
     } as unknown as AgentSession;
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session,
       ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
       ui: {} as UiBridge,
       approvals: {} as Approvals,
       leafMayHaveMoved: () => void order.push("look"),
-      rules: () => withAlways,
       setRules: () => {},
     });
     dispatch({ type: "set_session_name", id: "n1", name: "Fix" });
@@ -103,12 +112,12 @@ describe("dispatch", () => {
     const resolved: unknown[] = [];
     const sent: unknown[] = [];
     const dispatch = createDispatch({
+      applyTaint: () => {},
       session: {} as AgentSession,
       ipc: { send: (record: unknown) => void sent.push(record) } as unknown as Ipc,
       ui: {} as UiBridge,
       approvals: { resolve: (record: unknown) => void resolved.push(record) } as unknown as Approvals,
       leafMayHaveMoved: () => {},
-      rules: () => withAlways,
       setRules: () => {},
     });
     dispatch({ type: "approval_response", id: "a1", answer: "once" });
@@ -118,5 +127,46 @@ describe("dispatch", () => {
       { type: "approval_response", id: "a2", answer: "deny", cancelled: true },
     ]);
     expect(sent).toEqual([]);
+  });
+
+  describe("the taint of a policy update (M5R6, M5R41)", () => {
+    const update = (taint: { tainted: boolean; epoch: number }) =>
+      ({ type: "policy_update", rules: { ...withAlways, taint } }) as const;
+    function bed() {
+      const taint = createTaint({ tainted: false, epoch: 0 }, () => {});
+      const sent: unknown[] = [];
+      const dispatch = createDispatch({
+        applyTaint: (next) => taint.apply(next),
+        session: {} as AgentSession,
+        ipc: { send: (record: unknown) => void sent.push(record) } as unknown as Ipc,
+        ui: {} as UiBridge,
+        approvals: {} as Approvals,
+        leafMayHaveMoved: () => {},
+        setRules: () => {},
+      });
+      return { taint, dispatch, sent };
+    }
+
+    it("lowers a raised taint only with a newer epoch", () => {
+      const { taint, dispatch } = bed();
+      taint.apply({ tainted: true, epoch: 1 });
+      dispatch(update({ tainted: false, epoch: 1 }));
+      expect(taint.state()).toEqual({ tainted: true, epoch: 1 });
+      dispatch(update({ tainted: false, epoch: 0 }));
+      expect(taint.state()).toEqual({ tainted: true, epoch: 1 });
+      dispatch(update({ tainted: false, epoch: 2 }));
+      expect(taint.state()).toEqual({ tainted: false, epoch: 2 });
+    });
+
+    it("leaves the taint as it was when the update is malformed", () => {
+      const { taint, dispatch, sent } = bed();
+      taint.raise();
+      dispatch({
+        type: "policy_update",
+        rules: { profile: "interactive", taint: { tainted: false, epoch: 9 } },
+      });
+      expect(taint.state()).toEqual({ tainted: true, epoch: 0 });
+      expect(sent).toHaveLength(1);
+    });
   });
 });

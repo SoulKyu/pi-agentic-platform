@@ -13,6 +13,7 @@ import type { WorkerScopes } from "../../kernel/supervisor/scope.ts";
 import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { Hono } from "hono";
+import type { AuditPort } from "../audit/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import { mountExportRoute } from "./export-http.ts";
@@ -43,6 +44,8 @@ export interface SessionsModuleDeps {
   readonly policy: PolicyPort;
   /** The projects module: each session is filed under the project of its folder (Task 7c). */
   readonly projects: ProjectsPort;
+  /** The audit module: where a worker's audit entries are validated, scrubbed and stored (Task 10). */
+  readonly audit: AuditPort;
   readonly config: Pick<
     Config,
     | "home"
@@ -76,6 +79,8 @@ export interface SessionsModule {
   /** What the search module reads from sessions. */
   readonly scanPort: SessionsScanPort;
   shutdownAll(): Promise<void>;
+  /** The owner of a session, or null when there is none: the policy module's late-bound lookup (M5R56). */
+  ownerOf(sessionId: string): string | null;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
 }
 
@@ -97,14 +102,17 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   // The working copies of sources are deleted when each fork ends; a crash in the middle leaves one, deleted here.
   const forkTmpDir = join(config.home, "fork-tmp");
   purgeForkTmp(forkTmpDir, logger);
+  const store = createSessionsStore(deps.db);
   const service = createSessionsService({
-    store: createSessionsStore(deps.db),
+    store,
     exports,
     clock: deps.clock,
     logger,
     hub: deps.hub,
     policy: deps.policy,
     projects: deps.projects,
+    audit: deps.audit,
+    containment: deps.scopes.enabled ? "scope" : "none",
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
     idleMs: config.workerIdleMs,
     worker: {
@@ -154,6 +162,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
         exports.stop();
       }
     },
+    ownerOf: (sessionId) => store.get(sessionId)?.ownerId ?? null,
     inspect: (sessionId) => service.inspect(sessionId),
   };
 }

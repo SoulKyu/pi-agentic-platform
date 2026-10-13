@@ -1,5 +1,4 @@
 import {
-  ALL_PERMISSIONS,
   PapError,
   PROTOCOL_VERSION,
   type Caller,
@@ -23,10 +22,11 @@ import {
   MAX_SUBSCRIPTIONS,
   type WsServer,
 } from "./ws-server.ts";
+import { testCaller } from "../../testing/caller.ts";
 
 const ORIGIN = "http://localhost:7777";
 const EXPLODING_ID = 666;
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 const good = { origin: ORIGIN, cookie: "pap_session=good" };
 
 let server: RunningServer;
@@ -73,8 +73,8 @@ beforeEach(async () => {
     frame.id === EXPLODING_ID ? Promise.reject(new Error("dispatch exploded")) : inner(frame, ctx);
   ws = createWsServer({
     allowedOrigins: new Set([ORIGIN]),
-    credentialOf: (header) => header,
-    authenticate: (cookie) => (cookie === "pap_session=good" ? owner : null),
+    credentialOf: ({ cookie }) => (cookie ? { kind: "cookie", value: cookie } : undefined),
+    authenticate: (credential) => (credential?.value === "pap_session=good" ? owner : null),
     dispatch,
     hub,
     logger,

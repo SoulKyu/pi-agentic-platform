@@ -65,6 +65,7 @@ describe("sessions module over a read-only database (RT-04)", () => {
         policy: fakePolicyPort(),
         projects,
         ownerId: () => "u1",
+        audit: { append: () => {}, fromWorker: () => null },
         config: {
           home: join(root, "pap"),
           piAgentDir: join(root, "agent"),

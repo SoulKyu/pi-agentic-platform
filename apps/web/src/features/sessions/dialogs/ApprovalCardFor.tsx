@@ -2,6 +2,7 @@ import type { Dialog, DialogResponse } from "@pap/contracts";
 import { ApprovalCard, cn, FOCUS_RING } from "@pap/ui";
 import { useT } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
+import "../register-policy-catalog.ts";
 import { timeoutLine } from "./request-frame.tsx";
 import { plain } from "./untrusted.ts";
 import { ExpandToggle, useClipped } from "./use-clipped.tsx";
@@ -30,22 +31,30 @@ export function ApprovalCardFor(props: {
   const headerText = useClipped(header ?? "", HEADER_LIMITS);
   const bodyText = useClipped(body, BODY_LIMITS);
   // The card splits the header off the first line itself; a message of one line has no header and is all body.
+  const category = t(`dialog.category.${dialog.category ?? "unknown"}`);
   const detail = header === null ? bodyText.shown : `${headerText.shown}\n${bodyText.shown}`;
   return (
     <ApprovalCard
       title={t("dialog.approval")}
-      category={t(`dialog.category.${dialog.category ?? "unknown"}`)}
+      category={dialog.tainted ? t("sessionPolicy.taintedCategory", { category }) : category}
       question={
-        <p
-          data-approval-question
-          {...scrollArea(question.expanded, t("dialog.question"))}
-          className={cn(
-            "max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg",
-            FOCUS_RING,
-          )}
-        >
-          {question.shown}
-        </p>
+        <>
+          <p
+            data-approval-question
+            {...scrollArea(question.expanded, t("dialog.question"))}
+            className={cn(
+              "max-h-32 overflow-auto whitespace-pre-wrap break-words text-ui font-semibold text-fg",
+              FOCUS_RING,
+            )}
+          >
+            {question.shown}
+          </p>
+          {dialog.guard ? (
+            <p data-approval-guard className="mt-s1 text-ui text-muted">
+              {t(`sessionPolicy.guard.${dialog.guard}`)}
+            </p>
+          ) : null}
+        </>
       }
       detail={detail}
       headerLabel={headerText.expanded ? t("dialog.summary") : undefined}

@@ -4,6 +4,7 @@ import { Toaster, TooltipProvider } from "@pap/ui";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsScreenEn, settingsScreenFr } from "../../i18n/catalog/settings-screen.ts";
+import { settingsAppearanceEn, settingsAppearanceFr } from "../../i18n/catalog/settings-appearance.ts";
 import { registerCatalog, setLocale } from "../../i18n/index.ts";
 import { RpcError } from "../../runtime/index.ts";
 import { click, mount, press } from "../../testing/dom.ts";
@@ -14,6 +15,7 @@ import { DEFAULT_ACCOUNT, DEFAULT_DEVICE } from "./model.ts";
 
 // The Settings chunk registers these strings when it loads; the panel is rendered here without it.
 registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr });
+registerCatalog({ en: settingsAppearanceEn, fr: settingsAppearanceFr });
 
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
 

@@ -1,7 +1,7 @@
 import { type Caller, PapError, type SessionStatus } from "@pap/contracts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
-import { createGrantLink } from "./grants.ts";
+import { createPolicyLink } from "./policy-link.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import { createOrganiser } from "./organiser.ts";
@@ -21,6 +21,8 @@ const SUMMARY_EVENTS: ReadonlySet<string> = new Set(["status", "dialog_open", "d
 
 export type { SessionsService, SessionsServiceDeps };
 
+const TOKEN_ANSWERS: ReadonlySet<string> = new Set(["deny", "once"]);
+
 export function createSessionsService(deps: SessionsServiceDeps): SessionsService {
   // Workers that are up, by session id. A crashed worker leaves this map and is not replaced until the next prompt.
   const live = new Map<string, LiveSession>();
@@ -29,12 +31,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   // Workers between fork and `ready`. They count against the cap like running ones (R9).
   const starting = new Set<LiveSession>();
   let closing = false;
-  const grants = createGrantLink({
-    policy: deps.policy,
-    clock: deps.clock,
-    logger: deps.logger,
-    sessions: () => [...live.values(), ...starting],
-  });
+  const policyLink = createPolicyLink({ ...deps, sessions: () => [...live.values(), ...starting] });
+  const grants = policyLink.grants;
 
   const checkCapacity = () => {
     if (
@@ -101,6 +99,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     reopening,
     starting,
     grants,
+    policyLink,
     checkCapacity,
     projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
     onReopened: (sessionId) => publisher.changed(sessionId),
@@ -133,6 +132,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     statusOf,
     owned,
     outsideWrite: adoption.outsideWrite,
+    policyView: (row) => policyLink.viewOf(row),
   });
 
   const commands = createSessionCommands({
@@ -152,6 +152,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     newId: deps.newId,
     loadWriter: deps.loadWriter,
     onMade: adoption.fileMade,
+    onAdopted: (source, id) => policyLink.inherit(source, id),
   });
   const sessionMarks = createSessionMarks({
     store: marks,
@@ -224,9 +225,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       return (await live.get(sessionId)?.clearQueue()) ?? { steering: [], followUp: [], truncated: false };
     },
     respondDialog(input, caller) {
-      owned(input.sessionId, caller);
+      const row = owned(input.sessionId, caller);
       const session = openWorker(input.sessionId);
-      grants.answered(session, session.answer(input.dialogId, input.response));
+      // A token answers deny or once (Q7): a rule that outlives the token is a browser session's to make.
+      if (caller.kind === "token" && "answer" in input.response && !TOKEN_ANSWERS.has(input.response.answer))
+        throw new PapError("forbidden");
+      const approved = session.answer(input.dialogId, input.response);
+      grants.answered(session, approved);
+      if (approved?.grant.toolCallId !== undefined)
+        policyLink.answeredBy(row, approved.grant.toolCallId, caller);
     },
     panelInput(input, caller) {
       owned(input.sessionId, caller);
@@ -240,7 +247,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     async shutdownAll() {
       closing = true;
       organiser.stop();
-      grants.stop();
+      policyLink.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
     inspect(sessionId) {

@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
+import { setLocale } from "../../i18n/index.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { button, click, mount, settle, type Mounted } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
@@ -24,7 +25,8 @@ vi.mock("@tanstack/react-router", async () => {
 let bed: ReturnType<typeof fakeRuntime>;
 let page: Mounted | null = null;
 
-const snapshot = (dialogs: unknown[]) => ({
+const snapshot = (dialogs: unknown[], policy?: unknown) => ({
+  ...(policy === undefined ? {} : { policy }),
   kind: "snapshot",
   status: "running",
   rows: [],
@@ -52,10 +54,10 @@ const approval = {
 };
 const confirm = { id: "d1", method: "confirm", title: "Run a command?", message: "bash: ls" };
 
-async function show(dialogs: unknown[]) {
+async function show(dialogs: unknown[], policy?: unknown) {
   page = await mount(<SessionScreen sessionId="sess-1" />);
   await settle();
-  bed.emit(snapshot(dialogs));
+  bed.emit(snapshot(dialogs, policy));
   await settle();
   return page.container;
 }
@@ -65,6 +67,7 @@ beforeEach(() => {
   bed = fakeRuntime();
   current.runtime = bed.runtime;
   useSessionStore.setState({ views: {} });
+  setLocale("en");
 });
 afterEach(async () => {
   await page?.unmount();
@@ -100,5 +103,59 @@ describe("SessionScreen approval dialogs", () => {
     await click(button(container, "Yes"));
     await settle();
     expect(answers()).toEqual([{ sessionId: "sess-1", dialogId: "d1", response: { confirmed: true } }]);
+  });
+
+  it("says a tainted approval is about external content, and a plain one does not", async () => {
+    const container = await show([{ ...approval, tainted: true }]);
+    expect(container.querySelector('[role="alertdialog"] h3')?.textContent).toBe(
+      "Approval·exec · external content",
+    );
+    expect(container.querySelector('[role="alertdialog"]')?.getAttribute("aria-label")).toBe(
+      "Approval exec · external content",
+    );
+  });
+
+  it("keeps a plain approval's heading as it was", async () => {
+    const container = await show([approval]);
+    expect(container.querySelector('[role="alertdialog"] h3')?.textContent).toBe("Approval·exec");
+  });
+
+  it("says it in French", async () => {
+    setLocale("fr");
+    const container = await show([{ ...approval, tainted: true }]);
+    expect(container.querySelector('[role="alertdialog"] h3')?.textContent).toContain(
+      "exécution · contenu externe",
+    );
+  });
+
+  it("shows one line under the question for the guard rule that asks", async () => {
+    const lines = {
+      "identical-calls": "The agent repeated the same call several times.",
+      "tool-calls": "This run made many tool calls.",
+      turns: "This run took many turns.",
+    };
+    for (const [guard, line] of Object.entries(lines)) {
+      useSessionStore.setState({ views: {} });
+      bed = fakeRuntime();
+      current.runtime = bed.runtime;
+      const container = await show([{ ...approval, guard }]);
+      const shown = [...container.querySelectorAll("[data-approval-guard]")].map((one) => one.textContent);
+      expect(shown).toEqual([line]);
+      await page?.unmount();
+    }
+  });
+
+  it("shows no guard line when the dialog has no guard rule", async () => {
+    const container = await show([approval]);
+    expect(container.querySelector("[data-approval-guard]")).toBeNull();
+  });
+
+  it("mounts the policy bar from the snapshot's policy, and a policy event changes it", async () => {
+    const container = await show([], { mode: "read-only", explicit: true, tainted: true });
+    expect(container.querySelector("[data-session-policy]")?.textContent).toContain("External content");
+    expect(container.querySelector('[role="combobox"]')?.textContent).toContain("Read only");
+    bed.emit({ kind: "policy", policy: { mode: "read-only", explicit: true, tainted: false } });
+    await settle();
+    expect(container.querySelector("[data-session-policy]")?.textContent).not.toContain("External content");
   });
 });

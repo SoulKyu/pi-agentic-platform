@@ -159,10 +159,17 @@ describe("pap serve", () => {
   });
 
   it("answers a bad command line with the usage and exit code 64", async () => {
-    for (const args of [[], ["start"], ["serve", "--port", "0"], ["serve", "--tls-cert", "c.pem"]]) {
+    for (const args of [
+      [],
+      ["start"],
+      ["audit"],
+      ["serve", "--port", "0"],
+      ["serve", "--tls-cert", "c.pem"],
+    ]) {
       const serve = run(args);
       expect(await serve.exit(), args.join(" ")).toEqual({ code: 64, signal: null });
       expect(serve.stderr(), args.join(" ")).toContain("usage: pap serve");
+      expect(serve.stderr(), args.join(" ")).toContain("pap audit prune");
       expect(serve.lines).toEqual([]);
     }
   });

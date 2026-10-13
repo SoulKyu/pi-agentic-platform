@@ -4,8 +4,13 @@ import { commandsEn, commandsFr } from "./catalog/commands.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
+import { sessionPolicyEn, sessionPolicyFr } from "./catalog/session-policy.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
+import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
+import { settingsAppearanceEn, settingsAppearanceFr } from "./catalog/settings-appearance.ts";
+import { settingsApprovalsEn, settingsApprovalsFr } from "./catalog/settings-approvals.ts";
+import { settingsShortcutsEn, settingsShortcutsFr } from "./catalog/settings-shortcuts.ts";
 import { shellEn, shellFr } from "./catalog/shell.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 
@@ -40,9 +45,14 @@ describe("catalog keys never collide", () => {
         dev: Object.keys(devEn),
         sessionScreen: Object.keys(sessionScreenEn),
         settingsScreen: Object.keys(settingsScreenEn),
+        settingsAppearance: Object.keys(settingsAppearanceEn),
+        settingsShortcuts: Object.keys(settingsShortcutsEn),
+        settingsApprovals: Object.keys(settingsApprovalsEn),
+        settingsAccess: Object.keys(settingsAccessEn),
         gallery: Object.keys(galleryEn),
         server: Object.keys(serverEn),
         sidebar: Object.keys(sidebarEn),
+        sessionPolicy: Object.keys(sessionPolicyEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -56,9 +66,14 @@ describe("catalog keys never collide", () => {
         dev: Object.keys(devFr),
         sessionScreen: Object.keys(sessionScreenFr),
         settingsScreen: Object.keys(settingsScreenFr),
+        settingsAppearance: Object.keys(settingsAppearanceFr),
+        settingsShortcuts: Object.keys(settingsShortcutsFr),
+        settingsApprovals: Object.keys(settingsApprovalsFr),
+        settingsAccess: Object.keys(settingsAccessFr),
         gallery: Object.keys(galleryFr),
         server: Object.keys(serverFr),
         sidebar: Object.keys(sidebarFr),
+        sessionPolicy: Object.keys(sessionPolicyFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);

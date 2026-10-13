@@ -5,6 +5,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
+import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
+import { settingsAppearanceEn, settingsAppearanceFr } from "./catalog/settings-appearance.ts";
+import { settingsApprovalsEn, settingsApprovalsFr } from "./catalog/settings-approvals.ts";
+import { settingsShortcutsEn, settingsShortcutsFr } from "./catalog/settings-shortcuts.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
@@ -24,7 +28,24 @@ import {
 
 // Keys whose French is the same word (endonyms, product and font names). Every other key must differ.
 const IDENTICAL_IN_FR = new Set([
+  "access.devices.browser.chrome",
+  "access.devices.browser.firefox",
+  "access.devices.browser.safari",
+  "access.devices.browser.edge",
+  "access.devices.system.linux",
+  "access.devices.system.macos",
+  "access.devices.system.windows",
+  "access.devices.system.ios",
+  "access.devices.system.android",
+  "access.tokens.permissions",
+  "access.tokens.domain.sessions",
+  "access.tokens.count.one",
+  "access.tokens.count.other",
   "app.name",
+  "audit.kind.session",
+  "audit.kind.audit",
+  "audit.argsLabel",
+  "audit.decision.info",
   "ui.notifications",
   "app.tagline",
   "settings.nav.section",
@@ -76,8 +97,26 @@ describe("i18n", () => {
   });
 
   it("translates every key into French", () => {
-    const english: Record<string, string> = { ...en, ...sessionScreenEn, ...settingsScreenEn, ...sidebarEn };
-    const french: Record<string, string> = { ...fr, ...sessionScreenFr, ...settingsScreenFr, ...sidebarFr };
+    const english: Record<string, string> = {
+      ...en,
+      ...sessionScreenEn,
+      ...settingsScreenEn,
+      ...settingsAccessEn,
+      ...settingsAppearanceEn,
+      ...settingsApprovalsEn,
+      ...settingsShortcutsEn,
+      ...sidebarEn,
+    };
+    const french: Record<string, string> = {
+      ...fr,
+      ...sessionScreenFr,
+      ...settingsScreenFr,
+      ...settingsAccessFr,
+      ...settingsAppearanceFr,
+      ...settingsApprovalsFr,
+      ...settingsShortcutsFr,
+      ...sidebarFr,
+    };
     expect(Object.keys(french).sort()).toEqual(Object.keys(english).sort());
     for (const key of Object.keys(english)) {
       expect(french[key], key).toBeTruthy();

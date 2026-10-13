@@ -2,13 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  ALL_PERMISSIONS,
-  type Cursor,
-  type EventFrame,
-  type HandlerContext,
-  type SessionStreamEvent,
-} from "@pap/contracts";
+import { type Cursor, type EventFrame, type HandlerContext, type SessionStreamEvent } from "@pap/contracts";
 import { vi } from "vitest";
 import { workerExecArgv } from "../../../kernel/config.ts";
 import { createSystemClock } from "../../../kernel/clock.ts";
@@ -18,9 +12,11 @@ import type { WorkerExit } from "../../../kernel/supervisor/exit.ts";
 import { NO_SCOPES, type WorkerScopes } from "../../../kernel/supervisor/scope.ts";
 import { newId } from "../../../kernel/ids.ts";
 import { createStreamHub } from "../../../kernel/ws/stream-hub.ts";
+import { AUDIT_MIGRATIONS, createAuditModule } from "../../audit/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "../../policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "../../projects/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "../index.ts";
+import { testCaller } from "../../../testing/caller.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const EXEC_ARGV = [
@@ -73,14 +69,29 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const db = migrate({
       dbPath: join(root, "state.db"),
       backupsDir: join(root, "backups"),
-      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS, PROJECTS_MIGRATIONS],
+      sources: [
+        KERNEL_MIGRATIONS,
+        POLICY_MIGRATIONS,
+        SESSIONS_MIGRATIONS,
+        PROJECTS_MIGRATIONS,
+        AUDIT_MIGRATIONS,
+      ],
       clock,
       logger: silentLogger,
     }).db;
     const hub = createStreamHub(undefined, clock);
     const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
-    const policy = createPolicyModule({ db, clock, logger: silentLogger, newId });
     const projects = createProjectsModule({ db, clock, logger: silentLogger, newId });
+    const audit = createAuditModule({ db, clock, logger: silentLogger });
+    let ownerOf: (sessionId: string) => string | null = () => null;
+    const policy = createPolicyModule({
+      db,
+      clock,
+      logger: silentLogger,
+      newId,
+      audit: audit.port,
+      sessionOwner: (sessionId) => ownerOf(sessionId),
+    });
     const sessions: SessionsModule = createSessionsModule({
       db,
       clock,
@@ -89,6 +100,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       policy: policy.port,
       projects: projects.port,
       ownerId: () => "u1",
+      audit: audit.port,
       config: {
         home: papHome,
         piAgentDir: options.spellAgentDir?.(agentDir) ?? agentDir,
@@ -104,9 +116,10 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       scopes: options.scopes ?? NO_SCOPES,
       onWorkerExit: (sessionId, info) => void exits.push({ sessionId, ...info }),
     });
+    ownerOf = sessions.ownerOf;
     let connections = 0;
     const contextOf = (connectionId: string, sink: EventFrame[]): HandlerContext => ({
-      caller: { userId: "u1", permissions: new Set(ALL_PERMISSIONS) },
+      caller: testCaller(),
       connectionId,
       openSubscription: (stream, key, after) => {
         const sub = `s-${connectionId}`;
@@ -125,6 +138,21 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       exits,
       rpc: sessions.rpc,
       policyRpc: policy.rpc,
+      /** The real policy module on the bed's database: its `rpc` and its `port`. */
+      policy,
+      auditRpc: audit.rpc,
+      /** The `policy` rows of the session journal (`session_events`), as their kinds, oldest first. */
+      sessionEvents: () => db.all<{ kind: string }>("SELECT kind FROM session_events WHERE kind = 'policy'"),
+      /** What the audit table holds, oldest first (the int tests read the trail through this). */
+      auditRows: () =>
+        db.all<{ kind: string; actor: string; sessionId: string | null }>(
+          "SELECT kind, actor, session_id AS sessionId FROM audit ORDER BY id",
+        ),
+      /** The judged calls in the audit table (tool and decision), oldest first. */
+      auditCalls: () =>
+        db.all<{ tool: string | null; decision: string }>(
+          "SELECT tool, decision FROM audit WHERE kind = 'call' ORDER BY id",
+        ),
       ctx: owner,
       async subscribe(sessionId: string, after?: Cursor): Promise<Subscription> {
         const frames: EventFrame[] = [];

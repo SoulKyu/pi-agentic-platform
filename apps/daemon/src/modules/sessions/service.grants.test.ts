@@ -1,5 +1,5 @@
 import { realpathSync } from "node:fs";
-import type { AlwaysRule, DaemonToWorker } from "@pap/contracts";
+import { type AlwaysRule, type DaemonToWorker, PolicyRules } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GRANT_NOTICE_EVERY_MS } from "./grants.ts";
 import { createSessionsService } from "./service.ts";
@@ -26,12 +26,13 @@ const ask = (id: string, key = KEY) => ({
   answers: ["deny", "session", "always", "once"] as Array<"deny" | "session" | "always" | "once">,
   tool: "bash",
   key,
+  tainted: false,
 });
 const updates = (index: number): DaemonToWorker[] =>
   bed.spawned[index]?.sent.filter((record) => record.type === "policy_update") ?? [];
 const rulesOf = (alwaysAllow: AlwaysRule[]) => ({
   type: "policy_update",
-  rules: { profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow },
+  rules: PolicyRules.parse({ profile: "interactive", approvalMode: "auto-accept-edits", alwaysAllow }),
 });
 const always = async (index: number, sessionId: string, id: string, key = KEY) => {
   bed.spawned[index]?.emit(ask(id, key));
@@ -133,13 +134,30 @@ describe("always and session answers", () => {
     const worker = bed.spawned[0];
     if (!worker) throw new Error("no worker");
     const stop = vi.spyOn(worker, "stop");
-    // The exit is settled first (its listeners run before the queued update does), the change comes after.
+    // The exit is settled first (the update is sent inside the change, so the exit must have been handled by then).
     worker.crash({ code: 1, signal: null, cause: "exit_code" });
+    await bed.clock.advance(0);
     policy.revoke(OWNER.userId, realpathSync(bed.work), KEY);
     await bed.clock.advance(0);
     expect(updates(0)).toEqual([]);
     expect(stop).not.toHaveBeenCalled();
     expect(lines.filter((line) => line.msg === "policy_update_not_sent")).toEqual([]);
+  });
+
+  it("stops a worker that crashed but whose exit is not settled yet, and logs it, without throwing into the caller", async () => {
+    const { logger, lines } = captureLogger();
+    const policy = fakePolicyPort();
+    open({ policy, logger });
+    await bed.service.create(bed.work, OWNER);
+    const worker = bed.spawned[0];
+    if (!worker) throw new Error("no worker");
+    const stop = vi.spyOn(worker, "stop");
+    worker.crash({ code: 1, signal: null, cause: "exit_code" });
+    // No await: the exit listeners have not run, so the session still counts as live and `send` answers false.
+    expect(() => policy.revoke(OWNER.userId, realpathSync(bed.work), KEY)).not.toThrow();
+    expect(updates(0)).toEqual([]);
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(lines.filter((line) => line.msg === "policy_update_not_sent")).toHaveLength(1);
   });
 
   it("stops a worker that could not be told of a change: it must not keep a revoked rule", async () => {

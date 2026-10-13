@@ -212,3 +212,46 @@ describe("describeCall: where a write lands", () => {
     expect(message.split("\n")[1]).toBe("→ unknown location (outside the session directory)");
   });
 });
+
+describe("describeCall: lookalike blanks (R91, M5R31)", () => {
+  it("escapes the no-break, ideographic and braille blanks of a command and counts them", () => {
+    const command = `ls${char(0xa0)}-la${char(0x3000)}x${char(0x2800)}`;
+    expect(messageOf("bash", { command })).toBe(
+      `${[...command].length} characters, 1 line, 3 hidden characters shown escaped\n` +
+        `bash: ls${escaped(0xa0)}-la${escaped(0x3000)}x${escaped(0x2800)}`,
+    );
+  });
+
+  it.each([
+    0x00a0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200a,
+    0x202f, 0x205f, 0x3000, 0x2800,
+  ])("escapes the blank at code point %i", (code) => {
+    expect(messageOf("bash", { command: `a${char(code)}b` })).toBe(
+      `3 characters, 1 line, 1 hidden character shown escaped\nbash: a${escaped(code)}b`,
+    );
+  });
+
+  it("leaves the plain space alone", () => {
+    expect(messageOf("bash", { command: "a b" })).toBe("3 characters, 1 line\nbash: a b");
+  });
+});
+
+describe("describeCall: the kernel's reading", () => {
+  it("adds a second arrow line for the file the kernel would reach", () => {
+    const message = messageOf(
+      "write",
+      { path: "a", content: "" },
+      {
+        why: "protected path",
+        target: "/p/state.db",
+        kernelTarget: "/q/state.db",
+        targetLabel: "the file Pi writes",
+        kernelLabel: "protected path, if a tool follows the symlink before ..",
+      },
+    );
+    expect(message.split("\n").slice(1, 3)).toEqual([
+      "\u2192 /p/state.db (the file Pi writes)",
+      "\u2192 /q/state.db (protected path, if a tool follows the symlink before ..)",
+    ]);
+  });
+});

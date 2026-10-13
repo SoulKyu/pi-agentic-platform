@@ -6,8 +6,13 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
+import { sessionPolicyEn, sessionPolicyFr } from "./catalog/session-policy.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
+import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
+import { settingsAppearanceEn, settingsAppearanceFr } from "./catalog/settings-appearance.ts";
+import { settingsApprovalsEn, settingsApprovalsFr } from "./catalog/settings-approvals.ts";
+import { settingsShortcutsEn, settingsShortcutsFr } from "./catalog/settings-shortcuts.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 import { registerCatalog, setLocale, translate, useT } from "./index.ts";
 
@@ -21,6 +26,17 @@ function files(dir: string): string[] {
 
 afterEach(() => setLocale("en"));
 
+function registerSettingsCatalogs() {
+  for (const entries of [
+    { en: settingsScreenEn, fr: settingsScreenFr },
+    { en: settingsAccessEn, fr: settingsAccessFr },
+    { en: settingsAppearanceEn, fr: settingsAppearanceFr },
+    { en: settingsApprovalsEn, fr: settingsApprovalsFr },
+    { en: settingsShortcutsEn, fr: settingsShortcutsFr },
+  ])
+    registerCatalog(entries);
+}
+
 describe("lazy catalog (Settings)", () => {
   it("shows the key and reports it until the chunk registers its strings, then resolves and re-renders mounted consumers", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -31,27 +47,56 @@ describe("lazy catalog (Settings)", () => {
     const page = await mount(<Probe />);
     expect(text(page.container)).toBe("settings.appearance.status.saved");
     expect(warn).toHaveBeenCalledWith("pap: message_missing");
-    await act(async () => registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr }));
+    await act(async () => registerSettingsCatalogs());
     expect(text(page.container)).toBe("Saved to your account");
     await act(async () => setLocale("fr"));
     expect(text(page.container)).toBe("Enregistré dans votre compte");
     expect(translate("en", "settings.appearance.px", { value: 13 })).toBe("13 px");
+    expect(translate("en", "approvals.intro")).toBe(
+      "What the agent may do without asking you, and what it may never do.",
+    );
+    expect(translate("fr", "approvals.intro")).toBe(
+      "Ce que l'agent peut faire sans vous demander, et ce qu'il ne peut jamais faire.",
+    );
     await page.unmount();
     warn.mockRestore();
   });
 
   it("is referenced only from the Settings chunk: eager code can never render a raw key", () => {
-    const lazy = Object.keys(settingsScreenEn);
+    const lazy = [
+      ...Object.keys(settingsScreenEn),
+      ...Object.keys(settingsAccessEn),
+      ...Object.keys(settingsAppearanceEn),
+      ...Object.keys(settingsApprovalsEn),
+      ...Object.keys(settingsShortcutsEn),
+    ];
     // Explicit: features/appearance also holds the eager boot files (index, controller, store, model).
     const chunk = new Set([
       "routes/settings/AccountSection.tsx",
+      "routes/settings/ApprovalsSection.tsx",
       "routes/settings/LanguageSection.tsx",
+      "routes/settings/register-settings-catalog.ts",
       "routes/settings/SettingsScreen.tsx",
       "routes/settings/sections.tsx",
+      "features/auth/DevicesList.tsx",
+      "features/auth/InlineAsk.tsx",
+      "features/auth/PasskeysList.tsx",
+      "features/auth/StepUp.tsx",
+      "features/auth/TokenCreate.tsx",
+      "features/auth/TokensPanel.tsx",
+      "features/auth/use-listing.ts",
+      "features/auth/use-mutation.ts",
       "features/commands/editor/KeybindingsJson.tsx",
       "features/commands/editor/ShortcutRecorder.tsx",
       "features/commands/editor/ShortcutRow.tsx",
       "features/commands/editor/ShortcutsEditor.tsx",
+      "features/policy/ApprovalsPanel.tsx",
+      "features/policy/AuditLog.tsx",
+      "features/policy/AuditRow.tsx",
+      "features/policy/use-audit-log.ts",
+      "features/policy/BuiltinPreset.tsx",
+      "features/policy/PatternField.tsx",
+      "features/policy/RulesByProject.tsx",
       "features/appearance/AppearancePanel.tsx",
       "features/appearance/AppearancePreview.tsx",
       "features/appearance/AppearanceSection.tsx",
@@ -72,10 +117,26 @@ describe("lazy catalog (Settings)", () => {
       const code = readFileSync(file, "utf8");
       for (const key of lazy)
         if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
-      if (/settings\.(?:appearance|theme|language|account|nav|section|shortcuts)\./.test(code))
+      if (
+        /settings\.(?:appearance|theme|language|account|nav|section|shortcuts)|["'`](?:approvals|audit|access)\./.test(
+          code,
+        )
+      )
         offenders.push(`${name}: settings prefix`);
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+describe("lazy catalog (audit log)", () => {
+  it("has English and French strings with the same slots", async () => {
+    await act(async () => registerSettingsCatalogs());
+    expect(translate("en", "audit.title")).toBe("Audit log");
+    expect(translate("fr", "audit.title")).toBe("Journal d'audit");
+    expect(translate("fr", "audit.session.tools", { count: 2, names: "a, b" })).toBe("Outils (2) : a, b");
+    const slots = (message: string) => [...message.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(settingsApprovalsEn) as Array<keyof typeof settingsApprovalsEn>)
+      expect(slots(settingsApprovalsFr[key]), key).toEqual(slots(settingsApprovalsEn[key]));
   });
 });
 
@@ -257,5 +318,44 @@ describe("lazy catalog (session screen)", () => {
     const moved = Object.keys(sessionScreenEn);
     expect(Object.keys(en).filter((key) => moved.includes(key))).toEqual([]);
     expect(Object.keys(fr).filter((key) => moved.includes(key))).toEqual([]);
+  });
+});
+
+describe("lazy catalog (session policy)", () => {
+  it("registers its strings with the session screen, English and French, the same slots in both", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(translate("en", "sessionPolicy.external")).toBe("sessionPolicy.external");
+    await act(async () => registerCatalog({ en: sessionPolicyEn, fr: sessionPolicyFr }));
+    expect(translate("en", "sessionPolicy.external")).toBe("External content");
+    expect(translate("fr", "sessionPolicy.taintedCategory", { category: "exec" })).toBe(
+      "exec · contenu externe",
+    );
+    const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(sessionPolicyEn) as Array<keyof typeof sessionPolicyEn>)
+      expect(slots(sessionPolicyFr[key]), key).toEqual(slots(sessionPolicyEn[key]));
+  });
+
+  it("is loaded only by the session screen: nothing eager imports the catalog or uses its keys", () => {
+    const offenders: string[] = [];
+    for (const file of files(src)) {
+      const name = relative(src, file).split("\\").join("/");
+      if (!/\.tsx?$/.test(name) || /\.test\.|^i18n\/|^testing\//.test(name)) continue;
+      const code = readFileSync(file, "utf8");
+      if (
+        /catalog\/session-policy\.ts"|register-policy-catalog\.ts"/.test(code) &&
+        !name.startsWith("features/sessions/")
+      )
+        offenders.push(name);
+      if (/["'`]sessionPolicy\./.test(code) && !name.startsWith("features/sessions/"))
+        offenders.push(`${name}: sessionPolicy key`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the session policy strings out of the eager catalogs", async () => {
+    const { en } = await import("./en.ts");
+    const { fr } = await import("./fr.ts");
+    expect(Object.keys(en).filter((key) => key.startsWith("sessionPolicy."))).toEqual([]);
+    expect(Object.keys(fr).filter((key) => key.startsWith("sessionPolicy."))).toEqual([]);
   });
 });

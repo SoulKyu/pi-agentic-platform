@@ -7,6 +7,15 @@ import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } from "./descendants.ts";
 import type { Ipc } from "./ipc.ts";
 import { openSession } from "./open-session.ts";
+import { auditSinkOf } from "./policy/audit-sink.ts";
+import { redactingAuditSink } from "./policy/results.ts";
+import { NO_REDACTOR } from "./policy/redact.ts";
+import { createTaint } from "./policy/taint.ts";
+import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
+import { createRedactingIpc } from "./redacting-ipc.ts";
+import { redactStdio, type Writable } from "./redact-stdio.ts";
+import { createIsBuiltin } from "./policy/builtin-lookup.ts";
+import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 import { logLineOf } from "./bounded.ts";
@@ -30,7 +39,16 @@ function exit(session: AgentSession | null, code: number): never {
   }
 }
 
-export async function runHost(ipc: Ipc): Promise<void> {
+export async function runHost(rawIpc: Ipc): Promise<void> {
+  // Until the session knows its secrets nothing is redacted; the first records are small ones the worker made itself.
+  let secrets: SecretSource | null = null;
+  // Every sender below uses `ipc`: each record leaves through the redaction (M5R36). Receiving stays on the raw channel.
+  const ipc = createRedactingIpc(
+    rawIpc,
+    () => secrets?.current() ?? NO_REDACTOR,
+    // The same classification stage 06 uses on a result: only Pi's own tool of that name (M5R116).
+    createIsBuiltin(() => session?.getAllTools()),
+  );
   // A marker for this worker alone, before Pi starts: the shells its tools run inherit the environment, so a process the
   // agent leaves running keeps it after Linux has given it to pid 1, and the count can find it without a scope (M2R107).
   process.env[TOKEN_VAR] = randomBytes(16).toString("hex");
@@ -67,7 +85,7 @@ export async function runHost(ipc: Ipc): Promise<void> {
   };
   // One listener from the first record on, so nothing sent while the session opens is lost: records after
   // `init` wait here until the session is ready, then run in order.
-  ipc.onMessage(
+  rawIpc.onMessage(
     (record) => {
       if (record.type === "init") receiveInit(record);
       else if (record.type === "shutdown") shutdown(record.graceMs);
@@ -103,29 +121,47 @@ export async function runHost(ipc: Ipc): Promise<void> {
       }
     },
   );
-  ipc.onDisconnect(() => exit(session, 0));
+  rawIpc.onDisconnect(() => exit(session, 0));
 
   const initial = await init;
   const first = PolicyRules.safeParse(initial.policy);
   if (!first.success) throw new Error("the init record carries invalid policy rules: refusing to start");
-  let rules: PolicyRules = first.data;
-  // Moves on every policy update, a malformed one too (M2R16): provisional "always" grants end with it (M2R73).
+  // `null` after a malformed update: every call blocks (M5R11). Both are assigned in one synchronous step below,
+  // so the pipeline, which reads the version and the rules without awaiting between them, never sees one moved alone.
+  let rules: PolicyRules | null = first.data;
+  // Moves on every policy update, a malformed one too: provisional "always" grants end with it (M2R73).
   let rulesVersion = 0;
+  const reportTaint = () => {
+    if (!ipc.send({ type: "taint", epoch: taint.state().epoch }))
+      process.stderr.write("pi-host: taint record not sent; the next agent_end repeats it\n");
+  };
+  const taint = createTaint(first.data.taint, reportTaint);
+  const entries = createSessionEntries((record) => ipc.send(record));
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
+  const source = createSecretSource({ env: process.env, agentDir: initial.agentDir });
+  secrets = source;
+  for (const stream of [process.stdout, process.stderr])
+    redactStdio(stream as unknown as Writable, () => source.current());
+  const sendAudit = auditSinkOf((record) => ipc.send(record));
   const opened = await openSession(initial, {
+    secrets: source,
     ui,
     approvals,
     rules: () => rules,
     rulesVersion: () => rulesVersion,
-    audit: (entry) => ipc.send({ type: "audit", entry }),
+    taint,
+    audit: redactingAuditSink(sendAudit, source),
+    onAgentStart: (names) => entries.agentStart(names, rules?.approvalMode ?? first.data.approvalMode),
     onEvent: (event) => {
       ipc.send(toWireEvent(event));
       tracker?.observe(event);
+      if (event.type === "agent_end" && taint.current()) reportTaint();
     },
     onExtensionError: (error) => ipc.send(toExtensionErrorRecord(error)),
   });
   session = opened;
+  entries.opened(opened.getActiveToolNames(), first.data.approvalMode);
   tracker = createEntryTracker({
     manager: opened.sessionManager,
     send: (record) => ipc.send(record),
@@ -138,11 +174,11 @@ export async function runHost(ipc: Ipc): Promise<void> {
     ipc,
     ui,
     approvals,
-    rules: () => rules,
     setRules: (next) => {
       rules = next;
       rulesVersion++;
     },
+    applyTaint: (update) => taint.apply(update),
   });
   ipc.send({
     type: "ready",

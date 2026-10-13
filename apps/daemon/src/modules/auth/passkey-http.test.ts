@@ -1,7 +1,10 @@
+import { randomBytes } from "node:crypto";
+import { PapError } from "@pap/contracts";
 import type { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHttpApp } from "../../kernel/http/app.ts";
 import { mountAuthRoutes } from "./http.ts";
+import { createKnownDevices } from "./known-device.ts";
 import { mountPasskeyRoutes } from "./passkey-http.ts";
 import type { PasskeyService } from "./passkeys.ts";
 import { createAuthService } from "./service.ts";
@@ -191,16 +194,27 @@ describe("passkey routes", () => {
 describe("step-up before enrollment", () => {
   async function spied() {
     const setupToken = createSetupToken(true);
+    const sessionThrottle = createThrottle(bed.clock, { whenFull: "refuse" });
     const service = createAuthService({
+      devices: createKnownDevices(randomBytes(32)),
       store: createAuthStore(bed.db),
       clock: bed.clock,
       logger: bed.logger.child({ module: "auth" }),
       publicOrigin: ORIGIN,
-      throttle: createThrottle(bed.clock),
+      throttle: createThrottle(bed.clock, { whenFull: "refuse" }),
+      sessionThrottle,
       setupToken,
+      audit: { append: () => undefined },
     });
     const registerOptions = vi.fn(() => Promise.resolve({ flowId: "flow-1", options: {} }));
-    const passkeys = { available: true, registerOptions } as unknown as PasskeyService;
+    const registerVerify = vi.fn(() => Promise.reject(new PapError("unauthenticated")));
+    const loginVerify = vi.fn(() => Promise.reject(new PapError("unauthenticated")));
+    const passkeys = {
+      available: true,
+      registerOptions,
+      registerVerify,
+      loginVerify,
+    } as unknown as PasskeyService;
     const app = createHttpApp({
       allowedOrigins: new Set([ORIGIN]),
       staticRoot: null,
@@ -210,8 +224,11 @@ describe("step-up before enrollment", () => {
         mountPasskeyRoutes(a, {
           passkeys,
           auth: service,
-          throttle: createThrottle(bed.clock),
+          devices: createKnownDevices(randomBytes(32)),
+          userOfPasskey: () => undefined,
+          throttle: createThrottle(bed.clock, { whenFull: "evict" }),
           logger: bed.logger,
+          audit: { append: () => undefined },
         });
       },
       wsProbe: (c) => c.json({}),
@@ -228,7 +245,7 @@ describe("step-up before enrollment", () => {
   }
   const WRONG = { password: "wrong-password-123" };
 
-  it("creates no enrollment flow without the right password, and counts guesses on the password keys", async () => {
+  it("creates no enrollment flow without the right password, and counts guesses on the session's own key", async () => {
     const { app, registerOptions, cookie } = await spied();
     const options = (body: unknown, address = "10.0.0.9") =>
       post(app, "/auth/passkey/register/options", body, { cookie }, socketAt(address));
@@ -246,7 +263,7 @@ describe("step-up before enrollment", () => {
       expect([throttled.status, await throttled.json()]).toEqual([429, { error: { code: "rate_limited" } }]);
       expect(Number(throttled.headers.get("retry-after"))).toBe(1);
     }
-    // The same account key serves sign-in, so a guess here delays a sign-in from anywhere.
+    // The account and address keys serve sign-in only: a guess here delays no sign-in (M5R127).
     const login = await post(
       app,
       "/auth/login",
@@ -254,7 +271,7 @@ describe("step-up before enrollment", () => {
       {},
       socketAt("10.0.0.50"),
     );
-    expect(login.status).toBe(429);
+    expect(login.status).toBe(200);
     expect(registerOptions).not.toHaveBeenCalled();
 
     await bed.clock.advance(1000);
@@ -271,6 +288,34 @@ describe("step-up before enrollment", () => {
     expect(Object.keys(entry ?? {}).sort()).toEqual(["ip", "level", "module", "msg", "retryAfterMs", "time"]);
     expect(bed.lines.join("")).not.toContain(WRONG.password);
     expect(bed.lines.join("")).not.toContain("owner");
+  });
+
+  it("counts register/verify failures on the session key: two sessions enroll independently, sign-in failures do not touch it", async () => {
+    const { app, cookie } = await spied();
+    const second = await post(app, "/auth/login", { username: "owner", password: PASSWORD });
+    const other = (second.headers.get("set-cookie") ?? "").split(";")[0] ?? "";
+    const verify = (as: string, address = "10.0.0.9") =>
+      post(app, "/auth/passkey/register/verify", GARBAGE, { cookie: as }, socketAt(address));
+    const loginAttempt = () => post(app, "/auth/passkey/login/verify", GARBAGE, {}, socketAt("10.0.0.9"));
+    expect([401, 429, 429]).toEqual([
+      (await loginAttempt()).status,
+      (await loginAttempt()).status,
+      (await loginAttempt()).status,
+    ]);
+    expect((await verify(cookie)).status).toBe(401);
+    expect((await verify(cookie)).status).toBe(429);
+    expect((await verify(other)).status).toBe(401);
+    expect((await verify(cookie, "10.0.0.77")).status).toBe(429);
+  });
+
+  it("keeps a failed enrollment verify off the step-up and enrollment-password throttle of the same session", async () => {
+    const { app, cookie } = await spied();
+    const failed = await post(app, "/auth/passkey/register/verify", GARBAGE, { cookie });
+    expect(failed.status).toBe(401);
+    expect((await post(app, "/auth/passkey/register/verify", GARBAGE, { cookie })).status).toBe(429);
+    expect((await post(app, "/auth/confirm", { password: PASSWORD }, { cookie })).status).toBe(204);
+    const options = await post(app, "/auth/passkey/register/options", { password: PASSWORD }, { cookie });
+    expect(options.status).toBe(200);
   });
 
   it("needs the session before it looks at the body or the password", async () => {

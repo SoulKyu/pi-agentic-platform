@@ -92,9 +92,33 @@ const snapshot = {
   activity: { compacting: false, retry: { attempt: 1, maxAttempts: 3 } },
   leafId: "e9",
   name: "Fix the login bug",
+  policy: { mode: "supervised", explicit: true, tainted: false },
 };
 
 describe("session stream v2", () => {
+  it("reads a snapshot without a policy view as the default one (M5R3)", () => {
+    const bare: Record<string, unknown> = { ...snapshot };
+    delete bare.policy;
+    const parsed = SessionStreamEvent.parse(bare);
+    expect(parsed.kind === "snapshot" && parsed.policy).toEqual({
+      mode: "auto-accept-edits",
+      explicit: false,
+      tainted: false,
+    });
+  });
+
+  it("carries a policy event and a tainted approval with its guard rule", () => {
+    expect(
+      SessionStreamEvent.safeParse({
+        kind: "policy",
+        policy: { mode: "read-only", explicit: true, tainted: false },
+      }).success,
+    ).toBe(true);
+    const dialog = { ...approval, answers: ["deny", "once"], tainted: true, guard: "tool-calls" };
+    expect(Dialog.parse(dialog)).toMatchObject({ tainted: true, guard: "tool-calls" });
+    expect(Dialog.safeParse({ ...dialog, guard: "loops" }).success).toBe(false);
+  });
+
   it("parses a snapshot with every section", () => {
     expect(SessionStreamEvent.parse(snapshot)).toEqual({ ...snapshot, cwd: "", outsideWrite: false });
   });

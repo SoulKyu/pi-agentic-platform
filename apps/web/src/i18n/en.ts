@@ -24,7 +24,7 @@ export const en = {
   "login.submit": "Sign in",
   "login.passkey": "Sign in with a passkey",
   "login.throttleNote":
-    "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. It resets after 5 minutes without a failure.",
+    "Each failed attempt doubles the wait before the next one, from 1 second up to 1 minute, per address and per account. A browser that has signed in before has a limit of its own. It resets after 5 minutes without a failure.",
   "login.failed": "Wrong username or password.",
   "login.throttled": "Too many attempts. Wait {seconds} s.",
   "account.addPasskey": "Add a passkey",
@@ -61,6 +61,7 @@ export const en = {
     "The session did not answer in time. The action may still have gone through: check before trying again.",
   "error.prompt_rejected": "The session could not start this prompt. Check the model and provider settings.",
   "error.invalid_cwd": "The working directory must be an absolute path to an existing folder.",
+  "error.step_up_required": "Confirm your password to continue.",
   "error.read_only": "The database was written by a newer pap and is read-only.",
   "error.unknown_method": "This version of the page does not match the server. Reload it.",
   "error.internal": "Something went wrong.",

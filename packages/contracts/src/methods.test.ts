@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ALL_PERMISSIONS, methods } from "./index.ts";
 
@@ -15,7 +16,15 @@ describe("method catalogue", () => {
       .map((def) => def.name)
       .sort();
     expect(mutations).toEqual([
+      "auth.devices.revoke",
+      "auth.devices.revokeOthers",
+      "auth.passkeys.remove",
+      "auth.tokens.create",
+      "auth.tokens.revoke",
+      "policy.clearTaint",
       "policy.revokeRule",
+      "policy.setSessionMode",
+      "policy.setSettings",
       "projects.update",
       "sessions.abort",
       "sessions.autoName",
@@ -205,5 +214,42 @@ describe("method catalogue", () => {
     expect(revoke.safeParse({ ruleId: "r1" }).success).toBe(true);
     expect(revoke.safeParse({ ruleId: "" }).success).toBe(false);
     expect(revoke.safeParse({ ruleId: "r".repeat(129) }).success).toBe(false);
+  });
+
+  it("declares the policy v2 methods (M5R53): a read, and three admin mutations that come from policyMethods", () => {
+    expect(methods["policy.getSettings"]).toMatchObject({
+      permission: "policy:read",
+      idempotent: true,
+      errors: [],
+    });
+    expect(methods["policy.setSettings"]).toMatchObject({
+      permission: "policy:admin",
+      idempotent: false,
+      errors: ["bad_request", "conflict"],
+    });
+    for (const name of ["policy.setSessionMode", "policy.clearTaint"] as const) {
+      expect(methods[name]).toMatchObject({
+        permission: "policy:admin",
+        idempotent: false,
+        errors: ["not_found"],
+      });
+    }
+    const source = readFileSync(new URL("./methods.ts", import.meta.url), "utf8");
+    for (const name of ["getSettings", "setSettings", "setSessionMode", "clearTaint"]) {
+      expect(source).not.toContain(`"policy.${name}": defineMethod`);
+    }
+    const mode = methods["policy.setSessionMode"].params;
+    expect(mode.safeParse({ sessionId: "s", mode: null }).success).toBe(true);
+    expect(mode.safeParse({ sessionId: "s", mode: "read-only" }).success).toBe(true);
+    for (const bad of [{ mode: "yolo" }, { mode: undefined }, { sessionId: "" }]) {
+      expect(mode.safeParse({ sessionId: "s", mode: null, ...bad }).success).toBe(false);
+    }
+    const set = methods["policy.setSettings"].params;
+    expect(set.safeParse({ value: {}, baseRevision: 0 }).success).toBe(true);
+    expect(set.safeParse({ value: { extra: 1 }, baseRevision: 0 }).success).toBe(false);
+    expect(set.safeParse({ value: {}, baseRevision: -1 }).success).toBe(false);
+    const get = methods["policy.getSettings"].result;
+    expect(get.safeParse({ value: null, revision: 0 }).success).toBe(true);
+    expect(get.safeParse({ revision: 0 }).success).toBe(false);
   });
 });

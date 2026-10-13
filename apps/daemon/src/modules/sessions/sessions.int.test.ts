@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ProjectTrustStore } from "@earendil-works/pi-coding-agent";
-import { ALL_PERMISSIONS, type Caller, type EventFrame, type HandlerContext } from "@pap/contracts";
+import { type Caller, type EventFrame, type HandlerContext } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Clock, createSystemClock } from "../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
@@ -16,6 +16,7 @@ import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "
 import { createSessionsStore, type SessionsStore } from "./store.ts";
 import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
+import { testCaller } from "../../testing/caller.ts";
 
 // The real pi-host in a real forked process, on a scripted model, with the network closed (never a real provider).
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
@@ -28,7 +29,7 @@ const EXEC_ARGV = [
   NETWORK_GUARD,
 ];
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 let root: string;
 let db: Db;
 let hub: StreamHub;
@@ -47,6 +48,7 @@ function moduleWith(testProviderScript: string, clock: Clock = createSystemClock
     policy: fakePolicyPort(),
     projects: fakeProjectsPort(),
     ownerId: () => "u1",
+    audit: { append: () => {}, fromWorker: () => null },
     config: {
       home: join(root, "pap"),
       piAgentDir: agentDir,

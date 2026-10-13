@@ -33,6 +33,8 @@ async function ownerThenReadOnly() {
     logger: bed.logger,
     publicOrigin: ORIGIN,
     allowedOrigins: new Set([ORIGIN]),
+    audit: { append: () => undefined },
+    secretsDir: bed.secretsDir,
   });
   const app = createHttpApp({
     allowedOrigins: new Set([ORIGIN]),

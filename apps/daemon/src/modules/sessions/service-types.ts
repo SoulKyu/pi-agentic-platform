@@ -16,6 +16,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import type { AuditPort } from "../audit/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { Exports } from "./exports.ts";
@@ -32,6 +33,10 @@ export interface SessionsServiceDeps {
   readonly hub: Pick<StreamHub, "publish">;
   /** The project's "always" rules: what every worker starts with, and what an "always" answer is saved in. */
   readonly policy: PolicyPort;
+  /** Where a worker's audit entries go (Task 10). */
+  readonly audit: AuditPort;
+  /** What the daemon knows of the workers' containment: "scope" when each runs in a systemd scope. */
+  readonly containment: "scope" | "none";
   /** Where a session's project is made (Task 6): one per folder scope, on demand. */
   readonly projects: ProjectsPort;
   /** The pending HTML exports (ADR 0006). */

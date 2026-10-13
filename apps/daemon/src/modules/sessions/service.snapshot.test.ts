@@ -1,13 +1,14 @@
 import { appendFileSync } from "node:fs";
-import { ALL_PERMISSIONS, type Caller, type EventFrame } from "@pap/contracts";
+import { type Caller, type EventFrame } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { codeOf } from "./testing/helpers.ts";
 import { createServiceBed } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 const confirm = {
   type: "extension_ui_request" as const,
   id: "d1",
@@ -232,7 +233,7 @@ describe("preparing a read (R108)", () => {
   it("loads nothing for a caller who may not read, or for a session that is not there", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);
-    const stranger: Caller = { userId: "u2", permissions: new Set(ALL_PERMISSIONS) };
+    const stranger: Caller = testCaller({ userId: "u2" });
     expect(await codeOf(bed.service.prepareSubscription("p1", stranger))).toBe("not_found");
     expect(await codeOf(bed.service.prepareSubscription("ghost", owner))).toBe("not_found");
     expect(bed.transcript.loads).toBe(0);
@@ -302,7 +303,7 @@ describe("the session stream", () => {
 });
 
 describe("what is recorded about a session", () => {
-  it("keeps run boundaries, policy decisions and worker exits, in order, and only for sessions that exist", async () => {
+  it("keeps run boundaries and worker exits, in order, and only for sessions that exist", async () => {
     bed = build();
     await bed.service.create(bed.work, owner);
     bed.emit(0, { type: "agent_start" });
@@ -317,7 +318,8 @@ describe("what is recorded about a session", () => {
     const kinds = bed.db
       .all<{ kind: string }>("SELECT kind FROM session_events ORDER BY id")
       .map((row) => row.kind);
-    expect(kinds).toEqual(["run_start", "policy", "run_end", "worker_exit"]);
+    // The audit entry went to the audit module, not to the journal.
+    expect(kinds).toEqual(["run_start", "run_end", "worker_exit"]);
   });
 
   it("does not fail a command because an event could not be recorded", async () => {

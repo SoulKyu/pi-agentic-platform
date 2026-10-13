@@ -119,12 +119,9 @@ export function loadConfig(input: ConfigInput): Config {
   if (workerImport !== undefined && !isAbsolute(workerImport))
     throw new ConfigError("PAP_TEST_WORKER_IMPORT must be an absolute path");
   return {
-    home: directoryFrom(
-      input.env.PAP_HOME,
-      "PAP_HOME",
-      input.homedir,
-      devId ? join(input.homedir, ".pap-dev", devId) : join(input.homedir, ".pap"),
-    ),
+    home: devId
+      ? directoryFrom(input.env.PAP_HOME, "PAP_HOME", input.homedir, join(input.homedir, ".pap-dev", devId))
+      : homeFrom(input.env, input.homedir),
     host,
     port,
     dev,
@@ -168,6 +165,11 @@ export function loadConfig(input: ConfigInput): Config {
     staticRoot: input.staticRoot,
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),
   };
+}
+
+/** `$PAP_HOME`, or `~/.pap`: what `pap serve` and every CLI admin command open. */
+export function homeFrom(env: NodeJS.ProcessEnv, homedir: string): string {
+  return directoryFrom(env.PAP_HOME, "PAP_HOME", homedir, join(homedir, ".pap"));
 }
 
 // Empty means unset and a leading ~ expands, exactly as Pi's getAgentDir() does, so pap and Pi always

@@ -51,3 +51,46 @@ describe("login challenges", () => {
     expect(() => challenges.take(challenge)).toThrow(PapError);
   });
 });
+
+describe("used nonces (R85)", () => {
+  const MINUTE = 60_000;
+
+  it("outlive their expiry by five minutes: a clock stepped back cannot replay one", async () => {
+    const stepped = createFakeClock();
+    const own = createLoginChallenges(stepped, TTL, KEY);
+    const challenge = own.issue().toString("base64url");
+    own.take(challenge);
+    await stepped.advance(TTL + 4 * MINUTE);
+    own.take(own.issue().toString("base64url")); // any later answer sweeps the table
+    await stepped.advance(-(TTL + 2 * MINUTE)); // the challenge is valid again by the clock
+    expect(() => own.take(challenge)).toThrow(new PapError("unauthenticated"));
+  });
+
+  it("are forgotten once expiry plus five minutes has passed", async () => {
+    const stepped = createFakeClock();
+    const own = createLoginChallenges(stepped, TTL, KEY);
+    const challenge = own.issue().toString("base64url");
+    own.take(challenge);
+    await stepped.advance(TTL + 5 * MINUTE);
+    own.take(own.issue().toString("base64url"));
+    await stepped.advance(-(TTL + 5 * MINUTE));
+    expect(() => own.take(challenge)).not.toThrow();
+  });
+
+  it("are held for 10 000 at most: a full table of live nonces refuses new answers and forgets none", async () => {
+    const stepped = createFakeClock();
+    let full = 0;
+    const own = createLoginChallenges(stepped, TTL, KEY, () => void (full += 1));
+    const first = own.issue().toString("base64url");
+    own.take(first);
+    for (let i = 1; i < 10_000; i++) own.take(own.issue().toString("base64url"));
+    expect(full).toBe(0);
+    expect(() => own.take(own.issue().toString("base64url"))).toThrow(new PapError("unauthenticated"));
+    expect(full).toBe(1);
+    // A replay is refused as a replay, not as a full table.
+    expect(() => own.take(first)).toThrow(new PapError("unauthenticated"));
+    expect(full).toBe(1);
+    await stepped.advance(TTL + 5 * MINUTE);
+    expect(() => own.take(own.issue().toString("base64url"))).not.toThrow();
+  });
+});

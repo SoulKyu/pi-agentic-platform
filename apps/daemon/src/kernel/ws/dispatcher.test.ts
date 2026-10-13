@@ -1,10 +1,4 @@
-import {
-  ALL_PERMISSIONS,
-  PapError,
-  type Caller,
-  type HandlerContext,
-  type HandlerTable,
-} from "@pap/contracts";
+import { PapError, type Caller, type HandlerContext, type HandlerTable } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../clock.ts";
 import type { ReceiptStore } from "../db/receipts.ts";
@@ -12,8 +6,9 @@ import { silentLogger, type LogFields, type Logger } from "../logger.ts";
 import { sha256Hex } from "../ids.ts";
 import { canonicalJson, createDispatcher } from "./dispatcher.ts";
 import { systemHandlers } from "./system-handlers.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 const ctx = (caller: Caller = owner): HandlerContext => ({
   caller,
   connectionId: "c1",
@@ -84,7 +79,7 @@ describe("dispatcher", () => {
 
   it("checks the permission before anything else", async () => {
     const { dispatch, create: handler } = setup();
-    const reader: Caller = { userId: "u1", permissions: new Set(["sessions:read"]) };
+    const reader: Caller = testCaller({ permissions: new Set(["sessions:read"]) });
     expect(await dispatch(create(2, "cmd-00000001"), ctx(reader))).toEqual({
       id: 2,
       ok: false,
@@ -130,7 +125,7 @@ describe("dispatcher", () => {
 
   it("scopes receipts to the caller: another user's commandId runs its own handler", async () => {
     const { dispatch, create: handler } = setup();
-    const other: Caller = { userId: "u2", permissions: new Set(ALL_PERMISSIONS) };
+    const other: Caller = testCaller({ userId: "u2" });
     await dispatch(create(1, "cmd-00000009"), ctx());
     await dispatch(create(2, "cmd-00000009"), ctx(other));
     expect(handler).toHaveBeenCalledTimes(2);

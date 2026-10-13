@@ -9,12 +9,13 @@ import {
   type InlineExtension,
   ProjectTrustStore,
 } from "@earendil-works/pi-coding-agent";
-import type { AuditEntry, InitRecord } from "@pap/contracts";
+import { type InitRecord, POLICY_EXTENSION_PATH, type PolicyAuditEntry } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ApprovalOutbound, createApprovals } from "./approvals.ts";
 import { type ExtensionErrorReport, openSession, type OpenSessionDeps } from "./open-session.ts";
-import { POLICY_EXTENSION_NAME, POLICY_EXTENSION_PATH } from "./policy/extension.ts";
+import { POLICY_EXTENSION_NAME } from "./policy/extension.ts";
 import { RULES } from "./testing/host-bed.ts";
+import { idleTaint, NO_SECRETS } from "./testing/pipeline-bed.ts";
 import { blockedAttempts } from "./testing/network-guard.ts";
 import { createUiBridge, type UiOutbound } from "./ui-bridge.ts";
 
@@ -27,7 +28,7 @@ let marker: string;
 let opened: AgentSession[];
 let requests: Array<UiOutbound | ApprovalOutbound>;
 let reports: ExtensionErrorReport[];
-let audits: AuditEntry[];
+let audits: PolicyAuditEntry[];
 
 beforeEach(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "pap-open-")));
@@ -72,7 +73,9 @@ async function open(overrides: Partial<OpenSessionDeps> = {}) {
     approvals,
     rules: () => RULES,
     rulesVersion: () => 0,
+    taint: idleTaint(),
     audit: (entry) => audits.push(entry),
+    secrets: NO_SECRETS,
     onEvent: () => {},
     onExtensionError: (report) => reports.push(report),
     ...overrides,
@@ -214,7 +217,7 @@ describe("pap-policy stays the last extension", () => {
     expect(ask.message).toContain("echo safe # rewritten");
     approvals.resolve({ id: ask.id, answer: "deny" });
     expect(await result).toEqual({ block: true, reason: "Denied by the user." });
-    expect(audits).toEqual([{ toolCallId: "c1", tool: "bash", category: "exec", decision: "denied" }]);
+    expect(audits).toMatchObject([{ toolCallId: "c1", tool: "bash", category: "exec", decision: "denied" }]);
   });
 });
 

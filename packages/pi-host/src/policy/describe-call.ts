@@ -9,10 +9,12 @@ export type CallDescription =
 
 // Whitespace runs longer than 32 characters collapse into a marker; every other character the eye cannot
 // see (controls except \n and \t, format, separator, private-use, unassigned, default-ignorable, lone
-// surrogates) is spelled out.
+// surrogates) is spelled out. So are the lookalike blanks (R91, M5R31): U+00A0, U+1680, U+2000-U+200A, U+202F,
+// U+205F, U+3000 and the braille blank U+2800, which pass for a space or an empty name.
 const LONG_BLANK_RUN = /[\p{Zs}\t\n]{33,}/u;
+const LOOKALIKE_BLANKS = "\\u{00A0}\\u{1680}\\u{2000}-\\u{200A}\\u{202F}\\u{205F}\\u{3000}\\u{2800}";
 const HIDDEN_OR_BLANK_RUN = new RegExp(
-  `${LONG_BLANK_RUN.source}|[\\p{Cc}\\p{Cf}\\p{Cs}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}]`,
+  `${LONG_BLANK_RUN.source}|[\\p{Cc}\\p{Cf}\\p{Cs}\\p{Co}\\p{Cn}\\p{Zl}\\p{Zp}\\p{Default_Ignorable_Code_Point}${LOOKALIKE_BLANKS}]`,
   "gu",
 );
 
@@ -29,7 +31,7 @@ function blankRunMarker(run: string): string {
   return `⟨${parts.join(", ")}⟩`;
 }
 
-function showHidden(text: string, counter: { hidden: number }): string {
+export function showHidden(text: string, counter: { hidden: number }): string {
   return text.replace(HIDDEN_OR_BLANK_RUN, (match) => {
     if (match.length > 32) return blankRunMarker(match);
     if (match === "\n" || match === "\t") return match;
@@ -62,11 +64,18 @@ export function describeCall(toolName: string, input: unknown, view: CallView): 
   if (Buffer.byteLength(payload, "utf8") > MAX_RAW_BYTES) return { reviewable: false };
   const counter = { hidden: 0 };
   const call = `${showHidden(toolName, counter)}: ${showHidden(payload, counter)}`;
-  const destination = view.review
-    ? [
-        `→ ${view.review.target === undefined ? "unknown location" : showHidden(view.review.target, counter)} (${view.review.why})`,
-      ]
-    : [];
+  const arrow = (path: string | undefined, label: string) =>
+    `→ ${path === undefined ? "unknown location" : showHidden(path, counter)} (${label})`;
+  const review = view.review;
+  // With a second reading each line says why it matters for its own file.
+  const destination = !review
+    ? []
+    : review.kernelTarget === undefined
+      ? [arrow(review.target, review.why)]
+      : [
+          arrow(review.target, review.targetLabel ?? review.why),
+          arrow(review.kernelTarget, review.kernelLabel ?? review.why),
+        ];
   const header = [
     plural([...payload].length, "character"),
     plural(payload.split("\n").length, "line"),

@@ -64,10 +64,25 @@ describe("SettingsScreen", () => {
       "Appearance",
       "Keyboard shortcuts",
       "Language",
+      "Approvals",
       "Account & devices",
     ]);
-    expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([null, null, "page", null]);
+    expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([null, null, "page", null, null]);
     expect(page.container.querySelector("h1")?.textContent).toBe("Language");
+    await page.unmount();
+  });
+
+  it("shows the Approvals section with its intro, in English and French", async () => {
+    const page = await shown("/settings/approvals");
+    expect(page.container.querySelector("h1")?.textContent).toBe("Approvals");
+    expect(page.container.textContent).toContain(
+      "What the agent may do without asking you, and what it may never do.",
+    );
+    await act(async () => setLocale("fr"));
+    expect(page.container.querySelector("h1")?.textContent).toBe("Approbations");
+    expect(page.container.textContent).toContain(
+      "Ce que l'agent peut faire sans vous demander, et ce qu'il ne peut jamais faire.",
+    );
     await page.unmount();
   });
 

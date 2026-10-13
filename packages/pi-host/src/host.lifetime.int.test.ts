@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEV_EXEC_ARGV, PI_HOST_MAIN } from "./testing/fork-host.ts";
-import { bashScript, createHostBed, isApproval, textOf, toolText } from "./testing/host-bed.ts";
+import { bashScript, createHostBed, isApproval, isCallAudit, textOf, toolText } from "./testing/host-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -69,7 +69,7 @@ describe("pi-host worker: records it cannot read", () => {
     const end = await host.waitFor((r) => r.type === "tool_execution_end");
     expect(end.isError).toBe(true);
     expect(toolText(end)).toContain("could not evaluate this call");
-    expect(host.records.find((r) => r.type === "audit")).toMatchObject({
+    expect(host.records.find(isCallAudit)).toMatchObject({
       entry: { decision: "denied", reason: "dialog closed" },
     });
   });

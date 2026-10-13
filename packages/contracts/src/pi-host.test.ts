@@ -1,18 +1,17 @@
 import { describe, expect, it } from "vitest";
-import {
-  AuditEntry,
-  DaemonToWorker,
-  InitRecord,
-  PolicyRules,
-  TOOL_CATEGORIES,
-  parseWorkerRecord,
-} from "./index.ts";
+import { DaemonToWorker, InitRecord, PolicyRules, TOOL_CATEGORIES, parseWorkerRecord } from "./index.ts";
 
 describe("worker records", () => {
   it("parses pap records strictly", () => {
     const ready = { type: "ready", sessionFile: "/s.jsonl", sessionId: "abc", piVersion: "1.1.0" };
     expect(parseWorkerRecord(ready)).toEqual({ ...ready, leafId: null, sessionName: null });
     expect(parseWorkerRecord({ type: "ready", sessionId: "abc" })).toBeNull();
+  });
+
+  it("passes an audit record through with its entry untouched: the daemon judges it (M5R113)", () => {
+    const entry = { kind: "call", tool: 7 };
+    expect(parseWorkerRecord({ type: "audit", entry })).toEqual({ type: "audit", entry });
+    expect(parseWorkerRecord({ type: "audit" })).toEqual({ type: "audit", entry: undefined });
   });
 
   it("keeps extra fields of extension_ui_request", () => {
@@ -51,7 +50,6 @@ describe("worker record routing", () => {
     "response",
     "extension_ui_request",
     "extension_ui_closed",
-    "audit",
     "health",
     "extension_error",
     "custom_render",
@@ -61,6 +59,21 @@ describe("worker record routing", () => {
 
   it.each(PAP_RECORD_TYPES)("never forwards a malformed %s as a Pi event", (type) => {
     expect(parseWorkerRecord({ type })).toBeNull();
+  });
+
+  it("never forwards an audit record without an entry as a Pi event (the daemon judges the entry, M5R113)", () => {
+    expect(parseWorkerRecord({ type: "audit" })).toEqual({ type: "audit" });
+  });
+});
+
+describe("taint record", () => {
+  it("is a worker record of its own, never forwarded as a Pi event (M5R122)", () => {
+    expect(parseWorkerRecord({ type: "taint", epoch: 3 })).toEqual({ type: "taint", epoch: 3 });
+  });
+
+  it("carries the worker's taint epoch, a non-negative integer (M5R60)", () => {
+    for (const epoch of [undefined, -1, 1.5, "1"])
+      expect(parseWorkerRecord({ type: "taint", epoch })).toBeNull();
   });
 });
 
@@ -123,17 +136,6 @@ describe("tool categories", () => {
   it("includes unknown for tools with no known category", () => {
     expect(TOOL_CATEGORIES).toEqual(["read", "edit", "exec", "network", "external-write", "unknown"]);
   });
-
-  it("accepts every category in an audit entry and rejects others", () => {
-    for (const category of TOOL_CATEGORIES) {
-      expect(AuditEntry.safeParse({ toolCallId: "t1", tool: "x", category, decision: "block" }).success).toBe(
-        true,
-      );
-    }
-    expect(
-      AuditEntry.safeParse({ toolCallId: "t1", tool: "x", category: "other", decision: "block" }).success,
-    ).toBe(false);
-  });
 });
 
 const KEY = "a".repeat(64);
@@ -153,8 +155,38 @@ describe("protocol v2 records", () => {
     };
     expect(parseWorkerRecord(render)).toEqual(render);
     expect(parseWorkerRecord({ type: "custom_close", id: "p1" })).toEqual({ type: "custom_close", id: "p1" });
-    expect(parseWorkerRecord(approval)).toEqual(approval);
+    expect(parseWorkerRecord(approval)).toEqual({ ...approval, tainted: false });
     expect(parseWorkerRecord({ type: "custom_render", id: "p1" })).toBeNull();
+  });
+
+  describe("taint and guard on an approval_request (M5R5)", () => {
+    const base = {
+      type: "approval_request",
+      id: "a1",
+      category: "exec",
+      title: "Run?",
+      message: "bash: ls",
+      answers: ["deny", "once"],
+      tool: "bash",
+      key: KEY,
+    };
+
+    it("defaults tainted to false and keeps both fields when given", () => {
+      expect(parseWorkerRecord(base)).toEqual({ ...base, tainted: false });
+      expect(parseWorkerRecord({ ...base, tainted: true, guard: "turns" })).toEqual({
+        ...base,
+        tainted: true,
+        guard: "turns",
+      });
+    });
+
+    it("answers an unknown guard rule as malformed", () => {
+      expect(parseWorkerRecord({ ...base, guard: "x" })).toEqual({
+        type: "approval_request_invalid",
+        id: "a1",
+        reason: "malformed",
+      });
+    });
   });
 
   describe("an approval_request the schema refuses", () => {

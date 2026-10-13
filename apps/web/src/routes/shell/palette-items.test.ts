@@ -95,7 +95,13 @@ describe("buildPaletteItems", () => {
     open[1]?.run();
     expect(navigate).toHaveBeenCalledWith({ kind: "session", id: "a" });
     const settings = items.filter((i) => i.group === "settings");
-    expect(settings.map((i) => i.title)).toEqual(["Appearance", "Shortcuts", "Language", "Account"]);
+    expect(settings.map((i) => i.title)).toEqual([
+      "Appearance",
+      "Shortcuts",
+      "Language",
+      "Approvals",
+      "Account",
+    ]);
     settings[1]?.run();
     expect(navigate).toHaveBeenLastCalledWith({ kind: "settings", section: "shortcuts" });
   });

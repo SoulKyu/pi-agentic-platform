@@ -1,9 +1,10 @@
-import { ALL_PERMISSIONS, type Caller, type HandlerContext, PapError } from "@pap/contracts";
+import { type Caller, type HandlerContext, PapError } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { policyRpc } from "./rpc.ts";
 import type { PolicyService } from "./service.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const caller: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const caller: Caller = testCaller();
 const ctx: HandlerContext = {
   caller,
   connectionId: "c1",
@@ -32,7 +33,7 @@ describe("policy rpc", () => {
   it("revokes for the caller and lets not_found through", async () => {
     const { rpc, service } = setup();
     expect(await rpc["policy.revokeRule"]({ ruleId: "r1" }, ctx)).toEqual({ ok: true });
-    expect(service.revoke).toHaveBeenCalledWith("u1", "r1");
+    expect(service.revoke).toHaveBeenCalledWith(caller, "r1");
     const failing = setup({
       revoke: vi.fn(() => {
         throw new PapError("not_found");

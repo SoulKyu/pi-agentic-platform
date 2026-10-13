@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ApprovalAnswer, ApprovalAnswers, AuditEntry, GrantKey, TOOL_CATEGORIES } from "./policy.ts";
+import { ApprovalAnswer, ApprovalAnswers, GrantKey, GuardRule, TOOL_CATEGORIES } from "./policy.ts";
 import { SessionName } from "./streams.ts";
 
 // daemon → worker
@@ -151,6 +151,10 @@ export const ApprovalRequestRecord = z.object({
   answers: ApprovalAnswers,
   tool: z.string().min(1).max(256),
   key: GrantKey,
+  tainted: z.boolean().default(false),
+  guard: GuardRule.optional(),
+  /** The call the question is about: the audit row of its answer names who answered (M4 of the M5 final review). */
+  toolCallId: z.string().max(256).optional(),
 });
 export type ApprovalRequestRecord = z.infer<typeof ApprovalRequestRecord>;
 export const ResponseRecord = z.object({
@@ -169,7 +173,19 @@ export const UiRequestRecord = z.looseObject({
 });
 export type UiRequestRecord = z.infer<typeof UiRequestRecord>;
 const UiClosedRecord = z.object({ type: z.literal("extension_ui_closed"), id: z.string() });
-const AuditRecord = z.object({ type: z.literal("audit"), entry: AuditEntry });
+/**
+ * `entry` travels as unknown: the audit module parses it with `PolicyAuditEntry`, so a malformed one becomes an
+ * `invalid` row there instead of vanishing in the parser (M5R113).
+ */
+const AuditRecord = z.object({ type: z.literal("audit"), entry: z.unknown().optional() });
+/**
+ * Sent when untrusted content raises the worker's taint, and again at each `agent_end` while it holds (M5R122).
+ * `epoch` is the worker's current taint epoch: the daemon ignores a report older than the last clear (M5R60).
+ */
+export const TaintRecord = z.object({ type: z.literal("taint"), epoch: z.number().int().nonnegative() });
+export type TaintRecord = z.infer<typeof TaintRecord>;
+/** Where Pi reports the policy's inline extension, and the `extension_error` source the daemon recognises it by. */
+export const POLICY_EXTENSION_PATH = "<inline:pap-policy>";
 /**
  * Every 30 s. `descendants`: the live processes below the worker that are outside its process group, which are the
  * ones the agent started (M2R107); 0 when an older worker does not say, and off Linux.
@@ -205,6 +221,7 @@ const PapRecord = z.discriminatedUnion("type", [
   UiClosedRecord,
   AuditRecord,
   HealthRecord,
+  TaintRecord,
   ExtensionErrorRecord,
   CustomRenderRecord,
   CustomCloseRecord,

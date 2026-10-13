@@ -1,13 +1,13 @@
 import { mkdir, symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPolicyBed } from "../testing/policy-bed.ts";
+import { createPipelineBed } from "../testing/pipeline-bed.ts";
 import { checkEditTarget } from "./target-path.ts";
 
 // The Pi agent directory and pap's data directory are both protected roots: the worker passes both.
-let bed: Awaited<ReturnType<typeof createPolicyBed>>;
+let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeEach(async () => {
-  bed = await createPolicyBed();
+  bed = await createPipelineBed();
   vi.stubEnv("HOME", join(bed.base, "home"));
 });
 afterEach(async () => {

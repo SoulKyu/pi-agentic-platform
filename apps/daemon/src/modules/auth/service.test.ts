@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,12 +9,13 @@ import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { sha256Hex } from "../../kernel/ids.ts";
 import { createLogger } from "../../kernel/logger.ts";
+import { createKnownDevices } from "./known-device.ts";
 import { AUTH_MIGRATIONS } from "./index.ts";
 import { dummyHash, verifyPassword } from "./passwords.ts";
 import { createAuthService, RateLimitedError, type AuthService } from "./service.ts";
 import { createSetupToken } from "./setup-token.ts";
 import { createAuthStore } from "./store.ts";
-import { createThrottle } from "./throttle.ts";
+import { createThrottle, type Throttle } from "./throttle.ts";
 
 // Both calls go through to the real implementation; the spies only record who verifies what.
 vi.mock("./passwords.ts", async (importOriginal) => {
@@ -27,10 +29,14 @@ let dir: string;
 let db: Db;
 let clock: FakeClock;
 let service: AuthService;
+let throttle: Throttle;
+let sessionThrottle: Throttle;
+const audit = { append: vi.fn() };
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), "pap-auth-"));
   clock = createFakeClock();
   lines = [];
+  audit.append.mockClear();
   const logger = createLogger({ level: "debug", clock, write: (line) => lines.push(line) });
   db = migrate({
     dbPath: join(dir, "s.db"),
@@ -40,13 +46,18 @@ beforeEach(() => {
     logger,
   }).db;
   lines.length = 0;
+  throttle = createThrottle(clock, { whenFull: "refuse" });
+  sessionThrottle = createThrottle(clock, { whenFull: "refuse" });
   service = createAuthService({
+    devices: createKnownDevices(randomBytes(32)),
     store: createAuthStore(db),
     clock,
     logger,
     publicOrigin: "http://localhost:7777",
-    throttle: createThrottle(clock),
+    throttle,
+    sessionThrottle,
     setupToken: createSetupToken(true),
+    audit,
   });
 });
 afterEach(() => {
@@ -126,6 +137,50 @@ describe("auth service", () => {
     expect(row?.id_hash).toBe(sha256Hex(session.cookieValue));
     expect(row?.id_hash).not.toBe(session.cookieValue);
     expect(session.cookieValue.length).toBeGreaterThanOrEqual(43);
+  });
+
+  it("stores a public id, the socket address and the method on every browser session, never the cookie", async () => {
+    const setup = await service.setup(setupInput(tokenOf(service.setupUrl())));
+    await clock.advance(2000);
+    const login = await service.login(loginInput(PASSWORD, "2001:db8::1"));
+    const passkey = service.startSession(createAuthStore(db).findUserByName("owner")?.id ?? "", "ua", {
+      ip: "10.0.0.7",
+      method: "passkey",
+      passkeyRef: "c".repeat(32),
+    });
+    const rows = db.all<{
+      id_hash: string;
+      public_id: string;
+      ip: string;
+      method: string;
+      passkey_ref: string | null;
+    }>("SELECT id_hash, public_id, ip, method, passkey_ref FROM auth_sessions ORDER BY created_at, rowid");
+    expect(rows.map((r) => [r.ip, r.method, r.passkey_ref])).toEqual([
+      ["127.0.0.1", "setup", null],
+      ["2001:db8::1", "password", null],
+      ["10.0.0.7", "passkey", "c".repeat(32)],
+    ]);
+    for (const [row, started] of [
+      [rows[0], setup],
+      [rows[1], login],
+      [rows[2], passkey],
+    ] as const) {
+      expect(row?.public_id).toMatch(/^[0-9a-f]{32}$/);
+      expect(row?.public_id).not.toBe(row?.id_hash);
+      expect(started.cookieValue).not.toContain(row?.public_id ?? "?");
+      expect(service.authenticate(started.cookieValue)?.credentialId).toBe(row?.public_id);
+    }
+    expect(new Set(rows.map((r) => r.public_id)).size).toBe(3);
+  });
+
+  it("keeps at most 64 characters of the address and stores no address when the socket had none", () => {
+    const userId = "u1";
+    db.run("INSERT INTO users (id, username, password_hash, created_at) VALUES ('u1', 'x', 'x', 0)");
+    service.startSession(userId, undefined, { ip: "9".repeat(100), method: "password" });
+    service.startSession(userId, undefined, { ip: "unknown", method: "password" });
+    expect(
+      db.all<{ ip: string | null }>("SELECT ip FROM auth_sessions ORDER BY rowid").map((r) => r.ip),
+    ).toEqual(["9".repeat(64), null]);
   });
 
   it("logs in with the right password, rejects a wrong one, then throttles", async () => {
@@ -237,12 +292,15 @@ describe("auth service", () => {
   describe("on a database that cannot be written (R130)", () => {
     const serviceOver = (extendSession: () => void) =>
       createAuthService({
+        devices: createKnownDevices(randomBytes(32)),
         store: { ...createAuthStore(db), extendSession },
         clock,
         logger: createLogger({ level: "debug", clock, write: () => {} }),
         publicOrigin: "http://localhost:7777",
-        throttle: createThrottle(clock),
+        throttle,
+        sessionThrottle,
         setupToken: createSetupToken(false),
+        audit,
       });
 
     it("still knows the caller when only the slide fails, and does not slide", async () => {

@@ -1,32 +1,25 @@
 import { Button } from "@pap/ui";
-import { useState } from "react";
-import { AddPasskey } from "../../features/auth/AddPasskey.tsx";
+import { DevicesList } from "../../features/auth/DevicesList.tsx";
+import { PasskeysList } from "../../features/auth/PasskeysList.tsx";
+import { TokensPanel } from "../../features/auth/TokensPanel.tsx";
 import { useT } from "../../i18n/index.ts";
 import { signOut } from "../shell/sign-out.ts";
 import { useShell } from "../shell/shell-context.ts";
 
-/** Username, passkeys and sign-out. Connected devices arrive with M5 (M3R107). */
+/** Username, connected devices, passkeys, API tokens and sign-out. */
 export function AccountSection() {
   const t = useT();
   const { username, passkeysAvailable, onSignedOut } = useShell();
-  const [added, setAdded] = useState(false);
   return (
-    <div className="flex flex-col items-start gap-s4">
+    <div className="flex flex-col items-start gap-s5">
       {username ? (
         <p className="text-ui text-muted">
           {t("settings.account.username")} <span className="font-mono text-fg">{username}</span>
         </p>
       ) : null}
-      {passkeysAvailable ? (
-        <div className="flex flex-col items-start gap-s2">
-          <AddPasskey onAdded={() => setAdded(true)} onSignedOut={onSignedOut} />
-          {added ? (
-            <p role="status" className="text-ui text-muted">
-              {t("account.passkeyAdded")}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
+      <DevicesList signOutHere={() => signOut(onSignedOut)} />
+      <PasskeysList passkeysAvailable={passkeysAvailable} onSignedOut={onSignedOut} />
+      <TokensPanel onSignedOut={onSignedOut} />
       <Button variant="secondary" onClick={() => signOut(onSignedOut)}>
         {t("settings.account.signOut")}
       </Button>

@@ -2,39 +2,27 @@ import type {
   ExtensionFactory,
   InlineExtension,
   LoadExtensionsResult,
-  ToolCallEventResult,
 } from "@earendil-works/pi-coding-agent";
-import type { ApprovalAnswer, AuditEntry, PolicyRules, ToolCategory } from "@pap/contracts";
+import { POLICY_EXTENSION_PATH, type PolicyAuditEntry, type PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
-import { toolCategory } from "./categories.ts";
-import { type Decision, decide, decideEdit } from "./decide.ts";
-import { describeCall } from "./describe-call.ts";
-import { grantKey, grantPayload } from "./grant-key.ts";
-import { checkEditTarget, type EditReview } from "./target-path.ts";
+import { createPolicyGrants } from "./grants.ts";
+import { errorClass } from "../bounded.ts";
+import { evaluateToolCall, type PipelineDeps } from "./pipeline.ts";
+import { restoreStage, unrestoreInput } from "./restore.ts";
+import { onToolResult } from "./results.ts";
+import { createRunGuard, guardStages } from "./run-guard.ts";
+import type { SecretSource } from "./secrets.ts";
+import { createExternalRoots, type Taint } from "./taint.ts";
+import { classifyTool, type ToolFacts } from "./tool-kind.ts";
+
+export { createPolicyGrants, MAX_SESSION_GRANTS } from "./grants.ts";
+export { DENIED_REASON, evaluateToolCall, FAIL_CLOSED_REASON, TOO_LONG_REASON } from "./pipeline.ts";
 
 export const POLICY_EXTENSION_NAME = "pap-policy";
-// What Pi reports as the path of an inline extension (measured in docs/spikes/s1.md).
-export const POLICY_EXTENSION_PATH = `<inline:${POLICY_EXTENSION_NAME}>`;
-export const DENIED_REASON = "Denied by the user.";
-export const FAIL_CLOSED_REASON = "pap-policy could not evaluate this call, so it was blocked (fail closed).";
-export const TOO_LONG_REASON = "too long to review — split the work";
-
-const MAX_AUDIT_FIELD = 256;
-/** Session grants, and provisional always grants, kept per worker: the oldest is dropped past this (M2R74). */
-export const MAX_SESSION_GRANTS = 1000;
-
-const TITLES: Readonly<Record<ToolCategory, string>> = {
-  read: "Allow reading?",
-  edit: "Allow this edit?",
-  exec: "Run a command?",
-  network: "Allow a network request?",
-  "external-write": "Allow this tool?",
-  unknown: "Allow this tool?",
-};
 
 export interface PolicyConfig {
   rules(): PolicyRules | null;
-  audit(entry: AuditEntry): void;
+  audit(entry: PolicyAuditEntry): void;
   /** The Pi agent directory of the session: settings, extensions and credentials live there. */
   agentDir: string;
   /** pap's data directory: the database, secrets and agent homes live there. */
@@ -43,184 +31,83 @@ export interface PolicyConfig {
   ask(request: ApprovalAsk, signal?: AbortSignal): Promise<ApprovalOutcome>;
   /** Moves on every policy update, valid or not: a provisional "always" grant ends with it. */
   rulesVersion(): number;
-}
-
-export interface PolicyDeps extends Omit<PolicyConfig, "rulesVersion"> {
-  readonly grants: PolicyGrants;
-  /** Whether `toolName` is the tool Pi ships under that name, not an extension that took the name over. */
-  isBuiltinTool(toolName: string): boolean;
-}
-
-interface PolicyEvent {
-  readonly toolCallId: string;
-  readonly toolName: string;
-  readonly input: unknown;
-}
-
-interface PolicyContext {
-  readonly hasUI: boolean;
-  readonly cwd: string;
-  readonly signal?: AbortSignal | undefined;
+  /** The session's taint: stage 07 raises it, the pipeline reads it. */
+  taint: Taint;
+  /** The secrets the worker knows (stage 06). */
+  secrets: SecretSource;
+  /** Redacts audit arguments; by default what `secrets` knows. */
+  redact?: PipelineDeps["redact"];
+  /** Told the tools declared to the model at each `agent_start`; a throw is logged, never raised into the run. */
+  onAgentStart?(activeToolNames: string[]): void;
 }
 
 type NamedInlineExtension = Exclude<InlineExtension, ExtensionFactory>;
-
-/** The answers a card offers, in DESIGN.md order (Deny / Session / Always / Allow once). */
-export function answersFor(category: ToolCategory, review: EditReview | undefined): ApprovalAnswer[] {
-  // A write outside the project or to a protected path is judged one call at a time: no grant covers the next one.
-  if (review) return ["deny", "once"];
-  // A tool pap cannot classify may do anything: it is never remembered beyond this worker.
-  if (category === "unknown") return ["deny", "session", "once"];
-  return ["deny", "session", "always", "once"];
-}
-
-export interface PolicyGrants {
-  hasSession(key: string): boolean;
-  rememberSession(key: string): void;
-  /** The rules version now: read when a question is asked, and handed back to `rememberAlways` with its answer. */
-  version(): number;
-  /** An "always" answer the daemon has not pushed back yet: it lasts until the next policy update (M2-RT-01). */
-  hasProvisionalAlways(key: string): boolean;
-  /** `askedAt` is the version when the question was asked: an update that landed since then has already ended it. */
-  rememberAlways(key: string, askedAt: number): void;
-}
-
-/** One per worker; insertion-ordered, so the oldest grant is the first dropped at the cap. */
-export function createPolicyGrants(rulesVersion: () => number, max = MAX_SESSION_GRANTS): PolicyGrants {
-  const session = new Set<string>();
-  const provisional = new Map<string, number>();
-  return {
-    hasSession: (key) => session.has(key),
-    rememberSession(key) {
-      session.delete(key);
-      session.add(key);
-      if (session.size > max) session.delete(session.values().next().value as string);
-    },
-    version: rulesVersion,
-    hasProvisionalAlways: (key) => provisional.get(key) === rulesVersion(),
-    rememberAlways(key, askedAt) {
-      provisional.delete(key);
-      provisional.set(key, askedAt);
-      if (provisional.size > max) provisional.delete(provisional.keys().next().value as string);
-    },
-  };
-}
-
-async function decideCall(
-  event: PolicyEvent,
-  category: ToolCategory,
-  rules: PolicyRules,
-  ctx: PolicyContext,
-  protectedRoots: readonly string[],
-): Promise<{ decision: Decision; review?: EditReview }> {
-  if (category !== "edit") return { decision: decide(category, rules) };
-  const target =
-    typeof event.input === "object" && event.input !== null
-      ? (event.input as { path?: unknown }).path
-      : undefined;
-  const check = await checkEditTarget(target, ctx.cwd, protectedRoots);
-  return check.auto
-    ? { decision: decideEdit(rules, true) }
-    : { decision: decideEdit(rules, false), review: check.review };
-}
-
-export async function evaluateToolCall(
-  event: PolicyEvent,
-  ctx: PolicyContext,
-  deps: PolicyDeps,
-): Promise<ToolCallEventResult | undefined> {
-  let category: ToolCategory = "unknown";
-  const record = (decision: AuditEntry["decision"], reason?: string) =>
-    deps.audit({
-      toolCallId: event.toolCallId.slice(0, MAX_AUDIT_FIELD),
-      tool: event.toolName.slice(0, MAX_AUDIT_FIELD),
-      category,
-      decision,
-      ...(reason ? { reason } : {}),
-    });
-  try {
-    category = deps.isBuiltinTool(event.toolName) ? toolCategory(event.toolName) : "unknown";
-    const rules = deps.rules();
-    if (!rules) {
-      record("block", "no valid policy rules");
-      return { block: true, reason: FAIL_CLOSED_REASON };
-    }
-    const { decision, review } = await decideCall(event, category, rules, ctx, [deps.agentDir, deps.papHome]);
-    if (decision === "allow") {
-      record("allow");
-      return undefined;
-    }
-    if (decision === "block" || !ctx.hasUI) {
-      record("block", decision === "block" ? (review?.why ?? "category blocked") : "no UI to ask");
-      return { block: true, reason: `pap-policy blocked this ${category} call.` };
-    }
-    const description = describeCall(event.toolName, event.input, { exec: category === "exec", review });
-    if (!description.reviewable) {
-      record("block", "too long to review");
-      return { block: true, reason: TOO_LONG_REASON };
-    }
-    const key = grantKey(event.toolName, grantPayload(event.input, category === "exec"));
-    // A call with a review (outside the project, a protected path) is judged one call at a time (M2R71).
-    if (!review) {
-      const always =
-        rules.alwaysAllow.some((rule) => rule.tool === event.toolName && rule.key === key) ||
-        deps.grants.hasProvisionalAlways(key);
-      const grantedBy = deps.grants.hasSession(key) ? "session rule" : always ? "always rule" : null;
-      if (grantedBy) {
-        record("allow", grantedBy);
-        return undefined;
-      }
-    }
-    // Read before the question goes out: an update the worker takes while the card is open ends this answer (M2R73).
-    const askedAt = deps.grants.version();
-    const outcome = await deps.ask(
-      {
-        category,
-        title: TITLES[category],
-        message: description.message,
-        tool: event.toolName.slice(0, MAX_AUDIT_FIELD),
-        key,
-        answers: answersFor(category, review),
-      },
-      ctx.signal,
-    );
-    if (outcome.closed) {
-      record("denied", "dialog closed");
-      return { block: true, reason: FAIL_CLOSED_REASON };
-    }
-    if (outcome.answer === "deny") {
-      record("denied", review?.why);
-      return { block: true, reason: DENIED_REASON };
-    }
-    if (outcome.answer === "session") deps.grants.rememberSession(key);
-    // Never a session grant: a revoke must bite this worker too (M2-RT-01).
-    if (outcome.answer === "always") deps.grants.rememberAlways(key, askedAt);
-    record("approved", review ? `answer: ${outcome.answer}; ${review.why}` : `answer: ${outcome.answer}`);
-    return undefined;
-  } catch {
-    try {
-      record("block", "evaluation error");
-    } catch {
-      // The audit sink is what failed, or failed again: the block below is the only safe answer.
-    }
-    return { block: true, reason: FAIL_CLOSED_REASON };
-  }
-}
 
 export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExtension {
   return {
     name: POLICY_EXTENSION_NAME,
     hidden: true,
     factory: (pi) => {
-      const deps: PolicyDeps = {
+      const toolFacts = (name: string): ToolFacts | undefined => {
+        const info = pi.getAllTools().find((tool) => tool.name === name);
+        return info
+          ? {
+              path: info.sourceInfo.path,
+              ...(info.annotations?.readOnlyHint !== undefined
+                ? { readOnlyHint: info.annotations.readOnlyHint }
+                : {}),
+              ...(info.annotations?.openWorldHint !== undefined
+                ? { openWorldHint: info.annotations.openWorldHint }
+                : {}),
+            }
+          : undefined;
+      };
+      const guard = createRunGuard();
+      const { secrets } = config;
+      const deps: PipelineDeps = {
         ...config,
         grants: createPolicyGrants(config.rulesVersion),
-        isBuiltinTool: (toolName) =>
-          pi
-            .getAllTools()
-            .some((tool) => tool.name === toolName && tool.sourceInfo.path === `builtin:${toolName}`),
+        toolFacts,
+        taint: config.taint,
+        redact: config.redact ?? ((text) => secrets.current().text(text).text),
+        redactReason: (text) => secrets.current().textFolded(text).text,
+        stages: {
+          ...guardStages(guard),
+          restore: restoreStage(() => secrets.current().restorable()),
+          unrestore: unrestoreInput,
+        },
       };
+      const roots = createExternalRoots();
+      pi.on("tool_result", (event) =>
+        onToolResult(event, {
+          secrets,
+          taint: config.taint,
+          roots,
+          audit: config.audit,
+          classify: (name) => classifyTool(name, toolFacts(name)),
+        }),
+      );
       pi.on("tool_call", (event, ctx) => evaluateToolCall(event, ctx, deps));
+      pi.on("agent_start", () => {
+        roots.clear();
+        try {
+          guard.onRunStart();
+        } catch (error) {
+          process.stderr.write(`pi-host: run guard failed (${errorClass(error)})\n`);
+        }
+        try {
+          config.onAgentStart?.(pi.getActiveTools());
+        } catch (error) {
+          process.stderr.write(`pi-host: session entry failed (${errorClass(error)})\n`);
+        }
+      });
+      pi.on("message_end", (event) => {
+        try {
+          if (event.message.role === "assistant") guard.onTurn();
+        } catch (error) {
+          process.stderr.write(`pi-host: run guard failed (${errorClass(error)})\n`);
+        }
+      });
     },
   };
 }

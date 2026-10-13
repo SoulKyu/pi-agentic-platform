@@ -41,7 +41,7 @@ if (mode === "term-proof-child") {
 }
 if (mode === "stubborn") process.on("SIGTERM", () => {});
 if (mode === "garbage") {
-  for (const junk of [null, 5, "text", [], {}, { type: 7 }, { type: "response" }, { type: "ready" }, { type: "audit", entry: {} }, { type: "extension_error" }]) send(junk);
+  for (const junk of [null, 5, "text", [], {}, { type: 7 }, { type: "response" }, { type: "ready" }, { type: "audit", entry: {} }, { type: "health" }, { type: "extension_error" }]) send(junk);
 }
 if (mode === "unknown-response") send({ type: "response", id: "never-asked", command: "get_state", success: true });
 if (mode === "flood") for (let i = 0; i < 20000; i++) send({ type: "message_update", i });

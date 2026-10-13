@@ -1,12 +1,13 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ALL_PERMISSIONS, type Caller, type HandlerContext } from "@pap/contracts";
+import { type Caller, type HandlerContext, type WorkerRecord } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { silentLogger } from "../../kernel/logger.ts";
+import type { AuditPort } from "../audit/index.ts";
 import { NO_SCOPES, type WorkerScope, type WorkerScopes } from "../../kernel/supervisor/scope.ts";
 import { type SpawnWorkerOptions } from "../../kernel/supervisor/worker.ts";
 import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
@@ -15,6 +16,7 @@ import { createSessionsModule, SESSIONS_MIGRATIONS } from "./index.ts";
 import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { captureLogger } from "./testing/helpers.ts";
+import { testCaller } from "../../testing/caller.ts";
 
 // The real supervisor forks a process; here it only records what it was asked to start, and answers like a worker.
 const spawned = vi.hoisted(() => ({
@@ -23,6 +25,7 @@ const spawned = vi.hoisted(() => ({
   workers: [] as Array<{
     requests: Array<{ id: string; type: string; outputPath?: string }>;
     respond(id: string, reply: { data?: unknown }): void;
+    emit(record: WorkerRecord): void;
   }>,
 }));
 vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
@@ -51,7 +54,7 @@ vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
   },
 }));
 
-const owner: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const owner: Caller = testCaller();
 const ctx: HandlerContext = {
   caller: owner,
   connectionId: "c1",
@@ -102,6 +105,7 @@ function moduleWith(
   testProviderScript: string | null,
   logger = silentLogger,
   scopes: WorkerScopes = NO_SCOPES,
+  audit: AuditPort = { append: () => {}, fromWorker: () => null },
 ) {
   const hub = createStreamHub();
   const sessions = createSessionsModule({
@@ -112,6 +116,7 @@ function moduleWith(
     policy: fakePolicyPort(),
     projects: fakeProjectsPort(),
     ownerId: () => "u1",
+    audit,
     config: config(testProviderScript),
     workerUmask: 0o027,
     env: daemonEnv,
@@ -153,6 +158,26 @@ describe("sessions module", () => {
       PI_TELEMETRY: "0",
       PI_SKIP_VERSION_CHECK: "1",
     });
+  });
+
+  it("tells the audit module whether the workers run in a scope", async () => {
+    for (const [scopes, containment] of [
+      [{ ...NO_SCOPES, enabled: true, next: () => null }, "scope"],
+      [NO_SCOPES, "none"],
+    ] as const) {
+      const seen: string[] = [];
+      const audit: AuditPort = {
+        append: () => {},
+        fromWorker: (_session, _raw, context) => {
+          seen.push(context.containment);
+          return null;
+        },
+      };
+      const { sessions } = moduleWith(null, silentLogger, scopes, audit);
+      await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
+      spawned.workers.at(-1)?.emit({ type: "audit", entry: {} });
+      expect(seen).toEqual([containment]);
+    }
   });
 
   it("runs each worker in the next scope of the scopes, and in none when scopes are off", async () => {
@@ -245,5 +270,13 @@ describe("the exports directory (M2R96)", () => {
     await sessions.shutdownAll();
     expect(existsSync(exportsDir())).toBe(true);
     expect(readdirSync(exportsDir())).toEqual([]);
+  });
+
+  it("answers who owns a session, and null for an unknown one (M5R56)", async () => {
+    const { sessions } = moduleWith(null);
+    const { sessionId } = await sessions.rpc["sessions.create"]({ cwd: root }, ctx);
+    expect(sessions.ownerOf(sessionId)).toBe("u1");
+    expect(sessions.ownerOf("nope")).toBeNull();
+    await sessions.shutdownAll();
   });
 });

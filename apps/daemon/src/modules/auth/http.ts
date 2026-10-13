@@ -4,14 +4,23 @@ import type { Context, Hono, Next } from "hono";
 import { bodyLimit } from "hono/body-limit";
 import { deleteCookie, setCookie } from "hono/cookie";
 import { z } from "zod";
-import { readCookie, SESSION_COOKIE, SESSION_TTL_MS, sessionCookieAttributes } from "./cookies.ts";
+import {
+  deviceCookieOptions,
+  readCookie,
+  readCookies,
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  sessionCookieAttributes,
+} from "./cookies.ts";
+import { DEVICE_COOKIE } from "./known-device.ts";
 import { isAcceptablePassword } from "./passwords.ts";
-import { RateLimitedError, type AuthService, type StartedSession } from "./service.ts";
+import { RateLimitedError, USERNAME_PATTERN, type AuthService, type StartedSession } from "./service.ts";
 
 const MAX_BODY_BYTES = 16 * 1024;
-const Username = z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/);
+const Username = z.string().regex(USERNAME_PATTERN);
 const Password = z.string().refine(isAcceptablePassword);
 const SetupBody = z.object({ token: z.string().min(1).max(256), username: Username, password: Password });
+const ConfirmBody = z.object({ password: z.string().min(1).max(1024) });
 const LoginBody = z.object({ username: z.string().min(1).max(64), password: z.string().min(1).max(1024) });
 
 export async function readJson<T>(c: Context, schema: z.ZodType<T>): Promise<T | null> {
@@ -50,12 +59,20 @@ const SECURE_BY_CONFIG = "secureByConfig";
 const INSECURE_HTTP = "insecureHttp";
 const cookieAttributes = (c: Context) =>
   sessionCookieAttributes(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true);
+const deviceCookieAttributes = (c: Context) =>
+  deviceCookieOptions(c.req.url, c.get(SECURE_BY_CONFIG) !== false, c.get(INSECURE_HTTP) === true);
+
+/** Every `pap_device` value of the request: the first that validates is the one that counts. */
+export const deviceCookie = (c: Context): string[] => readCookies(c.req.header("cookie"), DEVICE_COOKIE);
 
 export function setSessionCookie(c: Context, session: StartedSession): void {
   setCookie(c, SESSION_COOKIE, session.cookieValue, {
     ...cookieAttributes(c),
     maxAge: session.maxAgeSeconds,
   });
+  if (session.deviceCookie !== undefined) {
+    setCookie(c, DEVICE_COOKIE, session.deviceCookie, deviceCookieAttributes(c));
+  }
 }
 
 // The address of the socket, never a forwarded header (R72). Without one every caller shares a single bucket.
@@ -88,7 +105,11 @@ export function mountAuthRoutes(
   app: Hono,
   deps: { service: AuthService; passkeysAvailable: boolean; secureByConfig: boolean; insecureHttp?: boolean },
 ): void {
-  const client = (c: Context) => ({ ip: clientIp(c), userAgent: c.req.header("user-agent") });
+  const client = (c: Context) => ({
+    ip: clientIp(c),
+    userAgent: c.req.header("user-agent"),
+    deviceCookie: deviceCookie(c),
+  });
   app.use("/auth/*", async (c: Context, next: Next) => {
     c.set(SECURE_BY_CONFIG, deps.secureByConfig);
     c.set(INSECURE_HTTP, deps.insecureHttp === true);
@@ -111,6 +132,20 @@ export function mountAuthRoutes(
   app.post("/auth/login", (c) =>
     startSessionFrom(c, LoginBody, (body) => deps.service.login({ ...body, ...client(c) }), 200),
   );
+  app.post("/auth/confirm", async (c) => {
+    const body = await readJson(c, ConfirmBody);
+    if (!body) return badRequest(c);
+    try {
+      await deps.service.confirmSession({
+        cookieValue: sessionCookie(c),
+        password: body.password,
+        ip: clientIp(c),
+      });
+      return c.body(null, 204);
+    } catch (error) {
+      return errorResponse(c, error);
+    }
+  });
   app.post("/auth/logout", (c) => {
     deps.service.logout(sessionCookie(c));
     deleteCookie(c, SESSION_COOKIE, cookieAttributes(c));

@@ -80,6 +80,15 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 - Model text goes through `Markdown`; raw HTML in it is shown as literal text (never parsed, never dropped). Code is highlighted only after 400 ms without a change, so a streaming fence is not highlighted per delta.
 - A polite live region (`data-announcer`) says a run ended (running to idle), a new approval, and the branch a switch landed on.
 
+## Policy and access screens (M5)
+
+- Settings sections are `appearance`, `shortcuts`, `language`, `approvals`, `account` (`SETTINGS_SECTIONS`). Every M5 screen and catalog is lazy: `catalog/settings-approvals.ts`, `settings-access.ts` (Settings chunk) and `catalog/session-policy.ts` (session chunk, registered by `register-policy-catalog.ts`).
+- Approvals (`features/policy/`): the default mode, blocked commands (lines validated with the contract's `DenyPattern`; the built-in preset switch with "What pap blocks" and "What it cannot catch"), the host list (off sends `null`, on and empty blocks every URL), always rules by project, and the audit viewer. The copy states the limits the owner accepted (full access limits a shell command by the blocked-command list only; the egress residuals). Save sends `baseRevision`; a `conflict` re-reads, a `timeout` re-reads first and is never re-sent (R105). Built-in ids are a hard-coded list (`BUILTIN_IDS`; pi-host is not importable); a pi-host test ties it to the shared list in contracts.
+- Audit viewer: rows are text only, clipped (reason 200, arguments 300 code points, `plain()` first), at most 1 000 rows, gap markers drawn apart. Fixtures with bidi or zero-width characters are built with `String.fromCodePoint`.
+- Account (`features/auth/`): devices, passkeys, tokens; `withStepUp` retries a `step_up_required` once with the same `commandId` after the password prompt (`StepUp.tsx`; the field is emptied as soon as it is read). Revoking this browser runs the sign-out flow.
+- Session policy bar (`SessionPolicy.tsx`): the mode select (full access asks inline first), the dashed external-content chip with Clear (inline ask), the "Manage approvals" link. Tainted cards say "external content"; guard cards add the guard line. Escape in an inline ask cancels the ask only.
+- Fenced output (`fence.vm.ts`): see Traps. Initial bundle after M5: 197.1 KB gzip against the 200 KB ceiling; the second merger re-measures (`budgets.json` rule `min(ceil(measured x 1.10), 200)`).
+
 ## Extension surfaces (`@pap/ui/extensions`, P2)
 
 - `InputRequestCard` (select / confirm / text shells), `StatusBar`, `Widgets`, `CustomPanel` and `AnsiText` live in `packages/ui/src/ai/` behind their own subpath, never the eager barrel: `build-output.int.test.ts` keeps their markers out of the initial assets. They take labels and data as props; `@pap/ui` knows nothing of `@pap/contracts`.
@@ -100,3 +109,4 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 - IME `keyCode` 229 and AltGr produce false chords: see the dispatcher bail-outs above.
 - No native `title` attribute. Colours reach components through token utilities only; no raw colours, no `[…]` arbitrary values.
 - A lazy-only component imported through a barrel lands in the initial bundle; `build-output.int.test.ts` catches it.
+- Fenced tool output (`features/sessions/fence.vm.ts`): only pap's exact format with a matching 12-hex id is shown in `Fence` ("Untrusted · <source>", text only); anything else stays plain text. The id is not a secret to the web (the page sees the whole text), so a fully forged pair only puts the label "Untrusted · <source>" on content, which is harmless. A complete preview is split like the full output; a clipped preview only loses pap's markers (`stripFenceMarkers`).

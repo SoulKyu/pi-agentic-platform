@@ -3,6 +3,7 @@ import { TooltipProvider } from "@pap/ui";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsScreenEn, settingsScreenFr } from "../../i18n/catalog/settings-screen.ts";
+import { settingsAppearanceEn, settingsAppearanceFr } from "../../i18n/catalog/settings-appearance.ts";
 import { registerCatalog, setLocale } from "../../i18n/index.ts";
 import { click, field, mount, settle, typeInto } from "../../testing/dom.ts";
 import { roleChecks } from "./derive.ts";
@@ -24,6 +25,7 @@ import {
 } from "./theme-test-kit.ts";
 
 registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr });
+registerCatalog({ en: settingsAppearanceEn, fr: settingsAppearanceFr });
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
 
 beforeEach(() => {

@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 const MAX_DEPTH = 32;
 /**
  * Work budget in characters: strings, keys and numbers are charged their length, other values and each separator a
- * few. The policy only gets here after `describeCall` accepted the call, which caps the whole payload at 32 KiB, so
- * this is a second bound for the day the order changes, not the one that holds today.
+ * few. The pipeline states every input (audit arguments, grant key) before `describeCall` looks at it, so this budget
+ * is the first bound on a non-shell input; `describeCall` caps what a person is asked to read later.
  */
 const MAX_CANONICAL_CHARS = 2 * 1024 * 1024;
 

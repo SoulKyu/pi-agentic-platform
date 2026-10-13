@@ -24,7 +24,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "login.submit": "Se connecter",
   "login.passkey": "Se connecter avec une clé d'accès",
   "login.throttleNote":
-    "Chaque échec double l'attente avant l'essai suivant, de 1 seconde jusqu'à 1 minute, par adresse et par compte. Elle repart de zéro après 5 minutes sans échec.",
+    "Chaque échec double l'attente avant l'essai suivant, de 1 seconde jusqu'à 1 minute, par adresse et par compte. Un navigateur déjà connecté auparavant a sa propre limite. Elle repart de zéro après 5 minutes sans échec.",
   "login.failed": "Nom d'utilisateur ou mot de passe incorrect.",
   "login.throttled": "Trop de tentatives. Attendez {seconds} s.",
   "account.addPasskey": "Ajouter une clé d'accès",
@@ -62,6 +62,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "error.prompt_rejected":
     "La session n'a pas pu lancer cette demande. Vérifiez le modèle et le fournisseur.",
   "error.invalid_cwd": "Le dossier de travail doit être le chemin absolu d'un dossier existant.",
+  "error.step_up_required": "Confirmez votre mot de passe pour continuer.",
   "error.read_only": "La base a été écrite par une version plus récente de pap et reste en lecture seule.",
   "error.unknown_method": "Cette version de la page ne correspond pas au serveur. Rechargez-la.",
   "error.internal": "Une erreur s'est produite.",

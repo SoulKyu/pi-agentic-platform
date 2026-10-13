@@ -1,5 +1,5 @@
 import { appendFileSync } from "node:fs";
-import { ALL_PERMISSIONS, type Caller, PapError, type TranscriptRow } from "@pap/contracts";
+import { type Caller, PapError, type TranscriptRow } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clipJsonText } from "./service-reads.ts";
 import { createSessionsService } from "./service.ts";
@@ -9,8 +9,9 @@ import { codeOf } from "./testing/helpers.ts";
 import { writeForkedSession, writeRepeatedToolSession, writeToolSession } from "./testing/pi-file-writers.ts";
 import { createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const OTHER: Caller = { userId: "u2", permissions: new Set(ALL_PERMISSIONS) };
+const OTHER: Caller = testCaller({ userId: "u2" });
 
 const build = () => createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader });
 let bed: ReturnType<typeof build>;

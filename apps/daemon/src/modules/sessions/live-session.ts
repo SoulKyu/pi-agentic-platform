@@ -3,6 +3,7 @@ import {
   type InitRecord,
   PapError,
   type PiEvent,
+  POLICY_EXTENSION_PATH,
   type ReadyRecord,
   SERVER_CODES,
   type ServerText,
@@ -243,11 +244,16 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       case "audit":
         deps.record("policy", record.entry);
         return;
+      case "taint":
+        deps.record("taint", record.epoch);
+        return;
       case "health":
         rss = record.rssMb;
         agentProcesses = record.descendants;
         return;
       case "extension_error":
+        if (record.extensionPath === POLICY_EXTENSION_PATH && record.event === "policy_update")
+          deps.onPolicyRefused?.();
         ui.onExtensionError(record);
         return;
       case "leaf": {

@@ -11,6 +11,10 @@ it("loading the Settings screen registers the Settings strings, and its first im
   await import("./SettingsScreen.tsx");
   expect(translate("en", "settings.appearance.title")).toBe("Appearance");
   expect(translate("fr", "settings.appearance.title")).toBe("Apparence");
+  expect(translate("fr", "settings.shortcuts.title")).toBe("Raccourcis clavier");
+  expect(translate("en", "approvals.intro")).toBe(
+    "What the agent may do without asking you, and what it may never do.",
+  );
   const source = readFileSync(join(import.meta.dirname, "SettingsScreen.tsx"), "utf8");
   expect(source.split("\n")[0]).toBe('import "./register-settings-catalog.ts";');
 });

@@ -31,13 +31,20 @@ export const MAX_SUBSCRIPTIONS = 64;
  */
 export const CLOSE_UNAUTHENTICATED = 4401;
 
+/** What a connection presents: a browser session cookie value or an `Authorization: Bearer` value, never both. */
+export type Credential =
+  { readonly kind: "cookie"; readonly value: string } | { readonly kind: "bearer"; readonly value: string };
+
 export interface WsServerOptions {
   readonly allowedOrigins: ReadonlySet<string>;
   /**
-   * The session credential inside a Cookie header (undefined when there is none). It is the only part of the header
-   * a socket keeps: the rest is dropped at the upgrade.
+   * The one credential of an upgrade (undefined when there is none, "conflict" when it carries a cookie and a
+   * bearer). It is the only part of the headers a socket keeps: the rest is dropped at the upgrade.
    */
-  credentialOf(cookieHeader: string | undefined): string | undefined;
+  credentialOf(headers: {
+    readonly cookie?: string | undefined;
+    readonly authorization?: string | undefined;
+  }): Credential | "conflict" | undefined;
   /**
    * Resolves the credential to a caller. Asked at the upgrade, before every request frame and on every keepalive
    * tick, so a sign-out or an expiry ends an open socket within one request or one tick. Requests slide the session
@@ -45,7 +52,7 @@ export interface WsServerOptions {
    * (database trouble): the upgrade answers 500, a request frame answers `internal`, a tick leaves the socket for
    * the next check.
    */
-  authenticate(credential: string | undefined, options?: { readonly slide: boolean }): Caller | null;
+  authenticate(credential: Credential | undefined, options?: { readonly slide: boolean }): Caller | null;
   readonly dispatch: Dispatch;
   readonly hub: StreamHub;
   readonly logger: Logger;
@@ -148,10 +155,10 @@ export function createWsServer(options: WsServerOptions): WsServer {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
 
   /**
-   * `credential` is the session value of the upgrade, kept for the life of the socket and used for nothing but the
+   * `credential` is the cookie or bearer of the upgrade, kept for the life of the socket and used for nothing but the
    * re-checks below. It is never logged or sent anywhere.
    */
-  function attach(ws: WebSocket, credential: string | undefined): void {
+  function attach(ws: WebSocket, credential: Credential | undefined): void {
     const connectionId = randomUUID();
     let nextSub = 0;
     let revoked = false;
@@ -274,12 +281,28 @@ export function createWsServer(options: WsServerOptions): WsServer {
       const url = upgradeUrl(req);
       if (!url) return reject(socket, 400);
       if (url.pathname !== "/ws") return reject(socket, 404);
-      if (!originAllowed(req.headers.origin, options.allowedOrigins)) {
-        options.onOriginRefused?.("ws", req.headers.origin);
+      const origin = req.headers.origin;
+      const credential = options.credentialOf({
+        cookie: req.headers.cookie,
+        authorization: req.headers.authorization,
+      });
+      // An Origin that is present must be allowed, whatever the credential (M5R70, ADR 0021).
+      if (origin !== undefined && !originAllowed(origin, options.allowedOrigins)) {
+        options.onOriginRefused?.("ws", origin);
+        return reject(socket, 403);
+      }
+      // `req.headers` keeps the first of two `Authorization` headers and drops the rest: a proxy and a server may
+      // not agree on which one counts, so a request with more than one is refused.
+      if (credential === "conflict" || (req.headersDistinct.authorization?.length ?? 0) > 1) {
+        return reject(socket, 400);
+      }
+      // A browser always sends Origin on an upgrade and attaches its cookies by itself: a cookie needs an Origin.
+      // A bearer is presented on purpose by a program: it may come without one.
+      if (origin === undefined && credential?.kind !== "bearer") {
+        options.onOriginRefused?.("ws", undefined);
         return reject(socket, 403);
       }
       if (url.searchParams.get("proto") !== String(PROTOCOL_VERSION)) return reject(socket, 426);
-      const credential = options.credentialOf(req.headers.cookie);
       let caller: Caller | null;
       try {
         caller = options.authenticate(credential);

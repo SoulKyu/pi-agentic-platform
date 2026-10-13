@@ -169,10 +169,19 @@ const approval = (id: string, fields: Record<string, unknown> = {}) => ({
   answers: ["deny", "once"] as ("deny" | "once")[],
   tool: "bash",
   key: "c".repeat(64),
+  tainted: false,
   ...fields,
 });
 
 describe("approvals", () => {
+  it("a tainted approval and its guard rule reach the dialog", () => {
+    const dialogs = createDialogRegistry();
+    const result = dialogs.offerApproval({ ...approval("a1"), tainted: true, guard: "tool-calls" });
+    expect(result.kind === "opened" && result.dialog).toMatchObject({ tainted: true, guard: "tool-calls" });
+    const plain = createDialogRegistry().offerApproval({ ...approval("a2"), tainted: false });
+    expect(plain.kind === "opened" && "tainted" in plain.dialog).toBe(false);
+  });
+
   it("opens an approval as its own kind of dialog and keeps the grant beside it", () => {
     const dialogs = createDialogRegistry();
     expect(dialogs.offerApproval(approval("a1"))).toEqual({

@@ -1,10 +1,12 @@
 import {
+  DEFAULT_SESSION_POLICY_VIEW,
   EMPTY_QUEUE,
   type EntryRef,
   type HistoryMeta,
   NO_HISTORY,
   type PartialMessage,
   type QueueView,
+  type SessionPolicyView,
   SessionStreamEvent,
   type Dialog,
   type SessionStatus,
@@ -53,6 +55,8 @@ export interface SessionView extends UiState {
   readonly cwd: string;
   /** The Pi file changed outside pap in the last 2 minutes, as of the last snapshot (owner Q13). */
   readonly outsideWrite: boolean;
+  /** The mode in force and the taint, as the header shows them. */
+  readonly policy: SessionPolicyView;
   readonly loaded: boolean;
   /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
   readonly generation: number;
@@ -76,6 +80,7 @@ export const EMPTY_VIEW: SessionView = {
   leafId: null,
   cwd: "",
   outsideWrite: false,
+  policy: DEFAULT_SESSION_POLICY_VIEW,
   loaded: false,
   generation: 0,
   unreadable: false,
@@ -123,6 +128,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         leafId: event.leafId,
         cwd: event.cwd,
         outsideWrite: event.outsideWrite,
+        policy: event.policy,
         loaded: true,
         generation: view.generation + 1,
       };
@@ -182,6 +188,6 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
             messages: appendMessage(view.messages, toMessageView(event.row.message, event.row.entryId)),
           };
     default:
-      return reduceUi(view, event) ?? view;
+      return reduceUi(view, event) ?? (event.kind === "policy" ? { ...view, policy: event.policy } : view);
   }
 }

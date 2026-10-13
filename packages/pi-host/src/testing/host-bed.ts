@@ -1,20 +1,22 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import type { PolicyRules } from "@pap/contracts";
+import { dirname, join, relative } from "node:path";
+import { PolicyRules } from "@pap/contracts";
 import { type ForkedHost, forkHost, type HostRecord } from "./fork-host.ts";
 
-export const RULES: PolicyRules = {
+export const RULES = PolicyRules.parse({
   profile: "interactive",
   approvalMode: "auto-accept-edits",
   alwaysAllow: [],
-};
+});
 
 export interface LaunchOptions {
   /** The `policy` field of the init record. */
   policy?: unknown;
   /** Written to `<agentDir>/settings.json` before the worker starts. */
   settings?: object;
+  /** Files written under the agent directory before the worker starts, by relative path (`mcp.json`, `extensions/x.js`). */
+  agentFiles?: Readonly<Record<string, string>>;
   /** Replaces PI_CODING_AGENT_DIR in the worker environment. */
   agentDirEnv?: string;
   /** Extra fields of the init record. */
@@ -36,6 +38,8 @@ export const textOf = (message: unknown) =>
     .join("");
 export const toolText = (record: HostRecord) => JSON.stringify(record.result);
 export const isApproval = (record: HostRecord) => record.type === "approval_request";
+export const isCallAudit = (record: HostRecord) =>
+  record.type === "audit" && (record.entry as { kind?: unknown } | undefined)?.kind === "call";
 
 /** Something outside the worker's group could hold its output open; the bed does not wait for that for ever. */
 const CLOSE_WAIT_MS = 5000;
@@ -63,17 +67,28 @@ export function createHostBed(fork: typeof forkHost = forkHost) {
   function launch(script: object, options: LaunchOptions = {}): ForkedHost {
     const scriptPath = join(root, "script.json");
     writeFileSync(scriptPath, JSON.stringify(script));
+    for (const [file, content] of Object.entries(options.agentFiles ?? {})) {
+      const target = join(agentDir, file);
+      if (file.split(/[\\/]/).includes("..") || relative(agentDir, target).startsWith(".."))
+        throw new Error(`agent file outside the agent directory: ${file}`);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, content);
+    }
     if (options.settings) writeFileSync(join(agentDir, "settings.json"), JSON.stringify(options.settings));
+    for (const key of Object.keys(options.env ?? {})) {
+      if (key === "HOME" || key.startsWith("PI_"))
+        throw new Error(`env cannot set ${key}: it isolates the worker`);
+    }
     const env: NodeJS.ProcessEnv = {
       PATH: process.env.PATH,
       LANG: process.env.LANG,
+      PAP_TEST_PROVIDER: "1",
+      ...options.env,
       HOME: home,
       PI_CODING_AGENT_DIR: options.agentDirEnv ?? agentDir,
       PI_OFFLINE: "1",
       PI_TELEMETRY: "0",
       PI_SKIP_VERSION_CHECK: "1",
-      PAP_TEST_PROVIDER: "1",
-      ...options.env,
     };
     current = fork(env, cwd);
     launched.push(current);

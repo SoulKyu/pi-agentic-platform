@@ -30,6 +30,7 @@ describe("pap's own notices reach the ring (final review M3)", () => {
       answers: ["deny", "session", "always", "once"],
       tool: "bash",
       key: "a".repeat(64),
+      tainted: false,
     });
     await bed.clock.advance(0);
     bed.service.respondDialog({ sessionId, dialogId: "a1", response: { answer: "always" } }, OWNER);

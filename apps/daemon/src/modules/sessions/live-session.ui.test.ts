@@ -18,6 +18,7 @@ const ask = (id: string, key: string, message = "bash: ls", fields: Record<strin
   answers: ["deny", "once"] as Array<"deny" | "once">,
   tool: "bash",
   key,
+  tainted: false,
   ...fields,
 });
 const KEY = "c".repeat(64);

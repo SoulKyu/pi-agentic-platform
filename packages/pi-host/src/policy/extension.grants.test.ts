@@ -1,20 +1,13 @@
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApprovals } from "../approvals.ts";
-import { createPolicyBed } from "../testing/policy-bed.ts";
-import {
-  answersFor,
-  createPolicyGrants,
-  DENIED_REASON,
-  FAIL_CLOSED_REASON,
-  MAX_SESSION_GRANTS,
-} from "./extension.ts";
+import { createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
+import { createPolicyGrants, DENIED_REASON, FAIL_CLOSED_REASON, MAX_SESSION_GRANTS } from "./extension.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
-import { interactiveRules } from "../testing/policy-bed.ts";
 
-let bed: Awaited<ReturnType<typeof createPolicyBed>>;
+let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeEach(async () => {
-  bed = await createPolicyBed();
+  bed = await createPipelineBed();
 });
 afterEach(async () => {
   await bed.dispose();
@@ -32,7 +25,7 @@ describe("pap-policy approval channel", () => {
         key: expect.stringMatching(/^[0-9a-f]{64}$/),
       }),
     ]);
-    expect(h.audits.at(-1)).toMatchObject({ decision: "approved", reason: "answer: once" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "approved", reason: "answer: once" });
   });
 
   it("blocks with the deny reason on deny, and fails closed when the question is closed or cancelled (M2-RT-22)", async () => {
@@ -41,7 +34,7 @@ describe("pap-policy approval channel", () => {
     ).toEqual({ block: true, reason: DENIED_REASON });
     const closed = bed.harness({ answers: [{ answer: "deny", closed: true }] });
     expect(await closed.run("bash", { command: "ls" })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
-    expect(closed.audits.at(-1)).toMatchObject({ decision: "denied", reason: "dialog closed" });
+    expect(closed.entries.at(-1)).toMatchObject({ decision: "denied", reason: "dialog closed" });
   });
 
   it("treats a closed question as closed even when it carries another answer", async () => {
@@ -63,8 +56,8 @@ describe("pap-policy approval channel", () => {
   });
 
   it("keys a call as a command only for the built-in shell tool, not for an extension that took its name", async () => {
-    const builtin = bed.harness({ isBuiltinTool: () => true });
-    const taken = bed.harness({ isBuiltinTool: () => false });
+    const builtin = bed.harness();
+    const taken = bed.harness({ tools: { bash: { path: "/user/extensions/bash.ts" } } });
     await builtin.run("bash", { command: "ls" });
     await taken.run("bash", { command: "ls" });
     expect(builtin.asks[0]?.category).toBe("exec");
@@ -80,7 +73,7 @@ describe("pap-policy approval channel", () => {
     const h = bed.harness();
     expect(await h.run("mcp__x__y", { deep })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
     expect(h.asks).toEqual([]);
-    expect(h.audits.at(-1)).toMatchObject({ decision: "block", reason: "evaluation error" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "block", reason: "evaluation error" });
   });
 
   it("treats a request the channel refuses as closed: nothing is sent, the call is blocked", async () => {
@@ -91,7 +84,7 @@ describe("pap-policy approval channel", () => {
     expect(await h.run("", { x: 1 })).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
     expect(sent).toEqual([]);
     expect(approvals.pendingCount()).toBe(0);
-    expect(h.audits.at(-1)).toMatchObject({ decision: "denied", reason: "dialog closed" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "denied", reason: "dialog closed" });
   });
 
   it("fails closed when the run is stopped while the question is open", async () => {
@@ -105,7 +98,7 @@ describe("pap-policy approval channel", () => {
     await vi.waitFor(() => expect(approvals.pendingCount()).toBe(1), { timeout: 5000 });
     controller.abort();
     expect(await running).toEqual({ block: true, reason: FAIL_CLOSED_REASON });
-    expect(h.audits.at(-1)).toMatchObject({ decision: "denied", reason: "dialog closed" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "denied", reason: "dialog closed" });
     expect(approvals.pendingCount()).toBe(0);
   });
 
@@ -113,7 +106,7 @@ describe("pap-policy approval channel", () => {
     const h = bed.harness();
     const target = `${bed.outside}/a.txt`;
     expect(await h.run("write", { path: target, content: "x" })).toBeUndefined();
-    expect(h.audits.at(-1)).toMatchObject({
+    expect(h.entries.at(-1)).toMatchObject({
       decision: "approved",
       reason: "answer: once; outside the session directory",
     });
@@ -126,7 +119,7 @@ describe("pap-policy grants", () => {
     expect(await h.run("bash", { command: "npm test" })).toBeUndefined();
     expect(await h.run("bash", { command: "npm test" })).toBeUndefined();
     expect(h.asks).toHaveLength(1);
-    expect(h.audits.at(-1)).toMatchObject({ decision: "allow", reason: "session rule" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "allow", reason: "session rule" });
     await h.run("bash", { command: "npm test " });
     expect(h.asks).toHaveLength(2);
   });
@@ -138,7 +131,7 @@ describe("pap-policy grants", () => {
       answers: [{ answer: "deny", closed: false }],
     });
     expect(await h.run("bash", { command: "npm test" })).toBeUndefined();
-    expect(h.audits.at(-1)).toMatchObject({ decision: "allow", reason: "always rule" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "allow", reason: "always rule" });
     expect(await h.run("bash", { command: "npm  test" })).toEqual({ block: true, reason: DENIED_REASON });
     expect(h.asks.map((ask) => ask.answers)).toEqual([["deny", "session", "always", "once"]]);
   });
@@ -165,7 +158,7 @@ describe("pap-policy grants", () => {
     // Before the daemon's push: the provisional grant covers the same call.
     expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
     expect(h.asks).toHaveLength(1);
-    expect(h.audits.at(-1)).toMatchObject({ decision: "allow", reason: "always rule" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "allow", reason: "always rule" });
     // The daemon's push without the rule (it was revoked): the answer is gone, the call asks again.
     version++;
     expect(await h.run("bash", { command: "rm -rf build" })).toEqual({ block: true, reason: DENIED_REASON });
@@ -185,22 +178,7 @@ describe("pap-policy grants", () => {
     expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
     expect(await h.run("bash", { command: "rm -rf build" })).toBeUndefined();
     expect(h.asks).toHaveLength(2);
-    expect(h.audits.at(-1)).toMatchObject({ decision: "approved", reason: "answer: always" });
-  });
-
-  it("pins the answers of every category", () => {
-    expect(
-      (["read", "edit", "exec", "network", "external-write", "unknown"] as const).map((category) =>
-        answersFor(category, undefined),
-      ),
-    ).toEqual([
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "always", "once"],
-      ["deny", "session", "once"],
-    ]);
+    expect(h.entries.at(-1)).toMatchObject({ decision: "approved", reason: "answer: always" });
   });
 
   it("offers a network call all four answers", async () => {
@@ -216,7 +194,7 @@ describe("pap-policy grants", () => {
     version++;
     await h.run("bash", { command: "ls -l" });
     expect(h.asks).toHaveLength(2);
-    expect(h.audits.at(-1)).toMatchObject({ decision: "approved", reason: "answer: once" });
+    expect(h.entries.at(-1)).toMatchObject({ decision: "approved", reason: "answer: once" });
   });
 
   it("never lets a grant cover a write outside the project or to a protected path", async () => {
@@ -238,13 +216,15 @@ describe("pap-policy grants", () => {
   });
 
   it("offers no always answer for a tool it cannot classify", async () => {
-    const h = bed.harness({ answers: [{ answer: "deny", closed: false }], isBuiltinTool: () => false });
+    const h = bed.harness({ answers: [{ answer: "deny", closed: false }] });
     await h.run("mystery_tool", { x: 1 });
     expect(h.asks[0]?.answers).toEqual(["deny", "session", "once"]);
   });
 
   it("keeps at most MAX_SESSION_GRANTS session grants, dropping the oldest", async () => {
     const h = bed.harness({
+      // More calls than the default guard allows in one run: this test is about the grants.
+      rules: () => ({ ...interactiveRules, guard: { identicalCalls: 100, toolCalls: 10_000, turns: 1000 } }),
       answers: Array.from({ length: MAX_SESSION_GRANTS + 2 }, () => ({
         answer: "session" as const,
         closed: false,

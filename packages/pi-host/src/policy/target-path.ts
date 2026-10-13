@@ -2,13 +2,15 @@ import { lstat, readlink, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { kernelResolve, tooLong } from "./kernel-path.ts";
 
 const MAX_LINK_HOPS = 40;
-const UNICODE_SPACES = /\p{Zs}/gu;
+// Pi's own class (probed by `host.paths.int.test.ts`): U+1680 stays a name character, U+2800 is no blank at all.
+const UNICODE_SPACES = /[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g;
 
 // Pi rewrites a tool path before it opens the file (`~`, a leading `@`, file: URLs, unicode spaces).
 // The policy must judge where the write really lands, so it follows the same rewrites.
-function asPiResolves(path: string): string {
+export function asPiResolves(path: string): string {
   const unprefixed = path.replace(UNICODE_SPACES, " ").replace(/^@/, "");
   if (unprefixed === "~") return homedir();
   if (unprefixed.startsWith("~/")) return join(homedir(), unprefixed.slice(2));
@@ -31,7 +33,7 @@ async function lstatIfPresent(path: string) {
 }
 
 // realpath of the nearest existing ancestor plus the segments that do not exist yet, following dangling symlinks.
-async function realTarget(path: string, hops = 0): Promise<string> {
+export async function realTarget(path: string, hops = 0): Promise<string> {
   try {
     return await realpath(path);
   } catch (error) {
@@ -47,13 +49,30 @@ async function realTarget(path: string, hops = 0): Promise<string> {
   return join(await realTarget(parent, hops), basename(path));
 }
 
-function within(root: string, target: string): boolean {
+export function within(root: string, target: string): boolean {
   const path = relative(root, target);
   return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
 }
 
-const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([".git", ".pi", ".agents", ".husky", ".vscode"]);
-const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([".envrc"]);
+/** Said on the second `→` line of a card: the kernel reads `..` after a symlink, Pi before. */
+export const KERNEL_CONDITION = "if a tool follows the symlink before ..";
+
+const PROTECTED_SEGMENTS: ReadonlySet<string> = new Set([
+  ".git",
+  ".pi",
+  ".agents",
+  ".husky",
+  ".vscode",
+  ".idea",
+  ".zed",
+  ".devcontainer",
+  ".lefthook",
+  ".mise",
+]);
+const PROTECTED_BASENAMES: ReadonlySet<string> = new Set([".envrc", ".pre-commit-config.yaml"]);
+// Configuration of tools that run commands later: lefthook (`lefthook`, `.lefthook`, `lefthook-local`, in the
+// project root or `.config/`) and mise (`mise.toml`, `mise.local.toml`, `mise.<env>.toml`, with or without a dot).
+const HOOK_CONFIG_NAME = /^\.?(lefthook|lefthook-local)\.(ya?ml|toml|json)$|^\.?mise(\.[^.]+)?\.toml$/;
 
 // Files that run later, outside any approval: git hooks and config (core.fsmonitor), Pi settings
 // (shellCommandPrefix) and extensions, agent skills, hook managers, editor tasks, direnv. The segments of the
@@ -63,15 +82,31 @@ function hasProtectedName(absolutePath: string): boolean {
     .split(sep)
     .filter(Boolean)
     .map((segment) => segment.normalize("NFC").toLowerCase());
-  return segments.some((s) => PROTECTED_SEGMENTS.has(s)) || PROTECTED_BASENAMES.has(segments.at(-1) ?? "");
+  const last = segments.at(-1) ?? "";
+  const inConfigMise = segments.some((segment, i) => segment === "mise" && segments[i - 1] === ".config");
+  return (
+    segments.some((s) => PROTECTED_SEGMENTS.has(s)) ||
+    PROTECTED_BASENAMES.has(last) ||
+    HOOK_CONFIG_NAME.test(last) ||
+    inConfigMise ||
+    (segments.at(-2) === "mise" && last === "config.toml")
+  );
 }
 
 export type ReviewReason =
-  "outside the session directory" | "protected path" | "session directory too broad for automatic edits";
+  | "outside the session directory"
+  | "protected path"
+  | "session directory too broad for automatic edits"
+  | "searches pap's data directory";
 
 export interface EditReview {
   readonly why: ReviewReason;
   readonly target?: string;
+  /** Where the kernel would land when it follows a symlink before a `..`; only when that differs and is a problem too. */
+  readonly kernelTarget?: string;
+  /** With `kernelTarget`: the reason that applies to `target` (Pi's file) and to `kernelTarget`, one per `→` line. */
+  readonly targetLabel?: string;
+  readonly kernelLabel?: string;
 }
 
 export type EditCheck = { readonly auto: true } | { readonly auto: false; readonly review: EditReview };
@@ -89,7 +124,7 @@ export async function checkEditTarget(
   cwd: string,
   protectedRoots: readonly string[],
 ): Promise<EditCheck> {
-  if (typeof path !== "string" || path === "" || path.includes("\0")) {
+  if (typeof path !== "string" || path === "" || path.includes("\0") || tooLong(path)) {
     return { auto: false, review: { why: "outside the session directory" } };
   }
   const home = homedir();
@@ -104,21 +139,47 @@ export async function checkEditTarget(
   const inProtectedRoot = (candidate: string) =>
     roots.some((variants) => variants.some((dir) => within(dir, candidate)));
   let target: string | undefined;
+  let kernelTarget: string | undefined;
+  let kernelReason: string | undefined;
   let outside = false;
   let protectedPath = false;
+  let piOutsideAny = false;
+  let piProtectedAny = false;
   for (const spelling of new Set([asPiResolves(path), path])) {
     const lexical = resolve(cwd, spelling);
     const real = await realTarget(lexical);
     target ??= real;
-    outside ||= !within(root, real);
-    protectedPath ||=
+    const piOutside = !within(root, real);
+    const piProtected =
       inProtectedRoot(real) ||
       inProtectedRoot(lexical) ||
       hasProtectedName(real) ||
       hasProtectedName(lexical);
+    // The kernel applies `..` after a symlink, Pi collapses it first (probed): either reading that leaves asks.
+    const kernel = await kernelResolve(cwd, spelling);
+    const kernelOutside = !within(root, kernel);
+    const kernelProtected = inProtectedRoot(kernel) || hasProtectedName(kernel);
+    piOutsideAny ||= piOutside;
+    piProtectedAny ||= piProtected;
+    if ((kernelOutside || kernelProtected) && kernelTarget === undefined) {
+      kernelTarget = kernel;
+      kernelReason = kernelProtected ? "protected path" : "outside the session directory";
+    }
+    outside ||= piOutside || kernelOutside;
+    protectedPath ||= piProtected || kernelProtected;
   }
-  if (protectedPath) return { auto: false, review: { why: "protected path", target } };
-  if (outside) return { auto: false, review: { why: "outside the session directory", target } };
+  // The card names the file Pi writes (R88b); the kernel's reading is a second line when it differs.
+  const piReason = piProtectedAny
+    ? "protected path"
+    : piOutsideAny
+      ? "outside the session directory"
+      : "the file Pi writes";
+  const also =
+    kernelTarget !== undefined && kernelTarget !== target
+      ? { kernelTarget, targetLabel: piReason, kernelLabel: `${kernelReason}, ${KERNEL_CONDITION}` }
+      : {};
+  if (protectedPath) return { auto: false, review: { why: "protected path", target, ...also } };
+  if (outside) return { auto: false, review: { why: "outside the session directory", target, ...also } };
   if (tooBroad) {
     return { auto: false, review: { why: "session directory too broad for automatic edits", target } };
   }

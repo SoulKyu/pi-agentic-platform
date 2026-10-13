@@ -3,6 +3,7 @@ import { MAX_ID_CHARS } from "../../kernel/text.ts";
 import type { BranchPage } from "./branch.ts";
 import {
   type Activity,
+  DEFAULT_SESSION_POLICY_VIEW,
   type Dialog,
   type ForkPoint,
   EMPTY_QUEUE,
@@ -13,6 +14,7 @@ import {
   type Panel,
   type PartialMessage,
   type QueueView,
+  type SessionPolicyView,
   type SessionStatus,
   type SnapshotEvent,
   type StatusEntry,
@@ -96,6 +98,7 @@ export interface SnapshotInput {
   readonly name?: string | null;
   readonly cwd?: string;
   readonly outsideWrite?: boolean;
+  readonly policy?: SessionPolicyView;
 }
 
 /** A row as it goes into a snapshot: its message bounded like `boundedRow`, its entry id kept. */
@@ -139,6 +142,7 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     name: input.name ?? null,
     cwd: input.cwd ?? "",
     outsideWrite: input.outsideWrite ?? false,
+    policy: input.policy ?? DEFAULT_SESSION_POLICY_VIEW,
   };
   let used = sizeOf(snapshot);
   // Everything but approvals and rows stays under `room`: the rows keep their floor (M4R7).

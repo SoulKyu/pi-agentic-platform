@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cookieNeedsSecure, readCookie, sessionCookieAttributes } from "./cookies.ts";
+import { cookieNeedsSecure, readCookie, readCookies, sessionCookieAttributes } from "./cookies.ts";
 
 describe("cookie Secure policy", () => {
   it("is omitted only for plain-http loopback hosts", () => {
@@ -76,5 +76,16 @@ describe("readCookie", () => {
     expect(readCookie(undefined, "pap_session")).toBeUndefined();
     expect(readCookie("", "pap_session")).toBeUndefined();
     expect(readCookie("pap_session2=x; =y", "pap_session")).toBeUndefined();
+  });
+});
+
+describe("readCookies", () => {
+  it("lists every value of the name in header order, and nothing for other names", () => {
+    expect(readCookies("pap_device=a; other=x; pap_device=b ;pap_device2=c", "pap_device")).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(readCookies(undefined, "pap_device")).toEqual([]);
+    expect(readCookies("=x; pap_device", "pap_device")).toEqual([]);
   });
 });

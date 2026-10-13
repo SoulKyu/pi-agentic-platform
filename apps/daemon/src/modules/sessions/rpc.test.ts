@@ -1,10 +1,11 @@
-import { ALL_PERMISSIONS, type Caller, type Cursor, type HandlerContext, PapError } from "@pap/contracts";
+import { type Caller, type Cursor, type HandlerContext, PapError } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { sessionsRpc } from "./rpc.ts";
 import type { SessionsService } from "./service.ts";
 import { codeOf } from "./testing/helpers.ts";
+import { testCaller } from "../../testing/caller.ts";
 
-const caller: Caller = { userId: "u1", permissions: new Set(ALL_PERMISSIONS) };
+const caller: Caller = testCaller();
 
 function setup(overrides: Partial<SessionsService> = {}) {
   const service: SessionsService = {
