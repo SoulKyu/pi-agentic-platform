@@ -1,5 +1,7 @@
 import {
+  BUILTIN_DENY_IDS,
   DenyPattern,
+  MAX_SETTINGS_BYTES,
   HostPattern,
   MAX_ALLOW_HOSTS,
   MAX_DENY_PATTERNS,
@@ -32,9 +34,6 @@ export function parsePatternLines(
   });
   return { values, errors };
 }
-
-/** The frame the daemon accepts for the document (`policy.setSettings`). */
-export const SETTINGS_MAX_BYTES = 64 * 1024;
 
 export interface SettingsForm {
   readonly defaultMode: ApprovalMode;
@@ -80,7 +79,7 @@ export function checkForm(form: SettingsForm): FormCheck {
     allowHosts: form.hostsOn ? hosts.values : null,
   });
   const tooLarge =
-    candidate.success && new TextEncoder().encode(JSON.stringify(candidate.data)).length > SETTINGS_MAX_BYTES;
+    candidate.success && new TextEncoder().encode(JSON.stringify(candidate.data)).length > MAX_SETTINGS_BYTES;
   const valid = candidate.success && !tooLarge && deny.errors.length === 0 && hosts.errors.length === 0;
   return { deny, hosts, tooLarge, valid, settings: valid && candidate.success ? candidate.data : null };
 }
@@ -145,16 +144,7 @@ export const shortScope = (scope: string): string =>
 export const dayOf = (millis: number): string =>
   Number.isFinite(millis) && Math.abs(millis) <= 8.64e15 ? new Date(millis).toISOString().slice(0, 10) : "";
 
-/** Stable ids of the built-in preset (Task 4, `BUILTIN_CHECKS` and the fork-bomb check), one catalog line each. */
-export const BUILTIN_IDS = [
-  "rm-root",
-  "chmod-root",
-  "mkfs",
-  "dd-device",
-  "wipe-device",
-  "redirect-device",
-  "fork-bomb",
-] as const;
+export const BUILTIN_IDS = BUILTIN_DENY_IDS;
 export const BUILTIN_RESIDUALS = [
   "variables",
   "aliases",

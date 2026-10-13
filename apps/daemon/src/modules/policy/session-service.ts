@@ -2,6 +2,7 @@ import {
   type ApprovalMode,
   type Caller,
   DEFAULT_POLICY_SETTINGS,
+  MAX_SETTINGS_BYTES,
   PapError,
   PolicySettings,
   type TaintState,
@@ -48,7 +49,6 @@ export interface SessionPolicyPort {
 
 type AuditLine = Parameters<AuditPort["append"]>[0];
 
-const MAX_SETTINGS_BYTES = 65_536;
 const MAX_LOGGED_OWNERS = 1_024;
 
 export function createSessionPolicyService(deps: {

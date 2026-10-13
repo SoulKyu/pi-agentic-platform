@@ -34,6 +34,18 @@ export const DenyPattern = z
   .max(256)
   .refine((pattern) => !INVISIBLE.test(pattern), "a pattern is one line of visible characters");
 export const MAX_DENY_PATTERNS = 64;
+/** Stable ids of pap's built-in blocked commands (Task 4); a pi-host test keeps this list equal to the checks. */
+export const BUILTIN_DENY_IDS = [
+  "rm-root",
+  "chmod-root",
+  "mkfs",
+  "dd-device",
+  "wipe-device",
+  "redirect-device",
+  "fork-bomb",
+] as const;
+/** The largest settings document `policy.setSettings` accepts, in UTF-8 bytes of its JSON. */
+export const MAX_SETTINGS_BYTES = 65_536;
 
 /**
  * A host the egress stage lets through (Task 5a): lower-case labels of letters, digits and inner hyphens, at least two

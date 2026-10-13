@@ -56,7 +56,7 @@ export const BUILTIN_CHECKS: ReadonlyArray<Check> = [
       ),
   },
 ];
-const FORK_BOMB_ID = "fork-bomb";
+export const FORK_BOMB_ID = "fork-bomb";
 const ROUGH_MAX_CHARS = 4 * 1024 * 1024;
 const ROUGH_BUDGET = 4_000_000;
 const ROUGH_TAIL_WORDS = 64;

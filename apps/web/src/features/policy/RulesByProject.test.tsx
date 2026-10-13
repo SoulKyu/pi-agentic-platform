@@ -123,6 +123,24 @@ describe("always rules by project", () => {
     expect(alerts(container)[0]).toContain("may still have gone through");
   });
 
+  it("keeps a revoke failure on screen when the reload removes the rule", async () => {
+    let rules = three;
+    bed.handlers["policy.listRules"] = () => ({ rules, truncated: false });
+    bed.handlers["policy.revokeRule"] = () => {
+      rules = rules.filter((r) => r.id !== "r2");
+      throw new RpcError("not_found");
+    };
+    page = await mount(<RulesByProject />);
+    await settle();
+    await click(revokes(page.container)[0] as HTMLElement);
+    await settle();
+    expect(lines(page.container)).toEqual(["npm run build", "yarn test"]);
+    expect(alerts(page.container)).toEqual([expect.stringMatching(/\S/)]);
+    await click(revokes(page.container)[0] as HTMLElement);
+    await settle();
+    expect(alerts(page.container)).toHaveLength(1); // the new attempt replaced it, never stacked
+  });
+
   it("cannot double-send a revoke", async () => {
     const reply = deferred();
     const container = await show();

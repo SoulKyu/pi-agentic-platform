@@ -5,19 +5,28 @@ import { getRuntime } from "../../runtime/index.ts";
 import { failureText } from "./failure.ts";
 import { clipLabel, dayOf, groupRules, plain, shortScope, type RuleRow } from "./policy-settings.vm.ts";
 
-function RuleLine({ rule, onSettled }: { rule: RuleRow; onSettled: () => void }) {
+function RuleLine({
+  rule,
+  onStart,
+  onFailed,
+  onSettled,
+}: {
+  rule: RuleRow;
+  onStart: () => void;
+  onFailed: (message: string) => void;
+  onSettled: () => void;
+}) {
   const t = useT();
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const label = clipLabel(rule.label);
   const revoke = () => {
     if (busy) return;
     setBusy(true);
-    setError(null);
+    onStart();
     const rpc = getRuntime().rpc;
     rpc
       .call("policy.revokeRule", { ruleId: rule.id }, { commandId: rpc.newCommandId() })
-      .catch((failure: unknown) => setError(failureText(failure)))
+      .catch((failure: unknown) => onFailed(failureText(failure)))
       // Whatever the outcome (a timeout included), the list is the truth: it is loaded again, never the call.
       .finally(() => {
         setBusy(false);
@@ -41,11 +50,6 @@ function RuleLine({ rule, onSettled }: { rule: RuleRow; onSettled: () => void })
           {t("approvals.rules.revoke")}
         </Button>
       </div>
-      {error ? (
-        <p role="alert" className="text-ui text-attn">
-          {error}
-        </p>
-      ) : null}
     </li>
   );
 }
@@ -59,6 +63,8 @@ export function RulesByProject() {
   const [rules, setRules] = useState<readonly RuleRow[] | null>(null);
   const [truncated, setTruncated] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Kept here, not in the line: the reload may remove the rule, and the failure must stay on screen.
+  const [revokeError, setRevokeError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   // Bumped to list again; each run of the effect drops the answer of the one before it.
   const [loads, setLoads] = useState(0);
@@ -93,6 +99,11 @@ export function RulesByProject() {
           {error}
         </p>
       ) : null}
+      {revokeError ? (
+        <p role="alert" className="text-ui text-attn">
+          {revokeError}
+        </p>
+      ) : null}
       {rules === null ? (
         error ? null : (
           <p className="text-ui text-muted">{t("approvals.rules.loading")}</p>
@@ -121,7 +132,13 @@ export function RulesByProject() {
               </div>
               <ul className="flex flex-col gap-s2">
                 {group.rules.map((rule) => (
-                  <RuleLine key={rule.id} rule={rule} onSettled={() => setLoads((count) => count + 1)} />
+                  <RuleLine
+                    key={rule.id}
+                    rule={rule}
+                    onStart={() => setRevokeError(null)}
+                    onFailed={setRevokeError}
+                    onSettled={() => setLoads((count) => count + 1)}
+                  />
                 ))}
               </ul>
             </div>
