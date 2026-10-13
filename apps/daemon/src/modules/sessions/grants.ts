@@ -172,7 +172,13 @@ export function createGrantLink(deps: GrantLinkDeps) {
         return;
       }
       try {
-        const added = deps.policy.addAlways({ ownerId: at.row.ownerId, scope: at.scope, ...approved.grant });
+        const added = deps.policy.addAlways({
+          ownerId: at.row.ownerId,
+          scope: at.scope,
+          tool: approved.grant.tool,
+          key: approved.grant.key,
+          label: approved.grant.label,
+        });
         if (added === "full") {
           tellSessionOnly(session, at, FULL_NOTICE);
         }

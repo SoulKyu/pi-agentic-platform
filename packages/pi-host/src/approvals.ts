@@ -17,6 +17,8 @@ export interface ApprovalAsk {
   readonly tainted: boolean;
   /** The stage-04 rule that raised this question, if the guard did. */
   readonly guard?: GuardRule | undefined;
+  /** The call being asked about; the daemon matches the answer's credential to the audit row of that call. */
+  readonly toolCallId?: string | undefined;
 }
 export interface ApprovalOutcome {
   readonly answer: ApprovalAnswer;

@@ -37,7 +37,11 @@ export interface AuditPort {
   fromWorker(
     session: { readonly id: string; readonly ownerId: string },
     raw: unknown,
-    context: { readonly containment: "scope" | "none" },
+    context: {
+      readonly containment: "scope" | "none";
+      /** Who answered the question of this call (a call row only): the row names the credential instead of the worker. */
+      readonly answeredBy?: { readonly actor: "user" | "token"; readonly actorId: string };
+    },
   ): PolicyAuditEntry | null;
 }
 
@@ -278,7 +282,12 @@ export function createAuditService(deps: {
               ...(clean.reason === undefined ? {} : { reason: scrubbed(clean.reason, REASON_MAX) ?? "" }),
             }
           : { ...clean, stages };
-      if (budget.take(session)) tryAppend(rowOf(session, entry));
+      const row = rowOf(session, entry);
+      const answered = entry.kind === "call" ? context.answeredBy : undefined;
+      if (budget.take(session))
+        tryAppend(
+          answered ? { ...row, actor: answered.actor, actorId: answered.actorId.slice(0, 128) } : row,
+        );
       return entry;
     },
     list(caller, params) {

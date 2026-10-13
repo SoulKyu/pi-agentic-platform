@@ -38,6 +38,8 @@ export interface Grant {
   readonly key: string;
   /** What the "always" list shows for the rule: the call as the card showed it, cut to 4096 characters. */
   readonly label: string;
+  /** The call the question was about, when the worker said (the audit row of its answer names the answerer). */
+  readonly toolCallId?: string;
 }
 const MAX_LABEL_CHARS = 4096;
 
@@ -200,6 +202,7 @@ export function createDialogRegistry(): DialogRegistry {
         tool: record.tool,
         key: record.key,
         label: labelOf(built.dialog.message ?? ""),
+        ...(record.toolCallId === undefined ? {} : { toolCallId: record.toolCallId }),
       });
     },
     peek: (id) => open.get(id)?.dialog ?? null,

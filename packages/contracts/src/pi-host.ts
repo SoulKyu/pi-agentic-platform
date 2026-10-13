@@ -153,6 +153,8 @@ export const ApprovalRequestRecord = z.object({
   key: GrantKey,
   tainted: z.boolean().default(false),
   guard: GuardRule.optional(),
+  /** The call the question is about: the audit row of its answer names who answered (M4 of the M5 final review). */
+  toolCallId: z.string().max(256).optional(),
 });
 export type ApprovalRequestRecord = z.infer<typeof ApprovalRequestRecord>;
 export const ResponseRecord = z.object({

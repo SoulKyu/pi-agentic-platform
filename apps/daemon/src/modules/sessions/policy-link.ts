@@ -1,4 +1,10 @@
-import { DEFAULT_GUARD, PolicyRules, type PolicySettings, type SessionPolicyView } from "@pap/contracts";
+import {
+  type Caller,
+  DEFAULT_GUARD,
+  PolicyRules,
+  type PolicySettings,
+  type SessionPolicyView,
+} from "@pap/contracts";
 import { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -12,6 +18,14 @@ import type { SessionRow } from "./store.ts";
 
 const SAY_EVERY_MS = 60_000;
 const MAX_WINDOWS = 1_024;
+/** Answers whose audit row has not come yet; the oldest is forgotten past this (a row that never comes must not pile up). */
+const MAX_ANSWERERS = 1_024;
+
+/** Who answered a question: a browser session (`user`) or a token. */
+export interface Answerer {
+  readonly actor: "user" | "token";
+  readonly actorId: string;
+}
 
 /**
  * The least an audit record must say to taint the session (M5R60, path 2): checked before the full audit schema, so an
@@ -19,6 +33,11 @@ const MAX_WINDOWS = 1_024;
  * safeguard for external content a worker reads between a Clear and the new epoch reaching it. A late entry that
  * re-taints is a nuisance, never unsafe. Never add an epoch check to this path: that would turn it into a fail-open.
  */
+const CallDecision = z.object({
+  kind: z.literal("call"),
+  toolCallId: z.string().max(256),
+  decision: z.enum(["approved", "denied"]),
+});
 export const TaintFact = z.object({ kind: z.literal("result"), external: z.literal(true) });
 
 export interface PolicyLinkDeps {
@@ -41,6 +60,8 @@ export interface PolicyLink {
   viewOf(row: SessionRow): SessionPolicyView;
   /** A worker's audit record (as unknown) goes to the audit module; one that says `external` taints the session first. */
   audited(row: SessionRow, raw: unknown): void;
+  /** The credential that answered the question about `toolCallId`: the call's audit row, when it comes, names it once. */
+  answeredBy(row: SessionRow, toolCallId: string, caller: Caller): void;
   /** The worker's own taint report with its epoch (M5R60): stored unless a clear came after it. The port's listener pushes and publishes. */
   tainted(row: SessionRow, epoch: number): void;
   /** A fork or clone takes its source's mode and taint (owner Q15). A throw is the caller's to handle. */
@@ -57,6 +78,15 @@ export interface PolicyLink {
 export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
   let limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   const windows = new Set<string>();
+  const answerers = new Map<string, Answerer>();
+  const takeAnswerer = (row: SessionRow, raw: unknown): Answerer | undefined => {
+    const entry = CallDecision.safeParse(raw);
+    if (!entry.success) return undefined;
+    const key = `${row.id}:${entry.data.toolCallId}`;
+    const found = answerers.get(key);
+    answerers.delete(key);
+    return found;
+  };
   // One window per code and session, so every session is named. The windows start over when MAX_WINDOWS are held.
   const say = (code: string, fields: Record<string, unknown>) => {
     const key = `${code}:${String(fields.sessionId ?? "")}`;
@@ -139,7 +169,21 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
     viewOf: (row) => viewOfId(row.ownerId, row.id),
     audited(row, raw) {
       if (TaintFact.safeParse(raw).success) markTainted(row);
-      void deps.audit.fromWorker(row, raw, { containment: deps.containment });
+      const answeredBy = takeAnswerer(row, raw);
+      void deps.audit.fromWorker(row, raw, {
+        containment: deps.containment,
+        ...(answeredBy ? { answeredBy } : {}),
+      });
+    },
+    answeredBy(row, toolCallId, caller) {
+      if (answerers.size >= MAX_ANSWERERS) {
+        const oldest = answerers.keys().next();
+        if (!oldest.done) answerers.delete(oldest.value);
+      }
+      answerers.set(`${row.id}:${toolCallId}`, {
+        actor: caller.kind === "token" ? "token" : "user",
+        actorId: caller.credentialId ?? "",
+      });
     },
     tainted: (row, epoch) => markTainted(row, epoch),
     inherit: (source, targetId) => deps.policy.inherit(source.ownerId, source.id, targetId),
