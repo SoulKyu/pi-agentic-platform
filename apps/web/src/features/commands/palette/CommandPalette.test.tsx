@@ -1,14 +1,25 @@
 // @vitest-environment happy-dom
+import type { SearchHit } from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
 import { COMMANDS, DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../defaults.ts";
 import { installDispatcher } from "../dispatcher.ts";
 import { registerCommand } from "../../../lib/command-registry.ts";
 import { mergeWithDefaults } from "../resolve.ts";
+import { RpcError } from "../../../runtime/index.ts";
 import { mount, press, settle, typeInto, type Mounted } from "../../../testing/dom.ts";
+import { shellSession } from "../../../testing/shell-snapshot.ts";
+import { useFocusEntry } from "../../../stores/focus-entry.ts";
 import CommandPalette from "./CommandPalette.tsx";
 import type { PaletteItem } from "./rank.ts";
+
+const search = vi.hoisted(() => ({ call: vi.fn() }));
+vi.mock("../../../runtime/index.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../../runtime/index.ts")>()),
+  getRuntime: () => ({ rpc: { call: search.call } }),
+}));
 
 const runs = { split: vi.fn(), settings: vi.fn() };
 const items: PaletteItem[] = [
@@ -34,7 +45,12 @@ const items: PaletteItem[] = [
 
 let page: Mounted | null = null;
 const onOpenChange = vi.fn();
+const openSession = vi.fn();
 beforeEach(() => {
+  search.call.mockReset();
+  search.call.mockResolvedValue({ hits: [] });
+  openSession.mockReset();
+  useFocusEntry.setState({ target: null });
   setLocale("en");
   runs.split.mockReset();
   runs.settings.mockReset();
@@ -44,10 +60,10 @@ afterEach(async () => {
   await page?.unmount();
   page = null;
 });
-const open = async () => {
+const open = async (list: PaletteItem[] = items) => {
   page = await mount(
     <TooltipProvider>
-      <CommandPalette open onOpenChange={onOpenChange} items={items} />
+      <CommandPalette open onOpenChange={onOpenChange} items={list} openSession={openSession} />
     </TooltipProvider>,
   );
 };
@@ -143,9 +159,164 @@ describe("CommandPalette", () => {
   it("renders no listbox while closed", async () => {
     page = await mount(
       <TooltipProvider>
-        <CommandPalette open={false} onOpenChange={onOpenChange} items={items} />
+        <CommandPalette open={false} onOpenChange={onOpenChange} items={items} openSession={openSession} />
       </TooltipProvider>,
     );
     expect(document.querySelector('[role="listbox"]')).toBeNull();
+  });
+
+  describe("transcript hits", () => {
+    const NOW = 1_800_000_000_000;
+    const hit = (id: string, label: string, snippet: string, minutes: number): SearchHit => ({
+      sessionId: id,
+      entryId: `${id}-e`,
+      role: "assistant",
+      at: NOW - minutes * 60_000,
+      snippet,
+      session: shellSession({ id, name: label }),
+    });
+    const hits = [
+      hit("h1", "Cluster notes", "…the \u0002kube\u0003 cluster…", 5),
+      hit("h2", "Ops", "restart \u0002kube\u0003-proxy", 180),
+    ];
+    const kubeSession: PaletteItem = {
+      id: "s2",
+      group: "sessions",
+      title: "kube-ops",
+      searchTerms: ["kube-ops"],
+      run: () => {},
+    };
+    const wait = (ms: number) => act(async () => void (await vi.advanceTimersByTimeAsync(ms)));
+    const rows = () => [...document.querySelectorAll('[role="option"]')];
+    beforeEach(() => vi.useFakeTimers({ now: NOW }));
+    afterEach(() => vi.useRealTimers());
+
+    it("lists the hits in their own group after Sessions, marking the matches, with label and age", async () => {
+      search.call.mockResolvedValue({ hits });
+      await open([kubeSession, ...items]);
+      await typeInto(input(), "kube");
+      await wait(150);
+      expect(search.call).toHaveBeenCalledWith("search.query", { q: "kube", limit: 20 });
+      expect([...document.querySelectorAll("[cmdk-group-heading]")].map((el) => el.textContent)).toEqual([
+        "Sessions",
+        "Transcripts",
+      ]);
+      const hitRows = rows().slice(1);
+      expect(hitRows.map((row) => [...row.querySelectorAll("mark")].map((mark) => mark.textContent))).toEqual(
+        [["kube"], ["kube"]],
+      );
+      expect(hitRows.map((row) => row.textContent)).toEqual([
+        "…the kube cluster…Cluster notes · 5 min",
+        "restart kube-proxyOps · 3 h",
+      ]);
+      expect(live()).toBe("3 results");
+    });
+
+    it("renders a hostile snippet as text", async () => {
+      search.call.mockResolvedValue({
+        hits: [hit("h1", "X", "<img src=x onerror=alert(1)>\u0002kube\u0003", 1)],
+      });
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      expect(document.querySelector("img")).toBeNull();
+      expect(rows()[0]?.textContent).toContain("<img src=x onerror=alert(1)>");
+    });
+
+    it("opens the hit's session and asks the transcript to focus its entry, closing first", async () => {
+      search.call.mockResolvedValue({ hits });
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      await press(input(), { key: "Enter" });
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+      expect(openSession).toHaveBeenCalledWith("h1");
+      expect(useFocusEntry.getState().target).toEqual({ sessionId: "h1", entryId: "h1-e" });
+    });
+
+    it("cannot open a stale hit while a newer query loads", async () => {
+      search.call.mockResolvedValueOnce({ hits });
+      search.call.mockReturnValueOnce(new Promise(() => {}));
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      await typeInto(input(), "kubes");
+      expect(rows()).toHaveLength(2);
+      expect(rows().every((row) => row.getAttribute("aria-disabled") === "true")).toBe(true);
+      await press(input(), { key: "Enter" });
+      expect(openSession).not.toHaveBeenCalled();
+      expect(useFocusEntry.getState().target).toBeNull();
+    });
+
+    it("opens the first hit with Enter once a newer query lands on the same hits", async () => {
+      let answer: (value: unknown) => void = () => {};
+      search.call.mockResolvedValueOnce({ hits });
+      search.call.mockReturnValueOnce(new Promise((resolve) => (answer = resolve)));
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      await typeInto(input(), "kubes");
+      await wait(150);
+      await act(async () => answer({ hits }));
+      expect(rows().some((row) => row.getAttribute("aria-disabled") === "true")).toBe(false);
+      await press(input(), { key: "Enter" });
+      expect(openSession).toHaveBeenCalledWith("h1");
+    });
+
+    it("moves from a ranked row to a hit with the arrow keys", async () => {
+      search.call.mockResolvedValue({ hits });
+      await open([kubeSession, ...items]);
+      await typeInto(input(), "kube");
+      await wait(150);
+      await press(input(), { key: "ArrowDown" });
+      await press(input(), { key: "Enter" });
+      expect(openSession).toHaveBeenCalledWith("h1");
+    });
+
+    it("shows no Transcripts group for an actions-only query nor below 3 characters", async () => {
+      search.call.mockResolvedValue({ hits });
+      await open();
+      await typeInto(input(), "> kube");
+      await wait(300);
+      await typeInto(input(), "ku");
+      await wait(300);
+      expect(search.call).not.toHaveBeenCalled();
+      expect(document.body.textContent).not.toContain("Transcripts");
+    });
+
+    it("says it is searching, without claiming that nothing matches", async () => {
+      search.call.mockReturnValue(new Promise(() => {}));
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      expect(document.querySelector("[data-search-status]")?.textContent).toBe("Searching transcripts…");
+      expect(document.querySelector("[cmdk-empty]")).toBeNull();
+    });
+
+    it.each([
+      ["timeout", "Search took too long. Try more precise words."],
+      ["capacity", "Too many searches at once. Try again."],
+      ["internal", "Search is not available right now."],
+      ["worker_failed", "Search is not available right now."],
+      ["constructor", "Search is not available right now."],
+      ["toString", "Search is not available right now."],
+    ])("shows the %s answer as one muted line", async (code, line) => {
+      search.call.mockRejectedValue(new RpcError(code as never));
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      expect(document.querySelector("[data-search-status]")?.textContent).toBe(line);
+    });
+
+    it("says it in French", async () => {
+      setLocale("fr");
+      search.call.mockRejectedValue(new RpcError("timeout"));
+      await open();
+      await typeInto(input(), "kube");
+      await wait(150);
+      expect(document.querySelector("[data-search-status]")?.textContent).toBe(
+        "La recherche a pris trop de temps. Essayez des mots plus précis.",
+      );
+    });
   });
 });

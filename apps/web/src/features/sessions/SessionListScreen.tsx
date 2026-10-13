@@ -1,44 +1,57 @@
-import type { SessionSummary } from "@pap/contracts";
-import { Button, cn, FOCUS_RING, TextField } from "@pap/ui";
+import { Button, cn, FOCUS_RING, TextField, useIsPhone } from "@pap/ui";
+import { isSnoozed } from "@pap/contracts";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { formatAge } from "../../i18n/age.ts";
 import { useT } from "../../i18n/index.ts";
+import { runCommand } from "../../lib/command-registry.ts";
+import { sessionLabel } from "../../lib/session-label.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
-import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
+import { useCurrentProject, useEffectiveProject } from "../../stores/current-project.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { failureText } from "./failure.ts";
 
-// A dropped connection has its own banner and the next connection lists again: only a real refusal is shown.
-const isConnectionLoss = (code: string): boolean => code === "offline" || code === "connection_lost";
+/** The newest sessions "Recent" shows; the whole list is the tree (M4R104). */
+const RECENT = 10;
 
 export function SessionListScreen() {
   const t = useT();
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
   const navigate = useNavigate();
-  const [cwd, setCwd] = useState("");
-  const [sessions, setSessions] = useState<SessionSummary[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [listError, setListError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // Bumped to list again without a new connection.
-  const [listings, setListings] = useState(0);
-
+  const phone = useIsPhone();
+  const project = useEffectiveProject();
+  // The folder follows the current project's root until the person types in the field.
+  const [typed, setTyped] = useState<string | null>(null);
+  // "New session here" is an explicit action: it refills the field even over what the person typed.
+  const startedHere = useCurrentProject((state) => state.startedHere);
+  const [seenStart, setSeenStart] = useState(startedHere);
+  if (seenStart !== startedHere) {
+    setSeenStart(startedHere);
+    setTyped(null);
+  }
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (connection !== "open") return;
-    let current = true;
-    runtime.rpc.call("sessions.list", {}).then(
-      (result) => {
-        if (!current) return;
-        setListError(null);
-        setSessions([...result.sessions].sort((a, b) => b.updatedAt - a.updatedAt));
-      },
-      (failure: unknown) => {
-        if (current) setListError(isConnectionLoss(failureCode(failure)) ? null : failureText(failure));
-      },
-    );
-    return () => {
-      current = false;
-    };
-  }, [connection, runtime, listings]);
+    const timer = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const cwd = typed ?? project?.root ?? "";
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const held = useShellStore((state) => state.view.sessions);
+  const loaded = useShellStore((state) => state.view.loaded);
+  const broken = useShellStore((state) => state.view.unreadable || state.view.failed !== null);
+  const projectId = project?.id ?? null;
+  const sessions = useMemo(
+    () =>
+      [...held.values()]
+        .filter((session) => session.archivedAt === null && session.settledAt === null)
+        .filter((session) => !isSnoozed(session, now))
+        .filter((session) => projectId === null || session.projectId === projectId)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, RECENT),
+    [held, projectId, now],
+  );
 
   const create = async () => {
     setBusy(true);
@@ -47,9 +60,8 @@ export function SessionListScreen() {
       const { sessionId } = await runtime.rpc.call("sessions.create", { cwd: cwd.trim() });
       await navigate({ to: "/s/$sessionId", params: { sessionId } });
     } catch (failure) {
+      // The session may have been made though no answer came (R105): the stream shows it if it was.
       setError(failureText(failure));
-      // The session may have been made though no answer came (R105): the list tells.
-      if (outcomeUnknown(failure)) setListings((count) => count + 1);
     }
     setBusy(false);
   };
@@ -68,7 +80,7 @@ export function SessionListScreen() {
           label={t("sessions.cwd")}
           hint={t("sessions.cwdHint")}
           value={cwd}
-          onChange={setCwd}
+          onChange={setTyped}
           error={error}
           name="cwd"
         />
@@ -82,33 +94,57 @@ export function SessionListScreen() {
           </Button>
         </div>
       </form>
-      {listError ? (
-        <p role="alert" className="text-ui text-attn">
-          {listError}
-        </p>
-      ) : null}
-      {sessions.length === 0 ? (
+      {broken ? (
+        <div className="flex items-center gap-2">
+          <p role="alert" className="text-ui text-attn">
+            {t("shell.tree.error")}
+          </p>
+          <Button variant="secondary" size="sm" onClick={() => runtime.subscriptions.resync("shell", "me")}>
+            {t("shell.tree.retry")}
+          </Button>
+        </div>
+      ) : !loaded ? (
+        <p className="text-muted">{t("shell.tree.loading")}</p>
+      ) : sessions.length === 0 ? (
         <p className="text-muted">{t("sessions.empty")}</p>
       ) : (
-        <ul className="flex flex-col gap-1">
-          {sessions.map((session) => (
-            <li key={session.id} className="flex items-center gap-2">
-              <div className="flex min-w-0 flex-col">
-                <Link
-                  to="/s/$sessionId"
-                  params={{ sessionId: session.id }}
-                  className={cn("break-all text-agent underline", FOCUS_RING)}
-                >
-                  {session.name ?? session.cwd}
-                </Link>
-                {session.name ? <span className="break-all text-ui text-muted">{session.cwd}</span> : null}
-              </div>
-              <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
-                {t(`session.status.${session.status}`)}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <>
+          <h2 className="label-hud text-muted">{t("sessions.recent")}</h2>
+          <ul className="flex flex-col gap-1">
+            {sessions.map((session) => {
+              const label = sessionLabel(session) || session.cwd;
+              return (
+                <li key={session.id} className="flex items-center gap-2">
+                  <div className="flex min-w-0 flex-col">
+                    <Link
+                      to="/s/$sessionId"
+                      params={{ sessionId: session.id }}
+                      className={cn("break-all text-agent underline", FOCUS_RING)}
+                    >
+                      {label}
+                    </Link>
+                    {label !== session.cwd ? (
+                      <span className="break-all text-ui text-muted">{session.cwd}</span>
+                    ) : null}
+                  </div>
+                  <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
+                    {formatAge(now, session.updatedAt, t)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <div>
+            <Button
+              variant="ghost"
+              size="sm"
+              // "mobile.lists.open" is registered by MobileShell and only used on a phone.
+              onClick={() => void runCommand(phone ? "mobile.lists.open" : "drawer.tree.toggle")}
+            >
+              {t("sessions.all")}
+            </Button>
+          </div>
+        </>
       )}
     </section>
   );

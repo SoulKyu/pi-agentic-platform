@@ -7,7 +7,7 @@ describe("grant keys", () => {
     expect(ls).toMatch(/^[0-9a-f]{64}$/);
     expect(grantKey("bash", grantPayload({ command: "ls -la", timeout: 5 }, true))).toBe(ls);
     expect(grantKey("bash", grantPayload({ command: "ls  -la" }, true))).not.toBe(ls);
-    expect(grantKey("bash", grantPayload({ command: "ls -la​" }, true))).not.toBe(ls);
+    expect(grantKey("bash", grantPayload({ command: "ls -la\u200B" }, true))).not.toBe(ls);
     expect(grantKey("other", grantPayload({ command: "ls -la" }, true))).not.toBe(ls);
   });
 

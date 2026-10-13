@@ -67,7 +67,7 @@ export function subscriptionBed(options: { manual?: boolean; state?: ConnectionS
     call: vi.fn((method: string, params: unknown) => {
       calls.push([method, params]);
       if (!options.manual) {
-        return Promise.resolve(method === "subscribe.session" ? { sub: `s${calls.length}` } : { ok: true });
+        return Promise.resolve(method.startsWith("subscribe.") ? { sub: `s${calls.length}` } : { ok: true });
       }
       return new Promise((resolve, reject) => {
         replies[calls.length - 1] = { resolve, reject };

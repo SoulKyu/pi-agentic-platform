@@ -6,7 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
+import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
+import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
 import { registerCatalog, setLocale, translate, useT } from "./index.ts";
 
 const src = join(import.meta.dirname, "..");
@@ -147,5 +149,113 @@ describe("lazy catalog (server texts)", () => {
     const { fr } = await import("./fr.ts");
     expect(Object.keys(en).filter((key) => key.startsWith("server."))).toEqual([]);
     expect(Object.keys(fr).filter((key) => key.startsWith("server."))).toEqual([]);
+  });
+});
+
+describe("lazy catalog (sidebar)", () => {
+  it("registers its strings with the tree chunk, English and French, the same slots in both", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await act(async () => registerCatalog({ en: sidebarEn, fr: sidebarFr }));
+    expect(translate("en", "sidebar.showMore")).toBe("Show 20 more");
+    expect(translate("fr", "sidebar.showMore")).toBe("En afficher 20 de plus");
+    const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(sidebarEn) as Array<keyof typeof sidebarEn>)
+      expect(slots(sidebarFr[key]), key).toEqual(slots(sidebarEn[key]));
+  });
+
+  it("is referenced only from the projects .tsx files, the palette's search files and Transcript.tsx", () => {
+    // Later tasks add their lazy files here; the register file is the only other importer.
+    const inChunk = (file: string) =>
+      (file.startsWith("features/projects/") && file.endsWith(".tsx")) ||
+      file === "features/commands/palette/CommandPalette.tsx" ||
+      file === "features/commands/palette/TranscriptHits.tsx" ||
+      file === "features/sessions/Transcript.tsx";
+    const offenders: string[] = [];
+    for (const file of files(src)) {
+      const name = relative(src, file).split("\\").join("/");
+      if (!/\.tsx?$/.test(name) || /\.test\.|^i18n\/|^testing\//.test(name) || inChunk(name)) continue;
+      const code = readFileSync(file, "utf8");
+      for (const key of Object.keys(sidebarEn))
+        if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
+      if (/["'`]sidebar\./.test(code)) offenders.push(`${name}: sidebar prefix`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the sidebar strings out of the eager catalogs", async () => {
+    const { en } = await import("./en.ts");
+    const { fr } = await import("./fr.ts");
+    const sidebarKey = (key: string) => key.startsWith("sidebar.") || key.startsWith("search.");
+    expect(Object.keys(en).filter(sidebarKey)).toEqual([]);
+    expect(Object.keys(fr).filter(sidebarKey)).toEqual([]);
+  });
+});
+
+describe("lazy catalog (session screen)", () => {
+  it("registers M2's session strings with the session chunk, English and French, the same slots in both", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    await act(async () => registerCatalog({ en: sessionScreenEn, fr: sessionScreenFr }));
+    expect(translate("en", "sessions.composer.send")).toBe("Send");
+    expect(translate("fr", "sessions.composer.send")).toBe("Envoyer");
+    expect(Object.keys(sessionScreenEn)).toHaveLength(96);
+    expect(Object.keys(sessionScreenFr)).toEqual(Object.keys(sessionScreenEn));
+    const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(sessionScreenEn) as Array<keyof typeof sessionScreenEn>)
+      expect(slots(sessionScreenFr[key]), key).toEqual(slots(sessionScreenEn[key]));
+  });
+
+  it("is referenced only from the session chunk's files: eager code can never render a raw key", () => {
+    const chunk = new Set([
+      ...[
+        "AlwaysRules",
+        "BranchSwitcher",
+        "Composer",
+        "CustomPanel",
+        "MessageRow",
+        "Minimap",
+        "QueueStrip",
+        "RowActions",
+        "SessionActions",
+        "SessionScreen",
+        "ToolItemCard",
+        "Transcript",
+      ].map((name) => `features/sessions/${name}.tsx`),
+      "features/sessions/use-composer.ts",
+      ...[
+        "ApprovalCardFor",
+        "ConfirmDialog",
+        "DialogList",
+        "SelectDialog",
+        "TextDialog",
+        "request-frame",
+        "use-clipped",
+      ].map((name) => `features/sessions/dialogs/${name}.tsx`),
+    ]);
+    expect(chunk.size).toBe(20);
+    // A stale entry would silently exempt nothing: every listed file must exist.
+    expect([...chunk].filter((file) => !existsSync(join(src, file)))).toEqual([]);
+    const offenders: string[] = [];
+    for (const file of files(src)) {
+      const name = relative(src, file).split("\\").join("/");
+      if (!/\.tsx?$/.test(name) || /\.test\.|^i18n\/|^testing\//.test(name) || chunk.has(name)) continue;
+      const code = readFileSync(file, "utf8");
+      for (const key of Object.keys(sessionScreenEn))
+        if (code.includes(`"${key}"`) || code.includes(`\`${key}`)) offenders.push(`${name}: ${key}`);
+      if (
+        /["'\x60](?:sessions\.(?:queue|composer|tool|minimap)|session\.outsideWrite|dialog|panel|actions|rules)\./.test(
+          code,
+        )
+      )
+        offenders.push(`${name}: session prefix`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps M2's session strings out of the eager catalogs", async () => {
+    const { en } = await import("./en.ts");
+    const { fr } = await import("./fr.ts");
+    const moved = Object.keys(sessionScreenEn);
+    expect(Object.keys(en).filter((key) => moved.includes(key))).toEqual([]);
+    expect(Object.keys(fr).filter((key) => moved.includes(key))).toEqual([]);
   });
 });

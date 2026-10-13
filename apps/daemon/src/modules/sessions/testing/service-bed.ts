@@ -18,8 +18,10 @@ import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
 import type { PolicyPort } from "../../policy/index.ts";
+import type { ProjectsPort } from "../../projects/index.ts";
 import { createExports, type Exports, loadPiWriter, type PiWriter, SESSIONS_MIGRATIONS } from "../index.ts";
 import { fakePolicyPort } from "./fake-policy.ts";
+import { fakeProjectsPort } from "./fake-projects.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
 
 export { sessionFileText };
@@ -48,6 +50,12 @@ export interface BedOptions {
   logger?: Logger;
   /** The policy module's port; defaults to an empty fake (`fakePolicyPort()`). */
   policy?: PolicyPort;
+  /** The projects module's port; defaults to `fakeProjectsPort()`. */
+  projects?: ProjectsPort;
+  /** The instance owner adopted sessions go to; defaults to `u1`. */
+  ownerId?(): string | null;
+  /** Called once per adopted row (agreement 8). */
+  onAdopted?(sessionId: string): void;
   /** Replaces the writer of forks and clones (a test of how the service treats what it returns). */
   writer?: PiWriter;
   /** The transcript reader fails to load this many times before it loads. */
@@ -89,6 +97,7 @@ export interface ServiceParts<Store, Reader> {
   readonly logger: Logger;
   readonly hub: StreamHub;
   readonly policy: PolicyPort;
+  readonly projects: ProjectsPort;
   readonly exports: Exports;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
   readonly idleMs: number;
@@ -99,6 +108,8 @@ export interface ServiceParts<Store, Reader> {
     readonly testProviderScript: string | null;
   };
   newId(): string;
+  ownerId(): string | null;
+  onAdopted?(sessionId: string): void;
   freeMemMb(): number;
   spawn(cwd: string): WorkerHandle;
   loadTranscript(): Promise<Reader>;
@@ -109,7 +120,7 @@ export interface ServiceParts<Store, Reader> {
 // store come in from the test files, which sit in the module and import what they test directly.
 export interface ServiceLike {
   snapshot(key: string): unknown;
-  prepareSubscription(sessionId: string, caller: Caller): Promise<void>;
+  prepareSubscription(sessionId: string, caller: Caller, after?: Cursor): Promise<Cursor | undefined>;
 }
 
 export interface Factories<Store, Reader, Service extends ServiceLike> {
@@ -151,12 +162,14 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   const exportsDir = join(dir, "pap", "exports");
   const forkTmpDir = join(dir, "pap", "fork-tmp");
   const exports = createExports({ dir: exportsDir, clock, logger: options.logger ?? silentLogger });
+  const projects = options.projects ?? fakeProjectsPort();
   const service = factories.createSessionsService({
     store,
     clock,
     logger: options.logger ?? silentLogger,
     hub,
     policy: options.policy ?? fakePolicyPort(),
+    projects,
     exports,
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },
     idleMs: options.idleMs ?? 0,
@@ -167,6 +180,8 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
       testProviderScript: options.testProviderScript ?? null,
     },
     newId: () => `p${++ids}`,
+    ownerId: options.ownerId ?? (() => "u1"),
+    ...(options.onAdopted ? { onAdopted: options.onAdopted } : {}),
     loadTranscript: () => {
       transcript.loads++;
       if (transcript.failures-- > 0) return Promise.reject(new Error("the SDK did not load"));
@@ -239,6 +254,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     clock,
     db,
     store,
+    projects,
     hub,
     service,
     spawned,
@@ -251,14 +267,14 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     },
     /** A client subscribing through the same two steps; the frames it receives collect in the returned array. */
     async subscribe(sessionId: string, after?: Cursor): Promise<EventFrame[]> {
-      await service.prepareSubscription(sessionId, OWNER);
+      const from = await service.prepareSubscription(sessionId, OWNER, after);
       const frames: EventFrame[] = [];
       hub.open({
         connectionId: "c1",
         sub: "s1",
         stream: "session",
         key: sessionId,
-        after,
+        after: from,
         send: (frame) => void frames.push(frame),
       });
       return frames;

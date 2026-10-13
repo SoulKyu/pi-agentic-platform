@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// The session chunk registers these strings when it loads; the component is rendered here without it.
+import "../register-session-catalog.ts";
 import { FOCUS_RING } from "@pap/ui";
 import type { Dialog } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -94,7 +96,7 @@ describe("ApprovalCardFor", () => {
 
   it("renders the policy's text as text, never as markup, and drops bidi and control characters", async () => {
     const page = await show([
-      exec({ title: "<b>Run?</b>", message: "1 line\n<img src=x onerror=alert(1)>‮evil\u0007" }),
+      exec({ title: "<b>Run?</b>", message: "1 line\n<img src=x onerror=alert(1)>\u202Eevil\u0007" }),
     ]);
     expect(page.querySelector("img, b")).toBeNull();
     expect(page.querySelector("[data-approval-scroll]")?.textContent).toBe(

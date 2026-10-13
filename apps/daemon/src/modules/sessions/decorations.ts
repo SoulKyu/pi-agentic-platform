@@ -5,6 +5,7 @@ import {
   UI_LIMITS,
   type Widget,
 } from "@pap/contracts";
+import { cutUnits } from "../../kernel/text.ts";
 
 export interface Decorations {
   /**
@@ -19,7 +20,7 @@ export interface Decorations {
 }
 
 const NOTICE_LEVELS = new Set(["warning", "error"]);
-const cut = (text: string, max: number): string => text.slice(0, max);
+const cut = (text: string, max: number): string => cutUnits(text, max);
 
 export function createDecorations(): Decorations {
   const statuses = new Map<string, string>();

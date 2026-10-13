@@ -33,6 +33,28 @@ function setup() {
 }
 
 describe("widget components", () => {
+  it("a replaced widget whose async render rejects late does not clear its replacement (deferred #31)", async () => {
+    const { sent, errors, widgets } = setup();
+    let reject: (error: Error) => void = () => {};
+    const sync = (lines: string[]) => () => ({ render: () => lines, invalidate: () => {} });
+    // A render that returns a promise: nothing is drawn, the handle keeps the `visible` it inherited from "A".
+    const pending = () => ({
+      render: () =>
+        new Promise<string[]>((_resolve, no) => {
+          reject = no;
+        }),
+      invalidate: () => {},
+    });
+    widgets.set("k", sync(["A"]) as never);
+    widgets.set("k", pending as never);
+    widgets.set("k", sync(["C"]) as never);
+    sent.length = 0;
+    reject(new Error("late"));
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(sent).toEqual([]);
+    expect(errors).toEqual(["setWidget"]);
+  });
+
   it("renders a factory widget at 92 columns, coalesces requestRender, disposes on replacement and clear", () => {
     const { sent, due, widgets } = setup();
     let lines = ["- a"];

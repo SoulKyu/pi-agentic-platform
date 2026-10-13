@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { sessionSnapshot } from "../testing/session-snapshot.ts";
 import { keyMessages, toMessageView, type MessageView } from "./row-view.ts";
 import { EMPTY_VIEW, reduceSession } from "./session-reducer.ts";
 
@@ -87,5 +88,33 @@ describe("live messages with no timestamp (role:none refs)", () => {
   it("still drops the replay of a message that has a timestamp", () => {
     const once = reduceSession(EMPTY_VIEW, live({ role: "user", content: "hi", timestamp: 5 }));
     expect(reduceSession(once, live({ role: "user", content: "hi", timestamp: 5 })).messages).toHaveLength(1);
+  });
+});
+
+describe("reduceSession, the session's folder (M4)", () => {
+  it("keeps the folder from the snapshot", () => {
+    expect(reduceSession(EMPTY_VIEW, sessionSnapshot({ cwd: "/w/api" })).cwd).toBe("/w/api");
+  });
+
+  it("has no folder before a snapshot", () => {
+    expect(EMPTY_VIEW.cwd).toBe("");
+  });
+
+  it("reads a snapshot of an older daemon, without a folder, as empty", () => {
+    const older: Record<string, unknown> = sessionSnapshot();
+    delete older["cwd"];
+    const view = reduceSession(EMPTY_VIEW, older);
+    expect(view.unreadable).toBe(false);
+    expect(view.cwd).toBe("");
+  });
+});
+
+describe("reduceSession, a write outside pap (owner Q13)", () => {
+  it("keeps the flag from the snapshot, false before one and from an older daemon", () => {
+    expect(EMPTY_VIEW.outsideWrite).toBe(false);
+    expect(reduceSession(EMPTY_VIEW, sessionSnapshot({ outsideWrite: true })).outsideWrite).toBe(true);
+    const older: Record<string, unknown> = sessionSnapshot();
+    delete older["outsideWrite"];
+    expect(reduceSession(EMPTY_VIEW, older).outsideWrite).toBe(false);
   });
 });

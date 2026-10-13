@@ -3,14 +3,16 @@ import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { SplitView, useWorkspaceStore, type ItemRef, type Tab } from "../../features/workspace/index.ts";
 import { itemTitle } from "./item-title.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { PaneBoundary } from "./PaneBoundary.tsx";
 import { renderItem } from "./pane-renderers.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 
 /** The active tab's pane (named by its tab), beside its split item when it has one. */
 export function PaneHost({ tab }: { readonly tab: Tab | null }) {
   const t = useT();
-  const sessions = useSessionsCache((state) => state.sessions);
+  const sessions = useShellStore((state) => state.view.sessions);
+  const views = useViewLabels((state) => state.labels);
   const setRatio = useWorkspaceStore((state) => state.setRatio);
   if (!tab) return null;
   const main = (
@@ -38,10 +40,10 @@ export function PaneHost({ tab }: { readonly tab: Tab | null }) {
           key={`${tab.key}/split`}
           data-pane-role="split"
           data-pane-kind={item.kind}
-          aria-label={itemTitle(item, sessions, t)}
+          aria-label={itemTitle(item, sessions, views, t)}
           className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
-          <SplitHeader tab={tab} title={itemTitle(item, sessions, t)} />
+          <SplitHeader tab={tab} title={itemTitle(item, sessions, views, t)} />
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <PaneBoundary key={`${tab.key}/${item.kind}`}>{renderItem(item)}</PaneBoundary>
           </div>
@@ -54,7 +56,8 @@ export function PaneHost({ tab }: { readonly tab: Tab | null }) {
 function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string }) {
   const t = useT();
   const ws = useWorkspaceStore((state) => state.ws);
-  const sessions = useSessionsCache((state) => state.sessions);
+  const sessions = useShellStore((state) => state.view.sessions);
+  const views = useViewLabels((state) => state.labels);
   const split = useWorkspaceStore((state) => state.split);
   const unsplit = useWorkspaceStore((state) => state.unsplit);
   const lazyText = useLazyFailureText();
@@ -75,7 +78,7 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
         )}
         items={choices.map((item) => ({
           id: JSON.stringify(item),
-          label: itemTitle(item, sessions, t),
+          label: itemTitle(item, sessions, views, t),
           onSelect: () => split(tab.key, item),
         }))}
       />

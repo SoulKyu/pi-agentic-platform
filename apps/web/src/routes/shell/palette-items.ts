@@ -10,8 +10,9 @@ import {
 } from "../../features/commands/index.ts";
 import { SETTINGS_SECTIONS, type ItemRef, type Tab } from "../../features/workspace/index.ts";
 import type { MessageKey, Translate } from "../../i18n/index.ts";
+import type { ViewLabel } from "../../stores/view-labels-store.ts";
 import { itemTitle } from "./item-title.ts";
-import { basename, sessionLabel } from "./session-label.ts";
+import { basename, sessionLabel } from "../../lib/session-label.ts";
 
 export const MAX_PALETTE_SESSIONS = 50;
 
@@ -23,6 +24,8 @@ interface PaletteItemsInput {
   readonly names: KeyNames;
   readonly tabs: readonly Tab[];
   readonly sessions: readonly SessionSummary[];
+  /** The labels of the loaded session views: titles a tab of a session the list lacks (M4R86). */
+  readonly views: Readonly<Record<string, ViewLabel>>;
   readonly t: Translate;
   navigate(item: ItemRef): void;
   run(id: string): void;
@@ -31,8 +34,9 @@ interface PaletteItemsInput {
 /** The palette's rows: open tabs, commands that have a handler, the 50 newest sessions, settings sections. */
 export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
   const { t, navigate } = input;
+  const known = new Map(input.sessions.map((session) => [session.id, session]));
   const open = input.tabs.map((tab): PaletteItem => {
-    const title = itemTitle(tab.item, input.sessions, t);
+    const title = itemTitle(tab.item, known, input.views, t);
     return {
       id: `open:${tab.key}`,
       group: "open",

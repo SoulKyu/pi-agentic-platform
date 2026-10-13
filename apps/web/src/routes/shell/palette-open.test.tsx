@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { registerCommand, startKeybindings } from "../../features/commands/index.ts";
@@ -7,7 +8,8 @@ import type { Runtime } from "../../runtime/index.ts";
 import { press, settle, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({
@@ -36,29 +38,29 @@ beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
   bed = fakeRuntime("open");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
-  bed.handlers["sessions.list"] = () => ({
-    sessions: [{ id: "abc", cwd: "/home/ana/pi-agentic", status: "idle", createdAt: 1, updatedAt: 2 }],
-  });
   current.runtime = bed.runtime;
   localStorage.clear();
-  useSessionsCache.setState({ sessions: [], status: "idle" });
+  useShellStore.getState().reset();
   useWorkspaceStore.setState({ ws: EMPTY_WORKSPACE });
 });
 
+const feed = () =>
+  act(async () =>
+    bed.emitTo("subscribe.shell", shellSnapshot([shellSession({ id: "abc", cwd: "/home/ana/pi-agentic" })])),
+  );
 const ctrlK = () => press(document.body, { key: "k", code: "KeyK", ctrlKey: true });
 const listbox = () => document.querySelector('[role="listbox"]');
 const waitOpen = () => vi.waitFor(() => expect(listbox()).not.toBeNull(), { timeout: 2_000 });
 
 describe("the palette in the shell", () => {
-  it("has no listbox until Ctrl+K, toggles with the chord, and refreshes the sessions on open", async () => {
+  it("has no listbox until Ctrl+K, toggles with the chord, and never lists sessions", async () => {
     const page = await renderShell("/");
     await settle();
     expect(listbox()).toBeNull();
-    const before = bed.called("sessions.list").length;
     await ctrlK();
     await waitOpen();
     await settle();
-    expect(bed.called("sessions.list")).toHaveLength(before + 1);
+    expect(bed.called("sessions.list")).toEqual([]);
     expect(document.querySelector("[data-pap-modal] [data-command-palette]")).not.toBeNull();
     await ctrlK();
     await settle();
@@ -69,6 +71,7 @@ describe("the palette in the shell", () => {
   it("opens a session picked from the list, and Escape closes the palette", async () => {
     const page = await renderShell("/");
     await settle();
+    await feed();
     await ctrlK();
     await waitOpen();
     await settle();
@@ -81,6 +84,27 @@ describe("the palette in the shell", () => {
     await settle();
     expect(page.router.state.location.pathname).toBe("/s/abc");
     expect(listbox()).toBeNull();
+    await page.unmount();
+  });
+
+  it("spends no row on an archived session", async () => {
+    const page = await renderShell("/");
+    await settle();
+    await act(async () =>
+      bed.emitTo(
+        "subscribe.shell",
+        shellSnapshot([
+          shellSession({ id: "live", cwd: "/w/live", updatedAt: 1 }),
+          shellSession({ id: "gone", cwd: "/w/gone", updatedAt: 9, archivedAt: 5 }),
+        ]),
+      ),
+    );
+    await ctrlK();
+    await waitOpen();
+    await settle();
+    const rows = [...document.querySelectorAll('[role="option"]')].map((el) => el.textContent);
+    expect(rows).toContain("live/w/live");
+    expect(rows).not.toContain("gone/w/gone");
     await page.unmount();
   });
 

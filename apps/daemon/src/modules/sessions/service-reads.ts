@@ -1,4 +1,5 @@
 import {
+  type Cursor,
   type Caller,
   EMPTY_QUEUE,
   type ForkPoint,
@@ -6,16 +7,17 @@ import {
   IDLE_ACTIVITY,
   PapError,
   type SessionStatus,
+  type SessionSummary,
   type SessionStreamEvent,
   type TranscriptRow,
 } from "@pap/contracts";
+import { cutUnits, MAX_ID_CHARS } from "../../kernel/text.ts";
 import { isPiSessionFile } from "./pi-files.ts";
 import type { BranchPage } from "./branch.ts";
 import {
   fitPage,
   fitPoints,
   fitSnapshot,
-  MAX_ID_CHARS,
   PAGE_BYTES,
   SNAPSHOT_ROWS,
   sizeOf,
@@ -53,8 +55,7 @@ export function clipJsonText(text: string, max: number): { text: string; truncat
     else high = mid - 1;
   }
   // Never end on half of a surrogate pair.
-  const end = low > 0 && /[\uD800-\uDBFF]/.test(text[low - 1] ?? "") ? low - 1 : low;
-  return { text: text.slice(0, end), truncated: true };
+  return { text: cutUnits(text, low), truncated: true };
 }
 
 const textOfResult = (result: unknown): string => {
@@ -76,10 +77,13 @@ export interface SessionReadsDeps {
   readonly live: ReadonlyMap<string, LiveSession>;
   statusOf(id: string): SessionStatus;
   owned(id: string, caller: Caller): SessionRow;
+  /** The Pi file changed outside pap in the last 2 minutes (owner Q13). */
+  outsideWrite(id: string): boolean;
 }
 
 export interface SessionReads {
-  prepare(sessionId: string, caller: Caller): Promise<void>;
+  /** The cursor the subscription may replay from: `after`, or none when the file changed outside pap. */
+  prepare(sessionId: string, caller: Caller, after?: Cursor): Promise<Cursor | undefined>;
   snapshot(sessionId: string): SessionStreamEvent;
   /** The memoized load `prepare` awaits. */
   ensureReader(): Promise<TranscriptReader>;
@@ -97,6 +101,8 @@ export interface SessionReads {
     sessionId: string,
     caller: Caller,
   ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
+  /** Every session of the caller, newest first, with its live status. */
+  summaries(caller: Caller): SessionSummary[];
 }
 
 export function createSessionReads(deps: SessionReadsDeps): SessionReads {
@@ -124,6 +130,15 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
 
   return {
     ensureReader,
+    summaries: (caller) =>
+      deps.store.listByOwner(caller.userId).map((row) => ({
+        id: row.id,
+        cwd: row.cwd,
+        name: row.name,
+        status: deps.statusOf(row.id),
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+      })),
     async history({ sessionId, before, limit }, caller) {
       const row = deps.owned(sessionId, caller);
       const reader = await ensureReader();
@@ -163,9 +178,12 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const envelope = sizeOf({ leafId, points: [], truncated: true });
       return { leafId, ...fitPoints(reader.forks(file, known), PAGE_BYTES - envelope) };
     },
-    async prepare(sessionId, caller) {
+    async prepare(sessionId, caller, after) {
       deps.owned(sessionId, caller);
       await ensureReader();
+      // A write made outside pap publishes nothing on this stream: replaying from the client's cursor would show
+      // neither the notice nor the new entries, so a fresh snapshot is sent instead (owner Q13).
+      return deps.outsideWrite(sessionId) ? undefined : after;
     },
     snapshot(sessionId) {
       const row = deps.store.get(sessionId);
@@ -207,6 +225,8 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         history,
         leafId: session?.leafId() ?? page.leafId,
         name: row.name,
+        cwd: row.cwd,
+        outsideWrite: deps.outsideWrite(sessionId),
       });
       return withTrimmedHistory(snapshot, rows, history);
     },

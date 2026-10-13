@@ -1,5 +1,7 @@
 import { type ApprovalRequestRecord, Dialog, type UiRequestRecord } from "@pap/contracts";
 import { z } from "zod";
+import { sizeOf } from "../../kernel/json-bytes.ts";
+import { cutUnits } from "../../kernel/text.ts";
 
 const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
 const DECORATION_METHODS = new Set(["notify", "setStatus", "setWidget", "setTitle", "set_editor_text"]);
@@ -52,11 +54,10 @@ export interface DialogRegistry {
   clear(): Dialog[];
 }
 
-const sizeOf = (value: unknown): number => Buffer.byteLength(JSON.stringify(value));
 const cancel = (reason: CancelReason): DialogVerdict => ({ kind: "cancel", reason });
 
-/** `max` characters at most, the last one marking the cut. */
-const cut = (text: string, max: number): string => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
+/** `max` UTF-16 units at most, the last one marking the cut, never half a surrogate pair. */
+const cut = (text: string, max: number): string => cutUnits(text, max, "…");
 
 // Text fields of the request that are not text make the whole dialog malformed; `undefined` means "not given".
 function textOf(raw: Record<string, unknown>, field: TextField): string | undefined | null {
@@ -137,9 +138,7 @@ function fitFrame(dialog: Dialog): Dialog | null {
 
 /** At most 4096 characters, never ending between the two halves of a surrogate pair. */
 function labelOf(message: string): string {
-  const label = message.slice(0, MAX_LABEL_CHARS);
-  const last = label.charCodeAt(label.length - 1);
-  return last >= 0xd800 && last <= 0xdbff ? label.slice(0, -1) : label;
+  return cutUnits(message, MAX_LABEL_CHARS);
 }
 
 /** The card must show the whole call, so a request is the dialog as it is or no dialog (R86). */

@@ -1,4 +1,4 @@
-import { ALL_PERMISSIONS, type Caller, type HandlerContext, PapError } from "@pap/contracts";
+import { ALL_PERMISSIONS, type Caller, type Cursor, type HandlerContext, PapError } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { sessionsRpc } from "./rpc.ts";
 import type { SessionsService } from "./service.ts";
@@ -10,6 +10,10 @@ function setup(overrides: Partial<SessionsService> = {}) {
   const service: SessionsService = {
     create: vi.fn(async () => ({ sessionId: "p1" })),
     list: vi.fn(() => []),
+    listFitted: vi.fn(() => ({ sessions: [], truncated: false })),
+    shellSnapshot: vi.fn(),
+    listArchived: vi.fn(() => ({ sessions: [], hasMore: false })),
+    summary: vi.fn(() => null),
     prompt: vi.fn(async () => ({ disposition: "started" as const })),
     abort: vi.fn(async () => {}),
     navigate: vi.fn(async () => ({ cancelled: false, editorText: "q" })),
@@ -22,13 +26,24 @@ function setup(overrides: Partial<SessionsService> = {}) {
     clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
     respondDialog: vi.fn(),
     panelInput: vi.fn(),
-    prepareSubscription: vi.fn(async () => {}),
+    prepareSubscription: vi.fn(async (_sessionId: string, _caller: unknown, after?: Cursor) => after),
     history: vi.fn(async () => ({ rows: [], hasMore: false, oldestEntryId: null, turnsBefore: 0 })),
     toolOutput: vi.fn(async () => ({ text: "out", truncated: false, isError: false, args: null })),
     branches: vi.fn(async () => ({ leafId: null, points: [], truncated: false })),
     snapshot: vi.fn(),
     shutdownAll: vi.fn(async () => {}),
     inspect: vi.fn(() => null),
+    mark: vi.fn(),
+    startOrganiser: vi.fn(),
+    activity: vi.fn(),
+    backfillProjects: vi.fn(() => 0),
+    scanPort: {
+      claim: () => ({ kind: "wait" as const }),
+      touched: () => {},
+      named: () => {},
+      previewed: () => {},
+      summary: () => null,
+    },
     ...overrides,
   };
   const openSubscription = vi.fn(() => "s1");
@@ -142,6 +157,9 @@ describe("sessions rpc", () => {
       sub: "s1",
     });
     expect(openSubscription).toHaveBeenCalledWith("session", "p1", { epoch: "e", seq: 4 });
+    const outside = setup({ prepareSubscription: vi.fn(async () => undefined) });
+    await outside.rpc["subscribe.session"]({ sessionId: "p1", after: { epoch: "e", seq: 4 } }, outside.ctx);
+    expect(outside.openSubscription).toHaveBeenCalledWith("session", "p1", undefined);
     const refused = setup({
       prepareSubscription: vi.fn(async () => {
         throw new PapError("not_found");
@@ -159,10 +177,10 @@ describe("sessions rpc", () => {
     const { rpc, ctx, openSubscription } = setup({
       prepareSubscription: vi.fn(
         () =>
-          new Promise<void>((resolve) => {
+          new Promise<Cursor | undefined>((resolve) => {
             prepared = () => {
               order.push("prepared");
-              resolve();
+              resolve(undefined);
             };
           }),
       ),

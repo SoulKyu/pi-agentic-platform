@@ -358,6 +358,13 @@ describe("compact", () => {
     });
     expect(lines.some((line) => line.msg === "compact_answer_unreadable")).toBe(true);
   });
+  it("reads a fractional tokensBefore as unreadable, never as a count (M4R3)", async () => {
+    const { logger, lines } = captureLogger();
+    open({ logger, replies: { compact: { data: { tokensBefore: 1.5, estimatedTokensAfter: 5 } } } });
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    expect(await bed.service.compact({ sessionId }, OWNER)).toMatchObject({ tokensBefore: 0 });
+    expect(lines.some((line) => line.msg === "compact_answer_unreadable")).toBe(true);
+  });
 
   it("never hands a client what the worker said when it refused (R66, M2R87)", async () => {
     const { logger, lines } = captureLogger();

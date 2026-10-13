@@ -1,10 +1,12 @@
-import { cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
+import "./register-session-catalog.ts";
+import { Banner, Button, cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { codedServerText } from "../../i18n/server-text.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import "../../i18n/register-sidebar.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
@@ -40,11 +42,17 @@ export function SessionScreen({
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
   const [error, setError] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState<number | null>(null);
   // One feed per session id: the events build the view in the store, not in this component.
   useEffect(
     () => feedSession(runtime.subscriptions, sessionId, (code) => setError(codeText(code))),
     [runtime, sessionId],
   );
+
+  // A dialog closed while others were hidden: one fresh snapshot lets the hidden ones reach this client (M4R111).
+  useEffect(() => {
+    if (view.staleDialogs) runtime.subscriptions.resync("session", sessionId);
+  }, [view.staleDialogs, runtime, sessionId]);
 
   // A status button's command goes out as a prompt; its failure shows like any other (the bar is disabled while busy).
   const commandInFlight = useRef(false);
@@ -106,6 +114,19 @@ export function SessionScreen({
           {t("sessions.unreadable")}
         </p>
       ) : null}
+      {view.outsideWrite && dismissed !== view.generation ? (
+        <Banner
+          tone="capacity"
+          title={t("session.outsideWrite.title")}
+          actions={
+            <Button variant="ghost" size="sm" onClick={() => setDismissed(view.generation)}>
+              {t("session.outsideWrite.dismiss")}
+            </Button>
+          }
+        >
+          {t("session.outsideWrite.body")}
+        </Banner>
+      ) : null}
       <SessionActions
         key={`actions:${sessionId}`}
         sessionId={sessionId}
@@ -113,7 +134,7 @@ export function SessionScreen({
         track={structural.track}
         blocked={structural.active}
       />
-      <SessionRules key={`rules:${sessionId}`} sessionId={sessionId} />
+      <SessionRules key={`rules:${sessionId}`} sessionId={sessionId} cwd={view.cwd} />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
       <Transcript
         key={`transcript:${sessionId}`}

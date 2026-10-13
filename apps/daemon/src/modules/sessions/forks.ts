@@ -34,6 +34,8 @@ export interface ForksDeps {
   readonly agentDir: string;
   newId(): string;
   loadWriter(): Promise<PiWriter>;
+  /** After a new session's row is stored: pap wrote its file, so the scanner's first read is not an outside write. */
+  onMade?(sessionId: string): void;
 }
 
 export interface Forks {
@@ -85,6 +87,7 @@ export function createForks(deps: ForksDeps): Forks {
         createdAt: now,
         updatedAt: now,
       });
+      deps.onMade?.(id);
     } catch (error) {
       if (made.file !== null) rmSync(made.file, { force: true });
       if (error instanceof PapError) throw error;

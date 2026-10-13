@@ -27,7 +27,22 @@ export interface Subscriptions {
     onEvent: (event: unknown) => void,
     onError?: (code: RpcErrorCode) => void,
   ): () => void;
+  /**
+   * Asks the server for a fresh snapshot of a key that has listeners (nothing otherwise): the cursor is
+   * dropped, and while the socket is open the current sub is released and a new one requested; while it
+   * is not, the reconnect asks without a cursor. An answer to the request it replaces is released.
+   */
+  resync(stream: StreamName, key: string): void;
 }
+
+/** How each stream is asked for (M4R78). The `shell` stream is the caller's own: its key is a local name. */
+const OPENERS: {
+  readonly [S in StreamName]: (rpc: RpcClient, key: string, after: Cursor | null) => Promise<{ sub: string }>;
+} = {
+  session: (rpc, key, after) =>
+    rpc.call("subscribe.session", { sessionId: key, ...(after ? { after } : {}) }),
+  shell: (rpc, _key, after) => rpc.call("subscribe.shell", after ? { after } : {}),
+};
 
 interface Listener {
   readonly onEvent: (event: unknown) => void;
@@ -35,6 +50,7 @@ interface Listener {
 }
 
 interface Entry {
+  readonly stream: StreamName;
   readonly key: string;
   readonly listeners: Set<Listener>;
   cursor: Cursor | null;
@@ -96,32 +112,30 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
     const generation = ++entry.generation;
     const connected = link;
     entry.opening = true;
-    rpc
-      .call("subscribe.session", { sessionId: entry.key, ...(entry.cursor ? { after: entry.cursor } : {}) })
-      .then(
-        ({ sub }) => {
-          if (entry.generation !== generation) {
-            // Two requests for the key crossed on this connection (a subscribe made while the open
-            // notification was still going out): the newer one serves the listeners, so free this sub.
-            claim(sub);
-            if (link === connected) release(sub);
-            return;
-          }
-          entry.opening = false;
-          const arrived = claim(sub);
-          // Everyone left while the request was in flight and nobody came back: the server still holds it.
-          if (entry.listeners.size === 0) return release(sub);
-          entry.sub = sub;
-          bySub.set(sub, entry);
-          for (const frame of arrived) deliver(entry, frame);
-        },
-        (error: unknown) => {
-          if (entry.generation !== generation) return;
-          entry.opening = false;
-          claim(null);
-          fail(entry, error);
-        },
-      );
+    OPENERS[entry.stream](rpc, entry.key, entry.cursor).then(
+      ({ sub }) => {
+        if (entry.generation !== generation) {
+          // Two requests for the key crossed on this connection (a subscribe made while the open
+          // notification was still going out): the newer one serves the listeners, so free this sub.
+          claim(sub);
+          if (link === connected) release(sub);
+          return;
+        }
+        entry.opening = false;
+        const arrived = claim(sub);
+        // Everyone left while the request was in flight and nobody came back: the server still holds it.
+        if (entry.listeners.size === 0) return release(sub);
+        entry.sub = sub;
+        bySub.set(sub, entry);
+        for (const frame of arrived) deliver(entry, frame);
+      },
+      (error: unknown) => {
+        if (entry.generation !== generation) return;
+        entry.opening = false;
+        claim(null);
+        fail(entry, error);
+      },
+    );
   };
 
   connection.onFrame((frame) => {
@@ -148,10 +162,26 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
   });
 
   return {
-    subscribe(_stream, key, onEvent, onError) {
-      let entry = entries.get(key);
+    resync(stream, key) {
+      const entry = entries.get(`${stream}:${key}`);
+      if (!entry || entry.listeners.size === 0) return;
+      // The next answer must be a fresh snapshot: the cursor goes, now or at the reconnect (M4R79).
+      entry.cursor = null;
+      if (connection.state !== "open") return;
+      if (entry.sub !== null) {
+        bySub.delete(entry.sub);
+        release(entry.sub);
+        entry.sub = null;
+      }
+      // A request in flight is answered stale by the generation `open` bumps, and released then (R11).
+      open(entry);
+    },
+    subscribe(stream, key, onEvent, onError) {
+      const id = `${stream}:${key}`;
+      let entry = entries.get(id);
       if (!entry) {
         entry = {
+          stream,
           key,
           listeners: new Set(),
           cursor: null,
@@ -160,7 +190,7 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
           generation: 0,
           expiry: null,
         };
-        entries.set(key, entry);
+        entries.set(id, entry);
       }
       const current = entry;
       if (current.expiry !== null) timers.clear(current.expiry);
@@ -181,7 +211,7 @@ export function createSubscriptions(connection: Connection, rpc: RpcClient, time
           release(current.sub);
           current.sub = null;
         }
-        current.expiry = timers.set(() => entries.delete(current.key), CURSOR_CACHE_MS);
+        current.expiry = timers.set(() => entries.delete(id), CURSOR_CACHE_MS);
       };
     },
   };

@@ -1,1 +1,7 @@
-{ "initialBundleGzipKb": 200, "sessionOpenPayloadKb": 64, "idleWorkerRssMb": 191 }
+{
+  "initialBundleGzipKb": 200,
+  "sessionOpenPayloadKb": 64,
+  "idleWorkerRssMb": 191,
+  "searchP95Ms": 200,
+  "scannerLatencyMs": 3000
+}

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const STREAMS = ["session"] as const;
+export const STREAMS = ["session", "shell"] as const;
 export type StreamName = (typeof STREAMS)[number];
 
 export const SessionStatus = z.enum(["cold", "starting", "idle", "running", "releasing"]);
@@ -228,6 +228,10 @@ const Snapshot = z.object({
   activity: Activity,
   leafId: z.string().max(128).nullable(),
   name: SessionName.nullable(),
+  /** The session's working directory (M4): the session screen needs no list to find it. `""` from an older daemon. */
+  cwd: z.string().max(4096).default(""),
+  /** The session's Pi file changed in the last 2 minutes outside pap (owner Q13, M4R141). `false` from an older daemon. */
+  outsideWrite: z.boolean().default(false),
 });
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [

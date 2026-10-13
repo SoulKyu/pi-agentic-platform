@@ -88,6 +88,9 @@ export function createWidgetComponents(
     const redraw = createRenderTimer(timers, () => render());
     const fail = (error: unknown): void => {
       deps.onError("setWidget", error);
+      // Disposed already (replaced, released, cleared, or failed before): what the key shows now is not this
+      // component's, so it must not clear it (deferred #31).
+      if (closed) return;
       if (live.get(key) === handle) live.delete(key);
       handle.dispose();
       if (handle.visible) emit(key, undefined, undefined);

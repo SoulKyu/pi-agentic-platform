@@ -1,4 +1,6 @@
 // @vitest-environment happy-dom
+// The session chunk registers these strings when it loads; the component is rendered here without it.
+import "./register-session-catalog.ts";
 import { describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { alerts, button, click, hasButton, settle, text } from "../../testing/dom.ts";

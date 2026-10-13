@@ -26,11 +26,15 @@ export interface SessionView extends UiState {
   readonly messages: readonly MessageView[];
   /** The reply being written, by content index; null between replies. */
   readonly partial: PartialMessage | null;
+  /** The key the reply being written will have once Pi writes it, so its row is not remounted; null when unknown. */
+  readonly partialKey: string | null;
   /** Tool calls by id, latest wins, oldest first; at most 200. */
   readonly tools: ReadonlyMap<string, ToolView>;
   readonly dialogs: readonly Dialog[];
   /** Open dialogs the snapshot could not carry: something is pending that this view cannot show. */
   readonly hiddenDialogs: number;
+  /** A shown dialog closed while others were hidden: the screen asks one fresh snapshot, which resets this. */
+  readonly staleDialogs: boolean;
   /** What waits in Pi's steering and follow-up queue; empty while the session is cold. */
   readonly queue: QueueView;
   readonly notices: ReadonlyArray<{
@@ -45,6 +49,10 @@ export interface SessionView extends UiState {
   readonly history: HistoryMeta;
   /** Pi's current leaf as far as the stream has said so; null when unknown. */
   readonly leafId: string | null;
+  /** The session's folder, from the snapshot ("" until one arrives). */
+  readonly cwd: string;
+  /** The Pi file changed outside pap in the last 2 minutes, as of the last snapshot (owner Q13). */
+  readonly outsideWrite: boolean;
   readonly loaded: boolean;
   /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
   readonly generation: number;
@@ -56,14 +64,18 @@ export const EMPTY_VIEW: SessionView = {
   status: "cold",
   messages: [],
   partial: null,
+  partialKey: null,
   tools: new Map(),
   dialogs: [],
   hiddenDialogs: 0,
+  staleDialogs: false,
   queue: EMPTY_QUEUE,
   notices: [],
   ...EMPTY_UI,
   history: NO_HISTORY,
   leafId: null,
+  cwd: "",
+  outsideWrite: false,
   loaded: false,
   generation: 0,
   unreadable: false,
@@ -71,7 +83,7 @@ export const EMPTY_VIEW: SessionView = {
 const appendMessage = (list: readonly MessageView[], message: MessageView | null): readonly MessageView[] =>
   message ? [...list, withUniqueKey(list, message)] : list;
 
-/** The entry Pi wrote for a message the view already has: the newest one without an id that has its name in Pi's data. */
+/** The entry Pi wrote for a message the view already has: the oldest one without an id that has its name in Pi's data (Pi writes entries in the order of the messages, so the first of two twins in a millisecond gets the first entry, M4R110). */
 function bindEntry(messages: readonly MessageView[], entry: EntryRef): readonly MessageView[] {
   if (entry.type !== "message") return messages;
   const ref =
@@ -81,7 +93,7 @@ function bindEntry(messages: readonly MessageView[], entry: EntryRef): readonly 
         ? `${entry.role}:${entry.messageTimestamp}`
         : null;
   if (ref === null) return messages;
-  const index = messages.findLastIndex((message) => message.entryId === null && message.ref === ref);
+  const index = messages.findIndex((message) => message.entryId === null && message.ref === ref);
   const found = messages[index];
   return found ? messages.with(index, { ...found, entryId: entry.id }) : messages;
 }
@@ -109,6 +121,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         ...uiOfSnapshot(event, view),
         history: event.history,
         leafId: event.leafId,
+        cwd: event.cwd,
+        outsideWrite: event.outsideWrite,
         loaded: true,
         generation: view.generation + 1,
       };
@@ -135,8 +149,16 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       return view.dialogs.some((dialog) => dialog.id === event.dialog.id)
         ? view
         : { ...view, dialogs: [...view.dialogs, event.dialog] };
-    case "dialog_closed":
-      return { ...view, dialogs: view.dialogs.filter((dialog) => dialog.id !== event.id) };
+    case "dialog_closed": {
+      const shown = view.dialogs.some((dialog) => dialog.id === event.id);
+      // An id the view lacks was one of the hidden dialogs. A shown one closing while some are hidden makes the view stale (M4R111).
+      if (!shown) return view.hiddenDialogs > 0 ? { ...view, hiddenDialogs: view.hiddenDialogs - 1 } : view;
+      return {
+        ...view,
+        dialogs: view.dialogs.filter((dialog) => dialog.id !== event.id),
+        staleDialogs: view.staleDialogs || view.hiddenDialogs > 0,
+      };
+    }
     case "queue":
       return { ...view, queue: event.queue };
     case "notice":

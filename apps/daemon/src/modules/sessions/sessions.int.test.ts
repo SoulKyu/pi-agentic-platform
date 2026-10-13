@@ -15,6 +15,7 @@ import { DELTA_FLUSH_MS } from "./coalescer.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "./index.ts";
 import { createSessionsStore, type SessionsStore } from "./store.ts";
 import { fakePolicyPort } from "./testing/fake-policy.ts";
+import { fakeProjectsPort } from "./testing/fake-projects.ts";
 
 // The real pi-host in a real forked process, on a scripted model, with the network closed (never a real provider).
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
@@ -44,6 +45,8 @@ function moduleWith(testProviderScript: string, clock: Clock = createSystemClock
     logger: silentLogger,
     hub,
     policy: fakePolicyPort(),
+    projects: fakeProjectsPort(),
+    ownerId: () => "u1",
     config: {
       home: join(root, "pap"),
       piAgentDir: agentDir,

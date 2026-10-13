@@ -23,6 +23,8 @@ import { systemHandlers } from "./kernel/ws/system-handlers.ts";
 import { createWsServer } from "./kernel/ws/ws-server.ts";
 import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
+import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
+import { createSearchModule } from "./modules/search/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
 
@@ -103,6 +105,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         KERNEL_MIGRATIONS,
         AUTH_MIGRATIONS,
         POLICY_MIGRATIONS,
+        PROJECTS_MIGRATIONS,
         SESSIONS_MIGRATIONS,
         SETTINGS_MIGRATIONS,
       ],
@@ -110,7 +113,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       logger,
     });
     closers.push({ name: "database", close: () => db.close() });
-    ensureInstallTimestamp(db, clock);
+    const installedAt = ensureInstallTimestamp(db, clock);
     if (readOnly)
       logger.warn("read_only_mode", {
         hint: "This database was written by a newer pap. Upgrade pap or restore a backup.",
@@ -143,23 +146,38 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     // What an earlier daemon of this home left behind dies before any new worker starts (M2-RT-13).
     await scopes.sweep();
     const policy = createPolicyModule({ db, clock, logger, newId });
+    const projects = createProjectsModule({ db, clock, logger, newId });
     const sessions = createSessionsModule({
       db,
       clock,
       logger,
       hub,
       policy: policy.port,
+      projects: projects.port,
+      ownerId: () => auth.ownerId(),
       config,
       workerUmask,
       env,
       scopes,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
+    const search = createSearchModule({
+      home: config.home,
+      agentDir: config.piAgentDir,
+      installedAt,
+      readOnly,
+      clock,
+      logger,
+      sessions: sessions.scanPort,
+    });
+    closers.push({ name: "search", close: () => search.stop() });
     const settings = createSettingsModule({ db, clock, logger });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...policy.rpc,
+      ...projects.rpc,
       ...sessions.rpc,
+      ...search.rpc,
       ...settings.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger });
@@ -227,6 +245,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         hint: "--insecure-http: session cookies travel without Secure over plain HTTP, readable by anyone on the network. For testing on a trusted LAN only.",
       });
     }
+    search.start();
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });
 
     let stopping: Promise<void> | undefined;

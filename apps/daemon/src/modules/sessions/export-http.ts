@@ -2,6 +2,7 @@ import { open, rm } from "node:fs/promises";
 import { Readable } from "node:stream";
 import type { Context, Hono } from "hono";
 import type { Logger } from "../../kernel/logger.ts";
+import { LONE_SURROGATE } from "../../kernel/text.ts";
 import { type Exports, SESSION_ID_PATTERN, TOKEN_PATTERN } from "./exports.ts";
 
 /** What makes an exported transcript a file to save, never a page of the pap origin (ADR 0006). */
@@ -17,8 +18,6 @@ const FALLBACK_NAME = "pap-session";
 const TITLE_CODE_POINTS = 64;
 // Characters a file system or a header has a use for, and format and control characters (bidi marks among them).
 const UNSAFE_IN_NAME = /[\\/:*?"<>|]|[\p{Cc}\p{Cf}]/gu;
-// encodeURIComponent throws on a lone surrogate.
-const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?<![\ud800-\udbff])[\udc00-\udfff]/g;
 const ASCII_SAFE = /[A-Za-z0-9 ._-]/;
 
 /**

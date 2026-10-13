@@ -119,6 +119,7 @@ export default defineConfig(
                 "web-routes",
                 "web-feature",
                 "web-gallery",
+                "web-stores",
                 "web-runtime",
                 "web-lib",
                 "web-i18n",

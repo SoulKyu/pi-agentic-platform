@@ -17,6 +17,8 @@ export function sessionSnapshot(patch: Record<string, unknown> = {}) {
     activity: { compacting: false, retry: null },
     leafId: null,
     name: null,
+    cwd: "/w",
+    outsideWrite: false,
     ...patch,
   };
 }

@@ -25,11 +25,11 @@ describe("status cells", () => {
     expect(
       statusCells([
         { key: "command:/deploy", text: "\u001b[0m" },
-        { key: "command:/ev‮il\n/rm", text: "Go" },
+        { key: "command:/ev\u202Eil\n/rm", text: "Go" },
       ]),
     ).toEqual([
       { kind: "command", key: "command:/deploy", command: "/deploy", label: "/deploy" },
-      { kind: "command", key: "command:/ev‮il\n/rm", command: "/evil/rm", label: "Go" },
+      { kind: "command", key: "command:/ev\u202Eil\n/rm", command: "/evil/rm", label: "Go" },
     ]);
   });
 });

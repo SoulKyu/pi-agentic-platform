@@ -1,13 +1,19 @@
-import type { SessionSummary } from "@pap/contracts";
 import type { Translate } from "../../i18n/index.ts";
 import type { ItemRef } from "../../features/workspace/index.ts";
-import { sessionLabel } from "./session-label.ts";
+import type { ViewLabel } from "../../stores/view-labels-store.ts";
+import { sessionLabel } from "../../lib/session-label.ts";
 
-export function itemTitle(item: ItemRef, sessions: readonly SessionSummary[], t: Translate): string {
+/** A session the store holds is titled from it, else from its own view (older than the snapshot's window, M4R86). */
+export function itemTitle(
+  item: ItemRef,
+  sessions: ReadonlyMap<string, ViewLabel>,
+  views: Readonly<Record<string, ViewLabel>>,
+  t: Translate,
+): string {
   switch (item.kind) {
     case "session":
       return (
-        sessionLabel(sessions.find((session) => session.id === item.id) ?? { name: null, cwd: "" }) ||
+        sessionLabel(sessions.get(item.id) ?? views[item.id] ?? { name: null, cwd: "" }) ||
         t("shell.tab.session")
       );
     case "home":

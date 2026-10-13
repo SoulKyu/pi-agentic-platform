@@ -12,6 +12,7 @@ import {
   UI_LIMITS,
 } from "./streams.ts";
 import { settingsMethods } from "./settings.ts";
+import { shellMethods } from "./shell.ts";
 
 const SessionId = z.string().min(1).max(128);
 const Ok = z.object({ ok: z.literal(true) });
@@ -30,6 +31,7 @@ function catalogue<const T extends { readonly [K in keyof T]: MethodDef<K & stri
 
 export const methods = catalogue({
   ...settingsMethods,
+  ...shellMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",
@@ -59,7 +61,8 @@ export const methods = catalogue({
     permission: "sessions:read",
     idempotent: true,
     params: z.object({}),
-    result: z.object({ sessions: z.array(SessionSummary) }),
+    // Cut to the page in JSON bytes, the newest kept (M4R35).
+    result: z.object({ sessions: z.array(SessionSummary), truncated: z.literal(true).optional() }),
     errors: [],
   }),
   "sessions.prompt": defineMethod({

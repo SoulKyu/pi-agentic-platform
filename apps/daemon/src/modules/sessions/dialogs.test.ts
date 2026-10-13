@@ -1,5 +1,6 @@
 import { Dialog } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
+import { sizeOf } from "../../kernel/json-bytes.ts";
 import { createDialogRegistry, DIALOG_FRAME_BYTES } from "./dialogs.ts";
 
 const request = (id: string, fields: Record<string, unknown> = {}) => ({
@@ -10,7 +11,6 @@ const request = (id: string, fields: Record<string, unknown> = {}) => ({
   message: "bash: ls",
   ...fields,
 });
-const sizeOf = (value: unknown) => Buffer.byteLength(JSON.stringify(value));
 
 describe("dialog registry", () => {
   it("opens known dialogs, hands each one out once, and clears", () => {
@@ -76,6 +76,12 @@ describe("dialog size", () => {
     expect(verdict.dialog.title).toHaveLength(4096);
     expect(verdict.dialog.title.endsWith("…")).toBe(true);
     expect(verdict.dialog.message).toHaveLength(65_536);
+  });
+
+  it("cuts a long title without splitting a surrogate pair", () => {
+    const verdict = createDialogRegistry().offer(request("d1", { title: `${"a".repeat(4094)}\u{1F600}b` }));
+    if (verdict.kind !== "opened") throw new Error("expected the dialog to open");
+    expect(verdict.dialog.title).toBe(`${"a".repeat(4094)}…`);
   });
 
   it("keeps one dialog under the frame budget even when every character escapes to six bytes", () => {

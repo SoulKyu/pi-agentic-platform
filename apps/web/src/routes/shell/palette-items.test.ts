@@ -27,6 +27,7 @@ const build = (extra: Partial<Parameters<typeof buildPaletteItems>[0]> = {}) => 
     names: keyNames(t),
     tabs: [],
     sessions: [],
+    views: {},
     t,
     navigate,
     run,
@@ -65,6 +66,14 @@ describe("buildPaletteItems", () => {
     expect(sessions.at(-1)?.title).toBe("p10");
     sessions[0]?.run();
     expect(navigate).toHaveBeenCalledWith({ kind: "session", id: "s59" });
+  });
+
+  it("titles an unnamed session by the start of its first message and still finds it by folder", () => {
+    const unnamed = { ...session("a", "/home/ana/api", 1), preview: "fix the tests" };
+    const { items } = build({ sessions: [unnamed] });
+    const item = items.find((one) => one.id === "session:a");
+    expect(item?.title).toBe("fix the tests");
+    expect(item?.searchTerms).toContain("api");
   });
 
   it("titles a named session by its name and still finds it by folder", () => {

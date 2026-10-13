@@ -1,125 +1,25 @@
-import {
-  type Caller,
-  type DialogResponse,
-  type ForkPoint,
-  type HistoryMeta,
-  type InitRecord,
-  PapError,
-  type SessionStatus,
-  type SessionStreamEvent,
-  type SessionSummary,
-  type TranscriptRow,
-} from "@pap/contracts";
-import type { Clock } from "../../kernel/clock.ts";
-import type { Logger } from "../../kernel/logger.ts";
-import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
-import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
-import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
-import type { PolicyPort } from "../policy/index.ts";
+import { type Caller, PapError, type SessionStatus } from "@pap/contracts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
-import type { Exports } from "./exports.ts";
 import { createGrantLink } from "./grants.ts";
-import { type LiveSession, startLiveSession } from "./live-session.ts";
-import type { PiWriter } from "./pi-writer.ts";
-import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
-import { createSessionCommands, type SessionCommands } from "./service-commands.ts";
+import { createProjectLink } from "./project-link.ts";
+import type { LiveSession } from "./live-session.ts";
+import { createOrganiser } from "./organiser.ts";
+import { createAdoption } from "./service-adopt.ts";
+import { createSessionCommands } from "./service-commands.ts";
+import { createLaunch } from "./service-launch.ts";
+import { createSessionMarks } from "./service-marks.ts";
 import { createSessionReads } from "./service-reads.ts";
-import { createStoreSync } from "./service-sync.ts";
-import type { SessionRow, SessionsStore } from "./store.ts";
-import type { TranscriptReader } from "./transcript.ts";
+import { createShellView } from "./service-shell.ts";
+import { createShellPublisher } from "./shell-publisher.ts";
+import { fitSummaries } from "./shell.ts";
+import type { SessionRow } from "./store.ts";
+import type { SessionsService, SessionsServiceDeps } from "./service-types.ts";
 
-export interface SessionsServiceDeps {
-  readonly store: SessionsStore;
-  readonly clock: Clock;
-  readonly logger: Logger;
-  readonly hub: Pick<StreamHub, "publish">;
-  /** The project's "always" rules: what every worker starts with, and what an "always" answer is saved in. */
-  readonly policy: PolicyPort;
-  /** The pending HTML exports (ADR 0006). */
-  readonly exports: Pick<Exports, "prepare" | "discard">;
-  readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
-  /** Idle minutes after which a worker is released (spec C 2.1), in milliseconds; 0 or less turns the release off. */
-  readonly idleMs: number;
-  readonly worker: {
-    readonly agentDir: string;
-    readonly papHome: string;
-    /** The umask the daemon was started with: workers run their tools under it, not under the daemon's own 077. */
-    readonly umask: number;
-    readonly testProviderScript: string | null;
-  };
-  newId(): string;
-  /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
-  loadTranscript(): Promise<TranscriptReader>;
-  /** Loads the writer of forks and clones: Pi's own session manager, behind a lazy import (R108, ADR 0009). */
-  loadWriter(): Promise<PiWriter>;
-  spawn(cwd: string): WorkerHandle;
-  freeMemMb(): number;
-  onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
-}
+// What changes a sidebar summary: the status, an open dialog or approval, the name (M4R34).
+const SUMMARY_EVENTS: ReadonlySet<string> = new Set(["status", "dialog_open", "dialog_closed", "name"]);
 
-export interface PromptInput {
-  readonly sessionId: string;
-  readonly text: string;
-  readonly streamingBehavior?: "steer" | "followUp" | undefined;
-}
-
-export interface SessionsService extends SessionCommands {
-  create(cwd: string, caller: Caller): Promise<{ sessionId: string }>;
-  list(caller: Caller): SessionSummary[];
-  prompt(input: PromptInput, caller: Caller): Promise<{ disposition: "started" | "queued" | "handled" }>;
-  abort(sessionId: string, caller: Caller): Promise<void>;
-  /** Empties the steering queue of a session the caller owns; a cold session has none (no worker is started). */
-  clearQueue(
-    sessionId: string,
-    caller: Caller,
-  ): Promise<{ steering: string[]; followUp: string[]; truncated: boolean }>;
-  respondDialog(
-    input: { sessionId: string; dialogId: string; response: DialogResponse },
-    caller: Caller,
-  ): void;
-  /**
-   * Keystrokes for an open extension panel of a session the caller owns (M2R86). Not a mutation with a receipt: the
-   * client never retries one. `not_found` when the session has no worker or the panel is not open.
-   */
-  panelInput(input: { sessionId: string; panelId: string; data: string }, caller: Caller): void;
-  /** Older rows of the branch above `before`; reads of a session the caller owns (`not_found` otherwise). */
-  history(
-    input: { sessionId: string; before: string; limit?: number | undefined },
-    caller: Caller,
-  ): Promise<HistoryMeta & { rows: TranscriptRow[] }>;
-  toolOutput(
-    input: { sessionId: string; toolCallId: string; resultEntryId?: string | undefined },
-    caller: Caller,
-  ): Promise<{ text: string; truncated: boolean; isError: boolean; args: string | null }>;
-  branches(
-    sessionId: string,
-    caller: Caller,
-  ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
-  /**
-   * A new session on a new file, cut before a user message of the session's branch (ADR 0009). Allowed while the source
-   * runs and for a cold one: no worker is started, and the new session is cold. At the first message there is no file
-   * yet (a draft). `bad_request` for an entry that is not a user message, `session_empty` for a source without a file.
-   */
-  fork(
-    input: { sessionId: string; entryId: string },
-    caller: Caller,
-  ): Promise<{ sessionId: string; text: string }>;
-  /** A new, cold session holding the branch as written on disk (the turn in flight is not in it). */
-  clone(input: { sessionId: string }, caller: Caller): Promise<{ sessionId: string }>;
-  /**
-   * What `subscribe.session` does before it opens a subscription (R108): checks that the caller may read the session
-   * and loads the transcript reader, once. The hub builds a snapshot synchronously, from what this has loaded.
-   */
-  prepareSubscription(sessionId: string, caller: Caller): Promise<void>;
-  /**
-   * Throws `not_found` for a session that does not exist: the stream hub calls it for every key a client names (R79).
-   * Throws `internal` if no subscription was prepared first, rather than show an empty transcript.
-   */
-  snapshot(sessionId: string): SessionStreamEvent;
-  shutdownAll(): Promise<void>;
-  inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
-}
+export type { SessionsService, SessionsServiceDeps };
 
 export function createSessionsService(deps: SessionsServiceDeps): SessionsService {
   // Workers that are up, by session id. A crashed worker leaves this map and is not replaced until the next prompt.
@@ -146,112 +46,71 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     }
   };
 
-  const { bindPiFile, recordEvent, syncName, replayPreReady } = createStoreSync({
+  const marks = deps.store.marks;
+  const link = createProjectLink({
+    store: marks,
+    projects: deps.projects,
+    scopeOf: deps.policy.scopeOf,
+    logger: deps.logger,
+  });
+
+  const statusOf = (id: string): SessionStatus =>
+    live.get(id)?.status() ?? (reopening.has(id) ? "starting" : "cold");
+
+  const shell = createShellView({
+    store: marks,
+    projects: deps.projects,
+    live: (id) => ({ status: statusOf(id), needsInput: (live.get(id)?.dialogs().length ?? 0) > 0 }),
+  });
+  const publisher = createShellPublisher({
+    hub: deps.hub,
+    summary: shell.summary,
+    project: shell.project,
+    archivedCount: marks.countArchived,
+    logger: deps.logger,
+    clock: deps.clock,
+  });
+  deps.projects.onChange((ownerId, view) => publisher.projectChanged(ownerId, view.id));
+  const organiser = createOrganiser({
+    store: marks,
+    clock: deps.clock,
+    logger: deps.logger,
+    publisher,
+    isLive: (id) => live.has(id),
+    readOnly: deps.store.readOnly,
+  });
+
+  const adoption = createAdoption({
     store: deps.store,
     clock: deps.clock,
     logger: deps.logger,
-    hub: deps.hub,
     agentDir: deps.worker.agentDir,
+    newId: deps.newId,
+    ownerId: deps.ownerId,
+    ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
+    live,
+    link,
+    publisher,
+    activity: organiser.activity,
+    summary: shell.summaryFor,
   });
 
-  // `row` is stored when the worker is ready for a new session (a failed start leaves no trace), and already
-  // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
-  // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
-  async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
-    checkCapacity();
-    let stored = !isNew;
-    const preReady = isNew ? createPreReadyBuffer() : null;
-    let bound = row.piPath !== null;
-    const scope = grants.scopeOf(row.cwd);
-    const init: InitRecord = {
-      type: "init",
-      cwd: row.cwd,
-      agentDir: deps.worker.agentDir,
-      papHome: deps.worker.papHome,
-      umask: deps.worker.umask,
-      policy: grants.policyFor(row, scope),
-      // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
-      ...(row.piPath ? { sessionFile: row.piPath } : {}),
-      ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
-    };
-    const logger = deps.logger.child({ component: "session", sessionId: row.id });
-    // A reopened session has subscribers who last saw it cold; a new one has none yet (R112).
-    if (!isNew) deps.hub.publish("session", row.id, { kind: "status", status: "starting" });
-    const session: LiveSession = startLiveSession(
-      {
-        handle: deps.spawn(row.cwd),
-        clock: deps.clock,
-        logger,
-        publish: (event) => {
-          if (stored) deps.hub.publish("session", row.id, event);
-          // A status is not held: the snapshot carries the status, and no one can have seen an earlier one.
-          else if (event.kind !== "status") preReady?.add({ kind: "publish", event });
-        },
-        record: (kind, data) => {
-          if (stored) recordEvent(row.id, kind, data);
-          else preReady?.add({ kind: "record", recordKind: kind, data });
-        },
-        idleMs: deps.idleMs,
-        // Before the row exists the name is taken from the session once it is ready (below).
-        onName: (name) => {
-          if (stored) syncName(row.id, name);
-        },
-        onActivity: () => {
-          if (stored && !bound) bound = bindPiFile(row, session);
-        },
-        onExit: () => {
-          if (live.get(row.id) === session) live.delete(row.id);
-        },
-        onWorkerExit: (info) => deps.onWorkerExit?.(row.id, info),
-      },
-      init,
-    );
-    // Nothing awaits between the rules in `init` and here, so a change cannot fall between the two.
-    grants.track(session, row, scope);
-    starting.add(session);
-    try {
-      await session.ready;
-      // The file of a recorded session says who it is. Another id means the file was replaced under us.
-      if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId)
-        throw new PapError("worker_failed");
-      if (isNew) deps.store.insert(row);
-      stored = true;
-      // `ready` said Pi's name before the row could hold it (a new session) or this worker's start may have changed it.
-      syncName(row.id, session.name());
-      if (preReady) replayPreReady(row.id, preReady.drain());
-      // Whoever watches the session while it was cold saw the cached name (R112).
-      if (session.name() !== row.name)
-        deps.hub.publish("session", row.id, { kind: "name", name: session.name() });
-      live.set(row.id, session);
-      bound = bound || bindPiFile(row, session);
-      return session;
-    } catch (error) {
-      await session.stop();
-      throw error;
-    } finally {
-      starting.delete(session);
-    }
-  }
-
-  // A session being released has a worker that drops what it is sent: it is waited for, and the next worker opens the
-  // same Pi file. `onExit` has forgotten the session by the time `exited()` resolves, so the second look finds none.
-  async function ensureLive(row: SessionRow): Promise<LiveSession> {
-    const closing = live.get(row.id);
-    // No deadline of its own: the worker's kill ladder ends it within seconds (spec C 2.5).
-    if (closing?.stopping()) await closing.exited();
-    // One whose exit could not be handled is still listed, and is not a worker to give a prompt to.
-    const current = live.get(row.id);
-    if (current && !current.stopping()) return current;
-    const pending = reopening.get(row.id);
-    if (pending) return pending;
-    const reopened = launch(row, false);
-    reopening.set(row.id, reopened);
-    try {
-      return await reopened;
-    } finally {
-      reopening.delete(row.id);
-    }
-  }
+  const { launch, ensureLive } = createLaunch({
+    deps,
+    live,
+    reopening,
+    starting,
+    grants,
+    checkCapacity,
+    projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
+    onReopened: (sessionId) => publisher.changed(sessionId),
+    onPublished: (sessionId, event) => {
+      // A run starting is activity: the session leaves Settled and Snoozed (M4R41).
+      if (event.kind === "status" && event.status === "running") organiser.activity(sessionId);
+      if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
+    },
+    ...adoption.launchHooks,
+  });
 
   const owned = (sessionId: string, caller: Caller): SessionRow => {
     const row = deps.store.get(sessionId);
@@ -266,9 +125,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     return session;
   };
 
-  const statusOf = (id: string): SessionStatus =>
-    live.get(id)?.status() ?? (reopening.has(id) ? "starting" : "cold");
-
   const reads = createSessionReads({
     store: deps.store,
     agentDir: deps.worker.agentDir,
@@ -276,6 +132,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     live,
     statusOf,
     owned,
+    outsideWrite: adoption.outsideWrite,
   });
 
   const commands = createSessionCommands({
@@ -287,7 +144,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     exports: deps.exports,
     logger: deps.logger,
   });
-
   const forks = createForks({
     store: deps.store,
     clock: deps.clock,
@@ -295,7 +151,22 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     agentDir: deps.worker.agentDir,
     newId: deps.newId,
     loadWriter: deps.loadWriter,
+    onMade: adoption.fileMade,
   });
+  const sessionMarks = createSessionMarks({
+    store: marks,
+    clock: deps.clock,
+    owned,
+    publisher,
+    onSnoozeChange: organiser.rearm,
+  });
+
+  const filed = <T extends { sessionId: string }>(source: SessionRow, result: T): T => {
+    const projectId = link.copy(source.id, result.sessionId);
+    publisher.changed(result.sessionId);
+    publisher.projectChanged(source.ownerId, projectId);
+    return result;
+  };
 
   return {
     async create(cwdInput, caller) {
@@ -312,21 +183,21 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         updatedAt: now,
       };
       await launch(row, true);
+      publisher.changed(row.id);
+      publisher.projectChanged(caller.userId, marks.row(row.id)?.projectId ?? null);
       return { sessionId: row.id };
     },
-    list: (caller) =>
-      deps.store.listByOwner(caller.userId).map((row) => ({
-        id: row.id,
-        cwd: row.cwd,
-        name: row.name,
-        status: statusOf(row.id),
-        createdAt: row.createdAt,
-        updatedAt: row.updatedAt,
-      })),
+    listFitted: (caller) => fitSummaries(reads.summaries(caller)),
+    list: (caller) => reads.summaries(caller),
+    shellSnapshot: (ownerId) => shell.snapshot(ownerId),
+    listArchived: shell.listArchived,
+    summary: shell.summaryFor,
     async prompt(input, caller) {
       const row = owned(input.sessionId, caller);
       const session = await ensureLive(row);
       deps.store.touch(row.id, deps.clock.now());
+      organiser.activity(row.id);
+      publisher.changed(row.id);
       return session.prompt(input.text, input.streamingBehavior);
     },
     async abort(sessionId, caller) {
@@ -339,10 +210,13 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     rename: (input, caller) => commands.rename(input, caller),
     autoName: (sessionId, caller) => commands.autoName(sessionId, caller),
     exportHtml: (sessionId, caller) => commands.exportHtml(sessionId, caller),
-    fork: async ({ sessionId, entryId }, caller) => forks.fork(owned(sessionId, caller), entryId),
+    fork: async ({ sessionId, entryId }, caller) => {
+      const row = owned(sessionId, caller);
+      return filed(row, await forks.fork(row, entryId));
+    },
     clone: async ({ sessionId }, caller) => {
       const row = owned(sessionId, caller);
-      return forks.clone(row, live.get(row.id)?.leafId() ?? null);
+      return filed(row, await forks.clone(row, live.get(row.id)?.leafId() ?? null));
     },
     async clearQueue(sessionId, caller) {
       owned(sessionId, caller);
@@ -361,10 +235,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     history: (input, caller) => reads.history(input, caller),
     toolOutput: (input, caller) => reads.toolOutput(input, caller),
     branches: (sessionId, caller) => reads.branches(sessionId, caller),
-    prepareSubscription: (sessionId, caller) => reads.prepare(sessionId, caller),
+    prepareSubscription: (sessionId, caller, after) => reads.prepare(sessionId, caller, after),
     snapshot: (sessionId) => reads.snapshot(sessionId),
     async shutdownAll() {
       closing = true;
+      organiser.stop();
       grants.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
@@ -372,5 +247,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       const session = live.get(sessionId);
       return session ? { pid: session.pid(), rssMb: session.rssMb() } : null;
     },
+    mark: (input, caller) => sessionMarks.mark(input, caller),
+    startOrganiser: organiser.start,
+    activity: organiser.activity,
+    backfillProjects: () => (deps.store.readOnly ? 0 : link.backfill()),
+    scanPort: adoption.scanPort,
   };
 }

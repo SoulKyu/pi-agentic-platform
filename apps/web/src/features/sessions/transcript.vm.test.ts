@@ -184,4 +184,20 @@ describe("transcriptItems", () => {
     );
     expect(rowsOf(view)).toMatchObject([{ author: "agent", text: "Message too large to show (1 KB)." }]);
   });
+
+  it('keys the partial item by the view\'s partialKey, or "partial" without one', () => {
+    const started = reduceSession(EMPTY_VIEW, {
+      kind: "pi",
+      event: { type: "message_start", message: { role: "assistant", timestamp: 7 } },
+    });
+    const view = reduceSession(started, {
+      kind: "pi",
+      event: {
+        type: "message_update",
+        assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Hi" },
+      },
+    });
+    expect(rowsOf(view).map((item) => item.key)).toEqual(["assistant:7"]);
+    expect(rowsOf({ ...view, partialKey: null }).map((item) => item.key)).toEqual(["partial"]);
+  });
 });

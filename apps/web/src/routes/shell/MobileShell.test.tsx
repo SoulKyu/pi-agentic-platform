@@ -11,7 +11,8 @@ import { button, click, mount, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { BottomNav } from "./BottomNav.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({
@@ -34,12 +35,11 @@ beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
   const bed = fakeRuntime("open");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
-  bed.handlers["sessions.list"] = () => ({
-    sessions: [{ id: "one", cwd: "/w/api", status: "idle", createdAt: 1, updatedAt: 1 }],
-  });
   current.runtime = bed.runtime;
   localStorage.clear();
-  useSessionsCache.setState({ sessions: [], status: "idle" });
+  useShellStore.getState().reset();
+  // The phone tests drive the layout, not the feed: the snapshot is applied to the store they read from.
+  useShellStore.getState().apply(shellSnapshot([shellSession({ id: "one", cwd: "/w/api" })]));
   useWorkspaceStore.setState({ ws: EMPTY_WORKSPACE });
 });
 afterEach(() => {
@@ -111,9 +111,10 @@ describe("phone shell", () => {
     await settle();
     await click(button(nav(page.container) as HTMLElement, "Lists"));
     await settle();
-    const row = page.container.querySelector<HTMLElement>('a[href="/s/one"]');
-    expect(row).not.toBeNull();
-    await click(row as HTMLElement);
+    await vi.waitFor(() => expect(page.container.querySelector('a[href="/s/one"]')).not.toBeNull(), {
+      timeout: 2_000,
+    }); // the tree is a lazy chunk
+    await click(page.container.querySelector('a[href="/s/one"]') as HTMLElement);
     await settle();
     expect(page.router.state.location.pathname).toBe("/s/one");
     expect(button(nav(page.container) as HTMLElement, "Work").getAttribute("aria-current")).toBe("page");

@@ -38,6 +38,8 @@ export interface AuthModule {
   authenticateCookieHeader(header: string | undefined): Caller | null;
   /** The one-time owner setup URL while no owner exists, else null. The only secret meant to be shown. */
   setupUrl(): string | null;
+  /** The instance owner: the oldest user, the one definition of it (M4R61, agreement 6). */
+  ownerId(): string | null;
 }
 
 export function createAuthModule(deps: AuthModuleDeps): AuthModule {
@@ -74,5 +76,6 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     authenticateSession: (value, options) => service.authenticate(value, options),
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
     setupUrl: () => service.setupUrl(),
+    ownerId: () => store.firstUserId(),
   };
 }

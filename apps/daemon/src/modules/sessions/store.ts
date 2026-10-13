@@ -1,4 +1,5 @@
 import type { Db } from "../../kernel/db/database.ts";
+import { createMarksStore, type MarksStore } from "./marks-store.ts";
 
 export interface SessionRow {
   /** The session's own id: what the client and the stream use. Pi's id for the same session lives in `piSessionId`. */
@@ -16,7 +17,12 @@ export interface SessionRow {
 }
 
 export interface SessionsStore {
-  insert(row: SessionRow): void;
+  /** The database is one a newer pap wrote: nothing may be written (RT-04). */
+  readonly readOnly: boolean;
+  /** The M4 columns of the same table: marks, project, preview, pending Pi id. */
+  readonly marks: MarksStore;
+  /** `projectId` comes from `project-link.ts`; none when the session is filed later. */
+  insert(row: SessionRow, projectId?: string | null): void;
   get(id: string): SessionRow | undefined;
   listByOwner(ownerId: string): SessionRow[];
   touch(id: string, at: number): void;
@@ -24,6 +30,8 @@ export interface SessionsStore {
   setName(id: string, name: string | null): void;
   /** Sets the Pi file of a draft, once. False when the session already has one. Throws when another session owns the path. */
   bindPiFile(id: string, piPath: string, piSessionId: string): boolean;
+  /** Runs `fn` in one transaction (nesting joins the outer one): all of it is written, or none. */
+  transaction<T>(fn: () => T): T;
   appendEvent(sessionId: string, kind: string, data: unknown, at: number): void;
 }
 
@@ -32,10 +40,12 @@ const COLUMNS =
 
 export function createSessionsStore(db: Db): SessionsStore {
   return {
-    insert: (row) => {
+    readOnly: db.readOnly,
+    marks: createMarksStore(db),
+    insert: (row, projectId = null) => {
       db.run(
-        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, name, created_at, updated_at) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $name, $createdAt, $updatedAt)",
-        { ...row },
+        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, name, project_id, created_at, updated_at) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $name, $projectId, $createdAt, $updatedAt)",
+        { ...row, projectId },
       );
     },
     get: (id) => db.get<SessionRow>(`SELECT ${COLUMNS} FROM sessions WHERE id = $id`, { id }),
@@ -55,6 +65,7 @@ export function createSessionsStore(db: Db): SessionsStore {
         "UPDATE sessions SET pi_path = $piPath, pi_session_id = $piSessionId WHERE id = $id AND pi_path IS NULL",
         { id, piPath, piSessionId },
       ).changes > 0,
+    transaction: (fn) => db.transaction(fn),
     appendEvent: (sessionId, kind, data, at) => {
       db.run(
         "INSERT INTO session_events (session_id, kind, data, created_at) VALUES ($sessionId, $kind, $data, $at)",

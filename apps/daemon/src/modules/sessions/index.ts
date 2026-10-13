@@ -14,16 +14,20 @@ import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { Hono } from "hono";
 import type { PolicyPort } from "../policy/index.ts";
+import type { ProjectsPort } from "../projects/index.ts";
 import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
+import type { SessionsScanPort } from "./scan-port.ts";
+import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
 export { createExports, type Exports } from "./exports.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
+export type { SessionsScanPort } from "./scan-port.ts";
 
 export const SESSIONS_MIGRATIONS: MigrationSource = {
   module: "sessions",
@@ -37,6 +41,8 @@ export interface SessionsModuleDeps {
   readonly hub: StreamHub;
   /** The policy module: the project's "always" rules, and where an "always" answer is saved (Task 14b). */
   readonly policy: PolicyPort;
+  /** The projects module: each session is filed under the project of its folder (Task 7c). */
+  readonly projects: ProjectsPort;
   readonly config: Pick<
     Config,
     | "home"
@@ -52,17 +58,23 @@ export interface SessionsModuleDeps {
   readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
   readonly scopes: WorkerScopes;
+  /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
+  ownerId(): string | null;
+  /** Once per adopted row, after its insert (agreement 8); M5 wires it to the taint of adopted sessions. */
+  readonly onAdopted?: (sessionId: string) => void;
   /** After a worker exited: its session and the end of its output (the supervisor keeps 8 KiB). */
   readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
 }
 
 export interface SessionsModule {
-  readonly rpc: SessionsRpc;
+  readonly rpc: SessionsRpc & ShellRpc;
   /** The download route of HTML exports (ADR 0006). It checks the session cookie itself, with `authenticate`. */
   mountExportRoute(
     app: Hono,
     authenticate: (cookieHeader: string | undefined) => { userId: string } | null,
   ): void;
+  /** What the search module reads from sessions. */
+  readonly scanPort: SessionsScanPort;
   shutdownAll(): Promise<void>;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
 }
@@ -92,6 +104,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     logger,
     hub: deps.hub,
     policy: deps.policy,
+    projects: deps.projects,
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
     idleMs: config.workerIdleMs,
     worker: {
@@ -101,6 +114,8 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       testProviderScript: config.testProviderScript,
     },
     newId,
+    ownerId: deps.ownerId,
+    ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
     loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
     loadWriter: () => loadPiWriter(forkTmpDir, { logger }),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
@@ -118,10 +133,20 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
   });
+  // Rows stored before M4 get the project of their folder; a failure here never stops the boot (M4R29).
+  try {
+    service.backfillProjects();
+  } catch (error) {
+    logger.error("session_projects_backfill_failed", { err: error });
+  }
+  service.startOrganiser();
   deps.hub.registerSnapshot("session", (key) => service.snapshot(key));
+  // The key is the owner's id, taken from the transport: any key answers, empty for a person without sessions.
+  deps.hub.registerSnapshot("shell", (ownerId) => service.shellSnapshot(ownerId));
   return {
-    rpc: sessionsRpc(service),
+    rpc: { ...sessionsRpc(service), ...shellRpc(service) },
     mountExportRoute: (app, authenticate) => mountExportRoute(app, { exports, authenticate, logger }),
+    scanPort: service.scanPort,
     async shutdownAll() {
       try {
         await service.shutdownAll();

@@ -228,6 +228,35 @@ describe("Mod+Shift+Enter sends the other way", () => {
     expect(prompts()).toEqual([]);
   });
 
+  it("does nothing while a menu is open", async () => {
+    const container = await mount1({ status: "running" });
+    const composer = field(container, "Message");
+    await typeInto(composer, "kept");
+    const menu = document.createElement("div");
+    menu.setAttribute("role", "menu");
+    menu.setAttribute("data-test-menu", "");
+    document.body.append(menu);
+    composer.focus();
+    await sendOther(composer);
+    await settle();
+    expect(prompts()).toEqual([]);
+  });
+
+  it("does nothing while a modal dialog is open", async () => {
+    const container = await mount1({ status: "running" });
+    const composer = field(container, "Message");
+    await typeInto(composer, "kept");
+    const modal = document.createElement("div");
+    modal.setAttribute("data-pap-modal", "");
+    modal.setAttribute("data-state", "open");
+    modal.setAttribute("data-test-menu", "");
+    document.body.append(modal);
+    composer.focus();
+    await sendOther(composer);
+    await settle();
+    expect(prompts()).toEqual([]);
+  });
+
   it("does not fire from an extension's custom panel", async () => {
     const container = await mount1({ status: "running" });
     await typeInto(field(container, "Message"), "kept");

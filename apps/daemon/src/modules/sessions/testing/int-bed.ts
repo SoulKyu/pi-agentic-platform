@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ALL_PERMISSIONS,
+  type Cursor,
   type EventFrame,
   type HandlerContext,
   type SessionStreamEvent,
@@ -18,6 +19,7 @@ import { NO_SCOPES, type WorkerScopes } from "../../../kernel/supervisor/scope.t
 import { newId } from "../../../kernel/ids.ts";
 import { createStreamHub } from "../../../kernel/ws/stream-hub.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "../../policy/index.ts";
+import { createProjectsModule, PROJECTS_MIGRATIONS } from "../../projects/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "../index.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
@@ -39,10 +41,15 @@ export interface IntBedOptions {
   readonly workerIdleMs?: number;
   /** Real scopes for the tests that need them (Task 22); every other test runs workers unscoped (owner R2-3). */
   readonly scopes?: WorkerScopes;
+  /** How the daemon is told where the agent folder is (default: as is); `agentDir` stays the plain path. */
+  readonly spellAgentDir?: (agentDir: string) => string;
 }
 
 export interface Subscription {
   events(): SessionStreamEvent[];
+  /** The cursor of the last event received, as a client keeps it for a reopen. */
+  cursor(): Cursor | undefined;
+  close(): void;
   waitFor(predicate: (event: SessionStreamEvent) => boolean, timeoutMs?: number): Promise<SessionStreamEvent>;
 }
 
@@ -66,22 +73,25 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const db = migrate({
       dbPath: join(root, "state.db"),
       backupsDir: join(root, "backups"),
-      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS],
+      sources: [KERNEL_MIGRATIONS, POLICY_MIGRATIONS, SESSIONS_MIGRATIONS, PROJECTS_MIGRATIONS],
       clock,
       logger: silentLogger,
     }).db;
     const hub = createStreamHub(undefined, clock);
     const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
     const policy = createPolicyModule({ db, clock, logger: silentLogger, newId });
+    const projects = createProjectsModule({ db, clock, logger: silentLogger, newId });
     const sessions: SessionsModule = createSessionsModule({
       db,
       clock,
       logger: silentLogger,
       hub,
       policy: policy.port,
+      projects: projects.port,
+      ownerId: () => "u1",
       config: {
         home: papHome,
-        piAgentDir: agentDir,
+        piAgentDir: options.spellAgentDir?.(agentDir) ?? agentDir,
         piHostEntry: join(REPO, "packages/pi-host/src/main.ts"),
         piHostExecArgv: EXEC_ARGV,
         testProviderScript: join(root, "script.json"),
@@ -116,12 +126,21 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       rpc: sessions.rpc,
       policyRpc: policy.rpc,
       ctx: owner,
-      async subscribe(sessionId: string): Promise<Subscription> {
+      async subscribe(sessionId: string, after?: Cursor): Promise<Subscription> {
         const frames: EventFrame[] = [];
-        await sessions.rpc["subscribe.session"]({ sessionId }, contextOf(`c${++connections}`, frames));
+        const context = contextOf(`c${++connections}`, frames);
+        const { sub } = await sessions.rpc["subscribe.session"](
+          after ? { sessionId, after } : { sessionId },
+          context,
+        );
         const events = () => frames.map((frame) => frame.event as SessionStreamEvent);
         return {
           events,
+          cursor: () => {
+            const last = frames.at(-1);
+            return last ? { epoch: last.epoch, seq: last.seq } : undefined;
+          },
+          close: () => context.closeSubscription(sub),
           async waitFor(predicate, timeoutMs = WAIT_MS) {
             let found: SessionStreamEvent | undefined;
             await vi.waitFor(

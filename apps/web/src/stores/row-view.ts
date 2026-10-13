@@ -174,23 +174,33 @@ export const sameContent = (a: MessageView, b: MessageView): boolean =>
 
 /** The message under a key no other message in `list` has. For one live message; a whole list goes through `keyMessages`. */
 export function withUniqueKey(list: readonly MessageView[], message: MessageView): MessageView {
+  return { ...message, key: uniqueKeyOf(list, message.ref) };
+}
+
+/** The key a message with this ref would get if appended to `list`. */
+export function uniqueKeyOf(list: readonly MessageView[], ref: string): string {
   const taken = new Map<string, number>();
   for (const existing of list) taken.set(existing.key, 0);
-  return keyOne(message, taken);
+  return takeKey(ref, taken);
 }
 
 // `taken` maps each key in use to the highest `#n` suffix already tried for it as a ref, so alike messages stay linear.
-function keyOne(message: MessageView, taken: Map<string, number>): MessageView {
-  let key = message.ref;
+function takeKey(ref: string, taken: Map<string, number>): string {
+  let key = ref;
   if (taken.has(key)) {
     let n = taken.get(key) ?? 0;
-    do key = `${message.ref}#${++n}`;
+    do key = `${ref}#${++n}`;
     while (taken.has(key));
-    taken.set(message.ref, n);
+    taken.set(ref, n);
   }
   taken.set(key, 0);
-  return { ...message, key };
+  return key;
 }
+
+const keyOne = (message: MessageView, taken: Map<string, number>): MessageView => ({
+  ...message,
+  key: takeKey(message.ref, taken),
+});
 
 /** Gives every message a key no other has, in one pass over a running map (`taken` is injectable for the cost test). */
 export function keyMessages(

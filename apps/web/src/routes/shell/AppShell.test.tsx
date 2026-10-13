@@ -3,12 +3,15 @@ import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { registerCommand, startKeybindings, useKeybindingsStore } from "../../features/commands/index.ts";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { button, click, hasButton, press, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
+import { RpcError } from "../../runtime/rpc.ts";
+import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 const auth = vi.hoisted(() => ({ logout: vi.fn() }));
@@ -42,7 +45,7 @@ afterEach(() => {
 });
 beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
-  useSessionsCache.setState({ sessions: [], status: "idle" });
+  useShellStore.getState().reset();
   bed = fakeRuntime("idle");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;
@@ -132,7 +135,7 @@ describe("AppShell", () => {
     await page.unmount();
   });
 
-  it("loads the account settings and the session list each time the socket opens", async () => {
+  it("loads the account settings each time the socket opens", async () => {
     const page = await renderShell("/");
     await act(async () => bed.fake.setState("open"));
     await settle();
@@ -140,26 +143,76 @@ describe("AppShell", () => {
       { key: "appearance" },
       { key: "keybindings" },
     ]);
-    expect(bed.called("sessions.list")).toHaveLength(1);
     await act(async () => bed.fake.setState("waiting"));
     await act(async () => bed.fake.setState("open"));
     await settle();
-    expect(bed.called("sessions.list")).toHaveLength(2);
+    expect(bed.called("settings.get")).toHaveLength(4);
     await page.unmount();
   });
 
+  it("subscribes to the shell stream once while mounted and never lists sessions", async () => {
+    const page = await renderShell("/");
+    await act(async () => bed.fake.setState("open"));
+    await settle();
+    expect(bed.called("subscribe.shell")).toHaveLength(1);
+    expect(bed.called("sessions.list")).toEqual([]);
+    await page.unmount();
+    await settle();
+    expect(bed.called("unsubscribe")).toHaveLength(1);
+  });
+
+  it("a refused shell subscription sets the store's failed and reports shell_feed_failed once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      bed.handlers["subscribe.shell"] = () => {
+        throw new RpcError("capacity");
+      };
+      const page = await renderShell("/");
+      await act(async () => bed.fake.setState("open"));
+      await settle();
+      expect(useShellStore.getState().view.failed).toBe("capacity");
+      expect(warn.mock.calls.filter(([line]) => line === "pap: shell_feed_failed")).toHaveLength(1);
+      await page.unmount();
+      expect(useShellStore.getState().view.failed).toBeNull(); // unmount resets the store
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("forgets the labels of the session views on unmount, so the next account's tabs never carry old names", async () => {
+    const page = await renderShell("/");
+    useViewLabels.getState().put("a", { name: "Previous account", cwd: "/x/y" });
+    expect(useViewLabels.getState().labels).toEqual({ a: { name: "Previous account", cwd: "/x/y" } });
+    await page.unmount();
+    expect(useViewLabels.getState().labels).toEqual({});
+  });
+
   it("titles the top bar with the active item: a session by its folder", async () => {
-    bed.handlers["sessions.list"] = () => ({
-      sessions: [{ id: "abc", cwd: "/home/ana/pi-agentic", status: "idle", createdAt: 1, updatedAt: 2 }],
-    });
     const page = await renderShell("/s/abc");
     await act(async () => bed.fake.setState("open"));
     await settle();
+    await act(async () =>
+      bed.emitTo(
+        "subscribe.shell",
+        shellSnapshot([shellSession({ id: "abc", cwd: "/home/ana/pi-agentic" })]),
+      ),
+    );
     expect(page.container.querySelector("header")?.textContent).toContain("pi-agentic");
     const panel = page.container.querySelector('[data-pane-kind="session"]') as HTMLElement;
     expect(
       page.container.ownerDocument.getElementById(panel.getAttribute("aria-labelledby") ?? "")?.textContent,
     ).toBe("pi-agentic"); // the pane is named by its tab
+    await page.unmount();
+  });
+
+  it("titles the top bar with the session's name from the stream", async () => {
+    const page = await renderShell("/s/abc");
+    await act(async () => bed.fake.setState("open"));
+    await settle();
+    await act(async () =>
+      bed.emitTo("subscribe.shell", shellSnapshot([shellSession({ id: "abc", name: "Fix tests" })])),
+    );
+    expect(page.container.querySelector("header")?.textContent).toContain("Fix tests");
     await page.unmount();
   });
 
@@ -201,35 +254,6 @@ describe("AppShell", () => {
     const page = await renderShell("/");
     const palette = page.container.querySelector('[aria-label="Search and commands"]') as HTMLElement;
     expect([palette.querySelector("kbd"), palette.querySelector("svg") !== null]).toEqual([null, true]);
-    await page.unmount();
-  });
-
-  it("refreshes the list once for a session id it does not have, never in a loop", async () => {
-    let answers = 0;
-    bed.handlers["sessions.list"] = () => ({
-      sessions:
-        ++answers < 2
-          ? []
-          : [{ id: "abc", cwd: "/home/ana/fresh", status: "idle", createdAt: 1, updatedAt: 2 }],
-    });
-    const page = await renderShell("/s/abc");
-    await act(async () => bed.fake.setState("open"));
-    await settle();
-    await settle();
-    expect(bed.called("sessions.list")).toHaveLength(2);
-    expect(page.container.querySelector("header")?.textContent).toContain("fresh");
-    await page.unmount();
-  });
-
-  it("asks only once for an id that stays missing", async () => {
-    let calls = 0;
-    bed.handlers["sessions.list"] = () => (++calls > 5 ? new Promise(() => {}) : { sessions: [] });
-    const page = await renderShell("/s/ghost");
-    await act(async () => bed.fake.setState("open"));
-    await settle();
-    await settle();
-    await settle();
-    expect(calls).toBe(2); // the refresh on open, then one for the missing id
     await page.unmount();
   });
 

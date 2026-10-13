@@ -26,7 +26,7 @@ export interface MenuProps {
 }
 
 const CONTENT_CLASSES =
-  "z-50 min-w-48 rounded-md border border-border-strong bg-bg-side p-s1 shadow-overlay animate-overlay-in";
+  "z-50 max-h-app min-w-48 overflow-y-auto rounded-md border border-border-strong bg-bg-side p-s1 shadow-overlay animate-overlay-in";
 const ITEM_CLASSES =
   "flex h-control items-center rounded-sm px-s2 text-ui outline-none data-highlighted:bg-surface-2 data-disabled:opacity-50 pointer-coarse:min-h-11";
 

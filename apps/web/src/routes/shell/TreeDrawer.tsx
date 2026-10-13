@@ -1,26 +1,17 @@
 import { Dialog } from "@pap/ui/overlays";
-import { useEffect } from "react";
 import { useT } from "../../i18n/index.ts";
-import { reportClientIssue } from "../../lib/report.ts";
-import { getRuntime } from "../../runtime/index.ts";
-import { SessionTree } from "./SessionTree.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import ProjectTree from "../../features/projects/ProjectTree.tsx";
+import { usePaletteChord } from "./shortcut.ts";
 
 interface DrawerProps {
   readonly open: boolean;
   onOpenChange(open: boolean): void;
 }
 
-/** The ⌘B drawer. Loaded on first use and mounted only while open (it imports the overlay chunk). */
+/** The ⌘B drawer; the tree and its strings come with this chunk. Loaded on first use and mounted only while open (it imports the overlay chunk). */
 export default function TreeDrawer({ open, onOpenChange }: DrawerProps) {
   const t = useT();
-  useEffect(() => {
-    if (open)
-      void useSessionsCache
-        .getState()
-        .refresh(getRuntime().rpc)
-        .catch(() => reportClientIssue("sessions_list_failed"));
-  }, [open]);
+  const chord = usePaletteChord();
   return (
     <Dialog
       open={open}
@@ -29,7 +20,11 @@ export default function TreeDrawer({ open, onOpenChange }: DrawerProps) {
       closeLabel={t("ui.close")}
       variant="drawer-left"
     >
-      <SessionTree onPick={() => onOpenChange(false)} />
+      <ProjectTree
+        onPick={() => onOpenChange(false)}
+        onNewSession={() => onOpenChange(false)}
+        chord={chord}
+      />
     </Dialog>
   );
 }

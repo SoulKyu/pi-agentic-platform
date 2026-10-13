@@ -8,7 +8,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({
@@ -20,7 +20,7 @@ let bed: ReturnType<typeof fakeRuntime>;
 let started: Array<{ stop(): void }> = [];
 beforeEach(() => {
   started = [startAppearance(window), startKeybindings()];
-  useSessionsCache.setState({ sessions: [], status: "idle" });
+  useShellStore.getState().reset();
   bed = fakeRuntime("idle");
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;

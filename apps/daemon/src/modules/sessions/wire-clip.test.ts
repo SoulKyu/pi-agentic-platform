@@ -10,6 +10,10 @@ import {
 } from "./wire-clip.ts";
 
 describe("wire clipping", () => {
+  it("cuts an argument string without splitting a surrogate pair", () => {
+    expect(clipArguments(`${"a".repeat(7999)}\u{1F600}`)).toEqual({ value: "a".repeat(7999), cut: true });
+  });
+
   it("cuts a tool result to a preview and says how long it was", () => {
     const message = {
       role: "toolResult",

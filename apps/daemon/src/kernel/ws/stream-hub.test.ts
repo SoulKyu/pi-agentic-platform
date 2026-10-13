@@ -181,6 +181,26 @@ describe("stream hub prepare and commit", () => {
     expect(hub.stats()).toEqual({ channels: 0, subscriptions: 0 });
   });
 
+  it("settles a shell subscription made before its provider exists: it throws, leaves nothing, and works once registered", () => {
+    const hub = createStreamHub("epoch-1", createFakeClock());
+    const frames: EventFrame[] = [];
+    const open = () =>
+      hub.open({
+        connectionId: "c1",
+        sub: "s1",
+        stream: "shell",
+        key: "u1",
+        after: undefined,
+        send: (f) => frames.push(f),
+      });
+    expect(open).toThrow("no snapshot provider for stream shell");
+    hub.publish("shell", "u1", { kind: "counts", archived: 1 });
+    expect(hub.stats()).toEqual({ channels: 1, subscriptions: 0 });
+    hub.registerSnapshot("shell", () => ({ kind: "snapshot" }));
+    open();
+    expect(frames).toEqual([{ sub: "s1", epoch: "epoch-1", seq: 1, event: { kind: "snapshot" } }]);
+  });
+
   it("a subscription closed before commit receives nothing", () => {
     const { hub, frames } = setup();
     const prepared = hub.prepare(input(frames));

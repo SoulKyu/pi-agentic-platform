@@ -54,14 +54,14 @@ describe("the snapshot", () => {
 });
 
 describe("entry events bind the id Pi gave a message", () => {
-  it("binds the newest unbound message of that role and time, and moves the leaf", () => {
+  it("binds the oldest unbound message of that role and time, and moves the leaf", () => {
     let view = reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: user(5, "one") }));
     view = reduceSession(view, pi({ type: "message_end", message: user(5, "two") }));
     view = reduceSession(view, entry({ id: "e1", role: "user", messageTimestamp: 5 }));
-    expect(idsOf(view)).toEqual([null, "e1"]);
+    expect(idsOf(view)).toEqual(["e1", null]);
     expect(view.leafId).toBe("e1");
     view = reduceSession(view, entry({ id: "e2", parentId: "e1", role: "user", messageTimestamp: 5 }));
-    expect(idsOf(view)).toEqual(["e2", "e1"]);
+    expect(idsOf(view)).toEqual(["e1", "e2"]);
     expect(view.leafId).toBe("e2");
   });
 

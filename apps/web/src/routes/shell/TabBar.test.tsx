@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { startAppearance } from "../../features/appearance/index.ts";
 import { runCommand, startKeybindings } from "../../features/commands/index.ts";
@@ -7,7 +8,9 @@ import type { Runtime } from "../../runtime/index.ts";
 import { click, press, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({
@@ -29,6 +32,7 @@ const home: Tab = tab("home", { kind: "home" });
 
 let started: Array<{ stop(): void }> = [];
 afterEach(() => {
+  vi.restoreAllMocks();
   started.forEach((one) => one.stop());
   started = [];
 });
@@ -38,10 +42,11 @@ beforeEach(() => {
   bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
   current.runtime = bed.runtime;
   localStorage.clear();
-  useSessionsCache.setState({
-    sessions: [{ id: "a", cwd: "/home/ana/a", name: null, status: "running", createdAt: 1, updatedAt: 2 }],
-    status: "loaded",
-  });
+  useShellStore.getState().reset();
+  useViewLabels.setState({ labels: {} });
+  useShellStore
+    .getState()
+    .apply(shellSnapshot([shellSession({ id: "a", cwd: "/home/ana/a", status: "running", updatedAt: 2 })]));
   useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "session:a" } });
 });
 
@@ -51,14 +56,21 @@ const named = (root: ParentNode, label: string) =>
 
 describe("TabBar", () => {
   it("labels a session tab with its name, else its folder", async () => {
-    useSessionsCache.setState({
-      sessions: [
-        { id: "a", cwd: "/home/ana/a", name: "Fix login", status: "idle", createdAt: 1, updatedAt: 2 },
-      ],
-      status: "loaded",
-    });
+    useShellStore
+      .getState()
+      .apply(
+        shellSnapshot([shellSession({ id: "a", cwd: "/home/ana/a", name: "Fix login", status: "idle" })]),
+      );
     const page = await renderShell("/s/a");
     expect(tabs(page.container).map((one) => one.textContent)).toContain("Fix login");
+    await page.unmount();
+  });
+
+  it("titles the tab of a session the store lacks from that session's own view", async () => {
+    useShellStore.getState().reset();
+    useViewLabels.getState().put("a", { name: "From view", cwd: "/x/y" });
+    const page = await renderShell("/s/a");
+    expect(tabs(page.container).map((one) => one.textContent)).toContain("From view");
     await page.unmount();
   });
 
@@ -89,6 +101,19 @@ describe("TabBar", () => {
     expect(await focusAfter(0, "ArrowLeft")).toBe(2); // wraps
     expect(await focusAfter(1, "End")).toBe(2);
     expect(await focusAfter(2, "Home")).toBe(0);
+    await page.unmount();
+  });
+
+  it("scrolls the new active tab into view when the active tab changes (M4R90)", async () => {
+    const scrollIntoView = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
+    const page = await renderShell("/s/a");
+    scrollIntoView.mockClear();
+    await act(async () => {
+      useWorkspaceStore.setState({ ws: { tabs: [session, home], active: "home" } });
+    });
+    await settle();
+    expect(scrollIntoView).toHaveBeenCalledWith({ block: "nearest", inline: "nearest" });
+    expect(scrollIntoView.mock.contexts.at(-1)).toBe(document.getElementById("tab-home"));
     await page.unmount();
   });
 

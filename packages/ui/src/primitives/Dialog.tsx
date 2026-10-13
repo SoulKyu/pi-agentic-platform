@@ -93,7 +93,10 @@ export function Dialog({
             shown === "sheet" ? "pointer-events-none" : PANEL_CLASSES,
           )}
           onEscapeKeyDown={(event) => {
-            if (cancelsComposition(event)) event.preventDefault();
+            // An inline edit inside the dialog takes this Escape for itself: it cancels the edit, the dialog stays.
+            const inEdit =
+              event.target instanceof Element && event.target.closest("[data-inline-edit]") !== null;
+            if (cancelsComposition(event) || inEdit) event.preventDefault();
           }}
           onOpenAutoFocus={(event) => {
             returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;

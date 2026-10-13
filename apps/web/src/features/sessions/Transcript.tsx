@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
+import { useFocusEntry } from "../../stores/focus-entry.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { failureText } from "./failure.ts";
 import { MessageRow, SummaryRow, type RowActions } from "./MessageRow.tsx";
@@ -78,6 +79,41 @@ function prepend(
   if (unchanged) release();
 }
 
+/**
+ * Acts on the entry a search hit asked for once this session's rows are loaded (M4R108): scrolls to its row, focuses
+ * it and takes the request. While the entry is not among the rows but "Load older messages" exists, the request stays
+ * (loading satisfies it) and the hook returns the older-messages notice. When nothing can load, the request is taken
+ * at once and the "not shown" notice lives in this mount only, so no later visit sees it again.
+ */
+function useFocusMatch(
+  sessionId: string,
+  view: SessionView,
+  items: readonly TranscriptItem[],
+  scope: string,
+  canLoad: boolean,
+): "search.olderMatch" | "search.notShown" | null {
+  const asked = useFocusEntry((state) =>
+    state.target?.sessionId === sessionId ? state.target.entryId : null,
+  );
+  const [notShown, setNotShown] = useState(false);
+  const item = asked === null ? undefined : items.find((row) => "entryId" in row && row.entryId === asked);
+  const itemKey = item?.key;
+  const unshowable = asked !== null && view.loaded && itemKey === undefined && !canLoad;
+  // Derived during render (the request is gone from the store by the next one): this mount remembers it.
+  if (unshowable !== notShown && (unshowable || itemKey !== undefined)) setNotShown(unshowable);
+  useEffect(() => {
+    if (unshowable) useFocusEntry.getState().take(sessionId);
+    if (itemKey === undefined || !view.loaded) return;
+    const element = document.getElementById(rowId(scope, itemKey));
+    if (element === null || useFocusEntry.getState().take(sessionId) === null) return;
+    element.tabIndex = -1;
+    element.focus({ preventScroll: true });
+    element.scrollIntoView({ block: "center" });
+  }, [unshowable, itemKey, scope, sessionId, view.loaded]);
+  if (notShown) return "search.notShown";
+  return asked !== null && view.loaded && itemKey === undefined ? "search.olderMatch" : null;
+}
+
 export function Transcript({ sessionId, view, toolDetail, rowActions }: TranscriptProps) {
   const t = useT();
   const items = transcriptItems(view, t);
@@ -96,6 +132,7 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
     loadRef.current = older.load;
   });
   const quiet = older.error !== null;
+  const matchNotice = useFocusMatch(sessionId, view, items, scope, canLoad);
   const actionsFor = (item: TranscriptItem): RowActions | undefined =>
     rowActions && item.kind === "message"
       ? {
@@ -189,6 +226,11 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
       {branches.error ? (
         <p role="alert" className="text-ui text-attn">
           {branches.error}
+        </p>
+      ) : null}
+      {matchNotice ? (
+        <p role="status" className="text-ui text-muted">
+          {t(matchNotice)}
         </p>
       ) : null}
       {activity ? (

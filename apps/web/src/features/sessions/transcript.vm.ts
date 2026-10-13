@@ -50,7 +50,7 @@ export interface FailureItem {
 
 export interface PartialItem {
   readonly kind: "partial";
-  readonly key: "partial";
+  readonly key: string;
   readonly text: string;
   readonly thinking: string;
 }
@@ -183,6 +183,6 @@ export function transcriptItems(view: SessionView, translate: Translate): Transc
       .join("");
   const text = join("text");
   const thinking = join("thinking");
-  if (text || thinking) items.push({ kind: "partial", key: "partial", text, thinking });
+  if (text || thinking) items.push({ kind: "partial", key: view.partialKey ?? "partial", text, thinking });
   return uniqueKeys(items);
 }

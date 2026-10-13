@@ -1,11 +1,11 @@
 import { closeSync, openSync, readSync, statSync } from "node:fs";
+import { MAX_ID_CHARS } from "../../kernel/text.ts";
 import { type EntryLike, type IndexedEntries, indexEntries } from "./branch.ts";
 
 /** A file over this is read from its last `MAX_PARSE_BYTES` only: the oldest history of a huge session is not shown. */
 export const MAX_PARSE_BYTES = 32 * 1024 * 1024;
 /** Source bytes kept parsed across every file (M2-RT-15); the least recently read file goes first. */
 export const MAX_CACHE_BYTES = 64 * 1024 * 1024;
-const MAX_ID_CHARS = 128;
 const HEADER_CHUNK = 64 * 1024;
 /** How much of the header line and of the bytes before the append point are compared on every read. */
 const GUARD_BYTES = 4096;
@@ -42,6 +42,8 @@ interface Parsed {
   /** The offset just past each entry's line, in the same order. */
   readonly ends: readonly number[];
   index: IndexedEntries | null;
+  /** The index of the last bounded read: one slot, since a run reads the same bound for its whole length (M4R12). */
+  bounded: { readonly upTo: number; readonly index: IndexedEntries } | null;
 }
 
 const EMPTY = indexEntries([]);
@@ -183,6 +185,7 @@ export function createEntriesCache(
       entries: kept.entries,
       ends: kept.ends,
       index: null,
+      bounded: null,
     };
   };
 
@@ -244,6 +247,7 @@ export function createEntriesCache(
       entries,
       ends,
       index: null,
+      bounded: null,
     };
   };
 
@@ -303,9 +307,15 @@ export function createEntriesCache(
       const parsed = load(path);
       if (!parsed) return EMPTY;
       if (upToBytes === undefined) return (parsed.index ??= indexEntries(parsed.entries));
-      return indexEntries(
-        parsed.entries.filter((_entry, index) => (parsed.ends[index] ?? Infinity) <= upToBytes),
-      );
+      if (parsed.bounded?.upTo !== upToBytes) {
+        parsed.bounded = {
+          upTo: upToBytes,
+          index: indexEntries(
+            parsed.entries.filter((_entry, index) => (parsed.ends[index] ?? Infinity) <= upToBytes),
+          ),
+        };
+      }
+      return parsed.bounded.index;
     },
   };
 }

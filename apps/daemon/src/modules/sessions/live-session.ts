@@ -12,6 +12,7 @@ import {
 } from "@pap/contracts";
 import { describeExit } from "../../kernel/supervisor/exit.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
+import { MAX_ID_CHARS } from "../../kernel/text.ts";
 import { createCoalescer } from "./coalescer.ts";
 import type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 import { slimEntryRef, summaryRow } from "./entry-events.ts";
@@ -34,8 +35,6 @@ export const READY_TIMEOUT_MS = 30_000;
 const MAX_EVENT_BYTES = 1_000_000;
 /** The user and the log hear of a thing the daemon keeps doing (cancelling a dialog, dropping an event) this often. */
 const SAY_EVERY_MS = 10_000;
-/** The client contract carries ids up to this long; a longer one counts as unknown (M2R52). */
-const MAX_ID_CHARS = 128;
 const knownId = (id: unknown): string | null =>
   typeof id === "string" && id.length > 0 && id.length <= MAX_ID_CHARS ? id : null;
 

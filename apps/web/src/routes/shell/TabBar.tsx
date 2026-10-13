@@ -4,7 +4,8 @@ import { useEffect, useRef, type KeyboardEvent } from "react";
 import { activeTab, pathOfItem, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { itemTitle } from "./item-title.ts";
-import { useSessionsCache } from "./sessions-cache.ts";
+import { useViewLabels } from "../../stores/view-labels-store.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
 import { closeItem, go, otherItem, takeFocusAfterClose, toggleSplit } from "./tab-actions.ts";
 
 const ROVING_KEYS = ["ArrowLeft", "ArrowRight", "Home", "End"];
@@ -16,7 +17,8 @@ export function TabBar() {
   const t = useT();
   const navigate = useNavigate();
   const ws = useWorkspaceStore((state) => state.ws);
-  const sessions = useSessionsCache((state) => state.sessions);
+  const sessions = useShellStore((state) => state.view.sessions);
+  const views = useViewLabels((state) => state.labels);
   const listRef = useRef<HTMLDivElement>(null);
   const active = activeTab(ws);
   const other = otherItem(ws);
@@ -26,6 +28,11 @@ export function TabBar() {
     const next = ws.active === null ? null : document.getElementById(`tab-${ws.active}`);
     (next ?? document.getElementById(NEW_TAB_ID))?.focus();
   }, [ws]);
+
+  useEffect(() => {
+    if (ws.active === null) return;
+    document.getElementById(`tab-${ws.active}`)?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [ws.active]);
 
   const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
     if (!ROVING_KEYS.includes(event.key)) return;
@@ -52,11 +59,9 @@ export function TabBar() {
         className="flex min-w-0 items-center gap-s1 overflow-x-auto"
       >
         {ws.tabs.map((tab) => {
-          const title = itemTitle(tab.item, sessions, t);
+          const title = itemTitle(tab.item, sessions, views, t);
           const item = tab.item;
-          const running =
-            item.kind === "session" &&
-            sessions.find((session) => session.id === item.id)?.status === "running";
+          const running = item.kind === "session" && sessions.get(item.id)?.status === "running";
           return (
             <OpenTab
               key={tab.key}

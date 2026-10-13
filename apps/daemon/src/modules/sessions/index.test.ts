@@ -13,6 +13,7 @@ import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
 import { createStreamHub } from "../../kernel/ws/stream-hub.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS } from "./index.ts";
 import { fakePolicyPort } from "./testing/fake-policy.ts";
+import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { captureLogger } from "./testing/helpers.ts";
 
 // The real supervisor forks a process; here it only records what it was asked to start, and answers like a worker.
@@ -109,6 +110,8 @@ function moduleWith(
     logger,
     hub,
     policy: fakePolicyPort(),
+    projects: fakeProjectsPort(),
+    ownerId: () => "u1",
     config: config(testProviderScript),
     workerUmask: 0o027,
     env: daemonEnv,
@@ -119,6 +122,22 @@ function moduleWith(
 const started = () => spawned.options[0] as SpawnWorkerOptions;
 
 describe("sessions module", () => {
+  it("answers a shell subscription of any owner with a snapshot, empty for one without sessions", () => {
+    const { hub } = moduleWith(null);
+    const frames: Array<{ event: unknown }> = [];
+    hub.open({
+      connectionId: "c1",
+      sub: "s1",
+      stream: "shell",
+      key: "somebody-else",
+      after: undefined,
+      send: (frame) => void frames.push(frame),
+    });
+    expect(frames.map((frame) => frame.event)).toEqual([
+      { kind: "snapshot", projects: [], sessions: [], more: 0, moreProjects: 0, archived: 0 },
+    ]);
+  });
+
   it("starts the worker the way the supervisor and the worker expect (R93, R96)", async () => {
     const { sessions } = moduleWith(null);
     await sessions.rpc["sessions.create"]({ cwd: root }, ctx);

@@ -1,4 +1,5 @@
 import { sizeOf } from "../../kernel/json-bytes.ts";
+import { MAX_ID_CHARS } from "../../kernel/text.ts";
 import type { BranchPage } from "./branch.ts";
 import {
   type Activity,
@@ -35,16 +36,22 @@ const MAX_ROLE_CHARS = 64;
 
 const MAX_CALL_ID_CHARS = 256;
 
+// A role or a call id goes into a placeholder only as plain text: escaped, a 64-character role weighs 384 bytes (RT-17).
+const plain = (text: string, maxBytes: number): boolean => sizeOf(text) <= maxBytes + 2;
+
 /** What stands for a row of `bytes` bytes that was too big to send (R109). */
 export function placeholderRow(row: unknown, bytes: number) {
   const fields =
     typeof row === "object" && row !== null
       ? (row as { role?: unknown; timestamp?: unknown; toolCallId?: unknown })
       : {};
+  const role = typeof fields.role === "string" ? fields.role.slice(0, MAX_ROLE_CHARS) : "";
   return {
-    role: typeof fields.role === "string" ? fields.role.slice(0, MAX_ROLE_CHARS) : "unknown",
+    role: role !== "" && plain(role, MAX_ROLE_CHARS) ? role : "unknown",
     // A tool result keeps the call it answers, so the client can close that call and offer the whole output.
-    ...(typeof fields.toolCallId === "string" && fields.toolCallId.length <= MAX_CALL_ID_CHARS
+    ...(typeof fields.toolCallId === "string" &&
+    fields.toolCallId.length <= MAX_CALL_ID_CHARS &&
+    plain(fields.toolCallId, MAX_CALL_ID_CHARS)
       ? { toolCallId: fields.toolCallId }
       : {}),
     timestamp: typeof fields.timestamp === "number" ? fields.timestamp : null,
@@ -67,6 +74,10 @@ export const PARTIAL_BYTES = 256 * 1024;
 export const DECORATION_BYTES = 256 * 1024;
 /** Open panels together, in JSON bytes: a panel of 200 long lines cannot starve the partial reply and the rows. */
 export const PANEL_BYTES = 256 * 1024;
+/** The share of the budget the rows always keep, whatever the dialogs and decorations take (M2 final M4). */
+export const ROW_FLOOR_SHARE = 16;
+/** Dialogs other than approvals, together, past the oldest one: an extension's large dialogs cannot crowd out the transcript (M4R8). */
+export const OTHER_DIALOG_BYTES = 256 * 1024;
 
 export interface SnapshotInput {
   readonly status: SessionStatus;
@@ -83,6 +94,8 @@ export interface SnapshotInput {
   readonly activity?: Activity;
   readonly leafId?: string | null;
   readonly name?: string | null;
+  readonly cwd?: string;
+  readonly outsideWrite?: boolean;
 }
 
 /** A row as it goes into a snapshot: its message bounded like `boundedRow`, its entry id kept. */
@@ -96,10 +109,14 @@ export function fitRow(row: TranscriptRow): { row: TranscriptRow; size: number }
 /**
  * The snapshot a subscriber gets when it cannot resume from a cursor, under `budget` JSON bytes (M2-RT-05). The fixed
  * sections (status, queue, title, history, activity, leaf, name) are always in. Then the open dialogs, approvals
- * first (the policy holds a tool call on them), kept in their own order; then decorations under `DECORATION_BYTES`
- * (statuses, the newest notices, widgets oldest first; `decorationsTruncated` says when one was left out); then open
- * panels (under `PANEL_BYTES` together), the partial reply if it fits whole, and the rows, newest first and contiguous, each over `ROW_BYTES` as a
- * placeholder (R109).
+ * first (the policy holds a tool call on them, M2R9), kept in their own order. Rows keep a floor of
+ * `budget / ROW_FLOOR_SHARE` bytes: everything but approvals and rows is fitted under `room = budget - floor`. The
+ * oldest dialog that is not an approval is offered the whole `room`; the other such dialogs go in only while together
+ * within `OTHER_DIALOG_BYTES`. Then decorations under `DECORATION_BYTES` (statuses, the newest notices, widgets
+ * oldest first; `decorationsTruncated` says when one was left out); then open panels (under `PANEL_BYTES` together),
+ * the partial reply if it fits whole, and the rows, newest first and contiguous, each over `ROW_BYTES` as a
+ * placeholder (R109). Up to the newest row that has an entry id, a row that does not fit goes in as a placeholder, so
+ * the history cursor always points at a row the client has (M4R9).
  */
 export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): SnapshotEvent {
   const snapshot: SnapshotEvent = {
@@ -120,16 +137,31 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     activity: input.activity ?? IDLE_ACTIVITY,
     leafId: input.leafId ?? null,
     name: input.name ?? null,
+    cwd: input.cwd ?? "",
+    outsideWrite: input.outsideWrite ?? false,
   };
   let used = sizeOf(snapshot);
+  // Everything but approvals and rows stays under `room`: the rows keep their floor (M4R7).
+  const room = budget - Math.floor(budget / ROW_FLOOR_SHARE);
   const kept = new Set<Dialog>();
   const approvalsFirst = [
     ...input.dialogs.filter((dialog) => dialog.method === "approval"),
     ...input.dialogs.filter((dialog) => dialog.method !== "approval"),
   ];
+  let otherDialogs = 0;
+  let oldestOther = true;
   for (const dialog of approvalsFirst) {
     const size = sizeOf(dialog) + 1;
-    if (used + size > budget) continue;
+    if (dialog.method === "approval") {
+      if (used + size > budget) continue;
+    } else {
+      // The oldest one may take the whole room, so one large dialog stays answerable after a reload; the others
+      // share OTHER_DIALOG_BYTES (M4R8).
+      const oldest = oldestOther;
+      oldestOther = false;
+      if (used + size > room || (!oldest && otherDialogs + size > OTHER_DIALOG_BYTES)) continue;
+      otherDialogs += size;
+    }
     used += size;
     kept.add(dialog);
   }
@@ -144,7 +176,7 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     const taken: T[] = [];
     for (const item of items) {
       const size = sizeOf(item) + 1;
-      if (decorations + size > DECORATION_BYTES || used + size > budget) {
+      if (decorations + size > DECORATION_BYTES || used + size > room) {
         snapshot.decorationsTruncated = true;
         break;
       }
@@ -162,7 +194,7 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
   let panelBytes = 0;
   for (const panel of panels.slice(0, UI_LIMITS.panels)) {
     const size = sizeOf(panel) + 1;
-    if (panelBytes + size > PANEL_BYTES || used + size > budget) {
+    if (panelBytes + size > PANEL_BYTES || used + size > room) {
       snapshot.decorationsTruncated = true;
       continue;
     }
@@ -173,17 +205,32 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
   const partial = input.partial ?? null;
   if (partial) {
     const size = sizeOf(partial);
-    if (size <= PARTIAL_BYTES && used + size <= budget) {
+    if (size <= PARTIAL_BYTES && used + size <= room) {
       used += size;
       snapshot.partial = partial;
     }
   }
+  const offered = input.rows.slice(-SNAPSHOT_ROWS).toReversed();
+  // Rows newer than the newest bound one, and that row itself, go in as placeholders when they do not fit, so the
+  // client always has a row its next page can start above (M4R9). Past it, the first row that does not fit ends them.
+  const reach = offered.findIndex((row) => row.entryId !== null);
   const newestFirst: TranscriptRow[] = [];
-  for (const candidate of input.rows.slice(-SNAPSHOT_ROWS).toReversed()) {
+  for (const [index, candidate] of offered.entries()) {
     const { row, size } = fitRow(candidate);
-    if (used + size + 1 > budget) break;
-    used += size + 1;
-    newestFirst.push(row);
+    if (used + size + 1 <= budget) {
+      used += size + 1;
+      newestFirst.push(row);
+      continue;
+    }
+    if (index > reach) break;
+    const stand = {
+      entryId: candidate.entryId,
+      message: placeholderRow(candidate.message, sizeOf(candidate)),
+    };
+    const standSize = sizeOf(stand) + 1;
+    if (used + standSize > budget) break;
+    used += standSize;
+    newestFirst.push(stand);
   }
   snapshot.rows = newestFirst.toReversed();
   return snapshot;
@@ -195,7 +242,8 @@ const isAnchorRow = (row: TranscriptRow): boolean =>
 
 /**
  * When the snapshot had to leave out older rows (the 75-row cap or the byte budget), the client's next page must start
- * just above the oldest row it got, and the turns above count what was left out.
+ * just above the oldest row it got, and the turns above count what was left out. The `find` always meets a bound row
+ * when the offered rows hold one: `fitSnapshot` keeps the newest bound row, as a placeholder if it must.
  */
 export function withTrimmedHistory(
   snapshot: SnapshotEvent,
@@ -240,9 +288,6 @@ export function fitPage(page: BranchPage, budget: number): BranchPage {
     turnsBefore: page.turnsBefore + page.rows.slice(0, dropped).filter(isAnchorRow).length,
   };
 }
-
-/** The longest id the contract carries; an id is a key, so one over it cannot be clipped. */
-export const MAX_ID_CHARS = 128;
 
 /**
  * Fork points under `budget` JSON bytes. A choice whose entry id or target is over `MAX_ID_CHARS` is skipped (and a
