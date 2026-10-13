@@ -81,6 +81,8 @@ describe("lazy catalog (Settings)", () => {
       "features/auth/InlineAsk.tsx",
       "features/auth/PasskeysList.tsx",
       "features/auth/StepUp.tsx",
+      "features/auth/TokenCreate.tsx",
+      "features/auth/TokensPanel.tsx",
       "features/auth/use-listing.ts",
       "features/auth/use-mutation.ts",
       "features/commands/editor/KeybindingsJson.tsx",
