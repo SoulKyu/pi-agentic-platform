@@ -55,7 +55,8 @@ Code: `known-device.ts`. Without it, anyone who knows the owner's username keeps
 - Every browser session is a "device": a row of `auth_sessions` with a public id (random, shares nothing with the cookie, so it can be shown), the method that opened it (`password`, `passkey`, `setup`), the address, a coarse label of the user agent, and for a passkey sign-in `passkey_ref`, the short id of that passkey. `auth.devices.list`, `auth.devices.revoke` and `auth.devices.revokeOthers` (`auth:read` to list; `auth:admin` and a browser-session caller to revoke) work on them (the id is the public id) and drop the step-up marks of the sessions they delete. Open sockets of a revoked session close on their next frame or keepalive tick.
 - `Caller.credentialId` is the credential the request came with: the session's public id for a cookie, the token id for a bearer. `Caller.kind` is `session` or `token`. The transport stamps both; nothing reads them from params.
 - `passkey_ref` is the first 32 hex characters of the sha256 of the credential id (`passkeyRefOf`). `auth.passkeys.list` shows only that short id. Removing a passkey deletes every session whose `passkey_ref` is its short id, in the same transaction.
-- API tokens (`pap_...`, `tokens.ts`) are stored hashed, with permissions and an expiry, shown once, never carry `auth` or `policy:admin` permissions, and use no cookie.
+- API tokens (`pap_...`, `tokens.ts`) are stored hashed, with permissions and a mandatory expiry (7, 30, 90 or 365 days), at most 50, shown once, never carry `auth` or `policy:admin` permissions, and use no cookie. Creating one needs the step-up. `pap passkey reset` keeps them unless `--revoke-tokens`.
+- Known limits: a persisted receipt of `auth.devices.revokeOthers` replays across two credentials of the same owner (it needs a `commandId` collision); `public_id` of `auth_sessions` is nullable in the migration and a later one makes it `NOT NULL`; `Caller.stepUpUntil` is lost at a restart (the person confirms again).
 
 ## Passkeys
 
@@ -79,7 +80,7 @@ Code: `passkeys.ts` (ceremonies), `login-challenge.ts` (stateless sign-in challe
 
 - One credential per connection: the `pap_session` cookie or `Authorization: Bearer pap_...` (read only from that header, never a query string). A bearer must be `Bearer` and one space and at most 128 non-blank characters; a malformed `Authorization` header counts as absent and cannot hide or replace a cookie. Two `Authorization` headers: 400.
 - The upgrade checks in this order (`kernel/ws/ws-server.ts`): 400 or 404 for a bad URL or path; an `Origin` that is present must be allowed, whatever the credential (403, logged `origin_refused`); cookie and bearer together, or two `Authorization` headers: 400 (`conflict`); no `Origin` and no well-formed bearer: 403 (`origin_refused` logged): a browser always sends `Origin` and attaches its cookies by itself, a program presenting a token is not a CSRF vector, so only a bearer may come without one; a protocol other than the current one: 426; then authentication, 401 when the credential is unknown, expired or revoked. So a malformed bearer without `Origin` is a 403, not a 401.
-- ADR 0021 (written in Task 26) records the deviation from spec C 4.4.
+- ADR 0021 records the deviation from spec C 4.4 (bearer tokens without `Origin`, step-up, the throttle keys).
 - Every request frame and every keepalive tick re-checks the credential (the tick does not slide), so a revoked or expired token or session closes its socket with 4401. `GET /ws` accepts the same two credentials.
 
 ## Recovery commands
