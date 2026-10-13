@@ -184,6 +184,7 @@ Format: `[task] ruling — why — cost if wrong`, in ledger order.
 
 ## Task 5b
 
+- [carry to M7] register MCP, codemode and tool-search as `{ name: "mcp" | "codemode" | "tool-search", factory, builtin: true, replaceable: true }` with exactly those names (a bare factory classifies its tools as unknown and external); wire `createCodemodeExtension({ models: false })` or document that `models.classify` and `generateImages` send script data to providers outside judged calls — cost if wrong: unjudged data leaves through codemode's model calls.
 - every builtin:mcp tool is external regardless of openWorldHint (openWorldHint:false keeps its meaning only for non-MCP extension tools, MQ2) — tightening in the spirit of owner MQ1; reported to the owner in the final report — cost if wrong: local closed-world stdio MCP tools get fenced and taint the session (fails safe)
 - read_mcp_resource stays URL-bearing — with an allowHosts list set, custom-scheme MCP resources (fixture://, postgres://) are blocked (fail safe; documented)
 
