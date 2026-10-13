@@ -194,7 +194,7 @@ describe("SessionPolicy", () => {
     expect(link?.getAttribute("href")).toBe("/settings/approvals");
     await choose("Full access");
     expect(text(page.container)).toContain(
-      "Run every call without asking, except blocked commands and external content? A shell command is limited only by the blocked-command list.",
+      "Run calls without asking? Blocked commands stay blocked. Writes outside the project or to protected files, reads of pap's own secrets and, after external content, every command and external tool still ask. A shell command is limited only by the blocked-command list.",
     );
   });
 

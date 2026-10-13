@@ -8,7 +8,7 @@ export const sessionPolicyEn = {
   "sessionPolicy.mode.auto-accept-edits": "Auto-accept edits",
   "sessionPolicy.mode.full-access": "Full access",
   "sessionPolicy.confirmFull":
-    "Run every call without asking, except blocked commands and external content? A shell command is limited only by the blocked-command list.",
+    "Run calls without asking? Blocked commands stay blocked. Writes outside the project or to protected files, reads of pap's own secrets and, after external content, every command and external tool still ask. A shell command is limited only by the blocked-command list.",
   "sessionPolicy.switch": "Switch",
   "sessionPolicy.cancel": "Cancel",
   "sessionPolicy.modeSaved": "Approval mode saved.",
@@ -36,7 +36,7 @@ export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: st
   "sessionPolicy.mode.auto-accept-edits": "Modifications acceptées",
   "sessionPolicy.mode.full-access": "Accès complet",
   "sessionPolicy.confirmFull":
-    "Exécuter chaque appel sans demander, sauf les commandes bloquées et le contenu externe ? Une commande shell n'est limitée que par la liste des commandes bloquées.",
+    "Exécuter les appels sans demander ? Les commandes bloquées restent bloquées. Les écritures hors du projet ou dans des fichiers protégés, la lecture des secrets de pap et, après un contenu externe, chaque commande et chaque outil externe demandent encore. Une commande shell n'est limitée que par la liste des commandes bloquées.",
   "sessionPolicy.switch": "Passer en accès complet",
   "sessionPolicy.cancel": "Annuler",
   "sessionPolicy.modeSaved": "Mode d'approbation enregistré.",
