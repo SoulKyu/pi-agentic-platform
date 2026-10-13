@@ -156,12 +156,12 @@ describe("always rules by project", () => {
   });
 
   it("shows a stripped, clipped label as text only", async () => {
-    const long = `<img src=x onerror=alert(1)>‮${"x".repeat(5000)}`;
+    const long = `<img src=x onerror=alert(1)>\u202E${"x".repeat(5000)}`;
     const container = await show([rule("r1", "/p/q", "bash", long, 1)]);
     expect(container.querySelector("img")).toBeNull();
     const shown = container.querySelector("[data-rule-label]")?.textContent ?? "";
     expect(shown.startsWith("<img src=x onerror=alert(1)>x")).toBe(true);
-    expect(shown).not.toContain("‮");
+    expect(shown).not.toContain("\u202E");
     expect([...shown]).toHaveLength(201);
     expect(shown.endsWith("…")).toBe(true);
   });

@@ -29,7 +29,7 @@ describe("parsePatternLines", () => {
 
   it("reads CRLF text and refuses bidi and lookalike blanks", () => {
     expect(parsePatternLines("a *\r\nb *", DenyPattern, 64).values).toEqual(["a *", "b *"]);
-    expect(parsePatternLines("a‮b\nc​d", DenyPattern, 64).errors).toEqual([
+    expect(parsePatternLines("a\u202Eb\nc\u200Bd", DenyPattern, 64).errors).toEqual([
       { line: 1, reason: "invalid" },
       { line: 2, reason: "invalid" },
     ]);
@@ -114,7 +114,7 @@ describe("display helpers", () => {
     expect(shortScope("")).toBe("");
   });
   it("strips invisible characters and clips on code points", () => {
-    expect(clipLabel("a‮b")).toBe("ab");
+    expect(clipLabel("a\u202Eb")).toBe("ab");
     const clipped = clipLabel("😀".repeat(500));
     expect([...clipped]).toHaveLength(201);
     expect(clipped.endsWith("…")).toBe(true);
