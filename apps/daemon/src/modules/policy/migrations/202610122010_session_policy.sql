@@ -9,6 +9,12 @@ CREATE TABLE session_policy (
   updated_at INTEGER NOT NULL
 ) STRICT;
 
+-- Nothing before M5 fenced external content, and adopted sessions cannot be told from pap's own: every session that
+-- exists when this runs starts tainted (owner MQ3, agreement 8). One Clear per old session the owner continues.
+INSERT INTO session_policy (session_id, owner_id, tainted_at, updated_at)
+SELECT id, owner_id, CAST(strftime('%s', 'now') AS INTEGER) * 1000, CAST(strftime('%s', 'now') AS INTEGER) * 1000
+FROM sessions;
+
 -- The owner's policy settings (Settings › Approvals): one document, compare-and-set on `revision` like `settings`.
 CREATE TABLE policy_settings (
   owner_id TEXT PRIMARY KEY,
