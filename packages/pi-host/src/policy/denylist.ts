@@ -120,6 +120,11 @@ export function roughBuiltinHit(command: string, budget: StepBudget = { left: RO
   return null;
 }
 
+// Bash takes nearly any word for a function name (`.`, `a.b`, `a-b`, `a@b`): everything but blanks and shell metacharacters.
+const NAME_CHAR = "[^\\s|&;()<>{}`$\"'\\\\]";
+const FUNCTION_NAME_AT_END = new RegExp(`${NAME_CHAR}{1,63}$`);
+const FUNCTION_KEYWORD = new RegExp(`\\bfunction\\s+(${NAME_CHAR}{1,63})\\s*\\{`, "g");
+
 /**
  * A function whose body pipes itself into itself in the background (`:(){ :|:& };:`, `f(){ f|f& }`). Linear: one scan for
  * `(){`, then a bounded look around each hit (a regex with a leading identifier and a backreference is quadratic on a long
@@ -133,11 +138,11 @@ export function isForkBomb(command: string): boolean {
       .startsWith(`${name}|${name}&`);
   for (const match of command.matchAll(/\(\s*\)\s*\{/g)) {
     const before = command.slice(Math.max(0, match.index - 64), match.index).trimEnd();
-    const name = /(?:[A-Za-z_][A-Za-z0-9_]{0,62}|:)$/.exec(before)?.[0];
+    const name = FUNCTION_NAME_AT_END.exec(before)?.[0];
     if (name && selfPiping(name, match.index + match[0].length)) return true;
   }
   // `function f { f|f& }` has no parentheses.
-  for (const match of command.matchAll(/\bfunction\s+([A-Za-z_][A-Za-z0-9_]{0,62})\s*\{/g))
+  for (const match of command.matchAll(FUNCTION_KEYWORD))
     if (selfPiping(match[1] as string, match.index + match[0].length)) return true;
   return false;
 }
@@ -214,6 +219,8 @@ export function denylistStage(call: CallFacts): StageResult {
     // The built-in checks need no reader: padding must not turn a catastrophic command into a question.
     if (!powershell && call.rules.builtinDenylist) {
       try {
+        // The size bound first, so the fork-bomb scan too runs inside the rough scan's cap.
+        if (command.length > ROUGH_MAX_CHARS) throw new CommandTooComplex("rough scan: input too long");
         const hit = isForkBomb(command) ? FORK_BOMB_ID : roughBuiltinHit(command);
         if (hit !== null) return block(`denied: ${hit}`);
       } catch (inner) {
