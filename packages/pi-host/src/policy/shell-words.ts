@@ -21,6 +21,8 @@ export class CommandTooComplex extends Error {
 export { argvOf, type Segment } from "./shell-argv.ts";
 interface Reading {
   readonly out: Segment[];
+  /** Set once any text was read in a way bash may read differently (quotes inside a double-quoted `${…}`). */
+  unsure: boolean;
 }
 
 /** Index of the `)` closing a `$(` whose content starts at `from` (quotes skipped); the text length when it never closes. */
@@ -133,6 +135,7 @@ function lex(text: string, depth: number, reading: Reading, comments = true): vo
   };
   const beUnsure = (): void => {
     unsure = true;
+    reading.unsure = true;
     docs.asCommands();
   };
   const wordSubstitution = (i: number): number => {
@@ -296,10 +299,16 @@ function lex(text: string, depth: number, reading: Reading, comments = true): vo
   endCommand();
 }
 
-/** Every simple command of `command`, nested ones included (M5R18). Throws `CommandTooLong` / `CommandTooComplex`. */
-export function readCommands(command: string): Segment[] {
+/**
+ * Every simple command of `command`, nested ones included (M5R18), and whether the reading is `unsure`: some text may run
+ * differently in bash than it was read. Throws `CommandTooLong` / `CommandTooComplex`.
+ */
+export function readCommandsWithDoubt(command: string): { segments: Segment[]; unsure: boolean } {
   if (command.length > MAX_CHECKED_COMMAND) throw new CommandTooLong();
-  const reading: Reading = { out: [] };
+  const reading: Reading = { out: [], unsure: false };
   lex(command, 0, reading);
-  return reading.out;
+  return { segments: reading.out, unsure: reading.unsure };
 }
+
+/** Every simple command of `command`, nested ones included (M5R18). Throws `CommandTooLong` / `CommandTooComplex`. */
+export const readCommands = (command: string): Segment[] => readCommandsWithDoubt(command).segments;

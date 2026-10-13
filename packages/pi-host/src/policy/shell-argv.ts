@@ -10,7 +10,7 @@ export interface Segment {
 
 const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh", "fish", "ash", "mksh", "tcsh", "csh"]);
 /** Programs whose `-c` option takes a command line, like a shell's, wherever it stands. */
-const COMMAND_STRING_PROGRAMS = new Set(["su", "runuser", "script"]);
+const COMMAND_STRING_PROGRAMS = new Set(["su", "runuser", "script", "sg"]);
 const SHELL_OPTIONS_WITH_VALUE = new Set(["-o", "+o", "-O", "+O"]);
 const SSH_OPTIONS_WITH_VALUE = new Set(
   "-p -i -l -o -F -J -L -R -D -b -c -E -e -I -m -O -Q -S -W -w".split(" "),
@@ -38,6 +38,7 @@ const WRAPPERS: ReadonlyMap<string, Wrapper> = new Map<string, Wrapper>([
   ["doas", { valued: values("-u -C") }],
   ["env", { valued: values("-u -C --unset --chdir") }],
   ["command", { valued: NO_VALUES }],
+  ["builtin", { valued: NO_VALUES }],
   ["exec", { valued: values("-a") }],
   ["nohup", { valued: NO_VALUES }],
   ["time", { valued: NO_VALUES }],

@@ -2,13 +2,19 @@ import { homedir } from "node:os";
 import { CALL_BUDGET, globMatch, PAIR_BUDGET, type StepBudget } from "./glob.ts";
 import type { CallFacts, StageResult } from "./pipeline.ts";
 import { clipUnits } from "./trail.ts";
-import { argvOf, CommandTooComplex, CommandTooLong, readCommands, type Segment } from "./shell-words.ts";
+import {
+  argvOf,
+  CommandTooComplex,
+  CommandTooLong,
+  readCommandsWithDoubt,
+  type Segment,
+} from "./shell-words.ts";
 
 export const DENYLIST_MODEL_REASON = "pap-policy blocked this command: it is on the blocked-command list.";
 const TOO_LONG = "command too long for the policy check";
 const TOO_COMPLEX = "command too complex for the policy check";
 const MAX_NAMED_PATTERN = 100;
-const DISK = /^\/dev\/(?:sd|hd|vd|xvd|nvme|mmcblk|disk|md|dm-|mapper\/)/;
+const DISK = /^\/dev\/(?:sd|hd|vd|xvd|nvme|mmcblk|disk|md|dm-|mapper\/|root$)/;
 // Slashes and stars are squeezed first, so no expression below has two quantifiers over the same character (linear on any word).
 const squeeze = (arg: string) => arg.replace(/\/+/g, "/").replace(/\*+/g, "*");
 const isDisk = (arg: string) => DISK.test(squeeze(arg));
@@ -212,8 +218,9 @@ export function denylistStage(call: CallFacts): StageResult {
   if (!isCommand || typeof command !== "string") return { outcome: "skip", reason: "not a command" };
   const powershell = call.kind.builtin && call.event.toolName === "powershell";
   let segments: Segment[];
+  let unsure: boolean;
   try {
-    segments = readCommands(command);
+    ({ segments, unsure } = readCommandsWithDoubt(command));
   } catch (error) {
     if (!(error instanceof CommandTooLong || error instanceof CommandTooComplex)) throw error;
     // The built-in checks need no reader: padding must not turn a catastrophic command into a question.
@@ -233,6 +240,16 @@ export function denylistStage(call: CallFacts): StageResult {
   }
   if (!powershell && call.rules.builtinDenylist) {
     if (isForkBomb(command)) return block(`denied: ${FORK_BOMB_ID}`);
+    // A reading that may differ from bash's (a quote inside `${…}`) is backed by the rough scan; it adds no question.
+    if (unsure) {
+      try {
+        const hit = roughBuiltinHit(command);
+        if (hit !== null) return block(`denied: ${hit}`);
+      } catch (inner) {
+        if (!(inner instanceof CommandTooComplex)) throw inner;
+        return block(TOO_COMPLEX, TOO_COMPLEX);
+      }
+    }
     for (const segment of segments) {
       const argv = argvOf(segment);
       const hit = BUILTIN_CHECKS.find((check) => check.matches(argv, segment));
