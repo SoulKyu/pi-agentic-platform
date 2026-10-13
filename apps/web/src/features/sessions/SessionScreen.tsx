@@ -1,4 +1,5 @@
 import "./register-session-catalog.ts";
+import "./register-policy-catalog.ts";
 import { Banner, Button, cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { Link } from "@tanstack/react-router";
@@ -13,6 +14,7 @@ import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
 import { SessionRules } from "./AlwaysRules.tsx";
 import { Composer } from "./Composer.tsx";
+import { SessionPolicy } from "./SessionPolicy.tsx";
 import { useAnnouncer } from "./announce.ts";
 import { SessionActions } from "./SessionActions.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
@@ -135,6 +137,7 @@ export function SessionScreen({
         blocked={structural.active}
       />
       <SessionRules key={`rules:${sessionId}`} sessionId={sessionId} cwd={view.cwd} />
+      <SessionPolicy key={`policy:${sessionId}`} sessionId={sessionId} policy={view.policy} />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
       <Transcript
         key={`transcript:${sessionId}`}

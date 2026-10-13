@@ -6,6 +6,7 @@ import { fr } from "./fr.ts";
 
 import type { galleryEn } from "./catalog/gallery.ts";
 import type { serverEn } from "./catalog/server.ts";
+import type { sessionPolicyEn } from "./catalog/session-policy.ts";
 import type { sessionScreenEn } from "./catalog/session-screen.ts";
 import type { settingsAccessEn } from "./catalog/settings-access.ts";
 import type { settingsAppearanceEn } from "./catalog/settings-appearance.ts";
@@ -25,7 +26,8 @@ export type MessageKey =
   | keyof typeof settingsAccessEn
   | keyof typeof galleryEn
   | keyof typeof serverEn
-  | keyof typeof sidebarEn;
+  | keyof typeof sidebarEn
+  | keyof typeof sessionPolicyEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

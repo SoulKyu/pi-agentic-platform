@@ -1,8 +1,10 @@
-import { Button, ToolCard, type ToolDetail, type ToolStatus } from "@pap/ui";
+import { Button, Fence, ToolCard, type ToolDetail, type ToolStatus } from "@pap/ui";
 import { useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { codeText, failureCode } from "./failure.ts";
+import { splitFences, stripFenceMarkers, type FencePart } from "./fence.vm.ts";
+import "./register-policy-catalog.ts";
 import type { ToolItem } from "./transcript.vm.ts";
 
 const BYTES_PER_KB = 1024;
@@ -57,7 +59,10 @@ export function ToolItemCard({
   const whole = item.truncatedChars ?? item.omittedBytes;
   const size = Math.max(1, Math.round((whole ?? 0) / BYTES_PER_KB));
   const loaded = output.state === "loaded" ? output : null;
-  const shown = loaded ? loaded.text : item.preview;
+  // The whole output may hold pap's fences; the clipped preview may hold only one end of one, so it is stripped instead.
+  const parts: readonly FencePart[] = loaded ? splitFences(loaded.text) : [];
+  const fenced = parts.some((part) => part.kind === "fenced");
+  const shown = loaded ? loaded.text : stripFenceMarkers(item.preview);
   const offerAll = whole !== null && !loaded;
   const showArgs = loaded?.args && item.argsTruncated;
   return (
@@ -70,8 +75,21 @@ export function ToolItemCard({
       runningLabel={t("sessions.tool.running")}
       failedLabel={t("sessions.tool.failed")}
       footer={
-        showArgs || offerAll ? (
+        showArgs || offerAll || fenced ? (
           <div className="flex flex-col gap-s1">
+            {fenced
+              ? parts.map((part, index) =>
+                  part.kind === "fenced" ? (
+                    <Fence key={index} label={t("sessionPolicy.fence", { source: part.source })}>
+                      {part.text}
+                    </Fence>
+                  ) : part.text.trim() === "" ? null : (
+                    <pre key={index} className={PRE}>
+                      {part.text}
+                    </pre>
+                  ),
+                )
+              : null}
             {showArgs ? <pre className={PRE}>{loaded.args}</pre> : null}
             {offerAll ? (
               <div className="flex flex-wrap items-center gap-s2">
@@ -100,7 +118,7 @@ export function ToolItemCard({
         ) : undefined
       }
     >
-      {shown || undefined}
+      {fenced ? undefined : shown || undefined}
     </ToolCard>
   );
 }

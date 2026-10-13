@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
+import { sessionPolicyEn, sessionPolicyFr } from "./catalog/session-policy.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
@@ -317,5 +318,44 @@ describe("lazy catalog (session screen)", () => {
     const moved = Object.keys(sessionScreenEn);
     expect(Object.keys(en).filter((key) => moved.includes(key))).toEqual([]);
     expect(Object.keys(fr).filter((key) => moved.includes(key))).toEqual([]);
+  });
+});
+
+describe("lazy catalog (session policy)", () => {
+  it("registers its strings with the session screen, English and French, the same slots in both", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(translate("en", "sessionPolicy.external")).toBe("sessionPolicy.external");
+    await act(async () => registerCatalog({ en: sessionPolicyEn, fr: sessionPolicyFr }));
+    expect(translate("en", "sessionPolicy.external")).toBe("External content");
+    expect(translate("fr", "sessionPolicy.taintedCategory", { category: "exec" })).toBe(
+      "exec · contenu externe",
+    );
+    const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(sessionPolicyEn) as Array<keyof typeof sessionPolicyEn>)
+      expect(slots(sessionPolicyFr[key]), key).toEqual(slots(sessionPolicyEn[key]));
+  });
+
+  it("is loaded only by the session screen: nothing eager imports the catalog or uses its keys", () => {
+    const offenders: string[] = [];
+    for (const file of files(src)) {
+      const name = relative(src, file).split("\\").join("/");
+      if (!/\.tsx?$/.test(name) || /\.test\.|^i18n\/|^testing\//.test(name)) continue;
+      const code = readFileSync(file, "utf8");
+      if (
+        /catalog\/session-policy\.ts"|register-policy-catalog\.ts"/.test(code) &&
+        !name.startsWith("features/sessions/")
+      )
+        offenders.push(name);
+      if (/["'`]sessionPolicy\./.test(code) && !name.startsWith("features/sessions/"))
+        offenders.push(`${name}: sessionPolicy key`);
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps the session policy strings out of the eager catalogs", async () => {
+    const { en } = await import("./en.ts");
+    const { fr } = await import("./fr.ts");
+    expect(Object.keys(en).filter((key) => key.startsWith("sessionPolicy."))).toEqual([]);
+    expect(Object.keys(fr).filter((key) => key.startsWith("sessionPolicy."))).toEqual([]);
   });
 });

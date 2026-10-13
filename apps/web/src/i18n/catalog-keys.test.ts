@@ -4,6 +4,7 @@ import { commandsEn, commandsFr } from "./catalog/commands.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
+import { sessionPolicyEn, sessionPolicyFr } from "./catalog/session-policy.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
@@ -51,6 +52,7 @@ describe("catalog keys never collide", () => {
         gallery: Object.keys(galleryEn),
         server: Object.keys(serverEn),
         sidebar: Object.keys(sidebarEn),
+        sessionPolicy: Object.keys(sessionPolicyEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -71,6 +73,7 @@ describe("catalog keys never collide", () => {
         gallery: Object.keys(galleryFr),
         server: Object.keys(serverFr),
         sidebar: Object.keys(sidebarFr),
+        sessionPolicy: Object.keys(sessionPolicyFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);
