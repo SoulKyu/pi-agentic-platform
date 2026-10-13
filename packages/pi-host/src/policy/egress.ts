@@ -146,9 +146,21 @@ export function urlsInString(value: string, out: string[]): void {
 }
 
 // An alias may run any command, a proxy setting sends git elsewhere: the list can read neither.
-const isUnreadableSetting = (setting: string | undefined) => /^(?:alias\.|[^=]*proxy=)/i.test(setting ?? "");
+const isUnreadableSetting = (setting: string | undefined) =>
+  /^(?:alias\.|url\.|[^=]*proxy=)/i.test(setting ?? "");
 
-/** The subcommand, and whether a `-c` / `--config-env` before it defines an alias or a proxy. */
+/** `git clone -c k=v` / `--config k=v` / `--config=k=v`: the setting is read like one given before the subcommand. */
+const cloneDefinesSetting = (rest: readonly string[]): boolean =>
+  rest.some((word, i) =>
+    word === "-c" || word === "--config"
+      ? isUnreadableSetting(rest[i + 1])
+      : word.startsWith("--config=") && isUnreadableSetting(word.slice(9)),
+  );
+
+/**
+ * The subcommand, and whether a `-c` / `--config-env` before it defines an alias, a proxy or a URL rewrite. After `clone`
+ * the same setting is `-c` / `--config` / `--config=`, so those are read to the end of the line.
+ */
 function gitScan(rest: readonly string[]): { subcommand: string | undefined; alias: boolean } {
   let alias = false;
   for (let i = 0; i < rest.length; i++) {
@@ -156,7 +168,10 @@ function gitScan(rest: readonly string[]): { subcommand: string | undefined; ali
     if (word === "-c" || word === "--config-env") alias ||= isUnreadableSetting(rest[i + 1]);
     else if (word.startsWith("--config-env=")) alias ||= isUnreadableSetting(word.slice(13));
     if (GIT_VALUED_OPTIONS.has(word)) i++;
-    else if (!word.startsWith("-")) return { subcommand: word, alias };
+    else if (!word.startsWith("-")) {
+      if (word === "clone") alias ||= cloneDefinesSetting(rest.slice(i + 1));
+      return { subcommand: word, alias };
+    }
   }
   return { subcommand: undefined, alias };
 }

