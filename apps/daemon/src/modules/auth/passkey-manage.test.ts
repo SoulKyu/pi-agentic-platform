@@ -99,6 +99,7 @@ describe("passkey management", () => {
       at: clock.now(),
       h: expired.idHash,
     });
+    audited.length = 0;
     expect(manager.remove(confirmed(), shortId(CRED_A))).toEqual({ revoked: 1 });
     expect(db.all("SELECT 1 FROM auth_sessions WHERE passkey_ref = $ref", { ref: shortId(CRED_A) })).toEqual(
       [],

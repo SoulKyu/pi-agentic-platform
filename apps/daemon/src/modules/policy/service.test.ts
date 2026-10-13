@@ -1,5 +1,6 @@
 import { MAX_ALWAYS_RULES, PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { testCaller } from "../../testing/caller.ts";
 import { createPolicyService } from "./service.ts";
 import { createPolicyStore } from "./store.ts";
 import { createPolicyBed, KEY, keyOf } from "./testing/bed.ts";
@@ -8,7 +9,13 @@ let bed: ReturnType<typeof makeBed>;
 const makeBed = () => {
   const base = createPolicyBed();
   const store = createPolicyStore(base.db);
-  const service = createPolicyService({ store, clock: base.clock, logger: base.logger, newId: base.newId });
+  const service = createPolicyService({
+    store,
+    clock: base.clock,
+    logger: base.logger,
+    newId: base.newId,
+    audit: base.audit,
+  });
   return { ...base, store, service };
 };
 beforeEach(() => {
@@ -58,13 +65,15 @@ describe("policy service", () => {
     service.addAlways({ ownerId: "u1", scope: "/w", tool: "bash", key: KEY, label: "l" });
     const [listed] = service.list("u1");
     expect(listed).toMatchObject({ scope: "/w", tool: "bash", label: "l" });
-    expect(() => service.revoke("u2", listed?.id ?? "")).toThrow(new PapError("not_found"));
-    expect(() => service.revoke("u1", "nope")).toThrow(new PapError("not_found"));
+    expect(() => service.revoke(testCaller({ userId: "u2" }), listed?.id ?? "")).toThrow(
+      new PapError("not_found"),
+    );
+    expect(() => service.revoke(testCaller(), "nope")).toThrow(new PapError("not_found"));
     expect(changes).toEqual(["u1:/w"]);
-    service.revoke("u1", listed?.id ?? "");
+    service.revoke(testCaller(), listed?.id ?? "");
     expect(service.rulesFor("u1", "/w")).toEqual([]);
     expect(changes).toEqual(["u1:/w", "u1:/w"]);
-    expect(() => service.revoke("u1", listed?.id ?? "")).toThrow(new PapError("not_found"));
+    expect(() => service.revoke(testCaller(), listed?.id ?? "")).toThrow(new PapError("not_found"));
   });
 
   it("keeps telling the other listeners when one throws, and logs it", () => {

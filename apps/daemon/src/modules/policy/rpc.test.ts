@@ -33,7 +33,7 @@ describe("policy rpc", () => {
   it("revokes for the caller and lets not_found through", async () => {
     const { rpc, service } = setup();
     expect(await rpc["policy.revokeRule"]({ ruleId: "r1" }, ctx)).toEqual({ ok: true });
-    expect(service.revoke).toHaveBeenCalledWith("u1", "r1");
+    expect(service.revoke).toHaveBeenCalledWith(caller, "r1");
     const failing = setup({
       revoke: vi.fn(() => {
         throw new PapError("not_found");

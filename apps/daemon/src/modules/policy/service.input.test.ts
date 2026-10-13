@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { PapError } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { testCaller } from "../../testing/caller.ts";
 import { createPolicyService } from "./service.ts";
 import { createPolicyStore } from "./store.ts";
 import { createPolicyBed, KEY, keyOf } from "./testing/bed.ts";
@@ -11,7 +12,13 @@ let bed: ReturnType<typeof makeBed>;
 const makeBed = () => {
   const base = createPolicyBed();
   const store = createPolicyStore(base.db);
-  const service = createPolicyService({ store, clock: base.clock, logger: base.logger, newId: base.newId });
+  const service = createPolicyService({
+    store,
+    clock: base.clock,
+    logger: base.logger,
+    newId: base.newId,
+    audit: base.audit,
+  });
   return { ...base, store, service };
 };
 beforeEach(() => {
@@ -70,7 +77,7 @@ describe("addAlways input", () => {
     const logged = lines.filter((l) => l.msg === "policy_rule_invalid");
     expect(logged).toHaveLength(1);
     expect(logged[0]).toMatchObject({ skipped: 2 });
-    service.revoke("u1", "bad1");
+    service.revoke(testCaller(), "bad1");
   });
 });
 

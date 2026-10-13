@@ -5,8 +5,8 @@ import { createPolicyStore } from "./store.ts";
 import { KEY, policyBed } from "./testing/bed.ts";
 
 const bedOf = () =>
-  policyBed(({ db, clock, logger, newId }) => {
-    const service = createPolicyService({ store: createPolicyStore(db), clock, logger, newId });
+  policyBed(({ db, clock, logger, newId, audit }) => {
+    const service = createPolicyService({ store: createPolicyStore(db), clock, logger, newId, audit });
     return { service, rpc: policyRpc(service) };
   });
 

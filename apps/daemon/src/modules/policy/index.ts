@@ -39,6 +39,7 @@ export function createPolicyModule(deps: {
     clock: deps.clock,
     logger,
     newId: deps.newId,
+    audit: deps.audit,
   });
   const sessionPolicy = createSessionPolicyService({
     sessions: createSessionPolicyStore(deps.db),

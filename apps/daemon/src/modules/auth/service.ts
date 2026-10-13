@@ -161,6 +161,14 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       expiresAt: now + SESSION_TTL_MS,
       userAgent: userAgent?.slice(0, MAX_USER_AGENT_LENGTH) ?? null,
     });
+    // The one place every sign-in ends (password, passkey, setup): the 12-month trail holds method and address (M5R45).
+    deps.audit.append({
+      ownerId: userId,
+      actor: "user",
+      kind: "auth",
+      reason: "signed_in",
+      detail: { method: origin.method, ip: origin.ip },
+    });
     const known = devices.keyOf(origin.deviceCookie, userId) !== null;
     return {
       cookieValue,
@@ -260,6 +268,7 @@ export function createAuthService(deps: AuthServiceDeps): AuthService {
       deps.setupToken.consume();
       deps.throttle.succeed(keys);
       deps.logger.info("owner_created", { userId: id });
+      deps.audit.append({ ownerId: id, actor: "user", kind: "auth", reason: "owner_created" });
       return startSession(id, input.userAgent, {
         ip: input.ip,
         method: "setup",

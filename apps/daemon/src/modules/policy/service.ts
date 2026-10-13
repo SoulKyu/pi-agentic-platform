@@ -1,7 +1,8 @@
-import { type AlwaysRule, GrantKey, MAX_ALWAYS_RULES, methods, PapError } from "@pap/contracts";
+import { type AlwaysRule, type Caller, GrantKey, MAX_ALWAYS_RULES, methods, PapError } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import type { AuditPort } from "../audit/index.ts";
 import { projectScopeOf } from "./project-scope.ts";
 import type { SessionPolicyPort } from "./session-service.ts";
 import type { PolicyStore, RuleRow } from "./store.ts";
@@ -80,6 +81,7 @@ export function createPolicyService(deps: {
   clock: Clock;
   logger: Logger;
   newId(): string;
+  readonly audit: Pick<AuditPort, "append">;
 }) {
   const listeners = new Set<(ownerId: string, scope: string) => void>();
   // A failing listener (a worker that went away) must not stop the others nor fail the answer that caused the change.
@@ -156,10 +158,24 @@ export function createPolicyService(deps: {
       const fitted = fitRules(valid);
       return { rules: fitted.rules, truncated: fitted.truncated || more || valid.length < rules.length };
     },
-    revoke(ownerId: string, ruleId: string): void {
+    revoke(caller: Caller, ruleId: string): void {
+      const ownerId = caller.userId;
       // Another owner's rule is `not_found`, the same as an unknown id: existence does not leak.
       const row = deps.store.get(ownerId, ruleId);
       if (!row || !deps.store.remove(ownerId, ruleId)) throw new PapError("not_found");
+      // M5R45, M5R47: the trail records who revoked what; a failing audit never undoes the revocation.
+      try {
+        deps.audit.append({
+          ownerId,
+          actor: caller.kind === "token" ? "token" : "user",
+          ...(caller.credentialId ? { actorId: caller.credentialId } : {}),
+          kind: "policy",
+          reason: "rule_revoked",
+          detail: { ruleId, tool: row.tool },
+        });
+      } catch (error) {
+        deps.logger.error("audit_append_failed", { reason: "rule_revoked", err: error });
+      }
       changed(ownerId, row.scope);
     },
     onChange(listener: (ownerId: string, scope: string) => void): () => void {

@@ -35,11 +35,15 @@ export function createPolicyBed() {
   });
   let counter = 0;
   const newId = () => `r${++counter}`;
+  const audited: Array<Parameters<AuditPort["append"]>[0]> = [];
+  const audit: Pick<AuditPort, "append"> = { append: (line) => void audited.push(line) };
   return {
     db,
     clock,
     logger,
     newId,
+    audit,
+    audited,
     lines,
     dispose() {
       db.close();
@@ -52,6 +56,7 @@ export interface PolicyBedParts {
   readonly db: Db;
   readonly clock: Clock;
   readonly logger: Logger;
+  readonly audit: Pick<AuditPort, "append">;
   newId(): string;
 }
 

@@ -8,6 +8,8 @@ const GOOD = PASSWORD;
 const BAD = "wrong password!!";
 const OWNER_ADDRESS = "10.0.0.1";
 
+/** Sign-ins are audited too (M5R45); these tests look at the step-up lines only. */
+const notSignIn = (line: { reason: string }) => !["signed_in", "owner_created"].includes(line.reason);
 let bed: AuthTestBed;
 beforeEach(() => {
   bed = createAuthTestBed();
@@ -158,7 +160,7 @@ describe("POST /auth/confirm", () => {
         { error: { code: "bad_request" } },
       ]);
     }
-    expect(bed.audited).toEqual([]);
+    expect(bed.audited.filter(notSignIn)).toEqual([]);
   });
 
   it("logs a wrong password with the address only, and audits step_up once per success", async () => {
@@ -168,11 +170,13 @@ describe("POST /auth/confirm", () => {
     const [entry] = bed.events("auth_login_failed");
     expect(entry).toMatchObject({ level: "warn", ip: "10.0.0.9", retryAfterMs: 1000 });
     expect(bed.lines.join("")).not.toContain(BAD);
-    expect(bed.audited).toEqual([]);
+    expect(bed.audited.filter(notSignIn)).toEqual([]);
     await bed.clock.advance(1000);
     await confirm(app, { cookie, password: GOOD });
     const userId = auth.authenticateCookieHeader(cookie)?.userId ?? "";
-    expect(bed.audited).toEqual([{ ownerId: userId, actor: "user", kind: "auth", reason: "step_up" }]);
+    expect(bed.audited.filter(notSignIn)).toEqual([
+      { ownerId: userId, actor: "user", kind: "auth", reason: "step_up" },
+    ]);
   });
 
   it("answers 401 to a confirm sent after the session signed out, and marks and audits nothing", async () => {
@@ -182,6 +186,6 @@ describe("POST /auth/confirm", () => {
     await logout(app, cookie);
     expect((await pending).status).toBe(401);
     expect(auth.authenticateCookieHeader(cookie)).toBeNull();
-    expect(bed.audited).toEqual([]);
+    expect(bed.audited.filter(notSignIn)).toEqual([]);
   });
 });

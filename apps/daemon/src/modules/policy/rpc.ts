@@ -8,7 +8,7 @@ export function policyRpc(service: PolicyService): PolicyRpc {
   return {
     "policy.listRules": async ({ cwd }, ctx) => service.listPage(ctx.caller.userId, cwd),
     "policy.revokeRule": async ({ ruleId }, ctx) => {
-      service.revoke(ctx.caller.userId, ruleId);
+      service.revoke(ctx.caller, ruleId);
       return { ok: true as const };
     },
   };

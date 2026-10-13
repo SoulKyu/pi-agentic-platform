@@ -236,6 +236,7 @@ describe("auth service step-up and throttle", () => {
 
     it("marks nothing for a session that signs out while the password is being hashed", async () => {
       const session = await service.setup(setupInput(tokenOf(service.setupUrl())));
+      audit.append.mockClear();
       const actual = await vi.importActual<typeof import("./passwords.ts")>("./passwords.ts");
       vi.mocked(verifyPassword).mockImplementationOnce(async (password, stored) => {
         service.logout(session.cookieValue);
