@@ -69,22 +69,26 @@ export function createHostBed(fork: typeof forkHost = forkHost) {
     writeFileSync(scriptPath, JSON.stringify(script));
     for (const [file, content] of Object.entries(options.agentFiles ?? {})) {
       const target = join(agentDir, file);
-      if (relative(agentDir, target).startsWith(".."))
+      if (file.split(/[\\/]/).includes("..") || relative(agentDir, target).startsWith(".."))
         throw new Error(`agent file outside the agent directory: ${file}`);
       mkdirSync(dirname(target), { recursive: true });
       writeFileSync(target, content);
     }
     if (options.settings) writeFileSync(join(agentDir, "settings.json"), JSON.stringify(options.settings));
+    for (const key of Object.keys(options.env ?? {})) {
+      if (key === "HOME" || key.startsWith("PI_"))
+        throw new Error(`env cannot set ${key}: it isolates the worker`);
+    }
     const env: NodeJS.ProcessEnv = {
       PATH: process.env.PATH,
       LANG: process.env.LANG,
+      PAP_TEST_PROVIDER: "1",
+      ...options.env,
       HOME: home,
       PI_CODING_AGENT_DIR: options.agentDirEnv ?? agentDir,
       PI_OFFLINE: "1",
       PI_TELEMETRY: "0",
       PI_SKIP_VERSION_CHECK: "1",
-      PAP_TEST_PROVIDER: "1",
-      ...options.env,
     };
     current = fork(env, cwd);
     launched.push(current);

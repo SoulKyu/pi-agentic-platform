@@ -45,4 +45,22 @@ describe("test daemon", () => {
       await t.stop();
     }
   });
+
+  it.each(["../escape.txt", "nested/../../escape.txt", "nested/../ok.txt", "nested\\..\\ok.txt"])(
+    "refuses the agentFiles path %s and starts nothing",
+    async (file) => {
+      await expect(
+        startTestDaemon({ steps: [{ text: "unused" }] }, { agentFiles: { [file]: "x" } }),
+      ).rejects.toThrow(`agent file outside the agent directory: ${file}`);
+    },
+  );
+
+  it.each(["HOME", "PI_CODING_AGENT_DIR", "PI_OFFLINE", "PI_TELEMETRY"])(
+    "refuses a workerEnv that sets %s, which isolates the worker",
+    async (key) => {
+      await expect(
+        startTestDaemon({ steps: [{ text: "unused" }] }, { workerEnv: { [key]: "/elsewhere" } }),
+      ).rejects.toThrow(`workerEnv cannot set ${key}: it isolates the worker`);
+    },
+  );
 });

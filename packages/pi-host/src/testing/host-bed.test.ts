@@ -118,4 +118,28 @@ describe("agent files", () => {
     expect(existsSync(join(bed.root, "escape"))).toBe(false);
     await bed.dispose();
   });
+
+  it.each(["nested/../../escape", "nested/../ok.txt", "nested\\..\\ok.txt"])(
+    "refuses the path %s, which holds a .. segment",
+    async (file) => {
+      const { bed } = bedWithLogs("");
+      expect(() => bed.launch({ steps: [] }, { agentFiles: { [file]: "x" } })).toThrow(
+        `agent file outside the agent directory: ${file}`,
+      );
+      await bed.dispose();
+    },
+  );
+});
+
+describe("worker isolation", () => {
+  it.each(["HOME", "PI_CODING_AGENT_DIR", "PI_OFFLINE", "PI_TELEMETRY", "PI_SKIP_VERSION_CHECK"])(
+    "refuses an env that sets %s",
+    async (key) => {
+      const { bed } = bedWithLogs("");
+      expect(() => bed.launch({ steps: [] }, { env: { [key]: "/elsewhere" } })).toThrow(
+        `env cannot set ${key}: it isolates the worker`,
+      );
+      await bed.dispose();
+    },
+  );
 });

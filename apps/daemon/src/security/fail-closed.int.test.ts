@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { startTestDaemon, type TestDaemon } from "../testing/harness.ts";
-import { callRows, markOf, sessionIdOf, waitIdle } from "./testing/fixtures.ts";
+import { callRows, FETCH_PAGE_TOOL, markOf, runWithoutCard, sessionIdOf } from "./testing/fixtures.ts";
 
 // Spec C §8.1, class "fail closed", daemon half: real HTTP, /ws, SQLite and a pi-host worker on the scripted model.
 // The worker half (a malformed policy update, invalid rules at start) is packages/pi-host/src/host.failclosed.int.test.ts.
@@ -12,18 +12,6 @@ import { callRows, markOf, sessionIdOf, waitIdle } from "./testing/fixtures.ts";
 // unstatable: the policy cannot describe the call, so it blocks it.
 const POISON =
   'export default (pi) => pi.on("tool_call", (event) => { if (event.toolName === "write") event.input.size = 10n; });';
-// An extension tool with a URL argument that returns a fixed text and never opens a socket.
-const FETCH_PAGE_TOOL = `export default function (pi) {
-  pi.registerTool({
-    name: "fetch_page",
-    label: "fetch_page",
-    description: "returns a fixed page",
-    parameters: { type: "object", properties: { url: { type: "string" } }, additionalProperties: true },
-    execute: async () => ({ content: [{ type: "text", text: "a fixed page" }], details: {} }),
-  });
-}
-`;
-
 /** A test-only write beside the running daemon: the single-writer rule is about the product. */
 function corruptPolicySettings(t: TestDaemon): void {
   const db = new DatabaseSync(join(t.home, "state.db"));
@@ -58,7 +46,7 @@ describe("security: fail closed (daemon)", () => {
       await client.call("subscribe.session", { sessionId });
       const mark = markOf(client);
       await client.call("sessions.prompt", { sessionId, text: "write it" });
-      await waitIdle(client, mark);
+      await runWithoutCard(client, mark);
       const calls = await callRows(client, sessionId, 1);
       expect(calls[0]).toMatchObject({
         tool: "write",
@@ -81,7 +69,7 @@ describe("security: fail closed (daemon)", () => {
     }
   }, 60_000);
 
-  it("gives workers the restrictive settings when the stored settings no longer parse", async () => {
+  it("gives workers the restrictive settings (supervised, no allowed host) when the stored settings no longer parse", async () => {
     const t = await startTestDaemon(
       {
         steps: [
@@ -102,12 +90,22 @@ describe("security: fail closed (daemon)", () => {
       });
       const sessionId = sessionIdOf(await client.call("sessions.create", { cwd: t.cwd }));
       await client.call("subscribe.session", { sessionId });
+      const snapshot = await client.waitForEvent((f) => (f.event as { kind?: string }).kind === "snapshot");
+      expect((snapshot.event as { policy: unknown }).policy).toEqual({
+        mode: "supervised",
+        explicit: false,
+        tainted: false,
+      });
       const mark = markOf(client);
       await client.call("sessions.prompt", { sessionId, text: "fetch" });
-      await waitIdle(client, mark);
+      // Fails at once, with this assertion, if the unreadable document gave the defaults and so a card.
+      await runWithoutCard(client, mark);
       const calls = await callRows(client, sessionId, 1);
       expect(calls[0]).toMatchObject({ tool: "fetch_page", toolCallId: "f", decision: "block" });
-      expect(calls[0]?.stages.find((verdict) => verdict.stage === "02")).toMatchObject({ outcome: "block" });
+      expect(calls[0]?.stages.find((verdict) => verdict.stage === "02")).toMatchObject({
+        outcome: "block",
+        reason: "web host not allowed: example.com",
+      });
     } finally {
       await t.stop();
     }

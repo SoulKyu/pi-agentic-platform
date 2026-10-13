@@ -41,7 +41,7 @@ export interface TestDaemonOptions {
   readonly extensions?: Record<string, string>;
   /** Files written under the agent directory before the daemon starts, by relative path (`mcp.json`, `extensions/x.js`). */
   readonly agentFiles?: Readonly<Record<string, string>>;
-  /** Extra worker environment (a fake `GITHUB_TOKEN`), added to the harness defaults. */
+  /** Extra worker environment (a fake `GITHUB_TOKEN`), added to the harness defaults; `HOME` and `PI_*` are refused. */
   readonly workerEnv?: Readonly<Record<string, string>>;
   readonly deps?: Omit<DaemonDeps, "env">;
 }
@@ -62,6 +62,10 @@ export async function startTestDaemon(script: object, options: TestDaemonOptions
 }
 
 async function startIn(root: string, script: object, options: TestDaemonOptions): Promise<TestDaemon> {
+  for (const key of Object.keys(options.workerEnv ?? {})) {
+    if (key === "HOME" || key.startsWith("PI_"))
+      throw new Error(`workerEnv cannot set ${key}: it isolates the worker`);
+  }
   const agentDir = join(root, "agent");
   const cwd = join(root, "work");
   const userHome = join(root, "user");
@@ -75,7 +79,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
   }
   for (const [file, content] of Object.entries(options.agentFiles ?? {})) {
     const target = join(agentDir, file);
-    if (relative(agentDir, target).startsWith(".."))
+    if (file.split(/[\\/]/).includes("..") || relative(agentDir, target).startsWith(".."))
       throw new Error(`agent file outside the agent directory: ${file}`);
     mkdirSync(dirname(target), { recursive: true });
     writeFileSync(target, content);
@@ -117,9 +121,9 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
   const env = {
     PATH: process.env.PATH,
     LANG: process.env.LANG,
+    ...options.workerEnv,
     HOME: userHome,
     PI_OFFLINE: "1",
-    ...options.workerEnv,
   };
   const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
   const daemon = await createDaemon(config, {
