@@ -2,6 +2,7 @@ import { Button, TextField } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { AuditRow } from "./AuditRow.tsx";
+import { AUDIT_SESSION_ID_MAX } from "@pap/contracts";
 import { MAX_ROWS } from "./audit.vm.ts";
 import { useAuditLog } from "./use-audit-log.ts";
 
@@ -12,6 +13,7 @@ export function AuditLog() {
   const t = useT();
   const log = useAuditLog();
   const [typed, setTyped] = useState("");
+  const [tooLong, setTooLong] = useState(false);
   return (
     <section className="flex flex-col gap-s3">
       <h3 className="text-ui font-semibold text-fg">{t("audit.title")}</h3>
@@ -20,11 +22,22 @@ export function AuditLog() {
         className="flex items-end gap-s2"
         onSubmit={(event) => {
           event.preventDefault();
-          log.apply(typed);
+          const tooBig = typed.trim().length > AUDIT_SESSION_ID_MAX;
+          setTooLong(tooBig);
+          if (!tooBig) log.apply(typed);
         }}
       >
         <div className="min-w-0 flex-1">
-          <TextField label={t("audit.filter")} value={typed} onChange={setTyped} autoComplete="off" />
+          <TextField
+            label={t("audit.filter")}
+            value={typed}
+            error={tooLong ? t("audit.filterTooLong", { max: AUDIT_SESSION_ID_MAX }) : null}
+            onChange={(value) => {
+              setTyped(value);
+              setTooLong(false);
+            }}
+            autoComplete="off"
+          />
         </div>
         <Button type="submit" variant="secondary">
           {t("audit.apply")}

@@ -31,6 +31,7 @@ const IDENTICAL_IN_FR = new Set([
   "app.name",
   "audit.kind.session",
   "audit.kind.audit",
+  "audit.argsLabel",
   "audit.decision.info",
   "ui.notifications",
   "app.tagline",

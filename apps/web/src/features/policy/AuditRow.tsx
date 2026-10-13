@@ -41,6 +41,9 @@ function ClippedText({
       {block ? (
         <pre
           data-audit-text={marker}
+          tabIndex={0}
+          role="region"
+          aria-label={t("audit.argsLabel")}
           className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-sm border border-border bg-surface p-s2 font-mono text-ui text-fg"
         >
           {shown}

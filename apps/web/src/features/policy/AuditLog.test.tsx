@@ -141,6 +141,21 @@ describe("audit log paging", () => {
     expect(ids(container)).toEqual(["2"]);
   });
 
+  it("refuses a session id over 128 characters: no request, a message, the old list stays", async () => {
+    const container = await show(answer([row(1)]));
+    await typeInto(field(container, "Session id"), "a".repeat(129));
+    await click(button(container, "Filter"));
+    await settle();
+    expect(listed()).toEqual([{ limit: 100 }]);
+    expect(text(container)).toContain("A session id has at most 128 characters.");
+    expect(ids(container)).toEqual(["1"]);
+    await typeInto(field(container, "Session id"), "a".repeat(128));
+    expect(text(container)).not.toContain("at most 128");
+    await click(button(container, "Filter"));
+    await settle();
+    expect(listed()[1]).toEqual({ limit: 100, sessionId: "a".repeat(128) });
+  });
+
   it("clears the filter with an empty field", async () => {
     const container = await show(answer([row(1)]));
     await typeInto(field(container, "Session id"), "s2");
@@ -301,6 +316,9 @@ describe("audit log hostile rows", () => {
     expect([...block()]).toHaveLength(301);
     expect(block().startsWith("abcxxx")).toBe(true);
     expect(block().endsWith("…")).toBe(true);
+    const region = container.querySelector("pre");
+    expect(region?.getAttribute("tabindex")).toBe("0");
+    expect(region?.getAttribute("aria-label")).toBe("Arguments");
     await click(button(container, "Show more"));
     expect(block()).toBe(`abc${"x".repeat(1000)}`);
     expect(button(container, "Show less").getAttribute("aria-expanded")).toBe("true");
