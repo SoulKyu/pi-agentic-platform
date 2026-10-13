@@ -123,10 +123,13 @@ describe("agent files", () => {
     "refuses the path %s, which holds a .. segment",
     async (file) => {
       const { bed } = bedWithLogs("");
-      expect(() => bed.launch({ steps: [] }, { agentFiles: { [file]: "x" } })).toThrow(
-        `agent file outside the agent directory: ${file}`,
-      );
-      await bed.dispose();
+      try {
+        expect(() => bed.launch({ steps: [] }, { agentFiles: { [file]: "x" } })).toThrow(
+          `agent file outside the agent directory: ${file}`,
+        );
+      } finally {
+        await bed.dispose();
+      }
     },
   );
 });
@@ -136,10 +139,13 @@ describe("worker isolation", () => {
     "refuses an env that sets %s",
     async (key) => {
       const { bed } = bedWithLogs("");
-      expect(() => bed.launch({ steps: [] }, { env: { [key]: "/elsewhere" } })).toThrow(
-        `env cannot set ${key}: it isolates the worker`,
-      );
-      await bed.dispose();
+      try {
+        expect(() => bed.launch({ steps: [] }, { env: { [key]: "/elsewhere" } })).toThrow(
+          `env cannot set ${key}: it isolates the worker`,
+        );
+      } finally {
+        await bed.dispose();
+      }
     },
   );
 });

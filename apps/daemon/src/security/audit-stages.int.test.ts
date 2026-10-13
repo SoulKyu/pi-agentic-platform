@@ -17,6 +17,8 @@ import {
 // Spec C §8.1 and §5.1: every stage that decides or acts leaves a line. One session goes through all of them. MCP is an
 // extension tool here (the production worker loads no MCP until M7): an external read, so stage 07 acts on its result.
 const TOKEN = "ghp_auditstages_0123456789";
+// A well-formed GitHub token (gh[opsur]_ and 36 alphanumerics) in a harmless call's own argument: the audit scrub (M5R124).
+const PASTED = `ghp_${"A1b2C3d4E5".repeat(4).slice(0, 36)}`;
 
 describe("security: an audit line for every stage (daemon)", () => {
   it("leaves a line for every stage, 00 to 07, through the whole daemon", async () => {
@@ -29,6 +31,7 @@ describe("security: an audit line for every stage (daemon)", () => {
           { toolCalls: [{ name: "fetch_page", args: { url: "https://evil.test/x" }, id: "c4" }] },
           // Harmless if a regression let it run: the command does not exist (M5R104, RT-17).
           { toolCalls: [{ name: "bash", args: { command: "pap-test-blocked now" }, id: "c5" }] },
+          { toolCalls: [{ name: "read", args: { path: `${PASTED}.txt` }, id: "c6" }] },
           { text: "done" },
         ],
       },
@@ -42,6 +45,7 @@ describe("security: an audit line for every stage (daemon)", () => {
     );
     try {
       writeFileSync(join(t.cwd, "a.txt"), "hello");
+      writeFileSync(join(t.cwd, `${PASTED}.txt`), "hello");
       const client = await t.connect(await t.login());
       expect(
         await client.call("policy.setSettings", {
@@ -75,20 +79,19 @@ describe("security: an audit line for every stage (daemon)", () => {
       expect(asked).toEqual(["bash: printenv GITHUB_TOKEN", 'lookup: {"q":"x"}']);
 
       const rows = rowsOf(await client.call("audit.list", { sessionId, limit: 200 }));
-      const seen = stagesSeen(rows);
-      expect(Object.keys(seen).sort()).toEqual(["00", "01", "02", "03", "04", "05", "06", "07"]);
-      expect(seen).toMatchObject({ "00": ["pass"], "05": ["skip"] });
-      const atLeast: Record<string, string[]> = {
+      const outcomes = Object.fromEntries(
+        Object.entries(stagesSeen(rows)).map(([stage, seen]) => [stage, [...new Set(seen)].sort()]),
+      );
+      expect(outcomes).toEqual({
+        "00": ["pass"],
         "01": ["block", "pass", "skip"],
         "02": ["block", "pass", "skip"],
         "03": ["allow", "ask", "skip"],
         "04": ["pass", "skip"],
+        "05": ["skip"],
         "06": ["acted", "pass"],
         "07": ["acted", "pass"],
-      };
-      for (const [stage, outcomes] of Object.entries(atLeast)) {
-        expect(seen[stage], `stage ${stage}`).toEqual(expect.arrayContaining(outcomes));
-      }
+      });
       // Result rows only where stage 06 or 07 acted (MQ9): c2 (a secret redacted) and c3 (external), never c1.
       expect(
         rows
@@ -101,6 +104,11 @@ describe("security: an audit line for every stage (daemon)", () => {
         reason: "denied: pap-test-blocked *",
       });
       expect(JSON.stringify(rows)).not.toContain(TOKEN);
+      // c6 ran without a card; its argument is scrubbed before the row is stored.
+      const pasted = rows.find((row) => row.toolCallId === "c6" && row.kind === "call");
+      expect(pasted).toMatchObject({ decision: "allow" });
+      expect(pasted?.args).toContain("[REDACTED:github_token]");
+      expect(JSON.stringify(rows)).not.toContain(PASTED);
     } finally {
       await t.stop();
     }

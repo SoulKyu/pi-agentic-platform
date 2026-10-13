@@ -175,16 +175,22 @@ describe("security: taint then exfiltration (daemon)", () => {
       });
       await waitIdle(client, mark);
 
+      mark = markOf(client);
       expect(await client.call("policy.clearTaint", { sessionId })).toMatchObject({
         ok: true,
         result: { ok: true },
       });
-      const cleared = await policyEvent(false, raised.seq);
+      const cleared = await policyEvent(false, mark);
       expect((cleared.event as { policy: unknown }).policy).toEqual({
         mode: "auto-accept-edits",
         explicit: false,
         tainted: false,
       });
+
+      const audit = rowsOf(await client.call("audit.list", { sessionId, limit: 200 }));
+      expect(audit.filter((row) => row.reason === "taint_cleared")).toMatchObject([
+        { kind: "policy", sessionId, actor: "user" },
+      ]);
 
       // The exact command the owner always-allowed runs again with no card.
       mark = markOf(client);

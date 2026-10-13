@@ -1,7 +1,8 @@
-import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { sha256Hex } from "../kernel/ids.ts";
+import {
+  createSoftwareAuthenticator,
+  type SoftwareAuthenticator,
+} from "../modules/auth/testing/software-authenticator.ts";
 import { startTestDaemon, type TestDaemon } from "../testing/harness.ts";
 import { httpRequest } from "../testing/http-client.ts";
 import { rowsOf } from "./testing/fixtures.ts";
@@ -9,41 +10,43 @@ import { rowsOf } from "./testing/fixtures.ts";
 // Spec C §8.1 over /ws: removing a passkey signs out the browsers it opened (M5R9), and their sockets close with 4401.
 const PASSWORD = "correct horse battery staple";
 
-async function signIn(t: TestDaemon): Promise<string> {
-  const reply = await httpRequest(`${t.base}/auth/login`, {
+/** The real ceremonies over the daemon's routes, with a software authenticator for the rpId `localhost`. */
+async function post(t: TestDaemon, path: string, body: object, cookie?: string) {
+  const reply = await httpRequest(`${t.base}${path}`, {
     method: "POST",
-    headers: { origin: t.origin, "content-type": "application/json" },
-    body: JSON.stringify({ username: "owner", password: PASSWORD }),
+    headers: { origin: t.origin, "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    body: JSON.stringify(body),
   });
-  expect(reply.status).toBe(200);
-  return reply.headers["set-cookie"]?.toString().split(";")[0] ?? "";
+  return {
+    status: reply.status,
+    body: JSON.parse(reply.body || "null") as never,
+    cookie: reply.headers["set-cookie"]?.toString().split(";")[0] ?? "",
+  };
 }
 
-/**
- * A test-only write beside the running daemon (the single-writer rule is about the product): a passkey row, and the
- * link from the given browsers' sessions to it, as a passkey sign-in would have left them. A real assertion needs a
- * browser's authenticator.
- */
-function enrollPasskey(t: TestDaemon, publicIds: string[]): string {
-  const db = new DatabaseSync(join(t.home, "state.db"));
-  try {
-    db.exec("PRAGMA busy_timeout = 5000");
-    const user = db.prepare("SELECT id FROM users").all() as Array<{ id: string }>;
-    expect(user).toHaveLength(1);
-    db.prepare(
-      "INSERT INTO passkeys (id, user_id, public_key, counter, transports, created_at) VALUES (?, ?, ?, 0, '[]', 0)",
-    ).run("credential-under-test", user[0]?.id ?? "", new Uint8Array([1, 2, 3]));
-    // The short id the list shows (M5R128): the first 32 hex characters of the sha256 of the credential id.
-    const ref = sha256Hex("credential-under-test").slice(0, 32);
-    for (const publicId of publicIds) {
-      expect(
-        db.prepare("UPDATE auth_sessions SET passkey_ref = ? WHERE public_id = ?").run(ref, publicId).changes,
-      ).toBe(1);
-    }
-    return ref;
-  } finally {
-    db.close();
-  }
+async function enroll(t: TestDaemon, authenticator: SoftwareAuthenticator, cookie: string): Promise<void> {
+  const begun = await post(t, "/auth/passkey/register/options", { password: PASSWORD }, cookie);
+  expect(begun.status).toBe(200);
+  const { flowId, options } = begun.body as {
+    flowId: string;
+    options: { challenge: string; user: { id: string } };
+  };
+  const done = await post(
+    t,
+    "/auth/passkey/register/verify",
+    { flowId, response: authenticator.create(options) },
+    cookie,
+  );
+  expect(done.status).toBe(200);
+}
+
+async function signInWithPasskey(t: TestDaemon, authenticator: SoftwareAuthenticator): Promise<string> {
+  const begun = await post(t, "/auth/passkey/login/options", {});
+  expect(begun.status).toBe(200);
+  const { flowId, options } = begun.body as { flowId: string; options: { challenge: string } };
+  const done = await post(t, "/auth/passkey/login/verify", { flowId, response: authenticator.get(options) });
+  expect(done.status).toBe(200);
+  return done.cookie;
 }
 
 describe("security: a removed passkey signs its browsers out (daemon)", () => {
@@ -51,22 +54,15 @@ describe("security: a removed passkey signs its browsers out (daemon)", () => {
     const t = await startTestDaemon({ steps: [{ text: "unused" }] });
     try {
       const mine = await t.login();
-      const theirs = [await signIn(t), await signIn(t)];
+      const authenticator = createSoftwareAuthenticator({ origin: t.origin, rpId: "localhost" });
+      await enroll(t, authenticator, mine);
+      const theirs = [await signInWithPasskey(t, authenticator), await signInWithPasskey(t, authenticator)];
       const owner = await t.connect(mine);
-      const listed = await owner.call("auth.devices.list", {});
-      if (!listed.ok) throw new Error("devices.list failed");
-      const others = (listed.result as { devices: Array<{ id: string; current: boolean }> }).devices.filter(
-        (device) => !device.current,
-      );
-      expect(others).toHaveLength(2);
-      const ref = enrollPasskey(
-        t,
-        others.map((device) => device.id),
-      );
-      expect(await owner.call("auth.passkeys.list", {})).toMatchObject({
-        ok: true,
-        result: { passkeys: [{ id: ref }] },
-      });
+      const listed = await owner.call("auth.passkeys.list", {});
+      if (!listed.ok) throw new Error("passkeys.list failed");
+      const ref = (listed.result as { passkeys: Array<{ id: string }> }).passkeys[0]?.id ?? "";
+      expect(ref).toMatch(/^[0-9a-f]{32}$/);
+      expect((listed.result as { passkeys: unknown[] }).passkeys).toHaveLength(1);
       const sockets = await Promise.all(theirs.map((cookie) => t.connect(cookie)));
       await t.confirmStepUp(mine);
 

@@ -80,19 +80,29 @@ export async function runWithoutCard(client: TestClient, after: number): Promise
 }
 
 /** GET with the path sent exactly as written: nothing normalises it on the way (unlike `fetch` and `URL`). */
-export function rawGet(port: number, path: string, headers: Record<string, string> = {}): Promise<HttpReply> {
+export function rawGet(
+  port: number,
+  path: string,
+  headers: Record<string, string> = {},
+  timeoutMs = 10_000,
+): Promise<HttpReply> {
   return new Promise((resolve, reject) => {
-    const req = request({ host: "127.0.0.1", port, path, method: "GET", headers }, (res) => {
-      const chunks: Buffer[] = [];
-      res.on("data", (chunk: Buffer) => chunks.push(chunk));
-      res.on("end", () =>
-        resolve({
-          status: res.statusCode ?? 0,
-          headers: res.headers,
-          body: Buffer.concat(chunks).toString("utf8"),
-        }),
-      );
-    });
+    const req = request(
+      { host: "127.0.0.1", port, path, method: "GET", headers, timeout: timeoutMs },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("error", reject);
+        res.on("end", () =>
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers,
+            body: Buffer.concat(chunks).toString("utf8"),
+          }),
+        );
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error(`no reply to GET ${path} within ${timeoutMs} ms`)));
     req.on("error", reject);
     req.end();
   });

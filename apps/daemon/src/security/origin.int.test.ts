@@ -14,43 +14,59 @@ const forged = (t: TestDaemon) => [
   `${t.origin}/`,
   t.origin.replace("localhost", "127.0.0.2"),
   t.origin.replace("http:", "https:"),
+  `http://localhost:${t.port + 1}`,
 ];
+const FLOW = { flowId: "x", response: {} };
+// Every unsafe route, and a path nothing serves: the guard is global, so it answers before routing.
 const UNSAFE_ROUTES = [
   ["/auth/login", { username: "owner", password: PASSWORD }],
   ["/auth/confirm", { password: PASSWORD }],
   ["/auth/logout", {}],
   ["/auth/passkey/login/options", {}],
+  ["/auth/passkey/login/verify", FLOW],
   ["/auth/passkey/register/options", { password: PASSWORD }],
+  ["/auth/passkey/register/verify", FLOW],
+  ["/api/x", {}],
 ] as const;
 const wsUrl = (t: TestDaemon) => `ws://127.0.0.1:${t.port}/ws?proto=${PROTOCOL_VERSION}`;
 
 describe("security: forged Origin (daemon)", () => {
   const captured = captureLogger();
-  let t: TestDaemon;
+  let t: TestDaemon | undefined;
+  let cookie = "";
+  let bearer = "";
+  const daemon = (): TestDaemon => {
+    if (!t) throw new Error("the daemon did not start");
+    return t;
+  };
+
   beforeAll(async () => {
     t = await startTestDaemon({ steps: [{ text: "hi" }] }, { deps: { logger: captured.logger } });
+    cookie = await t.login();
+    await t.confirmStepUp(cookie);
+    const owner = await t.connect(cookie);
+    const created = await owner.call("auth.tokens.create", {
+      name: "ci",
+      permissions: ["sessions:read"],
+      expiresInDays: 7,
+    });
+    if (!created.ok) throw new Error(`token create failed: ${created.error.code}`);
+    bearer = (created.result as { value: string }).value;
+    owner.close();
   });
   afterAll(async () => {
-    await t.stop();
+    await t?.stop();
   });
 
   const post = (path: string, body: object, headers: Record<string, string>) =>
-    httpRequest(`${t.base}${path}`, {
+    httpRequest(`${daemon().base}${path}`, {
       method: "POST",
       headers: { ...headers, "content-type": "application/json" },
       body: JSON.stringify(body),
     });
 
-  // The first case made the owner (setup); later ones sign in.
-  async function signIn(): Promise<string> {
-    const reply = await post("/auth/login", { username: "owner", password: PASSWORD }, { origin: t.origin });
-    expect(reply.status).toBe(200);
-    return reply.headers["set-cookie"]?.toString().split(";")[0] ?? "";
-  }
-
-  it("refuses every unsafe auth route with a forged Origin, logs it, and changes nothing", async () => {
-    const cookie = await t.login();
-    for (const origin of forged(t)) {
+  it("refuses every unsafe route with a forged Origin, logs it, and changes nothing", async () => {
+    for (const origin of forged(daemon())) {
       for (const [path, body] of UNSAFE_ROUTES) {
         const reply = await post(path, body, { origin, cookie });
         expect([origin, path, reply.status, reply.headers["set-cookie"]]).toEqual([
@@ -66,49 +82,41 @@ describe("security: forged Origin (daemon)", () => {
       { via: "http", origin: "https://evil.test", suppressed: 0 },
     ]);
     // The session a forged logout aimed at still works.
-    const status = await httpRequest(`${t.base}/auth/status`, { headers: { cookie } });
+    const status = await httpRequest(`${daemon().base}/auth/status`, { headers: { cookie } });
     expect(JSON.parse(status.body)).toMatchObject({ authenticated: true });
     expect(JSON.stringify(captured.lines)).not.toContain(cookie.split("=")[1] ?? "no-cookie");
   });
 
-  it("refuses an unsafe route that carries a cookie and no Origin at all", async () => {
-    const cookie = await signIn();
+  it("refuses every unsafe route that carries a cookie and no Origin at all", async () => {
     for (const [path, body] of UNSAFE_ROUTES) {
       const reply = await post(path, body, { cookie });
       expect([path, reply.status, reply.headers["set-cookie"]]).toEqual([path, 403, undefined]);
     }
   });
 
-  it("refuses an unsafe route that carries a bearer token and a forged Origin", async () => {
-    const reply = await post(
-      "/auth/logout",
-      {},
-      { origin: "https://evil.test", authorization: "Bearer pap_x" },
-    );
-    expect(reply.status).toBe(403);
+  it("refuses every unsafe route that carries a bearer token and a forged Origin, or none", async () => {
+    for (const origin of [...forged(daemon()), undefined]) {
+      for (const [path, body] of UNSAFE_ROUTES) {
+        const reply = await post(path, body, {
+          authorization: `Bearer ${bearer}`,
+          ...(origin === undefined ? {} : { origin }),
+        });
+        expect([origin, path, reply.status]).toEqual([origin, path, 403]);
+      }
+    }
   });
 
   it("refuses the /ws upgrade with a forged Origin, for a cookie and for a bearer token", async () => {
-    const cookie = await signIn();
-    await t.confirmStepUp(cookie);
-    const owner = await t.connect(cookie);
-    const created = await owner.call("auth.tokens.create", {
-      name: "ci",
-      permissions: ["sessions:read"],
-      expiresInDays: 7,
-    });
-    if (!created.ok) throw new Error(`token create failed: ${created.error.code}`);
-    const value = (created.result as { value: string }).value;
+    const t = daemon();
     for (const origin of forged(t)) {
       await expect(connectTestClient(wsUrl(t), { origin, cookie })).rejects.toThrow(/status 403/);
-      await expect(t.connectBearer(value, origin)).rejects.toThrow(/status 403/);
+      await expect(t.connectBearer(bearer, origin)).rejects.toThrow(/status 403/);
     }
     await expect(connectTestClient(wsUrl(t), { cookie })).rejects.toThrow(/status 403/);
     // Without any Origin the token is accepted (ADR 0021).
-    const bot = await t.connectBearer(value);
+    const bot = await t.connectBearer(bearer);
     expect(await bot.call("sessions.list", {})).toMatchObject({ ok: true });
     bot.close();
-    owner.close();
   });
 });
 
