@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchAuthStatus, login, loginWithPasskey, logout, registerPasskey, setupOwner } from "./auth-api.ts";
+import {
+  confirmPassword,
+  fetchAuthStatus,
+  login,
+  loginWithPasskey,
+  logout,
+  registerPasskey,
+  setupOwner,
+} from "./auth-api.ts";
 
 const webauthn = vi.hoisted(() => ({ startRegistration: vi.fn(), startAuthentication: vi.fn() }));
 vi.mock("@simplewebauthn/browser", () => webauthn);
@@ -285,5 +293,29 @@ describe("password requests", () => {
     await expect(fetchAuthStatus()).rejects.toMatchObject({ code: "read_only" });
     await expect(fetchAuthStatus()).rejects.toMatchObject({ code: null });
     await expect(fetchAuthStatus()).rejects.toMatchObject({ code: null });
+  });
+});
+
+describe("confirmPassword", () => {
+  it("posts the password to /auth/confirm and answers ok on 204", async () => {
+    const seen = server(new Response(null, { status: 204 }));
+    expect(await confirmPassword("hunter2 hunter2")).toEqual({ ok: true });
+    expect(seen).toEqual([{ method: "POST", url: "/auth/confirm", body: { password: "hunter2 hunter2" } }]);
+  });
+
+  it("tells a wrong password from a signed-out session by asking /auth/status after a 401", async () => {
+    server(refusal(401, "unauthenticated"), authenticated(true));
+    expect(await confirmPassword("nope")).toEqual({ ok: false, code: "password_incorrect" });
+    server(refusal(401, "unauthenticated"), authenticated(false));
+    expect(await confirmPassword("nope")).toEqual({ ok: false, code: "unauthenticated" });
+  });
+
+  it("reports the wait of a 429, and a request that got no answer as network", async () => {
+    server(refusal(429, "rate_limited", { "retry-after": "42" }));
+    expect(await confirmPassword("x")).toEqual({ ok: false, code: "rate_limited", retryAfterSeconds: 42 });
+    server(new Error("offline"));
+    expect(await confirmPassword("x")).toEqual({ ok: false, code: "network" });
+    server(refusal(503, "read_only"));
+    expect(await confirmPassword("x")).toEqual({ ok: false, code: "network" });
   });
 });

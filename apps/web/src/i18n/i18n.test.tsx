@@ -28,6 +28,17 @@ import {
 
 // Keys whose French is the same word (endonyms, product and font names). Every other key must differ.
 const IDENTICAL_IN_FR = new Set([
+  "access.devices.browser.chrome",
+  "access.devices.browser.firefox",
+  "access.devices.browser.safari",
+  "access.devices.browser.edge",
+  "access.devices.system.linux",
+  "access.devices.system.macos",
+  "access.devices.system.windows",
+  "access.devices.system.ios",
+  "access.devices.system.android",
+  "access.devices.method.passkey",
+  "access.passkeys.title",
   "app.name",
   "audit.kind.session",
   "audit.kind.audit",

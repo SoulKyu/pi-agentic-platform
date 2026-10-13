@@ -139,3 +139,36 @@ export function loginWithPasskey(): Promise<AuthResult> {
       stage === "verify" && answer.status === 401 ? refused("passkey_failed") : failure(answer),
   );
 }
+
+export type ConfirmResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: "password_incorrect" | "rate_limited" | "unauthenticated" | "network";
+      retryAfterSeconds?: number;
+    };
+
+// Step-up (M5R67): the password goes in the body of this one POST, never in a URL, a log or an RPC frame. For the
+// server a 401 is a wrong password or a session that ended; only /auth/status tells which.
+export async function confirmPassword(password: string): Promise<ConfirmResult> {
+  try {
+    const result = await postJson<ErrorBody>("/auth/confirm", { password });
+    if (result.status === 204) return { ok: true };
+    if (result.status === 429) {
+      return {
+        ok: false,
+        code: "rate_limited",
+        ...(result.retryAfterSeconds === null ? {} : { retryAfterSeconds: result.retryAfterSeconds }),
+      };
+    }
+    if (result.status === 401) {
+      return {
+        ok: false,
+        code: (await fetchAuthStatus()).authenticated ? "password_incorrect" : "unauthenticated",
+      };
+    }
+    return { ok: false, code: "network" };
+  } catch {
+    return { ok: false, code: "network" };
+  }
+}
