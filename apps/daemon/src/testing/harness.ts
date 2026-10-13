@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROTOCOL_VERSION } from "@pap/contracts";
 import { createDaemon, type DaemonDeps, type DaemonHandle } from "../daemon.ts";
@@ -39,6 +39,10 @@ export interface TestDaemonOptions {
   readonly config?: Partial<Config>;
   /** Pi extensions written as `<agent dir>/extensions/<name>.js` before the daemon starts. */
   readonly extensions?: Record<string, string>;
+  /** Files written under the agent directory before the daemon starts, by relative path (`mcp.json`, `extensions/x.js`). */
+  readonly agentFiles?: Readonly<Record<string, string>>;
+  /** Extra worker environment (a fake `GITHUB_TOKEN`), added to the harness defaults. */
+  readonly workerEnv?: Readonly<Record<string, string>>;
   readonly deps?: Omit<DaemonDeps, "env">;
 }
 
@@ -68,6 +72,13 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     mkdirSync(join(agentDir, "extensions"));
     for (const [name, source] of Object.entries(options.extensions))
       writeFileSync(join(agentDir, "extensions", `${name}.js`), source);
+  }
+  for (const [file, content] of Object.entries(options.agentFiles ?? {})) {
+    const target = join(agentDir, file);
+    if (relative(agentDir, target).startsWith(".."))
+      throw new Error(`agent file outside the agent directory: ${file}`);
+    mkdirSync(dirname(target), { recursive: true });
+    writeFileSync(target, content);
   }
   const port = await freePort();
   const scheme = options.tls ? "https" : "http";
@@ -103,7 +114,13 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     ...options.config,
   };
   // Not the whole environment: whatever PI_* and HOME the outer process has must not reach a worker.
-  const env = { PATH: process.env.PATH, LANG: process.env.LANG, HOME: userHome, PI_OFFLINE: "1" };
+  const env = {
+    PATH: process.env.PATH,
+    LANG: process.env.LANG,
+    HOME: userHome,
+    PI_OFFLINE: "1",
+    ...options.workerEnv,
+  };
   const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
   const daemon = await createDaemon(config, {
     logger: silentLogger,

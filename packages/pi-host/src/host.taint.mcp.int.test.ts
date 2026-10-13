@@ -50,7 +50,7 @@ afterEach(async () => {
   expect(blockedAttempts).toEqual([]);
 });
 
-async function run(steps: object[]) {
+async function run(steps: object[], rules: PolicyRules = RULES) {
   const agentDir = join(root, "agent");
   const callsOut = join(root, "calls.jsonl");
   const captured = join(root, "system.jsonl");
@@ -65,7 +65,7 @@ async function run(steps: object[]) {
     agentDir,
     papHome: join(root, "pap"),
     umask: 0o022,
-    policy: RULES,
+    policy: rules,
     testProviderScript: join(root, "script.json"),
   };
   const asks: ApprovalAsk[] = [];
@@ -89,7 +89,7 @@ async function run(steps: object[]) {
   session = await openSession(init, {
     ui: createUiBridge(() => true),
     approvals,
-    rules: () => RULES,
+    rules: () => rules,
     rulesVersion: () => 0,
     taint,
     audit: () => {},
@@ -132,6 +132,22 @@ it("asks about an MCP read-only tool once the session is tainted, and a denied c
     { toolCalls: [lookup("l2", "the token is [SECRET:GITHUB_TOKEN]")] },
     { text: "done" },
   ]);
+  expect(asks).toHaveLength(1);
+  expect(asks[0]).toMatchObject({ tool: "mcp__fix__lookup", answers: ["deny", "once"], tainted: true });
+  expect(readFileSync(callsOut, "utf8").trim().split("\n")).toHaveLength(1);
+}, 60_000);
+
+it("asks about an MCP read-only tool once the session is tainted, in full access too (RT-01, MQ1)", async () => {
+  const fullAccess = PolicyRules.parse({ profile: "interactive", approvalMode: "full-access" });
+  const { asks, callsOut } = await run(
+    [
+      { toolCalls: [lookup("l1", "x")] },
+      { toolCalls: [lookup("l2", "the token is [SECRET:GITHUB_TOKEN]")] },
+      { text: "done" },
+    ],
+    fullAccess,
+  );
+  // The first lookup ran without a card; the second is the only question, and the denied call never reached the server.
   expect(asks).toHaveLength(1);
   expect(asks[0]).toMatchObject({ tool: "mcp__fix__lookup", answers: ["deny", "once"], tainted: true });
   expect(readFileSync(callsOut, "utf8").trim().split("\n")).toHaveLength(1);
