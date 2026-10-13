@@ -37,8 +37,6 @@ const IDENTICAL_IN_FR = new Set([
   "access.devices.system.windows",
   "access.devices.system.ios",
   "access.devices.system.android",
-  "access.devices.method.passkey",
-  "access.passkeys.title",
   "app.name",
   "audit.kind.session",
   "audit.kind.audit",

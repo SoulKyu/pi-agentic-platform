@@ -61,6 +61,7 @@ const two = [
 ];
 const dialog = () => document.querySelector('[data-slot="dialog"]') as HTMLElement;
 const removeLabel = (day: string) => `Remove passkey created ${day}`;
+const heading = () => document.querySelector("h3[tabindex]");
 const when = (millis: number) => new Date(millis).toLocaleString("en");
 
 async function show(passkeys: unknown[] = two, available = true) {
@@ -128,6 +129,7 @@ describe("passkeys", () => {
     expect(calls.map((call) => call.params)).toEqual([{ passkeyId: "k2" }, { passkeyId: "k2" }]);
     expect(calls.map((call) => call.options?.commandId)).toEqual(["bed-cmd-00000001", "bed-cmd-00000001"]);
     expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(heading());
     expect(container.querySelectorAll("[data-passkey]")).toHaveLength(1);
     expect(text(container)).toContain("2 browsers signed out");
   });
@@ -202,7 +204,8 @@ describe("passkeys", () => {
     expect(dialog()).toBeNull();
     expect(api.confirmPassword).not.toHaveBeenCalled();
     expect(bed.called("auth.passkeys.remove")).toHaveLength(1);
-    expect(alerts(container)).toEqual(["Confirm your password to continue."]);
+    expect(alerts(container)).toEqual([]);
+    expect(document.activeElement).toBe(heading());
     removeNeedsStepUp(1);
     await startRemoval(container);
     expect(bed.called("auth.passkeys.remove")).toHaveLength(2);
@@ -212,7 +215,25 @@ describe("passkeys", () => {
     // Escape closed the dialog and did nothing else: no call but the auth ones (a run is never stopped by it).
     expect(bed.calls.every((call) => call.method.startsWith("auth."))).toBe(true);
     expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(heading());
     expect(api.confirmPassword).not.toHaveBeenCalled();
+  });
+
+  it("drops a confirm that answers after the prompt was closed", async () => {
+    const container = await show();
+    removeNeedsStepUp(1);
+    let answer: (value: unknown) => void = () => {};
+    api.confirmPassword.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    await startRemoval(container);
+    await typeInto(field(dialog(), "Password"), "whatever whatever");
+    await click(button(dialog(), "Confirm"));
+    await press(dialog(), { key: "Escape" });
+    await settle();
+    expect(dialog()).toBeNull();
+    answer({ ok: false, code: "unauthenticated" });
+    await settle();
+    expect(onSignedOut).not.toHaveBeenCalled();
+    expect(bed.called("auth.passkeys.remove")).toHaveLength(1);
   });
 
   it("reloads the list and shows the failure when the removal is refused", async () => {

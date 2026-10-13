@@ -1,6 +1,6 @@
 import type { PasskeyView } from "@pap/contracts";
 import { Button } from "@pap/ui";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { AddPasskey } from "./AddPasskey.tsx";
@@ -70,6 +70,27 @@ function PasskeyLine({
   );
 }
 
+/** Null when the person cancelled the password prompt: that is a choice, not an error. */
+async function removePasskey(passkeyId: string, ask: () => Promise<boolean>): Promise<number | null> {
+  const rpc = getRuntime().rpc;
+  let cancelled = false;
+  try {
+    const done = await withStepUp(
+      (commandId) => rpc.call("auth.passkeys.remove", { passkeyId }, { commandId }),
+      async () => {
+        const confirmed = await ask();
+        cancelled = !confirmed;
+        return confirmed;
+      },
+      rpc.newCommandId(),
+    );
+    return done.revoked;
+  } catch (failure) {
+    if (cancelled) return null;
+    throw failure;
+  }
+}
+
 /**
  * The owner's passkeys (`auth.passkeys.*`, M5R96): add one, or remove one behind a step-up. Removing a passkey signs
  * out the browsers it opened; the answer says how many.
@@ -88,26 +109,27 @@ export function PasskeysList({
   const [asking, setAsking] = useState<string | null>(null);
   const [revoked, setRevoked] = useState<number | null>(null);
   const [added, setAdded] = useState(false);
+  const heading = useRef<HTMLHeadingElement>(null);
 
   const remove = (passkey: PasskeyView) => {
     setRevoked(null);
     setAdded(false);
     setAsking(null);
+    // The inline question unmounts now and the prompt restores focus to whatever was focused when it opened:
+    // the heading stays mounted, so focus lands there and not on a detached button.
+    heading.current?.focus();
     run(async () => {
-      const rpc = getRuntime().rpc;
-      const done = await withStepUp(
-        (commandId) => rpc.call("auth.passkeys.remove", { passkeyId: passkey.id }, { commandId }),
-        stepUp.ask,
-        rpc.newCommandId(),
-      );
-      setRevoked(done.revoked);
+      const revokedCount = await removePasskey(passkey.id, stepUp.ask);
+      if (revokedCount !== null) setRevoked(revokedCount);
     });
   };
 
   const passkeys = list.value?.passkeys ?? null;
   return (
     <section className="flex w-full flex-col gap-s2">
-      <h3 className="text-ui font-semibold text-fg">{t("access.passkeys.title")}</h3>
+      <h3 ref={heading} tabIndex={-1} className="text-ui font-semibold text-fg outline-none">
+        {t("access.passkeys.title")}
+      </h3>
       <p className={META}>{t("access.passkeys.hint")}</p>
       {list.error ? (
         <div className="flex flex-col items-start gap-s2">

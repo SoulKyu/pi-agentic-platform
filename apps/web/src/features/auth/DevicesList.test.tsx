@@ -121,6 +121,25 @@ describe("connected devices", () => {
     expect(signOutHere).not.toHaveBeenCalled();
   });
 
+  it("signs out when the socket drops while revoking this browser, but not for another device", async () => {
+    const container = await show();
+    bed.handlers["auth.devices.revoke"] = () => {
+      throw new RpcError("connection_lost");
+    };
+    await click(button(container, "Revoke Firefox on Linux"));
+    await click(button(container, "Sign out"));
+    await settle();
+    expect(alerts(container)).toEqual([
+      "The connection dropped before the answer arrived. The action may still have gone through: check before trying again.",
+    ]);
+    expect(signOutHere).not.toHaveBeenCalled();
+    await click(button(container, "Revoke Chrome on macOS"));
+    await click(button(container, "Sign out"));
+    await settle();
+    expect(signOutHere).toHaveBeenCalledTimes(1);
+    expect(alerts(container)).toEqual([]);
+  });
+
   it("shows the tokens line with its link before 'Sign out other devices' is confirmed, then reports the count", async () => {
     const container = await show();
     await click(button(container, "Sign out other devices"));
