@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { settingsAccessEn, settingsAccessFr } from "../../i18n/catalog/settings-access.ts";
 import { registerCatalog } from "../../i18n/index.ts";
@@ -112,6 +113,7 @@ describe("create form", () => {
     await click(button(container, "Done"));
     expect(document.body.innerHTML).not.toContain(VALUE);
     expect(hasButton(container, "Create token")).toBe(true);
+    expect(document.activeElement).toBe(field(container, "Name"));
     expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain(VALUE);
     expect(location.href).not.toContain(VALUE);
     expect(JSON.stringify(consoleCalls.map((spy) => spy.mock.calls))).not.toContain(VALUE);
@@ -202,6 +204,44 @@ describe("create form", () => {
     );
     expect(container.querySelector("input[readonly]")).toBeNull();
     expect(onCreated).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["timeout", "connection_lost"] as const)(
+    "says the token may exist after %s, and does not retry",
+    async (code) => {
+      const container = await show();
+      bed.handlers["auth.tokens.create"] = () => {
+        throw new RpcError(code);
+      };
+      await fill(container);
+      await submit(container);
+      expect(alerts(container)).toEqual([
+        "It may have been created. If it appears in the list, revoke it and create a new one.",
+      ]);
+      expect(bed.called("auth.tokens.create")).toHaveLength(1);
+      expect(onCreated).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("sends exactly one create when Enter submits the password prompt", async () => {
+    const container = await show();
+    let calls = 0;
+    bed.handlers["auth.tokens.create"] = () => {
+      calls += 1;
+      if (calls === 1) throw new RpcError("step_up_required");
+      return { token: TOKEN_VIEW, value: VALUE };
+    };
+    api.confirmPassword.mockResolvedValue({ ok: true });
+    await fill(container);
+    await submit(container);
+    expect(dialog().closest("form")).toBeNull();
+    await typeInto(field(dialog(), "Password"), "correct horse battery staple");
+    await act(async () => {
+      dialog().querySelector("form")?.requestSubmit();
+    });
+    await settle();
+    expect(bed.called("auth.tokens.create")).toHaveLength(2);
+    expect(valueField(container).value).toBe(VALUE);
   });
 
   it("leaves nothing pending and no error when the password prompt is cancelled", async () => {

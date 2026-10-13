@@ -85,6 +85,8 @@ export const settingsAccessEn = {
   "access.tokens.done": "Done",
   "access.tokens.lost":
     "The token was created, but its value did not reach this page. Revoke it and create another.",
+  "access.tokens.unknown":
+    "It may have been created. If it appears in the list, revoke it and create a new one.",
   "access.tokens.createdOn": "Created {date}",
   "access.tokens.expires": "Expires {date}",
   "access.tokens.expired": "Expired",
@@ -189,6 +191,8 @@ export const settingsAccessFr: { readonly [K in keyof typeof settingsAccessEn]: 
   "access.tokens.done": "Terminé",
   "access.tokens.lost":
     "Le jeton a été créé, mais sa valeur n'est pas arrivée sur cette page. Révoquez-le et créez-en un autre.",
+  "access.tokens.unknown":
+    "Il a peut-être été créé. S'il apparaît dans la liste, révoquez-le et créez-en un nouveau.",
   "access.tokens.createdOn": "Créé le {date}",
   "access.tokens.expires": "Expire le {date}",
   "access.tokens.expired": "Expiré",
