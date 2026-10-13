@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { CALL_BUDGET, globMatch, PAIR_BUDGET, type StepBudget } from "./glob.ts";
 import type { CallFacts, StageResult } from "./pipeline.ts";
 import { clipUnits } from "./trail.ts";
@@ -18,9 +19,21 @@ const recursive = (arg: string) => longRecursive(arg, 3) || /^-[a-zA-Z]*[rR][a-z
 const recursiveOwnership = (arg: string) => longRecursive(arg, 5) || /^-[a-zA-Z]*R/.test(arg);
 // `/`, `//`, `/.`, `/./`, `/*`, `/**`: the root.
 const isRoot = (arg: string) => /^\/\.?\/?\*?$/.test(squeeze(arg));
-// ... or the home directory: `~`, `~/`, `~/*`, `$HOME`, `${HOME}/` once quotes are gone (the lexer removed them).
+// ... or the home directory: `~`, `~user`, `~/`, `~/*`, `$HOME`, `${HOME}/` once quotes are gone (the lexer removed them) ...
+const HOME_VARIABLE = /^(?:~[\w.-]*|\$HOME|\$\{HOME(?:[-:=+?#%^,][^}]{0,32})?\})(?:\/\.?)?\*?$/;
+// ... or the home written as the literal path the model saw in `pwd`, and each ancestor of it (`/home`, `/home/*`).
+// Computed once at load, from `os.homedir()` and `$HOME` when they differ.
+const trimmed = (path: string) => squeeze(path).replace(/\/$/, "");
+const HOME_PATHS: ReadonlySet<string> = new Set(
+  [homedir(), process.env["HOME"] ?? ""].flatMap((home) => {
+    const parts = trimmed(home).split("/").filter(Boolean);
+    return home.startsWith("/") ? parts.map((_, n) => `/${parts.slice(0, n + 1).join("/")}`) : [];
+  }),
+);
 const rootLike = (arg: string) =>
-  isRoot(arg) || /^(?:~|\$HOME|\$\{HOME(?:[-:=+?#%^,][^}]{0,32})?\})\/?\*?$/.test(squeeze(arg));
+  isRoot(arg) ||
+  HOME_VARIABLE.test(squeeze(arg)) ||
+  HOME_PATHS.has(squeeze(arg).replace(/(?:\/\.?)?\*?$/, ""));
 const operands = (argv: readonly string[]) => argv.slice(1).filter((arg) => !arg.startsWith("-"));
 const REDIRECT_TO_FILE = /^(?:\d*>[>|&]?|\d*<>|&>>?)$/;
 
