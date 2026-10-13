@@ -130,18 +130,18 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
   </div>
   <div class="meta">
     <div class="label">Roadmap de développement</div>
-    <div class="mono muted" style="font-size:12px">mise à jour 2026-10-11 · main @ f765f2a</div>
+    <div class="mono muted" style="font-size:12px">mise à jour 2026-10-13 14:00 UTC · main @ a29d52a</div>
   </div>
 </header>
 
 <h1>De M0 à la v1</h1>
-<p class="muted">14 jalons. M0 + M1 posent les preuves techniques et le squelette ; la v1 = M2 → M13. Chaque jalon reçoit son plan détaillé (tâches, modèles, estimation) avant de démarrer, validé par toi. Les jalons sur des branches indépendantes du graphe peuvent avancer en parallèle.</p>
+<p class="muted">14 jalons. M0 + M1 posent les preuves techniques et le squelette ; la v1 = M2 → M13. Chaque jalon reçoit son plan détaillé (tâches, modèles, estimation) avant de démarrer, validé par toi. Les jalons sur des branches indépendantes du graphe peuvent avancer en parallèle. Depuis M5, deux jalons tournent à la fois, dans l'ordre choisi par la décision 75 : M8 + M7, puis M9 + M10, puis M11 + M6, puis M12, puis M13.</p>
 
 <div class="strip">
-  <div class="stat ok"><div class="label">Terminés</div><div class="big">2</div><div class="muted">M0 spikes · M1 squelette</div></div>
-  <div class="stat agent"><div class="label">En planification</div><div class="big">2</div><div class="muted">M2 · M3, en parallèle</div></div>
-  <div class="stat"><div class="label">À venir</div><div class="big">10</div><div class="muted">M4 → M13</div></div>
-  <div class="stat attn"><div class="label">Décisions à prendre</div><div class="big">3</div><div class="muted">voir plus bas</div></div>
+  <div class="stat ok"><div class="label">Terminés</div><div class="big">6</div><div class="muted">M0 → M5, mergés</div></div>
+  <div class="stat agent"><div class="label">En cours</div><div class="big">2</div><div class="muted">M8 · M7, en parallèle</div></div>
+  <div class="stat"><div class="label">À venir</div><div class="big">6</div><div class="muted">M6 · M9 → M13</div></div>
+  <div class="stat attn"><div class="label">Décisions à prendre</div><div class="big">4</div><div class="muted">voir plus bas</div></div>
 </div>
 
 <div class="legend label">
@@ -153,31 +153,31 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 </div>
 
 <h2>Graphe des dépendances</h2>
-<p class="muted">Lecture de gauche à droite : un jalon démarre quand ceux dont il dépend sont terminés. Une colonne = une vague ; tout ce qui est dans la même colonne peut tourner en parallèle.</p>
+<p class="muted">Lecture de gauche à droite : un jalon démarre quand ceux dont il dépend sont terminés. Une colonne = une vague d'exécution, au plus deux jalons à la fois (décision 75). M8 ouvre le chemin critique M8 → M9 → M11 → M12 → M13 ; M6 ne débloque que M13.</p>
 <div class="waves">
   <div class="wave"><div class="label">Vague 0</div>
     <a class="node done" href="#m0"><div class="id">M0</div><div class="t">Spikes S1–S8</div><div class="dep">—</div></a>
     <a class="node done" href="#m1"><div class="id">M1</div><div class="t">Walking skeleton</div><div class="dep">← M0</div></a>
   </div>
   <div class="wave"><div class="label">Vague 1</div>
-    <a class="node plan" href="#m2"><div class="id">M2</div><div class="t">Sessions &amp; UI d'extension</div><div class="dep">← M1</div></a>
-    <a class="node plan" href="#m3"><div class="id">M3</div><div class="t">Design system &amp; shell</div><div class="dep">← M1</div></a>
+    <a class="node done" href="#m2"><div class="id">M2</div><div class="t">Sessions &amp; UI d'extension</div><div class="dep">← M1</div></a>
+    <a class="node done" href="#m3"><div class="id">M3</div><div class="t">Design system &amp; shell</div><div class="dep">← M1</div></a>
   </div>
   <div class="wave"><div class="label">Vague 2</div>
-    <a class="node" href="#m4"><div class="id">M4</div><div class="t">Sidebar, projets, recherche</div><div class="dep">← M2 M3</div></a>
-    <a class="node" href="#m5"><div class="id">M5</div><div class="t">Policy &amp; contrôle d'accès</div><div class="dep">← M2</div></a>
+    <a class="node done" href="#m4"><div class="id">M4</div><div class="t">Sidebar, projets, recherche</div><div class="dep">← M2 M3</div></a>
+    <a class="node done" href="#m5"><div class="id">M5</div><div class="t">Policy &amp; contrôle d'accès</div><div class="dep">← M2</div></a>
   </div>
-  <div class="wave"><div class="label">Vague 3</div>
-    <a class="node" href="#m6"><div class="id">M6</div><div class="t">Install, update, release</div><div class="dep">← M5</div></a>
-    <a class="node" href="#m7"><div class="id">M7</div><div class="t">Modèles, outils, extensions</div><div class="dep">← M3 M5</div></a>
-    <a class="node" href="#m8"><div class="id">M8</div><div class="t">Fichiers, git, terminal</div><div class="dep">← M3 M5</div></a>
-    <a class="node" href="#m10"><div class="id">M10</div><div class="t">Outbox, automation, FinOps</div><div class="dep">← M5</div></a>
+  <div class="wave"><div class="label">Vague 3 · en cours</div>
+    <a class="node plan" href="#m8"><div class="id">M8</div><div class="t">Fichiers, git, terminal</div><div class="dep">← M3 M5</div></a>
+    <a class="node plan" href="#m7"><div class="id">M7</div><div class="t">Modèles, outils, extensions</div><div class="dep">← M3 M5</div></a>
   </div>
   <div class="wave"><div class="label">Vague 4</div>
     <a class="node" href="#m9"><div class="id">M9</div><div class="t">Worktrees &amp; lanes</div><div class="dep">← M8</div></a>
+    <a class="node" href="#m10"><div class="id">M10</div><div class="t">Outbox, automation, FinOps</div><div class="dep">← M5</div></a>
   </div>
   <div class="wave"><div class="label">Vague 5</div>
     <a class="node" href="#m11"><div class="id">M11</div><div class="t">Agents long terme, mémoire</div><div class="dep">← M7 M9 M10</div></a>
+    <a class="node" href="#m6"><div class="id">M6</div><div class="t">Install, update, release</div><div class="dep">← M5</div></a>
   </div>
   <div class="wave"><div class="label">Vague 6</div>
     <a class="node" href="#m12"><div class="id">M12</div><div class="t">Notifications &amp; PWA</div><div class="dep">← M3 M10 M11</div></a>
@@ -189,9 +189,10 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 
 <h2>Décisions qui t'attendent</h2>
 <div class="decisions">
-  <div class="decision"><div class="label">M2 · M3 · maintenant</div><h3>Valider les deux plans</h3><p>Tâches, tableau de modèles (Sonnet par défaut, Opus pour la sécurité et la review finale) et estimation, présentés dès que les planners ont fini.</p></div>
-  <div class="decision"><div class="label">M3 · R120</div><h3>Contrastes de DESIGN.md</h3><p>Anneau de focus Day #FB923C à 2,15:1 et bordures ≈ 1,3–1,7:1, sous le minimum WCAG 3:1 des éléments non textuels. Amender les valeurs ou accepter.</p></div>
-  <div class="decision"><div class="label">M9 · R52b</div><h3>Sandbox podman rootless</h3><p>Le spike S8 impose <span class="mono">--security-opt systempaths=unconfined</span> ; compromis à trancher avant la sandbox des lanes.</p></div>
+  <div class="decision"><div class="label">M8 · vers 02 h UTC le 14</div><h3>Merger M8</h3><p>Revue finale Opus, puis je te demande le merge. Ensuite : push de <span class="mono">main</span>, rebuild et redémarrage de la preview. Je proposerai aussi <span class="mono">Restart=always</span> pour la preview (un SIGHUP ou SIGTERM ne la relance pas aujourd'hui).</p></div>
+  <div class="decision"><div class="label">M7 · vers 10 h UTC le 14</div><h3>Merger M7</h3><p>M7 se rebase sur M8 (24 accords entre les deux plans), revue finale Opus sur la branche rebasée, puis merge avec ton accord.</p></div>
+  <div class="decision"><div class="label">après M7 + M8</div><h3>git dans l'onglet Review</h3><p>Quand pap lance lui-même <span class="mono">git status</span>, un filtre défini dans la config d'un dépôt (<span class="mono">filter.*.clean</span>) s'exécute encore. Il faut une écriture protégée pour le poser. Proposition : réutiliser le contrôle de config de M7 et afficher « ce dépôt lance des programmes, lancer git quand même ? ».</p></div>
+  <div class="decision"><div class="label">M6 · M9 · R52b</div><h3>Sandbox podman rootless</h3><p>Le spike S8 impose <span class="mono">--security-opt systempaths=unconfined</span> ; compromis à trancher avant l'image OCI de M6 et la sandbox des lanes.</p></div>
 </div>
 
 <h2>Les jalons</h2>
@@ -212,62 +213,68 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <dt>Durée</dt><dd class="est">M0 + M1 ≈ 20 h autonomes</dd>
 </dl></article>
 
-<article class="card plan" id="m2"><header><span class="id">M2</span><h3>Sessions et UI d'extension</h3><span class="badge agent">plan en cours</span></header>
+<article class="card done" id="m2"><header><span class="id">M2</span><h3>Sessions et UI d'extension</h3><span class="badge ok">terminé · mergé</span></header>
 <p>Toute l'expérience de session Pi sur le modèle worker.</p>
 <dl>
 <dt>Domaines</dt><dd>Steer / follow-up (file 128 msg / 32 MiB), <span class="mono">navigate_tree</span>, fork / clone, compaction, export HTML, auto-nommage, pagination, sorties d'outils à la demande, deltas regroupés 50 ms, brouillons, minimap ; tous les dialogues d'extension (select, input, editor, réponses session / toujours), barre de statut et boutons <span class="mono">command:</span>, widgets, panneaux <span class="mono">custom()</span>. Libération des workers inactifs (30 min), scopes systemd.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M1</span></dd>
 <dt>Sortie</dt><dd>Comportements D01 et D18 de pi-web reproduits en tests d'intégration ; une extension ou un worker qui plante ne fait jamais tomber le daemon.</dd>
-<dt>Estimation</dt><dd class="est">25–35 h (provisoire)</dd>
+<dt>Livré</dt><dd>37 tâches, mergé le 2026-10-12 (décision 51).</dd>
+<dt>Durée réelle</dt><dd class="est">≈ 16–18 h, en parallèle de M3</dd>
 </dl></article>
 
-<article class="card plan" id="m3"><header><span class="id">M3</span><h3>Design system et shell</h3><span class="badge agent">plan en cours</span></header>
+<article class="card done" id="m3"><header><span class="id">M3</span><h3>Design system et shell</h3><span class="badge ok">terminé · mergé</span></header>
 <p>DESIGN.md en code, à la place des tokens provisoires de M1 ; tout le visuel personnalisable dans les Settings.</p>
 <dl>
 <dt>Domaines</dt><dd>Tokens Night / Day·Papier / Contraste élevé, primitives Radix, composants IA, réglages d'apparence, raccourcis JSON + éditeur, Cmd+K, <span class="mono">/dev/ui</span> ; ergonomie mobile (clavier, bottom sheets, cibles 44 px, nav basse) ; shell A×C·2 (rail agents, onglets cockpit, panneaux, tiroir ⌘B, Inbox) ; logo ; en + fr. Parcours Playwright Chromium + WebKit.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M1</span> <span class="chip">DESIGN.md</span> <span class="chip">S6</span></dd>
 <dt>Sortie</dt><dd>Lint design propre partout ; shell fonctionnel desktop et mobile sur Chromium et WebKit ; budget du bundle recalé sur des mesures réelles.</dd>
-<dt>Estimation</dt><dd class="est">30–40 h (provisoire)</dd>
+<dt>Livré</dt><dd>34 tâches, mergé le 2026-10-12. Contrastes R120 amendés (ADR 0012) ; parcours navigateur reportés à M13 (décision 42).</dd>
+<dt>Durée réelle</dt><dd class="est">≈ 16–18 h, en parallèle de M2</dd>
 </dl></article>
 
-<article class="card" id="m4"><header><span class="id">M4</span><h3>Sidebar, projets et recherche</h3><span class="badge">à venir</span></header>
+<article class="card done" id="m4"><header><span class="id">M4</span><h3>Sidebar, projets et recherche</h3><span class="badge ok">terminé · mergé</span></header>
 <dl>
 <dt>Domaines</dt><dd>Groupes de projets et ordre, épingles, archive + annulation, scanner de sessions (sessions du <span class="mono">pi</span> CLI incluses), recherche FTS5 dans Cmd+K, settle / snooze.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M2</span> <span class="chip">M3</span> <span class="chip">S3</span></dd>
 <dt>Sortie</dt><dd>Une session créée par le CLI apparaît en quelques secondes ; recherche sur 10 000 sessions dans son budget.</dd>
-<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+<dt>Livré</dt><dd>36 tâches, mergé le 2026-10-13. Recherche p95 ≈ 97 ms sur 10 000 sessions (budget 200 ms) ; une session du CLI apparaît en ≈ 1 s.</dd>
+<dt>Durée réelle</dt><dd class="est">≈ 9 h d'exécution</dd>
 </dl></article>
 
-<article class="card" id="m5"><header><span class="id">M5</span><h3>Pipeline de policy et contrôle d'accès</h3><span class="badge">à venir</span></header>
+<article class="card done" id="m5"><header><span class="id">M5</span><h3>Pipeline de policy et contrôle d'accès</h3><span class="badge ok">terminé · mergé</span></header>
 <dl>
 <dt>Domaines</dt><dd><span class="mono">pap-policy</span> étapes 00–07 (denylist de commandes, sorties réseau, MCP lecture seule, matrice d'approbation once / session / always / deny, run guard, masquage des secrets, contenu non fiable et taint dynamique), modes d'approbation, journal d'audit, tokens API, appareils connectés, <span class="mono">pap user add</span> / reset passkey.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M2</span></dd>
 <dt>Sortie</dt><dd>Tests de sécurité de la spec C §8.1 au vert ; chaque étape écrit une ligne d'audit.</dd>
-<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+<dt>Livré</dt><dd>34 tâches, mergé le 2026-10-13. 6 323 tests unitaires, 401 d'intégration. Leviers usage : une commande illisible pose une question au lieu de bloquer ; corpus de 52 commandes du quotidien sans friction.</dd>
+<dt>Durée réelle</dt><dd class="est">≈ 15 h d'exécution, puis rebase sur M4 et revue finale</dd>
 </dl></article>
 
 <article class="card" id="m6"><header><span class="id">M6</span><h3>Installation, mise à jour, release</h3><span class="badge">à venir</span></header>
 <dl>
-<dt>Domaines</dt><dd>Archive autonome + <span class="mono">curl | sh</span>, image OCI avec bubblewrap, canal npm, cosign / SBOM / SLSA, <span class="mono">pap service install</span>, <span class="mono">pap doctor</span>, backup / restore, mise à jour avec rollback automatique, canaux stable / next.</dd>
+<dt>Domaines</dt><dd>Archive autonome + <span class="mono">curl | sh</span>, image OCI avec bubblewrap, canal npm, <span class="mono">pap service install</span>, <span class="mono">pap doctor</span>, backup / restore, mise à jour avec rollback automatique, canaux stable / next. Signature (cosign), SBOM et provenance SLSA passent après la v1 (décision 75).</dd>
 <dt>Dépend de</dt><dd><span class="chip">M5</span> <span class="chip">S8</span></dd>
 <dt>Sortie</dt><dd>Installation en une étape sur chaque canal ; une mise à jour ratée revient en arrière seule.</dd>
 <dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
 </dl></article>
 
-<article class="card" id="m7"><header><span class="id">M7</span><h3>Modèles, outils et extensions Pi</h3><span class="badge">à venir</span></header>
+<article class="card plan" id="m7"><header><span class="id">M7</span><h3>Modèles, outils et extensions Pi</h3><span class="badge agent">en cours · exécution</span></header>
 <dl>
 <dt>Domaines</dt><dd>Sélecteur de modèle, niveaux de raisonnement, <span class="mono">enabledModels</span>, éditeur <span class="mono">models.json</span>, OAuth / clés API, prix et quotas ; presets d'outils, codemode, tool-search ; client MCP et Settings › MCP ; skills et plugins.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M3</span> <span class="chip">M5</span> <span class="chip">S7</span></dd>
 <dt>Sortie</dt><dd>Checklist de parité pi-web D07–D10 au vert.</dd>
-<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+<dt>Avancement</dt><dd>Tâches 1a → 2b terminées (5 sur 35 à 13 h 30 UTC). Fait : commandes en lecture seule sans demande dans le mode par défaut, contrôle de <span class="mono">.git/config</span> avant <span class="mono">git status/diff/log</span> (4 tours de revue, failles réelles corrigées), règles « toujours » par préfixe ou par outil. Plus strict que ta réponse m2 : <span class="mono">git</span> redemande dans une session contaminée (course entre écritures et lecture de la config, reproduite).</dd>
+<dt>Estimation</dt><dd class="est">prêt à merger vers 10 h UTC le 14 (après M8, rebase compris)</dd>
 </dl></article>
 
-<article class="card" id="m8"><header><span class="id">M8</span><h3>Fichiers, git et terminal</h3><span class="badge">à venir</span></header>
+<article class="card plan" id="m8"><header><span class="id">M8</span><h3>Fichiers, git et terminal</h3><span class="badge agent">en cours · exécution</span></header>
 <dl>
 <dt>Domaines</dt><dd>Explorateur, viewer, uploads, mentions <span class="mono">@</span> ; statut git et diffs ; terminal node-pty + xterm (multi-clients, scrollback serveur) ; édition dans CodeMirror 6.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M3</span> <span class="chip">M5</span></dd>
 <dt>Sortie</dt><dd>Tests de traversée <span class="mono">/files</span> au vert ; un terminal survit à une reconnexion du navigateur.</dd>
-<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+<dt>Avancement</dt><dd>Tâches 1 → 5 terminées (6 sur 25). Le noyau de sécurité est fait : frontière des chemins (liens physiques et dossiers échangés vers les clés Pi refusés), ensemble des fichiers privés, git lancé sans exécuter de programme du dépôt (liste fixe de sous-commandes et d'options). Reste : écritures et uploads, pièces jointes, terminal, interface.</dd>
+<dt>Estimation</dt><dd class="est">prêt à merger vers 02 h UTC le 14 ; mergé en premier</dd>
 </dl></article>
 
 <article class="card" id="m9"><header><span class="id">M9</span><h3>Worktrees et lanes</h3><span class="badge">à venir</span></header>
@@ -329,16 +336,16 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <tr><td>D18 UI d'extension</td><td class="mono">M1 (dialogues) · M2</td></tr>
 <tr><td>D19 Mobile / PWA</td><td class="mono">M3 (ergonomie) · M12</td></tr>
 <tr><td>D20 Settings &amp; design system</td><td class="mono">M3</td></tr>
-<tr><td>D21 Installation &amp; mise à jour</td><td class="mono">M6</td></tr>
+<tr><td>D21 Installation &amp; mise à jour</td><td class="mono">M6 (signature après la v1)</td></tr>
 <tr><td>Lanes+ · Sessions+ · Security+</td><td class="mono">M9 · M4, M10 · M5, M10, M11</td></tr>
 <tr><td>Édition de fichiers (CodeMirror 6)</td><td class="mono">M8</td></tr>
 </tbody>
 </table>
 
 <h2>Après la v1</h2>
-<p class="muted">Équipes et OIDC, proxy de sortie par agent, auto-update complet, canaux nightly / Homebrew / apt, plannings gérés par les agents (spec A §7).</p>
+<p class="muted">Signature des releases (cosign, SBOM, provenance SLSA), skills liés à chaque utilisateur, équipes et OIDC, proxy de sortie par agent, auto-update complet, canaux nightly / Homebrew / apt, plannings gérés par les agents (spec A §7).</p>
 
-<footer class="label">Sources · docs/plans/roadmap.md · docs/research/decisions-log.md (38) · docs/research/m0-m1-rulings.md (R1–R130) · DESIGN.md</footer>
+<footer class="label">Sources · docs/plans/roadmap.md · docs/research/decisions-log.md (75) · docs/research/m0-m1-rulings.md, m2 → m5-rulings.md · registres SDD de M7 et M8 · DESIGN.md</footer>
 </div>
 </body>
 </html>
