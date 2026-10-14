@@ -122,14 +122,17 @@ describe("SessionScreen feed", () => {
     expect(bed.called("subscribe.session")).toHaveLength(1);
   });
 
-  it("shows an error notice such as a killed worker as an alert", async () => {
+  it("shows a killed worker as the crash banner, with the cause", async () => {
     const container = await show();
     await emit({
       kind: "status",
       status: "cold",
       cause: "Agent process killed (SIGKILL), possibly out of memory.",
     });
-    expect(alerts(container)).toEqual(["Agent process killed (SIGKILL), possibly out of memory."]);
+    expect(container.querySelector("[data-crash-cause]")?.textContent).toBe(
+      "Agent process killed (SIGKILL), possibly out of memory.",
+    );
+    expect(alerts(container)).toHaveLength(1);
   });
 });
 

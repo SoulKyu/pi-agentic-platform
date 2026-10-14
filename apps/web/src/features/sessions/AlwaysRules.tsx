@@ -31,8 +31,8 @@ function RuleLine({ rule, onSettled }: { rule: Rule; onSettled: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const revoke = useAction((call) => call, setError);
   return (
-    <li data-rule className="flex flex-col gap-1">
-      <div className="flex items-center gap-2">
+    <li data-rule className="flex flex-col gap-s1">
+      <div className="flex items-center gap-s2">
         <span className="font-mono text-label font-semibold text-fg">{rule.tool}</span>
         <span data-rule-label className="min-w-0 flex-1 break-all font-mono text-ui text-muted">
           {coverText(rule, t("sessionPolicy.rule.anyInput")) ?? clipLabel(rule.label)}
@@ -94,7 +94,7 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
   }, [cwd, loads]);
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-s2">
       {error ? (
         <p role="alert" className="text-ui text-attn">
           {error}
@@ -107,7 +107,7 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
       ) : rules.length === 0 ? (
         <p className="text-ui text-muted">{t("rules.empty")}</p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-s2">
           {rules.map((rule) => (
             <RuleLine key={rule.id} rule={rule} onSettled={() => setLoads((count) => count + 1)} />
           ))}
@@ -124,10 +124,8 @@ export function SessionRules({ cwd }: { sessionId: string; cwd: string }) {
   const [open, setOpen] = useState(false);
   return (
     <details data-always-rules className="text-ui" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="cursor-pointer font-mono text-label uppercase tracking-label text-muted">
-        {t("rules.title")}
-      </summary>
-      <div className="mt-2">
+      <summary className="cursor-pointer label-hud text-muted">{t("rules.title")}</summary>
+      <div className="mt-s2">
         {open ? (
           cwd === "" ? (
             <p className="text-ui text-muted">{t("rules.loading")}</p>

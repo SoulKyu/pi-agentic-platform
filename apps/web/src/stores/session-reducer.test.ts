@@ -117,15 +117,13 @@ describe("reduceSession", () => {
     expect(view.dialogs).toEqual([]);
   });
 
-  it("turns a status cause into a notice and ignores unknown events", () => {
+  it("turns a status cause into the crash and ignores unknown events", () => {
     const view = reduceSession(EMPTY_VIEW, {
       kind: "status",
       status: "cold",
       cause: "Agent process killed (SIGKILL), possibly out of memory.",
     });
-    expect(view.notices).toEqual([
-      { level: "error", text: "Agent process killed (SIGKILL), possibly out of memory." },
-    ]);
+    expect(view.crash).toEqual({ text: "Agent process killed (SIGKILL), possibly out of memory." });
     expect(reduceSession(view, { kind: "future_kind", x: 1 })).toBe(view);
     expect(reduceSession(view, pi({ type: "future_event" }))).toBe(view);
   });

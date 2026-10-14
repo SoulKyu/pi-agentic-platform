@@ -102,6 +102,17 @@ describe("rpc client", () => {
     await expect(call).rejects.toEqual(new RpcError("invalid_cwd"));
   });
 
+  it("keeps the worker counts of a capacity refusal on the error", async () => {
+    const fake = fakeConnection();
+    const rpc = createRpcClient(fake.connection, {
+      newCommandId: () => "cmd-00000002",
+      timers: manualTimers().timers,
+    });
+    const call = rpc.call("sessions.create", { cwd: "/w" });
+    fake.deliver({ id: 1, ok: false, error: { code: "capacity", workers: { used: 6, max: 6 } } });
+    await expect(call).rejects.toMatchObject({ code: "capacity", workers: { used: 6, max: 6 } });
+  });
+
   it("surfaces a timeout as an unknown outcome and never sends the mutation again", async () => {
     const fake = fakeConnection();
     const rpc = createRpcClient(fake.connection, {

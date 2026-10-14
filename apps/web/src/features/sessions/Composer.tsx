@@ -73,7 +73,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
     <div
       ref={root}
       data-composer
-      className="mx-auto flex w-full max-w-chat flex-col gap-2"
+      className="mx-auto flex w-full max-w-chat flex-col gap-s2"
       // Mod+Shift+Enter belongs to the "send the other way" command alone: the field's own Mod+Enter submit must not
       // also send it the default way when the command declines (a menu or a dialog is open).
       onKeyDownCapture={(event) => {
@@ -87,7 +87,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
     >
       <QueueStrip queue={view.queue} onClear={c.clearQueue} />
       {c.pending ? (
-        <div role="status" className="flex items-center gap-2 border-l-2 border-attn-line px-3 py-2">
+        <div role="status" className="flex items-center gap-s2 border-l-2 border-attn-line px-s3 py-s2">
           <p className="flex-1 text-ui text-fg">{t("sessions.composer.mayHaveBeenSent")}</p>
           <Button variant="primary" disabled={c.resending} onClick={() => void c.sendAgain()}>
             {t("sessions.composer.sendAgain")}
@@ -108,7 +108,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
         </p>
       ) : null}
       <form
-        className="flex flex-col gap-2"
+        className="flex flex-col gap-s2"
         onSubmit={(event) => {
           event.preventDefault();
           c.send();
@@ -120,16 +120,17 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
           value={c.text}
           onChange={c.changeText}
           multiline
+          ground="surface"
           name="message"
           onSubmitShortcut={() => c.send()}
           {...fieldProps}
         />
         <MentionMenu menu={mentions.menu} />
         {commands.menu}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-s2">
           <ModelBar sessionId={sessionId} loadout={view.loadout} running={c.running} />
           {c.running ? (
-            <div role="group" aria-label={t("sessions.composer.whenWorking")} className="flex gap-2">
+            <div role="group" aria-label={t("sessions.composer.whenWorking")} className="flex gap-s2">
               <Button
                 variant={c.behavior === "steer" ? "primary" : "secondary"}
                 disabled={blocked || !c.canSend}

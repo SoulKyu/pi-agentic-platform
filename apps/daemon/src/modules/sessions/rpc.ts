@@ -7,6 +7,7 @@ export type SessionsRpc = Pick<
   | "sessions.list"
   | "sessions.prompt"
   | "sessions.abort"
+  | "sessions.reopen"
   | "sessions.navigate"
   | "sessions.compact"
   | "sessions.rename"
@@ -38,6 +39,10 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
     "sessions.prompt": async (params, ctx) => service.prompt(params, ctx.caller),
     "sessions.abort": async ({ sessionId }, ctx) => {
       await service.abort(sessionId, ctx.caller);
+      return { ok: true as const };
+    },
+    "sessions.reopen": async ({ sessionId }, ctx) => {
+      await service.reopen(sessionId, ctx.caller);
       return { ok: true as const };
     },
     "sessions.navigate": async (params, ctx) => service.navigate(params, ctx.caller),

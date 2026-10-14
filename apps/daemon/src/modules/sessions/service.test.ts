@@ -86,6 +86,22 @@ describe("create", () => {
     expect(bed.spawned).toHaveLength(0);
   });
 
+  it("tells how many workers run against the cap when it refuses (drift 1)", async () => {
+    open({ limits: { maxWorkers: 2, minFreeMemMb: 0 } });
+    await bed.service.create(bed.work, owner);
+    await bed.service.create(bed.work, owner);
+    const refusal = await bed.service.create(bed.work, owner).catch((error: unknown) => error);
+    expect(refusal).toMatchObject({ code: "capacity", workers: { used: 2, max: 2 } });
+  });
+
+  it("reopens a session of the caller without a second worker, and hides it from others", async () => {
+    open();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    await bed.service.reopen(sessionId, owner);
+    expect(bed.spawned).toHaveLength(1);
+    expect(await codeOf(bed.service.reopen(sessionId, stranger))).toBe("not_found");
+  });
+
   it("counts workers that are still starting against the cap (R9)", async () => {
     open({ limits: { maxWorkers: 1, minFreeMemMb: 0 } });
     const outcomes = await Promise.all([

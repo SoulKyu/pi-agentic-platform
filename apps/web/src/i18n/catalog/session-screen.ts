@@ -98,6 +98,14 @@ export const sessionScreenEn = {
   "session.outsideWrite.body":
     "Its file changed in the last 2 minutes outside pap, from the pi CLI or pi-web for example. Messages sent from both can interleave: close the other one before you continue here.",
   "session.outsideWrite.dismiss": "Dismiss",
+  "session.crash.title": "The session stopped",
+  "session.crash.intact": "The transcript is intact.",
+  "session.crash.retry": "Retry",
+  "session.crash.retrying": "Retrying…",
+  "session.crash.details": "Details",
+  "session.crash.code": "Code: {code}",
+  "session.crash.params": "{name}: {value}",
+  "session.crash.log": "The daemon log holds a worker_exited line for this stop.",
 } as const;
 
 export const sessionScreenFr = {
@@ -199,4 +207,12 @@ export const sessionScreenFr = {
   "session.outsideWrite.body":
     "Son fichier a changé dans les 2 dernières minutes hors de pap, depuis la CLI pi ou pi-web par exemple. Des messages envoyés des deux côtés peuvent s'entremêler : fermez l'autre avant de continuer ici.",
   "session.outsideWrite.dismiss": "Masquer",
+  "session.crash.title": "La session s'est arrêtée",
+  "session.crash.intact": "Le transcript est intact.",
+  "session.crash.retry": "Réessayer",
+  "session.crash.retrying": "Nouvelle tentative…",
+  "session.crash.details": "Détails",
+  "session.crash.code": "Code : {code}",
+  "session.crash.params": "{name} : {value}",
+  "session.crash.log": "Le journal du daemon contient une ligne worker_exited pour cet arrêt.",
 } as const;

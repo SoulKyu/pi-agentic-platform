@@ -49,6 +49,9 @@ function setup(overrides: Partial<ReceiptStore> = {}) {
     "sessions.list": async () => {
       throw new PapError("not_found");
     },
+    "sessions.clone": async () => {
+      throw new PapError("capacity", { workers: { used: 6, max: 6 } });
+    },
     "sessions.abort": async () => {
       throw new Error("attempt to write a readonly database");
     },
@@ -129,6 +132,16 @@ describe("dispatcher", () => {
     await dispatch(create(1, "cmd-00000009"), ctx());
     await dispatch(create(2, "cmd-00000009"), ctx(other));
     expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it("carries the worker counts of a capacity refusal on the error", async () => {
+    const { dispatch } = setup();
+    const clone = { id: 7, method: "sessions.clone", params: { sessionId: "s" }, commandId: "cmd-00000009" };
+    expect(await dispatch(clone, ctx())).toEqual({
+      id: 7,
+      ok: false,
+      error: { code: "capacity", workers: { used: 6, max: 6 } },
+    });
   });
 
   it("maps PapError to its code, readonly errors to read_only, anything else to internal", async () => {

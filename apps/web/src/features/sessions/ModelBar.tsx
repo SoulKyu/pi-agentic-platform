@@ -67,9 +67,9 @@ export function ModelBar({ sessionId, loadout, running }: ModelBarProps) {
 
   return (
     <div data-model-bar className="flex flex-col gap-s1">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" disabled={running} onClick={() => setOpen(true)}>
-          <span className="label-hud text-agent">{modelLabel}</span>
+      <div className="flex flex-wrap items-center gap-s2">
+        <Button variant="pill" size="sm" disabled={running} onClick={() => setOpen(true)}>
+          {modelLabel}
         </Button>
         {loadout ? (
           <LazyMenu
@@ -78,10 +78,8 @@ export function ModelBar({ sessionId, loadout, running }: ModelBarProps) {
             text={lazyText}
             items={items}
             trigger={(ask) => (
-              <Button variant="ghost" disabled={level.busy} onClick={ask}>
-                <span className="label-hud text-agent">
-                  {t("sessionModels.pill.thinking", { level: levelName(loadout.thinkingLevel) })}
-                </span>
+              <Button variant="pill" size="sm" disabled={level.busy} onClick={ask}>
+                {t("sessionModels.pill.thinking", { level: levelName(loadout.thinkingLevel) })}
               </Button>
             )}
           />

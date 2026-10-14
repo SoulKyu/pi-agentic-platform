@@ -31,6 +31,15 @@ describe("Message", () => {
     expect(html).toContain(">YOU<");
   });
 
+  it("names you in the --you colour, as the group header does", () => {
+    const html = renderToStaticMarkup(
+      <Message author="you" label="YOU">
+        Hello
+      </Message>,
+    );
+    expect(html).toMatch(/<span class="label-hud text-you">YOU<\/span>/);
+  });
+
   it("keeps tool output on a neutral rule", () => {
     const html = renderToStaticMarkup(
       <Message author="tool" label="bash">

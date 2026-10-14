@@ -7,6 +7,7 @@ import {
   type MethodDef,
   type RequestFrame,
   type ResponseFrame,
+  type WorkerCounts,
 } from "@pap/contracts";
 import { isReadOnlyError } from "../db/read-only.ts";
 import type { ReceiptStore } from "../db/receipts.ts";
@@ -31,7 +32,11 @@ interface Inflight {
 }
 
 const ok = (id: number, result: unknown): ResponseFrame => ({ id, ok: true, result });
-const fail = (id: number, code: ErrorCode): ResponseFrame => ({ id, ok: false, error: { code } });
+const fail = (id: number, code: ErrorCode, workers?: WorkerCounts): ResponseFrame => ({
+  id,
+  ok: false,
+  error: workers ? { code, workers } : { code },
+});
 
 /**
  * What a receipt keeps in place of a hash of the params of a `sensitiveParams` method (MC30): a hash of the declared
@@ -94,7 +99,7 @@ export function createDispatcher(options: {
       if (!handler) return fail(id, "unknown_method");
       result = def.result.parse(await handler(params, ctx)) as unknown;
     } catch (error) {
-      if (error instanceof PapError) return fail(id, error.code);
+      if (error instanceof PapError) return fail(id, error.code, error.workers);
       if (isReadOnlyError(error)) return fail(id, "read_only");
       options.logger.error("rpc_handler_failed", { method: def.name, err: error });
       return fail(id, "internal");

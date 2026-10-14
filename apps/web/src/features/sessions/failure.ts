@@ -7,7 +7,13 @@ export const failureCode = (failure: unknown): string =>
 
 export const codeText = (code: string): string => t(errorKey(code));
 
-export const failureText = (failure: unknown): string => codeText(failureCode(failure));
+/** The sentence of a failed call; a capacity refusal from a daemon that counted adds "n / n workers". */
+export const failureText = (failure: unknown): string => {
+  const text = codeText(failureCode(failure));
+  return failure instanceof RpcError && failure.workers
+    ? `${text} ${t("error.capacityWorkers", { used: failure.workers.used, max: failure.workers.max })}`
+    : text;
+};
 
 /** After these a mutation may have gone through (R105): do not offer it again as is, and look at the state. */
 export const outcomeUnknown = (failure: unknown): boolean =>

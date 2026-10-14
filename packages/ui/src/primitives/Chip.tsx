@@ -27,7 +27,7 @@ export function Chip({
       data-slot="chip"
       data-tone={tone}
       className={cn(
-        "inline-flex h-4.5 items-center gap-1 rounded-sm border px-1 label-hud",
+        "inline-flex h-4.5 items-center gap-s1 rounded-sm border px-s1 label-hud",
         CHIP_TONES[tone],
       )}
     >

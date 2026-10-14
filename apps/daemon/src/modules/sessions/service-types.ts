@@ -97,6 +97,8 @@ export interface SessionsService extends SessionCommands, SessionModels {
   summary(sessionId: string, ownerId: string): ShellSession | null;
   prompt(input: PromptInput, caller: Caller): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(sessionId: string, caller: Caller): Promise<void>;
+  /** Brings a cold session's worker back; a live one is left alone. Refused with `capacity` when the cap is reached. */
+  reopen(sessionId: string, caller: Caller): Promise<void>;
   /** Empties the steering queue of a session the caller owns; a cold session has none (no worker is started). */
   clearQueue(
     sessionId: string,

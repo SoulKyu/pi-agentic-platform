@@ -17,7 +17,7 @@ const STYLE: Record<Author, { readonly box: string; readonly label: string }> = 
   agent: { box: "border-l-2 border-agent px-s3 py-s2 text-fg", label: "text-agent" },
   you: {
     box: "ml-auto w-fit max-w-prose rounded-md border border-you-line bg-you-tint px-s3 py-s2 text-you-text",
-    label: "",
+    label: "text-you",
   },
   tool: { box: "border-l-2 border-border px-s3 py-s2 text-fg", label: "text-muted" },
 };

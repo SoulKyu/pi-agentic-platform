@@ -23,6 +23,8 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
+const cause = (container: ParentNode) => container.querySelector("[data-crash-cause]")?.textContent;
+
 let bed: ReturnType<typeof fakeRuntime>;
 let page: Mounted | null = null;
 
@@ -59,11 +61,11 @@ describe("SessionScreen server texts (R128)", () => {
       causeParams: { code: "70" },
     });
     await emit({ kind: "notice", level: "warning", text: "An extension failed.", code: "extension_failed" });
-    expect(alerts(container)).toEqual(["Le processus de l'agent s'est arrêté avec le code 70."]);
+    expect(cause(container)).toBe("Le processus de l'agent s'est arrêté avec le code 70.");
     expect(text(container)).toContain("Une extension a échoué.");
     expect(text(container)).not.toContain("An extension failed.");
     await act(async () => setLocale("en"));
-    expect(alerts(container)).toEqual(["Agent process exited with code 70."]);
+    expect(cause(container)).toBe("Agent process exited with code 70.");
   });
 
   it("sends an event with no code through the pattern fallback", async () => {
@@ -74,9 +76,7 @@ describe("SessionScreen server texts (R128)", () => {
       status: "cold",
       cause: "Agent process killed (SIGKILL), possibly out of memory.",
     });
-    expect(alerts(container)).toEqual([
-      "Le processus de l'agent a été tué (SIGKILL), peut-être faute de mémoire.",
-    ]);
+    expect(cause(container)).toBe("Le processus de l'agent a été tué (SIGKILL), peut-être faute de mémoire.");
   });
 
   it("shows the English text as sent for an unknown code, and an extension's own text untouched", async () => {

@@ -16,21 +16,19 @@ export function QueueStrip({ queue, onClear }: { queue: QueueView; onClear(): vo
   return (
     <section
       aria-label={t("sessions.queue.title", { count: queue.count })}
-      className="flex flex-col gap-1 border-l-2 border-you-line bg-you-tint px-3 py-2"
+      className="flex flex-col gap-s1 border-l-2 border-you-line bg-you-tint px-s3 py-s2"
     >
-      <div className="flex items-center justify-between gap-2">
-        <p className="font-mono text-label font-semibold uppercase tracking-label text-muted">
-          {t("sessions.queue.title", { count: queue.count })}
-        </p>
+      <div className="flex items-center justify-between gap-s2">
+        <p className="label-hud text-muted">{t("sessions.queue.title", { count: queue.count })}</p>
         <Button onClick={onClear}>{t("sessions.queue.clear")}</Button>
       </div>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col gap-s1">
         {rows.map((row) => (
           <li
             key={row.key}
-            className={row.steering ? "flex gap-2 text-ui text-you-text" : "flex gap-2 text-ui text-muted"}
+            className={row.steering ? "flex gap-s2 text-ui text-you-text" : "flex gap-s2 text-ui text-muted"}
           >
-            <span className="shrink-0 font-mono text-label font-semibold uppercase tracking-label">
+            <span className="shrink-0 label-hud">
               {t(row.steering ? "sessions.queue.steer" : "sessions.queue.followUp")}
             </span>
             <span className="line-clamp-2 min-w-0 whitespace-pre-wrap break-words">{row.preview}</span>

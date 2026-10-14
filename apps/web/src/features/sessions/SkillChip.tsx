@@ -10,9 +10,9 @@ export function SkillChip({ skill, onRemove }: { readonly skill: string; onRemov
       data-skill-chip
       role="group"
       aria-label={t("sessionModels.commands.chip")}
-      className="flex w-fit max-w-full items-center gap-s1 rounded-sm border border-control-border bg-surface-2 pl-s2"
+      className="flex w-fit max-w-full items-center gap-s1 rounded-sm border border-border-strong pl-s2"
     >
-      <span className="truncate font-mono text-ui text-fg">{`$${skill}`}</span>
+      <span className="truncate font-mono text-code text-muted">{`$${skill}`}</span>
       <Button
         variant="ghost"
         aria-label={t("sessionModels.commands.removeSkill", { skill })}

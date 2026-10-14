@@ -20,7 +20,7 @@ export function LazyFirstRun({ onDone, onAccountCreated }: { onDone(): void; onA
       }}
       fallback={
         failed ? (
-          <main className="flex flex-col items-start gap-3 p-6">
+          <main className="flex flex-col items-start gap-s3 p-s5">
             <Button
               onClick={() => {
                 setFailed(false);
@@ -31,7 +31,7 @@ export function LazyFirstRun({ onDone, onAccountCreated }: { onDone(): void; onA
             </Button>
           </main>
         ) : (
-          <main className="p-6 text-muted">{t("app.loading")}</main>
+          <main className="p-s5 text-muted">{t("app.loading")}</main>
         )
       }
     >

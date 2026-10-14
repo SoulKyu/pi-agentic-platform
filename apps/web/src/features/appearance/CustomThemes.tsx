@@ -8,15 +8,18 @@ import {
   IconCopy,
   IconExport,
   toast,
+  useMediaQuery,
   type ThemeName,
 } from "@pap/ui";
 import { Menu } from "@pap/ui/overlays";
-import { useId, useState } from "react";
+import { useContext, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { downloadThemeFile, presetRoles, type ThemeFileError } from "./theme-io.ts";
 import { newThemeId } from "./theme-ids.ts";
+import { COLUMN_QUERY, ThemeEditorSlot } from "./theme-editor-slot.ts";
 import { ImportButton, ImportErrors } from "./ThemeImport.tsx";
 
 type Draft = Omit<CustomTheme, "id">;
@@ -38,11 +41,29 @@ export function CustomThemes() {
   const hintId = useId();
   const themes = useAppearanceStore((s) => s.account.customThemes);
   const [editing, setEditing] = useState<Editing | null>(null);
+  const wide = useMediaQuery(COLUMN_QUERY);
+  const slot = useContext(ThemeEditorSlot);
+  /** The right column when the page has one and there is room for it; otherwise the editor is a sheet. */
+  const column = wide ? slot : null;
+  // The column is not a modal, so nothing returns the focus when it closes: the control that opened it gets it back.
+  const opener = useRef<HTMLElement | null>(null);
+  const close = () => {
+    setEditing(null);
+    if (column !== null && opener.current?.isConnected) opener.current.focus();
+    opener.current = null;
+  };
   const [importErrors, setImportErrors] = useState<readonly ThemeFileError[]>([]);
   const lazyText = useLazyFailureText();
   const full = themes.length >= THEME_LIMIT;
+  // Safari does not focus a button on click, so the last button pressed in the list is the one to come back to.
+  const pressed = useRef<HTMLElement | null>(null);
   const open = (next: Editing) => {
     setImportErrors([]);
+    const focused = document.activeElement;
+    if (editing === null) {
+      opener.current =
+        pressed.current ?? (focused instanceof HTMLElement && focused !== document.body ? focused : null);
+    }
     setEditing(next);
   };
   const copyOf = (theme: Draft): Draft => ({
@@ -73,7 +94,7 @@ export function CustomThemes() {
         lightTheme: account.lightTheme === id && theme.base !== "day" ? "day" : account.lightTheme,
       });
     }
-    setEditing(null);
+    close();
   };
   const remove = (theme: CustomTheme) => {
     const { account, setAccount } = state();
@@ -114,6 +135,35 @@ export function CustomThemes() {
       },
     });
   };
+  const panel =
+    editing === null ? null : (
+      <LazyPanel
+        load={loadEditor}
+        open
+        text={lazyText}
+        onFailed={close}
+        props={{
+          layout: column === null ? ("dialog" as const) : ("column" as const),
+          open: true,
+          onOpenChange: (next: boolean) => {
+            if (!next) close();
+          },
+          initial: editing.initial,
+          onSave: save,
+        }}
+      />
+    );
+  const idle = (
+    <section
+      aria-label={t("settings.theme.editorTitle")}
+      data-slot="theme-editor-idle"
+      className="flex flex-col gap-s2"
+    >
+      <h3 className="label-hud text-muted">{t("settings.theme.editorTitle")}</h3>
+      <p className="text-ui text-muted">{t("settings.theme.columnHint")}</p>
+    </section>
+  );
+  const editor = column === null ? panel : createPortal(panel ?? idle, column);
   const describedBy = full ? hintId : undefined;
   const fromPreset = (preset: ThemeName): Editing => ({
     id: null,
@@ -124,7 +174,13 @@ export function CustomThemes() {
     }),
   });
   return (
-    <div className="flex flex-col gap-s2">
+    <div
+      className="flex flex-col gap-s2"
+      onClickCapture={(event) => {
+        const button = (event.target as Element).closest("button");
+        pressed.current = button instanceof HTMLElement ? button : null;
+      }}
+    >
       <h4 className="label-hud text-muted">{t("settings.theme.title")}</h4>
       {themes.length === 0 ? <p className="text-ui text-muted">{t("settings.theme.empty")}</p> : null}
       <ul className="flex flex-col">
@@ -193,22 +249,7 @@ export function CustomThemes() {
         </p>
       ) : null}
       <ImportErrors errors={importErrors} />
-      {editing === null ? null : (
-        <LazyPanel
-          load={loadEditor}
-          open
-          text={lazyText}
-          onFailed={() => setEditing(null)}
-          props={{
-            open: true,
-            onOpenChange: (next: boolean) => {
-              if (!next) setEditing(null);
-            },
-            initial: editing.initial,
-            onSave: save,
-          }}
-        />
-      )}
+      {editor}
     </div>
   );
 }

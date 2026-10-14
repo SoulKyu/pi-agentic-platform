@@ -52,7 +52,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       live.size + starting.size >= deps.limits.maxWorkers ||
       deps.freeMemMb() < deps.limits.minFreeMemMb
     ) {
-      throw new PapError("capacity");
+      throw new PapError("capacity", {
+        workers: { used: live.size + starting.size, max: deps.limits.maxWorkers },
+      });
     }
   };
 
@@ -252,6 +254,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       owned(sessionId, caller);
       // A closing worker answers ok without being asked (M2R112): the live session sees to it.
       await live.get(sessionId)?.abort();
+    },
+    async reopen(sessionId, caller) {
+      await ensureLive(owned(sessionId, caller));
     },
     navigate: (input, caller) => commands.navigate(input, caller),
     compact: (input, caller) => commands.compact(input, caller),

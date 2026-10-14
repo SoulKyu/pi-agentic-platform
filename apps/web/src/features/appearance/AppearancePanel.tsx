@@ -1,4 +1,5 @@
 import { Banner, Button, toast } from "@pap/ui";
+import { useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import type { AccountStatus } from "../../lib/account-setting.ts";
 import { AppearancePreview } from "./AppearancePreview.tsx";
@@ -7,6 +8,7 @@ import { ReadingSection } from "./ReadingSection.tsx";
 import { ThemeSection } from "./ThemeSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
 import { parseAccount } from "./model.ts";
+import { ThemeEditorSlot } from "./theme-editor-slot.ts";
 
 /** `local` says nothing: the account document knows of no saved copy. */
 const STATUS_LINES: Record<AccountStatus, MessageKey | null> = {
@@ -26,6 +28,8 @@ export function AppearancePanel() {
   const setAccount = useAppearanceStore((state) => state.setAccount);
   const setDevice = useAppearanceStore((state) => state.setDevice);
   const line = STATUS_LINES[accountStatus];
+  // The theme editor's column (330 px, board 08); `CustomThemes` portals the editor into it when the page is wide enough.
+  const [editorSlot, setEditorSlot] = useState<HTMLElement | null>(null);
   const reset = () => {
     const previous = resetAll();
     toast({
@@ -59,16 +63,25 @@ export function AppearancePanel() {
         {line === null ? "" : t(line)}
       </p>
       {deviceStored ? null : <Banner tone="capacity" title={t("settings.appearance.deviceNotStored")} />}
-      <div className="grid gap-s6 lg:grid-cols-2">
-        <div className="flex min-w-0 flex-col gap-s6">
-          <ThemeSection />
-          <ReadingSection />
-          <DetailsSection />
+      <ThemeEditorSlot value={editorSlot}>
+        <div className="flex flex-col gap-s6 lg:flex-row">
+          <div className="flex min-w-0 flex-1 flex-col gap-s6">
+            <div className="flex min-w-0 flex-col gap-s6">
+              <ThemeSection />
+              <ReadingSection />
+              <DetailsSection />
+            </div>
+            <div className="min-w-0">
+              <AppearancePreview />
+            </div>
+          </div>
+          <aside
+            ref={setEditorSlot}
+            data-slot="theme-editor-slot"
+            className="hidden w-status-panel shrink-0 lg:block"
+          />
         </div>
-        <div className="min-w-0">
-          <AppearancePreview />
-        </div>
-      </div>
+      </ThemeEditorSlot>
     </div>
   );
 }

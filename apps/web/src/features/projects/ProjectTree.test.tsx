@@ -35,14 +35,14 @@ const HOUR = 3_600_000;
 const load = (sessions: ShellSession[], patch: Parameters<typeof shellSnapshot>[1] = {}) =>
   act(async () => useShellStore.getState().apply(shellSnapshot(sessions, patch)));
 
-async function show(onPick: (id: string) => void = () => {}, chord: string | null = "Ctrl+K") {
+async function show(onPick: (id: string) => void = () => {}, chord: string | null = "Ctrl+K", path = "/") {
   const Tree = () => <ProjectTree onPick={onPick} chord={chord} />;
   const root = createRootRoute({ component: Tree });
   const index = createRoute({ getParentRoute: () => root, path: "/", component: () => null });
   const session = createRoute({ getParentRoute: () => root, path: "/s/$sessionId", component: () => null });
   const router = createRouter({
     routeTree: root.addChildren([index, session]),
-    history: createMemoryHistory({ initialEntries: ["/"] }),
+    history: createMemoryHistory({ initialEntries: [path] }),
   });
   const page = await mount(<RouterProvider router={router} />);
   await settle();
@@ -98,6 +98,16 @@ describe("ProjectTree", () => {
     expect(row?.textContent).toContain("Fix login");
     await click(row as HTMLElement);
     expect(picked).toEqual(["one"]);
+  });
+
+  it("marks the open session as the current item, with the agent rule", async () => {
+    await load([shellSession({ id: "one" }), shellSession({ id: "two" })]);
+    const box = await show(() => {}, "Ctrl+K", "/s/two");
+    const [one, two] = [...box.querySelectorAll("a")];
+    expect(two?.getAttribute("aria-current")).toBe("page");
+    expect(two?.className).toContain("border-agent");
+    expect(one?.getAttribute("aria-current")).toBeNull();
+    expect(one?.className).not.toContain("border-agent");
   });
 
   it("marks a running session Working and one that needs input Needs input", async () => {

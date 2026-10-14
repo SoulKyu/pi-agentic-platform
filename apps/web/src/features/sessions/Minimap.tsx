@@ -57,11 +57,11 @@ export function Minimap({ scope, items, view, onLoadOlder }: MinimapProps) {
     setCurrent(key);
   };
 
-  const button = cn("rounded-sm px-2 py-1 font-mono text-label text-muted hover:text-fg", FOCUS_RING);
+  const button = cn("rounded-sm px-s2 py-s1 font-mono text-label text-muted hover:text-fg", FOCUS_RING);
   return (
     <nav
       aria-label={t("sessions.minimap.label")}
-      className="hidden w-14 shrink-0 flex-col items-stretch gap-1 overflow-y-auto md:flex"
+      className="hidden w-14 shrink-0 flex-col items-stretch gap-s1 overflow-y-auto md:flex"
     >
       {hasMore && oldestEntryId !== null ? (
         <button type="button" className={button} onClick={onLoadOlder}>

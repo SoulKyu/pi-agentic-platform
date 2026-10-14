@@ -19,22 +19,32 @@ interface CommandPaletteProps {
   openSession(sessionId: string): void;
 }
 
+/** The highlighted row: raised surface and the agent rule (board 12). */
+const ROW_CLASSES =
+  "flex items-center justify-between gap-s2 rounded-sm border-l-2 border-transparent px-s2 py-s1 text-ui text-fg aria-selected:border-agent aria-selected:bg-surface-2";
+
 function RankedGroup({
   entry: { group, items: rows },
+  current,
   onChoose,
 }: {
   entry: RankedItems["groups"][number];
+  /** The value cmdk has highlighted. */
+  current: string;
   onChoose(item: PaletteItem): void;
 }) {
   const t = useT();
   return (
-    <Command.Group heading={t(`commands.palette.group.${group}`)} className="text-label text-muted">
+    <Command.Group
+      heading={<span className="label-hud text-muted">{t(`commands.palette.group.${group}`)}</span>}
+    >
       {rows.map((item) => (
         <Command.Item
           key={item.id}
           value={item.id}
           onSelect={() => onChoose(item)}
-          className="flex items-center justify-between gap-s2 rounded-sm px-s2 py-s1 text-ui text-fg aria-selected:bg-surface-2"
+          aria-current={current === item.id ? "true" : undefined}
+          className={ROW_CLASSES}
         >
           <span className="truncate">{item.title}</span>
           {item.detail ? (
@@ -91,7 +101,7 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
     item.run();
   };
   const renderGroup = (entry: RankedItems["groups"][number]) => (
-    <RankedGroup key={entry.group} entry={entry} onChoose={run} />
+    <RankedGroup key={entry.group} entry={entry} current={value} onChoose={run} />
   );
   return (
     <Dialog
@@ -126,7 +136,12 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
             ) : null}
             {ranked.groups.filter((entry) => entry.group !== "settings").map(renderGroup)}
             {search.hits.length > 0 ? (
-              <TranscriptHits hits={search.hits} loading={search.status === "loading"} onChoose={choose} />
+              <TranscriptHits
+                hits={search.hits}
+                current={value}
+                loading={search.status === "loading"}
+                onChoose={choose}
+              />
             ) : null}
             {ranked.groups.filter((entry) => entry.group === "settings").map(renderGroup)}
           </Command.List>

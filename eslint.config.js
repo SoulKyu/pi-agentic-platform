@@ -237,6 +237,13 @@ export default defineConfig(
     },
   },
   {
+    // The density moves s1..s6; a number does not (drift 4). Tests may name classes they assert.
+    files: ["apps/web/src/**/*.{ts,tsx}", "packages/ui/src/**/*.{ts,tsx}"],
+    ignores: ["**/*.test.ts", "**/*.test.tsx"],
+    plugins: { pap },
+    rules: { "pap/no-numeric-spacing": "error" },
+  },
+  {
     files: ["apps/web/src/**/*.js"],
     languageOptions: {
       parser: espree,

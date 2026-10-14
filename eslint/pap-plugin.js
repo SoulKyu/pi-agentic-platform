@@ -2,6 +2,11 @@ const RAW_COLOR =
   /#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})(?![\w-])|\b(?:rgb|rgba|hsl|hsla|oklch|oklab|lab|lch)\(/;
 const ARBITRARY = /(?:^|\s)[!\w:/.-]*-\[[^\]\s]+\]/;
 
+// Padding, margin, gap and space utilities with a Tailwind number (`p-2`, `-mt-1`, `md:gap-4`). 0, 0.5 (a 2 px optical
+// offset, under the smallest token) and `px` are not spacing steps. The scale is `s1`..`s6`, which the density follows.
+const NUMERIC_SPACING =
+  /(?<![\w-])-?(?:p[xytrblse]?|m[xytrblse]?|gap(?:-[xy])?|space-[xy])-(?!(?:0|0\.5)(?![\w.-]))\d+(?:\.\d+)?(?![\w.-])/;
+
 function stringRule(messageId, message, pattern) {
   return {
     meta: { type: "problem", messages: { [messageId]: message }, schema: [] },
@@ -108,6 +113,11 @@ export default {
       "arbitrary",
       "Arbitrary Tailwind value: use the token scale.",
       ARBITRARY,
+    ),
+    "no-numeric-spacing": stringRule(
+      "numeric",
+      "Numeric spacing utility: use the s1..s6 tokens so the density applies (p-s2, gap-s3).",
+      NUMERIC_SPACING,
     ),
     "no-restyle": noRestyle,
     "no-native-title": noNativeTitle,

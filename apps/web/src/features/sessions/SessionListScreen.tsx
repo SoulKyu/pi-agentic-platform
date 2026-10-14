@@ -75,10 +75,10 @@ export function SessionListScreen() {
   };
 
   return (
-    <section className="mx-auto flex w-full max-w-3xl flex-col gap-4 overflow-y-auto p-4">
+    <section className="mx-auto flex w-full max-w-3xl flex-col gap-s4 overflow-y-auto p-s4">
       <h1 className="text-xl font-extrabold text-fg">{t("sessions.title")}</h1>
       <form
-        className="flex flex-col gap-2"
+        className="flex flex-col gap-s2"
         onSubmit={(event) => {
           event.preventDefault();
           void create();
@@ -121,7 +121,7 @@ export function SessionListScreen() {
         </div>
       </form>
       {broken ? (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-s2">
           <p role="alert" className="text-ui text-attn">
             {t("shell.tree.error")}
           </p>
@@ -136,16 +136,16 @@ export function SessionListScreen() {
       ) : (
         <>
           <h2 className="label-hud text-muted">{t("sessions.recent")}</h2>
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col gap-s1">
             {sessions.map((session) => {
               const label = sessionLabel(session) || session.cwd;
               return (
-                <li key={session.id} className="flex items-center gap-2">
+                <li key={session.id} className="flex items-center gap-s2">
                   <div className="flex min-w-0 flex-col">
                     <Link
                       to="/s/$sessionId"
                       params={{ sessionId: session.id }}
-                      className={cn("break-all text-agent underline", FOCUS_RING)}
+                      className={cn("break-all text-fg underline", FOCUS_RING)}
                     >
                       {label}
                     </Link>
@@ -153,9 +153,7 @@ export function SessionListScreen() {
                       <span className="break-all text-ui text-muted">{session.cwd}</span>
                     ) : null}
                   </div>
-                  <span className="font-mono text-label font-semibold uppercase tracking-label text-muted">
-                    {formatAge(now, session.updatedAt, t)}
-                  </span>
+                  <span className="label-hud text-muted">{formatAge(now, session.updatedAt, t)}</span>
                 </li>
               );
             })}

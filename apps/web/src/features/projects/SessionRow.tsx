@@ -6,6 +6,9 @@ import { sessionLabel } from "../../lib/session-label.ts";
 import { formatAge } from "../../i18n/age.ts";
 import { SessionMenu } from "./SessionMenu.tsx";
 
+const CURRENT_CLASSES = "border-agent bg-surface-2";
+const IDLE_CLASSES = "border-transparent";
+
 interface SessionRowProps {
   readonly session: ShellSession;
   readonly now: number;
@@ -21,8 +24,11 @@ export function SessionRow({ session, now, onPick }: SessionRowProps) {
         to="/s/$sessionId"
         params={{ sessionId: session.id }}
         onClick={() => onPick(session.id)}
+        // The router marks the open session `aria-current="page"`; the agent rule and the raised surface show it (board 05).
+        activeProps={{ className: CURRENT_CLASSES }}
+        inactiveProps={{ className: IDLE_CLASSES }}
         className={cn(
-          "flex min-w-0 flex-1 items-center justify-between gap-s2 rounded-sm px-s2 py-s1 text-ui pointer-coarse:min-h-11",
+          "flex min-w-0 flex-1 items-center justify-between gap-s2 rounded-sm border-l-2 px-s2 py-s1 text-ui pointer-coarse:min-h-11",
           FOCUS_RING,
         )}
       >

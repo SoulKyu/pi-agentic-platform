@@ -30,6 +30,22 @@ tester.run("no-arbitrary-values", pap.rules["no-arbitrary-values"], {
   ],
 });
 
+tester.run("no-numeric-spacing", pap.rules["no-numeric-spacing"], {
+  valid: [
+    { code: 'const c = "p-s2 gap-s3 -mt-s1 md:px-s4 space-y-s2";' },
+    { code: 'const c = "p-0 m-px gap-0.5 p-0.5 w-11 h-6 size-4 max-w-56 scroll-p-2 text-ui";' },
+    { code: 'const c = "s1 p-s6 mx-auto";' },
+  ],
+  invalid: [
+    { code: 'const c = "flex gap-2";', errors: [{ messageId: "numeric" }] },
+    { code: 'const c = "p-4";', errors: [{ messageId: "numeric" }] },
+    { code: 'const c = "md:px-3";', errors: [{ messageId: "numeric" }] },
+    { code: 'const c = "flex -mt-1";', errors: [{ messageId: "numeric" }] },
+    { code: "const c = `space-y-2 ${x}`;", errors: [{ messageId: "numeric" }] },
+    { code: 'const c = "px-1.5";', errors: [{ messageId: "numeric" }] },
+  ],
+});
+
 tester.run("no-restyle", pap.rules["no-restyle"], {
   valid: [{ code: 'import { Button } from "@pap/ui"; const x = <Button variant="primary">ok</Button>;' }],
   invalid: [

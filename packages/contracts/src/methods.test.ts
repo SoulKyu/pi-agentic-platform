@@ -64,6 +64,7 @@ describe("method catalogue", () => {
       "sessions.navigate",
       "sessions.prompt",
       "sessions.rename",
+      "sessions.reopen",
       "sessions.respondDialog",
       "sessions.setModel",
       "sessions.setThinking",

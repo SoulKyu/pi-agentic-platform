@@ -6,6 +6,7 @@ import {
   type MethodName,
   type ParamsOf,
   type ResultOf,
+  type WorkerCounts,
 } from "@pap/contracts";
 import type { Connection, Timers } from "./connection.ts";
 
@@ -17,7 +18,8 @@ export type ClientErrorCode = "offline" | "connection_lost" | "payload_too_large
 export type RpcErrorCode = ErrorCode | ClientErrorCode;
 
 type Answer =
-  { readonly id: number; readonly result: unknown } | { readonly id: number; readonly code: string };
+  | { readonly id: number; readonly result: unknown }
+  | { readonly id: number; readonly code: string; readonly workers?: WorkerCounts };
 
 // A daemon upgraded without a protocol bump may send a code this build has no name for. The call must
 // still settle (R123), so anything with an id and `ok: false` is an error, and the code passes through.
@@ -26,7 +28,11 @@ function answerOf(frame: unknown): Answer | null {
   if (parsed.success) {
     return parsed.data.ok
       ? { id: parsed.data.id, result: parsed.data.result }
-      : { id: parsed.data.id, code: parsed.data.error.code };
+      : {
+          id: parsed.data.id,
+          code: parsed.data.error.code,
+          ...(parsed.data.error.workers ? { workers: parsed.data.error.workers } : {}),
+        };
   }
   const raw = frame as { id?: unknown; ok?: unknown; error?: { code?: unknown } | null } | null;
   if (typeof raw?.id !== "number" || raw.ok !== false) return null;
@@ -42,11 +48,14 @@ function answerOf(frame: unknown): Answer | null {
  */
 export class RpcError extends Error {
   readonly code: RpcErrorCode;
+  /** On a `capacity` refusal from a daemon that counted: workers in use and the cap. */
+  readonly workers?: WorkerCounts;
 
-  constructor(code: RpcErrorCode) {
+  constructor(code: RpcErrorCode, workers?: WorkerCounts) {
     super(code);
     this.name = "RpcError";
     this.code = code;
+    if (workers) this.workers = workers;
   }
 }
 
@@ -105,7 +114,7 @@ export function createRpcClient(
     const entry = answer ? pending.get(answer.id) : undefined;
     if (!answer || !entry) return;
     pending.delete(answer.id);
-    if ("code" in answer) entry.reject(new RpcError(answer.code as RpcErrorCode));
+    if ("code" in answer) entry.reject(new RpcError(answer.code as RpcErrorCode, answer.workers));
     else entry.resolve(answer.result);
   });
   connection.onState((state) => {

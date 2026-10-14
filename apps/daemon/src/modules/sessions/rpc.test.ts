@@ -17,6 +17,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     summary: vi.fn(() => null),
     prompt: vi.fn(async () => ({ disposition: "started" as const })),
     abort: vi.fn(async () => {}),
+    reopen: vi.fn(async () => {}),
     navigate: vi.fn(async () => ({ cancelled: false, editorText: "q" })),
     compact: vi.fn(async () => ({ tokensBefore: 9, estimatedTokensAfter: null })),
     rename: vi.fn(async () => {}),
@@ -113,6 +114,8 @@ describe("sessions rpc", () => {
       caller,
     );
     expect(await rpc["sessions.abort"]({ sessionId: "p1" }, ctx)).toEqual({ ok: true });
+    expect(await rpc["sessions.reopen"]({ sessionId: "p1" }, ctx)).toEqual({ ok: true });
+    expect(service.reopen).toHaveBeenCalledWith("p1", caller);
     expect(await rpc["sessions.fork"]({ sessionId: "p1", entryId: "u1" }, ctx)).toEqual({
       sessionId: "p2",
       text: "q1",

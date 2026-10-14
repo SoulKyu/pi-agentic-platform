@@ -50,7 +50,7 @@ export function TabBar() {
   };
 
   return (
-    <div className="flex h-bar shrink-0 items-center gap-s1 border-b border-border bg-bg-side px-s2">
+    <div className="flex h-bar shrink-0 items-center gap-s1 border-b border-border bg-bg px-s2">
       <div
         ref={listRef}
         role="tablist"

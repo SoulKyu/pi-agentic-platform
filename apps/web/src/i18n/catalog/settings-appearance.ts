@@ -93,6 +93,11 @@ export const settingsAppearanceEn = {
   "settings.theme.importError.not_json": "The file is not valid JSON.",
   "settings.theme.importError.invalid": "Missing or invalid value at {path}.",
   "settings.theme.editorTitle": "Custom theme",
+  "settings.theme.columnHint":
+    "Choose Edit on a custom theme, or Duplicate & edit from a preset, to change its roles here.",
+  "settings.theme.tag.default": "default",
+  "settings.theme.tag.a11y": "a11y",
+  "settings.theme.tag.custom": "custom",
   "settings.theme.name": "Name",
   "settings.theme.nameInvalid": "Use 1 to 64 characters.",
   "settings.theme.base": "Base theme",
@@ -220,6 +225,11 @@ export const settingsAppearanceFr: { readonly [K in keyof typeof settingsAppeara
   "settings.theme.importError.not_json": "Le fichier n'est pas du JSON valide.",
   "settings.theme.importError.invalid": "Valeur absente ou invalide à {path}.",
   "settings.theme.editorTitle": "Thème personnalisé",
+  "settings.theme.columnHint":
+    "Choisissez Modifier sur un thème personnalisé, ou Dupliquer et modifier depuis un préréglage, pour changer ses rôles ici.",
+  "settings.theme.tag.default": "défaut",
+  "settings.theme.tag.a11y": "a11y",
+  "settings.theme.tag.custom": "perso",
   "settings.theme.name": "Nom",
   "settings.theme.nameInvalid": "Utilisez de 1 à 64 caractères.",
   "settings.theme.base": "Thème de base",

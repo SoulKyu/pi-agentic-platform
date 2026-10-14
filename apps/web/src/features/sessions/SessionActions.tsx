@@ -91,8 +91,8 @@ export function SessionActions(props: SessionActionsProps) {
 
   const compacting = view.activity.compacting;
   return (
-    <section ref={root} aria-label={t("actions.label")} data-session-actions className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-start gap-2">
+    <section ref={root} aria-label={t("actions.label")} data-session-actions className="flex flex-col gap-s2">
+      <div className="flex flex-wrap items-start gap-s2">
         {draftName === null ? (
           <Button data-rename onClick={startRename}>
             {t("actions.rename")}
@@ -100,7 +100,7 @@ export function SessionActions(props: SessionActionsProps) {
         ) : (
           <div
             data-inline-edit
-            className="flex items-end gap-2"
+            className="flex items-end gap-s2"
             onKeyDown={(event) => {
               // Escape in this field cancels the edit only: the page's Escape-to-Stop must not see it.
               if (event.key === "Escape") {
@@ -171,7 +171,7 @@ export function SessionActions(props: SessionActionsProps) {
         </Button>
       </div>
       {exporting ? (
-        <div role="group" aria-label={t("actions.export")} className="flex flex-wrap items-center gap-2">
+        <div role="group" aria-label={t("actions.export")} className="flex flex-wrap items-center gap-s2">
           <p className="text-ui text-attn">{t("actions.exportWarning")}</p>
           <Button
             variant="primary"

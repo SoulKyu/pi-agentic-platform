@@ -20,10 +20,10 @@ export function RootLayout() {
     if (connection === "signed-out") refresh();
   }, [connection, refresh]);
 
-  if (state.phase === "loading") return <main className="p-6 text-muted">{t("app.loading")}</main>;
+  if (state.phase === "loading") return <main className="p-s5 text-muted">{t("app.loading")}</main>;
   if (state.phase === "error") {
     return (
-      <main className="flex flex-col items-start gap-3 p-6">
+      <main className="flex flex-col items-start gap-s3 p-s5">
         <p role="alert" className="text-err">
           {t(state.code === null ? "error.offline" : errorKey(state.code))}
         </p>

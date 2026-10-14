@@ -49,6 +49,12 @@ export interface SessionView extends UiState {
     readonly code?: string;
     readonly params?: Readonly<Record<string, string>>;
   }>;
+  /** Why the worker stopped on its own (a crash, an out-of-memory kill), until it comes back: the screen's crash banner. */
+  readonly crash: {
+    readonly text: string;
+    readonly code?: string;
+    readonly params?: Readonly<Record<string, string>>;
+  } | null;
   /** What lies above the messages: where the next page starts and how many turns it holds. */
   readonly history: HistoryMeta;
   /** Pi's current leaf as far as the stream has said so; null when unknown. */
@@ -81,6 +87,7 @@ export const EMPTY_VIEW: SessionView = {
   staleDialogs: false,
   queue: EMPTY_QUEUE,
   notices: [],
+  crash: null,
   ...EMPTY_UI,
   history: NO_HISTORY,
   leafId: null,
@@ -131,6 +138,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         partial: event.partial,
         queue: event.queue,
         notices: event.notices,
+        // A snapshot taken while the session is still cold does not say why it stopped: keep what the stream told.
+        crash: event.status === "cold" ? view.crash : null,
         ...uiOfSnapshot(event, view),
         history: event.history,
         leafId: event.leafId,
@@ -153,13 +162,16 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         loadout: event.status === "cold" ? null : view.loadout,
         tools: event.status === "cold" ? failRunningTools(view.tools) : view.tools,
       };
+      if (event.status !== "cold") return { ...next, crash: null };
       return event.cause
-        ? withNotice(next, {
-            level: "error",
-            text: event.cause,
-            ...(event.causeCode ? { code: event.causeCode } : {}),
-            ...(event.causeParams ? { params: event.causeParams } : {}),
-          })
+        ? {
+            ...next,
+            crash: {
+              text: event.cause,
+              ...(event.causeCode ? { code: event.causeCode } : {}),
+              ...(event.causeParams ? { params: event.causeParams } : {}),
+            },
+          }
         : next;
     }
     case "dialog_open":

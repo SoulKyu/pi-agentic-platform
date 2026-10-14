@@ -84,6 +84,18 @@ describe("CommandPalette", () => {
     expect(document.querySelector("[title]")).toBeNull();
   });
 
+  it("marks the highlighted row as the current item, and moves the mark with the arrows", async () => {
+    await open();
+    const current = () =>
+      [...document.querySelectorAll('[role="option"][aria-current]')].map((el) => el.textContent);
+    expect(current()).toEqual(["Open settings"]);
+    expect(document.querySelector('[role="option"][aria-selected="true"]')?.className).toContain(
+      "aria-selected:border-agent",
+    );
+    await press(input(), { key: "ArrowDown" });
+    expect(current()).toEqual(["Split paneCtrl+\\"]);
+  });
+
   it("filters with its own ranking and runs the chosen row with Enter, closing first", async () => {
     await open();
     await typeInto(input(), "split");

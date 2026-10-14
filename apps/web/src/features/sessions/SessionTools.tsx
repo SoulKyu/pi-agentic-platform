@@ -69,8 +69,8 @@ export function SessionTools({ sessionId, loadout, running }: SessionToolsProps)
         text={lazyText}
         items={items}
         trigger={(ask) => (
-          <Button variant="ghost" disabled={running || change.busy} onClick={ask}>
-            <span className="label-hud text-agent">{t("sessionTools.pill", { preset: nameOf(shown) })}</span>
+          <Button variant="pill" size="sm" disabled={running || change.busy} onClick={ask}>
+            {t("sessionTools.pill", { preset: nameOf(shown) })}
           </Button>
         )}
       />

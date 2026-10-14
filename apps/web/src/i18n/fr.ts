@@ -56,6 +56,7 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "error.rate_limited": "Trop de tentatives. Réessayez plus tard.",
   "error.payload_too_large": "Le message est trop volumineux.",
   "error.capacity": "Le serveur est à pleine capacité. Réessayez plus tard.",
+  "error.capacityWorkers": "{used} / {max} workers actifs.",
   "error.worker_failed": "Le processus de la session a échoué.",
   "error.timeout":
     "La session n'a pas répondu à temps. L'action a peut-être abouti : vérifiez avant de réessayer.",

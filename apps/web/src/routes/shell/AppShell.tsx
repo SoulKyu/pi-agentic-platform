@@ -2,7 +2,7 @@ import { useIsPhone } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { detectPlatform } from "../../features/commands/index.ts";
-import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { useLazyFailureText } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
@@ -14,7 +14,6 @@ import { useTerminalStore } from "../../stores/terminal-store.ts";
 import { resetUnsavedFiles } from "../../stores/unsaved-files.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
-import { itemTitle } from "./item-title.ts";
 import { MobileShell } from "./MobileShell.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
@@ -107,18 +106,14 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
 }
 
 function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" | "onSignedOut">) {
-  const t = useT();
   const pathname = useRouterState({ select: (state) => state.location.pathname });
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
-  const sessions = useShellStore((state) => state.view.sessions);
-  const views = useViewLabels((state) => state.labels);
   const item = itemFromPath(pathname, import.meta.env.DEV);
-  const title = item ? itemTitle(item, sessions, views, t) : t("shell.notFound.title");
   return (
     <div data-shell="desktop" className="flex h-app rail-right:flex-row-reverse">
       <Rail username={username} onSignedOut={onSignedOut} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar title={title} />
+        <TopBar />
         <TabBar />
         <ConnectionBanner />
         {/* The one main landmark: the screens inside it are sections. */}

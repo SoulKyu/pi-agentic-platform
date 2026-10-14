@@ -14,6 +14,7 @@ import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
 import { SessionRules } from "./AlwaysRules.tsx";
 import { Composer } from "./Composer.tsx";
+import { CrashBanner } from "./CrashBanner.tsx";
 import { SessionPolicy } from "./SessionPolicy.tsx";
 import { useAnnouncer } from "./announce.ts";
 import { SessionActions } from "./SessionActions.tsx";
@@ -90,16 +91,16 @@ export function SessionScreen({
       className="flex min-h-0 w-full flex-1 flex-col gap-s3 p-s4"
     >
       <header className="flex items-center justify-between">
-        <Link to="/" className={cn("text-agent underline", FOCUS_RING)}>
+        <Link to="/" className={cn("text-fg underline", FOCUS_RING)}>
           {t("sessions.title")}
         </Link>
         {view.name ? (
-          <h1 data-session-name className="min-w-0 flex-1 truncate px-3 text-ui font-semibold text-fg">
+          <h1 data-session-name className="min-w-0 flex-1 truncate px-s3 text-ui font-semibold text-fg">
             {view.name}
           </h1>
         ) : null}
         {title ? (
-          <span data-session-title className="min-w-0 truncate px-3 font-mono text-ui text-muted">
+          <span data-session-title className="min-w-0 truncate px-s3 font-mono text-ui text-muted">
             {title}
           </span>
         ) : null}
@@ -113,10 +114,11 @@ export function SessionScreen({
         />
       </header>
       {view.unreadable ? (
-        <p role="alert" className="border-l-2 border-err px-3 py-2 text-ui text-err">
+        <p role="alert" className="border-l-2 border-err px-s3 py-s2 text-ui text-err">
           {t("sessions.unreadable")}
         </p>
       ) : null}
+      {view.crash && view.status === "cold" ? <CrashBanner sessionId={sessionId} crash={view.crash} /> : null}
       {view.outsideWrite && dismissed !== view.generation ? (
         <Banner
           tone="capacity"
@@ -168,9 +170,7 @@ export function SessionScreen({
         >
           {notice.source === "extension" ? (
             <>
-              <span className="mr-2 font-mono text-label uppercase tracking-label text-muted">
-                {t("source.extension")}
-              </span>
+              <span className="mr-s2 label-hud text-muted">{t("source.extension")}</span>
               <AnsiText text={notice.text} />
             </>
           ) : (

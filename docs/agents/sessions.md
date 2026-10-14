@@ -19,7 +19,7 @@ Code: `apps/daemon/src/modules/sessions/`. Identity of a session and its Pi file
 
 ## Capacity
 
-A worker counts against `maxWorkers` from the moment it is forked: `starting` is a set, checked and filled in the same tick, so concurrent creates cannot both pass (R9). It leaves `starting` only after the session is in `live`. `minFreeMemMb` is checked at the same place. Both refuse with `capacity`; nothing waits in a queue. After `shutdownAll` every new start is refused with `capacity` too.
+A worker counts against `maxWorkers` from the moment it is forked: `starting` is a set, checked and filled in the same tick, so concurrent creates cannot both pass (R9). It leaves `starting` only after the session is in `live`. `minFreeMemMb` is checked at the same place. Both refuse with `capacity`; nothing waits in a queue. After `shutdownAll` every new start is refused with `capacity` too. The `capacity` error carries `workers: { used, max }` (`modules/sessions/service.ts:56`), daemon-wide rather than per owner; the session screen shows it as "n / n workers". After a worker crash, the crash banner's Retry calls `sessions.reopen {sessionId}` (`sessions:operate`, owner check, `not_found` for another owner's): it goes through the same `ensureLive` path as `prompt`, so it respects the cap, and concurrent reopens share one start.
 
 A worker that does not say `ready` within 30 s (`READY_TIMEOUT_MS`) is stopped and the start fails with `worker_failed`. A worker that exits before `ready` (exit 70 for a bad init, policy or `PI_CODING_AGENT_DIR`) gives the same fixed `worker_failed`; the log has its exit and the last 2000 characters of its output, never the client.
 

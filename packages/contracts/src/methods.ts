@@ -107,6 +107,15 @@ export const methods = catalogue({
     result: z.object({ disposition: z.enum(["started", "queued", "handled"]) }),
     errors: ["not_found", "capacity", "worker_failed", "prompt_rejected", "queue_full", "session_busy"],
   }),
+  // Brings the worker of a cold session back (the crash banner's Retry). A session that already runs is left as it is.
+  "sessions.reopen": defineMethod({
+    name: "sessions.reopen",
+    permission: "sessions:operate",
+    idempotent: false,
+    params: z.object({ sessionId: SessionId }),
+    result: Ok,
+    errors: ["not_found", "capacity", "worker_failed"],
+  }),
   "sessions.abort": defineMethod({
     name: "sessions.abort",
     permission: "sessions:operate",

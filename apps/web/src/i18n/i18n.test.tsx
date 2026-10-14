@@ -31,6 +31,7 @@ import {
 
 // Keys whose French is the same word (endonyms, product and font names). Every other key must differ.
 const IDENTICAL_IN_FR = new Set([
+  "settings.theme.tag.a11y",
   "files.viewer.source",
   "shell.surface.chat",
   "shell.surface.term",

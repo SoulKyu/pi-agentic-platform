@@ -72,7 +72,7 @@ export function SummaryRow({ item }: { item: SummaryItem }) {
       : t("sessions.transcript.branchSummary");
   return (
     <details data-summary={item.variant} className="border-l-2 border-border bg-bg px-s3 py-s2 text-muted">
-      <summary className="cursor-pointer font-mono text-label uppercase tracking-label">{title}</summary>
+      <summary className="cursor-pointer label-hud">{title}</summary>
       <p className="mt-s1 whitespace-pre-wrap break-words text-ui">{item.text}</p>
     </details>
   );

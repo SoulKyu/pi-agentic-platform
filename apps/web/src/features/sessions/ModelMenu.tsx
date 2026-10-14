@@ -159,7 +159,7 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
             <Link
               to="/settings/$section"
               params={{ section: "models" }}
-              className="text-agent underline focus-ring"
+              className="text-fg underline focus-ring"
             >
               {t("sessionModels.menu.signIn")}
             </Link>

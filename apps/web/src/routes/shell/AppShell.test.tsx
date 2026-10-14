@@ -187,32 +187,27 @@ describe("AppShell", () => {
     expect(useViewLabels.getState().labels).toEqual({});
   });
 
-  it("titles the top bar with the active item: a session by its folder", async () => {
+  it("names a session once, in its tab: the top bar carries the pap wordmark, not the title again", async () => {
     const page = await renderShell("/s/abc");
     await act(async () => bed.fake.setState("open"));
     await settle();
     await act(async () =>
       bed.emitTo(
         "subscribe.shell",
-        shellSnapshot([shellSession({ id: "abc", cwd: "/home/ana/pi-agentic" })]),
+        shellSnapshot([shellSession({ id: "abc", cwd: "/home/ana/pi-agentic", name: "Fix tests" })]),
       ),
     );
-    expect(page.container.querySelector("header")?.textContent).toContain("pi-agentic");
+    const bar = page.container.querySelector("header") as HTMLElement;
+    expect(bar.querySelector('[data-slot="wordmark"]')?.textContent).toBe("pap");
+    expect(bar.textContent).not.toContain("Fix tests");
+    const tabs = page.container.querySelector('[role="tablist"]') as HTMLElement;
+    expect(tabs.textContent).toContain("Fix tests");
+    expect(tabs.parentElement?.className).toContain("bg-bg");
+    expect(tabs.parentElement?.className).not.toContain("bg-bg-side");
     const panel = page.container.querySelector('[data-pane-kind="session"]') as HTMLElement;
     expect(
       page.container.ownerDocument.getElementById(panel.getAttribute("aria-labelledby") ?? "")?.textContent,
-    ).toBe("pi-agentic"); // the pane is named by its tab
-    await page.unmount();
-  });
-
-  it("titles the top bar with the session's name from the stream", async () => {
-    const page = await renderShell("/s/abc");
-    await act(async () => bed.fake.setState("open"));
-    await settle();
-    await act(async () =>
-      bed.emitTo("subscribe.shell", shellSnapshot([shellSession({ id: "abc", name: "Fix tests" })])),
-    );
-    expect(page.container.querySelector("header")?.textContent).toContain("Fix tests");
+    ).toBe("Fix tests"); // the pane is named by its tab
     await page.unmount();
   });
 

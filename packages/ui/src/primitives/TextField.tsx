@@ -19,6 +19,8 @@ export interface TextFieldProps {
   readonly hint?: string;
   readonly error?: string | null;
   readonly multiline?: boolean;
+  /** `surface`: the field sits on the raised surface token, as the composer does (board 09); `bg`: the page ground. */
+  readonly ground?: "bg" | "surface";
   /** Multiline only: monospace text and a taller box, for code and configuration. */
   readonly mono?: boolean;
   readonly rows?: number;
@@ -38,9 +40,10 @@ export interface TextFieldProps {
 }
 
 const FIELD_CLASSES = cn(
-  "w-full rounded-sm border border-control-border bg-bg px-s2 py-s1 text-fg focus-ring pointer-coarse:min-h-11 pointer-coarse:text-base",
+  "w-full rounded-sm border border-control-border px-s2 py-s1 text-fg focus-ring pointer-coarse:min-h-11 pointer-coarse:text-base",
   "disabled:cursor-not-allowed disabled:opacity-50",
 );
+const GROUNDS = { bg: "bg-bg", surface: "bg-surface" } as const;
 
 export function TextField({ inputRef, ...props }: TextFieldProps) {
   const id = useId();
@@ -75,7 +78,11 @@ export function TextField({ inputRef, ...props }: TextFieldProps) {
               }
             : {})}
           ref={inputRef}
-          className={cn(FIELD_CLASSES, props.mono ? "font-mono text-ui" : "font-sans text-chat")}
+          className={cn(
+            FIELD_CLASSES,
+            GROUNDS[props.ground ?? "bg"],
+            props.mono ? "font-mono text-ui" : "font-sans text-chat",
+          )}
           rows={props.rows ?? 3}
           onChange={(event) => props.onChange(event.target.value)}
           onPaste={props.onPaste}
@@ -94,7 +101,7 @@ export function TextField({ inputRef, ...props }: TextFieldProps) {
       ) : (
         <input
           {...shared}
-          className={cn(FIELD_CLASSES, "h-control font-sans text-ui")}
+          className={cn(FIELD_CLASSES, GROUNDS[props.ground ?? "bg"], "h-control font-sans text-ui")}
           type={props.type ?? "text"}
           onChange={(event) => props.onChange(event.target.value)}
         />

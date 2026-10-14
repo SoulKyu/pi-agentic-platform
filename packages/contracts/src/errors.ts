@@ -63,12 +63,21 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   internal: "Internal error.",
 };
 
+/** Workers in use against the cap: the numbers behind a `capacity` refusal, shown as "n / n workers". */
+export interface WorkerCounts {
+  readonly used: number;
+  readonly max: number;
+}
+
 export class PapError extends Error {
   readonly code: ErrorCode;
+  /** Additive detail for a `capacity` refusal; absent when the daemon did not count (a closing server). */
+  readonly workers?: WorkerCounts;
 
-  constructor(code: ErrorCode) {
+  constructor(code: ErrorCode, detail?: { readonly workers?: WorkerCounts }) {
     super(ERROR_MESSAGES[code]);
     this.name = "PapError";
     this.code = code;
+    if (detail?.workers) this.workers = detail.workers;
   }
 }

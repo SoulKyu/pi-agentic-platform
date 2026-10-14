@@ -102,17 +102,41 @@ describe("Settings > Appearance", () => {
     expect(state().account.mode).toBe("night");
   });
 
-  it("the dark theme lists Night Control, High contrast and dark custom themes; the light one Day · Papier and light custom themes", async () => {
+  const cards = (label: string) => [
+    ...(document.querySelector(`[role="group"][aria-label="${label}"]`)?.querySelectorAll("button") ?? []),
+  ];
+
+  it("shows the themes as cards with swatches: dark side Night Control, High contrast and dark custom ones; light side Day · Papier and light custom ones", async () => {
     seed({ ...DEFAULT_ACCOUNT, customThemes: [ocean, dune] });
     await render();
-    expect(labelled('[role="combobox"]', "Dark theme").textContent).toContain("Night Control");
-    expect(document.querySelector('[role="listbox"]')).toBeNull();
-    expect(await openSelect("Dark theme")).toEqual(["Night Control", "High contrast", "Ocean"]);
-    await press(document.querySelector('[role="listbox"]') as HTMLElement, { key: "Escape" });
-    await vi.waitFor(() => expect(document.querySelector('[role="listbox"]')).toBeNull(), {
-      timeout: 2_000,
-    });
-    expect(await openSelect("Light theme")).toEqual(["Day · Papier", "Dune"]);
+    expect(labelled('[role="combobox"]', "Dark theme")).toBeUndefined();
+    expect(cards("Dark theme").map((card) => card.textContent)).toEqual([
+      "Night Controldefault",
+      "High contrasta11y",
+      "Oceancustom",
+    ]);
+    expect(cards("Light theme").map((card) => card.getAttribute("data-theme-card"))).toEqual(["day", "dune"]);
+    const night = cards("Dark theme")[0] as HTMLElement;
+    expect((night.querySelector('[data-swatch="bg"]') as HTMLElement).style.borderLeftColor).not.toBe("");
+    expect((night.querySelector('[data-swatch="side"]') as HTMLElement).style.background).not.toBe("");
+  });
+
+  it("a card writes its side and is the only one pressed on it", async () => {
+    seed({ ...DEFAULT_ACCOUNT, customThemes: [ocean] });
+    await render();
+    expect(cards("Dark theme").map((card) => card.getAttribute("aria-pressed"))).toEqual([
+      "true",
+      "false",
+      "false",
+    ]);
+    await click(cards("Dark theme")[2] as HTMLElement);
+    expect(state().account.darkTheme).toBe("ocean");
+    expect(cards("Dark theme").map((card) => card.getAttribute("aria-pressed"))).toEqual([
+      "false",
+      "false",
+      "true",
+    ]);
+    expect(state().account.lightTheme).toBe("day");
   });
 
   it("density and sizes write the device scope; Follow density clears a size", async () => {

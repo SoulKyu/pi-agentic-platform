@@ -91,7 +91,7 @@ export function DialogList(props: {
         const key = `${dialog.id}:${slot?.attempt ?? 0}`;
         const onAnswer = (response: DialogResponse) => send(dialog, response);
         return (
-          <div key={dialog.id} data-dialog className="flex flex-col gap-2">
+          <div key={dialog.id} data-dialog className="flex flex-col gap-s2">
             {dialog.method === "approval" ? (
               <ApprovalCardFor key={key} dialog={dialog} onAnswer={onAnswer} />
             ) : dialog.method === "select" ? (
@@ -107,7 +107,7 @@ export function DialogList(props: {
               </p>
             ) : null}
             {slot?.unsure ? (
-              <div role="status" className="flex items-center gap-2 border-l-2 border-attn-line px-3 py-2">
+              <div role="status" className="flex items-center gap-s2 border-l-2 border-attn-line px-s3 py-s2">
                 <p className="flex-1 text-ui text-fg">{slot.unsure.message}</p>
                 <Button
                   variant="primary"

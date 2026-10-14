@@ -183,7 +183,7 @@ export function SessionPolicy({
         <Link
           to="/settings/$section"
           params={{ section: "approvals" }}
-          className={cn("text-ui text-agent underline", FOCUS_RING)}
+          className={cn("text-ui text-fg underline", FOCUS_RING)}
         >
           {t("sessionPolicy.manage")}
         </Link>

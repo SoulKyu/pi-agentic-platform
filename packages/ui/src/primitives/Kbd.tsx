@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 
-const KEY_CLASSES = "rounded-sm border border-border-strong bg-surface px-1 font-mono text-label text-muted";
+const KEY_CLASSES = "rounded-sm border border-border-strong bg-surface px-s1 font-mono text-label text-muted";
 
 export interface KbdProps {
   readonly keys: readonly string[];

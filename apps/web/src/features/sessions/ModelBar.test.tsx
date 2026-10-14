@@ -98,11 +98,14 @@ describe("ModelBar pill", () => {
     expect(button(container, "thinking: high")).toBeTruthy();
   });
 
-  it("sets both pills in the HUD label style (mono uppercase) and the agent colour", async () => {
+  it("draws both pills as bordered pills in the HUD label style and the agent colour (board 09)", async () => {
     const container = await show();
     for (const name of ["anthropic · claude-sonnet-4", "thinking: high"]) {
-      const label = button(container, name).querySelector("span");
-      expect(label?.className).toBe("label-hud text-agent");
+      const pill = button(container, name);
+      expect(pill.getAttribute("data-variant")).toBe("pill");
+      expect(pill.className).toContain("label-hud");
+      expect(pill.className).toContain("border-agent");
+      expect(pill.className).toContain("text-agent");
     }
   });
 

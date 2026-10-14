@@ -18,7 +18,17 @@ export type RequestFrame = z.infer<typeof RequestFrame>;
 
 export const ResponseFrame = z.union([
   z.object({ id: z.number().int(), ok: z.literal(true), result: z.unknown() }),
-  z.object({ id: z.number().int(), ok: z.literal(false), error: z.object({ code: z.enum(ERROR_CODES) }) }),
+  z.object({
+    id: z.number().int(),
+    ok: z.literal(false),
+    error: z.object({
+      code: z.enum(ERROR_CODES),
+      /** Only on `capacity`: workers in use and the cap. */
+      workers: z
+        .object({ used: z.number().int().nonnegative(), max: z.number().int().nonnegative() })
+        .optional(),
+    }),
+  }),
 ]);
 export type ResponseFrame = z.infer<typeof ResponseFrame>;
 

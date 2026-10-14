@@ -50,10 +50,12 @@ beforeEach(() => {
 afterEach(() => setLocale("en"));
 
 describe("SessionTools chip", () => {
-  it("shows the loadout's preset in the HUD label style", async () => {
+  it("shows the loadout's preset as an agent pill in the HUD label style", async () => {
     const { container } = await show();
-    const label = button(container, "tools · Default").querySelector("span");
-    expect(label?.className).toBe("label-hud text-agent");
+    const pill = button(container, "tools · Default");
+    expect(pill.getAttribute("data-variant")).toBe("pill");
+    expect(pill.className).toContain("label-hud");
+    expect(pill.className).toContain("text-agent");
   });
 
   it("shows every preset the loadout can carry by name", async () => {

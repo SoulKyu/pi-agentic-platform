@@ -56,6 +56,7 @@ export const en = {
   "error.rate_limited": "Too many attempts. Try again later.",
   "error.payload_too_large": "The message is too large.",
   "error.capacity": "The server is at capacity. Try again later.",
+  "error.capacityWorkers": "{used} / {max} workers running.",
   "error.worker_failed": "The session process failed.",
   "error.timeout":
     "The session did not answer in time. The action may still have gone through: check before trying again.",

@@ -25,6 +25,13 @@ const screen = screenBed(current);
 const { show, emit, methods } = screen;
 
 describe("Composer sending", () => {
+  it("puts the message field on the surface token, not the page ground (board 09)", async () => {
+    const container = await show({ status: "idle" });
+    const classes = field(container, "Message").className;
+    expect(classes).toContain("bg-surface");
+    expect(classes).not.toContain("bg-bg");
+  });
+
   it("restores the draft, sends with the preference and clears the draft once accepted", async () => {
     localStorage.setItem("pap.draft.sess-1", "half a thought");
     const container = await show({ status: "idle" });

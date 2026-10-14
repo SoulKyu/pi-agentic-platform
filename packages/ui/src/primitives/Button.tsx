@@ -3,7 +3,7 @@ import { cn } from "../cn.ts";
 import { usePendingFeedback } from "../feedback.ts";
 import { Spinner } from "./Spinner.tsx";
 
-export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "pill";
 export type ButtonSize = "sm" | "md";
 
 const BASE_CLASSES =
@@ -13,6 +13,8 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary: "border-you-fill bg-you-fill text-you-ink can-hover:hover:opacity-90",
   secondary: "border-control-border bg-surface text-fg can-hover:hover:bg-surface-2",
   ghost: "border-transparent bg-transparent text-fg can-hover:hover:bg-surface-2",
+  // A state the agent holds, shown as a button: the model, its thinking level, its tools (board 09, `.comp .m`).
+  pill: "border-agent bg-transparent text-agent can-hover:hover:bg-surface-2",
   // Irreversible actions only. Cancel, Stop and Deny are never danger (DESIGN.md §9.1, R21).
   danger: "border-err bg-transparent text-err can-hover:hover:bg-surface-2",
 };
