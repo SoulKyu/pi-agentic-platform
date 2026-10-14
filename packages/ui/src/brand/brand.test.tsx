@@ -26,4 +26,10 @@ describe("logo (DESIGN.md §6)", () => {
     for (const cls of ["font-extrabold", "tracking-display", "lowercase", "label-hud"])
       expect(html).toContain(cls);
   });
+
+  it("sets the compact name at the UI size (13 px in Compact) and keeps the 20 px one by default", () => {
+    expect(renderToStaticMarkup(<Wordmark name="pap" compact />)).toContain("text-ui");
+    expect(renderToStaticMarkup(<Wordmark name="pap" compact />)).not.toContain("text-h1");
+    expect(renderToStaticMarkup(<Wordmark name="pap" />)).toContain("text-h1");
+  });
 });

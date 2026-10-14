@@ -1,6 +1,9 @@
 export const sessionPolicyEn = {
   "sessionPolicy.bar": "Approvals for this session",
-  "sessionPolicy.mode": "Approval mode",
+  "sessionPolicy.chip": "Approval mode: {mode}",
+  "sessionPolicy.chipDefault": "Approval mode: {mode} (your default)",
+  "sessionPolicy.current": "{label} (current)",
+  "sessionPolicy.clearExternal": "Clear external content",
   "sessionPolicy.mode.defaultNamed": "Use my default ({mode})",
   "sessionPolicy.mode.read-only": "Read only",
   "sessionPolicy.mode.supervised": "Ask for everything",
@@ -33,7 +36,10 @@ export const sessionPolicyEn = {
 
 export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: string } = {
   "sessionPolicy.bar": "Approbations de cette session",
-  "sessionPolicy.mode": "Mode d'approbation",
+  "sessionPolicy.chip": "Mode d'approbation : {mode}",
+  "sessionPolicy.chipDefault": "Mode d'approbation : {mode} (votre mode par défaut)",
+  "sessionPolicy.current": "{label} (actuel)",
+  "sessionPolicy.clearExternal": "Effacer le contenu externe",
   "sessionPolicy.mode.defaultNamed": "Utiliser mon mode par défaut ({mode})",
   "sessionPolicy.mode.read-only": "Lecture seule",
   "sessionPolicy.mode.supervised": "Tout demander",

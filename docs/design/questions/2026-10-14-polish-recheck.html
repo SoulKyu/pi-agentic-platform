@@ -1,0 +1,480 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: matchMedia("(prefers-color-scheme: light)").matches ? "default" : "dark" });
+  // Same db surface as the claude.ai artifact, backed by this server's answers file.
+  const H = { "ngrok-skip-browser-warning": "1" };
+  window.claude = { use: async () => ({ doc: () => ({
+    get: async () => { const r = await fetch("answers", { cache: "no-store", headers: H }); if (!r.ok) return { exists: false, data: () => undefined }; const d = await r.json(); return { exists: true, data: () => d }; },
+    set: async (data) => { const r = await fetch("answers", { method: "POST", headers: { ...H, "content-type": "application/json" }, body: JSON.stringify(data) }); if (!r.ok) throw { code: "http_" + r.status }; },
+  }) }) };
+</script>
+</head><body>
+<title>Polish design : re-vérification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column (~70ch) with wide blocks (graph, waves, tables) breaking out to 1040px; pap's E1 Night first, Day for light viewers. */
+:root {
+  color-scheme: dark;
+  --bg: #110f18; --surface: #1a1724; --surface-2: #241f33;
+  --border: #2d2840; --border-strong: #3d3657;
+  --text: #f2effa; --muted: #9c95b5; --dim: #6b6485;
+  --agent: #a78bfa; --agent-tint: #a78bfa1f;
+  --you: #fb923c; --you-tint: #fb923c1a; --you-line: #fb923c66;
+  --attn: #ec4899; --attn-tint: #ec48991a;
+  --ok: #34d399; --ok-tint: #34d3991a; --err: #f87171;
+  --grid: #ffffff06; --focus: #fb923c;
+  --font-ui: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --r: 3px;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #faf9f6; --surface: #ffffff; --surface-2: #eeebe4;
+    --border: #e2ded5; --border-strong: #cfc9bc;
+    --text: #1c1917; --muted: #6b645a; --dim: #a8a196;
+    --agent: #6d28d9; --agent-tint: #6d28d914;
+    --you: #c2410c; --you-tint: #fff4ea; --you-line: #fdba74;
+    --attn: #be185d; --attn-tint: #fdf1f6;
+    --ok: #047857; --ok-tint: #04785712; --err: #dc2626;
+    --grid: #1c19170a; --focus: #ea580c;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #faf9f6; --surface: #ffffff; --surface-2: #eeebe4;
+  --border: #e2ded5; --border-strong: #cfc9bc;
+  --text: #1c1917; --muted: #6b645a; --dim: #a8a196;
+  --agent: #6d28d9; --agent-tint: #6d28d914;
+  --you: #c2410c; --you-tint: #fff4ea; --you-line: #fdba74;
+  --attn: #be185d; --attn-tint: #fdf1f6;
+  --ok: #047857; --ok-tint: #04785712; --err: #dc2626;
+  --grid: #1c19170a; --focus: #ea580c;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--font-ui); font-size: 15px; line-height: 1.6;
+  padding-inline: 16px; padding-block: 0 64px;
+  background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wrap { max-width: 1040px; margin-inline: auto; display: grid; gap: 56px; }
+.prose { max-width: 70ch; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.9rem, 4.5vw, 2.6rem); font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+h2 { font-size: 1.35rem; font-weight: 800; letter-spacing: -0.01em; line-height: 1.25; }
+h3 { font-size: 1rem; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font-family: var(--font-code); font-size: 0.72rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.lead { font-size: 1.08rem; color: var(--text); }
+.muted { color: var(--muted); }
+code, .mono { font-family: var(--font-code); font-size: 0.86em; }
+code { background: var(--surface-2); padding: 1px 5px; border-radius: var(--r); overflow-wrap: anywhere; }
+a { color: var(--agent); }
+section { display: grid; gap: 20px; }
+.sec-head { display: grid; gap: 6px; }
+
+header { padding-block: 48px 8px; display: grid; gap: 16px; border-bottom: 1px solid var(--border); padding-bottom: 32px; }
+.answer { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; }
+.verdict { font-family: var(--font-code); font-weight: 600; font-size: 0.8rem; color: var(--ok); background: var(--ok-tint); border: 1px solid var(--ok); padding: 2px 8px; border-radius: var(--r); letter-spacing: 0.06em; }
+
+/* facts strip */
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
+.fact { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; min-width: 0; }
+.fact .k { font-family: var(--font-code); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.fact .v { font-family: var(--font-code); font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fact .s { font-size: 0.82rem; color: var(--muted); }
+.bar { height: 6px; background: var(--surface-2); border-radius: 3px; margin-top: 6px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 97.65%; background: var(--attn); }
+
+/* graph */
+.graph { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 16px; overflow-x: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 0.82rem; color: var(--muted); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.sw { width: 12px; height: 12px; border-radius: 2px; display: inline-block; border: 1px solid var(--border-strong); }
+
+/* milestone table */
+.tbl { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 0.88rem; }
+th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+th { font-family: var(--font-code); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td.ms { font-family: var(--font-code); font-weight: 600; white-space: nowrap; }
+.pill { display: inline-block; font-family: var(--font-code); font-size: 0.7rem; padding: 1px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.hi { color: var(--ok); } .pill.mid { color: var(--you); } .pill.lo { color: var(--muted); } .pill.crit { color: var(--attn); }
+
+/* brakes */
+.brakes { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 12px; }
+.brake { border-left: 3px solid var(--attn); background: var(--surface); padding: 14px 16px; display: grid; gap: 6px; min-width: 0; border-radius: 0 var(--r) var(--r) 0; }
+.brake .num { font-family: var(--font-code); font-size: 0.82rem; color: var(--attn); font-weight: 600; }
+.brake p { font-size: 0.9rem; color: var(--muted); }
+.brake p b { color: var(--text); font-weight: 600; }
+
+/* waves */
+.waves { display: grid; gap: 8px; overflow-x: auto; }
+.wave { display: grid; grid-template-columns: 92px 1fr 1fr; gap: 8px; align-items: stretch; min-width: 560px; }
+.wave .lbl { font-family: var(--font-code); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; padding-top: 12px; }
+.chip { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 10px 12px; display: grid; gap: 2px; }
+.chip b { font-family: var(--font-code); font-size: 0.95rem; }
+.chip span { font-size: 0.8rem; color: var(--muted); }
+.chip.crit { border-color: var(--attn); background: var(--attn-tint); }
+.chip.empty { background: transparent; border-style: dashed; }
+.lane-h { display: grid; grid-template-columns: 92px 1fr 1fr; gap: 8px; min-width: 560px; font-family: var(--font-code); font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+
+/* https options */
+.opts { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.opt { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.opt.reco { border-color: var(--you); }
+.opt ul { margin: 0; padding-left: 18px; font-size: 0.86rem; color: var(--muted); display: grid; gap: 3px; }
+.opt .plus { color: var(--ok); } .opt .minus { color: var(--err); }
+.callout { background: var(--agent-tint); border: 1px solid var(--agent); border-radius: var(--r); padding: 12px 16px; font-size: 0.9rem; }
+
+/* questions */
+.qtools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 2; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--border); }
+.btn { font-family: var(--font-ui); font-weight: 700; font-size: 0.88rem; border-radius: var(--r); padding: 9px 14px; cursor: pointer; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); min-height: 40px; }
+.btn.primary { background: var(--you); border-color: var(--you); color: #1b0d00; }
+.btn:focus-visible, .card:focus-within, textarea:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.progress { font-family: var(--font-code); font-size: 0.8rem; color: var(--muted); margin-left: auto; }
+.qlist { display: grid; gap: 18px; }
+.q { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 18px; display: grid; gap: 12px; }
+.q.done { border-color: var(--border-strong); }
+.q-head { display: grid; gap: 4px; }
+.q-id { font-family: var(--font-code); font-size: 0.72rem; color: var(--attn); letter-spacing: 0.1em; }
+.q.done .q-id { color: var(--ok); }
+.q-ctx { font-size: 0.88rem; color: var(--muted); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.card { position: relative; border: 1px solid var(--border); border-radius: var(--r); padding: 12px 14px; cursor: pointer; display: grid; gap: 6px; align-content: start; background: var(--bg); min-width: 0; }
+.card input { position: absolute; opacity: 0; pointer-events: none; }
+.card:hover { border-color: var(--border-strong); }
+.card.sel { border-color: var(--you); background: var(--you-tint); }
+.card .t { font-weight: 700; font-size: 0.92rem; display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.card .d { font-size: 0.84rem; color: var(--muted); }
+.tag { font-family: var(--font-code); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; padding: 1px 6px; border-radius: 2px; }
+.tag.reco { color: var(--you); border: 1px solid var(--you-line); }
+textarea { width: 100%; min-height: 44px; resize: vertical; font-family: var(--font-ui); font-size: 0.88rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: var(--r); padding: 8px 10px; }
+.status { font-size: 0.9rem; padding: 12px 16px; border-radius: var(--r); border: 1px solid var(--border); background: var(--surface); }
+.status.ok { border-color: var(--ok); color: var(--ok); background: var(--ok-tint); }
+.status.err { border-color: var(--err); color: var(--err); }
+.fallback { display: grid; gap: 8px; }
+.fallback textarea { min-height: 160px; font-family: var(--font-code); font-size: 0.78rem; }
+footer { color: var(--muted); font-size: 0.82rem; border-top: 1px solid var(--border); padding-top: 16px; }
+@media (max-width: 520px) { body { font-size: 14.5px; } .q { padding: 14px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.group-h { font-family: var(--font-code); font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--agent); padding-top: 18px; border-top: 1px solid var(--border); }
+.fixes { display: grid; gap: 8px; margin: 0; padding-left: 20px; }
+.fixes li { font-size: 0.92rem; }
+.fixes li b { font-weight: 700; }
+
+/* mocks: the boards' own Night values (05, 06, 09, 12), fixed so they look the same in light or dark */
+.mk { background: #110F18; border: 1px solid #2D2840; border-radius: 3px; overflow: hidden; color: #F2EFFA; font: 400 13px/1.4 "Manrope", system-ui, sans-serif; pointer-events: none; user-select: none; min-width: 0; }
+.mk * { box-sizing: border-box; }
+.m-cap { font: 400 11px/1.4 "JetBrains Mono", ui-monospace, monospace; color: #9C95B5; padding: 6px 10px; border-top: 1px solid #2D2840; background: #14111D; }
+.m-shell { display: grid; grid-template-columns: 48px 1fr; min-height: 100px; }
+.m-rail { background: #14111D; border-right: 1px solid #2D2840; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0; color: #9C95B5; font-size: 12px; }
+.m-rail .sp, .m-tb .sp { flex: 1; }
+.m-main { min-width: 0; }
+.m-tb { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 8px; background: #14111D; border-bottom: 1px solid #2D2840; overflow: hidden; }
+.m-tabs { height: 34px; display: flex; align-items: center; padding: 0 8px; border-bottom: 1px solid #2D2840; }
+.m-tabs span { font: 600 10px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .06em; padding: 3px 8px; border: 1px solid #A78BFA; border-radius: 2px; background: #241F33; }
+.m-wm { font-family: "Manrope", sans-serif; font-weight: 800; letter-spacing: -.02em; color: #F2EFFA; line-height: 1.3; white-space: nowrap; }
+.m-ws { font: 600 10px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .1em; border: 1px solid #3D3657; padding: 2px 7px; border-radius: 2px; white-space: nowrap; }
+.m-ws.ghost { border-color: transparent; letter-spacing: .12em; font-size: 10.5px; padding: 2px 8px; }
+.m-kbd { font: 600 10px "JetBrains Mono", monospace; color: #9C95B5; border: 1px solid #3D3657; border-radius: 2px; padding: 1px 5px; white-space: nowrap; }
+.m-scr { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.m-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-height: 24px; }
+.m-row.wrap-no { flex-wrap: nowrap; }
+.m-link { text-decoration: underline; white-space: nowrap; }
+.m-name { font-weight: 600; font-size: 13px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m-chip { font: 600 9.5px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: 2px; border: 1px solid #34D399; color: #34D399; white-space: nowrap; }
+.m-chip.ext { border-style: dashed; border-color: #EC489966; color: #EC4899; }
+.m-btn { font: 600 10.5px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .12em; height: 26px; padding: 0 12px; display: inline-flex; align-items: center; border: 1px solid #6B6485; background: #1A1724; border-radius: 2px; color: #F2EFFA; white-space: nowrap; }
+.m-btn.sm { height: 24px; padding: 0 8px; }
+.m-btn.pri { background: #FB923C; border-color: #FB923C; color: #1B0D00; }
+.m-btn.big { height: 44px; flex: 1; justify-content: center; }
+.m-lbl { font: 600 10.5px "JetBrains Mono", monospace; text-transform: uppercase; letter-spacing: .12em; color: #9C95B5; }
+.m-sel { height: 26px; border: 1px solid #6B6485; background: #1A1724; border-radius: 2px; padding: 0 8px; display: flex; align-items: center; font-size: 13px; max-width: 280px; white-space: nowrap; overflow: hidden; }
+.m-pill { font: 11px "JetBrains Mono", monospace; border: 1px solid #A78BFA; color: #A78BFA; padding: 1px 8px; border-radius: 2px; height: 24px; display: inline-flex; align-items: center; white-space: nowrap; }
+.m-pol { display: flex; flex-direction: column; gap: 4px; }
+.m-pol .hint { margin-top: 4px; }
+.m-tr { border: 1px dashed #3D3657; border-radius: 3px; padding: 14px; color: #6B6485; font: 11px "JetBrains Mono", monospace; text-align: center; }
+.m-mute { color: #9C95B5; }
+.m-appr { border: 1px solid #EC48998C; background: #EC48991A; border-radius: 3px; display: flex; flex-direction: column; min-width: 0; }
+.m-appr .lab { font: 600 9.5px "JetBrains Mono", monospace; color: #F472B6; text-transform: uppercase; letter-spacing: .1em; }
+.m-appr .q { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.m-appr code { font: 12px "JetBrains Mono", monospace; background: #241F33; padding: 1px 5px; border-radius: 2px; }
+.m-appr pre { margin: 0; font: 12px/1.5 "JetBrains Mono", monospace; background: #110F18; border: 1px solid #2D2840; border-radius: 2px; padding: 8px; white-space: pre-wrap; color: #F2EFFA; overflow-wrap: anywhere; }
+.m-appr .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.m-msg { border-left: 2px solid #A78BFA; padding: 2px 0 2px 10px; font-size: 13px; }
+.m-msg.you { border-left: 0; background: #FB923C1A; border: 1px solid #FB923C66; color: #FDBA74; padding: 4px 10px; align-self: flex-end; border-radius: 3px; }
+.m-tool { border: 1px solid #3D3657; background: #1A1724; border-radius: 3px; padding: 4px 10px; font: 11px "JetBrains Mono", monospace; color: #9C95B5; }
+.m-comp { border: 1px solid #3D3657; border-radius: 3px; background: #1A1724; padding: 9px 11px; display: flex; flex-direction: column; gap: 8px; color: #9C95B5; font-size: 13px; }
+.m-comp.hot { border-color: #FB923C; }
+.m-phone { width: 100%; max-width: 280px; margin: 0 auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.m-stack { display: grid; gap: 10px; min-width: 0; }
+.opt-note { font-size: 0.8rem; color: var(--muted); }
+.card .mockbox { margin-top: 4px; min-width: 0; }
+.intro-list { display: grid; gap: 8px; margin: 0; padding-left: 20px; }
+.legend-est { font-size: 0.82rem; color: var(--muted); }
+.cards { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+</style>
+<div class="wrap">
+<header>
+  <div class="eyebrow">pap · re-vérification du polish · 14 octobre 2026</div>
+  <h1>Polish design : re-vérification</h1>
+  <p class="lead prose">Tu avais raison : le polish d'aujourd'hui ne suit pas tout ce que tu as choisi dans <code>docs/design/explorations/</code>. J'ai comparé le code (main 94e1071) aux options retenues. Sans navigateur sur le serveur, tout est jugé sur les classes et les tokens ; les hauteurs en px sont des estimations.</p>
+</header>
+
+<section aria-labelledby="s-rep">
+  <div class="sec-head"><div class="eyebrow">Ta question</div><h2 id="s-rep">« C'est parce que ce sera amélioré plus tard ? »</h2></div>
+  <ul class="intro-list prose">
+    <li><b>Logo et header : non, c'est une dérive du polish.</b> Le nom <code>pap</code> a été mis dans la barre à la taille de l'écran de connexion (20 px dans une barre de 34 px), loin de son symbole qui reste dans le rail. Le board 06 le dessine à 13 px, symbole 20 px à côté.</li>
+    <li><b>Actions de session et politique : non plus.</b> Elles datent de M2 et M5, sans aucun board, donc empilées en rangées (environ 200 px avant le premier message). Aucun jalon (M9, M11, M12, M13) ne les redessine. M11 apporte l'en-tête d'un <i>agent</i>, pas celui d'une session simple.</li>
+    <li><b>Carte d'approbation : contenu bon, forme trop haute.</b> Textes, ordre des boutons et teinte rose suivent le board 09 ; mais la carte est verticale (environ 135 à 280 px) là où le board tient en une ligne (environ 50 px).</li>
+    <li><b>Déjà prévu plus tard :</b> seulement la largeur des boutons d'approbation sur mobile (M12), le compteur Inbox et les avatars (M11).</li>
+  </ul>
+  <p class="legend-est">Les maquettes ci-dessous reprennent les valeurs CSS des boards (couleurs Night, polices, hauteurs 24 / 26 / 34 / 44 px). Elles sont à l'échelle réelle en densité Compact.</p>
+</section>
+
+<section aria-labelledby="s-q">
+  <div class="sec-head"><div class="eyebrow">À trancher</div><h2 id="s-q">Tes décisions</h2>
+  <p class="prose muted">Une option par question, avec une note libre possible sous chacune (« Autre » : dis-le dans la note). « Appliquer toutes les recos » remplit ce qui reste ; « Envoyer » enregistre tes réponses dans cette page. Rapport complet : <code>.superpowers/design-recheck.md</code>.</p></div>
+  <div class="qtools">
+    <button class="btn" id="btn-recos" type="button">Appliquer toutes les recos</button>
+    <button class="btn primary" id="btn-send" type="button">Envoyer mes réponses</button>
+    <span class="progress" id="progress">0 / 0</span>
+  </div>
+  <div class="qlist" id="qlist"></div>
+  <div class="status" id="status" hidden></div>
+  <div class="fallback" id="fallback" hidden>
+    <p class="muted">L'enregistrement n'est pas disponible dans cette vue. Copie ce texte et colle-le dans la conversation :</p>
+    <textarea id="fallback-text" readonly aria-label="Réponses à copier"></textarea>
+    <div><button class="btn" id="btn-copy" type="button">Copier</button></div>
+  </div>
+</section>
+
+<footer>Sources : boards <code>05-shell-mix-ac</code>, <code>06-logo-wordmark</code>, <code>09-agent-space-inbox</code>, <code>12-mobile-system</code>, <code>DESIGN.md</code> §5, §6, §8, §9.2, décisions 25, 26, 29, 32, roadmap M9 à M13.</footer>
+</div>
+<script>
+const VERSION = "design-recheck-1";
+const G1 = "Header", G2 = "Chat · actions de session", G3 = "Chat · approbations", G4 = "Autres";
+
+/* ---- mock helpers: real scale, the boards' Night values ---- */
+const PI = (px) => `<svg width="${px}" height="${px}" viewBox="0 0 32 32" aria-hidden="true" style="flex:none"><rect x="6" y="9" width="20" height="3.2" fill="#F2EFFA"/><rect x="10.4" y="12" width="3.2" height="13" fill="#A78BFA"/><path d="M18.6 12h3.2v9.4c0 1.4.5 2 1.6 2h.9V26h-1.6c-2.8 0-4.1-1.4-4.1-4.4z" fill="#FB923C"/></svg>`;
+const WM = (px) => `<span class="m-wm" style="font-size:${px}px">pap</span>`;
+const WS = `<span class="m-ws">pi-agentic ▾</span>`;
+const WSG = `<span class="m-ws ghost">pi-agentic ▾</span>`;
+const KB = `<span class="m-kbd">⌘B</span>`;
+const RIGHT = `<span class="sp"></span><span class="m-kbd">Inbox</span><span class="m-kbd">⌘K</span>`;
+const mkCap = (inner, cap) => `<div class="mk">${inner}<div class="m-cap">${cap}</div></div>`;
+const shell = (rail, bar, cap) => mkCap(`<div class="m-shell"><div class="m-rail">${rail}<span class="sp"></span><span>⚙</span></div><div class="m-main"><div class="m-tb">${bar}</div><div class="m-tabs"><span>feat/checkpoints ●</span></div></div></div>`, cap);
+const scr = (rows, cap) => mkCap(`<div class="m-scr">${rows}</div>`, cap);
+
+const HDR = (back, extra) => `<div class="m-row wrap-no">${back ? '<span class="m-link">Sessions</span>' : ""}<span class="m-name">Ajouter les checkpoints par tour</span>${extra || ""}<span class="m-chip">au repos</span></div>`;
+const BTNS = (cls) => ["Renommer", "Nommer", "Compacter", "Exporter", "Dupliquer"].map((b) => `<span class="m-btn ${cls || ""}">${b}</span>`).join("");
+const ACTIONS_ROW = `<div class="m-row">${BTNS()}</div>`;
+const RULES = `<div class="m-lbl">▸ Toujours autorisé dans ce projet</div>`;
+const POLICY = `<div class="m-pol"><span class="m-lbl">Approbations de cette session</span><div class="m-sel">Utiliser mon mode par défaut (Tout demander) ▾</div><span class="m-link hint" style="font-size:13px">Gérer les approbations</span></div>`;
+const TR = `<div class="m-tr">transcript</div>`;
+
+const APPR_Q = `Exécuter <code>git push origin feat/checkpoints</code> ?`;
+const APPR_CMD = `git push origin feat/checkpoints\n3 commits · +214 −38 · tests : ok`;
+
+const QUESTIONS = [
+  { id: "h1", group: G1, title: "Logo et nom <code>pap</code> dans le header",
+    ctx: "Le board 06 (L4 « deux jambes », nom pap) montre la barre avec symbole 20 px + nom 13 px. Les boards 05 et 09 mettent le symbole seul en haut du rail (26 px) ; DESIGN.md §8 aussi. Aujourd'hui : symbole 24 px dans le rail, nom 20 px dans la barre.",
+    options: [
+    { v: "a", t: "Symbole dans le rail, petit nom dans la barre (13 px)", d: "Respecte DESIGN §8 (logo dans le rail) et la décision 26 (nom dans la barre), à la taille du board 06.", reco: true,
+      m: shell(PI(26), `${WM(13)}${WS}${KB}${RIGHT}`, "rail : symbole 26 px · barre : nom 13 px") },
+    { v: "b", t: "Symbole + nom ensemble dans la barre (20 px + 13 px)", d: "Exactement la barre du board 06 ; le rail n'a plus de logo en haut.",
+      m: shell("", `${PI(20)}${WM(13)}${WS}${KB}${RIGHT}`, "barre : symbole 20 px + nom 13 px · rail sans logo") },
+    { v: "c", t: "Symbole seul dans le rail, pas de nom dans la barre", d: "Boards 05 et 09 à la lettre. Le nom reste dans l'onglet du navigateur, l'écran de connexion et l'icône PWA.",
+      m: shell(PI(26), `${WS}${KB}${RIGHT}`, "rail : symbole 26 px · barre sans nom") },
+    { v: "d", t: "Garder tel quel", d: "Nom 20 px dans la barre, symbole 24 px dans le rail.",
+      m: shell(PI(24), `${WM(20)}${WS}${KB}${RIGHT}`, "actuel : nom 20 px dans 34 px de barre") } ] },
+  { id: "h2", group: G1, title: "Sélecteur de projet dans la barre",
+    ctx: "Boards 05 et 09 : une puce mono bordée, 10 px, en capitales. Le code utilise un bouton discret sans bordure.",
+    options: [
+    { v: "a", t: "Puce bordée comme sur les boards", d: "Se lit comme un contrôle ; même grammaire que les ⌘B et ⌘K voisins.", reco: true,
+      m: mkCap(`<div class="m-tb">${WS}${KB}${RIGHT}</div>`, "board : bordure 1 px #3D3657, 10 px") },
+    { v: "b", t: "Garder le bouton discret avec chevron", d: "Aucun changement.",
+      m: mkCap(`<div class="m-tb">${WSG}${KB}${RIGHT}</div>`, "actuel : sans bordure") } ] },
+
+  { id: "c1", group: G2, title: "Les 5 boutons d'actions de session",
+    ctx: "Renommer, Nommer, Compacter, Exporter, Dupliquer occupent une rangée permanente (2 à 3 rangées sur téléphone) alors qu'on s'en sert rarement. Aucun board ne les dessine.",
+    options: [
+    { v: "a", t: "Un menu « ⋯ » à droite de l'en-tête", d: "Les 5 actions y sont rangées ; Renommer ouvre toujours le champ en place. Gain : environ 38 px (rangée + espace).", reco: true,
+      m: scr(`${HDR(true, '<span class="m-btn sm">⋯</span>')}${RULES}${TR}`, "en-tête seul : ≈ 24 px au lieu de 62") },
+    { v: "b", t: "Boutons compacts de 24 px dans la rangée d'en-tête", d: "Comme « Queue task » et « Pause » du board 09. Sur téléphone, ça passe à la ligne.",
+      m: scr(`<div class="m-row"><span class="m-link">Sessions</span><span class="m-name" style="flex:none">Ajouter les checkpoints</span>${BTNS("sm")}<span class="m-chip">au repos</span></div>${RULES}${TR}`, "une rangée, mais très chargée") },
+    { v: "c", t: "Garder la rangée d'aujourd'hui", d: "À revoir plus tard avec les lanes ou M13 (rien n'est planifié).",
+      m: scr(`${HDR(true)}${ACTIONS_ROW}${RULES}${TR}`, "actuel : en-tête 24 + rangée 26 + espace 12") } ] },
+  { id: "c2", group: G2, title: "Le lien souligné « Sessions » au début de l'en-tête",
+    ctx: "Reliquat de M2. Les boards n'en ont pas : on ouvre une session par les onglets, le tiroir ⌘B ou ⌘K (décision 25).",
+    options: [
+    { v: "a", t: "Le supprimer", d: "Le nom de la session passe en premier ; plus de lien souligné sans rôle de couleur.", reco: true,
+      m: scr(HDR(false), "nom d'abord") },
+    { v: "b", t: "Le garder", d: "Retour rapide vers la liste.",
+      m: scr(HDR(true), "actuel") } ] },
+  { id: "c3", group: G2, title: "Mode d'approbation de la session et règles « toujours autorisé »",
+    ctx: "Aujourd'hui trois rangées : la liste des règles, le sélecteur de mode avec son titre au-dessus (≈ 74 px avec le lien « Gérer »). Le mode reste visible en permanence, c'est ce qui compte pour la sécurité.",
+    options: [
+    { v: "a", t: "Pastille de mode dans l'en-tête, règles et « Gérer » dans son menu", d: "Le mode (Tout demander, Accès complet…) reste toujours visible et se change d'un clic ; Accès complet garde sa question de confirmation. Gain : environ 110 px.", reco: true,
+      m: scr(`${HDR(false, '<span class="m-pill">Tout demander ▾</span>')}${TR}`, "mode toujours visible, règles dans son menu") },
+    { v: "b", t: "Une seule rangée sous l'en-tête", d: "Sélecteur sans titre empilé, lien « Gérer » à droite, règles à la suite. Gain : environ 75 px.",
+      m: scr(`${HDR(false)}<div class="m-row" style="justify-content:space-between"><div class="m-sel">Tout demander ▾</div>${RULES}<span class="m-link">Gérer</span></div>${TR}`, "une rangée de 26 px") },
+    { v: "c", t: "Garder les trois rangées", d: "",
+      m: scr(`${HDR(false)}${RULES}${POLICY}${TR}`, "actuel : ≈ 100 px") } ] },
+
+  { id: "a1", group: G3, title: "Forme de la carte d'approbation",
+    ctx: "Board 09 : une ligne, question à gauche, boutons à droite (≈ 50 px). Code : carte verticale, 135 px au minimum, ≈ 215 px avec une commande de 3 lignes, jusqu'à ≈ 500 px. Pour un ingénieur sécurité : la commande complète doit rester lisible avant de cliquer Autoriser.",
+    options: [
+    { v: "a", t: "Une ligne comme le board, commande derrière « Voir »", d: "Le plus compact. Risque : on peut cliquer Autoriser sans avoir ouvert la commande.",
+      m: mkCap(`<div class="m-scr" style="padding:12px"><div class="m-appr" style="padding:8px 10px;gap:6px"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><div style="flex:1;min-width:160px"><div class="lab">Approbation · shell</div><div class="q">${APPR_Q}</div></div><div class="btns"><span class="m-btn sm">Refuser</span><span class="m-btn sm">Session</span><span class="m-btn sm pri">Autoriser une fois</span></div></div><div class="m-link m-mute" style="font-size:12px">▸ Voir la commande complète</div></div></div>`, "≈ 70 px, commande masquée") },
+    { v: "b", t: "Compacte, rien de caché", d: "Titre et question sur une ligne, commande visible dans une boîte courte, boutons à droite sur la même ligne que la note. Environ 140 px.", reco: true,
+      m: mkCap(`<div class="m-scr" style="padding:12px"><div class="m-appr" style="padding:8px 10px;gap:6px"><div><div class="lab">Approbation · shell</div><div class="q">${APPR_Q}</div></div><pre>${APPR_CMD}</pre><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between"><span class="m-mute" style="font-size:11px">Se ferme seule après 30 s</span><div class="btns"><span class="m-btn sm">Refuser</span><span class="m-btn sm">Session</span><span class="m-btn sm">Toujours</span><span class="m-btn sm pri">Autoriser une fois</span></div></div></div></div>`, "≈ 140 px, tout est lisible") },
+    { v: "c", t: "Garder la carte actuelle", d: "Padding 12 px, tout empilé, boutons sous le contenu.",
+      m: mkCap(`<div class="m-scr" style="padding:12px"><div class="m-appr" style="padding:12px"><div class="lab">Approbation · shell</div><div class="q" style="margin-top:8px">${APPR_Q}</div><div style="margin-top:8px;font:600 12px 'JetBrains Mono',monospace">git push origin feat/checkpoints</div><pre style="margin-top:4px">3 commits · +214 −38\ntests : ok\n(2e ligne de contexte)</pre><div class="m-mute" style="margin-top:8px;font-size:13px">Portée de « Toujours » : commande exacte ▾</div><div class="btns" style="margin-top:12px"><span class="m-btn">Refuser</span><span class="m-btn">Session</span><span class="m-btn">Toujours</span><span class="m-btn pri">Autoriser une fois</span></div><div class="m-mute" style="margin-top:8px;font-size:11px">Se ferme seule après 30 s</div></div></div>`, "actuel : ≈ 215 à 280 px") } ] },
+  { id: "a2", group: G3, title: "Où s'affiche la carte d'approbation",
+    ctx: "Board 09 : dans le fil, juste sous le message de l'agent. Code : sous le transcript, juste au-dessus du composeur. Une approbation en attente bloque l'agent ; si elle est dans le fil, elle peut défiler hors de l'écran.",
+    options: [
+    { v: "a", t: "Épinglée au-dessus du composeur (actuel)", d: "Toujours visible, impossible à manquer. Reste différente du board 09.", reco: true,
+      m: mkCap(`<div class="m-scr" style="gap:8px"><div class="m-msg">Je prépare le push.</div><div class="m-tool">bash · git push …</div><div class="m-msg you">Vas-y.</div><div class="m-appr" style="padding:8px 10px"><div class="lab">Approbation · shell</div><div class="q">Exécuter git push ?</div></div><div class="m-comp">Message…</div></div>`, "carte fixe, hors du défilement") },
+    { v: "b", t: "Dans le fil comme le board 09, avec un rappel épinglé", d: "Plus fidèle au board, mais demande une bande de rappel quand l'approbation défile hors de vue. Gros chantier.",
+      m: mkCap(`<div class="m-scr" style="gap:8px"><div class="m-msg">Je prépare le push.</div><div class="m-tool">bash · git push …</div><div class="m-appr" style="padding:8px 10px"><div class="lab">Approbation · shell</div><div class="q">Exécuter git push ?</div></div><div class="m-msg you">Vas-y.</div><div class="m-comp">Message…</div></div>`, "carte dans le fil + rappel si hors de vue") } ] },
+
+  { id: "o1", group: G4, title: "Boutons d'approbation sur téléphone",
+    ctx: "Board 12 : Refuser / Autoriser de 44 px pleine largeur. Code : largeur naturelle. C'est déjà prévu en M12 (mobile et PWA).",
+    options: [
+    { v: "a", t: "Laisser à M12", d: "Déjà au plan ; on évite de toucher la carte deux fois.", reco: true,
+      m: mkCap(`<div class="m-phone"><div class="m-appr" style="padding:12px;gap:8px"><div class="lab">Approbation · shell</div><div class="q">Exécuter git push ?</div><div class="btns"><span class="m-btn">Refuser</span><span class="m-btn">Session</span><span class="m-btn pri">Autoriser une fois</span></div></div></div>`, "M12 : boutons pleine largeur") },
+    { v: "b", t: "Le faire maintenant avec la nouvelle carte", d: "Petit travail, mais mélangé à la refonte de la carte.",
+      m: mkCap(`<div class="m-phone"><div class="m-appr" style="padding:12px;gap:8px"><div class="lab">Approbation · shell</div><div class="q">Exécuter git push ?</div><div class="btns"><span class="m-btn big">Refuser</span><span class="m-btn big pri">Autoriser</span></div><span class="m-btn" style="height:36px;justify-content:center">Autoriser pour la session</span></div></div>`, "board 12 : 44 px") } ] },
+  { id: "o2", group: G4, title: "Pastilles modèle et réflexion du composeur",
+    ctx: "Board 09 : les pastilles sont dans la boîte du composeur. Code : champ puis une rangée séparée (pastilles + Envoyer). Le polish a déjà corrigé la surface et les couleurs.",
+    options: [
+    { v: "a", t: "Les garder en rangée sous le champ", d: "Un seul écart mineur de forme ; à regrouper avec l'en-tête d'agent de M11.", reco: true,
+      m: mkCap(`<div class="m-scr" style="gap:8px"><div class="m-comp" style="border-color:#6B6485">Message…</div><div class="m-row"><span class="m-pill">anthropic · sonnet-5.5</span><span class="m-pill">réflexion : haute</span><span class="m-btn pri">Envoyer</span></div></div>`, "actuel") },
+    { v: "b", t: "Les mettre dans la boîte comme le board", d: "Plus proche du board 09, mais touche la structure du composeur.",
+      m: mkCap(`<div class="m-scr"><div class="m-comp hot">Message…<div class="m-row"><span class="m-pill">anthropic · sonnet-5.5</span><span class="m-pill">réflexion : haute</span><span style="flex:1"></span><span class="m-btn pri">Envoyer</span></div></div></div>`, "board 09") } ] },
+];
+
+const DRAFT_KEY = "pap-design-recheck-v1-draft";
+const state = {};
+try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (d && d.version === VERSION && d.state) Object.assign(state, d.state); } catch (e) {}
+
+function saveDraft() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ version: VERSION, state })); } catch (e) {} }
+
+function render() {
+  const list = document.getElementById("qlist");
+  list.textContent = "";
+  let group = null;
+  QUESTIONS.forEach((q, i) => {
+    if (q.group !== group) { group = q.group; const h = document.createElement("h3"); h.className = "group-h"; h.textContent = group; list.appendChild(h); }
+    const s = state[q.id] || {};
+    const box = document.createElement("div");
+    box.className = "q" + (s.choice ? " done" : "");
+    box.setAttribute("role", "radiogroup");
+    box.setAttribute("aria-labelledby", `h-${q.id}`);
+    box.innerHTML = `<div class="q-head"><span class="q-id">Q${i + 1}</span><h3 id="h-${q.id}">${q.title}</h3>${q.ctx ? `<p class="q-ctx">${q.ctx}</p>` : ""}</div><div class="cards"></div><textarea id="note-${q.id}" placeholder="Note libre ou « Autre » (facultatif)" aria-label="Note pour Q${i + 1}"></textarea>`;
+    const cards = box.querySelector(".cards");
+    q.options.forEach((o) => {
+      const lab = document.createElement("label");
+      lab.className = "card" + (s.choice === o.v ? " sel" : "");
+      lab.innerHTML = `<input type="radio" name="${q.id}" id="${q.id}-${o.v}" value="${o.v}"${s.choice === o.v ? " checked" : ""}><span class="t">${o.v.toUpperCase()}. ${o.t}${o.reco ? ' <span class="tag reco">reco</span>' : ""}</span>${o.d ? `<span class="d">${o.d}</span>` : ""}${o.m ? `<div class="mockbox" aria-hidden="true">${o.m}</div>` : ""}`;
+      lab.querySelector("input").addEventListener("change", () => { state[q.id] = { ...(state[q.id] || {}), choice: o.v }; saveDraft(); render(); });
+      cards.appendChild(lab);
+    });
+    const ta = box.querySelector("textarea");
+    ta.value = s.note || "";
+    ta.addEventListener("input", () => { state[q.id] = { ...(state[q.id] || {}), note: ta.value }; saveDraft(); });
+    list.appendChild(box);
+  });
+  const done = QUESTIONS.filter((q) => state[q.id] && state[q.id].choice).length;
+  document.getElementById("progress").textContent = `${done} / ${QUESTIONS.length}`;
+}
+
+function summaryText() {
+  return QUESTIONS.map((q, i) => {
+    const s = state[q.id] || {};
+    const o = q.options.find((x) => x.v === s.choice);
+    return `Q${i + 1} ${q.title} → ${o ? o.v.toUpperCase() + ". " + o.t : "(sans réponse)"}${s.note ? " · note : " + s.note : ""}`;
+  }).join("\n");
+}
+
+function showStatus(msg, kind) {
+  const el = document.getElementById("status");
+  el.textContent = msg; el.className = "status" + (kind ? " " + kind : ""); el.hidden = false;
+}
+
+function showFallback() {
+  document.getElementById("fallback-text").value = summaryText();
+  document.getElementById("fallback").hidden = false;
+}
+
+document.getElementById("btn-recos").addEventListener("click", () => {
+  QUESTIONS.forEach((q) => {
+    if (state[q.id] && state[q.id].choice) return;
+    const r = q.options.find((o) => o.reco);
+    if (r) state[q.id] = { ...(state[q.id] || {}), choice: r.v };
+  });
+  saveDraft(); render();
+});
+
+let db = null;
+let dbReady = false;
+(async () => {
+  try { db = window.claude && window.claude.use ? await window.claude.use("db") : null; } catch (e) { db = null; }
+  dbReady = true;
+  if (!db) return;
+  try {
+    const snap = await db.doc("answers/owner").get();
+    if (snap.exists) {
+      const data = snap.data() || {};
+      // Answers of an older questionnaire (M7 + M8) carry no matching version: ignored.
+      if (data.version !== VERSION) return;
+      if (data.submittedAt) showStatus(`Réponses déjà envoyées le ${new Date(data.submittedAt).toLocaleString("fr-FR")}. Tu peux les modifier et renvoyer.`, "ok");
+      if (!Object.keys(state).length && data.answers) {
+        Object.entries(data.answers).forEach(([k, a]) => { state[k] = { choice: a.choice, note: a.note || "" }; });
+        render();
+      }
+    }
+  } catch (e) {}
+})();
+
+document.getElementById("btn-send").addEventListener("click", async () => {
+  const missing = QUESTIONS.filter((q) => !(state[q.id] && state[q.id].choice)).length;
+  if (missing) { showStatus(`Il manque ${missing} réponse(s). Complète-les ou clique « Appliquer toutes les recos ».`, "err"); return; }
+  const answers = {};
+  QUESTIONS.forEach((q) => {
+    const s = state[q.id]; const o = q.options.find((x) => x.v === s.choice);
+    answers[q.id] = { choice: s.choice, label: o.t, reco: !!o.reco, note: (s.note || "").trim() };
+  });
+  if (!db) { showStatus(dbReady ? "Enregistrement indisponible ici." : "Connexion à l'enregistrement en cours, réessaie dans quelques secondes.", "err"); if (dbReady) showFallback(); return; }
+  const btn = document.getElementById("btn-send");
+  btn.disabled = true;
+  try {
+    await db.doc("answers/owner").set({ submittedAt: new Date().toISOString(), version: VERSION, answers, summary: summaryText() });
+    showStatus("Réponses enregistrées. Dis « réponses envoyées » dans la conversation, je les lis de mon côté.", "ok");
+  } catch (e) {
+    showStatus("L'enregistrement a échoué" + (e && e.code ? ` (${e.code})` : "") + ". Copie le texte ci-dessous dans la conversation.", "err");
+    showFallback();
+  } finally { btn.disabled = false; }
+});
+
+document.getElementById("btn-copy").addEventListener("click", async () => {
+  const ta = document.getElementById("fallback-text");
+  try { await navigator.clipboard.writeText(ta.value); showStatus("Copié.", "ok"); }
+  catch (e) { ta.focus(); ta.select(); }
+});
+
+render();
+</script>
+
+</body></html>

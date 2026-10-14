@@ -117,23 +117,3 @@ export function AlwaysRules({ cwd }: { cwd: string }) {
     </div>
   );
 }
-
-/** The session header's disclosure: opened, it lists the rules of the project of the snapshot's folder. */
-export function SessionRules({ cwd }: { sessionId: string; cwd: string }) {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  return (
-    <details data-always-rules className="text-ui" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="cursor-pointer label-hud text-muted">{t("rules.title")}</summary>
-      <div className="mt-s2">
-        {open ? (
-          cwd === "" ? (
-            <p className="text-ui text-muted">{t("rules.loading")}</p>
-          ) : (
-            <AlwaysRules cwd={cwd} />
-          )
-        ) : null}
-      </div>
-    </details>
-  );
-}

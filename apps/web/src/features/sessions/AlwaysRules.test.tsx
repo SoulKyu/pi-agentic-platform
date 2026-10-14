@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 // The session chunk registers these strings when it loads; the component is rendered here without it.
 import "./register-session-catalog.ts";
-import { act } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { alerts, button, click, settle, text } from "../../testing/dom.ts";
+import { pickItem, preloadMenu } from "../../testing/menu.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
@@ -21,6 +21,7 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
+beforeAll(preloadMenu);
 const screen = screenBed(current);
 const rule = (id: string, tool: string, label: string, createdAt = Date.UTC(2026, 9, 11)) => ({
   id,
@@ -41,15 +42,14 @@ const deferred = () => {
   return { promise, resolve };
 };
 
+/** The rules open from the approval mode chip's menu, in the session header. */
 async function open(container: HTMLElement) {
-  const details = container.querySelector<HTMLDetailsElement>("details[data-always-rules]");
-  if (!details) throw new Error("no rules disclosure");
-  await act(async () => {
-    details.open = true;
-    details.dispatchEvent(new Event("toggle"));
-  });
+  await pickItem(
+    container.querySelector("[data-policy-mode]") as HTMLElement,
+    "Always allowed in this project",
+  );
   await settle();
-  return details;
+  return container.querySelector("[data-always-rules]");
 }
 const revokeButtons = (container: HTMLElement) =>
   [...container.querySelectorAll("button")].filter((b) => b.textContent === "Revoke");
@@ -173,7 +173,21 @@ describe("always rules", () => {
     screen.bed.handlers["policy.listRules"] = () => two;
     const container = await screen.show({});
     expect(listed()).toHaveLength(0);
-    expect(button(container, "Rename")).toBeTruthy();
+    expect(container.querySelector("[data-always-rules]")).toBeNull();
+    expect(button(container, "Session actions")).toBeTruthy();
+  });
+
+  it("closes from its own button, with the focus back on the mode chip", async () => {
+    screen.bed.handlers["policy.listRules"] = () => two;
+    const container = await show();
+    await click(button(container, "Close"));
+    await vi.waitFor(
+      () => expect(document.activeElement).toBe(container.querySelector("[data-policy-mode]")),
+      {
+        timeout: 2_000,
+      },
+    );
+    expect(container.querySelector("[data-always-rules]")).toBeNull();
   });
 
   it("drops a list answer that a later reload overtook", async () => {

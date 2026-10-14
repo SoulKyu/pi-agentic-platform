@@ -36,6 +36,7 @@ export function ApprovalCardFor(props: {
   const bodyText = useClipped(body, BODY_LIMITS);
   // The card splits the header off the first line itself; a message of one line has no header and is all body.
   const category = t(`dialog.category.${dialog.category ?? "unknown"}`);
+  const bodyLines = bodyText.shown.split("\n").length;
   const detail = header === null ? bodyText.shown : `${headerText.shown}\n${bodyText.shown}`;
   return (
     <ApprovalCard
@@ -61,7 +62,18 @@ export function ApprovalCardFor(props: {
         </>
       }
       detail={detail}
-      headerLabel={headerText.expanded ? t("dialog.summary") : undefined}
+      withheld={(bodyText.clipped && !bodyText.expanded) || (headerText.clipped && !headerText.expanded)}
+      // The command is always on the card: two lines of it, and a button for the rest that says how long it is. Once
+      // the owner asked for the clipped rest ("Show more"), the whole box is shown.
+      collapse={
+        bodyText.expanded
+          ? undefined
+          : {
+              show: bodyLines > 2 ? t("dialog.showAllLines", { count: bodyLines }) : t("dialog.showAll"),
+              hide: t("dialog.collapse"),
+              blocked: t("dialog.showToAllow"),
+            }
+      }
       controls={
         question.clipped || headerText.clipped || bodyText.clipped || scopes.length > 0 ? (
           <>

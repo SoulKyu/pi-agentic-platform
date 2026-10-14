@@ -66,22 +66,19 @@ describe("ApprovalCard as the session screen uses it", () => {
     await page.unmount();
   });
 
-  it("bounds the header, and makes it a named, focusable region when the caller says it scrolls", async () => {
+  it("shows the header in the flow, with no clipping box and no tab stop", async () => {
     const page = await mount(
       <ApprovalCard
         title="Approval"
         detail={`${"h".repeat(3000)}\nbody`}
-        headerLabel="Summary"
         labels={LABELS}
         onChoose={() => {}}
       />,
     );
     const header = page.container.querySelector("[data-approval-header]");
-    expect(header?.className).toContain("max-h-32");
-    expect(header?.className).toContain("overflow-auto");
-    expect(header?.getAttribute("role")).toBe("region");
-    expect(header?.getAttribute("tabindex")).toBe("0");
-    expect(header?.getAttribute("aria-label")).toBe("Summary");
+    expect(header?.textContent).toBe("h".repeat(3000));
+    expect(header?.className).not.toMatch(/max-h|overflow/);
+    expect(header?.getAttribute("tabindex")).toBeNull();
     await page.unmount();
   });
 

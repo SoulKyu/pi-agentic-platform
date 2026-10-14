@@ -2,20 +2,11 @@
 // The session chunk registers these strings when it loads; the component is rendered here without it.
 import "./register-session-catalog.ts";
 import { act } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
-import {
-  alerts,
-  button,
-  click,
-  field,
-  hasButton,
-  mount,
-  press,
-  settle,
-  typeInto,
-} from "../../testing/dom.ts";
+import { alerts, button, click, field, mount, press, settle, typeInto } from "../../testing/dom.ts";
+import { pickItem, preloadMenu } from "../../testing/menu.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { SessionActions } from "./SessionActions.tsx";
 
@@ -33,6 +24,7 @@ async function show(view: SessionView = viewOf(), track?: <T>(call: Promise<T>) 
   page = await mount(<SessionActions sessionId="sess-1" view={view} track={track} />);
   return page.container;
 }
+const pick = (container: HTMLElement, label: string) => pickItem(button(container, "Session actions"), label);
 const deferred = () => {
   let resolve: (value: unknown) => void = () => {};
   let reject: (error: unknown) => void = () => {};
@@ -43,6 +35,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
+beforeAll(preloadMenu);
 beforeEach(() => {
   bed = fakeRuntime();
   current.runtime = bed.runtime;
@@ -59,19 +52,19 @@ afterEach(async () => {
 describe("SessionActions keyboard, focus and errors", () => {
   it("marks the rename field as an inline edit, for the page's key dispatcher", async () => {
     const container = await show();
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     expect(container.querySelector("[data-inline-edit] input")).not.toBeNull();
   });
 
   it("Enter on Cancel is left to the button: it saves nothing", async () => {
     const container = await show({ ...EMPTY_VIEW, name: "Old" });
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     await typeInto(field(container, "Rename"), "Changed");
     const event = await press(button(container, "Cancel"), { key: "Enter" });
     expect(event.defaultPrevented).toBe(false);
     expect(bed.called("sessions.rename")).toHaveLength(0);
     await click(button(container, "Cancel"));
-    expect(hasButton(container, "Rename")).toBe(true);
+    expect(container.querySelector("input")).toBeNull();
     expect(bed.called("sessions.rename")).toHaveLength(0);
   });
 
@@ -79,7 +72,7 @@ describe("SessionActions keyboard, focus and errors", () => {
     const reply = deferred();
     bed.handlers["sessions.rename"] = () => reply.promise;
     const container = await show();
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     await typeInto(field(container, "Rename"), "Name");
     await act(async () => {
       for (let i = 0; i < 2; i++)
@@ -92,21 +85,21 @@ describe("SessionActions keyboard, focus and errors", () => {
     await settle();
   });
 
-  it("returns focus to the Rename button after a save and after a cancel", async () => {
+  it("returns focus to the actions button after a save and after a cancel", async () => {
     const frames: Array<() => void> = [];
     vi.stubGlobal("requestAnimationFrame", (callback: () => void) => frames.push(callback));
     const container = await show();
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     await typeInto(field(container, "Rename"), "Name");
     await click(button(container, "Save"));
     await settle();
     frames.splice(0).forEach((frame) => frame());
-    expect(document.activeElement).toBe(button(container, "Rename"));
+    expect(document.activeElement).toBe(button(container, "Session actions"));
     (document.activeElement as HTMLElement).blur();
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     await click(button(container, "Cancel"));
     frames.splice(0).forEach((frame) => frame());
-    expect(document.activeElement).toBe(button(container, "Rename"));
+    expect(document.activeElement).toBe(button(container, "Session actions"));
   });
 
   it("gives each action its own error line", async () => {
@@ -117,9 +110,9 @@ describe("SessionActions keyboard, focus and errors", () => {
       throw new RpcError("capacity");
     };
     const container = await show();
-    await click(button(container, "Name it"));
+    await pick(container, "Name it");
     await settle();
-    await click(button(container, "Duplicate"));
+    await pick(container, "Duplicate");
     await settle();
     expect(alerts(container)).toEqual([
       "This session has no messages to work with yet.",
@@ -142,7 +135,7 @@ describe("SessionActions keyboard, focus and errors", () => {
     const clicked = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
     try {
       const container = await show();
-      await click(button(container, "Export"));
+      await pick(container, "Export");
       await click(button(container, "Download"));
       await settle();
       expect(clicked).not.toHaveBeenCalled();

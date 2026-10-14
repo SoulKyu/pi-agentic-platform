@@ -31,10 +31,28 @@ describe("SessionScreen header name", () => {
     expect(heading(container)?.textContent).toBe("Renamed");
   });
 
-  it("shows no name element when the session has none, and no rename control", async () => {
+  it("shows no name element when the session has none, and no rename field until Rename is chosen", async () => {
     const container = await screen.show({ name: null });
     expect(heading(container)).toBeNull();
-    expect(container.querySelectorAll("header button, header input")).toHaveLength(0);
+    expect(container.querySelectorAll("header input")).toHaveLength(0);
+    expect(container.querySelectorAll("header button[aria-label='Session actions']")).toHaveLength(1);
+  });
+
+  it("keeps the session actions in the header row, as one menu button at its end", async () => {
+    const container = await screen.show({ name: "Release prep" });
+    const header = container.querySelector("header") as HTMLElement;
+    expect(header.querySelector("[data-session-actions]")).not.toBeNull();
+    expect(container.querySelectorAll("section[data-session-actions]")).toHaveLength(0);
+    for (const name of ["Rename", "Name it", "Compact", "Export", "Duplicate"])
+      expect([...container.querySelectorAll("button")].some((b) => b.textContent === name)).toBe(false);
+  });
+});
+
+describe("SessionScreen header navigation", () => {
+  it("has no back link to the session list: tabs, the drawer and the palette navigate (decision 25)", async () => {
+    const container = await screen.show({ name: "Release prep" });
+    expect(container.querySelector("header a")).toBeNull();
+    expect(container.querySelector("header")?.textContent).not.toContain("Sessions");
   });
 });
 

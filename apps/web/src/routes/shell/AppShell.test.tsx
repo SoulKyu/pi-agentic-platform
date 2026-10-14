@@ -199,6 +199,9 @@ describe("AppShell", () => {
     );
     const bar = page.container.querySelector("header") as HTMLElement;
     expect(bar.querySelector('[data-slot="wordmark"]')?.textContent).toBe("pap");
+    // The small 13 px name of board 06, not the 20 px one of the auth frame; the symbol stays in the rail.
+    expect(bar.querySelector('[data-slot="wordmark"] span')?.className).toContain("text-ui");
+    expect(bar.querySelector('[data-slot="wordmark"] span')?.className).not.toContain("text-h1");
     expect(bar.textContent).not.toContain("Fix tests");
     const tabs = page.container.querySelector('[role="tablist"]') as HTMLElement;
     expect(tabs.textContent).toContain("Fix tests");

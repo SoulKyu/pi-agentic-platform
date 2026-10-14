@@ -2,7 +2,7 @@
 // The session chunk registers these strings when it loads; the component is rendered here without it.
 import "./register-session-catalog.ts";
 import { act } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import {
@@ -17,6 +17,7 @@ import {
   text,
   typeInto,
 } from "../../testing/dom.ts";
+import { isDisabled, menuItem, menuLabels, openMenu, pickItem, preloadMenu } from "../../testing/menu.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { SessionActions } from "./SessionActions.tsx";
 
@@ -35,6 +36,8 @@ async function show(view: SessionView = viewOf(), track?: <T>(call: Promise<T>) 
   page = await mount(<SessionActions sessionId="sess-1" view={view} track={track} />);
   return page.container;
 }
+const trigger = (container: HTMLElement) => button(container, "Session actions");
+const pick = (container: HTMLElement, label: string) => pickItem(trigger(container), label);
 const deferred = () => {
   let resolve: (value: unknown) => void = () => {};
   let reject: (error: unknown) => void = () => {};
@@ -45,6 +48,7 @@ const deferred = () => {
   return { promise, resolve, reject };
 };
 
+beforeAll(preloadMenu);
 beforeEach(() => {
   bed = fakeRuntime();
   current.runtime = bed.runtime;
@@ -58,10 +62,32 @@ afterEach(async () => {
   page = null;
 });
 
+describe("SessionActions menu", () => {
+  it("holds the five actions in one menu behind one button, and leaves no action button on the page", async () => {
+    const container = await show();
+    for (const name of ["Rename", "Name it", "Compact", "Export", "Duplicate"])
+      expect(hasButton(container, name)).toBe(false);
+    expect(container.querySelectorAll("button")).toHaveLength(1);
+    await openMenu(trigger(container));
+    expect(trigger(container).getAttribute("aria-haspopup")).toBe("menu");
+    expect(document.querySelector('[role="menu"]')?.getAttribute("aria-label")).toBe("Session actions");
+    expect(menuLabels()).toEqual(["Rename", "Name it", "Compact", "Export", "Duplicate"]);
+  });
+
+  it("opens from the keyboard and closes on Escape with the focus back on its button", async () => {
+    const container = await show();
+    await openMenu(trigger(container));
+    await press(document.querySelector('[role="menu"]') as Element, { key: "Escape" });
+    await settle();
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger(container));
+  });
+});
+
 describe("SessionActions rename", () => {
   it("saves on Enter with a command id, and closes the field", async () => {
     const container = await show(viewOf({ name: "Old" }));
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     expect(field(container, "Rename").value).toBe("Old");
     await typeInto(field(container, "Rename"), "New name");
     await press(field(container, "Rename"), { key: "Enter" });
@@ -73,7 +99,8 @@ describe("SessionActions rename", () => {
         options: { commandId: "bed-cmd-00000001" },
       },
     ]);
-    expect(hasButton(container, "Rename")).toBe(true);
+    expect(container.querySelector("input")).toBeNull();
+    expect(document.activeElement).toBe(trigger(container));
   });
 
   it("Escape cancels, sends nothing and never reaches the page's own key handler", async () => {
@@ -81,12 +108,12 @@ describe("SessionActions rename", () => {
     document.addEventListener("keydown", onDocument);
     try {
       const container = await show(viewOf({ name: "Old" }));
-      await click(button(container, "Rename"));
+      await pick(container, "Rename");
       await typeInto(field(container, "Rename"), "Changed");
       await press(field(container, "Rename"), { key: "Escape" });
       expect(onDocument).not.toHaveBeenCalled();
       expect(bed.called("sessions.rename")).toHaveLength(0);
-      expect(hasButton(container, "Rename")).toBe(true);
+      expect(container.querySelector("input")).toBeNull();
     } finally {
       document.removeEventListener("keydown", onDocument);
     }
@@ -94,7 +121,7 @@ describe("SessionActions rename", () => {
 
   it("shows the name clipped to 256 characters, counted by code point, and sends exactly that", async () => {
     const container = await show();
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     await typeInto(field(container, "Rename"), "😀".repeat(300));
     expect([...field(container, "Rename").value]).toHaveLength(256);
     await click(button(container, "Save"));
@@ -107,7 +134,7 @@ describe("SessionActions rename", () => {
 
   it("does not save a blank name", async () => {
     const container = await show();
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     await typeInto(field(container, "Rename"), "   ");
     expect(button(container, "Save").disabled).toBe(true);
     await press(field(container, "Rename"), { key: "Enter" });
@@ -119,7 +146,7 @@ describe("SessionActions rename", () => {
       throw new RpcError("timeout");
     };
     const container = await show();
-    await click(button(container, "Rename"));
+    await pick(container, "Rename");
     await typeInto(field(container, "Rename"), "Name");
     await click(button(container, "Save"));
     await settle();
@@ -135,46 +162,53 @@ describe("SessionActions auto-name", () => {
       throw new RpcError("session_empty");
     };
     const container = await show();
-    await click(button(container, "Name it"));
+    await pick(container, "Name it");
     await settle();
     expect(alerts(container)).toEqual(["This session has no messages to work with yet."]);
-    expect(button(container, "Name it").disabled).toBe(false);
+    await openMenu(trigger(container));
+    expect(isDisabled(menuItem("Name it"))).toBe(false);
   });
 
   it("is disabled while a call runs, and says Naming… only after one second", async () => {
-    vi.useFakeTimers();
     const reply = deferred();
     bed.handlers["sessions.autoName"] = () => reply.promise;
     const container = await show();
-    await click(button(container, "Name it"));
-    expect(button(container, "Name it").disabled).toBe(true);
-    expect(hasButton(container, "Naming…")).toBe(false);
+    await openMenu(trigger(container));
+    vi.useFakeTimers();
+    const reopen = () => press(trigger(container), { key: "ArrowDown" });
+    await click(menuItem("Name it"));
+    await reopen();
+    expect(isDisabled(menuItem("Name it"))).toBe(true);
+    expect(menuLabels()).not.toContain("Naming…");
     await act(async () => {
       vi.advanceTimersByTime(999);
     });
-    expect(hasButton(container, "Naming…")).toBe(false);
+    expect(menuLabels()).not.toContain("Naming…");
     await act(async () => {
       vi.advanceTimersByTime(1);
     });
-    expect(button(container, "Naming…").disabled).toBe(true);
-    await click(button(container, "Naming…"));
+    expect(isDisabled(menuItem("Naming…"))).toBe(true);
+    await click(menuItem("Naming…"));
     expect(bed.called("sessions.autoName")).toHaveLength(1);
     reply.resolve({ name: "Done" });
     await act(async () => {});
-    expect(button(container, "Name it").disabled).toBe(false);
+    await reopen();
+    expect(isDisabled(menuItem("Name it"))).toBe(false);
   });
 });
 
 describe("SessionActions compact", () => {
   it("is disabled while the agent runs and while the session compacts, and asks no confirmation", async () => {
     let container = await show(viewOf({ status: "running" }));
-    expect(button(container, "Compact").disabled).toBe(true);
+    await openMenu(trigger(container));
+    expect(isDisabled(menuItem("Compact"))).toBe(true);
     await page?.unmount();
     container = await show(viewOf({ activity: { compacting: true, retry: null } }));
-    expect(button(container, "Compact").disabled).toBe(true);
+    await openMenu(trigger(container));
+    expect(isDisabled(menuItem("Compact"))).toBe(true);
     await page?.unmount();
     container = await show(viewOf({ status: "idle" }));
-    await click(button(container, "Compact"));
+    await pick(container, "Compact");
     await settle();
     expect(bed.called("sessions.compact")).toHaveLength(1);
     expect(bed.called("sessions.compact")[0]?.options).toEqual({ commandId: "bed-cmd-00000001" });
@@ -188,9 +222,11 @@ describe("SessionActions compact", () => {
       tracked.push(call);
       return call;
     });
-    await click(button(container, "Compact"));
+    await pick(container, "Compact");
     expect(tracked).toHaveLength(1);
-    await click(button(container, "Compact"));
+    await openMenu(trigger(container));
+    expect(isDisabled(menuItem("Compact"))).toBe(true);
+    await click(menuItem("Compact"));
     expect(bed.called("sessions.compact")).toHaveLength(1);
     reply.resolve({ tokensBefore: 1, estimatedTokensAfter: null });
     await settle();
@@ -201,7 +237,7 @@ describe("SessionActions compact", () => {
       throw new RpcError("connection_lost");
     };
     const container = await show();
-    await click(button(container, "Compact"));
+    await pick(container, "Compact");
     await settle();
     expect(alerts(container)[0]).toContain("may still have gone through");
     expect(bed.called("sessions.compact")).toHaveLength(1);
@@ -211,7 +247,7 @@ describe("SessionActions compact", () => {
 describe("SessionActions export", () => {
   it("shows the warning first and calls nothing until Download", async () => {
     const container = await show();
-    await click(button(container, "Export"));
+    await pick(container, "Export");
     expect(text(container)).toContain("The file holds everything the agent saw, secrets included.");
     expect(bed.calls.filter((call) => call.method !== "subscribe.session")).toEqual([]);
     expect(hasButton(container, "Download")).toBe(true);
@@ -219,7 +255,7 @@ describe("SessionActions export", () => {
 
   it("Cancel calls nothing and closes the warning", async () => {
     const container = await show();
-    await click(button(container, "Export"));
+    await pick(container, "Export");
     await click(button(container, "Cancel"));
     expect(bed.called("sessions.exportHtml")).toHaveLength(0);
     expect(text(container)).not.toContain("secrets included");
@@ -252,7 +288,7 @@ describe("SessionActions export", () => {
     });
     try {
       const container = await show();
-      await click(button(container, "Export"));
+      await pick(container, "Export");
       await click(button(container, "Download"));
       await settle();
       expect(bed.called("sessions.exportHtml")).toEqual([
@@ -280,7 +316,7 @@ describe("SessionActions export", () => {
       throw new RpcError("timeout");
     };
     const container = await show();
-    await click(button(container, "Export"));
+    await pick(container, "Export");
     await click(button(container, "Download"));
     await settle();
     expect(alerts(container)[0]).toContain("may still have gone through");
@@ -292,7 +328,7 @@ describe("SessionActions duplicate", () => {
   it("clones, then opens the new session", async () => {
     bed.handlers["sessions.clone"] = () => ({ sessionId: "copy-1" });
     const container = await show();
-    await click(button(container, "Duplicate"));
+    await pick(container, "Duplicate");
     await settle();
     expect(bed.called("sessions.clone")[0]?.params).toEqual({ sessionId: "sess-1" });
     expect(current.navigate).toHaveBeenCalledWith({ to: "/s/$sessionId", params: { sessionId: "copy-1" } });
@@ -303,7 +339,7 @@ describe("SessionActions duplicate", () => {
       throw new RpcError("capacity");
     };
     const container = await show();
-    await click(button(container, "Duplicate"));
+    await pick(container, "Duplicate");
     await settle();
     expect(alerts(container)).toEqual(["The server is at capacity. Try again later."]);
     expect(current.navigate).not.toHaveBeenCalled();

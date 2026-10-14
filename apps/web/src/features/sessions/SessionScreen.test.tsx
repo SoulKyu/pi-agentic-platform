@@ -216,7 +216,7 @@ describe("SessionScreen approvals", () => {
     expect(scroll?.textContent?.includes("TAIL-OF-THE-COMMAND")).toBe(false);
     await click(button(container, "Show more"));
     expect(scroll?.textContent?.endsWith("TAIL-OF-THE-COMMAND")).toBe(true);
-    expect(scroll?.className).toContain("overflow-auto");
+    expect(scroll?.className).not.toMatch(/max-h|overflow/);
   });
 
   it("answers Yes with confirmed: true, exactly once", async () => {

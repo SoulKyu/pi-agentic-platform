@@ -88,6 +88,16 @@ const three = () =>
   );
 
 describe("the project switcher", () => {
+  it("is a bordered mono chip with the HUD label (boards 05 and 09), still a button named after the project", async () => {
+    const page = await renderShell("/");
+    await settle();
+    expect(trigger().tagName).toBe("BUTTON");
+    expect(trigger().className).toContain("border-control-border");
+    expect(trigger().className).toContain("label-hud");
+    expect(trigger().className).not.toContain("border-transparent");
+    await page.unmount();
+  });
+
   it("says All projects, lists the projects that have an active session in order, and none that is idle", async () => {
     const page = await renderShell("/");
     await settle();

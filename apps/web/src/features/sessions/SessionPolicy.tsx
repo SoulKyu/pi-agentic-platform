@@ -1,10 +1,13 @@
 import { APPROVAL_MODES, type ApprovalMode, type SessionPolicyView } from "@pap/contracts";
-import { Button, Chip, cn, FOCUS_RING, Select } from "@pap/ui";
-import { Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import { useT } from "../../i18n/index.ts";
+import { Button, Chip } from "@pap/ui";
+import type { MenuItem } from "@pap/ui/overlays";
+import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useId, useRef, useState } from "react";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { getRuntime } from "../../runtime/index.ts";
 import "./register-policy-catalog.ts";
+import { AlwaysRules } from "./AlwaysRules.tsx";
 import { useAction } from "./use-action.ts";
 
 type Choice = ApprovalMode | "default";
@@ -45,36 +48,52 @@ function Ask(props: {
 
 /**
  * The session's approval mode and its external-content taint, read from the view (snapshot and `policy` events), never
- * from a fetch of its own. Full access and Clear ask first; every outcome, good or bad, is said here.
+ * from a fetch of its own. It is a chip in the session header; its menu holds the mode choice, the external-content
+ * Clear, the project's always-rules and the link to Settings. Full access and Clear ask first; every outcome, good or
+ * bad, is said below the header row.
  */
 export function SessionPolicy({
   sessionId,
   policy,
+  cwd,
 }: {
   readonly sessionId: string;
   readonly policy: SessionPolicyView;
+  /** The folder of the snapshot: the project whose always-rules the menu lists. */
+  readonly cwd: string;
 }) {
   const t = useT();
+  const lazyText = useLazyFailureText();
+  const navigate = useNavigate();
   const runtime = getRuntime();
-  const root = useRef<HTMLElement | null>(null);
+  const why = useId();
+  const root = useRef<HTMLDivElement | null>(null);
   const [asking, setAsking] = useState<Asking>(null);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [outcome, setOutcome] = useState<string | null>(null);
   const setMode = useAction();
   const clearTaint = useAction();
 
   // A cleared (or never set) taint leaves no question behind: a later taint must not bring the old one back.
   if (!policy.tainted && asking === "clear") setAsking(null);
-  const focus = (selector: string) =>
-    requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(selector)?.focus());
+  // The chip gets the focus back once the screen has drawn it again (an effect, so no ref is read during render).
+  const [refocus, setRefocus] = useState(0);
+  const focus = () => setRefocus((n) => n + 1);
+  useEffect(() => {
+    if (refocus === 0) return;
+    const frame = requestAnimationFrame(() =>
+      root.current?.querySelector<HTMLElement>("[data-policy-mode]")?.focus(),
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [refocus]);
   const forget = () => {
     setOutcome(null);
     setMode.clear();
     clearTaint.clear();
   };
   const cancel = () => {
-    const was = asking;
     setAsking(null);
-    focus(was === "clear" ? "[data-policy-clear]" : '[role="combobox"]');
+    focus();
   };
 
   const send = async (mode: ApprovalMode | null) => {
@@ -88,7 +107,7 @@ export function SessionPolicy({
     );
     setAsking(null);
     if (saved) setOutcome(t("sessionPolicy.modeSaved"));
-    focus('[role="combobox"]');
+    focus();
   };
   const clear = async () => {
     forget();
@@ -97,97 +116,160 @@ export function SessionPolicy({
     );
     setAsking(null);
     if (cleared) setOutcome(t("sessionPolicy.cleared"));
-    focus('[role="combobox"]');
+    focus();
   };
+  const selected: Choice = policy.explicit ? policy.mode : "default";
   const choose = (choice: Choice) => {
+    if (choice === selected) return;
     forget();
     if (choice === "full-access") setAsking("full-access");
     else void send(choice === "default" ? null : choice);
   };
 
   const named = (mode: ApprovalMode) => t(`sessionPolicy.mode.${mode}`);
-  const options = [
+  const choices = [
     {
       value: "default" as Choice,
       label: t("sessionPolicy.mode.defaultNamed", { mode: named(policy.defaultMode) }),
     },
     ...APPROVAL_MODES.map((mode) => ({ value: mode as Choice, label: named(mode) })),
   ];
+  const modeItems: MenuItem[] = [];
+  for (const { value, label } of choices) {
+    modeItems.push({
+      id: `mode:${value}`,
+      label: value === selected ? t("sessionPolicy.current", { label }) : label,
+      // Full access is the one choice that widens what runs unasked: it stays apart (and asks first).
+      ...(value === "full-access" ? { tone: "danger" as const } : {}),
+      onSelect: () => choose(value),
+    });
+  }
+  const items: MenuItem[] = [
+    ...modeItems,
+    ...(policy.tainted
+      ? [
+          {
+            id: "clear",
+            label: t("sessionPolicy.clearExternal"),
+            disabled: clearTaint.busy,
+            onSelect: () => {
+              forget();
+              setAsking("clear");
+            },
+          },
+        ]
+      : []),
+    { id: "rules", label: t("rules.title"), onSelect: () => setRulesOpen(true) },
+    {
+      id: "manage",
+      label: t("sessionPolicy.manage"),
+      onSelect: () => void navigate({ to: "/settings/$section", params: { section: "approvals" } }),
+    },
+  ];
   const failures = [
     { key: "mode", message: setMode.error },
     { key: "clear", message: clearTaint.error },
   ];
+  const modeName = named(policy.mode);
 
+  // The chip sits in the session header's row; every panel below takes a row of its own at the end of it.
   return (
-    <section
+    <div
       ref={root}
-      aria-label={t("sessionPolicy.bar")}
       data-session-policy
-      // While a question is open, focus anywhere in the bar is an edit in progress: Escape never stops the run.
+      // While a question is open, focus anywhere here is an edit in progress: Escape never stops the run.
       data-inline-edit={asking === null ? undefined : ""}
-      className="flex flex-col gap-s2"
+      className="contents"
     >
-      <div className="flex flex-wrap items-end gap-s3">
-        <div className="min-w-56">
-          <Select<Choice>
-            label={t("sessionPolicy.mode")}
-            value={policy.explicit ? policy.mode : "default"}
-            options={options}
-            onChange={choose}
+      <LazyMenu
+        label={t("sessionPolicy.bar")}
+        closeLabel={t("ui.close")}
+        text={lazyText}
+        items={items}
+        trigger={(ask) => (
+          <Button
+            variant="secondary"
+            size="sm"
+            data-policy-mode
             disabled={setMode.busy}
+            aria-label={t(policy.explicit ? "sessionPolicy.chip" : "sessionPolicy.chipDefault", {
+              mode: modeName,
+            })}
+            aria-describedby={policy.tainted ? why : undefined}
+            onClick={ask}
+          >
+            {modeName}
+          </Button>
+        )}
+      />
+      {policy.tainted ? (
+        <>
+          <Chip tone="ext" label={t("sessionPolicy.external")} />
+          <span id={why} className="sr-only">
+            {t("sessionPolicy.externalWhy")}
+          </span>
+        </>
+      ) : null}
+      {asking === "full-access" ? (
+        <div className="order-last w-full">
+          <Ask
+            question={t("sessionPolicy.confirmFull")}
+            confirm={t("sessionPolicy.switch")}
+            busy={setMode.busy}
+            onConfirm={() => void send("full-access")}
+            onCancel={cancel}
           />
         </div>
-        {policy.tainted ? (
-          <div className="flex items-center gap-s2">
-            <Chip tone="ext" label={t("sessionPolicy.external")} />
-            {asking === "clear" ? null : (
-              <Button data-policy-clear disabled={clearTaint.busy} onClick={() => setAsking("clear")}>
-                {t("sessionPolicy.clear")}
-              </Button>
-            )}
-          </div>
-        ) : null}
-      </div>
-      {policy.tainted ? <p className="text-ui text-muted">{t("sessionPolicy.externalWhy")}</p> : null}
-      {asking === "full-access" ? (
-        <Ask
-          question={t("sessionPolicy.confirmFull")}
-          confirm={t("sessionPolicy.switch")}
-          busy={setMode.busy}
-          onConfirm={() => void send("full-access")}
-          onCancel={cancel}
-        />
       ) : null}
       {asking === "clear" && policy.tainted ? (
-        <Ask
-          question={t("sessionPolicy.confirmClear")}
-          confirm={t("sessionPolicy.clear")}
-          busy={clearTaint.busy}
-          onConfirm={() => void clear()}
-          onCancel={cancel}
-        />
+        <div className="order-last flex w-full flex-col gap-s2">
+          <p className="text-ui text-muted">{t("sessionPolicy.externalWhy")}</p>
+          <Ask
+            question={t("sessionPolicy.confirmClear")}
+            confirm={t("sessionPolicy.clear")}
+            busy={clearTaint.busy}
+            onConfirm={() => void clear()}
+            onCancel={cancel}
+          />
+        </div>
+      ) : null}
+      {rulesOpen ? (
+        <section
+          aria-label={t("rules.title")}
+          data-always-rules
+          className="order-last flex w-full flex-col gap-s2"
+        >
+          <div className="flex items-center justify-between gap-s2">
+            <h2 className="label-hud text-muted">{t("rules.title")}</h2>
+            <Button
+              size="sm"
+              onClick={() => {
+                setRulesOpen(false);
+                focus();
+              }}
+            >
+              {t("ui.close")}
+            </Button>
+          </div>
+          {cwd === "" ? (
+            <p className="text-ui text-muted">{t("rules.loading")}</p>
+          ) : (
+            <AlwaysRules cwd={cwd} />
+          )}
+        </section>
       ) : null}
       {outcome ? (
-        <p role="status" className="text-ui text-muted">
+        <p role="status" className="order-last w-full text-ui text-muted">
           {outcome}
         </p>
       ) : null}
       {failures.map(({ key, message }) =>
         message === null ? null : (
-          <p key={key} role="alert" className="text-ui text-attn">
+          <p key={key} role="alert" className="order-last w-full text-ui text-attn">
             {message}
           </p>
         ),
       )}
-      <p>
-        <Link
-          to="/settings/$section"
-          params={{ section: "approvals" }}
-          className={cn("text-ui text-fg underline", FOCUS_RING)}
-        >
-          {t("sessionPolicy.manage")}
-        </Link>
-      </p>
-    </section>
+    </div>
   );
 }

@@ -4,7 +4,7 @@ import { useT } from "../../i18n/index.ts";
 import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
 import { useShortcut } from "./shortcut.ts";
 
-/** The `pap` wordmark (decision 26) and the drawer buttons. The open item's title is the tab's, not repeated here. */
+/** The small `pap` name (decision 26; the π symbol is the rail's) and the drawer buttons. The open item's title is the tab's, not repeated here. */
 export function TopBar() {
   const t = useT();
   const tree = useShortcut("drawer.tree.toggle");
@@ -12,7 +12,7 @@ export function TopBar() {
   const palette = useShortcut("palette.toggle");
   return (
     <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
-      <Wordmark name={t("app.name")} />
+      <Wordmark name={t("app.name")} compact />
       <ProjectSwitcher />
       <IconButton
         icon={IconTree}

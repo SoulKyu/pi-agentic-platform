@@ -12,7 +12,7 @@ const inOrder = (a: ProjectSummary, b: ProjectSummary): number =>
   a.position - b.position || a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1);
 
 /**
- * "project ▾" (DESIGN §8): the current project of this device, and a menu of every project with an active session.
+ * "project ▾" (DESIGN §8), drawn as the bordered mono chip of boards 05 and 09 (`.ws`): the current project of this device, and a menu of every project with an active session.
  * The button is eager; the menu comes with the overlay chunk on the first press.
  */
 export function ProjectSwitcher() {
@@ -53,7 +53,13 @@ export function ProjectSwitcher() {
       text={lazyText}
       items={items}
       trigger={(ask) => (
-        <Button variant="ghost" size="sm" aria-label={t("shell.project.label", { name })} onClick={ask}>
+        <Button
+          variant="secondary"
+          size="sm"
+          data-project-chip
+          aria-label={t("shell.project.label", { name })}
+          onClick={ask}
+        >
           <span className="max-w-40 truncate">{name}</span>
           <Icon icon={IconChevronDown} size={14} />
         </Button>

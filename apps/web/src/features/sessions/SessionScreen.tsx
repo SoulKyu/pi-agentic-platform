@@ -1,8 +1,7 @@
 import "./register-session-catalog.ts";
 import "./register-policy-catalog.ts";
-import { Banner, Button, cn, FOCUS_RING, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
+import { Banner, Button, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
-import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { codedServerText } from "../../i18n/server-text.ts";
@@ -12,7 +11,6 @@ import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
-import { SessionRules } from "./AlwaysRules.tsx";
 import { Composer } from "./Composer.tsx";
 import { CrashBanner } from "./CrashBanner.tsx";
 import { SessionPolicy } from "./SessionPolicy.tsx";
@@ -90,20 +88,19 @@ export function SessionScreen({
       data-session-screen={sessionId}
       className="flex min-h-0 w-full flex-1 flex-col gap-s3 p-s4"
     >
-      <header className="flex items-center justify-between">
-        <Link to="/" className={cn("text-fg underline", FOCUS_RING)}>
-          {t("sessions.title")}
-        </Link>
-        {view.name ? (
-          <h1 data-session-name className="min-w-0 flex-1 truncate px-s3 text-ui font-semibold text-fg">
-            {view.name}
-          </h1>
-        ) : null}
-        {title ? (
-          <span data-session-title className="min-w-0 truncate px-s3 font-mono text-ui text-muted">
-            {title}
-          </span>
-        ) : null}
+      <header className="flex flex-wrap items-center gap-s2">
+        <div className="flex min-w-0 flex-1 items-baseline gap-s3">
+          {view.name ? (
+            <h1 data-session-name className="min-w-0 truncate text-ui font-semibold text-fg">
+              {view.name}
+            </h1>
+          ) : null}
+          {title ? (
+            <span data-session-title className="min-w-0 truncate font-mono text-ui text-muted">
+              {title}
+            </span>
+          ) : null}
+        </div>
         <RunStatusChip
           status={runStatusOf(view)}
           label={t(
@@ -111,6 +108,19 @@ export function SessionScreen({
               ? "session.status.needsInput"
               : `session.status.${view.status}`,
           )}
+        />
+        <SessionPolicy
+          key={`policy:${sessionId}`}
+          sessionId={sessionId}
+          policy={view.policy}
+          cwd={view.cwd}
+        />
+        <SessionActions
+          key={`actions:${sessionId}`}
+          sessionId={sessionId}
+          view={view}
+          track={structural.track}
+          blocked={structural.active}
         />
       </header>
       {view.unreadable ? (
@@ -133,15 +143,6 @@ export function SessionScreen({
         </Banner>
       ) : null}
       <TrustBanner sessionId={sessionId} cwd={view.cwd} trust={view.loadout?.projectTrust ?? null} />
-      <SessionActions
-        key={`actions:${sessionId}`}
-        sessionId={sessionId}
-        view={view}
-        track={structural.track}
-        blocked={structural.active}
-      />
-      <SessionRules key={`rules:${sessionId}`} sessionId={sessionId} cwd={view.cwd} />
-      <SessionPolicy key={`policy:${sessionId}`} sessionId={sessionId} policy={view.policy} />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
       <Transcript
         key={`transcript:${sessionId}`}

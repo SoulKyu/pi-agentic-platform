@@ -150,10 +150,11 @@ describe("SessionScreen approval dialogs", () => {
     expect(container.querySelector("[data-approval-guard]")).toBeNull();
   });
 
-  it("mounts the policy bar from the snapshot's policy, and a policy event changes it", async () => {
+  it("mounts the mode chip in the header from the snapshot's policy, and a policy event changes it", async () => {
     const container = await show([], { mode: "read-only", explicit: true, tainted: true });
     expect(container.querySelector("[data-session-policy]")?.textContent).toContain("External content");
-    expect(container.querySelector('[role="combobox"]')?.textContent).toContain("Read only");
+    expect(container.querySelector("header [data-policy-mode]")?.textContent).toBe("Read only");
+    expect(container.querySelector("section[data-session-policy]")).toBeNull();
     bed.emit({ kind: "policy", policy: { mode: "read-only", explicit: true, tainted: false } });
     await settle();
     expect(container.querySelector("[data-session-policy]")?.textContent).not.toContain("External content");

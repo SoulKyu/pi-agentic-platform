@@ -1,0 +1,61 @@
+{
+  "submittedAt": "2026-10-14T12:24:20.387Z",
+  "version": "design-recheck-1",
+  "answers": {
+    "h1": {
+      "choice": "a",
+      "label": "Symbole dans le rail, petit nom dans la barre (13 px)",
+      "reco": true,
+      "note": ""
+    },
+    "h2": {
+      "choice": "a",
+      "label": "Puce bordée comme sur les boards",
+      "reco": true,
+      "note": ""
+    },
+    "c1": {
+      "choice": "a",
+      "label": "Un menu « ⋯ » à droite de l'en-tête",
+      "reco": true,
+      "note": ""
+    },
+    "c2": {
+      "choice": "a",
+      "label": "Le supprimer",
+      "reco": true,
+      "note": ""
+    },
+    "c3": {
+      "choice": "a",
+      "label": "Pastille de mode dans l'en-tête, règles et « Gérer » dans son menu",
+      "reco": true,
+      "note": ""
+    },
+    "a1": {
+      "choice": "b",
+      "label": "Compacte, rien de caché",
+      "reco": true,
+      "note": ""
+    },
+    "a2": {
+      "choice": "a",
+      "label": "Épinglée au-dessus du composeur (actuel)",
+      "reco": true,
+      "note": ""
+    },
+    "o1": {
+      "choice": "a",
+      "label": "Laisser à M12",
+      "reco": true,
+      "note": ""
+    },
+    "o2": {
+      "choice": "a",
+      "label": "Les garder en rangée sous le champ",
+      "reco": true,
+      "note": ""
+    }
+  },
+  "summary": "Q1 Logo et nom <code>pap</code> dans le header → A. Symbole dans le rail, petit nom dans la barre (13 px)\nQ2 Sélecteur de projet dans la barre → A. Puce bordée comme sur les boards\nQ3 Les 5 boutons d'actions de session → A. Un menu « ⋯ » à droite de l'en-tête\nQ4 Le lien souligné « Sessions » au début de l'en-tête → A. Le supprimer\nQ5 Mode d'approbation de la session et règles « toujours autorisé » → A. Pastille de mode dans l'en-tête, règles et « Gérer » dans son menu\nQ6 Forme de la carte d'approbation → B. Compacte, rien de caché\nQ7 Où s'affiche la carte d'approbation → A. Épinglée au-dessus du composeur (actuel)\nQ8 Boutons d'approbation sur téléphone → A. Laisser à M12\nQ9 Pastilles modèle et réflexion du composeur → A. Les garder en rangée sous le champ"
+}

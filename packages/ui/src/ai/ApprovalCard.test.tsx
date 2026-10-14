@@ -65,7 +65,7 @@ describe("ApprovalCard", () => {
     expect(headerAt).toBeLessThan(scrollAt);
   });
 
-  it("scrolls a long detail inside a bounded, keyboard-reachable region and loses no tail", () => {
+  it("shows a long detail whole in the flow of the card: no inner scroll, no tail lost", () => {
     const padding = "\n".repeat(500);
     const html = render(`header\nbash: start${padding}TAIL-OF-THE-COMMAND`);
     const { scroll } = regions(html);
@@ -73,9 +73,7 @@ describe("ApprovalCard", () => {
     expect(scroll?.endsWith("TAIL-OF-THE-COMMAND")).toBe(true);
     expect(scroll?.split("\n").length).toBe(501);
     const tag = /<pre data-approval-scroll[^>]*>/.exec(html)?.[0] ?? "";
-    expect(tag).toContain("max-h-64");
-    expect(tag).toContain("overflow-auto");
-    expect(tag).toContain('tabindex="0"');
+    expect(tag).not.toMatch(/max-h|overflow/);
     expect(tag).toContain("font-mono");
   });
 

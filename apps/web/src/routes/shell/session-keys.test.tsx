@@ -1,10 +1,11 @@
 // @vitest-environment happy-dom
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Runtime } from "../../runtime/index.ts";
 import { button, click, field, mount, press, settle, typeInto, type Mounted } from "../../testing/dom.ts";
 import { runCommand } from "../../lib/command-registry.ts";
 import { screenBed, seedSessionViews } from "../../testing/screen-bed.tsx";
+import { pickItem, preloadMenu } from "../../testing/menu.ts";
 import { sessionSnapshot } from "../../testing/session-snapshot.ts";
 import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../../features/commands/defaults.ts";
 import { installDispatcher } from "../../features/commands/dispatcher.ts";
@@ -28,6 +29,7 @@ vi.mock("@tanstack/react-router", async () => {
 const screen = screenBed(current);
 const { rules } = mergeWithDefaults(DEFAULT_KEYBINDINGS, [], KNOWN_COMMANDS);
 let uninstall: () => void = () => {};
+beforeAll(preloadMenu);
 beforeEach(() => {
   // The real dispatcher with the real defaults: the chord, the `when` clause and the handler are all under test.
   uninstall = installDispatcher({
@@ -105,7 +107,7 @@ describe("Escape stops the run (agreement 7)", () => {
 
   it("does not stop the run from the rename field, and cancels the rename instead", async () => {
     const container = await mount1({ status: "running" });
-    await click(button(container, "Rename"));
+    await pickItem(button(container, "Session actions"), "Rename");
     const name = field(container, "Rename");
     name.focus();
     await escape(name);
@@ -184,7 +186,7 @@ describe("Mod+Shift+Enter sends the other way", () => {
   it("never sends the composer's draft from the rename field", async () => {
     const container = await mount1({ status: "running" });
     await typeInto(field(container, "Message"), "unrelated draft");
-    await click(button(container, "Rename"));
+    await pickItem(button(container, "Session actions"), "Rename");
     const name = field(container, "Rename");
     name.focus();
     await sendOther(name);

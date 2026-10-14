@@ -1,11 +1,12 @@
 // @vitest-environment happy-dom
 import { useState } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { alerts, button, click, field, hasButton, settle, text, typeInto } from "../../testing/dom.ts";
 import { SessionScreen } from "./SessionScreen.tsx";
 import { sessionSnapshot as sessionSnapshotOf } from "../../testing/session-snapshot.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
+import { isDisabled, menuItem, openMenu, preloadMenu } from "../../testing/menu.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined, navigate: vi.fn() }));
 vi.mock("../../runtime/index.ts", async (importOriginal) => ({
@@ -21,6 +22,7 @@ vi.mock("@tanstack/react-router", async () => {
   };
 });
 
+beforeAll(preloadMenu);
 const screen = screenBed(current);
 const user = (entryId: string, content: string) => ({
   entryId,
@@ -176,7 +178,8 @@ describe("edit from here", () => {
     expect(hasButton(container, "Stop")).toBe(true);
     expect(button(container, "Edit from here").disabled).toBe(true);
     expect(button(container, "Fork from here").disabled).toBe(true);
-    expect(button(container, "Compact").disabled).toBe(true);
+    await openMenu(button(container, "Session actions"));
+    expect(isDisabled(menuItem("Compact"))).toBe(true);
     reply.resolve({ cancelled: false, editorText: "x" });
     await settle();
     expect(hasButton(container, "Stop")).toBe(false);
