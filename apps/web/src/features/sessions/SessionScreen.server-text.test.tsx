@@ -83,7 +83,7 @@ describe("SessionScreen server texts (R128)", () => {
     setLocale("fr");
     const container = await show();
     await emit({ kind: "notice", level: "error", text: "Brand new sentence.", code: "from_the_future" });
-    await emit({ kind: "notice", level: "info", text: "An extension failed.", source: "extension" });
+    await emit({ kind: "notice", level: "warning", text: "An extension failed.", source: "extension" });
     expect(alerts(container)).toEqual(["Brand new sentence."]);
     expect(text(container)).toContain("An extension failed.");
   });
@@ -93,14 +93,14 @@ describe("SessionScreen server texts (R128)", () => {
     const container = await show();
     await emit({
       kind: "notice",
-      level: "info",
+      level: "warning",
       text: "My own words.",
       source: "extension",
       code: "extension_failed",
     });
     await emit({
       kind: "notice",
-      level: "info",
+      level: "warning",
       text: "t",
       code: "extension_failed_during",
       params: { event: "<b>x</b>" },

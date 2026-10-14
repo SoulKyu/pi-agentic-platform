@@ -10,11 +10,16 @@ export function feedSession(
   subscriptions: Runtime["subscriptions"],
   sessionId: string,
   onError?: (code: RpcErrorCode) => void,
+  /** Hears each live event after it is applied (a snapshot included: the listener tells them apart). */
+  onEvent?: (event: unknown) => void,
 ): () => void {
   return subscriptions.subscribe(
     "session",
     sessionId,
-    (event) => useSessionStore.getState().apply(sessionId, event),
+    (event) => {
+      useSessionStore.getState().apply(sessionId, event);
+      onEvent?.(event);
+    },
     onError,
   );
 }

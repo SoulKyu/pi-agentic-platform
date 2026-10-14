@@ -32,16 +32,16 @@ describe("extension decorations in the session screen", () => {
     expect(document.title).toBe("pap");
   });
 
-  it("labels extension notices and only those (M2R138)", async () => {
+  it("keeps warnings and errors as lines, labels an extension's, and leaves info out of the lines (M2R138)", async () => {
     const container = await screen.show({
       notices: [
-        { level: "info", text: "Deployed", source: "extension" },
+        { level: "warning", text: "Deployed", source: "extension" },
         { level: "warning", text: "Disk is nearly full", source: "pap" },
         { level: "info", text: "Plain notice" },
       ],
     });
     const notices = [...container.querySelectorAll("[data-notice]")].map((notice) => notice.textContent);
-    expect(notices).toEqual(["from an extensionDeployed", "Disk is nearly full", "Plain notice"]);
+    expect(notices).toEqual(["from an extensionDeployed", "Disk is nearly full"]);
   });
 
   it("sends a status command as a prompt, and shows its failure", async () => {

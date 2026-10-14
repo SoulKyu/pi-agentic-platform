@@ -289,6 +289,7 @@ describe("lazy catalog (session screen)", () => {
         "Transcript",
       ].map((name) => `features/sessions/${name}.tsx`),
       "features/sessions/use-composer.ts",
+      "features/sessions/notice-toast.ts",
       ...[
         "ApprovalCardFor",
         "ConfirmDialog",
@@ -299,7 +300,7 @@ describe("lazy catalog (session screen)", () => {
         "use-clipped",
       ].map((name) => `features/sessions/dialogs/${name}.tsx`),
     ]);
-    expect(chunk.size).toBe(22);
+    expect(chunk.size).toBe(23);
     // A stale entry would silently exempt nothing: every listed file must exist.
     expect([...chunk].filter((file) => !existsSync(join(src, file)))).toEqual([]);
     const offenders: string[] = [];

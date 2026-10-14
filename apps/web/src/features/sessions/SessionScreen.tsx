@@ -1,6 +1,14 @@
 import "./register-session-catalog.ts";
 import "./register-policy-catalog.ts";
-import { Banner, Button, RunStatusChip, type RunStatus, type ToolDetail } from "@pap/ui";
+import {
+  Banner,
+  Button,
+  IconButton,
+  IconClose,
+  RunStatusChip,
+  type RunStatus,
+  type ToolDetail,
+} from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
@@ -9,6 +17,7 @@ import { getRuntime } from "../../runtime/index.ts";
 import "../../i18n/register-sidebar.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
+import { noticeKey, toastLiveInfo, useDismissedNotices } from "./notice-toast.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
 import { Composer } from "./Composer.tsx";
@@ -43,11 +52,13 @@ export function SessionScreen({
   const locale = useLocale();
   const runtime = getRuntime();
   const view = useSessionStore((state) => state.views[sessionId]) ?? EMPTY_VIEW;
+  const dismissedNotices = useDismissedNotices((state) => state.keys);
+  const dismissNotice = useDismissedNotices((state) => state.dismiss);
   const [error, setError] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState<number | null>(null);
   // One feed per session id: the events build the view in the store, not in this component.
   useEffect(
-    () => feedSession(runtime.subscriptions, sessionId, (code) => setError(codeText(code))),
+    () => feedSession(runtime.subscriptions, sessionId, (code) => setError(codeText(code)), toastLiveInfo),
     [runtime, sessionId],
   );
 
@@ -162,23 +173,32 @@ export function SessionScreen({
         dialogs={view.dialogs}
         hidden={view.hiddenDialogs}
       />
-      {view.notices.map((notice, index) => (
-        <p
-          key={`${index}:${notice.text}`}
-          data-notice
-          role={notice.level === "error" ? "alert" : undefined}
-          className={notice.level === "error" ? "text-ui text-err" : "text-ui text-muted"}
-        >
-          {notice.source === "extension" ? (
-            <>
-              <span className="mr-s2 label-hud text-muted">{t("source.extension")}</span>
-              <AnsiText text={notice.text} />
-            </>
-          ) : (
-            codedServerText(notice, locale)
-          )}
-        </p>
-      ))}
+      {view.notices.map((notice, index) =>
+        notice.level === "info" || dismissedNotices.has(noticeKey(sessionId, notice)) ? null : (
+          <p
+            key={`${index}:${notice.text}`}
+            data-notice
+            role={notice.level === "error" ? "alert" : undefined}
+            className={`flex items-start gap-s2 text-ui ${notice.level === "error" ? "text-err" : "text-muted"}`}
+          >
+            <span className="min-w-0 flex-1">
+              {notice.source === "extension" ? (
+                <>
+                  <span className="mr-s2 label-hud text-muted">{t("source.extension")}</span>
+                  <AnsiText text={notice.text} />
+                </>
+              ) : (
+                codedServerText(notice, locale)
+              )}
+            </span>
+            <IconButton
+              icon={IconClose}
+              label={t("ui.dismiss")}
+              onClick={() => dismissNotice(noticeKey(sessionId, notice))}
+            />
+          </p>
+        ),
+      )}
       {error ? (
         <p role="alert" className="text-ui text-attn">
           {error}
