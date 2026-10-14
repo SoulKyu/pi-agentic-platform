@@ -19,7 +19,16 @@ export interface StatusDeps {
 // No `--untracked-files`: the repository's own setting decides, `normal` by default, so an untracked folder is one
 // `dir/` entry and `status.showUntrackedFiles=no` lists none (M8R46).
 const STATUS_ARGS = ["status", "--porcelain=v2", "-z", "--branch", "--ignore-submodules=dirty"];
-const NUMSTAT_ARGS = ["diff", "--numstat", "-z", "--no-ext-diff", "--no-textconv", "HEAD", "--"];
+const NUMSTAT_ARGS = [
+  "diff",
+  "--numstat",
+  "-z",
+  "--ignore-submodules=dirty",
+  "--no-ext-diff",
+  "--no-textconv",
+  "HEAD",
+  "--",
+];
 const BRANCH_CHARS = 256;
 const UPSTREAM_CHARS = 512;
 
@@ -183,7 +192,8 @@ export async function readStatus(
       deps.logger.warn("vcs_status_failed", {
         code: (error as { code?: unknown } | null)?.code ?? "unknown",
       });
-    return emptyStatus(root, deps.now(), kind !== "git_missing", kind);
+    if (kind === "git_too_old") deps.logger.warn("vcs_git_too_old", {});
+    return emptyStatus(root, deps.now(), kind !== "git_missing", kind === "git_too_old" ? "failed" : kind);
   }
 }
 

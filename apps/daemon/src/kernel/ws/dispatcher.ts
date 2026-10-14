@@ -33,6 +33,16 @@ interface Inflight {
 const ok = (id: number, result: unknown): ResponseFrame => ({ id, ok: true, result });
 const fail = (id: number, code: ErrorCode): ResponseFrame => ({ id, ok: false, error: { code } });
 
+/**
+ * What a receipt keeps in place of a hash of the params of a `sensitiveParams` method (MC30): a hash of the declared
+ * selector fields only, so `state.db` holds nothing to guess a secret from, and a replay still has to name the same
+ * target (a provider, a flow and prompt, a revision, a session and dialog).
+ */
+const selectorHash = (params: unknown, fields: readonly string[]): string => {
+  const record = (params ?? {}) as Record<string, unknown>;
+  return sha256Hex(canonicalJson(Object.fromEntries(fields.map((field) => [field, record[field]]))));
+};
+
 /** JSON with object keys sorted at every depth, so equal params always serialise to the same text. */
 export function canonicalJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -115,7 +125,9 @@ export function createDispatcher(options: {
     params: unknown,
     ctx: HandlerContext,
   ): Promise<ResponseFrame> {
-    const paramsHash = sha256Hex(canonicalJson(params));
+    const paramsHash = def.sensitiveParams
+      ? selectorHash(params, def.sensitiveParams)
+      : sha256Hex(canonicalJson(params));
     const userId = ctx.caller.userId;
     const stored = options.receipts.find(userId, commandId);
     if (stored) {

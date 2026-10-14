@@ -12,6 +12,11 @@ export type SessionsRpc = Pick<
   | "sessions.rename"
   | "sessions.autoName"
   | "sessions.exportHtml"
+  | "sessions.models"
+  | "sessions.commands"
+  | "sessions.setModel"
+  | "sessions.setThinking"
+  | "sessions.setTools"
   | "sessions.fork"
   | "sessions.clone"
   | "sessions.clearQueue"
@@ -25,7 +30,7 @@ export type SessionsRpc = Pick<
 
 export function sessionsRpc(service: SessionsService): SessionsRpc {
   return {
-    "sessions.create": async ({ cwd }, ctx) => service.create(cwd, ctx.caller),
+    "sessions.create": async ({ cwd, preset }, ctx) => service.create(cwd, ctx.caller, preset),
     "sessions.list": async (_params, ctx) => {
       const { sessions, truncated } = service.listFitted(ctx.caller);
       return { sessions, ...(truncated ? { truncated: true as const } : {}) };
@@ -43,6 +48,20 @@ export function sessionsRpc(service: SessionsService): SessionsRpc {
     },
     "sessions.autoName": async ({ sessionId }, ctx) => service.autoName(sessionId, ctx.caller),
     "sessions.exportHtml": async ({ sessionId }, ctx) => service.exportHtml(sessionId, ctx.caller),
+    "sessions.models": async ({ sessionId }, ctx) => service.models(sessionId, ctx.caller),
+    "sessions.commands": async ({ sessionId }, ctx) => service.commands(sessionId, ctx.caller),
+    "sessions.setModel": async (params, ctx) => {
+      await service.setModel(params, ctx.caller);
+      return { ok: true as const };
+    },
+    "sessions.setThinking": async (params, ctx) => {
+      await service.setThinking(params, ctx.caller);
+      return { ok: true as const };
+    },
+    "sessions.setTools": async (params, ctx) => {
+      await service.setTools(params, ctx.caller);
+      return { ok: true as const };
+    },
     "sessions.fork": async (params, ctx) => service.fork(params, ctx.caller),
     "sessions.clone": async ({ sessionId }, ctx) => service.clone({ sessionId }, ctx.caller),
     "sessions.clearQueue": async ({ sessionId }, ctx) => service.clearQueue(sessionId, ctx.caller),

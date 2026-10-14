@@ -1,4 +1,11 @@
-import { type ApprovalRequestRecord, Dialog, type UiRequestRecord } from "@pap/contracts";
+import {
+  type AlwaysScope,
+  type AlwaysScopes,
+  type ApprovalAnswer,
+  type ApprovalRequestRecord,
+  Dialog,
+  type UiRequestRecord,
+} from "@pap/contracts";
 import { z } from "zod";
 import { sizeOf } from "../../kernel/json-bytes.ts";
 import { cutUnits } from "../../kernel/text.ts";
@@ -40,8 +47,20 @@ export interface Grant {
   readonly label: string;
   /** The call the question was about, when the worker said (the audit row of its answer names the answerer). */
   readonly toolCallId?: string;
+  /**
+   * What the worker's request offered "always" to cover besides the exact call. The stored rule is built from this,
+   * never from the client's answer, which only says which offered scope (M7R24).
+   */
+  readonly alwaysScopes?: AlwaysScopes;
 }
 const MAX_LABEL_CHARS = 4096;
+
+/** What an answered approval hands the grant link: the answer, what its "always" covers, and the grant it would give. */
+export interface ApprovedAnswer {
+  readonly answer: ApprovalAnswer;
+  readonly scope: AlwaysScope;
+  readonly grant: Grant;
+}
 
 export interface DialogRegistry {
   offer(request: UiRequestRecord): DialogVerdict;
@@ -155,6 +174,8 @@ function approvalDialog(record: ApprovalRequestRecord): Built {
     answers: record.answers,
     ...(record.tainted ? { tainted: true } : {}),
     ...(record.guard ? { guard: record.guard } : {}),
+    tool: record.tool,
+    ...(record.alwaysScopes ? { alwaysScopes: record.alwaysScopes } : {}),
   });
   if (!parsed.success) {
     const longer = (text: unknown, max: number) => typeof text === "string" && text.length > max;
@@ -203,6 +224,7 @@ export function createDialogRegistry(): DialogRegistry {
         key: record.key,
         label: labelOf(built.dialog.message ?? ""),
         ...(record.toolCallId === undefined ? {} : { toolCallId: record.toolCallId }),
+        ...(record.alwaysScopes ? { alwaysScopes: record.alwaysScopes } : {}),
       });
     },
     peek: (id) => open.get(id)?.dialog ?? null,

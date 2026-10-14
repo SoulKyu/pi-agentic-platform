@@ -29,7 +29,7 @@ it("shows the outside-write notice and the new entries when a session is reopene
       entry("cli-u", leaf, { role: "user", content: "typed in the terminal", timestamp: 3 }),
     );
     // A later mtime than the worker's end, computed: no sleep.
-    bed.sessions.scanPort.touched(sessionId, Date.now() + 1, false);
+    bed.sessions.scanPort.touched(sessionId, Date.now() + 1, false, false);
 
     const reopened = await bed.subscribe(sessionId, cursor);
     const first = reopened.events()[0];

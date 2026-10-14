@@ -56,6 +56,18 @@ describe("TextField", () => {
     );
   });
 
+  it("draws a mono multiline field monospace with the rows asked for", () => {
+    const html = renderToStaticMarkup(
+      <TextField label="Config" multiline mono rows={16} value="{}" onChange={noop} />,
+    );
+    expect(html).toContain("font-mono");
+    expect(html).not.toContain("font-sans");
+    expect(html).toContain('rows="16"');
+    const plain = renderToStaticMarkup(<TextField label="Notes" multiline value="" onChange={noop} />);
+    expect(plain).toContain("font-sans");
+    expect(plain).toContain('rows="3"');
+  });
+
   it("shows the focus ring offset 2 px", () => {
     const html = renderToStaticMarkup(<TextField label="Name" value="" onChange={noop} />);
     expect(html).toContain("focus-ring");

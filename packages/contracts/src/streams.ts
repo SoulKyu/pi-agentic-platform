@@ -1,12 +1,14 @@
 import { z } from "zod";
 
-export const STREAMS = ["session", "shell", "vcs", "terminal"] as const;
+export const STREAMS = ["session", "shell", "vcs", "terminal", "login"] as const;
 export type StreamName = (typeof STREAMS)[number];
 
 export const SessionStatus = z.enum(["cold", "starting", "idle", "running", "releasing"]);
 export type SessionStatus = z.infer<typeof SessionStatus>;
 
 import {
+  AlwaysScope,
+  AlwaysScopes,
   ApprovalAnswer,
   ApprovalAnswers,
   DEFAULT_SESSION_POLICY_VIEW,
@@ -14,6 +16,8 @@ import {
   SessionPolicyView,
   TOOL_CATEGORIES,
 } from "./policy.ts";
+import { LoginEvent } from "./models-methods.ts";
+import { SessionLoadout, ToolPreset } from "./session-loadout.ts";
 
 /**
  * The most the daemon passes on from a worker for each extension UI surface (R66). The daemon rebuilds every client
@@ -66,6 +70,10 @@ export const Dialog = z
     /** Untrusted content reached the session, or the run guard asks: why the card exists (DESIGN §9.2). */
     tainted: z.boolean().optional(),
     guard: GuardRule.optional(),
+    /** Approval dialogs only: the tool the question is about (the scope choice names it, Task 2b). */
+    tool: z.string().min(1).max(256).optional(),
+    /** Approval dialogs only: what "always" may cover besides the exact call (Task 2a). */
+    alwaysScopes: AlwaysScopes.optional(),
   })
   .superRefine((dialog, ctx) => {
     // An approval without its answers or its category could not be answered by the policy's own rules: refused (M2R61).
@@ -79,7 +87,7 @@ export const DialogResponse = z.union([
   z.object({ confirmed: z.boolean() }),
   z.object({ value: z.string().max(1_000_000) }),
   z.object({ cancelled: z.literal(true) }),
-  z.object({ answer: ApprovalAnswer }),
+  z.object({ answer: ApprovalAnswer, scope: AlwaysScope.optional() }),
 ]);
 export type DialogResponse = z.infer<typeof DialogResponse>;
 
@@ -243,6 +251,10 @@ const Snapshot = z.object({
   /** The session's Pi file changed in the last 2 minutes outside pap (owner Q13, M4R141). `false` from an older daemon. */
   outsideWrite: z.boolean().default(false),
   policy: SessionPolicyView.default(DEFAULT_SESSION_POLICY_VIEW),
+  /** The model, reasoning level and tools the worker last said; `null` while the session has no worker (M7R44). */
+  loadout: SessionLoadout.nullable().default(null),
+  /** The preset stored for the session, known with or without a worker (MC37); `configured` from an older daemon. */
+  toolPreset: ToolPreset.default("configured"),
 });
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
@@ -281,6 +293,7 @@ export const SessionStreamEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("name"), name: SessionName.nullable() }),
   z.object({ kind: z.literal("activity"), activity: Activity }),
   z.object({ kind: z.literal("policy"), policy: SessionPolicyView }),
+  z.object({ kind: z.literal("loadout"), loadout: SessionLoadout }),
 ]);
 export type SessionStreamEvent = z.infer<typeof SessionStreamEvent>;
 export type SnapshotEvent = Extract<SessionStreamEvent, { kind: "snapshot" }>;
@@ -291,7 +304,17 @@ export const SessionSummary = z.object({
   /** Pi's name for the session, cached; null when it has none. */
   name: SessionName.nullable(),
   status: SessionStatus,
+  /** The stored tool preset (MC37); absent from an older daemon. */
+  toolPreset: ToolPreset.optional(),
   createdAt: z.number(),
   updatedAt: z.number(),
 });
 export type SessionSummary = z.infer<typeof SessionSummary>;
+
+/** The `login` stream (M7 Task 11): a snapshot of what the flow said so far (at most 64 events), then each event. */
+export const LOGIN_SNAPSHOT_EVENTS = 64;
+export const LoginStreamEvent = z.union([
+  z.object({ kind: z.literal("snapshot"), events: z.array(LoginEvent).max(LOGIN_SNAPSHOT_EVENTS) }).strict(),
+  LoginEvent,
+]);
+export type LoginStreamEvent = z.infer<typeof LoginStreamEvent>;

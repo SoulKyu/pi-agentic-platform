@@ -37,7 +37,7 @@ const MARKER = "pap-smoke-ok";
 const PASSWORD = "correct horse battery staple";
 const SCRIPT = {
   steps: [
-    { toolCalls: [{ name: "bash", args: { command: `echo ${MARKER}` }, id: "call-1" }] },
+    { toolCalls: [{ name: "bash", args: { command: `env echo ${MARKER}` }, id: "call-1" }] },
     { text: `The command printed ${MARKER}.` },
   ],
 };

@@ -141,6 +141,9 @@ describe("the session_name migration", () => {
       "sessions/202610110200_session_name.sql",
       "sessions/202610121500_session_marks.sql",
       "policy/202610122010_session_policy.sql",
+      "policy/202610131000_pattern_rules.sql",
+      "sessions/202610131020_pap_wrote_at.sql",
+      "sessions/202610131030_tool_preset.sql",
     ]);
     expect(second.readOnly).toBe(false);
     second.db.close();

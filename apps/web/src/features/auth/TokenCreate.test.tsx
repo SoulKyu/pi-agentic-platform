@@ -18,6 +18,7 @@ import {
 } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { TokenCreate } from "./TokenCreate.tsx";
+import { permissionGrid } from "./tokens.vm.ts";
 
 registerCatalog({ en: settingsAccessEn, fr: settingsAccessFr });
 
@@ -160,9 +161,14 @@ describe("create form", () => {
     const container = await show();
     expect(container.querySelector('[data-permission^="auth:"]')).toBeNull();
     expect(container.querySelector('[data-permission="policy:admin"]')).toBeNull();
-    expect(container.querySelector('[data-permission="policy:operate"]')).not.toBeNull();
+    expect(container.querySelector('[data-permission="pi:admin"]')).toBeNull();
+    // Only permissions some method declares are offered (M7R124): policy:operate is not one of them.
+    expect(container.querySelector('[data-permission="policy:operate"]')).toBeNull();
     expect(container.querySelector('[data-permission="policy:read"]')).not.toBeNull();
-    expect(container.querySelectorAll("[data-permission]")).toHaveLength(20);
+    expect(container.querySelector('[data-permission="sessions:operate"]')).not.toBeNull();
+    expect(container.querySelectorAll("[data-permission]")).toHaveLength(
+      permissionGrid().flatMap((row) => row.levels).length,
+    );
     expect(text(container)).toContain("Changing approval modes and rules needs your browser session.");
   });
 

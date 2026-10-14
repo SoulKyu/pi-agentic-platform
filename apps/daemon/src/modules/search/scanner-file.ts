@@ -107,7 +107,10 @@ function step(
   // Cut on a code point: a split surrogate pair would be stored as U+FFFD and never equal again.
   const head = cutUnits(header.line, HEAD_CHARS);
   // Pi only appends: another inode, a shorter file or another header is a different file (M4R66).
+  let replaced = false;
   if (cursor && (cursor.ino !== stat.ino || stat.size < cursor.offset || cursor.head !== head)) {
+    // Pi does not do this to a file it appends to: whoever did, the whole file counts as read on from the old cursor.
+    replaced = cursor.state === "indexed";
     ctx.store.forget(path);
     cursor = undefined;
   }
@@ -147,6 +150,29 @@ function step(
   // Inside a line over the cap last time: go on skipping it from there (M4R135).
   const read = readLines(fd, from, stat.size, ctx.limits?.stepBytes ?? STEP_BYTES, known?.skipLine ?? false);
   const found = extract(read.records);
+  const id = sessionId;
+  // New tool results are what the session did not produce itself (Q5). A line that could not be read as an entry might
+  // have been one, so it counts too: a wrong "no" would leave an exposed session untainted.
+  const toolResults =
+    (known !== undefined || replaced) && (found.toolResults || read.bad > 0 || read.skipped > 0);
+  // The port hears of tool results before the position is saved: when it throws (the taint could not be stored), the
+  // position stays and the next pass reads the same bytes again (MC19 b).
+  const tell = (): void =>
+    ctx.sessions.touched(
+      id,
+      stat.mtimeMs,
+      known !== undefined && stat.size > known.size && found.active,
+      toolResults,
+    );
+  const touchFirst = toolResults && read.next > from;
+  if (touchFirst) {
+    try {
+      tell();
+    } catch (error) {
+      ctx.say("session_file_port_failed", { call: "touched", code: codeOf(error) });
+      return { kind: "skipped", reason: "port_failed" };
+    }
+  }
   const max = ctx.limits?.maxIndexedChars ?? MAX_INDEXED_CHARS;
   const before = known?.indexedChars ?? 0;
   const { kept, chars, capped } = withinBudget(found.rows, Math.max(0, max - before));
@@ -167,7 +193,6 @@ function step(
   if (capped && before <= max) ctx.say("session_file_capped");
   if (read.bad > 0 || read.skipped > 0)
     ctx.say("session_file_lines_skipped", { bad: read.bad, skipped: read.skipped });
-  const id = sessionId;
   if (found.name !== undefined) {
     const name = found.name;
     attempt(ctx, "named", () => ctx.sessions.named(id, name === null ? null : cutUnits(name, HEAD_CHARS)));
@@ -176,10 +201,7 @@ function step(
     const text = cutUnits(found.firstUser, HEAD_CHARS);
     attempt(ctx, "previewed", () => ctx.sessions.previewed(id, text));
   }
-  if (read.next > from)
-    attempt(ctx, "touched", () =>
-      ctx.sessions.touched(id, stat.mtimeMs, known !== undefined && stat.size > known.size && found.active),
-    );
+  if (read.next > from && !touchFirst) attempt(ctx, "touched", tell);
   return { kind: "indexed", sessionId, rows: kept.length, more: read.next > from && read.next < stat.size };
 }
 
@@ -187,7 +209,8 @@ function step(
  * One step of one Pi file (M4R65–M4R69). Synchronous: the engine yields between calls. Any I/O or SQLite error is
  * contained here and said with its code; the cursor then stays where it was, so the next pass tries again (RT-04).
  * An open refused with ENOENT, ELOOP, ENOTDIR or not_file forgets the file's cursor and rows; other refusals keep them.
- * `touched` carries `active` only for entries read on from a stored cursor, never for a re-read (M4R41).
+ * `touched` carries `active` only for entries read on from a stored cursor, never for a re-read (M4R41). `toolResults`
+ * follows the same rule (a replaced file counts as read on) and is also true for lines that could not be read (M7R27).
  * The path is the cursor's key and is used as given: the caller spells it as the sessions module does.
  */
 export function processFile(path: string, ctx: FileContext): FileOutcome {

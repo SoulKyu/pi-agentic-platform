@@ -1,8 +1,10 @@
 import { Button } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
+import { coverText } from "../../lib/rule-text.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { failureText } from "./failure.ts";
+import "./register-policy-catalog.ts";
 import { useAction } from "./use-action.ts";
 
 /** Rule labels can be long (the daemon keeps up to 4096 characters): the row shows the start. */
@@ -17,6 +19,8 @@ interface Rule {
   readonly tool: string;
   readonly label: string;
   readonly createdAt: number;
+  readonly kind?: "exact" | "prefix" | "tool";
+  readonly pattern?: readonly string[];
 }
 
 const dayOf = (millis: number): string =>
@@ -31,7 +35,7 @@ function RuleLine({ rule, onSettled }: { rule: Rule; onSettled: () => void }) {
       <div className="flex items-center gap-2">
         <span className="font-mono text-label font-semibold text-fg">{rule.tool}</span>
         <span data-rule-label className="min-w-0 flex-1 break-all font-mono text-ui text-muted">
-          {clipLabel(rule.label)}
+          {coverText(rule, t("sessionPolicy.rule.anyInput")) ?? clipLabel(rule.label)}
         </span>
         <span className="font-mono text-label text-muted">{dayOf(rule.createdAt)}</span>
         <Button

@@ -61,6 +61,7 @@ describe("marks store", () => {
       projectId: "p1",
       createdAt: 1,
       updatedAt: 10,
+      toolPreset: "configured",
       marks: NO_MARKS,
     });
     expect(marks.row("nope")).toBeUndefined();

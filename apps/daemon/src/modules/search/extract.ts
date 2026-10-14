@@ -8,6 +8,8 @@ export interface Extracted {
   readonly firstUser: string | null;
   /** A user or assistant message was read: activity for the 3-day rule (M4R41). */
   readonly active: boolean;
+  /** A `message` entry whose message has `role: "toolResult"` was read: content a tool produced, not a person (Q5). */
+  readonly toolResults: boolean;
 }
 
 const MAX_MILLIS = 8.64e15;
@@ -39,6 +41,7 @@ export function extract(records: ReadonlyArray<Record<string, unknown>>): Extrac
   let name: string | null | undefined;
   let firstUser: string | null = null;
   let active = false;
+  let toolResults = false;
   for (const record of records) {
     if (record.type === "session_info") {
       name = typeof record.name === "string" ? record.name : null;
@@ -46,6 +49,7 @@ export function extract(records: ReadonlyArray<Record<string, unknown>>): Extrac
     }
     if (record.type !== "message") continue;
     const message = (record.message ?? {}) as { role?: unknown; content?: unknown; timestamp?: unknown };
+    if (message.role === "toolResult") toolResults = true;
     if (message.role !== "user" && message.role !== "assistant") continue;
     active = true;
     const raw = textOf(message.role, message.content);
@@ -56,5 +60,5 @@ export function extract(records: ReadonlyArray<Record<string, unknown>>): Extrac
     if (text.trim() === "") continue;
     rows.push({ entryId: id, role: message.role, at: timeOf(record, message), text });
   }
-  return { rows, name, firstUser, active };
+  return { rows, name, firstUser, active, toolResults };
 }

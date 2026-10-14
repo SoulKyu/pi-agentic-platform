@@ -135,7 +135,16 @@ describe("owner policy settings", () => {
       builtinDenylist: true,
       denylist: [],
       allowHosts: [],
+      readOnlyCommands: false,
     });
+  });
+
+  it("reads a stored document without the read-only switch as on", () => {
+    const { service, db } = bed();
+    service.setSettings(caller, {}, 0);
+    db.run("UPDATE policy_settings SET value = '{\"defaultMode\":\"supervised\"}' WHERE owner_id = 'u1'");
+    expect(service.settings("u1")).toEqual({ ...DEFAULT_POLICY_SETTINGS, defaultMode: "supervised" });
+    expect(service.settings("u1").readOnlyCommands).toBe(true);
   });
 
   it("uses the restrictive default mode for a session that follows the default", () => {

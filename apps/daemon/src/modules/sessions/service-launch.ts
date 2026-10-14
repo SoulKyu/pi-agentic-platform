@@ -5,7 +5,7 @@ import type { PolicyLink } from "./policy-link.ts";
 import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
-import type { SessionRow } from "./store.ts";
+import type { SessionRow, StoredPreset } from "./store.ts";
 
 /** What starting a worker needs of the service: its deps and the maps it shares with it (M4R27). */
 export interface LaunchContext {
@@ -17,6 +17,8 @@ export interface LaunchContext {
   /** What ties the sessions to the policy module: the rules of each worker, its audit hand-over, a refused update. */
   readonly policyLink: PolicyLink;
   checkCapacity(): void;
+  /** The session's tool preset now (null: configured): a new session's row is not stored yet, a stored one may have changed. */
+  toolPreset(row: SessionRow): StoredPreset | null;
   /** The project for a new session's row, called once after `ready` and before the row is stored (M4R28). */
   projectFor?(row: SessionRow): string | null;
   /** After `ready`, for a row without a Pi file: the Pi id its worker reported (M4R123). */
@@ -33,6 +35,8 @@ export interface LaunchContext {
   /** From the worker's spawn to the end of `launch`, success or failure: its file may be written before `live` holds it. */
   onStarting?(sessionId: string): void;
   onStarted?(sessionId: string): void;
+  /** Before a cold session's worker is spawned; a throw refuses the start (MC19 c). */
+  beforeStart?(row: SessionRow): void;
 }
 
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
@@ -53,6 +57,7 @@ export function createLaunch(ctx: LaunchContext) {
   // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
   async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
     ctx.checkCapacity();
+    if (!isNew) ctx.beforeStart?.(row);
     let stored = !isNew;
     const preReady = isNew ? createPreReadyBuffer() : null;
     let bound = row.piPath !== null;
@@ -63,7 +68,9 @@ export function createLaunch(ctx: LaunchContext) {
       agentDir: deps.worker.agentDir,
       papHome: deps.worker.papHome,
       umask: deps.worker.umask,
+      papSessionId: row.id,
       policy: policyLink.compose(row, scope),
+      tools: { preset: ctx.toolPreset(row) ?? "configured" },
       // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
       ...(row.piPath ? { sessionFile: row.piPath } : {}),
       ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),

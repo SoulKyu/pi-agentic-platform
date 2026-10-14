@@ -5,7 +5,8 @@ import { dirname } from "node:path";
  * program that a real-git test demonstrates. Defence in depth, no test can fail for them: `core.pager` (git pages only
  * on a terminal), `credential.helper` and `protocol.allow` (transports are refused by `GIT_ALLOW_PROTOCOL`). The runner
  * only starts allowlisted subcommands with allowlisted options (runner.ts), so these entries are the second line. Not
- * covered: clean/smudge filter drivers on files git itself compares (a documented residual).
+ * covered here: clean/smudge/process filter drivers on files git compares; `guardFilters` (filters.ts) empties them for
+ * `status` and `diff` (MC13).
  */
 const SAFE_CONFIG = [
   "core.fsmonitor=false",
@@ -33,6 +34,9 @@ const SAFE_CONFIG = [
  */
 const WITHOUT_LITERAL_PATHSPECS = new Set(["check-ignore"]);
 
+/** Asks for every `filter.*` entry with its scope: `scope NUL key LF value NUL` repeated (git 2.26+). */
+export const FILTER_SCAN_ARGS = ["config", "--null", "--show-scope", "--get-regexp", "^filter\\."] as const;
+
 export function gitArgs(root: string, args: readonly string[]): string[] {
   return [
     "--no-optional-locks",
@@ -50,6 +54,11 @@ const KEPT = ["PATH", "HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "XDG_CONFIG_H
 export function gitEnv(base: NodeJS.ProcessEnv, root: string): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {};
   for (const key of KEPT) if (base[key] !== undefined) env[key] = base[key];
+  // A relative entry (`.`, `node_modules/.bin`) would find a repository's own `git-lfs` or helper program (MC13).
+  if (env.PATH !== undefined)
+    env.PATH = env.PATH.split(":")
+      .filter((entry) => entry.startsWith("/"))
+      .join(":");
   return {
     ...env,
     LC_ALL: "C",

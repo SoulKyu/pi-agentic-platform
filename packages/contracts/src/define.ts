@@ -15,6 +15,13 @@ export interface MethodDef<
    * same commandId answers `conflict`, never the secret again (Task 13b).
    */
   readonly secretResult?: true;
+  /**
+   * The params hold a secret (a provider key, a sign-in answer, a configuration text with literal keys, a dialog answer).
+   * The receipt then hashes only these top-level, non-secret selector fields, never the whole params: a stored SHA-256 of
+   * a typed key can be tried against guesses (MC30). A replay with the same selector gets the stored answer; another
+   * selector under the same command id is `bad_request`.
+   */
+  readonly sensitiveParams?: readonly string[];
   readonly params: P;
   readonly result: R;
   readonly errors: readonly ErrorCode[];

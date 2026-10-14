@@ -131,7 +131,16 @@ describe("what a status says", () => {
     await pending;
     expect(pending.calls).toEqual([
       ["status", "--porcelain=v2", "-z", "--branch", "--ignore-submodules=dirty"],
-      ["diff", "--numstat", "-z", "--no-ext-diff", "--no-textconv", "HEAD", "--"],
+      [
+        "diff",
+        "--numstat",
+        "-z",
+        "--ignore-submodules=dirty",
+        "--no-ext-diff",
+        "--no-textconv",
+        "HEAD",
+        "--",
+      ],
     ]);
     expect(pending.calls.flat().some((arg) => arg.startsWith("--untracked-files"))).toBe(false);
   });

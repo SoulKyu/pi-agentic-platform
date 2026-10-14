@@ -19,6 +19,9 @@ export interface TextFieldProps {
   readonly hint?: string;
   readonly error?: string | null;
   readonly multiline?: boolean;
+  /** Multiline only: monospace text and a taller box, for code and configuration. */
+  readonly mono?: boolean;
+  readonly rows?: number;
   readonly name?: string;
   readonly placeholder?: string;
   readonly autoComplete?: string;
@@ -35,7 +38,7 @@ export interface TextFieldProps {
 }
 
 const FIELD_CLASSES = cn(
-  "w-full rounded-sm border border-control-border bg-bg px-s2 py-s1 font-sans text-fg focus-ring pointer-coarse:min-h-11 pointer-coarse:text-base",
+  "w-full rounded-sm border border-control-border bg-bg px-s2 py-s1 text-fg focus-ring pointer-coarse:min-h-11 pointer-coarse:text-base",
   "disabled:cursor-not-allowed disabled:opacity-50",
 );
 
@@ -72,8 +75,8 @@ export function TextField({ inputRef, ...props }: TextFieldProps) {
               }
             : {})}
           ref={inputRef}
-          className={cn(FIELD_CLASSES, "text-chat")}
-          rows={3}
+          className={cn(FIELD_CLASSES, props.mono ? "font-mono text-ui" : "font-sans text-chat")}
+          rows={props.rows ?? 3}
           onChange={(event) => props.onChange(event.target.value)}
           onPaste={props.onPaste}
           onDrop={props.onDrop}
@@ -91,7 +94,7 @@ export function TextField({ inputRef, ...props }: TextFieldProps) {
       ) : (
         <input
           {...shared}
-          className={cn(FIELD_CLASSES, "h-control text-ui")}
+          className={cn(FIELD_CLASSES, "h-control font-sans text-ui")}
           type={props.type ?? "text"}
           onChange={(event) => props.onChange(event.target.value)}
         />

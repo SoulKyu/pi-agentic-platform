@@ -71,6 +71,14 @@ export const shellEn = {
     "This file can run commands later, such as a git hook or an editor task. Confirm to save it.",
   "error.terminal_unavailable":
     "Terminals are not available on this server: the terminal module did not load.",
+  "error.helper_failed": "The Pi configuration helper failed. Try again.",
+  "error.project_scope":
+    "This project sets its own value in .pi/settings.json, which wins over the global one.",
+  "error.config_invalid": "A Pi configuration file is not valid. Fix the file, then try again.",
+  "error.config_path_refused":
+    "Pi refused this configuration path: it must be a regular file inside your folders.",
+  "error.config_hard_link":
+    "Pi refused to write this file because it has another hard link. Replace it with a regular copy, then try again.",
   // The home's Recent list and the tree rows both show an age: eager, because the home paints before the tree.
   "shell.age.now": "now",
   "shell.age.min": "{n} min",
@@ -155,6 +163,14 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
     "Ce fichier peut lancer des commandes plus tard, comme un hook git ou une tâche d'éditeur. Confirmez pour l'enregistrer.",
   "error.terminal_unavailable":
     "Les terminaux ne sont pas disponibles sur ce serveur : le module terminal ne s'est pas chargé.",
+  "error.helper_failed": "L'assistant de configuration de Pi a échoué. Réessayez.",
+  "error.project_scope":
+    "Ce projet définit sa propre valeur dans .pi/settings.json, qui l'emporte sur la valeur globale.",
+  "error.config_invalid": "Un fichier de configuration de Pi n'est pas valide. Corrigez-le, puis réessayez.",
+  "error.config_path_refused":
+    "Pi a refusé ce chemin de configuration : il doit être un fichier ordinaire dans vos dossiers.",
+  "error.config_hard_link":
+    "Pi a refusé d'écrire ce fichier car il a un autre lien physique. Remplacez-le par une copie ordinaire, puis réessayez.",
   "shell.age.now": "maintenant",
   "shell.age.min": "{n} min",
   "shell.age.hour": "{n} h",

@@ -25,6 +25,7 @@ describe("the policy in every worker", () => {
       builtinDenylist: false,
       denylist: ["sudo *"],
       allowHosts: ["example.com"],
+      readOnlyCommands: true,
     });
     open({ policy });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
@@ -32,18 +33,23 @@ describe("the policy in every worker", () => {
       profile: "interactive",
       approvalMode: "supervised",
       alwaysAllow: [],
+      alwaysPrefixes: [],
+      alwaysTools: [],
       builtinDenylist: false,
       denylist: ["sudo *"],
       allowHosts: ["example.com"],
       guard: DEFAULT_GUARD,
       taint: { tainted: false, epoch: 0 },
+      readOnlyCommands: true,
+      readOnlyPreset: false,
+      presetTools: null,
     });
     const frames = await bed.subscribe(sessionId);
     policy.setMode(OWNER.userId, sessionId, "read-only");
     expect(policyUpdatesOf(bed.spawned[0]).at(-1)).toMatchObject({ rules: { approvalMode: "read-only" } });
     expect(frames.map((frame) => frame.event)).toContainEqual({
       kind: "policy",
-      policy: { mode: "read-only", explicit: true, tainted: false },
+      policy: { mode: "read-only", explicit: true, tainted: false, defaultMode: "supervised" },
     });
   });
 
@@ -103,7 +109,7 @@ describe("the policy in every worker", () => {
     expect(frames[0]?.event).toMatchObject({
       kind: "snapshot",
       status: "cold",
-      policy: { mode: "auto-accept-edits", explicit: false, tainted: true },
+      policy: { mode: "auto-accept-edits", explicit: false, tainted: true, defaultMode: "auto-accept-edits" },
     });
   });
 

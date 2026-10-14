@@ -21,6 +21,15 @@ export const settingsApprovalsEn = {
   "approvals.mode.full-access.hint": "Everything runs without asking.",
   "approvals.mode.full-access.limits":
     "pap still asks before writes outside the project or to protected files, before reading pap's own secrets, and, after external content, before every command and every external tool. A shell command is limited only by the blocked-command list: it can read or delete files anywhere, pap's data included.",
+  "approvals.readOnly.title": "Read-only commands",
+  "approvals.readOnly.label": "Run read-only commands without asking",
+  "approvals.readOnly.hint":
+    "In Ask for everything and Auto-accept edits, shell commands that only read, list or print run as reads. Read only mode still refuses the shell.",
+  "approvals.readOnly.limits":
+    "pap cannot check commands while Pi runs a shell command prefix, a custom shell or a project folder on PATH: they ask as before.",
+  "approvals.readOnly.list": "Commands that count as read-only",
+  "approvals.readOnly.forms":
+    "git, find, sort, date and grep run unasked only in their read-only forms. A form that writes or deletes still asks.",
   "approvals.blocked.title": "Blocked commands",
   "approvals.blocked.label": "Blocked commands",
   "approvals.blocked.hint":
@@ -77,6 +86,7 @@ export const settingsApprovalsEn = {
   "approvals.rules.count": "Rules: {count}",
   "approvals.rules.revoke": "Revoke",
   "approvals.rules.revokeOne": "Revoke {tool}: {label}",
+  "approvals.rules.anyInput": "any input",
   "audit.title": "Audit log",
   "audit.intro":
     "What each stage decided, newest first. Read only. A call with no result row had nothing redacted and was not external.",
@@ -140,6 +150,15 @@ export const settingsApprovalsFr: { readonly [K in keyof typeof settingsApproval
   "approvals.mode.full-access.hint": "Tout s'exécute sans demander.",
   "approvals.mode.full-access.limits":
     "pap demande encore avant d'écrire hors du projet ou dans des fichiers protégés, avant de lire les secrets de pap, et, après un contenu externe, avant chaque commande et chaque outil externe. Une commande shell n'est limitée que par la liste des commandes bloquées : elle peut lire ou supprimer des fichiers partout, y compris les données de pap.",
+  "approvals.readOnly.title": "Commandes en lecture seule",
+  "approvals.readOnly.label": "Exécuter sans demander les commandes en lecture seule",
+  "approvals.readOnly.hint":
+    "Dans les modes Tout demander et Modifications acceptées, les commandes shell qui ne font que lire, lister ou afficher s'exécutent comme des lectures. Le mode Lecture seule refuse toujours le shell.",
+  "approvals.readOnly.limits":
+    "pap ne peut pas vérifier les commandes tant que Pi exécute un préfixe de commande shell, un shell personnalisé ou un dossier de projet dans le PATH : elles demandent comme avant.",
+  "approvals.readOnly.list": "Commandes considérées en lecture seule",
+  "approvals.readOnly.forms":
+    "git, find, sort, date et grep s'exécutent sans demander seulement dans leurs formes en lecture seule. Une forme qui écrit ou supprime demande toujours.",
   "approvals.blocked.title": "Commandes bloquées",
   "approvals.blocked.label": "Commandes bloquées",
   "approvals.blocked.hint":
@@ -198,6 +217,7 @@ export const settingsApprovalsFr: { readonly [K in keyof typeof settingsApproval
   "approvals.rules.count": "Règles : {count}",
   "approvals.rules.revoke": "Révoquer",
   "approvals.rules.revokeOne": "Révoquer {tool} : {label}",
+  "approvals.rules.anyInput": "toute entrée",
   "audit.title": "Journal d'audit",
   "audit.intro":
     "Ce que chaque étape a décidé, du plus récent au plus ancien. Lecture seule. Un appel sans ligne de résultat n'avait rien de masqué et n'était pas externe.",

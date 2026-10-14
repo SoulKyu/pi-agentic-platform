@@ -4,7 +4,7 @@ import { createIntBed, promptAndSettle } from "./testing/int-bed.ts";
 
 // The real pi-host and the real policy module on a scripted model, with the network closed.
 it("remembers an always answer for the project across workers, and a revoke bites the live worker (M2-RT-01)", async () => {
-  const call = { toolCalls: [{ name: "bash", args: { command: "echo granted" }, id: "c" }] };
+  const call = { toolCalls: [{ name: "bash", args: { command: "env echo granted" }, id: "c" }] };
   const bed = await createIntBed({ steps: [call, { text: "1" }, call, { text: "2" }, call, { text: "3" }] });
   try {
     const { sessionId } = await bed.rpc["sessions.create"]({ cwd: bed.work }, bed.ctx);

@@ -139,6 +139,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         cwd: row.cwd,
         name: row.name,
         status: deps.statusOf(row.id),
+        toolPreset: row.toolPreset ?? "configured",
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       })),
@@ -231,6 +232,8 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         cwd: row.cwd,
         outsideWrite: deps.outsideWrite(sessionId),
         policy: deps.policyView(row),
+        loadout: session?.loadout() ?? null,
+        toolPreset: row.toolPreset ?? "configured",
       });
       return withTrimmedHistory(snapshot, rows, history);
     },

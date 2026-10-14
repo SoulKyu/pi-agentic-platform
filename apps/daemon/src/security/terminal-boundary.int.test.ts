@@ -86,7 +86,7 @@ describe("security: what a worker inherits from the daemon (M8R119)", () => {
     const t = await startTestDaemon(
       {
         steps: [
-          { toolCalls: [{ name: "bash", args: { command: "ls -l /dev/fd/" }, id: "fds" }] },
+          { toolCalls: [{ name: "bash", args: { command: "sh -c 'ls -l /dev/fd/'" }, id: "fds" }] },
           { text: "done" },
         ],
       },
@@ -102,7 +102,7 @@ describe("security: what a worker inherits from the daemon (M8R119)", () => {
       await client.call("subscribe.session", { sessionId });
       const mark = markOf(client);
       await client.call("sessions.prompt", { sessionId, text: "list your descriptors" });
-      // The policy asks before an `ls`; the owner allows it once.
+      // The policy asks before `sh` (an `ls` alone is read-only and may run unasked since M7); the owner allows it once.
       const card = await nextDialog(client, mark);
       await client.call("sessions.respondDialog", {
         sessionId,

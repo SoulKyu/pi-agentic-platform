@@ -109,9 +109,7 @@ export function SessionPolicy({
   const options = [
     {
       value: "default" as Choice,
-      label: policy.explicit
-        ? t("sessionPolicy.mode.default")
-        : t("sessionPolicy.mode.defaultNamed", { mode: named(policy.mode) }),
+      label: t("sessionPolicy.mode.defaultNamed", { mode: named(policy.defaultMode) }),
     },
     ...APPROVAL_MODES.map((mode) => ({ value: mode as Choice, label: named(mode) })),
   ];

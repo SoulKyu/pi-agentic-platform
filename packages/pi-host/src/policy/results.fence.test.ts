@@ -22,10 +22,17 @@ function deps(options: {
   return {
     secrets: { current: () => redactor, refresh: () => {} },
     audit: (entry) => void options.audits?.push(entry),
-    classify: (name) => ({
-      ...classifyTool(name, { path: `builtin:${name}` }),
-      external: external.has(name),
-    }),
+    // Only the roots decide here: the tainted-codemode rule has its own file (results.codemode.test.ts).
+    classify: (name) => {
+      const kind = classifyTool(name, { path: `builtin:${name}` });
+      return {
+        category: kind.category,
+        urlBearing: kind.urlBearing,
+        mcp: kind.mcp,
+        builtin: kind.builtin,
+        external: external.has(name),
+      };
+    },
     taint: options.taint ?? createTaint(NO_TAINT, () => {}),
     roots: options.roots ?? createExternalRoots(),
     ...(options.fenceId ? { newFenceId: () => options.fenceId as string } : {}),
@@ -157,6 +164,30 @@ describe("stage 07 on a tool result", () => {
     expect(
       onToolResult(resultEvent("again", { toolName: "codemode", toolCallId: "root" }), d),
     ).toBeUndefined();
+  });
+
+  it("withholds a nested result the classifier throws on and fences the codemode call that ran it (M7R33)", () => {
+    const taint = createTaint(NO_TAINT, () => {});
+    const base = deps({ taint, fenceId: FENCE_ID });
+    const d = {
+      ...base,
+      classify: (name: string) => {
+        if (name === "broken") throw new Error("no registry");
+        return base.classify(name);
+      },
+    };
+    expect(
+      textOf(
+        onToolResult(
+          resultEvent("in", { toolName: "broken", toolCallId: "root/1", parentToolCallId: "root" }),
+          d,
+        ),
+      ),
+    ).toBe(WITHHELD_TEXT);
+    expect(
+      textOf(onToolResult(resultEvent("script output", { toolName: "codemode", toolCallId: "root" }), d)),
+    ).toBe(fenceText("script output", "codemode", FENCE_ID));
+    expect(taint.current()).toBe(true);
   });
 
   it("never takes a parent out of the slashes of a child's id (M5R39)", () => {

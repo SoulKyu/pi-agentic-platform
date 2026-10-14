@@ -19,6 +19,7 @@ import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
+import { outsideToolResultsTaint } from "./outside-taint.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
@@ -85,6 +86,8 @@ export interface SessionsModule {
   /** The owner of a session, or null when there is none: the policy module's late-bound lookup (M5R56). */
   ownerOf(sessionId: string): string | null;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
+  /** A trust decision applies at the next open (M7R105): releases the owner's workers in the folder or below. */
+  restartFolder(ownerId: string, folder: string): number;
 }
 
 export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
@@ -128,6 +131,12 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     newId,
     ownerId: deps.ownerId,
     ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
+    onOutsideToolResults: outsideToolResultsTaint({
+      store,
+      policy: deps.policy,
+      audit: deps.audit,
+      logger,
+    }),
     loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
     loadWriter: () => loadPiWriter(forkTmpDir, { logger }),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
@@ -168,5 +177,6 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     ownerOf: (sessionId) => store.get(sessionId)?.ownerId ?? null,
     inspect: (sessionId) => service.inspect(sessionId),
+    restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),
   };
 }

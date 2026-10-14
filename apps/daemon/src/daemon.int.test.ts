@@ -10,7 +10,7 @@ const budgets = JSON.parse(readFileSync(new URL("../../../budgets.json", import.
 };
 const SCRIPT = {
   steps: [
-    { toolCalls: [{ name: "bash", args: { command: "echo pap-int-ok" }, id: "call-1" }] },
+    { toolCalls: [{ name: "bash", args: { command: "env echo pap-int-ok" }, id: "call-1" }] },
     { text: "The command printed pap-int-ok." },
   ],
 };

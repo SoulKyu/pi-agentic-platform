@@ -5,6 +5,18 @@ import { StageVerdict, STAGE_IDS } from "./policy.ts";
 export const AUDIT_ACTORS = ["worker", "user", "token", "cli", "system"] as const;
 export const AUDIT_KINDS = ["call", "result", "session", "invalid", "auth", "policy", "audit"] as const;
 
+/** The `reason` of the audit lines a provider sign-in, an API key, a sign-out, a models.json save and a discovery write (M7R60): never a value. */
+export const PROVIDER_AUDIT_REASONS = [
+  "provider_signed_in",
+  "provider_key_set",
+  "provider_signed_out",
+  "models_config_saved",
+  "provider_discovered",
+] as const;
+
+/** The `reason` of the audit rows of a trust decision (M7R106): the row carries the folder and nothing else. */
+export const TRUST_AUDIT_REASONS = ["project_trusted", "project_untrusted", "project_trust_cleared"] as const;
+
 /** The marker row the daemon writes where a session's worker rows were dropped by the rate limit. */
 export const AUDIT_RATE_LIMIT_REASON = "audit rows dropped: rate limit";
 export const AUDIT_SESSION_ID_MAX = 128;

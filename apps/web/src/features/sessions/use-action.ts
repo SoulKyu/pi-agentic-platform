@@ -26,7 +26,11 @@ export function useStructural(): { readonly track: Track; readonly active: boole
  * failure kept in `error` (and passed to `report` when given) with the i18n text of its code only. A mutation is never repeated here: after a
  * `timeout` its outcome is unknown, and the text of that code says so (R105).
  */
-export function useAction(track?: Track, report?: (message: string | null) => void) {
+export function useAction(
+  track?: Track,
+  report?: (message: string | null) => void,
+  describe: (failure: unknown) => string = failureText,
+) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [slow, setSlow] = useState(false);
@@ -52,7 +56,7 @@ export function useAction(track?: Track, report?: (message: string | null) => vo
       await (track ? track(call()) : call());
       return true;
     } catch (failure) {
-      say(failureText(failure));
+      say(describe(failure));
       return false;
     } finally {
       running.current = false;

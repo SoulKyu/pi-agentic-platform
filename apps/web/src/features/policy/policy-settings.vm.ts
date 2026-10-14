@@ -38,6 +38,7 @@ export function parsePatternLines(
 export interface SettingsForm {
   readonly defaultMode: ApprovalMode;
   readonly builtinDenylist: boolean;
+  readonly readOnlyCommands: boolean;
   readonly denylistText: string;
   readonly hostsOn: boolean;
   readonly hostsText: string;
@@ -51,6 +52,7 @@ export function formOf(stored: StoredSettings): SettingsForm {
   return {
     defaultMode: settings.defaultMode,
     builtinDenylist: settings.builtinDenylist,
+    readOnlyCommands: settings.readOnlyCommands,
     denylistText: settings.denylist.join("\n"),
     hostsOn: settings.allowHosts !== null,
     hostsText: (settings.allowHosts ?? []).join("\n"),
@@ -75,6 +77,7 @@ export function checkForm(form: SettingsForm): FormCheck {
   const candidate = PolicySettings.safeParse({
     defaultMode: form.defaultMode,
     builtinDenylist: form.builtinDenylist,
+    readOnlyCommands: form.readOnlyCommands,
     denylist: deny.values,
     allowHosts: form.hostsOn ? hosts.values : null,
   });
@@ -91,6 +94,7 @@ const canon = (stored: StoredSettings): string => {
     settings.builtinDenylist,
     settings.denylist,
     settings.allowHosts,
+    settings.readOnlyCommands,
   ]);
 };
 
@@ -104,6 +108,9 @@ export interface RuleRow {
   readonly tool: string;
   readonly label: string;
   readonly createdAt: number;
+  /** Absent in an older answer: an exact rule. */
+  readonly kind?: "exact" | "prefix" | "tool";
+  readonly pattern?: readonly string[];
 }
 export interface RuleGroup {
   readonly scope: string;

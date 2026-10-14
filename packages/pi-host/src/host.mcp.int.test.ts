@@ -1,15 +1,7 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  type AgentSession,
-  createCodemodeExtension,
-  createMcpExtension,
-  createToolSearchExtension,
-  type ExtensionAPI,
-  type ExtensionFactory,
-  type InlineExtension,
-} from "@earendil-works/pi-coding-agent";
+import { type AgentSession, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { InitRecord } from "@pap/contracts";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { createApprovals } from "./approvals.ts";
@@ -23,8 +15,8 @@ import { blockedAttempts } from "./testing/network-guard.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 
 // The one thing the plan leaves to implementation (M5R24): the source path Pi records for the tools of its
-// MCP, codemode and tool-search extensions. openSession runs in this process with the three built-in factories
-// the CLI loads (SDK sessions do not), against the stdio fixture; pi-host's own worker does not load them yet.
+// MCP, codemode and tool-search extensions. openSession runs in this process with its own production built-ins
+// (builtins.ts), against the stdio fixture; only a tools probe is added.
 let root: string;
 let session: AgentSession | undefined;
 
@@ -46,14 +38,6 @@ afterEach(async () => {
   vi.unstubAllEnvs();
   rmSync(root, { recursive: true, force: true });
   expect(blockedAttempts).toEqual([]);
-});
-
-// A bare factory is `<inline:N>`; Pi names its own extensions `builtin:<name>` (`InlineExtension.builtin`), which is what the policy trusts.
-const builtin = (name: string, factory: ExtensionFactory): InlineExtension => ({
-  name,
-  factory,
-  builtin: true,
-  replaceable: true,
 });
 
 interface ToolSeen {
@@ -94,12 +78,7 @@ it("records the source path Pi gives MCP, codemode and tool_search tools (M5R24 
     secrets: NO_SECRETS,
     onEvent: () => {},
     onExtensionError: () => {},
-    extraExtensions: [
-      builtin("codemode", createCodemodeExtension()),
-      builtin("tool-search", createToolSearchExtension()),
-      builtin("mcp", createMcpExtension()),
-      { name: "tools-probe", factory: (pi) => void (api = pi) },
-    ],
+    extraExtensions: [{ name: "tools-probe", factory: (pi) => void (api = pi) }],
   });
   const tools = (): Map<string, ToolSeen> =>
     new Map(

@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { createIntBed } from "./testing/int-bed.ts";
 
-const parkedBash = { toolCalls: [{ name: "bash", args: { command: "echo parked" }, id: "c1" }] };
+const parkedBash = { toolCalls: [{ name: "bash", args: { command: "env echo parked" }, id: "c1" }] };
 
 it("delivers a steer before the next model call and a follow-up after the run, in that order", async () => {
   const bed = await createIntBed({

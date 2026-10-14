@@ -1,6 +1,5 @@
 import type {
   Activity,
-  ApprovalAnswer,
   CommandInput,
   DaemonToWorker,
   Dialog,
@@ -11,6 +10,7 @@ import type {
   PromptImageRef,
   QueueView,
   ReadyRecord,
+  SessionLoadout,
   SessionStatus,
   SessionStreamEvent,
   StatusEntry,
@@ -20,7 +20,7 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
-import type { Grant } from "./dialogs.ts";
+import type { ApprovedAnswer } from "./dialogs.ts";
 import type { CommandAnswer } from "./live-commands.ts";
 import type { RunViewState } from "./run-view.ts";
 
@@ -70,6 +70,8 @@ export interface LiveSession {
   partial(): PartialMessage | null;
   /** Pi's leaf as far as the daemon knows it (from `ready`, each appended entry, the worker's leaf records); null when unknown. */
   leafId(): string | null;
+  /** The model, reasoning level and tools as the worker last said them (M7R44); null until it does. */
+  loadout(): SessionLoadout | null;
   /** What a run in progress has produced that the session file does not have yet; null between runs. */
   runView(): RunViewState | null;
   prompt(
@@ -104,7 +106,7 @@ export interface LiveSession {
    * for the "session" and "always" answers of Task 14b. A response the dialog does not offer is `bad_request` and
    * the dialog stays open.
    */
-  answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
+  answer(dialogId: string, response: DialogResponse): ApprovedAnswer | null;
   /** Hands the worker a record (a policy update); false when it was not accepted (the worker is gone or backed up). */
   send(record: DaemonToWorker): boolean;
   /**

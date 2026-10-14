@@ -1,21 +1,28 @@
 import { Button, cn, FOCUS_RING, TextField, useIsPhone } from "@pap/ui";
-import { isSnoozed } from "@pap/contracts";
+import { isSnoozed, type ToolPreset } from "@pap/contracts";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
-import { useT } from "../../i18n/index.ts";
+import { useLazyFailureText, useT } from "../../i18n/index.ts";
+import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../lib/lazy.tsx";
 import { runCommand } from "../../lib/command-registry.ts";
 import { sessionLabel } from "../../lib/session-label.ts";
 import { getRuntime, useConnectionState } from "../../runtime/index.ts";
 import { useCurrentProject, useEffectiveProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { failureText } from "./failure.ts";
+import { lastPreset, rememberPreset } from "./presets.vm.ts";
+
+// The picker (Select and its strings) is a chunk of its own: the home stays within the initial bundle.
+const loadPicker = () => import("./PresetPicker.tsx");
 
 /** The newest sessions "Recent" shows; the whole list is the tree (M4R104). */
 const RECENT = 10;
 
 export function SessionListScreen() {
   const t = useT();
+  const lazyText = useLazyFailureText();
+  const { Lazy: Picker, attempt, retry } = useRetryableLazy(loadPicker);
   const runtime = getRuntime();
   const connection = useConnectionState(runtime.connection);
   const navigate = useNavigate();
@@ -35,6 +42,7 @@ export function SessionListScreen() {
     const timer = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(timer);
   }, []);
+  const [preset, setPreset] = useState<ToolPreset>(lastPreset);
   const cwd = typed ?? project?.root ?? "";
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -57,7 +65,7 @@ export function SessionListScreen() {
     setBusy(true);
     setError(null);
     try {
-      const { sessionId } = await runtime.rpc.call("sessions.create", { cwd: cwd.trim() });
+      const { sessionId } = await runtime.rpc.call("sessions.create", { cwd: cwd.trim(), preset });
       await navigate({ to: "/s/$sessionId", params: { sessionId } });
     } catch (failure) {
       // The session may have been made though no answer came (R105): the stream shows it if it was.
@@ -84,6 +92,24 @@ export function SessionListScreen() {
           error={error}
           name="cwd"
         />
+        <div className="max-w-64">
+          <LazyBoundary
+            resetKey={attempt}
+            onError={(error) => {
+              retry();
+              notifyLazyFailure(error, lazyText);
+            }}
+          >
+            <Picker
+              value={preset}
+              onChange={(next) => {
+                setPreset(next);
+                rememberPreset(next);
+              }}
+              disabled={busy}
+            />
+          </LazyBoundary>
+        </div>
         <div>
           <Button
             type="submit"

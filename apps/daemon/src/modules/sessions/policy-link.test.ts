@@ -48,7 +48,7 @@ function fakeSession(log: string[]): Fakes {
   return { session, stops: () => stops };
 }
 
-function build(policy = fakePolicyPort(), log: string[] = []) {
+function build(policy = fakePolicyPort(), log: string[] = [], preset: "read-only" | null = null) {
   const { logger, lines } = captureLogger();
   const published: SessionStreamEvent[] = [];
   const audited: unknown[] = [];
@@ -72,6 +72,7 @@ function build(policy = fakePolicyPort(), log: string[] = []) {
       },
     },
     sessions: () => sessions,
+    toolPreset: () => preset,
   });
   const track = async (row = ROW) => {
     const fakes = fakeSession(log);
@@ -92,18 +93,30 @@ describe("compose", () => {
       builtinDenylist: false,
       denylist: ["sudo *"],
       allowHosts: [],
+      readOnlyCommands: false,
     });
     policy.markTainted("u1", "s1");
     expect(link.compose(ROW, "/work")).toEqual({
       profile: "interactive",
       approvalMode: "supervised",
       alwaysAllow: [testRule(1)],
+      alwaysPrefixes: [],
+      alwaysTools: [],
       builtinDenylist: false,
       denylist: ["sudo *"],
       allowHosts: [],
       guard: DEFAULT_GUARD,
       taint: { tainted: true, epoch: 0 },
+      readOnlyCommands: false,
+      readOnlyPreset: false,
+      presetTools: null,
     });
+  });
+
+  it("says the preset is read-only for a read-only session, and leaves the pin to the worker (Task 15)", () => {
+    const { link } = build(fakePolicyPort(), [], "read-only");
+    expect(link.compose(ROW, "/work")).toMatchObject({ readOnlyPreset: true, presetTools: null });
+    expect(build().link.compose(ROW, "/work").readOnlyPreset).toBe(false);
   });
 
   it("uses the restrictive settings when the port cannot give the owner's, and says so", () => {
@@ -113,6 +126,7 @@ describe("compose", () => {
       builtinDenylist: RESTRICTIVE_SETTINGS.builtinDenylist,
       denylist: RESTRICTIVE_SETTINGS.denylist,
       allowHosts: RESTRICTIVE_SETTINGS.allowHosts,
+      readOnlyCommands: false,
     });
     expect(lines.filter((line) => line.msg === "policy_settings_failed")).toHaveLength(1);
   });
@@ -133,7 +147,30 @@ describe("compose", () => {
 describe("viewOf", () => {
   it("is the default view for a session the policy module has no row for", () => {
     const { link } = build();
-    expect(link.viewOf(ROW)).toEqual({ mode: "auto-accept-edits", explicit: false, tainted: false });
+    expect(link.viewOf(ROW)).toEqual({
+      mode: "auto-accept-edits",
+      explicit: false,
+      tainted: false,
+      defaultMode: "auto-accept-edits",
+    });
+  });
+
+  it("names the owner's default even when the session chose its own mode", () => {
+    const { link, policy } = build();
+    policy.setSettings("u1", { ...DEFAULT_POLICY_SETTINGS, defaultMode: "supervised" });
+    policy.setMode("u1", "s1", "read-only");
+    expect(link.viewOf(ROW)).toEqual({
+      mode: "read-only",
+      explicit: true,
+      tainted: false,
+      defaultMode: "supervised",
+    });
+  });
+
+  it("falls back to the restrictive default when the settings cannot be read", () => {
+    const { link, policy } = build();
+    policy.failSettings();
+    expect(link.viewOf(ROW).defaultMode).toBe(RESTRICTIVE_SETTINGS.defaultMode);
   });
 });
 
@@ -145,7 +182,10 @@ describe("the listeners", () => {
     policy.setMode("u1", "s1", "read-only");
     expect(log).toEqual(["send:policy_update", "publish:policy"]);
     expect(published).toEqual([
-      { kind: "policy", policy: { mode: "read-only", explicit: true, tainted: false } },
+      {
+        kind: "policy",
+        policy: { mode: "read-only", explicit: true, tainted: false, defaultMode: "auto-accept-edits" },
+      },
     ]);
     link.stop();
   });

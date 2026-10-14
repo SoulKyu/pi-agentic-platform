@@ -193,6 +193,7 @@ describe("approvals", () => {
         message: "1 line\nbash: ls",
         category: "exec",
         answers: ["deny", "once"],
+        tool: "bash",
       },
     });
     expect(dialogs.peek("a1")?.method).toBe("approval");

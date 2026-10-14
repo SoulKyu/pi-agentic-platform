@@ -59,6 +59,8 @@ export interface BedOptions {
   ownerId?(): string | null;
   /** Called once per adopted row (agreement 8). */
   onAdopted?(sessionId: string): void;
+  /** Called when a write outside pap added tool results (M7R27); defaults to nothing. */
+  onOutsideToolResults?(sessionId: string): void;
   /** The audit module's port; defaults to one that takes everything and keeps nothing. */
   audit?: AuditPort;
   /** The claims of pending uploads; defaults to a port that knows no upload. */
@@ -122,6 +124,7 @@ export interface ServiceParts<Store, Reader> {
   newId(): string;
   ownerId(): string | null;
   onAdopted?(sessionId: string): void;
+  onOutsideToolResults(sessionId: string): void;
   freeMemMb(): number;
   spawn(cwd: string): WorkerHandle;
   loadTranscript(): Promise<Reader>;
@@ -197,6 +200,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     newId: () => `p${++ids}`,
     ownerId: options.ownerId ?? (() => "u1"),
     ...(options.onAdopted ? { onAdopted: options.onAdopted } : {}),
+    onOutsideToolResults: options.onOutsideToolResults ?? (() => {}),
     loadTranscript: () => {
       transcript.loads++;
       if (transcript.failures-- > 0) return Promise.reject(new Error("the SDK did not load"));

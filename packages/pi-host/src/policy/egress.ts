@@ -1,4 +1,5 @@
 import type { CallFacts, StageResult } from "./pipeline.ts";
+import { CODING_TOOLS } from "../tool-presets.ts";
 import { argvOf, CommandTooComplex, CommandTooLong, readCommands } from "./shell-words.ts";
 
 export const EGRESS_MODEL_REASON =
@@ -6,6 +7,9 @@ export const EGRESS_MODEL_REASON =
 const MCP_READ_ONLY = "MCP tool that is not read-only";
 const MCP_READ_ONLY_MODEL_REASON =
   "pap-policy blocked this call: the session is read-only and this MCP tool may change things.";
+const PRESET_TOOL = "tool not in the session's preset";
+const PRESET_TOOL_MODEL_REASON =
+  "pap-policy blocked this call: the session's tool preset does not include this tool.";
 const TOO_COMPLEX = "input too complex for the egress check";
 const NETWORK_PROTOCOLS = new Set(["http:", "https:", "ws:", "wss:"]);
 const URL_START = /^[a-z][a-z0-9+.-]{0,31}:\/\//i;
@@ -292,7 +296,17 @@ const block = (reason: string, modelReason = EGRESS_MODEL_REASON): StageResult =
 
 /** Stage 02 (M5R21 to M5R24, M5R118): a reason carries the judged host or scheme (clipped) or a fixed client name, nothing else of the input. */
 export function egressStage(call: CallFacts): StageResult {
-  if (call.rules.approvalMode === "read-only" && call.kind.mcp && call.kind.category !== "read")
+  // Task 15: a coding tool the preset leaves out is refused by name, whatever reached it (codemode's nested calls,
+  // `tool_search` loading it): the active tool set is not the gate.
+  const { presetTools } = call.rules;
+  if (
+    Array.isArray(presetTools) &&
+    CODING_TOOLS.has(call.event.toolName) &&
+    !presetTools.includes(call.event.toolName)
+  )
+    return { outcome: "block", reason: PRESET_TOOL, modelReason: PRESET_TOOL_MODEL_REASON };
+  const readOnlySession = call.rules.approvalMode === "read-only" || call.rules.readOnlyPreset;
+  if (readOnlySession && call.kind.mcp && call.kind.category !== "read")
     return { outcome: "block", reason: MCP_READ_ONLY, modelReason: MCP_READ_ONLY_MODEL_REASON };
   const allow = call.rules.allowHosts;
   if (allow === null) return { outcome: "skip", reason: "no egress list" };

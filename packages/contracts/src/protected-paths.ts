@@ -45,3 +45,13 @@ export function isProtectedName(absolutePath: string): boolean {
     (segments.at(-2) === "mise" && last === "config.toml")
   );
 }
+
+/**
+ * The `[filter "lfs"]` entries `git lfs install` writes, the only filter-driver values that run no program the
+ * repository chose (they run the git-lfs binary). Shared by pi-host's repository config guard and the daemon's runner.
+ */
+export const LFS_ENTRIES: ReadonlyMap<string, string> = new Map([
+  ["clean", "git-lfs clean -- %f"],
+  ["smudge", "git-lfs smudge -- %f"],
+  ["process", "git-lfs filter-process"],
+]);

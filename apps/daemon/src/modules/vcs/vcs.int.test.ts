@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { VcsStatus } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
@@ -111,5 +111,35 @@ describe("vcs over the socket", () => {
       to: { kind: "head" },
     })) as { error: { code: string } };
     expect(diff.error.code).toBe("not_found");
+  });
+
+  // MC13: the daemon's runner empties a repository's own filter drivers before status and diff.
+  it("shows the status of a repository with a filter driver and does not run the driver", async () => {
+    const { daemon, c } = await repository();
+    const home = join(daemon.root, "git-home");
+    const marker = join(daemon.root, "filter.marker");
+    const script = join(daemon.root, "filter.sh");
+    writeFileSync(script, `#!/bin/sh\necho ran > '${marker}'\ncat\n`);
+    chmodSync(script, 0o755);
+    writeFileSync(join(daemon.cwd, ".gitattributes"), "*.txt filter=probe\n");
+    git(daemon.cwd, home, "config", "filter.probe.clean", script);
+    writeFileSync(join(daemon.cwd, "a.txt"), "one\ntwo\n");
+    git(daemon.cwd, home, "status", "--porcelain");
+    expect(existsSync(marker), "control: plain git runs the driver").toBe(true);
+    rmSync(marker);
+    const subscribed = (await c.call("subscribe.vcs", { root: daemon.cwd })) as { result: { sub: string } };
+    const { sub } = subscribed.result;
+    const snapshot = await c.waitForEvent((frame) => frame.sub === sub);
+    const update = await c.waitForEvent((frame) => frame.sub === sub && frame.seq > snapshot.seq, 20_000);
+    const status = (update.event as { status: VcsStatus }).status;
+    expect(status.files.map((f) => [f.path, f.kind])).toContainEqual(["a.txt", "modified"]);
+    const diff = (await c.call("vcs.fileDiff", {
+      root: daemon.cwd,
+      path: "a.txt",
+      from: { kind: "head" },
+      to: { kind: "worktree" },
+    })) as { result: { after: string } };
+    expect(diff.result.after).toBe("one\ntwo\n");
+    expect(existsSync(marker)).toBe(false);
   });
 });

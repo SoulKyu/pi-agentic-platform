@@ -120,4 +120,24 @@ describe("settings service", () => {
       revision: 4,
     });
   });
+  it("reads the models setting as off with no row, a damaged row, or a value of the wrong type (M7R138)", () => {
+    expect(service.models("u1")).toEqual({ modelsDevPricing: false });
+    db.run(
+      "INSERT INTO settings (owner_id, key, value, revision, updated_at) VALUES ('u1', 'models', '{oops-secret', 1, 0)",
+    );
+    expect(service.models("u1")).toEqual({ modelsDevPricing: false });
+    expect(lines.join("\n")).toContain("settings_row_unreadable");
+    expect(lines.join("\n")).not.toContain("oops-secret");
+    service.set(owner("u1"), { key: "models", value: { modelsDevPricing: true }, baseRevision: 1 });
+    db.run(
+      "UPDATE settings SET value = '{\"modelsDevPricing\":\"yes\"}' WHERE owner_id = 'u1' AND key = 'models'",
+    );
+    expect(service.models("u1")).toEqual({ modelsDevPricing: false });
+  });
+
+  it("reads the models setting per owner: only the owner who switched it on has it on", () => {
+    service.set(owner("u1"), { key: "models", value: { modelsDevPricing: true }, baseRevision: 0 });
+    expect(service.models("u1")).toEqual({ modelsDevPricing: true });
+    expect(service.models("u2")).toEqual({ modelsDevPricing: false });
+  });
 });

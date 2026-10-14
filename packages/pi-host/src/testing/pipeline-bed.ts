@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { NO_TAINT, type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
+import { type ShellFacts, UNKNOWN_SHELL } from "../policy/command-cover.ts";
 import { createTaint } from "../policy/taint.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
 import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
@@ -53,6 +54,10 @@ export interface PipelineHarnessOptions {
   redactReason?: (text: string) => string;
   /** Secret values by name: wires the restore stage (stage 06, M5R119). */
   secretValues?: Readonly<Record<string, string>>;
+  /** The shell facts read-only commands depend on; absent: nothing is covered (Task 1c). */
+  shell?: ShellFacts;
+  /** The session's own id (its attachments are the only ones a read takes unasked). */
+  sessionId?: string;
 }
 
 /** Temporary directories for a pipeline test: `cwd` is the session directory, `outside`, `agentDir` and `papHome` are not. */
@@ -83,6 +88,9 @@ export async function createPipelineBed() {
           audit: options.audit ?? ((entry) => entries.push(entry)),
           agentDir,
           papHome,
+          home: base,
+          sessionId: () => options.sessionId,
+          shell: () => options.shell ?? UNKNOWN_SHELL,
           grants,
           toolFacts: (name) => options.tools?.[name] ?? { path: `builtin:${name}` },
           taint,
@@ -121,6 +129,8 @@ export async function createPipelineBed() {
     base,
     /** The directories and the (empty) secret source a policy extension is configured with. */
     config: { agentDir, papHome, secrets: NO_SECRETS },
+    /** The location and shell fields of a hand-built `PipelineDeps`; the shell covers nothing. */
+    deps: { agentDir, papHome, home: base, shell: () => UNKNOWN_SHELL },
     cwd,
     outside,
     agentDir,

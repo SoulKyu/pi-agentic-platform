@@ -6,6 +6,8 @@ import {
   NO_HISTORY,
   type PartialMessage,
   type QueueView,
+  type SessionLoadout,
+  type ToolPreset,
   type SessionPolicyView,
   SessionStreamEvent,
   type Dialog,
@@ -57,6 +59,10 @@ export interface SessionView extends UiState {
   readonly outsideWrite: boolean;
   /** The mode in force and the taint, as the header shows them. */
   readonly policy: SessionPolicyView;
+  /** The model, reasoning level and tools the worker last said; null while the session has no worker (M7R44). */
+  readonly loadout: SessionLoadout | null;
+  /** The session's tool preset as last known, with or without a worker: the snapshot's stored one, then each loadout (MC37). Null before a snapshot or from an older daemon. */
+  readonly toolPreset: ToolPreset | null;
   readonly loaded: boolean;
   /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
   readonly generation: number;
@@ -81,6 +87,8 @@ export const EMPTY_VIEW: SessionView = {
   cwd: "",
   outsideWrite: false,
   policy: DEFAULT_SESSION_POLICY_VIEW,
+  loadout: null,
+  toolPreset: null,
   loaded: false,
   generation: 0,
   unreadable: false,
@@ -129,6 +137,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         cwd: event.cwd,
         outsideWrite: event.outsideWrite,
         policy: event.policy,
+        loadout: event.loadout,
+        toolPreset: event.loadout?.preset ?? event.toolPreset ?? null,
         loaded: true,
         generation: view.generation + 1,
       };
@@ -140,6 +150,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         status: event.status,
         partial: event.status === "cold" ? null : view.partial,
         queue: event.status === "cold" ? EMPTY_QUEUE : view.queue,
+        loadout: event.status === "cold" ? null : view.loadout,
         tools: event.status === "cold" ? failRunningTools(view.tools) : view.tools,
       };
       return event.cause
@@ -187,6 +198,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
             ...view,
             messages: appendMessage(view.messages, toMessageView(event.row.message, event.row.entryId)),
           };
+    case "loadout":
+      return { ...view, loadout: event.loadout, toolPreset: event.loadout.preset };
     default:
       return reduceUi(view, event) ?? (event.kind === "policy" ? { ...view, policy: event.policy } : view);
   }

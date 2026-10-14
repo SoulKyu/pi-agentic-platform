@@ -54,7 +54,7 @@ describe("the taint a worker reports (M5R60)", () => {
     });
     expect(frames.map((frame) => frame.event)).toContainEqual({
       kind: "policy",
-      policy: { mode: "auto-accept-edits", explicit: false, tainted: true },
+      policy: { mode: "auto-accept-edits", explicit: false, tainted: true, defaultMode: "auto-accept-edits" },
     });
     const updates = policyUpdatesOf(bed.spawned[0]).length;
     bed.spawned[0]?.emit(taintRecord(0));

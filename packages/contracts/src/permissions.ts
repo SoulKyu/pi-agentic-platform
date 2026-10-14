@@ -8,6 +8,7 @@ export const DOMAINS = [
   "files",
   "vcs",
   "terminal",
+  "pi",
 ] as const;
 export const LEVELS = ["read", "operate", "admin"] as const;
 export type Domain = (typeof DOMAINS)[number];

@@ -15,7 +15,6 @@ const build = (options?: BedOptions) =>
   createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader }, options);
 let bed: ReturnType<typeof build>;
 afterEach(() => bed.dispose());
-
 const OWNER = testCaller();
 const NO_MARKS: Marks = {
   pinRank: null,
@@ -72,6 +71,7 @@ const portOver = (overrides: Partial<Parameters<typeof createScanPort>[0]> = {})
     activity: () => {},
     summary: () => null,
     onAdopted: () => {},
+    onOutsideToolResults: () => {},
     startedAt: 0,
     isLive: () => false,
     workerEndedAt: () => null,
@@ -322,7 +322,7 @@ describe("adopting a Pi file", () => {
     const activity = vi.fn();
     const port = portOver({ store: readOnly, ownerId: () => "u1", newId: () => "x", activity });
     expect(port.claim(fileOf("pi-2"), headerOf("pi-2"))).toEqual({ kind: "wait" });
-    port.touched(id, NOW, true);
+    port.touched(id, NOW, true, false);
     port.named(id, "Name");
     port.previewed(id, "hello");
     expect(activity).not.toHaveBeenCalled();
@@ -346,24 +346,24 @@ describe("what the scanner reports about an adopted session", () => {
     const id = await adopt();
     const events = watchShell();
     const port = bed.service.scanPort;
-    port.touched(id, NOW - 5_000, false);
+    port.touched(id, NOW - 5_000, false, false);
     expect(bed.store.get(id)?.updatedAt).toBe(NOW - 5_000);
     await drain();
     expect(events()).toHaveLength(1);
-    port.touched(id, NOW - 8_000, false);
+    port.touched(id, NOW - 8_000, false, false);
     expect(bed.store.get(id)?.updatedAt).toBe(NOW - 5_000);
     await drain();
     expect(events()).toEqual([]);
-    port.touched(id, NOW + 1_000_000, false);
+    port.touched(id, NOW + 1_000_000, false, false);
     expect(bed.store.get(id)?.updatedAt).toBe(NOW);
   });
 
   it("un-settles a settled session when the append is active", async () => {
     const id = await adopt();
     bed.store.marks.write(id, { ...NO_MARKS, settledAt: NOW - 1 }, null);
-    bed.service.scanPort.touched(id, NOW, false);
+    bed.service.scanPort.touched(id, NOW, false, false);
     expect(bed.store.marks.row(id)?.marks.settledAt).toBe(NOW - 1);
-    bed.service.scanPort.touched(id, NOW, true);
+    bed.service.scanPort.touched(id, NOW, true, false);
     expect(bed.store.marks.row(id)?.marks.settledAt).toBeNull();
   });
 

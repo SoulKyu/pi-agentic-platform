@@ -38,6 +38,8 @@ export interface IntBedOptions {
   readonly workerIdleMs?: number;
   /** Real scopes for the tests that need them (Task 22); every other test runs workers unscoped (owner R2-3). */
   readonly scopes?: WorkerScopes;
+  /** The worker's PATH (default: the test process's). A command is covered by a rule only when every entry is absolute. */
+  readonly path?: string;
   /** How the daemon is told where the agent folder is (default: as is); `agentDir` stays the plain path. */
   readonly spellAgentDir?: (agentDir: string) => string;
 }
@@ -114,7 +116,12 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
         workerIdleMs: options.workerIdleMs ?? 30 * 60_000,
       },
       workerUmask: 0o022,
-      env: { PATH: process.env.PATH, LANG: process.env.LANG, HOME: join(root, "home"), PI_OFFLINE: "1" },
+      env: {
+        PATH: options.path ?? process.env.PATH,
+        LANG: process.env.LANG,
+        HOME: join(root, "home"),
+        PI_OFFLINE: "1",
+      },
       scopes: options.scopes ?? NO_SCOPES,
       onWorkerExit: (sessionId, info) => void exits.push({ sessionId, ...info }),
     });

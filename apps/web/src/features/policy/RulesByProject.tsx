@@ -1,6 +1,7 @@
 import { Button, TextField } from "@pap/ui";
 import { useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
+import { coverText } from "../../lib/rule-text.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { failureText } from "./failure.ts";
 import { clipLabel, dayOf, groupRules, plain, shortScope, type RuleRow } from "./policy-settings.vm.ts";
@@ -18,7 +19,7 @@ function RuleLine({
 }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
-  const label = clipLabel(rule.label);
+  const label = coverText(rule, t("approvals.rules.anyInput")) ?? clipLabel(rule.label);
   const revoke = () => {
     if (busy) return;
     setBusy(true);
@@ -34,7 +35,7 @@ function RuleLine({
       });
   };
   return (
-    <li data-rule className="flex flex-col gap-s1">
+    <li data-rule data-rule-kind={rule.kind ?? "exact"} className="flex flex-col gap-s1">
       <div className="flex items-center gap-s2">
         <span className="font-mono text-label font-semibold text-fg">{plain(rule.tool)}</span>
         <span data-rule-label className="min-w-0 flex-1 break-all font-mono text-ui text-muted">

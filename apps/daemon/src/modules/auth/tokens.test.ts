@@ -100,7 +100,7 @@ describe("api tokens", () => {
     expect(tokens.authenticate(value, { slide: false })?.permissions).toEqual(new Set(["sessions:read"]));
   });
 
-  it("refuses to store auth:*, policy:admin or any non-grantable permission, whatever the request asks (owner Q7 b)", () => {
+  it("refuses to store auth:*, policy:admin, pi:admin or any non-grantable permission, whatever the request asks (owner Q7 b)", () => {
     const { tokens, db, confirmed } = bed();
     const forbidden = ALL_PERMISSIONS.filter((p) => !TOKEN_PERMISSIONS.includes(p));
     expect(forbidden).toEqual([
@@ -111,6 +111,7 @@ describe("api tokens", () => {
       "terminal:read",
       "terminal:operate",
       "terminal:admin",
+      "pi:admin",
     ]);
     const params = methods["auth.tokens.create"].params;
     for (const permission of forbidden) {

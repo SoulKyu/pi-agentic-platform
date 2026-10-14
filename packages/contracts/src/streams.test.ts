@@ -92,7 +92,7 @@ const snapshot = {
   activity: { compacting: false, retry: { attempt: 1, maxAttempts: 3 } },
   leafId: "e9",
   name: "Fix the login bug",
-  policy: { mode: "supervised", explicit: true, tainted: false },
+  policy: { mode: "supervised", explicit: true, tainted: false, defaultMode: "auto-accept-edits" },
 };
 
 describe("session stream v2", () => {
@@ -104,6 +104,7 @@ describe("session stream v2", () => {
       mode: "auto-accept-edits",
       explicit: false,
       tainted: false,
+      defaultMode: "auto-accept-edits",
     });
   });
 
@@ -120,7 +121,13 @@ describe("session stream v2", () => {
   });
 
   it("parses a snapshot with every section", () => {
-    expect(SessionStreamEvent.parse(snapshot)).toEqual({ ...snapshot, cwd: "", outsideWrite: false });
+    expect(SessionStreamEvent.parse(snapshot)).toEqual({
+      ...snapshot,
+      cwd: "",
+      outsideWrite: false,
+      loadout: null,
+      toolPreset: "configured",
+    });
   });
 
   it("carries the session's folder, empty from an older daemon, at most 4096 characters", () => {

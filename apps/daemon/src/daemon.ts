@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { PROTOCOL_VERSION, type HandlerTable } from "@pap/contracts";
 import type { Context } from "hono";
 import { createWorkspaceModules } from "./compose-workspace.ts";
+import { composePi } from "./compose-pi.ts";
 import { createSystemClock, type Clock } from "./kernel/clock.ts";
 import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
 import { ensureInstallTimestamp } from "./kernel/db/meta.ts";
@@ -214,6 +215,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     closers.push({ name: "search", close: () => search.stop() });
     const settings = createSettingsModule({ db, clock, logger });
+    const pi = composePi({ config, env, clock, logger, hub, audit, policy, projects, sessions, settings });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
@@ -224,6 +226,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...sessions.rpc,
       ...search.rpc,
       ...settings.rpc,
+      ...pi.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
@@ -313,7 +316,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         stopping ??= (async () => {
           // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash
           // trees on the way; SIGKILL to every group first would leak them (R104).
-          await sessions.shutdownAll();
+          await Promise.all([pi.stopAll(), sessions.shutdownAll()]);
           await wk.shutdown();
           killAllWorkerGroups();
           await closeAll();

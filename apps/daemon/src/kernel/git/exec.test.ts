@@ -61,6 +61,17 @@ describe("gitArgs for check-ignore (MC15)", () => {
   });
 });
 
+describe("gitEnv PATH (M2)", () => {
+  it("drops relative entries, empty ones included, and keeps the absolute ones in order", () => {
+    expect(gitEnv({ PATH: "./node_modules/.bin:/usr/local/bin::.:/usr/bin:bin" }, "/srv/p").PATH).toBe(
+      "/usr/local/bin:/usr/bin",
+    );
+  });
+  it("leaves a missing PATH missing", () => {
+    expect(gitEnv({}, "/srv/p").PATH).toBeUndefined();
+  });
+});
+
 describe("gitEnv", () => {
   it("keeps an allowlist and adds the fixed variables and a ceiling at the root's parent", () => {
     const base = {

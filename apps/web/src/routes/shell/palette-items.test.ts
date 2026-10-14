@@ -100,6 +100,9 @@ describe("buildPaletteItems", () => {
       "Shortcuts",
       "Language",
       "Approvals",
+      "Models",
+      "MCP servers",
+      "Skills",
       "Account",
     ]);
     settings[1]?.run();

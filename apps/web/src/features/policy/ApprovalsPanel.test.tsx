@@ -60,10 +60,33 @@ const show = async () => {
   await settle();
   return page.container;
 };
+const radios = (container: HTMLElement) => [
+  ...container.querySelectorAll<HTMLInputElement>('[role="radiogroup"] input[type="radio"]'),
+];
+/** The mode radio whose own name (not its description) is this. */
+const radioNamed = (container: HTMLElement, name: string) => {
+  const found = radios(container).find(
+    (radio) => document.getElementById(radio.getAttribute("aria-labelledby") ?? "")?.textContent === name,
+  );
+  if (!found) throw new Error(`no mode ${name}`);
+  return found;
+};
 const mode = async (container: HTMLElement, name: string) => {
-  const item = [...container.querySelectorAll('[role="radio"]')].find((el) => el.textContent === name);
-  if (!item) throw new Error(`no mode ${name}`);
-  await click(item);
+  await click(radioNamed(container, name));
+};
+const checkedMode = (container: HTMLElement) =>
+  document.getElementById(
+    radios(container)
+      .find((radio) => radio.checked)
+      ?.getAttribute("aria-labelledby") ?? "",
+  )?.textContent;
+/** The switch whose visible label is this. */
+const toggle = (container: HTMLElement, label: string) => {
+  const found = [...container.querySelectorAll('[role="switch"]')].find(
+    (el) => document.getElementById(el.getAttribute("aria-labelledby") ?? "")?.textContent === label,
+  );
+  if (!found) throw new Error(`no switch ${label}`);
+  return found as HTMLElement;
 };
 const blocked = (container: HTMLElement) => field(container, "Blocked commands");
 const setCalls = () => bed.called("policy.setSettings");
@@ -135,7 +158,7 @@ describe("Settings › Approvals", () => {
     answers("policy.setSettings", [{ revision: 1 }]);
     const container = await show();
     expect(() => field(container, "Allowed hosts")).toThrow();
-    await click(container.querySelectorAll('[role="switch"]')[1] as HTMLElement); // the host switch comes after the built-in one
+    await click(toggle(container, "Only let tools reach these hosts"));
     expect(text(container)).toContain("With no host listed, every URL is blocked.");
     await typeInto(field(container, "Allowed hosts"), "Example.com");
     expect(text(container)).toContain("Line 1 is not a valid host name");
@@ -181,6 +204,77 @@ describe("Settings › Approvals", () => {
       expect(translate("fr", `approvals.builtin.${id}`)).not.toMatch(/^approvals\./);
     for (const id of BUILTIN_RESIDUALS)
       expect(translate("fr", `approvals.cannot.${id}`)).not.toMatch(/^approvals\./);
+  });
+
+  it("lists the four modes as one labelled radio group with every description visible (M7R123)", async () => {
+    answers("policy.getSettings", [{ value: null, revision: 0 }]);
+    const container = await show();
+    const group = container.querySelector('[role="radiogroup"]');
+    expect(group?.getAttribute("aria-label")).toBe("Mode of new sessions");
+    const all = radios(container);
+    expect(all).toHaveLength(4);
+    expect(new Set(all.map((radio) => radio.name)).size).toBe(1);
+    expect(checkedMode(container)).toBe("Auto-accept edits");
+    for (const hint of [
+      "Reads run. Edits, commands and network calls are refused.",
+      "Reads run. Edits, commands and network calls ask first.",
+      "Reads and edits in the project run. Commands and network calls ask first.",
+      "Everything runs without asking.",
+    ])
+      expect(text(group as HTMLElement)).toContain(hint);
+    for (const radio of all)
+      expect(document.getElementById(radio.getAttribute("aria-describedby") ?? "")?.textContent).toMatch(
+        /\./,
+      );
+    expect(text(group as HTMLElement)).not.toContain("pap still asks before writes outside the project");
+    await mode(container, "Full access");
+    expect(text(group as HTMLElement)).toContain("pap still asks before writes outside the project");
+    expect(checkedMode(container)).toBe("Full access");
+  });
+
+  it("switches read-only commands off and sends readOnlyCommands: false (M7R125)", async () => {
+    answers("policy.getSettings", [{ value: null, revision: 0 }]);
+    answers("policy.setSettings", [{ revision: 1 }]);
+    const container = await show();
+    const control = toggle(container, "Run read-only commands without asking");
+    expect(control.getAttribute("aria-checked")).toBe("true");
+    for (const name of ["cat", "rg", "git status", "git log"])
+      expect(container.querySelector(`[data-read-only-command="${name}"]`)).not.toBeNull();
+    expect(text(container)).toContain("pap cannot check commands while Pi runs a shell command prefix");
+    expect(text(container)).toContain("only in their read-only forms");
+    await click(control);
+    expect(text(container)).not.toContain("pap cannot check commands");
+    await click(button(container, "Save"));
+    await settle();
+    expect(setCalls()[0]?.params).toMatchObject({ value: { readOnlyCommands: false } });
+  });
+
+  it("keeps a stored readOnlyCommands: false when something else is saved", async () => {
+    answers("policy.getSettings", [
+      { value: { ...DEFAULT_POLICY_SETTINGS, readOnlyCommands: false }, revision: 1 },
+    ]);
+    answers("policy.setSettings", [{ revision: 2 }]);
+    const container = await show();
+    expect(toggle(container, "Run read-only commands without asking").getAttribute("aria-checked")).toBe(
+      "false",
+    );
+    await mode(container, "Read only");
+    await click(button(container, "Save"));
+    await settle();
+    expect(setCalls()[0]?.params).toMatchObject({
+      value: { readOnlyCommands: false, defaultMode: "read-only" },
+    });
+  });
+
+  it("says the read-only commands copy in French", async () => {
+    answers("policy.getSettings", [{ value: null, revision: 0 }]);
+    const container = await show();
+    setLocale("fr");
+    await settle();
+    expect(text(container)).toContain("Exécuter sans demander les commandes en lecture seule");
+    expect(text(container)).toContain("pap ne peut pas vérifier les commandes");
+    expect(text(container)).toContain("dans leurs formes en lecture seule");
+    expect(text(container)).not.toMatch(/approvals\./);
   });
 
   it("cannot double-send a save", async () => {
@@ -267,6 +361,6 @@ describe("Settings › Approvals", () => {
     const container = await show();
     expect(blocked(container).value).toBe("a *\nb *");
     expect(field(container, "Allowed hosts").value).toBe("x.example");
-    expect(container.querySelector('[role="radio"][aria-checked="true"]')?.textContent).toBe("Read only");
+    expect(checkedMode(container)).toBe("Read only");
   });
 });

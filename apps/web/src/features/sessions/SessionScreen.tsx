@@ -23,6 +23,7 @@ import { codeText, failureText } from "./failure.ts";
 import { statusCells } from "./status-cells.ts";
 import { useStructural } from "./use-action.ts";
 import { Transcript } from "./Transcript.tsx";
+import { TrustBanner } from "../trust/TrustBanner.tsx";
 
 /** The chip says what the run needs from you before it says how the process is. */
 function runStatusOf(view: SessionView): RunStatus {
@@ -129,6 +130,7 @@ export function SessionScreen({
           {t("session.outsideWrite.body")}
         </Banner>
       ) : null}
+      <TrustBanner sessionId={sessionId} cwd={view.cwd} trust={view.loadout?.projectTrust ?? null} />
       <SessionActions
         key={`actions:${sessionId}`}
         sessionId={sessionId}

@@ -85,7 +85,7 @@ describe("snapshot", () => {
     add("quiet");
     add("written");
     await bed.clock.advance(60_000);
-    bed.service.scanPort.touched("written", bed.clock.now() - 30_000, false);
+    bed.service.scanPort.touched("written", bed.clock.now() - 30_000, false, false);
     expect(await bed.snapshot("written")).toMatchObject({ outsideWrite: true });
     expect(await bed.snapshot("quiet")).toMatchObject({ outsideWrite: false });
     await bed.clock.advance(91_000);

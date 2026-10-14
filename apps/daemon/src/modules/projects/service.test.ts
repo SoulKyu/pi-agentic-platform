@@ -180,3 +180,33 @@ describe("roots", () => {
     expect(service.roots("u3")).toEqual([]);
   });
 });
+
+describe("covers", () => {
+  it("is true for a project's root and any folder inside it, for that owner only", () => {
+    service.ensure("u1", "/w/api");
+    expect(service.covers("u1", "/w/api")).toBe(true);
+    expect(service.covers("u1", "/w/api/src/deep")).toBe(true);
+    expect(service.covers("u2", "/w/api")).toBe(false);
+  });
+
+  it("is false for a sibling that shares a prefix, a parent, and anything that is not a clean absolute path", () => {
+    service.ensure("u1", "/w/api");
+    for (const path of [
+      "/w/api2",
+      "/w",
+      "/",
+      "w/api",
+      "/w/api/../web",
+      "/w/api/./src",
+      "/w/api//src",
+      "",
+      "/w/api\0",
+    ])
+      expect(service.covers("u1", path), path).toBe(false);
+  });
+
+  it("holds for a project at the filesystem root", () => {
+    service.ensure("u1", "/");
+    expect(service.covers("u1", "/etc")).toBe(true);
+  });
+});

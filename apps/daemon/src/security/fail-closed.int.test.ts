@@ -95,6 +95,7 @@ describe("security: fail closed (daemon)", () => {
         mode: "supervised",
         explicit: false,
         tainted: false,
+        defaultMode: "supervised",
       });
       const mark = markOf(client);
       await client.call("sessions.prompt", { sessionId, text: "fetch" });

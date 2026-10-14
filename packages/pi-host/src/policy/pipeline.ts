@@ -19,6 +19,7 @@ import {
   NO_RULES,
 } from "./evaluate-once.ts";
 import { auditArgs, InputTooLarge, UNREADABLE_INPUT } from "./audit-args.ts";
+import type { ShellFacts } from "./command-cover.ts";
 import { denylistStage } from "./denylist.ts";
 import { egressStage } from "./egress.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
@@ -101,6 +102,12 @@ export interface PipelineDeps {
   audit(entry: PolicyAuditEntry): void;
   readonly agentDir: string;
   readonly papHome: string;
+  /** The session's own id once Pi has made it: its attachments are the only ones its reads may take unasked. */
+  sessionId?(): string | undefined;
+  /** The worker's home, for `~` in shell commands (Task 1c). */
+  readonly home: string;
+  /** The shell facts read-only commands depend on, read at each evaluation (M7R15). */
+  shell(): ShellFacts;
   toolFacts(toolName: string): ToolFacts | undefined;
   readonly taint: { current(): boolean };
   redact(text: string): string;

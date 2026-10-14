@@ -20,4 +20,4 @@ Spec C §5.2 says a session is "tainted for the rest of the run" once external c
 
 - More cards after an injection, by design. A session that read the open world asks for each command until the owner clears it.
 - Residuals, documented in `docs/agents/policy.md`: injected text that comes through `bash` output or through files the agent reads is not fenced and does not taint (spec C §5 "Known v1 limit"); the daemon can crash between a worker's `taint` send and its dispatch; a clone taken while the live leaf is null, or after a failed `markTainted` and before the next `agent_end`, can start untainted; inserting a clone and inheriting the taint are not one transaction; a stale audit entry after a clear taints again.
-- Until M7 wires MCP, codemode and `tool_search` into the worker, no production session meets an MCP result: the rules are exercised in-process by the security tests.
+- M7 (Task 4) wires MCP, codemode and `tool_search` into the worker; the MCP and codemode rules are exercised through a real daemon worker by `apps/daemon/src/security/mcp-taint.int.test.ts` and `codemode-nested.int.test.ts` (before M7 they ran in-process).

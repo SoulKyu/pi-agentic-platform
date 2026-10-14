@@ -22,6 +22,7 @@ export const RESTRICTIVE_SETTINGS: PolicySettings = {
   builtinDenylist: true,
   denylist: [],
   allowHosts: [],
+  readOnlyCommands: false,
 };
 
 /** The part of the policy port that concerns a session's mode and taint and the owner's settings (Task 12a). */

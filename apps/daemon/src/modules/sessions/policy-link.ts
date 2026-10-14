@@ -1,4 +1,5 @@
 import {
+  type ApprovalMode,
   type Caller,
   DEFAULT_GUARD,
   PolicyRules,
@@ -14,7 +15,7 @@ import type { AuditPort } from "../audit/index.ts";
 import { type PolicyPort, RESTRICTIVE_SETTINGS } from "../policy/index.ts";
 import { createGrantLink, type GrantLink } from "./grants.ts";
 import type { LiveSession } from "./live-session.ts";
-import type { SessionRow } from "./store.ts";
+import type { SessionRow, StoredPreset } from "./store.ts";
 
 const SAY_EVERY_MS = 60_000;
 const MAX_WINDOWS = 1_024;
@@ -50,6 +51,8 @@ export interface PolicyLinkDeps {
   readonly hub: Pick<StreamHub, "publish">;
   /** The workers that are up and the ones still starting. */
   sessions(): Iterable<LiveSession>;
+  /** The session's tool preset now (null: configured): the stored one, not the copy a tracked row holds (Task 15). */
+  toolPreset(row: SessionRow): StoredPreset | null;
 }
 
 export interface PolicyLink {
@@ -124,11 +127,14 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
       profile: "interactive",
       approvalMode: mode,
       alwaysAllow: grants.alwaysFor(row, scope),
+      ...grants.patternsFor(row, scope),
       builtinDenylist: settings.builtinDenylist,
       denylist: settings.denylist,
       allowHosts: settings.allowHosts,
       guard: DEFAULT_GUARD,
       taint,
+      readOnlyCommands: settings.readOnlyCommands,
+      readOnlyPreset: deps.toolPreset(row) === "read-only",
     });
     if (composed.success) return composed.data;
     // A bug, not an answer. The worker refuses invalid rules at start, and read-only is the narrowest valid set.
@@ -145,9 +151,18 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
     }
   }
 
+  const defaultModeOf = (ownerId: string, sessionId: string): ApprovalMode => {
+    try {
+      return deps.policy.settings(ownerId).defaultMode;
+    } catch (error) {
+      say("policy_settings_failed", { sessionId, err: error });
+      return RESTRICTIVE_SETTINGS.defaultMode;
+    }
+  };
+
   const viewOfId = (ownerId: string, sessionId: string): SessionPolicyView => {
     const { mode, explicit, taint } = deps.policy.sessionPolicy(ownerId, sessionId);
-    return { mode, explicit, tainted: taint.tainted };
+    return { mode, explicit, tainted: taint.tainted, defaultMode: defaultModeOf(ownerId, sessionId) };
   };
   const publishView = (ownerId: string, sessionId: string): void =>
     deps.hub.publish("session", sessionId, { kind: "policy", policy: viewOfId(ownerId, sessionId) });

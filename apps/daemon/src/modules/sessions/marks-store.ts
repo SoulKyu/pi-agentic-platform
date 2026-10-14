@@ -1,5 +1,6 @@
-import type { Marks } from "@pap/contracts";
+import type { Marks, ToolPreset } from "@pap/contracts";
 import type { Db } from "../../kernel/db/database.ts";
+import { toolPresetOf } from "./store.ts";
 
 /** A session as the sidebar sees it: identity, label sources, project and marks. */
 export interface ShellRow {
@@ -11,6 +12,8 @@ export interface ShellRow {
   readonly projectId: string | null;
   readonly createdAt: number;
   readonly updatedAt: number;
+  /** The stored tool preset (`configured` when none; a value this version cannot read is `chat`). */
+  readonly toolPreset: ToolPreset;
   readonly marks: Marks;
 }
 
@@ -23,6 +26,7 @@ interface RawRow {
   projectId: string | null;
   createdAt: number;
   updatedAt: number;
+  toolPreset: unknown;
   pinRank: number | null;
   archivedAt: number | null;
   settledAt: number | null;
@@ -35,7 +39,7 @@ interface RawRow {
 const MAX_PENDING_IDS = 32;
 
 const COLUMNS =
-  "id, owner_id AS ownerId, cwd, name, preview, project_id AS projectId, created_at AS createdAt, updated_at AS updatedAt, " +
+  "id, owner_id AS ownerId, cwd, name, preview, project_id AS projectId, created_at AS createdAt, updated_at AS updatedAt, tool_preset AS toolPreset, " +
   "pin_rank AS pinRank, archived_at AS archivedAt, settled_at AS settledAt, settled_auto AS settledAuto, " +
   "unsettled_at AS unsettledAt, snoozed_until AS snoozedUntil";
 
@@ -48,6 +52,7 @@ const rowOf = (raw: RawRow): ShellRow => ({
   projectId: raw.projectId,
   createdAt: raw.createdAt,
   updatedAt: raw.updatedAt,
+  toolPreset: toolPresetOf(raw.toolPreset) ?? "configured",
   marks: {
     pinRank: raw.pinRank,
     archivedAt: raw.archivedAt,

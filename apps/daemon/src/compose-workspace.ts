@@ -8,6 +8,7 @@ import type { BoundaryConfig } from "./kernel/fs/boundary.ts";
 import { createDenySet, type DenySources } from "./kernel/fs/deny-set.ts";
 import { httpCaller } from "./kernel/http/caller.ts";
 import { loadNodePty } from "./kernel/pty/load.ts";
+import { guardFilters } from "./kernel/git/filters.ts";
 import { createGitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { WorkerScopes } from "./kernel/supervisor/scope.ts";
@@ -117,7 +118,7 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
   const deny = createDenySet(denySourcesOf(boundary), deps.clock, undefined, undefined, {
     logger: deps.logger.child({ module: "deny_set" }),
   });
-  const git = createGitRunner({ env: deps.env, logger: deps.logger.child({ module: "git" }) });
+  const git = guardFilters(createGitRunner({ env: deps.env, logger: deps.logger.child({ module: "git" }) }));
   const files = createFilesModule({
     roots: deps.roots,
     boundary,

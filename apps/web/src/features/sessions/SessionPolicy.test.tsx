@@ -27,6 +27,7 @@ const policy = (patch: Partial<SessionPolicyView> = {}): SessionPolicyView => ({
   mode: "auto-accept-edits",
   explicit: false,
   tainted: false,
+  defaultMode: "auto-accept-edits",
   ...patch,
 });
 const show = (view: SessionPolicyView) => mount(<SessionPolicy sessionId="s1" policy={view} />);
@@ -100,11 +101,28 @@ describe("SessionPolicy", () => {
     ]);
   });
 
+  it("names the owner's default mode when the session follows it (M7R123)", async () => {
+    await show(policy({ mode: "supervised", defaultMode: "supervised" }));
+    expect(trigger().textContent).toContain("Use my default (Ask for everything)");
+  });
+
+  it("names the owner's default mode in the list even when the session chose its own", async () => {
+    await show(policy({ mode: "read-only", explicit: true, defaultMode: "supervised" }));
+    expect(trigger().textContent).toContain("Read only");
+    await act(async () => {
+      trigger().dispatchEvent(
+        new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse" }),
+      );
+    });
+    await vi.waitFor(() => expect(options()).toHaveLength(5), { timeout: 2_000 });
+    expect(options()[0]).toBe("Use my default (Ask for everything)");
+  });
+
   it("sends a mode other than full access straight away, and null for the default", async () => {
     const page = await show(policy({ mode: "supervised", explicit: true }));
     expect(trigger().textContent).toContain("Ask for everything");
     await choose("Read only");
-    await choose("Use my default");
+    await choose("Use my default (Auto-accept edits)");
     expect(sent("policy.setSessionMode")).toEqual([
       [{ sessionId: "s1", mode: "read-only" }, { commandId: "bed-cmd-00000001" }],
       [{ sessionId: "s1", mode: null }, { commandId: "bed-cmd-00000002" }],

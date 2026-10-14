@@ -46,6 +46,7 @@ const OPENERS: {
   vcs: (rpc, key, after) => rpc.call("subscribe.vcs", { root: key, ...(after ? { after } : {}) }),
   // The caller's own terminals, like `shell`: the key is a local name (M8R65).
   terminal: (rpc, _key, after) => rpc.call("subscribe.terminal", after ? { after } : {}),
+  login: (rpc, key, after) => rpc.call("subscribe.login", { flowId: key, ...(after ? { after } : {}) }),
 };
 
 interface Listener {

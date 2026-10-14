@@ -3,14 +3,15 @@ import { linkSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } 
 import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AuditView, EventFrame, ResponseFrame } from "@pap/contracts";
 import { expect, vi } from "vitest";
 import type { HttpReply } from "../../testing/http-client.ts";
 import { startTestDaemon, type TestDaemon, type TestDaemonOptions } from "../../testing/harness.ts";
 import type { TestClient } from "../../testing/ws-client.ts";
 
-// Shared by the security suite (spec C §8.1). MCP is not here: the production worker loads no MCP (M5 Task 9 ruling),
-// so MCP exit criteria run in-process in packages/pi-host (host.taint.mcp*.int.test.ts).
+// Shared by the security suite (spec C §8.1). The production worker loads Pi's MCP, codemode and tool search since M7
+// (Task 4), so the MCP exit criteria run through a real daemon worker (mcp-taint, codemode-nested).
 
 type StreamEvent = { kind?: string; status?: string; dialog?: { id?: string } };
 const streamOf = (frame: EventFrame) => frame.event as StreamEvent;
@@ -326,3 +327,33 @@ export async function mintToken(bed: FileBed, permissions: string[]): Promise<st
 
 /** The error code of a failed call, or `ok` when it succeeded: one value to compare in a table. */
 export const outcomeOf = (frame: ResponseFrame): string => (frame.ok ? "ok" : frame.error.code);
+
+export interface McpFixtureTool {
+  readonly name: string;
+  readonly annotations?: Readonly<Record<string, unknown>>;
+  /** The text `tools/call` answers. */
+  readonly reply: string;
+}
+
+// The daemon cannot import pi-host (module boundary): the stdio server script is started by path, like the worker entry.
+const MCP_FIXTURE_SERVER = fileURLToPath(
+  new URL("../../../../../packages/pi-host/src/testing/mcp-fixture.mjs", import.meta.url),
+);
+
+/**
+ * `agentFiles` that make Pi start the local stdio MCP fixture as server `fix` (tools `mcp__fix__<name>`) with the
+ * given exposure. `callsOut`: a file to which the fixture appends the params of each `tools/call`, one JSON line.
+ */
+export function mcpAgentFiles(
+  tools: readonly McpFixtureTool[],
+  options: { exposure: "direct" | "codemode"; callsOut?: string },
+): Record<string, string> {
+  const config = JSON.stringify({ tools, ...(options.callsOut ? { callsOut: options.callsOut } : {}) });
+  return {
+    "mcp.json": JSON.stringify({
+      mcpServers: {
+        fix: { command: process.execPath, args: [MCP_FIXTURE_SERVER, config], exposure: options.exposure },
+      },
+    }),
+  };
+}

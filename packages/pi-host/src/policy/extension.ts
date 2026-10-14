@@ -5,6 +5,8 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { POLICY_EXTENSION_PATH, type PolicyAuditEntry, type PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
+import { homedir } from "node:os";
+import { type ShellFacts, UNKNOWN_SHELL } from "./command-cover.ts";
 import { createPolicyGrants } from "./grants.ts";
 import { errorClass } from "../bounded.ts";
 import { evaluateToolCall, type PipelineDeps } from "./pipeline.ts";
@@ -27,6 +29,8 @@ export interface PolicyConfig {
   agentDir: string;
   /** pap's data directory: the database, secrets and agent homes live there. */
   papHome: string;
+  /** The session's own id once Pi has made it (read-target: its attachments). */
+  sessionId?(): string | undefined;
   /** The policy's question, on its own record. A closed question blocks the call (M2R66). */
   ask(request: ApprovalAsk, signal?: AbortSignal): Promise<ApprovalOutcome>;
   /** Moves on every policy update, valid or not: a provisional "always" grant ends with it. */
@@ -35,6 +39,10 @@ export interface PolicyConfig {
   taint: Taint;
   /** The secrets the worker knows (stage 06). */
   secrets: SecretSource;
+  /** The worker's home, for `~` in shell commands (Task 1c). */
+  home?: string;
+  /** The shell facts read-only commands depend on (M7R15); absent: nothing is covered. */
+  shell?: () => ShellFacts;
   /** Redacts audit arguments; by default what `secrets` knows. */
   redact?: PipelineDeps["redact"];
   /** Told the tools declared to the model at each `agent_start`; a throw is logged, never raised into the run. */
@@ -66,6 +74,8 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
       const { secrets } = config;
       const deps: PipelineDeps = {
         ...config,
+        home: config.home ?? homedir(),
+        shell: config.shell ?? (() => UNKNOWN_SHELL),
         grants: createPolicyGrants(config.rulesVersion),
         toolFacts,
         taint: config.taint,

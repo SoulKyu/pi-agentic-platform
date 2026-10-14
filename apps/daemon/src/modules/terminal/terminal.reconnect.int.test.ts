@@ -92,9 +92,9 @@ describe("a terminal survives a browser reconnect within one daemon lifetime", (
     const a = await attach(wire.client, terminalId);
     a.type("echo seen\r");
     await untilText(a, "seen\r\n");
-    const end = a.received();
     const client = await reconnect(wire);
-    const b = await attach(client, terminalId, end + 10);
+    // Past the end however much the shell still prints (the command's own output and prompt follow its echo).
+    const b = await attach(client, terminalId, Number.MAX_SAFE_INTEGER);
     await vi.waitFor(() => expect(b.frames().length).toBeGreaterThan(0), { timeout: 15_000 });
     expect(b.frames()[0]?.op).toBe(FRAME_OPS.reset);
   });

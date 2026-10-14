@@ -35,6 +35,35 @@ describe("approvals", () => {
     expect(await answer).toEqual({ answer: "once", closed: false });
   });
 
+  it("sends the offered scopes and hands the scope of an always answer back", async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const approvals = createApprovals(
+      (record) => {
+        sent.push(record);
+        return true;
+      },
+      { newId: () => "a1" },
+    );
+    const answer = approvals.ask({
+      ...request,
+      answers: ["deny", "always", "once"],
+      alwaysScopes: { prefix: ["pnpm", "test"] },
+    });
+    expect(sent[0]).toMatchObject({ alwaysScopes: { prefix: ["pnpm", "test"] } });
+    approvals.resolve({ id: "a1", answer: "always", scope: "prefix" });
+    expect(await answer).toEqual({ answer: "always", scope: "prefix", closed: false });
+  });
+
+  it("closes a question whose offered scope the schema refuses", async () => {
+    const approvals = createApprovals(() => true, { newId: () => "a1" });
+    const answer = approvals.ask({
+      ...request,
+      answers: ["deny", "always", "once"],
+      alwaysScopes: { prefix: ["a b"] },
+    });
+    expect(await answer).toEqual(CLOSED);
+  });
+
   it("treats an answer it did not offer as a refusal", async () => {
     const approvals = createApprovals(() => true, { newId: () => "a1" });
     const answer = approvals.ask(request);

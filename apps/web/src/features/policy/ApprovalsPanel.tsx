@@ -1,30 +1,15 @@
-import { APPROVAL_MODES, MAX_ALLOW_HOSTS, MAX_DENY_PATTERNS, type ApprovalMode } from "@pap/contracts";
-import { Button, Segmented, Switch } from "@pap/ui";
+import { MAX_ALLOW_HOSTS, MAX_DENY_PATTERNS } from "@pap/contracts";
+import { Button, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { BuiltinPreset } from "./BuiltinPreset.tsx";
+import { ModeField } from "./ModeField.tsx";
 import { PatternField } from "./PatternField.tsx";
+import { ReadOnlyCommands } from "./ReadOnlyCommands.tsx";
 import { RulesByProject } from "./RulesByProject.tsx";
 import { useSettingsForm } from "./use-settings-form.ts";
 
 const HEADING = "text-ui font-semibold text-fg";
 const NOTE = "text-ui text-muted";
-
-function ModeField({ mode, onChange }: { mode: ApprovalMode; onChange(mode: ApprovalMode): void }) {
-  const t = useT();
-  return (
-    <div className="flex flex-col gap-s2">
-      <Segmented
-        label={t("approvals.mode.label")}
-        value={mode}
-        options={APPROVAL_MODES.map((value) => ({ value, label: t(`approvals.mode.${value}`) }))}
-        onChange={onChange}
-      />
-      <p className={NOTE}>{t(`approvals.mode.${mode}.hint`)}</p>
-      {mode === "full-access" ? <p className={NOTE}>{t("approvals.mode.full-access.limits")}</p> : null}
-      <p className={NOTE}>{t("approvals.mode.hint")}</p>
-    </div>
-  );
-}
 
 /** Settings › Approvals: the owner's defaults (one form, one Save) and the always rules (their own list). */
 export function ApprovalsPanel() {
@@ -51,6 +36,13 @@ export function ApprovalsPanel() {
         <section className="flex flex-col gap-s2">
           <h3 className={HEADING}>{t("approvals.mode.title")}</h3>
           <ModeField mode={form.defaultMode} onChange={(defaultMode) => state.edit({ defaultMode })} />
+        </section>
+        <section className="flex flex-col gap-s3">
+          <h3 className={HEADING}>{t("approvals.readOnly.title")}</h3>
+          <ReadOnlyCommands
+            on={form.readOnlyCommands}
+            onChange={(readOnlyCommands) => state.edit({ readOnlyCommands })}
+          />
         </section>
         <section className="flex flex-col gap-s3">
           <h3 className={HEADING}>{t("approvals.blocked.title")}</h3>

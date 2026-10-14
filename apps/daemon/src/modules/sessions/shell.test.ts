@@ -15,6 +15,7 @@ const summary = (id: string, projectId: string | null, cwd = `/w/${id}`): ShellS
   name: null,
   preview: null,
   status: "cold",
+  toolPreset: "configured",
   needsInput: false,
   projectId,
   pinRank: null,
@@ -43,6 +44,7 @@ describe("shell summaries", () => {
       projectId: "p1",
       createdAt: 1,
       updatedAt: 2,
+      toolPreset: "configured" as const,
       marks: { ...NO_MARKS, pinRank: 2, snoozedUntil: 9 },
     };
     expect(summaryOf(row, { status: "running", needsInput: true })).toEqual({
@@ -51,6 +53,7 @@ describe("shell summaries", () => {
       name: "n",
       preview: "p",
       status: "running",
+      toolPreset: "configured",
       needsInput: true,
       projectId: "p1",
       pinRank: 2,
@@ -138,6 +141,7 @@ describe("shell summaries", () => {
           cwd: `/${"d".repeat(4000)}`,
           name: null,
           status: "cold",
+          toolPreset: "configured",
           createdAt: 1,
           updatedAt: 1,
         }) as const,

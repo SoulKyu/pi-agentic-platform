@@ -42,6 +42,8 @@ describe("create", () => {
       agentDir: bed.agentDir,
       papHome: join(bed.dir, "pap"),
       umask: 0o022,
+      papSessionId: "p1",
+      tools: { preset: "configured" },
       policy: PolicyRules.parse({
         profile: "interactive",
         approvalMode: "auto-accept-edits",
@@ -54,6 +56,12 @@ describe("create", () => {
     open({ umask: 0o027 });
     await bed.service.create(bed.work, owner);
     expect(bed.spawned[0]?.sent[0]).toMatchObject({ type: "init", umask: 0o027 });
+  });
+
+  it("hands the worker pap's id of the session, the name of its attachments folder (C1)", async () => {
+    open();
+    const { sessionId } = await bed.service.create(bed.work, owner);
+    expect(bed.spawned[0]?.sent[0]).toMatchObject({ type: "init", papSessionId: sessionId });
   });
 
   it("hands the worker a test provider script only when one is configured", async () => {

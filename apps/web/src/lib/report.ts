@@ -13,7 +13,8 @@ export type ClientIssue =
   | "command_failed"
   | "workspace_invalid"
   | "message_missing"
-  | "mention_search_failed";
+  | "mention_search_failed"
+  | "commands_list_failed";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.

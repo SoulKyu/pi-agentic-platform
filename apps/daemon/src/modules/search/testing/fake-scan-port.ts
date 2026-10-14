@@ -6,7 +6,7 @@ type PiFileHeader = Parameters<SessionsScanPort["claim"]>[1];
 export interface FakeScanPort {
   readonly port: Pick<SessionsScanPort, "claim" | "touched" | "named" | "previewed">;
   readonly claims: Array<{ path: string; header: PiFileHeader }>;
-  readonly touched: Array<{ sessionId: string; at: number; active: boolean }>;
+  readonly touched: Array<{ sessionId: string; at: number; active: boolean; toolResults: boolean }>;
   readonly named: Array<{ sessionId: string; raw: string | null }>;
   readonly previewed: Array<{ sessionId: string; text: string }>;
   /** Answers the next `claim` calls in order; afterwards the default session. */
@@ -34,8 +34,8 @@ export function fakeScanPort(): FakeScanPort {
         claims.push({ path, header });
         return queue.shift() ?? DEFAULT_CLAIM;
       },
-      touched: (sessionId, at, active) => {
-        touched.push({ sessionId, at, active });
+      touched: (sessionId, at, active, toolResults) => {
+        touched.push({ sessionId, at, active, toolResults });
       },
       named: (sessionId, raw) => {
         named.push({ sessionId, raw });

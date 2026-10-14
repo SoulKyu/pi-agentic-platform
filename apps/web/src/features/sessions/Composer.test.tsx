@@ -98,9 +98,11 @@ describe("Composer while the agent works", () => {
   it("offers Steer, Follow up and Stop, the preferred way primary, and remembers the way last used per device", async () => {
     const container = await show({ status: "running" });
     expect(hasButton(container, "Send")).toBe(false);
-    expect(container.querySelector('[role="group"]')?.getAttribute("aria-label")).toBe(
-      "While the agent works",
-    );
+    expect(
+      container
+        .querySelector('[role="group"][aria-label="While the agent works"]')
+        ?.getAttribute("aria-label"),
+    ).toBe("While the agent works");
     expect(button(container, "Steer").dataset.variant).toBe("primary");
     expect(button(container, "Follow up").dataset.variant).toBe("secondary");
     expect(button(container, "Stop").dataset.variant).toBe("secondary");

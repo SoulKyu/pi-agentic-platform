@@ -7,7 +7,7 @@
     },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts", "src/testing/mcp-fixture.mjs"],
-      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run"]
+      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run", "mkfifo"]
     },
     "apps/web": {
       "entry": ["src/features/appearance/boot-script.js", "vite/*.ts"]

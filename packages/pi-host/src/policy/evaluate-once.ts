@@ -1,6 +1,7 @@
 import type { ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import type { CallAuditEntry, GuardRule, StageId, ToolCategory } from "@pap/contracts";
 import { GUARD_RULES } from "@pap/contracts";
+import { alwaysScopesOf, patternGrant, rememberScope, scopeOffered } from "./pattern-grants.ts";
 import { describeCall } from "./describe-call.ts";
 import { GUARD_MODEL_REASON } from "./run-guard.ts";
 import type { CallFacts, PipelineDeps, PolicyContext, PolicyEvent, Stages } from "./pipeline.ts";
@@ -134,13 +135,15 @@ export async function evaluateOnce(
     const always =
       rules.alwaysAllow.some((rule) => rule.tool === event.toolName && rule.key === key) ||
       deps.grants.hasProvisionalAlways(key);
-    const grantedBy = deps.grants.hasSession(key) ? "session rule" : always ? "always rule" : null;
+    const exact = deps.grants.hasSession(key) ? "session rule" : always ? "always rule" : null;
+    const grantedBy = exact ?? (await patternGrant(call, ctx, deps));
     if (grantedBy) {
       trail.add("03", "allow", grantedBy);
       trail.add("04", "pass");
       return finish(call, "allow", grantedBy, undefined);
     }
   }
+  const scopes = grantable && answers.includes("always") ? alwaysScopesOf(call) : undefined;
   const askedAt = deps.grants.version();
   const outcome = await deps.ask(
     {
@@ -150,6 +153,7 @@ export async function evaluateOnce(
       key,
       toolCallId: ids.toolCallId,
       answers,
+      ...(scopes ? { alwaysScopes: scopes } : {}),
       tainted: call.tainted,
       ...(trip ? { guard: trip.rule } : {}),
     },
@@ -162,7 +166,9 @@ export async function evaluateOnce(
   if (outcome.closed)
     return finish(call, "denied", "dialog closed", { block: true, reason: FAIL_CLOSED_REASON }, answered);
   // An answer that was not offered is a refusal, whatever the channel says.
-  const offered = answers.includes(outcome.answer);
+  const scope = outcome.scope ?? "exact";
+  const offered =
+    answers.includes(outcome.answer) && (outcome.answer !== "always" || scopeOffered(scope, scopes));
   if (!offered || outcome.answer === "deny")
     return finish(
       call,
@@ -172,12 +178,10 @@ export async function evaluateOnce(
       answered,
     );
   if (grantable && outcome.answer === "session") deps.grants.rememberSession(key);
-  if (grantable && outcome.answer === "always") deps.grants.rememberAlways(key, askedAt);
-  return finish(
-    call,
-    "approved",
-    review ? `answer: ${outcome.answer}; ${review.why}` : `answer: ${outcome.answer}`,
-    undefined,
-    { answered: true, guardReleased: trip && outcome.answer === "once" ? trip.rule : null },
-  );
+  if (grantable && outcome.answer === "always") rememberScope(deps.grants, scope, scopes, call, askedAt);
+  const said = outcome.answer === "always" && scope !== "exact" ? `always (${scope})` : outcome.answer;
+  return finish(call, "approved", review ? `answer: ${said}; ${review.why}` : `answer: ${said}`, undefined, {
+    answered: true,
+    guardReleased: trip && outcome.answer === "once" ? trip.rule : null,
+  });
 }

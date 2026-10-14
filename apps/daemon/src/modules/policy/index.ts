@@ -5,14 +5,14 @@ import type { MigrationSource } from "../../kernel/db/migrate.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { type PolicyRpc, type PolicyV2Rpc, policyRpc, policyV2Rpc } from "./rpc.ts";
-import { createPolicyService, type PolicyPort } from "./service.ts";
+import { type AlwaysInput, createPolicyService, type PolicyPort } from "./service.ts";
 import { createSessionPolicyService } from "./session-service.ts";
 import { createSessionPolicyStore } from "./session-store.ts";
 import { createSettingsPolicyStore } from "./settings-store.ts";
 import { createPolicyStore } from "./store.ts";
 
 export { RESTRICTIVE_SETTINGS } from "./session-service.ts";
-export type { PolicyPort };
+export type { AlwaysInput, PolicyPort };
 
 export const POLICY_MIGRATIONS: MigrationSource = {
   module: "policy",
@@ -54,6 +54,8 @@ export function createPolicyModule(deps: {
     port: {
       scopeOf: service.scopeOf,
       rulesFor: service.rulesFor,
+      prefixesFor: service.prefixesFor,
+      toolsFor: service.toolsFor,
       addAlways: service.addAlways,
       onChange: service.onChange,
       sessionPolicy: sessionPolicy.sessionPolicy,

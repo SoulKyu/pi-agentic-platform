@@ -10,14 +10,18 @@ import {
 } from "./index.ts";
 
 describe("token contract", () => {
-  it("lets a token hold every permission except auth:* and policy:admin, in catalogue order", () => {
-    expect(TOKEN_PERMISSIONS).toHaveLength(20);
+  it("lets a token hold every permission except auth:*, terminal:*, policy:admin and pi:admin, in catalogue order", () => {
+    expect(TOKEN_PERMISSIONS).toHaveLength(22);
     expect(TOKEN_PERMISSIONS).toEqual(
       ALL_PERMISSIONS.filter(
-        (p) => !p.startsWith("auth:") && !p.startsWith("terminal:") && p !== "policy:admin",
+        (p) =>
+          !p.startsWith("auth:") && !p.startsWith("terminal:") && p !== "policy:admin" && p !== "pi:admin",
       ),
     );
     expect(TOKEN_PERMISSIONS).not.toContain("policy:admin");
+    expect(TOKEN_PERMISSIONS).not.toContain("pi:admin");
+    expect(TokenPermission.safeParse("pi:admin").success).toBe(false);
+    expect(TokenPermission.safeParse("pi:read").success).toBe(true);
     expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("auth:"))).toBe(false);
   });
 

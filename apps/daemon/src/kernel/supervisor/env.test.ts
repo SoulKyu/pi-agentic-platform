@@ -1,3 +1,4 @@
+import { PLATFORM_ENV_KEYS } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { isDaemonOnly, workerEnv } from "./env.ts";
 
@@ -85,6 +86,8 @@ describe("workerEnv", () => {
       ["PATH", "/usr/bin"],
       ["XDG_RUNTIME_DIR", "/run/user/1000"],
     ]);
+    // Drift: the shared list (also the helper's `npm`/`git` environment) is exactly this one.
+    expect([...PLATFORM_ENV_KEYS]).toEqual(platform);
     for (const key of platform) expect(isDaemonOnly(key), key).toBe(true);
     expect(workerEnv(base, {})).toEqual({
       PATH: "/usr/bin",

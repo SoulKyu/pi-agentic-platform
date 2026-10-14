@@ -6,15 +6,17 @@ import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import { createOrganiser } from "./organiser.ts";
 import { createPromptAttachments, plainPrompt } from "./prompt-attachments.ts";
+import { createFolderRestart } from "./restart-folder.ts";
 import { createAdoption } from "./service-adopt.ts";
 import { createSessionCommands } from "./service-commands.ts";
+import { createSessionModels } from "./service-models.ts";
 import { createLaunch } from "./service-launch.ts";
 import { createSessionMarks } from "./service-marks.ts";
 import { createSessionReads } from "./service-reads.ts";
 import { createShellView } from "./service-shell.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
 import { fitSummaries } from "./shell.ts";
-import type { SessionRow } from "./store.ts";
+import { type SessionRow, storedPresetOf } from "./store.ts";
 import type { SessionsService, SessionsServiceDeps } from "./service-types.ts";
 
 // What changes a sidebar summary: the status, an open dialog or approval, the name (M4R34).
@@ -32,7 +34,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   // Workers between fork and `ready`. They count against the cap like running ones (R9).
   const starting = new Set<LiveSession>();
   let closing = false;
-  const policyLink = createPolicyLink({ ...deps, sessions: () => [...live.values(), ...starting] });
+  const presetOf = (row: SessionRow) => {
+    const stored = deps.store.get(row.id);
+    return stored ? (stored.toolPreset ?? null) : (row.toolPreset ?? null);
+  };
+  const policyLink = createPolicyLink({
+    ...deps,
+    sessions: () => [...live.values(), ...starting],
+    toolPreset: presetOf,
+  });
   const grants = policyLink.grants;
   const attachments = createPromptAttachments(deps);
 
@@ -88,6 +98,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     newId: deps.newId,
     ownerId: deps.ownerId,
     ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
+    onOutsideToolResults: deps.onOutsideToolResults,
     live,
     link,
     publisher,
@@ -95,6 +106,12 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     summary: shell.summaryFor,
   });
 
+  const folderRestart = createFolderRestart({
+    live,
+    reopening,
+    row: (id) => deps.store.get(id),
+    logger: deps.logger,
+  });
   const { launch, ensureLive } = createLaunch({
     deps,
     live,
@@ -103,9 +120,14 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     grants,
     policyLink,
     checkCapacity,
+    toolPreset: presetOf,
     projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
-    onReopened: (sessionId) => publisher.changed(sessionId),
+    onReopened: (sessionId) => {
+      publisher.changed(sessionId);
+      folderRestart.reopened(sessionId);
+    },
     onPublished: (sessionId, event) => {
+      folderRestart.published(sessionId, event);
       // A run starting is activity: the session leaves Settled and Snoozed (M4R41).
       if (event.kind === "status" && event.status === "running") organiser.activity(sessionId);
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
@@ -146,6 +168,15 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     exports: deps.exports,
     logger: deps.logger,
   });
+  const modelCommands = createSessionModels({
+    owned,
+    ensureLive,
+    logger: deps.logger,
+    store: deps.store,
+    running: async (id) => live.get(id) ?? (await reopening.get(id)?.catch(() => null)) ?? null,
+    // The worker is sent the whole rules, which now say whether the preset is read-only.
+    presetChanged: (row) => grants.pushWhere((tracked) => tracked.id === row.id),
+  });
   const forks = createForks({
     store: deps.store,
     clock: deps.clock,
@@ -154,7 +185,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     newId: deps.newId,
     loadWriter: deps.loadWriter,
     onMade: adoption.fileMade,
-    onAdopted: (source, id) => policyLink.inherit(source, id),
+    // A fork or clone never starts looser than its source: mode and taint (owner Q15), and the tool preset (Task 15).
+    onAdopted: (source, id) => {
+      policyLink.inherit(source, id);
+      deps.store.setToolPreset(id, presetOf(source));
+    },
   });
   const sessionMarks = createSessionMarks({
     store: marks,
@@ -172,9 +207,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   };
 
   return {
-    async create(cwdInput, caller) {
+    async create(cwdInput, caller, preset) {
       const cwd = resolveSessionCwd(cwdInput);
       const now = deps.clock.now();
+      const toolPreset = preset === undefined ? null : storedPresetOf(preset);
       const row: SessionRow = {
         id: deps.newId(),
         piPath: null,
@@ -184,6 +220,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
         name: null,
         createdAt: now,
         updatedAt: now,
+        ...(toolPreset ? { toolPreset } : {}),
       };
       await launch(row, true);
       publisher.changed(row.id);
@@ -221,6 +258,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     rename: (input, caller) => commands.rename(input, caller),
     autoName: (sessionId, caller) => commands.autoName(sessionId, caller),
     exportHtml: (sessionId, caller) => commands.exportHtml(sessionId, caller),
+    models: (sessionId, caller) => modelCommands.models(sessionId, caller),
+    commands: (sessionId, caller) => modelCommands.commands(sessionId, caller),
+    setModel: (input, caller) => modelCommands.setModel(input, caller),
+    setThinking: (input, caller) => modelCommands.setThinking(input, caller),
+    setTools: (input, caller) => modelCommands.setTools(input, caller),
     fork: async ({ sessionId, entryId }, caller) => {
       const row = owned(sessionId, caller);
       return filed(row, await forks.fork(row, entryId));
@@ -260,6 +302,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       policyLink.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
+    restartFolder: folderRestart.restart,
     inspect(sessionId) {
       const session = live.get(sessionId);
       return session ? { pid: session.pid(), rssMb: session.rssMb() } : null;

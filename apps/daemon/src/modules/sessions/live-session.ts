@@ -22,6 +22,7 @@ import { createLiveCommands } from "./live-commands.ts";
 import { createLiveIdle } from "./live-idle.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
+import { createLoadoutView } from "./loadout-view.ts";
 import { nameOf } from "./names.ts";
 import { createNoticeRing } from "./notices.ts";
 import { createPartialReply } from "./partial.ts";
@@ -128,6 +129,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     return true;
   }
 
+  const loadout = createLoadoutView({ logger, limiter, publish });
   const queue = createQueueGuard();
   const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish });
   const commands = createLiveCommands({ handle, logger });
@@ -298,6 +300,9 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
         deps.onActivity();
         return;
       }
+      case "loadout":
+        loadout.onRecord(record.loadout);
+        return;
       case "ready":
       case "response":
         return;
@@ -353,6 +358,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     },
     partial: () => partial.current(),
     leafId: () => leafId,
+    loadout: loadout.current,
     runView: () => run.runView(),
     prompt: (text, streamingBehavior, images) =>
       idle.active(() => run.prompt(text, streamingBehavior, images)),

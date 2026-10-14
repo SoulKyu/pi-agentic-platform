@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defineMethod } from "./define.ts";
 import { Cursor } from "./frames.ts";
 import { MarkChange, MAX_PINS } from "./marks.ts";
+import { ToolPreset } from "./session-loadout.ts";
 import { SessionName, SessionStatus } from "./streams.ts";
 
 /** The bounds of the sidebar's data (M4): what one snapshot, page or search answer may carry. */
@@ -50,6 +51,8 @@ export const ShellSession = z.object({
     .max(SHELL_LIMITS.preview * 2)
     .nullable(),
   status: SessionStatus,
+  /** The stored tool preset (MC37); absent from an older daemon. */
+  toolPreset: ToolPreset.optional(),
   /** An approval or an extension dialog waits for an answer. */
   needsInput: z.boolean(),
   projectId: Id.nullable(),

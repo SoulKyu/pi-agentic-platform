@@ -1,4 +1,4 @@
-import { TOKEN_PERMISSIONS } from "@pap/contracts";
+import { methods, TOKEN_PERMISSIONS } from "@pap/contracts";
 
 type TokenPermissionName = (typeof TOKEN_PERMISSIONS)[number];
 export type GridRow = {
@@ -6,11 +6,19 @@ export type GridRow = {
   readonly levels: ReadonlyArray<{ readonly permission: TokenPermissionName; readonly label: string }>;
 };
 
-/** Domains × levels, from what a token may hold: no `auth` row, and the policy row has no admin cell (owner Q7 b). */
-export function permissionGrid(): GridRow[] {
+/**
+ * Domains × levels: what a token may hold (`TOKEN_PERMISSIONS`: no `auth` row, no policy or pi admin, no terminal) that
+ * some method declares, so a cell never grants what nothing checks (M7R124). The catalogue is the contracts' own; a
+ * new method brings its permission into the grid with no list to edit.
+ */
+export function permissionGrid(
+  catalogue: ReadonlyArray<{ readonly permission: string }> = Object.values(methods),
+): GridRow[] {
+  const used = new Set<string>(catalogue.map((method) => method.permission));
   const rows: Array<{ domain: string; levels: Array<{ permission: TokenPermissionName; label: string }> }> =
     [];
   for (const permission of TOKEN_PERMISSIONS) {
+    if (!used.has(permission)) continue;
     const [domain = "", label = ""] = permission.split(":");
     const row = rows.find((candidate) => candidate.domain === domain);
     if (row) row.levels.push({ permission, label });

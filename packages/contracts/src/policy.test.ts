@@ -7,6 +7,7 @@ import {
   PolicyAuditEntry,
   PolicyRules,
   PolicySettings,
+  READ_ONLY_COMMAND_NAMES,
   SessionPolicyView,
   StageVerdict,
   TaintState,
@@ -18,12 +19,25 @@ describe("PolicyRules v2", () => {
   it("reads M2 rules with every new field at its default", () => {
     expect(PolicyRules.parse(M2_RULES)).toEqual({
       ...M2_RULES,
+      alwaysPrefixes: [],
+      alwaysTools: [],
       builtinDenylist: true,
       denylist: [],
       allowHosts: null,
       guard: DEFAULT_GUARD,
       taint: { tainted: false, epoch: 0 },
+      readOnlyCommands: true,
+      readOnlyPreset: false,
+      presetTools: null,
     });
+  });
+
+  it("runs read-only commands by default and refuses a non-boolean switch", () => {
+    expect(
+      PolicyRules.parse({ profile: "interactive", approvalMode: "auto-accept-edits" }).readOnlyCommands,
+    ).toBe(true);
+    expect(PolicyRules.safeParse({ ...M2_RULES, readOnlyCommands: "yes" }).success).toBe(false);
+    expect(PolicyRules.parse({ ...M2_RULES, readOnlyCommands: false }).readOnlyCommands).toBe(false);
   });
 
   it("accepts the four modes and nothing else", () => {
@@ -99,7 +113,10 @@ describe("taint, settings, views and verdicts", () => {
       builtinDenylist: true,
       denylist: [],
       allowHosts: null,
+      readOnlyCommands: true,
     });
+    expect(PolicySettings.parse({}).readOnlyCommands).toBe(true);
+    expect(PolicySettings.safeParse({ readOnlyCommands: 1 }).success).toBe(false);
   });
 
   it("names a stage and an outcome from fixed lists, with a short reason", () => {
@@ -112,11 +129,30 @@ describe("taint, settings, views and verdicts", () => {
   });
 
   it("describes a session's policy for the header", () => {
-    expect(SessionPolicyView.parse({ mode: "full-access", explicit: true, tainted: true })).toEqual({
-      mode: "full-access",
-      explicit: true,
-      tainted: true,
-    });
+    expect(
+      SessionPolicyView.parse({
+        mode: "full-access",
+        explicit: true,
+        tainted: true,
+        defaultMode: "supervised",
+      }),
+    ).toEqual({ mode: "full-access", explicit: true, tainted: true, defaultMode: "supervised" });
+  });
+
+  it("reads an older view without defaultMode as the auto-accept-edits default", () => {
+    expect(SessionPolicyView.parse({ mode: "read-only", explicit: true, tainted: false }).defaultMode).toBe(
+      "auto-accept-edits",
+    );
+    expect(
+      SessionPolicyView.safeParse({ mode: "read-only", explicit: true, tainted: false, defaultMode: "x" })
+        .success,
+    ).toBe(false);
+  });
+
+  it("names every read-only command the table runs, for display (M7R125)", () => {
+    expect(READ_ONLY_COMMAND_NAMES).toContain("cat");
+    expect(READ_ONLY_COMMAND_NAMES).toContain("git status");
+    expect(new Set(READ_ONLY_COMMAND_NAMES).size).toBe(READ_ONLY_COMMAND_NAMES.length);
   });
 });
 

@@ -90,7 +90,7 @@ describe("extract (M4R59)", () => {
 
   it("gives no row for whitespace, but the message is activity", () => {
     const out = extract([user("u1", "  \n ")]);
-    expect(out).toEqual({ rows: [], name: undefined, firstUser: null, active: true });
+    expect(out).toEqual({ rows: [], name: undefined, firstUser: null, active: true, toolResults: false });
   });
 
   it("is not active for other entries", () => {
@@ -166,5 +166,33 @@ describe("the real Pi format (RT-13)", () => {
     } finally {
       closeSync(file.fd);
     }
+  });
+});
+
+describe("extract toolResults (decision 75 Q5)", () => {
+  const toolResult = (id: string): Rec =>
+    message(id, { role: "toolResult", toolCallId: "c1", content: [{ type: "text", text: "out" }] });
+
+  it("is true when a message entry holds a toolResult message", () => {
+    expect(extract([user("u1", "hi"), toolResult("t1")]).toolResults).toBe(true);
+  });
+
+  it("is false for user, assistant, custom and bash messages and for other entry types", () => {
+    const records = [
+      user("u1", "hi"),
+      assistant("a1", [{ type: "text", text: "yo" }]),
+      message("c1", { role: "custom", content: "x" }),
+      message("b1", { role: "bashExecution", command: "ls", output: "x" }),
+      { type: "session_info", name: "n" },
+    ];
+    expect(extract(records).toolResults).toBe(false);
+    expect(extract([]).toolResults).toBe(false);
+  });
+
+  it("looks for the role on the message, not on the entry", () => {
+    expect(extract([{ type: "message", id: "t1", role: "toolResult", message: {} }]).toolResults).toBe(false);
+    expect(extract([{ type: "toolResult", id: "t1", message: { role: "toolResult" } }]).toolResults).toBe(
+      false,
+    );
   });
 });

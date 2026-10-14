@@ -22,6 +22,11 @@ function setup(overrides: Partial<SessionsService> = {}) {
     rename: vi.fn(async () => {}),
     autoName: vi.fn(async () => ({ name: "Fix login" })),
     exportHtml: vi.fn(async () => ({ url: `/api/sessions/p1/export/${"A".repeat(43)}` })),
+    models: vi.fn(async () => ({ models: [], truncated: false, current: null })),
+    commands: vi.fn(async () => ({ commands: [], truncated: false })),
+    setModel: vi.fn(async () => {}),
+    setThinking: vi.fn(async () => {}),
+    setTools: vi.fn(async () => {}),
     fork: vi.fn(async () => ({ sessionId: "p2", text: "q1" })),
     clone: vi.fn(async () => ({ sessionId: "p3" })),
     clearQueue: vi.fn(async () => ({ steering: ["a"], followUp: [], truncated: false })),
@@ -34,6 +39,7 @@ function setup(overrides: Partial<SessionsService> = {}) {
     snapshot: vi.fn(),
     shutdownAll: vi.fn(async () => {}),
     inspect: vi.fn(() => null),
+    restartFolder: vi.fn(() => 0),
     mark: vi.fn(),
     startOrganiser: vi.fn(),
     activity: vi.fn(),
@@ -52,11 +58,50 @@ function setup(overrides: Partial<SessionsService> = {}) {
   return { rpc: sessionsRpc(service), service, ctx, openSubscription };
 }
 
+describe("sessions rpc (models)", () => {
+  it("hands the model methods to one service method each, with the caller", async () => {
+    const { rpc, service, ctx } = setup();
+    expect(await rpc["sessions.models"]({ sessionId: "p1" }, ctx)).toEqual({
+      models: [],
+      truncated: false,
+      current: null,
+    });
+    expect(service.models).toHaveBeenCalledWith("p1", caller);
+    expect(await rpc["sessions.commands"]({ sessionId: "p1" }, ctx)).toEqual({
+      commands: [],
+      truncated: false,
+    });
+    expect(service.commands).toHaveBeenCalledWith("p1", caller);
+    const pick = { sessionId: "p1", provider: "faux", modelId: "thinker" };
+    expect(await rpc["sessions.setModel"](pick, ctx)).toEqual({ ok: true });
+    expect(service.setModel).toHaveBeenCalledWith(pick, caller);
+    expect(await rpc["sessions.setThinking"]({ sessionId: "p1", level: "high" }, ctx)).toEqual({ ok: true });
+    expect(service.setThinking).toHaveBeenCalledWith({ sessionId: "p1", level: "high" }, caller);
+    expect(await rpc["sessions.setTools"]({ sessionId: "p1", preset: "read-only" }, ctx)).toEqual({
+      ok: true,
+    });
+    expect(service.setTools).toHaveBeenCalledWith({ sessionId: "p1", preset: "read-only" }, caller);
+  });
+
+  it("lets a typed error through", async () => {
+    const { rpc, ctx } = setup({
+      setModel: vi.fn(async () => {
+        throw new PapError("session_busy");
+      }),
+    });
+    expect(
+      await codeOf(rpc["sessions.setModel"]({ sessionId: "p1", provider: "faux", modelId: "m" }, ctx)),
+    ).toBe("session_busy");
+  });
+});
+
 describe("sessions rpc", () => {
   it("hands each call to one service method with the caller", async () => {
     const { rpc, service, ctx } = setup();
     expect(await rpc["sessions.create"]({ cwd: "/w" }, ctx)).toEqual({ sessionId: "p1" });
-    expect(service.create).toHaveBeenCalledWith("/w", caller);
+    expect(service.create).toHaveBeenCalledWith("/w", caller, undefined);
+    await rpc["sessions.create"]({ cwd: "/w", preset: "chat" }, ctx);
+    expect(service.create).toHaveBeenLastCalledWith("/w", caller, "chat");
     expect(await rpc["sessions.list"]({}, ctx)).toEqual({ sessions: [] });
     expect(
       await rpc["sessions.prompt"]({ sessionId: "p1", text: "hi", streamingBehavior: "steer" }, ctx),

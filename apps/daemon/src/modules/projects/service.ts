@@ -28,6 +28,15 @@ const viewOf = (row: ProjectRow): ProjectView => ({
 });
 // C0 controls, NUL included: a root is a real path, and a path with a control character is not one pap makes a project of.
 const hasControl = (text: string): boolean => [...text].some((char) => (char.codePointAt(0) ?? 0x20) < 0x20);
+// A path to compare lexically: absolute, no NUL, no empty, `.` or `..` segment, no trailing slash.
+const isCleanPath = (path: string): boolean =>
+  path.startsWith("/") &&
+  !path.includes("\0") &&
+  (path === "/" ||
+    path
+      .slice(1)
+      .split("/")
+      .every((part) => part !== "" && part !== "." && part !== ".."));
 const defaultName = (root: string): string =>
   cleanLabel(basename(root), SHELL_LIMITS.projectName) ?? cleanLabel(root, SHELL_LIMITS.projectName) ?? "/";
 
@@ -117,6 +126,15 @@ export function createProjectsService(deps: {
       const view = viewOf(row);
       changed(ownerId, view);
       return view;
+    },
+    /** True when `path` is one of the owner's project roots or lies inside one (what a session's folder is filed under). */
+    covers(ownerId: string, path: string): boolean {
+      if (!isCleanPath(path)) return false;
+      return deps.store
+        .list(ownerId)
+        .some(
+          (row) => path === row.root || path.startsWith(row.root.endsWith("/") ? row.root : `${row.root}/`),
+        );
     },
     list: (ownerId: string, ids: readonly string[]): ProjectView[] =>
       deps.store.byIds(ownerId, ids).map(viewOf),

@@ -39,6 +39,8 @@ const IDENTICAL_IN_FR = new Set([
   "terminal.pane.titleIn",
   "terminal.surface.label",
   "commands.palette.terminal",
+  "commands.palette.settings.skills",
+  "settings.section.skills",
   "access.devices.browser.chrome",
   "access.devices.browser.firefox",
   "access.devices.browser.safari",

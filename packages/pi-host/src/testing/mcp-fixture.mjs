@@ -1,10 +1,16 @@
 // A local MCP server for tests: newline-delimited JSON-RPC 2.0 over stdio, no socket (M5R25).
-// argv[2] is JSON: { tools: [{ name, annotations?, reply }], resources?: [{ uri, name, text }] }.
+// argv[2] is JSON: { tools: [{ name, annotations?, reply }], resources?: [{ uri, name, text }], envKeys?: "<regex source>" }.
+// `envKeys` adds one tool `env_<KEY>` for each variable of this process whose name matches: a test reads the environment
+// the server was started with from the tool list (names only, never a value).
 import { appendFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 
 const config = JSON.parse(process.argv[2] ?? "{}");
-const tools = config.tools ?? [];
+const envKeys =
+  config.envKeys === undefined
+    ? []
+    : Object.keys(process.env).filter((key) => new RegExp(config.envKeys).test(key));
+const tools = [...(config.tools ?? []), ...envKeys.map((key) => ({ name: `env_${key}`, reply: "" }))];
 const resources = config.resources ?? [];
 
 const send = (message) => process.stdout.write(`${JSON.stringify({ jsonrpc: "2.0", ...message })}\n`);

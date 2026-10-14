@@ -187,7 +187,7 @@ describe("SessionListScreen", () => {
     await typeInto(field(container, "Working directory"), "  /work/project  ");
     await click(button(container, "New session"));
     await settle();
-    expect(bed.called("sessions.create")[0]?.params).toEqual({ cwd: "/work/project" });
+    expect(bed.called("sessions.create")[0]?.params).toEqual({ cwd: "/work/project", preset: "configured" });
     expect(current.navigate).toHaveBeenCalledExactlyOnceWith({
       to: "/s/$sessionId",
       params: { sessionId: "new-1" },
@@ -326,7 +326,7 @@ describe("the home narrowed to the current project", () => {
     bed.handlers["sessions.create"] = () => ({ sessionId: "new-2" });
     await click(button(container, "New session"));
     await settle();
-    expect(bed.called("sessions.create")[0]?.params).toEqual({ cwd: "/w/web" });
+    expect(bed.called("sessions.create")[0]?.params).toEqual({ cwd: "/w/web", preset: "configured" });
   });
 
   it("All sessions opens the tree through the command", async () => {

@@ -20,6 +20,11 @@ export const ERROR_CODES = [
   "read_only",
   "protected_path",
   "terminal_unavailable",
+  "helper_failed",
+  "project_scope",
+  "config_invalid",
+  "config_path_refused",
+  "config_hard_link",
   "unknown_method",
   "internal",
 ] as const;
@@ -48,6 +53,12 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   protected_path:
     "This file can run commands later, such as a git hook or an editor task. Confirm to save it.",
   terminal_unavailable: "Terminals are not available on this server: the terminal module did not load.",
+  helper_failed: "The Pi configuration helper failed.",
+  project_scope: "This project sets its own value in .pi/settings.json, which wins over the global one.",
+  config_invalid: "A Pi configuration file is not valid. Fix the file, then try again.",
+  config_path_refused: "Pi refused this configuration path: it must be a regular file inside your folders.",
+  config_hard_link:
+    "Pi refused to write this file because it has another hard link. Replace it with a regular copy, then try again.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

@@ -67,6 +67,7 @@ describe("answering an approval", () => {
     await clock.advance(0);
     expect(live.answer("a1", { answer: "once" })).toEqual({
       answer: "once",
+      scope: "exact",
       grant: { tool: "bash", key: KEY, label: "bash: ls" },
     });
     expect(() => live.answer("a1", { answer: "once" })).toThrow(new PapError("not_found"));

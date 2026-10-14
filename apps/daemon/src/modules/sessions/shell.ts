@@ -27,6 +27,7 @@ export function summaryOf(
     name: row.name,
     preview: row.preview,
     status: live.status,
+    toolPreset: row.toolPreset,
     needsInput: live.needsInput,
     projectId: row.projectId,
     pinRank: row.marks.pinRank,

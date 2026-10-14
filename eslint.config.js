@@ -113,6 +113,15 @@ export default defineConfig(
                 "contracts",
               ],
             },
+            // MC49: the session screen mounts the trust banner and Settings › MCP and › Skills open its dialog; no other feature imports `trust`.
+            {
+              from: [
+                ["web-feature", { domain: "sessions" }],
+                ["web-feature", { domain: "mcp" }],
+                ["web-feature", { domain: "skills" }],
+              ],
+              allow: [["web-feature", { domain: "trust" }]],
+            },
             {
               from: "web-routes",
               allow: [

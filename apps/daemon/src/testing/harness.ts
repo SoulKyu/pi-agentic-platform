@@ -115,6 +115,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     workerIdleMs: 30 * 60_000,
     workerScope: "off",
     workerLimits: { memoryMaxMb: 2048, tasksMax: 4096 },
+    helpersMax: 4,
     staticRoot: null,
     logLevel: "warn",
     ...options.config,

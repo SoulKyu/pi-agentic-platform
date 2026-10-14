@@ -46,7 +46,7 @@ describe("crash containment: extensions that throw, workers that die or hang (sp
   });
 
   it("a worker killed with a card, a panel and queued steers open: everything clears, the daemon and the other sessions carry on", async () => {
-    const call = { toolCalls: [{ name: "bash", args: { command: "echo parked" }, id: "c1" }] };
+    const call = { toolCalls: [{ name: "bash", args: { command: "env echo parked" }, id: "c1" }] };
     const bed = await open(
       { steps: [call, { text: "the other session works" }] },
       { killer: KILLER, picker: PICKER },

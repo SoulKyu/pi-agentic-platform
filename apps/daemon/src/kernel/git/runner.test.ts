@@ -287,7 +287,19 @@ describe("the option allowlist (MC18)", () => {
   /** Every argv a planned caller sends, with the plan line it comes from. */
   const PLANNED: Array<[string, string[]]> = [
     ["M8R46 status", ["status", "--porcelain=v2", "-z", "--branch", "--ignore-submodules=dirty"]],
-    ["M8R46 numstat", ["diff", "--numstat", "-z", "--no-ext-diff", "--no-textconv", "HEAD", "--"]],
+    [
+      "M8R46 numstat",
+      [
+        "diff",
+        "--numstat",
+        "-z",
+        "--ignore-submodules=dirty",
+        "--no-ext-diff",
+        "--no-textconv",
+        "HEAD",
+        "--",
+      ],
+    ],
     ["M8R24 check-ignore", ["check-ignore", "-z", "--stdin", "--no-index"]],
     ["M8R24 check-ignore paths (MC15)", ["check-ignore", "--no-index", "./a.txt", "./:(glob)x"]],
     ["M8R24 ls-files", ["ls-files", "-z", "--cached", "--", "a.txt", "b c.txt"]],

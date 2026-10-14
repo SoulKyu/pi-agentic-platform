@@ -21,3 +21,13 @@ describe("outside writes of the service (owner Q13)", () => {
     expect(outside.recent(at - OUTSIDE_WRITE_MS - 1)).toBe(false);
   });
 });
+
+describe("pap's last write is kept (MC19 a)", () => {
+  it("hands every worker end to the persist callback with the clock's time", () => {
+    const clock = createFakeClock();
+    const stamps: Array<[string, number]> = [];
+    const outside = createOutsideWrites(clock, (id, at) => void stamps.push([id, at]));
+    outside.workerEnded("s1");
+    expect(stamps).toEqual([["s1", clock.now()]]);
+  });
+});

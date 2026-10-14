@@ -19,6 +19,7 @@ const session = (id: string): ShellSession => ({
   name: null,
   preview: null,
   status: "idle",
+  toolPreset: "configured",
   needsInput: false,
   projectId: null,
   pinRank: null,

@@ -22,6 +22,31 @@ describe("method catalogue", () => {
       "auth.tokens.create",
       "auth.tokens.revoke",
       "files.write",
+      "mcp.add",
+      "mcp.remove",
+      "mcp.setCodemode",
+      "mcp.setEnabled",
+      "mcp.setExposure",
+      "mcp.setInProject",
+      "mcp.test",
+      "mcp.undo",
+      "models.cancelLogin",
+      "models.config.save",
+      "models.discover",
+      "models.login",
+      "models.loginAnswer",
+      "models.loginCancel",
+      "models.logout",
+      "models.refreshCatalog",
+      "models.setApiKey",
+      "models.setDefault",
+      "models.setDefaultThinking",
+      "models.setEnabled",
+      "models.test",
+      "plugins.install",
+      "plugins.remove",
+      "plugins.setEnabled",
+      "plugins.update",
       "policy.clearTaint",
       "policy.revokeRule",
       "policy.setSessionMode",
@@ -40,7 +65,13 @@ describe("method catalogue", () => {
       "sessions.prompt",
       "sessions.rename",
       "sessions.respondDialog",
+      "sessions.setModel",
+      "sessions.setThinking",
+      "sessions.setTools",
       "settings.set",
+      "skills.install",
+      "skills.setInvocation",
+      "trust.set",
     ]);
   });
 
@@ -207,7 +238,7 @@ describe("method catalogue", () => {
     expect(list.params.safeParse({ cwd: "/w" }).success).toBe(true);
     expect(list.params.safeParse({ cwd: "" }).success).toBe(false);
     expect(list.params.safeParse({ cwd: "c".repeat(4097) }).success).toBe(false);
-    const rule = { id: "r1", scope: "/w", tool: "bash", label: "l", createdAt: 1 };
+    const rule = { id: "r1", scope: "/w", tool: "bash", label: "l", createdAt: 1, kind: "exact" };
     expect(list.result.safeParse({ rules: [rule], truncated: false }).success).toBe(true);
     expect(list.result.safeParse({ rules: [rule] }).success).toBe(false);
     expect(list.result.safeParse({ rules: Array(1001).fill(rule), truncated: true }).success).toBe(false);

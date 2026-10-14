@@ -20,13 +20,13 @@ describe("the service's outside-write wiring (owner Q13)", () => {
     bed = build();
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     await bed.clock.advance(10_000);
-    bed.service.scanPort.touched(sessionId, bed.clock.now() - 1_000, false);
+    bed.service.scanPort.touched(sessionId, bed.clock.now() - 1_000, false, false);
     expect(await flagOf(sessionId)).toBe(false);
     await crash();
-    bed.service.scanPort.touched(sessionId, bed.clock.now() - 1, false);
+    bed.service.scanPort.touched(sessionId, bed.clock.now() - 1, false, false);
     expect(await flagOf(sessionId)).toBe(false);
     await bed.clock.advance(1_000);
-    bed.service.scanPort.touched(sessionId, bed.clock.now(), false);
+    bed.service.scanPort.touched(sessionId, bed.clock.now(), false, false);
     expect(await flagOf(sessionId)).toBe(true);
   });
 
@@ -38,7 +38,7 @@ describe("the service's outside-write wiring (owner Q13)", () => {
     const opening = bed.service.prompt({ sessionId, text: "hi" }, OWNER).catch(() => undefined);
     await bed.clock.advance(0);
     expect(bed.spawned).toHaveLength(2);
-    bed.service.scanPort.touched(sessionId, bed.clock.now(), false);
+    bed.service.scanPort.touched(sessionId, bed.clock.now(), false, false);
     expect(await flagOf(sessionId)).toBe(false);
     void opening;
   });
@@ -55,11 +55,11 @@ describe("the service's outside-write wiring (owner Q13)", () => {
     const forked = await bed.service.fork({ sessionId, entryId: "u1" }, OWNER);
     const cloned = await bed.service.clone({ sessionId }, OWNER);
     for (const id of [forked.sessionId, cloned.sessionId]) {
-      bed.service.scanPort.touched(id, bed.clock.now(), false);
+      bed.service.scanPort.touched(id, bed.clock.now(), false, false);
       expect(await flagOf(id)).toBe(false);
     }
     await bed.clock.advance(1_000);
-    bed.service.scanPort.touched(cloned.sessionId, bed.clock.now(), false);
+    bed.service.scanPort.touched(cloned.sessionId, bed.clock.now(), false, false);
     expect(await flagOf(cloned.sessionId)).toBe(true);
   });
 });

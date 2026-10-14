@@ -16,6 +16,8 @@ export interface ToolKind {
   readonly mcp: boolean;
   /** Pi's own built-in of that name, not an extension that took the name over. */
   readonly builtin: boolean;
+  /** Pi's own codemode tool (by registered source): its result can carry a value an earlier script stored (`store`/`load`). */
+  readonly codemode?: true;
 }
 
 const BUILTIN_CATEGORY: Readonly<Record<string, ToolCategory>> = {
@@ -31,7 +33,7 @@ const BUILTIN_CATEGORY: Readonly<Record<string, ToolCategory>> = {
   web_search: "network",
   fetch: "network",
 };
-/** `ToolInfo.sourceInfo.path` of the tools Pi's own MCP, codemode and tool-search extensions register (recorded by `host.mcp.int.test.ts`). */
+/** `ToolInfo.sourceInfo.path` of the tools Pi's own MCP, codemode and tool-search extensions register (recorded by `host.mcp.int.test.ts` and `host.builtins.int.test.ts`). */
 export const MCP_SOURCE = "builtin:mcp";
 export const CODEMODE_SOURCE = "builtin:codemode";
 export const TOOL_SEARCH_SOURCE = "builtin:tool-search";
@@ -72,13 +74,14 @@ export function classifyTool(name: string, facts: ToolFacts | undefined): ToolKi
  * The hints of an MCP tool are its server author's unverified claim: only a boolean `readOnlyHint` counts, and every
  * MCP tool is external whatever `openWorldHint` says (an HTTP server receives every argument; `ToolInfo` carries no
  * transport). `openWorldHint: false` keeps its meaning for other extension tools only (MQ2).
- * Wiring: the MCP, codemode and tool-search extensions must be registered as
+ * Wiring (`builtins.ts`, loaded by `open-session.ts`): the MCP, codemode and tool-search extensions are registered as
  * `{ name: "mcp" | "codemode" | "tool-search", factory, builtin: true, replaceable: true }` with exactly those names;
- * a bare factory gets `<inline:N>` and its tools classify as unknown and external.
+ * a bare factory gets `<inline:N>` and its tools would classify as unknown and external.
  */
 function extensionKind(name: string, facts: ToolFacts | undefined): ToolKind | null {
   const pure = { external: false, urlBearing: false, mcp: false, builtin: false } as const;
-  if (facts?.path === CODEMODE_SOURCE && name === "codemode") return { category: "read", ...pure };
+  if (facts?.path === CODEMODE_SOURCE && name === "codemode")
+    return { category: "read", ...pure, codemode: true };
   if (facts?.path === TOOL_SEARCH_SOURCE && name === "tool_search") return { category: "read", ...pure };
   if (facts?.path !== MCP_SOURCE) return null;
   if (MCP_RESOURCE_TOOLS.has(name))

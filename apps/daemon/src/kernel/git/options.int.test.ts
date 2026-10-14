@@ -30,7 +30,16 @@ describe("every planned caller's argv runs on real git (MC18)", () => {
     const head = bed.git(root, "rev-parse", "HEAD").trim();
     const planned: string[][] = [
       ["status", "--porcelain=v2", "-z", "--branch", "--ignore-submodules=dirty"],
-      ["diff", "--numstat", "-z", "--no-ext-diff", "--no-textconv", "HEAD", "--"],
+      [
+        "diff",
+        "--numstat",
+        "-z",
+        "--ignore-submodules=dirty",
+        "--no-ext-diff",
+        "--no-textconv",
+        "HEAD",
+        "--",
+      ],
       ["ls-files", "-z", "--cached", "--", "a.txt"],
       // m15: a dash-led name is passed as ./-name
       ["ls-files", "-z", "--cached", "--", "./-rf"],

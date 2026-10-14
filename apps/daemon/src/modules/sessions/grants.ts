@@ -1,17 +1,18 @@
 import {
   AlwaysRule,
-  type ApprovalAnswer,
   MAX_ALWAYS_RULES,
   type Notice,
   type PolicyRules,
+  PrefixRule,
   SERVER_CODES,
+  ToolRule,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import { sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
-import type { PolicyPort } from "../policy/index.ts";
-import type { Grant } from "./dialogs.ts";
+import type { AlwaysInput, PolicyPort } from "../policy/index.ts";
+import type { ApprovedAnswer } from "./dialogs.ts";
 import type { LiveSession } from "./live-session.ts";
 import type { SessionRow } from "./store.ts";
 
@@ -46,7 +47,7 @@ interface Launched {
 }
 
 /** The rules as they are, or null when there are more than the policy module keeps or they come to more than `maxBytes` of JSON. */
-export function fitRules(rules: AlwaysRule[], maxBytes = MAX_POLICY_BYTES): AlwaysRule[] | null {
+export function fitRules<T>(rules: T[], maxBytes = MAX_POLICY_BYTES): T[] | null {
   return rules.length <= MAX_ALWAYS_RULES && sizeOf(rules) <= maxBytes ? rules : null;
 }
 
@@ -85,6 +86,28 @@ export function createGrantLink(deps: GrantLinkDeps) {
     const fitted = fitRules(rules);
     if (!fitted) say("policy_rules_too_large", { sessionId: row.id, count: rules.length });
     return fitted ?? [];
+  }
+
+  // The prefix and tool rules the same way. The policy module counts every kind into one cap, so the three lists
+  // together stay under it; each is checked on its own against the schema and the byte limit.
+  function patternsFor(row: SessionRow, scope: string): Pick<PolicyRules, "alwaysPrefixes" | "alwaysTools"> {
+    const kept = <T>(
+      stored: T[],
+      schema: { safeParse(value: unknown): { success: boolean } },
+      what: string,
+    ): T[] => {
+      const rules = stored.filter((rule) => schema.safeParse(rule).success);
+      if (rules.length !== stored.length) {
+        say("policy_rule_invalid", { sessionId: row.id, skipped: stored.length - rules.length, what });
+      }
+      const fitted = fitRules(rules);
+      if (!fitted) say("policy_rules_too_large", { sessionId: row.id, count: rules.length, what });
+      return fitted ?? [];
+    };
+    return {
+      alwaysPrefixes: kept(deps.policy.prefixesFor(row.ownerId, scope), PrefixRule, "prefix"),
+      alwaysTools: kept(deps.policy.toolsFor(row.ownerId, scope), ToolRule, "tool"),
+    };
   }
 
   // A worker that cannot be told keeps a rule that may be revoked: it is stopped, and the next prompt starts one with the current rules.
@@ -135,6 +158,7 @@ export function createGrantLink(deps: GrantLinkDeps) {
   return {
     scopeOf: (cwd: string): string => deps.policy.scopeOf(cwd),
     alwaysFor,
+    patternsFor,
     /** Sends the whole rules to every tracked worker whose session matches, at once (one still starting gets them after `ready`). */
     pushWhere: (matches: (row: SessionRow) => boolean): void => pushAt((at) => matches(at.row)),
     /** The sessions of the workers tracked now (up or starting) whose row matches. */
@@ -164,7 +188,7 @@ export function createGrantLink(deps: GrantLinkDeps) {
      * worker's provisional grant, unless it was taken at the answer (the grant is stamped when the question is asked).
      * When no rule can be made the grant lasts only until the worker's next policy update.
      */
-    answered(session: LiveSession, approved: { answer: ApprovalAnswer; grant: Grant } | null): void {
+    answered(session: LiveSession, approved: ApprovedAnswer | null): void {
       if (approved?.answer !== "always") return;
       const at = launched.get(session);
       if (!at) {
@@ -172,13 +196,7 @@ export function createGrantLink(deps: GrantLinkDeps) {
         return;
       }
       try {
-        const added = deps.policy.addAlways({
-          ownerId: at.row.ownerId,
-          scope: at.scope,
-          tool: approved.grant.tool,
-          key: approved.grant.key,
-          label: approved.grant.label,
-        });
+        const added = deps.policy.addAlways(alwaysInput(approved, at.row.ownerId, at.scope));
         if (added === "full") {
           tellSessionOnly(session, at, FULL_NOTICE);
         }
@@ -193,3 +211,19 @@ export function createGrantLink(deps: GrantLinkDeps) {
 }
 
 export type GrantLink = ReturnType<typeof createGrantLink>;
+
+/**
+ * The rule an "always" answer asks for. A prefix or a tool rule is built from what the worker's request offered and the
+ * daemon stored beside the dialog, never from the client's frame (M7R24); a scope that was not offered is a bug (the
+ * answer path refuses it first) and throws, so no rule is made.
+ */
+function alwaysInput(approved: ApprovedAnswer, ownerId: string, scope: string): AlwaysInput {
+  const { grant } = approved;
+  const base = { ownerId, scope, tool: grant.tool, label: grant.label };
+  if (approved.scope === "prefix" && grant.alwaysScopes?.prefix)
+    return { ...base, kind: "prefix", prefix: grant.alwaysScopes.prefix };
+  if (approved.scope === "tool" && grant.alwaysScopes?.toolSource)
+    return { ...base, kind: "tool", source: grant.alwaysScopes.toolSource };
+  if (approved.scope !== "exact") throw new Error("always scope not offered");
+  return { ...base, kind: "exact", key: grant.key };
+}

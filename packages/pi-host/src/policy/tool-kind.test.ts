@@ -109,6 +109,7 @@ describe("MCP, codemode and tool_search are classified by source (M5R24)", () =>
       urlBearing: false,
       mcp: false,
       builtin: false,
+      codemode: true,
     });
     expect(classifyTool("tool_search", { path: TOOL_SEARCH_SOURCE })).toEqual({
       category: "read",

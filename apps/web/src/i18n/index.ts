@@ -6,18 +6,26 @@ import { fr } from "./fr.ts";
 
 import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
+import type { firstRunEn } from "./catalog/first-run.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
 import type { serverEn } from "./catalog/server.ts";
+import type { sessionModelsEn } from "./catalog/session-models.ts";
+import type { sessionToolsEn } from "./catalog/session-tools.ts";
 import type { sessionPolicyEn } from "./catalog/session-policy.ts";
 import type { sessionFilesEn } from "./catalog/session-files.ts";
 import type { sessionScreenEn } from "./catalog/session-screen.ts";
 import type { settingsAccessEn } from "./catalog/settings-access.ts";
 import type { settingsAppearanceEn } from "./catalog/settings-appearance.ts";
 import type { settingsApprovalsEn } from "./catalog/settings-approvals.ts";
+import type { settingsMcpEn } from "./catalog/settings-mcp.ts";
+import type { settingsMcpAddEn } from "./catalog/settings-mcp-add.ts";
+import type { settingsSkillsEn } from "./catalog/settings-skills.ts";
+import type { settingsModelsEn } from "./catalog/settings-models.ts";
 import type { settingsScreenEn } from "./catalog/settings-screen.ts";
 import type { settingsShortcutsEn } from "./catalog/settings-shortcuts.ts";
 import type { sidebarEn } from "./catalog/sidebar.ts";
 import type { terminalEn } from "./catalog/terminal.ts";
+import type { trustBannerEn, trustEn } from "./catalog/trust.ts";
 
 /** The eager keys plus the keys of lazy catalogs (type-only import: nothing of them is bundled eagerly). */
 export type MessageKey =
@@ -35,7 +43,16 @@ export type MessageKey =
   | keyof typeof sessionPolicyEn
   | keyof typeof filesEn
   | keyof typeof changesEn
-  | keyof typeof terminalEn;
+  | keyof typeof terminalEn
+  | keyof typeof sessionModelsEn
+  | keyof typeof sessionToolsEn
+  | keyof typeof settingsModelsEn
+  | keyof typeof settingsMcpEn
+  | keyof typeof settingsMcpAddEn
+  | keyof typeof settingsSkillsEn
+  | keyof typeof firstRunEn
+  | keyof typeof trustBannerEn
+  | keyof typeof trustEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

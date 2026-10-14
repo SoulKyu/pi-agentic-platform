@@ -1,0 +1,58 @@
+# Skills and plugins (Settings › Skills)
+
+Code: daemon `apps/daemon/src/modules/skills/` (`service.ts`, `rpc.ts`), helper ops `packages/pi-host/src/helper/ops/{skills,skills-install,skills-search,plugins,offline,install-env}.ts`, sources `helper/{skill-source,plugin-source,plugin-entries,frontmatter}.ts`, contracts `packages/contracts/src/skills-methods.ts`, web `apps/web/src/features/skills/` (see `web.md`). ADR 0023 (the helper). Rulings: `docs/research/m7-rulings.md` and `m7-rulings-after-join.md` (M7R110-M7R118, M7R140, MC52, MC54-MC56). Pool and write queue: `daemon.md`.
+
+## Rules that hold across the module
+
+- All nine methods go through the helper (ADR 0023) and are `pi:admin`, so a token is `forbidden` (`security/pi-token.test.ts`). `skills.search` is `pi:admin` as well (MC59, extending MC55): a token must not drive outbound requests to skills.sh or hold the four helper slots. `skills.list` and `plugins.list` are `pi:admin` for another reason (MC55, extending MC38): they serve file paths and masked sources, and the `npm root -g` fallback can run a trusted project's `npmCommand` (`skills-methods.ts:205`, `:242`). The plan said `pi:read`; the code wins.
+- Every helper result is parsed with the strict contract schema before it goes on (`service.ts:56`): an unknown field fails the call `helper_failed`.
+- `cwd` must be a folder the caller has a project or session in (`invalid_cwd` otherwise, `service.ts:65`). A project's skills and packages are read only while Pi's trust store says `true` (`ops/skills.ts:51`); otherwise the agent directory stands in.
+- Switches, removals and invocation edits never ask for the password; installs and updates for the owner's folder do (M7R133).
+
+## Install scopes (M7R140)
+
+- Every install names a scope. `global` ("All my projects") is the owner's Pi folder and takes the password step-up (`service.ts:127` for skills, `:83` for plugins via `pluginGate`). `project` ("This project") needs a `cwd` of the caller's (else `bad_request`), `confirmProtected: true` (else `protected_path`, `service.ts:132`) and a trusted project (the helper answers `project_untrusted`, `ops/skills-install.ts:52`); no step-up. Tokens never reach either: `pi:admin`.
+- The web picker defaults to the project the owner came from, else all projects; a project that needs trust disables "This project" (`ScopePicker.tsx:9`, `skills.vm.ts:27`). The form shows the exact command (`skills.vm.ts:31`).
+- Per-user skills and plugins are deferred (M7R140): pap v1 has one owner (decision 10), so a skill lives in the owner's Pi folder or in a project. They come with teams after v1.
+- A skill install and an invocation switch share one queue (`skillFiles`, `service.ts:44`), so a switch never writes into a folder an install is replacing. It is not the Pi settings queue: skills do not write `settings.json`.
+
+## The pinned CLI and the npx child
+
+- `skills.install` runs `npx --yes skills@1.7.2 add <source> -y --agent pi [-g]` with no shell (`ops/skills-install.ts:58`, args in `skill-source.ts:15`). `SKILLS_CLI = "skills@1.7.2"` lives in contracts (`skills-methods.ts:9`) so the web shows the same string. The source is `owner/repo[@skill]` or a `github.com` URL, never an option, and a `/tree/` path refuses `.` and `..` segments (`skill-source.ts:3-12`).
+- `SKILLS_CLI_BEFORE = "2026-10-11T00:00:00.000Z"` (`skills-install.ts:22`): the child gets `npm_config_before` set to it, two days after the release, so npm resolves the CLI's transitive dependencies as of that date (the spirit of `minimumReleaseAge`, MC55). A test pins both strings; a bump of the CLI moves both.
+- Environment (`ops/install-env.ts:12`): the helper's variables minus what only the daemon holds (`isDaemonOnlyEnvKey`: `PAP_*`, `NODE_OPTIONS` and `PLATFORM_ENV_KEYS`, the one shared list in `packages/contracts/src/env-keys.ts`, frozen); `PATH` reduced to its absolute entries (`/usr/bin:/bin` when none); `HOME` the home folder; `PI_TELEMETRY=0`, `PI_SKIP_VERSION_CHECK=1`, `DISABLE_TELEMETRY=1`, `DO_NOT_TRACK=1`, `npm_config_update_notifier=false`.
+- Limits: 5 minutes (`INSTALL_TIMEOUT_MS`, SIGKILL), a 1 MiB buffer; the daemon waits 330 s so the helper's own failure comes first (`service.ts:22`). A failed install answers only `helper_failed`; the last 8 KiB of output is masked line by line (`maskOutput`) and logged by the pool for this op only (MC57, `kernel/helper/pool.ts`), never returned.
+
+## Offline reads (MC52)
+
+- A Pi resource load installs a missing package (`npm install` with scripts, or `git clone`) unless `PI_OFFLINE` is set. Every helper read that builds Pi's loader or resolves packages runs inside `offline()` (`ops/offline.ts:6`, sets the variable and puts it back): `skills.list` and `skills.setInvocation` (`ops/skills.ts:68`), `plugins.list` (`ops/plugins.ts:290`), `trust.status` (`ops/trust.ts:210`) and the resource load of `mcp.test` (`ops/mcp-test.ts:177`; the server under test keeps its own network). A missing package is simply not listed (`installedPath: null` for plugins), and the list still answers. Only an explicit install or update op reaches the network. Tests: `ops/offline-bed.ts` with a fake `npm`.
+- Settings files the loader reads first go through `guardFile`, so a FIFO or a link out is refused, never read (`ops/skills.ts:55`).
+
+## Invocation switch (M7R111)
+
+- `skills.setInvocation { items (<=100), cwd?, confirmProtected? }` edits only the `disable-model-invocation` frontmatter line. The `path` must equal a `filePath` the loader listed for that folder (else the row is `not_found`, nothing opened), end in `.md`, be a regular file inside its own folder of at most 256 KiB, and is written atomically with its mode kept (`ops/skills.ts:122-146`). A key spread over several lines is `config_invalid`, not rewritten. A project skill without `confirmProtected` is `protected_path` for that row; one failing row leaves the others. The answer is a row per item (`results`).
+
+## Search (M7R113)
+
+- `skills.search` sends the owner's query to `https://skills.sh/api/search` (`ops/skills-search.ts:7`), only on the search click, and only for the owner's session (`pi:admin`, MC59: a token cannot call it). Bounds: 15 s, 1 MiB, no redirect, no cookie, at most 20 results (`SKILL_LIMITS.results`), name 128, source 300, URL 2048 characters. Results are untrusted text: control, bidi and zero-width characters are removed and each field clipped, `installs` is a safe non-negative integer or `null`, and a link is kept only if it parses as `https:` (`skills-search.ts:25-48`). A failure answers a fixed phrase, never skills.sh text. The web renders names as text and opens only `https:` links (`skills.vm.ts:37`).
+
+## Plugins (Pi packages)
+
+- Methods `plugins.list|install|remove|update|setEnabled` run on Pi's `DefaultPackageManager` and the settings manager of the helper (`ops/plugins.ts`); the settings file is guarded before each write (`guardSettingsWrite`, project file too, MC55). Enabling off writes the four empty arrays on the entry (`plugin-entries.ts:12`); an entry with any other key is `filtered` and the group switch refuses it (`filtered` row).
+- Sources (M7R115, MC54; `plugin-source.ts:33`): `npm:` specs; `git:host/a/b[@ref]` where the host has a dot and does not start or end with `-` or `.`, the path has at least two non-empty segments, none of them `.` or `..`, and the ref does not start with `-`; `https://` URLs of the same host and segment shape, with no userinfo, query or fragment; an absolute local path inside home, never home itself, equal to its own normalised spelling. A source never starts with `-`. Why: Pi reads `git:a/../x` as a local path and a ref `-x` as a git flag. Local paths are also judged on their real path, so a link inside home that leads out is `bad_params` (`ops/plugins.ts:127`).
+- Project scope needs a trusted project, `cwd` and `confirmProtected` (`ops/plugins.ts:50`); user scope never looks at a project, whatever `cwd` came along (`service.ts:82`).
+- Update path (M7R117; `ops/plugins.ts:238`): the SDK has a read-only check on the class, `checkForAvailableUpdates` (not on the `PackageManager` interface). The op runs it, then `update(source)` (or all of the scope), and answers what the check found for that scope (masked, clipped, at most 200). The web button says "Update". The updater sees a scoped view of the settings (`scopedView`, `:215`): only that scope's packages and only those that pass `safeForPi`, so a project call never reaches the owner's packages and the other way round. With no scope, the owner's folder is updated and takes the step-up.
+- Children's environment: Pi starts `npm` and `git` inside the helper with the helper's `process.env`. `withInstallEnv` (`install-env.ts:34`) swaps it for `installEnv` plus `GIT_TERMINAL_PROMPT=0` for the call and restores it after; only one operation runs in the helper meanwhile. A cancel kills the detached descendants (`abortable`, `ops/plugins.ts:94`); the pool kills the group anyway. A failure is a code, with the clipped text in the log only.
+- Masked twins: two configured entries that mask to the same text (or one named by its source and another by the absolute path it resolves to) make `findEntry` throw `conflict`; the first is never acted on alone (`plugin-entries.ts:56-73`). A hand-written remote source that would not be accepted today (`npm:--registry=x`) is shown and dropped from settings by `remove`, never handed to npm or git (`safeForPi`, `plugin-entries.ts:48`).
+- Sources are shown masked (`maskSource`, userinfo hidden) and addressable up to 2048 characters (`PLUGIN_LIMITS.source`).
+
+## Residuals
+
+- Provider API keys: the `npx` child (and Pi's `npm` and `git`) inherit every helper variable not stripped above, so a provider key set in the daemon's environment is visible to the CLI's code. The CLI could read `auth.json` as the same user anyway. An allowlist is an owner option.
+- No audit row for a skill or plugin install, as for `mcp.add`. Owner option (MC44, MC55).
+- An install or update holds the shared Pi write queue for up to about 330 s (MC54 concern 2; `service.ts:147`, `:164`; also `daemon.md`). Pi re-reads `settings.json` under its own lock, so no save is lost, but a Settings › Models or MCP write waits, and the queue admits 8 in flight or waiting. Revisit if it bites.
+- Pi's synchronous `npm root -g` has no timer. While it blocks only the group SIGKILL applies, so a `setsid` grandchild of a hanging `npmCommand` survives (same as the Task 19 residual).
+- A pinned git ref that `update` reconciles changes the clone but is not listed in `updated`: `checkForAvailableUpdates` skips pinned entries.
+- Re-enabling a disabled global package takes no step-up (M7R133: switches never ask; `mcp.setEnabled` behaves the same). Owner option: one ruling for both.
+- A project-scope install runs with the trusted project's own npm configuration: `skills.install` with scope `project` runs `npx` with `cwd` in the project, so its `.npmrc` (for example `registry=`) applies to fetching the pinned CLI, and a plugin install honours the project's `npmCommand`. Both need a trusted project and "Save anyway?" (M7R140), so a trusted project can redirect where the CLI is fetched from. Optional hardening: ignore the project `.npmrc` for the `npx` child.
+- A local plugin path is a same-user plant at most (M7R146 analogue): a link inside home to another place inside home is accepted.

@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { AccountAppearance, CustomTheme, KeybindingRules, SettingWrite } from "./settings.ts";
+import { TOKEN_PERMISSIONS } from "./auth.ts";
+import { methods } from "./methods.ts";
+import {
+  AccountAppearance,
+  CustomTheme,
+  KeybindingRules,
+  ModelsSettings,
+  SETTING_KEYS,
+  SettingWrite,
+} from "./settings.ts";
 
 const base = {
   mode: "system",
@@ -86,5 +95,27 @@ describe("setting writes", () => {
     expect(SettingWrite.safeParse({ key: "keybindings", value: [], baseRevision: -1 }).success).toBe(false);
     expect(SettingWrite.safeParse({ key: "keybindings", value: base, baseRevision: 0 }).success).toBe(false);
     expect(SettingWrite.safeParse({ key: "theme", value: {}, baseRevision: 0 }).success).toBe(false);
+  });
+});
+
+describe("models setting (M7R138)", () => {
+  it("reads as off when nothing is stored, and every field has a default", () => {
+    expect(ModelsSettings.parse({})).toEqual({ modelsDevPricing: false });
+  });
+
+  it("is a setting key the owner writes with a revision", () => {
+    expect(SETTING_KEYS).toContain("models");
+    expect(
+      SettingWrite.safeParse({ key: "models", value: { modelsDevPricing: true }, baseRevision: 0 }).success,
+    ).toBe(true);
+    expect(
+      SettingWrite.safeParse({ key: "models", value: { modelsDevPricing: "yes" }, baseRevision: 0 }).success,
+    ).toBe(false);
+  });
+
+  it("is flipped with settings:operate, which a token may hold (MC3): the switch only shows a control", () => {
+    expect(methods["settings.set"].permission).toBe("settings:operate");
+    expect(TOKEN_PERMISSIONS).toContain("settings:operate");
+    expect(methods["models.pricing"].permission).toBe("pi:read");
   });
 });

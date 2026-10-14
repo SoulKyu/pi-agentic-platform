@@ -86,7 +86,14 @@ export const KeybindingRule = z.object({
 export type KeybindingRule = z.infer<typeof KeybindingRule>;
 export const KeybindingRules = z.array(KeybindingRule).max(256);
 
-export const SETTING_KEYS = ["appearance", "keybindings"] as const;
+/**
+ * The owner's Models settings (M7R138). `modelsDevPricing` is the opt-in for the models.dev price lookup: off by default,
+ * and every field has a default (owner R3-4).
+ */
+export const ModelsSettings = z.object({ modelsDevPricing: z.boolean().default(false) });
+export type ModelsSettings = z.infer<typeof ModelsSettings>;
+
+export const SETTING_KEYS = ["appearance", "keybindings", "models"] as const;
 export const SettingKey = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof SettingKey>;
 export const MAX_SETTING_BYTES = 131_072;
@@ -97,6 +104,7 @@ const BaseRevision = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER)
 export const SettingWrite = z.discriminatedUnion("key", [
   z.object({ key: z.literal("appearance"), value: AccountAppearance, baseRevision: BaseRevision }),
   z.object({ key: z.literal("keybindings"), value: KeybindingRules, baseRevision: BaseRevision }),
+  z.object({ key: z.literal("models"), value: ModelsSettings, baseRevision: BaseRevision }),
 ]);
 export type SettingWrite = z.infer<typeof SettingWrite>;
 

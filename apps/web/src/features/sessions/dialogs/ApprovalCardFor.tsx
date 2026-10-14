@@ -1,8 +1,10 @@
-import type { Dialog, DialogResponse } from "@pap/contracts";
+import type { AlwaysScope, Dialog, DialogResponse } from "@pap/contracts";
 import { ApprovalCard, cn, FOCUS_RING } from "@pap/ui";
+import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
 import "../register-policy-catalog.ts";
+import { AlwaysScopeChoice, scopesOffered } from "./AlwaysScopeChoice.tsx";
 import { timeoutLine } from "./request-frame.tsx";
 import { plain } from "./untrusted.ts";
 import { ExpandToggle, useClipped } from "./use-clipped.tsx";
@@ -26,6 +28,8 @@ export function ApprovalCardFor(props: {
 }) {
   const { dialog } = props;
   const t = useT();
+  const [scope, setScope] = useState<AlwaysScope>("exact");
+  const scopes = scopesOffered(dialog);
   const question = useClipped(dialog.title, QUESTION_LIMITS);
   const { header, body } = splitApproval(plain(dialog.message ?? ""));
   const headerText = useClipped(header ?? "", HEADER_LIMITS);
@@ -59,11 +63,14 @@ export function ApprovalCardFor(props: {
       detail={detail}
       headerLabel={headerText.expanded ? t("dialog.summary") : undefined}
       controls={
-        question.clipped || headerText.clipped || bodyText.clipped ? (
+        question.clipped || headerText.clipped || bodyText.clipped || scopes.length > 0 ? (
           <>
             <ExpandToggle {...question} />
             <ExpandToggle {...headerText} />
             <ExpandToggle {...bodyText} />
+            {scopes.length > 0 ? (
+              <AlwaysScopeChoice dialog={dialog} scopes={scopes} value={scope} onChange={setScope} />
+            ) : null}
           </>
         ) : undefined
       }
@@ -76,7 +83,9 @@ export function ApprovalCardFor(props: {
         once: t("dialog.answer.once"),
       }}
       note={dialog.timeout === undefined ? undefined : timeoutLine(dialog.timeout, t)}
-      onChoose={(answer) => props.onAnswer({ answer })}
+      onChoose={(answer) =>
+        props.onAnswer(answer === "always" && scope !== "exact" ? { answer, scope } : { answer })
+      }
     />
   );
 }

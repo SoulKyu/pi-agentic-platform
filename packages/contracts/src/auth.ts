@@ -4,12 +4,16 @@ import { INVISIBLE } from "./policy.ts";
 import { ALL_PERMISSIONS, type Permission } from "./permissions.ts";
 
 /**
- * What a token may hold (M5R64): never credentials (`auth:*`), never policy administration (owner Q7 b), never a
- * terminal (`terminal:*`, M8R2): a standing credential makes no code-running change.
+ * What a token may hold (M5R64): never credentials (`auth:*`), never policy administration (owner Q7 b), never Pi
+ * administration (M7R39: it can make pap run a configured command or redirect provider traffic), never a terminal
+ * (`terminal:*`, M8R2): a standing credential makes no code-running change.
  */
 export const TOKEN_PERMISSIONS: readonly Permission[] = ALL_PERMISSIONS.filter(
   (permission) =>
-    !permission.startsWith("auth:") && !permission.startsWith("terminal:") && permission !== "policy:admin",
+    !permission.startsWith("auth:") &&
+    !permission.startsWith("terminal:") &&
+    permission !== "policy:admin" &&
+    permission !== "pi:admin",
 );
 export const TokenPermission = z.enum(TOKEN_PERMISSIONS as [Permission, ...Permission[]]);
 export type TokenPermission = z.infer<typeof TokenPermission>;

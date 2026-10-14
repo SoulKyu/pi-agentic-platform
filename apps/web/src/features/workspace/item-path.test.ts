@@ -9,6 +9,8 @@ describe("item ↔ path", () => {
     ["/settings", { kind: "settings", section: "appearance" }],
     ["/settings/", { kind: "settings", section: "appearance" }],
     ["/settings/shortcuts", { kind: "settings", section: "shortcuts" }],
+    // The model menu and the composer pill link here (M7 Task 9): it was a dead path before the section existed.
+    ["/settings/models", { kind: "settings", section: "models" }],
   ])("%s", (path, item) => {
     expect(itemFromPath(path, false)).toEqual(item);
   });
@@ -33,7 +35,7 @@ describe("item ↔ path", () => {
 
   it("knows /dev/ui only where the gallery exists, and round-trips every item", () => {
     expect(itemFromPath("/dev/ui", true)).toEqual({ kind: "dev-ui" });
-    for (const path of ["/", "/s/a%20b", "/settings/language", "/dev/ui"])
+    for (const path of ["/", "/s/a%20b", "/settings/language", "/settings/models", "/dev/ui"])
       expect(pathOfItem(itemFromPath(path, true) as never)).toBe(path);
   });
 

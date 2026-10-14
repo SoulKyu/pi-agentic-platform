@@ -9,6 +9,8 @@ import { MentionMenu } from "./composer/MentionMenu.tsx";
 import { useComposerFieldProps } from "./composer/menus.ts";
 import { useAttachments } from "./composer/use-attachments.ts";
 import { useMentions } from "./composer/use-mentions.ts";
+import { ModelBar } from "./ModelBar.tsx";
+import { useComposerCommands } from "./use-composer-commands.ts";
 import { rememberScreen, targetScreen } from "./last-screen.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
 import { useComposer, type Injected } from "./use-composer.ts";
@@ -33,7 +35,13 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
     attachments,
   });
   const mentions = useMentions({ sessionId, text: c.text, setText: c.changeText, folder: view.cwd });
-  const fieldProps = useComposerFieldProps([mentions], attachments);
+  const commands = useComposerCommands({
+    sessionId,
+    text: c.text,
+    setText: c.changeText,
+    fieldRef: mentions.fieldRef,
+  });
+  const fieldProps = useComposerFieldProps([mentions, commands], attachments);
   const blocked = c.pending !== null || c.compacting || c.sending;
   const root = useRef<HTMLDivElement | null>(null);
   // Two session screens can be mounted (a split): a key belongs to the one that holds the focus, and a command run from
@@ -117,7 +125,9 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
           {...fieldProps}
         />
         <MentionMenu menu={mentions.menu} />
+        {commands.menu}
         <div className="flex flex-wrap gap-2">
+          <ModelBar sessionId={sessionId} loadout={view.loadout} running={c.running} />
           {c.running ? (
             <div role="group" aria-label={t("sessions.composer.whenWorking")} className="flex gap-2">
               <Button

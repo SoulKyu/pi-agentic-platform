@@ -25,6 +25,8 @@ interface Subscriber {
 // `seq` outlives the ring: after an idle eviction a stale cursor must still compare against the real
 // counter, so that it falls through to a snapshot instead of matching a restarted number.
 interface Channel {
+  readonly stream: StreamName;
+  readonly key: string;
   seq: number;
   ring: Entry[];
   ringBytes: number;
@@ -62,6 +64,11 @@ export interface StreamHub {
   close(connectionId: string, sub?: string): void;
   /** True while a subscription of any connection holds the key (prepared ones included). */
   hasSubscribers(stream: StreamName, key: string): boolean;
+  /**
+   * Called with the key when the last subscription holding it is gone (a closed connection or `close`). The keys of one
+   * `close` are told after all its subscriptions are removed; a throwing listener is skipped and the rest still run (MC31).
+   */
+  onLastSubscriberLeft(stream: StreamName, listener: (key: string) => void): void;
   stats(): { channels: number; subscriptions: number };
 }
 
@@ -83,6 +90,7 @@ export function createStreamHub(
 ): StreamHub {
   const channels = new Map<string, Channel>();
   const providers = new Map<StreamName, SnapshotProvider>();
+  const leftListeners = new Map<StreamName, Array<(key: string) => void>>();
   const subscriptions = new Map<string, { readonly channel: Channel; readonly subscriber: Subscriber }>();
 
   const armIdle = (channel: Channel): void => {
@@ -97,7 +105,9 @@ export function createStreamHub(
     if (channel.idleTimer) clock.clearTimeout(channel.idleTimer);
     channel.idleTimer = null;
   };
-  const newChannel = (): Channel => ({
+  const newChannel = (stream: StreamName, key: string): Channel => ({
+    stream,
+    key,
     seq: 0,
     ring: [],
     ringBytes: 0,
@@ -128,7 +138,7 @@ export function createStreamHub(
     }
     let channel = existing;
     if (!channel) {
-      channel = newChannel();
+      channel = newChannel(input.stream, input.key);
       channels.set(id, channel);
     }
     disarmIdle(channel);
@@ -158,7 +168,7 @@ export function createStreamHub(
       const id = `${stream}:${key}`;
       let channel = channels.get(id);
       if (!channel) {
-        channel = newChannel();
+        channel = newChannel(stream, key);
         channels.set(id, channel);
       }
       const seq = ++channel.seq;
@@ -179,13 +189,26 @@ export function createStreamHub(
       prepare(input).commit();
     },
     close(connectionId, sub) {
+      const emptied = new Set<Channel>();
       for (const [subKey, { channel }] of [...subscriptions]) {
         if (!subKey.startsWith(`${connectionId}:`)) continue;
         if (sub !== undefined && subKey !== `${connectionId}:${sub}`) continue;
         channel.subscribers.delete(subKey);
         subscriptions.delete(subKey);
         armIdle(channel);
+        if (channel.subscribers.size === 0) emptied.add(channel);
       }
+      for (const channel of emptied)
+        for (const listener of leftListeners.get(channel.stream) ?? []) {
+          try {
+            listener(channel.key);
+          } catch {
+            // A module's own bookkeeping must not stop the close or the other listeners.
+          }
+        }
+    },
+    onLastSubscriberLeft(stream, listener) {
+      leftListeners.set(stream, [...(leftListeners.get(stream) ?? []), listener]);
     },
     hasSubscribers: (stream, key) => (channels.get(`${stream}:${key}`)?.subscribers.size ?? 0) > 0,
     stats: () => ({ channels: channels.size, subscriptions: subscriptions.size }),

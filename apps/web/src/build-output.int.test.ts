@@ -168,6 +168,18 @@ describe("the built web app under the daemon's CSP", () => {
 
   it("keeps the Settings screen out of the initial assets", () => keepsLazyOnly([/data-settings-screen/]));
 
+  it("keeps Settings › Models and its strings out of the initial assets, in a chunk of its own (M7R71)", async () => {
+    await keepsLazyOnly([/data-models-section/, /Refresh catalog/, /Actualiser le catalogue/]);
+    // Its own chunk: the file that holds the section is not the one that holds the Settings screen.
+    const holders: string[] = [];
+    for (const name of assets.filter((asset) => asset.endsWith(".js"))) {
+      const code = await readFile(join(out, "assets", name), "utf8");
+      if (/data-models-section/.test(code)) holders.push(code);
+    }
+    expect(holders.length).toBeGreaterThan(0);
+    for (const code of holders) expect(code).not.toMatch(/data-settings-screen/);
+  });
+
   it("keeps the Approvals strings out of the initial assets", () =>
     keepsLazyOnly([/What the agent may do without asking you/]));
 

@@ -65,9 +65,21 @@ describe("SettingsScreen", () => {
       "Keyboard shortcuts",
       "Language",
       "Approvals",
+      "Models",
+      "MCP servers",
+      "Skills",
       "Account & devices",
     ]);
-    expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([null, null, "page", null, null]);
+    expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([
+      null,
+      null,
+      "page",
+      null,
+      null,
+      null,
+      null,
+      null,
+    ]);
     expect(page.container.querySelector("h1")?.textContent).toBe("Language");
     await page.unmount();
   });

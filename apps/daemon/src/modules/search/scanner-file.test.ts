@@ -41,7 +41,7 @@ describe("processFile", () => {
         header: { id: "sess-1", cwd: "/w/api", createdAt: Date.parse("2026-10-12T10:00:00.000Z") },
       },
     ]);
-    expect(port.touched).toEqual([{ sessionId: "s1", at: stat.mtimeMs, active: false }]);
+    expect(port.touched).toEqual([{ sessionId: "s1", at: stat.mtimeMs, active: false, toolResults: false }]);
     expect(port.previewed).toEqual([{ sessionId: "s1", text: "hello world" }]);
     expect(port.named).toEqual([{ sessionId: "s1", raw: "My name" }]);
   });

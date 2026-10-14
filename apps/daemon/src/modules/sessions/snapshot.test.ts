@@ -25,8 +25,9 @@ describe("fitSnapshot", () => {
       mode: "auto-accept-edits",
       explicit: false,
       tainted: false,
+      defaultMode: "auto-accept-edits",
     });
-    const policy = { mode: "read-only", explicit: true, tainted: true } as const;
+    const policy = { mode: "read-only", explicit: true, tainted: true, defaultMode: "supervised" } as const;
     expect(fitSnapshot({ status: "idle", rows: [], dialogs: [], policy }).policy).toEqual(policy);
   });
 
@@ -52,7 +53,14 @@ describe("fitSnapshot", () => {
       name: null,
       cwd: "",
       outsideWrite: false,
-      policy: { mode: "auto-accept-edits", explicit: false, tainted: false },
+      policy: {
+        mode: "auto-accept-edits",
+        explicit: false,
+        tainted: false,
+        defaultMode: "auto-accept-edits",
+      },
+      loadout: null,
+      toolPreset: "configured",
     });
   });
 
@@ -95,9 +103,9 @@ describe("fitSnapshot", () => {
       dialog("d3", "c".repeat(400)),
     ];
     const rows = [row(1), row(2)];
-    const snapshot = fitSnapshot({ status: "running", rows, dialogs }, 1500);
+    const snapshot = fitSnapshot({ status: "running", rows, dialogs }, 1590);
     expect(snapshot.dialogs.map((d) => d.id)).toEqual(["d1", "d2"]);
-    expect(sizeOf(snapshot)).toBeLessThanOrEqual(1500);
+    expect(sizeOf(snapshot)).toBeLessThanOrEqual(1590);
   });
 
   it("stays under the default budget with the largest dialogs the registry allows", () => {

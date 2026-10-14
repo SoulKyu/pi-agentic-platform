@@ -1,4 +1,4 @@
-import { join, resolve } from "node:path";
+import { join, relative, resolve, sep } from "node:path";
 import { kernelResolve, tooLong } from "./kernel-path.ts";
 import { asPiResolves, type EditReview, KERNEL_CONDITION, realTarget, within } from "./target-path.ts";
 
@@ -23,6 +23,30 @@ export interface ReadDirs {
   readonly cwd: string;
   readonly papHome: string;
   readonly agentDir: string;
+  /** The session's own id: its attachments are readable, other sessions' are not. Absent: none is (fail closed). */
+  readonly sessionId?: string | undefined;
+}
+
+/** What the daemon names a session's folder under `attachments/`; anything else is no session of ours. */
+const SESSION_FOLDER = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * M7 rebase item 2 (M8 final review I3): `attachments/pending/` is always asked, so is `attachments/<sid>/` for any
+ * `sid` but the session's own, and so is a search rooted at `attachments/` (it would walk the others). Listing
+ * `attachments/` itself shows session ids only.
+ */
+function inOthersAttachments(
+  candidate: string,
+  roots: readonly string[],
+  own: string | undefined,
+  searches: boolean,
+): boolean {
+  return roots.some((root) => {
+    if (!within(root, candidate)) return false;
+    const [first] = relative(root, candidate).split(sep);
+    if (first === "" || first === undefined) return searches;
+    return first === "pending" || first !== own;
+  });
 }
 
 /** A directory as spelled and as it resolves, so a symlink on either side cannot hide it. */
@@ -38,7 +62,7 @@ async function withRealPaths(paths: readonly string[]): Promise<string[]> {
 
 /**
  * Whether a built-in `read`, `grep`, `find` or `ls` touches what pap keeps from the model: its database, secrets,
- * backups and exports, Pi's credentials and other sessions' transcripts (a call that returns a review asks; in
+ * backups and exports, Pi's credentials, other sessions' transcripts and attachments (a call that returns a review asks; in
  * read-only it blocks). The path is judged as Pi resolves it and as it was spelled, symlinks followed. A `grep` or
  * `find` rooted at pap's home, at Pi's agent directory or above either would read them: it asks too. A path that is not
  * a plain string fails closed. Any other tool is not judged here.
@@ -68,6 +92,9 @@ export async function checkReadTarget(
     ...(ownSessionFolder ? [] : sessionDirs),
   ]);
   const roots = [...papHomes, ...agentDirs];
+  const attachmentRoots = await withRealPaths(papHomes.map((home) => join(home, "attachments")));
+  const ownSession =
+    dirs.sessionId !== undefined && SESSION_FOLDER.test(dirs.sessionId) ? dirs.sessionId : undefined;
 
   let target: string | undefined;
   let kernelTarget: string | undefined;
@@ -78,7 +105,11 @@ export async function checkReadTarget(
   const reasonOf = (verdict: { protectedPath: boolean; searches: boolean }) =>
     verdict.protectedPath ? "protected path" : verdict.searches ? "searches pap's data directory" : undefined;
   const judge = (candidates: readonly string[]) => ({
-    protectedPath: sensitive.some((entry) => candidates.some((candidate) => within(entry, candidate))),
+    protectedPath:
+      sensitive.some((entry) => candidates.some((candidate) => within(entry, candidate))) ||
+      candidates.some((candidate) =>
+        inOthersAttachments(candidate, attachmentRoots, ownSession, SEARCH_TOOLS.has(toolName)),
+      ),
     searches:
       SEARCH_TOOLS.has(toolName) &&
       roots.some((root) => candidates.some((candidate) => within(candidate, root))),

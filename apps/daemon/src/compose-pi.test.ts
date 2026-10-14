@@ -1,0 +1,175 @@
+import { EventEmitter } from "node:events";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
+import { composePi, type ComposePiDeps } from "./compose-pi.ts";
+import { createFakeClock } from "./kernel/clock.ts";
+import type { Config } from "./kernel/config.ts";
+import { silentLogger } from "./kernel/logger.ts";
+import { killAllWorkerGroups } from "./kernel/supervisor/process-group.ts";
+
+const state = vi.hoisted(() => ({ children: [] as unknown[], forkArgs: [] as unknown[][] }));
+vi.mock("node:child_process", () => ({
+  fork: vi.fn((...args: unknown[]) => {
+    state.forkArgs.push(args);
+    return state.children.shift();
+  }),
+}));
+
+class FakeChild extends EventEmitter {
+  pid = 7001;
+  connected = true;
+  stdout = Object.assign(new EventEmitter(), { destroy: vi.fn() });
+  stderr = Object.assign(new EventEmitter(), { destroy: vi.fn() });
+  sent: Array<{ type: string }> = [];
+  send = vi.fn((record: { type: string }, callback?: (error: Error | null) => void) => {
+    this.sent.push(record);
+    callback?.(null);
+    return true;
+  });
+}
+
+const config = (overrides: Partial<Config> = {}) =>
+  ({
+    home: "/pap-home",
+    piAgentDir: "/pi/agent",
+    piHostEntry: "/repo/packages/pi-host/dist/main.js",
+    piHostExecArgv: ["--conditions=development"],
+    testProviderScript: null,
+    helpersMax: 2,
+    ...overrides,
+  }) as Config;
+
+const deps = (
+  overrides: Partial<Config> = {},
+  env: NodeJS.ProcessEnv = { PATH: "/bin", PAP_HOME: "/leak" },
+) =>
+  ({
+    config: config(overrides),
+    env,
+    clock: createFakeClock(),
+    logger: silentLogger,
+    projects: { port: { covers: () => false } },
+    audit: { port: { append: () => {} } },
+    settings: { port: { models: () => ({ modelsDevPricing: false }) } },
+    hub: { publish: () => {}, registerSnapshot: () => {}, onLastSubscriberLeft: () => {} },
+  }) as unknown as ComposePiDeps;
+
+let kill: MockInstance<typeof process.kill>;
+beforeEach(() => {
+  state.children.length = 0;
+  state.forkArgs.length = 0;
+  kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+});
+afterEach(() => {
+  killAllWorkerGroups();
+  kill.mockRestore();
+});
+
+describe("composePi: boot sweep", () => {
+  it("removes the models.json validation copies a killed helper left in the pap home", async () => {
+    const home = mkdtempSync(join(tmpdir(), "pap-compose-"));
+    try {
+      mkdirSync(join(home, "models-check", "check-x"), { recursive: true });
+      writeFileSync(join(home, "models-check", "check-x", "models.json"), "{}");
+      composePi(deps({ home }));
+      await vi.waitFor(() => expect(existsSync(join(home, "models-check"))).toBe(false), { timeout: 2000 });
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("composePi", () => {
+  it("holds the models and mcp methods and returns the helper pool", () => {
+    const pi = composePi(deps());
+    expect(Object.keys(pi.rpc).sort()).toEqual([
+      "mcp.add",
+      "mcp.overview",
+      "mcp.remove",
+      "mcp.setCodemode",
+      "mcp.setEnabled",
+      "mcp.setExposure",
+      "mcp.setInProject",
+      "mcp.test",
+      "mcp.undo",
+      "models.cancelLogin",
+      "models.config.get",
+      "models.config.save",
+      "models.discover",
+      "models.login",
+      "models.loginAnswer",
+      "models.loginCancel",
+      "models.logout",
+      "models.overview",
+      "models.pricing",
+      "models.refreshCatalog",
+      "models.setApiKey",
+      "models.setDefault",
+      "models.setDefaultThinking",
+      "models.setEnabled",
+      "models.test",
+      "plugins.install",
+      "plugins.list",
+      "plugins.remove",
+      "plugins.setEnabled",
+      "plugins.update",
+      "skills.install",
+      "skills.list",
+      "skills.search",
+      "skills.setInvocation",
+      "subscribe.login",
+      "trust.set",
+      "trust.status",
+    ]);
+    expect(pi.helpers.active()).toBe(0);
+  });
+
+  it("starts the helper entry that sits beside the worker entry, in the agent directory, capped by the config", () => {
+    const pi = composePi(deps());
+    const child = new FakeChild();
+    state.children.push(child);
+    pi.helpers.run("ping", {}, { deadlineMs: 1000 }).done.catch(() => {});
+    const [entry, , options] = state.forkArgs[0] as [string, string[], { env: NodeJS.ProcessEnv }];
+    expect(entry).toBe("/repo/packages/pi-host/dist/helper/main.js");
+    expect(options.env.PI_CODING_AGENT_DIR).toBe("/pi/agent");
+    expect(options.env.PAP_HOME).toBeUndefined();
+    expect(options.env.PAP_TEST_PROVIDER).toBeUndefined();
+    expect(child.sent[0]).toMatchObject({ type: "helper_run", agentDir: "/pi/agent", papHome: "/pap-home" });
+    state.children.push(new FakeChild());
+    pi.helpers.run("ping", {}, { deadlineMs: 1000 }).done.catch(() => {});
+    expect(() => pi.helpers.run("ping", {}, { deadlineMs: 1000 })).toThrow(
+      expect.objectContaining({ code: "capacity" }),
+    );
+  });
+
+  it("follows the worker entry's extension in development, and enables the test ops only with a test script", () => {
+    const pi = composePi(
+      deps({ piHostEntry: "/repo/packages/pi-host/src/main.ts", testProviderScript: "/script.json" }),
+    );
+    state.children.push(new FakeChild());
+    pi.helpers.run("ping", {}, { deadlineMs: 1000 }).done.catch(() => {});
+    const [entry, , options] = state.forkArgs[0] as [string, string[], { env: NodeJS.ProcessEnv }];
+    expect(entry).toBe("/repo/packages/pi-host/src/helper/main.ts");
+    expect(options.env.PAP_TEST_PROVIDER).toBe("1");
+  });
+
+  it("stopAll() stops a running helper and waits for it", async () => {
+    const pi = composePi(deps());
+    const child = new FakeChild();
+    state.children.push(child);
+    const handle = pi.helpers.run("ping", {}, { deadlineMs: 60_000 });
+    const rejected = handle.done.catch((error: { code: string }) => error.code);
+    let stopped = false;
+    const stopping = pi.stopAll().then(() => (stopped = true));
+    expect(child.sent.map((record) => record.type)).toEqual(["helper_run", "helper_cancel"]);
+    await Promise.resolve();
+    expect(stopped).toBe(false);
+    child.emit("exit", 0, null);
+    child.emit("close");
+    await stopping;
+    expect(await rejected).toBe("helper_failed");
+    expect(pi.helpers.active()).toBe(0);
+  });
+});

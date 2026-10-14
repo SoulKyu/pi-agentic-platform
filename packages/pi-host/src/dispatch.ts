@@ -6,6 +6,8 @@ import { handleAutoName } from "./auto-name.ts";
 import { handleAbort, handleGetState, queuePrompt } from "./commands.ts";
 import type { Ipc } from "./ipc.ts";
 import { createPromptQueue } from "./prompt-queue.ts";
+import { loadoutRecord } from "./loadout.ts";
+import { handleGetAvailableModels, handleSetModel, handleSetThinking } from "./model-commands.ts";
 import {
   handleClearQueue,
   handleCompact,
@@ -13,6 +15,9 @@ import {
   handleNavigateTree,
   handleSetSessionName,
 } from "./session-commands.ts";
+import { handleGetCommands } from "./slash-commands.ts";
+import { handleSetTools } from "./tool-preset-commands.ts";
+import { applyPreset, presetOf } from "./tool-presets.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
 export type Command = Exclude<DaemonToWorker, { type: "init" | "shutdown" }>;
@@ -64,7 +69,11 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
       case "navigate_tree":
         background(
           "navigate_tree",
-          handleNavigateTree(session, record, send).then(() => deps.leafMayHaveMoved()),
+          handleNavigateTree(session, record, send).then(() => {
+            deps.leafMayHaveMoved();
+            // Pi restores the tools the branch had: the preset is put back (M7R75).
+            if (applyPreset(session, presetOf(session))) send(loadoutRecord(session));
+          }),
         );
         return;
       case "set_session_name":
@@ -79,6 +88,21 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
           // The title is a `session_info` entry, which advances the leaf (a look after a refusal finds nothing).
           handleAutoName(session, record, send).then(() => deps.leafMayHaveMoved()),
         );
+        return;
+      case "get_available_models":
+        background("get_available_models", handleGetAvailableModels(session, record, send));
+        return;
+      case "get_commands":
+        handleGetCommands(session, record, send);
+        return;
+      case "set_model":
+        background("set_model", handleSetModel(session, record, send));
+        return;
+      case "set_thinking_level":
+        handleSetThinking(session, record, send);
+        return;
+      case "set_tools":
+        handleSetTools(session, record, send);
         return;
       case "extension_ui_response":
         ui.resolve(record);

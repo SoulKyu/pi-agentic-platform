@@ -29,6 +29,8 @@ const row = (id: string, over: Partial<RuleRow> = {}): RuleRow => ({
   grantKey: KEY,
   label: "l",
   createdAt: 1,
+  kind: "exact",
+  pattern: null,
   ...over,
 });
 
@@ -52,8 +54,8 @@ describe("policy store", () => {
     store.insert(row("b", { grantKey: keyOf(2), createdAt: 20 }));
     store.insert(row("a", { grantKey: keyOf(1), createdAt: 10 }));
     store.insert(row("c", { grantKey: keyOf(3), createdAt: 30 }));
-    expect(store.forScope("u1", "/w", 10).map((r) => r.id)).toEqual(["a", "b", "c"]);
-    expect(store.forScope("u1", "/w", 2).map((r) => r.id)).toEqual(["a", "b"]);
+    expect(store.forScope("u1", "/w", "exact", 10).map((r) => r.id)).toEqual(["a", "b", "c"]);
+    expect(store.forScope("u1", "/w", "exact", 2).map((r) => r.id)).toEqual(["a", "b"]);
     expect(store.newest("u1", null, 2).map((r) => r.id)).toEqual(["c", "b"]);
   });
 

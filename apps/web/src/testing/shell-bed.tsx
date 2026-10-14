@@ -28,6 +28,8 @@ export async function renderShell(
       removeEventListener: () => {},
     }));
   }
+  // The settings screen is a lazy chunk: loaded here, outside any test wait, so a loaded host cannot outlast it.
+  if (path.startsWith("/settings")) await import("../routes/settings/SettingsScreen.tsx");
   const Shell = () => (
     <AppShell
       username={options.username === undefined ? "ana" : options.username}

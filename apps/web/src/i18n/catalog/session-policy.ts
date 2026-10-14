@@ -1,7 +1,6 @@
 export const sessionPolicyEn = {
   "sessionPolicy.bar": "Approvals for this session",
   "sessionPolicy.mode": "Approval mode",
-  "sessionPolicy.mode.default": "Use my default",
   "sessionPolicy.mode.defaultNamed": "Use my default ({mode})",
   "sessionPolicy.mode.read-only": "Read only",
   "sessionPolicy.mode.supervised": "Ask for everything",
@@ -24,12 +23,17 @@ export const sessionPolicyEn = {
   "sessionPolicy.guard.tool-calls": "This run made many tool calls.",
   "sessionPolicy.guard.turns": "This run took many turns.",
   "sessionPolicy.fence": "Untrusted · {source}",
+  "sessionPolicy.always.legend": "What Always covers",
+  "sessionPolicy.always.exactCommand": "This exact command",
+  "sessionPolicy.always.exactCall": "This exact call",
+  "sessionPolicy.always.prefix": "Commands starting with {prefix}",
+  "sessionPolicy.always.tool": "Any input to {tool}",
+  "sessionPolicy.rule.anyInput": "any input",
 } as const;
 
 export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: string } = {
   "sessionPolicy.bar": "Approbations de cette session",
   "sessionPolicy.mode": "Mode d'approbation",
-  "sessionPolicy.mode.default": "Utiliser mon mode par défaut",
   "sessionPolicy.mode.defaultNamed": "Utiliser mon mode par défaut ({mode})",
   "sessionPolicy.mode.read-only": "Lecture seule",
   "sessionPolicy.mode.supervised": "Tout demander",
@@ -52,4 +56,10 @@ export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: st
   "sessionPolicy.guard.tool-calls": "Cette exécution a fait beaucoup d'appels d'outils.",
   "sessionPolicy.guard.turns": "Cette exécution a pris beaucoup de tours.",
   "sessionPolicy.fence": "Non fiable · {source}",
+  "sessionPolicy.always.legend": "Ce que couvre Toujours",
+  "sessionPolicy.always.exactCommand": "Cette commande exacte",
+  "sessionPolicy.always.exactCall": "Cet appel exact",
+  "sessionPolicy.always.prefix": "Les commandes qui commencent par {prefix}",
+  "sessionPolicy.always.tool": "Toute entrée de {tool}",
+  "sessionPolicy.rule.anyInput": "toute entrée",
 };

@@ -5,6 +5,8 @@
  */
 export interface CorpusEntry {
   readonly command: string;
+  /** Covered by the read-only command table (Task 1c): runs with no question in auto-accept-edits. */
+  readonly readOnly?: true;
   /** What the policy does today, asserted as it is: the reason for the owner, stage 01's verdict and its reason. */
   readonly knownFriction?: {
     readonly why: string;
@@ -14,9 +16,9 @@ export interface CorpusEntry {
 }
 
 export const BASH_CORPUS: readonly CorpusEntry[] = [
-  { command: `git status` },
-  { command: `git diff --stat HEAD~3` },
-  { command: `git log --oneline -20` },
+  { command: `git status`, readOnly: true },
+  { command: `git diff --stat HEAD~3`, readOnly: true },
+  { command: `git log --oneline -20`, readOnly: true },
   { command: `git add -A && git commit -m "fix: handle empty input"` },
   { command: `git switch -c feat/search && git push -u origin feat/search` },
   { command: `git push --force-with-lease origin feat/search` },
@@ -53,7 +55,7 @@ export const BASH_CORPUS: readonly CorpusEntry[] = [
   { command: `rm -rf ./build && mkdir -p build` },
   { command: `find . -name '*.orig' -delete` },
   { command: `find src -type f -name '*.ts' | xargs grep -l 'TODO'` },
-  { command: `rg -n "useEffect" src/` },
+  { command: `rg -n "useEffect" src/`, readOnly: true },
   { command: `sed -i 's/oldName/newName/g' src/a.ts src/b.ts` },
   { command: `awk -F, '{print $2}' data.csv | sort | uniq -c` },
   { command: `tar -czf backup.tgz src/ docs/` },
@@ -66,10 +68,10 @@ export const BASH_CORPUS: readonly CorpusEntry[] = [
   { command: `export NODE_ENV=production && node dist/main.js --check` },
   { command: `env DEBUG=1 pnpm dev` },
   { command: `timeout 30 pnpm test:int` },
-  { command: `ls -la ~/.config/app/` },
+  { command: `ls -la ~/.config/app/`, readOnly: true },
   { command: `echo "$(date +%F) deploy" >> CHANGELOG.md` },
   { command: `ssh deploy@staging.example.com 'systemctl --user restart app'` },
   { command: `systemctl --user status app && journalctl --user -u app -n 50` },
   { command: `kill -TERM 12345` },
-  { command: `jq '.dependencies | keys' package.json` },
+  { command: `jq '.dependencies | keys' package.json`, readOnly: true },
 ];

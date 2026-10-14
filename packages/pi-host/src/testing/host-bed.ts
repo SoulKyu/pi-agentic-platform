@@ -8,6 +8,8 @@ export const RULES = PolicyRules.parse({
   profile: "interactive",
   approvalMode: "auto-accept-edits",
   alwaysAllow: [],
+  // These tests drive the approval channel with `echo`, a read-only command; host.read-only.int.test.ts covers the switch on.
+  readOnlyCommands: false,
 });
 
 export interface LaunchOptions {

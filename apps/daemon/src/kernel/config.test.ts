@@ -308,6 +308,23 @@ describe("worker settings", () => {
   });
 });
 
+describe("helper pool size", () => {
+  it("defaults to 4 and reads PAP_HELPERS_MAX from 1 to 16", () => {
+    expect(loadConfig(base).helpersMax).toBe(4);
+    expect(loadConfig({ ...base, env: { PAP_HELPERS_MAX: "1" } }).helpersMax).toBe(1);
+    expect(loadConfig({ ...base, env: { PAP_HELPERS_MAX: "16" } }).helpersMax).toBe(16);
+  });
+
+  it.each([
+    [{ PAP_HELPERS_MAX: "0" }, "PAP_HELPERS_MAX must be an integer ≥ 1"],
+    [{ PAP_HELPERS_MAX: "17" }, "PAP_HELPERS_MAX must be an integer ≤ 16"],
+    [{ PAP_HELPERS_MAX: "four" }, "PAP_HELPERS_MAX must be an integer ≥ 1"],
+    [{ PAP_HELPERS_MAX: "2.5" }, "PAP_HELPERS_MAX must be an integer ≥ 1"],
+  ])("refuses %j", (env, message) => {
+    expect(() => loadConfig({ ...base, env })).toThrow(message);
+  });
+});
+
 describe("worker idle limit", () => {
   it("accepts the largest delay a timer can hold", () => {
     const config = loadConfig({ ...base, env: { PAP_WORKER_IDLE_MINUTES: "35791" } });

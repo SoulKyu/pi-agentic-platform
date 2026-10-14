@@ -7,6 +7,10 @@
     ".": {
       "development": "./src/main.ts",
       "default": "./dist/main.js"
+    },
+    "./helper": {
+      "development": "./src/helper/main.ts",
+      "default": "./dist/helper/main.js"
     }
   },
   "scripts": {

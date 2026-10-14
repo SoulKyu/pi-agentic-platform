@@ -45,6 +45,28 @@ describe("error codes", () => {
     );
   });
 
+  it("has the helper failure code with a fixed message that names no helper text (agreement 3: membership)", () => {
+    expect(ERROR_CODES).toContain("helper_failed");
+    expect(ERROR_CODES.indexOf("helper_failed")).toBeLessThan(ERROR_CODES.indexOf("unknown_method"));
+    expect(ERROR_MESSAGES.helper_failed).toBe("The Pi configuration helper failed.");
+    expect(new PapError("helper_failed").message).toBe("The Pi configuration helper failed.");
+  });
+
+  it("has the three Pi configuration codes with fixed messages, before unknown_method (agreement 3: membership)", () => {
+    const expected = {
+      project_scope: "This project sets its own value in .pi/settings.json, which wins over the global one.",
+      config_invalid: "A Pi configuration file is not valid. Fix the file, then try again.",
+      config_path_refused:
+        "Pi refused this configuration path: it must be a regular file inside your folders.",
+    } as const;
+    for (const [code, message] of Object.entries(expected)) {
+      expect(ERROR_CODES).toContain(code);
+      expect(ERROR_CODES.indexOf(code as never)).toBeLessThan(ERROR_CODES.indexOf("unknown_method"));
+      expect(ERROR_MESSAGES[code as keyof typeof expected]).toBe(message);
+      expect(new PapError(code as keyof typeof expected).message).toBe(message);
+    }
+  });
+
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
   });

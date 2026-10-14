@@ -7,10 +7,12 @@ import {
   NO_TAINT,
   PolicyRules,
   type PolicySettings,
+  type PrefixRule,
   type TaintState,
+  type ToolRule,
 } from "@pap/contracts";
 import type { FakeWorker } from "../../../kernel/testing/fake-worker.ts";
-import type { PolicyPort } from "../../policy/index.ts";
+import type { AlwaysInput, PolicyPort } from "../../policy/index.ts";
 
 export interface FakePolicyOptions {
   /** `addAlways` answers "full". */
@@ -19,19 +21,15 @@ export interface FakePolicyOptions {
   throws?: boolean;
 }
 
-export interface AddedRule {
-  ownerId: string;
-  scope: string;
-  tool: string;
-  key: string;
-  label: string;
-}
+export type AddedRule = AlwaysInput;
 
 const slot = (ownerId: string, scope: string) => `${ownerId}\u0000${scope}`;
 
 /** A `PolicyPort` for the sessions tests: the identity for `scopeOf`, rules kept per owner and project, listeners told on every change. */
 export function fakePolicyPort(options: FakePolicyOptions = {}) {
   const rules = new Map<string, AlwaysRule[]>();
+  const prefixes = new Map<string, PrefixRule[]>();
+  const tools = new Map<string, ToolRule[]>();
   const added: AddedRule[] = [];
   const listeners = new Set<(ownerId: string, scope: string) => void>();
   let failReads = false;
@@ -56,13 +54,32 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
       if (failReads) throw new Error("rulesFor failed");
       return [...of(ownerId, scope)];
     },
+    prefixesFor(ownerId, scope) {
+      if (failReads) throw new Error("prefixesFor failed");
+      return [...(prefixes.get(slot(ownerId, scope)) ?? [])];
+    },
+    toolsFor(ownerId, scope) {
+      if (failReads) throw new Error("toolsFor failed");
+      return [...(tools.get(slot(ownerId, scope)) ?? [])];
+    },
     addAlways(input) {
       if (options.throws) throw new Error("addAlways failed");
       if (options.full) return "full";
-      const list = of(input.ownerId, input.scope);
-      if (list.some((rule) => rule.tool === input.tool && rule.key === input.key)) return "exists";
+      const at = slot(input.ownerId, input.scope);
+      if (input.kind === "prefix") {
+        const list = prefixes.get(at) ?? [];
+        if (list.some((rule) => rule.prefix.join(" ") === input.prefix.join(" "))) return "exists";
+        prefixes.set(at, [...list, { prefix: [...input.prefix] }]);
+      } else if (input.kind === "tool") {
+        const list = tools.get(at) ?? [];
+        if (list.some((rule) => rule.tool === input.tool && rule.source === input.source)) return "exists";
+        tools.set(at, [...list, { tool: input.tool, source: input.source }]);
+      } else {
+        const list = of(input.ownerId, input.scope);
+        if (list.some((rule) => rule.tool === input.tool && rule.key === input.key)) return "exists";
+        list.push({ tool: input.tool, key: input.key });
+      }
       added.push(input);
-      list.push({ tool: input.tool, key: input.key });
       tell(input.ownerId, input.scope);
       return "added";
     },
@@ -115,6 +132,15 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
       const list = of(ownerId, scope);
       const at = list.findIndex((rule) => rule.key === key);
       if (at >= 0) list.splice(at, 1);
+      tell(ownerId, scope);
+    },
+    /** What the policy module does when a prefix rule is revoked. */
+    revokePrefix(ownerId: string, scope: string, prefix: readonly string[]) {
+      const at = slot(ownerId, scope);
+      prefixes.set(
+        at,
+        (prefixes.get(at) ?? []).filter((rule) => rule.prefix.join(" ") !== prefix.join(" ")),
+      );
       tell(ownerId, scope);
     },
     /** Sets the rules of an owner's project without telling anyone (to set up a worker's start). */

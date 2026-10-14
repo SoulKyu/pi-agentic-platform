@@ -56,6 +56,7 @@ describe("always and session answers", () => {
         ownerId: OWNER.userId,
         scope: realpathSync(bed.work),
         tool: "bash",
+        kind: "exact",
         key: KEY,
         label: "bash: npm test",
       },

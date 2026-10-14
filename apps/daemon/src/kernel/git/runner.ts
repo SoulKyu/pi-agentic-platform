@@ -4,15 +4,16 @@ import { PapError } from "@pap/contracts";
 import type { Logger } from "../logger.ts";
 import { maskedStdio } from "../pty/fd-mask.ts";
 import { cutUnits } from "../text.ts";
-import { gitArgs, gitEnv } from "./exec.ts";
+import { FILTER_SCAN_ARGS, gitArgs, gitEnv } from "./exec.ts";
 
-export type GitErrorKind = "git_missing" | "timeout" | "too_large" | "failed";
+export type GitErrorKind = "git_missing" | "timeout" | "too_large" | "failed" | "git_too_old";
 
 const MESSAGES: Record<GitErrorKind, string> = {
   git_missing: "git is not installed",
   timeout: "git timed out",
   too_large: "git produced too much output",
   failed: "git failed",
+  git_too_old: "git is too old to run safely in this repository",
 };
 
 /** A typed failure with a fixed message: git's stderr and the paths go to the log only (C 4.1). */
@@ -35,6 +36,8 @@ export interface GitRunOptions {
   okCodes?: readonly number[];
   /** Bytes written to git's stdin (`check-ignore --stdin`). Without it stdin is empty, so a read ends at once. */
   input?: Buffer;
+  /** `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>` and `GIT_CONFIG_VALUE_<n>` only (MC13); any other name is refused. */
+  env?: Readonly<Record<string, string>>;
 }
 
 export interface GitRunner {
@@ -197,8 +200,8 @@ const SUBCOMMANDS: Record<
   "rev-parse": { options: ["--show-toplevel", "--abbrev-ref"], positional: true },
   // M8R46: status --porcelain=v2 -z --branch --ignore-submodules=dirty
   status: { options: ["--porcelain=v2", "-z", "--branch", "--ignore-submodules=dirty"], positional: true },
-  // M8R46: diff --numstat -z --no-ext-diff --no-textconv HEAD --
-  diff: { options: ["--numstat", "-z", ...OWN_OPTIONS], positional: true },
+  // M8R46: diff --numstat -z --ignore-submodules=dirty (a nested repository's own filters, MC13) --no-ext-diff --no-textconv HEAD --
+  diff: { options: ["--numstat", "-z", "--ignore-submodules=dirty", ...OWN_OPTIONS], positional: true },
   // No planned caller yet (M9): only the runner's own options.
   log: { options: OWN_OPTIONS, positional: true },
   show: { options: OWN_OPTIONS, positional: true },
@@ -216,6 +219,9 @@ const SUBCOMMANDS: Record<
 
 /** The runner's own arguments: an allowlisted subcommand with only its listed options, `--no-ext-diff --no-textconv` after diff/log/show (MC12). */
 function prepare(args: readonly string[]): string[] | null {
+  // MC13: the one `config` call there is, exactly as the filter guard spells it (a bare `config` could write).
+  if (args.length === FILTER_SCAN_ARGS.length && FILTER_SCAN_ARGS.every((arg, at) => args[at] === arg))
+    return [...args];
   const [subcommand, ...rest] = args;
   const rule =
     subcommand === undefined
@@ -238,6 +244,14 @@ function prepare(args: readonly string[]): string[] | null {
   return NO_EXTERNAL_PROGRAMS.includes(subcommand)
     ? [subcommand, ...OWN_OPTIONS, ...rest]
     : [subcommand, ...rest];
+}
+
+const CONFIG_ENV = /^GIT_CONFIG_(?:COUNT|KEY_\d{1,3}|VALUE_\d{1,3})$/;
+
+/** The extra environment a caller may add: config entries and nothing else (MC13). */
+function extraEnv(env: GitRunOptions["env"]): Record<string, string> | null {
+  const entries = Object.entries(env ?? {});
+  return entries.every(([name]) => CONFIG_ENV.test(name)) ? Object.fromEntries(entries) : null;
 }
 
 /** M8R22: at most `maxConcurrent` git processes at once, `maxWaiting` queued; the next call is refused, nothing is evicted. */
@@ -276,7 +290,8 @@ export function createGitRunner(deps: GitRunnerDeps): GitRunner {
   return {
     async run(root, args, options = {}) {
       const prepared = prepare(args);
-      if (!prepared) throw fail("failed", args, null);
+      const added = extraEnv(options.env);
+      if (!prepared || !added) throw fail("failed", args, null);
       const queued = acquire();
       if (queued) await queued;
       try {
@@ -287,7 +302,7 @@ export function createGitRunner(deps: GitRunnerDeps): GitRunner {
             "git",
             gitArgs(root, prepared),
             {
-              env: gitEnv(deps.env, root),
+              env: { ...gitEnv(deps.env, root), ...added },
               encoding: "buffer",
               maxBuffer: options.maxBytes ?? DEFAULT_MAX_BYTES,
               timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,

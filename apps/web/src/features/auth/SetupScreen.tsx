@@ -1,5 +1,5 @@
 import { Button, TextField } from "@pap/ui";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
 import { setupOwner } from "./auth-api.ts";
 import { AuthFrame } from "./AuthFrame.tsx";
@@ -8,7 +8,7 @@ import { authErrorText } from "./auth-error.ts";
 // What the server accepts as a username (apps/daemon, auth/http.ts): a name it would refuse is not sent.
 const USERNAME = /^[A-Za-z0-9_.-]{1,64}$/;
 
-export function SetupScreen({ onDone }: { onDone(): void }) {
+export function SetupScreen({ onDone, steps }: { onDone(): void; steps?: ReactNode }) {
   const t = useT();
   const [token] = useState(() => new URLSearchParams(window.location.hash.slice(1)).get("token") ?? "");
   const [username, setUsername] = useState("");
@@ -30,7 +30,7 @@ export function SetupScreen({ onDone }: { onDone(): void }) {
     onDone();
   };
   return (
-    <AuthFrame title={t("setup.title")}>
+    <AuthFrame title={t("setup.title")} above={steps}>
       <form
         className="flex flex-col gap-s3"
         onSubmit={(event) => {

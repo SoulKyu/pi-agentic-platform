@@ -20,6 +20,8 @@ export interface ProjectsPort {
   list(ownerId: string, ids: readonly string[]): ProjectView[];
   /** Every project root of the owner as stored, newest first (M8R15, M8R19). */
   roots(ownerId: string): readonly string[];
+  /** True when `path` is a root of the owner's projects or inside one: the folders a caller may ask about (M7R50). */
+  covers(ownerId: string, path: string): boolean;
   onChange(listener: (ownerId: string, project: ProjectView) => void): () => void;
 }
 
@@ -42,6 +44,12 @@ export function createProjectsModule(deps: {
   });
   return {
     rpc: projectsRpc(service),
-    port: { ensure: service.ensure, list: service.list, roots: service.roots, onChange: service.onChange },
+    port: {
+      ensure: service.ensure,
+      list: service.list,
+      roots: service.roots,
+      covers: service.covers,
+      onChange: service.onChange,
+    },
   };
 }

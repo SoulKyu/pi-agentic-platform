@@ -21,6 +21,7 @@ import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
 import { ShellContext } from "./shell-context.ts";
+import { StepUpHost } from "./StepUpHost.tsx";
 import { useShellCommands } from "./shell-commands.ts";
 import { TabBar } from "./TabBar.tsx";
 import { TopBar } from "./TopBar.tsx";
@@ -76,29 +77,31 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
   useShellCommands({ setTreeOpen, setInboxOpen, setHelpOpen, mobile, onSignedOut });
   return (
     <ShellContext.Provider value={shell}>
-      {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
-      <PaletteHost />
-      <LazyPanel
-        text={lazyText}
-        load={loadTreeDrawer}
-        open={treeOpen}
-        props={{ open: treeOpen, onOpenChange: setTreeOpen }}
-        onFailed={() => setTreeOpen(false)}
-      />
-      <LazyPanel
-        text={lazyText}
-        load={loadInboxDrawer}
-        open={inboxOpen}
-        props={{ open: inboxOpen, onOpenChange: setInboxOpen }}
-        onFailed={() => setInboxOpen(false)}
-      />
-      <LazyPanel
-        text={lazyText}
-        load={loadShortcutsHelp}
-        open={helpOpen}
-        props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}
-        onFailed={() => setHelpOpen(false)}
-      />
+      <StepUpHost>
+        {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
+        <PaletteHost />
+        <LazyPanel
+          text={lazyText}
+          load={loadTreeDrawer}
+          open={treeOpen}
+          props={{ open: treeOpen, onOpenChange: setTreeOpen }}
+          onFailed={() => setTreeOpen(false)}
+        />
+        <LazyPanel
+          text={lazyText}
+          load={loadInboxDrawer}
+          open={inboxOpen}
+          props={{ open: inboxOpen, onOpenChange: setInboxOpen }}
+          onFailed={() => setInboxOpen(false)}
+        />
+        <LazyPanel
+          text={lazyText}
+          load={loadShortcutsHelp}
+          open={helpOpen}
+          props={{ open: helpOpen, onOpenChange: setHelpOpen, platform: detectPlatform() }}
+          onFailed={() => setHelpOpen(false)}
+        />
+      </StepUpHost>
     </ShellContext.Provider>
   );
 }

@@ -32,6 +32,8 @@ export function fakeProjectsPort(options: { refuse?: string[] } = {}): FakeProje
       }
       return view;
     },
+    covers: (_ownerId, path) =>
+      [...seen].some((key) => path.startsWith((JSON.parse(key) as string[])[1] ?? "\0")),
     list: (_ownerId, ids) =>
       ids.filter((id) => id.startsWith(PREFIX)).map((id) => viewOf(id.slice(PREFIX.length))),
     roots: (ownerId) =>

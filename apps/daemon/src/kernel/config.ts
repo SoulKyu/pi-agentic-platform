@@ -49,6 +49,8 @@ export interface Config {
   /** `auto` puts each worker in a systemd user scope when a lingering user manager answers; `off` never does. */
   readonly workerScope: "auto" | "off";
   readonly workerLimits: ScopeLimits;
+  /** At most this many Pi configuration helpers run at once; one more is refused (`PAP_HELPERS_MAX`, 1-16). */
+  readonly helpersMax: number;
   readonly staticRoot: string | null;
   readonly logLevel: LogLevel;
 }
@@ -172,6 +174,9 @@ export function loadConfig(input: ConfigInput): Config {
         ? parseCount(input.env.PAP_WORKER_TASKS_MAX, "PAP_WORKER_TASKS_MAX", 64)
         : 4096,
     },
+    helpersMax: input.env.PAP_HELPERS_MAX
+      ? parseCount(input.env.PAP_HELPERS_MAX, "PAP_HELPERS_MAX", 1, 16)
+      : 4,
     staticRoot: input.staticRoot,
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),
   };

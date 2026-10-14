@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { ImageMime } from "./files.ts";
-import { ApprovalAnswer, ApprovalAnswers, GrantKey, GuardRule, TOOL_CATEGORIES } from "./policy.ts";
+import {
+  AlwaysScope,
+  AlwaysScopes,
+  ApprovalAnswer,
+  ApprovalAnswers,
+  GrantKey,
+  GuardRule,
+  TOOL_CATEGORIES,
+} from "./policy.ts";
+import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 import { SessionName } from "./streams.ts";
 
 // daemon → worker
@@ -23,6 +32,19 @@ export const InitRecord = z.object({
    */
   umask: z.number().int().min(0).max(0o777),
   sessionFile: AbsolutePath.optional(),
+  /**
+   * pap's id of the session, the name of its folder under `attachments/` (never Pi's own id, which differs). The
+   * policy lets the agent read that folder unasked and asks for every other. Missing: every attachment asks.
+   */
+  papSessionId: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,128}$/)
+    .optional(),
+  /**
+   * The session's tool preset (M7R76). Missing means `configured`: Pi's own default tools. A value the worker does not
+   * know refuses the init, so an unreadable preset never starts a session with more tools than the daemon meant.
+   */
+  tools: z.object({ preset: ToolPreset }).optional(),
   policy: z.unknown(),
   /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */
   testProviderScript: AbsolutePath.optional(),
@@ -77,6 +99,22 @@ const ExportHtmlCommand = z.object({
   outputPath: AbsolutePath,
 });
 const AutoNameCommand = z.object({ type: z.literal("auto_name"), id: z.string() });
+const GetAvailableModelsCommand = z.object({ type: z.literal("get_available_models"), id: z.string() });
+const GetCommandsCommand = z.object({ type: z.literal("get_commands"), id: z.string() });
+/** Session-scoped: the worker never sets Pi's `persist`, so settings.json is not written by a pick (M7R42). */
+const SetModelCommand = z.object({
+  type: z.literal("set_model"),
+  id: z.string(),
+  provider: z.string().min(1).max(128),
+  modelId: z.string().min(1).max(256),
+});
+const SetThinkingLevelCommand = z.object({
+  type: z.literal("set_thinking_level"),
+  id: z.string(),
+  level: ThinkingLevel,
+});
+/** Applies a preset in place (M7R77): idle only, and never across the `chat` boundary, which restarts the worker. */
+const SetToolsCommand = z.object({ type: z.literal("set_tools"), id: z.string(), preset: ToolPreset });
 const CustomInputRecord = z.object({ type: z.literal("custom_input"), id: Id, data: z.string().max(4096) });
 const CustomCancelRecord = z.object({ type: z.literal("custom_cancel"), id: Id });
 /**
@@ -87,6 +125,8 @@ const ApprovalResponseRecord = z.object({
   type: z.literal("approval_response"),
   id: Id,
   answer: ApprovalAnswer,
+  /** What an "always" covers; it must be one the card offered (M7R21). */
+  scope: AlwaysScope.optional(),
   cancelled: z.literal(true).optional(),
 });
 
@@ -101,6 +141,11 @@ export const DaemonToWorker = z.discriminatedUnion("type", [
   SetSessionNameCommand,
   ExportHtmlCommand,
   AutoNameCommand,
+  GetAvailableModelsCommand,
+  GetCommandsCommand,
+  SetModelCommand,
+  SetThinkingLevelCommand,
+  SetToolsCommand,
   UiResponseRecord,
   CustomInputRecord,
   CustomCancelRecord,
@@ -118,7 +163,12 @@ type CommandRecord =
   | z.infer<typeof NavigateTreeCommand>
   | z.infer<typeof SetSessionNameCommand>
   | z.infer<typeof ExportHtmlCommand>
-  | z.infer<typeof AutoNameCommand>;
+  | z.infer<typeof AutoNameCommand>
+  | z.infer<typeof GetAvailableModelsCommand>
+  | z.infer<typeof GetCommandsCommand>
+  | z.infer<typeof SetModelCommand>
+  | z.infer<typeof SetThinkingLevelCommand>
+  | z.infer<typeof SetToolsCommand>;
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 export type CommandInput = DistributiveOmit<CommandRecord, "id">;
 
@@ -158,6 +208,8 @@ export const ApprovalRequestRecord = z.object({
   key: GrantKey,
   tainted: z.boolean().default(false),
   guard: GuardRule.optional(),
+  /** What "always" may cover besides the exact call (Task 2a). */
+  alwaysScopes: AlwaysScopes.optional(),
   /** The call the question is about: the audit row of its answer names who answered (M4 of the M5 final review). */
   toolCallId: z.string().max(256).optional(),
 });
@@ -218,9 +270,17 @@ export const LeafRecord = z.object({
   resync: z.boolean(),
 });
 export type LeafRecord = z.infer<typeof LeafRecord>;
+/**
+ * The model, level and tools the session runs with (M7R44). Sent after `ready`, after the model commands and when an
+ * extension switches models. The payload travels as unknown: the daemon parses it with `SessionLoadout` and drops an
+ * invalid one, so the worker's text is never trusted.
+ */
+export const LoadoutRecord = z.object({ type: z.literal("loadout"), loadout: z.unknown() });
+export type LoadoutRecord = z.infer<typeof LoadoutRecord>;
 const PapRecord = z.discriminatedUnion("type", [
   ReadyRecord,
   LeafRecord,
+  LoadoutRecord,
   ResponseRecord,
   UiRequestRecord,
   UiClosedRecord,

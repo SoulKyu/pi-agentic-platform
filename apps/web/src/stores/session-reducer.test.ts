@@ -21,7 +21,7 @@ const snap = (status: string, messages: unknown[] = [], entryIds: Array<string |
   leafId: null,
   name: null,
 });
-const policyView = { mode: "supervised", explicit: true, tainted: false } as const;
+const policyView = { mode: "supervised", explicit: true, tainted: false, defaultMode: "supervised" } as const;
 const pi = (event: Record<string, unknown>) => ({ kind: "pi", event });
 
 describe("reduceSession", () => {

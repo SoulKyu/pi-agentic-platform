@@ -32,6 +32,7 @@ const always = (tool: string, input: Record<string, unknown>, exec: boolean) => 
 const RULES = PolicyRules.parse({
   profile: "interactive",
   approvalMode: "auto-accept-edits",
+  readOnlyCommands: false,
   alwaysAllow: [always("bash", { command: "echo exfil" }, true), always("lookup", { q: "x" }, false)],
 });
 

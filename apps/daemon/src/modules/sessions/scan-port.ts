@@ -22,7 +22,11 @@ export type Claim =
 /** What the scanner (search module) may ask of sessions: nothing else of the sessions table is reachable. */
 export interface SessionsScanPort {
   claim(path: string, header: PiFileHeader): Claim;
-  touched(sessionId: string, at: number, active: boolean): void;
+  /**
+   * `toolResults`: entries read on from a stored cursor held a tool result, or a line that could not be read (Q5).
+   * It taints the session when the write is outside pap, by the same test as `outsideWriteAt`.
+   */
+  touched(sessionId: string, at: number, active: boolean, toolResults: boolean): void;
   named(sessionId: string, raw: string | null): void;
   previewed(sessionId: string, text: string): void;
   /** A session's sidebar summary, only when `ownerId` owns it. */
@@ -53,12 +57,18 @@ export function createScanPort(deps: {
   summary(sessionId: string, ownerId: string): ShellSession | null;
   /** Once per row this port inserts (agreement 8); M5 wires it to `policy.markTainted`. */
   onAdopted(sessionId: string): void;
-  /** When this daemon started: earlier writes are pap's own (M4R141). */
+  /** A write outside pap added tool results to this session's file (M7R27); a throw reaches the scanner, which says it. */
+  onOutsideToolResults(sessionId: string): void;
+  /** When this daemon started: earlier writes are not shown as an outside-write notice (M4R141). The taint ignores it (MC19). */
   readonly startedAt: number;
   isLive(sessionId: string): boolean;
   /** When the session's last pap worker ended in this process. */
   workerEndedAt(sessionId: string): number | null;
-}): SessionsScanPort & { outsideWriteAt(sessionId: string): number | null } {
+}): SessionsScanPort & {
+  outsideWriteAt(sessionId: string): number | null;
+  /** Taints a session whose earlier taint could not be stored; throws again when it still cannot (a launch is refused). */
+  settleOwed(sessionId: string): void;
+} {
   const { store } = deps;
   const limiter = createRateLimiter(deps.clock, 60_000);
   const say = (event: string, fields: Record<string, unknown>) => {
@@ -67,11 +77,26 @@ export function createScanPort(deps: {
   };
   // The latest write the scanner saw without a pap worker, by session (owner Q13): insertion order is age order.
   const outside = new Map<string, number>();
-  const noteOutside = (sessionId: string, at: number) => {
-    if (deps.isLive(sessionId) || at <= Math.max(deps.startedAt, deps.workerEndedAt(sessionId) ?? 0)) return;
+  const noteOutside = (sessionId: string, at: number): boolean => {
+    if (deps.isLive(sessionId) || at <= Math.max(deps.startedAt, deps.workerEndedAt(sessionId) ?? 0))
+      return false;
     outside.delete(sessionId);
     outside.set(sessionId, at);
     if (outside.size > MAX_OUTSIDE_WRITES) outside.delete(outside.keys().next().value as string);
+    return true;
+  };
+  // Sessions whose taint could not be stored: the scanner keeps its position and asks again, and the taint is made even
+  // if a pap worker holds the session by then. Full: a new failure is not added (the position stays unsaved all the same).
+  const owed = new Set<string>();
+  const taint = (sessionId: string): void => {
+    try {
+      deps.onOutsideToolResults(sessionId);
+    } catch (error) {
+      if (owed.size < MAX_OUTSIDE_WRITES) owed.add(sessionId);
+      else say("session_taint_owed_full", {});
+      throw error;
+    }
+    owed.delete(sessionId);
   };
   const duplicate = (): Claim => {
     say("session_file_duplicate_id", {});
@@ -132,11 +157,18 @@ export function createScanPort(deps: {
       deps.logger.info("session_adopted", { sessionId: row.id });
       return { kind: "session", sessionId: row.id, ownerId: row.ownerId };
     },
-    touched(sessionId, at, active) {
+    touched(sessionId, at, active, toolResults) {
       noteOutside(sessionId, Math.trunc(at));
       if (store.readOnly) return;
       const row = store.get(sessionId);
       if (!row) return;
+      // First, so that nothing before it can lose the taint. Not the notice's test: pap's own last writes are stamped in
+      // the table, so a write made while pap was down is outside, and a restart does not make pap's own tail outside (MC19).
+      const wrote = store.papWrote(sessionId);
+      const outsideForTaint =
+        !deps.isLive(sessionId) &&
+        Math.trunc(at) > Math.max(deps.workerEndedAt(sessionId) ?? 0, wrote.at ?? 0);
+      if (owed.has(sessionId) || (toolResults && outsideForTaint)) taint(sessionId);
       const when = Math.min(Math.trunc(at), deps.clock.now());
       const moved = when > row.updatedAt;
       if (moved) store.touch(sessionId, when);
@@ -158,5 +190,8 @@ export function createScanPort(deps: {
     },
     summary: deps.summary,
     outsideWriteAt: (sessionId) => outside.get(sessionId) ?? null,
+    settleOwed(sessionId) {
+      if (owed.has(sessionId)) taint(sessionId);
+    },
   };
 }

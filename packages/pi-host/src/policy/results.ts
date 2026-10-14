@@ -99,11 +99,22 @@ function raiseVerdict(deps: ResultDeps, reason: string): StageVerdict {
 function isExternal(event: ToolResultEvent, deps: ResultDeps): boolean {
   try {
     const rooted = deps.roots.take(clipUnits(event.toolCallId, MAX_ID));
-    const external = deps.classify(event.toolName).external || rooted;
+    const kind = deps.classify(event.toolName);
+    // A script's `load()` returns what an earlier script `store()`d, so a tainted session fences every codemode result.
+    const external = kind.external || rooted || (kind.codemode === true && deps.taint.current());
     if (external && event.parentToolCallId !== undefined)
       deps.roots.add(clipUnits(event.parentToolCallId, MAX_ID));
     return external;
   } catch {
+    // A throw counts as external (M5R39), and so does the call that ran it: its own result gets fenced too (M7R33).
+    if (event.parentToolCallId !== undefined) {
+      try {
+        deps.roots.add(clipUnits(event.parentToolCallId, MAX_ID));
+      } catch (error) {
+        // The nested result itself is still withheld or fenced; only the parent's fence is lost.
+        process.stderr.write(`pi-host: parent root not recorded (${errorClass(error)})\n`);
+      }
+    }
     return true;
   }
 }

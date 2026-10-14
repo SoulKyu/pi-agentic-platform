@@ -36,6 +36,19 @@ describe("parsePatternLines", () => {
   });
 });
 
+describe("readOnlyCommands in the form", () => {
+  it("is on by default, read from the stored document and sent back by Save", () => {
+    expect(formOf({}).readOnlyCommands).toBe(true);
+    const off = formOf({ readOnlyCommands: false });
+    expect(off.readOnlyCommands).toBe(false);
+    expect(checkForm(off).settings?.readOnlyCommands).toBe(false);
+  });
+
+  it("counts as a change for sameSettings", () => {
+    expect(sameSettings({ readOnlyCommands: false }, { ...DEFAULT_POLICY_SETTINGS })).toBe(false);
+  });
+});
+
 describe("checkForm", () => {
   const form = formOf(DEFAULT_POLICY_SETTINGS);
   it("builds the settings to send: no host list when the switch is off, the list when it is on", () => {

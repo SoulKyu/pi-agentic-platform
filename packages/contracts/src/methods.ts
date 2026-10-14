@@ -4,8 +4,12 @@ import { authMethods } from "./auth.ts";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { AttachmentId, filesMethods } from "./files.ts";
 import { Cursor } from "./frames.ts";
-import { MAX_ALWAYS_RULES } from "./policy.ts";
+import { CommandWord, MAX_ALWAYS_RULES } from "./policy.ts";
+import { mcpMethods } from "./mcp-methods.ts";
+import { modelsMethods } from "./models-methods.ts";
 import { policyMethods } from "./policy-methods.ts";
+import { ToolPreset } from "./session-loadout.ts";
+import { sessionModelMethods } from "./session-model-methods.ts";
 import {
   DialogResponse,
   ForkPoint,
@@ -17,7 +21,9 @@ import {
 } from "./streams.ts";
 import { settingsMethods } from "./settings.ts";
 import { shellMethods } from "./shell.ts";
+import { skillsMethods } from "./skills-methods.ts";
 import { terminalMethods } from "./terminal.ts";
+import { trustMethods } from "./trust-methods.ts";
 import { vcsMethods } from "./vcs.ts";
 
 const SessionId = z.string().min(1).max(128);
@@ -29,6 +35,9 @@ const RuleView = z.object({
   tool: z.string().min(1).max(256),
   label: z.string().max(4096),
   createdAt: z.number(),
+  /** What the rule covers: the exact call, a command prefix (`pattern` holds its words), or a whole tool (Task 2b). */
+  kind: z.enum(["exact", "prefix", "tool"]),
+  pattern: z.array(CommandWord).min(1).max(4).optional(),
 });
 
 function catalogue<const T extends { readonly [K in keyof T]: MethodDef<K & string> }>(defs: T): T {
@@ -44,6 +53,11 @@ export const methods = catalogue({
   ...vcsMethods,
   ...terminalMethods,
   ...policyMethods,
+  ...sessionModelMethods,
+  ...modelsMethods,
+  ...mcpMethods,
+  ...trustMethods,
+  ...skillsMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",
@@ -64,7 +78,7 @@ export const methods = catalogue({
     name: "sessions.create",
     permission: "sessions:operate",
     idempotent: false,
-    params: z.object({ cwd: z.string().min(1).max(4096) }),
+    params: z.object({ cwd: z.string().min(1).max(4096), preset: ToolPreset.optional() }),
     result: z.object({ sessionId: SessionId }),
     errors: ["invalid_cwd", "capacity", "worker_failed"],
   }),
@@ -199,6 +213,8 @@ export const methods = catalogue({
     name: "sessions.respondDialog",
     permission: "sessions:operate",
     idempotent: false,
+    // An extension's input dialog can hold a typed secret (an MCP sign-in): only the ids are hashed (MC30).
+    sensitiveParams: ["sessionId", "dialogId"],
     params: z.object({
       sessionId: SessionId,
       dialogId: z.string().min(1).max(128),

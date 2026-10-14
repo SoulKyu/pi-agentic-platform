@@ -1,4 +1,5 @@
 import {
+  type AlwaysScope,
   type ApprovalAnswer,
   type ApprovalInvalidRecord,
   type ApprovalRequestRecord,
@@ -20,7 +21,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { RateLimiter } from "../../kernel/rate-limit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { createDecorations } from "./decorations.ts";
-import { type CancelReason, createDialogRegistry, type Grant } from "./dialogs.ts";
+import { type ApprovedAnswer, type CancelReason, createDialogRegistry } from "./dialogs.ts";
 import { createKeyedThrottle } from "./keyed-throttle.ts";
 import { createNoticeLimiter } from "./notices.ts";
 import { createPanels } from "./panels.ts";
@@ -64,7 +65,7 @@ export interface LiveUi {
    * Answers a dialog. For an approval it returns the answer sent and the grant it would give. Nothing is taken until
    * the answer is known to be one the dialog offers.
    */
-  answer(dialogId: string, response: DialogResponse): { answer: ApprovalAnswer; grant: Grant } | null;
+  answer(dialogId: string, response: DialogResponse): ApprovedAnswer | null;
   dialogs(): Dialog[];
   /** Forgets every dialog, for a worker that is gone; returns the ones that were open. */
   clear(): Dialog[];
@@ -82,18 +83,35 @@ export interface LiveUi {
   clearDecorations(): string[];
 }
 
+/** Whether the card offered this scope for "always" (M7R21): the exact call always, the others only as the worker offered them. */
+const scopeOffered = (dialog: Dialog, scope: AlwaysScope): boolean =>
+  scope === "exact" ||
+  (scope === "prefix"
+    ? dialog.alwaysScopes?.prefix !== undefined
+    : dialog.alwaysScopes?.tool === true && dialog.alwaysScopes.toolSource !== undefined);
+
 /**
  * What the person's response means for an approval card: an answer the card offers (`confirmed` is once or deny, and
- * must be offered too), a dismissed card is a deny. Anything else is `bad_request`, before anything is taken.
+ * must be offered too), a dismissed card is a deny. A scope belongs to "always" alone and must be one the card offered.
+ * Anything else is `bad_request`, before anything is taken.
  */
-function approvalAnswerOf(dialog: Dialog, response: DialogResponse): ApprovalAnswer {
+function approvalAnswerOf(
+  dialog: Dialog,
+  response: DialogResponse,
+): { answer: ApprovalAnswer; scope?: AlwaysScope } {
   const offered = (answer: ApprovalAnswer): ApprovalAnswer => {
     if (!dialog.answers?.includes(answer)) throw new PapError("bad_request");
     return answer;
   };
-  if ("answer" in response) return offered(response.answer);
-  if ("confirmed" in response) return offered(response.confirmed ? "once" : "deny");
-  if ("cancelled" in response) return "deny";
+  if ("answer" in response) {
+    const answer = offered(response.answer);
+    const { scope } = response;
+    if (scope === undefined) return { answer };
+    if (answer !== "always" || !scopeOffered(dialog, scope)) throw new PapError("bad_request");
+    return { answer, scope };
+  }
+  if ("confirmed" in response) return { answer: offered(response.confirmed ? "once" : "deny") };
+  if ("cancelled" in response) return { answer: "deny" };
   throw new PapError("bad_request");
 }
 
@@ -232,12 +250,17 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
         if (!delivered) throw new PapError("worker_failed");
         return null;
       }
-      const answer = approvalAnswerOf(open, response); // throws before anything is taken
+      const { answer, scope } = approvalAnswerOf(open, response); // throws before anything is taken
       const entry = dialogs.takeEntry(dialogId);
-      const delivered = handle.send({ type: "approval_response", id: dialogId, answer });
+      const delivered = handle.send({
+        type: "approval_response",
+        id: dialogId,
+        answer,
+        ...(scope === undefined ? {} : { scope }),
+      });
       deps.publish({ kind: "dialog_closed", id: dialogId });
       if (!delivered) throw new PapError("worker_failed");
-      return entry?.grant ? { answer, grant: entry.grant } : null;
+      return entry?.grant ? { answer, scope: scope ?? "exact", grant: entry.grant } : null;
     },
     dialogs: () => dialogs.list(),
     clear: () => dialogs.clear(),

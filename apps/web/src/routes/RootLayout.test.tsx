@@ -81,6 +81,8 @@ describe("RootLayout", () => {
 
   it("opens the owner setup on a fresh server, with no connection", async () => {
     const container = await show(status({ setupRequired: true, authenticated: false, username: null }));
+    // The stepper is a lazy chunk: its first render comes one tick after the status.
+    await vi.waitFor(() => expect(container.querySelector("h1")).not.toBeNull(), { timeout: 5000 });
     expect(container.querySelector("h1")?.textContent).toBe("Create the owner account");
     expect(start).not.toHaveBeenCalled();
     expect(stop).toHaveBeenCalled();

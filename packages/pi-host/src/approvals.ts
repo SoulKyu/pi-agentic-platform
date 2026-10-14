@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
+  type AlwaysScope,
+  type AlwaysScopes,
   type ApprovalAnswer,
   ApprovalRequestRecord,
   type GuardRule,
@@ -17,11 +19,15 @@ export interface ApprovalAsk {
   readonly tainted: boolean;
   /** The stage-04 rule that raised this question, if the guard did. */
   readonly guard?: GuardRule | undefined;
+  /** What "always" may cover besides the exact call; absent when the card offers the exact call only. */
+  readonly alwaysScopes?: AlwaysScopes | undefined;
   /** The call being asked about; the daemon matches the answer's credential to the audit row of that call. */
   readonly toolCallId?: string | undefined;
 }
 export interface ApprovalOutcome {
   readonly answer: ApprovalAnswer;
+  /** What an "always" covers; the policy refuses one the card did not offer (M7R21). */
+  readonly scope?: AlwaysScope | undefined;
   /**
    * The question went away unanswered: Stop, a shutdown, a request that could not leave or that the schema refuses, the
    * daemon's `cancelled`, a malformed response, or the cap of pending questions. Never the person's refusal.
@@ -35,7 +41,12 @@ export type ApprovalOutbound =
 export interface Approvals {
   ask(request: ApprovalAsk, signal?: AbortSignal): Promise<ApprovalOutcome>;
   /** `cancelled`: the daemon could not show the question; it closes like Stop, never as the user's refusal (M2-RT-22). */
-  resolve(record: { id: string; answer: ApprovalAnswer; cancelled?: true | undefined }): void;
+  resolve(record: {
+    id: string;
+    answer: ApprovalAnswer;
+    scope?: AlwaysScope | undefined;
+    cancelled?: true | undefined;
+  }): void;
   cancelAll(): void;
   pendingCount(): number;
 }
@@ -102,6 +113,7 @@ export function createApprovals(
       else
         entry.settle({
           answer: entry.offered.includes(record.answer) ? record.answer : "deny",
+          ...(record.scope === undefined ? {} : { scope: record.scope }),
           closed: false,
         });
     },

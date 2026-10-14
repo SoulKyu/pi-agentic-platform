@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -24,12 +24,23 @@ const open = (sources: Parameters<typeof migrate>[0]["sources"]) =>
     logger: silentLogger,
   }).db;
 
+/** The sessions migrations without the one that sorts after the policy ones: the home as it was before them. */
+function sessionsBefore() {
+  const old = join(dir, "sessions-before");
+  mkdirSync(old);
+  for (const file of readdirSync(SESSIONS_MIGRATIONS.dir).filter(
+    (name) => name !== "202610131020_pap_wrote_at.sql" && name !== "202610131030_tool_preset.sql",
+  ))
+    copyFileSync(join(SESSIONS_MIGRATIONS.dir, file), join(old, file));
+  return { module: SESSIONS_MIGRATIONS.module, dir: old };
+}
+
 /** The policy migrations main already holds (M2): the home as M4 left it, before the session policy table exists. */
 function homeBeforeM5() {
   const old = join(dir, "policy-before-m5");
   mkdirSync(old);
   copyFileSync(join(POLICY_MIGRATIONS.dir, "202610110100_policy.sql"), join(old, "202610110100_policy.sql"));
-  return open([KERNEL_MIGRATIONS, SESSIONS_MIGRATIONS, { module: POLICY_MIGRATIONS.module, dir: old }]);
+  return open([KERNEL_MIGRATIONS, sessionsBefore(), { module: POLICY_MIGRATIONS.module, dir: old }]);
 }
 const insertSession = (db: ReturnType<typeof open>, id: string, ownerId: string) =>
   db.run(

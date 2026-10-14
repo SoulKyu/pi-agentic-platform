@@ -12,8 +12,9 @@ import {
 import { type InitRecord, POLICY_EXTENSION_PATH, type PolicyAuditEntry } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type ApprovalOutbound, createApprovals } from "./approvals.ts";
+import { loadoutOf } from "./loadout.ts";
 import { type ExtensionErrorReport, openSession, type OpenSessionDeps } from "./open-session.ts";
-import { POLICY_EXTENSION_NAME } from "./policy/extension.ts";
+import { createPapPolicyExtension, POLICY_EXTENSION_NAME, type PolicyConfig } from "./policy/extension.ts";
 import { RULES } from "./testing/host-bed.ts";
 import { idleTaint, NO_SECRETS } from "./testing/pipeline-bed.ts";
 import { blockedAttempts } from "./testing/network-guard.ts";
@@ -29,6 +30,7 @@ let opened: AgentSession[];
 let requests: Array<UiOutbound | ApprovalOutbound>;
 let reports: ExtensionErrorReport[];
 let audits: PolicyAuditEntry[];
+let papSessionId: string | undefined;
 
 beforeEach(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "pap-open-")));
@@ -46,6 +48,7 @@ beforeEach(() => {
   requests = [];
   reports = [];
   audits = [];
+  papSessionId = undefined;
 });
 afterEach(() => {
   for (const session of opened) session.dispose();
@@ -61,6 +64,7 @@ const initRecord = (): InitRecord => ({
   agentDir,
   papHome: join(root, "pap"),
   umask: 0o022,
+  ...(papSessionId ? { papSessionId } : {}),
   policy: RULES,
   testProviderScript: join(root, "script.json"),
 });
@@ -123,6 +127,16 @@ describe("project trust fails closed", () => {
     expect(paths(session)).toContain(file);
   });
 
+  it("tells the loadout whether the folder needs a decision and whether the session opened trusted (M7R105)", async () => {
+    expect(loadoutOf((await open()).session).projectTrust).toEqual({ required: false, trusted: false });
+    addProjectExtension();
+    expect(loadoutOf((await open()).session).projectTrust).toEqual({ required: true, trusted: false });
+    trust(true);
+    expect(loadoutOf((await open()).session).projectTrust).toEqual({ required: true, trusted: true });
+    trust(false);
+    expect(loadoutOf((await open()).session).projectTrust).toEqual({ required: true, trusted: false });
+  });
+
   it("does not load an extension that appears after the session opened, when reloaded", async () => {
     const { session } = await open();
     const file = addProjectExtension();
@@ -178,7 +192,14 @@ describe("pap-policy stays the last extension", () => {
     const { session } = await open({ extraExtensions: [rewriter] });
     await session.reload();
     await session.reload();
-    expect(paths(session)).toEqual(["<inline:rewriter>", POLICY_EXTENSION_PATH]);
+    expect(paths(session)).toEqual([
+      "builtin:mcp",
+      "builtin:codemode",
+      "builtin:tool-search",
+      "<inline:pap-presets>",
+      "<inline:rewriter>",
+      POLICY_EXTENSION_PATH,
+    ]);
   });
 
   it("is last when the project is trusted, before and after a reload", async () => {
@@ -195,7 +216,8 @@ describe("pap-policy stays the last extension", () => {
   it("is last when Pi's built-in extensions are loaded", async () => {
     const builtins = [createCodemodeExtension(), createToolSearchExtension(), createMcpExtension()];
     const { session } = await open({ extraExtensions: [...builtins, rewriter] });
-    expect(paths(session)).toHaveLength(builtins.length + 2);
+    // The policy, the preset keeper and the rewriter next to the built-ins.
+    expect(paths(session)).toHaveLength(builtins.length + 3);
     expect(paths(session).at(-1)).toBe(POLICY_EXTENSION_PATH);
     await session.reload();
     expect(paths(session).at(-1)).toBe(POLICY_EXTENSION_PATH);
@@ -250,5 +272,57 @@ describe("a session never starts without pap-policy", () => {
     await expect(open()).rejects.toThrow("PI_CODING_AGENT_DIR must name the agent directory");
     vi.stubEnv("PI_CODING_AGENT_DIR", "");
     await expect(open()).rejects.toThrow("PI_CODING_AGENT_DIR must name the agent directory");
+  });
+});
+
+describe("the policy knows pap's id of the session (read-target: its attachments)", () => {
+  const PAP_ID = "0b1c2d3e-aaaa-4bbb-8ccc-0123456789ab";
+  const OTHER = "9f8e7d6c-aaaa-4bbb-8ccc-ba9876543210";
+  const readOf = (session: AgentSession, path: string) =>
+    session.extensionRunner.emitToolCall({
+      type: "tool_call",
+      toolCallId: "r1",
+      toolName: "read",
+      input: { path },
+    });
+  const asks = () => requests.filter((r) => r.type === "approval_request");
+
+  it("is pap's id, which differs from Pi's own", async () => {
+    let config: PolicyConfig | undefined;
+    papSessionId = PAP_ID;
+    const { session } = await open({
+      createPolicy: (given) => createPapPolicyExtension((config = given)),
+    });
+    expect(config?.sessionId?.()).toBe(PAP_ID);
+    expect(session.sessionId).not.toBe(PAP_ID);
+  });
+
+  it("reads the session's own attachment unasked, asks for another session's and for pending", async () => {
+    papSessionId = PAP_ID;
+    const { session, approvals } = await open();
+    const base = join(root, "pap", "attachments");
+    for (const dir of [join(PAP_ID, "a1"), join(OTHER, "b1"), "pending"])
+      mkdirSync(join(base, dir), { recursive: true });
+    const own = join(base, PAP_ID, "a1", "doc.txt");
+    writeFileSync(own, "x");
+    expect(await readOf(session, own)).toBeUndefined();
+    expect(asks()).toEqual([]);
+    for (const path of [join(base, OTHER, "b1", "doc.txt"), join(base, "pending", "p1")]) {
+      const before = asks().length;
+      const result = readOf(session, path);
+      await vi.waitFor(() => expect(asks()).toHaveLength(before + 1), { timeout: 5000, interval: 20 });
+      const ask = asks().at(-1) as Extract<ApprovalOutbound, { type: "approval_request" }>;
+      approvals.resolve({ id: ask.id, answer: "deny" });
+      expect(await result).toMatchObject({ block: true });
+    }
+  });
+
+  it("asks for the session's own folder when the init record names no id", async () => {
+    const { session, approvals } = await open();
+    const own = join(root, "pap", "attachments", PAP_ID, "a1", "doc.txt");
+    const result = readOf(session, own);
+    await vi.waitFor(() => expect(asks()).toHaveLength(1), { timeout: 5000, interval: 20 });
+    approvals.resolve({ id: (asks()[0] as { id: string }).id, answer: "deny" });
+    expect(await result).toMatchObject({ block: true });
   });
 });

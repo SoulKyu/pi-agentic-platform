@@ -9,6 +9,7 @@ import type {
   SessionSummary,
   ShellSession,
   ShellStreamEvent,
+  ToolPreset,
   TranscriptRow,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
@@ -24,6 +25,7 @@ import type { Exports } from "./exports.ts";
 import type { PiWriter } from "./pi-writer.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
 import type { SessionCommands } from "./service-commands.ts";
+import type { SessionModels } from "./service-models.ts";
 import type { SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
 
@@ -58,6 +60,8 @@ export interface SessionsServiceDeps {
   /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
   ownerId(): string | null;
   onAdopted?(sessionId: string): void;
+  /** A write outside pap added tool results to a session's file: the policy module taints it (M7R27). */
+  onOutsideToolResults(sessionId: string): void;
   /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
   loadTranscript(): Promise<TranscriptReader>;
   /** Loads the writer of forks and clones: Pi's own session manager, behind a lazy import (R108, ADR 0009). */
@@ -75,8 +79,9 @@ export interface PromptInput {
   readonly attachments?: readonly string[] | undefined;
 }
 
-export interface SessionsService extends SessionCommands {
-  create(cwd: string, caller: Caller): Promise<{ sessionId: string }>;
+export interface SessionsService extends SessionCommands, SessionModels {
+  /** `preset`: the session's tool preset from the start (M7R76); none follows Pi's default tools. */
+  create(cwd: string, caller: Caller, preset?: ToolPreset): Promise<{ sessionId: string }>;
   /** Every session of the caller, unbounded: tests and internal use only; RPC handlers use `listFitted`. */
   list(caller: Caller): SessionSummary[];
   /** `list` cut to the page in JSON bytes, the newest kept (M4R35). */
@@ -143,6 +148,11 @@ export interface SessionsService extends SessionCommands {
   snapshot(sessionId: string): SessionStreamEvent;
   shutdownAll(): Promise<void>;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
+  /**
+   * Lets go of the owner's workers in `folder` (a real path) or below, so that the next prompt opens one that reads the
+   * new trust decision (M7R105): the idle ones now, the others when their run is over. Answers how many that concerns.
+   */
+  restartFolder(ownerId: string, folder: string): number;
   /**
    * Files a session the caller owns: pin, archive, settle, snooze, or Undo (`restore`). Synchronous (M4R126); the
    * worker is never touched (M4R39). `not_found` for another owner's session, `bad_request`/`limit_reached` from the

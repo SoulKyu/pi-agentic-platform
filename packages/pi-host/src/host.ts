@@ -5,7 +5,9 @@ import { createApprovals } from "./approvals.ts";
 import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } from "./descendants.ts";
+import { pinBareRepositoryExplicit } from "./git-env.ts";
 import type { Ipc } from "./ipc.ts";
+import { loadoutRecord } from "./loadout.ts";
 import { openSession } from "./open-session.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
 import { redactingAuditSink } from "./policy/results.ts";
@@ -52,6 +54,8 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   // A marker for this worker alone, before Pi starts: the shells its tools run inherit the environment, so a process the
   // agent leaves running keeps it after Linux has given it to pid 1, and the count can find it without a scope (M2R107).
   process.env[TOKEN_VAR] = randomBytes(16).toString("hex");
+  // MC18: for every git the agent runs; a throw (an unreadable GIT_CONFIG_COUNT) ends the worker before any tool runs.
+  pinBareRepositoryExplicit(process.env);
   // The scope the daemon started this worker in. Taken out of the environment so no process below inherits it: a worker
   // an agent starts inside this one is not in a scope of the daemon's and must not count this one's.
   const unit = process.env[UNIT_VAR];
@@ -159,6 +163,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
       if (event.type === "agent_end" && taint.current()) reportTaint();
     },
     onExtensionError: (error) => ipc.send(toExtensionErrorRecord(error)),
+    sendLoadout: (record) => ipc.send(record),
   });
   session = opened;
   entries.opened(opened.getActiveToolNames(), first.data.approvalMode);
@@ -189,6 +194,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     leafId: opened.sessionManager.getLeafId(),
     sessionName: opened.sessionName ?? null,
   });
+  ipc.send(loadoutRecord(opened));
   for (const record of early.splice(0)) dispatch(record);
   const health = () =>
     ipc.send({
