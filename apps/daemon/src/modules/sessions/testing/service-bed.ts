@@ -17,10 +17,12 @@ import type { WorkerHandle } from "../../../kernel/supervisor/worker.ts";
 import { createFakeWorker, type FakeWorker } from "../../../kernel/testing/fake-worker.ts";
 import { createStreamHub, type StreamHub } from "../../../kernel/ws/stream-hub.ts";
 import type { AuditPort } from "../../audit/index.ts";
+import type { AttachmentsPort } from "../../files/index.ts";
 import type { PolicyPort } from "../../policy/index.ts";
 import type { ProjectsPort } from "../../projects/index.ts";
 import { createExports, type Exports, loadPiWriter, type PiWriter, SESSIONS_MIGRATIONS } from "../index.ts";
 import { fakePolicyPort } from "./fake-policy.ts";
+import { noAttachments } from "./no-attachments.ts";
 import { fakeProjectsPort } from "./fake-projects.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
 import { testCaller } from "../../../testing/caller.ts";
@@ -59,6 +61,8 @@ export interface BedOptions {
   onAdopted?(sessionId: string): void;
   /** The audit module's port; defaults to one that takes everything and keeps nothing. */
   audit?: AuditPort;
+  /** The claims of pending uploads; defaults to a port that knows no upload. */
+  attachments?: AttachmentsPort;
   /** What the daemon knows of the worker's containment; defaults to "none". */
   containment?: "scope" | "none";
   /** Replaces the writer of forks and clones (a test of how the service treats what it returns). */
@@ -104,6 +108,7 @@ export interface ServiceParts<Store, Reader> {
   readonly policy: PolicyPort;
   readonly projects: ProjectsPort;
   readonly audit: AuditPort;
+  readonly attachments: AttachmentsPort;
   readonly containment: "scope" | "none";
   readonly exports: Exports;
   readonly limits: { readonly maxWorkers: number; readonly minFreeMemMb: number };
@@ -178,6 +183,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     policy: options.policy ?? fakePolicyPort(),
     projects,
     audit: options.audit ?? { append: () => {}, fromWorker: () => null },
+    attachments: options.attachments ?? noAttachments,
     containment: options.containment ?? "none",
     exports,
     limits: options.limits ?? { maxWorkers: 4, minFreeMemMb: 0 },

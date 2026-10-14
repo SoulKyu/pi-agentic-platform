@@ -8,11 +8,13 @@ import { startKeybindings } from "../../features/commands/index.ts";
 import { EMPTY_WORKSPACE, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { setLocale } from "../../i18n/index.ts";
 import type { Runtime } from "../../runtime/index.ts";
-import { click, mount, press, settle, typeInto } from "../../testing/dom.ts";
+import { button, click, mount, press, settle, typeInto } from "../../testing/dom.ts";
+import { terminalView } from "../../testing/m8-fixtures.ts";
+import { useTerminalStore } from "../../stores/terminal-store.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { BottomNav } from "./BottomNav.tsx";
-import { shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
+import { shellProject, shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
@@ -24,12 +26,21 @@ vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
   const { createElement: h } = await import("react");
   return { SessionListScreen: () => h("p", { "data-stub": "home" }) };
 });
+// xterm needs a real browser; the pane's own tests drive the surface through a stub.
+vi.mock("@pap/ui/terminal", async () => {
+  const { createElement: h } = await import("react");
+  return { TerminalSurface: () => h("div", { "data-stub": "terminal-surface" }) };
+});
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement: h } = await import("react");
   return {
     SessionScreen: ({ sessionId }: { sessionId: string }) => h("p", { "data-stub": "session" }, sessionId),
   };
 });
+
+/** The terminal feed starts when its lazy chunk has loaded: deliver once the sub is open. */
+const emitTerminal = (bed: ReturnType<typeof fakeRuntime>, event: unknown) =>
+  vi.waitFor(() => bed.emitTo("subscribe.terminal", event), { timeout: 2_000 });
 
 let started: Array<{ stop(): void }> = [];
 beforeEach(() => {
@@ -214,6 +225,149 @@ describe("the tab sheet", () => {
     await act(async () => useWorkspaceStore.setState({ ws: EMPTY_WORKSPACE }));
     expect(document.querySelectorAll('[role="dialog"] li')).toHaveLength(0);
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain("No open item");
+    await page.unmount();
+  });
+});
+
+describe("the Chat / Review / Term switch (M8R72)", () => {
+  let bed: ReturnType<typeof fakeRuntime>;
+  const switchOf = (page: { container: HTMLElement }) =>
+    page.container.querySelector<HTMLElement>('[data-slot="surface-switch"]') as HTMLElement;
+  const shown = (page: { container: HTMLElement }) =>
+    page.container.querySelector("#pane-main")?.getAttribute("data-pane-kind");
+  const selected = (page: { container: HTMLElement }) =>
+    [...switchOf(page).querySelectorAll("button")]
+      .filter((one) => one.getAttribute("aria-current") === "true")
+      .map((one) => one.textContent);
+
+  beforeEach(() => {
+    bed = fakeRuntime("open");
+    bed.handlers["settings.get"] = () => ({ value: null, revision: 0 });
+    current.runtime = bed.runtime;
+    useTerminalStore.getState().reset();
+    useShellStore.getState().apply(
+      shellSnapshot([shellSession({ id: "one", cwd: "/w/api/src", projectId: "p" })], {
+        projects: [shellProject({ id: "p", root: "/w/api" })],
+      }),
+    );
+    useWorkspaceStore.setState({
+      ws: {
+        tabs: [{ key: "session:one", item: { kind: "session", id: "one" }, split: null }],
+        active: "session:one",
+      },
+    });
+  });
+
+  it("shows on a session tab with Chat selected and the session screen, and not on a settings tab", async () => {
+    const page = await renderShell("/s/one", { phone: true });
+    expect([...switchOf(page).querySelectorAll("button")].map((one) => one.textContent)).toEqual([
+      "Chat",
+      "Review",
+      "Term",
+    ]);
+    expect(selected(page)).toEqual(["Chat"]);
+    await vi.waitFor(() => expect(page.container.querySelector('[data-stub="session"]')).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    expect(page.container.querySelector("[data-pane-role]")).toBeNull();
+    await page.unmount();
+    const settings = await renderShell("/settings/appearance", { phone: true });
+    expect(settings.container.querySelector('[data-slot="surface-switch"]')).toBeNull();
+    await settings.unmount();
+  });
+
+  it("Review renders only the changes pane, and Chat returns to the session", async () => {
+    const page = await renderShell("/s/one", { phone: true });
+    await click(button(switchOf(page), "Review"));
+    await vi.waitFor(() => expect(page.container.querySelector("[data-changes-pane]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    expect(shown(page)).toBe("changes");
+    expect(page.container.querySelector('[data-stub="session"]')).toBeNull();
+    expect(selected(page)).toEqual(["Review"]);
+    await click(button(switchOf(page), "Chat"));
+    await vi.waitFor(() => expect(page.container.querySelector('[data-stub="session"]')).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    expect(page.container.querySelector("[data-changes-pane]")).toBeNull();
+    expect(selected(page)).toEqual(["Chat"]);
+    await page.unmount();
+  });
+
+  it("Term with no tagged terminal creates exactly one and shows the terminal pane", async () => {
+    const page = await renderShell("/s/one", { phone: true });
+    await settle();
+    await emitTerminal(bed, { kind: "snapshot", terminals: [] });
+    await settle();
+    bed.handlers["terminal.create"] = () => ({ terminalId: terminalView(5).id });
+    await click(button(switchOf(page), "Term"));
+    await vi.waitFor(() => expect(page.container.querySelector("[data-terminal-pane]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    expect(bed.called("terminal.create")).toHaveLength(1);
+    expect(shown(page)).toBe("terminal");
+    expect(selected(page)).toEqual(["Term"]);
+    await page.unmount();
+  });
+
+  it("Term uses the tagged terminal that exists, and each tab starts on Chat", async () => {
+    useWorkspaceStore.setState({
+      ws: {
+        tabs: [
+          { key: "session:one", item: { kind: "session", id: "one" }, split: null },
+          { key: "session:two", item: { kind: "session", id: "two" }, split: null },
+        ],
+        active: "session:one",
+      },
+    });
+    const page = await renderShell("/s/one", { phone: true });
+    await settle();
+    await emitTerminal(bed, {
+      kind: "snapshot",
+      terminals: [terminalView(1, { sessionId: "one" })],
+    });
+    await settle();
+    await click(button(switchOf(page), "Term"));
+    await vi.waitFor(() => expect(shown(page)).toBe("terminal"), { timeout: 2_000 });
+    expect(bed.called("terminal.create")).toHaveLength(0);
+    await act(() => page.router.navigate({ to: "/s/$sessionId", params: { sessionId: "two" } }));
+    expect(selected(page)).toEqual(["Chat"]);
+    await page.unmount();
+  });
+
+  it("shows Files as the selected item when the files pane is what the tab shows", async () => {
+    useWorkspaceStore.setState({
+      ws: {
+        tabs: [
+          {
+            key: "session:one",
+            item: { kind: "session", id: "one" },
+            split: { item: { kind: "files", root: "/w/api" }, ratio: 0.5 },
+          },
+        ],
+        active: "session:one",
+      },
+    });
+    const page = await renderShell("/s/one", { phone: true });
+    await click(button(switchOf(page), "Chat"));
+    expect(selected(page)).toEqual(["Chat"]);
+    const { useSurfaceView } = await import("./surface-view.ts");
+    await act(async () => useSurfaceView.getState().show("session:one", "files"));
+    await vi.waitFor(() => expect(page.container.querySelector("[data-files-pane]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    expect(selected(page)).toEqual(["Files"]);
+    await page.unmount();
+  });
+
+  it("disables Review and Term for a session the store does not hold", async () => {
+    useShellStore.getState().reset();
+    const page = await renderShell("/s/one", { phone: true });
+    expect([...switchOf(page).querySelectorAll("button")].map((one) => one.disabled)).toEqual([
+      false,
+      true,
+      true,
+    ]);
     await page.unmount();
   });
 });

@@ -41,14 +41,18 @@ export {
   IconCopy,
   IconDot,
   IconExport,
+  IconFile,
+  IconFolder,
   IconHourglass,
   IconImport,
   IconInbox,
   IconKeyboard,
   IconLanguage,
   IconLists,
+  IconLock,
   IconMore,
   IconPlus,
+  IconRefresh,
   IconSearch,
   IconSettings,
   IconSignOut,
@@ -83,7 +87,7 @@ export { Spinner } from "./primitives/Spinner.tsx";
 export { Switch, type SwitchProps } from "./primitives/Switch.tsx";
 export { dismissToast, toast, Toaster, type ToastInput } from "./primitives/Toast.tsx";
 export { Tooltip, TooltipProvider, type TooltipProps } from "./primitives/Tooltip.tsx";
-export { TextField, type TextFieldProps } from "./primitives/TextField.tsx";
+export { TextField, type TextFieldCombobox, type TextFieldProps } from "./primitives/TextField.tsx";
 export { PRESET_TOKENS } from "./presets.ts";
 export {
   DENSITIES,

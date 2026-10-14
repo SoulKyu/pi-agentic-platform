@@ -9,6 +9,9 @@ import { press, settle } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { useTerminalStore } from "../../stores/terminal-store.ts";
+import { terminalView } from "../../testing/m8-fixtures.ts";
+import { shellProject, shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 const auth = vi.hoisted(() => ({ logout: vi.fn() }));
@@ -186,6 +189,71 @@ describe("the shell's commands", () => {
     });
     await run("drawer.inbox.toggle");
     await vi.waitFor(() => expect(dialog()).toBeNull(), { timeout: 2_000 });
+    await page.unmount();
+  });
+});
+
+describe("the session surface commands (M8R73)", () => {
+  const ws = () => useWorkspaceStore.getState().ws;
+  const withSession = () => {
+    useShellStore.getState().apply(
+      shellSnapshot([shellSession({ id: "b", cwd: "/w/api/src", projectId: "p" })], {
+        projects: [shellProject({ id: "p", root: "/w/api" })],
+      }),
+    );
+  };
+
+  it("showChanges and showFiles split the active session tab with the project root", async () => {
+    withSession();
+    const page = await renderShell("/s/b");
+    expect(await run("session.showChanges")).toBe(true);
+    expect(ws().tabs[1]?.split?.item).toEqual({ kind: "changes", root: "/w/api" });
+    expect(await run("session.showFiles")).toBe(true);
+    expect(ws().tabs[1]?.split?.item).toEqual({ kind: "files", root: "/w/api" });
+    expect(ws().tabs[0]?.split).toBeNull();
+    await page.unmount();
+  });
+
+  it("openTerminal splits with this session's newest running terminal", async () => {
+    withSession();
+    useTerminalStore.getState().reset();
+    const page = await renderShell("/s/b");
+    useTerminalStore.getState().apply({
+      kind: "snapshot",
+      terminals: [terminalView(1, { sessionId: "b" }), terminalView(2, { sessionId: "b" })],
+    });
+    expect(await run("session.openTerminal")).toBe(true);
+    await vi.waitFor(
+      () => expect(ws().tabs[1]?.split?.item).toEqual({ kind: "terminal", id: terminalView(2).id }),
+      {
+        timeout: 2_000,
+      },
+    );
+    await page.unmount();
+  });
+
+  it("openTerminal declines until the terminal stream has answered, and creates nothing", async () => {
+    withSession();
+    const page = await renderShell("/s/b");
+    expect(await run("session.openTerminal")).toBe(false);
+    expect(ws().tabs[1]?.split).toBeNull();
+    await page.unmount();
+  });
+
+  it("decline on a tab that is not a session, with no tab, and for a session the store lacks", async () => {
+    const page = await renderShell("/nope");
+    useWorkspaceStore.setState({ ws: { tabs: [tab("b")], active: "session:b" } });
+    for (const id of ["session.showChanges", "session.openTerminal", "session.showFiles"])
+      expect(await run(id), `${id} without the session in the store`).toBe(false);
+    withSession();
+    useWorkspaceStore.setState({
+      ws: { tabs: [{ key: "home", item: { kind: "home" }, split: null }], active: "home" },
+    });
+    for (const id of ["session.showChanges", "session.openTerminal", "session.showFiles"])
+      expect(await run(id), `${id} on home`).toBe(false);
+    useWorkspaceStore.setState({ ws: EMPTY_WORKSPACE });
+    for (const id of ["session.showChanges", "session.openTerminal", "session.showFiles"])
+      expect(await run(id), `${id} with no tab`).toBe(false);
     await page.unmount();
   });
 });

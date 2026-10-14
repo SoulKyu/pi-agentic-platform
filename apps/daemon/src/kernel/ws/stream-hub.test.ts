@@ -277,3 +277,26 @@ describe("stream hub publish failures", () => {
     expect(frames.map((f) => f.seq)).toEqual([0, 1, 2]);
   });
 });
+
+describe("hasSubscribers", () => {
+  it("is false before anyone opens, true after open and false after close, per stream and key", () => {
+    const { hub, open } = setup();
+    expect(hub.hasSubscribers("session", "k")).toBe(false);
+    open();
+    expect(hub.hasSubscribers("session", "k")).toBe(true);
+    expect(hub.hasSubscribers("session", "other")).toBe(false);
+    expect(hub.hasSubscribers("shell", "k")).toBe(false);
+    hub.close("c1", "s1");
+    expect(hub.hasSubscribers("session", "k")).toBe(false);
+  });
+
+  it("stays true while another connection listens", () => {
+    const { hub, open } = setup();
+    open(undefined, "s1", "k", "c1");
+    open(undefined, "s1", "k", "c2");
+    hub.close("c1");
+    expect(hub.hasSubscribers("session", "k")).toBe(true);
+    hub.close("c2");
+    expect(hub.hasSubscribers("session", "k")).toBe(false);
+  });
+});

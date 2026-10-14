@@ -162,7 +162,7 @@ describe("create form", () => {
     expect(container.querySelector('[data-permission="policy:admin"]')).toBeNull();
     expect(container.querySelector('[data-permission="policy:operate"]')).not.toBeNull();
     expect(container.querySelector('[data-permission="policy:read"]')).not.toBeNull();
-    expect(container.querySelectorAll("[data-permission]")).toHaveLength(14);
+    expect(container.querySelectorAll("[data-permission]")).toHaveLength(20);
     expect(text(container)).toContain("Changing approval modes and rules needs your browser session.");
   });
 

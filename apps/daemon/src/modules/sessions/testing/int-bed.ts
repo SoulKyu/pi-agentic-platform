@@ -17,6 +17,7 @@ import { createPolicyModule, POLICY_MIGRATIONS } from "../../policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "../../projects/index.ts";
 import { createSessionsModule, SESSIONS_MIGRATIONS, type SessionsModule } from "../index.ts";
 import { testCaller } from "../../../testing/caller.ts";
+import { noAttachments } from "./no-attachments.ts";
 
 const REPO = fileURLToPath(new URL("../../../../../../", import.meta.url));
 const EXEC_ARGV = [
@@ -101,6 +102,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
       projects: projects.port,
       ownerId: () => "u1",
       audit: audit.port,
+      attachments: noAttachments,
       config: {
         home: papHome,
         piAgentDir: options.spellAgentDir?.(agentDir) ?? agentDir,

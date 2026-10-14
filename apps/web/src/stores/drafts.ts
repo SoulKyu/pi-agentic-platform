@@ -1,3 +1,5 @@
+import { AttachmentId, FILE_LIMITS } from "@pap/contracts";
+
 export const MAX_DRAFT_CHARS = 200_000;
 const MAX_COMMAND_ID_CHARS = 128;
 const draftKeyOf = (sessionId: string) => `pap.draft.${sessionId}`;
@@ -50,6 +52,8 @@ export interface PendingSend {
     readonly sessionId: string;
     readonly text: string;
     readonly streamingBehavior: "steer" | "followUp";
+    /** Pending uploads the message carries: a resend names the same ones (M8R114). */
+    readonly attachments?: string[];
   };
   readonly commandId: string;
 }
@@ -58,7 +62,12 @@ export interface PendingSend {
 function parsePending(raw: string, sessionId: string): PendingSend {
   const value = JSON.parse(raw) as Partial<PendingSend> | null;
   const params = value?.params;
+  const attachments = params?.attachments;
   if (
+    (attachments === undefined ||
+      (Array.isArray(attachments) &&
+        attachments.length <= FILE_LIMITS.attachmentsPerPrompt &&
+        attachments.every((id) => AttachmentId.safeParse(id).success))) &&
     typeof value?.commandId === "string" &&
     value.commandId !== "" &&
     params?.sessionId === sessionId &&
@@ -70,6 +79,7 @@ function parsePending(raw: string, sessionId: string): PendingSend {
         sessionId,
         text: params.text.slice(0, MAX_DRAFT_CHARS),
         streamingBehavior: params.streamingBehavior,
+        ...(attachments?.length ? { attachments } : {}),
       },
       commandId: value.commandId.slice(0, MAX_COMMAND_ID_CHARS),
     };

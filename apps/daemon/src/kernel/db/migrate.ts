@@ -90,7 +90,7 @@ const hasContent = (path: string): boolean => existsSync(path) && statSync(path)
 export function migrate(options: MigrateOptions): MigrateResult {
   const migrations = discoverMigrations(options.sources);
   const existed = hasContent(options.dbPath) || hasContent(`${options.dbPath}-wal`);
-  const db = openDatabase(options.dbPath);
+  const db = openDatabase(options.dbPath, { logger: options.logger });
   db.exec(
     "CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, checksum TEXT NOT NULL, applied_at INTEGER NOT NULL) STRICT",
   );

@@ -4,9 +4,12 @@ import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
+import type { changesEn } from "./catalog/changes.ts";
+import type { filesEn } from "./catalog/files.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
 import type { serverEn } from "./catalog/server.ts";
 import type { sessionPolicyEn } from "./catalog/session-policy.ts";
+import type { sessionFilesEn } from "./catalog/session-files.ts";
 import type { sessionScreenEn } from "./catalog/session-screen.ts";
 import type { settingsAccessEn } from "./catalog/settings-access.ts";
 import type { settingsAppearanceEn } from "./catalog/settings-appearance.ts";
@@ -14,11 +17,13 @@ import type { settingsApprovalsEn } from "./catalog/settings-approvals.ts";
 import type { settingsScreenEn } from "./catalog/settings-screen.ts";
 import type { settingsShortcutsEn } from "./catalog/settings-shortcuts.ts";
 import type { sidebarEn } from "./catalog/sidebar.ts";
+import type { terminalEn } from "./catalog/terminal.ts";
 
 /** The eager keys plus the keys of lazy catalogs (type-only import: nothing of them is bundled eagerly). */
 export type MessageKey =
   | keyof typeof en
   | keyof typeof sessionScreenEn
+  | keyof typeof sessionFilesEn
   | keyof typeof settingsScreenEn
   | keyof typeof settingsAppearanceEn
   | keyof typeof settingsShortcutsEn
@@ -27,7 +32,10 @@ export type MessageKey =
   | keyof typeof galleryEn
   | keyof typeof serverEn
   | keyof typeof sidebarEn
-  | keyof typeof sessionPolicyEn;
+  | keyof typeof sessionPolicyEn
+  | keyof typeof filesEn
+  | keyof typeof changesEn
+  | keyof typeof terminalEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

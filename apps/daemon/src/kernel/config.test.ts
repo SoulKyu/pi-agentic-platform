@@ -41,6 +41,11 @@ describe("loadConfig", () => {
     expect(config.tls).toBeNull();
   });
 
+  it("keeps the daemon's home folder as userHome (M8R118)", () => {
+    expect(loadConfig(base).userHome).toBe("/home/u");
+    expect(loadConfig({ ...base, homedir: "/other" }).userHome).toBe("/other");
+  });
+
   it("loopback hosts publish a localhost origin and accept the loopback aliases", () => {
     const config = loadConfig(base);
     expect(config.publicOrigin).toBe("http://localhost:7777");
@@ -308,6 +313,22 @@ describe("worker idle limit", () => {
     const config = loadConfig({ ...base, env: { PAP_WORKER_IDLE_MINUTES: "35791" } });
     expect(config.workerIdleMs).toBe(35_791 * 60_000);
     expect(config.workerIdleMs).toBeLessThan(2 ** 31);
+  });
+});
+
+describe("PAP_MAX_TERMINALS", () => {
+  it("defaults to 8 and reads 1 to 64", () => {
+    expect(loadConfig(base).maxTerminals).toBe(8);
+    expect(loadConfig({ ...base, env: { PAP_MAX_TERMINALS: "1" } }).maxTerminals).toBe(1);
+    expect(loadConfig({ ...base, env: { PAP_MAX_TERMINALS: "64" } }).maxTerminals).toBe(64);
+  });
+
+  it.each([
+    [{ PAP_MAX_TERMINALS: "0" }, "PAP_MAX_TERMINALS must be an integer ≥ 1"],
+    [{ PAP_MAX_TERMINALS: "65" }, "PAP_MAX_TERMINALS must be an integer ≤ 64"],
+    [{ PAP_MAX_TERMINALS: "many" }, "PAP_MAX_TERMINALS must be an integer ≥ 1"],
+  ])("refuses %j", (env, message) => {
+    expect(() => loadConfig({ ...base, env })).toThrow(message);
   });
 });
 

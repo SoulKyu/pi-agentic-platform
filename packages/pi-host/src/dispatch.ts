@@ -3,8 +3,9 @@ import { type DaemonToWorker, POLICY_EXTENSION_PATH, PolicyRules, type TaintStat
 import type { Approvals } from "./approvals.ts";
 import { logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";
-import { handleAbort, handleGetState, handlePrompt } from "./commands.ts";
+import { handleAbort, handleGetState, queuePrompt } from "./commands.ts";
 import type { Ipc } from "./ipc.ts";
+import { createPromptQueue } from "./prompt-queue.ts";
 import {
   handleClearQueue,
   handleCompact,
@@ -17,6 +18,8 @@ import type { UiBridge } from "./ui-bridge.ts";
 export type Command = Exclude<DaemonToWorker, { type: "init" | "shutdown" }>;
 
 export interface DispatchDeps {
+  /** The pap data directory: the only place a prompt's images are read from (M8R41). */
+  readonly papHome: string;
   readonly session: AgentSession;
   readonly ipc: Ipc;
   readonly ui: UiBridge;
@@ -39,12 +42,14 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
       process.stderr.write(`pi-host: ${command} failed after it answered: ${logLineOf(error)}\n`),
     );
   };
+  const prompts = createPromptQueue((line) => process.stderr.write(line));
   return (record) => {
     switch (record.type) {
       case "prompt":
-        handlePrompt(session, record, send);
+        queuePrompt(prompts, session, deps.papHome, record, send);
         return;
       case "abort":
+        prompts.dropWaiting();
         background("abort", handleAbort(session, record, send));
         return;
       case "get_state":

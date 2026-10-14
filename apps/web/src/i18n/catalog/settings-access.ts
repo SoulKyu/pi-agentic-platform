@@ -70,11 +70,17 @@ export const settingsAccessEn = {
   "access.tokens.domain.policy": "Approvals and policy",
   "access.tokens.domain.settings": "Settings",
   "access.tokens.domain.audit": "Audit log",
+  "access.tokens.domain.files": "Files",
+  "access.tokens.domain.vcs": "Git",
   "access.tokens.level.read": "Read",
   "access.tokens.level.operate": "Operate",
   "access.tokens.level.admin": "Administer",
   "access.tokens.policyNote": "Changing approval modes and rules needs your browser session.",
   "access.tokens.riskNote": "This token can send prompts and answer approval cards in your name.",
+  "access.tokens.riskNote.filesOperate":
+    "This token can write ordinary files in your projects; never hooks, editor tasks or Pi's files.",
+  "access.tokens.riskNote.filesRead":
+    "This token can read the files of your projects, your home folder included when it is a project, apart from its dot-files.",
   "access.tokens.create": "Create token",
   "access.tokens.created": "Token created",
   "access.tokens.shownOnce": "Copy it now: it is shown only once and cannot be read again.",
@@ -173,6 +179,8 @@ export const settingsAccessFr: { readonly [K in keyof typeof settingsAccessEn]: 
   "access.tokens.domain.policy": "Approbations et politique",
   "access.tokens.domain.settings": "Réglages",
   "access.tokens.domain.audit": "Journal d'audit",
+  "access.tokens.domain.files": "Fichiers",
+  "access.tokens.domain.vcs": "Git",
   "access.tokens.level.read": "Lecture",
   "access.tokens.level.operate": "Action",
   "access.tokens.level.admin": "Administration",
@@ -180,6 +188,10 @@ export const settingsAccessFr: { readonly [K in keyof typeof settingsAccessEn]: 
     "Changer les modes d'approbation et les règles demande votre session de navigateur.",
   "access.tokens.riskNote":
     "Ce jeton peut envoyer des messages et répondre aux cartes d'approbation en votre nom.",
+  "access.tokens.riskNote.filesOperate":
+    "Ce jeton peut écrire des fichiers ordinaires dans vos projets ; jamais les hooks, les tâches d'éditeur ni les fichiers de Pi.",
+  "access.tokens.riskNote.filesRead":
+    "Ce jeton peut lire les fichiers de vos projets, votre dossier personnel compris quand c'est un projet, hors ses fichiers cachés.",
   "access.tokens.create": "Créer le jeton",
   "access.tokens.created": "Jeton créé",
   "access.tokens.shownOnce":

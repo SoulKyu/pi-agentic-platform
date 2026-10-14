@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { PROTOCOL_VERSION, type HandlerTable } from "@pap/contracts";
 import type { Context } from "hono";
+import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createSystemClock, type Clock } from "./kernel/clock.ts";
 import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
 import { ensureInstallTimestamp } from "./kernel/db/meta.ts";
@@ -173,6 +174,11 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       sessionOwner: (sessionId) => ownerOf(sessionId),
     });
     const projects = createProjectsModule({ db, clock, logger, newId });
+    const wk = createWorkspaceModules(
+      { roots: projects.port.roots, config, clock, logger, env, hub, readOnly, scopes },
+      workerUmask,
+    );
+    closers.push({ name: "workspace", close: () => wk.shutdown() });
     const sessions = createSessionsModule({
       db,
       clock,
@@ -189,6 +195,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         policy.port.markTainted(owner, sessionId, 0);
       },
       audit: audit.port,
+      attachments: wk.attachments,
       config,
       workerUmask,
       env,
@@ -213,6 +220,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...auth.rpc,
       ...policy.rpc,
       ...projects.rpc,
+      ...wk.rpc,
       ...sessions.rpc,
       ...search.rpc,
       ...settings.rpc,
@@ -250,6 +258,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       onOriginRefused,
       mount: (hono) => {
         auth.mount(hono);
+        wk.mount(hono, auth.authenticateCookieHeader);
         sessions.mountExportRoute(hono, auth.authenticateCookieHeader);
       },
       wsProbe,
@@ -284,7 +293,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     }
     if (config.insecureHttp) {
       logger.warn("insecure_http", {
-        hint: "--insecure-http: session cookies travel without Secure over plain HTTP, readable by anyone on the network. For testing on a trusted LAN only.",
+        hint: "--insecure-http: session cookies travel without Secure over plain HTTP, readable by anyone on the network, and so is a terminal's shell (sniffing the cookie opens one). For testing on a trusted LAN only.",
       });
     }
     search.start();
@@ -305,6 +314,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
           // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash
           // trees on the way; SIGKILL to every group first would leak them (R104).
           await sessions.shutdownAll();
+          await wk.shutdown();
           killAllWorkerGroups();
           await closeAll();
         })();

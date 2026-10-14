@@ -8,7 +8,11 @@ import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/works
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { feedShell } from "../../stores/shell-feed.ts";
+import { resetFolderMemory } from "../../features/files/folder-memory.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { useTerminalStore } from "../../stores/terminal-store.ts";
+import { resetUnsavedFiles } from "../../stores/unsaved-files.ts";
+import { useVcsStore } from "../../stores/vcs-store.ts";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
 import { MobileShell } from "./MobileShell.tsx";
@@ -60,6 +64,12 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
       stop();
       useShellStore.getState().reset();
       useViewLabels.setState({ labels: {} });
+      // Every M8 client store (MC34). Uploads keep no state beyond their own component; the terminal store's reset
+      // also clears the per-account maps of `surface-terminal.ts` when that chunk is loaded.
+      useVcsStore.getState().reset();
+      useTerminalStore.getState().reset();
+      resetUnsavedFiles();
+      resetFolderMemory();
     };
   }, []);
   useShellEffects({ mobile, treeOpen: readTreeOpen });

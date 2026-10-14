@@ -2,6 +2,7 @@ import { z } from "zod";
 import { auditMethods } from "./audit.ts";
 import { authMethods } from "./auth.ts";
 import { defineMethod, type MethodDef } from "./define.ts";
+import { AttachmentId, filesMethods } from "./files.ts";
 import { Cursor } from "./frames.ts";
 import { MAX_ALWAYS_RULES } from "./policy.ts";
 import { policyMethods } from "./policy-methods.ts";
@@ -16,6 +17,8 @@ import {
 } from "./streams.ts";
 import { settingsMethods } from "./settings.ts";
 import { shellMethods } from "./shell.ts";
+import { terminalMethods } from "./terminal.ts";
+import { vcsMethods } from "./vcs.ts";
 
 const SessionId = z.string().min(1).max(128);
 const Ok = z.object({ ok: z.literal(true) });
@@ -37,6 +40,9 @@ export const methods = catalogue({
   ...shellMethods,
   ...auditMethods,
   ...authMethods,
+  ...filesMethods,
+  ...vcsMethods,
+  ...terminalMethods,
   ...policyMethods,
   "system.ping": defineMethod({
     name: "system.ping",
@@ -75,11 +81,15 @@ export const methods = catalogue({
     name: "sessions.prompt",
     permission: "sessions:operate",
     idempotent: false,
-    params: z.object({
-      sessionId: SessionId,
-      text: z.string().min(1).max(200_000),
-      streamingBehavior: z.enum(["steer", "followUp"]).optional(),
-    }),
+    // The text may be empty only when something is attached (M8R40): the files are cited in it by the daemon.
+    params: z
+      .object({
+        sessionId: SessionId,
+        text: z.string().max(200_000),
+        streamingBehavior: z.enum(["steer", "followUp"]).optional(),
+        attachments: z.array(AttachmentId).max(10).optional(),
+      })
+      .refine((prompt) => prompt.text.length > 0 || (prompt.attachments?.length ?? 0) > 0),
     result: z.object({ disposition: z.enum(["started", "queued", "handled"]) }),
     errors: ["not_found", "capacity", "worker_failed", "prompt_rejected", "queue_full", "session_busy"],
   }),

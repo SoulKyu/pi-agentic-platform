@@ -1,8 +1,8 @@
 import { open, rm } from "node:fs/promises";
 import { Readable } from "node:stream";
 import type { Context, Hono } from "hono";
+import { attachmentDisposition } from "../../kernel/http/content-disposition.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { LONE_SURROGATE } from "../../kernel/text.ts";
 import { type Exports, SESSION_ID_PATTERN, TOKEN_PATTERN } from "./exports.ts";
 
 /** What makes an exported transcript a file to save, never a page of the pap origin (ADR 0006). */
@@ -14,37 +14,12 @@ const EXPORT_HEADERS: Readonly<Record<string, string>> = {
 };
 export const EXPORT_CSP = "sandbox; default-src 'none'";
 
-const FALLBACK_NAME = "pap-session";
-const TITLE_CODE_POINTS = 64;
-// Characters a file system or a header has a use for, and format and control characters (bidi marks among them).
-const UNSAFE_IN_NAME = /[\\/:*?"<>|]|[\p{Cc}\p{Cf}]/gu;
-const ASCII_SAFE = /[A-Za-z0-9 ._-]/;
-
 /**
- * `Content-Disposition` of the download: always an attachment. The name comes from the session's name when it has one:
- * an ASCII fallback (`filename`, no quote, separator or control character can be in it) and the RFC 5987 form
- * (`filename*`, percent-encoded UTF-8) for the full text. Without a usable title it is a fixed name.
+ * `Content-Disposition` of the download: always an attachment. The name comes from the session's name when it has one; without
+ * a usable title it is a fixed name. The rules are shared with the raw file route.
  */
-export function contentDispositionOf(title: string | null | undefined): string {
-  const clean = [
-    ...(title ?? "")
-      .replace(LONE_SURROGATE, "\ufffd")
-      .replace(UNSAFE_IN_NAME, (found) => (/^[\p{Cc}\p{Cf}]$/u.test(found) ? "" : "_"))
-      .replace(/^[.\s]+/u, "")
-      .trim(),
-  ]
-    .slice(0, TITLE_CODE_POINTS)
-    .join("")
-    .trimEnd();
-  if (clean === "") return `attachment; filename="${FALLBACK_NAME}.html"`;
-  const ascii = [...clean].map((char) => (ASCII_SAFE.test(char) ? char : "_")).join("");
-  const asciiName = /[A-Za-z0-9]/.test(ascii) ? ascii : FALLBACK_NAME;
-  const encoded = encodeURIComponent(`${clean}.html`).replace(
-    /['()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-  return `attachment; filename="${asciiName}.html"; filename*=UTF-8''${encoded}`;
-}
+export const contentDispositionOf = (title: string | null | undefined): string =>
+  attachmentDisposition(title, { fallback: "pap-session", suffix: ".html", leadingDot: "strip" });
 
 const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 

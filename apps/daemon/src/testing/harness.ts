@@ -100,6 +100,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     publicOrigin: origin,
     allowedOrigins: new Set([origin, base]),
     piAgentDir: agentDir,
+    userHome,
     piHostEntry: join(REPO, "packages/pi-host/src/main.ts"),
     piHostExecArgv: [
       "--conditions=development",
@@ -110,6 +111,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     testProviderScript: scriptPath,
     maxWorkers: 4,
     minFreeMemMb: 0,
+    maxTerminals: 8,
     workerIdleMs: 30 * 60_000,
     workerScope: "off",
     workerLimits: { memoryMaxMb: 2048, tasksMax: 4096 },

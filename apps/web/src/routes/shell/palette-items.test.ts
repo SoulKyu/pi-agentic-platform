@@ -106,3 +106,33 @@ describe("buildPaletteItems", () => {
     expect(navigate).toHaveBeenLastCalledWith({ kind: "settings", section: "shortcuts" });
   });
 });
+
+describe("running terminals in the palette (M8R81)", () => {
+  const terminal = (id: string, cwd: string, status: "running" | "exited") => ({
+    id,
+    cwd,
+    sessionId: null,
+    cols: 80,
+    rows: 24,
+    status,
+    exitCode: status === "exited" ? 0 : null,
+    signal: null,
+    createdAt: 1,
+  });
+
+  it("lists a running terminal with its folder name and opens it", () => {
+    const { items, navigate } = build({
+      terminals: [terminal("AAAAAAAAAAAAAAAAAAAAAA", "/home/ana/api", "running")],
+    });
+    const item = items.find((one) => one.id === "terminal:AAAAAAAAAAAAAAAAAAAAAA");
+    expect([item?.title, item?.group, item?.detail]).toEqual(["Terminal · api", "open", "/home/ana/api"]);
+    expect(item?.searchTerms).toContain("api");
+    item?.run();
+    expect(navigate).toHaveBeenCalledWith({ kind: "terminal", id: "AAAAAAAAAAAAAAAAAAAAAA" });
+  });
+
+  it("does not list an exited terminal", () => {
+    const { items } = build({ terminals: [terminal("AAAAAAAAAAAAAAAAAAAAAA", "/home/ana/api", "exited")] });
+    expect(items.filter((one) => one.id.startsWith("terminal:"))).toEqual([]);
+  });
+});

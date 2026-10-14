@@ -7,6 +7,8 @@ import type { ConnectionState } from "../runtime/connection.ts";
 
 type Handler = (params: unknown) => unknown;
 
+const SUB_METHODS = ["subscribe.session", "subscribe.shell", "subscribe.vcs", "subscribe.terminal"];
+
 /**
  * The runtime a screen sees in a test: a fake connection, the real subscriptions on top of it, and an rpc
  * whose answers the test sets per method (`handlers`). Tests hand it out through a `vi.mock` of `getRuntime`.
@@ -23,14 +25,18 @@ export function fakeRuntime(state: ConnectionState = "open") {
     calls.push({ method, params, ...(options ? { options } : {}) });
     const handler = handlers[method];
     if (handler) return handler(params);
-    if (method === "subscribe.session" || method === "subscribe.shell") {
+    if (SUB_METHODS.includes(method)) {
       const sub = `s${++subs}`;
       opened.push([method, sub]);
       return { sub };
     }
+    if (method === "terminal.attach") {
+      return { streamId: 1, start: 0, end: 0, cols: 80, rows: 24, status: "running" };
+    }
     if (method === "sessions.clearQueue") return { steering: [], followUp: [], truncated: false };
     if (method === "sessions.branches") return { leafId: null, points: [], truncated: false };
     if (method === "policy.listRules") return { rules: [], truncated: false };
+    if (method === "files.list") return { entries: [], truncated: false };
     if (method === "audit.list") return { entries: [], nextBefore: null, truncated: false };
     return { ok: true };
   });
@@ -47,7 +53,11 @@ export function fakeRuntime(state: ConnectionState = "open") {
     handlers,
     called: (method: string) => calls.filter((entry) => entry.method === method),
     /** An event to the nth sub opened with `method`, as the server would send it. */
-    emitTo: (method: "subscribe.session" | "subscribe.shell", event: unknown, nth = 0) => {
+    emitTo: (
+      method: "subscribe.session" | "subscribe.shell" | "subscribe.vcs" | "subscribe.terminal",
+      event: unknown,
+      nth = 0,
+    ) => {
       const sub = opened.filter(([opener]) => opener === method)[nth]?.[1];
       if (sub === undefined) throw new Error(`no ${method} sub #${nth} was opened`);
       fake.deliver({ sub, epoch: "e1", seq: seq++, event });

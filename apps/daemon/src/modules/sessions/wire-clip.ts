@@ -14,6 +14,9 @@ const isObject = (value: unknown): value is Json =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 function omittedImage(block: Json): Json {
+  // The worker already replaced the data by its size (`bytes`): keep it.
+  if (typeof block.data !== "string" && typeof block.bytes === "number" && block.bytes >= 0)
+    return { type: "image", mimeType: block.mimeType, omitted: true, bytes: block.bytes };
   const data = typeof block.data === "string" ? block.data : "";
   const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
   return {

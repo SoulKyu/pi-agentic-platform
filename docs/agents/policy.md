@@ -54,6 +54,14 @@ Code: worker side `packages/pi-host/src/policy/` (`extension.ts` thin factory, `
 - Rows: `call` (stages 01-04, 06 if markers were restored), `result` (only when 06 or 07 acted), `session` (00, 05; tools as `{count, truncated, names}`). Append-only by SQL triggers; a worker's entry is parsed, scrubbed of known token formats, budgeted (600 rows per session per minute, a marker row at the gap), at most 100 invalid rows per session. Details: `daemon.md`.
 - Size: about 0.5 KB per call row, so 1 000 tool calls a day is about 180 MB a year. Retention is 12 months; `pap audit prune [--month YYYY-MM] [--dry-run]` removes a whole month older than that, with the daemon stopped (`systemctl --user stop pap-preview` first); the boot line `audit_prunable` says when months are prunable. A row can be purged only by editing the file. There is no per-session volume cap beyond the rate: a hostile session can grow the table by about 10 MB a minute until stopped (a compromised worker can already write files under the same account).
 
+## Files, git and terminal (M8)
+
+- The pipeline above judges the **agent's** tool calls. The owner's own actions in the explorer, the editor and the terminal are not tool calls and are not judged by it. The path boundary (`files.md`) applies M5's **lists** to them, with owner-side outcomes: refuse, confirm ("Save anyway?"), or confirm plus step-up.
+- The lists are copied into `packages/contracts/src/protected-paths.ts` (`PROTECTED_SEGMENTS`, `PROTECTED_BASENAMES`, `HOOK_CONFIG_NAME`, `PAP_SENSITIVE_NAMES`) because the daemon may not import pi-host. `packages/pi-host/src/policy/protected-lists.test.ts` checks, in one direction, that everything in the contracts lists is protected by `checkEditTarget` / `checkReadTarget`; a name added to pi-host only is not caught. M8 edits nothing under `policy/`; a change to M5's lists means a change to both.
+- Tokens never confirm a protected save and never write a protected name, under `<agentDir>` or a `.pi/` folder (`forbidden`, or `not_found` where the boundary hides the path); they never hold `terminal:*`. See `auth.md`.
+
+- **Residual (MC38 I3).** The protected-read set does not cover `$PAP_HOME/attachments/`: any session's agent can read `attachments/pending/*` and other sessions' attachments without a card (details in `files.md`). To be closed at M7's rebase by adding them to `read-target.ts`' sensitive set.
+
 ## CLI and tests
 
 - `pap serve | audit prune | user add | passkey reset` (`apps/daemon/src/cli/`): see `daemon.md` and `auth.md`.

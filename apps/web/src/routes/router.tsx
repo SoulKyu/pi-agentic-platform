@@ -16,6 +16,9 @@ export function buildRouteTree(Root: () => ReactNode) {
     route("/s/$sessionId"),
     route("/settings"),
     route("/settings/$section"),
+    route("/explore/$root"),
+    route("/changes/$root"),
+    route("/term/$id"),
     route("/dev/ui"),
   ]);
 }

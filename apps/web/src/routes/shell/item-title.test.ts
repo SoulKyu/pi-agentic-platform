@@ -51,4 +51,9 @@ describe("itemTitle", () => {
       vi.unstubAllEnvs();
     }
   });
+  it("titles the M8 items with the three surface labels", () => {
+    expect(itemTitle({ kind: "files", root: "/w" }, none, {}, t)).toBe("Files");
+    expect(itemTitle({ kind: "changes", root: "/w" }, none, {}, t)).toBe("Changes");
+    expect(itemTitle({ kind: "terminal", id: "t" }, none, {}, t)).toBe("Terminal");
+  });
 });

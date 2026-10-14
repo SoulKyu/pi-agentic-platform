@@ -6,11 +6,14 @@ export type ClientIssue =
   | "setting_save_failed"
   | "keybindings_invalid"
   | "shell_feed_failed"
+  | "terminal_feed_failed"
+  | "file_check_failed"
   | "lazy_chunk_failed"
   | "render_failed"
   | "command_failed"
   | "workspace_invalid"
-  | "message_missing";
+  | "message_missing"
+  | "mention_search_failed";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.

@@ -5,11 +5,26 @@ import { isExpired, permissionGrid, riskyPermissions } from "./tokens.vm.ts";
 describe("permissionGrid", () => {
   it("has every domain but auth, three levels each except policy (read and operate)", () => {
     const grid = permissionGrid();
-    expect(grid.map((row) => row.domain)).toEqual(["system", "sessions", "policy", "settings", "audit"]);
+    expect(grid.map((row) => row.domain)).toEqual([
+      "system",
+      "sessions",
+      "policy",
+      "settings",
+      "audit",
+      "files",
+      "vcs",
+    ]);
     for (const row of grid)
       expect(row.levels.map((level) => level.label)).toEqual(
         row.domain === "policy" ? ["read", "operate"] : ["read", "operate", "admin"],
       );
+  });
+
+  it("has a files and a vcs row and no terminal row", () => {
+    const domains = permissionGrid().map((row) => row.domain);
+    expect(domains).toContain("files");
+    expect(domains).toContain("vcs");
+    expect(domains).not.toContain("terminal");
   });
 
   it("is built from TOKEN_PERMISSIONS: no auth cell, no policy:admin, nothing else", () => {
@@ -21,6 +36,13 @@ describe("permissionGrid", () => {
 });
 
 describe("riskyPermissions", () => {
+  it("flags files:read and files:operate, not vcs:read", () => {
+    expect(riskyPermissions(["files:read", "files:operate", "vcs:read"])).toEqual([
+      "files:read",
+      "files:operate",
+    ]);
+  });
+
   it("flags sessions:operate only", () => {
     expect(riskyPermissions(["sessions:operate", "policy:operate"])).toEqual(["sessions:operate"]);
     expect(riskyPermissions(["sessions:read", "policy:operate"])).toEqual([]);

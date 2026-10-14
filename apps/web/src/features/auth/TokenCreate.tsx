@@ -5,7 +5,13 @@ import { useT, type MessageKey } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { useStepUp } from "./StepUp.tsx";
 import { withStepUp } from "./step-up.ts";
-import { permissionGrid, riskyPermissions } from "./tokens.vm.ts";
+import { permissionGrid, riskyPermissions, type RiskyPermission } from "./tokens.vm.ts";
+
+const RISK_NOTES: Record<RiskyPermission, MessageKey> = {
+  "sessions:operate": "access.tokens.riskNote",
+  "files:operate": "access.tokens.riskNote.filesOperate",
+  "files:read": "access.tokens.riskNote.filesRead",
+};
 import { useMutation } from "./use-mutation.ts";
 
 const GRID = permissionGrid();
@@ -212,11 +218,11 @@ export function TokenCreate({ onCreated, onSignedOut }: { onCreated(): void; onS
             </div>
           ))}
           <p className="text-ui text-muted">{t("access.tokens.policyNote")}</p>
-          {riskyPermissions(selected).length > 0 ? (
-            <p role="status" className="text-ui text-attn">
-              {t("access.tokens.riskNote")}
+          {riskyPermissions(selected).map((permission) => (
+            <p key={permission} role="status" className="text-ui text-attn">
+              {t(RISK_NOTES[permission])}
             </p>
-          ) : null}
+          ))}
         </fieldset>
         {notice ? (
           <p role="alert" className="text-ui text-attn">

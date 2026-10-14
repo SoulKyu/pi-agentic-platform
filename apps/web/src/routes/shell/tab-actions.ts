@@ -6,7 +6,9 @@ import {
   type ItemRef,
   type Workspace,
 } from "../../features/workspace/index.ts";
+import { t } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
+import { hasUnsavedFiles } from "../../stores/unsaved-files.ts";
 
 export type Navigate = ReturnType<typeof useNavigate>;
 
@@ -28,8 +30,25 @@ export function takeFocusAfterClose(): boolean {
   return asked;
 }
 
+/** False when one of `items` is a files pane with unsaved edits and the person does not want to lose them. */
+function mayDiscard(items: readonly (ItemRef | undefined)[]): boolean {
+  const unsaved = items.some((item) => item?.kind === "files" && hasUnsavedFiles(item.root));
+  return !unsaved || window.confirm(t("files.edit.discardPane"));
+}
+
+/** Closes the split of a tab (asking first when it holds unsaved edits); false when the tab has none. */
+export function unsplitTab(key: string): boolean {
+  const store = useWorkspaceStore.getState();
+  const tab = store.ws.tabs.find((one) => one.key === key);
+  if (!tab?.split) return false;
+  if (mayDiscard([tab.split.item])) store.unsplit(key);
+  return true;
+}
+
 export function closeItem(navigate: Navigate, key: string): void {
   const store = useWorkspaceStore.getState();
+  const tab = store.ws.tabs.find((one) => one.key === key);
+  if (!mayDiscard([tab?.item, tab?.split?.item])) return;
   const wasActive = store.ws.active === key;
   store.close(key);
   if (!wasActive) return;
@@ -52,7 +71,7 @@ export function toggleSplit(): boolean {
   const store = useWorkspaceStore.getState();
   const tab = activeTab(store.ws);
   if (!tab) return false;
-  if (tab.split) store.unsplit(tab.key);
+  if (tab.split) unsplitTab(tab.key);
   else {
     const item = otherItem(store.ws);
     if (!item) return false;

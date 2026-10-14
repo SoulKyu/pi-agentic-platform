@@ -18,6 +18,8 @@ export const PROJECTS_MIGRATIONS: MigrationSource = {
 export interface ProjectsPort {
   ensure(ownerId: string, root: string): ProjectView | null;
   list(ownerId: string, ids: readonly string[]): ProjectView[];
+  /** Every project root of the owner as stored, newest first (M8R15, M8R19). */
+  roots(ownerId: string): readonly string[];
   onChange(listener: (ownerId: string, project: ProjectView) => void): () => void;
 }
 
@@ -40,6 +42,6 @@ export function createProjectsModule(deps: {
   });
   return {
     rpc: projectsRpc(service),
-    port: { ensure: service.ensure, list: service.list, onChange: service.onChange },
+    port: { ensure: service.ensure, list: service.list, roots: service.roots, onChange: service.onChange },
   };
 }

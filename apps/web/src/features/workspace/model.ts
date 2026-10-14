@@ -5,7 +5,10 @@ export type ItemRef =
   | { readonly kind: "home" }
   | { readonly kind: "session"; readonly id: string }
   | { readonly kind: "settings"; readonly section: SettingsSection }
-  | { readonly kind: "dev-ui" };
+  | { readonly kind: "dev-ui" }
+  | { readonly kind: "files"; readonly root: string }
+  | { readonly kind: "changes"; readonly root: string }
+  | { readonly kind: "terminal"; readonly id: string };
 
 export interface Split {
   readonly item: ItemRef;
@@ -31,6 +34,11 @@ export function itemKey(item: ItemRef): string {
   switch (item.kind) {
     case "session":
       return `session:${item.id}`;
+    case "files":
+    case "changes":
+      return `${item.kind}:${item.root}`;
+    case "terminal":
+      return `terminal:${item.id}`;
     case "home":
     case "settings":
     case "dev-ui":

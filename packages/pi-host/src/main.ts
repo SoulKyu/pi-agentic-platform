@@ -1,3 +1,5 @@
+// Must stay first: closes the inherited pty descriptors before anything else is evaluated (MC29).
+import "./close-inherited-fds.ts";
 import { installSignalCleanup, killDetachedDescendants } from "./descendants.ts";
 import { runHost } from "./host.ts";
 import { createIpc } from "./ipc.ts";

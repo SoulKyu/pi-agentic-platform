@@ -1,6 +1,15 @@
-import { useId } from "react";
+import { useId, type ClipboardEvent, type DragEvent, type KeyboardEvent, type RefObject } from "react";
 import { cn } from "../cn.ts";
 import { isSubmitShortcut } from "./submit-shortcut.ts";
+
+/** A listbox this field drives (a mention or command menu): the four attributes of the combobox pattern. */
+export interface TextFieldCombobox {
+  readonly expanded: boolean;
+  /** The id of the listbox. */
+  readonly controls: string;
+  /** The id of the highlighted option, or null. */
+  readonly activeDescendant: string | null;
+}
 
 export interface TextFieldProps {
   readonly label: string;
@@ -15,6 +24,14 @@ export interface TextFieldProps {
   readonly autoComplete?: string;
   readonly disabled?: boolean;
   onSubmitShortcut?(): void;
+  /** Multiline only. Runs before the submit shortcut; an event it prevented does not submit (M8R83). */
+  onKeyDown?(event: KeyboardEvent<HTMLTextAreaElement>): void;
+  readonly inputRef?: RefObject<HTMLTextAreaElement | null>;
+  onPaste?(event: ClipboardEvent<HTMLTextAreaElement>): void;
+  onDrop?(event: DragEvent<HTMLTextAreaElement>): void;
+  onDragOver?(event: DragEvent<HTMLTextAreaElement>): void;
+  /** Null or absent: the field is a plain textarea. */
+  readonly combobox?: TextFieldCombobox | null;
 }
 
 const FIELD_CLASSES = cn(
@@ -22,7 +39,7 @@ const FIELD_CLASSES = cn(
   "disabled:cursor-not-allowed disabled:opacity-50",
 );
 
-export function TextField(props: TextFieldProps) {
+export function TextField({ inputRef, ...props }: TextFieldProps) {
   const id = useId();
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
@@ -45,10 +62,25 @@ export function TextField(props: TextFieldProps) {
       {props.multiline ? (
         <textarea
           {...shared}
+          {...(props.combobox
+            ? {
+                role: "combobox",
+                "aria-expanded": props.combobox.expanded,
+                "aria-controls": props.combobox.controls,
+                "aria-activedescendant": props.combobox.activeDescendant ?? undefined,
+                "aria-autocomplete": "list" as const,
+              }
+            : {})}
+          ref={inputRef}
           className={cn(FIELD_CLASSES, "text-chat")}
           rows={3}
           onChange={(event) => props.onChange(event.target.value)}
+          onPaste={props.onPaste}
+          onDrop={props.onDrop}
+          onDragOver={props.onDragOver}
           onKeyDown={(event) => {
+            props.onKeyDown?.(event);
+            if (event.defaultPrevented) return;
             // Handled here: the browser must not also add a line break for the same keystroke.
             if (props.onSubmitShortcut && isSubmitShortcut(event)) {
               event.preventDefault();

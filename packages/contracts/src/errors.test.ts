@@ -32,6 +32,19 @@ describe("error codes", () => {
     expect(ERROR_CODES.indexOf("limit_reached")).toBe(ERROR_CODES.indexOf("command_failed") + 1);
   });
 
+  it("has the M8 codes before unknown_method, with fixed messages", () => {
+    expect(ERROR_CODES).toContain("protected_path");
+    expect(ERROR_CODES).toContain("terminal_unavailable");
+    expect(ERROR_CODES.indexOf("protected_path")).toBeLessThan(ERROR_CODES.indexOf("unknown_method"));
+    expect(ERROR_CODES.indexOf("terminal_unavailable")).toBeLessThan(ERROR_CODES.indexOf("unknown_method"));
+    expect(ERROR_MESSAGES.protected_path).toBe(
+      "This file can run commands later, such as a git hook or an editor task. Confirm to save it.",
+    );
+    expect(ERROR_MESSAGES.terminal_unavailable).toBe(
+      "Terminals are not available on this server: the terminal module did not load.",
+    );
+  });
+
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
   });

@@ -294,3 +294,20 @@ describe("protocol v2 records", () => {
     expect(PolicyRules.safeParse({ ...base, alwaysAllow: many }).success).toBe(false);
   });
 });
+
+describe("prompt images (M8R41)", () => {
+  const prompt = { type: "prompt", id: "p1", message: "look" };
+  it("accepts up to 10 absolute image paths of an image type", () => {
+    const images = [{ path: "/pap/attachments/pending/x", mimeType: "image/png" }];
+    expect(DaemonToWorker.safeParse({ ...prompt, images }).success).toBe(true);
+    expect(DaemonToWorker.safeParse({ ...prompt, images: Array(11).fill(images[0]) }).success).toBe(false);
+  });
+  it("refuses a relative path and a type that is not an image the worker can read", () => {
+    expect(
+      DaemonToWorker.safeParse({ ...prompt, images: [{ path: "pending/x", mimeType: "image/png" }] }).success,
+    ).toBe(false);
+    expect(
+      DaemonToWorker.safeParse({ ...prompt, images: [{ path: "/p/x", mimeType: "image/heic" }] }).success,
+    ).toBe(false);
+  });
+});

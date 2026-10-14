@@ -6,16 +6,28 @@ import {
   methods,
   TOKEN_LIFETIMES_DAYS,
   TOKEN_PERMISSIONS,
+  TokenPermission,
 } from "./index.ts";
 
 describe("token contract", () => {
   it("lets a token hold every permission except auth:* and policy:admin, in catalogue order", () => {
-    expect(TOKEN_PERMISSIONS).toHaveLength(14);
+    expect(TOKEN_PERMISSIONS).toHaveLength(20);
     expect(TOKEN_PERMISSIONS).toEqual(
-      ALL_PERMISSIONS.filter((p) => !p.startsWith("auth:") && p !== "policy:admin"),
+      ALL_PERMISSIONS.filter(
+        (p) => !p.startsWith("auth:") && !p.startsWith("terminal:") && p !== "policy:admin",
+      ),
     );
     expect(TOKEN_PERMISSIONS).not.toContain("policy:admin");
     expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("auth:"))).toBe(false);
+  });
+
+  it("lets a token read and write files and read git, but never hold a terminal permission", () => {
+    expect(TOKEN_PERMISSIONS).toContain("files:read");
+    expect(TOKEN_PERMISSIONS).toContain("files:operate");
+    expect(TOKEN_PERMISSIONS).toContain("vcs:read");
+    expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("terminal:"))).toBe(false);
+    expect(TokenPermission.safeParse("terminal:operate").success).toBe(false);
+    expect(ALL_PERMISSIONS).toContain("terminal:operate");
   });
 
   it("fixes the value shape, the lifetimes and the cap", () => {

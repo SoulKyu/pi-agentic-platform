@@ -23,6 +23,8 @@ import {
   type Behavior,
   type Cleared,
 } from "./composer.vm.ts";
+import "./composer/register-files-catalog.ts";
+import type { Attachments } from "./composer/use-attachments.ts";
 import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 
 /** Text put in the composer from outside the stream ("Edit from here"); `n` rises with each one. */
@@ -30,6 +32,12 @@ export interface Injected {
   readonly n: number;
   readonly text: string;
 }
+
+/** What the composer needs of the attached files (M8R85): the tray's `useAttachments`. */
+export type ComposerAttachments = Pick<
+  Attachments,
+  "ids" | "ready" | "failed" | "uploading" | "hasImage" | "drop" | "renew"
+>;
 
 /**
  * The composer's state: the draft (saved as it changes), the way a message goes while the agent works, a send whose
@@ -39,7 +47,11 @@ export interface Injected {
 export function useComposer(
   sessionId: string,
   view: SessionView,
-  outside: { readonly injected: Injected | null; readonly structuralBusy: boolean } = {
+  outside: {
+    readonly injected: Injected | null;
+    readonly structuralBusy: boolean;
+    readonly attachments?: ComposerAttachments;
+  } = {
     injected: null,
     structuralBusy: false,
   },
@@ -55,7 +67,7 @@ export function useComposer(
   // The daemon answered `session_busy`: something structural (a tree navigation...) runs that the view does not show.
   const [refusedAsBusy, setRefusedAsBusy] = useState(false);
   // Why the last action did nothing, or what it could not do; shown politely (a live region), never as an alert.
-  const [note, setNote] = useState<"pending" | "compacting" | "sending" | "truncated" | null>(null);
+  const [note, setNote] = useState<"pending" | "compacting" | "sending" | "truncated" | "files" | null>(null);
   // One prompt RPC at a time: the write-ahead entry always belongs to the send in flight.
   const [sending, setSending] = useState(false);
   const sendingRef = useRef(false);
@@ -138,7 +150,8 @@ export function useComposer(
   // same command id, which the daemon answers from its receipt. A definite outcome removes it; `timeout` and
   // `connection_lost` keep it. After a sign-out nothing is written back, and an instance that has gone away
   // writes only to storage, merging with the draft that is stored now (a newer instance may own it).
-  const deliver = async (params: PendingSend["params"], commandId: string) => {
+  const attached = outside.attachments;
+  const deliver = async (params: PendingSend["params"], commandId: string, withImage = false) => {
     setError(null);
     const signOuts = signOutCount();
     sendingRef.current = true;
@@ -164,10 +177,19 @@ export function useComposer(
         );
       }
       remember(null);
+      // The pending uploads are gone (expired, or the daemon restarted): the tray cannot be sent as it is (M8R114).
+      const expired = params.attachments?.length && failureCode(failure) === "not_found";
+      if (expired) attached?.drop(params.attachments ?? []);
       if (mounted.current) {
         if (failureCode(failure) === "session_busy") setRefusedAsBusy(true);
         commit(mergeRestored(params.text, textRef.current));
-        setError(failureText(failure));
+        setError(
+          expired
+            ? t("sessions.files.expired")
+            : withImage && failureCode(failure) === "prompt_rejected"
+              ? t("sessions.files.imageRejected")
+              : failureText(failure),
+        );
       }
       return;
     }
@@ -175,6 +197,7 @@ export function useComposer(
     if (mounted.current) setSending(false);
     setRefusedAsBusy(false);
     remember(null);
+    if (params.attachments?.length) attached?.drop(params.attachments);
   };
 
   const compacting = view.activity.compacting;
@@ -182,7 +205,8 @@ export function useComposer(
   if (
     (note === "pending" && !pending) ||
     (note === "compacting" && !compacting) ||
-    (note === "sending" && !sending)
+    (note === "sending" && !sending) ||
+    (note === "files" && !attached?.uploading && !attached?.failed)
   )
     setNote(null);
   /** `remember: false` sends this message the given way without changing the saved choice (the one-shot chord). */
@@ -191,7 +215,16 @@ export function useComposer(
       setNote(pending ? "pending" : compacting ? "compacting" : "sending");
       return;
     }
-    const plan = planSend(textRef.current, way ?? behavior);
+    const ids = attached?.ids() ?? [];
+    // A chip that failed would be left out of the message without a word: nothing goes until it is retried or removed.
+    if (attached?.uploading || attached?.failed) {
+      setNote("files");
+      return;
+    }
+    // Files alone make a message: the daemon cites them in the text (M8R40).
+    const plan =
+      planSend(textRef.current, way ?? behavior) ??
+      (ids.length ? { text: "", streamingBehavior: way ?? behavior } : null);
     if (!plan) return;
     if (way && way !== behavior && options?.remember !== false) {
       setBehavior(way);
@@ -199,12 +232,18 @@ export function useComposer(
     }
     setNote(null);
     commit("");
-    void deliver({ sessionId, ...plan }, runtime.rpc.newCommandId());
+    void deliver(
+      { sessionId, ...plan, ...(ids.length ? { attachments: ids } : {}) },
+      runtime.rpc.newCommandId(),
+      attached?.hasImage ?? false,
+    );
   };
 
   return {
     text,
     behavior,
+    /** Something to send, and nothing still uploading. */
+    canSend: !attached?.uploading && (text.trim() !== "" || (attached?.ready ?? 0) > 0),
     pending,
     error,
     note:
@@ -216,7 +255,9 @@ export function useComposer(
             ? t("sessions.composer.blockedSending")
             : note === "truncated"
               ? t("sessions.composer.truncated")
-              : null,
+              : note === "files"
+                ? t("sessions.files.notReady")
+                : null,
     resending,
     compacting,
     sending,
@@ -228,7 +269,7 @@ export function useComposer(
       if (!pending || resendingRef.current || sendingRef.current) return;
       resendingRef.current = true;
       setResending(true);
-      await deliver(pending.params, pending.commandId);
+      await deliver(pending.params, pending.commandId, attached?.hasImage ?? false);
       resendingRef.current = false;
       if (mounted.current) setResending(false);
     },
@@ -236,6 +277,7 @@ export function useComposer(
       if (!pending) return;
       commit(mergeRestored(pending.params.text, textRef.current));
       remember(null);
+      if (pending.params.attachments?.length) attached?.renew(pending.params.attachments);
     },
     stop: () => {
       setError(null);

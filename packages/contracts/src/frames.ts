@@ -3,7 +3,7 @@ import { ERROR_CODES } from "./errors.ts";
 
 export const PROTOCOL_VERSION = 2;
 export const MAX_FRAME_BYTES = 1024 * 1024;
-export const CAPABILITIES = ["rpc", "subscribe"] as const;
+export const CAPABILITIES = ["rpc", "subscribe", "terminal"] as const;
 
 export const Cursor = z.object({ epoch: z.string().min(1).max(64), seq: z.number().int().nonnegative() });
 export type Cursor = z.infer<typeof Cursor>;

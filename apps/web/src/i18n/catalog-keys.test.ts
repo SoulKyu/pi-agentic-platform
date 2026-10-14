@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { changesEn, changesFr } from "./catalog/changes.ts";
 import { commandsEn, commandsFr } from "./catalog/commands.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
+import { filesEn, filesFr } from "./catalog/files.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
 import { sessionPolicyEn, sessionPolicyFr } from "./catalog/session-policy.ts";
+import { sessionFilesEn, sessionFilesFr } from "./catalog/session-files.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
@@ -13,6 +16,7 @@ import { settingsApprovalsEn, settingsApprovalsFr } from "./catalog/settings-app
 import { settingsShortcutsEn, settingsShortcutsFr } from "./catalog/settings-shortcuts.ts";
 import { shellEn, shellFr } from "./catalog/shell.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
+import { terminalEn, terminalFr } from "./catalog/terminal.ts";
 
 /** Keys written directly in en.ts / fr.ts: one `"key": value` per line at the object's top level. */
 function literalKeys(file: string): string[] {
@@ -44,6 +48,7 @@ describe("catalog keys never collide", () => {
         commands: Object.keys(commandsEn),
         dev: Object.keys(devEn),
         sessionScreen: Object.keys(sessionScreenEn),
+        sessionFiles: Object.keys(sessionFilesEn),
         settingsScreen: Object.keys(settingsScreenEn),
         settingsAppearance: Object.keys(settingsAppearanceEn),
         settingsShortcuts: Object.keys(settingsShortcutsEn),
@@ -53,6 +58,9 @@ describe("catalog keys never collide", () => {
         server: Object.keys(serverEn),
         sidebar: Object.keys(sidebarEn),
         sessionPolicy: Object.keys(sessionPolicyEn),
+        files: Object.keys(filesEn),
+        changes: Object.keys(changesEn),
+        terminal: Object.keys(terminalEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -65,6 +73,7 @@ describe("catalog keys never collide", () => {
         commands: Object.keys(commandsFr),
         dev: Object.keys(devFr),
         sessionScreen: Object.keys(sessionScreenFr),
+        sessionFiles: Object.keys(sessionFilesFr),
         settingsScreen: Object.keys(settingsScreenFr),
         settingsAppearance: Object.keys(settingsAppearanceFr),
         settingsShortcuts: Object.keys(settingsShortcutsFr),
@@ -74,6 +83,9 @@ describe("catalog keys never collide", () => {
         server: Object.keys(serverFr),
         sidebar: Object.keys(sidebarFr),
         sessionPolicy: Object.keys(sessionPolicyFr),
+        files: Object.keys(filesFr),
+        changes: Object.keys(changesFr),
+        terminal: Object.keys(terminalFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);

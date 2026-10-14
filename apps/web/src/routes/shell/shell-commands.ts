@@ -3,7 +3,11 @@ import { useAppearanceStore } from "../../features/appearance/index.ts";
 import { useCommand } from "../../features/commands/index.ts";
 import { activeTab, pathOfItem, useWorkspaceStore, type ItemRef } from "../../features/workspace/index.ts";
 import { signOut } from "./sign-out.ts";
-import { closeItem, go, goToActive, toggleSplit } from "./tab-actions.ts";
+import { useTerminalReady } from "./surface-view.ts";
+import { placeOf, showSurface, type Surface } from "./surface.ts";
+import { useShellStore } from "../../stores/shell-store.ts";
+import { reportClientIssue } from "../../lib/report.ts";
+import { closeItem, go, goToActive, toggleSplit, unsplitTab } from "./tab-actions.ts";
 
 type Setter = (open: boolean | ((open: boolean) => boolean)) => void;
 
@@ -36,6 +40,18 @@ export function useShellCommands(state: ShellCommandState): void {
     state.setTreeOpen(false);
     state.setInboxOpen((current) => !current);
   });
+  // Palette commands on the active session tab; false when it is not one the shell store holds (nothing to show).
+  const surface = (which: Surface) => () => {
+    const tab = activeTab(useWorkspaceStore.getState().ws);
+    if (!tab || tab.item.kind !== "session") return false;
+    const place = placeOf(useShellStore.getState().view, tab.item.id);
+    if (!place || (which === "terminal" ? place.cwd : place.root) === null) return false;
+    if (which === "terminal" && !useTerminalReady.getState().ready) return false; // the stream has not answered yet
+    showSurface(tab.key, tab.item.id, which).catch(() => reportClientIssue("command_failed"));
+  };
+  useCommand("session.showChanges", surface("changes"));
+  useCommand("session.openTerminal", surface("terminal"));
+  useCommand("session.showFiles", surface("files"));
   useCommand("settings.open", () => open({ kind: "settings", section: "appearance" }));
   useCommand("shortcuts.help", () => state.setHelpOpen(true));
   useCommand("session.new", () => open({ kind: "home" }));
@@ -48,10 +64,9 @@ export function useShellCommands(state: ShellCommandState): void {
   });
   useCommand("pane.split", () => (state.mobile ? false : toggleSplit()));
   useCommand("pane.close", () => {
-    const store = useWorkspaceStore.getState();
-    const tab = activeTab(store.ws);
-    if (!tab?.split) return false;
-    store.unsplit(tab.key);
+    const tab = activeTab(useWorkspaceStore.getState().ws);
+    if (!tab) return false;
+    return unsplitTab(tab.key) ? undefined : false;
   });
   useCommand("appearance.cycleMode", () => {
     const { account, setAccount } = useAppearanceStore.getState();

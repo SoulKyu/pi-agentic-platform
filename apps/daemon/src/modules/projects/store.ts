@@ -15,6 +15,8 @@ export interface ProjectsStore {
   /** In the person's order. */
   list(ownerId: string): ProjectRow[];
   byIds(ownerId: string, ids: readonly string[]): ProjectRow[];
+  /** Every root of the owner, newest first (M8R19). */
+  roots(ownerId: string): string[];
   count(ownerId: string): number;
   /** The lowest position, null without projects. */
   firstPosition(ownerId: string): number | null;
@@ -57,6 +59,13 @@ export function createProjectsStore(db: Db): ProjectsStore {
             `SELECT ${COLUMNS} FROM projects WHERE owner_id = $ownerId AND id IN (SELECT value FROM json_each($ids)) ORDER BY position, id`,
             { ownerId, ids: JSON.stringify(ids) },
           ),
+    roots: (ownerId) =>
+      db
+        .all<{ root: string }>(
+          "SELECT root FROM projects WHERE owner_id = $ownerId ORDER BY created_at DESC, id DESC LIMIT 2000",
+          { ownerId },
+        )
+        .map((row) => row.root),
     count: (ownerId) =>
       db.get<{ n: number }>("SELECT count(*) AS n FROM projects WHERE owner_id = $ownerId", { ownerId })?.n ??
       0,

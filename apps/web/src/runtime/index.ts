@@ -11,15 +11,18 @@ export interface Runtime {
   readonly subscriptions: Subscriptions;
 }
 
+/** The page's timers; the runtime's parts and the terminal channel share them. */
+export const windowTimers: Timers = {
+  set: (fn, ms) => window.setTimeout(fn, ms),
+  clear: (id) => window.clearTimeout(id),
+};
+
 let runtime: Runtime | null = null;
 let detach: (() => void) | null = null;
 
 export function getRuntime(): Runtime {
   if (runtime) return runtime;
-  const timers: Timers = {
-    set: (fn, ms) => window.setTimeout(fn, ms),
-    clear: (id) => window.clearTimeout(id),
-  };
+  const timers = windowTimers;
   const scheme = location.protocol === "https:" ? "wss" : "ws";
   const connection = createConnection({
     url: `${scheme}://${location.host}/ws?proto=${PROTOCOL_VERSION}`,

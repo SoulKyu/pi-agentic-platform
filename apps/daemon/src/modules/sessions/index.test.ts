@@ -17,6 +17,7 @@ import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { captureLogger } from "./testing/helpers.ts";
 import { testCaller } from "../../testing/caller.ts";
+import { noAttachments } from "./testing/no-attachments.ts";
 
 // The real supervisor forks a process; here it only records what it was asked to start, and answers like a worker.
 const spawned = vi.hoisted(() => ({
@@ -117,6 +118,7 @@ function moduleWith(
     projects: fakeProjectsPort(),
     ownerId: () => "u1",
     audit,
+    attachments: noAttachments,
     config: config(testProviderScript),
     workerUmask: 0o027,
     env: daemonEnv,

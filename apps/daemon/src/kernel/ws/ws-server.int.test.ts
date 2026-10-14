@@ -166,7 +166,7 @@ describe("/ws requests", () => {
     const client = await connect(good);
     expect(await client.next()).toEqual({
       protocol: PROTOCOL_VERSION,
-      capabilities: ["rpc", "subscribe"],
+      capabilities: ["rpc", "subscribe", "terminal"],
       serverVersion: "0.0.0-test",
     });
     expect(await client.call({ id: 1, method: "system.ping", params: {} })).toEqual({

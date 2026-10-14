@@ -14,6 +14,7 @@ export const DAEMON = join(REPO, "apps/daemon/dist/main.js");
 export const NETWORK_GUARD = join(REPO, "packages/pi-host/src/testing/network-guard.ts");
 export const PROTOCOL = 2;
 export const STEP_MS = 60_000;
+export const TERMINAL_WAIT_MS = 10_000;
 
 export type Json = Record<string, unknown>;
 export const step = (message: string): void => console.log(`smoke: ${message}`);
@@ -142,14 +143,25 @@ export function startDaemon(env: NodeJS.ProcessEnv, port: number): Daemon {
 export interface SmokeSocket {
   call(method: string, params: Json, mutation?: boolean): Promise<unknown>;
   waitFor(match: (event: Json) => boolean, what: string): Promise<Json>;
+  /** One client binary frame (spec C 4.2): `op` 16 is input, 17 is an ack. */
+  sendBinary(op: 16 | 17, streamId: number, seq: number, payload: Uint8Array): void;
+  /** Waits until the `output` frames of a stream hold `needle`. */
+  waitForOutput(streamId: number, needle: string, what: string): Promise<void>;
   close(): void;
 }
+
+// The smoke has its own small codec on purpose: it runs on bare Node with no workspace build, and the contracts
+// package resolves to TypeScript sources only under the development condition. Its one input has seq 1.
+// The frame header, as spec C 4.2 writes it: magic 0x70, version 1, op, 0, streamId, then seq as two 32-bit words.
+const FRAME_HEADER = 16;
+const OP_OUTPUT = 1;
 
 export async function openSession(port: number, origin: string, cookie: string): Promise<SmokeSocket> {
   const socket = new WebSocket(`ws://127.0.0.1:${port}/ws?proto=${PROTOCOL}`, {
     headers: { origin, cookie },
   });
   const events: Json[] = [];
+  const outputs = new Map<number, string>();
   const answers = new Map<number, (frame: Json) => void>();
   const watchers = new Set<() => void>();
   let hello: (frame: Json) => void = () => {};
@@ -160,7 +172,16 @@ export async function openSession(port: number, origin: string, cookie: string):
     socket.once("close", (code) => reject(new Error(`the socket closed (${code}) before the answer`))),
   );
   closed.catch(() => undefined);
-  socket.on("message", (data) => {
+  socket.on("message", (data, isBinary) => {
+    if (isBinary) {
+      const bytes = data as Buffer;
+      if (bytes.length >= FRAME_HEADER && bytes[0] === 0x70 && bytes[2] === OP_OUTPUT) {
+        const streamId = bytes.readUInt32LE(4);
+        outputs.set(streamId, (outputs.get(streamId) ?? "") + bytes.subarray(FRAME_HEADER).toString("utf8"));
+        for (const watcher of [...watchers]) watcher();
+      }
+      return;
+    }
     const frame = asJson(JSON.parse(String(data)));
     if ("protocol" in frame) hello(frame);
     else if ("sub" in frame) {
@@ -205,6 +226,33 @@ export async function openSession(port: number, origin: string, cookie: string):
           closed,
         ]),
         STEP_MS,
+        what,
+      ),
+    sendBinary(op, streamId, seq, payload) {
+      const header = Buffer.alloc(FRAME_HEADER);
+      header.writeUInt8(0x70, 0);
+      header.writeUInt8(1, 1);
+      header.writeUInt8(op, 2);
+      header.writeUInt32LE(streamId, 4);
+      header.writeUInt32LE(Math.floor(seq / 2 ** 32), 8);
+      header.writeUInt32LE(seq % 2 ** 32, 12);
+      socket.send(Buffer.concat([header, payload]), { binary: true });
+    },
+    waitForOutput: (streamId, needle, what) =>
+      within(
+        Promise.race([
+          new Promise<void>((resolve) => {
+            const look = () => {
+              if (!(outputs.get(streamId) ?? "").includes(needle)) return;
+              watchers.delete(look);
+              resolve();
+            };
+            watchers.add(look);
+            look();
+          }),
+          closed,
+        ]),
+        TERMINAL_WAIT_MS,
         what,
       ),
     close: () => socket.close(),

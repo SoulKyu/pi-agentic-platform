@@ -15,6 +15,7 @@ import { WebSocketServer, type RawData, type WebSocket } from "ws";
 import type { Clock, TimerHandle } from "../clock.ts";
 import { originAllowed, type OriginRefused } from "../http/origin.ts";
 import type { Logger } from "../logger.ts";
+import { createBinaryStreams, type PreparedStream } from "./binary-streams.ts";
 import type { Dispatch } from "./dispatcher.ts";
 import type { PreparedOpen, StreamHub } from "./stream-hub.ts";
 
@@ -135,6 +136,13 @@ function upgradeUrl(req: IncomingMessage): URL | null {
   }
 }
 
+/** One binary message as bytes; `maxPayload` already capped the total. */
+function toBytes(data: RawData): Uint8Array {
+  if (Array.isArray(data)) return new Uint8Array(Buffer.concat(data));
+  if (data instanceof ArrayBuffer) return new Uint8Array(data);
+  return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+}
+
 /** Parses one text message. A malformed one is dropped, or answered `bad_request` when it has a usable id. */
 function decode(text: string, reply: (frame: unknown) => void): RequestFrame | null {
   let raw: unknown;
@@ -153,6 +161,8 @@ function decode(text: string, reply: (frame: unknown) => void): RequestFrame | n
 
 export function createWsServer(options: WsServerOptions): WsServer {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_FRAME_BYTES });
+  // Each open connection's way to end its binary streams, for `close()`.
+  const closers = new Set<() => void>();
 
   /**
    * `credential` is the cookie or bearer of the upgrade, kept for the life of the socket and used for nothing but the
@@ -181,6 +191,14 @@ export function createWsServer(options: WsServerOptions): WsServer {
       }
     };
 
+    const binary = createBinaryStreams({
+      connectionId,
+      send: (bytes) => ws.send(bytes, { binary: true }),
+      buffered: () => (ws.readyState === ws.OPEN ? ws.bufferedAmount : Number.POSITIVE_INFINITY),
+      logger: options.logger,
+    });
+    closers.add(binary.closeAll);
+
     // Subscriptions of this connection, committed or still waiting for their response to go out.
     const subs = new Set<string>();
     const release = (sub: string): void => {
@@ -193,6 +211,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
       if (revoked) return;
       revoked = true;
       options.hub.close(connectionId);
+      binary.closeAll();
       subs.clear();
       if (ws.readyState === ws.CLOSED) return;
       ws.close(CLOSE_UNAUTHENTICATED, "unauthenticated");
@@ -206,6 +225,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
       let answered = false;
       let committed = false;
       const prepared: Array<{ readonly sub: string; readonly open: PreparedOpen }> = [];
+      const preparedBinary: PreparedStream[] = [];
       try {
         const frame = decode(text, sendSafe);
         requestId = frame?.id ?? null;
@@ -233,6 +253,13 @@ export function createWsServer(options: WsServerOptions): WsServer {
             return sub;
           },
           closeSubscription: release,
+          binary: {
+            open(sink) {
+              const opened = binary.open(sink);
+              preparedBinary.push(opened);
+              return opened.stream;
+            },
+          },
         });
         send(response);
         answered = true;
@@ -240,14 +267,30 @@ export function createWsServer(options: WsServerOptions): WsServer {
         if (response.ok && ws.readyState === ws.OPEN) {
           committed = true;
           for (const { open } of prepared) open.commit();
+          for (const opened of preparedBinary) opened.commit();
         }
       } catch (error) {
         options.logger.error("ws_message_failed", { connectionId, err: error });
         if (requestId !== null && !answered)
           sendSafe({ id: requestId, ok: false, error: { code: "internal" } });
       } finally {
-        if (!committed) for (const { sub } of prepared) release(sub);
+        if (!committed) {
+          for (const { sub } of prepared) release(sub);
+          for (const opened of preparedBinary) opened.release();
+        }
       }
+    };
+
+    // Typing must stop within one frame of a revocation, like JSON requests (M8R11); a failed check drops the frame.
+    const onBinary = (bytes: Uint8Array): void => {
+      if (revoked) return;
+      try {
+        if (!options.authenticate(credential, { slide: false })) return revoke();
+      } catch (error) {
+        options.logger.error("ws_authenticate_failed", { connectionId, err: error });
+        return;
+      }
+      binary.onFrame(bytes);
     };
 
     const keepalive = startKeepalive(ws, options.clock, () => {
@@ -262,11 +305,14 @@ export function createWsServer(options: WsServerOptions): WsServer {
       }
     });
     ws.on("message", (data: RawData, isBinary: boolean) => {
-      if (!isBinary) void onText(data.toString());
+      if (isBinary) onBinary(toBytes(data));
+      else void onText(data.toString());
     });
     ws.on("close", () => {
       keepalive.stop();
       options.hub.close(connectionId);
+      binary.closeAll();
+      closers.delete(binary.closeAll);
     });
     ws.on("error", (error) => options.logger.debug("ws_error", { connectionId, err: error }));
     send({
@@ -314,6 +360,7 @@ export function createWsServer(options: WsServerOptions): WsServer {
       wss.handleUpgrade(req, socket, head, (ws) => attach(ws, credential));
     },
     close() {
+      for (const closeAll of closers) closeAll();
       for (const client of wss.clients) {
         client.close(1001, "going away");
         const cut = options.clock.setTimeout(() => client.terminate(), CLOSE_GRACE_MS);

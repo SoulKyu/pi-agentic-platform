@@ -154,3 +154,42 @@ export const EXT = {
   },
   panelWaiting: "1 more waiting",
 } as const;
+
+// Sample code for the editor and the diff view: file content, not interface text.
+export const CODE = {
+  label: "Code sample",
+  noChanges: "No changes",
+  path: "src/sample.ts",
+  before: [
+    "export function total(items: number[]) {",
+    "  let sum = 0;",
+    "  for (const item of items) sum += item;",
+    "  return sum;",
+    "}",
+    "",
+    "// 1",
+    "// 2",
+    "// 3",
+    "// 4",
+    "// 5",
+    "// 6",
+    "",
+    "export const LIMIT = 10;",
+  ].join("\n"),
+  after: [
+    "export function total(items: readonly number[]): number {",
+    "  let sum = 0;",
+    "  for (const item of items) sum += item;",
+    "  return sum;",
+    "}",
+    "",
+    "// 1",
+    "// 2",
+    "// 3",
+    "// 4",
+    "// 5",
+    "// 6",
+    "",
+    "export const LIMIT = 20;",
+  ].join("\n"),
+} as const;

@@ -194,8 +194,86 @@ describe("the built web app under the daemon's CSP", () => {
   it("loads M2's session strings with the session chunk, not with the initial catalog", () =>
     keepsLazyOnly([/Load older messages/, /Charger les messages plus anciens/]));
 
+  it("keeps the files, changes and terminal panes out of the initial assets, each in a chunk of its own (M8R71)", async () => {
+    await keepsLazyOnly([/data-files-pane/, /data-changes-pane/, /data-terminal-pane/]);
+    const holders = new Map<string, string[]>();
+    for (const marker of ["data-files-pane", "data-changes-pane", "data-terminal-pane"])
+      for (const name of assets.filter((asset) => asset.endsWith(".js")))
+        if ((await readFile(join(out, "assets", name), "utf8")).includes(marker))
+          holders.set(marker, [...(holders.get(marker) ?? []), name]);
+    const chunks = [...holders.values()].flat();
+    expect(chunks).toHaveLength(3);
+    expect(new Set(chunks).size).toBe(3);
+  });
+
+  it("loads the pane strings with their chunks, not with the initial catalog (M8R71)", () =>
+    keepsLazyOnly([
+      /Eight files are open and all have unsaved changes/,
+      /Showing the first 2 000 changes/,
+      /Affichage des 2 000 premières modifications/,
+    ]));
+
+  // The app imports CodeEditor (the files viewer) and DiffView (the changes pane) from `@pap/ui/code`, so its build has
+  // the editor chunk and the merge view chunk; neither is in an initial file.
+  it("keeps CodeMirror and the merge view out of the initial assets (the app imports @pap/ui/code)", () =>
+    keepsLazyOnly([/cm-editor/, /cm-mergeView/]));
+
+  // The app imports TerminalSurface from `@pap/ui/terminal`; xterm, its addons and its stylesheet load with the pane.
+  it("keeps xterm and the terminal strings out of the initial assets (M8R80)", () =>
+    keepsLazyOnly([
+      /xterm-helper-textarea/,
+      /xterm-screen/,
+      /Reconnecting… input paused/,
+      /Reconnexion… saisie en pause/,
+    ]));
+
   it("keeps the project tree and its strings out of the initial assets", () =>
     keepsLazyOnly([/data-project-tree/, /Show 20 more/]));
+
+  // The entry is built on its own to see both CodeMirror and the merge view (the app build holds the editor only, above).
+  // What a consumer imports statically is that entry file (M8R74).
+  it("keeps CodeMirror and the merge view out of the @pap/ui/code entry, in chunks of their own (M8R74)", async () => {
+    const codeOut = await mkdtemp(join(tmpdir(), "pap-ui-code-"));
+    try {
+      await build({
+        configFile: false,
+        root: repoRoot,
+        logLevel: "silent",
+        oxc: { jsx: { runtime: "automatic" } },
+        build: {
+          outDir: codeOut,
+          emptyOutDir: true,
+          minify: true,
+          lib: { entry: join(repoRoot, "packages/ui/src/code.ts"), formats: ["es"], fileName: "code" },
+          rolldownOptions: { external: ["react", "react/jsx-runtime"] },
+        },
+      });
+      const files = (await readdir(codeOut)).filter((name) => name.endsWith(".js"));
+      // What loading the entry pulls in at once: the entry and the chunks it imports statically (a dynamic import is lazy).
+      const text = new Map<string, string>();
+      for (const name of files) text.set(name, await readFile(join(codeOut, name), "utf8"));
+      const eager = new Set<string>();
+      const visit = (name: string) => {
+        if (eager.has(name) || !text.has(name)) return;
+        eager.add(name);
+        for (const match of text.get(name)?.matchAll(/(?:from|import)\s*["']\.\/([^"']+\.js)["']/g) ?? [])
+          visit(match[1] ?? "");
+      };
+      visit("code.js");
+      expect(
+        [...eager].filter((name) => /cm-editor|cm-mergeView|cm-content/.test(text.get(name) ?? "")),
+      ).toEqual([]);
+      const lazy = files.filter((name) => !eager.has(name));
+      expect(lazy.length).toBeGreaterThan(8);
+      for (const marker of [/cm-editor/, /cm-mergeView/]) {
+        const holders: string[] = [];
+        for (const name of lazy) if (marker.test(text.get(name) ?? "")) holders.push(name);
+        expect(holders.length, String(marker)).toBeGreaterThan(0);
+      }
+    } finally {
+      await rm(codeOut, { recursive: true, force: true });
+    }
+  }, 60_000);
 
   it("keeps the markdown renderer and the highlighter out of the initial assets (owner R3-1, R3-5)", async () => {
     const initial = [...html.matchAll(/(?:src|href)="\/assets\/([^"]+\.js)"/g)].map((m) => m[1] ?? "");

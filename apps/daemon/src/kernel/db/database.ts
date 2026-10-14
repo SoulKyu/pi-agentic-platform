@@ -1,4 +1,5 @@
 import { DatabaseSync, type StatementSync } from "node:sqlite";
+import type { Logger } from "../logger.ts";
 
 export type SqlValue = string | number | bigint | null | Uint8Array;
 export type SqlParams = Record<string, SqlValue>;
@@ -13,7 +14,7 @@ export interface Db {
   close(): void;
 }
 
-export function openDatabase(path: string, options: { readOnly?: boolean } = {}): Db {
+export function openDatabase(path: string, options: { readOnly?: boolean; logger?: Logger } = {}): Db {
   const readOnly = options.readOnly === true;
   const raw = new DatabaseSync(path, { readOnly, enableForeignKeyConstraints: true });
   // busy_timeout first: switching to WAL needs a lock and must wait for it like any other statement.
@@ -56,6 +57,17 @@ export function openDatabase(path: string, options: { readOnly?: boolean } = {})
         depth--;
       }
     },
-    close: () => raw.close(),
+    close() {
+      // SQLite checkpoints on the last close only: a reader still open (the search thread) would keep the log full.
+      if (!readOnly) {
+        try {
+          raw.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        } catch (error) {
+          // A reader in the middle of a read blocks the truncation; the log stays and SQLite recovers it at the next open.
+          options.logger?.debug("wal_checkpoint_failed", { code: (error as { code?: unknown }).code });
+        }
+      }
+      raw.close();
+    },
   };
 }

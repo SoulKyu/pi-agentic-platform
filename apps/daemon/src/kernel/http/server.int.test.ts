@@ -6,7 +6,7 @@ import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../logger.ts";
 import { createHttpApp } from "./app.ts";
-import { startServer } from "./server.ts";
+import { startServer, UPLOAD_REQUEST_TIMEOUT_MS } from "./server.ts";
 
 const app = new Hono().get("/healthz", (c) => c.json({ status: "ok" }));
 const noUpgrade = (_req: unknown, socket: { destroy(): void }) => socket.destroy();
@@ -17,6 +17,16 @@ describe("startServer", () => {
   it("serves on an ephemeral port and closes", async () => {
     const server = await listenOn(0);
     expect(await (await fetch(`http://127.0.0.1:${server.port}/healthz`)).json()).toEqual({ status: "ok" });
+    await server.close();
+  });
+
+  it("states the request timeout of uploads: 5 minutes, written down and not left to the runtime default (M8R106)", async () => {
+    const listen = vi.spyOn(Server.prototype, "listen");
+    const server = await listenOn(0);
+    const instance = listen.mock.contexts[0] as Server;
+    listen.mockRestore();
+    expect(instance.requestTimeout).toBe(UPLOAD_REQUEST_TIMEOUT_MS);
+    expect(UPLOAD_REQUEST_TIMEOUT_MS).toBe(300_000);
     await server.close();
   });
 

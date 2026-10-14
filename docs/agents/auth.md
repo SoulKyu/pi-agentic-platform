@@ -83,6 +83,14 @@ Code: `passkeys.ts` (ceremonies), `login-challenge.ts` (stateless sign-in challe
 - ADR 0021 records the deviation from spec C 4.4 (bearer tokens without `Origin`, step-up, the throttle keys).
 - Every request frame and every keepalive tick re-checks the credential (the tick does not slide), so a revoked or expired token or session closes its socket with 4401. `GET /ws` accepts the same two credentials.
 
+## Tokens and M8's files and terminals
+
+- `TOKEN_PERMISSIONS` drops `auth:*`, `policy:admin` and `terminal:*` (`contracts/src/auth.ts:10`, M8R2): a standing credential makes no code-running change. A token may hold `files:read|operate`, `vcs:read` and `sessions:operate`.
+- A token never sends `confirmProtected` (`forbidden` on any path), never writes a protected name, anything under `<agentDir>` or a `.pi/` folder, and never reads Pi's folder, a `.pi/mcp.json`, a `.mcp.json`, home's dot-entries (when a project is the home folder) or `/proc`, `/sys`, `/dev`, `/run`: those answer `not_found`, so a token cannot tell they exist. Pinned end to end in `apps/daemon/src/security/files-origin.int.test.ts`.
+- The HTTP file routes (`GET` / `PUT /files/raw`, `POST /upload`) are cookie-only: a request with an `Authorization` header is `401`, whatever it holds (ADR 0031). A token uses `files.*` over `/ws`.
+- A `vcs` subscription of a token is its own filtered stream (`token:<root>`), without the entries its boundary hides (ADR 0032).
+- `step_up_required` also guards saves under Pi's folders and `.pi/` (the same 5-minute mark, `files.md`).
+
 ## Recovery commands
 
 Code: `apps/daemon/src/cli/{user-add,passkey-reset,read-secret}.ts`, `modules/auth/cli.ts`. They run through the CLI, take the instance lock (M5R133) and so need the daemon stopped; for the preview service run `systemctl --user stop pap-preview` first (a running daemon makes them exit 1 with that hint and change nothing). The lock is taken before the password is asked and held until the command ends.

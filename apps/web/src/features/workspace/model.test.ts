@@ -101,4 +101,25 @@ describe("workspace model", () => {
       itemKey({ kind: "dev-ui" }),
     ]).toEqual(["home", "session:x", "settings", "dev-ui"]);
   });
+
+  it("keys the M8 items by kind and root or id", () => {
+    expect([
+      itemKey({ kind: "files", root: "/w" }),
+      itemKey({ kind: "changes", root: "/w" }),
+      itemKey({ kind: "terminal", id: "t1" }),
+    ]).toEqual(["files:/w", "changes:/w", "terminal:t1"]);
+  });
+
+  it("opens and splits with the M8 items, once per key", () => {
+    const opened = openItem(openItem(EMPTY_WORKSPACE, session("a")), { kind: "files", root: "/w" });
+    expect(keys(opened)).toEqual(["session:a", "files:/w"]);
+    const again = openItem(opened, { kind: "files", root: "/w" });
+    expect(keys(again)).toEqual(["session:a", "files:/w"]);
+    const split = splitTab(opened, "session:a", { kind: "changes", root: "/w" });
+    expect(split.tabs[0]?.split?.item).toEqual({ kind: "changes", root: "/w" });
+    expect(splitTab(split, "session:a", { kind: "terminal", id: "t1" }).tabs[0]?.split?.item).toEqual({
+      kind: "terminal",
+      id: "t1",
+    });
+  });
 });

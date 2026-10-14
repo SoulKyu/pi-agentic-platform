@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import * as ui from "@pap/ui";
+import * as code from "@pap/ui/code";
 import * as extensions from "@pap/ui/extensions";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,7 +15,7 @@ import { Gallery } from "./Gallery.tsx";
 const NOT_SHOWN = new Set(["TooltipProvider", "Toaster"]);
 // The glyph exports (IconAccount, IconBack...) are data for Icon; Icon and IconButton are components and are checked.
 const GLYPHS = /^Icon(?!Button$)[A-Z]/;
-const components = Object.entries({ ...ui, ...extensions })
+const components = Object.entries({ ...ui, ...extensions, ...code })
   .filter(
     ([name, value]) =>
       typeof value === "function" && /^[A-Z]/.test(name) && !GLYPHS.test(name) && !NOT_SHOWN.has(name),
@@ -41,7 +42,7 @@ const isCoarseTarget = (classes: string) =>
     (hasClass(classes, "pointer-coarse:min-h-11") || hasClass(classes, "pointer-coarse:h-11")));
 
 describe("/dev/ui gallery", () => {
-  it("shows every component @pap/ui and @pap/ui/extensions export", async () => {
+  it("shows every component @pap/ui, @pap/ui/extensions and @pap/ui/code export", async () => {
     window.history.replaceState(null, "", "/dev/ui");
     const page = await mount(<Gallery />);
     const shown = new Set(
@@ -54,7 +55,7 @@ describe("/dev/ui gallery", () => {
       [...page.container.querySelectorAll("[data-gallery-section]")].map((el) =>
         el.getAttribute("data-gallery-section"),
       ),
-    ).toEqual(["brand", "primitives", "ai"]);
+    ).toEqual(["brand", "primitives", "ai", "code"]);
     await page.unmount();
   });
 

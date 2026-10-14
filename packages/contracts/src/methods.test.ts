@@ -21,6 +21,7 @@ describe("method catalogue", () => {
       "auth.passkeys.remove",
       "auth.tokens.create",
       "auth.tokens.revoke",
+      "files.write",
       "policy.clearTaint",
       "policy.revokeRule",
       "policy.setSessionMode",
@@ -251,5 +252,33 @@ describe("method catalogue", () => {
     const get = methods["policy.getSettings"].result;
     expect(get.safeParse({ value: null, revision: 0 }).success).toBe(true);
     expect(get.safeParse({ revision: 0 }).success).toBe(false);
+  });
+});
+
+describe("the vcs methods come from vcsMethods", () => {
+  it("are spread from the domain list, never defined inline (M5R111)", () => {
+    const source = readFileSync(new URL("./methods.ts", import.meta.url), "utf8");
+    expect(source).toContain("...vcsMethods");
+    for (const name of ["subscribe.vcs", "vcs.refresh", "vcs.fileDiff"])
+      expect(source).not.toContain(`"${name}": defineMethod`);
+  });
+});
+
+describe("sessions.prompt attachments (M8R40)", () => {
+  const { params } = methods["sessions.prompt"];
+  const id = "a".repeat(22);
+  it("refuses an empty text without attachments and accepts it with one", () => {
+    expect(params.safeParse({ sessionId: "s", text: "" }).success).toBe(false);
+    expect(params.safeParse({ sessionId: "s", text: "", attachments: [] }).success).toBe(false);
+    expect(params.safeParse({ sessionId: "s", text: "", attachments: [id] }).success).toBe(true);
+    expect(params.safeParse({ sessionId: "s", text: "hello", attachments: [id] }).success).toBe(true);
+  });
+  it("caps the list at 10 and checks every id's shape", () => {
+    const ten = Array.from({ length: 10 }, (_, index) => String(index).padStart(22, "a"));
+    expect(params.safeParse({ sessionId: "s", text: "x", attachments: ten }).success).toBe(true);
+    expect(params.safeParse({ sessionId: "s", text: "x", attachments: [...ten, id] }).success).toBe(false);
+    expect(params.safeParse({ sessionId: "s", text: "x", attachments: ["a".repeat(21)] }).success).toBe(
+      false,
+    );
   });
 });

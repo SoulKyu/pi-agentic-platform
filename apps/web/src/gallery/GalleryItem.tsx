@@ -29,7 +29,7 @@ export function GallerySection({
   title,
   children,
 }: {
-  readonly id: "brand" | "primitives" | "ai";
+  readonly id: "brand" | "primitives" | "ai" | "code";
   readonly title: string;
   readonly children: ReactNode;
 }) {

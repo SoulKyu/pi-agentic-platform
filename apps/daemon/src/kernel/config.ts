@@ -9,6 +9,8 @@ import { defaultMemoryMaxMb, type ScopeLimits } from "./supervisor/scope.ts";
 const DEFAULT_HOST = "127.0.0.1";
 const DEFAULT_PORT = 7777;
 const DEFAULT_MIN_FREE_MEM_MB = 512;
+const DEFAULT_MAX_TERMINALS = 8;
+const MAX_TERMINALS_LIMIT = 64;
 // Timers hold at most 2^31 - 1 ms; a longer idle delay would fire at once.
 const MAX_IDLE_MINUTES = Math.floor((2 ** 31 - 1) / 60_000);
 export const VITE_DEV_ORIGIN = "http://localhost:5173";
@@ -33,11 +35,15 @@ export interface Config {
   readonly publicOrigin: string;
   readonly allowedOrigins: ReadonlySet<string>;
   readonly piAgentDir: string;
+  /** The daemon user's home folder (`os.homedir()`): the path boundary protects its dot-entries (M8R118). */
+  readonly userHome: string;
   readonly piHostEntry: string;
   readonly piHostExecArgv: readonly string[];
   readonly testProviderScript: string | null;
   readonly maxWorkers: number;
   readonly minFreeMemMb: number;
+  /** Running terminals per owner (`PAP_MAX_TERMINALS`, 1-64, M8R66). */
+  readonly maxTerminals: number;
   /** A worker with nothing to do is released after this long; 0 never releases (`PAP_WORKER_IDLE_MINUTES`). */
   readonly workerIdleMs: number;
   /** `auto` puts each worker in a systemd user scope when a lingering user manager answers; `off` never does. */
@@ -135,6 +141,7 @@ export function loadConfig(input: ConfigInput): Config {
       input.homedir,
       join(input.homedir, ".pi", "agent"),
     ),
+    userHome: input.homedir,
     piHostEntry: input.piHostEntry,
     // Test-only, like the scripted provider it rides with: a preload (the network guard) for every worker. Absolute,
     // because a worker's cwd is the session's project.
@@ -149,6 +156,9 @@ export function loadConfig(input: ConfigInput): Config {
     minFreeMemMb: input.env.PAP_MIN_FREE_MEM_MB
       ? parseCount(input.env.PAP_MIN_FREE_MEM_MB, "PAP_MIN_FREE_MEM_MB", 0)
       : DEFAULT_MIN_FREE_MEM_MB,
+    maxTerminals: input.env.PAP_MAX_TERMINALS
+      ? parseCount(input.env.PAP_MAX_TERMINALS, "PAP_MAX_TERMINALS", 1, MAX_TERMINALS_LIMIT)
+      : DEFAULT_MAX_TERMINALS,
     workerIdleMs:
       (input.env.PAP_WORKER_IDLE_MINUTES
         ? parseCount(input.env.PAP_WORKER_IDLE_MINUTES, "PAP_WORKER_IDLE_MINUTES", 0, MAX_IDLE_MINUTES)

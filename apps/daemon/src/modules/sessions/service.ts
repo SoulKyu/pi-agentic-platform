@@ -5,6 +5,7 @@ import { createPolicyLink } from "./policy-link.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import { createOrganiser } from "./organiser.ts";
+import { createPromptAttachments, plainPrompt } from "./prompt-attachments.ts";
 import { createAdoption } from "./service-adopt.ts";
 import { createSessionCommands } from "./service-commands.ts";
 import { createLaunch } from "./service-launch.ts";
@@ -33,6 +34,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   let closing = false;
   const policyLink = createPolicyLink({ ...deps, sessions: () => [...live.values(), ...starting] });
   const grants = policyLink.grants;
+  const attachments = createPromptAttachments(deps);
 
   const checkCapacity = () => {
     if (
@@ -195,11 +197,19 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     summary: shell.summaryFor,
     async prompt(input, caller) {
       const row = owned(input.sessionId, caller);
+      // Claimed for this session and owner before a worker is asked for anything; released only once Pi accepted (M8R43).
+      const ids = input.attachments ?? [];
+      const prepared =
+        ids.length === 0
+          ? plainPrompt(input.text)
+          : await attachments.prepare(caller.userId, row.id, input.text, ids);
       const session = await ensureLive(row);
       deps.store.touch(row.id, deps.clock.now());
       organiser.activity(row.id);
       publisher.changed(row.id);
-      return session.prompt(input.text, input.streamingBehavior);
+      const result = await session.prompt(prepared.text, input.streamingBehavior, prepared.images);
+      prepared.accepted();
+      return result;
     },
     async abort(sessionId, caller) {
       owned(sessionId, caller);

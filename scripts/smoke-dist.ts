@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkScannerAndSearch } from "./smoke-search.ts";
+import { checkTerminal } from "./smoke-terminal.ts";
 import {
   DAEMON,
   type Daemon,
@@ -52,6 +53,10 @@ async function drive(
   const base = `http://127.0.0.1:${port}`;
   const listening = await within(daemon.line("listening"), STEP_MS, "the daemon to listen");
   step(`daemon listening on ${String(listening.url)}`);
+  // node-pty must load from the built daemon: the boot probe logs terminal_unavailable when it does not (M8R51).
+  if (daemon.output.some((line) => line.includes('"terminal_unavailable"')))
+    throw new Error("node-pty did not load from the built daemon (terminal_unavailable in the boot log)");
+  step("node-pty loads from the built daemon");
   const health = await http(`${base}/healthz`);
   if (health.status !== 200) throw new Error(`/healthz answered ${health.status}`);
   const page = await http(`${base}/`);
@@ -110,6 +115,7 @@ async function drive(
     await session.waitFor(isPi("agent_settled"), "agent_settled");
     step("prompt -> approval -> tool output -> agent_settled");
     await checkScannerAndSearch({ agentDir, cwd: work, socket: session });
+    await checkTerminal({ cwd: work, socket: session });
   } finally {
     session.close();
   }

@@ -146,3 +146,35 @@ describe("drafts", () => {
     warn.mockRestore();
   });
 });
+
+describe("a pending send with attachments (M8R114)", () => {
+  const ids = ["a".repeat(22), "B_-".padEnd(22, "c")];
+
+  it("round-trips its attachment ids", () => {
+    const pending = pendingOf();
+    const withIds = { ...pending, params: { ...pending.params, attachments: ids } };
+    savePending(localStorage, "s1", withIds);
+    expect(loadPending(localStorage, "s1")).toEqual(withIds);
+  });
+
+  it("forgets the attachment ids at sign-out with the rest of the pending send", () => {
+    const pending = pendingOf();
+    savePending(localStorage, "s1", { ...pending, params: { ...pending.params, attachments: ids } });
+    clearSessionDrafts(localStorage);
+    expect(loadPending(localStorage, "s1")).toBeNull();
+  });
+
+  it("drops the whole entry when one id is not 22 URL-safe characters, or there are too many", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const pending = pendingOf();
+    for (const attachments of [[ids[0], "x".repeat(21)], "nope", Array.from({ length: 11 }, () => ids[0])]) {
+      localStorage.setItem(
+        "pap.pending.s1",
+        JSON.stringify({ ...pending, params: { ...pending.params, attachments } }),
+      );
+      expect(loadPending(localStorage, "s1"), JSON.stringify(attachments)).toBeNull();
+      expect(localStorage.getItem("pap.pending.s1")).toBeNull();
+    }
+    warn.mockRestore();
+  });
+});

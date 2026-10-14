@@ -18,6 +18,8 @@ export const ERROR_CODES = [
   "limit_reached",
   "step_up_required",
   "read_only",
+  "protected_path",
+  "terminal_unavailable",
   "unknown_method",
   "internal",
 ] as const;
@@ -43,6 +45,9 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   limit_reached: "This list is full. Remove an entry first.",
   step_up_required: "Confirm your password to continue.",
   read_only: "The database was written by a newer version and is read-only.",
+  protected_path:
+    "This file can run commands later, such as a git hook or an editor task. Confirm to save it.",
+  terminal_unavailable: "Terminals are not available on this server: the terminal module did not load.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

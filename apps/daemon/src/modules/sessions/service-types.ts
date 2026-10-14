@@ -17,6 +17,7 @@ import type { WorkerExit } from "../../kernel/supervisor/exit.ts";
 import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { AuditPort } from "../audit/index.ts";
+import type { AttachmentsPort } from "../files/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { Exports } from "./exports.ts";
@@ -35,6 +36,8 @@ export interface SessionsServiceDeps {
   readonly policy: PolicyPort;
   /** Where a worker's audit entries go (Task 10). */
   readonly audit: AuditPort;
+  /** The claims of pending uploads: a prompt's attachments (M8R43). */
+  readonly attachments: AttachmentsPort;
   /** What the daemon knows of the workers' containment: "scope" when each runs in a systemd scope. */
   readonly containment: "scope" | "none";
   /** Where a session's project is made (Task 6): one per folder scope, on demand. */
@@ -68,6 +71,8 @@ export interface PromptInput {
   readonly sessionId: string;
   readonly text: string;
   readonly streamingBehavior?: "steer" | "followUp" | undefined;
+  /** Pending uploads to claim for this prompt (M8R40). */
+  readonly attachments?: readonly string[] | undefined;
 }
 
 export interface SessionsService extends SessionCommands {

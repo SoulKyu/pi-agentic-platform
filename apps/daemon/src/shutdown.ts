@@ -1,9 +1,14 @@
 import type { Clock, TimerHandle } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
+import { PTY_EXIT_WAIT_MS, PTY_HANGUP_GRACE_MS } from "./kernel/pty/kill.ts";
 import { SHUTDOWN_GRACE_MS, SIGKILL_WAIT_MS, SIGTERM_GRACE_MS } from "./kernel/supervisor/kill-ladder.ts";
 
-/** The longest a graceful stop may take: one worker kill ladder, then closing the rest. A hang past it is cut. */
-export const STOP_DEADLINE_MS = SHUTDOWN_GRACE_MS + SIGTERM_GRACE_MS + SIGKILL_WAIT_MS + 5_000;
+/**
+ * The longest a graceful stop may take: one worker kill ladder, then one terminal kill ladder (they run one after the
+ * other), then closing the rest. A hang past it is cut.
+ */
+export const STOP_DEADLINE_MS =
+  SHUTDOWN_GRACE_MS + SIGTERM_GRACE_MS + SIGKILL_WAIT_MS + PTY_HANGUP_GRACE_MS + PTY_EXIT_WAIT_MS + 5_000;
 
 export const SHUTDOWN_SIGNALS = ["SIGTERM", "SIGINT", "SIGHUP"] as const;
 

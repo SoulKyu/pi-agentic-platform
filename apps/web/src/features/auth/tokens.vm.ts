@@ -20,8 +20,10 @@ export function permissionGrid(): GridRow[] {
 }
 
 /** Permissions that act in the owner's name, which the create form warns about. */
-export function riskyPermissions(selected: readonly string[]): Array<"sessions:operate"> {
-  return selected.includes("sessions:operate") ? ["sessions:operate"] : [];
+const RISKY = ["sessions:operate", "files:read", "files:operate"] as const;
+export type RiskyPermission = (typeof RISKY)[number];
+export function riskyPermissions(selected: readonly string[]): RiskyPermission[] {
+  return RISKY.filter((permission) => selected.includes(permission));
 }
 
 export const isExpired = (expiresAt: number, now: number): boolean => expiresAt <= now;

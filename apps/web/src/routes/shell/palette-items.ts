@@ -1,4 +1,4 @@
-import type { SessionSummary } from "@pap/contracts";
+import type { SessionSummary, TerminalView } from "@pap/contracts";
 import {
   chordJoiner,
   chordTokens,
@@ -26,12 +26,14 @@ interface PaletteItemsInput {
   readonly sessions: readonly SessionSummary[];
   /** The labels of the loaded session views: titles a tab of a session the list lacks (M4R86). */
   readonly views: Readonly<Record<string, ViewLabel>>;
+  /** The owner's terminals; the running ones are listed (M8R81). */
+  readonly terminals?: readonly TerminalView[];
   readonly t: Translate;
   navigate(item: ItemRef): void;
   run(id: string): void;
 }
 
-/** The palette's rows: open tabs, commands that have a handler, the 50 newest sessions, settings sections. */
+/** The palette's rows: open tabs, running terminals, commands that have a handler, the 50 newest sessions, settings sections. */
 export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
   const { t, navigate } = input;
   const known = new Map(input.sessions.map((session) => [session.id, session]));
@@ -89,5 +91,18 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
       run: () => navigate({ kind: "settings", section }),
     };
   });
-  return [...open, ...actions, ...sessions, ...settings];
+  const terminals = (input.terminals ?? [])
+    .filter((terminal) => terminal.status === "running")
+    .map((terminal): PaletteItem => {
+      const folder = basename(terminal.cwd);
+      return {
+        id: `terminal:${terminal.id}`,
+        group: "open",
+        title: t("commands.palette.terminal", { folder }),
+        detail: terminal.cwd,
+        searchTerms: [t("commands.palette.terminal", { folder }), terminal.cwd, folder],
+        run: () => navigate({ kind: "terminal", id: terminal.id }),
+      };
+    });
+  return [...open, ...terminals, ...actions, ...sessions, ...settings];
 }

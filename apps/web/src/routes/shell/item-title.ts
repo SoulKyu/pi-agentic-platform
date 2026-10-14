@@ -20,6 +20,12 @@ export function itemTitle(
       return t("shell.tab.home");
     case "settings":
       return t("shell.tab.settings");
+    case "files":
+      return t("shell.surface.files");
+    case "changes":
+      return t("shell.surface.changes");
+    case "terminal":
+      return t("shell.surface.terminal");
     case "dev-ui":
       // Production has no gallery: the tab of a /dev/ui item must not confirm that it exists elsewhere.
       return import.meta.env.DEV ? t("shell.tab.devUi") : t("shell.notFound.title");

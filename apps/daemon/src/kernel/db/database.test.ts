@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -69,5 +69,23 @@ describe("openDatabase", () => {
     expect(reader.all<{ v: string }>("SELECT v FROM t")).toEqual([{ v: "x" }]);
     expect(() => reader.run("INSERT INTO t (v) VALUES ('y')")).toThrow();
     reader.close();
+  });
+
+  it("leaves no data in the write-ahead log after close, with another connection still open (MC8 I1)", () => {
+    const reader = openDatabase(join(dir, "state.db"), { readOnly: true });
+    // One read first: the reader now holds a shared lock, so SQLite's own last-close checkpoint cannot run.
+    reader.all("SELECT v FROM t");
+    db.run("INSERT INTO t (v) VALUES ('x')");
+    expect(statSync(join(dir, "state.db-wal")).size).toBeGreaterThan(0);
+    db.close();
+    const wal = join(dir, "state.db-wal");
+    expect(existsSync(wal) ? statSync(wal).size : 0).toBe(0);
+    reader.close();
+    db = openDatabase(join(dir, "state.db"));
+  });
+
+  it("leaves a read-only handle's close alone", () => {
+    const reader = openDatabase(join(dir, "state.db"), { readOnly: true });
+    expect(() => reader.close()).not.toThrow();
   });
 });

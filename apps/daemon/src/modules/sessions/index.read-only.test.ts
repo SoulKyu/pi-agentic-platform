@@ -14,6 +14,7 @@ import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { captureLogger } from "./testing/helpers.ts";
 import { testCaller } from "../../testing/caller.ts";
+import { noAttachments } from "./testing/no-attachments.ts";
 
 // The real supervisor forks a process; nothing here starts a worker, so it only has to exist.
 vi.mock("../../kernel/supervisor/worker.ts", async (importOriginal) => ({
@@ -66,6 +67,7 @@ describe("sessions module over a read-only database (RT-04)", () => {
         projects,
         ownerId: () => "u1",
         audit: { append: () => {}, fromWorker: () => null },
+        attachments: noAttachments,
         config: {
           home: join(root, "pap"),
           piAgentDir: join(root, "agent"),

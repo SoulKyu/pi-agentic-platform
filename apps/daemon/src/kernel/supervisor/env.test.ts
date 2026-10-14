@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { workerEnv } from "./env.ts";
+import { isDaemonOnly, workerEnv } from "./env.ts";
 
 describe("workerEnv", () => {
   it("drops PAP_* variables, disables Pi telemetry and the version check, applies extras", () => {
@@ -55,6 +55,40 @@ describe("workerEnv", () => {
     );
     expect(env).toEqual({
       NODE_OPTIONS: "--max-old-space-size=256",
+      PI_TELEMETRY: "0",
+      PI_SKIP_VERSION_CHECK: "1",
+    });
+  });
+
+  it("drops the service manager's variables of the daemon's own unit and keeps PATH and XDG_RUNTIME_DIR", () => {
+    const platform = [
+      "NOTIFY_SOCKET",
+      "LISTEN_FDS",
+      "LISTEN_PID",
+      "LISTEN_FDNAMES",
+      "INVOCATION_ID",
+      "JOURNAL_STREAM",
+      "SYSTEMD_EXEC_PID",
+      "MANAGERPID",
+      "MANAGERPIDFDID",
+      "MAINPID",
+      "WATCHDOG_PID",
+      "WATCHDOG_USEC",
+      "CREDENTIALS_DIRECTORY",
+      "MEMORY_PRESSURE_WATCH",
+      "MEMORY_PRESSURE_WRITE",
+    ];
+    const base = Object.fromEntries([
+      ...platform.map((key) => [key, "x"]),
+      ["PAP_X", "x"],
+      ["NODE_OPTIONS", "--y"],
+      ["PATH", "/usr/bin"],
+      ["XDG_RUNTIME_DIR", "/run/user/1000"],
+    ]);
+    for (const key of platform) expect(isDaemonOnly(key), key).toBe(true);
+    expect(workerEnv(base, {})).toEqual({
+      PATH: "/usr/bin",
+      XDG_RUNTIME_DIR: "/run/user/1000",
       PI_TELEMETRY: "0",
       PI_SKIP_VERSION_CHECK: "1",
     });

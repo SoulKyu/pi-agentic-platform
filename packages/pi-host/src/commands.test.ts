@@ -58,6 +58,7 @@ describe("handlePrompt", () => {
       asSession({ prompt }),
       { id: "p1", message: "go" },
       (r) => sent.push(r),
+      [],
       (line) => logged.push(line),
     );
     await settle();
@@ -76,6 +77,7 @@ describe("handlePrompt", () => {
       asSession({ prompt }),
       { id: "p1", message: "go" },
       () => {},
+      [],
       (line) => logged.push(line),
     );
     await settle();
@@ -91,6 +93,7 @@ describe("handlePrompt", () => {
       asSession({ prompt }),
       { id: "p1", message: "go" },
       () => {},
+      [],
       (line) => logged.push(line),
     );
     await settle();

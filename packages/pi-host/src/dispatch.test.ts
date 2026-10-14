@@ -18,6 +18,7 @@ describe("dispatch", () => {
     const sent: Array<Record<string, unknown>> = [];
     let rules: PolicyRules | null = withAlways;
     const dispatch = createDispatch({
+      papHome: "/pap",
       applyTaint: () => {},
       session: {} as AgentSession,
       ipc: { send: (record: Record<string, unknown>) => void sent.push(record) } as unknown as Ipc,
@@ -50,6 +51,7 @@ describe("dispatch", () => {
       sessionManager: { getLeafId: () => "e7" },
     } as unknown as AgentSession;
     const dispatch = createDispatch({
+      papHome: "/pap",
       applyTaint: () => {},
       session,
       ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
@@ -74,6 +76,7 @@ describe("dispatch", () => {
         model: undefined,
       } as unknown as AgentSession;
       const dispatch = createDispatch({
+        papHome: "/pap",
         applyTaint: () => {},
         session,
         ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
@@ -95,6 +98,7 @@ describe("dispatch", () => {
       },
     } as unknown as AgentSession;
     const dispatch = createDispatch({
+      papHome: "/pap",
       applyTaint: () => {},
       session,
       ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
@@ -112,6 +116,7 @@ describe("dispatch", () => {
     const resolved: unknown[] = [];
     const sent: unknown[] = [];
     const dispatch = createDispatch({
+      papHome: "/pap",
       applyTaint: () => {},
       session: {} as AgentSession,
       ipc: { send: (record: unknown) => void sent.push(record) } as unknown as Ipc,
@@ -136,6 +141,7 @@ describe("dispatch", () => {
       const taint = createTaint({ tainted: false, epoch: 0 }, () => {});
       const sent: unknown[] = [];
       const dispatch = createDispatch({
+        papHome: "/pap",
         applyTaint: (next) => taint.apply(next),
         session: {} as AgentSession,
         ipc: { send: (record: unknown) => void sent.push(record) } as unknown as Ipc,

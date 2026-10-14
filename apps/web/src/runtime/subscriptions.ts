@@ -42,6 +42,10 @@ const OPENERS: {
   session: (rpc, key, after) =>
     rpc.call("subscribe.session", { sessionId: key, ...(after ? { after } : {}) }),
   shell: (rpc, _key, after) => rpc.call("subscribe.shell", after ? { after } : {}),
+  // The key is the repository root (M8R44).
+  vcs: (rpc, key, after) => rpc.call("subscribe.vcs", { root: key, ...(after ? { after } : {}) }),
+  // The caller's own terminals, like `shell`: the key is a local name (M8R65).
+  terminal: (rpc, _key, after) => rpc.call("subscribe.terminal", after ? { after } : {}),
 };
 
 interface Listener {

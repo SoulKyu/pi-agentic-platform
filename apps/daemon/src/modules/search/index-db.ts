@@ -89,18 +89,18 @@ function prepare(db: Db): Db {
 export function openSearchIndex(path: string, logger: Logger): Db {
   let db: Db | null = null;
   try {
-    db = openDatabase(path);
+    db = openDatabase(path, { logger });
     const version = versionOf(db);
     if (version === null || version === SEARCH_SCHEMA_VERSION) return prepare(db);
     closeQuietly(db, logger);
     removeIndexFiles(path);
     logger.warn("search_index_rebuilt", { reason: "version", from: version });
-    return prepare(openDatabase(path));
+    return prepare(openDatabase(path, { logger }));
   } catch (error) {
     if (!isIndexDamaged(error)) throw error;
     if (db) closeQuietly(db, logger);
     removeIndexFiles(path);
     logger.warn("search_index_rebuilt", { reason: "damaged" });
-    return prepare(openDatabase(path));
+    return prepare(openDatabase(path, { logger }));
   }
 }

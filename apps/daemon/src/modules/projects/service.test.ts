@@ -167,3 +167,16 @@ describe("projects", () => {
     expect(order()).toEqual(["p1", "p2"]);
   });
 });
+
+describe("roots", () => {
+  it("lists the owner's roots, newest first, and none of another owner's", async () => {
+    service.ensure("u1", "/w/api");
+    await bed.clock.advance(10);
+    service.ensure("u2", "/w/other");
+    await bed.clock.advance(10);
+    service.ensure("u1", "/w/web");
+    expect(service.roots("u1")).toEqual(["/w/web", "/w/api"]);
+    expect(service.roots("u2")).toEqual(["/w/other"]);
+    expect(service.roots("u3")).toEqual([]);
+  });
+});

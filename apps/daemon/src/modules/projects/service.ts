@@ -120,6 +120,8 @@ export function createProjectsService(deps: {
     },
     list: (ownerId: string, ids: readonly string[]): ProjectView[] =>
       deps.store.byIds(ownerId, ids).map(viewOf),
+    /** Every root of the owner, as stored, newest first: what the file boundary judges paths against (M8R15). */
+    roots: (ownerId: string): string[] => deps.store.roots(ownerId),
     update(caller: Caller, projectId: string, change: ProjectChange): void {
       try {
         applyUpdate(caller, projectId, change);

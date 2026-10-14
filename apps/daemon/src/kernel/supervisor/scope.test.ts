@@ -6,7 +6,7 @@ import { defaultMemoryMaxMb, type Exec, NO_SCOPES, probeScopes, sliceNames } fro
 const LIMITS = { memoryMaxMb: 2048, tasksMax: 4096 };
 const ENV = { XDG_RUNTIME_DIR: "/run/user/1000" };
 const HOME = "/nonexistent/pap-home";
-const { slice: SLICE, unitPrefix: PREFIX } = sliceNames(HOME);
+const { slice: SLICE, unitPrefix: PREFIX, terminalPrefix: TERM_PREFIX } = sliceNames(HOME);
 
 type Answer = { code: number | null; stdout?: string };
 function fakeExec(answers: (file: string, args: readonly string[]) => Answer) {
@@ -173,6 +173,19 @@ describe("probeScopes", () => {
     expect(new Set([one?.launch.args[3], two?.launch.args[3], three?.launch.args[3]]).size).toBe(3);
   });
 
+  it("names a terminal's unit apart from the workers' and gives it XDG_RUNTIME_DIR only (M8R54)", async () => {
+    const scopes = await probeScopes("auto", LIMITS, deps(fakeExec(healthy).exec));
+    const terminal = scopes.next({ kind: "terminal" });
+    expect(terminal?.unit).toMatch(/^pap-[0-9a-f]{8}-term-[0-9a-f]{8}-\d+\.scope$/);
+    expect(terminal?.launch.env).toEqual(ENV);
+    expect(terminal?.launch.args).toContain("--property=MemoryMax=2048M");
+    expect(terminal?.launch.args).toContain("--property=TasksMax=4096");
+    expect(terminal?.launch.args).toContain("--property=OOMPolicy=continue");
+    expect(scopes.next()?.unit).toMatch(new RegExp(`^${PREFIX}[0-9a-f]{8}-\\d+\\.scope$`));
+    expect(scopes.next({ kind: "worker" })?.launch.env).toHaveProperty("PAP_WORKER_UNIT");
+    expect(NO_SCOPES.next({ kind: "terminal" })).toBeNull();
+  });
+
   it("passes MemorySwapMax only when the limits ask for it (tests, M2-RT-41), and OOMPolicy only where systemd knows it", async () => {
     const { exec } = fakeExec(healthy);
     const withSwap = await probeScopes("auto", { ...LIMITS, memorySwapMaxMb: 0 }, deps(exec));
@@ -330,7 +343,7 @@ describe("probeScopes", () => {
     await scopes.sweep();
     expect(calls).toEqual([
       ["/usr/bin/systemctl", "--user", "stop", SLICE],
-      ["/usr/bin/systemctl", "--user", "reset-failed", `${PREFIX}*`],
+      ["/usr/bin/systemctl", "--user", "reset-failed", `${PREFIX}*`, `${TERM_PREFIX}*`],
     ]);
     scopes.killAllNow();
     expect(killed).toEqual([["/usr/bin/systemctl", "--user", "kill", "--signal=SIGKILL", SLICE]]);

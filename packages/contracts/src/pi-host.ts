@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ImageMime } from "./files.ts";
 import { ApprovalAnswer, ApprovalAnswers, GrantKey, GuardRule, TOOL_CATEGORIES } from "./policy.ts";
 import { SessionName } from "./streams.ts";
 
@@ -27,11 +28,15 @@ export const InitRecord = z.object({
   testProviderScript: AbsolutePath.optional(),
 });
 export type InitRecord = z.infer<typeof InitRecord>;
+/** An image the daemon claimed for a prompt: the worker reads it itself, from pap's pending uploads only (M8R41). */
+export const PromptImageRef = z.object({ path: AbsolutePath, mimeType: ImageMime });
+export type PromptImageRef = z.infer<typeof PromptImageRef>;
 const PromptCommand = z.object({
   type: z.literal("prompt"),
   id: z.string(),
   message: z.string(),
   streamingBehavior: z.enum(["steer", "followUp"]).optional(),
+  images: z.array(PromptImageRef).max(10).optional(),
 });
 const AbortCommand = z.object({ type: z.literal("abort"), id: z.string() });
 const GetStateCommand = z.object({ type: z.literal("get_state"), id: z.string() });

@@ -8,6 +8,7 @@ import type {
   Notice,
   Panel,
   PartialMessage,
+  PromptImageRef,
   QueueView,
   ReadyRecord,
   SessionStatus,
@@ -74,6 +75,7 @@ export interface LiveSession {
   prompt(
     text: string,
     streamingBehavior?: "steer" | "followUp",
+    images?: readonly PromptImageRef[],
   ): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(): Promise<void>;
   /**

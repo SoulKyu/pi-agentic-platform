@@ -42,14 +42,17 @@ describe("router", () => {
     await page.unmount();
   });
 
-  it("declares the five routes", () => {
+  it("declares the eight routes", () => {
     const router = createAppRouter(buildRouteTree(Fine), createMemoryHistory({ initialEntries: ["/"] }));
     expect(Object.keys(router.routesByPath).sort()).toEqual([
       "/",
+      "/changes/$root",
       "/dev/ui",
+      "/explore/$root",
       "/s/$sessionId",
       "/settings",
       "/settings/$section",
+      "/term/$id",
     ]);
   });
 });

@@ -17,6 +17,7 @@ import { createSessionsStore, type SessionsStore } from "./store.ts";
 import { fakePolicyPort } from "./testing/fake-policy.ts";
 import { fakeProjectsPort } from "./testing/fake-projects.ts";
 import { testCaller } from "../../testing/caller.ts";
+import { noAttachments } from "./testing/no-attachments.ts";
 
 // The real pi-host in a real forked process, on a scripted model, with the network closed (never a real provider).
 const REPO = fileURLToPath(new URL("../../../../../", import.meta.url));
@@ -49,6 +50,7 @@ function moduleWith(testProviderScript: string, clock: Clock = createSystemClock
     projects: fakeProjectsPort(),
     ownerId: () => "u1",
     audit: { append: () => {}, fromWorker: () => null },
+    attachments: noAttachments,
     config: {
       home: join(root, "pap"),
       piAgentDir: agentDir,

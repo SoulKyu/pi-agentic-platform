@@ -1,4 +1,4 @@
-import { isValidId } from "./item-path.ts";
+import { isTerminalId, isValidId, isValidRoot } from "./item-path.ts";
 import {
   clampRatio,
   EMPTY_WORKSPACE,
@@ -31,6 +31,15 @@ function parseItem(value: unknown, devUi: boolean): ItemRef | null {
     case "settings":
       return SETTINGS_SECTIONS.includes(value.section as SettingsSection)
         ? { kind: "settings", section: value.section as SettingsSection }
+        : null;
+    case "files":
+    case "changes":
+      return typeof value.root === "string" && isValidRoot(value.root)
+        ? { kind: value.kind, root: value.root }
+        : null;
+    case "terminal":
+      return typeof value.id === "string" && isTerminalId(value.id)
+        ? { kind: "terminal", id: value.id }
         : null;
     default:
       return null;

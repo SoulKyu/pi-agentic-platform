@@ -5,6 +5,7 @@ import { useT } from "../i18n/index.ts";
 import { GalleryFrame } from "./GalleryFrame.tsx";
 import { AiSection } from "./sections/AiSection.tsx";
 import { BrandSection } from "./sections/BrandSection.tsx";
+import { CodeSection } from "./sections/CodeSection.tsx";
 import { PrimitivesSection } from "./sections/PrimitivesSection.tsx";
 
 const FALLBACK = { theme: "night", density: "compact" } as const;
@@ -65,6 +66,7 @@ export function Gallery() {
             <BrandSection />
             <PrimitivesSection />
             <AiSection />
+            <CodeSection />
           </GalleryFrame>
         ))}
       </div>

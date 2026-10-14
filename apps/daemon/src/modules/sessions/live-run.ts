@@ -3,6 +3,7 @@ import {
   type GetStateData,
   PapError,
   type PiEvent,
+  type PromptImageRef,
   type SessionStatus,
   type TranscriptRow,
 } from "@pap/contracts";
@@ -48,6 +49,7 @@ export interface LiveRun {
   prompt(
     text: string,
     streamingBehavior?: "steer" | "followUp",
+    images?: readonly PromptImageRef[],
   ): Promise<{ disposition: "started" | "queued" | "handled" }>;
   abort(): Promise<void>;
   /**
@@ -153,13 +155,18 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
     }, ABORT_SETTLE_MS);
   }
 
-  async function promptOnce(text: string, streamingBehavior?: "steer" | "followUp") {
+  async function promptOnce(
+    text: string,
+    streamingBehavior?: "steer" | "followUp",
+    images?: readonly PromptImageRef[],
+  ) {
     // No timeout: an extension command answers only when it ends, possibly after a dialog the user takes minutes
     // over (R99). The wait ends with the worker. Answers to dialogs do not depend on it.
     const response = await handle.request({
       type: "prompt",
       message: text,
       ...(streamingBehavior ? { streamingBehavior } : {}),
+      ...(images ? { images: [...images] } : {}),
     });
     if (!response.success) {
       logger.info("prompt_rejected", { error: clip(response.error ?? "") });
@@ -179,7 +186,7 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       tracker.onEvent(event);
       if (!isSystemMessage(event) && event.type === "message_end") view.push(event.message);
     },
-    async prompt(text, streamingBehavior) {
+    async prompt(text, streamingBehavior, images) {
       // Before anything is counted or sent.
       if (deps.promptBlocked()) throw new PapError("session_busy");
       const release = deps.queue.admit(text);
@@ -187,7 +194,7 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
       promptsInFlight++;
       let disposition: "started" | "queued" | "handled" | "rejected" = "rejected";
       try {
-        const result = await promptOnce(text, streamingBehavior);
+        const result = await promptOnce(text, streamingBehavior, images);
         disposition = result.disposition;
         return result;
       } finally {

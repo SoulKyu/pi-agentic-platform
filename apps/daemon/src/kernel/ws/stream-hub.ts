@@ -60,6 +60,8 @@ export interface StreamHub {
   /** `prepare` then `commit`. */
   open(input: OpenInput): void;
   close(connectionId: string, sub?: string): void;
+  /** True while a subscription of any connection holds the key (prepared ones included). */
+  hasSubscribers(stream: StreamName, key: string): boolean;
   stats(): { channels: number; subscriptions: number };
 }
 
@@ -185,6 +187,7 @@ export function createStreamHub(
         armIdle(channel);
       }
     },
+    hasSubscribers: (stream, key) => (channels.get(`${stream}:${key}`)?.subscribers.size ?? 0) > 0,
     stats: () => ({ channels: channels.size, subscriptions: subscriptions.size }),
   };
 }

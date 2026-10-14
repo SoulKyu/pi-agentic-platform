@@ -4,8 +4,9 @@ export type ConnectionState = "idle" | "connecting" | "open" | "waiting" | "outd
 export type ProbeResult = "ok" | "outdated" | "signed-out" | "offline";
 
 export interface SocketLike {
-  send(data: string): void;
+  send(data: string | Uint8Array): void;
   close(code?: number): void;
+  binaryType: "blob" | "arraybuffer";
   onopen: (() => void) | null;
   onmessage: ((event: { data: unknown }) => void) | null;
   onclose: (() => void) | null;
@@ -30,7 +31,11 @@ export interface Connection {
   start(): void;
   stop(): void;
   send(frame: object): boolean;
+  /** Raw bytes to the daemon (terminal frames): false unless the socket is open. */
+  sendBinary(bytes: Uint8Array): boolean;
   onFrame(listener: (frame: unknown) => void): () => void;
+  /** A binary message, only while open and undecoded (M8R68). */
+  onBinary(listener: (data: ArrayBuffer) => void): () => void;
   onState(listener: (state: ConnectionState) => void): () => void;
   nudge(): void;
 }
@@ -61,6 +66,7 @@ export function createConnection(deps: ConnectionDeps): Connection {
   const probeDeadlines = new Set<number>();
   const frameListeners = new Set<(frame: unknown) => void>();
   const stateListeners = new Set<(state: ConnectionState) => void>();
+  const binaryListeners = new Set<(data: ArrayBuffer) => void>();
 
   const clear = (key: keyof typeof timers) => {
     const id = timers[key];
@@ -131,6 +137,7 @@ export function createConnection(deps: ConnectionDeps): Connection {
       void retryLater();
       return;
     }
+    current.binaryType = "arraybuffer";
     socket = current;
     // Armed before the socket opens: a connection that hangs in CONNECTING is as dead as a silent peer.
     armDead();
@@ -141,6 +148,10 @@ export function createConnection(deps: ConnectionDeps): Connection {
     current.onmessage = (event) => {
       if (current !== socket) return;
       armDead();
+      if (event.data instanceof ArrayBuffer) {
+        if (state === "open") for (const listener of [...binaryListeners]) listener(event.data);
+        return;
+      }
       let frame: unknown;
       try {
         frame = JSON.parse(String(event.data));
@@ -215,6 +226,21 @@ export function createConnection(deps: ConnectionDeps): Connection {
       } catch {
         return false;
       }
+    },
+    sendBinary(bytes) {
+      if (state !== "open" || !socket) return false;
+      try {
+        socket.send(bytes);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    onBinary(listener) {
+      binaryListeners.add(listener);
+      return () => {
+        binaryListeners.delete(listener);
+      };
     },
     onFrame(listener) {
       frameListeners.add(listener);

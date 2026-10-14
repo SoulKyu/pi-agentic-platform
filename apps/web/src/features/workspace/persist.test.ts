@@ -120,3 +120,54 @@ describe("workspace persistence", () => {
     expect(({} as Record<string, unknown>).kind).toBeUndefined();
   });
 });
+
+describe("workspace persistence of the M8 items", () => {
+  const files = (root: string) => ({ key: `files:${root}`, item: { kind: "files", root }, split: null });
+  const changes = (root: string) => ({
+    key: `changes:${root}`,
+    item: { kind: "changes", root },
+    split: null,
+  });
+  const terminal = (id: string) => ({ key: `terminal:${id}`, item: { kind: "terminal", id }, split: null });
+  const id = "AbCdEf0123456789_-AbCd";
+
+  it("round-trips each kind, as a tab and as a split", () => {
+    const ws = {
+      tabs: [
+        files("/w/a"),
+        changes("/w/a"),
+        terminal(id),
+        tab("a", { split: { item: { kind: "changes", root: "/w/a" }, ratio: 0.4 } }),
+      ],
+      active: "terminal:" + id,
+    };
+    expect(parseWorkspace(serializeWorkspace(ws as never), false)).toEqual(ws);
+  });
+
+  it("drops a tab whose root is not canonical and absolute, or whose terminal id is malformed (M3's rule)", () => {
+    const rejected = vi.fn();
+    const raw = JSON.stringify({
+      v: 1,
+      tabs: [
+        files("relative"),
+        files("/a/../b"),
+        changes("/a//b"),
+        changes("/a/"),
+        terminal("short"),
+        files("/ok"),
+      ],
+      active: "files:/ok",
+    });
+    expect(parseWorkspace(raw, false, rejected).tabs.map((one) => one.key)).toEqual(["files:/ok"]);
+    expect(rejected).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a split with an invalid root", () => {
+    const raw = JSON.stringify({
+      v: 1,
+      tabs: [tab("a", { split: { item: { kind: "files", root: "x" }, ratio: 0.5 } })],
+      active: "session:a",
+    });
+    expect(parseWorkspace(raw, false).tabs[0]?.split).toBeNull();
+  });
+});

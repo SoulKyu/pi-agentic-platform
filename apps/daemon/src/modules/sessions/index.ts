@@ -14,6 +14,7 @@ import { spawnWorker } from "../../kernel/supervisor/worker.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { Hono } from "hono";
 import type { AuditPort } from "../audit/index.ts";
+import type { AttachmentsPort } from "../files/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import { mountExportRoute } from "./export-http.ts";
@@ -46,6 +47,8 @@ export interface SessionsModuleDeps {
   readonly projects: ProjectsPort;
   /** The audit module: where a worker's audit entries are validated, scrubbed and stored (Task 10). */
   readonly audit: AuditPort;
+  /** The files module's claims of pending uploads: what a prompt's attachments are checked against (M8R43). */
+  readonly attachments: AttachmentsPort;
   readonly config: Pick<
     Config,
     | "home"
@@ -112,6 +115,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     policy: deps.policy,
     projects: deps.projects,
     audit: deps.audit,
+    attachments: deps.attachments,
     containment: deps.scopes.enabled ? "scope" : "none",
     limits: { maxWorkers: config.maxWorkers, minFreeMemMb: config.minFreeMemMb },
     idleMs: config.workerIdleMs,

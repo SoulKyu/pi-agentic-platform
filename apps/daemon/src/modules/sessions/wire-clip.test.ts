@@ -46,6 +46,16 @@ describe("wire clipping", () => {
     });
   });
 
+  it("keeps the size of an image the worker already replaced", () => {
+    const message = {
+      role: "user",
+      content: [{ type: "image", mimeType: "image/png", omitted: true, bytes: 4_000_000 }],
+    };
+    expect(clipMessage(message)).toMatchObject({
+      content: [{ type: "image", mimeType: "image/png", omitted: true, bytes: 4_000_000 }],
+    });
+  });
+
   it("cuts long tool-call arguments and marks the call", () => {
     const message = {
       role: "assistant",

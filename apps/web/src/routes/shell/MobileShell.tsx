@@ -2,7 +2,13 @@ import { EmptyState, IconButton, IconLists, IconSearch, Mark } from "@pap/ui";
 import { useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
-import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
+import {
+  activeTab,
+  itemFromPath,
+  useWorkspaceStore,
+  type ItemRef,
+  type Tab,
+} from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { useCommand } from "../../lib/use-command.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
@@ -13,12 +19,28 @@ import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
+import { SurfaceSwitch, type SwitchChoice } from "./SurfaceSwitch.tsx";
+import { useSurfaceView, viewOf, type SurfaceView } from "./surface-view.ts";
 import { usePaletteChord } from "./shortcut.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
 const loadTabSwitcher = () => import("./TabSwitcher.tsx");
 const loadTree = () => import("../../features/projects/ProjectTree.tsx");
+
+/** The item a session tab shows on a phone: its chat, or its split when the split is what the view names. */
+function shownItem(tab: Tab, view: SurfaceView): ItemRef {
+  const split = tab.split?.item;
+  const wanted = { review: "changes", term: "terminal", files: "files", chat: "session" }[view];
+  return split && split.kind === wanted ? split : tab.item;
+}
+
+const CHOICE: Readonly<Record<string, SwitchChoice | "files">> = {
+  session: "chat",
+  changes: "review",
+  terminal: "term",
+  files: "files",
+};
 
 /** Below 768 px (DESIGN.md §8): one pane at a time, the four sections in a bottom nav. No split, no rail. */
 export function MobileShell() {
@@ -29,6 +51,7 @@ export function MobileShell() {
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
+  const view = useSurfaceView((state) => (tab ? viewOf(state, tab.key) : "chat"));
   const [section, setSection] = useState<MobileSection>("work");
   const [seenPath, setSeenPath] = useState(pathname);
   const [tabsOpen, setTabsOpen] = useState(false);
@@ -81,7 +104,11 @@ export function MobileShell() {
             <EmptyState title={t("shell.inbox.emptyTitle")} purpose={t("shell.inbox.emptyPurpose")} />
           </div>
         ) : item ? (
-          <PaneHost tab={tab} />
+          tab && tab.item.kind === "session" ? (
+            <SessionSurface tab={tab} sessionId={tab.item.id} view={view} />
+          ) : (
+            <PaneHost tab={tab} />
+          )
         ) : (
           <NotFound />
         )}
@@ -94,6 +121,17 @@ export function MobileShell() {
         props={{ open: tabsOpen, onOpenChange: setTabsOpen }}
         onFailed={() => setTabsOpen(false)}
       />
+    </div>
+  );
+}
+
+/** The switch above the one pane a session tab shows. */
+function SessionSurface({ tab, sessionId, view }: { tab: Tab; sessionId: string; view: SurfaceView }) {
+  const shown = shownItem(tab, view);
+  return (
+    <div className="flex min-h-full flex-col">
+      <SurfaceSwitch tabKey={tab.key} sessionId={sessionId} selected={CHOICE[shown.kind] ?? "chat"} />
+      <PaneHost tab={tab} shown={shown} />
     </div>
   );
 }

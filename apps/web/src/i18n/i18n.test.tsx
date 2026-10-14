@@ -3,6 +3,8 @@ import { ERROR_CODES } from "@pap/contracts";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mount, text } from "../testing/dom.ts";
+import { changesEn, changesFr } from "./catalog/changes.ts";
+import { filesEn, filesFr } from "./catalog/files.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
@@ -10,6 +12,7 @@ import { settingsAppearanceEn, settingsAppearanceFr } from "./catalog/settings-a
 import { settingsApprovalsEn, settingsApprovalsFr } from "./catalog/settings-approvals.ts";
 import { settingsShortcutsEn, settingsShortcutsFr } from "./catalog/settings-shortcuts.ts";
 import { sidebarEn, sidebarFr } from "./catalog/sidebar.ts";
+import { terminalEn, terminalFr } from "./catalog/terminal.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 import {
@@ -28,6 +31,14 @@ import {
 
 // Keys whose French is the same word (endonyms, product and font names). Every other key must differ.
 const IDENTICAL_IN_FR = new Set([
+  "files.viewer.source",
+  "shell.surface.chat",
+  "shell.surface.term",
+  "shell.surface.terminal",
+  "terminal.pane.title",
+  "terminal.pane.titleIn",
+  "terminal.surface.label",
+  "commands.palette.terminal",
   "access.devices.browser.chrome",
   "access.devices.browser.firefox",
   "access.devices.browser.safari",
@@ -39,6 +50,7 @@ const IDENTICAL_IN_FR = new Set([
   "access.devices.system.android",
   "access.tokens.permissions",
   "access.tokens.domain.sessions",
+  "access.tokens.domain.vcs",
   "access.tokens.count.one",
   "access.tokens.count.other",
   "app.name",
@@ -106,6 +118,9 @@ describe("i18n", () => {
       ...settingsApprovalsEn,
       ...settingsShortcutsEn,
       ...sidebarEn,
+      ...filesEn,
+      ...changesEn,
+      ...terminalEn,
     };
     const french: Record<string, string> = {
       ...fr,
@@ -116,6 +131,9 @@ describe("i18n", () => {
       ...settingsApprovalsFr,
       ...settingsShortcutsFr,
       ...sidebarFr,
+      ...filesFr,
+      ...changesFr,
+      ...terminalFr,
     };
     expect(Object.keys(french).sort()).toEqual(Object.keys(english).sort());
     for (const key of Object.keys(english)) {

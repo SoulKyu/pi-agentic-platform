@@ -84,6 +84,29 @@ function queueOf(event: { steering?: readonly string[]; followUp?: readonly stri
   };
 }
 
+/**
+ * Pi echoes the user's message with its images in `message_start` and `message_end`, and a tool result carries its own: three in-budget images weigh
+ * over 12 MB, past the record cap, and the daemon never needs the bytes. Each image keeps its type and size.
+ */
+function withoutImageData(value: unknown, depth = 0): unknown {
+  if (typeof value !== "object" || value === null || depth > 6) return value;
+  if (Array.isArray(value)) return value.map((item: unknown) => withoutImageData(item, depth + 1));
+  const record = value as Record<string, unknown>;
+  if (record.type === "image" && typeof record.data === "string") {
+    const padding = record.data.endsWith("==") ? 2 : record.data.endsWith("=") ? 1 : 0;
+    return {
+      type: "image",
+      mimeType: record.mimeType,
+      omitted: true,
+      bytes: Math.max(0, Math.floor((record.data.length * 3) / 4) - padding),
+    };
+  }
+  // A tool result keeps a second copy of an image in `structuredContent`: every image in the value goes.
+  return Object.fromEntries(
+    Object.entries(record).map(([key, item]) => [key, withoutImageData(item, depth + 1)]),
+  );
+}
+
 export function toWireEvent(event: AgentSessionEvent): WireEvent {
   const dropped = WITHOUT_FIELD[event.type];
   if (dropped !== undefined) {
@@ -93,6 +116,22 @@ export function toWireEvent(event: AgentSessionEvent): WireEvent {
     return { type: "entry_appended", entry: slimEntry(event.entry as unknown as Record<string, unknown>) };
   }
   if (event.type === "queue_update") return queueOf(event as never);
+  if (event.type === "message_start" || event.type === "message_end") {
+    return { ...event, message: withoutImageData(event.message) } as unknown as WireEvent;
+  }
+  // A tool result may hold an image too (`read` on a screenshot): same cap, same shape.
+  if (event.type === "tool_execution_end") {
+    return {
+      ...event,
+      result: withoutImageData((event as { result?: unknown }).result),
+    } as unknown as WireEvent;
+  }
+  if (event.type === "tool_execution_update") {
+    return {
+      ...event,
+      partialResult: withoutImageData((event as { partialResult?: unknown }).partialResult),
+    } as unknown as WireEvent;
+  }
   if (event.type !== "message_update") return event as unknown as WireEvent;
   const raw = event as unknown as RawMessageUpdate;
   const { partial, ...rest } = raw.assistantMessageEvent;

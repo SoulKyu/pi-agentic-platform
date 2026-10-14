@@ -37,7 +37,8 @@ export interface WorkerScopes {
   readonly enabled: boolean;
   /** The slice of this daemon's units: one per PAP_HOME. Each worker's own slice is nested in it (`<slice>-<id>.slice`). */
   readonly slice: string | null;
-  next(): WorkerScope | null;
+  /** One unit per call: a worker's (default) or a terminal's, which never carries `PAP_WORKER_UNIT` (M8R54). */
+  next(options?: { readonly kind: "worker" | "terminal" }): WorkerScope | null;
   /** At boot: stops what an earlier daemon of this home left in the slice. Never throws. */
   sweep(): Promise<void>;
   /** When a stop is given up: SIGKILLs the whole slice, synchronously, bounded. Never throws. */
@@ -61,8 +62,8 @@ const STOPPING_POLL_MS = 100;
 /** The memory a worker's scope may use (owner R2-1): half the host, at least 2 GiB. */
 export const defaultMemoryMaxMb = (totalMemMb: number): number => Math.max(2048, Math.floor(totalMemMb / 2));
 
-/** `app-pap-<h>.slice` and `pap-<h>-worker-…`: `h` names one PAP_HOME, so a daemon only ever sweeps its own units. */
-export function sliceNames(home: string): { slice: string; unitPrefix: string } {
+/** `app-pap-<h>.slice`, `pap-<h>-worker-…` and `pap-<h>-term-…`: `h` names one PAP_HOME, so a daemon only ever sweeps its own units. */
+export function sliceNames(home: string): { slice: string; unitPrefix: string; terminalPrefix: string } {
   let real = home;
   try {
     real = realpathSync(home);
@@ -70,7 +71,7 @@ export function sliceNames(home: string): { slice: string; unitPrefix: string } 
     // A home that does not exist yet (tests) is named by its path.
   }
   const h = createHash("sha256").update(real).digest("hex").slice(0, 8);
-  return { slice: `app-pap-${h}.slice`, unitPrefix: `pap-${h}-worker-` };
+  return { slice: `app-pap-${h}.slice`, unitPrefix: `pap-${h}-worker-`, terminalPrefix: `pap-${h}-term-` };
 }
 
 export interface ProbeDeps {
@@ -136,7 +137,7 @@ export async function probeScopes(
     PROBE_TIMEOUT_MS,
   );
   if (linger.code !== 0 || linger.stdout.trim() !== "yes") return off(lingerReason, "warn");
-  const { slice, unitPrefix } = sliceNames(deps.home);
+  const { slice, unitPrefix, terminalPrefix } = sliceNames(deps.home);
   const sliceBase = slice.replace(/\.slice$/, "");
   const properties = [
     `--property=MemoryMax=${limits.memoryMaxMb}M`,
@@ -201,11 +202,14 @@ export async function probeScopes(
   return {
     enabled: true,
     slice,
-    next() {
+    next(options) {
+      const terminal = options?.kind === "terminal";
       // The counter is part of the name: two workers of one probe never meet by luck of the random part.
       const id = `${randomBytes(4).toString("hex")}`;
       counter++;
-      const unit = `${unitPrefix}${id}-${counter}.scope`;
+      const unit = `${terminal ? terminalPrefix : unitPrefix}${id}-${counter}.scope`;
+      const launchEnv: Record<string, string> = { XDG_RUNTIME_DIR: runtimeDir };
+      if (!terminal) launchEnv.PAP_WORKER_UNIT = unit;
       // Not `<slice>-<id>-<n>`: a dash is a level of hierarchy, and one level (under this home's slice) is all that is wanted.
       const workerSlice = `${sliceBase}-${id}${counter.toString(16)}.slice`;
       return {
@@ -224,7 +228,7 @@ export async function probeScopes(
           ],
           // systemd-run reaches the user manager through it; the worker inherits it, as any child of the user would.
           // The unit's name is the worker's own proof that this scope is its, not one it inherited (pi-host deletes it at boot).
-          env: { XDG_RUNTIME_DIR: runtimeDir, PAP_WORKER_UNIT: unit },
+          env: launchEnv,
         },
         async reap(exit) {
           let oomKilled = false;
@@ -255,7 +259,7 @@ export async function probeScopes(
       const stopped = await run(systemctl, ["--user", "stop", slice], SYSTEMCTL_TIMEOUT_MS);
       const cleared = await run(
         systemctl,
-        ["--user", "reset-failed", `${unitPrefix}*`],
+        ["--user", "reset-failed", `${unitPrefix}*`, `${terminalPrefix}*`],
         SYSTEMCTL_TIMEOUT_MS,
       );
       deps.logger.info("worker_scopes_swept", { slice, stop: stopped.code, resetFailed: cleared.code });

@@ -1,0 +1,48 @@
+// Lazy: only the terminal pane shows these (`i18n/register-terminal.ts`, imported by the pane's file).
+export const terminalEn = {
+  "terminal.pane.title": "Terminal",
+  "terminal.pane.titleIn": "Terminal · {folder}",
+  "terminal.surface.label": "Terminal",
+  "terminal.state.reconnecting": "Reconnecting… input paused",
+  "terminal.state.reconnectingSlow":
+    "Still trying to reach the server. The terminal keeps running meanwhile.",
+  "terminal.state.busy": "Too many terminals are running. This one connects as soon as another ends.",
+  "terminal.state.busySlow": "Waiting for a free slot.",
+  "terminal.state.busyExhausted": "No slot freed up. Close a terminal, then try again.",
+  "terminal.state.exited": "Process exited (code {code})",
+  "terminal.state.exitedSignal": "Process ended by the signal {signal}",
+  "terminal.state.exitedUnknown": "Process exited",
+  "terminal.state.gone": "This terminal ended: pap restarted or it was closed",
+  "terminal.action.close": "Close",
+  "terminal.action.closeConfirm": "Close terminal",
+  "terminal.action.cancel": "Cancel",
+  "terminal.action.retry": "Try again",
+  "terminal.action.newHere": "New terminal here",
+  "terminal.close.ask": "Close the terminal and stop what runs in it?",
+  "terminal.close.failed": "The terminal could not be closed. Try again.",
+  "terminal.new.failed": "The new terminal could not be created. Try again.",
+} as const;
+
+export const terminalFr: { readonly [K in keyof typeof terminalEn]: string } = {
+  "terminal.pane.title": "Terminal",
+  "terminal.pane.titleIn": "Terminal · {folder}",
+  "terminal.surface.label": "Terminal",
+  "terminal.state.reconnecting": "Reconnexion… saisie en pause",
+  "terminal.state.reconnectingSlow":
+    "Toujours pas de contact avec le serveur. Le terminal continue de tourner entre-temps.",
+  "terminal.state.busy": "Trop de terminaux tournent. Celui-ci se connecte dès qu'un autre se termine.",
+  "terminal.state.busySlow": "En attente d'une place libre.",
+  "terminal.state.busyExhausted": "Aucune place ne s'est libérée. Fermez un terminal, puis réessayez.",
+  "terminal.state.exited": "Processus terminé (code {code})",
+  "terminal.state.exitedSignal": "Processus interrompu par le signal {signal}",
+  "terminal.state.exitedUnknown": "Processus terminé",
+  "terminal.state.gone": "Ce terminal est terminé : pap a redémarré ou il a été fermé",
+  "terminal.action.close": "Fermer",
+  "terminal.action.closeConfirm": "Fermer le terminal",
+  "terminal.action.cancel": "Annuler",
+  "terminal.action.retry": "Réessayer",
+  "terminal.action.newHere": "Nouveau terminal ici",
+  "terminal.close.ask": "Fermer le terminal et arrêter ce qui tourne dedans ?",
+  "terminal.close.failed": "Impossible de fermer le terminal. Réessayez.",
+  "terminal.new.failed": "Impossible de créer le nouveau terminal. Réessayez.",
+};

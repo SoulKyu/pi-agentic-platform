@@ -23,17 +23,19 @@ export interface StartServerOptions {
   onError(error: NodeJS.ErrnoException): void;
 }
 
+/**
+ * How long a request may take from its first byte to its last (M8R106). Node's own default, written down: an upload of
+ * 25 MiB must finish within 5 minutes, about 700 kbit/s. A slower link is cut off and the client is told to retry.
+ */
+export const UPLOAD_REQUEST_TIMEOUT_MS = 300_000;
+
 export async function startServer(options: StartServerOptions): Promise<RunningServer> {
   const server = serve({
     fetch: options.app.fetch,
     hostname: options.host,
     port: options.port,
-    ...(options.tls
-      ? {
-          createServer: createHttpsServer,
-          serverOptions: { cert: options.tls.cert, key: options.tls.key },
-        }
-      : {}),
+    serverOptions: { requestTimeout: UPLOAD_REQUEST_TIMEOUT_MS, ...(options.tls ?? {}) },
+    ...(options.tls ? { createServer: createHttpsServer } : {}),
   }) as Server;
   await new Promise<void>((resolve, reject) => {
     const onError = (error: Error) => {

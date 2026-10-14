@@ -1,15 +1,28 @@
 import { Button, IconButton, IconClose } from "@pap/ui";
+import type { ReactNode } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
-import { SplitView, useWorkspaceStore, type ItemRef, type Tab } from "../../features/workspace/index.ts";
+import {
+  itemKey,
+  SplitView,
+  useWorkspaceStore,
+  type ItemRef,
+  type Tab,
+} from "../../features/workspace/index.ts";
 import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { PaneBoundary } from "./PaneBoundary.tsx";
 import { renderItem } from "./pane-renderers.tsx";
+import { SurfaceBar } from "./SurfaceBar.tsx";
+import { unsplitTab } from "./tab-actions.ts";
+import { SPLIT_PANE_ID } from "./surface.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
-/** The active tab's pane (named by its tab), beside its split item when it has one. */
-export function PaneHost({ tab }: { readonly tab: Tab | null }) {
+/**
+ * The active tab's pane (named by its tab), beside its split item when it has one. A session tab gets the surface
+ * bar above it. On a phone `shown` names the one item to show (the tab's own or its split), and there is no bar.
+ */
+export function PaneHost({ tab, shown }: { readonly tab: Tab | null; readonly shown?: ItemRef }) {
   const t = useT();
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
@@ -17,19 +30,26 @@ export function PaneHost({ tab }: { readonly tab: Tab | null }) {
   if (!tab) return null;
   const main = (
     <section
-      key={tab.key}
+      key={shown ? `${tab.key}/${itemKey(shown)}` : tab.key}
       id="pane-main"
       role="tabpanel"
       aria-labelledby={`tab-${tab.key}`}
-      data-pane-kind={tab.item.kind}
+      data-pane-kind={(shown ?? tab.item).kind}
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto"
     >
-      <PaneBoundary key={tab.key}>{renderItem(tab.item)}</PaneBoundary>
+      <PaneBoundary key={shown ? `${tab.key}/${itemKey(shown)}` : tab.key}>
+        {renderItem(shown ?? tab.item)}
+      </PaneBoundary>
     </section>
   );
-  if (!tab.split) return main;
+  if (shown) return main;
+  const bar =
+    tab.item.kind === "session" ? (
+      <SurfaceBar tabKey={tab.key} sessionId={tab.item.id} split={tab.split?.item ?? null} />
+    ) : null;
+  if (!tab.split) return bar ? <WithBar bar={bar}>{main}</WithBar> : main;
   const { item } = tab.split;
-  return (
+  const body = (
     <SplitView
       ratio={tab.split.ratio}
       onRatio={(ratio) => setRatio(tab.key, ratio)}
@@ -38,6 +58,8 @@ export function PaneHost({ tab }: { readonly tab: Tab | null }) {
       second={
         <section
           key={`${tab.key}/split`}
+          id={SPLIT_PANE_ID}
+          tabIndex={-1}
           data-pane-role="split"
           data-pane-kind={item.kind}
           aria-label={itemTitle(item, sessions, views, t)}
@@ -51,6 +73,16 @@ export function PaneHost({ tab }: { readonly tab: Tab | null }) {
       }
     />
   );
+  return bar ? <WithBar bar={bar}>{body}</WithBar> : body;
+}
+
+function WithBar({ bar, children }: { readonly bar: ReactNode; readonly children: ReactNode }) {
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {bar}
+      {children}
+    </div>
+  );
 }
 
 function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string }) {
@@ -59,7 +91,6 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
   const split = useWorkspaceStore((state) => state.split);
-  const unsplit = useWorkspaceStore((state) => state.unsplit);
   const lazyText = useLazyFailureText();
   const choices: readonly ItemRef[] = ws.tabs
     .filter((other) => other.key !== tab.key)
@@ -82,7 +113,7 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
           onSelect: () => split(tab.key, item),
         }))}
       />
-      <IconButton icon={IconClose} label={t("shell.tabs.unsplit")} onClick={() => unsplit(tab.key)} />
+      <IconButton icon={IconClose} label={t("shell.tabs.unsplit")} onClick={() => unsplitTab(tab.key)} />
     </div>
   );
 }

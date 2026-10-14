@@ -14,7 +14,9 @@ export function fakeConnection(initial: ConnectionState = "open") {
   let state = initial;
   const frameListeners = new Set<(frame: unknown) => void>();
   const stateListeners = new Set<(state: ConnectionState) => void>();
+  const binaryListeners = new Set<(data: ArrayBuffer) => void>();
   const sent: Array<Record<string, unknown>> = [];
+  const sentBinary: Uint8Array[] = [];
   const connection: Connection = {
     get state() {
       return state;
@@ -37,11 +39,27 @@ export function fakeConnection(initial: ConnectionState = "open") {
         stateListeners.delete(listener);
       };
     },
+    sendBinary: (bytes) => {
+      if (state !== "open") return false;
+      sentBinary.push(bytes);
+      return true;
+    },
+    onBinary: (listener) => {
+      binaryListeners.add(listener);
+      return () => {
+        binaryListeners.delete(listener);
+      };
+    },
     nudge: () => {},
   };
   return {
     connection,
     sent,
+    sentBinary,
+    deliverBinary: (bytes: Uint8Array) => {
+      const copy = bytes.slice().buffer;
+      for (const listener of [...binaryListeners]) listener(copy);
+    },
     deliver: (frame: unknown) => {
       for (const listener of [...frameListeners]) listener(frame);
     },
@@ -108,13 +126,16 @@ export function subscriptionBed(options: { manual?: boolean; state?: ConnectionS
 
 class FakeSocket implements SocketLike {
   sent: string[] = [];
+  sentBinary: Uint8Array[] = [];
+  binaryType: "blob" | "arraybuffer" = "blob";
   closed = false;
   onopen: (() => void) | null = null;
   onmessage: ((event: { data: unknown }) => void) | null = null;
   onclose: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  send(data: string) {
-    this.sent.push(data);
+  send(data: string | Uint8Array) {
+    if (typeof data === "string") this.sent.push(data);
+    else this.sentBinary.push(data);
   }
   close() {
     if (this.closed) return;
@@ -123,6 +144,9 @@ class FakeSocket implements SocketLike {
   }
   receive(frame: unknown) {
     this.onmessage?.({ data: JSON.stringify(frame) });
+  }
+  receiveBinary(bytes: Uint8Array) {
+    this.onmessage?.({ data: bytes.slice().buffer });
   }
 }
 

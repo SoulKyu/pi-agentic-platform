@@ -34,6 +34,14 @@ export function fakeProjectsPort(options: { refuse?: string[] } = {}): FakeProje
     },
     list: (_ownerId, ids) =>
       ids.filter((id) => id.startsWith(PREFIX)).map((id) => viewOf(id.slice(PREFIX.length))),
+    roots: (ownerId) =>
+      [
+        ...new Set(
+          ensured
+            .filter((call) => call.ownerId === ownerId && !options.refuse?.includes(call.root))
+            .map((call) => call.root),
+        ),
+      ].reverse(),
     onChange(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);

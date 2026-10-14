@@ -1,6 +1,67 @@
 import { describe, expect, it } from "vitest";
 import { toExtensionErrorRecord, toWireEvent } from "./wire-events.ts";
 
+describe("toWireEvent: images of a user message", () => {
+  it.each(["message_start", "message_end"])("%s carries each image as its type and size", (type) => {
+    const message = {
+      role: "user",
+      content: [
+        { type: "text", text: "look" },
+        { type: "image", data: "QUJD", mimeType: "image/png" },
+      ],
+    };
+    expect(toWireEvent({ type, message } as never)).toEqual({
+      type,
+      message: {
+        role: "user",
+        content: [
+          { type: "text", text: "look" },
+          { type: "image", mimeType: "image/png", omitted: true, bytes: 3 },
+        ],
+      },
+    });
+  });
+});
+
+describe("toWireEvent: images of a tool result", () => {
+  const content = [
+    { type: "text", text: "Read image file" },
+    { type: "image", data: "QUJD", mimeType: "image/png" },
+  ];
+  const omitted = [
+    { type: "text", text: "Read image file" },
+    { type: "image", mimeType: "image/png", omitted: true, bytes: 3 },
+  ];
+  it("keeps the type and size of an image in tool_execution_end", () => {
+    const event = { type: "tool_execution_end", toolCallId: "c1", result: { content, details: undefined } };
+    expect(toWireEvent(event as never)).toEqual({
+      type: "tool_execution_end",
+      toolCallId: "c1",
+      result: { content: omitted, details: undefined },
+    });
+  });
+  it("drops the second copy of the image in structuredContent", () => {
+    const event = {
+      type: "tool_execution_end",
+      result: {
+        content,
+        structuredContent: { type: "image", data: "QUJD", mimeType: "image/png", note: "n" },
+      },
+    };
+    expect(toWireEvent(event as never)).toMatchObject({
+      result: { structuredContent: { type: "image", mimeType: "image/png", omitted: true, bytes: 3 } },
+    });
+  });
+  it("keeps the type and size of an image in tool_execution_update", () => {
+    const event = { type: "tool_execution_update", toolCallId: "c1", partialResult: { content } };
+    expect(toWireEvent(event as never)).toEqual({
+      type: "tool_execution_update",
+      toolCallId: "c1",
+      partialResult: { content: omitted },
+    });
+  });
+});
+
 describe("toWireEvent", () => {
   it("drops cumulative partials from message_update and keeps delta and usage", () => {
     const event = {

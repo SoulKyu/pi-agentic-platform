@@ -169,6 +169,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     onError: (error) => process.stderr.write(`pi-host: entry tracking failed: ${logLineOf(error)}\n`),
   });
   dispatch = createDispatch({
+    papHome: initial.papHome,
     session: opened,
     leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
     ipc,

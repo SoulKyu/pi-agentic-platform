@@ -354,7 +354,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     partial: () => partial.current(),
     leafId: () => leafId,
     runView: () => run.runView(),
-    prompt: (text, streamingBehavior) => idle.active(() => run.prompt(text, streamingBehavior)),
+    prompt: (text, streamingBehavior, images) =>
+      idle.active(() => run.prompt(text, streamingBehavior, images)),
     async abort() {
       if (idle.stopping()) return;
       await idle.active(() => run.abort());

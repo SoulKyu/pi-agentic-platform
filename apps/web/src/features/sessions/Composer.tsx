@@ -3,6 +3,12 @@ import { useEffect, useRef } from "react";
 import { useT } from "../../i18n/index.ts";
 import { useCommand } from "../../lib/use-command.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
+import { AttachButton } from "./composer/AttachButton.tsx";
+import { AttachmentTray } from "./composer/AttachmentTray.tsx";
+import { MentionMenu } from "./composer/MentionMenu.tsx";
+import { useComposerFieldProps } from "./composer/menus.ts";
+import { useAttachments } from "./composer/use-attachments.ts";
+import { useMentions } from "./composer/use-mentions.ts";
 import { rememberScreen, targetScreen } from "./last-screen.ts";
 import { QueueStrip } from "./QueueStrip.tsx";
 import { useComposer, type Injected } from "./use-composer.ts";
@@ -20,10 +26,14 @@ interface ComposerProps {
 
 export function Composer({ sessionId, view, onTabToPanel, injected, structuralBusy }: ComposerProps) {
   const t = useT();
+  const attachments = useAttachments(sessionId);
   const c = useComposer(sessionId, view, {
     injected: injected ?? null,
     structuralBusy: structuralBusy ?? false,
+    attachments,
   });
+  const mentions = useMentions({ sessionId, text: c.text, setText: c.changeText, folder: view.cwd });
+  const fieldProps = useComposerFieldProps([mentions], attachments);
   const blocked = c.pending !== null || c.compacting || c.sending;
   const root = useRef<HTMLDivElement | null>(null);
   // Two session screens can be mounted (a split): a key belongs to the one that holds the focus, and a command run from
@@ -48,7 +58,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
   });
   // Mod+Shift+Enter sends this message the other way while the agent works, once: the saved choice is the buttons'.
   useCommand("session.sendOther", () => {
-    if (!mine() || c.text.trim() === "") return false;
+    if (!mine() || !c.canSend) return false;
     c.send(c.running ? (c.behavior === "steer" ? "followUp" : "steer") : undefined, { remember: false });
   });
   return (
@@ -96,6 +106,7 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
           c.send();
         }}
       >
+        <AttachmentTray attachments={attachments} />
         <TextField
           label={t("session.composer")}
           value={c.text}
@@ -103,30 +114,33 @@ export function Composer({ sessionId, view, onTabToPanel, injected, structuralBu
           multiline
           name="message"
           onSubmitShortcut={() => c.send()}
+          {...fieldProps}
         />
+        <MentionMenu menu={mentions.menu} />
         <div className="flex flex-wrap gap-2">
           {c.running ? (
             <div role="group" aria-label={t("sessions.composer.whenWorking")} className="flex gap-2">
               <Button
                 variant={c.behavior === "steer" ? "primary" : "secondary"}
-                disabled={blocked || c.text.trim() === ""}
+                disabled={blocked || !c.canSend}
                 onClick={() => c.send("steer")}
               >
                 {t("sessions.composer.steer")}
               </Button>
               <Button
                 variant={c.behavior === "followUp" ? "primary" : "secondary"}
-                disabled={blocked || c.text.trim() === ""}
+                disabled={blocked || !c.canSend}
                 onClick={() => c.send("followUp")}
               >
                 {t("sessions.composer.followUp")}
               </Button>
             </div>
           ) : (
-            <Button type="submit" variant="primary" disabled={blocked || c.text.trim() === ""}>
+            <Button type="submit" variant="primary" disabled={blocked || !c.canSend}>
               {t("sessions.composer.send")}
             </Button>
           )}
+          <AttachButton attachments={attachments} />
           {c.canStop ? <Button onClick={c.stop}>{t("sessions.composer.stop")}</Button> : null}
         </div>
       </form>
