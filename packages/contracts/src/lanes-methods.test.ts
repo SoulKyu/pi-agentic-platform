@@ -17,6 +17,18 @@ describe("lanes methods", () => {
       expect(methods[def.name]).toBe(def);
     }
   });
+  it("declares disk_low on every method whose lane paths cross the disk floor (M10 on M9)", () => {
+    const crossing = [
+      "lanes.create",
+      "lanes.restore",
+      "lanes.review",
+      "lanes.checkpointStatus",
+      "lanes.suggestCommit",
+      "lanes.compare",
+    ] as const;
+    for (const name of crossing)
+      expect([name, lanesMethods[name].errors]).toEqual([name, expect.arrayContaining(["disk_low"])]);
+  });
   it("keeps admin to what runs code, sends it out, reaches a forge or destroys work", () => {
     const admin = Object.values(lanesMethods)
       .filter((def) => def.permission === "lanes:admin")

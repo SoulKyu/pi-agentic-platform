@@ -67,6 +67,22 @@ describe("error codes", () => {
     }
   });
 
+  it("has the three M10 codes with fixed messages, before unknown_method (membership, never adjacency)", () => {
+    const expected = {
+      automation_paused: "Automation is paused. Resume it on the Tasks board or in Settings › Automation.",
+      budget_reached:
+        "Today's automation budget is spent. Raise it in Settings › Automation, or wait for tomorrow.",
+      disk_low:
+        "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
+    } as const;
+    for (const [code, message] of Object.entries(expected)) {
+      expect(ERROR_CODES).toContain(code);
+      expect(ERROR_CODES.indexOf(code as never)).toBeLessThan(ERROR_CODES.indexOf("unknown_method"));
+      expect(ERROR_MESSAGES[code as keyof typeof expected]).toBe(message);
+      expect(new PapError(code as keyof typeof expected).message).toBe(message);
+    }
+  });
+
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
   });

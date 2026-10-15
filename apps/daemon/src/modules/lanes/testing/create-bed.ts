@@ -208,6 +208,9 @@ export function createCreateBed(options: CreateBedOptions = {}) {
       mode: "supervised" as const,
       explicit: false,
       taint: { tainted: behaviour.tainted.has(sessionId), epoch: 0 },
+      toolAllowlist: null,
+      unattended: false,
+      recorded: false,
     }),
     markTainted(ownerId: string, sessionId: string): boolean {
       order.push("markTainted");

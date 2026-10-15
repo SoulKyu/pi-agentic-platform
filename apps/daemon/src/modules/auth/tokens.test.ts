@@ -113,6 +113,7 @@ describe("api tokens", () => {
       "terminal:admin",
       "pi:admin",
       "lanes:admin",
+      "automation:admin",
     ]);
     const params = methods["auth.tokens.create"].params;
     for (const permission of forbidden) {

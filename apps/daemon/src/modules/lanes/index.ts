@@ -19,7 +19,6 @@ import { createScriptStore } from "./script-store.ts";
 import { createScriptRunner, type ScriptRunner, type ScriptRunnerDeps } from "./scripts.ts";
 
 export { type CheckpointDeps, type CheckpointKernel, createCheckpoints } from "./checkpoints.ts";
-export { localDiskFloor } from "./disk-floor.ts";
 export { createLaneLocks } from "./lane-lock.ts";
 export { createLaneNotices } from "./notices.ts";
 export { createRestorer, type RestoreDeps } from "./restore.ts";

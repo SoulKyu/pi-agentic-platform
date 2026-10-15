@@ -28,12 +28,24 @@ describe("palette ranking (T3 CommandPalette.logic.ts)", () => {
     expect(normalizeSearch("Réglages Thème")).toBe("reglages theme");
   });
   it("keeps the natural order without a query", () => {
-    expect(ids(rankItems(items, ""))).toEqual(["a1", "a2", "s1", "s2", "g1"]);
+    expect(ids(rankItems(items, ""))).toEqual(["s1", "s2", "g1", "a1", "a2"]);
   });
   it("needs every token, prefers the title and exact or prefix matches", () => {
-    expect(ids(rankItems(items, "settings"))).toEqual(["a1", "s2"]);
+    expect(ids(rankItems(items, "settings"))).toEqual(["s2", "a1"]);
     expect(ids(rankItems(items, "theme"))).toEqual(["g1"]);
     expect(ids(rankItems(items, "open set"))).toEqual(["a1"]);
+  });
+  it("lists Lanes, Sessions, Tasks and triggers, Settings, then Actions last (agreement 21)", () => {
+    const pool = [
+      item("a", "actions", "go action"),
+      item("g", "settings", "go setting"),
+      item("t", "tasks", "go task"),
+      item("s", "sessions", "go session"),
+      item("l", "lanes", "go lane"),
+      item("o", "open", "go open"),
+    ];
+    expect(ids(rankItems(pool, "go"))).toEqual(["o", "l", "s", "t", "g", "a"]);
+    expect(ids(rankItems(pool, ""))).toEqual(["o", "l", "s", "t", "g", "a"]);
   });
   it("keeps actions only after >", () => {
     const result = rankItems(items, "> pane");
@@ -62,7 +74,7 @@ describe("palette ranking (T3 CommandPalette.logic.ts)", () => {
   });
   it("after > returns actions only, even when sessions and settings match the words", () => {
     expect(ids(rankItems(items, "> settings"))).toEqual(["a1"]);
-    expect(ids(rankItems(items, "settings"))).toEqual(["a1", "s2"]);
+    expect(ids(rankItems(items, "settings"))).toEqual(["s2", "a1"]);
     const bare = rankItems(items, ">");
     expect([ids(bare), bare.count, bare.actionsOnly]).toEqual([["a1", "a2"], 2, true]);
   });
@@ -83,8 +95,8 @@ describe("palette ranking (T3 CommandPalette.logic.ts)", () => {
     expect([result.groups.map((g) => [g.group, g.items.length]), result.count]).toEqual([
       [
         ["open", 50],
-        ["actions", 3],
         ["sessions", 50],
+        ["actions", 3],
       ],
       128,
     ]);

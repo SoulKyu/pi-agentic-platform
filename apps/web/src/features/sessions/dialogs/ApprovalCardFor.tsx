@@ -3,6 +3,9 @@ import { ApprovalCard, cn, FOCUS_RING } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
+import "../../../i18n/register-inbox.ts";
+import { visibleName } from "../../../lib/visible-name.ts";
+import { useInboxStore } from "../../../stores/inbox-store.ts";
 import "../register-policy-catalog.ts";
 import { AlwaysScopeChoice, scopesOffered } from "./AlwaysScopeChoice.tsx";
 import { timeoutLine } from "./request-frame.tsx";
@@ -24,10 +27,24 @@ const scrollArea = (expanded: boolean, name: string) =>
  */
 export function ApprovalCardFor(props: {
   readonly dialog: Dialog;
+  /** The session the card belongs to: a task's session names the trigger that started it. */
+  readonly sessionId?: string;
   onAnswer(response: DialogResponse): void;
 }) {
   const { dialog } = props;
   const t = useT();
+  // The eager inbox store's unresolved question of this session: its trigger name is the owner's own text, shown capped.
+  const trigger = useInboxStore((state) =>
+    props.sessionId === undefined
+      ? null
+      : (state.view.items.find(
+          (item) =>
+            item.kind === "task_needs_input" &&
+            item.toHandle &&
+            item.resolvedAt === null &&
+            item.sessionId === props.sessionId,
+        )?.triggerName ?? null),
+  );
   const [scope, setScope] = useState<AlwaysScope>("exact");
   const scopes = scopesOffered(dialog);
   const question = useClipped(dialog.title, QUESTION_LIMITS);
@@ -54,6 +71,11 @@ export function ApprovalCardFor(props: {
           >
             {question.shown}
           </p>
+          {trigger === null ? null : (
+            <p data-approval-trigger className="mt-s1 line-clamp-3 break-words text-ui text-muted">
+              {t("inbox.startedBy", { name: visibleName(trigger) })}
+            </p>
+          )}
           {dialog.guard ? (
             <p data-approval-guard className="mt-s1 text-ui text-muted">
               {t(`sessionPolicy.guard.${dialog.guard}`)}

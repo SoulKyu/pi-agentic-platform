@@ -1,5 +1,6 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { PolicyRules, ToolPreset } from "@pap/contracts";
+import { pinAllowlist } from "./policy/tool-allowlist.ts";
 
 /** Pi's own tools that read or change the machine. A preset replaces these and only these (M7R75). */
 export const CODING_TOOLS: ReadonlySet<string> = new Set([
@@ -32,6 +33,12 @@ export function presetToolNames(preset: ToolPreset): readonly string[] | null {
 const presets = new WeakMap<AgentSession, ToolPreset>();
 export const presetOf = (session: AgentSession): ToolPreset => presets.get(session) ?? "configured";
 
+// The closed tool list the worker was started with (M10R28), kept the same way; absent: no list.
+const allowlists = new WeakMap<AgentSession, readonly string[]>();
+export const pinToolAllowlist = (session: AgentSession, names: readonly string[] | undefined): void => {
+  if (names) allowlists.set(session, [...names]);
+};
+
 /** Pi's `defaultTools` setting resolved the way Pi does: plain names replace the four defaults, `+name` and `-name` edit them. */
 function configuredCoding(session: AgentSession): string[] {
   const entries = session.settingsManager.getDefaultTools();
@@ -57,10 +64,14 @@ export function applyPreset(
   options: { restore?: boolean } = {},
 ): boolean {
   const wanted = presetToolNames(preset) ?? (options.restore ? configuredCoding(session) : null);
+  const listed = allowlists.get(session);
   let changed = false;
-  if (wanted !== null) {
+  if (wanted !== null || listed) {
     const active = session.getActiveToolNames();
-    const next = [...new Set([...wanted, ...active.filter((name) => !CODING_TOOLS.has(name))])];
+    const next = listed
+      ? // M10R29: what the model sees is the allowlisted names among the registered tools; stage 02 is the gate.
+        listed.filter((name) => session.getAllTools().some((tool) => tool.name === name))
+      : [...new Set([...(wanted ?? []), ...active.filter((name) => !CODING_TOOLS.has(name))])];
     changed = !(next.length === active.length && next.every((name) => active.includes(name)));
     if (changed) session.setActiveToolsByName(next);
   }
@@ -71,13 +82,19 @@ export function applyPreset(
 
 /**
  * The rules the policy judges with: the worker's own preset is added to the daemon's, so a rules update that is late
- * (or lost) cannot loosen it. A read-only flag the daemon sent stays. `presetTools` is the worker's alone.
+ * (or lost) cannot loosen it. A read-only flag the daemon sent stays. `presetTools` is the worker's alone. The allowlist is
+ * the narrower of the rules' and the pinned one (M10R28).
  */
-export function withPreset(rules: PolicyRules | null, preset: ToolPreset): PolicyRules | null {
+export function withPreset(
+  rules: PolicyRules | null,
+  preset: ToolPreset,
+  pinned: readonly string[] | null = null,
+): PolicyRules | null {
   if (rules === null) return null;
   return {
     ...rules,
     readOnlyPreset: rules.readOnlyPreset || preset === "read-only",
+    toolAllowlist: pinAllowlist(rules.toolAllowlist, pinned),
     presetTools: presetToolNames(preset) === null ? null : [...(presetToolNames(preset) ?? [])],
   };
 }

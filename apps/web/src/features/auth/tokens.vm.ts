@@ -28,7 +28,7 @@ export function permissionGrid(
 }
 
 /** Permissions that act in the owner's name, which the create form warns about. */
-const RISKY = ["sessions:operate", "files:read", "files:operate"] as const;
+const RISKY = ["sessions:operate", "files:read", "files:operate", "automation:operate"] as const;
 export type RiskyPermission = (typeof RISKY)[number];
 export function riskyPermissions(selected: readonly string[]): RiskyPermission[] {
   return RISKY.filter((permission) => selected.includes(permission));

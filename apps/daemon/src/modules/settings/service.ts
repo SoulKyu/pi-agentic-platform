@@ -1,4 +1,5 @@
 import {
+  AutomationSettings,
   MAX_SETTING_BYTES,
   ModelsSettings,
   PapError,
@@ -14,6 +15,8 @@ import type { SettingsStore } from "./store.ts";
 export interface SettingsPort {
   /** The owner's Models settings; a missing or damaged row reads as the defaults, so the lookup is off (M7R138). */
   models(ownerId: string): ModelsSettings;
+  /** The owner's Automation settings; a missing or damaged row reads as the defaults, logged (M10R162). */
+  automation(ownerId: string): AutomationSettings;
 }
 
 export interface SettingsService extends SettingsPort {
@@ -45,7 +48,15 @@ export function createSettingsService(deps: {
       deps.logger.warn("settings_row_unreadable", { key: "models" });
       return ModelsSettings.parse({});
     },
+    automation(ownerId) {
+      const parsed = AutomationSettings.safeParse(read(ownerId, "automation").value ?? {});
+      if (parsed.success) return parsed.data;
+      deps.logger.warn("settings_row_unreadable", { key: "automation" });
+      return AutomationSettings.parse({});
+    },
     set(caller, write) {
+      // A token cannot lift the budget, unpause or add slots: the automation setting is the browser's (M10R162, RT-04).
+      if (write.key === "automation" && caller.kind === "token") throw new PapError("forbidden");
       const text = JSON.stringify(write.value);
       if (Buffer.byteLength(text, "utf8") > MAX_SETTING_BYTES) throw new PapError("payload_too_large");
       // Compare-and-set (owner R3-4): a write based on a revision that moved never lands over the newer copy.

@@ -200,6 +200,9 @@ describe("forks and clones (M5R55)", () => {
         mode: "supervised",
         explicit: true,
         taint: { tainted: true, epoch: 0 },
+        toolAllowlist: null,
+        unattended: false,
+        recorded: true,
       });
   });
 

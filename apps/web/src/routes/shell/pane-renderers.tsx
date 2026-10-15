@@ -10,8 +10,12 @@ import { SessionListScreen } from "../../features/sessions/SessionListScreen.tsx
 import { runCommand } from "../../lib/command-registry.ts";
 import { type NewLanePrefill, useNewLaneRequest } from "../../stores/new-lane-request.ts";
 import type { ReviewSlotProps } from "../../features/lanes/LaneBody.tsx";
+import { useTasksFeed } from "./use-tasks-feed.ts";
 import { LazyPane } from "./LazyPane.tsx";
+import type { TasksPaneProps } from "./tasks-pane-entry.tsx";
+import type { TriggerPaneProps } from "./trigger-pane-entry.tsx";
 import { leaveTerminal, openTerminalInstead } from "./terminal-tab.ts";
+import { openTriggerInstead } from "./trigger-tab.ts";
 import { NotFound } from "./NotFound.tsx";
 
 type Renderers = { readonly [K in ItemRef["kind"]]: (item: Extract<ItemRef, { kind: K }>) => ReactNode };
@@ -45,6 +49,9 @@ const loadCompare = () =>
 const openArchivedLanes = () => {
   if (!runCommand("mobile.lists.open")) runCommand("drawer.tree.toggle");
 };
+// The M10 panes: one chunk each, replaced by Tasks 20 and 21 under the same file names. They read the tasks store.
+const loadTasks = () => import("./tasks-pane-entry.tsx").then((m) => ({ default: m.TasksPaneEntry }));
+const loadTrigger = () => import("./trigger-pane-entry.tsx").then((m) => ({ default: m.TriggerPaneEntry }));
 
 /**
  * "Open in Files" from the changes pane: the shell opens the folder's Files pane (features never import each other).
@@ -89,6 +96,35 @@ const lanePanes = {
   ),
   split: (props: ComponentProps<typeof SplitView>) => <SplitView {...props} />,
 };
+const openSession = (sessionId: string) =>
+  useWorkspaceStore.getState().open({ kind: "session", id: sessionId });
+const openTrigger = (id: string) => useWorkspaceStore.getState().open({ kind: "trigger", id });
+const openTasks = () => useWorkspaceStore.getState().open({ kind: "tasks" });
+
+/** The board and the editor reach a session or a trigger through these (features never import each other). */
+const TASKS_CALLBACKS: TasksPaneProps = {
+  onOpenSession: openSession,
+  onOpenTrigger: openTrigger,
+  onNewTrigger: (projectId) => openTrigger(`new:${projectId}`),
+};
+
+/** The `tasks` stream is open while a Tasks pane is mounted, whatever file Tasks 20 puts behind it (RT-31). */
+function TasksPane() {
+  useTasksFeed(true);
+
+  return <LazyPane load={loadTasks} props={TASKS_CALLBACKS} />;
+}
+
+function TriggerPane({ triggerId }: { readonly triggerId: string }) {
+  useTasksFeed(true);
+  const props: TriggerPaneProps = {
+    triggerId,
+    onOpenSession: openSession,
+    onOpenTasks: openTasks,
+    onCreated: (id) => openTriggerInstead(triggerId, id),
+  };
+  return <LazyPane load={loadTrigger} props={props} />;
+}
 
 /** A failed chunk shows a Retry state in the pane (LazyPane); it is never retried by itself. */
 function LazySettings({ section }: { readonly section: SettingsSection }) {
@@ -139,6 +175,8 @@ export const PANE_RENDERERS: Renderers = {
       props={{ fanoutId: item.id, onOpenLane: openLane, onRunAgain: runAgain }}
     />
   ),
+  tasks: () => <TasksPane />,
+  trigger: (item) => <TriggerPane key={item.id} triggerId={item.id} />,
   "dev-ui": () =>
     DevGallery ? (
       <Suspense fallback={null}>

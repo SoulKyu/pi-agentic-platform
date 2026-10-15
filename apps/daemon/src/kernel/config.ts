@@ -3,7 +3,9 @@ import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { createSecureContext } from "node:tls";
 import { parseArgs } from "node:util";
+import { type OtlpConfig, parseOtlp } from "./config-otlp.ts";
 import type { LogLevel } from "./logger.ts";
+import { type OutboxHold, parseOutboxHold } from "./outbox/hold.ts";
 import { defaultMemoryMaxMb, type ScopeLimits } from "./supervisor/scope.ts";
 
 const DEFAULT_HOST = "127.0.0.1";
@@ -13,12 +15,16 @@ const DEFAULT_MAX_TERMINALS = 8;
 const MAX_TERMINALS_LIMIT = 64;
 // Timers hold at most 2^31 - 1 ms; a longer idle delay would fire at once.
 const MAX_IDLE_MINUTES = Math.floor((2 ** 31 - 1) / 60_000);
+/** `PAP_METRICS_TOKEN`: unset turns `/metrics` off (404); a value outside this shape stops the daemon at boot (ConfigError). */
+export const METRICS_TOKEN = /^[A-Za-z0-9._~+/=-]{32,256}$/;
 export const VITE_DEV_ORIGIN = "http://localhost:5173";
 // docs/spikes/s4-m2-long-session.md: a 300-turn session with compaction on, run with WORKER_SEMI_SPACE_FLAG (owner, R45).
 export const WORKER_BUDGET_MB = 285;
 
 // Messages are fixed text: no flag value, environment value or path is ever echoed (spec C §4.1),
 // so a mistyped secret cannot reach a terminal, a log line or a crash report through a config error.
+export type { OtlpConfig, OutboxHold };
+
 export class ConfigError extends Error {
   override name = "ConfigError";
 }
@@ -42,8 +48,12 @@ export interface Config {
   readonly testProviderScript: string | null;
   /** Test-only transports for a push (`PAP_TEST_GIT_PROTOCOLS`, with the scripted provider): `file` reaches a local bare repository (M9R10). */
   readonly testGitProtocols: string | null;
+  /** `PAP_TEST_OUTBOX_HOLD`, read only beside `PAP_TEST_PROVIDER_SCRIPT`: where a test freezes an effect for a crash (M10R80). */
+  readonly testOutboxHold?: OutboxHold | null;
   readonly maxWorkers: number;
   readonly minFreeMemMb: number;
+  /** `PAP_MIN_FREE_DISK_MB`: new forks, task sessions and the lane paths (create, restore, review, compare, suggest) are refused with `disk_low` below this much free disk; 0 is off for all of them (M10R101, M9R117). */
+  readonly minFreeDiskMb: number;
   /** Running terminals per owner (`PAP_MAX_TERMINALS`, 1-64, M8R66). */
   readonly maxTerminals: number;
   /** A worker with nothing to do is released after this long; 0 never releases (`PAP_WORKER_IDLE_MINUTES`). */
@@ -53,6 +63,10 @@ export interface Config {
   readonly workerLimits: ScopeLimits;
   /** At most this many Pi configuration helpers run at once; one more is refused (`PAP_HELPERS_MAX`, 1-16). */
   readonly helpersMax: number;
+  /** `PAP_METRICS_TOKEN`: the bearer of `GET /metrics`; null turns the route off (M10R95). */
+  readonly metricsToken: string | null;
+  /** `PAP_OTLP_ENDPOINT` and its companions; null (the default) means no exporter exists (M10R98). */
+  readonly otlp: OtlpConfig | null;
   readonly staticRoot: string | null;
   readonly logLevel: LogLevel;
 }
@@ -160,12 +174,20 @@ export function loadConfig(input: ConfigInput): Config {
         : input.piHostExecArgv,
     testProviderScript: script ?? null,
     testGitProtocols: gitProtocols ?? null,
+    testOutboxHold: parseOutboxHold(
+      input.env.PAP_TEST_OUTBOX_HOLD,
+      script !== undefined,
+      (message) => new ConfigError(message),
+    ),
     maxWorkers: input.env.PAP_MAX_WORKERS
       ? parseCount(input.env.PAP_MAX_WORKERS, "PAP_MAX_WORKERS", 1)
       : defaultMaxWorkers(input.totalMemMb),
     minFreeMemMb: input.env.PAP_MIN_FREE_MEM_MB
       ? parseCount(input.env.PAP_MIN_FREE_MEM_MB, "PAP_MIN_FREE_MEM_MB", 0)
       : DEFAULT_MIN_FREE_MEM_MB,
+    minFreeDiskMb: input.env.PAP_MIN_FREE_DISK_MB
+      ? parseCount(input.env.PAP_MIN_FREE_DISK_MB, "PAP_MIN_FREE_DISK_MB", 0)
+      : 1024,
     maxTerminals: input.env.PAP_MAX_TERMINALS
       ? parseCount(input.env.PAP_MAX_TERMINALS, "PAP_MAX_TERMINALS", 1, MAX_TERMINALS_LIMIT)
       : DEFAULT_MAX_TERMINALS,
@@ -185,6 +207,8 @@ export function loadConfig(input: ConfigInput): Config {
     helpersMax: input.env.PAP_HELPERS_MAX
       ? parseCount(input.env.PAP_HELPERS_MAX, "PAP_HELPERS_MAX", 1, 16)
       : 4,
+    metricsToken: parseMetricsToken(input.env.PAP_METRICS_TOKEN),
+    otlp: parseOtlp(input.env, (message) => new ConfigError(message)),
     staticRoot: input.staticRoot,
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),
   };
@@ -310,4 +334,11 @@ function parseScope(raw: string | undefined): "auto" | "off" {
   if (raw === undefined || raw === "" || raw === "auto") return "auto";
   if (raw === "off") return "off";
   throw new ConfigError("PAP_WORKER_SCOPE must be auto or off");
+}
+
+function parseMetricsToken(raw: string | undefined): string | null {
+  if (raw === undefined) return null;
+  if (!METRICS_TOKEN.test(raw))
+    throw new ConfigError("PAP_METRICS_TOKEN must be 32 to 256 characters of A-Z a-z 0-9 . _ ~ + / = -");
+  return raw;
 }

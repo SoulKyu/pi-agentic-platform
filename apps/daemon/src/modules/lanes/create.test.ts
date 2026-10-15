@@ -147,12 +147,12 @@ describe("lanes.create: refusals (phase 1, nothing written)", () => {
     expect(await codeOf(b.service.create(b.browser(), b.params()))).toBe("resolved");
   });
 
-  it("answers capacity when the disk floor throws, and writes no row and reserves nothing", async () => {
+  it("answers disk_low when the disk floor says so, capacity for any other failure, and writes no row nor reserves anything", async () => {
     const b = make();
     b.behaviour.diskFloor = () => {
-      throw new PapError("capacity");
+      throw new PapError("disk_low");
     };
-    expect(await codeOf(b.service.create(b.browser(), b.params()))).toBe("capacity");
+    expect(await codeOf(b.service.create(b.browser(), b.params()))).toBe("disk_low");
     b.behaviour.diskFloor = () => {
       throw new Error("anything");
     };

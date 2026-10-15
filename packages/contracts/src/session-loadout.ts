@@ -35,6 +35,8 @@ export const SessionLoadout = z.object({
   toolsTruncated: z.boolean(),
   /** Whether the folder has files that need a trust decision and whether the worker opened with it `true` (M7R105); absent from older workers. */
   projectTrust: z.object({ required: z.boolean(), trusted: z.boolean() }).optional(),
+  /** Whether the model's provider is paid per token (`api`) or by a subscription sign-in; absent from older workers (M10R86). */
+  billing: z.enum(["api", "subscription"]).optional(),
 });
 export type SessionLoadout = z.infer<typeof SessionLoadout>;
 

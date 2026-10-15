@@ -173,7 +173,9 @@ describe("the helper op table", () => {
                       ? { ok: true, latencyMs: 1 }
                       : call.op === "models.pricing"
                         ? { entries: [] }
-                        : { ok: true },
+                        : call.op === "models.usage"
+                          ? { status: "query_failed" }
+                          : { ok: true },
       undefined,
       { models: () => ({ modelsDevPricing: true }) },
     );
@@ -193,6 +195,7 @@ describe("the helper op table", () => {
     await service.discover(testCaller({ stepUpUntil: clock.now() + 1 }), { provider: "p" });
     await service.test(caller, { provider: "p", modelId: "m" });
     await service.pricing(caller, { modelId: "m" });
+    await service.usage(caller, { providerId: "openrouter" });
     // The MCP overview, the trust decisions, the skills and the plugins belong to their own modules' services.
     const modelsOps = Object.keys(HELPER_OPS).filter(
       (op) =>

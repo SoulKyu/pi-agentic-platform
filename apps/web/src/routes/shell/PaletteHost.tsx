@@ -14,6 +14,9 @@ import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { useCurrentProject } from "../../stores/current-project.ts";
+import { useTasksFeed } from "./use-tasks-feed.ts";
+import { useTasksStore } from "../../stores/tasks-store.ts";
 import { useTerminals } from "../../stores/terminal-store.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { buildPaletteItems } from "./palette-items.ts";
@@ -35,6 +38,13 @@ export function PaletteHost() {
   const views = useViewLabels((state) => state.labels);
   const laneView = useLaneStore((state) => state.view);
   const terminals = useTerminals();
+  // The stream opens with the palette and closes with it; the store keeps its last snapshot (RT-31).
+  useTasksFeed(open);
+  const triggers = useTasksStore((state) => state.view.triggers);
+  const projects = useShellStore((state) => state.view.projects);
+  const stored = useCurrentProject((state) => state.projectId);
+  const newTriggerProject =
+    stored !== null && projects.has(stored) ? stored : ([...projects.keys()][0] ?? null);
 
   const items = useMemo(
     () =>
@@ -52,6 +62,8 @@ export function PaletteHost() {
             lanes: laneView,
             laneFacts: held.values(),
             terminals,
+            triggers,
+            newTriggerProject,
             t,
             navigate: (item) => go(navigate, pathOfItem(item)),
             run: (id) => {
@@ -63,7 +75,7 @@ export function PaletteHost() {
             },
           })
         : [],
-    [open, rules, tabs, held, views, laneView, terminals, t, navigate],
+    [open, rules, tabs, held, views, laneView, terminals, triggers, newTriggerProject, t, navigate],
   );
   return (
     <LazyPanel

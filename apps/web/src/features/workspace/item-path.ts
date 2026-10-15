@@ -65,6 +65,7 @@ export function itemFromPath(pathname: string, devUi: boolean): ItemRef | null {
   if (path === "/") return { kind: "home" };
   if (path === "/settings") return { kind: "settings", section: "appearance" };
   if (path === "/dev/ui") return devUi ? { kind: "dev-ui" } : null;
+  if (path === "/tasks") return { kind: "tasks" };
   const settings = /^\/settings\/([a-z]+)$/.exec(path);
   if (settings) {
     const section = settings[1] as SettingsSection;
@@ -83,15 +84,16 @@ export function itemFromPath(pathname: string, devUi: boolean): ItemRef | null {
     if (lane[1] === "lane") return isLaneId(id) ? { kind: "lane", id } : null;
     return isFanoutId(id) ? { kind: "compare", id } : null;
   }
-  const session = /^\/s\/([^/]+)$/.exec(path);
-  if (!session) return null;
+  const named = /^\/(s|trigger)\/([^/]+)$/.exec(path);
+  if (!named) return null;
   let id: string;
   try {
-    id = decodeURIComponent(session[1] ?? "");
+    id = decodeURIComponent(named[2] ?? "");
   } catch {
-    return null; // malformed escape: not a session path
+    return null; // malformed escape: not an item path
   }
-  return isValidId(id) ? { kind: "session", id } : null;
+  if (!isValidId(id)) return null;
+  return named[1] === "s" ? { kind: "session", id } : { kind: "trigger", id };
 }
 
 export function pathOfItem(item: ItemRef): string {
@@ -114,5 +116,9 @@ export function pathOfItem(item: ItemRef): string {
       return isFanoutId(item.id) ? `/compare/${item.id}` : "/";
     case "dev-ui":
       return "/dev/ui";
+    case "tasks":
+      return "/tasks";
+    case "trigger":
+      return isValidId(item.id) ? `/trigger/${encodeURIComponent(item.id)}` : "/";
   }
 }

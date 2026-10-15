@@ -38,7 +38,7 @@ export function fakePool(answer: (call: RunCall) => unknown | PapError) {
 }
 
 /** The owner's `models` setting as the settings port reads it: off, the default (M7R138). */
-export const settingsOff: SettingsPort = { models: () => ({ modelsDevPricing: false }) };
+export const settingsOff: Pick<SettingsPort, "models"> = { models: () => ({ modelsDevPricing: false }) };
 
 /** The sign-in dependencies of a service whose test does not look at them. */
 export const signInDeps = {
@@ -51,7 +51,7 @@ export const signInDeps = {
 export function modelsBed(
   answer: (call: RunCall) => unknown | PapError,
   roots: Record<string, string[]> = { u1: ["/w/api"] },
-  settings: SettingsPort = settingsOff,
+  settings: Pick<SettingsPort, "models"> = settingsOff,
 ) {
   const { pool, calls } = fakePool(answer);
   const { logger, lines } = captureLogger();

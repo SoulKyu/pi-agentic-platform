@@ -10,17 +10,19 @@ import {
 } from "./index.ts";
 
 describe("token contract", () => {
-  it("lets a token hold every permission except auth:*, terminal:*, policy:admin and pi:admin, in catalogue order", () => {
-    expect(TOKEN_PERMISSIONS).toEqual(
-      ALL_PERMISSIONS.filter(
-        (p) =>
-          !p.startsWith("auth:") &&
-          !p.startsWith("terminal:") &&
-          p !== "policy:admin" &&
-          p !== "pi:admin" &&
-          p !== "lanes:admin",
-      ),
-    );
+  it("lets a token hold every permission except the never-for-tokens ones, in catalogue order (derived, M10R2)", () => {
+    const neverForTokens = (p: string) =>
+      p.startsWith("auth:") ||
+      p.startsWith("terminal:") ||
+      p === "policy:admin" ||
+      p === "pi:admin" ||
+      p === "lanes:admin" ||
+      p === "automation:admin";
+    expect(TOKEN_PERMISSIONS).toEqual(ALL_PERMISSIONS.filter((p) => !neverForTokens(p)));
+    for (const p of ["automation:read", "automation:operate", "usage:operate", "inbox:operate"])
+      expect(TOKEN_PERMISSIONS).toContain(p);
+    expect(TOKEN_PERMISSIONS).not.toContain("automation:admin");
+    expect(TokenPermission.safeParse("automation:admin").success).toBe(false);
     expect(TOKEN_PERMISSIONS).not.toContain("policy:admin");
     expect(TOKEN_PERMISSIONS).not.toContain("pi:admin");
     expect(TokenPermission.safeParse("pi:admin").success).toBe(false);

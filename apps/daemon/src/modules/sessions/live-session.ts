@@ -298,6 +298,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
           const activity = commands.onPiEvent(event);
           if (activity) publish(activity);
         }
+        deps.observe?.(event);
         deps.onActivity();
         return;
       }

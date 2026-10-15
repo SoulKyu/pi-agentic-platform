@@ -78,8 +78,8 @@ describe("CommandPalette", () => {
     expect(document.activeElement).toBe(input());
     expect(input().getAttribute("aria-label")).toBe("Search commands and sessions");
     expect([...document.querySelectorAll("[cmdk-group-heading]")].map((el) => el.textContent)).toEqual([
-      "Actions",
       "Sessions",
+      "Actions",
     ]);
     expect(document.querySelector("[title]")).toBeNull();
   });
@@ -88,12 +88,13 @@ describe("CommandPalette", () => {
     await open();
     const current = () =>
       [...document.querySelectorAll('[role="option"][aria-current]')].map((el) => el.textContent);
-    expect(current()).toEqual(["Open settings"]);
+    // Sessions come first and Actions last (agreement 21): the first row is the session.
+    expect(current()).toEqual(["pi-agentic/home/ana/pi-agentic"]);
     expect(document.querySelector('[role="option"][aria-selected="true"]')?.className).toContain(
       "aria-selected:border-agent",
     );
     await press(input(), { key: "ArrowDown" });
-    expect(current()).toEqual(["Split paneCtrl+\\"]);
+    expect(current()).toEqual(["Open settings"]);
   });
 
   it("filters with its own ranking and runs the chosen row with Enter, closing first", async () => {

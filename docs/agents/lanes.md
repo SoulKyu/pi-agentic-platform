@@ -14,7 +14,7 @@ Where files live:
 
 | Step | What runs | A failure at runtime | A crash right after leaves | Boot (recovery runs before the server listens; skipped on a read-only database) |
 |---|---|---|---|---|
-| 1. create | Caps and the disk floor are checked; lane row `creating` and worktree row `creating` are written in one transaction. `lanes.create` answers here | `limit_reached`, `capacity` | rows, nothing on disk | worktree row goes to step 3's undo; lane row becomes `failed` (`interrupted`) |
+| 1. create | Caps and the disk floor are checked; lane row `creating` and worktree row `creating` are written in one transaction. `lanes.create` answers here | `limit_reached`, `capacity`, `disk_low` | rows, nothing on disk | worktree row goes to step 3's undo; lane row becomes `failed` (`interrupted`) |
 | 2. branch | `git branch --no-track <branch> <baseOid>` (`created_branch = 1`) | inline undo; lane `failed` (`git`) | a branch at the base | branch deleted if it still points at the base, else kept and logged |
 | 3. checkout | `git worktree add --lock --reason=pap-creating <path> <branch>` under the repository lock, 120 s | inline undo; lane `failed` (`git` or `disk`) | a locked worktree | the same undo (unlock first: a locked registration survives `remove` and `prune`) |
 | 4. prepare | copy and link from `project.yaml`; worktree `ready` and `worktree unlock` | inline undo; lane `failed` (`prepare`) | a ready worktree, lane `creating` | lane becomes `active`; setup `interrupted` when one was due, else `none`; a token-created lane gets `pending` |
@@ -26,13 +26,13 @@ Where files live:
 - A `failed` lane has no worktree. Its creating slot is free at once; it counts toward the 64 open lanes until the owner archives it (archive only moves it out of the open list).
 - A fan-out is 2 to 4 models in one `lanes.create`: one lane per model, one `fanoutId`, the same first prompt.
 - Branch names: `<branchPrefix><slug>`, then `-2` to `-20`; past that `limit_reached`. `BRANCH_PATTERN` refuses `@` (git 2.53 `check-ref-format --branch` prints `@` back as the previous branch, so a name with `@` could mean something else), `..`, `//`, `/.`, `.lock`, and `HEAD`, `FETCH_HEAD`, `ORIG_HEAD`, `MERGE_HEAD`.
-- Caps: 64 open lanes per owner (the 65th is `limit_reached`), 4 creations in flight (the fifth is `capacity`), 1 GiB free disk (`capacity`; the checkpoint hooks show the notice `disk_low` instead).
+- Caps: 64 open lanes per owner (the 65th is `limit_reached`), 4 creations in flight (the fifth is `capacity`), 1 GiB free disk (`PAP_MIN_FREE_DISK_MB`, `0` = off; `disk_low` from `lanes.create`, `lanes.restore`, `lanes.review`, `lanes.checkpointStatus`, `lanes.suggestCommit` and `lanes.compare`; the checkpoint hooks show the notice `disk_low` instead).
 
 ## Permissions
 
 - Domain `lanes`. `lanes:read`: the stream, preview, review, turns, compare, checkpoint status, script log, archived list. `lanes:operate`: create, new session, commit, suggest commit, review state. `lanes:admin`: approve scripts, run script, restore, issue, push, PR create and refresh, archive, close losers.
 - A token never holds `lanes:admin` (one filter, `TOKEN_PERMISSIONS`). Why: `admin` approves or runs code, sends code out, reaches a forge or destroys work. `lanes.create` is `operate`, so a token can start a lane; its setup stays `pending`.
-- M9 adds no error code. A refusal a person acts on is an answer `{ ok: false, reason }`.
+- M9 adds no error code of its own (`disk_low` is M10's). A refusal a person acts on is an answer `{ ok: false, reason }`.
 
 ## The git allowlist and the profiles
 
@@ -142,7 +142,7 @@ One rule for every child pap starts that nobody watches: lane scripts, `gh`, M7'
 - `lanes.review { scope }`: `branch` (merge base to the lane's live tree) or `turn` (one user message's checkpoint range). Lists at most 2000 files; `truncated` says more. Each file has an `identity` (its to-side blob, or `deleted`); a file is "Seen" while the stored identity equals it. `lanes.reviewState.get|set` keeps Seen and comments (500 comments, 4000 characters each, 1 MiB) with a revision; a stale `baseRevision` is `conflict`.
 - `ReviewList` has no conflict ordering ("conflicts first") and no "not captured (left)" files. Known gap; a follow-up, not added in M9 (no contract field).
 - `lanes.turns { sessionId }`: the session's user messages with their checkpoint ranges (500 at most, preview 120 characters).
-- `lanes.compare { fanoutId }`: one column per lane (summary, files, additions, deletions, duration; `costUsd` is null until M10's `sessionCost` is wired). `lanes.closeLosers { fanoutId, winner }` archives the others one by one, per fan-out serialised; each refusal is listed (`busy`, `script_failed`, `setup_running`, `tainted`).
+- `lanes.compare { fanoutId }`: one column per lane (summary, files, additions, deletions, duration; `costUsd` is M10's `RunsPort.sessionCost` of the lane's primary session and `billing` its `RunsPort.sessionBilling` (`api`, `subscription`, `unknown`), both null for a lane without a run; the column labels a subscription's figure API-equivalent). `lanes.closeLosers { fanoutId, winner }` archives the others one by one, per fan-out serialised; each refusal is listed (`busy`, `script_failed`, `setup_running`, `tainted`).
 
 ## Commit, suggest, push, PR
 
@@ -193,4 +193,4 @@ In memory, the newest 8 per lane, gone at a restart: `model_refused`, `session_f
 - `forge_missing`: install `gh`. `not_signed_in`: `gh auth login` as the daemon's user.
 - `identity_missing`: `git config --global user.name` and `user.email` as the daemon's user.
 - Restore says `left`: those files were not in the checkpoint's scope; they are untouched.
-- Disk: under 1 GiB free, create answers `capacity` and captures show `disk_low`.
+- Disk: under the floor (1 GiB by default), create answers `disk_low` and captures show the notice `disk_low`.

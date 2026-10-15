@@ -1,4 +1,5 @@
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
+import { initTools, storeNewSession } from "./automation-port.ts";
 import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import type { PolicyLink } from "./policy-link.ts";
@@ -63,6 +64,7 @@ export function createLaunch(ctx: LaunchContext) {
     const preReady = isNew ? createPreReadyBuffer() : null;
     let bound = row.piPath !== null;
     const scope = grants.scopeOf(row.cwd);
+    const rules = policyLink.compose(row, scope);
     const init: InitRecord = {
       type: "init",
       cwd: row.cwd,
@@ -70,8 +72,8 @@ export function createLaunch(ctx: LaunchContext) {
       papHome: deps.worker.papHome,
       umask: deps.worker.umask,
       papSessionId: row.id,
-      policy: policyLink.compose(row, scope),
-      tools: { preset: ctx.toolPreset(row) ?? "configured" },
+      policy: rules,
+      tools: initTools(ctx.toolPreset(row), rules),
       // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
       ...(row.piPath ? { sessionFile: row.piPath } : {}),
       ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
@@ -97,6 +99,7 @@ export function createLaunch(ctx: LaunchContext) {
           else if (event.kind !== "status") preReady?.add({ kind: "publish", event });
         },
         record: (kind, data) => {
+          deps.runs?.onRecord(row, kind, data, session.loadout());
           if (stored) recordEvent(row.id, kind, data);
           else preReady?.add({ kind: "record", recordKind: kind, data });
         },
@@ -115,6 +118,7 @@ export function createLaunch(ctx: LaunchContext) {
         },
         onWorkerExit: (info) => deps.onWorkerExit?.(row.id, info),
         onPolicyRefused: () => policyLink.refused(row, session),
+        observe: (event) => deps.runs?.onEvent(row.id, event),
       },
       init,
     );
@@ -127,7 +131,7 @@ export function createLaunch(ctx: LaunchContext) {
       // The file of a recorded session says who it is. Another id means the file was replaced under us.
       if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId)
         throw new PapError("worker_failed");
-      if (isNew) deps.store.insert(row, ctx.projectFor?.(row) ?? null);
+      if (isNew) storeNewSession(deps, row, ctx.projectFor?.(row) ?? null);
       stored = true;
       // Pi writes the file with the first message: until then the row keeps the Pi id its worker reported (M4R123).
       const piId = session.piSessionId();

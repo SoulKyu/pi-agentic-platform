@@ -8,6 +8,7 @@ import { type AuditPort, createAuditService } from "./service.ts";
 import { createAuditStore, monthCutoff } from "./store.ts";
 
 export { monthCutoff };
+export { scrubKnownSecrets } from "./scrub.ts";
 export type { AuditPort };
 
 export const AUDIT_MIGRATIONS: MigrationSource = {

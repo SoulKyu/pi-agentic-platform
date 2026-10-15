@@ -19,6 +19,9 @@ interface CommandPaletteProps {
   openSession(sessionId: string): void;
 }
 
+/** Settings and Actions come after the transcript hits: Lanes, Sessions, Tasks and triggers, hits, then Actions (agreement 21). */
+const AFTER_HITS: ReadonlySet<PaletteItem["group"]> = new Set(["settings", "actions"]);
+
 /** The highlighted row: raised surface and the agent rule (board 12). */
 const ROW_CLASSES =
   "flex items-center justify-between gap-s2 rounded-sm border-l-2 border-transparent px-s2 py-s1 text-ui text-fg aria-selected:border-agent aria-selected:bg-surface-2";
@@ -134,7 +137,7 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
                 {ranked.actionsOnly ? t("commands.palette.emptyActions") : t("commands.palette.empty")}
               </Command.Empty>
             ) : null}
-            {ranked.groups.filter((entry) => entry.group !== "settings").map(renderGroup)}
+            {ranked.groups.filter((entry) => !AFTER_HITS.has(entry.group)).map(renderGroup)}
             {search.hits.length > 0 ? (
               <TranscriptHits
                 hits={search.hits}
@@ -143,7 +146,7 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
                 onChoose={choose}
               />
             ) : null}
-            {ranked.groups.filter((entry) => entry.group === "settings").map(renderGroup)}
+            {ranked.groups.filter((entry) => AFTER_HITS.has(entry.group)).map(renderGroup)}
           </Command.List>
           {searchLine === null ? null : (
             <p role="status" data-search-status="" className="px-s3 py-s2 text-ui text-muted">

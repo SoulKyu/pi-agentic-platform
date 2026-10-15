@@ -1,5 +1,6 @@
 import { TOOL_PRESETS, type ToolPreset } from "@pap/contracts";
 import type { Db } from "../../kernel/db/database.ts";
+import type { TaskSessionPolicy } from "./automation-port.ts";
 import { createMarksStore, type MarksStore } from "./marks-store.ts";
 
 export interface SessionRow {
@@ -17,6 +18,8 @@ export interface SessionRow {
   readonly updatedAt: number;
   /** The session's tool preset when it has one; absent follows Pi's default tools ("configured", M7R76). */
   readonly toolPreset?: StoredPreset | undefined;
+  /** A new task session's policy while its row is not stored: never read back from the store (M10R31). */
+  readonly task?: TaskSessionPolicy | undefined;
 }
 
 /** What the column can hold: `configured` is NULL, not a value. */

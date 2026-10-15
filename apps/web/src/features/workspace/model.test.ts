@@ -122,4 +122,17 @@ describe("workspace model", () => {
       id: "t1",
     });
   });
+
+  it("keys the Tasks tab as a singleton and a trigger tab by its id (M10R112)", () => {
+    expect(itemKey({ kind: "tasks" })).toBe("tasks");
+    expect(itemKey({ kind: "trigger", id: "g1" })).toBe("trigger:g1");
+    expect(itemKey({ kind: "trigger", id: "new:p1" })).toBe("trigger:new:p1");
+  });
+
+  it("opens the Tasks tab twice and keeps one tab", () => {
+    let ws = openItem(EMPTY_WORKSPACE, { kind: "tasks" });
+    ws = openItem(ws, { kind: "home" });
+    ws = openItem(ws, { kind: "tasks" });
+    expect([keys(ws), ws.active]).toEqual([["tasks", "home"], "tasks"]);
+  });
 });

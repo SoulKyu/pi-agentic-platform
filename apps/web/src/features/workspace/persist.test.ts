@@ -170,4 +170,21 @@ describe("workspace persistence of the M8 items", () => {
     });
     expect(parseWorkspace(raw, false).tabs[0]?.split).toBeNull();
   });
+
+  it("keeps a Tasks tab and a trigger tab across a reload, and drops a malformed trigger id (M10R112)", () => {
+    const ws = {
+      tabs: [
+        { key: "tasks", item: { kind: "tasks" }, split: null },
+        { key: "trigger:new:p1", item: { kind: "trigger", id: "new:p1" }, split: null },
+      ],
+      active: "tasks",
+    };
+    expect(parseWorkspace(serializeWorkspace(ws as never), false)).toEqual(ws);
+    const bad = JSON.stringify({
+      v: 1,
+      tabs: [{ key: "trigger:a/b", item: { kind: "trigger", id: "a/b" }, split: null }],
+      active: null,
+    });
+    expect(parseWorkspace(bad, false).tabs).toEqual([]);
+  });
 });

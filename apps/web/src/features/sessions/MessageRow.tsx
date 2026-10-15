@@ -2,11 +2,27 @@ import { Markdown, Message, Reasoning } from "@pap/ui";
 import { memo } from "react";
 import { useT } from "../../i18n/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
+import { FencedPart } from "./FencedPart.tsx";
+import { splitFences } from "./fence.vm.ts";
+import "./register-policy-catalog.ts";
 import { RowButtons, type RowActions } from "./RowActions.tsx";
 import { splitBlocks } from "./streaming-blocks.ts";
 import type { MessageItem, PartialItem, SummaryItem } from "./transcript.vm.ts";
 
 export type { RowActions } from "./RowActions.tsx";
+
+/** Your own text: a task's first message is the rendered prompt, so pap's fences in it show as the untrusted frame. */
+function YourText({ text }: { text: string }) {
+  const parts = splitFences(text);
+  if (!parts.some((part) => part.kind === "fenced")) return <>{text}</>;
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.kind === "fenced" ? <FencedPart key={index} source={part.source} text={part.text} /> : part.text,
+      )}
+    </>
+  );
+}
 
 const markdownFailed = () => reportClientIssue("lazy_chunk_failed");
 
@@ -56,6 +72,8 @@ export function MessageRow({
         ) : (
           <Markdown text={item.text} onLoadError={markdownFailed} />
         )
+      ) : author === "you" ? (
+        <YourText text={item.text} />
       ) : (
         item.text
       )}

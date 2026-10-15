@@ -8,6 +8,7 @@ describe("fenceText", () => {
     );
   });
   it("makes the source safe for an attribute", () => {
+    expect(fenceText("t", 'a"b>c d', "i")).toContain('source="a_b_c_d"');
     expect(fenceText("t", "gh issue", "i")).toContain('source="gh_issue"');
     expect(fenceText("t", "", "i")).toContain('source="_"');
     expect(fenceText("t", "s".repeat(100), "i")).toContain(`source="${"s".repeat(64)}"`);

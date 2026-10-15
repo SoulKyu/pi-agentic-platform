@@ -23,6 +23,7 @@ import {
   PricingParams,
   TestModelParams,
 } from "./models-provider.ts";
+import { ModelsUsageParams, ModelsUsageResult } from "./models-usage.ts";
 import {
   LoginParams,
   LogoutParams,
@@ -155,6 +156,8 @@ export const HELPER_OPS = {
   "models.discover": { params: DiscoverParams, result: ModelsDiscoverResult },
   "models.test": { params: TestModelParams, result: ModelsTestResult },
   "models.pricing": { params: PricingParams, result: HelperPricingResult },
+  // Provider usage quotas (Task 18): the stored credential goes to the official endpoint inside the helper; a status comes back.
+  "models.usage": { params: ModelsUsageParams, result: ModelsUsageResult },
   // Sign-in (Task 11): the credential goes to auth.json inside the helper and nothing of it comes back.
   "auth.login": { params: LoginParams, result: Done },
   "auth.setApiKey": { params: SetApiKeyParams, result: Done },

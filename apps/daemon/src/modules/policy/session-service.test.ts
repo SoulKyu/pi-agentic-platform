@@ -34,6 +34,9 @@ describe("session policy service", () => {
       mode: "auto-accept-edits",
       explicit: false,
       taint: { tainted: false, epoch: 0 },
+      toolAllowlist: null,
+      unattended: false,
+      recorded: false,
     });
     service.setSessionMode(testCaller(), "s1", "read-only");
     expect(service.sessionPolicy("u1", "s1")).toMatchObject({ mode: "read-only", explicit: true });
@@ -100,6 +103,9 @@ describe("session policy service", () => {
       mode: "supervised",
       explicit: true,
       taint: { tainted: true, epoch: 0 },
+      toolAllowlist: null,
+      unattended: false,
+      recorded: true,
     });
   });
 

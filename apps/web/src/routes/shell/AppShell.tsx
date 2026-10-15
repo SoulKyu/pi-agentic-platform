@@ -12,8 +12,11 @@ import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { feedShell } from "../../stores/shell-feed.ts";
 import { resetFolderMemory } from "../../features/files/folder-memory.ts";
+import { feedInbox, useInboxStore } from "../../stores/inbox-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { useTasksStore } from "../../stores/tasks-store.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
+import { useUsageStore } from "../../stores/usage-store.ts";
 import { resetUnsavedFiles } from "../../stores/unsaved-files.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
@@ -65,16 +68,21 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
   useEffect(() => {
     const stop = feedShell(getRuntime().subscriptions, () => reportClientIssue("shell_feed_failed"));
     const stopLanes = feedLanes(getRuntime().subscriptions, () => reportClientIssue("lane_feed_failed"));
+    const stopInbox = feedInbox(getRuntime().subscriptions, () => reportClientIssue("inbox_feed_failed"));
     return () => {
       stop();
       stopLanes();
+      stopInbox();
       useLaneStore.getState().reset();
+      useInboxStore.getState().reset();
       useShellStore.getState().reset();
       useViewLabels.setState({ labels: {} });
       // Every M8 client store (MC34). Uploads keep no state beyond their own component; the terminal store's reset
       // also clears the per-account maps of `surface-terminal.ts` when that chunk is loaded.
       useVcsStore.getState().reset();
       useTerminalStore.getState().reset();
+      useTasksStore.getState().reset();
+      useUsageStore.getState().reset();
       resetUnsavedFiles();
       useComposerPrefill.setState({ items: {} });
       resetFolderMemory();

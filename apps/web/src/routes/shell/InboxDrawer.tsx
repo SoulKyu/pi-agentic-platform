@@ -1,5 +1,6 @@
-import { EmptyState } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
+import InboxPanel from "../../features/inbox/InboxPanel.tsx";
+import { useWorkspaceStore } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
 
 interface DrawerProps {
@@ -7,7 +8,7 @@ interface DrawerProps {
   onOpenChange(open: boolean): void;
 }
 
-/** The right drawer. Its stream arrives with M10/M11; until then it says what it is for. */
+/** The right drawer (decision 29): the panel under a visually hidden dialog title, since the panel heads itself. A click on a row opens its session and closes the drawer. */
 export default function InboxDrawer({ open, onOpenChange }: DrawerProps) {
   const t = useT();
   return (
@@ -17,10 +18,14 @@ export default function InboxDrawer({ open, onOpenChange }: DrawerProps) {
       title={t("shell.inbox.title")}
       closeLabel={t("ui.close")}
       variant="drawer-right"
+      hideTitle
     >
-      <div className="p-s3">
-        <EmptyState title={t("shell.inbox.emptyTitle")} purpose={t("shell.inbox.emptyPurpose")} />
-      </div>
+      <InboxPanel
+        onOpenSession={(id) => {
+          useWorkspaceStore.getState().open({ kind: "session", id });
+          onOpenChange(false);
+        }}
+      />
     </Dialog>
   );
 }

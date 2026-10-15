@@ -102,7 +102,11 @@ describe("phone shell", () => {
   it("Inbox says nothing waits", async () => {
     const page = await renderShell("/", { phone: true });
     await click(button(nav(page.container) as HTMLElement, "Inbox"));
-    expect(page.container.textContent).toContain("Nothing waits for you");
+    // The Inbox panel is its own chunk (M10R50): it shows once the import has settled.
+    await vi.waitFor(async () => {
+      await settle();
+      expect(page.container.textContent).toContain("Nothing waits for you");
+    });
     await page.unmount();
   });
 

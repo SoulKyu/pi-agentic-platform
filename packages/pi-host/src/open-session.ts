@@ -20,7 +20,7 @@ import type { Outbound } from "./ipc.ts";
 import { createLoadoutWatcher, rememberProjectTrust } from "./loadout.ts";
 import { shellFactsOf } from "./shell-facts.ts";
 import { createPresetKeeper } from "./tool-preset-commands.ts";
-import { applyPreset, presetOf, withPreset } from "./tool-presets.ts";
+import { applyPreset, pinToolAllowlist, presetOf, withPreset } from "./tool-presets.ts";
 import type { SecretSource } from "./policy/secrets.ts";
 import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./policy/extension.ts";
 import { UNTRUSTED_RULE } from "./policy/fence.ts";
@@ -129,7 +129,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   // The worker's own preset is part of what the policy judges with, from the first call (M7R78).
   const presetNow = () => (created.session ? presetOf(created.session) : preset);
   const policy = (deps.createPolicy ?? createPapPolicyExtension)({
-    rules: () => withPreset(deps.rules(), presetNow()),
+    rules: () => withPreset(deps.rules(), presetNow(), init.tools?.allowlist ?? null),
     rulesVersion: deps.rulesVersion,
     taint: deps.taint,
     audit: deps.audit,
@@ -178,6 +178,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   created.session = session;
   rememberProjectTrust(session, { required: requiresTrust(cwd), trusted: trust.trusted() });
   // At once: from here the policy reads the worker's preset from the session, and no extension has run yet.
+  pinToolAllowlist(session, init.tools?.allowlist);
   applyPreset(session, preset);
   session.subscribe((event) => deps.onEvent(event));
   await session.bindExtensions({

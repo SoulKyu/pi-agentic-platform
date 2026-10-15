@@ -11,6 +11,7 @@ import {
 } from "../../features/workspace/index.ts";
 import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
+import { useTriggerNames } from "./use-tasks-feed.ts";
 import { PaneBoundary } from "./PaneBoundary.tsx";
 import { renderItem } from "./pane-renderers.tsx";
 import { SurfaceBar } from "./SurfaceBar.tsx";
@@ -28,6 +29,7 @@ export function PaneHost({ tab, shown }: { readonly tab: Tab | null; readonly sh
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
   const lanes = useLaneStore((state) => state.view);
+  const triggers = useTriggerNames();
   const setRatio = useWorkspaceStore((state) => state.setRatio);
   if (!tab) return null;
   const main = (
@@ -64,10 +66,10 @@ export function PaneHost({ tab, shown }: { readonly tab: Tab | null; readonly sh
           tabIndex={-1}
           data-pane-role="split"
           data-pane-kind={item.kind}
-          aria-label={itemTitle(item, sessions, views, t, lanes)}
+          aria-label={itemTitle(item, sessions, views, t, lanes, triggers)}
           className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
-          <SplitHeader tab={tab} title={itemTitle(item, sessions, views, t, lanes)} />
+          <SplitHeader tab={tab} title={itemTitle(item, sessions, views, t, lanes, triggers)} />
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <PaneBoundary key={`${tab.key}/${item.kind}`}>{renderItem(item)}</PaneBoundary>
           </div>
@@ -93,6 +95,7 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
   const lanes = useLaneStore((state) => state.view);
+  const triggers = useTriggerNames();
   const split = useWorkspaceStore((state) => state.split);
   const lazyText = useLazyFailureText();
   const choices: readonly ItemRef[] = ws.tabs
@@ -112,7 +115,7 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
         )}
         items={choices.map((item) => ({
           id: JSON.stringify(item),
-          label: itemTitle(item, sessions, views, t, lanes),
+          label: itemTitle(item, sessions, views, t, lanes, triggers),
           onSelect: () => split(tab.key, item),
         }))}
       />

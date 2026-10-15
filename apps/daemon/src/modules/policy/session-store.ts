@@ -6,15 +6,47 @@ export interface SessionPolicyRow {
   readonly approvalMode: ApprovalMode | null;
   readonly taintedAt: number | null;
   readonly taintEpoch: number;
+  /** An automation run's closed tool list (M10R30); null for every other session. */
+  readonly toolAllowlist: readonly string[] | null;
+  /** The task is not finished: unknown tools block and the session cannot go full-access. */
+  readonly unattended: boolean;
+}
+
+interface RawRow {
+  readonly approvalMode: ApprovalMode | null;
+  readonly taintedAt: number | null;
+  readonly taintEpoch: number;
+  readonly toolAllowlist: string | null;
+  readonly unattended: number;
+}
+
+/** What the CHECK lets in is a JSON array; a list that still reads wrong blocks every tool rather than none. */
+function listOf(raw: string | null): readonly string[] | null {
+  if (raw === null) return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.every((name) => typeof name === "string") ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export interface TaskPolicyInput {
+  readonly mode: ApprovalMode;
+  readonly tools: readonly string[];
+  /** When the session counts as tainted from; null: not tainted by this call (an earlier taint stays). */
+  readonly taintedAt: number | null;
 }
 
 // Every statement names the owner: a row of another owner is never read nor changed, whatever the session id.
 export function createSessionPolicyStore(db: Db) {
-  const read = (ownerId: string, sessionId: string) =>
-    db.get<SessionPolicyRow>(
-      "SELECT approval_mode AS approvalMode, tainted_at AS taintedAt, taint_epoch AS taintEpoch FROM session_policy WHERE session_id = $sessionId AND owner_id = $ownerId",
+  const read = (ownerId: string, sessionId: string): SessionPolicyRow | undefined => {
+    const raw = db.get<RawRow>(
+      "SELECT approval_mode AS approvalMode, tainted_at AS taintedAt, taint_epoch AS taintEpoch, tool_allowlist AS toolAllowlist, unattended FROM session_policy WHERE session_id = $sessionId AND owner_id = $ownerId",
       { sessionId, ownerId },
     );
+    return raw && { ...raw, toolAllowlist: listOf(raw.toolAllowlist), unattended: raw.unattended === 1 };
+  };
   return {
     get: read,
     setMode: (ownerId: string, sessionId: string, mode: ApprovalMode | null, now: number): void => {
@@ -47,16 +79,59 @@ export function createSessionPolicyStore(db: Db) {
         { sessionId, ownerId, now },
       );
     },
-    /** The target takes the source's mode and taint (a fork or a clone carries the same context). A new row starts at epoch 0; an existing row keeps its epoch and its taint, neither of which goes down. */
+    /** Mode, list, taint and `unattended = 1` in one statement (M10R30). An earlier taint stays. */
+    setTask: (ownerId: string, sessionId: string, task: TaskPolicyInput, now: number): void => {
+      db.run(
+        "INSERT INTO session_policy (session_id, owner_id, approval_mode, tainted_at, tool_allowlist, unattended, updated_at) VALUES ($sessionId, $ownerId, $mode, $taintedAt, $list, 1, $now) " +
+          "ON CONFLICT (session_id) DO UPDATE SET approval_mode = excluded.approval_mode, tool_allowlist = excluded.tool_allowlist, unattended = 1, " +
+          "tainted_at = COALESCE(session_policy.tainted_at, excluded.tainted_at), updated_at = excluded.updated_at " +
+          "WHERE session_policy.owner_id = excluded.owner_id",
+        {
+          sessionId,
+          ownerId,
+          mode: task.mode,
+          taintedAt: task.taintedAt,
+          list: JSON.stringify(task.tools),
+          now,
+        },
+      );
+    },
+    /** Sessions whose task has not been ended: the boot looks for the ones no task owns (M10R42). Bounded. */
+    unattended: (): Array<{ ownerId: string; sessionId: string }> =>
+      db.all(
+        "SELECT owner_id AS ownerId, session_id AS sessionId FROM session_policy WHERE unattended = 1 ORDER BY updated_at LIMIT 1000",
+      ),
+    endTask: (ownerId: string, sessionId: string, now: number): void => {
+      db.run(
+        "UPDATE session_policy SET unattended = 0, updated_at = $now WHERE session_id = $sessionId AND owner_id = $ownerId",
+        { sessionId, ownerId, now },
+      );
+    },
+    /** The CHECK refuses it while the row is unattended. */
+    clearList: (ownerId: string, sessionId: string, now: number): void => {
+      db.run(
+        "UPDATE session_policy SET tool_allowlist = NULL, updated_at = $now WHERE session_id = $sessionId AND owner_id = $ownerId",
+        { sessionId, ownerId, now },
+      );
+    },
+    /** The target takes the source's mode, list and taint (a fork or a clone carries the same context). A new row starts at epoch 0; an existing row keeps its epoch and its taint, neither of which goes down. */
     inherit: (ownerId: string, sourceId: string, targetId: string, now: number): void => {
       db.transaction(() => {
         const source = read(ownerId, sourceId);
         if (!source) return;
         db.run(
-          "INSERT INTO session_policy (session_id, owner_id, approval_mode, tainted_at, taint_epoch, updated_at) VALUES ($targetId, $ownerId, $mode, $taintedAt, 0, $now) " +
-            "ON CONFLICT (session_id) DO UPDATE SET approval_mode = excluded.approval_mode, tainted_at = COALESCE(session_policy.tainted_at, excluded.tainted_at), updated_at = excluded.updated_at " +
+          "INSERT INTO session_policy (session_id, owner_id, approval_mode, tainted_at, taint_epoch, tool_allowlist, updated_at) VALUES ($targetId, $ownerId, $mode, $taintedAt, 0, $list, $now) " +
+            "ON CONFLICT (session_id) DO UPDATE SET approval_mode = excluded.approval_mode, tainted_at = COALESCE(session_policy.tainted_at, excluded.tainted_at), " +
+            "tool_allowlist = COALESCE(session_policy.tool_allowlist, excluded.tool_allowlist), updated_at = excluded.updated_at " +
             "WHERE session_policy.owner_id = excluded.owner_id",
-          { targetId, ownerId, mode: source.approvalMode, taintedAt: source.taintedAt, now },
+          {
+            targetId,
+            ownerId,
+            mode: source.approvalMode,
+            taintedAt: source.taintedAt,
+            list: source.toolAllowlist && JSON.stringify(source.toolAllowlist),
+            now,
+          },
         );
       });
     },

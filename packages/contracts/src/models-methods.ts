@@ -4,6 +4,7 @@ import { ERROR_CODES } from "./errors.ts";
 import { Cursor } from "./frames.ts";
 import { modelsConfigMethods } from "./models-config.ts";
 import { modelsProviderMethods } from "./models-provider.ts";
+import { modelsUsageMethods } from "./models-usage.ts";
 import { ModelSummary, ThinkingLevel } from "./session-loadout.ts";
 
 /** Counts Settings › Models stays within; the helper cuts to these and to a byte budget (`truncated`). */
@@ -217,6 +218,7 @@ const CREDENTIAL_WRITE_ERRORS = [
 export const modelsMethods = {
   ...modelsConfigMethods,
   ...modelsProviderMethods,
+  ...modelsUsageMethods,
   "models.overview": defineMethod({
     name: "models.overview",
     permission: "pi:read",

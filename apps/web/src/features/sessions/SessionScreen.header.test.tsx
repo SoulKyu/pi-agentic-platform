@@ -81,6 +81,7 @@ describe("SessionScreen run status chip", () => {
     });
     expect(state(container)).toEqual(["att", "Needs you"]);
     await screen.emit({ kind: "status", status: "cold" });
-    expect(state(container)).toEqual(["mut", "Stopped"]);
+    // A stopped worker is settled, not limited: the quota limit comes from the usage stream (Task 17).
+    expect(state(container)).toEqual(["ok", "Stopped"]);
   });
 });

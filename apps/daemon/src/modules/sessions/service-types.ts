@@ -21,9 +21,12 @@ import type { AuditPort } from "../audit/index.ts";
 import type { AttachmentsPort } from "../files/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
+import type { RunObserver } from "../runs/index.ts";
+import type { SessionsAutomationPort } from "./automation-port.ts";
 import type { Exports } from "./exports.ts";
 import type { LaneHooksSlot } from "./lane-hooks.ts";
 import type { LaneProbe } from "./lane-port.ts";
+import type { Admission } from "./fork-quota.ts";
 import type { PiWriter } from "./pi-writer.ts";
 import type { ReleaseResult } from "./restart-folder.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
@@ -74,6 +77,10 @@ export interface SessionsServiceDeps {
   spawn(cwd: string): WorkerHandle;
   freeMemMb(): number;
   onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
+  /** The runs registry: sees each run start and end and every raw Pi event of the session (M10R84). */
+  readonly runs?: RunObserver;
+  /** The fork cap and the free-disk floor (M10R100, M10R101); the daemon always gives it. */
+  readonly admission?: Admission;
 }
 
 export interface PromptInput {
@@ -178,4 +185,10 @@ export interface SessionsService extends SessionCommands, SessionModels {
   backfillProjects(): number;
   /** What the scanner asks of sessions: adoption of Pi files, and what it learns about them (Task 14). */
   readonly scanPort: SessionsScanPort;
+}
+
+/** The service as the module builds it: the RPC handlers need `SessionsService`, the automation module also this port. */
+export interface SessionsServiceWithAutomation extends SessionsService {
+  /** What the automation and runs modules may do to a session, and nothing more (M10R32). */
+  readonly automation: SessionsAutomationPort;
 }

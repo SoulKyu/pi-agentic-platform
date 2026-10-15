@@ -13,6 +13,7 @@ import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { type PolicyPort, RESTRICTIVE_SETTINGS } from "../policy/index.ts";
+import { auditActorOf, taskRules } from "./automation-port.ts";
 import { createGrantLink, type GrantLink } from "./grants.ts";
 import type { LiveSession } from "./live-session.ts";
 import type { SessionRow, StoredPreset } from "./store.ts";
@@ -24,7 +25,7 @@ const MAX_ANSWERERS = 1_024;
 
 /** Who answered a question: a browser session (`user`) or a token. */
 export interface Answerer {
-  readonly actor: "user" | "token";
+  readonly actor: "user" | "token" | "system";
   readonly actorId: string;
 }
 
@@ -121,7 +122,7 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
   });
 
   function compose(row: SessionRow, scope: string): PolicyRules {
-    const { mode, taint } = deps.policy.sessionPolicy(row.ownerId, row.id);
+    const { mode, taint, ...task } = deps.policy.sessionPolicy(row.ownerId, row.id);
     const settings = settingsOf(row);
     const composed = PolicyRules.safeParse({
       profile: "interactive",
@@ -135,6 +136,7 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
       taint,
       readOnlyCommands: settings.readOnlyCommands,
       readOnlyPreset: deps.toolPreset(row) === "read-only",
+      ...taskRules(row, { mode, ...task }),
     });
     if (composed.success) return composed.data;
     // A bug, not an answer. The worker refuses invalid rules at start, and read-only is the narrowest valid set.
@@ -196,7 +198,7 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
         if (!oldest.done) answerers.delete(oldest.value);
       }
       answerers.set(`${row.id}:${toolCallId}`, {
-        actor: caller.kind === "token" ? "token" : "user",
+        actor: auditActorOf(caller),
         actorId: caller.credentialId ?? "",
       });
     },

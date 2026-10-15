@@ -3,6 +3,7 @@ import { HTTPException } from "hono/http-exception";
 import { secureHeaders } from "hono/secure-headers";
 import { isReadOnlyError } from "../db/read-only.ts";
 import type { Logger } from "../logger.ts";
+import { isHookRequest } from "./hook-path.ts";
 import { originGuard, type OriginRefused } from "./origin.ts";
 import { createStaticHandler, isSpaRoute } from "./static.ts";
 
@@ -79,7 +80,7 @@ export function createHttpApp(options: HttpAppOptions): Hono {
       strictTransportSecurity: options.servesTls === true ? HSTS : false,
     }),
   );
-  app.use("*", originGuard(options.allowedOrigins, options.onOriginRefused));
+  app.use("*", originGuard(options.allowedOrigins, options.onOriginRefused, isHookRequest));
   app.get("/healthz", (c) => c.json({ status: "ok" }));
   options.mount(app);
   app.get("/ws", (c) => options.wsProbe(c));

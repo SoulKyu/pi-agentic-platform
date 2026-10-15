@@ -75,6 +75,9 @@ describe("inherit never lowers an epoch", () => {
       mode: "supervised",
       explicit: true,
       taint: { tainted: true, epoch: 2 },
+      toolAllowlist: null,
+      unattended: false,
+      recorded: true,
     });
   });
 });

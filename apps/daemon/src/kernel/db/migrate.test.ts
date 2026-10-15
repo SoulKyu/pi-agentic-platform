@@ -245,7 +245,7 @@ describe("migrate", () => {
 
   it("ships a kernel migration that creates meta and receipts", () => {
     const { db, applied } = migrate(options([KERNEL_MIGRATIONS]));
-    expect(applied).toEqual(["kernel/202610100000_kernel.sql"]);
+    expect(applied).toEqual(["kernel/202610100000_kernel.sql", "kernel/202610142000_outbox.sql"]);
     const tables = db.all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'");
     expect(tables.map((t) => t.name)).toEqual(
       expect.arrayContaining(["meta", "receipts", "schema_migrations"]),

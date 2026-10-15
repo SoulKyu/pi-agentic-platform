@@ -4,6 +4,7 @@
 // preceding `-`, `_` or alphanumeric is not matched (M5R124, amended).
 const KNOWN_SECRET_FORMATS: ReadonlyArray<readonly [kind: string, pattern: RegExp]> = [
   ["pap_token", /\bpap_[A-Za-z0-9_-]{43}/g],
+  ["webhook_secret", /\bpwh_[A-Za-z0-9_-]{43}/g],
   ["github_token", /\b(?:gh[opsur]_[A-Za-z0-9]{20,255}|github_pat_[A-Za-z0-9_]{20,255})/g],
   ["anthropic_key", /\bsk-ant-[A-Za-z0-9_-]{20,255}/g],
   ["api_key", /\bsk-[A-Za-z0-9_-]{20,255}/g],

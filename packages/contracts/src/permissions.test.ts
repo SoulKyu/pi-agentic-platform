@@ -8,4 +8,14 @@ describe("domains", () => {
     expect(DOMAINS.indexOf("pi")).toBe(DOMAINS.indexOf("terminal") + 1);
     expect(ALL_PERMISSIONS).toEqual(expect.arrayContaining(["pi:read", "pi:operate", "pi:admin"]));
   });
+
+  it("appends automation, usage and inbox after pi, each with its three levels (M10R1)", () => {
+    expect(DOMAINS.slice(DOMAINS.indexOf("pi"))).toEqual(
+      expect.arrayContaining(["pi", "automation", "usage", "inbox"]),
+    );
+    expect(DOMAINS.indexOf("automation")).toBeGreaterThan(DOMAINS.indexOf("pi"));
+    expect(ALL_PERMISSIONS).toEqual(
+      expect.arrayContaining(["automation:admin", "usage:operate", "inbox:read"]),
+    );
+  });
 });

@@ -49,6 +49,12 @@ const OPENERS: {
   login: (rpc, key, after) => rpc.call("subscribe.login", { flowId: key, ...(after ? { after } : {}) }),
   // The caller's own lanes, like `shell` (M9R3).
   lane: (rpc, _key, after) => rpc.call("subscribe.lane", after ? { after } : {}),
+  // The caller's own board, like `shell`: the key is a local name (M10R43).
+  tasks: (rpc, _key, after) => rpc.call("subscribe.tasks", after ? { after } : {}),
+  // The caller's own Inbox, like `shell`: the key is a local name (M10R50).
+  inbox: (rpc, _key, after) => rpc.call("subscribe.inbox", after ? { after } : {}),
+  // The caller's own quota limits and spend, like `shell`: the key is a local name (M10R107).
+  usage: (rpc, _key, after) => rpc.call("subscribe.usage", after ? { after } : {}),
 };
 
 interface Listener {

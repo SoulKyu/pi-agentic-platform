@@ -21,7 +21,18 @@ describe("method catalogue", () => {
       "auth.passkeys.remove",
       "auth.tokens.create",
       "auth.tokens.revoke",
+      "automation.failures.dismiss",
+      "automation.fire",
+      "automation.tasks.cancel",
+      "automation.tasks.releaseTools",
+      "automation.tasks.retry",
+      "automation.triggers.create",
+      "automation.triggers.delete",
+      "automation.triggers.rotateSecret",
+      "automation.triggers.setEnabled",
+      "automation.triggers.update",
       "files.write",
+      "inbox.markRead",
       "lanes.approveScripts",
       "lanes.archive",
       "lanes.closeLosers",
@@ -85,6 +96,8 @@ describe("method catalogue", () => {
       "skills.install",
       "skills.setInvocation",
       "trust.set",
+      "usage.cancelResume",
+      "usage.resumeNow",
     ]);
   });
 
@@ -195,12 +208,12 @@ describe("method catalogue", () => {
     expect(methods["sessions.fork"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "bad_request", "session_empty", "capacity"],
+      errors: ["not_found", "bad_request", "session_empty", "capacity", "rate_limited", "disk_low"],
     });
     expect(methods["sessions.clone"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "session_empty", "capacity"],
+      errors: ["not_found", "session_empty", "capacity", "rate_limited", "disk_low"],
     });
     const fork = methods["sessions.fork"];
     expect(fork.params.safeParse({ sessionId: "s", entryId: "e".repeat(128) }).success).toBe(true);

@@ -43,6 +43,7 @@ describe("composeLanes", () => {
       clock: bed.clock,
       logger: bed.logger,
       readOnly: false,
+      config: { minFreeDiskMb: 0 },
       worktrees,
     });
     let settled = false;
@@ -64,6 +65,7 @@ describe("composeLanes", () => {
       clock: bed.clock,
       logger: bed.logger,
       readOnly: false,
+      config: { minFreeDiskMb: 0 },
       worktrees,
     });
     await expect(lanes.recover()).resolves.toBeUndefined();
@@ -79,6 +81,7 @@ describe("composeLanes", () => {
       clock: createFakeClock(),
       logger: silentLogger,
       readOnly: false,
+      config: { minFreeDiskMb: 0 },
     });
     expect(lanes.paths.roots("o1")).toEqual([]);
     expect(lanes.paths.scopeOf("s1")).toBeNull();
@@ -96,6 +99,7 @@ describe("composeLanes bind and recovery", () => {
       clock: bed.clock,
       logger: bed.logger,
       readOnly: false,
+      config: { minFreeDiskMb: 0 },
       worktrees: worktrees as WorktreesPort,
     });
   const lane = (id: string, state: string) => {
@@ -174,6 +178,7 @@ describe("composeLanes rpc", () => {
       clock: createFakeClock(),
       logger: silentLogger,
       readOnly: false,
+      config: { minFreeDiskMb: 0 },
     });
     const ctx = { caller: testCaller() } as never;
     await expect(lanes.rpc["lanes.preview"]({ projectRoot: "/x" }, ctx)).rejects.toMatchObject({
@@ -206,6 +211,7 @@ describe("composeLanes outward operations (Task 14)", () => {
       clock: createFakeClock(),
       logger: silentLogger,
       readOnly: false,
+      config: { minFreeDiskMb: 0 },
     });
 
   it("serves commit, push, prCreate and prRefresh: a lane that is not there is not_found, not internal", async () => {

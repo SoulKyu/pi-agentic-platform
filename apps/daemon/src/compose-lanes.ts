@@ -2,6 +2,8 @@ import { join } from "node:path";
 import { denySourcesOf, type WorkspaceModules } from "./compose-workspace.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Db } from "./kernel/db/database.ts";
+import { createPathDiskGuard } from "./kernel/disk.ts";
+import type { Config } from "./kernel/config.ts";
 import { type Forge, forgeFor, prepareForgeDir } from "./kernel/forge/port.ts";
 import type { ForgeKind, HandlerTable, LaneMethodName } from "@pap/contracts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
@@ -22,8 +24,8 @@ import {
   lanesFanoutRpc,
   lanesGitRpc,
   lanesIssueRpc,
-  localDiskFloor,
 } from "./modules/lanes/index.ts";
+import type { RunsPort } from "./modules/runs/index.ts";
 import type { PolicyPort } from "./modules/policy/index.ts";
 import type { SessionsModule } from "./modules/sessions/index.ts";
 import type { TrustPort } from "./modules/trust/index.ts";
@@ -76,10 +78,12 @@ export interface LanesComposeDeps {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly readOnly: boolean;
-  /** Throws when the filesystem of the path is too full. Default until M10 wires its own (agreement 13): 1 GiB, `capacity`. */
+  /** M10's floor (`PAP_MIN_FREE_DISK_MB`, `0` = off) for every lane path: `disk_low` below it (agreement 13). */
+  readonly config: Pick<Config, "minFreeDiskMb">;
+  /** Tests only: replaces the floor built from `config`. */
   readonly diskFloor?: (path: string) => undefined;
-  /** M10's `RunsPort.sessionCost`, for the compare column (agreement 14); the second merger wires it. */
-  readonly sessionCost?: (sessionId: string) => number | null;
+  /** M10's runs port: `sessionCost` is the compare column's cost (agreement 14). */
+  readonly runs?: Pick<RunsPort, "sessionCost" | "sessionBilling">;
   /** Tests only: replaces the worktrees module. */
   readonly worktrees?: WorktreesPort;
 }
@@ -88,6 +92,8 @@ export const RECOVERY_BUDGET_MS = 60_000;
 
 export function composeLanes(deps: LanesComposeDeps): LanesCompose {
   const logger = deps.logger.child({ module: "lanes" });
+  const diskFloor =
+    deps.diskFloor ?? createPathDiskGuard({ floorMb: deps.config.minFreeDiskMb, logger: deps.logger });
   const { git, boundary, deny, home: papHome, runtime } = deps.wk;
   // The test seam only: a push to a local bare repository (`Config.testGitProtocols` names `file`).
   const allowFile = (deps.wk.remoteProtocols ?? "").split(":").includes("file");
@@ -126,7 +132,7 @@ export function composeLanes(deps: LanesComposeDeps): LanesCompose {
       logger: deps.logger,
       papHome,
       readOnly: deps.readOnly,
-      diskFloor: deps.diskFloor ?? localDiskFloor,
+      diskFloor,
     });
   const forge = (kind: ForgeKind): Forge | null =>
     forgeFor(kind, {
@@ -152,8 +158,13 @@ export function composeLanes(deps: LanesComposeDeps): LanesCompose {
     audit: deps.audit.port,
     allowFile,
     forgeFor: forge,
-    ...(deps.diskFloor ? { diskFloor: deps.diskFloor } : {}),
-    ...(deps.sessionCost ? { sessionCost: deps.sessionCost } : {}),
+    diskFloor,
+    ...(deps.runs
+      ? {
+          sessionCost: (sessionId: string) => deps.runs?.sessionCost(sessionId) ?? null,
+          sessionBilling: (sessionId: string) => deps.runs?.sessionBilling(sessionId) ?? null,
+        }
+      : {}),
   });
   bridge.publish = service.publish;
   let sessionsPort: LanesBindDeps["sessions"]["lanes"] | undefined;
@@ -165,7 +176,7 @@ export function composeLanes(deps: LanesComposeDeps): LanesCompose {
     indexDir: join(papHome, "tmp", "git-index"),
     sessions: () => sessionsPort,
     readOnly: deps.readOnly,
-    diskFloor: deps.diskFloor ?? localDiskFloor,
+    diskFloor,
   });
   const suggest = createLanesSuggest({
     db: deps.db,
@@ -175,7 +186,7 @@ export function composeLanes(deps: LanesComposeDeps): LanesCompose {
     indexDir: join(papHome, "tmp", "git-index"),
     sessions: () => sessionsPort,
     readOnly: deps.readOnly,
-    diskFloor: deps.diskFloor ?? localDiskFloor,
+    diskFloor,
   });
   return {
     rpc: {

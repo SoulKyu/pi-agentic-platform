@@ -8,6 +8,7 @@ import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { LANE_TAB_STATUS } from "../../lib/lane-status-view.ts";
 import { laneStatusOf } from "../../lib/lane-sessions.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
+import { useTriggerNames } from "./use-tasks-feed.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { closeItem, go, otherItem, takeFocusAfterClose, toggleSplit } from "./tab-actions.ts";
 
@@ -23,6 +24,7 @@ export function TabBar() {
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
   const lanes = useLaneStore((state) => state.view);
+  const triggers = useTriggerNames();
   const listRef = useRef<HTMLDivElement>(null);
   const active = activeTab(ws);
   const other = otherItem(ws);
@@ -63,7 +65,7 @@ export function TabBar() {
         className="flex min-w-0 items-center gap-s1 overflow-x-auto"
       >
         {ws.tabs.map((tab) => {
-          const title = itemTitle(tab.item, sessions, views, t, lanes);
+          const title = itemTitle(tab.item, sessions, views, t, lanes, triggers);
           const item = tab.item;
           const running = item.kind === "session" && sessions.get(item.id)?.status === "running";
           const lane = item.kind === "lane" ? lanes.lanes.get(item.id) : undefined;

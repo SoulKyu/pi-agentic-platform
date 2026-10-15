@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
+import { kernelBeforeOutbox } from "../../kernel/testing/old-kernel.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { SESSIONS_MIGRATIONS } from "../sessions/index.ts";
 import { POLICY_MIGRATIONS } from "./index.ts";
@@ -42,9 +43,11 @@ function sessionsBefore() {
 function homeBeforePatterns() {
   const old = join(dir, "policy-before-patterns");
   mkdirSync(old);
-  for (const file of readdirSync(POLICY_MIGRATIONS.dir).filter((name) => name !== STAMP))
+  for (const file of readdirSync(POLICY_MIGRATIONS.dir).filter(
+    (name) => name !== STAMP && name !== "202610142040_tool_allowlist.sql",
+  ))
     copyFileSync(join(POLICY_MIGRATIONS.dir, file), join(old, file));
-  return open([KERNEL_MIGRATIONS, sessionsBefore(), { module: POLICY_MIGRATIONS.module, dir: old }]);
+  return open([kernelBeforeOutbox(dir), sessionsBefore(), { module: POLICY_MIGRATIONS.module, dir: old }]);
 }
 const full = () => open([KERNEL_MIGRATIONS, SESSIONS_MIGRATIONS, POLICY_MIGRATIONS]);
 const insert = (db: ReturnType<typeof full>, id: string, extra = "", values = "") =>

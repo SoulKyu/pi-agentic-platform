@@ -10,3 +10,9 @@ export const escapeHidden = (text: string): string =>
     const hex = (character.codePointAt(0) ?? 0).toString(16).toUpperCase();
     return hex.length > 4 ? `\\u{${hex}}` : `\\u${hex.padStart(4, "0")}`;
   });
+
+/** `escapeHidden` for text that keeps its lines: a new line and a tab stay as they are (a dry-run's prompt, a payload sample). */
+export const escapeHiddenKeepLines = (text: string): string =>
+  text.replace(HIDDEN, (character) =>
+    character === "\n" || character === "\t" ? character : escapeHidden(character),
+  );

@@ -8,6 +8,7 @@ import { EnabledSwitches, type SwitchHandlers } from "./EnabledSwitches.tsx";
 import { failureText } from "./failure.ts";
 import { ModelsJsonEditor } from "./ModelsJsonEditor.tsx";
 import { ModelTest } from "./ModelTest.tsx";
+import { ProviderUsage } from "./ProviderUsage.tsx";
 import { SignInFlow } from "./SignInFlow.tsx";
 import { signInState } from "./models.vm.ts";
 import type { StepUpRunner } from "./step-up.ts";
@@ -228,6 +229,7 @@ export function ProviderDetail({
         handlers={handlers}
       />
       {provider.models.length > 0 ? <ModelTest key={provider.id} provider={provider} /> : null}
+      <ProviderUsage key={`usage-${provider.id}`} providerId={provider.id} />
       <ModelsJsonEditor
         provider={provider}
         stepUp={stepUp}

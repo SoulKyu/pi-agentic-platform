@@ -19,6 +19,7 @@ import { modelsDiscoverOp, modelsTestOp } from "./ops/models-discover.ts";
 import { configGetOp, configSaveOp } from "./ops/models-json.ts";
 import { modelsOverviewOp } from "./ops/models-overview.ts";
 import { modelsPricingOp } from "./ops/models-pricing.ts";
+import { modelsUsageOp } from "./ops/models-usage.ts";
 import { ping } from "./ops/ping.ts";
 import {
   pluginsInstallOp,
@@ -85,6 +86,7 @@ export const opsFor = (env: NodeJS.ProcessEnv): OpTable => ({
   "models.discover": modelsDiscoverOp,
   "models.test": modelsTestOp,
   "models.pricing": modelsPricingOp,
+  "models.usage": modelsUsageOp,
   "auth.login": loginOp,
   "auth.setApiKey": setApiKeyOp,
   "auth.logout": logoutOp,

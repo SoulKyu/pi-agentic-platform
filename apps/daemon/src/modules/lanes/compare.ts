@@ -21,8 +21,10 @@ export interface CompareDeps {
   diskFloor(path: string): undefined;
   readonly readOnly: boolean;
   sessions(): Pick<SessionsLanePort, "lastAgentText"> | undefined;
-  /** M10's `RunsPort.sessionCost`: null without runs; absent until M10 wires it. */
+  /** M10's `RunsPort.sessionCost` (wired by `compose-lanes.ts`): null for a session the runs registry does not know. */
   readonly sessionCost?: (sessionId: string) => number | null;
+  /** M10's `RunsPort.sessionBilling`: the column's "API-equivalent" label. */
+  readonly sessionBilling?: (sessionId: string) => "api" | "subscription" | "unknown" | null;
 }
 
 const INVISIBLE_ALL = new RegExp(INVISIBLE.source, "gu");
@@ -86,6 +88,7 @@ export function createCompare(deps: CompareDeps) {
         ...(await counts(row)),
         durationMs: row.firstRunEndedAt === null ? null : Math.max(0, row.firstRunEndedAt - row.createdAt),
         costUsd: row.primarySessionId === null ? null : (deps.sessionCost?.(row.primarySessionId) ?? null),
+        billing: row.primarySessionId === null ? null : (deps.sessionBilling?.(row.primarySessionId) ?? null),
       });
     }
     return { columns };

@@ -29,7 +29,6 @@ import { type Checkpoints, createCheckpoints } from "./checkpoints.ts";
 import { createCloseLosers } from "./close-losers.ts";
 import { createCompare } from "./compare.ts";
 import { createLaneCreator, openSession } from "./create.ts";
-import { localDiskFloor } from "./disk-floor.ts";
 import { createLaneNotices, type LaneNotices } from "./notices.ts";
 import { createLaneLocks, type LaneLock } from "./lane-lock.ts";
 import { createLanePaths, type LanePathsIndex } from "./paths.ts";
@@ -59,8 +58,8 @@ export interface LanesServiceDeps {
   readonly deny: DenySet;
   readonly denyFolders: readonly string[];
   readonly readOnly: boolean;
-  /** Throws when the filesystem of the path is too full (M9R117); M10 replaces the default with its own. */
-  readonly diskFloor?: (path: string) => undefined;
+  /** Throws `disk_low` when the filesystem of the path is too full (M9R117, M10's guard through `compose-lanes.ts`). */
+  readonly diskFloor: (path: string) => undefined;
   /** The audit row of a push (an external write by the owner). */
   readonly audit?: Pick<AuditPort, "append">;
   /** `Config.testGitProtocols` includes `file`: the push test seam (default false). */
@@ -69,6 +68,8 @@ export interface LanesServiceDeps {
   readonly forgeFor?: (kind: ForgeKind) => Forge | null;
   /** M10's `RunsPort.sessionCost`: the compare column's cost (null without it, M9R85). */
   readonly sessionCost?: (sessionId: string) => number | null;
+  /** M10's `RunsPort.sessionBilling`: the column's "API-equivalent" label. */
+  readonly sessionBilling?: (sessionId: string) => "api" | "subscription" | "unknown" | null;
   readonly copyLink?: typeof applyCopyLink;
   readonly random?: (bytes: number) => Buffer;
   readonly schedule?: (flush: () => void) => void;
@@ -173,7 +174,7 @@ export function createLanesService(deps: LanesServiceDeps): LanesService {
     gitDirOf: deps.worktrees.gitDirOf,
     lock: locks.laneLock,
     notices,
-    diskFloor: deps.diskFloor ?? localDiskFloor,
+    diskFloor: deps.diskFloor,
     sessions: () => sessions,
     refreshFacts,
     publish: (laneId: string) => publish(laneId),
@@ -219,7 +220,7 @@ export function createLanesService(deps: LanesServiceDeps): LanesService {
     deny: deps.deny,
     denyFolders: deps.denyFolders,
     readOnly: deps.readOnly,
-    diskFloor: deps.diskFloor ?? localDiskFloor,
+    diskFloor: deps.diskFloor,
     copyLink: deps.copyLink ?? applyCopyLink,
     publish,
     publishFanout: stream.fanoutChanged,
@@ -289,6 +290,7 @@ export function createLanesService(deps: LanesServiceDeps): LanesService {
     readOnly: deps.readOnly,
     sessions: () => sessions,
     ...(deps.sessionCost ? { sessionCost: deps.sessionCost } : {}),
+    ...(deps.sessionBilling ? { sessionBilling: deps.sessionBilling } : {}),
   });
   const closeLosers = createCloseLosers({
     store,

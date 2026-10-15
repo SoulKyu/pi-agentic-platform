@@ -74,6 +74,9 @@ export const settingsAccessEn = {
   "access.tokens.domain.vcs": "Git",
   "access.tokens.domain.pi": "Pi configuration",
   "access.tokens.domain.lanes": "Lanes",
+  "access.tokens.domain.automation": "Automation",
+  "access.tokens.domain.usage": "Usage and budget",
+  "access.tokens.domain.inbox": "Inbox",
   "access.tokens.level.read": "Read",
   "access.tokens.level.operate": "Operate",
   "access.tokens.level.admin": "Administer",
@@ -83,6 +86,8 @@ export const settingsAccessEn = {
     "This token can write ordinary files in your projects; never hooks, editor tasks or Pi's files.",
   "access.tokens.riskNote.filesRead":
     "This token can read the files of your projects, your home folder included when it is a project, apart from its dot-files.",
+  "access.tokens.riskNote.automationOperate":
+    "This token can start automation runs: they spend money and use the tools each trigger allows.",
   "access.tokens.create": "Create token",
   "access.tokens.created": "Token created",
   "access.tokens.shownOnce": "Copy it now: it is shown only once and cannot be read again.",
@@ -185,6 +190,9 @@ export const settingsAccessFr: { readonly [K in keyof typeof settingsAccessEn]: 
   "access.tokens.domain.vcs": "Git",
   "access.tokens.domain.pi": "Configuration de Pi",
   "access.tokens.domain.lanes": "Voies de travail",
+  "access.tokens.domain.automation": "Automatisation",
+  "access.tokens.domain.usage": "Usage et budget",
+  "access.tokens.domain.inbox": "Boîte de réception",
   "access.tokens.level.read": "Lecture",
   "access.tokens.level.operate": "Action",
   "access.tokens.level.admin": "Administration",
@@ -196,6 +204,8 @@ export const settingsAccessFr: { readonly [K in keyof typeof settingsAccessEn]: 
     "Ce jeton peut écrire des fichiers ordinaires dans vos projets ; jamais les hooks, les tâches d'éditeur ni les fichiers de Pi.",
   "access.tokens.riskNote.filesRead":
     "Ce jeton peut lire les fichiers de vos projets, votre dossier personnel compris quand c'est un projet, hors ses fichiers cachés.",
+  "access.tokens.riskNote.automationOperate":
+    "Ce jeton peut lancer des exécutions d'automatisation : elles dépensent de l'argent et utilisent les outils que chaque déclencheur autorise.",
   "access.tokens.create": "Créer le jeton",
   "access.tokens.created": "Jeton créé",
   "access.tokens.shownOnce":

@@ -7,6 +7,7 @@ import { ApprovalsSection } from "./ApprovalsSection.tsx";
 import { LanguageSection } from "./LanguageSection.tsx";
 import { McpSettings } from "./McpSettings.tsx";
 import { ModelsSettings } from "./ModelsSettings.tsx";
+import { AutomationSettings } from "./AutomationSettings.tsx";
 import { SkillsSettings } from "./SkillsSettings.tsx";
 
 export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode> = {
@@ -17,5 +18,6 @@ export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode
   models: () => <ModelsSettings />,
   mcp: () => <McpSettings />,
   skills: () => <SkillsSettings />,
+  automation: () => <AutomationSettings />,
   account: () => <AccountSection />,
 };

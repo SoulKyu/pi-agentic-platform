@@ -7,6 +7,7 @@ import { createFakeClock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
 import { silentLogger } from "../../kernel/logger.ts";
+import { kernelBeforeOutbox } from "../../kernel/testing/old-kernel.ts";
 import { POLICY_MIGRATIONS } from "../policy/index.ts";
 import { SESSIONS_MIGRATIONS } from "./index.ts";
 import { createSessionsStore, type SessionRow, type SessionsStore } from "./store.ts";
@@ -129,7 +130,11 @@ describe("the session_name migration", () => {
     };
     const first = migrate({
       ...options,
-      sources: [KERNEL_MIGRATIONS, { module: "policy", dir: oldPolicy }, { module: "sessions", dir: old }],
+      sources: [
+        kernelBeforeOutbox(dir),
+        { module: "policy", dir: oldPolicy },
+        { module: "sessions", dir: old },
+      ],
     });
     expect(first.applied).toContain("policy/202610110100_policy.sql");
     first.db.close();
@@ -144,6 +149,8 @@ describe("the session_name migration", () => {
       "policy/202610131000_pattern_rules.sql",
       "sessions/202610131020_pap_wrote_at.sql",
       "sessions/202610131030_tool_preset.sql",
+      "kernel/202610142000_outbox.sql",
+      "policy/202610142040_tool_allowlist.sql",
     ]);
     expect(second.readOnly).toBe(false);
     second.db.close();

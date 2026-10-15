@@ -13,6 +13,7 @@ export type ModelsRpc = Pick<
   | "models.discover"
   | "models.test"
   | "models.pricing"
+  | "models.usage"
   | "models.login"
   | "models.loginAnswer"
   | "models.loginCancel"
@@ -34,6 +35,7 @@ export function modelsRpc(service: ModelsService): ModelsRpc {
     "models.discover": async (params, ctx) => service.discover(ctx.caller, params),
     "models.test": async (params, ctx) => service.test(ctx.caller, params),
     "models.pricing": async (params, ctx) => service.pricing(ctx.caller, params),
+    "models.usage": async (params, ctx) => service.usage(ctx.caller, params),
     "models.login": async (params, ctx) => service.login(ctx.caller, params),
     "models.loginAnswer": async (params, ctx) => service.loginAnswer(ctx.caller, params),
     "models.loginCancel": async (params, ctx) => service.loginCancel(ctx.caller, params),

@@ -18,6 +18,7 @@ const column = (laneId: string, patch: object = {}) => ({
   deletions: null,
   durationMs: null,
   costUsd: null,
+  billing: null,
   ...patch,
 });
 

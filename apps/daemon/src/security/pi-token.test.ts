@@ -48,6 +48,7 @@ const SAMPLES: Record<string, unknown> = {
   "models.config.save": { text: "{}", baseRevision: "0".repeat(64) },
   "models.discover": { provider: "anthropic" },
   "models.test": { provider: "anthropic", modelId: "m" },
+  "models.usage": { providerId: "openrouter" },
   "models.login": { provider: "anthropic", method: "oauth" },
   "models.loginAnswer": { flowId: "f1", promptId: "p1", value: "x" },
   "models.loginCancel": { flowId: "f1" },

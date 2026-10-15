@@ -190,9 +190,9 @@ describe("lanes.checkpointStatus (M9R74)", () => {
     expect(b.counters.diskChecks).toBe(1);
     const full = bed();
     full.behaviour.diskFloor = () => {
-      throw new PapError("capacity");
+      throw new PapError("disk_low");
     };
-    expect(await code(status(full))).toBe("capacity");
+    expect(await code(status(full))).toBe("disk_low");
     expect(full.counters.snapshots).toBe(0);
     const ro = createCheckpointBed({ readOnly: true });
     ro.behaviour.branch = BRANCH;

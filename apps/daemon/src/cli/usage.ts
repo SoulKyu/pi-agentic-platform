@@ -10,7 +10,8 @@ export const USAGE = [
   "       pap audit prune [--month YYYY-MM] [--dry-run]",
   "       pap user add <username> [--password-stdin]",
   "       pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]",
-  "The admin commands (everything but serve) need the daemon stopped; for the preview service:",
+  "       pap trace summary [--since <15m|2h|1d>]",
+  "The admin commands (everything but serve and trace summary) need the daemon stopped; for the preview service:",
   `  ${PREVIEW_STOP_COMMAND}`,
   "",
 ].join("\n");

@@ -20,7 +20,14 @@ import type { AuditPort } from "../../audit/index.ts";
 import type { AttachmentsPort } from "../../files/index.ts";
 import type { PolicyPort } from "../../policy/index.ts";
 import type { ProjectsPort } from "../../projects/index.ts";
-import { createExports, type Exports, loadPiWriter, type PiWriter, SESSIONS_MIGRATIONS } from "../index.ts";
+import {
+  type Admission,
+  createExports,
+  type Exports,
+  loadPiWriter,
+  type PiWriter,
+  SESSIONS_MIGRATIONS,
+} from "../index.ts";
 import { fakePolicyPort } from "./fake-policy.ts";
 import { noAttachments } from "./no-attachments.ts";
 import { fakeProjectsPort } from "./fake-projects.ts";
@@ -75,6 +82,8 @@ export interface BedOptions {
   idleMs?: number;
   /** A worker told to stop exits only when the test crashes it (`bed.spawned[i].crash(...)`). */
   holdShutdown?: boolean;
+  /** The fork cap and the disk floor; none by default. */
+  admission?: (clock: Clock) => Admission;
   /** By the order the workers are spawned in, from 0. */
   start?(index: number, init: InitRecord): StartBehavior | undefined;
   /**
@@ -129,6 +138,7 @@ export interface ServiceParts<Store, Reader> {
   spawn(cwd: string): WorkerHandle;
   loadTranscript(): Promise<Reader>;
   loadWriter(): Promise<PiWriter>;
+  readonly admission?: Admission;
 }
 
 // A helper in `testing/` may import a module only through its index (the boundaries rule), so the service and the
@@ -211,6 +221,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
         ? Promise.resolve(options.writer)
         : loadPiWriter(forkTmpDir, { logger: options.logger ?? silentLogger }),
     freeMemMb: () => options.freeMemMb ?? 4096,
+    ...(options.admission ? { admission: options.admission(clock) } : {}),
     spawn: () => {
       const index = spawned.length;
       const worker = createFakeWorker({

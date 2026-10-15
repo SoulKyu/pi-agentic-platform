@@ -6,11 +6,13 @@ import {
   PapError,
   PolicySettings,
   type TaintState,
+  ToolName,
 } from "@pap/contracts";
+import { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
-import type { SessionPolicyStore } from "./session-store.ts";
+import type { SessionPolicyStore, TaskPolicyInput } from "./session-store.ts";
 import type { SettingsPolicyStore } from "./settings-store.ts";
 
 /**
@@ -31,7 +33,16 @@ export interface SessionPolicyPort {
   sessionPolicy(
     ownerId: string,
     sessionId: string,
-  ): { mode: ApprovalMode; explicit: boolean; taint: TaintState };
+  ): {
+    mode: ApprovalMode;
+    explicit: boolean;
+    taint: TaintState;
+    /** An automation run's closed tool list and whether the run is unfinished (M10R30). */
+    toolAllowlist: readonly string[] | null;
+    unattended: boolean;
+    /** A policy row exists: for a task session, its first transaction committed (M10R31). */
+    recorded: boolean;
+  };
   /** The settings a worker is given: the defaults when nothing is stored, `RESTRICTIVE_SETTINGS` when the document is unreadable. */
   settings(ownerId: string): PolicySettings;
   /**
@@ -42,6 +53,17 @@ export interface SessionPolicyPort {
   markTainted(ownerId: string, sessionId: string, observedEpoch?: number): boolean;
   /** The target takes the source's mode and taint, for a fork or a clone; its epoch is never lowered. Tells no listener. */
   inherit(ownerId: string, sourceId: string, targetId: string): void;
+  /**
+   * Mode, tool list, taint and `unattended = 1` in one statement; the listeners are told (M10R30). `bad_request` for a
+   * list that is empty or holds a bad name.
+   */
+  setTaskPolicy(ownerId: string, sessionId: string, task: TaskPolicyInput): void;
+  /** The task is over: `unattended = 0`, the list stays until `clearTaskPolicy`. Tells the listeners. */
+  endTaskPolicy(ownerId: string, sessionId: string): void;
+  /** Every session whose task policy is still unattended, across owners (the boot's orphan sweep, M10R42). */
+  unattendedSessions(): Array<{ ownerId: string; sessionId: string }>;
+  /** "Use my normal tools": lifts the list. `session_busy` while the task is unattended. Tells the listeners. */
+  clearTaskPolicy(ownerId: string, sessionId: string): void;
   /** Called after a session's mode or taint changed. The returned function removes the listener. */
   onSessionChange(listener: (ownerId: string, sessionId: string) => void): () => void;
   /** Called after an owner's settings were saved. The returned function removes the listener. */
@@ -51,6 +73,7 @@ export interface SessionPolicyPort {
 type AuditLine = Parameters<AuditPort["append"]>[0];
 
 const MAX_LOGGED_OWNERS = 1_024;
+const TaskTools = z.array(ToolName).min(1).max(32);
 
 export function createSessionPolicyService(deps: {
   readonly sessions: SessionPolicyStore;
@@ -128,7 +151,28 @@ export function createSessionPolicyService(deps: {
         mode: row?.approvalMode ?? settings(ownerId).defaultMode,
         explicit: row?.approvalMode != null,
         taint: { tainted: row?.taintedAt != null, epoch: row?.taintEpoch ?? 0 },
+        toolAllowlist: row?.toolAllowlist ?? null,
+        unattended: row?.unattended ?? false,
+        recorded: row !== undefined,
       };
+    },
+    setTaskPolicy(ownerId: string, sessionId: string, task: TaskPolicyInput): void {
+      owns(ownerId, sessionId);
+      if (!TaskTools.safeParse(task.tools).success) throw new PapError("bad_request");
+      deps.sessions.setTask(ownerId, sessionId, task, deps.clock.now());
+      sessionChanged(ownerId, sessionId);
+    },
+    endTaskPolicy(ownerId: string, sessionId: string): void {
+      owns(ownerId, sessionId);
+      deps.sessions.endTask(ownerId, sessionId, deps.clock.now());
+      sessionChanged(ownerId, sessionId);
+    },
+    unattendedSessions: () => deps.sessions.unattended(),
+    clearTaskPolicy(ownerId: string, sessionId: string): void {
+      owns(ownerId, sessionId);
+      if (deps.sessions.get(ownerId, sessionId)?.unattended) throw new PapError("session_busy");
+      deps.sessions.clearList(ownerId, sessionId, deps.clock.now());
+      sessionChanged(ownerId, sessionId);
     },
     settings,
     markTainted(ownerId: string, sessionId: string, observedEpoch?: number): boolean {
@@ -144,6 +188,12 @@ export function createSessionPolicyService(deps: {
     },
     setSessionMode(caller: Caller, sessionId: string, mode: ApprovalMode | null): void {
       owns(caller.userId, sessionId);
+      // A running task cannot be made unasked, and never follows the owner default, which may become full-access (M10R153).
+      if (
+        deps.sessions.get(caller.userId, sessionId)?.unattended &&
+        (mode === null || mode === "full-access")
+      )
+        throw new PapError("session_busy");
       deps.sessions.setMode(caller.userId, sessionId, mode, deps.clock.now());
       sessionChanged(caller.userId, sessionId);
       audit({

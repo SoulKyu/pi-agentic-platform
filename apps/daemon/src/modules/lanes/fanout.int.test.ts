@@ -80,7 +80,8 @@ describe("fan-out over /ws with the scripted provider", () => {
       for (const column of columns) {
         expect(column.summary).toContain("hi");
         expect(column.durationMs).not.toBeNull();
-        expect(column.costUsd).toBeNull();
+        // M10's runs port feeds the column (agreement 14); the scripted provider prices nothing, so it is 0, not null.
+        expect(column.costUsd).toBe(0);
       }
 
       const [winner, loser] = ids as [string, string];

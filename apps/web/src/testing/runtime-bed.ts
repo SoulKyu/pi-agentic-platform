@@ -13,6 +13,8 @@ const SUB_METHODS = [
   "subscribe.vcs",
   "subscribe.terminal",
   "subscribe.lane",
+  "subscribe.inbox",
+  "subscribe.tasks",
 ];
 
 /**
@@ -22,7 +24,8 @@ const SUB_METHODS = [
 export function fakeRuntime(state: ConnectionState = "open") {
   const fake = fakeConnection(state);
   const calls: Array<{ method: string; params: unknown; options?: CallOptions }> = [];
-  const handlers: Record<string, Handler> = {};
+  // The session screen keeps the usage stream open (the limit chip): its sub id stays out of the numbered ones.
+  const handlers: Record<string, Handler> = { "subscribe.usage": () => ({ sub: "usage-sub" }) };
   let subs = 0;
   const opened: Array<[method: string, sub: string]> = [];
   let seq = 0;
@@ -61,7 +64,13 @@ export function fakeRuntime(state: ConnectionState = "open") {
     /** An event to the nth sub opened with `method`, as the server would send it. */
     emitTo: (
       method:
-        "subscribe.session" | "subscribe.shell" | "subscribe.vcs" | "subscribe.terminal" | "subscribe.lane",
+        | "subscribe.session"
+        | "subscribe.shell"
+        | "subscribe.vcs"
+        | "subscribe.terminal"
+        | "subscribe.lane"
+        | "subscribe.inbox"
+        | "subscribe.tasks",
       event: unknown,
       nth = 0,
     ) => {

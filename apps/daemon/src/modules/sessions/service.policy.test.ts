@@ -43,6 +43,8 @@ describe("the policy in every worker", () => {
       readOnlyCommands: true,
       readOnlyPreset: false,
       presetTools: null,
+      toolAllowlist: null,
+      unattended: false,
     });
     const frames = await bed.subscribe(sessionId);
     policy.setMode(OWNER.userId, sessionId, "read-only");

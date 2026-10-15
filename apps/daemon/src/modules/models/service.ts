@@ -10,6 +10,7 @@ import {
   type ModelsDiscoverResult,
   type ModelsPricingResult,
   type ModelsTestResult,
+  type ModelsUsageResult,
   type PROVIDER_AUDIT_REASONS,
   type ModelsOverview,
   PapError,
@@ -30,6 +31,7 @@ import type { SettingsPort } from "../settings/index.ts";
 import { createLoginFlows } from "./login-flows.ts";
 import { createLoginPublisher } from "./login-publisher.ts";
 import { createPricingCache } from "./pricing-cache.ts";
+import { createProviderUsage } from "./usage.ts";
 
 /** Reading is quick; a write waits for Pi's settings lock; a catalog refresh is a round of network requests (M7R49). */
 const READ_DEADLINE_MS = 30_000;
@@ -50,7 +52,7 @@ export interface ModelsServiceDeps {
   readonly audit: Pick<AuditPort, "append">;
   readonly hub: Pick<StreamHub, "publish" | "registerSnapshot" | "onLastSubscriberLeft">;
   /** The owner's `models` setting: the models.dev lookup is off unless it says so (M7R138). */
-  readonly settings: SettingsPort;
+  readonly settings: Pick<SettingsPort, "models">;
   /** The daemon's one Pi write queue; a service built alone (a test) gets a queue of its own. */
   readonly writes?: PiWriteQueue;
 }
@@ -137,6 +139,10 @@ export function createModelsService(deps: ModelsServiceDeps) {
   deps.hub.onLastSubscriberLeft("login", (flowId) => flows.detach(flowId));
 
   const pricingCache = createPricingCache();
+  const providerUsage = createProviderUsage({
+    clock: deps.clock,
+    ask: (providerId) => run("models.usage", { providerId }, PROVIDER_DEADLINE_MS, undefined),
+  });
 
   return {
     async overview(caller: Caller, cwd?: string): Promise<ModelsOverview> {
@@ -205,6 +211,10 @@ export function createModelsService(deps: ModelsServiceDeps) {
       const answer = await run("models.pricing", params, PRICING_DEADLINE_MS, undefined);
       if (answer.catalog !== undefined) pricingCache.set(answer.catalog, deps.clock.now());
       return { entries: answer.entries };
+    },
+    /** The provider's usage quotas on the owner's click; no step-up (an official endpoint, a read, M10R110). */
+    async usage(_caller: Caller, params: { providerId: string }): Promise<ModelsUsageResult> {
+      return providerUsage.get(params.providerId);
     },
     /** Starts a sign-in flow. The password step-up comes first (owner c3): sign-in runs code and redirects traffic. */
     async login(caller: Caller, params: { provider: string; method: LoginMethod }) {

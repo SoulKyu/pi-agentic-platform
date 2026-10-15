@@ -61,6 +61,8 @@ export function screenBed(current: { runtime: Runtime | undefined }) {
     remount,
     show,
     methods: () =>
-      state.bed.calls.map((call) => call.method).filter((method) => method !== "subscribe.session"),
+      state.bed.calls
+        .map((call) => call.method)
+        .filter((method) => method !== "subscribe.session" && method !== "subscribe.usage"),
   };
 }

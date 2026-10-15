@@ -47,6 +47,33 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// First in the file on purpose: a later test calls `vi.resetModules()`, after which a lazy chunk imports a second copy of the
+// step-up context that the shell's provider does not feed, and the trigger editor (which asks for the password) throws.
+describe("the Tasks and Trigger panes (M10R112)", () => {
+  it("renders the Tasks board as a lazy pane", async () => {
+    const page = await renderShell("/tasks");
+    await vi.waitFor(
+      () => expect(page.container.querySelector('[data-pane-kind="tasks"] [data-tasks-pane]')).not.toBeNull(),
+      { timeout: 2_000 },
+    );
+    await page.unmount();
+  });
+
+  it("renders the trigger editor as a lazy pane, for a trigger and for an empty editor", async () => {
+    for (const path of ["/trigger/g1", "/trigger/new%3Ap1"]) {
+      const page = await renderShell(path);
+      await vi.waitFor(
+        () =>
+          expect(
+            page.container.querySelector('[data-pane-kind="trigger"] [data-trigger-pane]'),
+          ).not.toBeNull(),
+        { timeout: 2_000 },
+      );
+      await page.unmount();
+    }
+  });
+});
+
 describe("the settings pane", () => {
   it("shows the Settings screen once its chunk has loaded", async () => {
     const page = await renderShell("/settings/language");

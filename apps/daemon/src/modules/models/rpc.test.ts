@@ -23,11 +23,12 @@ const signIn = {
   configSave: async () => ({ revision: "0".repeat(64), enabledModelsSynced: true }),
 };
 
-/** The provider half of the service (discover, test, pricing), answering nothing. */
+/** The provider half of the service (discover, test, pricing, usage), answering nothing. */
 const provider = {
   discover: async () => ({ models: [] }),
   test: async () => ({ ok: true, latencyMs: 1 }),
   pricing: async () => ({ entries: [] }),
+  usage: async () => ({ status: "unsupported" as const }),
 };
 
 describe("modelsRpc", () => {

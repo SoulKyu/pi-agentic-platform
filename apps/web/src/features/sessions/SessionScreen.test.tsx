@@ -87,7 +87,7 @@ describe("SessionScreen feed", () => {
     await show();
     await page?.unmount();
     page = null;
-    expect(bed.called("unsubscribe")).toEqual([{ method: "unsubscribe", params: { sub: "s1" } }]);
+    expect(bed.called("unsubscribe")).toContainEqual({ method: "unsubscribe", params: { sub: "s1" } });
   });
 
   it("builds the transcript from a snapshot and live events, and shows the streamed reply", async () => {

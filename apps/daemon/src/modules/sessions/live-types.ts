@@ -7,6 +7,7 @@ import type {
   Notice,
   Panel,
   PartialMessage,
+  PiEvent,
   PromptImageRef,
   QueueView,
   ReadyRecord,
@@ -43,6 +44,7 @@ export interface LiveSessionDeps {
   onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
   /** The worker's policy extension refused a `policy_update`: it blocks every call from then on (M5R11). */
   onPolicyRefused?(): void;
+  observe?(event: PiEvent): void;
 }
 
 export interface LiveSession {

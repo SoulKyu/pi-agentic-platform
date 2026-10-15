@@ -110,3 +110,21 @@ describe("the model methods", () => {
     ).toBe(true);
   });
 });
+
+describe("SessionLoadout billing (M10R86)", () => {
+  const base = {
+    model: null,
+    thinkingLevel: "off",
+    levels: ["off"],
+    preset: "configured",
+    tools: [],
+    toolsTruncated: false,
+  };
+
+  it("carries api or subscription and stays optional for an older worker", () => {
+    for (const billing of ["api", "subscription"])
+      expect(SessionLoadout.parse({ ...base, billing }).billing).toBe(billing);
+    expect(SessionLoadout.parse(base).billing).toBeUndefined();
+    expect(SessionLoadout.safeParse({ ...base, billing: "free" }).success).toBe(false);
+  });
+});

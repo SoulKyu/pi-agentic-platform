@@ -1,38 +1,39 @@
 import { PapError } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
-import { DISK_FLOOR_BYTES, localDiskFloor } from "./disk-floor.ts";
+import { guardSnapshot } from "./disk-floor.ts";
 
-const stats =
-  (bavail: number, bsize = 4096) =>
-  () =>
-    ({ bavail, bsize }) as never;
+const throwing = (error: unknown) => (): undefined => {
+  throw error;
+};
 
-describe("localDiskFloor", () => {
-  it("is 1 GiB", () => expect(DISK_FLOOR_BYTES).toBe(1024 ** 3));
-
-  it("refuses with capacity under the floor, and lets the floor itself through", () => {
-    expect(() => localDiskFloor("/x", stats(262_143))).toThrow(PapError);
-    expect(() => localDiskFloor("/x", stats(262_143))).toThrow(expect.objectContaining({ code: "capacity" }));
-    expect(() => localDiskFloor("/x", stats(262_144))).not.toThrow();
+describe("guardSnapshot", () => {
+  it("refuses a read-only daemon with read_only, before it asks the floor", () => {
+    let asked = false;
+    const diskFloor = (): undefined => {
+      asked = true;
+      return undefined;
+    };
+    expect(() => guardSnapshot({ readOnly: true, diskFloor }, "/w")).toThrow(
+      expect.objectContaining({ code: "read_only" }),
+    );
+    expect(asked).toBe(false);
   });
 
-  it("does not refuse when statfs cannot be read (M10: freeMb answers null)", () => {
-    const failing = () => {
-      throw Object.assign(new Error("denied"), { code: "EACCES" });
-    };
-    expect(() => localDiskFloor("/x", failing)).not.toThrow();
+  it("lets the floor's own disk_low through (M10's guard, R1)", () => {
+    const diskFloor = throwing(new PapError("disk_low"));
+    expect(() => guardSnapshot({ readOnly: false, diskFloor }, "/w")).toThrow(
+      expect.objectContaining({ code: "disk_low" }),
+    );
   });
 
-  it("measures the nearest folder that exists when the path does not yet", () => {
-    const seen: string[] = [];
-    const probe = (path: string) => {
-      seen.push(path);
-      if (path === "/pap/worktrees") throw Object.assign(new Error("none"), { code: "ENOENT" });
-      return { bavail: 1, bsize: 1 } as never;
-    };
-    expect(() => localDiskFloor("/pap/worktrees", probe)).toThrow(
+  it("answers capacity to a floor that fails any other way", () => {
+    const diskFloor = throwing(new Error("statfs exploded"));
+    expect(() => guardSnapshot({ readOnly: false, diskFloor }, "/w")).toThrow(
       expect.objectContaining({ code: "capacity" }),
     );
-    expect(seen).toEqual(["/pap/worktrees", "/pap"]);
+  });
+
+  it("passes when the floor holds", () => {
+    expect(() => guardSnapshot({ readOnly: false, diskFloor: () => undefined }, "/w")).not.toThrow();
   });
 });

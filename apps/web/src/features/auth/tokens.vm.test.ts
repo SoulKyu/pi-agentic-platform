@@ -64,6 +64,29 @@ describe("riskyPermissions", () => {
   });
 });
 
+describe("automation in the grid and the create form", () => {
+  it("warns about automation:operate, which starts runs that spend money", () => {
+    expect(riskyPermissions(["automation:operate", "automation:read"])).toEqual(["automation:operate"]);
+  });
+
+  it("shows the automation, usage and inbox rows once methods use them, and never an automation:admin cell", () => {
+    const declared = [
+      "automation:read",
+      "automation:operate",
+      "automation:admin",
+      "usage:read",
+      "usage:operate",
+      "inbox:read",
+      "inbox:operate",
+    ].map((permission) => ({ permission }));
+    const grid = permissionGrid(declared);
+    expect(grid.map((row) => row.domain)).toEqual(["automation", "usage", "inbox"]);
+    const cells = grid.flatMap((row) => row.levels.map((level) => level.permission));
+    expect(cells).not.toContain("automation:admin");
+    expect(cells).toContain("automation:operate");
+  });
+});
+
 describe("isExpired", () => {
   it("is true from the expiry instant on", () => {
     expect(isExpired(1000, 999)).toBe(false);

@@ -70,6 +70,8 @@ export interface ColumnModel {
   readonly duration: string | null;
   readonly running: boolean;
   readonly cost: string | null;
+  /** True for a subscription: the figure is what the API would have charged, never money spent (finops.md). */
+  readonly apiEquivalent: boolean;
   readonly summary: string | null;
   /** Changed or untracked files in the worktree (`facts.dirty`); null when not read yet. */
   readonly dirty: number | null;
@@ -109,6 +111,7 @@ export function columnModels(
       duration: durationMs === null ? null : formatDuration(durationMs),
       running: durationMs === null && lane.firstRunEndedAt === null,
       cost: column?.costUsd == null ? null : formatCost(column.costUsd),
+      apiEquivalent: column?.billing === "subscription",
       summary: column?.summary == null ? null : escapeHidden(column.summary),
       dirty: lane.facts?.dirty ?? null,
       runTests: canRunTests(lane),

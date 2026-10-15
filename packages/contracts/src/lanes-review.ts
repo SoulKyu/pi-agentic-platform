@@ -79,6 +79,8 @@ export const CompareColumn = z.object({
   additions: Count.nullable(),
   deletions: Count.nullable(),
   durationMs: Count.nullable(),
-  /** M10's `RunsPort.sessionCost` of the primary session (API-equivalent for a subscription); null until wired. */
+  /** M10's `RunsPort.sessionCost` of the primary session; null for a lane whose session has had no run. */
   costUsd: z.number().nonnegative().nullable(),
+  /** How the primary session's runs are billed (the runs store, M10R86); `subscription` makes the figure API-equivalent, not money spent. Null with no run. */
+  billing: z.enum(["api", "subscription", "unknown"]).nullable(),
 });

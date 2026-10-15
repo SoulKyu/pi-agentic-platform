@@ -197,6 +197,9 @@ export const TaintState = z.object({ tainted: z.boolean(), epoch: z.number().int
 export type TaintState = z.infer<typeof TaintState>;
 export const NO_TAINT: TaintState = { tainted: false, epoch: 0 };
 
+/** A tool's registered name as Pi lists it: coding tools, MCP tools (`server__tool`) and extension tools. */
+export const ToolName = z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9_.:-]{0,63}$/);
+
 export const PolicyRules = z
   .object({
     profile: z.literal("interactive"),
@@ -220,6 +223,10 @@ export const PolicyRules = z
      * (codemode's nested calls, `tool_search`). The worker sets it from its own preset, never from the daemon. null: no pin.
      */
     presetTools: z.array(z.string().min(1).max(64)).max(16).nullable().default(null),
+    /** An unattended run's closed tool list (M10R26): any other tool is blocked by name. null: no list. */
+    toolAllowlist: z.array(ToolName).max(32).nullable().default(null),
+    /** No person watches the run (M10R152): a tool the allowlist does not know is blocked instead of asked. */
+    unattended: z.boolean().default(false),
   })
   .strict();
 export type PolicyRules = z.infer<typeof PolicyRules>;

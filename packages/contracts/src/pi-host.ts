@@ -8,6 +8,7 @@ import {
   GrantKey,
   GuardRule,
   TOOL_CATEGORIES,
+  ToolName,
 } from "./policy.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 import { SessionName } from "./streams.ts";
@@ -44,7 +45,13 @@ export const InitRecord = z.object({
    * The session's tool preset (M7R76). Missing means `configured`: Pi's own default tools. A value the worker does not
    * know refuses the init, so an unreadable preset never starts a session with more tools than the daemon meant.
    */
-  tools: z.object({ preset: ToolPreset }).optional(),
+  tools: z
+    .object({
+      preset: ToolPreset,
+      /** An unattended run's closed tool list (M10R28): the worker blocks any other tool by name. */
+      allowlist: z.array(ToolName).min(1).max(32).optional(),
+    })
+    .optional(),
   policy: z.unknown(),
   /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */
   testProviderScript: AbsolutePath.optional(),

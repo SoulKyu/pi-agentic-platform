@@ -13,13 +13,18 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 
 ## Admin CLI (daemon stopped: `systemctl --user stop pap-preview`)
 
-- `pap audit prune [--month YYYY-MM] [--dry-run]` · `pap user add <username> [--password-stdin]` · `pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]`. Exit 0 / 1 (refusal) / 64 (usage). Details: `docs/agents/daemon.md`, `auth.md`.
+- `pap audit prune [--month YYYY-MM] [--dry-run]` · `pap user add <username> [--password-stdin]` · `pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]`. `pap trace summary [--since 15m|2h|1d]` works while pap runs. Exit 0 / 1 (refusal) / 64 (usage). Details: `docs/agents/daemon.md`, `auth.md`.
 
 ## Worker settings
 
-- Env: `PAP_MAX_WORKERS`, `PAP_MIN_FREE_MEM_MB`, `PAP_WORKER_IDLE_MINUTES` (30, `0` = never release), `PAP_WORKER_SCOPE` (`auto` | `off`), `PAP_WORKER_MEMORY_MAX_MB` (default max(2 GiB, 50 % RAM), at least 1024: a lower value stops the daemon at boot), `PAP_WORKER_TASKS_MAX` (4096), `PAP_MAX_TERMINALS` (running terminals per owner, 8), `PAP_HELPERS_MAX` (4, 1-16: Pi configuration helpers, a fifth is refused). Details: `docs/agents/daemon.md`.
+- Env: `PAP_MAX_WORKERS`, `PAP_MIN_FREE_MEM_MB`, `PAP_MIN_FREE_DISK_MB` (1024, `0` = off: forks, task sessions and the lane paths are refused with `disk_low` below it; `0` turns the lanes floor off too), `PAP_WORKER_IDLE_MINUTES` (30, `0` = never release), `PAP_WORKER_SCOPE` (`auto` | `off`), `PAP_WORKER_MEMORY_MAX_MB` (default max(2 GiB, 50 % RAM), at least 1024: a lower value stops the daemon at boot), `PAP_WORKER_TASKS_MAX` (4096), `PAP_MAX_TERMINALS` (running terminals per owner, 8), `PAP_HELPERS_MAX` (4, 1-16: Pi configuration helpers, a fifth is refused). Details: `docs/agents/daemon.md`.
 - Test-only env: `PAP_TEST_GIT_PROTOCOLS` (`file`, `https`, `ssh`; needs `PAP_TEST_PROVIDER_SCRIPT`) lets a lane push reach a local bare repository. Never set it outside tests.
 - Workers run in a `systemd-run --user --scope` only with a lingering user manager: `loginctl enable-linger <user>` once, `XDG_RUNTIME_DIR` set. Otherwise scopes are off with a boot warning. Tests run with `PAP_WORKER_SCOPE=off`; the scope tests need the manager (CI starts one): under `CI=1` they fail without it, locally they skip with a warning.
+
+## Observability and automation settings
+
+- `PAP_METRICS_TOKEN` (32-256 chars): `GET /metrics` with its own bearer, off (404) when unset. `PAP_OTLP_ENDPOINT` (`https://`, or `http://` to loopback only; opt-in, no exporter exists when unset) with `PAP_OTLP_HEADERS` (`name=value,...`, at most 8, never logged) and `PAP_OTLP_SERVICE_NAME` (default `pap`). Details: `docs/agents/daemon.md`, `finops.md`.
+- Children pap starts without you (M10: the precheck of a trigger) get `unattendedEnv`'s environment (`packages/contracts/src/child-env.ts`, re-exported by `kernel/child-env.ts`; M9 writes it, M10 adds the precheck): an allowlist, never the SSH agent, `GIT_*`, `LD_*`, provider keys or credential-looking names. ADR 0046.
 
 ## Rules (CI-enforced)
 
@@ -36,4 +41,4 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 ## Conventions
 
 - Conventional Commits; rebase on the target branch before a PR; no AI attribution trailers.
-- Topic notes: `docs/agents/<domain>.md` (`daemon`, `sessions`, `auth`, `policy`, `search`, `files`, `terminal`, `models`, `mcp`, `skills` (skills and plugins), `lanes` (worktrees, lanes, forges); UI: `web`). Rulings: `docs/research/m2-rulings.md`, `docs/research/m3-rulings.md`, `docs/research/m4-rulings.md`, `docs/research/m5-rulings.md`, `docs/research/m7-rulings.md` (+ `m7-rulings-after-join.md`), `docs/research/m8-rulings.md`, `docs/research/m9-rulings.md`. Deviations from spec C: an ADR in `docs/adr/`.
+- Topic notes: `docs/agents/<domain>.md` (`daemon`, `sessions`, `auth`, `policy`, `search`, `files`, `terminal`, `models`, `mcp`, `skills` (skills and plugins), `lanes` (worktrees, lanes, forges), `automation` (triggers, tasks, Inbox), `finops` (runs, cost, budgets, limits, metrics); UI: `web`). Rulings: `docs/research/m2-rulings.md`, `docs/research/m3-rulings.md`, `docs/research/m4-rulings.md`, `docs/research/m5-rulings.md`, `docs/research/m7-rulings.md` (+ `m7-rulings-after-join.md`), `docs/research/m8-rulings.md`, `docs/research/m9-rulings.md`, `docs/research/m10-rulings.md`. Deviations from spec C: an ADR in `docs/adr/`.

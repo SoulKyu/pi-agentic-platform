@@ -63,8 +63,8 @@ afterAll(async () => {
   await bed?.stop();
 });
 
-/** The permissions no token may hold, each walked below. M10 adds "automation:admin" here with its samples. */
-const WALKED: readonly string[] = ["lanes:admin"];
+/** The permissions no token may hold, each walked below (M10 joins with "automation:admin", agreement 4). */
+const WALKED: readonly string[] = ["lanes:admin", "automation:admin"];
 const walkedMethods = Object.values(methods as Record<string, MethodDef>).filter((def) =>
   WALKED.includes(def.permission),
 );
@@ -83,9 +83,16 @@ const ADMIN_SAMPLES: Record<string, (laneId: string, root: string) => unknown> =
   "lanes.prRefresh": (laneId) => ({ laneId }),
   "lanes.archive": (laneId) => ({ laneId, force: true, deleteBranch: true, confirmTainted: true }),
   "lanes.closeLosers": (laneId) => ({ fanoutId: "0123456789abcdef", winner: laneId }),
+  // M10's automation:admin methods: the token is refused before any trigger or task is looked up.
+  "automation.triggers.create": () => ({ input: {} }),
+  "automation.triggers.update": () => ({ triggerId: "any-trigger", baseRevision: 1, input: {} }),
+  "automation.triggers.delete": () => ({ triggerId: "any-trigger" }),
+  "automation.triggers.setEnabled": () => ({ triggerId: "any-trigger", enabled: true }),
+  "automation.triggers.rotateSecret": () => ({ triggerId: "any-trigger" }),
+  "automation.tasks.releaseTools": () => ({ taskId: "any-task" }),
 };
 
-describe("a token and the lanes:admin methods", () => {
+describe("a token and the lanes:admin and automation:admin methods", () => {
   it("cannot be minted with lanes:admin, and none of its permissions is one", async () => {
     expect(TOKEN_PERMISSIONS).not.toContain("lanes:admin");
     const refused = await bed.owner.call("auth.tokens.create", {
@@ -99,7 +106,14 @@ describe("a token and the lanes:admin methods", () => {
   it("walks exactly the methods that have a sample: a method without one, or a sample without a method, fails here", () => {
     const names = walkedMethods.map((def) => def.name).sort();
     expect(names).toEqual(Object.keys(ADMIN_SAMPLES).sort());
-    expect(names).toEqual(expect.arrayContaining(["lanes.runScript", "lanes.restore", "lanes.push"]));
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "lanes.runScript",
+        "lanes.restore",
+        "lanes.push",
+        "automation.triggers.create",
+      ]),
+    );
   });
 
   it("answers a token forbidden on each walked method and acts on nothing", async () => {

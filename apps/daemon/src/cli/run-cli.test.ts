@@ -27,6 +27,8 @@ describe("runCli", () => {
     [["passkey"]],
     [["passkey", "reset", "extra"]],
     [["passkey", "reset", "--bogus"]],
+    [["trace"]],
+    [["trace", "summary", "--since", "nope"]],
   ])("answers %j with exit 64 and the usage", async (argv) => {
     const { io, stderr, stdout } = cliIo({ env: { PAP_HOME: join(scratch, "home") } });
     expect(await runCli(argv, io)).toBe(64);
@@ -34,6 +36,7 @@ describe("runCli", () => {
     expect(stderr()).toContain("pap audit prune");
     expect(stderr()).toContain("pap user add <username> [--password-stdin]");
     expect(stderr()).toContain("pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]");
+    expect(stderr()).toContain("pap trace summary [--since <15m|2h|1d>]");
     expect(stderr()).toContain("systemctl --user stop pap-preview");
     expect(stdout()).toBe("");
   });
@@ -43,7 +46,12 @@ describe("runCli", () => {
     await runCli([], io);
     for (const words of Object.keys(COMMANDS)) expect(stderr()).toContain(`pap ${words}`);
     expect(stderr()).toContain("pap serve");
-    expect(Object.keys(COMMANDS).sort()).toEqual(["audit prune", "passkey reset", "user add"]);
+    expect(Object.keys(COMMANDS).sort()).toEqual([
+      "audit prune",
+      "passkey reset",
+      "trace summary",
+      "user add",
+    ]);
   });
 
   it("never echoes a secret given on the command line", async () => {

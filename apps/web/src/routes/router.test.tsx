@@ -54,7 +54,9 @@ describe("router", () => {
       "/s/$sessionId",
       "/settings",
       "/settings/$section",
+      "/tasks",
       "/term/$id",
+      "/trigger/$id",
     ]);
   });
 });

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { EMPTY_VIEW } from "../../stores/session-reducer.ts";
 import { shellSession } from "../../testing/shell-snapshot.ts";
 import { translate } from "../../i18n/index.ts";
+import { EMPTY_LANES } from "../../stores/lane-reducer.ts";
 import { itemTitle } from "./item-title.ts";
 
 const t = (key: Parameters<typeof translate>[1]) => translate("en", key);
@@ -55,5 +56,13 @@ describe("itemTitle", () => {
     expect(itemTitle({ kind: "files", root: "/w" }, none, {}, t)).toBe("Files");
     expect(itemTitle({ kind: "changes", root: "/w" }, none, {}, t)).toBe("Changes");
     expect(itemTitle({ kind: "terminal", id: "t" }, none, {}, t)).toBe("Terminal");
+  });
+  it("titles the Tasks tab, a trigger by its name, and an empty editor as a new trigger (M10R112)", () => {
+    const names = new Map([["g1", "prod-alerts"]]);
+    expect(itemTitle({ kind: "tasks" }, none, {}, t)).toBe("Tasks");
+    expect(itemTitle({ kind: "trigger", id: "g1" }, none, {}, t, EMPTY_LANES, names)).toBe("prod-alerts");
+    expect(itemTitle({ kind: "trigger", id: "new:p1" }, none, {}, t, EMPTY_LANES, names)).toBe("New trigger");
+    expect(itemTitle({ kind: "trigger", id: "gone" }, none, {}, t, EMPTY_LANES, names)).toBe("Trigger");
+    expect(itemTitle({ kind: "trigger", id: "g1" }, none, {}, t)).toBe("Trigger");
   });
 });

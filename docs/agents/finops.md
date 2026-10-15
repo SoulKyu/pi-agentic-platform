@@ -1,0 +1,43 @@
+# FinOps: runs, cost, budgets, limits, observability
+
+Code: `apps/daemon/src/modules/runs/` (registry, observer, resume, usage stream, metrics), `modules/automation/limits.ts` (budget aborts), `kernel/observability/` (tracer, stall, Prometheus, OTLP), `compose-runs.ts`, `compose-trace.ts`, `compose-usage.ts`. Decisions: ADR 0043 (runs and cost), 0044 (observability), 0045 (limits and auto-resume). Triggers and tasks: `automation.md`.
+
+## Runs and cost
+
+- One row per Pi run in `runs` (ids, origin, status, tokens, `cost_usd`, turns, tool calls, `error_class`, `limit_reset_at`); never content. Origins: `user`, `extension`, `resume` (automatic continuation) and, for a task's runs, the task's origin (the fire's source, or `retry`). `expectOrigin(sessionId, {origin, taskId})` tags the next run start (5 minutes, consumed).
+- Cost is Pi's `usage.cost.total`, the list price of the tokens, compaction included. `billing` is `api` (provider cost), `subscription` (labelled **API-equivalent** everywhere in the UI, never money spent) or `unknown`; it comes from `modelRuntime.isUsingSubscription(provider)` in the worker's loadout (the plan said `isUsingOAuth`; the code uses `isUsingSubscription`).
+- Each ended run appends one line to `$PAP_HOME/logs/runs.jsonl` (`v: 1`; `provider` and `model` through `labelValue`). Boot turns `running` rows into `interrupted`, and does nothing in read-only mode.
+- `RunsPort.sessionCost(sessionId)` (synchronous; finished runs plus the live cost of the open one) is what M9's compare column reads, with `RunsPort.sessionBilling(sessionId)` for its API-equivalent label (a trigger cannot target a lane folder: agreement 16).
+- `usage.summary {range: today|7d|30d}` (`usage:read`): totals, by origin, by model (top 50, the rest `other`); days are counted in the automation time zone. Shown in Settings › Automation › Spending.
+
+## What is not counted
+
+The daily budget and every cost figure are a lower bound: pap counts runs, not every model call.
+
+- `auto_name` (the session-title call) is a side call outside runs: **not counted** in the daily budget.
+- M9's `lanes.suggestCommit` (the paid ✦ Suggest commit message) is a side call outside runs: **not counted** in the daily budget. Neither are branch summaries (the owner's `navigate`, outside a run).
+- Codemode classifier calls cannot happen (`models: false`). The OAuth refresh and provider usage checks are not model calls.
+- Agreement C1 (controller): `auto_name` and `suggest_commit` side calls stay uncounted, and this file says so.
+
+## Budgets
+
+- Settings (`automation` document, browser-written only): `dailyBudgetUsd` (default 5; `null` no budget; 0 refuses every automatic run), `slots`, `paused`, `timezone`, `quietHours`, `autoResume`. A token cannot write it (`forbidden`).
+- `spentToday(owner, timeZone)` = every run with a `task_id` plus every `resume` run today, finished runs (counted by the day they **ended**, so a run that crosses local midnight counts in full the day it ends and never lowers that day's total; a run is only looked for within 48 h of its start so `runs_owner_started` serves the query) plus the **live cost of runs in progress**. A trigger's own `dailyBudgetUsd` is checked against the cost today of its tasks' runs, live included.
+- Gated (refused with `budget`, `budget_reached` for an RPC): schedule, webhook and feed fires, a token's manual fire or retry, a queued gated task when it starts, and across the run by `limits.ts`, which fails every running gated task of the owner `budget` once the total reaches the budget (and aborts automatic `resume` runs of interactive sessions). The owner's browser fire and retry are counted but not gated.
+- **Click-resumes are not automation spend.** "Resume now" in the owner's browser runs under origin `user`: it is not counted as a `resume` run, the budget never aborts it, and `runningGated` skips a task whose current run has that origin, for the owner's budget and for the trigger's own. The next automatic step is gated again. A token's `usage.resumeNow` is not a click: it runs under origin `resume` (the continuation is tagged like a scheduled one), so it is counted and the budget can abort it, besides being refused with `budget_reached` / `automation_paused` up front. A continuation that starts no run (`handled`) or fails to send clears its expected origin, so the owner's next run is never taken for automation.
+- **A trigger's own budget applies to its task's automatic resumes.** The `run.resume` handler checks it through `taskOf(owner, session)`, which answers only while the task is `limited` or `running` (it also resolves the task of a run that has none, so the chain never loses its trigger). Once the task has ended, its session is an ordinary one: a later quota resume there is the owner's, not the old trigger's, and is neither skipped nor charged by that trigger's budget. A resume skipped for the budget fails the task `budget` (`onResumeSkipped`); one skipped for an archived session cancels it.
+- Per-run caps: `maxRunUsd` (webhook and feed default $1, explicit `null` no cap) fails the task `run_budget` and aborts; `maxRunMs` fails it `deadline`. Both restart on a task resume.
+- Proofs: `security/automation-rulings.int.test.ts` (the click-resume exemption on both budget lines, with prices written on runs), `automation-tokens.int.test.ts` (token fires and `usage.resumeNow` counted and gated), `runner.limits*.test.ts`.
+
+## Limits and auto-resume
+
+- A run whose last stop reason is `error` with a provider limit text is `limited` (`runs/limits.ts`). With `autoResume` on, a reset time and a mode other than `full-access`, a `run.resume` effect is due at the reset plus 0 to 60 s of jitter. Rules, checks and marks: ADR 0045. The `usage` stream carries `limits[]`, `todayUsd`, `budgetUsd`, `autoResume`; the session header's limit chip offers "Resume now" and "Cancel auto-resume" for a session, and a task card offers "Resume now" and "Cancel task".
+- Provider usage (quotas shown on the owner's click) is the models module's `models.usage`, see `models.md`; it is not part of the budget.
+
+## Metrics, trace, stall, OTLP
+
+- `/metrics`: off unless `PAP_METRICS_TOKEN` (32 to 256 characters); own bearer; families from the `runs` table (cached 15 s), automation (`pap_tasks`, `pap_trigger_fires_total{source,verdict}` in-process (one count per journal event, a collapsed refusal row included; `fire-counts.ts`), `pap_outbox_effects`, `pap_automation_paused`, `pap_budget_spent_usd_today`, `pap_budget_usd`) and the kernel (`pap_workers_*`, `pap_event_loop_*`, `pap_otlp_dropped_spans_total`, process gauges). `provider` and `model` labels: `labelValue` plus the 100 most expensive models (`topLabels`).
+- Trace: `$PAP_HOME/logs/trace.jsonl` (10 MiB x 10, 0600), closed span names and attributes. `pap trace summary [--since 15m|2h|1d]` works while pap runs (count, rate, p50/p90/p99/max, failures per span name; exit 64 on a bad flag).
+- Stall monitor: a sample every 30 s on the Clock; over 2 s of delay while active is an `event_loop_stall` warning, a span and two counters.
+- OTLP JSON export: opt-in with `PAP_OTLP_ENDPOINT` (settings in `daemon.md`). Spans every 10 s, a metrics snapshot every 60 s, 10 s timeout, no redirect, no retry before the next interval, `otlp_export_failed` logged (rate-limited). It is the only telemetry-shaped outbound request pap starts.
+- Settings › Automation › Observability shows whether `/metrics` and OTLP are on (host only) and the trace hint; nothing there is writable.

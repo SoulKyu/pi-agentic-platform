@@ -6,6 +6,7 @@ import { useT } from "../../i18n/index.ts";
 import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
+import { useTriggerNames } from "./use-tasks-feed.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { closeItem, go } from "./tab-actions.ts";
 
@@ -22,6 +23,7 @@ export default function TabSwitcher({ open, onOpenChange }: TabSwitcherProps) {
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
   const lanes = useLaneStore((state) => state.view);
+  const triggers = useTriggerNames();
   return (
     <Dialog
       open={open}
@@ -33,7 +35,7 @@ export default function TabSwitcher({ open, onOpenChange }: TabSwitcherProps) {
       {ws.tabs.length === 0 ? <p className="p-s3 text-ui text-muted">{t("shell.mobile.noTabs")}</p> : null}
       <ul className="flex flex-col gap-s1 p-s3">
         {ws.tabs.map((tab) => {
-          const title = itemTitle(tab.item, sessions, views, t, lanes);
+          const title = itemTitle(tab.item, sessions, views, t, lanes, triggers);
           return (
             <li key={tab.key} className="flex items-center gap-s1">
               <button

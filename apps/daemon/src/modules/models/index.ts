@@ -30,7 +30,7 @@ export function createModelsModule(deps: {
   readonly clock: Clock;
   readonly audit: Pick<AuditPort, "append">;
   readonly hub: Pick<StreamHub, "publish" | "registerSnapshot" | "onLastSubscriberLeft">;
-  readonly settings: SettingsPort;
+  readonly settings: Pick<SettingsPort, "models">;
   readonly writes: PiWriteQueue;
 }): ModelsModule {
   const service = createModelsService({ ...deps, logger: deps.logger.child({ module: "models" }) });

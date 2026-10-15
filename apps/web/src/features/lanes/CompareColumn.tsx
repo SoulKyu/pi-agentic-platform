@@ -11,11 +11,22 @@ interface Props {
   onPick(): void;
 }
 
-function Figure({ label, value }: { readonly label: string; readonly value: string }) {
+function Figure({
+  label,
+  value,
+  note,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly note?: string | undefined;
+}) {
   return (
     <>
       <dt className="text-ui text-muted">{label}</dt>
-      <dd className="text-right font-mono text-code tabular-nums text-fg">{value}</dd>
+      <dd className="text-right font-mono text-code tabular-nums text-fg">
+        {value}
+        {note === undefined ? null : <span className="font-sans text-muted"> {note}</span>}
+      </dd>
     </>
   );
 }
@@ -58,9 +69,12 @@ export function CompareColumn({ model, onView, onPick }: Props) {
           label={t("compare.duration")}
           value={model.duration ?? (model.running ? t("compare.duration.running") : unknown)}
         />
-        <Figure label={t("compare.cost")} value={model.cost ?? unknown} />
+        <Figure
+          label={t("compare.cost")}
+          value={model.cost ?? t("compare.cost.none")}
+          note={model.apiEquivalent && model.cost !== null ? t("compare.cost.apiEquivalent") : undefined}
+        />
       </dl>
-      {model.cost === null ? <p className="px-s2 text-code text-dim">{t("compare.cost.pending")}</p> : null}
       <p className="flex-1 whitespace-pre-wrap break-words border-t border-border p-s2 text-ui text-muted">
         {model.summary === null || model.summary === "" ? t("compare.summary.none") : model.summary}
       </p>

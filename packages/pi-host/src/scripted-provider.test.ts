@@ -124,4 +124,35 @@ describe("scriptedReplies", () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it("appends the user messages of each request to the capture file, when the script names one", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pap-capture-"));
+    try {
+      const file = join(dir, "user.jsonl");
+      const reply = scriptedReplies(
+        ProviderScript.parse({ captureUserMessages: file, steps: [{ text: "one" }, { text: "two" }] }),
+      );
+      reply({
+        messages: [
+          { role: "system", content: "base rule" },
+          { role: "user", content: "a" },
+        ],
+      });
+      reply({
+        messages: [
+          { role: "user", content: "a" },
+          { role: "assistant", content: "one" },
+          { role: "user", content: "b" },
+        ],
+      });
+      expect(readFileSync(file, "utf8")).toBe(
+        `${JSON.stringify([{ role: "user", content: "a" }])}\n${JSON.stringify([
+          { role: "user", content: "a" },
+          { role: "user", content: "b" },
+        ])}\n`,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

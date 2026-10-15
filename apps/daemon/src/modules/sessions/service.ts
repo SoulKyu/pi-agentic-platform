@@ -1,6 +1,7 @@
 import { type Caller, PapError, type SessionStatus } from "@pap/contracts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
+import { createAttention, createAutomationPort } from "./automation-port.ts";
 import { createPolicyLink } from "./policy-link.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
@@ -17,7 +18,7 @@ import { createShellView } from "./service-shell.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
 import { fitSummaries } from "./shell.ts";
 import { type SessionRow, storedPresetOf } from "./store.ts";
-import type { SessionsService, SessionsServiceDeps } from "./service-types.ts";
+import type { SessionsService, SessionsServiceDeps, SessionsServiceWithAutomation } from "./service-types.ts";
 
 // What changes a sidebar summary: the status, an open dialog or approval, the name (M4R34).
 const SUMMARY_EVENTS: ReadonlySet<string> = new Set(["status", "dialog_open", "dialog_closed", "name"]);
@@ -26,7 +27,7 @@ export type { SessionsService, SessionsServiceDeps };
 
 const TOKEN_ANSWERS: ReadonlySet<string> = new Set(["deny", "once"]);
 
-export function createSessionsService(deps: SessionsServiceDeps): SessionsService {
+export function createSessionsService(deps: SessionsServiceDeps): SessionsServiceWithAutomation {
   // Workers that are up, by session id. A crashed worker leaves this map and is not replaced until the next prompt.
   const live = new Map<string, LiveSession>();
   // A cold session being brought up, so that concurrent commands start one worker, not several.
@@ -74,8 +75,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     projects: deps.projects,
     live: (id) => ({ status: statusOf(id), needsInput: (live.get(id)?.dialogs().length ?? 0) > 0 }),
   });
+  const attention = createAttention(deps.logger);
   const publisher = createShellPublisher({
-    hub: deps.hub,
+    hub: attention.wrap(deps.hub),
     summary: shell.summary,
     project: shell.project,
     archivedCount: marks.countArchived,
@@ -191,6 +193,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     agentDir: deps.worker.agentDir,
     newId: deps.newId,
     loadWriter: deps.loadWriter,
+    ...(deps.admission ? { admit: deps.admission.fork } : {}),
     onMade: adoption.fileMade,
     // A fork or clone never starts looser than its source: mode and taint (owner Q15), and the tool preset (Task 15).
     onAdopted: (source, id) => {
@@ -213,7 +216,12 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     return result;
   };
 
-  return {
+  const automation = createAutomationPort(
+    { deps, live, starting, reopening, launch, attention, publisher, marks },
+    () => self,
+  );
+  const self: SessionsServiceWithAutomation = {
+    automation,
     async create(cwdInput, caller, preset) {
       const cwd = resolveSessionCwd(cwdInput);
       const now = deps.clock.now();
@@ -327,4 +335,5 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     backfillProjects: () => (deps.store.readOnly ? 0 : link.backfill()),
     scanPort: adoption.scanPort,
   };
+  return self;
 }

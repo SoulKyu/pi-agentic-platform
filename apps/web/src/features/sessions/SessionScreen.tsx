@@ -22,6 +22,7 @@ import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
 import { Composer } from "./Composer.tsx";
 import { CrashBanner } from "./CrashBanner.tsx";
+import { LimitChip } from "./LimitChip.tsx";
 import { SessionPolicy } from "./SessionPolicy.tsx";
 import { useAnnouncer } from "./announce.ts";
 import { SessionActions } from "./SessionActions.tsx";
@@ -36,8 +37,8 @@ import { TrustBanner } from "../trust/TrustBanner.tsx";
 /** The chip says what the run needs from you before it says how the process is. */
 function runStatusOf(view: SessionView): RunStatus {
   if (view.status !== "cold" && view.dialogs.length > 0) return "needs-input";
-  if (view.status === "cold") return "limited";
-  return view.status === "idle" ? "settled" : "working";
+  // A stopped worker is a session that is settled: a quota limit is the `usage` stream's to say (LimitChip).
+  return view.status === "idle" || view.status === "cold" ? "settled" : "working";
 }
 
 export function SessionScreen({
@@ -122,6 +123,7 @@ export function SessionScreen({
               : `session.status.${view.status}`,
           )}
         />
+        <LimitChip sessionId={sessionId} />
         <SessionPolicy
           key={`policy:${sessionId}`}
           sessionId={sessionId}

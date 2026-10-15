@@ -104,7 +104,7 @@ export const lanesMethods = {
     idempotent: true,
     params: Lane.extend({ scope: ReviewScope }),
     result: ReviewList,
-    errors: ["not_found", "capacity", "timeout", "read_only"],
+    errors: ["not_found", "capacity", "timeout", "read_only", "disk_low"],
   }),
   "lanes.reviewState.get": defineMethod({
     name: "lanes.reviewState.get",
@@ -120,7 +120,7 @@ export const lanesMethods = {
     idempotent: true,
     params: Lane.extend({ sessionId: SessionRef }),
     result: CheckpointStatus,
-    errors: ["not_found", "capacity", "timeout", "read_only"],
+    errors: ["not_found", "capacity", "timeout", "read_only", "disk_low"],
   }),
   "lanes.compare": defineMethod({
     name: "lanes.compare",
@@ -128,7 +128,7 @@ export const lanesMethods = {
     idempotent: true,
     params: z.object({ fanoutId: FanoutId }),
     result: z.object({ columns: z.array(CompareColumn).max(LANE_LIMITS.fanout) }),
-    errors: ["not_found", "capacity", "timeout"],
+    errors: ["not_found", "capacity", "timeout", "disk_low"],
   }),
   // ---- operate (lanes:operate; tokens may hold it: nothing here runs lane scripts or destroys work; suggestCommit sends the diff to the model provider) ----
   "lanes.create": defineMethod({
@@ -156,7 +156,7 @@ export const lanesMethods = {
       laneIds: z.array(LaneId).min(1).max(LANE_LIMITS.fanout),
       fanoutId: FanoutId.nullable(),
     }),
-    errors: ["not_found", "bad_request", "conflict", "limit_reached", "capacity", "read_only"],
+    errors: ["not_found", "bad_request", "conflict", "limit_reached", "capacity", "read_only", "disk_low"],
   }),
   "lanes.newSession": defineMethod({
     name: "lanes.newSession",
@@ -190,7 +190,7 @@ export const lanesMethods = {
       z.object({ ok: z.literal(true), message: z.string().max(LANE_LIMITS.commitMessage) }),
       refused(["nothing", "no_session", "model_failed"]),
     ]),
-    errors: ["not_found", "capacity", "timeout", "worker_failed", "read_only"],
+    errors: ["not_found", "capacity", "timeout", "worker_failed", "read_only", "disk_low"],
   }),
   "lanes.reviewState.set": defineMethod({
     name: "lanes.reviewState.set",
@@ -247,7 +247,7 @@ export const lanesMethods = {
       }),
       refused(["busy", "no_checkpoint", "failed"]),
     ]),
-    errors: ["not_found", "capacity", "timeout"],
+    errors: ["not_found", "capacity", "timeout", "disk_low"],
   }),
   "lanes.issue": defineMethod({
     name: "lanes.issue",

@@ -26,5 +26,5 @@ export function createSettingsModule(deps: {
 }): SettingsModule {
   const logger = deps.logger.child({ module: "settings" });
   const service = createSettingsService({ store: createSettingsStore(deps.db), clock: deps.clock, logger });
-  return { rpc: settingsRpc(service), port: { models: service.models } };
+  return { rpc: settingsRpc(service), port: { models: service.models, automation: service.automation } };
 }

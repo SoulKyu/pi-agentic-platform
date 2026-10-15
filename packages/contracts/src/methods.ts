@@ -1,9 +1,11 @@
 import { z } from "zod";
 import { auditMethods } from "./audit.ts";
 import { authMethods } from "./auth.ts";
+import { automationTaskMethods, automationTriggerMethods } from "./automation-methods.ts";
 import { defineMethod, type MethodDef } from "./define.ts";
 import { AttachmentId, filesMethods } from "./files.ts";
 import { Cursor } from "./frames.ts";
+import { inboxMethods } from "./inbox.ts";
 import { CommandWord, MAX_ALWAYS_RULES } from "./policy.ts";
 import { lanesMethods } from "./lanes-methods.ts";
 import { mcpMethods } from "./mcp-methods.ts";
@@ -25,6 +27,7 @@ import { shellMethods } from "./shell.ts";
 import { skillsMethods } from "./skills-methods.ts";
 import { terminalMethods } from "./terminal.ts";
 import { trustMethods } from "./trust-methods.ts";
+import { usageMethods } from "./usage.ts";
 import { vcsMethods } from "./vcs.ts";
 
 const SessionId = z.string().min(1).max(128);
@@ -60,6 +63,10 @@ export const methods = catalogue({
   ...trustMethods,
   ...skillsMethods,
   ...lanesMethods,
+  ...automationTriggerMethods,
+  ...automationTaskMethods,
+  ...usageMethods,
+  ...inboxMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",
@@ -210,7 +217,8 @@ export const methods = catalogue({
       text: z.string().max(UI_LIMITS.editorText),
     }),
     // `capacity`: the source is over the size cap (32 MiB). `bad_request`: the entry is not a user message.
-    errors: ["not_found", "bad_request", "session_empty", "capacity"],
+    // `rate_limited`: the daily fork cap. `disk_low`: the free-disk floor.
+    errors: ["not_found", "bad_request", "session_empty", "capacity", "rate_limited", "disk_low"],
   }),
   "sessions.clone": defineMethod({
     name: "sessions.clone",
@@ -218,7 +226,7 @@ export const methods = catalogue({
     idempotent: false,
     params: z.object({ sessionId: SessionId }),
     result: z.object({ sessionId: SessionId }),
-    errors: ["not_found", "session_empty", "capacity"],
+    errors: ["not_found", "session_empty", "capacity", "rate_limited", "disk_low"],
   }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",

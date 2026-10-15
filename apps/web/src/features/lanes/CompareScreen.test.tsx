@@ -24,6 +24,7 @@ const column = (laneId: string, patch: object = {}) => ({
   deletions: null,
   durationMs: null,
   costUsd: null,
+  billing: null,
   ...patch,
 });
 
@@ -95,8 +96,25 @@ describe("compare screen", () => {
     expect(body()).toContain("Wraps the LRU.");
     expect(body()).toContain("no tests");
     expect(body()).toContain("running");
-    expect(body()).toContain("cost comes with M10");
+    expect(body()).toContain("no cost yet");
+    expect(body()).not.toContain("M10");
+    expect(body()).not.toContain("API-equivalent");
     expect(body().toLowerCase()).not.toMatch(/\bbest\b|\brank|recommended/);
+  });
+
+  it("labels a subscription's cost API-equivalent, and an api or unknown one plainly (agreement 14)", async () => {
+    await show([
+      column(A, { costUsd: 1.84, billing: "subscription" }),
+      column(B, { costUsd: 0.5, billing: "api" }),
+    ]);
+    const costs = [...document.querySelectorAll("dd")].filter((dd) => /\$\d/.test(dd.textContent ?? ""));
+    expect(costs.map((dd) => dd.textContent)).toEqual(["$1.84 API-equivalent", "$0.50"]);
+  });
+
+  it("shows no API-equivalent note when there is no figure, even for a subscription", async () => {
+    await show([column(A, { costUsd: null, billing: "subscription" }), column(B)]);
+    expect(body()).not.toContain("API-equivalent");
+    expect(body()).toContain("no cost yet");
   });
 
   it("writes hidden characters of an untrusted summary as escapes", async () => {

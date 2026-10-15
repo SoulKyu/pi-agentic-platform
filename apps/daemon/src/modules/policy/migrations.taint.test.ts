@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../kernel/db/migrate.ts";
+import { kernelBeforeOutbox } from "../../kernel/testing/old-kernel.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { SESSIONS_MIGRATIONS } from "../sessions/index.ts";
 import { POLICY_MIGRATIONS } from "./index.ts";
@@ -40,7 +41,7 @@ function homeBeforeM5() {
   const old = join(dir, "policy-before-m5");
   mkdirSync(old);
   copyFileSync(join(POLICY_MIGRATIONS.dir, "202610110100_policy.sql"), join(old, "202610110100_policy.sql"));
-  return open([KERNEL_MIGRATIONS, sessionsBefore(), { module: POLICY_MIGRATIONS.module, dir: old }]);
+  return open([kernelBeforeOutbox(dir), sessionsBefore(), { module: POLICY_MIGRATIONS.module, dir: old }]);
 }
 const insertSession = (db: ReturnType<typeof open>, id: string, ownerId: string) =>
   db.run(

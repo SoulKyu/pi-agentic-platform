@@ -14,6 +14,7 @@ import { mountUploadRoute } from "./upload-http.ts";
 
 export type { FilesRpc };
 export type { AttachmentsPort } from "./attachments-store.ts";
+export { cleanupAttachments } from "./attachments-cleanup.ts";
 
 export interface FilesModule {
   readonly rpc: FilesRpc;

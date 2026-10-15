@@ -11,6 +11,7 @@ const RISK_NOTES: Record<RiskyPermission, MessageKey> = {
   "sessions:operate": "access.tokens.riskNote",
   "files:operate": "access.tokens.riskNote.filesOperate",
   "files:read": "access.tokens.riskNote.filesRead",
+  "automation:operate": "access.tokens.riskNote.automationOperate",
 };
 import { useMutation } from "./use-mutation.ts";
 

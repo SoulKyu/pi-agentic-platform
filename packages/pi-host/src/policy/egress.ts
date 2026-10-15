@@ -1,5 +1,6 @@
 import type { CallFacts, StageResult } from "./pipeline.ts";
 import { CODING_TOOLS } from "../tool-presets.ts";
+import { listedVerdict } from "./tool-allowlist.ts";
 import { argvOf, CommandTooComplex, CommandTooLong, readCommands } from "./shell-words.ts";
 
 export const EGRESS_MODEL_REASON =
@@ -296,6 +297,8 @@ const block = (reason: string, modelReason = EGRESS_MODEL_REASON): StageResult =
 
 /** Stage 02 (M5R21 to M5R24, M5R118): a reason carries the judged host or scheme (clipped) or a fixed client name, nothing else of the input. */
 export function egressStage(call: CallFacts): StageResult {
+  const listed = listedVerdict(call);
+  if (listed) return listed;
   // Task 15: a coding tool the preset leaves out is refused by name, whatever reached it (codemode's nested calls,
   // `tool_search` loading it): the active tool set is not the gate.
   const { presetTools } = call.rules;

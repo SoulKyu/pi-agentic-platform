@@ -1,4 +1,4 @@
-import type { SessionSummary, TerminalView } from "@pap/contracts";
+import type { SessionSummary, TaskTrigger, TerminalView } from "@pap/contracts";
 import {
   chordJoiner,
   chordTokens,
@@ -33,6 +33,10 @@ interface PaletteItemsInput {
   /** The lane store and the shell sessions its status reads (M9R61); absent: no Lanes group. */
   readonly lanes?: LaneState;
   readonly laneFacts?: Iterable<{ cwd: string; status: string; needsInput: boolean }>;
+  /** The owner's triggers (the tasks store); empty until the palette has opened the stream. */
+  readonly triggers?: readonly TaskTrigger[];
+  /** The project an empty trigger editor opens in; null while none is known (no entry then). */
+  readonly newTriggerProject?: string | null;
   readonly t: Translate;
   navigate(item: ItemRef): void;
   run(id: string): void;
@@ -42,8 +46,9 @@ interface PaletteItemsInput {
 export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
   const { t, navigate } = input;
   const known = new Map(input.sessions.map((session) => [session.id, session]));
+  const names = new Map((input.triggers ?? []).map((trigger) => [trigger.id, trigger.name]));
   const open = input.tabs.map((tab): PaletteItem => {
-    const title = itemTitle(tab.item, known, input.views, t, input.lanes);
+    const title = itemTitle(tab.item, known, input.views, t, input.lanes, names);
     return {
       id: `open:${tab.key}`,
       group: "open",
@@ -123,5 +128,31 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
         run: () => navigate({ kind: "terminal", id: terminal.id }),
       };
     });
-  return [...open, ...terminals, ...actions, ...lanes, ...sessions, ...settings];
+  const board = (id: string, title: string, item: ItemRef, searchTerms: string[] = [title]): PaletteItem => ({
+    id,
+    group: "tasks",
+    title,
+    searchTerms,
+    run: () => navigate(item),
+  });
+  const tasks = [
+    board("tasks:board", t("commands.palette.tasks"), { kind: "tasks" }),
+    ...(input.newTriggerProject
+      ? [
+          board("tasks:new-trigger", t("commands.palette.newTrigger"), {
+            kind: "trigger",
+            id: `new:${input.newTriggerProject}`,
+          }),
+        ]
+      : []),
+    ...(input.triggers ?? []).map((trigger) =>
+      board(
+        `trigger:${trigger.id}`,
+        t("commands.palette.trigger", { name: trigger.name }),
+        { kind: "trigger", id: trigger.id },
+        [t("commands.palette.trigger", { name: trigger.name }), trigger.name],
+      ),
+    ),
+  ];
+  return [...open, ...terminals, ...actions, ...lanes, ...sessions, ...tasks, ...settings];
 }

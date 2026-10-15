@@ -40,7 +40,7 @@ export interface AuditPort {
     context: {
       readonly containment: "scope" | "none";
       /** Who answered the question of this call (a call row only): the row names the credential instead of the worker. */
-      readonly answeredBy?: { readonly actor: "user" | "token"; readonly actorId: string };
+      readonly answeredBy?: { readonly actor: "user" | "token" | "system"; readonly actorId: string };
     },
   ): PolicyAuditEntry | null;
 }

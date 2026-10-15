@@ -53,6 +53,7 @@ export function useShellCommands(state: ShellCommandState): void {
   useCommand("session.openTerminal", surface("terminal"));
   useCommand("session.showFiles", surface("files"));
   useCommand("settings.open", () => open({ kind: "settings", section: "appearance" }));
+  useCommand("tasks.open", () => open({ kind: "tasks" }));
   useCommand("shortcuts.help", () => state.setHelpOpen(true));
   useCommand("session.new", () => open({ kind: "home" }));
   useCommand("tab.next", step(1));

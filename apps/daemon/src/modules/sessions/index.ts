@@ -17,20 +17,26 @@ import type { AuditPort } from "../audit/index.ts";
 import type { AttachmentsPort } from "../files/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
+import type { RunObserver } from "../runs/index.ts";
 import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { createLaneHooks, type LaneRunHooks } from "./lane-hooks.ts";
 import { createSessionsLanePort, laneInfoOf, type SessionsLanePort } from "./lane-port.ts";
 import { outsideToolResultsTaint } from "./outside-taint.ts";
+import { createAdmission, DEFAULT_MIN_FREE_DISK_MB } from "./fork-quota.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
 import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
 import { createSessionsService } from "./service.ts";
+import type { SessionsAutomationPort } from "./automation-port.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
+export { resolveSessionCwd } from "./cwd.ts";
 export { createExports, type Exports } from "./exports.ts";
+export type { SessionsAutomationPort } from "./automation-port.ts";
+export type { Admission } from "./fork-quota.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
 export type { LaneRunHooks, LaneRunInfo } from "./lane-hooks.ts";
@@ -64,7 +70,8 @@ export interface SessionsModuleDeps {
     | "maxWorkers"
     | "minFreeMemMb"
     | "workerIdleMs"
-  >;
+  > &
+    Partial<Pick<Config, "minFreeDiskMb">>;
   /** The umask the daemon was started with, before it set its own 077: what the workers' tools run under (R114). */
   readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
@@ -75,6 +82,8 @@ export interface SessionsModuleDeps {
   readonly onAdopted?: (sessionId: string) => void;
   /** After a worker exited: its session and the end of its output (the supervisor keeps 8 KiB). */
   readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
+  /** The runs registry (M10R84): a failure in it never reaches a session. */
+  readonly runs?: RunObserver;
 }
 
 export interface SessionsModule {
@@ -98,6 +107,8 @@ export interface SessionsModule {
   readonly lanes: SessionsLanePort;
   /** The lanes module fills the hooks around a prompt and a run's end (M9R114). */
   setLaneHooks(hooks: LaneRunHooks): void;
+  /** What the automation and runs modules may do to a session (M10R32). */
+  readonly automation: SessionsAutomationPort;
 }
 
 export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
@@ -169,6 +180,13 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       });
     },
     ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
+    ...(deps.runs ? { runs: deps.runs } : {}),
+    admission: createAdmission({
+      clock: deps.clock,
+      logger,
+      sessionsDir: join(config.piAgentDir, "sessions"),
+      minFreeDiskMb: config.minFreeDiskMb ?? DEFAULT_MIN_FREE_DISK_MB,
+    }),
   });
   // Rows stored before M4 get the project of their folder; a failure here never stops the boot (M4R29).
   try {
@@ -204,5 +222,6 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       logger,
     }),
     setLaneHooks: laneHooks.set,
+    automation: service.automation,
   };
 }

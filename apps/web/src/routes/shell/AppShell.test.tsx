@@ -159,7 +159,8 @@ describe("AppShell", () => {
     expect(bed.called("sessions.list")).toEqual([]);
     await page.unmount();
     await settle();
-    expect(bed.called("unsubscribe")).toHaveLength(2);
+    // The shell, lane (M9R3) and Inbox (M10R50) streams.
+    expect(bed.called("unsubscribe")).toHaveLength(3);
   });
 
   it("a refused shell subscription sets the store's failed and reports shell_feed_failed once", async () => {

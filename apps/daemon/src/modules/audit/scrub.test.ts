@@ -12,6 +12,7 @@ const cases: Array<[string, string, string]> = [
   ["jwt", `eyJ${"a".repeat(10)}.${"b".repeat(10)}.${"c".repeat(10)}`, "[REDACTED:jwt]"],
   ["bearer", `Authorization: bearer ${"x".repeat(25)}`, "Authorization: [REDACTED:bearer]"],
   ["BEARER", `BEARER\t${"y.".repeat(12)}`, "[REDACTED:bearer]"],
+  ["webhook secret", `pwh_${"f".repeat(43)}`, "[REDACTED:webhook_secret]"],
   ["pem", "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----", "[REDACTED:private_key]"],
   ["pem without end", "x -----BEGIN PRIVATE KEY-----\nabc\ndef", "x [REDACTED:private_key]"],
 ];

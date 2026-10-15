@@ -3,6 +3,7 @@ import { PROTOCOL_VERSION, type HandlerTable } from "@pap/contracts";
 import type { Context } from "hono";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
+import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
 import { composePi } from "./compose-pi.ts";
 import { createSystemClock, type Clock } from "./kernel/clock.ts";
 import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
@@ -80,6 +81,7 @@ export const MIGRATION_SOURCES = [
   SETTINGS_MIGRATIONS,
   AUDIT_MIGRATIONS,
   ...LANE_MIGRATIONS,
+  ...M10_MIGRATION_SOURCES,
 ] as const;
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -140,9 +142,13 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const receipts = createReceiptStore(db, clock);
     const purge = startReceiptPurge(receipts, clock, logger);
     closers.push({ name: "receipt_purge", close: () => purge.stop() });
+    const hub = createStreamHub(undefined, clock);
+    const env = deps.env ?? process.env;
+    const core = { db, clock, logger, config, readOnly, hub, env };
+    // The outbox is recovered before any module is built (M10R11).
+    const m10 = composeM10Early(core, closers);
 
     const onOriginRefused = createOriginRefusalLog(logger, clock);
-    const hub = createStreamHub(undefined, clock);
     const auth = createAuthModule({
       db,
       clock,
@@ -153,7 +159,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       audit: audit.port,
       secretsDir: join(config.home, "secrets"),
     });
-    const env = deps.env ?? process.env;
     const scopes = await (deps.probeScopes ?? probeScopes)(config.workerScope, config.workerLimits, {
       home: config.home,
       uid: process.getuid?.() ?? -1,
@@ -184,7 +189,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       workerUmask,
     );
     closers.push({ name: "workspace", close: () => wk.shutdown() });
-    const lanes = composeLanes({ db, wk, audit, roots: projects.port.roots, clock, logger, readOnly });
+    const lanes = composeLanes({ ...core, wk, audit, roots: projects.port.roots, runs: m10.runs.port });
     await lanes.recover();
     const sessions = createSessionsModule({
       db,
@@ -202,6 +207,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         policy.port.markTainted(owner, sessionId, 0);
       },
       audit: audit.port,
+      runs: m10.observer,
       attachments: wk.attachments,
       config,
       workerUmask,
@@ -223,6 +229,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const settings = createSettingsModule({ db, clock, logger });
     const pi = composePi({ config, env, clock, logger, hub, audit, policy, projects, sessions, settings });
     lanes.bind({ sessions, pi, policy: policy.port, hub });
+    const m10Late = composeM10(core, m10, { audit, auth, policy, projects, sessions, settings, wk, scopes });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
@@ -235,8 +242,9 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...settings.rpc,
       ...pi.rpc,
       ...lanes.rpc,
+      ...m10Late.rpc,
     };
-    const dispatch = createDispatcher({ handlers, receipts, logger });
+    const dispatch = createDispatcher({ handlers, receipts, logger, onCall: m10.onCall });
     const ws = createWsServer({
       allowedOrigins: config.allowedOrigins,
       credentialOf: auth.credentialOf,
@@ -271,6 +279,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         auth.mount(hono);
         wk.mount(hono, auth.authenticateCookieHeader);
         sessions.mountExportRoute(hono, auth.authenticateCookieHeader);
+        m10Late.mount(hono);
       },
       wsProbe,
     });
@@ -308,6 +317,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       });
     }
     search.start();
+    m10Late.start();
     logger.info("listening", { url: config.publicOrigin, host: config.host, port: server.port });
 
     let stopping: Promise<void> | undefined;
@@ -322,6 +332,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       killScopes: () => scopes.killAllNow(),
       stop() {
         stopping ??= (async () => {
+          await m10Late.stop();
           // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash
           // trees on the way; SIGKILL to every group first would leak them (R104).
           await Promise.all([pi.stopAll(), sessions.shutdownAll(), lanes.shutdown()]);

@@ -29,7 +29,18 @@ describe("PolicyRules v2", () => {
       readOnlyCommands: true,
       readOnlyPreset: false,
       presetTools: null,
+      toolAllowlist: null,
+      unattended: false,
     });
+  });
+
+  it("bounds the tool allowlist and types the unattended flag (M10R26, M10R152)", () => {
+    const names = (count: number) => Array.from({ length: count }, (_, i) => `tool_${i}`);
+    expect(PolicyRules.safeParse({ ...M2_RULES, toolAllowlist: names(32) }).success).toBe(true);
+    expect(PolicyRules.safeParse({ ...M2_RULES, toolAllowlist: names(33) }).success).toBe(false);
+    expect(PolicyRules.safeParse({ ...M2_RULES, toolAllowlist: ["-x"] }).success).toBe(false);
+    expect(PolicyRules.safeParse({ ...M2_RULES, unattended: "yes" }).success).toBe(false);
+    expect(PolicyRules.parse({ ...M2_RULES, unattended: true }).unattended).toBe(true);
   });
 
   it("runs read-only commands by default and refuses a non-boolean switch", () => {

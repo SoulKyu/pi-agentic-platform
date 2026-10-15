@@ -90,15 +90,15 @@ describe("lanes.suggestCommit (M9R80)", () => {
     expect(t.suggestCommit).toHaveBeenCalledWith(caller, "s1", "diff --git a/a.txt b/a.txt\n+one\n");
   });
 
-  it("checks the disk floor before the snapshot: a full disk answers capacity, a read-only daemon read_only (M5)", async () => {
+  it("checks the disk floor before the snapshot: a full disk answers disk_low, a read-only daemon read_only (M5)", async () => {
     const t = make();
     const full = createLaneSuggest({
       ...t.deps,
       diskFloor: () => {
-        throw new PapError("capacity");
+        throw new PapError("disk_low");
       },
     });
-    await expect(full.suggest(caller, params)).rejects.toMatchObject({ code: "capacity" });
+    await expect(full.suggest(caller, params)).rejects.toMatchObject({ code: "disk_low" });
     await expect(
       createLaneSuggest({ ...t.deps, readOnly: true }).suggest(caller, params),
     ).rejects.toMatchObject({ code: "read_only" });

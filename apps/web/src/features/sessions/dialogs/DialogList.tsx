@@ -93,7 +93,7 @@ export function DialogList(props: {
         return (
           <div key={dialog.id} data-dialog className="flex flex-col gap-s2">
             {dialog.method === "approval" ? (
-              <ApprovalCardFor key={key} dialog={dialog} onAnswer={onAnswer} />
+              <ApprovalCardFor key={key} dialog={dialog} sessionId={sessionId} onAnswer={onAnswer} />
             ) : dialog.method === "select" ? (
               <SelectDialog key={key} dialog={dialog} onAnswer={onAnswer} />
             ) : dialog.method === "confirm" ? (

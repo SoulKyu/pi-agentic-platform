@@ -5,6 +5,7 @@ import {
   DEFAULT_POLICY_SETTINGS,
   type InitRecord,
   NO_TAINT,
+  PapError,
   PolicyRules,
   type PolicySettings,
   type PrefixRule,
@@ -38,6 +39,10 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
   const modes = new Map<string, ApprovalMode>();
   const taints = new Map<string, TaintState>();
   const settingsOf = new Map<string, PolicySettings>();
+  // A task session's closed tool list and whether its task is unfinished (M10R30), in memory.
+  const lists = new Map<string, readonly string[]>();
+  const unattended = new Set<string>();
+  let failTask = false;
   const sessionListeners = new Set<(ownerId: string, sessionId: string) => void>();
   const settingsListeners = new Set<(ownerId: string) => void>();
   const of = (ownerId: string, scope: string): AlwaysRule[] => {
@@ -93,7 +98,32 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
         mode: own ?? (settingsOf.get(ownerId) ?? DEFAULT_POLICY_SETTINGS).defaultMode,
         explicit: own !== undefined,
         taint: taints.get(sessionId) ?? NO_TAINT,
+        toolAllowlist: lists.get(sessionId) ?? null,
+        unattended: unattended.has(sessionId),
+        recorded: modes.has(sessionId) || taints.has(sessionId) || lists.has(sessionId),
       };
+    },
+    setTaskPolicy(ownerId, sessionId, task) {
+      if (failTask) throw new Error("setTaskPolicy failed");
+      modes.set(sessionId, task.mode);
+      lists.set(sessionId, [...task.tools]);
+      unattended.add(sessionId);
+      const held = taints.get(sessionId);
+      taints.set(sessionId, {
+        tainted: (held?.tainted ?? false) || task.taintedAt !== null,
+        epoch: held?.epoch ?? 0,
+      });
+      for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
+    },
+    endTaskPolicy(ownerId, sessionId) {
+      unattended.delete(sessionId);
+      for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
+    },
+    unattendedSessions: () => [...unattended].map((sessionId) => ({ ownerId: "u1", sessionId })),
+    clearTaskPolicy(ownerId, sessionId) {
+      if (unattended.has(sessionId)) throw new PapError("session_busy");
+      lists.delete(sessionId);
+      for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
     },
     settings(ownerId) {
       if (failSettings) throw new Error("settings failed");
@@ -109,6 +139,8 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
     inherit(_ownerId, sourceId, targetId) {
       const mode = modes.get(sourceId);
       if (mode !== undefined) modes.set(targetId, mode);
+      const list = lists.get(sourceId);
+      if (list) lists.set(targetId, list);
       const taint = taints.get(sourceId);
       const held = taints.get(targetId);
       if (taint)
@@ -163,6 +195,10 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
     setSettings(ownerId: string, value: PolicySettings) {
       settingsOf.set(ownerId, value);
       for (const listener of [...settingsListeners]) listener(ownerId);
+    },
+    /** `setTaskPolicy` throws from now on (a policy write that fails after the session row was stored). */
+    failTaskPolicy() {
+      failTask = true;
     },
     /** `settings` throws from now on (`sessionPolicy` still answers). */
     failSettings() {

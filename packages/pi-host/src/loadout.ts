@@ -47,11 +47,34 @@ export const rememberProjectTrust = (session: AgentSession, facts: ProjectTrustF
   projectTrust.set(session, facts);
 };
 
+/**
+ * Whether the model's provider bills a subscription or tokens; absent when Pi cannot say (M10R86). OAuth is not the test:
+ * some sign-ins (OpenRouter) hand out a permanent API key billed per token, which Pi's own "(sub)" label also tells apart.
+ */
+function billingOf(session: AgentSession): SessionLoadout["billing"] {
+  const model = session.model;
+  // A session without a runtime is a test double; Pi's own always has one.
+  if (
+    !model ||
+    typeof (session.modelRuntime as { isUsingSubscription?: unknown } | undefined)?.isUsingSubscription !==
+      "function"
+  )
+    return undefined;
+  try {
+    return session.modelRuntime.isUsingSubscription(model.provider) ? "subscription" : "api";
+  } catch (error) {
+    // A runtime that cannot answer leaves the billing unknown, and the registry stores the run as such.
+    process.stderr.write(`pi-host: billing not known: ${logLineOf(error)}\n`);
+    return undefined;
+  }
+}
+
 /** What the worker tells the daemon about the session's model, reasoning level and tools (M7R44, M7R45). */
 export function loadoutOf(session: AgentSession): SessionLoadout {
   const trust = projectTrust.get(session);
   const tools = session.getActiveToolNames();
   const level = session.thinkingLevel;
+  const billing = billingOf(session);
   return {
     model: session.model ? summaryOf(session.model) : null,
     thinkingLevel: isLevel(level) ? level : "off",
@@ -60,6 +83,7 @@ export function loadoutOf(session: AgentSession): SessionLoadout {
     tools: tools.slice(0, MAX_LOADOUT_TOOLS).map((name) => name.slice(0, MAX_NAME_CHARS)),
     toolsTruncated: tools.length > MAX_LOADOUT_TOOLS,
     ...(trust ? { projectTrust: { required: trust.required, trusted: trust.trusted } } : {}),
+    ...(billing ? { billing } : {}),
   };
 }
 

@@ -4,6 +4,8 @@ import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
+import type { automationEn } from "./catalog/automation.ts";
+import type { automationTriggerEn } from "./catalog/automation-trigger.ts";
 import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
 import type { firstRunEn } from "./catalog/first-run.ts";
@@ -13,6 +15,8 @@ import type { laneCompareEn } from "./catalog/lane-compare.ts";
 import type { laneNewEn } from "./catalog/lane-new.ts";
 import type { laneReviewEn } from "./catalog/lane-review.ts";
 import type { lanesEn } from "./catalog/lanes.ts";
+import type { inboxEn } from "./catalog/inbox.ts";
+import type { modelsUsageEn } from "./catalog/models-usage.ts";
 import type { serverEn } from "./catalog/server.ts";
 import type { sessionModelsEn } from "./catalog/session-models.ts";
 import type { sessionToolsEn } from "./catalog/session-tools.ts";
@@ -20,6 +24,7 @@ import type { sessionPolicyEn } from "./catalog/session-policy.ts";
 import type { sessionFilesEn } from "./catalog/session-files.ts";
 import type { sessionScreenEn } from "./catalog/session-screen.ts";
 import type { settingsAccessEn } from "./catalog/settings-access.ts";
+import type { settingsAutomationEn } from "./catalog/settings-automation.ts";
 import type { settingsAppearanceEn } from "./catalog/settings-appearance.ts";
 import type { settingsApprovalsEn } from "./catalog/settings-approvals.ts";
 import type { settingsMcpEn } from "./catalog/settings-mcp.ts";
@@ -31,6 +36,7 @@ import type { settingsShortcutsEn } from "./catalog/settings-shortcuts.ts";
 import type { sidebarEn } from "./catalog/sidebar.ts";
 import type { terminalEn } from "./catalog/terminal.ts";
 import type { trustBannerEn, trustEn } from "./catalog/trust.ts";
+import type { usageEn } from "./catalog/usage.ts";
 
 /** The eager keys plus the keys of lazy catalogs (type-only import: nothing of them is bundled eagerly). */
 export type MessageKey =
@@ -60,9 +66,15 @@ export type MessageKey =
   | keyof typeof settingsMcpEn
   | keyof typeof settingsMcpAddEn
   | keyof typeof settingsSkillsEn
+  | keyof typeof settingsAutomationEn
   | keyof typeof firstRunEn
   | keyof typeof trustBannerEn
-  | keyof typeof trustEn;
+  | keyof typeof trustEn
+  | keyof typeof automationEn
+  | keyof typeof automationTriggerEn
+  | keyof typeof inboxEn
+  | keyof typeof usageEn
+  | keyof typeof modelsUsageEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

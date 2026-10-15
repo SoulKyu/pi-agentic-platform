@@ -253,7 +253,7 @@ describe("inbox drawer", () => {
       "Nothing waits for you",
     );
     expect(dialog()?.textContent).toContain(
-      "Approvals, replies and finished tasks of your agents appear here, those that need you first.",
+      "Questions and finished tasks of your triggers appear here, those that need you first.",
     );
     await page.unmount();
   });

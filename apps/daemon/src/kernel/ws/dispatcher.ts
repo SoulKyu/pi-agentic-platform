@@ -81,6 +81,8 @@ export function createDispatcher(options: {
   handlers: HandlerTable;
   receipts: ReceiptStore;
   logger: Logger;
+  /** Once per request, after the answer is known: the method as sent, how long it took, `ok` or the error code (M10R92). */
+  onCall?(method: string, durationMs: number, outcome: string): void;
 }): Dispatch {
   const catalogue = methods as unknown as Record<string, MethodDef>;
   const handlers = options.handlers as unknown as Record<string, AnyHandler>;
@@ -176,12 +178,23 @@ export function createDispatcher(options: {
 
   // One request can never reject: whatever breaks (receipt store, handler, serialisation) becomes an
   // `internal` frame for that request alone, and a log line (R6).
-  return async (frame, ctx) => {
+  async function answer(frame: RequestFrame, ctx: HandlerContext): Promise<ResponseFrame> {
     try {
       return await dispatch(frame, ctx);
     } catch (error) {
       options.logger.error("rpc_dispatch_failed", { method: frame.method, err: error });
       return fail(frame.id, "internal");
     }
+  }
+
+  return async (frame, ctx) => {
+    const started = performance.now();
+    const response = await answer(frame, ctx);
+    try {
+      options.onCall?.(frame.method, performance.now() - started, response.ok ? "ok" : response.error.code);
+    } catch (error) {
+      options.logger.error("rpc_observer_failed", { method: frame.method, err: error });
+    }
+    return response;
   };
 }

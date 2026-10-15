@@ -110,6 +110,7 @@ describe("composePi", () => {
       "models.setDefaultThinking",
       "models.setEnabled",
       "models.test",
+      "models.usage",
       "plugins.install",
       "plugins.list",
       "plugins.remove",

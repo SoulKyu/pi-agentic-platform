@@ -25,6 +25,9 @@ export const ERROR_CODES = [
   "config_invalid",
   "config_path_refused",
   "config_hard_link",
+  "automation_paused",
+  "budget_reached",
+  "disk_low",
   "unknown_method",
   "internal",
 ] as const;
@@ -59,6 +62,11 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   config_path_refused: "Pi refused this configuration path: it must be a regular file inside your folders.",
   config_hard_link:
     "Pi refused to write this file because it has another hard link. Replace it with a regular copy, then try again.",
+  automation_paused: "Automation is paused. Resume it on the Tasks board or in Settings › Automation.",
+  budget_reached:
+    "Today's automation budget is spent. Raise it in Settings › Automation, or wait for tomorrow.",
+  disk_low:
+    "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

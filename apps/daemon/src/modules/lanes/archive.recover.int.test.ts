@@ -68,6 +68,7 @@ const compose = (readOnly = false) => {
     deny,
     denyFolders: [],
     readOnly,
+    diskFloor: () => undefined,
   });
   // The daemon recovers before the sessions and policy ports exist, and binds after: so does this bed.
   const bind = () =>

@@ -5,6 +5,7 @@ import { DEFAULT_KEYBINDINGS, KNOWN_COMMANDS } from "../../features/commands/def
 import { mergeWithDefaults } from "../../features/commands/resolve.ts";
 import type { Tab } from "../../features/workspace/index.ts";
 import { t } from "../../i18n/index.ts";
+import { rankItems } from "../../features/commands/palette/rank.ts";
 import { buildPaletteItems } from "./palette-items.ts";
 
 const { rules } = mergeWithDefaults(DEFAULT_KEYBINDINGS, [], KNOWN_COMMANDS);
@@ -103,6 +104,7 @@ describe("buildPaletteItems", () => {
       "Models",
       "MCP servers",
       "Skills",
+      "Automation",
       "Account",
     ]);
     settings[1]?.run();
@@ -137,5 +139,55 @@ describe("running terminals in the palette (M8R81)", () => {
   it("does not list an exited terminal", () => {
     const { items } = build({ terminals: [terminal("AAAAAAAAAAAAAAAAAAAAAA", "/home/ana/api", "exited")] });
     expect(items.filter((one) => one.id.startsWith("terminal:"))).toEqual([]);
+  });
+});
+
+describe("tasks and triggers in the palette (M10R112)", () => {
+  const trigger = (id: string, name: string) => ({
+    id,
+    name,
+    enabled: true,
+    sourceType: "manual" as const,
+    projectId: null,
+    state: "ok" as const,
+    nextFireAt: null,
+  });
+
+  it("lists Tasks, New trigger and one entry per trigger, in the Tasks and triggers group", () => {
+    const { items, navigate } = build({
+      triggers: [trigger("g1", "prod-alerts"), trigger("g2", "nightly")],
+      newTriggerProject: "p1",
+    });
+    const group = items.filter((one) => one.group === "tasks");
+    expect(group.map((one) => one.title)).toEqual([
+      "Tasks",
+      "New trigger…",
+      "Trigger · prod-alerts",
+      "Trigger · nightly",
+    ]);
+    group.forEach((one) => one.run());
+    expect(navigate.mock.calls.map(([item]) => item)).toEqual([
+      { kind: "tasks" },
+      { kind: "trigger", id: "new:p1" },
+      { kind: "trigger", id: "g1" },
+      { kind: "trigger", id: "g2" },
+    ]);
+  });
+
+  it("offers no empty editor while no project is known", () => {
+    const { items } = build({ triggers: [], newTriggerProject: null });
+    expect(items.filter((one) => one.group === "tasks").map((one) => one.title)).toEqual(["Tasks"]);
+  });
+
+  it("finds a trigger by its name", () => {
+    const { items } = build({ triggers: [trigger("g1", "prod-alerts")] });
+    expect(items.find((one) => one.id === "trigger:g1")?.searchTerms).toContain("prod-alerts");
+  });
+
+  it("ranks the group after Sessions and before Settings", () => {
+    const { items } = build({ triggers: [trigger("g1", "x")], sessions: [session("a", "/w/api", 1)] });
+    const groups = rankItems(items, "").groups.map((entry) => entry.group);
+    expect(groups.indexOf("sessions")).toBeLessThan(groups.indexOf("tasks"));
+    expect(groups.indexOf("tasks")).toBeLessThan(groups.indexOf("settings"));
   });
 });

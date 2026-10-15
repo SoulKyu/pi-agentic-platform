@@ -113,6 +113,14 @@ describe("models setting (M7R138)", () => {
     ).toBe(false);
   });
 
+  it("takes the automation setting with its defaults, and refuses a bad value", () => {
+    expect(SETTING_KEYS).toContain("automation");
+    expect(SettingWrite.safeParse({ key: "automation", value: {}, baseRevision: 0 }).success).toBe(true);
+    expect(SettingWrite.safeParse({ key: "automation", value: { slots: 0 }, baseRevision: 0 }).success).toBe(
+      false,
+    );
+  });
+
   it("is flipped with settings:operate, which a token may hold (MC3): the switch only shows a control", () => {
     expect(methods["settings.set"].permission).toBe("settings:operate");
     expect(TOKEN_PERMISSIONS).toContain("settings:operate");

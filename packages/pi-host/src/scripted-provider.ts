@@ -37,6 +37,8 @@ export const ProviderScript = z
     summary: z.string().min(1).optional(),
     /** Test only: a file to which each reply appends the system messages of the request, one JSON line per call. */
     captureSystemPrompt: z.string().min(1).optional(),
+    /** Test only: a file to which each reply appends the user messages of the request, one JSON line per call. */
+    captureUserMessages: z.string().min(1).optional(),
     /** Test only: a file to which each reply appends `{ model, thinking }` for the request, one JSON line per call. */
     captureThinking: z.string().min(1).optional(),
   })
@@ -81,6 +83,10 @@ function capture(
   if (script.captureSystemPrompt !== undefined) {
     const system = call.messages.filter((message) => message.role === "system");
     appendFileSync(script.captureSystemPrompt, `${JSON.stringify(system)}\n`);
+  }
+  if (script.captureUserMessages !== undefined) {
+    const users = call.messages.filter((message) => message.role === "user");
+    appendFileSync(script.captureUserMessages, `${JSON.stringify(users)}\n`);
   }
   // Pi passes `reasoning` only above `off`, so an absent level is the `off` one.
   if (script.captureThinking !== undefined) {

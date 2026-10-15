@@ -1,6 +1,16 @@
 import { z } from "zod";
 
-export const STREAMS = ["session", "shell", "vcs", "terminal", "login", "lane"] as const;
+export const STREAMS = [
+  "session",
+  "shell",
+  "vcs",
+  "terminal",
+  "login",
+  "lane",
+  "tasks",
+  "inbox",
+  "usage",
+] as const;
 export type StreamName = (typeof STREAMS)[number];
 
 export const SessionStatus = z.enum(["cold", "starting", "idle", "running", "releasing"]);

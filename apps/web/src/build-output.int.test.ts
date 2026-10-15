@@ -201,6 +201,13 @@ describe("the built web app under the daemon's CSP", () => {
       /Trop volumineux pour être affiché ici/,
     ]));
 
+  it("keeps Settings › Automation and its strings out of the initial assets (M10R121)", () =>
+    keepsLazyOnly([
+      /data-automation-section/,
+      /Counts triggers and automatic resumes/,
+      /Compte les déclencheurs/,
+    ]));
+
   it("keeps the Approvals strings out of the initial assets", () =>
     keepsLazyOnly([/What the agent may do without asking you/]));
 
@@ -238,6 +245,12 @@ describe("the built web app under the daemon's CSP", () => {
     expect(chunks).toHaveLength(3);
     expect(new Set(chunks).size).toBe(3);
   });
+
+  it("keeps the Tasks and Trigger panes out of the initial assets (M10R112)", () =>
+    keepsLazyOnly([/data-tasks-pane/, /data-trigger-pane/, /data-trigger-editor/]));
+
+  it("keeps the Tasks board and its strings out of the initial assets (M10R113)", () =>
+    keepsLazyOnly([/data-tasks-board/, /Triggers run tasks for you on a schedule/]));
 
   it("loads the pane strings with their chunks, not with the initial catalog (M8R71)", () =>
     keepsLazyOnly([
@@ -333,6 +346,8 @@ describe("the built web app under the daemon's CSP", () => {
     ]));
 
   it("keeps the palette (cmdk) out of the initial assets", () => keepsLazyOnly([/cmdk-input/]));
+
+  it("keeps the Inbox panel out of the initial assets", () => keepsLazyOnly([/data-inbox-panel/]));
 
   it("ships nothing of the /dev/ui gallery in any production asset, initial or lazy (ADR 0011, M3R122)", async () => {
     const markers = [

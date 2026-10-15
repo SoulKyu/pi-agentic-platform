@@ -20,7 +20,8 @@ export const laneCompareEn = {
   "compare.duration": "Duration",
   "compare.duration.running": "running",
   "compare.cost": "Cost",
-  "compare.cost.pending": "cost comes with M10",
+  "compare.cost.none": "no cost yet",
+  "compare.cost.apiEquivalent": "API-equivalent",
   "compare.summary.none": "No summary yet.",
   "compare.viewDiff": "View diff",
   "compare.pick": "Pick · PR",
@@ -59,6 +60,8 @@ export const laneCompareEn = {
   "compare.error.timeout": "The comparison took too long to read.",
   "compare.error.bad_request": "The winner is not a lane of this group, or it is already archived.",
   "compare.error.read_only": "The database was written by a newer pap and is read-only.",
+  "compare.error.disk_low":
+    "The disk is almost full: the comparison needs some free space. Free some space, then try again.",
   "compare.error.other": "The request failed. Try again.",
 };
 
@@ -83,7 +86,8 @@ export const laneCompareFr: { readonly [K in keyof typeof laneCompareEn]: string
   "compare.duration": "Durée",
   "compare.duration.running": "en cours",
   "compare.cost": "Coût",
-  "compare.cost.pending": "le coût arrive avec M10",
+  "compare.cost.none": "pas encore de coût",
+  "compare.cost.apiEquivalent": "équivalent API",
   "compare.summary.none": "Pas encore de résumé.",
   "compare.viewDiff": "Voir le diff",
   "compare.pick": "Choisir · PR",
@@ -126,5 +130,7 @@ export const laneCompareFr: { readonly [K in keyof typeof laneCompareEn]: string
   "compare.error.timeout": "La lecture de la comparaison a pris trop de temps.",
   "compare.error.bad_request": "La gagnante n'appartient pas à ce groupe, ou elle est déjà archivée.",
   "compare.error.read_only": "La base a été écrite par un pap plus récent et est en lecture seule.",
+  "compare.error.disk_low":
+    "Le disque est presque plein : la comparaison a besoin d'un peu de place libre. Libérez de l'espace, puis réessayez.",
   "compare.error.other": "La requête a échoué. Réessayez.",
 };

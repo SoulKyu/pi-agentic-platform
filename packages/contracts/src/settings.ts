@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AutomationSettings } from "./automation.ts";
 import { defineMethod } from "./define.ts";
 
 // Account-scope settings (DESIGN.md §13): validated here, on the server before a write and on the client before an
@@ -93,7 +94,7 @@ export const KeybindingRules = z.array(KeybindingRule).max(256);
 export const ModelsSettings = z.object({ modelsDevPricing: z.boolean().default(false) });
 export type ModelsSettings = z.infer<typeof ModelsSettings>;
 
-export const SETTING_KEYS = ["appearance", "keybindings", "models"] as const;
+export const SETTING_KEYS = ["appearance", "keybindings", "models", "automation"] as const;
 export const SettingKey = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof SettingKey>;
 export const MAX_SETTING_BYTES = 131_072;
@@ -105,6 +106,7 @@ export const SettingWrite = z.discriminatedUnion("key", [
   z.object({ key: z.literal("appearance"), value: AccountAppearance, baseRevision: BaseRevision }),
   z.object({ key: z.literal("keybindings"), value: KeybindingRules, baseRevision: BaseRevision }),
   z.object({ key: z.literal("models"), value: ModelsSettings, baseRevision: BaseRevision }),
+  z.object({ key: z.literal("automation"), value: AutomationSettings, baseRevision: BaseRevision }),
 ]);
 export type SettingWrite = z.infer<typeof SettingWrite>;
 
@@ -124,6 +126,6 @@ export const settingsMethods = {
     params: SettingWrite,
     result: z.object({ revision: z.number().int().positive() }),
     // conflict: the stored revision is not baseRevision any more; the client re-reads, merges and retries once.
-    errors: ["payload_too_large", "conflict"],
+    errors: ["payload_too_large", "conflict", "forbidden"],
   }),
 } as const;

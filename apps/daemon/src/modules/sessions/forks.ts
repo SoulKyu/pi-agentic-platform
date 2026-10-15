@@ -38,6 +38,8 @@ export interface ForksDeps {
   onMade?(sessionId: string): void;
   /** Called once the fork's or clone's row is stored, inside the adopt that stores it: a throw removes the new file and row. */
   onAdopted?(source: SessionRow, targetId: string): void;
+  /** Before anything is read or written for a fork or clone: throws `rate_limited` or `disk_low` (M10R100, M10R101). */
+  admit?(ownerId: string): void;
 }
 
 export interface Forks {
@@ -123,6 +125,7 @@ export function createForks(deps: ForksDeps): Forks {
   return {
     async fork(row, entryId) {
       if (row.piPath === null) throw new PapError("session_empty");
+      deps.admit?.(row.ownerId);
       const writer = await deps.loadWriter();
       try {
         const made = writer.fork(row.piPath, entryId);
@@ -141,6 +144,7 @@ export function createForks(deps: ForksDeps): Forks {
     },
     async clone(row, leafId) {
       if (row.piPath === null) throw new PapError("session_empty");
+      deps.admit?.(row.ownerId);
       const writer = await deps.loadWriter();
       try {
         const name = cloneName(row.name);

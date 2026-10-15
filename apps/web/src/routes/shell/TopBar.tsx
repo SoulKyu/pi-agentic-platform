@@ -1,6 +1,7 @@
-import { Button, Icon, IconButton, IconInbox, IconSearch, IconTree, Kbd, Wordmark } from "@pap/ui";
+import { Button, Icon, IconButton, IconSearch, IconTree, Kbd, Wordmark } from "@pap/ui";
 import { runCommand } from "../../features/commands/index.ts";
 import { useT } from "../../i18n/index.ts";
+import { InboxButton } from "./InboxButton.tsx";
 import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
 import { useShortcut } from "./shortcut.ts";
 
@@ -22,13 +23,7 @@ export function TopBar() {
         onClick={() => void runCommand("drawer.tree.toggle")}
       />
       <div className="flex-1" />
-      <IconButton
-        icon={IconInbox}
-        label={t("shell.top.inbox")}
-        shortcut={inbox.keys}
-        shortcutJoiner={inbox.joiner}
-        onClick={() => void runCommand("drawer.inbox.toggle")}
-      />
+      <InboxButton shortcut={inbox.keys} joiner={inbox.joiner} />
       <Button
         variant="ghost"
         size="sm"

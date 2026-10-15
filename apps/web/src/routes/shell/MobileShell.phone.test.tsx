@@ -158,15 +158,15 @@ describe("the Inbox count", () => {
 
   it("is announced with its number in English at 0, 1 and 2", async () => {
     expect(await inboxName(0)).toBe("Inbox");
-    expect(await inboxName(1)).toBe("Inbox 1 unread");
-    expect(await inboxName(2)).toBe("Inbox 2 unread");
+    expect(await inboxName(1)).toBe("Inbox 1 to handle");
+    expect(await inboxName(2)).toBe("Inbox 2 to handle");
   });
 
-  it("follows the French plural rule", async () => {
+  it("reads the same count in French", async () => {
     setLocale("fr");
     expect(await inboxName(0)).toBe("Boîte");
-    expect(await inboxName(1)).toBe("Boîte 1 non lu");
-    expect(await inboxName(2)).toBe("Boîte 2 non lus");
+    expect(await inboxName(1)).toBe("Boîte 1 à traiter");
+    expect(await inboxName(2)).toBe("Boîte 2 à traiter");
   });
 });
 

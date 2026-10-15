@@ -6,6 +6,7 @@ import { AuthCliError } from "../modules/auth/index.ts";
 import { auditPrune } from "./audit-prune.ts";
 import { CliError, type CliIo } from "./open-home.ts";
 import { passkeyReset } from "./passkey-reset.ts";
+import { traceSummary } from "./trace-summary.ts";
 import { PREVIEW_STOP_COMMAND, USAGE, UsageError } from "./usage.ts";
 import { userAdd } from "./user-add.ts";
 
@@ -23,6 +24,7 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
   "audit prune": auditPrune,
   "user add": userAdd,
   "passkey reset": passkeyReset,
+  "trace summary": traceSummary,
 };
 
 const usage = (io: CliIo, message?: string): number => {

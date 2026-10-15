@@ -110,6 +110,8 @@ describe("compose", () => {
       readOnlyCommands: false,
       readOnlyPreset: false,
       presetTools: null,
+      toolAllowlist: null,
+      unattended: false,
     });
   });
 

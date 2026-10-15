@@ -118,4 +118,20 @@ describe("files, changes and terminal items (M8R71)", () => {
     expect(pathOfItem({ kind: "changes", root: "/a/../b" })).toBe("/");
     expect(pathOfItem({ kind: "terminal", id: "nope" })).toBe("/");
   });
+
+  it.each([
+    [{ kind: "tasks" }, "/tasks"],
+    [{ kind: "trigger", id: "g1" }, "/trigger/g1"],
+    [{ kind: "trigger", id: "new:p1" }, "/trigger/new%3Ap1"],
+  ] as const)("round-trips %j through %s (M10R112)", (item, path) => {
+    expect(pathOfItem(item)).toBe(path);
+    expect(itemFromPath(path, false)).toEqual(item);
+  });
+
+  it("refuses a malformed trigger path and keeps pathOfItem total", () => {
+    for (const path of ["/trigger", "/trigger/", "/trigger/a/b", "/trigger/%E0%A4%A", "/trigger/.."])
+      expect(itemFromPath(path, false), path).toBeNull();
+    expect(pathOfItem({ kind: "trigger", id: "a/b" })).toBe("/");
+    expect(pathOfItem({ kind: "trigger", id: "" })).toBe("/");
+  });
 });

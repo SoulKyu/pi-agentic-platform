@@ -78,6 +78,7 @@ const texts = new Map<string, string | null>();
 function compareWith(
   extra: {
     sessionCost?: (id: string) => number | null;
+    sessionBilling?: (id: string) => "api" | "subscription" | "unknown" | null;
     sessions?: boolean;
     diskFloor?: (path: string) => undefined;
     readOnly?: boolean;
@@ -94,6 +95,7 @@ function compareWith(
     sessions: () =>
       extra.sessions === false ? undefined : { lastAgentText: async (id: string) => texts.get(id) ?? null },
     ...(extra.sessionCost ? { sessionCost: extra.sessionCost } : {}),
+    ...(extra.sessionBilling ? { sessionBilling: extra.sessionBilling } : {}),
   });
 }
 const caller = (over: Partial<Caller> = {}): Caller => testCaller(over);
@@ -116,8 +118,18 @@ describe("lanes.compare (M9R85)", () => {
         deletions: 1,
         durationMs: 3_000,
         costUsd: null,
+        billing: null,
       },
-      { laneId: b.id, summary: null, files: 0, additions: 0, deletions: 0, durationMs: null, costUsd: null },
+      {
+        laneId: b.id,
+        summary: null,
+        files: 0,
+        additions: 0,
+        deletions: 0,
+        durationMs: null,
+        costUsd: null,
+        billing: null,
+      },
     ]);
   });
 
@@ -151,6 +163,17 @@ describe("lanes.compare (M9R85)", () => {
     expect(a.id).toBe("a-0001");
   });
 
+  it("labels the column's billing from the runs store: subscription, api, and null without a run (agreement 14)", async () => {
+    await addLane("a", 0);
+    await addLane("b", 1, { session: null });
+    const billing = vi.fn((id: string) => (id === "sess-a" ? ("subscription" as const) : null));
+    const withPort = await compareWith({ sessionBilling: billing })(caller(), { fanoutId: FANOUT });
+    expect(withPort.columns.map((column) => column.billing)).toEqual(["subscription", null]);
+    expect(billing).toHaveBeenCalledTimes(1);
+    const without = await compareWith()(caller(), { fanoutId: FANOUT });
+    expect(without.columns.map((column) => column.billing)).toEqual([null, null]);
+  });
+
   it("cuts a summary to the contract's 600 characters, and leaves the counts of a lane without a worktree null", async () => {
     const a = await addLane("a", 0);
     texts.set("sess-a", "w".repeat(2000));
@@ -160,14 +183,14 @@ describe("lanes.compare (M9R85)", () => {
     expect(columns[0]).toMatchObject({ files: null, additions: null, deletions: null });
   });
 
-  it("refuses with the disk floor's error when the disk is full, and gives null counts in a read-only daemon (M5)", async () => {
+  it("refuses with the disk floor's own disk_low when the disk is full, and gives null counts in a read-only daemon (M5)", async () => {
     await addLane("a", 0);
     const full = compareWith({
       diskFloor: () => {
-        throw new PapError("capacity");
+        throw new PapError("disk_low");
       },
     });
-    await expect(full(caller(), { fanoutId: FANOUT })).rejects.toMatchObject({ code: "capacity" });
+    await expect(full(caller(), { fanoutId: FANOUT })).rejects.toMatchObject({ code: "disk_low" });
     const floor = vi.fn((): undefined => undefined);
     const { columns } = await compareWith({ readOnly: true, diskFloor: floor })(caller(), {
       fanoutId: FANOUT,

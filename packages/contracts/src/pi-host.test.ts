@@ -97,6 +97,14 @@ describe("health record", () => {
 describe("InitRecord", () => {
   const init = { type: "init", cwd: "/work", agentDir: "/agent", papHome: "/pap", umask: 0o022, policy: {} };
 
+  it("takes a tool allowlist of 1 to 32 well-formed names next to the preset (M10R28)", () => {
+    const tools = (allowlist: unknown) => ({ ...init, tools: { preset: "read-only", allowlist } });
+    expect(InitRecord.safeParse(tools(["read"])).success).toBe(true);
+    expect(InitRecord.safeParse(tools(["-x"])).success).toBe(false);
+    expect(InitRecord.safeParse(tools([])).success).toBe(false);
+    expect(InitRecord.safeParse({ ...init, tools: { preset: "read-only" } }).success).toBe(true);
+  });
+
   it("requires the pap data directory", () => {
     expect(InitRecord.safeParse(init).success).toBe(true);
     expect(InitRecord.safeParse({ ...init, papHome: undefined }).success).toBe(false);

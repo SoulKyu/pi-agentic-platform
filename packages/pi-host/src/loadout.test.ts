@@ -16,6 +16,7 @@ const sessionWith = (fields: Record<string, unknown>) =>
     thinkingLevel: "medium",
     getAvailableThinkingLevels: () => ["off", "low", "medium"],
     getActiveToolNames: () => ["read", "bash"],
+    modelRuntime: { isUsingOAuth: () => false, isUsingSubscription: () => false },
     ...fields,
   }) as unknown as AgentSession;
 
@@ -29,6 +30,7 @@ describe("loadoutOf", () => {
       preset: "configured",
       tools: ["read", "bash"],
       toolsTruncated: false,
+      billing: "api",
     });
     expect(SessionLoadout.safeParse(loadout).success).toBe(true);
   });
@@ -63,6 +65,48 @@ describe("loadoutOf", () => {
     );
     expect(loadout.model).toBeNull();
     expect(SessionLoadout.safeParse(loadout).success).toBe(true);
+  });
+});
+
+describe("loadoutOf billing (M10R86)", () => {
+  // `oauth` is true for any OAuth sign-in; `subscription` only when the provider bills a plan (OpenRouter's OAuth is a key).
+  const runtime = (oauth: boolean, subscription: boolean) => ({
+    modelRuntime: {
+      isUsingOAuth: (provider: string) => provider === "p" && oauth,
+      isUsingSubscription: (provider: string) => provider === "p" && subscription,
+    },
+  });
+
+  it("is subscription for a provider that bills a subscription", () => {
+    const loadout = loadoutOf(sessionWith(runtime(true, true)));
+    expect(loadout.billing).toBe("subscription");
+    expect(SessionLoadout.safeParse(loadout).success).toBe(true);
+  });
+
+  it("is api for an OAuth sign-in that is not a subscription (a permanent key billed per token)", () => {
+    expect(loadoutOf(sessionWith(runtime(true, false))).billing).toBe("api");
+  });
+
+  it("is api for a provider used with a key", () => {
+    expect(loadoutOf(sessionWith(runtime(false, false))).billing).toBe("api");
+  });
+
+  it("says nothing without a model or when the runtime cannot tell", () => {
+    expect("billing" in loadoutOf(sessionWith({ model: undefined, ...runtime(true, true) }))).toBe(false);
+    const broken = {
+      modelRuntime: {
+        isUsingSubscription: () => {
+          throw new Error("x");
+        },
+      },
+    };
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      expect("billing" in loadoutOf(sessionWith(broken))).toBe(false);
+      expect(stderr).toHaveBeenCalledWith("pi-host: billing not known: x\n");
+    } finally {
+      stderr.mockRestore();
+    }
   });
 });
 

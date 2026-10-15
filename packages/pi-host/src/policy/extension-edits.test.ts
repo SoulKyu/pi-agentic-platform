@@ -117,6 +117,8 @@ describe("pap-policy protected paths", () => {
     const unattended = {
       profile: "isolated-task",
       approvalMode: "auto-accept-edits",
+      toolAllowlist: null,
+      unattended: false,
     } as unknown as PolicyRules;
     const h = harness({ rules: () => unattended });
     expect(await h.run("write", { path: ".git/hooks/pre-commit", content: "x" })).toMatchObject({

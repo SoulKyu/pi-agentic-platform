@@ -11,6 +11,7 @@ const COMPARE_ERRORS: Readonly<Record<string, MessageKey>> = {
   timeout: "compare.error.timeout",
   bad_request: "compare.error.bad_request",
   read_only: "compare.error.read_only",
+  disk_low: "compare.error.disk_low",
 };
 
 /** Every code the compare and close calls declare has its own words; anything else reads as a plain failure. */

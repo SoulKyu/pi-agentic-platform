@@ -111,7 +111,7 @@ describe("lanes.review branch scope (M9R76)", () => {
     expect(list.files).toHaveLength(1);
   });
 
-  it("checks the disk floor before the snapshot: a full disk answers capacity, a read-only daemon read_only (M5)", async () => {
+  it("checks the disk floor before the snapshot: a full disk answers disk_low, a read-only daemon read_only (M5)", async () => {
     const t = make();
     const floor = vi.fn((): undefined => undefined);
     await createLaneReview({ ...t.deps, diskFloor: floor }).review(caller, {
@@ -123,11 +123,11 @@ describe("lanes.review branch scope (M9R76)", () => {
     const full = createLaneReview({
       ...t.deps,
       diskFloor: () => {
-        throw new PapError("capacity");
+        throw new PapError("disk_low");
       },
     });
     await expect(full.review(caller, { laneId: "lane-1", scope: { kind: "branch" } })).rejects.toMatchObject({
-      code: "capacity",
+      code: "disk_low",
     });
     const ro = createLaneReview({ ...t.deps, readOnly: true });
     await expect(ro.review(caller, { laneId: "lane-1", scope: { kind: "branch" } })).rejects.toMatchObject({

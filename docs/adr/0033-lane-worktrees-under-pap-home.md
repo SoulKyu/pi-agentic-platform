@@ -20,6 +20,6 @@ A lane needs a git worktree. Putting it next to the project would write into the
 ## Consequences
 
 - Deleting `$PAP_HOME` deletes the lanes' uncommitted work. The branch survives in the project's repository.
-- The disk floor (1 GiB free) is checked before the checkout; a full disk fails the lane with `disk`.
+- The disk floor (1 GiB free) is checked before the checkout; a full disk fails the lane with `disk` (`disk_low` to the caller of `lanes.create`, M10's `PAP_MIN_FREE_DISK_MB`).
 - A `git` started from a terminal-run daemon can finish after the boot undo (the systemd unit kills its cgroup). Residual in `docs/agents/lanes.md`.
 - Another project's backup tools see the checkout as part of `$PAP_HOME`. Exclude `worktrees/` from pap's own backups if that matters.

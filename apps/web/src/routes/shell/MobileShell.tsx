@@ -17,6 +17,7 @@ import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
+import { useTriggerNames } from "./use-tasks-feed.ts";
 import { NotFound } from "./NotFound.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
@@ -24,11 +25,13 @@ import { SurfaceSwitch, type SwitchChoice } from "./SurfaceSwitch.tsx";
 import { useSurfaceView, viewOf, type SurfaceView } from "./surface-view.ts";
 import { usePaletteChord } from "./shortcut.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
+import { useInboxStore } from "../../stores/inbox-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
 const loadTabSwitcher = () => import("./TabSwitcher.tsx");
 const loadTree = () => import("../../features/projects/ProjectTree.tsx");
+const loadInbox = () => import("../../features/inbox/InboxPanel.tsx");
 
 /** The item a session tab shows on a phone: its chat, or its split when the split is what the view names. */
 function shownItem(tab: Tab, view: SurfaceView): ItemRef {
@@ -54,6 +57,8 @@ export function MobileShell() {
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
   const lanes = useLaneStore((state) => state.view);
+  const triggers = useTriggerNames();
+  const toHandle = useInboxStore((state) => state.view.toHandle);
   const view = useSurfaceView((state) => (tab ? viewOf(state, tab.key) : "chat"));
   const [section, setSection] = useState<MobileSection>("work");
   const [seenPath, setSeenPath] = useState(pathname);
@@ -73,7 +78,7 @@ export function MobileShell() {
   // The home's "All sessions" on a phone: the Lists section, where the tree lives.
   useCommand("mobile.lists.open", () => setSection("lists"));
   const item = itemFromPath(pathname, import.meta.env.DEV);
-  const title = item ? itemTitle(item, sessions, views, t, lanes) : t("shell.notFound.title");
+  const title = item ? itemTitle(item, sessions, views, t, lanes, triggers) : t("shell.notFound.title");
   return (
     <div data-shell="mobile" className="flex h-app flex-col">
       <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
@@ -108,9 +113,18 @@ export function MobileShell() {
             onFailed={() => setSection("work")}
           />
         ) : section === "inbox" ? (
-          <div className="p-s3">
-            <EmptyState title={t("shell.inbox.emptyTitle")} purpose={t("shell.inbox.emptyPurpose")} />
-          </div>
+          <LazyPanel
+            text={lazyText}
+            load={loadInbox}
+            open={section === "inbox"}
+            props={{
+              onOpenSession: (id: string) => {
+                useWorkspaceStore.getState().open({ kind: "session", id });
+                setSection("work");
+              },
+            }}
+            onFailed={() => setSection("work")}
+          />
         ) : item ? (
           tab && tab.item.kind === "session" ? (
             <SessionSurface tab={tab} sessionId={tab.item.id} view={view} />
@@ -121,7 +135,7 @@ export function MobileShell() {
           <NotFound />
         )}
       </main>
-      <BottomNav section={section} inboxCount={0} onSection={setSection} />
+      <BottomNav section={section} inboxCount={toHandle} onSection={setSection} />
       <LazyPanel
         text={lazyText}
         load={loadTabSwitcher}

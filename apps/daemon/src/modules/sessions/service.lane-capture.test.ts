@@ -65,6 +65,13 @@ describe("the 'before' capture window of a lane prompt (task 6a carry, M9R114)",
     await sent;
   });
 
+  it("reports the automation port's promptPending while the capture holds the prompt (M10 on M9)", async () => {
+    const { sessionId, sent, release } = await held();
+    expect(bed.service.automation.promptPending(OWNER.userId, sessionId)).toBe(true);
+    release();
+    await sent;
+  });
+
   it("refuses a navigation during the capture", async () => {
     const { sessionId, sent, release } = await held();
     expect(await codeOf(bed.service.navigate({ sessionId, targetId: "x" }, OWNER))).toBe("session_busy");

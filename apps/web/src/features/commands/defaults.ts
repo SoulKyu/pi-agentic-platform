@@ -28,6 +28,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: "drawer.tree.toggle", titleKey: "commands.drawer.tree.toggle", group: "navigation" },
   { id: "drawer.inbox.toggle", titleKey: "commands.drawer.inbox.toggle", group: "navigation" },
   { id: "settings.open", titleKey: "commands.settings.open", group: "navigation" },
+  { id: "tasks.open", titleKey: "commands.tasks.open", group: "navigation" },
   { id: "shortcuts.help", titleKey: "commands.shortcuts.help", group: "app" },
   { id: "session.new", titleKey: "commands.session.new", group: "session" },
   { id: "lanes.new", titleKey: "commands.lanes.new", group: "session" },
