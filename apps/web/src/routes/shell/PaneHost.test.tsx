@@ -28,6 +28,9 @@ vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   return { SessionScreen: () => createElement("p", { "data-stub": "session" }) };
 });
 
+/** The session surface bar splits in the Changes and the Terminal panes, and open a menu: their chunks load before the page mounts. */
+const SPLIT_PANES = { chunks: ["changes", "terminal", "menu"] } as const;
+
 /** The terminal feed starts when its lazy chunk has loaded: deliver once the sub is open. */
 const emitTerminal = (bed: ReturnType<typeof fakeRuntime>, event: unknown) =>
   vi.waitFor(() => bed.emitTo("subscribe.terminal", event), { timeout: 2_000 });
@@ -62,7 +65,7 @@ beforeEach(() => {
 
 describe("PaneHost with a split", () => {
   it("shows both items around a labelled separator, and no menu until asked", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await vi.waitFor(
       () => expect(page.container.querySelector('#pane-main [data-stub="session"]')).not.toBeNull(),
       { timeout: 2_000 },
@@ -78,7 +81,7 @@ describe("PaneHost with a split", () => {
   });
 
   it("changes the second item from its menu, and closes the split", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await click(
       page.container.querySelector(
         '[data-pane-role="split"] [aria-label="Show in this pane"]',
@@ -127,7 +130,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("shows Changes, Terminal and Files on a session tab and nothing on a settings tab", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     expect([...bar(page).querySelectorAll("button")].map((one) => one.textContent)).toEqual([
       "Changes",
       "Terminal",
@@ -141,7 +144,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("Changes splits the tab with the changes of the project root, and the pane is the lazy one", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     expect(button(bar(page), "Changes").hasAttribute("aria-current")).toBe(false);
     await click(button(bar(page), "Changes"));
     expect(split()).toEqual({ kind: "changes", root: ROOT });
@@ -156,7 +159,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("pressing the button of the item that is already the split focuses it, without a second split", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await click(button(bar(page), "Changes"));
     const before = useWorkspaceStore.getState().ws;
     await click(button(bar(page), "Changes"));
@@ -166,7 +169,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("Terminal shows the newest running terminal tagged with the session and creates nothing", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await settle();
     await emitTerminal(bed, {
       kind: "snapshot",
@@ -188,7 +191,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("Terminal with none creates one for the session and its folder, once per click run", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await settle();
     await emitTerminal(bed, { kind: "snapshot", terminals: [] });
     await settle();
@@ -212,7 +215,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("keeps Terminal disabled and busy until the stream's first snapshot, and creates nothing early (MC32)", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await settle();
     bed.handlers["terminal.create"] = () => ({ terminalId: terminalView(6).id });
     const terminal = button(bar(page), "Terminal");
@@ -227,7 +230,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("does not forget a fresh terminal when an unrelated terminal event arrives first (MC32)", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await settle();
     await emitTerminal(bed, { kind: "snapshot", terminals: [] });
     await settle();
@@ -251,7 +254,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("clicks while a create is still running share it", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await settle();
     await emitTerminal(bed, { kind: "snapshot", terminals: [] });
     await settle();
@@ -273,7 +276,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("a failed create says why and splits nothing; the next click uses a fresh request id", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await settle();
     await emitTerminal(bed, { kind: "snapshot", terminals: [] });
     await settle();
@@ -295,7 +298,7 @@ describe("the session surface bar (M8R72)", () => {
   });
 
   it("retries a create whose outcome is unknown with the same request id (R105), a fresh one after success", async () => {
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     await settle();
     await emitTerminal(bed, { kind: "snapshot", terminals: [] });
     await settle();
@@ -319,7 +322,7 @@ describe("the session surface bar (M8R72)", () => {
 
   it("disables the three buttons for a session the store does not hold", async () => {
     useShellStore.getState().reset();
-    const page = await renderShell("/s/a");
+    const page = await renderShell("/s/a", SPLIT_PANES);
     for (const name of ["Changes", "Terminal", "Files"])
       expect(button(bar(page), name).disabled, name).toBe(true);
     await page.unmount();

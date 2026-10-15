@@ -32,6 +32,10 @@ const session = (id: string, cwd: string, updatedAt: number, status: "idle" | "r
 const feed = (sessions: ReturnType<typeof session>[], patch: Parameters<typeof shellSnapshot>[1] = {}) =>
   act(async () => bed.emitTo("subscribe.shell", shellSnapshot(sessions, patch)));
 
+/** The rail and the rows open menus: their chunk loads before the page mounts. */
+const withMenu = (path: string, options: Parameters<typeof renderShell>[1] = {}) =>
+  renderShell(path, { chunks: ["menu"], ...options });
+
 let bed: ReturnType<typeof fakeRuntime>;
 let started: Array<{ stop(): void }> = [];
 afterEach(() => {
@@ -55,7 +59,7 @@ const opened = (title: string) =>
 
 describe("tree drawer", () => {
   it("Escape in the project rename field cancels the edit and keeps the drawer open; elsewhere it closes it", async () => {
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     await feed([shellSession({ id: "one", projectId: "api", updatedAt: 1 })], {
       projects: [shellProject({ id: "api", name: "api", sessions: 1 })],
@@ -90,7 +94,7 @@ describe("tree drawer", () => {
   });
 
   it("is not in the document until opened, then Ctrl+B lists the sessions grouped by project", async () => {
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     await feed(
       [
@@ -116,7 +120,7 @@ describe("tree drawer", () => {
   });
 
   it("labels a row with its name, else the start of its first message, else its folder, never its id", async () => {
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     await feed([
       shellSession({ id: "one", cwd: "/w/api", name: "Fix login", updatedAt: 1 }),
@@ -133,7 +137,7 @@ describe("tree drawer", () => {
   });
 
   it("opening a row navigates to the session and closes the drawer", async () => {
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     await feed([session("one", "/w/api", 1), session("two", "/w/api", 2)]);
     await ctrlB();
@@ -146,7 +150,7 @@ describe("tree drawer", () => {
   });
 
   it("filters by folder and says so when nothing matches", async () => {
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     await feed([session("one", "/w/api", 1)]);
     await ctrlB();
@@ -167,7 +171,7 @@ describe("tree drawer", () => {
       if (kind === "refused" && ++answers === 1) throw new RpcError("capacity");
       return { sub: `again-${++answers}` };
     };
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     if (kind === "unreadable") await act(async () => useShellStore.getState().apply({ kind: "snapshot" }));
     await ctrlB();
@@ -199,7 +203,7 @@ describe("tree drawer", () => {
   ])("Escape in the %s drawer closes it and does not stop the run", async (_name, title, open) => {
     const stop = vi.fn();
     const off = registerCommand("session.stop", stop);
-    const page = await renderShell("/s/one");
+    const page = await withMenu("/s/one");
     await settle();
     const pane = page.container.querySelector<HTMLElement>('[data-pane-kind="session"] [data-stub]');
     await open(page);
@@ -221,7 +225,7 @@ describe("tree drawer", () => {
 
 describe("tree drawer, first load", () => {
   it("shows nothing at first, then a labelled spinner while the snapshot is slow, then the rows", async () => {
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     await ctrlB();
     await opened("Sessions");
@@ -243,7 +247,7 @@ describe("tree drawer, first load", () => {
 
 describe("inbox drawer", () => {
   it("opens from its button with the empty state", async () => {
-    const page = await renderShell("/");
+    const page = await withMenu("/");
     await settle();
     expect(dialog()).toBeNull();
     await click(page.container.querySelector('[aria-label="Inbox"]') as HTMLElement);

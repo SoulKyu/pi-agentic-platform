@@ -3,6 +3,7 @@ import { createMemoryHistory, RouterProvider, type AnyRouter } from "@tanstack/r
 import { vi } from "vitest";
 import { AppShell } from "../routes/shell/AppShell.tsx";
 import { buildRouteTree, createAppRouter } from "../routes/router.tsx";
+import { loadShellChunks, type ChunkName } from "./chunks.ts";
 import { mount, type Mounted } from "./dom.ts";
 
 const PHONE_QUERY = "(max-width: 767.98px)";
@@ -12,6 +13,8 @@ export interface ShellOptions {
   onSignedOut?(): void;
   readonly phone?: boolean;
   readonly passkeysAvailable?: boolean;
+  /** Chunks a gesture of the test opens (a split pane) on top of those the path and the drawers need. */
+  readonly chunks?: readonly ChunkName[];
 }
 
 /** The shell on a memory-history router, with no auth gate, inside the providers main.tsx supplies. */
@@ -28,8 +31,8 @@ export async function renderShell(
       removeEventListener: () => {},
     }));
   }
-  // The settings screen is a lazy chunk: loaded here, outside any test wait, so a loaded host cannot outlast it.
-  if (path.startsWith("/settings")) await import("../routes/settings/SettingsScreen.tsx");
+  // The lazy chunks are loaded here, outside any test wait, so a loaded host cannot outlast a waitFor budget.
+  await loadShellChunks(path, options.chunks);
   const Shell = () => (
     <AppShell
       username={options.username === undefined ? "ana" : options.username}
