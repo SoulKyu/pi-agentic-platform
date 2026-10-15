@@ -22,7 +22,9 @@ export function createShellView(deps: {
   };
   const project = (ownerId: string, projectId: string): ProjectSummary | null => {
     const view = deps.projects.list(ownerId, [projectId])[0];
-    return view ? { ...view, sessions: deps.store.countByProject(ownerId, projectId) } : null;
+    if (!view) return null;
+    const summary: ProjectSummary = { ...view, sessions: deps.store.countByProject(ownerId, projectId) };
+    return deps.store.usesProject(ownerId, projectId) ? summary : { ...summary, unused: true };
   };
   return {
     summary,
@@ -30,10 +32,19 @@ export function createShellView(deps: {
     snapshot(ownerId: string): ShellStreamEvent {
       const rows = deps.store.window(ownerId, SHELL_LIMITS.sessions + SHELL_LIMITS.pins);
       const counts = deps.store.activeByProject(ownerId);
-      // Every project with an active session, in the person's order (owner Q15, M4R132).
-      const projects = deps.projects
+      const inUse = deps.store.projectsInUse(ownerId);
+      // Every project with an active session (owner Q15, M4R132), and every one no session files under yet (decision 85).
+      const active: ProjectSummary[] = deps.projects
         .list(ownerId, [...counts.keys()])
         .map((view) => ({ ...view, sessions: counts.get(view.id) ?? 0 }));
+      const unused: ProjectSummary[] = deps.projects
+        .all(ownerId)
+        .filter((view) => !inUse.has(view.id))
+        .map((view) => ({ ...view, sessions: 0, unused: true }));
+      // Active projects first: past the snapshot cap an unused one never displaces an active one.
+      const byPosition = (a: ProjectSummary, b: ProjectSummary) =>
+        a.position - b.position || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+      const projects = [...active.sort(byPosition), ...unused.sort(byPosition)];
       return fitShellSnapshot({
         sessions: rows.map((row) => summaryOf(row, deps.live(row.id))),
         projects,

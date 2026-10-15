@@ -18,6 +18,15 @@ function tsxFiles(dir: string): string[] {
   });
 }
 
+/** Every non-test source file: a directive can sit in a .ts hook as well as in a component. */
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) return name === "testing" ? [] : sourceFiles(path);
+    return /\.tsx?$/.test(name) && !name.includes(".test.") ? [path] : [];
+  });
+}
+
 interface CompilerEvent {
   readonly kind: string;
   readonly detail?: unknown;
@@ -58,6 +67,25 @@ describe("React Compiler gate", () => {
       (e) => e.kind === "CompileError" || e.kind === "PipelineError",
     );
     expect(failures.map((e) => JSON.stringify(e.detail ?? e.data ?? e).slice(0, 400))).toEqual([]);
+  });
+
+  it("lets only the two first-paint home components opt out of the compiler, each saying why (226 KB limit)", () => {
+    const sources = ROOTS.flatMap((root) => sourceFiles(join(REPO, root))).map((path) =>
+      relative(REPO, path),
+    );
+    const optedOut = sources.filter((file) =>
+      /["']use no memo["']/.test(readFileSync(join(REPO, file), "utf8")),
+    );
+    expect(optedOut.sort()).toEqual([
+      "apps/web/src/features/home/ModeChips.tsx",
+      "apps/web/src/features/home/ProjectHome.tsx",
+    ]);
+    for (const file of optedOut) {
+      const line = readFileSync(join(REPO, file), "utf8")
+        .split("\n")
+        .find((one) => /["']use no memo["']/.test(one));
+      expect(line, file).toMatch(/;\s*\/\/.*bundle.*226 KB/);
+    }
   });
 
   it("reports a component the compiler cannot compile (a finally clause)", async () => {

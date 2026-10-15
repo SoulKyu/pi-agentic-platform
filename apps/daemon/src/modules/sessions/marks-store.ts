@@ -79,6 +79,10 @@ export interface MarksStore {
   /** Sessions not archived, by project (the snapshot's counts and its active projects, one query). */
   activeByProject(ownerId: string): Map<string, number>;
   countByProject(ownerId: string, projectId: string): number;
+  /** The projects at least one of the owner's sessions files under, archived ones included. */
+  projectsInUse(ownerId: string): Set<string>;
+  /** True when at least one of the owner's sessions, archived or not, files under the project. */
+  usesProject(ownerId: string, projectId: string): boolean;
   /** Archived, newest archive first, strictly after the cursor. */
   archivedPage(ownerId: string, before: { archivedAt: number; id: string } | null, limit: number): ShellRow[];
   /** The owner's pinned sessions by rank. */
@@ -144,6 +148,20 @@ export function createMarksStore(db: Db): MarksStore {
         "SELECT count(*) AS n FROM sessions WHERE owner_id = $ownerId AND project_id = $projectId AND archived_at IS NULL",
         { ownerId, projectId },
       )?.n ?? 0,
+    projectsInUse: (ownerId) =>
+      new Set(
+        db
+          .all<{ projectId: string }>(
+            "SELECT DISTINCT project_id AS projectId FROM sessions WHERE owner_id = $ownerId AND project_id IS NOT NULL",
+            { ownerId },
+          )
+          .map((row) => row.projectId),
+      ),
+    usesProject: (ownerId, projectId) =>
+      db.get<{ one: number }>(
+        "SELECT 1 AS one FROM sessions WHERE owner_id = $ownerId AND project_id = $projectId LIMIT 1",
+        { ownerId, projectId },
+      ) !== undefined,
     archivedPage: (ownerId, before, limit) =>
       db
         .all<RawRow>(

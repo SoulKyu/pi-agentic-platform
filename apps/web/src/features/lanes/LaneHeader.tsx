@@ -11,6 +11,8 @@ export interface HeaderActions {
   onNewSession(): void;
   onArchive(): void;
   onRetryPr(): void;
+  /** The fan-out's compare tab (§5); null for a lane outside a fan-out. */
+  readonly onOpenCompare: (() => void) | null;
 }
 
 interface Props {
@@ -75,6 +77,9 @@ export function LaneHeader({ title, model, actions, busy, sessionMenu }: Props) 
     </>
   );
   const items = [
+    ...(actions.onOpenCompare !== null
+      ? [{ id: "compare", label: t("lanes.action.compare"), onSelect: actions.onOpenCompare }]
+      : []),
     { id: "log", label: t("lanes.action.setupLog"), onSelect: actions.onSetupLog },
     ...(model.runSetup
       ? [
@@ -132,6 +137,11 @@ export function LaneHeader({ title, model, actions, busy, sessionMenu }: Props) 
         </p>
         {model.pr !== null ? <Pr pr={model.pr} onRetry={actions.onRetryPr} compact={false} /> : null}
         <span className="ml-auto flex flex-wrap items-center gap-s2">
+          {actions.onOpenCompare !== null ? (
+            <Button size="sm" onClick={actions.onOpenCompare}>
+              {t("lanes.action.compare")}
+            </Button>
+          ) : null}
           <Button size="sm" onClick={actions.onSetupLog}>
             {t("lanes.action.setupLog")}
           </Button>

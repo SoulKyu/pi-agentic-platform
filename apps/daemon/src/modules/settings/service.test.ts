@@ -25,6 +25,7 @@ const appearance: AccountAppearance = {
   railPosition: "right",
   avatarStyle: "glyph",
   toolDetail: "full",
+  home: { status: false, explore: true, automate: true, project: true, help: true, recent: true },
 } as const;
 
 let root: string;

@@ -108,6 +108,7 @@ describe("lazy catalog (Settings)", () => {
       "features/appearance/AppearanceSection.tsx",
       "features/appearance/CustomThemes.tsx",
       "features/appearance/DetailsSection.tsx",
+      "features/appearance/HomeSection.tsx",
       "features/appearance/ReadingSection.tsx",
       "features/appearance/ThemeEditor.tsx",
       "features/appearance/ThemeImport.tsx",

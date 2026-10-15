@@ -21,9 +21,9 @@ vi.mock("../../features/auth/auth-api.ts", async (original) => ({
   logout: auth.logout,
   registerPasskey: auth.registerPasskey,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 
 let started: Array<{ stop(): void }> = [];
@@ -97,6 +97,17 @@ describe("the dev-ui pane", () => {
           page.container.querySelector('[data-pane-kind="dev-ui"] [data-gallery-section]'),
         ).not.toBeNull(),
       { timeout: 5_000 },
+    );
+    // The gallery's code section lazy-loads three editor chunks (CodeMirror). Unmounting before they settle lets
+    // their React pings log "not wrapped in act" after the file is torn down (EnvironmentTeardownError).
+    await vi.waitFor(
+      () =>
+        expect(
+          page.container.querySelectorAll(
+            '[data-slot="code-editor"][data-state="plain"], [data-slot="diff-view"][data-state="plain"], [data-slot="review-diff"][data-state="plain"]',
+          ),
+        ).toHaveLength(0),
+      { timeout: 10_000 },
     );
     await page.unmount();
   });

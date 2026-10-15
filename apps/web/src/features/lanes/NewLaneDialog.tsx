@@ -36,8 +36,12 @@ interface Props {
   readonly projects: readonly ProjectSummary[];
   /** The project the dialog opens for; null asks the person to pick one. */
   readonly initialProjectId: string | null;
-  /** "Run again": the prompt or issue link and the models of the fan-out to repeat. */
-  readonly prefill?: { readonly text: string; readonly models: ReadonlyArray<ModelPick | null> } | null;
+  /** "Run again" and the home: the prompt or issue link, the models, and the home's title. */
+  readonly prefill?: {
+    readonly text: string;
+    readonly models: ReadonlyArray<ModelPick | null>;
+    readonly title?: string;
+  } | null;
   onClose(): void;
   /** The new lane ids (and the fan-out group): the caller opens the lane tab, or the compare tab. */
   onCreated(created: Created): void;
@@ -70,7 +74,7 @@ export function NewLaneDialog({ projects, initialProjectId, prefill, onClose, on
   const { preview, error, reload } = useLanePreview(root);
   const { choices, truncated } = useModelChoices(root);
   const [draft, setDraft] = useState(() =>
-    prefill ? prefillDraft(prefill.text, prefill.models) : emptyDraft(),
+    prefill ? prefillDraft(prefill.text, prefill.models, prefill.title) : emptyDraft(),
   );
   const [fetching, setFetching] = useState(false);
   const [creating, setCreating] = useState(false);

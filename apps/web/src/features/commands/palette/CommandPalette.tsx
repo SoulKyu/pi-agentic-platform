@@ -9,7 +9,7 @@ import { useFocusEntry } from "../../../stores/focus-entry.ts";
 import { rankItems, type PaletteItem, type RankedItems } from "./rank.ts";
 import { resultCountLabel } from "./result-count.ts";
 import { hitValue, TranscriptHits } from "./TranscriptHits.tsx";
-import { useTranscriptSearch } from "./transcript-search.ts";
+import { searchText, useTranscriptSearch } from "./transcript-search.ts";
 
 interface CommandPaletteProps {
   readonly open: boolean;
@@ -17,6 +17,8 @@ interface CommandPaletteProps {
   readonly items: readonly PaletteItem[];
   /** Opens a session in the workspace: a transcript hit's row (M4R108). */
   openSession(sessionId: string): void;
+  /** Transcript search only (the home's Search, §3.2): no command or item rows, hits of this project when one is named. */
+  readonly search?: { readonly projectId: string | null; readonly projectName: string | null } | null;
 }
 
 /** Settings and Actions come after the transcript hits: Lanes, Sessions, Tasks and triggers, hits, then Actions (agreement 21). */
@@ -72,26 +74,37 @@ const searchErrorKey = (code: string | undefined) =>
  * Orca's palette on cmdk with its own filter off: `rankItems` orders and counts, cmdk only moves the selection.
  * Loaded on first open (spec C §7.4). No digit chords here: the browser keeps Ctrl/⌘/Alt+1..9 (M3-RT-31).
  */
-export default function CommandPalette({ open, onOpenChange, items, openSession }: CommandPaletteProps) {
+export default function CommandPalette({
+  open,
+  onOpenChange,
+  items,
+  openSession,
+  search,
+}: CommandPaletteProps) {
   const t = useT();
   const locale = useLocale();
   const [query, setQuery] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const ranked = useMemo(() => rankItems(items, query), [items, query]);
-  const search = useTranscriptSearch(query);
-  const announced = resultCountLabel(locale, t, ranked.count + search.hits.length);
+  const scope = search ?? null;
+  const ranked = useMemo(() => rankItems(scope === null ? items : [], query), [items, query, scope]);
+  const found = useTranscriptSearch(query);
+  // The daemon's search has no project filter (PH8): the hits it answers are narrowed here.
+  const narrowTo = scope === null ? null : scope.projectId;
+  const hits =
+    narrowTo === null ? found.hits : found.hits.filter((hit) => hit.session.projectId === narrowTo);
+  const announced = resultCountLabel(locale, t, ranked.count + hits.length);
   const searchLine =
-    search.status === "loading"
+    found.status === "loading"
       ? t("search.loading")
-      : search.status === "error"
-        ? t(searchErrorKey(search.code))
+      : found.status === "error"
+        ? t(searchErrorKey(found.code))
         : null;
   // cmdk does not move its selection onto rows that were disabled and are enabled again: the selection is kept
   // here, and falls back to the first row that can be chosen.
   const [selected, setSelected] = useState("");
   const choosable = [
     ...ranked.groups.flatMap((entry) => entry.items.map((item) => item.id)),
-    ...(search.status === "loading" ? [] : search.hits.map(hitValue)),
+    ...(found.status === "loading" ? [] : hits.map(hitValue)),
   ];
   const value = choosable.includes(selected) ? selected : (choosable[0] ?? "");
   const choose = (hit: SearchHit) => {
@@ -126,7 +139,13 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
         >
           <Command.Input
             ref={input}
-            aria-label={t("commands.palette.input")}
+            aria-label={
+              scope === null
+                ? t("commands.palette.input")
+                : scope.projectName === null
+                  ? t("search.mode.input")
+                  : t("search.mode.inputIn", { project: scope.projectName })
+            }
             value={query}
             onValueChange={setQuery}
             className="w-full border-b border-border bg-transparent px-s3 py-s2 text-ui text-fg outline-none"
@@ -134,15 +153,19 @@ export default function CommandPalette({ open, onOpenChange, items, openSession 
           <Command.List className="max-h-app overflow-y-auto p-s1">
             {searchLine === null ? (
               <Command.Empty className="px-s3 py-s2 text-ui text-muted">
-                {ranked.actionsOnly ? t("commands.palette.emptyActions") : t("commands.palette.empty")}
+                {scope !== null
+                  ? t(searchText(query) === null ? "search.mode.short" : "search.mode.none")
+                  : ranked.actionsOnly
+                    ? t("commands.palette.emptyActions")
+                    : t("commands.palette.empty")}
               </Command.Empty>
             ) : null}
             {ranked.groups.filter((entry) => !AFTER_HITS.has(entry.group)).map(renderGroup)}
-            {search.hits.length > 0 ? (
+            {hits.length > 0 ? (
               <TranscriptHits
-                hits={search.hits}
+                hits={hits}
                 current={value}
-                loading={search.status === "loading"}
+                loading={found.status === "loading"}
                 onChoose={choose}
               />
             ) : null}

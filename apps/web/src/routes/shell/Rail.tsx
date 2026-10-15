@@ -1,5 +1,6 @@
-import { IconAccount, IconButton, IconSettings, Mark } from "@pap/ui";
+import { IconAccount, IconButton, IconSettings, IconTasks, Mark } from "@pap/ui";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { runCommand } from "../../features/commands/index.ts";
 import { pathOfItem } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
@@ -12,7 +13,7 @@ interface RailProps {
   onSignedOut(): void;
 }
 
-/** Logo, Settings and the account menu. Agent avatars arrive with M11. */
+/** Logo, Tasks, Settings and the account menu (with the keyboard shortcuts, §5). Agent avatars arrive with M11. */
 export function Rail({ username, onSignedOut }: RailProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -29,6 +30,11 @@ export function Rail({ username, onSignedOut }: RailProps) {
       </Link>
       <div className="flex-1" />
       <IconButton
+        icon={IconTasks}
+        label={t("shell.rail.tasks")}
+        onClick={() => go(navigate, pathOfItem({ kind: "tasks" }))}
+      />
+      <IconButton
         icon={IconSettings}
         label={t("shell.rail.settings")}
         shortcut={settings.keys}
@@ -42,6 +48,11 @@ export function Rail({ username, onSignedOut }: RailProps) {
         trigger={(ask) => <IconButton icon={IconAccount} label={t("shell.rail.account")} onClick={ask} />}
         items={[
           ...(username ? [{ id: "user", label: username, disabled: true, onSelect: () => {} }] : []),
+          {
+            id: "shortcuts",
+            label: t("shell.rail.shortcuts"),
+            onSelect: () => void runCommand("shortcuts.help"),
+          },
           { id: "sign-out", label: t("shell.rail.signOut"), onSelect: () => signOut(onSignedOut) },
         ]}
       />

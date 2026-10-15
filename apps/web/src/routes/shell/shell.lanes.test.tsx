@@ -19,9 +19,9 @@ vi.mock("../../runtime/index.ts", async (original) => ({
   ...(await original<typeof import("../../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p") };
+  return { HomePane: () => createElement("p") };
 });
 
 const FAN = "0123456789abcdef";

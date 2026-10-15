@@ -47,7 +47,7 @@ export function summaryOf(
 export function fitShellSnapshot(
   input: {
     readonly sessions: readonly ShellSession[];
-    /** Every project of the owner with an active session, in the person's order. */
+    /** Every project of the owner with an active session or none at all (`unused`), in the person's order. */
     readonly projects: readonly ProjectSummary[];
     readonly active: number;
     readonly archived: number;

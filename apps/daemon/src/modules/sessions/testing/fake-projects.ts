@@ -36,6 +36,14 @@ export function fakeProjectsPort(options: { refuse?: string[] } = {}): FakeProje
       [...seen].some((key) => path.startsWith((JSON.parse(key) as string[])[1] ?? "\0")),
     list: (_ownerId, ids) =>
       ids.filter((id) => id.startsWith(PREFIX)).map((id) => viewOf(id.slice(PREFIX.length))),
+    all: (ownerId) =>
+      [
+        ...new Set(
+          ensured
+            .filter((call) => call.ownerId === ownerId && !options.refuse?.includes(call.root))
+            .map((call) => call.root),
+        ),
+      ].map(viewOf),
     roots: (ownerId) =>
       [
         ...new Set(

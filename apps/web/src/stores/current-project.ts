@@ -26,7 +26,7 @@ interface CurrentProjectState {
   readonly projectId: string | null;
   /** The last choice could not be stored: it holds for this page only. */
   readonly storageRefused: boolean;
-  /** How many times "New session here" was asked: the home refills its folder field each time. Not stored. */
+  /** How many times "New session here" was asked: the home starts again from this project (Session mode, focus in the composer) each time. Not stored. */
   readonly startedHere: number;
   choose(projectId: string | null): void;
   /** "New session here": chooses the project and asks the home to start from its folder, even over typed text. */
@@ -58,6 +58,16 @@ export const effectiveProjectId = (
   stored: string | null,
   projects: ReadonlyMap<string, ProjectSummary>,
 ): string | null => (stored !== null && projects.has(stored) ? stored : null);
+
+const inOrder = (a: ProjectSummary, b: ProjectSummary): number =>
+  a.position - b.position || a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1);
+
+/**
+ * The projects the switcher and the home's picker list: those with an active session (owner Q15) and those no session
+ * files under yet (decision 85, PH3), in the person's order.
+ */
+export const listedProjects = (projects: ReadonlyMap<string, ProjectSummary>): ProjectSummary[] =>
+  [...projects.values()].filter((project) => project.sessions > 0 || project.unused === true).sort(inOrder);
 
 export function useEffectiveProject(): ProjectSummary | null {
   const stored = useCurrentProject((state) => state.projectId);

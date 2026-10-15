@@ -18,9 +18,9 @@ vi.mock("../../runtime/index.ts", async (original) => ({
   ...(await original<typeof import("../../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement: h } = await import("react");
-  return { SessionListScreen: () => h("p", { "data-stub": "home" }) };
+  return { HomePane: () => h("p", { "data-stub": "home" }) };
 });
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement: h } = await import("react");

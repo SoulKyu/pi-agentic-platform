@@ -75,6 +75,10 @@ export const sidebarEn = {
   "search.busy": "Too many searches at once. Try again.",
   "search.failed": "Search is not available right now.",
   "search.detail": "{label} · {age}",
+  "search.mode.input": "Search transcripts",
+  "search.mode.inputIn": "Search transcripts in {project}",
+  "search.mode.short": "Type 3 characters or more to search the transcripts.",
+  "search.mode.none": "No transcript matches.",
   "search.olderMatch": "The match is in older messages. Use Load older messages.",
   "search.notShown": "This message is not shown in the transcript.",
 } as const;
@@ -155,6 +159,10 @@ export const sidebarFr: { readonly [K in keyof typeof sidebarEn]: string } = {
   "search.busy": "Trop de recherches à la fois. Réessayez.",
   "search.failed": "La recherche n'est pas disponible pour le moment.",
   "search.detail": "{label} · {age}",
+  "search.mode.input": "Rechercher dans les transcriptions",
+  "search.mode.inputIn": "Rechercher dans les transcriptions de {project}",
+  "search.mode.short": "Tapez 3 caractères ou plus pour chercher dans les transcriptions.",
+  "search.mode.none": "Aucune transcription ne correspond.",
   "search.olderMatch":
     "Le passage est dans des messages plus anciens. Utilisez « Charger les messages plus anciens ».",
   "search.notShown": "Ce message n'est pas affiché dans la transcription.",

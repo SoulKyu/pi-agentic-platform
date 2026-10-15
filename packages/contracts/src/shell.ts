@@ -26,7 +26,15 @@ const Id = z.string().min(1).max(128);
 /** Milliseconds since 1970, within what `Date` holds (M4R17). */
 const Millis = z.number().int().min(0).max(8.64e15);
 
-export const ProjectSummary = z.object({
+/** An absolute path as a caller writes it; the daemon resolves it (`invalid_cwd`). */
+const AbsolutePath = z
+  .string()
+  .min(1)
+  .max(4096)
+  .refine((path) => path.startsWith("/") && !path.includes("\0"), "an absolute path");
+
+/** A project as `projects.add` answers it (decision 85). */
+export const ProjectView = z.object({
   id: Id,
   /** The git root of its sessions' folder, or that folder outside git (`policy.scopeOf`, M2R68). */
   root: z.string().min(1).max(4096),
@@ -36,8 +44,14 @@ export const ProjectSummary = z.object({
     .max(SHELL_LIMITS.projectName * 2),
   /** The person's order: lower first (fractional, so a move rewrites one row). */
   position: z.number().finite(),
+});
+export type ProjectView = z.infer<typeof ProjectView>;
+
+export const ProjectSummary = ProjectView.extend({
   /** Its sessions that are not archived. */
   sessions: z.number().int().nonnegative(),
+  /** No session of the owner files under it yet; the switcher lists it anyway (decision 85, PH3). Absent otherwise. */
+  unused: z.literal(true).optional(),
 });
 export type ProjectSummary = z.infer<typeof ProjectSummary>;
 
@@ -96,15 +110,16 @@ export const ShellStreamEvent = z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("snapshot"),
     /**
-     * The projects its sessions name, then every other project of the owner with an active session, in the person's
-     * order, while there are fewer than `SHELL_LIMITS.projects` (owner Q15, M4R32): 550 at most in all.
+     * The projects its sessions name, then every other project of the owner with an active session or with no session at
+     * all (`unused`), active ones first and each group in the person's order, while there are fewer than `SHELL_LIMITS.projects` (owner Q15, M4R32,
+     * decision 85): 550 at most in all.
      */
     projects: z.array(ProjectSummary).max(SHELL_LIMITS.sessions + SHELL_LIMITS.pins),
     /** Pinned first by rank, then the newest that are not archived. */
     sessions: z.array(ShellSession).max(SHELL_LIMITS.sessions + SHELL_LIMITS.pins),
     /** Sessions not archived that it left out (older than the window, or over the byte budget). */
     more: z.number().int().nonnegative(),
-    /** Projects with an active session that it left out (past 500, or over the byte budget). */
+    /** Projects (active, then unused) that it left out (past 500, or over the byte budget). */
     moreProjects: z.number().int().nonnegative(),
     archived: z.number().int().nonnegative(),
   }),
@@ -116,6 +131,15 @@ export type ShellStreamEvent = z.infer<typeof ShellStreamEvent>;
 
 /** The methods of the sidebar and search, each added by the task that implements it (M4R18). */
 export const shellMethods = {
+  "projects.add": defineMethod({
+    name: "projects.add",
+    permission: "sessions:operate", // the same as sessions.create, which already creates a project for its folder
+    idempotent: true, // adding an existing root answers that project
+    params: z.object({ root: AbsolutePath }),
+    result: z.object({ project: ProjectView }),
+    // `invalid_cwd`: not an existing folder; `bad_request`: inside pap's home or Pi's agent folder; `capacity`: 2000 projects; `read_only`: a database a newer pap wrote (PH15).
+    errors: ["invalid_cwd", "bad_request", "capacity", "read_only"],
+  }),
   "projects.update": defineMethod({
     name: "projects.update",
     permission: "sessions:operate",

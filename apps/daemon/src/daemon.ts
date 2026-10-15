@@ -30,7 +30,7 @@ import { AUTH_MIGRATIONS, createAuthModule } from "./modules/auth/index.ts";
 import { createPolicyModule, POLICY_MIGRATIONS } from "./modules/policy/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "./modules/projects/index.ts";
 import { createSearchModule } from "./modules/search/index.ts";
-import { createSessionsModule, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
+import { createSessionsModule, resolveSessionCwd, SESSIONS_MIGRATIONS } from "./modules/sessions/index.ts";
 import { createSettingsModule, SETTINGS_MIGRATIONS } from "./modules/settings/index.ts";
 
 export interface DaemonHandle {
@@ -182,7 +182,18 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       sessionOwner: (sessionId) => ownerOf(sessionId),
       scopeAlias: (cwd) => lanes.paths.scopeOf(cwd),
     });
-    const projects = createProjectsModule({ db, clock, logger, newId });
+    // projects.add follows sessions.create's folder rules (decision 85, PH1); no project lives in pap's or Pi's own state.
+    const projects = createProjectsModule({
+      db,
+      clock,
+      logger,
+      newId,
+      folders: {
+        resolve: resolveSessionCwd,
+        scopeOf: (real) => policy.port.scopeOf(real),
+        stateDirs: [config.home, config.piAgentDir],
+      },
+    });
     const allRoots = (owner: string) => [...projects.port.roots(owner), ...lanes.paths.roots(owner)];
     const wk = createWorkspaceModules(
       { roots: allRoots, config, clock, logger, env, hub, readOnly, scopes },

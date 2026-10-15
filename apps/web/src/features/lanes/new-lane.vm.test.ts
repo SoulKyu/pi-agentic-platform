@@ -227,4 +227,17 @@ describe("create params", () => {
     expect(prefillDraft("x", [null, null, null, null, null]).slots).toHaveLength(4);
     expect(prefillDraft("x", []).slots).toHaveLength(1);
   });
+
+  it("takes the home's title as edited, so the description no longer suggests one", () => {
+    const draft = prefillDraft("Keep the API", [null, null], "Replace the cache");
+    expect(draft).toMatchObject({
+      text: "Keep the API",
+      title: "Replace the cache",
+      titleEdited: true,
+      branch: "",
+    });
+    expect(draft.slots).toHaveLength(2);
+    expect(canCreate(draft)).toBe(true);
+    expect(prefillDraft("Keep", [null], "   ")).toMatchObject({ title: "Keep", titleEdited: false });
+  });
 });

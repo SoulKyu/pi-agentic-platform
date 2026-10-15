@@ -58,6 +58,7 @@ export {
   IconSignOut,
   IconSpinner,
   IconSplit,
+  IconTasks,
   IconTree,
   IconUndo,
   IconWarning,

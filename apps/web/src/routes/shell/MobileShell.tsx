@@ -1,5 +1,5 @@
-import { EmptyState, IconButton, IconLists, IconSearch, Mark } from "@pap/ui";
-import { useRouterState } from "@tanstack/react-router";
+import { EmptyState, IconButton, IconLists, IconPlus, IconSearch, Mark } from "@pap/ui";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
 import {
@@ -15,6 +15,7 @@ import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { loadArchivedLanes } from "./archived-lanes.ts";
 import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
+import { MobileListsMenu } from "./MobileListsMenu.tsx";
 import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useTriggerNames } from "./use-tasks-feed.ts";
@@ -75,16 +76,33 @@ export function MobileShell() {
       delete document.documentElement.dataset["shell"];
     };
   }, []);
-  // The home's "All sessions" on a phone: the Lists section, where the tree lives.
+  // The home's "Lanes" status part on a phone: the Lists section, where the tree lives.
   useCommand("mobile.lists.open", () => setSection("lists"));
+  // The home's Inbox entry and status line on a phone: the Inbox section, not the desktop drawer.
+  useCommand("mobile.inbox.open", () => setSection("inbox"));
   const item = itemFromPath(pathname, import.meta.env.DEV);
   const title = item ? itemTitle(item, sessions, views, t, lanes, triggers) : t("shell.notFound.title");
   return (
     <div data-shell="mobile" className="flex h-app flex-col">
       <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
-        <Mark size={20} />
+        <Link
+          to="/"
+          aria-label={t("app.name")}
+          className="focus-ring rounded-sm"
+          onClick={() => setSection("work")}
+        >
+          <Mark size={20} />
+        </Link>
         <ProjectSwitcher />
         <span className="min-w-0 flex-1 truncate text-ui font-semibold">{title}</span>
+        <IconButton
+          icon={IconPlus}
+          label={t("shell.tab.home")}
+          onClick={() => {
+            setSection("work");
+            void runCommand("session.new");
+          }}
+        />
         <IconButton
           icon={IconSearch}
           label={t("shell.top.palette")}
@@ -100,18 +118,21 @@ export function MobileShell() {
             <EmptyState title={t("shell.agents.emptyTitle")} purpose={t("shell.agents.emptyPurpose")} />
           </div>
         ) : section === "lists" ? (
-          <LazyPanel
-            text={lazyText}
-            load={loadTree}
-            open={section === "lists"}
-            props={{
-              onPick: () => setSection("work"),
-              onNewSession: () => setSection("work"),
-              chord,
-              loadArchivedLanes,
-            }}
-            onFailed={() => setSection("work")}
-          />
+          <>
+            <MobileListsMenu onSettings={() => setSection("work")} />
+            <LazyPanel
+              text={lazyText}
+              load={loadTree}
+              open={section === "lists"}
+              props={{
+                onPick: () => setSection("work"),
+                onNewSession: () => setSection("work"),
+                chord,
+                loadArchivedLanes,
+              }}
+              onFailed={() => setSection("work")}
+            />
+          </>
         ) : section === "inbox" ? (
           <LazyPanel
             text={lazyText}

@@ -190,6 +190,28 @@ describe("the built web app under the daemon's CSP", () => {
   it("keeps the new lane dialog and its strings out of the initial assets (M9R95)", () =>
     keepsLazyOnly([/data-slot":\W*new-lane/, /Fetch issue/, /Récupérer l'issue/]));
 
+  it("keeps the Add project dialog and its strings out of the initial assets (decision 85)", () =>
+    keepsLazyOnly([/data-add-project/, /Project folder: /, /Dossier du projet : /]));
+
+  it("keeps the home's launch, project facts and picker, and their strings, out of the initial assets (the 226 KB limit)", () =>
+    keepsLazyOnly([
+      /pap could not open the New lane dialog/,
+      /Lane and Fan-out: not a git repository/,
+      /Lane et Fan-out : pas un dépôt git/,
+      /Launch in which project/,
+    ]));
+
+  it("keeps the home's body, its picker and their strings out of the initial assets (decision 85)", () =>
+    keepsLazyOnly([/data-home-body/, /data-project-picker/, /Recent work/, /Travail récent/]));
+
+  it("keeps the home's composer in the initial assets: the first paint at / waits for no chunk (§8)", async () => {
+    const initial = [...html.matchAll(/src="\/assets\/([^"]+\.js)"/g)].map((match) => match[1] ?? "");
+    const texts = await Promise.all(initial.map((name) => readFile(join(out, "assets", name), "utf8")));
+    expect(texts.some((code) => /"data-home":/.test(code) && code.includes("data-home-body") === false)).toBe(
+      true,
+    );
+  });
+
   it("keeps the compare tab and its strings out of the initial assets (M9R96)", () =>
     keepsLazyOnly([/data-winner/, /Close losers/, /Fermer les perdantes/]));
 

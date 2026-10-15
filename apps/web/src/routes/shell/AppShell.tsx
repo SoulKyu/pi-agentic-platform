@@ -16,9 +16,13 @@ import { feedInbox, useInboxStore } from "../../stores/inbox-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useTasksStore } from "../../stores/tasks-store.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
+import { useAddProjectRequest } from "../../stores/add-project-request.ts";
+import { usePaletteRequest } from "../../stores/palette-request.ts";
+import { useTriggerPrefill } from "../../stores/trigger-prefill.ts";
 import { useUsageStore } from "../../stores/usage-store.ts";
 import { resetUnsavedFiles } from "../../stores/unsaved-files.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
+import { AddProjectHost } from "./AddProjectHost.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { MobileShell } from "./MobileShell.tsx";
 import { NewLaneHost } from "./NewLaneHost.tsx";
@@ -85,6 +89,9 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
       useUsageStore.getState().reset();
       resetUnsavedFiles();
       useComposerPrefill.setState({ items: {} });
+      useTriggerPrefill.setState({ items: {} });
+      useAddProjectRequest.getState().close();
+      usePaletteRequest.setState({ search: null });
       resetFolderMemory();
     };
   }, []);
@@ -96,6 +103,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
         {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
         <PaletteHost />
         <NewLaneHost />
+        <AddProjectHost />
         <LazyPanel
           text={lazyText}
           load={loadTreeDrawer}

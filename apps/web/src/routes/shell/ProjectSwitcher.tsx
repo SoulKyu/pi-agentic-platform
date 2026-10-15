@@ -1,18 +1,15 @@
-import type { ProjectSummary } from "@pap/contracts";
 import { Button, Icon, IconChevronDown } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import { useEffect } from "react";
 import { plural, useLazyFailureText, useLocale, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { reportClientIssue } from "../../lib/report.ts";
-import { useCurrentProject, useEffectiveProject } from "../../stores/current-project.ts";
+import { useAddProjectRequest } from "../../stores/add-project-request.ts";
+import { listedProjects, useCurrentProject, useEffectiveProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
-const inOrder = (a: ProjectSummary, b: ProjectSummary): number =>
-  a.position - b.position || a.name.localeCompare(b.name) || (a.id < b.id ? -1 : 1);
-
 /**
- * "project ▾" (DESIGN §8), drawn as the bordered mono chip of boards 05 and 09 (`.ws`): the current project of this device, and a menu of every project with an active session.
+ * "project ▾" (DESIGN §8), drawn as the bordered mono chip of boards 05 and 09 (`.ws`): the current project of this device, and a menu of every project with an active session, or none yet.
  * The button is eager; the menu comes with the overlay chunk on the first press.
  */
 export function ProjectSwitcher() {
@@ -32,10 +29,11 @@ export function ProjectSwitcher() {
   const name = effective?.name ?? t("shell.project.all");
   const items: MenuItem[] = [
     { id: "all", label: t("shell.project.all"), onSelect: () => choose(null) },
-    ...[...projects.values()]
-      .filter((project) => project.sessions > 0)
-      .sort(inOrder)
-      .map((project) => ({ id: project.id, label: project.name, onSelect: () => choose(project.id) })),
+    ...listedProjects(projects).map((project) => ({
+      id: project.id,
+      label: project.name,
+      onSelect: () => choose(project.id),
+    })),
   ];
   if (moreProjects > 0) {
     items.push({
@@ -45,6 +43,11 @@ export function ProjectSwitcher() {
       onSelect: () => {},
     });
   }
+  items.push({
+    id: "add",
+    label: t("shell.project.add"),
+    onSelect: () => useAddProjectRequest.getState().ask(),
+  });
 
   return (
     <LazyMenu

@@ -4,6 +4,7 @@ import { methods } from "./methods.ts";
 import {
   AccountAppearance,
   CustomTheme,
+  DEFAULT_HOME_LAYOUT,
   KeybindingRules,
   ModelsSettings,
   SETTING_KEYS,
@@ -22,6 +23,7 @@ const base = {
   railPosition: "left",
   avatarStyle: "outlined",
   toolDetail: "compact",
+  home: { status: true, explore: true, automate: true, project: true, help: true, recent: true },
 } as const;
 const withoutGrid = Object.fromEntries(Object.entries(base).filter(([name]) => name !== "grid"));
 const ocean = {
@@ -125,5 +127,21 @@ describe("models setting (M7R138)", () => {
     expect(methods["settings.set"].permission).toBe("settings:operate");
     expect(TOKEN_PERMISSIONS).toContain("settings:operate");
     expect(methods["models.pricing"].permission).toBe("pi:read");
+  });
+});
+
+describe("the home layout (decision 85)", () => {
+  it("shows every part by default, fills a partial layout with the defaults, and refuses a non-boolean", () => {
+    const withoutHome = Object.fromEntries(Object.entries(base).filter(([name]) => name !== "home"));
+    expect(AccountAppearance.parse(withoutHome).home).toEqual(DEFAULT_HOME_LAYOUT);
+    expect(AccountAppearance.parse({ ...base, home: { status: false } }).home).toEqual({
+      ...DEFAULT_HOME_LAYOUT,
+      status: false,
+    });
+    expect(AccountAppearance.parse({ ...base, home: { status: false, future: 1 } }).home).toEqual({
+      ...DEFAULT_HOME_LAYOUT,
+      status: false,
+    });
+    expect(AccountAppearance.safeParse({ ...base, home: { status: "no" } }).success).toBe(false);
   });
 });

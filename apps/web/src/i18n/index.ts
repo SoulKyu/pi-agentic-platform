@@ -4,6 +4,7 @@ import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
+import type { addProjectEn } from "./catalog/add-project.ts";
 import type { automationEn } from "./catalog/automation.ts";
 import type { automationTriggerEn } from "./catalog/automation-trigger.ts";
 import type { changesEn } from "./catalog/changes.ts";
@@ -15,6 +16,7 @@ import type { laneCompareEn } from "./catalog/lane-compare.ts";
 import type { laneNewEn } from "./catalog/lane-new.ts";
 import type { laneReviewEn } from "./catalog/lane-review.ts";
 import type { lanesEn } from "./catalog/lanes.ts";
+import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
 import type { modelsUsageEn } from "./catalog/models-usage.ts";
 import type { serverEn } from "./catalog/server.ts";
@@ -68,11 +70,13 @@ export type MessageKey =
   | keyof typeof settingsSkillsEn
   | keyof typeof settingsAutomationEn
   | keyof typeof firstRunEn
+  | keyof typeof addProjectEn
   | keyof typeof trustBannerEn
   | keyof typeof trustEn
   | keyof typeof automationEn
   | keyof typeof automationTriggerEn
   | keyof typeof inboxEn
+  | keyof typeof homeEn
   | keyof typeof usageEn
   | keyof typeof modelsUsageEn;
 export type Locale = "en" | "fr";

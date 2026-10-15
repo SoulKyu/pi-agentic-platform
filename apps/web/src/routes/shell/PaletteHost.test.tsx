@@ -14,9 +14,9 @@ vi.mock("../../runtime/index.ts", async (original) => ({
   ...(await original<typeof import("../../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 // A pap update removed the palette chunk: the dynamic import rejects.
 vi.mock("../../features/commands/palette/CommandPalette.tsx", () => {

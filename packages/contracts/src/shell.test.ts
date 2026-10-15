@@ -51,6 +51,16 @@ describe("shell schemas (M4)", () => {
     expect(ProjectSummary.safeParse({ ...project, root: "" }).success).toBe(false);
   });
 
+  it("marks a project no session files under yet with unused: true, and nothing else", () => {
+    expect(ProjectSummary.parse({ ...project, sessions: 0, unused: true })).toEqual({
+      ...project,
+      sessions: 0,
+      unused: true,
+    });
+    expect(ProjectSummary.safeParse({ ...project, unused: false }).success).toBe(false);
+    expect(ProjectSummary.parse(project)).toEqual(project);
+  });
+
   it("refuses a snapshot past its session bound", () => {
     const sessions = Array.from({ length: SHELL_LIMITS.sessions + SHELL_LIMITS.pins + 1 }, (_, i) => ({
       ...session,
@@ -150,5 +160,24 @@ describe("shell schemas (M4)", () => {
     ])
       expect(method.result.safeParse({ hits: [{ ...hit, ...bad }] }).success).toBe(false);
     expect(method.result.safeParse({ hits: Array.from({ length: 21 }, () => hit) }).success).toBe(false);
+  });
+});
+
+describe("projects.add (decision 85)", () => {
+  it("is the idempotent sessions:operate method the home's Add project calls, with its four refusals", () => {
+    expect(methods["projects.add"]).toMatchObject({
+      name: "projects.add",
+      permission: "sessions:operate",
+      idempotent: true,
+      errors: ["invalid_cwd", "bad_request", "capacity", "read_only"],
+    });
+    const { params, result } = methods["projects.add"];
+    expect(params.safeParse({ root: "/w/api" }).success).toBe(true);
+    for (const root of ["", "w/api", "/a\u0000b", `/${"a".repeat(4096)}`, 4])
+      expect(params.safeParse({ root }).success, String(root)).toBe(false);
+    expect(
+      result.safeParse({ project: { id: "p1", root: "/w/api", name: "api", position: -1 } }).success,
+    ).toBe(true);
+    expect(result.safeParse({ project: { id: "p1", root: "/w/api", name: "api" } }).success).toBe(false);
   });
 });

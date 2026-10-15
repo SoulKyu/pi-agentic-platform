@@ -42,14 +42,19 @@ export const emptyDraft = (): Draft => ({
   issue: null,
 });
 
-/** The draft "Run again" opens with: the prompt or issue link and a slot per model. The branch is left to the daemon. */
-export function prefillDraft(text: string, models: ReadonlyArray<ModelPick | null>): Draft {
+const clip = (value: string): string => [...value].slice(0, LANE_LIMITS.title).join("");
+
+/**
+ * The draft "Run again" and the home open with: the text, a slot per model, and the home's title when it gives one
+ * (kept as edited, PH7). The branch is left to the daemon.
+ */
+export function prefillDraft(text: string, models: ReadonlyArray<ModelPick | null>, title?: string): Draft {
   const slots = models.slice(0, LANE_LIMITS.fanout).map((model, key) => ({ key, model }));
   const draft = withText(emptyDraft(), text, "");
-  return { ...draft, branch: "", slots: slots.length === 0 ? draft.slots : slots };
+  const given = title?.trim() ?? "";
+  const titled = given === "" ? draft : { ...draft, title: clip(given), titleEdited: true };
+  return { ...titled, branch: "", slots: slots.length === 0 ? draft.slots : slots };
 }
-
-const clip = (value: string): string => [...value].slice(0, LANE_LIMITS.title).join("");
 
 /** The title a description or an issue suggests: the issue's title, else the first line (none for a link not fetched yet). */
 function suggestedTitle(text: string, issue: IssueView | null): string {

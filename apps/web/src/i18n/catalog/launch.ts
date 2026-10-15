@@ -1,0 +1,36 @@
+/** The project home's composer (decision 85): eager, it is the first paint at "/". Its body's words are lazy (`home.ts`). */
+export const launchEn = {
+  "launch.modes": "Launch mode",
+  "launch.mode.session": "Session",
+  "launch.mode.lane": "Lane",
+  "launch.mode.fanout": "Fan-out",
+  "launch.mode.trigger": "Trigger",
+  "launch.hint.lane": "New lane",
+  "launch.field": "What to do",
+  "launch.placeholder": "What do you want to do in {project}?",
+  "launch.placeholderAll": "What do you want to do? Launch asks which project.",
+  "launch.go": "Launch",
+  "launch.go.session": "Launch a session",
+  "launch.go.lane": "Launch a lane",
+  "launch.go.fanout": "Launch a fan-out",
+  "launch.go.trigger": "Launch a trigger",
+  "launch.options": "Session options",
+} as const;
+
+export const launchFr: { readonly [K in keyof typeof launchEn]: string } = {
+  "launch.modes": "Mode de lancement",
+  "launch.mode.session": "Session",
+  "launch.mode.lane": "Lane",
+  "launch.mode.fanout": "Fan-out",
+  "launch.mode.trigger": "Déclencheur",
+  "launch.hint.lane": "Nouvelle lane",
+  "launch.field": "À faire",
+  "launch.placeholder": "Que voulez-vous faire dans {project} ?",
+  "launch.placeholderAll": "Que voulez-vous faire ? Lancer demande quel projet.",
+  "launch.go": "Lancer",
+  "launch.go.session": "Lancer une session",
+  "launch.go.lane": "Lancer une lane",
+  "launch.go.fanout": "Lancer un fan-out",
+  "launch.go.trigger": "Lancer un déclencheur",
+  "launch.options": "Options de la session",
+};

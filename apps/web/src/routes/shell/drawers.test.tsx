@@ -17,9 +17,9 @@ vi.mock("../../runtime/index.ts", async (original) => ({
   ...(await original<typeof import("../../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement } = await import("react");
@@ -227,16 +227,22 @@ describe("tree drawer, first load", () => {
   it("shows nothing at first, then a labelled spinner while the snapshot is slow, then the rows", async () => {
     const page = await withMenu("/");
     await settle();
-    await ctrlB();
-    await opened("Sessions");
-    expect(dialog()?.querySelector('[data-slot="spinner"]')).toBeNull();
-    await vi.waitFor(
-      () =>
-        expect(dialog()?.querySelector('[role="status"][aria-label]')?.getAttribute("aria-label")).toBe(
-          "Loading sessions",
-        ),
-      { timeout: 2_000 },
-    );
+    // The spinner is a timer of the page (DESIGN.md §7.3: nothing for 200 ms), so the test owns that clock: a real
+    // wait raced the load of the machine. Only the timers and performance.now are faked, from before the drawer mounts.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "performance"] });
+    try {
+      await ctrlB();
+      expect(dialog()?.querySelector("h2")?.textContent).toBe("Sessions");
+      const spinner = () =>
+        dialog()?.querySelector('[role="status"][aria-label]')?.getAttribute("aria-label");
+      expect(spinner()).toBeUndefined();
+      await act(async () => vi.advanceTimersByTimeAsync(199));
+      expect(spinner()).toBeUndefined();
+      await act(async () => vi.advanceTimersByTimeAsync(1));
+      expect(spinner()).toBe("Loading sessions");
+    } finally {
+      vi.useRealTimers();
+    }
     await feed([session("one", "/w/api", 1)]);
     await settle();
     expect(dialog()?.querySelector('[data-slot="spinner"]')).toBeNull();

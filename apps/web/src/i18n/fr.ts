@@ -1,6 +1,7 @@
 import type { en } from "./en.ts";
 import { commandsFr } from "./catalog/commands.ts";
 import { devFr } from "./catalog/dev.ts";
+import { launchFr } from "./catalog/launch.ts";
 import { shellFr } from "./catalog/shell.ts";
 
 const dev = (import.meta.env.DEV ? devFr : {}) as typeof devFr;
@@ -8,6 +9,7 @@ const dev = (import.meta.env.DEV ? devFr : {}) as typeof devFr;
 export const fr: { readonly [K in keyof typeof en]: string } = {
   ...shellFr,
   ...commandsFr,
+  ...launchFr,
   ...dev,
   "app.name": "pap",
   "app.tagline": "pi agentic platform",
@@ -31,11 +33,6 @@ export const fr: { readonly [K in keyof typeof en]: string } = {
   "account.passkeyPasswordHint": "Saisissez votre mot de passe pour ajouter une clé d'accès.",
   "account.passkeyAdded": "Clé d'accès ajoutée.",
   "account.cancel": "Annuler",
-  "sessions.title": "Sessions de travail",
-  "sessions.cwd": "Dossier de travail",
-  "sessions.cwdHint": "Chemin absolu d'un dossier existant.",
-  "sessions.create": "Nouvelle session",
-  "sessions.empty": "Aucune session pour l'instant.",
   "session.composer": "Message à envoyer",
   "session.failure": "Erreur du modèle",
   "session.omitted": "Message trop volumineux pour être affiché ({size} Ko).",

@@ -1,11 +1,13 @@
 import type { ModelPick } from "@pap/contracts";
 import { create } from "zustand";
 
-/** What "Run again" hands the new lane dialog: the project, the prompt (or issue link) and one model per lane. */
+/** What "Run again" and the home's launch hand the new lane dialog: the project, the prompt (or issue link), one model per lane. */
 export interface NewLanePrefill {
   readonly projectRoot: string;
   readonly text: string;
   readonly models: ReadonlyArray<ModelPick | null>;
+  /** The home's title (the launch text's first line, PH7); absent: the dialog suggests one from the text. */
+  readonly title?: string;
 }
 
 interface RequestState {

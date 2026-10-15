@@ -19,9 +19,9 @@ vi.mock("../../runtime/index.ts", async (original) => ({
   ...(await original<typeof import("../../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement: h } = await import("react");
-  return { SessionListScreen: () => h("p", { "data-stub": "home" }) };
+  return { HomePane: () => h("p", { "data-stub": "home" }) };
 });
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement: h } = await import("react");
@@ -78,11 +78,11 @@ describe("phone shell", () => {
     await page.unmount();
   });
 
-  it("has a decorative Mark in the top bar: not a link, hidden from assistive tech", async () => {
+  it("has a decorative Mark in the top bar, inside the home link", async () => {
     const page = await renderShell("/", { phone: true });
     const mark = page.container.querySelector('[data-slot="mark"]');
     expect(mark?.getAttribute("aria-hidden")).toBe("true");
-    expect(mark?.closest("a")).toBeNull();
+    expect(mark?.closest("a")?.getAttribute("aria-label")).toBe("pap");
     expect(mark?.getAttribute("width")).toBe("20");
     await page.unmount();
   });

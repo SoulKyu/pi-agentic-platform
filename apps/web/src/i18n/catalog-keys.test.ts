@@ -1,10 +1,13 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { addProjectEn, addProjectFr } from "./catalog/add-project.ts";
 import { changesEn, changesFr } from "./catalog/changes.ts";
 import { commandsEn, commandsFr } from "./catalog/commands.ts";
+import { launchEn, launchFr } from "./catalog/launch.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
 import { filesEn, filesFr } from "./catalog/files.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
+import { homeEn, homeFr } from "./catalog/home.ts";
 import { laneCommitEn, laneCommitFr } from "./catalog/lane-commit.ts";
 import { laneNewEn, laneNewFr } from "./catalog/lane-new.ts";
 import { laneReviewEn, laneReviewFr } from "./catalog/lane-review.ts";
@@ -50,6 +53,7 @@ describe("catalog keys never collide", () => {
       duplicates({
         shell: Object.keys(shellEn),
         commands: Object.keys(commandsEn),
+        launch: Object.keys(launchEn),
         dev: Object.keys(devEn),
         sessionScreen: Object.keys(sessionScreenEn),
         sessionFiles: Object.keys(sessionFilesEn),
@@ -66,9 +70,11 @@ describe("catalog keys never collide", () => {
         changes: Object.keys(changesEn),
         terminal: Object.keys(terminalEn),
         lanes: Object.keys(lanesEn),
+        addProject: Object.keys(addProjectEn),
         laneNew: Object.keys(laneNewEn),
         laneCommit: Object.keys(laneCommitEn),
         laneReview: Object.keys(laneReviewEn),
+        home: Object.keys(homeEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -79,6 +85,7 @@ describe("catalog keys never collide", () => {
       duplicates({
         shell: Object.keys(shellFr),
         commands: Object.keys(commandsFr),
+        launch: Object.keys(launchFr),
         dev: Object.keys(devFr),
         sessionScreen: Object.keys(sessionScreenFr),
         sessionFiles: Object.keys(sessionFilesFr),
@@ -95,9 +102,11 @@ describe("catalog keys never collide", () => {
         changes: Object.keys(changesFr),
         terminal: Object.keys(terminalFr),
         lanes: Object.keys(lanesFr),
+        addProject: Object.keys(addProjectFr),
         laneNew: Object.keys(laneNewFr),
         laneCommit: Object.keys(laneCommitFr),
         laneReview: Object.keys(laneReviewFr),
+        home: Object.keys(homeFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);

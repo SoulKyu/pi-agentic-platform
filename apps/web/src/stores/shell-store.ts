@@ -1,4 +1,4 @@
-import type { ProjectSummary, ShellSession } from "@pap/contracts";
+import type { ProjectSummary, ProjectView, ShellSession } from "@pap/contracts";
 import { create } from "zustand";
 import {
   confirm,
@@ -31,3 +31,15 @@ export const useShellStore = create<ShellStoreState>()((set) => ({
   rollback: (commandId) => set((state) => ({ view: rollback(state.view, commandId) })),
   reset: () => set({ view: EMPTY_SHELL }),
 }));
+
+/**
+ * A project an answer named before the stream did (Add project): held at once so the switcher and the home know it, as
+ * `unused` until the stream says more. A copy the store already holds keeps the stream's counts.
+ */
+export function holdProject(view: ProjectView): void {
+  const held = useShellStore.getState().view.projects.get(view.id);
+  useShellStore.getState().apply({
+    kind: "project",
+    project: held ? { ...held, ...view } : { ...view, sessions: 0, unused: true },
+  });
+}

@@ -1,8 +1,10 @@
-import { basename, isAbsolute } from "node:path";
+import { realpathSync } from "node:fs";
+import { basename, isAbsolute, resolve } from "node:path";
 import { type Caller, PapError, type ProjectChange, SHELL_LIMITS } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
-import type { Logger } from "../../kernel/logger.ts";
 import { isReadOnlyError } from "../../kernel/db/read-only.ts";
+import { within } from "../../kernel/fs/boundary.ts";
+import type { Logger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import { cleanLabel } from "../../kernel/text.ts";
 import type { ProjectRow, ProjectsStore } from "./store.ts";
@@ -18,6 +20,19 @@ export interface ProjectView {
   readonly root: string;
   readonly name: string;
   readonly position: number;
+}
+
+/**
+ * How `projects.add` reads a folder (decision 85), given by the composition: the rules `sessions.create` follows, so
+ * adding a folder makes exactly the project a session in it would make (PH1).
+ */
+export interface ProjectFolders {
+  /** The real path of an existing folder; `invalid_cwd` for anything else (sessions' `resolveSessionCwd`). */
+  resolve(input: string): string;
+  /** The project a real folder files under: its git root, else itself (`policy.scopeOf`, M2R68). */
+  scopeOf(real: string): string;
+  /** pap's home (lane worktrees, secrets, the database) and Pi's agent folder: no project lives inside them. */
+  readonly stateDirs: readonly string[];
 }
 
 const viewOf = (row: ProjectRow): ProjectView => ({
@@ -39,11 +54,21 @@ const isCleanPath = (path: string): boolean =>
       .every((part) => part !== "" && part !== "." && part !== ".."));
 const defaultName = (root: string): string =>
   cleanLabel(basename(root), SHELL_LIMITS.projectName) ?? cleanLabel(root, SHELL_LIMITS.projectName) ?? "/";
+/** A state folder as it really is (a link resolved), or its absolute form when it does not exist yet. */
+const realOrResolved = (path: string): string => {
+  try {
+    return realpathSync(path);
+  } catch {
+    return resolve(path);
+  }
+};
 
 export function createProjectsService(deps: {
   readonly store: ProjectsStore;
   readonly clock: Clock;
   readonly logger: Logger;
+  /** Absent: `add` refuses with `internal` (fail closed). The daemon always gives it. */
+  readonly folders?: ProjectFolders;
   newId(): string;
 }) {
   const listeners = new Set<(ownerId: string, project: ProjectView) => void>();
@@ -102,31 +127,56 @@ export function createProjectsService(deps: {
     for (const project of deps.store.list(caller.userId)) changed(caller.userId, viewOf(project));
   }
 
-  return {
-    /** The owner's project for `root`, made on first use at the top; null for a root it cannot use or a full table. */
-    ensure(ownerId: string, root: string): ProjectView | null {
-      if (!isAbsolute(root) || root.length > MAX_ROOT || hasControl(root)) return null;
-      const found = deps.store.byRoot(ownerId, root);
-      if (found) return viewOf(found);
-      if (deps.store.count(ownerId) >= MAX_PROJECTS) {
-        const said = limiter.check("projects_full");
-        if (said.allowed)
-          deps.logger.warn("projects_full", { max: MAX_PROJECTS, suppressed: said.suppressed });
-        return null;
-      }
-      const row: ProjectRow = {
-        id: deps.newId(),
-        ownerId,
-        root,
-        name: defaultName(root),
-        position: (deps.store.firstPosition(ownerId) ?? 0) - 1,
-        createdAt: deps.clock.now(),
-      };
-      deps.store.insert(row);
-      const view = viewOf(row);
-      changed(ownerId, view);
+  /** The owner's project for `root`, made on first use at the top; null for a root it cannot use or a full table. */
+  function ensure(ownerId: string, root: string): ProjectView | null {
+    if (!isAbsolute(root) || root.length > MAX_ROOT || hasControl(root)) return null;
+    const found = deps.store.byRoot(ownerId, root);
+    if (found) return viewOf(found);
+    if (deps.store.count(ownerId) >= MAX_PROJECTS) {
+      const said = limiter.check("projects_full");
+      if (said.allowed) deps.logger.warn("projects_full", { max: MAX_PROJECTS, suppressed: said.suppressed });
+      return null;
+    }
+    const row: ProjectRow = {
+      id: deps.newId(),
+      ownerId,
+      root,
+      name: defaultName(root),
+      position: (deps.store.firstPosition(ownerId) ?? 0) - 1,
+      createdAt: deps.clock.now(),
+    };
+    deps.store.insert(row);
+    const view = viewOf(row);
+    changed(ownerId, view);
+    return view;
+  }
+
+  /**
+   * `projects.add` (decision 85): the folder's project, made when it is new, the same one when it exists. The real path
+   * and its scope are both refused inside pap's home or Pi's agent folder, whatever link led there (Review Focus 4).
+   */
+  function add(caller: Caller, root: string): ProjectView {
+    const folders = deps.folders;
+    if (folders === undefined) throw new PapError("internal");
+    const real = folders.resolve(root);
+    const scope = folders.scopeOf(real);
+    const states = folders.stateDirs.map(realOrResolved);
+    if ([real, scope].some((path) => states.some((state) => within(state, path))))
+      throw new PapError("bad_request");
+    if (!isAbsolute(scope) || scope.length > MAX_ROOT || hasControl(scope)) throw new PapError("bad_request");
+    try {
+      const view = ensure(caller.userId, scope);
+      if (view === null) throw new PapError("capacity");
       return view;
-    },
+    } catch (error) {
+      // A database a newer pap wrote refuses the write: a typed error, not SQLite's message.
+      throw isReadOnlyError(error) ? new PapError("read_only") : error;
+    }
+  }
+
+  return {
+    ensure,
+    add,
     /** True when `path` is one of the owner's project roots or lies inside one (what a session's folder is filed under). */
     covers(ownerId: string, path: string): boolean {
       if (!isCleanPath(path)) return false;
@@ -138,6 +188,8 @@ export function createProjectsService(deps: {
     },
     list: (ownerId: string, ids: readonly string[]): ProjectView[] =>
       deps.store.byIds(ownerId, ids).map(viewOf),
+    /** Every project of the owner, in the person's order (the shell snapshot's unused ones, decision 85). */
+    all: (ownerId: string): ProjectView[] => deps.store.list(ownerId).map(viewOf),
     /** Every root of the owner, as stored, newest first: what the file boundary judges paths against (M8R15). */
     roots: (ownerId: string): string[] => deps.store.roots(ownerId),
     update(caller: Caller, projectId: string, change: ProjectChange): void {

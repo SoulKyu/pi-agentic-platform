@@ -1,4 +1,9 @@
-import { AccountAppearanceFields, CustomTheme, type AccountAppearance } from "@pap/contracts";
+import {
+  AccountAppearanceFields,
+  CustomTheme,
+  DEFAULT_HOME_LAYOUT,
+  type AccountAppearance,
+} from "@pap/contracts";
 import { DENSITIES, type Density, type ThemeName } from "@pap/ui";
 import { deriveTheme, tokenVars } from "./derive.ts";
 import { newThemeId } from "./theme-ids.ts";
@@ -18,6 +23,7 @@ export const DEFAULT_ACCOUNT: AccountAppearance = {
   railPosition: "left",
   avatarStyle: "outlined",
   toolDetail: "compact",
+  home: DEFAULT_HOME_LAYOUT,
 };
 
 export interface DeviceAppearance {
@@ -87,6 +93,7 @@ export function parseAccount(value: unknown): AccountAppearance {
     railPosition: field("railPosition"),
     avatarStyle: field("avatarStyle"),
     toolDetail: field("toolDetail"),
+    home: field("home"),
   };
 }
 

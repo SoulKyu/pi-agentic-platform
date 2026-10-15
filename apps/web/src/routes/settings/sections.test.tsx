@@ -23,9 +23,9 @@ vi.mock("../../features/auth/auth-api.ts", async (original) => ({
   registerPasskey: auth.registerPasskey,
   confirmPassword: auth.confirmPassword,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("../shell/HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 
 let started: Array<{ stop(): void }> = [];

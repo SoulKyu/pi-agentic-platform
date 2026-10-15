@@ -23,9 +23,9 @@ vi.mock("../../features/auth/auth-api.ts", async (original) => ({
   ...(await original<typeof import("../../features/auth/auth-api.ts")>()),
   logout: auth.logout,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement } = await import("react");

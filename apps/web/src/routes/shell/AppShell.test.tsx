@@ -23,9 +23,9 @@ vi.mock("../../features/auth/auth-api.ts", async (original) => ({
   ...(await original<typeof import("../../features/auth/auth-api.ts")>()),
   logout: auth.logout,
 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement } = await import("react");
@@ -230,7 +230,9 @@ describe("AppShell", () => {
     await click(page.container.querySelector('[aria-label="Account"]') as HTMLElement);
     await vi.waitFor(() => expect(document.querySelector('[role="menu"]')).not.toBeNull(), { timeout: 2000 });
     const rows = [...document.querySelectorAll('[role="menuitem"]')].map((row) => row.textContent);
-    expect(rows).toEqual(["ana", "Sign out"]);
+    expect(rows).toEqual(["ana", "Keyboard shortcuts", "Sign out"]);
+    await press(document.activeElement as HTMLElement, { key: "ArrowDown" });
+    await settle();
     await press(document.activeElement as HTMLElement, { key: "ArrowDown" });
     await settle();
     await press(document.activeElement as HTMLElement, { key: "Enter" });
@@ -240,12 +242,35 @@ describe("AppShell", () => {
     await page.unmount();
   });
 
+  it("the rail's Tasks button opens the Tasks board (§5)", async () => {
+    const page = await withMenu("/");
+    await click(page.container.querySelector('[aria-label="Tasks"]') as HTMLElement);
+    await settle();
+    expect(page.router.state.location.pathname).toBe("/tasks");
+    await page.unmount();
+  });
+
+  it("the account menu opens the keyboard shortcuts (§5)", async () => {
+    const page = await withMenu("/");
+    await click(page.container.querySelector('[aria-label="Account"]') as HTMLElement);
+    await vi.waitFor(() => expect(document.querySelector('[role="menu"]')).not.toBeNull(), { timeout: 2000 });
+    const item = [...document.querySelectorAll('[role="menuitem"]')].find(
+      (row) => row.textContent === "Keyboard shortcuts",
+    );
+    await click(item as HTMLElement);
+    await vi.waitFor(() => expect(document.querySelector("[data-command]")).not.toBeNull(), {
+      timeout: 2000,
+    });
+    await page.unmount();
+  });
+
   it("shows no empty account row without a username", async () => {
     const page = await withMenu("/", { username: null });
     await click(page.container.querySelector('[aria-label="Account"]') as HTMLElement);
     await vi.waitFor(
       () =>
         expect([...document.querySelectorAll('[role="menuitem"]')].map((row) => row.textContent)).toEqual([
+          "Keyboard shortcuts",
           "Sign out",
         ]),
       { timeout: 2000 },

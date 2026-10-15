@@ -19,9 +19,9 @@ vi.mock("../../runtime/index.ts", async (original) => ({
   getRuntime: () => current.runtime,
 }));
 vi.mock("../../features/workspace/use-element-width.ts", () => ({ useElementWidth: () => 1000 }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 vi.mock("../../features/sessions/SessionScreen.tsx", async () => {
   const { createElement } = await import("react");

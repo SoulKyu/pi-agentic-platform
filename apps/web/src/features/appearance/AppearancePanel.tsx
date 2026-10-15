@@ -4,6 +4,7 @@ import { useT, type MessageKey } from "../../i18n/index.ts";
 import type { AccountStatus } from "../../lib/account-setting.ts";
 import { AppearancePreview } from "./AppearancePreview.tsx";
 import { DetailsSection } from "./DetailsSection.tsx";
+import { HomeSection } from "./HomeSection.tsx";
 import { ReadingSection } from "./ReadingSection.tsx";
 import { ThemeSection } from "./ThemeSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
@@ -70,6 +71,7 @@ export function AppearancePanel() {
               <ThemeSection />
               <ReadingSection />
               <DetailsSection />
+              <HomeSection />
             </div>
             <div className="min-w-0">
               <AppearancePreview />

@@ -34,6 +34,29 @@ export const CustomTheme = z.object({
 });
 export type CustomTheme = z.infer<typeof CustomTheme>;
 
+/** The parts of the project home Settings › Appearance › Home can hide (decision 85); the composer is always shown. */
+export const HOME_PARTS = ["status", "explore", "automate", "project", "help", "recent"] as const;
+export type HomePart = (typeof HOME_PARTS)[number];
+
+export const HomeLayout = z.object({
+  status: z.boolean().default(true),
+  explore: z.boolean().default(true),
+  automate: z.boolean().default(true),
+  project: z.boolean().default(true),
+  help: z.boolean().default(true),
+  recent: z.boolean().default(true),
+});
+export type HomeLayout = z.infer<typeof HomeLayout>;
+
+export const DEFAULT_HOME_LAYOUT: HomeLayout = {
+  status: true,
+  explore: true,
+  automate: true,
+  project: true,
+  help: true,
+  recent: true,
+};
+
 /**
  * Every field has a default (owner R3-4): a document written before a field existed reads with that field's
  * default, and the client parses field by field from this shape (Task 13).
@@ -55,6 +78,8 @@ export const AccountAppearanceFields = z.object({
   railPosition: z.enum(["left", "right"]).default("left"),
   avatarStyle: z.enum(["outlined", "tinted", "glyph"]).default("outlined"),
   toolDetail: z.enum(["compact", "expanded", "full"]).default("compact"),
+  /** Which parts of the project home show (decision 85). */
+  home: HomeLayout.default(DEFAULT_HOME_LAYOUT),
 });
 
 export const AccountAppearance = AccountAppearanceFields.superRefine((value, ctx) => {

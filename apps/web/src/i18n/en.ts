@@ -1,5 +1,6 @@
 import { commandsEn } from "./catalog/commands.ts";
 import { devEn } from "./catalog/dev.ts";
+import { launchEn } from "./catalog/launch.ts";
 import { shellEn } from "./catalog/shell.ts";
 
 // A build-time constant: production drops the branch and the key with it. The cast keeps the key in `MessageKey`.
@@ -8,6 +9,7 @@ const dev = (import.meta.env.DEV ? devEn : {}) as typeof devEn;
 export const en = {
   ...shellEn,
   ...commandsEn,
+  ...launchEn,
   ...dev,
   "app.name": "pap",
   "app.tagline": "pi agentic platform",
@@ -31,11 +33,6 @@ export const en = {
   "account.passkeyPasswordHint": "Enter your password to add a passkey.",
   "account.passkeyAdded": "Passkey added.",
   "account.cancel": "Cancel",
-  "sessions.title": "Sessions",
-  "sessions.cwd": "Working directory",
-  "sessions.cwdHint": "Absolute path of an existing folder.",
-  "sessions.create": "New session",
-  "sessions.empty": "No session yet.",
   "session.composer": "Message",
   "session.failure": "Model error",
   "session.omitted": "Message too large to show ({size} KB).",

@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 import type { ProjectSummary } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { shellProject } from "../testing/shell-snapshot.ts";
+import { listedProjects } from "./current-project.ts";
 
 const project = { id: "p1", root: "/w/p1", name: "p1", position: 1, sessions: 1 } satisfies ProjectSummary;
 
@@ -70,5 +72,19 @@ describe("the current project, per device", () => {
     expect(effectiveProjectId("p1", new Map())).toBeNull();
     expect(effectiveProjectId("p1", new Map([["p1", project]]))).toBe("p1");
     expect(effectiveProjectId(null, new Map([["p1", project]]))).toBeNull();
+  });
+});
+
+describe("listedProjects (decision 85)", () => {
+  it("lists projects with an active session and those no session files under yet, in the person's order", () => {
+    const projects = new Map(
+      [
+        shellProject({ id: "b", name: "b", position: 2, sessions: 1 }),
+        shellProject({ id: "idle", name: "idle", position: 0, sessions: 0 }),
+        shellProject({ id: "new", name: "new", position: 3, sessions: 0, unused: true }),
+        shellProject({ id: "a", name: "a", position: 1, sessions: 2 }),
+      ].map((project) => [project.id, project]),
+    );
+    expect(listedProjects(projects).map((project) => project.id)).toEqual(["a", "b", "new"]);
   });
 });

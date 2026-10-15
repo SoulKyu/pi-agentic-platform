@@ -20,4 +20,12 @@ describe("projects rpc", () => {
     expect(await rpc["projects.update"]({ projectId: "p1", change }, ctx)).toEqual({ ok: true });
     expect(update).toHaveBeenCalledExactlyOnceWith(caller, "p1", change);
   });
+
+  it("answers projects.add with the service's project for the caller", async () => {
+    const view = { id: "p1", root: "/w/api", name: "api", position: -1 };
+    const add = vi.fn(() => view);
+    const rpc = projectsRpc({ add } as unknown as ProjectsService);
+    expect(await rpc["projects.add"]({ root: "/w/api/src" }, ctx)).toEqual({ project: view });
+    expect(add).toHaveBeenCalledExactlyOnceWith(caller, "/w/api/src");
+  });
 });

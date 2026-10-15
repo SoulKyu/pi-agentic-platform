@@ -34,6 +34,8 @@ export interface LanePanes {
   }): ReactNode;
   /** The review pane (Task 19): the shell lazy-loads it and adds what only it knows (Open in Files). */
   review?(props: ReviewSlotProps): ReactNode;
+  /** Opens the compare tab of the lane's fan-out (§5): the shell decides how a tab opens. */
+  openCompare?(fanoutId: string): void;
   /** Slot of Task 20: the commit bar. */
   readonly commitBar?: ReactNode;
 }
@@ -201,6 +203,8 @@ export function LaneBody({ lane, panes }: { readonly lane: LaneView; readonly pa
   }
 
   const title = lane.title || lane.branch;
+  const fanoutId = lane.fanoutId;
+  const openCompare = panes.openCompare;
   return (
     <section aria-label={title} className="flex min-h-0 w-full flex-1 flex-col">
       <LaneHeader
@@ -214,6 +218,7 @@ export function LaneBody({ lane, panes }: { readonly lane: LaneView; readonly pa
           onNewSession: newSession.start,
           onArchive: () => setDialog("archive"),
           onRetryPr: () => refreshPr(lane.id),
+          onOpenCompare: fanoutId !== null && openCompare !== undefined ? () => openCompare(fanoutId) : null,
         }}
       />
       <div className="flex flex-col gap-s2 px-s4 py-s2 empty:hidden">

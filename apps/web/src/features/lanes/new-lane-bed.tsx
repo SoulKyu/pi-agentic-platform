@@ -1,4 +1,5 @@
 import type { IssueView, LanePreview, ProjectSummary } from "@pap/contracts";
+import type { ComponentProps } from "react";
 import { expect, type Mock, vi } from "vitest";
 import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx";
 import { click, field, mount, press, settle, text, typeInto } from "../../testing/dom.ts";
@@ -66,7 +67,11 @@ export function resetCalls() {
   calls.stepUp = vi.fn(async (run: (commandId: string) => Promise<unknown>) => run("step-cmd-1"));
 }
 
-export async function open(view: LanePreview = preview(), projects: ProjectSummary[] = [project]) {
+export async function open(
+  view: LanePreview = preview(),
+  projects: ProjectSummary[] = [project],
+  prefill: ComponentProps<typeof NewLaneDialog>["prefill"] = null,
+) {
   const bed = newBed();
   bed.handlers["lanes.preview"] = () => view;
   bed.handlers["models.overview"] = () => overview;
@@ -80,6 +85,7 @@ export async function open(view: LanePreview = preview(), projects: ProjectSumma
         <NewLaneDialog
           projects={projects}
           initialProjectId={projects[0]?.id ?? null}
+          prefill={prefill}
           onClose={calls.closed}
           onCreated={calls.created}
         />

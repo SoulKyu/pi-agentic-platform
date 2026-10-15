@@ -150,3 +150,32 @@ describe("appearance model", () => {
     expect(cache.attrs).not.toHaveProperty("theme");
   });
 });
+
+describe("parseAccount: the home layout (decision 85)", () => {
+  it("reads it on its own: missing or junk shows everything, and an older document keeps its custom themes", () => {
+    const ocean = {
+      id: "ocean",
+      name: "Ocean",
+      base: "night",
+      roles: {
+        bg: "#0E1626",
+        surface: "#132033",
+        text: "#E6EDF7",
+        agent: "#38BDF8",
+        you: "#FB923C",
+        attn: "#EC4899",
+        ok: "#34D399",
+        err: "#F87171",
+      },
+    } as const;
+    const older = { ...DEFAULT_ACCOUNT, customThemes: [ocean], darkTheme: "ocean", home: undefined };
+    expect(parseAccount(older).home).toEqual(DEFAULT_ACCOUNT.home);
+    expect(parseAccount(older).customThemes).toEqual([ocean]);
+    expect(parseAccount(older).darkTheme).toBe("ocean");
+    expect(parseAccount({ ...DEFAULT_ACCOUNT, home: "all" }).home).toEqual(DEFAULT_ACCOUNT.home);
+    expect(parseAccount({ ...DEFAULT_ACCOUNT, home: { recent: false } }).home).toEqual({
+      ...DEFAULT_ACCOUNT.home,
+      recent: false,
+    });
+  });
+});

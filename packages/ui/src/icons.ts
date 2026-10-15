@@ -19,6 +19,7 @@ export {
   Keyboard as IconKeyboard,
   Languages as IconLanguage,
   List as IconLists,
+  ListTodo as IconTasks,
   Lock as IconLock,
   LoaderCircle as IconSpinner,
   LogOut as IconSignOut,

@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentProps, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
 import {
   SplitView,
@@ -6,9 +6,10 @@ import {
   type ItemRef,
   type SettingsSection,
 } from "../../features/workspace/index.ts";
-import { SessionListScreen } from "../../features/sessions/SessionListScreen.tsx";
+import { HomePane } from "./HomePane.tsx";
 import { runCommand } from "../../lib/command-registry.ts";
 import { type NewLanePrefill, useNewLaneRequest } from "../../stores/new-lane-request.ts";
+import { useTriggerPrefill } from "../../stores/trigger-prefill.ts";
 import type { ReviewSlotProps } from "../../features/lanes/LaneBody.tsx";
 import { useTasksFeed } from "./use-tasks-feed.ts";
 import { LazyPane } from "./LazyPane.tsx";
@@ -25,7 +26,7 @@ const loadSettings = () =>
   import("../settings/SettingsScreen.tsx").then((module) => ({ default: module.SettingsScreen }));
 
 // The session screen is its own chunk too, so what later milestones add to it stays out of the initial bundle. The
-// session list (the home screen) stays eager: the first paint at "/" does not wait for a fetch.
+// home (the project home's composer) stays eager: the first paint at "/" does not wait for a fetch.
 const loadSession = () =>
   import("../../features/sessions/SessionScreen.tsx").then((module) => ({ default: module.SessionScreen }));
 
@@ -80,6 +81,7 @@ const runAgain = (prefill: NewLanePrefill) => {
 
 /** The lane tab's panes (M9R63): the chat, the changes and the terminal of the lane's folder, and the splitter. */
 const lanePanes = {
+  openCompare: (fanoutId: string) => useWorkspaceStore.getState().open({ kind: "compare", id: fanoutId }),
   chat: (sessionId: string, beforeComposer: ReactNode) => (
     <SessionPane key={sessionId} sessionId={sessionId} beforeComposer={beforeComposer} />
   ),
@@ -117,13 +119,25 @@ function TasksPane() {
 
 function TriggerPane({ triggerId }: { readonly triggerId: string }) {
   useTasksFeed(true);
+  // The home's Trigger launch leaves a name and a prompt for a new trigger: read once (peek is pure, StrictMode calls an
+  // initializer twice), then dropped.
+  const projectId = triggerId.startsWith("new:") ? triggerId.slice("new:".length) : null;
+  const waiting = useTriggerPrefill((state) => (projectId === null ? null : state.peek(projectId)));
+  const [held, setHeld] = useState({ prefill: waiting, launches: 0 });
+  // A second Trigger launch while this pane is open: the editor starts again from it (its draft is read once).
+  if (waiting !== null && waiting !== held.prefill)
+    setHeld({ prefill: waiting, launches: held.launches + 1 });
+  useEffect(() => {
+    if (projectId !== null && waiting !== null) useTriggerPrefill.getState().drop(projectId);
+  }, [projectId, waiting]);
   const props: TriggerPaneProps = {
     triggerId,
+    prefill: held.prefill,
     onOpenSession: openSession,
     onOpenTasks: openTasks,
     onCreated: (id) => openTriggerInstead(triggerId, id),
   };
-  return <LazyPane load={loadTrigger} props={props} />;
+  return <LazyPane key={held.launches} load={loadTrigger} props={props} />;
 }
 
 /** A failed chunk shows a Retry state in the pane (LazyPane); it is never retried by itself. */
@@ -139,7 +153,7 @@ const DevGallery = import.meta.env.DEV
 
 /** One renderer per item kind. */
 export const PANE_RENDERERS: Renderers = {
-  home: () => <SessionListScreen />,
+  home: () => <HomePane />,
   session: (item) => <SessionPane key={item.id} sessionId={item.id} />,
   settings: (item) => <LazySettings section={item.section} />,
   files: (item) => <LazyPane key={item.root} load={loadFiles} props={{ root: item.root }} />,

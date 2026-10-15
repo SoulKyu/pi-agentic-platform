@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import type { LanePreview } from "@pap/contracts";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { alerts, button, click, hasButton, press, settle } from "../../testing/dom.ts";
+import { alerts, button, click, field, hasButton, press, settle } from "../../testing/dom.ts";
 import { current } from "./lanes-bed.tsx";
 import { body, calls, choose, open, preview, resetCalls, say, select, sha } from "./new-lane-bed.tsx";
 
@@ -130,5 +130,18 @@ describe("new lane dialog: script approval", () => {
     expect(bed.called("lanes.approveScripts")).toHaveLength(0);
     expect(calls.stepUp).not.toHaveBeenCalled();
     expect(bed.called("lanes.create")).toHaveLength(1);
+  });
+});
+
+describe("new lane dialog: the home's prefill (decision 85)", () => {
+  it("opens with the home's title, its description and a model row per preset slot", async () => {
+    await open(preview(), undefined, {
+      text: "Keep the API",
+      title: "Replace the cache",
+      models: [null, null],
+    });
+    expect(field(document.body, "Title").value).toBe("Replace the cache");
+    expect(field(document.body, "Issue or description").value).toBe("Keep the API");
+    expect(select("Model of lane 2")).toBeDefined();
   });
 });

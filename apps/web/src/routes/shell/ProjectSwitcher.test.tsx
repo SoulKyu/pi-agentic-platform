@@ -8,7 +8,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import * as report from "../../lib/report.ts";
 import { useCurrentProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
-import { click, press, settle } from "../../testing/dom.ts";
+import { button, click, field, press, settle, text, typeInto } from "../../testing/dom.ts";
 import { fakeRuntime } from "../../testing/runtime-bed.ts";
 import { renderShell } from "../../testing/shell-bed.tsx";
 import { shellProject, shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
@@ -19,9 +19,9 @@ vi.mock("../../runtime/index.ts", async (original) => ({
   getRuntime: () => current.runtime,
 }));
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
-vi.mock("../../features/sessions/SessionListScreen.tsx", async () => {
+vi.mock("./HomePane.tsx", async () => {
   const { createElement } = await import("react");
-  return { SessionListScreen: () => createElement("p", { "data-stub": "home" }) };
+  return { HomePane: () => createElement("p", { "data-stub": "home" }) };
 });
 
 let bed: ReturnType<typeof fakeRuntime>;
@@ -29,6 +29,7 @@ let bed: ReturnType<typeof fakeRuntime>;
 beforeAll(async () => {
   await import("@pap/ui/overlays");
   await import("./TreeDrawer.tsx");
+  await import("../../features/projects/AddProjectDialog.tsx");
 });
 let started: Array<{ stop(): void }> = [];
 beforeEach(() => {
@@ -105,7 +106,7 @@ describe("the project switcher", () => {
     expect(trigger().textContent).toBe("All projects");
     expect(trigger().getAttribute("aria-label")).toBe("Project: All projects");
     await openSwitcher();
-    expect(labels()).toEqual(["All projects", "api", "web"]);
+    expect(labels()).toEqual(["All projects", "api", "web", "Add project…"]);
     await page.unmount();
   });
 
@@ -166,6 +167,21 @@ describe("the project switcher", () => {
     await page.unmount();
   });
 
+  it("lists a project no session files under yet, and still hides an idle one", async () => {
+    const page = await renderShell("/");
+    await settle();
+    await feed([shellSession({ id: "a1", projectId: "api" })], {
+      projects: [
+        shellProject({ id: "api", name: "api", position: 1, sessions: 1 }),
+        shellProject({ id: "idle", name: "idle", position: 2, sessions: 0 }),
+        shellProject({ id: "fresh", name: "fresh", position: 3, sessions: 0, unused: true }),
+      ],
+    });
+    await openSwitcher();
+    expect(labels()).toEqual(["All projects", "api", "fresh", "Add project…"]);
+    await page.unmount();
+  });
+
   it("lists every one of 120 active projects", async () => {
     const page = await renderShell("/");
     await settle();
@@ -177,8 +193,8 @@ describe("the project switcher", () => {
       { projects },
     );
     await openSwitcher();
-    expect(items()).toHaveLength(121);
-    expect(labels().at(-1)).toBe("proj-119");
+    expect(items()).toHaveLength(122);
+    expect(labels().at(-2)).toBe("proj-119");
     await page.unmount();
   });
 
@@ -191,7 +207,7 @@ describe("the project switcher", () => {
       moreProjects: 7,
     });
     await openSwitcher();
-    const last = items().at(-1) as HTMLElement;
+    const last = items().at(-2) as HTMLElement;
     expect(last.textContent).toBe("7 more projects are not listed");
     expect(last.hasAttribute("data-disabled") || last.getAttribute("aria-disabled") === "true").toBe(true);
     await page.unmount();
@@ -202,7 +218,7 @@ describe("the project switcher", () => {
     await settle();
     await feed([], { projects: [], moreProjects: 1 });
     await openSwitcher();
-    expect(labels()).toEqual(["All projects", "1 more project is not listed"]);
+    expect(labels()).toEqual(["All projects", "1 more project is not listed", "Add project…"]);
     await page.unmount();
   });
 
@@ -235,6 +251,32 @@ describe("the project switcher", () => {
     await pick("api");
     expect(trigger().textContent).toBe("api");
     expect(issue.mock.calls).toEqual([["storage_refused"]]);
+    await page.unmount();
+  });
+  it("Add project… opens the dialog, and Add switches the chip to the new project (§3.6)", async () => {
+    bed.handlers["projects.add"] = () => ({
+      project: { id: "fresh", root: "/w/fresh", name: "fresh", position: -1 },
+    });
+    bed.handlers["lanes.preview"] = () => ({ repo: false });
+    const page = await renderShell("/");
+    await settle();
+    await three();
+    await openSwitcher();
+    await pick("Add project…");
+    await vi.waitFor(() => expect(document.querySelector("[data-add-project]")).not.toBeNull(), {
+      timeout: 2_000,
+    });
+    await typeInto(field(document.body, "Folder"), "/w/fresh");
+    await click(button(document.body, "Check"));
+    await settle();
+    expect(text(document.querySelector("[data-add-project]") as HTMLElement)).toContain(
+      "Not a git repository",
+    );
+    await click(button(document.body, "Add"));
+    await settle();
+    expect(document.querySelector("[data-add-project]")).toBeNull();
+    expect(trigger().textContent).toBe("fresh");
+    expect(localStorage.getItem("pap.project.v1")).toBe('{"v":1,"projectId":"fresh"}');
     await page.unmount();
   });
 });
