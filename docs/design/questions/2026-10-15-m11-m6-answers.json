@@ -1,0 +1,90 @@
+{
+ "type": "answers",
+ "choice": "answers-submitted",
+ "page": "m11m6-q1",
+ "answers": {
+  "c1": {
+   "choice": "m6first"
+  },
+  "c2": {
+   "choice": "yes"
+  },
+  "c3": {
+   "choice": "accept"
+  },
+  "m1": {
+   "choice": "two"
+  },
+  "m2": {
+   "choice": "edit"
+  },
+  "m3": {
+   "choice": "required"
+  },
+  "m4": {
+   "choice": "ask"
+  },
+  "m5": {
+   "choice": "agents"
+  },
+  "m6": {
+   "choice": "once"
+  },
+  "m7": {
+   "choice": "no"
+  },
+  "m8": {
+   "choice": "settings"
+  },
+  "m9": {
+   "choice": "wait"
+  },
+  "m10": {
+   "choice": "global"
+  },
+  "m11": {
+   "choice": "accept"
+  },
+  "m12": {
+   "choice": "on"
+  },
+  "m13": {
+   "choice": "readonly"
+  },
+  "m14": {
+   "choice": "none",
+   "note": "Budget customizable dans la configuration de l’agent"
+  },
+  "m15": {
+   "choice": "no"
+  },
+  "m16": {
+   "choice": "hide"
+  },
+  "m17": {
+   "choice": "scratch"
+  },
+  "m18": {
+   "choice": "isolated"
+  },
+  "i1": {
+   "choice": "checkout_archive"
+  },
+  "i2": {
+   "choice": "auto"
+  },
+  "i3": {
+   "choice": "restart"
+  },
+  "i4": {
+   "choice": "docs"
+  },
+  "i5": {
+   "choice": "journal"
+  },
+  "i6": {
+   "choice": "wrapper"
+  }
+ },
+ "timestamp": 1792083887606
+}
