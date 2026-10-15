@@ -1,0 +1,36 @@
+{
+ "page": "project-home-q1",
+ "date": "2026-10-15",
+ "answers": {
+  "layout": {
+   "choice": "B"
+  },
+  "laneCreate": {
+   "choice": "dialog"
+  },
+  "allProjects": {
+   "choice": "ask"
+  },
+  "addProject": {
+   "choice": "yes"
+  },
+  "status": {
+   "choice": "line"
+  },
+  "recent": {
+   "choice": "work"
+  },
+  "gaps": {
+   "choice": [
+    "tasks",
+    "compare",
+    "help",
+    "search",
+    "phone"
+   ]
+  },
+  "custom": {
+   "choice": "groups"
+  }
+ }
+}

@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pap — accueil projet</title>
+<style>
+:root{--bg:#0f1115;--surface:#171a21;--surface2:#1f232c;--fg:#e7e9ee;--muted:#9aa1ad;--dim:#6b7280;--border:#2b303b;--agent:#7aa2f7;--you:#e0af68;--ok:#9ece6a;--attn:#ff9e64;--danger:#f7768e;--reco:#2ac3de}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1080px;margin:0 auto;padding:16px 16px 120px}
+h1{font-size:22px;margin:8px 0 4px}h2{font-size:18px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 16px}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin:0 0 18px}
+.q{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin:0 0 22px}
+.q .why{color:var(--muted);margin:2px 0 12px}
+.opts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.opt{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface2);cursor:pointer;position:relative}
+.opt:hover{border-color:var(--agent)}
+.opt.sel{border-color:var(--agent);box-shadow:0 0 0 2px var(--agent) inset}
+.opt h3{font-size:15px;margin:0 0 4px}.opt p{margin:0;color:var(--muted);font-size:14px}
+.tag{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--reco);color:var(--reco);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:middle}
+textarea{width:100%;min-height:44px;margin-top:10px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font:inherit}
+.mock{border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:8px;margin:0 0 8px;font-size:12px;color:var(--muted)}
+.mock .bar{display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--border);padding:0 0 6px;margin:0 0 8px}
+.chip{display:inline-block;border:1px solid var(--border);border-radius:4px;padding:0 6px;font-family:ui-monospace,monospace;font-size:11px;color:var(--fg);text-transform:uppercase}
+.chip.on{border-color:var(--agent);color:var(--agent)}
+.compose{border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:8px;color:var(--dim);margin:0 0 6px}
+.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.card{border:1px solid var(--border);border-radius:5px;padding:5px 6px;background:var(--surface)}
+.card b{color:var(--fg);font-weight:600;display:block;font-size:11px;margin-bottom:2px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.btn{border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--fg);background:var(--surface);font-size:11px}
+.btn.p{border-color:var(--agent);color:var(--agent)}
+.list div{border-top:1px solid var(--border);padding:3px 0}
+.k{color:var(--dim)}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-top:1px solid var(--border);padding:5px 6px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:600}
+.foot{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center}
+.foot button{font:inherit;border-radius:6px;padding:7px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);cursor:pointer}
+.foot button.go{border-color:var(--agent);color:var(--bg);background:var(--agent)}
+#count{color:var(--muted)}
+@media (max-width:560px){.opts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+<h1>Accueil projet : tout ce qu'on peut faire, sans raccourci</h1>
+<p class="sub">Question page 1, 2026-10-15. Un clic par question. Chaque question a une <span class="tag">reco</span>. Ajoute une note si besoin, puis « Envoyer ». Tes choix restent dans ce navigateur jusqu'à l'envoi.</p>
+
+<div class="box">
+<b>Le constat (inventaire du code, 86 actions).</b> L'accueil actuel (<code>SessionListScreen</code>) n'offre qu'un champ dossier, un preset d'outils, « New session » et 10 sessions récentes. La puce projet ne fait que filtrer.
+<ul>
+<li><b>Nouvelle lane</b> (avec issue, fan-out) : ⌘⇧L, ⌘K, ou le menu « … » d'un projet caché dans l'arbre ⌘B. En pratique, introuvable.</li>
+<li><b>Tableau des tâches, déclencheurs, nouveau déclencheur</b> : seulement par ⌘K.</li>
+<li><b>Rouvrir une comparaison fermée</b> : par URL seulement. <b>Aide des raccourcis</b> et <b>recherche dans les transcripts</b> : palette ou touche seulement.</li>
+<li><b>Ajouter un projet</b> : aucune interface (un projet naît d'une session ouverte dans un dossier).</li>
+<li>Sur téléphone : Réglages, compte, tâches, fichiers et l'accueil passent seulement par la palette.</li>
+</ul>
+</div>
+
+<!-- Q1 -->
+<section class="q" data-q="layout">
+<h2>1. Disposition de l'accueil d'un projet</h2>
+<p class="why">L'écran affiché quand on ouvre pap ou qu'on choisit un projet dans la puce en haut à gauche.</p>
+<div class="opts">
+ <div class="opt" data-v="A">
+  <div class="mock"><div class="bar"><span class="chip on">cpg ▾</span><span class="k">accueil</span></div>
+   <div class="grid4">
+    <div class="card"><b>Démarrer</b>Session · Lane · Lane depuis issue · Fan-out</div>
+    <div class="card"><b>Automatiser</b>Déclencheur · Tâches · Inbox</div>
+    <div class="card"><b>Explorer</b>Fichiers · Terminal · Changements · Recherche</div>
+    <div class="card"><b>Projet</b>Confiance · Scripts · Lanes archivées · Dépenses</div>
+   </div>
+   <div class="list" style="margin-top:6px"><div>Récents…</div></div>
+  </div>
+  <h3>A. Lanceur en grille</h3><p>Quatre groupes de boutons, puis les récents. Tout est visible, mais on ne peut pas commencer à taper tout de suite.</p>
+ </div>
+ <div class="opt" data-v="B">
+  <div class="mock"><div class="bar"><span class="chip on">cpg ▾</span><span class="k">accueil</span></div>
+   <div class="row"><span class="chip on">Session</span><span class="chip">Lane</span><span class="chip">Fan-out ×N</span><span class="chip">Déclencheur</span></div>
+   <div class="compose">Que veux-tu faire dans cpg ?  <span class="btn p" style="float:right">Lancer ↵</span></div>
+   <div class="row"><span class="btn">Fichiers</span><span class="btn">Terminal</span><span class="btn">Tâches</span><span class="btn">Inbox 3</span><span class="btn">Lanes archivées</span><span class="btn">Projet ⚙</span></div>
+   <div class="list"><div>Récents : sessions, lanes, tâches…</div></div>
+  </div>
+  <h3>B. Composer d'abord, avec un mode <span class="tag">reco</span></h3><p>Un seul champ. Le mode choisit ce qu'il crée : une session, une lane, un fan-out ou un déclencheur. Les autres actions sont sur une rangée de boutons visibles juste dessous. On tape tout de suite, et rien n'est caché. C'est proche du board 09 (composer).</p>
+ </div>
+ <div class="opt" data-v="C">
+  <div class="mock"><div class="bar"><span class="chip on">cpg ▾</span><span class="k">accueil</span></div>
+   <div style="display:flex;gap:6px">
+    <div style="flex:1" class="list"><div><span class="btn p">+ Session</span></div><div><span class="btn">+ Lane</span></div><div><span class="btn">+ Déclencheur</span></div><div><span class="btn">Fichiers</span> <span class="btn">Terminal</span></div></div>
+    <div style="flex:1.4" class="list"><div>3 lanes actives</div><div>1 tâche en cours</div><div>Inbox : 3</div><div>Ce mois : $4.20</div></div>
+   </div>
+  </div>
+  <h3>C. Tableau de bord du projet</h3><p>Actions à gauche, état vivant à droite (lanes, tâches, inbox, dépenses). Le plus riche, mais aussi le plus lourd à maintenir et à charger.</p>
+ </div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<!-- Q2 -->
+<section class="q" data-q="laneCreate">
+<h2>2. Créer une lane depuis l'accueil</h2>
+<p class="why">En mode « Lane » ou « Fan-out », que se passe-t-il au clic sur « Lancer » ?</p>
+<div class="opts">
+ <div class="opt" data-v="dialog"><h3>Ouvrir le dialogue « New lane » prérempli <span class="tag">reco</span></h3><p>Le texte tapé devient le titre et la description. On y retrouve la branche, la base, l'issue, les modèles et l'approbation des scripts, sans rien réécrire. C'est le moins de code et un seul endroit à tester.</p></div>
+ <div class="opt" data-v="inline"><h3>Formulaire déplié sur l'accueil</h3><p>Branche, base et modèles s'ouvrent sous le champ, sans fenêtre. C'est plus fluide, mais ça duplique le dialogue existant (validation, scripts, issue).</p></div>
+ <div class="opt" data-v="direct"><h3>Créer directement</h3><p>Avec les valeurs par défaut (base = HEAD, modèle courant), puis réglage après coup. C'est le plus rapide, mais on ne voit les scripts de setup qu'une fois la lane créée.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<!-- Q3 -->
+<section class="q" data-q="allProjects">
+<h2>3. Quand la puce dit « All projects »</h2>
+<div class="opts">
+ <div class="opt" data-v="ask"><h3>Même accueil, le projet est demandé au lancement <span class="tag">reco</span></h3><p>Les actions globales (Réglages, Inbox, Tâches, Recherche) marchent. Une création demande « dans quel projet ? » avec la liste des projets et « Ajouter un projet ».</p></div>
+ <div class="opt" data-v="pickFirst"><h3>Choisir un projet d'abord</h3><p>L'accueil montre la liste des projets et rien d'autre tant qu'aucun n'est choisi.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<!-- Q4 -->
+<section class="q" data-q="addProject">
+<h2>4. « Ajouter un projet » (aucune interface aujourd'hui)</h2>
+<div class="opts">
+ <div class="opt" data-v="yes"><h3>Oui : dans le menu de la puce projet et sur l'accueil <span class="tag">reco</span></h3><p>Un champ chemin avec vérification (le dossier existe, est sous tes racines, éventuellement un dépôt git). Le projet apparaît tout de suite dans la puce. On ne passe plus par « ouvrir une session dans un dossier ».</p></div>
+ <div class="opt" data-v="no"><h3>Non, pas maintenant</h3><p>Un projet continue de naître de sa première session.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<!-- Q5 -->
+<section class="q" data-q="status">
+<h2>5. État du projet sur l'accueil</h2>
+<div class="opts">
+ <div class="opt" data-v="none"><h3>Rien</h3><p>Seulement les actions et les récents.</p></div>
+ <div class="opt" data-v="line"><h3>Une ligne d'état cliquable <span class="tag">reco</span></h3><p>« 3 lanes actives · 1 tâche en cours · Inbox 3 · ce mois $4.20 (dont API-équivalent) ». Chaque morceau ouvre sa vue. Ça ne coûte qu'une ligne et on voit d'un coup d'œil s'il y a quelque chose à faire.</p></div>
+ <div class="opt" data-v="cards"><h3>Cartes de tableau de bord</h3><p>Une carte par sujet, avec des détails. C'est l'option C de la question 1.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<!-- Q6 -->
+<section class="q" data-q="recent">
+<h2>6. La liste « Récents »</h2>
+<div class="opts">
+ <div class="opt" data-v="sessions"><h3>Sessions seulement (comme aujourd'hui)</h3><p>10 sessions du projet.</p></div>
+ <div class="opt" data-v="work"><h3>Travail récent : sessions, lanes, tâches <span class="tag">reco</span></h3><p>Une liste avec une puce de type et un filtre (Tout / Sessions / Lanes / Tâches). On y retrouve aussi les comparaisons de fan-out fermées, qu'on ne peut plus rouvrir aujourd'hui.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<!-- Q7 -->
+<section class="q" data-q="gaps" data-multi="1">
+<h2>7. Les autres actions sans bouton visible : on les corrige dans le même lot ?</h2>
+<p class="why">Plusieurs choix possibles. La reco est de tout corriger.</p>
+<div class="opts">
+ <div class="opt" data-v="tasks"><h3>Tâches et déclencheurs <span class="tag">reco</span></h3><p>Une entrée visible : une icône dans la barre latérale et un bouton sur l'accueil.</p></div>
+ <div class="opt" data-v="compare"><h3>Comparaisons de fan-out <span class="tag">reco</span></h3><p>Les rouvrir depuis Récents et depuis la lane.</p></div>
+ <div class="opt" data-v="help"><h3>Aide des raccourcis <span class="tag">reco</span></h3><p>Un bouton « ? » visible, dans le menu compte et sur l'accueil.</p></div>
+ <div class="opt" data-v="search"><h3>Recherche dans les transcripts <span class="tag">reco</span></h3><p>Un champ de recherche sur l'accueil, qui ouvre la palette sur la recherche.</p></div>
+ <div class="opt" data-v="phone"><h3>Téléphone <span class="tag">reco</span></h3><p>« + » et logo vers l'accueil, Réglages et compte accessibles sans palette. C'est le strict minimum ; la refonte mobile reste à M12.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<!-- Q8 -->
+<section class="q" data-q="custom">
+<h2>8. Personnalisation (tout ce qui est visuel est réglable dans Settings)</h2>
+<div class="opts">
+ <div class="opt" data-v="groups"><h3>Afficher ou masquer chaque groupe et la ligne d'état <span class="tag">reco</span></h3><p>Dans Settings › Appearance › Accueil, avec des cases à cocher. Simple, et ça couvre « je n'utilise pas l'automatisation ».</p></div>
+ <div class="opt" data-v="order"><h3>Groupes, plus l'ordre des actions</h3><p>Par glisser-déposer. Plus flexible, mais plus de code et de tests.</p></div>
+ <div class="opt" data-v="none"><h3>Rien pour l'instant</h3></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+
+<div class="box">
+<b>Ce qui ne change pas.</b> ⌘K, ⌘⇧L et les autres raccourcis restent, comme accélérateurs. Les dialogues existants (New lane, éditeur de déclencheur) sont réutilisés, sans changement de contrat côté daemon, sauf « Ajouter un projet » si tu le choisis. La refonte mobile complète reste à M12.
+</div>
+</main>
+
+<div class="foot">
+ <span id="count"></span>
+ <button type="button" id="recos">Appliquer toutes les recos</button>
+ <button type="button" id="reset">Effacer</button>
+ <button type="button" class="go" id="send">Envoyer</button>
+</div>
+
+<script>
+(function(){
+  var KEY="pap-project-home-q1";
+  var state={};
+  try{state=JSON.parse(localStorage.getItem(KEY)||"{}")||{};}catch(e){state={};}
+  var qs=[].slice.call(document.querySelectorAll(".q"));
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+  function render(){
+    var done=0;
+    qs.forEach(function(q){
+      var id=q.dataset.q, v=state[id]||{}, sel=v.choice;
+      [].forEach.call(q.querySelectorAll(".opt"),function(o){
+        var on=q.dataset.multi?(Array.isArray(sel)&&sel.indexOf(o.dataset.v)>=0):sel===o.dataset.v;
+        o.classList.toggle("sel",!!on);
+      });
+      var t=q.querySelector("textarea"); if(t&&document.activeElement!==t) t.value=v.note||"";
+      if(sel&&(!Array.isArray(sel)||sel.length)) done++;
+    });
+    document.getElementById("count").textContent=done+" / "+qs.length+" répondues";
+  }
+  qs.forEach(function(q){
+    var id=q.dataset.q;
+    [].forEach.call(q.querySelectorAll(".opt"),function(o){
+      o.addEventListener("click",function(){
+        var v=state[id]||(state[id]={});
+        if(q.dataset.multi){var a=Array.isArray(v.choice)?v.choice:[];var i=a.indexOf(o.dataset.v);if(i>=0)a.splice(i,1);else a.push(o.dataset.v);v.choice=a;}
+        else v.choice=o.dataset.v;
+        save();render();
+      });
+    });
+    var t=q.querySelector("textarea");
+    if(t) t.addEventListener("input",function(){(state[id]||(state[id]={})).note=t.value;save();render();});
+  });
+  document.getElementById("recos").addEventListener("click",function(){
+    qs.forEach(function(q){
+      var id=q.dataset.q, recos=[].filter.call(q.querySelectorAll(".opt"),function(o){return o.querySelector(".tag");}).map(function(o){return o.dataset.v;});
+      var v=state[id]||(state[id]={});
+      v.choice=q.dataset.multi?recos:recos[0];
+    });
+    save();render();
+  });
+  document.getElementById("reset").addEventListener("click",function(){state={};save();render();});
+  document.getElementById("send").addEventListener("click",function(){
+    var payload={type:"answers",choice:"answers-submitted",page:"project-home-q1",answers:state};
+    if(window.brainstorm&&window.brainstorm.send){window.brainstorm.send(payload);}
+    var b=document.getElementById("send"); b.textContent="Envoyé ✓"; setTimeout(function(){b.textContent="Envoyer";},2500);
+  });
+  render();
+})();
+</script>
+</body>
+</html>
