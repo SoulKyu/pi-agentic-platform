@@ -63,13 +63,21 @@ describe("the rough scan has a step budget (RT-16)", () => {
     expect(spent("rm -r ".repeat(10))).toBe(148);
   });
 
-  it("blocks with the reader's reason when the budget runs out", async () => {
-    const command = "rm -r ".repeat(340_000);
-    expect(() => roughBuiltinHit(command, { left: 4_000_000 })).toThrow(CommandTooComplex);
-    const h = bed.harness();
-    expect(await h.run("bash", { command })).toEqual({ block: true, reason: TOO_COMPLEX });
-    expect(h.asks).toEqual([]);
-  });
+  // Scans a 2 MB command through the pipeline's default 4,000,000-step budget until it runs out (about 1 s unloaded).
+  const SCAN_TO_THE_END_MS = 20_000;
+
+  it(
+    "blocks with the reader's reason when the budget runs out",
+    { timeout: SCAN_TO_THE_END_MS },
+    async () => {
+      const command = "rm -r ".repeat(340_000);
+      // The same budget error on a small budget: the full-size scan below is the pipeline's own.
+      expect(() => roughBuiltinHit("rm -r ".repeat(100), { left: 1_000 })).toThrow(CommandTooComplex);
+      const h = bed.harness();
+      expect(await h.run("bash", { command })).toEqual({ block: true, reason: TOO_COMPLEX });
+      expect(h.asks).toEqual([]);
+    },
+  );
 
   it("throws on an input over the size cap (the pipeline's own 2 MiB limit comes first)", () => {
     expect(() => roughBuiltinHit("a".repeat(4 * 1024 * 1024 + 1))).toThrow(CommandTooComplex);

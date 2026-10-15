@@ -1,5 +1,5 @@
 import { PapError } from "@pap/contracts";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { taintedIn } from "./run-script.ts";
 import { type CreateBed, createCreateBed } from "./testing/create-bed.ts";
 import { insertLane } from "./testing/lane-rows.ts";
@@ -12,23 +12,22 @@ afterEach(async () => {
 });
 const make = (options: Parameters<typeof createCreateBed>[0] = {}): CreateBed =>
   (bed = createCreateBed(options));
-const active = (b: CreateBed, id: string) =>
-  vi.waitFor(() => expect(b.view(id).state).toBe("active"), { timeout: 5000 });
-const settled = (b: CreateBed, id: string) =>
-  vi.waitFor(() => expect(b.view(id).setup.state).not.toMatch(/queued|running/), { timeout: 5000 });
 const codeOf = (promise: Promise<unknown>) =>
   promise.then(
     () => "resolved",
     (error: unknown) => (error instanceof PapError ? error.code : String(error)),
   );
 
-/** An active lane whose project has an approved test script. */
+/**
+ * An active lane whose project has an approved test script, once its creation is over: `active` alone is too early,
+ * the setup step is still asking for its approval and holds the lane's place in the runner.
+ */
 async function laneWithTest(b: CreateBed): Promise<string> {
   b.writeConfig("test: echo ok\n");
   await b.approve({ setup: undefined, archive: undefined, test: "echo ok" });
   const id = await b.create();
-  await active(b, id);
-  await settled(b, id);
+  await b.service.settled();
+  expect(b.view(id).state).toBe("active");
   return id;
 }
 

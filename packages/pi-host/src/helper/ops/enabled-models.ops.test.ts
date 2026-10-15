@@ -7,6 +7,9 @@ import { setEnabled } from "./enabled-models.ts";
 import { enabledByPatterns, openRuntime } from "./models-open.ts";
 
 let bed: ModelsBed;
+// Switching a model off from every-model plans through Pi's own matcher over its 1,566-model built-in catalog, once per provider glob (1.6 s unloaded).
+const PI_MATCHER_MS = 20_000;
+
 let settings: string;
 beforeEach(async () => {
   bed = await makeModelsBed();
@@ -41,16 +44,20 @@ async function enabledBy(patterns: readonly string[] | undefined) {
 }
 
 describe("models.setEnabled", () => {
-  it("switches one model off from every-model and Pi enables exactly the others", async () => {
-    await bed.write(settings, { theme: "dark", defaultThinkingLevel: "high", packages: ["npm:x"] });
-    const result = (await edit(toggle("m2", false))) as { patterns: string[] | null };
-    expect(result.patterns).not.toBeNull();
-    const written = (await bed.read(settings)) as Record<string, unknown>;
-    expect(written.enabledModels).toEqual(result.patterns);
-    const { all, enabled } = await enabledBy(result.patterns as string[]);
-    expect(all).toContain("mine/m2");
-    expect([...enabled].sort()).toEqual(all.filter((key) => key !== "mine/m2").sort());
-  });
+  it(
+    "switches one model off from every-model and Pi enables exactly the others",
+    { timeout: PI_MATCHER_MS },
+    async () => {
+      await bed.write(settings, { theme: "dark", defaultThinkingLevel: "high", packages: ["npm:x"] });
+      const result = (await edit(toggle("m2", false))) as { patterns: string[] | null };
+      expect(result.patterns).not.toBeNull();
+      const written = (await bed.read(settings)) as Record<string, unknown>;
+      expect(written.enabledModels).toEqual(result.patterns);
+      const { all, enabled } = await enabledBy(result.patterns as string[]);
+      expect(all).toContain("mine/m2");
+      expect([...enabled].sort()).toEqual(all.filter((key) => key !== "mine/m2").sort());
+    },
+  );
 
   it("writes only enabledModels: every other key of settings.json survives a JSON round trip", async () => {
     const others = { theme: "dark", defaultProvider: "mine", nested: { a: [1, 2, { b: null }] }, "x-y": "é" };
@@ -61,7 +68,7 @@ describe("models.setEnabled", () => {
     expect(JSON.stringify(rest)).toBe(JSON.stringify(others));
   });
 
-  it("creates settings.json when there is none", async () => {
+  it("creates settings.json when there is none", { timeout: PI_MATCHER_MS }, async () => {
     await edit(toggle("m1", false));
     const written = (await bed.read(settings)) as Record<string, unknown>;
     expect(Object.keys(written)).toEqual(["enabledModels"]);
@@ -165,7 +172,7 @@ describe("models.setEnabled", () => {
     expect(await fs.readFile(twin, "utf8")).toBe(before);
   });
 
-  it("reports a write Pi could not make instead of resolving", async () => {
+  it("reports a write Pi could not make instead of resolving", { timeout: PI_MATCHER_MS }, async () => {
     await bed.write(settings, { theme: "dark" });
     await fs.chmod(settings, 0o400);
     expect(await failureOf(edit(toggle("m1", false)))).toMatchObject({ code: "failed" });

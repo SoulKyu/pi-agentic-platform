@@ -16,6 +16,8 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
 }));
 
 const props = () => ({ onOpenSession: vi.fn(), onOpenTasks: vi.fn() });
+// A new trigger mounts the schedule form, whose time-zone select renders about 420 options (0.4 to 0.6 s unloaded).
+const NEW_FORM_MS = 20_000;
 
 function saved(bed: ReturnType<typeof newBed>, view = viewOf()) {
   bed.handlers["automation.triggers.get"] = () => view;
@@ -66,63 +68,75 @@ describe("TriggerEditor: loading", () => {
     expect(hasButton(broken.container, "Save")).toBe(false);
   });
 
-  it("starts a new trigger in the project's folder, as a schedule in the browser's zone", async () => {
-    newBed();
-    knowProject(projectOf("p1", "atlas"));
-    const page = await showWithStepUp(<TriggerEditor triggerId="new:p1" {...props()} />);
-    expect((field(page.container, "Folder") as HTMLInputElement).value).toBe("/work/atlas");
-    expect(text(page.container)).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone);
-  });
+  it(
+    "starts a new trigger in the project's folder, as a schedule in the browser's zone",
+    { timeout: NEW_FORM_MS },
+    async () => {
+      newBed();
+      knowProject(projectOf("p1", "atlas"));
+      const page = await showWithStepUp(<TriggerEditor triggerId="new:p1" {...props()} />);
+      expect((field(page.container, "Folder") as HTMLInputElement).value).toBe("/work/atlas");
+      expect(text(page.container)).toContain(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    },
+  );
 });
 
 describe("TriggerEditor: Save", () => {
-  it("asks for the password when the daemon wants it, then retries the save once and shows the secret once", async () => {
-    const bed = newBed();
-    knowProject(projectOf("p1", "atlas"));
-    saved(bed);
-    let calls = 0;
-    bed.handlers["automation.triggers.create"] = () => {
-      calls += 1;
-      if (calls === 1) throw new RpcError("step_up_required");
-      return { trigger: viewOf({ revision: 1 }), secret: SECRET };
-    };
-    const page = await showWithStepUp(<TriggerEditor triggerId="new:p1" {...props()} />);
-    await typeInto(field(page.container, "Name") as HTMLInputElement, "prod-alerts");
-    await typeInto(field(page.container, "Prompt") as HTMLTextAreaElement, "Investigate");
-    await click(button(page.container, "Save"));
-    await settle();
+  it(
+    "asks for the password when the daemon wants it, then retries the save once and shows the secret once",
+    { timeout: NEW_FORM_MS },
+    async () => {
+      const bed = newBed();
+      knowProject(projectOf("p1", "atlas"));
+      saved(bed);
+      let calls = 0;
+      bed.handlers["automation.triggers.create"] = () => {
+        calls += 1;
+        if (calls === 1) throw new RpcError("step_up_required");
+        return { trigger: viewOf({ revision: 1 }), secret: SECRET };
+      };
+      const page = await showWithStepUp(<TriggerEditor triggerId="new:p1" {...props()} />);
+      await typeInto(field(page.container, "Name") as HTMLInputElement, "prod-alerts");
+      await typeInto(field(page.container, "Prompt") as HTMLTextAreaElement, "Investigate");
+      await click(button(page.container, "Save"));
+      await settle();
 
-    expect(prompt.asked).toBe(1);
-    expect(bed.called("automation.triggers.create")).toHaveLength(2);
-    const sent = bed.called("automation.triggers.create")[1]?.params as { input: { name: string } };
-    expect(sent.input.name).toBe("prod-alerts");
+      expect(prompt.asked).toBe(1);
+      expect(bed.called("automation.triggers.create")).toHaveLength(2);
+      const sent = bed.called("automation.triggers.create")[1]?.params as { input: { name: string } };
+      expect(sent.input.name).toBe("prod-alerts");
 
-    // the secret is in a dialog, once, with the instruction to copy it
-    const dialog = document.body.querySelector('[role="dialog"]');
-    expect(dialog?.textContent).toContain("Copy it now: pap does not show it again.");
-    expect((dialog?.querySelector("input[readonly]") as HTMLInputElement).value).toBe(SECRET);
-    await click(button(dialog as HTMLElement, "Done"));
-    await settle();
-    expect(document.body.textContent).not.toContain(SECRET);
-    expect(document.body.querySelector("input[readonly]")).toBeNull();
-    expect(JSON.stringify(location)).not.toContain(SECRET);
-  });
+      // the secret is in a dialog, once, with the instruction to copy it
+      const dialog = document.body.querySelector('[role="dialog"]');
+      expect(dialog?.textContent).toContain("Copy it now: pap does not show it again.");
+      expect((dialog?.querySelector("input[readonly]") as HTMLInputElement).value).toBe(SECRET);
+      await click(button(dialog as HTMLElement, "Done"));
+      await settle();
+      expect(document.body.textContent).not.toContain(SECRET);
+      expect(document.body.querySelector("input[readonly]")).toBeNull();
+      expect(JSON.stringify(location)).not.toContain(SECRET);
+    },
+  );
 
-  it("does not save when the person cancels the password prompt, and shows no secret", async () => {
-    const bed = newBed();
-    knowProject(projectOf("p1", "atlas"));
-    prompt.answer = false;
-    bed.handlers["automation.triggers.create"] = () => {
-      throw new RpcError("step_up_required");
-    };
-    const page = await showWithStepUp(<TriggerEditor triggerId="new:p1" {...props()} />);
-    await typeInto(field(page.container, "Name") as HTMLInputElement, "x");
-    await typeInto(field(page.container, "Prompt") as HTMLTextAreaElement, "y");
-    await click(button(page.container, "Save"));
-    await settle();
-    expect(bed.called("automation.triggers.create")).toHaveLength(1);
-    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
-  });
+  it(
+    "does not save when the person cancels the password prompt, and shows no secret",
+    { timeout: NEW_FORM_MS },
+    async () => {
+      const bed = newBed();
+      knowProject(projectOf("p1", "atlas"));
+      prompt.answer = false;
+      bed.handlers["automation.triggers.create"] = () => {
+        throw new RpcError("step_up_required");
+      };
+      const page = await showWithStepUp(<TriggerEditor triggerId="new:p1" {...props()} />);
+      await typeInto(field(page.container, "Name") as HTMLInputElement, "x");
+      await typeInto(field(page.container, "Prompt") as HTMLTextAreaElement, "y");
+      await click(button(page.container, "Save"));
+      await settle();
+      expect(bed.called("automation.triggers.create")).toHaveLength(1);
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    },
+  );
 
   it("updates a saved trigger with its revision and shows no secret when none comes back", async () => {
     const bed = newBed();
@@ -187,36 +201,48 @@ describe("TriggerEditor: after the first save", () => {
     return { bed, page, onCreated };
   }
 
-  it("swaps the new: tab for the trigger's own only once the secret dialog is closed", async () => {
-    const { page, onCreated } = await created();
-    expect(onCreated).not.toHaveBeenCalled();
-    await click(button(document.body.querySelector('[role="dialog"]') as HTMLElement, "Done"));
-    await settle();
-    expect(onCreated).toHaveBeenCalledExactlyOnceWith("g9");
-    expect(page.container.querySelector("[data-trigger-editor]")).not.toBeNull();
-  });
+  it(
+    "swaps the new: tab for the trigger's own only once the secret dialog is closed",
+    { timeout: NEW_FORM_MS },
+    async () => {
+      const { page, onCreated } = await created();
+      expect(onCreated).not.toHaveBeenCalled();
+      await click(button(document.body.querySelector('[role="dialog"]') as HTMLElement, "Done"));
+      await settle();
+      expect(onCreated).toHaveBeenCalledExactlyOnceWith("g9");
+      expect(page.container.querySelector("[data-trigger-editor]")).not.toBeNull();
+    },
+  );
 
-  it("a second Save updates the trigger it created instead of creating another", async () => {
-    const { bed, page } = await created();
-    await click(button(document.body.querySelector('[role="dialog"]') as HTMLElement, "Done"));
-    await typeInto(field(page.container, "Name") as HTMLInputElement, "prod-alerts v2");
-    await click(button(page.container, "Save"));
-    await settle();
-    expect(bed.called("automation.triggers.create")).toHaveLength(1);
-    const sent = bed.called("automation.triggers.update")[0]?.params as {
-      triggerId: string;
-      baseRevision: number;
-    };
-    expect([sent.triggerId, sent.baseRevision]).toEqual(["g9", 1]);
-  });
+  it(
+    "a second Save updates the trigger it created instead of creating another",
+    { timeout: NEW_FORM_MS },
+    async () => {
+      const { bed, page } = await created();
+      await click(button(document.body.querySelector('[role="dialog"]') as HTMLElement, "Done"));
+      await typeInto(field(page.container, "Name") as HTMLInputElement, "prod-alerts v2");
+      await click(button(page.container, "Save"));
+      await settle();
+      expect(bed.called("automation.triggers.create")).toHaveLength(1);
+      const sent = bed.called("automation.triggers.update")[0]?.params as {
+        triggerId: string;
+        baseRevision: number;
+      };
+      expect([sent.triggerId, sent.baseRevision]).toEqual(["g9", 1]);
+    },
+  );
 
-  it("still shows the secret when the created trigger's view cannot be read", async () => {
-    const onCreated = vi.fn();
-    await created(onCreated, { trigger: { broken: true }, secret: SECRET });
-    const dialog = document.body.querySelector('[role="dialog"]');
-    expect((dialog?.querySelector("input[readonly]") as HTMLInputElement).value).toBe(SECRET);
-    expect(onCreated).not.toHaveBeenCalled();
-  });
+  it(
+    "still shows the secret when the created trigger's view cannot be read",
+    { timeout: NEW_FORM_MS },
+    async () => {
+      const onCreated = vi.fn();
+      await created(onCreated, { trigger: { broken: true }, secret: SECRET });
+      const dialog = document.body.querySelector('[role="dialog"]');
+      expect((dialog?.querySelector("input[readonly]") as HTMLInputElement).value).toBe(SECRET);
+      expect(onCreated).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("TriggerEditor: Rotation and Fire now", () => {

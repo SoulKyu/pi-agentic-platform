@@ -49,8 +49,8 @@ async function lane(b: CreateBed, archive: string | null = "echo bye"): Promise<
     await b.approve({ setup: undefined, archive, test: undefined });
   }
   const id = await b.create();
-  await vi.waitFor(() => expect(b.view(id).state).toBe("active"), { timeout: 5000 });
-  await settledSetup(b, id);
+  // `active` alone is too early: the setup step still holds the lane's place in the runner.
+  await b.service.settled();
   return id;
 }
 const params = (

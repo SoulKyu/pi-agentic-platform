@@ -33,6 +33,9 @@ const ancestorsThatTakeThePress = (el: Element): Element[] =>
 const INTERACTIVE =
   'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
 const PROBED_CONTROLS = 79;
+// Mounts nine copies of the whole gallery: pure render work (about 1 s unloaded), not a wait on anything.
+const NINE_FRAMES_MS = 20_000;
+
 // Both dimensions: `size-11`, or a minimum height together with a minimum width (`pointer-coarse:min-w-11`, or
 // `w-full` for a control that fills its row) (m2 of the final review).
 const hasClass = (classes: string, name: string) => classes.split(/\s+/).includes(name);
@@ -78,7 +81,7 @@ describe("/dev/ui gallery", () => {
     await fallback.unmount();
   });
 
-  it("renders nine frames when asked for all", async () => {
+  it("renders nine frames when asked for all", { timeout: NINE_FRAMES_MS }, async () => {
     window.history.replaceState(null, "", "/dev/ui?all=1");
     const page = await mount(<Gallery />);
     const frames = [...page.container.querySelectorAll('[data-slot="gallery-frame"]')];
@@ -124,7 +127,7 @@ describe("/dev/ui gallery", () => {
     await page.unmount();
   });
 
-  it("gives every element id once, also in the nine-frame view", async () => {
+  it("gives every element id once, also in the nine-frame view", { timeout: NINE_FRAMES_MS }, async () => {
     window.history.replaceState(null, "", "/dev/ui?all=1");
     const page = await mount(<Gallery />);
     const ids = [...page.container.querySelectorAll("[id]")].map((el) => el.id);
