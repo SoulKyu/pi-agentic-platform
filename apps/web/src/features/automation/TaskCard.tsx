@@ -3,7 +3,15 @@ import { Button, Chip, cn, Fence, RunStatusChip } from "@pap/ui";
 import { useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
 import { useT } from "../../i18n/index.ts";
-import { actionsFor, cardStatus, shown, taskCost, taskDuration, type TaskAction } from "./board.vm.ts";
+import {
+  actionsFor,
+  cardStatus,
+  reasonWords,
+  shown,
+  taskCost,
+  taskDuration,
+  type TaskAction,
+} from "./board.vm.ts";
 import { TaskDialogs, type TaskDialogKind } from "./TaskDialogs.tsx";
 import { useTaskActions } from "./use-task-actions.ts";
 
@@ -21,6 +29,8 @@ export function TaskCard({ task, now, current, onOpenSession }: TaskCardProps) {
   const actions = useTaskActions(task);
   const [asking, setAsking] = useState<TaskDialogKind | null>(null);
   const status = cardStatus(task);
+  const reason = reasonWords(task);
+  const label = reason === null ? t(status.label) : `${t(status.label)} · ${reason}`;
   const duration = taskDuration(task, now);
   const meta = [shown(task.origin, "name"), formatAge(now, task.createdAt, t), duration, taskCost(task)];
   const idle = actions.since === null;
@@ -47,9 +57,9 @@ export function TaskCard({ task, now, current, onOpenSession }: TaskCardProps) {
     >
       <div className="flex items-start gap-s2">
         {status.status === null ? (
-          <Chip tone={status.tone} label={t(status.label)} />
+          <Chip tone={status.tone} label={label} />
         ) : (
-          <RunStatusChip status={status.status} label={t(status.label)} />
+          <RunStatusChip status={status.status} label={label} />
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-s1">
           <p className="break-words text-ui text-fg">{shown(task.triggerName || task.title, "name")}</p>

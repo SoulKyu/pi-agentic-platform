@@ -75,6 +75,27 @@ export function cardStatus(task: TaskView): CardStatus {
   }
 }
 
+const REASON_KEYS = new Set([
+  "deadline",
+  "run_budget",
+  "budget",
+  "bad_policy",
+  "capacity",
+  "prompt_rejected",
+  "start_failed",
+  "provider",
+  "stopped",
+  "crash",
+  "archived",
+]);
+
+/** Why a task ended as it did, as words: the daemon's own reasons come from the catalog, anything else is wire text. A plain "cancelled" repeats the chip. */
+export function reasonWords(task: TaskView): string | null {
+  const { reason } = task;
+  if (reason === null || reason === "cancelled") return null;
+  return REASON_KEYS.has(reason) ? t(`automation.reason.${reason}` as MessageKey) : escapeHidden(reason);
+}
+
 /** Needs input first, then running, queued, and the rest; inside a group the newest first. */
 function rank(task: TaskView): number {
   if (task.state === "running") return task.needsInput ? 0 : 1;
