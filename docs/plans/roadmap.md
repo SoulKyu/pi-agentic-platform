@@ -13,12 +13,12 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 | M7 | done | 53f63c4 | 79 |
 | M9 | done | 0b5fd75 | 82 |
 | M10 | done | 30dff83 | 83 |
-| M11 + M6 | next wave (decision 75): planning brief, owner question page, then the two plans | — | — |
-| M12, then M13 | to come | — | — |
+| M11 + M6 | next wave (decision 75); M6 is KISS: two install methods (decision 87) | — | — |
+| M12 + M6b, then M13; M14 (GitHub) after M11 | to come | — | — |
 
 Off-milestone work merged: design polish 1 and 2 (94e1071, 3d3035a; decision 80), the M9 + M10 follow-ups (2b4ed46, 04d4871 and two flaky-test fixes) and the project home (b7f5820; decisions 85 and 86: every action visible without a shortcut, `projects.add`, Settings › Appearance › Home; owner bundle limit 226 KB for that feature).
 
-Open before M6: R52b, the rootless podman trade-off (`--security-opt systempaths=unconfined`, spike S8). Proposed and unscheduled: the GitHub integration below (decision 84). Owner action: rotate the ngrok authtoken.
+Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman trade-off (`--security-opt systempaths=unconfined`, spike S8). GitHub integration is M14 (decisions 84, 87). Owner action: rotate the ngrok authtoken.
 
 ## M2 — Sessions core and extension UI
 - Goal: the full Pi session experience on the worker model.
@@ -42,10 +42,16 @@ Open before M6: R52b, the rootless podman trade-off (`--security-opt systempaths
 - Depends on: M2.
 - Exit: the C §8.1 security tests pass (fail-closed on bad rules or exceptions, taint then exfiltration asks, forged `Origin`, path traversal); every stage writes an audit line.
 
-## M6 — Install, update and release
-- Domains: D21 (self-contained archive + `curl | sh`, OCI image with bubblewrap per S8, npm channel, `pap service install`, `pap doctor`, `pap backup` / `restore`, update with health-checked auto-rollback, release-please, stable / next channels, `PAP_UPDATE_CHECK=0`). Release signing (cosign), SBOM and SLSA provenance move after v1 (decision 75).
+## M6 — Install (KISS)
+- Goal (owner, decision 87): an ultra-simple first install with **two install methods only**, chosen on the M11 + M6 question page; each sets up the user service and prints the setup URL.
+- Domains: D21, install part only. Everything else in D21 moves to M6b.
 - Depends on: M5 (no networked install before the policy pipeline), S8.
-- Exit: spec A success criterion 3 on each channel (one-step install, localhost bind, setup URL, passkey); a failed update rolls back on its own.
+- Exit: spec A success criterion 3 on both methods (one-step install, localhost bind, setup URL, passkey).
+
+## M6b — Update, backup and release (rest of D21, still v1)
+- Domains: OCI image with bubblewrap (S8, R52b), npm channel, `pap doctor`, `pap backup` / `restore`, update with health-checked auto-rollback, release-please, stable / next channels, `PAP_UPDATE_CHECK=0`. Release signing (cosign), SBOM and SLSA provenance stay after v1 (decision 75).
+- Depends on: M6. Runs before M13.
+- Exit: a failed update rolls back on its own; backup / restore round-trips the state.
 
 ## M7 — Models, tools and Pi extensions
 - Domains: D07 (selector, reasoning levels, `enabledModels` minimal edits, `models.json` editor, OAuth / API keys, pricing, quotas, side-effect-free discovery), D08 presets (none / read-only / default / full, Chat only, codemode, tool-search), D09 (MCP client and Settings › MCP: masking, exposure, undo, Test, OAuth sign-in, paste importer, project trust UI on S7's store), D10 (skills and plugins management, `get_commands`, `$skill` chips).
@@ -79,10 +85,10 @@ Open before M6: R52b, the rootless podman trade-off (`--security-opt systempaths
 
 ## M13 — v1 hardening and cutover
 - Scope: the ~15 e2e journeys of C §8.1, nightly Pi-compat green, final budgets (bundle, session-open payload, idle worker RAM), `docs/agents/*` notes and a ≤ 150-line AGENTS.md, ADR review, spec D cutover (warning when a session file changes outside its worker), pi-web freeze.
-- Depends on: M2–M12.
+- Depends on: M2–M12, M6b.
 - Exit: spec A success criteria 1–4 verified; v1.0.0 tagged on the stable channel.
 
-## Proposed, not yet scheduled — GitHub integration (owner, 2026-10-15)
+## M14 — GitHub integration (owner, 2026-10-15; M14 by decision 87)
 - **Asked:**
   - clone (pull) a remote GitHub repository into a new pap project to work on it;
   - fork a remote GitHub repository and work on the fork;
@@ -120,7 +126,7 @@ Open before M6: R52b, the rootless podman trade-off (`--security-opt systempaths
 | D18 Extension UI | M1 (dialogs), M2 |
 | D19 Mobile / PWA | M3 (ergonomics), M12 |
 | D20 Settings & design system | M3 |
-| D21 Install & update | M6 |
+| D21 Install & update | M6 (install), M6b (update, backup, release) |
 | Lanes+ (fan-out, forges, issue → lane) | M9 |
 | Sessions+ (settle/snooze, FTS5, quota auto-resume) | M4, M10 |
 | Security+ (`secret.request`, precheck, dynamic taint) | M11, M10, M5 |

@@ -135,12 +135,12 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 </header>
 
 <h1>De M0 à la v1</h1>
-<p class="muted">14 jalons. M0 + M1 posent les preuves techniques et le squelette ; la v1 = M2 → M13. Chaque jalon reçoit son plan détaillé (tâches, modèles, estimation) avant de démarrer, validé par toi. Depuis M5, deux jalons tournent à la fois, dans l'ordre choisi par la décision 75 : M8 + M7, puis M9 + M10, puis M11 + M6, puis M12, puis M13. <strong>État au 2026-10-15 :</strong> les vagues 0 à 4 sont terminées (M0 → M5, M7 → M10) ; la prochaine est M11 + M6.</p>
+<p class="muted">16 jalons (M6b et M14 ajoutés le 15, décision 87). M0 + M1 posent les preuves techniques et le squelette ; la v1 = M2 → M13. Chaque jalon reçoit son plan détaillé (tâches, modèles, estimation) avant de démarrer, validé par toi. Depuis M5, deux jalons tournent à la fois, dans l'ordre choisi par la décision 75 : M8 + M7, puis M9 + M10, puis M11 + M6, puis M12, puis M13. <strong>État au 2026-10-15 :</strong> les vagues 0 à 4 sont terminées (M0 → M5, M7 → M10) ; la prochaine est M11 + M6.</p>
 
 <div class="strip">
   <div class="stat ok"><div class="label">Terminés</div><div class="big">10</div><div class="muted">M0 → M5 · M7 → M10, mergés</div></div>
   <div class="stat agent"><div class="label">En cours</div><div class="big">0</div><div class="muted">accueil projet mergé le 15</div></div>
-  <div class="stat"><div class="label">À venir</div><div class="big">4</div><div class="muted">M11 · M6 · M12 · M13</div></div>
+  <div class="stat"><div class="label">À venir</div><div class="big">6</div><div class="muted">M11 · M6 · M12 · M6b · M13 · M14</div></div>
   <div class="stat attn"><div class="label">Décisions à prendre</div><div class="big">4</div><div class="muted">voir plus bas</div></div>
 </div>
 
@@ -177,21 +177,23 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
   </div>
   <div class="wave"><div class="label">Vague 5 · prochaine</div>
     <a class="node" href="#m11"><div class="id">M11</div><div class="t">Agents long terme, mémoire</div><div class="dep">← M7 M9 M10</div></a>
-    <a class="node" href="#m6"><div class="id">M6</div><div class="t">Install, update, release</div><div class="dep">← M5</div></a>
+    <a class="node" href="#m6"><div class="id">M6</div><div class="t">Install KISS (2 méthodes)</div><div class="dep">← M5</div></a>
   </div>
   <div class="wave"><div class="label">Vague 6</div>
     <a class="node" href="#m12"><div class="id">M12</div><div class="t">Notifications &amp; PWA</div><div class="dep">← M3 M10 M11</div></a>
+    <a class="node" href="#m6b"><div class="id">M6b</div><div class="t">Update, backup, release</div><div class="dep">← M6</div></a>
   </div>
   <div class="wave"><div class="label">Vague 7</div>
-    <a class="node" href="#m13"><div class="id">M13</div><div class="t">Durcissement v1 &amp; bascule</div><div class="dep">← M2 … M12</div></a>
+    <a class="node" href="#m13"><div class="id">M13</div><div class="t">Durcissement v1 &amp; bascule</div><div class="dep">← M2 … M12, M6b</div></a>
+    <a class="node" href="#m14"><div class="id">M14</div><div class="t">Intégration GitHub</div><div class="dep">← M9 M11</div></a>
   </div>
 </div>
 
 <h2>Décisions qui t'attendent</h2>
 <div class="decisions">
   <div class="decision"><div class="label">vague 5 · maintenant</div><h3>Lancer M11 + M6</h3><p>Toutes leurs dépendances sont mergées (M7, M9, M10 pour M11 ; M5 pour M6). Prochaine étape : brief de planification commun, page de questions, puis les deux plans avec leur tableau de modèles, à valider avant l'exécution.</p></div>
-  <div class="decision"><div class="label">M6 · R52b</div><h3>Sandbox podman rootless</h3><p>Le spike S8 impose <span class="mono">--security-opt systempaths=unconfined</span> ; compromis à trancher avant l'image OCI de M6. Il passera sur la page de questions de M6.</p></div>
-  <div class="decision"><div class="label">décision 84 · après M11</div><h3>Intégration GitHub</h3><p>Clone et fork d'un dépôt distant, plus d'aide GitHub, un token GitHub par utilisateur à la place du login <span class="mono">gh</span>. Proposé, pas planifié : il faut un ADR (stockage chiffré par utilisateur sur les secrets de M11, scopes, jamais dans les scripts ni l'agent, révocation, GitHub App ou tokens).</p></div>
+  <div class="decision"><div class="label">M6 · page de questions</div><h3>Les deux méthodes d'installation de M6</h3><p>M6 reste ultra-simple (décision 87) : deux méthodes seulement, à choisir sur la page de questions de M11 + M6. Le reste (image OCI, npm, mise à jour avec rollback, canaux, backup / restore, release) passe en M6b, toujours dans la v1. R52b (podman rootless, <span class="mono">systempaths=unconfined</span>) suit l'image OCI : M6b, ou M6 si tu choisis une méthode OCI.</p></div>
+  <div class="decision"><div class="label">M14 · après M11</div><h3>Intégration GitHub</h3><p>Clone et fork d'un dépôt distant, plus d'aide GitHub, un token GitHub par utilisateur à la place du login <span class="mono">gh</span>. Proposé, pas planifié : il faut un ADR (stockage chiffré par utilisateur sur les secrets de M11, scopes, jamais dans les scripts ni l'agent, révocation, GitHub App ou tokens).</p></div>
   <div class="decision"><div class="label">toi · sécurité</div><h3>Faire tourner le token ngrok</h3><p>Le token a circulé dans la conversation. ngrok est coupé depuis le 15, mais le token reste valide tant qu'il n'est pas régénéré sur le tableau de bord ngrok.</p></div>
 </div>
 
@@ -251,11 +253,11 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <dt>Durée réelle</dt><dd class="est">≈ 15 h d'exécution, puis rebase sur M4 et revue finale</dd>
 </dl></article>
 
-<article class="card" id="m6"><header><span class="id">M6</span><h3>Installation, mise à jour, release</h3><span class="badge">prochaine vague</span></header>
+<article class="card" id="m6"><header><span class="id">M6</span><h3>Installation (KISS)</h3><span class="badge">prochaine vague</span></header>
 <dl>
-<dt>Domaines</dt><dd>Archive autonome + <span class="mono">curl | sh</span>, image OCI avec bubblewrap, canal npm, <span class="mono">pap service install</span>, <span class="mono">pap doctor</span>, backup / restore, mise à jour avec rollback automatique, canaux stable / next. Signature (cosign), SBOM et provenance SLSA passent après la v1 (décision 75).</dd>
+<dt>Domaines</dt><dd>Ultra-simple pour l'instant (décision 87) : <strong>deux méthodes d'installation</strong>, choisies sur la page de questions, chacune pose le service utilisateur et affiche l'URL de setup. Le reste de D21 passe en M6b.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M5</span> <span class="chip">S8</span></dd>
-<dt>Sortie</dt><dd>Installation en une étape sur chaque canal ; une mise à jour ratée revient en arrière seule.</dd>
+<dt>Sortie</dt><dd>Critère de succès 3 de la spec A sur les deux méthodes : installation en une étape, écoute sur localhost, URL de setup, passkey.</dd>
 <dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
 </dl></article>
 
@@ -307,11 +309,27 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
 </dl></article>
 
+<article class="card" id="m6b"><header><span class="id">M6b</span><h3>Mise à jour, backup et release</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Le reste de D21, toujours dans la v1 : image OCI avec bubblewrap (R52b), canal npm, <span class="mono">pap doctor</span>, backup / restore, mise à jour avec rollback automatique, release-please, canaux stable / next. Signature (cosign), SBOM et provenance SLSA restent après la v1 (décision 75).</dd>
+<dt>Dépend de</dt><dd><span class="chip">M6</span></dd>
+<dt>Sortie</dt><dd>Une mise à jour ratée revient en arrière seule ; backup / restore fait l'aller-retour.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
 <article class="card" id="m13"><header><span class="id">M13</span><h3>Durcissement v1 et bascule</h3><span class="badge">à venir</span></header>
 <dl>
 <dt>Domaines</dt><dd>~15 parcours e2e de la spec C §8.1, compat Pi nocturne au vert, budgets finaux (bundle, payload d'ouverture, RAM worker inactif), notes <span class="mono">docs/agents</span>, revue des ADR, bascule spec D, gel de pi-web.</dd>
-<dt>Dépend de</dt><dd><span class="chip">M2 … M12</span></dd>
+<dt>Dépend de</dt><dd><span class="chip">M2 … M12</span> <span class="chip">M6b</span></dd>
 <dt>Sortie</dt><dd>Critères de succès 1–4 de la spec A vérifiés ; tag v1.0.0 sur le canal stable.</dd>
+<dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
+</dl></article>
+
+<article class="card" id="m14"><header><span class="id">M14</span><h3>Intégration GitHub</h3><span class="badge">à venir</span></header>
+<dl>
+<dt>Domaines</dt><dd>Clone et fork d'un dépôt distant dans un nouveau projet, commentaires de revue de PR et logs de CI dans la lane, issues par projet, releases ; un token GitHub par utilisateur utilisé par pap à la place du login <span class="mono">gh</span> (pap deviendra multi-utilisateur). Demande un ADR qui revient en partie sur l'ADR 0036 : stockage chiffré par utilisateur, scopes, jamais dans les scripts ni l'agent, masquage, révocation, GitHub App ou tokens.</dd>
+<dt>Dépend de</dt><dd><span class="chip">M9</span> <span class="chip">M11</span></dd>
+<dt>Sortie</dt><dd>À définir dans son plan (décisions 84, 87).</dd>
 <dt>Estimation</dt><dd class="est muted">au moment du plan</dd>
 </dl></article>
 
@@ -326,9 +344,6 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <tr><td>Accueil projet : compositeur Session · Lane · Fan-out · Trigger, boutons d'action visibles (« demander, ne pas cacher »), ligne d'état, travail récent, « Ajouter un projet » (<span class="mono">projects.add</span>), Réglages › Apparence › Accueil, plus aucune action réservée à la palette ou à un raccourci (décisions 85, 86). Bundle initial 225,4 Ko (ta limite : 226 Ko)</td><td class="mono">b7f5820</td></tr>
 </tbody>
 </table>
-
-<h2>Proposé, pas planifié</h2>
-<p class="muted">Intégration GitHub (décision 84) : clone et fork d'un dépôt distant, commentaires de revue de PR et logs de CI dans la lane, issues par projet, et un token GitHub par utilisateur utilisé par pap à la place du login <span class="mono">gh</span>. Dépend de M9 (fait) et de M11 (secrets) ; demande un ADR qui revient en partie sur l'ADR 0036.</p>
 
 <h2>Couverture des domaines pi-web</h2>
 <table>
@@ -347,7 +362,7 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <tr><td>D18 UI d'extension</td><td class="mono">M1 (dialogues) · M2</td></tr>
 <tr><td>D19 Mobile / PWA</td><td class="mono">M3 (ergonomie) · M12</td></tr>
 <tr><td>D20 Settings &amp; design system</td><td class="mono">M3</td></tr>
-<tr><td>D21 Installation &amp; mise à jour</td><td class="mono">M6 (signature après la v1)</td></tr>
+<tr><td>D21 Installation &amp; mise à jour</td><td class="mono">M6 (installation) · M6b (mise à jour, backup, release ; signature après la v1)</td></tr>
 <tr><td>Lanes+ · Sessions+ · Security+</td><td class="mono">M9 · M4, M10 · M5, M10, M11</td></tr>
 <tr><td>Édition de fichiers (CodeMirror 6)</td><td class="mono">M8</td></tr>
 </tbody>
@@ -356,7 +371,7 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <h2>Après la v1</h2>
 <p class="muted">Signature des releases (cosign, SBOM, provenance SLSA), skills liés à chaque utilisateur, équipes et OIDC, proxy de sortie par agent, auto-update complet, canaux nightly / Homebrew / apt, plannings gérés par les agents (spec A §7).</p>
 
-<footer class="label">Sources · docs/plans/roadmap.md · docs/research/decisions-log.md (75, 77, 79, 80, 82–86) · docs/research/m0-m1-rulings.md → m10-rulings.md, project-home-rulings.md · DESIGN.md · mis à jour le 2026-10-15</footer>
+<footer class="label">Sources · docs/plans/roadmap.md · docs/research/decisions-log.md (75, 77, 79, 80, 82–87) · docs/research/m0-m1-rulings.md → m10-rulings.md, project-home-rulings.md · DESIGN.md · mis à jour le 2026-10-15</footer>
 </div>
 </body>
 </html>
