@@ -2122,8 +2122,8 @@ describe("splitLaunchText", () => {
       rest: "Steps:\n1. open",
     });
     expect(splitLaunchText("\n \n  Fix the login  \r\nwhy\r\n")).toEqual({ first: "Fix the login", rest: "why" });
-    expect(splitLaunchText("​‮\nReal title\nbody")).toEqual({ first: "Real title", rest: "body" });
-    expect(splitLaunchText("Fix‮ the​ login\tnow")).toEqual({ first: "Fix the login now", rest: "" });
+    expect(splitLaunchText("\u200b\u202e\nReal title\nbody")).toEqual({ first: "Real title", rest: "body" });
+    expect(splitLaunchText("Fix\u202e the\u200b login\tnow")).toEqual({ first: "Fix the login now", rest: "" });
     expect(splitLaunchText("   \n\t")).toEqual({ first: "", rest: "" });
   });
 });
@@ -2159,7 +2159,7 @@ describe("laneLaunch (§3.1 Lane and Fan-out)", () => {
   });
 
   it("hands the dialog a title its schema accepts, whatever the first line holds (Review Focus 2)", () => {
-    for (const text of ["😀".repeat(150), `${"x".repeat(500)}\nbody`, "‮​Fix\u0007 it\nbody", "\r\n\r\nFix\r\nbody"]) {
+    for (const text of ["😀".repeat(150), `${"x".repeat(500)}\nbody`, "\u202e\u200bFix\u0007 it\nbody", "\r\n\r\nFix\r\nbody"]) {
       const { title } = laneLaunch(text, "/w", false);
       expect(LaneTitle.safeParse(title).success, JSON.stringify(text)).toBe(true);
       expect([...title].length).toBeLessThanOrEqual(LANE_LIMITS.title);
@@ -2177,7 +2177,7 @@ describe("triggerLaunch (§3.1 Trigger)", () => {
   });
 
   it("hands the editor a name its schema accepts (Review Focus 2)", () => {
-    for (const text of ["😀".repeat(100), "‮Name​\nx", "y".repeat(500)]) {
+    for (const text of ["😀".repeat(100), "\u202eName\u200b\nx", "y".repeat(500)]) {
       const { name } = triggerLaunch(text);
       expect(TriggerName.safeParse(name).success, JSON.stringify(text)).toBe(true);
       expect([...name].length).toBeLessThanOrEqual(AUTOMATION_LIMITS.nameChars);
