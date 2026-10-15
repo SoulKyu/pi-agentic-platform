@@ -86,7 +86,7 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 ## M13 — v1 hardening and cutover
 - Scope: the ~15 e2e journeys of C §8.1, nightly Pi-compat green, final budgets (bundle, session-open payload, idle worker RAM), `docs/agents/*` notes and a ≤ 150-line AGENTS.md, ADR review, spec D cutover (warning when a session file changes outside its worker), pi-web freeze.
 - Depends on: M2–M12, M6b.
-- Exit: spec A success criteria 1–4 verified; v1.0.0 tagged on the stable channel.
+- Exit: spec A success criteria 1–4 verified; v1.0.0 tagged on the stable channel; the GitHub repository becomes public (owner, decision 87).
 
 ## M14 — GitHub integration (owner, 2026-10-15; M14 by decision 87)
 - **Asked:**
