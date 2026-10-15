@@ -2,6 +2,24 @@
 
 M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-spikes-skeleton.md](2026-10-10-m0-m1-spikes-skeleton.md). Each milestone below gets its own detailed plan before work starts. Order follows dependencies; milestones on separate lines of the graph can run in parallel. v1 = M2 to M13. Order after M5 (decision 75): two milestones in flight at a time, M8 + M7, then M9 + M10, then M11 + M6, then M12, then M13; M8 opens the critical path M8 → M9 → M11 → M12 → M13. Specs: [A](../specs/2026-10-10-A-product-scope.md), [C](../specs/2026-10-10-C-architecture.md), [D](../specs/2026-10-10-D-clean-start.md); decisions 1–30 in [decisions-log](../research/decisions-log.md).
 
+## Status (2026-10-15)
+
+| Milestone | State | Merge | Decision |
+|---|---|---|---|
+| M0 + M1 | done | — | 38 |
+| M2, M3 | done | b718f9c, a2b214f | 51 |
+| M4, M5 | done | ee8f41f, 011ac22 | 70 |
+| M8 | done | df12aed | 77 |
+| M7 | done | 53f63c4 | 79 |
+| M9 | done | 0b5fd75 | 82 |
+| M10 | done | 30dff83 | 83 |
+| M11 + M6 | next wave (decision 75): planning brief, owner question page, then the two plans | — | — |
+| M12, then M13 | to come | — | — |
+
+Off-milestone work merged: design polish 1 and 2 (94e1071, 3d3035a; decision 80), the M9 + M10 follow-ups (2b4ed46, 04d4871 and two flaky-test fixes) and the project home (b7f5820; decisions 85 and 86: every action visible without a shortcut, `projects.add`, Settings › Appearance › Home; owner bundle limit 226 KB for that feature).
+
+Open before M6: R52b, the rootless podman trade-off (`--security-opt systempaths=unconfined`, spike S8). Proposed and unscheduled: the GitHub integration below (decision 84). Owner action: rotate the ngrok authtoken.
+
 ## M2 — Sessions core and extension UI
 - Goal: the full Pi session experience on the worker model.
 - Domains: D01 (steer / follow-up with the 128-message / 32 MiB queue cap, `navigate_tree`, fork / clone, compaction, HTML export, auto-name, history paging, tool output on demand, 50 ms delta coalescing, recent notices in the snapshot so that start-up notices (the events a new session's worker raised before `ready`) reach a cursor-less subscriber, drafts, minimap), D18 (all dialogs incl. session/always answers, status bar with `command:` buttons, widgets, `ctx.ui.custom()` panels over `custom_render` / `custom_input` as proven by S1). Worker idle release after 30 min; systemd scopes (`MemoryHigh` / `MemoryMax` / `TasksMax`).
