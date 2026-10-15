@@ -64,6 +64,27 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 - Depends on: M2–M12.
 - Exit: spec A success criteria 1–4 verified; v1.0.0 tagged on the stable channel.
 
+## Proposed, not yet scheduled — GitHub integration (owner, 2026-10-15)
+- **Asked:**
+  - clone (pull) a remote GitHub repository into a new pap project to work on it;
+  - fork a remote GitHub repository and work on the fork;
+  - more GitHub integrations that help improve code. Candidates to rank later:
+    - PR review comments pulled into the lane review;
+    - CI check logs on a failed check;
+    - issue lists per project;
+    - releases.
+- **Per-user GitHub token.** Each user configures a GitHub token that pap uses for these actions instead of the `gh` CLI's own login, because pap will become multi-user. Today one daemon-wide `gh` login is shared by every user.
+- **Constraints to settle in its plan:**
+  - It reverses part of ADR 0036 (forges through their CLIs, gh's own login, no token in pap). It needs a new ADR, covering:
+    - token storage per user, encrypted at rest, building on M11's `secret.request` and secrets work;
+    - fine-grained token scopes;
+    - the token is never passed to lane scripts or the agent (the unattended environment stays token-free);
+    - redaction in logs and the audit;
+    - revocation;
+    - whether a GitHub App fits better than personal tokens once users are many.
+  - The remote clone and fork paths reuse M9's push profile and target rules, the host binding and the repository-config scans.
+- **Depends on:** M9 (forge port), M11 (secrets). It pairs with the after-v1 multi-user work (teams and OIDC).
+
 ## Coverage
 
 | Domain / addition | Milestone |
