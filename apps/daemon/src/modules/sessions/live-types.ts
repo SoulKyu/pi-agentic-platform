@@ -37,6 +37,8 @@ export interface LiveSessionDeps {
   onName(name: string | null): void;
   /** Idle minutes after which the worker is released (spec C 2.1); 0 or less turns it off. */
   readonly idleMs: number;
+  /** A prompt of this session waits for the lanes side (a capture or a restore): the worker is not idle, whatever its status says. */
+  held?(): boolean;
   /** After `onExit`: the exit and the end of what the worker printed (the supervisor keeps 8 KiB), unclipped. */
   onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
   /** The worker's policy extension refused a `policy_update`: it blocks every call from then on (M5R11). */

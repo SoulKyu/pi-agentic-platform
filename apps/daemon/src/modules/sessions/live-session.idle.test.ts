@@ -74,6 +74,16 @@ describe("idle release (spec C 2.1)", () => {
     expect(worker.stopped()).toBe(false);
   });
 
+  it("never releases while a prompt waits in the lane hooks (M3)", async () => {
+    const waiting = { value: true };
+    const { clock, worker } = setup({ idleMs: 1000, held: () => waiting.value });
+    await clock.advance(5000);
+    expect(worker.stopped()).toBe(false);
+    waiting.value = false;
+    await clock.advance(1000);
+    expect(worker.stopped()).toBe(true);
+  });
+
   it("never releases with a panel open or a command in flight", async () => {
     const panel = setup({ idleMs: 1000 });
     panel.worker.emit({ type: "custom_render", id: "p1", lines: ["x"] });

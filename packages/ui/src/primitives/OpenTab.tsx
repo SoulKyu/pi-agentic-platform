@@ -11,7 +11,12 @@ const TAB_STATE = {
 } as const;
 /** Longest title a tab shows whole at the default density; a longer one is truncated and gets a tooltip. */
 const FULL_TITLE_MAX = 24;
-const STATUS_TONES = { running: "bg-agent-fill", waiting: "bg-attn-fill" } as const;
+const STATUS_TONES = {
+  running: "bg-agent-fill",
+  waiting: "bg-attn-fill",
+  done: "bg-ok",
+  review: "bg-you-fill",
+} as const;
 
 export interface OpenTabProps {
   readonly tabId: string;
@@ -19,6 +24,8 @@ export interface OpenTabProps {
   readonly title: string;
   readonly active: boolean;
   readonly status?: keyof typeof STATUS_TONES | null;
+  /** The status as a word for screen readers: the dot is colour only. */
+  readonly statusLabel?: string;
   readonly closeLabel: string;
   onSelect(): void;
   onClose(): void;
@@ -32,6 +39,7 @@ export function OpenTab({
   title,
   active,
   status,
+  statusLabel,
   closeLabel,
   onSelect,
   onClose,
@@ -57,6 +65,12 @@ export function OpenTab({
         <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", STATUS_TONES[statusTone])} />
       ) : null}
       <span className="truncate">{title}</span>
+      {statusTone && statusLabel ? (
+        <>
+          {" "}
+          <span className="sr-only">{statusLabel}</span>
+        </>
+      ) : null}
     </button>
   );
   return (

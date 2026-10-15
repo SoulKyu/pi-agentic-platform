@@ -26,6 +26,7 @@ import {
 import "./composer/register-files-catalog.ts";
 import type { Attachments } from "./composer/use-attachments.ts";
 import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
+import { usePrefillInto } from "../../stores/composer-prefill.ts";
 
 /** Text put in the composer from outside the stream ("Edit from here"); `n` rises with each one. */
 export interface Injected {
@@ -103,6 +104,7 @@ export function useComposer(
     if (cleared.truncated) setNote("truncated");
   };
 
+  usePrefillInto(sessionId, textRef, commit);
   useEffect(() => {
     pendingRef.current = pending;
   }, [pending]);

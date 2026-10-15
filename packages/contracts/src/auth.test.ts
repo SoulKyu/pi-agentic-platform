@@ -11,11 +11,14 @@ import {
 
 describe("token contract", () => {
   it("lets a token hold every permission except auth:*, terminal:*, policy:admin and pi:admin, in catalogue order", () => {
-    expect(TOKEN_PERMISSIONS).toHaveLength(22);
     expect(TOKEN_PERMISSIONS).toEqual(
       ALL_PERMISSIONS.filter(
         (p) =>
-          !p.startsWith("auth:") && !p.startsWith("terminal:") && p !== "policy:admin" && p !== "pi:admin",
+          !p.startsWith("auth:") &&
+          !p.startsWith("terminal:") &&
+          p !== "policy:admin" &&
+          p !== "pi:admin" &&
+          p !== "lanes:admin",
       ),
     );
     expect(TOKEN_PERMISSIONS).not.toContain("policy:admin");

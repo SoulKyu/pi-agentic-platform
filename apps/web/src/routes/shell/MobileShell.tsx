@@ -12,6 +12,7 @@ import {
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { useCommand } from "../../lib/use-command.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
+import { loadArchivedLanes } from "./archived-lanes.ts";
 import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { itemTitle } from "./item-title.ts";
@@ -22,6 +23,7 @@ import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
 import { SurfaceSwitch, type SwitchChoice } from "./SurfaceSwitch.tsx";
 import { useSurfaceView, viewOf, type SurfaceView } from "./surface-view.ts";
 import { usePaletteChord } from "./shortcut.ts";
+import { useLaneStore } from "../../stores/lane-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
@@ -51,6 +53,7 @@ export function MobileShell() {
   const tab = useWorkspaceStore((state) => activeTab(state.ws));
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
+  const lanes = useLaneStore((state) => state.view);
   const view = useSurfaceView((state) => (tab ? viewOf(state, tab.key) : "chat"));
   const [section, setSection] = useState<MobileSection>("work");
   const [seenPath, setSeenPath] = useState(pathname);
@@ -70,7 +73,7 @@ export function MobileShell() {
   // The home's "All sessions" on a phone: the Lists section, where the tree lives.
   useCommand("mobile.lists.open", () => setSection("lists"));
   const item = itemFromPath(pathname, import.meta.env.DEV);
-  const title = item ? itemTitle(item, sessions, views, t) : t("shell.notFound.title");
+  const title = item ? itemTitle(item, sessions, views, t, lanes) : t("shell.notFound.title");
   return (
     <div data-shell="mobile" className="flex h-app flex-col">
       <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
@@ -96,7 +99,12 @@ export function MobileShell() {
             text={lazyText}
             load={loadTree}
             open={section === "lists"}
-            props={{ onPick: () => setSection("work"), onNewSession: () => setSection("work"), chord }}
+            props={{
+              onPick: () => setSection("work"),
+              onNewSession: () => setSection("work"),
+              chord,
+              loadArchivedLanes,
+            }}
             onFailed={() => setSection("work")}
           />
         ) : section === "inbox" ? (

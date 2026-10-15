@@ -5,6 +5,7 @@ import { createHelperPool, type HelperPool } from "./kernel/helper/pool.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import { createPiWriteQueue } from "./kernel/pi-write-queue.ts";
+import { withLaneRoots } from "./lane-covers.ts";
 import { createMcpModule, type McpModule } from "./modules/mcp/index.ts";
 import { createModelsModule, type ModelsModule, sweepValidationCopies } from "./modules/models/index.ts";
 import { createSkillsModule, type SkillsModule } from "./modules/skills/index.ts";
@@ -31,8 +32,12 @@ export interface ComposePiDeps {
 export interface ComposedPi {
   /** Every Pi method this milestone adds; each later task adds its module's table here (with `&`), never in `daemon.ts`. */
   readonly rpc: ModelsModule["rpc"] & McpModule["rpc"] & TrustModule["rpc"] & SkillsModule["rpc"];
+  /** What lanes ask of trust: a worktree inherits its project's decision (M9R39). */
+  readonly trust: TrustModule["port"];
   /** The pool every Pi module runs its configuration work in (ADR 0023): for the modules composed here and for tests. */
   readonly helpers: HelperPool;
+  /** The Pi modules answer for the owner's non-archived lane folders as for a project root (final review I1); bound by `lanes.bind`. */
+  useLaneRoots(roots: (ownerId: string) => readonly string[]): void;
   /** The helpers' kill ladders, at most 5 s: the daemon runs it together with `sessions.shutdownAll()`. */
   stopAll(): Promise<void>;
 }
@@ -44,6 +49,9 @@ export interface ComposedPi {
  */
 export function composePi(deps: ComposePiDeps): ComposedPi {
   const { config } = deps;
+  // Bound by `lanes.bind`, after both exist: until then nothing lane-related is covered, which fails closed.
+  let laneRoots: (ownerId: string) => readonly string[] = () => [];
+  const projects = withLaneRoots(deps.projects.port, (owner) => laneRoots(owner));
   const helpers = createHelperPool({
     entry: join(dirname(config.piHostEntry), "helper", `main${extname(config.piHostEntry)}`),
     execArgv: config.piHostExecArgv,
@@ -61,7 +69,7 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
   const writes = createPiWriteQueue();
   const models = createModelsModule({
     helpers,
-    projects: deps.projects.port,
+    projects,
     logger: deps.logger,
     clock: deps.clock,
     audit: deps.audit.port,
@@ -71,14 +79,14 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
   });
   const mcp = createMcpModule({
     helpers,
-    projects: deps.projects.port,
+    projects,
     logger: deps.logger,
     clock: deps.clock,
     writes,
   });
   const trust = createTrustModule({
     helpers,
-    projects: deps.projects.port,
+    projects,
     sessions: deps.sessions,
     audit: deps.audit.port,
     logger: deps.logger,
@@ -86,14 +94,16 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
   });
   const skills = createSkillsModule({
     helpers,
-    projects: deps.projects.port,
+    projects,
     logger: deps.logger,
     clock: deps.clock,
     writes,
   });
   return {
     rpc: { ...models.rpc, ...mcp.rpc, ...trust.rpc, ...skills.rpc },
+    trust: trust.port,
     helpers,
+    useLaneRoots: (roots) => void (laneRoots = roots),
     stopAll: () => helpers.stopAll(),
   };
 }

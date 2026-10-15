@@ -150,15 +150,16 @@ describe("AppShell", () => {
     await page.unmount();
   });
 
-  it("subscribes to the shell stream once while mounted and never lists sessions", async () => {
+  it("subscribes to the shell and lane streams once while mounted and never lists sessions", async () => {
     const page = await renderShell("/");
     await act(async () => bed.fake.setState("open"));
     await settle();
     expect(bed.called("subscribe.shell")).toHaveLength(1);
+    expect(bed.called("subscribe.lane")).toHaveLength(1);
     expect(bed.called("sessions.list")).toEqual([]);
     await page.unmount();
     await settle();
-    expect(bed.called("unsubscribe")).toHaveLength(1);
+    expect(bed.called("unsubscribe")).toHaveLength(2);
   });
 
   it("a refused shell subscription sets the store's failed and reports shell_feed_failed once", async () => {

@@ -12,8 +12,19 @@ import { LFS_ENTRIES } from "@pap/contracts";
 import { FILTER_SCAN_ARGS, gitEnv } from "./exec.ts";
 import { GitError, type GitRunner } from "./runner.ts";
 
-/** Subcommands that compare working-tree files and so run clean filters. */
-export const FILTERING_SUBCOMMANDS: ReadonlySet<string> = new Set(["status", "diff"]);
+/** Subcommands that compare, hash or check out working-tree files and so run clean or smudge filters. */
+export const FILTERING_SUBCOMMANDS: ReadonlySet<string> = new Set([
+  "status",
+  "diff",
+  // M9R13: they hash or check out working-tree files, so a repository's own clean or smudge filter would run.
+  "add",
+  "commit",
+  "restore",
+  "reset",
+  "worktree",
+  // Writing the index re-hashes a racily clean entry through its clean filter (reproduced on git 2.53, Task 11).
+  "write-tree",
+]);
 
 const OWNERS_OWN_SCOPES: ReadonlySet<string> = new Set(["system", "global"]);
 const PROGRAM_KEY = /^filter\.(.*)\.(clean|smudge|process)$/;
@@ -121,6 +132,8 @@ export function guardFilters(raw: GitRunner, options: GuardOptions = {}): GitRun
       const scan = await raw.run(root, FILTER_SCAN_ARGS, {
         okCodes: [0, 1],
         timeoutMs: runOptions.timeoutMs ?? 10_000,
+        // MC1 I4: the scan reads the config of the git dir the call will use, not the one a `.git` file names.
+        ...(runOptions.gitDir === undefined ? {} : { gitDir: runOptions.gitDir }),
       });
       const drivers = driversToDisable(scan.stdout);
       if (drivers === null) throw new GitError("failed");

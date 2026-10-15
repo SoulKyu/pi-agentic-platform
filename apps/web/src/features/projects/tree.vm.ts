@@ -1,5 +1,13 @@
-import { isSnoozed, type ProjectSummary, type ShellSession } from "@pap/contracts";
+import {
+  isSnoozed,
+  type LaneStatus,
+  type LaneView,
+  type ProjectSummary,
+  type ShellSession,
+} from "@pap/contracts";
+import { inLane, laneStatusOf } from "../../lib/lane-sessions.ts";
 import { sessionLabel } from "../../lib/session-label.ts";
+import { isLiveLane } from "../../stores/lane-reducer.ts";
 
 export const ROWS_PER_PROJECT = 20;
 export const SHELF_ROWS = 50;
@@ -10,6 +18,13 @@ export const clampShown = (count: number | undefined): number =>
     ? ROWS_PER_PROJECT
     : Math.max(ROWS_PER_PROJECT, Math.floor(count));
 
+/** A lane under its project: its status, and the sessions that run in its worktree (the active ones, M9R61). */
+export interface TreeLane {
+  readonly lane: LaneView;
+  readonly status: LaneStatus;
+  readonly sessions: readonly ShellSession[];
+}
+
 export interface TreeGroup {
   /** null: sessions without a project, or of a project the store does not know ("Other folders"); at most one such group. */
   readonly project: ProjectSummary | null;
@@ -18,6 +33,8 @@ export interface TreeGroup {
   readonly hidden: number;
   /** The project's active sessions the browser does not show here ("search with ⌘K"); 0 while filtering. */
   readonly older: number;
+  /** The project's lanes that are not archived, newest first; empty while the lane store is. */
+  readonly lanes: readonly TreeLane[];
 }
 
 export interface TreeModel {
@@ -27,6 +44,8 @@ export interface TreeModel {
   readonly snoozedMore: number;
   readonly settled: readonly ShellSession[];
   readonly settledMore: number;
+  /** The count of the "Archived lanes" entry that ends the tree; 0 hides it. */
+  readonly archivedLanes: number;
   readonly empty: boolean;
 }
 
@@ -39,6 +58,8 @@ export interface TreeInput {
   /** Rows shown per project id ("" for the group without a project). */
   readonly shown: ReadonlyMap<string, number>;
   readonly now: number;
+  /** The owner's lanes (the `lane` stream) and how many are archived. */
+  readonly lanes?: { readonly items: Iterable<LaneView>; readonly archived: number };
 }
 
 const normalize = (text: string): string => text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();
@@ -57,12 +78,17 @@ export function buildTree(input: TreeInput): TreeModel {
   // One group key per project id, and one for everything else: group keys (and React keys) cannot repeat.
   const groupKey = (projectId: string | null): string | null =>
     projectId !== null && input.projects.has(projectId) ? projectId : null;
+  const allSessions = [...input.sessions];
+  const liveLanes = [...(input.lanes?.items ?? [])].filter(isLiveLane);
+  const laneOf = (session: ShellSession): LaneView | undefined =>
+    liveLanes.find((lane) => inLane(lane, session.cwd));
+  const laneSessionLists = new Map<string, ShellSession[]>();
   const pinned: ShellSession[] = [];
   const snoozed: ShellSession[] = [];
   const settled: ShellSession[] = [];
   const active = new Map<string | null, ShellSession[]>();
   const held = new Map<string | null, number>();
-  for (const session of input.sessions) {
+  for (const session of allSessions) {
     if (session.archivedAt !== null) continue;
     held.set(session.projectId, (held.get(session.projectId) ?? 0) + 1);
     if (!matches(session)) continue;
@@ -74,7 +100,11 @@ export function buildTree(input: TreeInput): TreeModel {
     if (!inScope(session.projectId)) continue;
     if (asleep) snoozed.push(session);
     else if (session.settledAt !== null) settled.push(session);
-    else {
+    else if (laneOf(session)) {
+      // A lane's session shows under its lane row, never loose under the project.
+      const own = laneOf(session) as LaneView;
+      laneSessionLists.set(own.id, [...(laneSessionLists.get(own.id) ?? []), session]);
+    } else {
       const key = groupKey(session.projectId);
       const list = active.get(key);
       if (list === undefined) active.set(key, [session]);
@@ -86,6 +116,23 @@ export function buildTree(input: TreeInput): TreeModel {
   settled.sort((a, b) => (b.settledAt ?? 0) - (a.settledAt ?? 0) || (a.id < b.id ? -1 : 1));
   const olderOf = (project: ProjectSummary): number =>
     needle === "" ? Math.max(0, project.sessions - (held.get(project.id) ?? 0)) : 0;
+  const projectKeyOfLane = (lane: LaneView): string | null => {
+    for (const project of input.projects.values())
+      if (project.root === lane.projectRoot) return groupKey(project.id);
+    return null;
+  };
+  const laneRows = new Map<string | null, TreeLane[]>();
+  for (const lane of liveLanes) {
+    const key = projectKeyOfLane(lane);
+    if (!inScope(key)) continue;
+    const own = (laneSessionLists.get(lane.id) ?? []).toSorted(newest);
+    const text = normalize(`${lane.title} ${lane.branch}`);
+    if (needle !== "" && own.length === 0 && !text.includes(needle)) continue;
+    const row: TreeLane = { lane, status: laneStatusOf(lane, allSessions), sessions: own };
+    laneRows.set(key, [...(laneRows.get(key) ?? []), row]);
+  }
+  for (const rows of laneRows.values())
+    rows.sort((a, b) => b.lane.createdAt - a.lane.createdAt || (a.lane.id < b.lane.id ? -1 : 1));
   const groups = [...active].map(([key, list]): TreeGroup => {
     const sorted = list.toSorted(newest);
     const cap = clampShown(input.shown.get(key ?? ""));
@@ -95,6 +142,7 @@ export function buildTree(input: TreeInput): TreeModel {
       sessions: sorted.slice(0, cap),
       hidden: Math.max(0, sorted.length - cap),
       older: project ? olderOf(project) : 0,
+      lanes: laneRows.get(key) ?? [],
     };
   });
   // Projects with active sessions the browser shows no row of: a heading and their "older" line (M4R91, RT-09).
@@ -102,8 +150,20 @@ export function buildTree(input: TreeInput): TreeModel {
     for (const project of input.projects.values()) {
       if (active.has(project.id) || !inScope(project.id)) continue;
       const older = olderOf(project);
-      if (older > 0) groups.push({ project, sessions: [], hidden: 0, older });
+      if (older > 0)
+        groups.push({ project, sessions: [], hidden: 0, older, lanes: laneRows.get(project.id) ?? [] });
     }
+  }
+  // Projects (and the "other folders" group) that have lanes and no loose session still get their heading.
+  for (const [key, rows] of laneRows) {
+    if (groups.some((group) => (group.project?.id ?? null) === key)) continue;
+    groups.push({
+      project: key === null ? null : (input.projects.get(key) ?? null),
+      sessions: [],
+      hidden: 0,
+      older: 0,
+      lanes: rows,
+    });
   }
   groups.sort((a, b) => {
     if (a.project === null || b.project === null) return a.project === null ? 1 : -1;
@@ -120,6 +180,12 @@ export function buildTree(input: TreeInput): TreeModel {
     snoozedMore: Math.max(0, snoozed.length - SHELF_ROWS),
     settled: settled.slice(0, SHELF_ROWS),
     settledMore: Math.max(0, settled.length - SHELF_ROWS),
-    empty: pinned.length === 0 && groups.length === 0 && snoozed.length === 0 && settled.length === 0,
+    archivedLanes: input.lanes?.archived ?? 0,
+    empty:
+      pinned.length === 0 &&
+      groups.length === 0 &&
+      snoozed.length === 0 &&
+      settled.length === 0 &&
+      laneRows.size === 0,
   };
 }

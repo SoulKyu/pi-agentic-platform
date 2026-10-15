@@ -32,6 +32,8 @@ export function createPolicyModule(deps: {
   readonly audit: AuditPort;
   /** Who owns a session. The sessions module is built after this one, so the composition binds it late (M5R56). */
   sessionOwner(sessionId: string): string | null;
+  /** Late-bound like `sessionOwner`: a lane's folder answers its project's scope; null keeps M5's answer (M9R35). */
+  scopeAlias?(cwd: string): string | null;
 }): PolicyModule {
   const logger = deps.logger.child({ module: "policy" });
   const service = createPolicyService({
@@ -40,6 +42,7 @@ export function createPolicyModule(deps: {
     logger,
     newId: deps.newId,
     audit: deps.audit,
+    ...(deps.scopeAlias ? { scopeAlias: deps.scopeAlias } : {}),
   });
   const sessionPolicy = createSessionPolicyService({
     sessions: createSessionPolicyStore(deps.db),

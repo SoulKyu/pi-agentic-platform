@@ -17,7 +17,9 @@ export type ItemRef =
   | { readonly kind: "dev-ui" }
   | { readonly kind: "files"; readonly root: string }
   | { readonly kind: "changes"; readonly root: string }
-  | { readonly kind: "terminal"; readonly id: string };
+  | { readonly kind: "terminal"; readonly id: string }
+  | { readonly kind: "lane"; readonly id: string }
+  | { readonly kind: "compare"; readonly id: string };
 
 export interface Split {
   readonly item: ItemRef;
@@ -48,6 +50,10 @@ export function itemKey(item: ItemRef): string {
       return `${item.kind}:${item.root}`;
     case "terminal":
       return `terminal:${item.id}`;
+    case "lane":
+      return `lane:${item.id}`;
+    case "compare":
+      return `compare:${item.id}`;
     case "home":
     case "settings":
     case "dev-ui":

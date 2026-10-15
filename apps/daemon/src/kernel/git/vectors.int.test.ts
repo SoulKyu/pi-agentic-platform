@@ -295,7 +295,7 @@ describe("a program that leaves git's process group (M3)", () => {
     // setsid: its own session, so the group kill misses it; it keeps the inherited stderr pipe open.
     writeFileSync(
       script,
-      `#!/bin/sh\nsetsid sh -c 'echo $$ > "$0"; exec sleep 60' '${pidFile}' >/dev/null &\nwhile [ ! -s '${pidFile}' ]; do :; done\ncat\n`,
+      `#!/bin/sh\nsetsid sh -c 'echo $$ > "$0"; exec sleep 60' '${pidFile}' >/dev/null &\ni=0; while [ ! -s '${pidFile}' ] && [ "$i" -lt 500 ]; do sleep 0.01; i=$((i+1)); done\ncat\n`,
       {
         mode: 0o755,
       },
@@ -308,7 +308,8 @@ describe("a program that leaves git's process group (M3)", () => {
         code: 0,
       });
     } finally {
-      const pid = Number(readFileSync(pidFile, "utf8").trim());
+      // Bounded wait above (5 s): the pid file can be missing on a loaded machine; nothing to kill then.
+      const pid = existsSync(pidFile) ? Number(readFileSync(pidFile, "utf8").trim()) : 0;
       if (pid > 1) process.kill(pid, "SIGKILL");
     }
   });

@@ -22,6 +22,7 @@ const COMMAND_TIMEOUTS: Partial<Record<CommandInput["type"], number | undefined>
   compact: undefined,
   navigate_tree: undefined,
   auto_name: 120_000,
+  suggest_commit: 60_000,
   export_html: 120_000,
 };
 export const requestTimeoutMs = (command: CommandInput): number | undefined =>

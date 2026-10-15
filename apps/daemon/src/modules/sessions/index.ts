@@ -19,6 +19,8 @@ import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
+import { createLaneHooks, type LaneRunHooks } from "./lane-hooks.ts";
+import { createSessionsLanePort, laneInfoOf, type SessionsLanePort } from "./lane-port.ts";
 import { outsideToolResultsTaint } from "./outside-taint.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
 import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
@@ -31,6 +33,8 @@ import { loadTranscriptReader } from "./transcript.ts";
 export { createExports, type Exports } from "./exports.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
+export type { LaneRunHooks, LaneRunInfo } from "./lane-hooks.ts";
+export type { SessionsLanePort } from "./lane-port.ts";
 
 export const SESSIONS_MIGRATIONS: MigrationSource = {
   module: "sessions",
@@ -88,6 +92,12 @@ export interface SessionsModule {
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
   /** A trust decision applies at the next open (M7R105): releases the owner's workers in the folder or below. */
   restartFolder(ownerId: string, folder: string): number;
+  /** Stops the worker of the owner's quiet session (M9R113): `released`, `busy` (left alone) or `cold` (no worker). */
+  releaseIdle(ownerId: string, sessionId: string): "released" | "busy" | "cold";
+  /** The only way lanes touch sessions (M9R37). */
+  readonly lanes: SessionsLanePort;
+  /** The lanes module fills the hooks around a prompt and a run's end (M9R114). */
+  setLaneHooks(hooks: LaneRunHooks): void;
 }
 
 export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
@@ -109,7 +119,13 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
   const forkTmpDir = join(config.home, "fork-tmp");
   purgeForkTmp(forkTmpDir, logger);
   const store = createSessionsStore(deps.db);
+  const laneHooks = createLaneHooks({
+    clock: deps.clock,
+    logger,
+    infoOf: (sessionId) => laneInfoOf(store, service.laneProbe, sessionId),
+  });
   const service = createSessionsService({
+    laneHooks,
     store,
     exports,
     clock: deps.clock,
@@ -178,5 +194,15 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     ownerOf: (sessionId) => store.get(sessionId)?.ownerId ?? null,
     inspect: (sessionId) => service.inspect(sessionId),
     restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),
+    releaseIdle: (ownerId, sessionId) => service.releaseIdle(ownerId, sessionId),
+    lanes: createSessionsLanePort({
+      service,
+      store,
+      marks: store.marks,
+      probe: service.laneProbe,
+      waiting: laneHooks.waiting,
+      logger,
+    }),
+    setLaneHooks: laneHooks.set,
   };
 }

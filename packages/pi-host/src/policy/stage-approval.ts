@@ -43,7 +43,12 @@ async function reviewOf(
 ): Promise<{ review?: EditReview; protectedRead?: EditReview }> {
   const { category } = call.kind;
   if (category === "edit") {
-    const check = await checkEditTarget(inputPath(call.event.input), ctx.cwd, [deps.agentDir, deps.papHome]);
+    const check = await checkEditTarget(
+      inputPath(call.event.input),
+      ctx.cwd,
+      [deps.agentDir, deps.papHome],
+      deps.papHome,
+    );
     return check.auto ? {} : { review: check.review };
   }
   if (category !== "read" || !call.kind.builtin) return {};

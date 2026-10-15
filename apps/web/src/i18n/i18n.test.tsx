@@ -33,6 +33,8 @@ import {
 const IDENTICAL_IN_FR = new Set([
   "settings.theme.tag.a11y",
   "files.viewer.source",
+  "commands.palette.group.lanes",
+  "shell.tab.lane",
   "shell.surface.chat",
   "shell.surface.term",
   "shell.surface.terminal",

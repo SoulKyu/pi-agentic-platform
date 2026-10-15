@@ -15,6 +15,7 @@ import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { reportClientIssue } from "../../lib/report.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useTerminals } from "../../stores/terminal-store.ts";
+import { useLaneStore } from "../../stores/lane-store.ts";
 import { buildPaletteItems } from "./palette-items.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { go } from "./tab-actions.ts";
@@ -32,6 +33,7 @@ export function PaletteHost() {
   const tabs = useWorkspaceStore((state) => state.ws.tabs);
   const held = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
+  const laneView = useLaneStore((state) => state.view);
   const terminals = useTerminals();
 
   const items = useMemo(
@@ -47,6 +49,8 @@ export function PaletteHost() {
             // Archived sessions belong to the Archived shelf and to search; they take no palette slot.
             sessions: [...held.values()].filter((session) => session.archivedAt === null),
             views,
+            lanes: laneView,
+            laneFacts: held.values(),
             terminals,
             t,
             navigate: (item) => go(navigate, pathOfItem(item)),
@@ -59,7 +63,7 @@ export function PaletteHost() {
             },
           })
         : [],
-    [open, rules, tabs, held, views, terminals, t, navigate],
+    [open, rules, tabs, held, views, laneView, terminals, t, navigate],
   );
   return (
     <LazyPanel

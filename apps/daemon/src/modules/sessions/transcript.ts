@@ -3,6 +3,8 @@ import { type Logger, silentLogger } from "../../kernel/logger.ts";
 import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import {
   type BranchPage,
+  type BranchPathEntry,
+  branchPath,
   type Convert,
   findToolCall,
   type ForkPoint,
@@ -39,6 +41,8 @@ export interface TranscriptReader {
     resultEntryId?: string,
   ): { result: unknown | null; args: unknown | null };
   lastEntryId(filePath: string): string | null;
+  /** The branch that ends at `leafId` (null: the file's last entry), root first, at most 10 000 entries (M9R37). */
+  branchPath(filePath: string, leafId?: string | null): { leafId: string | null; entries: BranchPathEntry[] };
 }
 
 /** The same log line is said at most this often: a damaged file read on every snapshot cannot flood the log. */
@@ -84,6 +88,7 @@ function createTranscriptReader(sdk: Sdk, logger: Logger, clock: Clock): Transcr
     forks: (filePath, leafId) => forkPoints(cache.read(filePath), convert, leafId),
     toolCall: (filePath, toolCallId, leafId, resultEntryId) =>
       findToolCall(cache.read(filePath), toolCallId, leafId, resultEntryId),
+    branchPath: (filePath, leafId) => branchPath(cache.read(filePath), convert, leafId),
     lastEntryId: (filePath) => cache.read(filePath).list.at(-1)?.id ?? null,
   };
 }

@@ -10,7 +10,7 @@ import {
   type ToolDetail,
 } from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocale, useT } from "../../i18n/index.ts";
 import { codedServerText } from "../../i18n/server-text.ts";
 import { getRuntime } from "../../runtime/index.ts";
@@ -43,8 +43,10 @@ function runStatusOf(view: SessionView): RunStatus {
 export function SessionScreen({
   sessionId,
   toolDetail,
+  beforeComposer,
 }: {
   sessionId: string;
+  beforeComposer?: ReactNode;
   /** The account's tool card detail (Settings › Appearance), given by the pane that hosts the screen. */
   toolDetail?: ToolDetail;
 }) {
@@ -205,6 +207,7 @@ export function SessionScreen({
         </p>
       ) : null}
       <Widgets widgets={view.widgets} placement="aboveEditor" />
+      {beforeComposer}
       <Composer
         key={sessionId}
         sessionId={sessionId}

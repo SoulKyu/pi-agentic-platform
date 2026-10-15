@@ -32,6 +32,8 @@ export interface TerminalModuleDeps {
 
 export interface TerminalModule {
   readonly rpc: TerminalRpc;
+  /** The owner's running terminals in a folder or below (lanes: archive refuses while one runs). */
+  runningIn(ownerId: string, folder: string): number;
   /** Every terminal climbs the kill ladder in parallel, then the scope reap (M8R66). */
   shutdown(): Promise<void>;
 }
@@ -64,5 +66,5 @@ export function createTerminalModule(deps: TerminalModuleDeps): TerminalModule {
     logger,
     maxTerminals: deps.maxTerminals,
   });
-  return { rpc: terminalRpc(service), shutdown: () => registry.closeAll() };
+  return { rpc: terminalRpc(service), runningIn: registry.runningIn, shutdown: () => registry.closeAll() };
 }

@@ -5,6 +5,7 @@ import { defineMethod, type MethodDef } from "./define.ts";
 import { AttachmentId, filesMethods } from "./files.ts";
 import { Cursor } from "./frames.ts";
 import { CommandWord, MAX_ALWAYS_RULES } from "./policy.ts";
+import { lanesMethods } from "./lanes-methods.ts";
 import { mcpMethods } from "./mcp-methods.ts";
 import { modelsMethods } from "./models-methods.ts";
 import { policyMethods } from "./policy-methods.ts";
@@ -58,6 +59,7 @@ export const methods = catalogue({
   ...mcpMethods,
   ...trustMethods,
   ...skillsMethods,
+  ...lanesMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",

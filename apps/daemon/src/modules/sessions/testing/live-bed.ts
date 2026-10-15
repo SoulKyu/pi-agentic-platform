@@ -48,6 +48,8 @@ export interface Options {
   neverReady?: boolean;
   /** The idle release delay; 0 (the default) turns the release off, so a test that moves the clock far is not released. */
   idleMs?: number;
+  /** A prompt of the session waits in the lane hooks (M3 of the final review): the idle release counts it as busy. */
+  held?: () => boolean;
   /** `stop()` sends `shutdown` and the worker exits only when the test crashes it. */
   holdShutdown?: boolean;
   logger?: Logger;
@@ -69,6 +71,7 @@ export interface LiveParts {
   onExit(exit: WorkerExit): void;
   onName(name: string | null): void;
   readonly idleMs: number;
+  held?(): boolean;
 }
 
 export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) => Live) =>
@@ -122,6 +125,7 @@ export const createLiveBed = <Live>(start: (parts: LiveParts, init: InitRecord) 
         onExit: (exit) => exits.push(exit),
         onName: (name) => void names.push(name),
         idleMs: options.idleMs ?? 0,
+        ...(options.held ? { held: options.held } : {}),
       },
       INIT,
     );

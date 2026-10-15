@@ -119,7 +119,10 @@ export function createPolicyService(deps: {
   logger: Logger;
   newId(): string;
   readonly audit: Pick<AuditPort, "append">;
+  /** Another module's answer for a folder it owns (a lane worktree files under its project): null leaves M5's answer. */
+  scopeAlias?(cwd: string): string | null;
 }) {
+  const scopeOf = (cwd: string): string => deps.scopeAlias?.(cwd) ?? projectScopeOf(cwd);
   const listeners = new Set<(ownerId: string, scope: string) => void>();
   // A failing listener (a worker that went away) must not stop the others nor fail the answer that caused the change.
   const changed = (ownerId: string, scope: string) => {
@@ -133,11 +136,7 @@ export function createPolicyService(deps: {
   };
   /** The newest rules (one more than the cap is read, to know whether any were left out). */
   const newest = (ownerId: string, cwd?: string): { rules: RuleView[]; more: boolean } => {
-    const rows = deps.store.newest(
-      ownerId,
-      cwd === undefined ? null : projectScopeOf(cwd),
-      MAX_ALWAYS_RULES + 1,
-    );
+    const rows = deps.store.newest(ownerId, cwd === undefined ? null : scopeOf(cwd), MAX_ALWAYS_RULES + 1);
     return { rules: rows.slice(0, MAX_ALWAYS_RULES).map(viewOf), more: rows.length > MAX_ALWAYS_RULES };
   };
   const list = (ownerId: string, cwd?: string): RuleView[] => newest(ownerId, cwd).rules;
@@ -161,7 +160,7 @@ export function createPolicyService(deps: {
       readable(deps.store.forScope(ownerId, scope, "prefix", MAX_ALWAYS_RULES), "prefix", readPrefix),
     toolsFor: (ownerId: string, scope: string): ToolRule[] =>
       readable(deps.store.forScope(ownerId, scope, "tool", MAX_ALWAYS_RULES), "tool", readTool),
-    scopeOf: projectScopeOf,
+    scopeOf,
     addAlways(input: AlwaysInput): "added" | "exists" | "full" {
       const pattern: PatternRule | null =
         input.kind === "prefix"

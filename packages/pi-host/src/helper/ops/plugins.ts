@@ -106,7 +106,7 @@ function abortable<T>(signal: AbortSignal, work: Promise<T>): Promise<T> {
 /** A Pi call that may install or fetch: with the stripped environment, cancellable, and its failure only a code (the text goes to the log, clipped). */
 async function online<T>(ctx: Ctx, label: string, call: () => Promise<T>): Promise<T> {
   try {
-    return await withInstallEnv(ctx.home, () => abortable(ctx.signal, call()));
+    return await withInstallEnv(ctx.home, () => abortable(ctx.signal, call()), ctx.agentDir);
   } catch (error) {
     if (error instanceof HelperOpError) throw error;
     throw new HelperOpError(
@@ -286,34 +286,41 @@ export async function listPlugins(ctx: Ctx): Promise<PluginsListResult> {
     settingsManager: settings.manager,
   });
   const scopes: Scope[] = project === null ? ["user"] : ["user", "project"];
-  return withInstallEnv(ctx.home, () =>
-    offline(async () => {
-      const plugins: PluginView[] = [];
-      let truncated = false;
-      for (const scope of scopes)
-        for (const entry of packagesOf(settings.manager, scope)) {
-          const source = clip(maskSource(sourceOf(entry)), PLUGIN_LIMITS.source + 1);
-          if (source === "" || source.length > PLUGIN_LIMITS.source || plugins.length >= PLUGIN_LIMITS.list) {
-            truncated = true;
-            continue;
+  return withInstallEnv(
+    ctx.home,
+    () =>
+      offline(async () => {
+        const plugins: PluginView[] = [];
+        let truncated = false;
+        for (const scope of scopes)
+          for (const entry of packagesOf(settings.manager, scope)) {
+            const source = clip(maskSource(sourceOf(entry)), PLUGIN_LIMITS.source + 1);
+            if (
+              source === "" ||
+              source.length > PLUGIN_LIMITS.source ||
+              plugins.length >= PLUGIN_LIMITS.list
+            ) {
+              truncated = true;
+              continue;
+            }
+            let path: string | undefined;
+            try {
+              path = pm.getInstalledPath(sourceOf(entry), scope);
+            } catch {
+              path = undefined;
+            }
+            const installedPath =
+              path !== undefined &&
+              isAbsolute(path) &&
+              path.length <= PLUGIN_LIMITS.path &&
+              !path.includes("\0")
+                ? path
+                : null;
+            plugins.push({ source, scope, installedPath, ...stateOf(entry) });
           }
-          let path: string | undefined;
-          try {
-            path = pm.getInstalledPath(sourceOf(entry), scope);
-          } catch {
-            path = undefined;
-          }
-          const installedPath =
-            path !== undefined &&
-            isAbsolute(path) &&
-            path.length <= PLUGIN_LIMITS.path &&
-            !path.includes("\0")
-              ? path
-              : null;
-          plugins.push({ source, scope, installedPath, ...stateOf(entry) });
-        }
-      return { plugins, truncated };
-    }),
+        return { plugins, truncated };
+      }),
+    ctx.agentDir,
   );
 }
 

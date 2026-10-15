@@ -2,6 +2,7 @@ import { lstat, readlink, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { LaneId } from "@pap/contracts";
 import { kernelResolve, tooLong } from "./kernel-path.ts";
 
 const MAX_LINK_HOPS = 40;
@@ -93,6 +94,33 @@ function hasProtectedName(absolutePath: string): boolean {
   );
 }
 
+/** Where pap keeps lane worktrees, under its home (spec C 1.2, ADR 0033). */
+export const WORKTREES_DIR = "worktrees";
+
+/**
+ * M9 (R97): the lane a session works in, when its folder is inside `<papHome>/worktrees/<lane>`: that lane, in every
+ * spelling of pap's home, is the session's own folder and not a protected root. Another lane, `worktrees` itself and
+ * the rest of pap's home stay protected. `root` is the session folder's real path.
+ */
+async function ownLane(root: string, papHome: string): Promise<readonly string[]> {
+  const homes = [...new Set([resolve(papHome), await realTarget(resolve(papHome))])];
+  for (const home of homes) {
+    const worktrees = join(home, WORKTREES_DIR);
+    if (!within(worktrees, root) || root === worktrees) continue;
+    const name = relative(worktrees, root).split(sep)[0] ?? "";
+    if (!LaneId.safeParse(name).success) return [];
+    return homes.map((each) => join(each, WORKTREES_DIR, name));
+  }
+  return [];
+}
+
+/** A file with several hard links inside the own lane may be a second name for a protected inode (`state.db`): it asks. A missing file is a new file. */
+async function sharedInode(lane: readonly string[], real: string): Promise<boolean> {
+  if (!lane.some((dir) => within(dir, real))) return false;
+  const info = await lstatIfPresent(real);
+  return info !== undefined && info.isFile() && info.nlink > 1;
+}
+
 export type ReviewReason =
   | "outside the session directory"
   | "protected path"
@@ -114,7 +142,8 @@ export type EditCheck = { readonly auto: true } | { readonly auto: false; readon
 /**
  * Whether an edit may run without asking. It may when the file Pi would write, symlinks followed, is inside
  * `cwd`, no part of its path or of `cwd` is a protected name, it is not under a protected root (the Pi agent
- * directory and pap's data directory), and `cwd` is not the home directory, a parent of it, or a parent of a
+ * directory and pap's data directory; the session's own lane is no protected root when `papHome` is given, but a file
+ * there with more than one hard link still asks), and `cwd` is not the home directory, a parent of it, or a parent of a
  * protected root. The path is judged as Pi rewrites it and as it was spelled. Anything that is not a plain,
  * non-empty path string asks. Otherwise the review says why, and where the write lands: always the file Pi
  * writes.
@@ -123,6 +152,7 @@ export async function checkEditTarget(
   path: unknown,
   cwd: string,
   protectedRoots: readonly string[],
+  papHome?: string,
 ): Promise<EditCheck> {
   if (typeof path !== "string" || path === "" || path.includes("\0") || tooLong(path)) {
     return { auto: false, review: { why: "outside the session directory" } };
@@ -136,7 +166,9 @@ export async function checkEditTarget(
   );
   const tooBroad =
     within(root, await realTarget(resolve(home))) || roots.some(([, real]) => within(root, real));
+  const lane = papHome === undefined ? [] : await ownLane(root, papHome);
   const inProtectedRoot = (candidate: string) =>
+    !lane.some((dir) => within(dir, candidate)) &&
     roots.some((variants) => variants.some((dir) => within(dir, candidate)));
   let target: string | undefined;
   let kernelTarget: string | undefined;
@@ -151,6 +183,7 @@ export async function checkEditTarget(
     target ??= real;
     const piOutside = !within(root, real);
     const piProtected =
+      (await sharedInode(lane, real)) ||
       inProtectedRoot(real) ||
       inProtectedRoot(lexical) ||
       hasProtectedName(real) ||
@@ -158,7 +191,8 @@ export async function checkEditTarget(
     // The kernel applies `..` after a symlink, Pi collapses it first (probed): either reading that leaves asks.
     const kernel = await kernelResolve(cwd, spelling);
     const kernelOutside = !within(root, kernel);
-    const kernelProtected = inProtectedRoot(kernel) || hasProtectedName(kernel);
+    const kernelProtected =
+      (await sharedInode(lane, kernel)) || inProtectedRoot(kernel) || hasProtectedName(kernel);
     piOutsideAny ||= piOutside;
     piProtectedAny ||= piProtected;
     if ((kernelOutside || kernelProtected) && kernelTarget === undefined) {

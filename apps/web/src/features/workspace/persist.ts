@@ -1,4 +1,4 @@
-import { isTerminalId, isValidId, isValidRoot } from "./item-path.ts";
+import { isFanoutId, isLaneId, isTerminalId, isValidId, isValidRoot } from "./item-path.ts";
 import {
   clampRatio,
   EMPTY_WORKSPACE,
@@ -41,6 +41,10 @@ function parseItem(value: unknown, devUi: boolean): ItemRef | null {
       return typeof value.id === "string" && isTerminalId(value.id)
         ? { kind: "terminal", id: value.id }
         : null;
+    case "lane":
+      return typeof value.id === "string" && isLaneId(value.id) ? { kind: "lane", id: value.id } : null;
+    case "compare":
+      return typeof value.id === "string" && isFanoutId(value.id) ? { kind: "compare", id: value.id } : null;
     default:
       return null;
   }

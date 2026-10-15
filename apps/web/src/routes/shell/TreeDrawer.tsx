@@ -1,6 +1,7 @@
 import { Dialog } from "@pap/ui/overlays";
 import { useT } from "../../i18n/index.ts";
 import ProjectTree from "../../features/projects/ProjectTree.tsx";
+import { loadArchivedLanes } from "./archived-lanes.ts";
 import { usePaletteChord } from "./shortcut.ts";
 
 interface DrawerProps {
@@ -24,6 +25,7 @@ export default function TreeDrawer({ open, onOpenChange }: DrawerProps) {
         onPick={() => onOpenChange(false)}
         onNewSession={() => onOpenChange(false)}
         chord={chord}
+        loadArchivedLanes={loadArchivedLanes}
       />
     </Dialog>
   );

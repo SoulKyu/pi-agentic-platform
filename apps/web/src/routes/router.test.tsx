@@ -42,13 +42,15 @@ describe("router", () => {
     await page.unmount();
   });
 
-  it("declares the eight routes", () => {
+  it("declares the ten routes", () => {
     const router = createAppRouter(buildRouteTree(Fine), createMemoryHistory({ initialEntries: ["/"] }));
     expect(Object.keys(router.routesByPath).sort()).toEqual([
       "/",
       "/changes/$root",
+      "/compare/$fanoutId",
       "/dev/ui",
       "/explore/$root",
+      "/lane/$laneId",
       "/s/$sessionId",
       "/settings",
       "/settings/$section",

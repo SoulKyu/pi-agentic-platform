@@ -2,6 +2,7 @@ import { join } from "node:path";
 import { PROTOCOL_VERSION, type HandlerTable } from "@pap/contracts";
 import type { Context } from "hono";
 import { createWorkspaceModules } from "./compose-workspace.ts";
+import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
 import { composePi } from "./compose-pi.ts";
 import { createSystemClock, type Clock } from "./kernel/clock.ts";
 import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
@@ -78,6 +79,7 @@ export const MIGRATION_SOURCES = [
   SESSIONS_MIGRATIONS,
   SETTINGS_MIGRATIONS,
   AUDIT_MIGRATIONS,
+  ...LANE_MIGRATIONS,
 ] as const;
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -173,13 +175,17 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       newId,
       audit: audit.port,
       sessionOwner: (sessionId) => ownerOf(sessionId),
+      scopeAlias: (cwd) => lanes.paths.scopeOf(cwd),
     });
     const projects = createProjectsModule({ db, clock, logger, newId });
+    const allRoots = (owner: string) => [...projects.port.roots(owner), ...lanes.paths.roots(owner)];
     const wk = createWorkspaceModules(
-      { roots: projects.port.roots, config, clock, logger, env, hub, readOnly, scopes },
+      { roots: allRoots, config, clock, logger, env, hub, readOnly, scopes },
       workerUmask,
     );
     closers.push({ name: "workspace", close: () => wk.shutdown() });
+    const lanes = composeLanes({ db, wk, audit, roots: projects.port.roots, clock, logger, readOnly });
+    await lanes.recover();
     const sessions = createSessionsModule({
       db,
       clock,
@@ -216,6 +222,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     closers.push({ name: "search", close: () => search.stop() });
     const settings = createSettingsModule({ db, clock, logger });
     const pi = composePi({ config, env, clock, logger, hub, audit, policy, projects, sessions, settings });
+    lanes.bind({ sessions, pi, policy: policy.port, hub });
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
@@ -227,6 +234,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...search.rpc,
       ...settings.rpc,
       ...pi.rpc,
+      ...lanes.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger });
     const ws = createWsServer({
@@ -316,7 +324,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         stopping ??= (async () => {
           // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash
           // trees on the way; SIGKILL to every group first would leak them (R104).
-          await Promise.all([pi.stopAll(), sessions.shutdownAll()]);
+          await Promise.all([pi.stopAll(), sessions.shutdownAll(), lanes.shutdown()]);
           await wk.shutdown();
           killAllWorkerGroups();
           await closeAll();

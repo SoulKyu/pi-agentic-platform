@@ -5,6 +5,7 @@ import type { MenuItem } from "@pap/ui/overlays";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { type MessageKey, useLazyFailureText, useT } from "../../i18n/index.ts";
+import { hasCommand, runCommand } from "../../lib/command-registry.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
 import { useCurrentProject } from "../../stores/current-project.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
@@ -27,7 +28,7 @@ interface ProjectMenuProps {
   onNewSession?(): void;
 }
 
-/** The "⋯" menu of a project heading: New session here, Rename, Move up, Move down (M4R98, no drag and drop, M4R99). */
+/** The "⋯" menu of a project heading: New session here, New lane, Rename, Move up, Move down (M4R98, no drag and drop, M4R99). */
 export function ProjectMenu({ project, order, movable, onRename, onNewSession }: ProjectMenuProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -61,6 +62,17 @@ export function ProjectMenu({ project, order, movable, onRename, onNewSession }:
     }),
     item("rename", "sidebar.action.rename", onRename),
   ];
+  // The new-lane dialog registers `lanes.new` when it mounts (Task 21); the project it opens for is this one.
+  if (hasCommand("lanes.new")) {
+    items.splice(
+      1,
+      0,
+      item("new-lane", "sidebar.action.newLane", () => {
+        useCurrentProject.getState().startHere(project.id);
+        runCommand("lanes.new");
+      }),
+    );
+  }
   if (movable && at > 0) {
     items.push(item("up", "sidebar.action.moveUp", () => move((order[at - 1] as ProjectSummary).id)));
   }

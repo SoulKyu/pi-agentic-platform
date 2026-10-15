@@ -159,6 +159,14 @@ At most 64 open dialogs and 8 MiB per session; extra ones are answered `cancelle
 - Residuals: an image sent to an extension command blocks the queue until the command ends or Stop is pressed. The daemon maps every failed `prompt` response to the one code `prompt_rejected` (`live-run.ts:172`), so a text prompt dropped by Stop reads like a rejected one; the log line keeps the worker's reason.
 - **Echoes stay small.** Pi's echo of the user message and tool results with images would cross the 4 MiB IPC record cap (a 12 MB message was dropped with two `extension_error` notices). `toWireEvent` (`wire-events.ts`) replaces every image block, in echoes and in tool results (depth-bounded walk), with `{ type: "image", mimeType, omitted: true, bytes }`; `wire-clip` keeps `bytes` when there is no data.
 
+## Lanes seams (M9, ADR 0033)
+
+- `lane-port.ts` (`SessionsModule.lanes`) is the only way the lanes module touches sessions: `create` (the session's folder is the worktree; a model Pi refuses leaves its default), `prompt`, `activityIn` (busy = running, starting or a prompt pending, including one held in the lane hooks), `sessionIdsIn` (archived ones too, for the taint check), `runState` (idle and live leaf, for the re-check under the lane lock), `archiveIn`, `releaseIn` (loops over `releaseIdle`), `lastAgentText`, `branchPath` (the branch from root to leaf, at most 10 000 entries) and `suggestCommit`. `live-session.ts` is not edited.
+- `releaseIdle(ownerId, sessionId)` answers `released`, `busy` or `cold`. It adds no dialog, panel or queue of its own and leaves a worker with a dialog, panel, queued message or command in flight alone.
+- `lane-hooks.ts` is a slot the lanes module fills once (`setLaneHooks`). `closed(cwd)`: an `archiving` lane refuses prompts (`session_busy`), an `archived` one answers `not_found`. `holdsFiles(cwd)`: a prompt waits for a running restore with no cap. `beforePrompt`: for an idle session the prompt waits at most 15 s for the `before` checkpoint and answers `undefined` synchronously when there is nothing to do, so the busy rule (M2R88) is kept; a prompt to a busy worker does not wait. `afterRun`: the session went from `running` to `idle`, which takes the `after` checkpoint and may start the fan-out test auto-run. `assertOwn` runs before a worker starts.
+- `suggestCommit` and Pi's `auto_name` are side calls: no run is registered and M10's daily budget does not count them (C1).
+- A session belongs to a lane by folder (its real cwd is the worktree or inside it), never by a stored link.
+
 ## Scopes (see daemon.md)
 
 - The service passes `scopes` to each worker spawn; with scopes on, the worker's cgroup is `MemoryMax`-bounded and `oom` is the one exit cause a release never hides. `PAP_WORKER_SCOPE=off` (every test bed) runs workers as in M1.

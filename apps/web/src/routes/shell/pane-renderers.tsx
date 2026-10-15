@@ -1,7 +1,15 @@
-import { lazy, Suspense, type ReactNode } from "react";
+import { lazy, Suspense, type ComponentProps, type ReactNode } from "react";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
-import { useWorkspaceStore, type ItemRef, type SettingsSection } from "../../features/workspace/index.ts";
+import {
+  SplitView,
+  useWorkspaceStore,
+  type ItemRef,
+  type SettingsSection,
+} from "../../features/workspace/index.ts";
 import { SessionListScreen } from "../../features/sessions/SessionListScreen.tsx";
+import { runCommand } from "../../lib/command-registry.ts";
+import { type NewLanePrefill, useNewLaneRequest } from "../../stores/new-lane-request.ts";
+import type { ReviewSlotProps } from "../../features/lanes/LaneBody.tsx";
 import { LazyPane } from "./LazyPane.tsx";
 import { leaveTerminal, openTerminalInstead } from "./terminal-tab.ts";
 import { NotFound } from "./NotFound.tsx";
@@ -25,6 +33,19 @@ const loadChanges = () =>
 const loadTerminal = () =>
   import("../../features/terminal/TerminalPane.tsx").then((m) => ({ default: m.TerminalPane }));
 
+// The lane tab (Task 13) and the compare tab (Task 22): lazy (M9R59).
+const loadLane = () => import("../../features/lanes/LaneScreen.tsx").then((m) => ({ default: m.LaneScreen }));
+const loadReview = () =>
+  import("../../features/lanes/ReviewPane.tsx").then((m) => ({ default: m.ReviewPane }));
+const loadLaneTerminal = () => import("./lane-terminal.tsx").then((m) => ({ default: m.LaneTerminal }));
+const loadCompare = () =>
+  import("../../features/lanes/CompareScreen.tsx").then((m) => ({ default: m.CompareScreen }));
+
+/** The archived-lanes list lives in the tree: the phone opens its Lists section, the desktop the ⌘B drawer. */
+const openArchivedLanes = () => {
+  if (!runCommand("mobile.lists.open")) runCommand("drawer.tree.toggle");
+};
+
 /**
  * "Open in Files" from the changes pane: the shell opens the folder's Files pane (features never import each other).
  * The Files pane keeps its tabs to itself, so the file is not preselected there.
@@ -32,10 +53,42 @@ const loadTerminal = () =>
 const openInFiles = (root: string) => () => useWorkspaceStore.getState().open({ kind: "files", root });
 
 /** The session screen gets the account's tool card detail from here: features do not read each other's stores. */
-function SessionPane({ sessionId }: { readonly sessionId: string }) {
+function SessionPane({
+  sessionId,
+  beforeComposer,
+}: {
+  readonly sessionId: string;
+  readonly beforeComposer?: ReactNode;
+}) {
   const toolDetail = useAppearanceStore((state) => state.account.toolDetail);
-  return <LazyPane load={loadSession} props={{ sessionId, toolDetail }} />;
+  return <LazyPane load={loadSession} props={{ sessionId, toolDetail, beforeComposer }} />;
 }
+
+/** The compare tab opens a lane's tab, and "Run again" opens the new lane dialog with the group's prompt and models. */
+const openLane = (id: string) => useWorkspaceStore.getState().open({ kind: "lane", id });
+const runAgain = (prefill: NewLanePrefill) => {
+  useNewLaneRequest.getState().request(prefill);
+  if (!runCommand("lanes.new")) useNewLaneRequest.getState().take();
+};
+
+/** The lane tab's panes (M9R63): the chat, the changes and the terminal of the lane's folder, and the splitter. */
+const lanePanes = {
+  chat: (sessionId: string, beforeComposer: ReactNode) => (
+    <SessionPane key={sessionId} sessionId={sessionId} beforeComposer={beforeComposer} />
+  ),
+  changes: (root: string) => (
+    <LazyPane key={root} load={loadChanges} props={{ root, onOpenFile: openInFiles(root) }} />
+  ),
+  terminal: (root: string) => <LazyPane key={root} load={loadLaneTerminal} props={{ root }} />,
+  review: (props: ReviewSlotProps) => (
+    <LazyPane
+      key={props.laneId}
+      load={loadReview}
+      props={{ ...props, onOpenFile: openInFiles(props.worktree) }}
+    />
+  ),
+  split: (props: ComponentProps<typeof SplitView>) => <SplitView {...props} />,
+};
 
 /** A failed chunk shows a Retry state in the pane (LazyPane); it is never retried by itself. */
 function LazySettings({ section }: { readonly section: SettingsSection }) {
@@ -70,6 +123,20 @@ export const PANE_RENDERERS: Renderers = {
         onClose: () => leaveTerminal(item),
         onOpen: (id: string) => openTerminalInstead(item, id),
       }}
+    />
+  ),
+  lane: (item) => (
+    <LazyPane
+      key={item.id}
+      load={loadLane}
+      props={{ laneId: item.id, onOpenArchived: openArchivedLanes, ...lanePanes }}
+    />
+  ),
+  compare: (item) => (
+    <LazyPane
+      key={item.id}
+      load={loadCompare}
+      props={{ fanoutId: item.id, onOpenLane: openLane, onRunAgain: runAgain }}
     />
   ),
   "dev-ui": () =>

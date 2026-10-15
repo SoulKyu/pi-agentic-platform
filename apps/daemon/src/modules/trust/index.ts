@@ -5,10 +5,14 @@ import type { AuditPort } from "../audit/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { SessionsModule } from "../sessions/index.ts";
 import { type TrustRpc, trustRpc } from "./rpc.ts";
-import { createTrustService } from "./service.ts";
+import { createTrustService, type TrustPort } from "./service.ts";
+
+export type { TrustPort };
 
 export interface TrustModule {
   readonly rpc: TrustRpc;
+  /** Internal: no RPC, no step-up. Every write is audited (M9R39). */
+  readonly port: TrustPort;
 }
 
 export function createTrustModule(deps: {
@@ -19,5 +23,6 @@ export function createTrustModule(deps: {
   readonly logger: Logger;
   readonly clock: Clock;
 }): TrustModule {
-  return { rpc: trustRpc(createTrustService({ ...deps, logger: deps.logger.child({ module: "trust" }) })) };
+  const service = createTrustService({ ...deps, logger: deps.logger.child({ module: "trust" }) });
+  return { rpc: trustRpc(service), port: service.port };
 }

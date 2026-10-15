@@ -7,7 +7,13 @@ import type { ConnectionState } from "../runtime/connection.ts";
 
 type Handler = (params: unknown) => unknown;
 
-const SUB_METHODS = ["subscribe.session", "subscribe.shell", "subscribe.vcs", "subscribe.terminal"];
+const SUB_METHODS = [
+  "subscribe.session",
+  "subscribe.shell",
+  "subscribe.vcs",
+  "subscribe.terminal",
+  "subscribe.lane",
+];
 
 /**
  * The runtime a screen sees in a test: a fake connection, the real subscriptions on top of it, and an rpc
@@ -54,7 +60,8 @@ export function fakeRuntime(state: ConnectionState = "open") {
     called: (method: string) => calls.filter((entry) => entry.method === method),
     /** An event to the nth sub opened with `method`, as the server would send it. */
     emitTo: (
-      method: "subscribe.session" | "subscribe.shell" | "subscribe.vcs" | "subscribe.terminal",
+      method:
+        "subscribe.session" | "subscribe.shell" | "subscribe.vcs" | "subscribe.terminal" | "subscribe.lane",
       event: unknown,
       nth = 0,
     ) => {

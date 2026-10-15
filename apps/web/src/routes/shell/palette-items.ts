@@ -12,6 +12,8 @@ import { SETTINGS_SECTIONS, type ItemRef, type Tab } from "../../features/worksp
 import type { MessageKey, Translate } from "../../i18n/index.ts";
 import type { ViewLabel } from "../../stores/view-labels-store.ts";
 import { itemTitle } from "./item-title.ts";
+import { laneStatusOf } from "../../lib/lane-sessions.ts";
+import { isLiveLane, type LaneState } from "../../stores/lane-reducer.ts";
 import { basename, sessionLabel } from "../../lib/session-label.ts";
 
 export const MAX_PALETTE_SESSIONS = 50;
@@ -28,6 +30,9 @@ interface PaletteItemsInput {
   readonly views: Readonly<Record<string, ViewLabel>>;
   /** The owner's terminals; the running ones are listed (M8R81). */
   readonly terminals?: readonly TerminalView[];
+  /** The lane store and the shell sessions its status reads (M9R61); absent: no Lanes group. */
+  readonly lanes?: LaneState;
+  readonly laneFacts?: Iterable<{ cwd: string; status: string; needsInput: boolean }>;
   readonly t: Translate;
   navigate(item: ItemRef): void;
   run(id: string): void;
@@ -38,7 +43,7 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
   const { t, navigate } = input;
   const known = new Map(input.sessions.map((session) => [session.id, session]));
   const open = input.tabs.map((tab): PaletteItem => {
-    const title = itemTitle(tab.item, known, input.views, t);
+    const title = itemTitle(tab.item, known, input.views, t, input.lanes);
     return {
       id: `open:${tab.key}`,
       group: "open",
@@ -81,6 +86,20 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
         run: () => navigate({ kind: "session", id: session.id }),
       };
     });
+  const facts = [...(input.laneFacts ?? [])];
+  const lanes = [...(input.lanes?.lanes.values() ?? [])].filter(isLiveLane).map((lane): PaletteItem => {
+    const title = lane.title || lane.branch;
+    const word = t(`shell.lane.status.${laneStatusOf(lane, facts)}`);
+    return {
+      id: `lane:${lane.id}`,
+      group: "lanes",
+      title,
+      detail: `${lane.branch} · ${word}`,
+      searchTerms: [title, lane.branch, word],
+      recency: lane.createdAt,
+      run: () => navigate({ kind: "lane", id: lane.id }),
+    };
+  });
   const settings = SETTINGS_SECTIONS.map((section): PaletteItem => {
     const title = t(`commands.palette.settings.${section}` satisfies MessageKey);
     return {
@@ -104,5 +123,5 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
         run: () => navigate({ kind: "terminal", id: terminal.id }),
       };
     });
-  return [...open, ...terminals, ...actions, ...sessions, ...settings];
+  return [...open, ...terminals, ...actions, ...lanes, ...sessions, ...settings];
 }

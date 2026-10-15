@@ -1,3 +1,4 @@
+import { FanoutId, LaneId } from "@pap/contracts";
 import { SETTINGS_SECTIONS, type ItemRef, type SettingsSection } from "./model.ts";
 
 export const MAX_ID = 128;
@@ -15,6 +16,10 @@ export const isValidId = (id: string): boolean =>
 export const MAX_ROOT = 4096;
 const TERMINAL_ID = /^[A-Za-z0-9_-]{22}$/;
 const SEGMENT = /^[A-Za-z0-9_-]+$/;
+
+/** A lane id as the daemon makes it (`<slug>-<4 hex>`), and a fan-out id (16 hex): the compare tab's id. */
+export const isLaneId = (id: string): boolean => LaneId.safeParse(id).success;
+export const isFanoutId = (id: string): boolean => FanoutId.safeParse(id).success;
 
 /** A terminal id as the daemon makes it: 22 base64url characters. */
 export const isTerminalId = (id: string): boolean => TERMINAL_ID.test(id);
@@ -72,6 +77,12 @@ export function itemFromPath(pathname: string, devUi: boolean): ItemRef | null {
   }
   const terminal = /^\/term\/([^/]+)$/.exec(path);
   if (terminal) return isTerminalId(terminal[1] ?? "") ? { kind: "terminal", id: terminal[1] ?? "" } : null;
+  const lane = /^\/(lane|compare)\/([^/]+)$/.exec(path);
+  if (lane) {
+    const id = lane[2] ?? "";
+    if (lane[1] === "lane") return isLaneId(id) ? { kind: "lane", id } : null;
+    return isFanoutId(id) ? { kind: "compare", id } : null;
+  }
   const session = /^\/s\/([^/]+)$/.exec(path);
   if (!session) return null;
   let id: string;
@@ -97,6 +108,10 @@ export function pathOfItem(item: ItemRef): string {
       return isValidRoot(item.root) ? `/changes/${encodeRoot(item.root)}` : "/";
     case "terminal":
       return isTerminalId(item.id) ? `/term/${item.id}` : "/";
+    case "lane":
+      return isLaneId(item.id) ? `/lane/${item.id}` : "/";
+    case "compare":
+      return isFanoutId(item.id) ? `/compare/${item.id}` : "/";
     case "dev-ui":
       return "/dev/ui";
   }

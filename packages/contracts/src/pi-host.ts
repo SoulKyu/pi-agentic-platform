@@ -99,6 +99,12 @@ const ExportHtmlCommand = z.object({
   outputPath: AbsolutePath,
 });
 const AutoNameCommand = z.object({ type: z.literal("auto_name"), id: z.string() });
+/** The diff of a lane's selected paths, already clipped by the daemon (200 000 characters). The answer is `{ message }`. */
+const SuggestCommitCommand = z.object({
+  type: z.literal("suggest_commit"),
+  id: z.string(),
+  diff: z.string().min(1).max(200_000),
+});
 const GetAvailableModelsCommand = z.object({ type: z.literal("get_available_models"), id: z.string() });
 const GetCommandsCommand = z.object({ type: z.literal("get_commands"), id: z.string() });
 /** Session-scoped: the worker never sets Pi's `persist`, so settings.json is not written by a pick (M7R42). */
@@ -141,6 +147,7 @@ export const DaemonToWorker = z.discriminatedUnion("type", [
   SetSessionNameCommand,
   ExportHtmlCommand,
   AutoNameCommand,
+  SuggestCommitCommand,
   GetAvailableModelsCommand,
   GetCommandsCommand,
   SetModelCommand,
@@ -164,6 +171,7 @@ type CommandRecord =
   | z.infer<typeof SetSessionNameCommand>
   | z.infer<typeof ExportHtmlCommand>
   | z.infer<typeof AutoNameCommand>
+  | z.infer<typeof SuggestCommitCommand>
   | z.infer<typeof GetAvailableModelsCommand>
   | z.infer<typeof GetCommandsCommand>
   | z.infer<typeof SetModelCommand>

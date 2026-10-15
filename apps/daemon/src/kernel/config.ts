@@ -40,6 +40,8 @@ export interface Config {
   readonly piHostEntry: string;
   readonly piHostExecArgv: readonly string[];
   readonly testProviderScript: string | null;
+  /** Test-only transports for a push (`PAP_TEST_GIT_PROTOCOLS`, with the scripted provider): `file` reaches a local bare repository (M9R10). */
+  readonly testGitProtocols: string | null;
   readonly maxWorkers: number;
   readonly minFreeMemMb: number;
   /** Running terminals per owner (`PAP_MAX_TERMINALS`, 1-64, M8R66). */
@@ -126,6 +128,11 @@ export function loadConfig(input: ConfigInput): Config {
   const workerImport = input.env.PAP_TEST_WORKER_IMPORT;
   if (workerImport !== undefined && !isAbsolute(workerImport))
     throw new ConfigError("PAP_TEST_WORKER_IMPORT must be an absolute path");
+  const gitProtocols = input.env.PAP_TEST_GIT_PROTOCOLS;
+  if (gitProtocols !== undefined && script === undefined)
+    throw new ConfigError("PAP_TEST_GIT_PROTOCOLS needs PAP_TEST_PROVIDER_SCRIPT");
+  if (gitProtocols !== undefined && !/^(?:file|https|ssh)(?::(?:file|https|ssh))*$/.test(gitProtocols))
+    throw new ConfigError("PAP_TEST_GIT_PROTOCOLS must list file, https or ssh");
   return {
     home: devId
       ? directoryFrom(input.env.PAP_HOME, "PAP_HOME", input.homedir, join(input.homedir, ".pap-dev", devId))
@@ -152,6 +159,7 @@ export function loadConfig(input: ConfigInput): Config {
         ? [...input.piHostExecArgv, `--import=${workerImport}`]
         : input.piHostExecArgv,
     testProviderScript: script ?? null,
+    testGitProtocols: gitProtocols ?? null,
     maxWorkers: input.env.PAP_MAX_WORKERS
       ? parseCount(input.env.PAP_MAX_WORKERS, "PAP_MAX_WORKERS", 1)
       : defaultMaxWorkers(input.totalMemMb),

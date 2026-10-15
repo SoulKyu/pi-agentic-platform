@@ -8,7 +8,8 @@
 // daemon and, through its forwarded --import=, into every worker. Run it after `pnpm build`: `pnpm smoke`.
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { checkLanes } from "./smoke-lanes.ts";
 import { checkScannerAndSearch } from "./smoke-search.ts";
 import { checkTerminal } from "./smoke-terminal.ts";
 import {
@@ -39,6 +40,9 @@ const SCRIPT = {
   steps: [
     { toolCalls: [{ name: "bash", args: { command: `env echo ${MARKER}` }, id: "call-1" }] },
     { text: `The command printed ${MARKER}.` },
+    // Only the lanes step reaches these: its lane worker walks the same script from the start (smoke-lanes.ts).
+    { toolCalls: [{ name: "write", args: { path: "smoke-lane.txt", content: "lane\n" }, id: "call-2" }] },
+    { text: "The lane file is written." },
   ],
 };
 
@@ -115,6 +119,21 @@ async function drive(
     await session.waitFor(isPi("agent_settled"), "agent_settled");
     step("prompt -> approval -> tool output -> agent_settled");
     await checkScannerAndSearch({ agentDir, cwd: work, socket: session });
+    await checkLanes({
+      port,
+      origin,
+      cookie,
+      root: dirname(work),
+      userHome,
+      stepUp: async () => {
+        const confirm = await http(`${base}/auth/confirm`, {
+          method: "POST",
+          headers: { origin, cookie, "content-type": "application/json" },
+          body: JSON.stringify({ password: PASSWORD }),
+        });
+        if (confirm.status !== 204) throw new Error(`/auth/confirm answered ${confirm.status}`);
+      },
+    });
     await checkTerminal({ cwd: work, socket: session });
   } finally {
     session.close();

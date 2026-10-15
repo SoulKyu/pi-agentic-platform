@@ -53,7 +53,10 @@ export async function runInstall(params: Params, ctx: Ctx, deps: InstallDeps = {
     cwd = real;
   }
   const run = deps.execFile ?? nodeExecFile;
-  const env = { ...installEnv(deps.env ?? process.env, ctx.home), npm_config_before: SKILLS_CLI_BEFORE };
+  const env = {
+    ...installEnv(deps.env ?? process.env, ctx.home, ctx.agentDir),
+    npm_config_before: SKILLS_CLI_BEFORE,
+  };
   await new Promise<void>((resolve, reject) => {
     run(
       "npx",

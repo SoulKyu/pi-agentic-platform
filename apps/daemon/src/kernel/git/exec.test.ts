@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { gitArgs, gitEnv } from "./exec.ts";
+import { KEPT, gitArgs, gitEnv, isLaneGitDir } from "./exec.ts";
+import { isNeverPassedEnvKey } from "@pap/contracts";
 
 describe("gitArgs", () => {
   it("puts the fixed flags and the switched-off config before -C <root> and the subcommand", () => {
@@ -27,6 +28,8 @@ describe("gitArgs", () => {
       "-c",
       "gpg.ssh.program=",
       "-c",
+      "gpg.ssh.defaultKeyCommand=",
+      "-c",
       "log.diffMerges=separate",
       "-c",
       "core.alternateRefsCommand=",
@@ -34,6 +37,12 @@ describe("gitArgs", () => {
       "diff.submodule=short",
       "-c",
       "safe.bareRepository=explicit",
+      "-c",
+      "maintenance.auto=false",
+      "-c",
+      "gc.auto=0",
+      "-c",
+      "submodule.recurse=false",
       "-C",
       "/r",
       "status",
@@ -48,6 +57,65 @@ describe("gitArgs", () => {
       "blob",
       "HEAD:-rf",
     ]);
+  });
+});
+
+describe("gitArgs work-tree pin (M9R10)", () => {
+  it("pins --work-tree=<root> right after -C <root> for the subcommands that write the work tree or the index", () => {
+    const args = gitArgs("/r", ["clean", "-f", "-d", "--", "."]);
+    const at = args.indexOf("-C");
+    expect(args.slice(at, at + 4)).toEqual(["-C", "/r", "--work-tree=/r", "clean"]);
+    for (const subcommand of ["add", "commit", "restore", "reset"])
+      expect(gitArgs("/r", [subcommand]), subcommand).toContain("--work-tree=/r");
+  });
+
+  it("leaves reads and ref calls alone", () => {
+    for (const subcommand of ["status", "diff", "worktree", "branch", "update-ref", "read-tree", "rev-parse"])
+      expect(
+        gitArgs("/r", [subcommand]).some((arg) => arg.startsWith("--work-tree")),
+        subcommand,
+      ).toBe(false);
+  });
+});
+
+describe("gitArgs git-dir pin (MC1 I4)", () => {
+  const GIT_DIR = "/m/.git/worktrees/lane";
+  it("pins --git-dir then --work-tree right after -C <root>", () => {
+    const args = gitArgs("/r", ["restore", "--worktree"], GIT_DIR);
+    const at = args.indexOf("-C");
+    expect(args.slice(at, at + 5)).toEqual(["-C", "/r", `--git-dir=${GIT_DIR}`, "--work-tree=/r", "restore"]);
+  });
+  it("pins the git dir and the work tree of a read too (MC3 I2)", () => {
+    const args = gitArgs("/r", ["status"], GIT_DIR);
+    expect(args).toContain(`--git-dir=${GIT_DIR}`);
+    expect(args).toContain("--work-tree=/r");
+  });
+  it("adds nothing without a git dir", () => {
+    expect(gitArgs("/r", ["status"]).some((arg) => arg.startsWith("--git-dir"))).toBe(false);
+  });
+});
+
+describe("isLaneGitDir", () => {
+  it("accepts <common>/worktrees/<name> as an absolute, normal path", () => {
+    expect(isLaneGitDir("/m/.git/worktrees/lane")).toBe(true);
+    expect(isLaneGitDir("/a b/.git/worktrees/x-1")).toBe(true);
+  });
+  it.each([
+    "",
+    "relative/.git/worktrees/l",
+    "/m/.git",
+    "/m/.git/worktrees",
+    "/m/.git/worktrees/",
+    "/m/.git/worktrees/a/b",
+    "/m/../.git/worktrees/l",
+    "/m/./.git/worktrees/l",
+    "/m/.git/worktrees/..",
+    "/m/.git/worktrees/.",
+    "/m/.git/worktrees/l\0x",
+    "/m//.git/worktrees/l",
+    "--git-dir=/x/worktrees/l",
+  ])("refuses %j", (path) => {
+    expect(isLaneGitDir(path)).toBe(false);
   });
 });
 
@@ -94,8 +162,14 @@ describe("gitEnv", () => {
       GIT_ALLOW_PROTOCOL: "",
       GIT_PAGER: "cat",
       PAGER: "cat",
+      GIT_EDITOR: ":",
+      GIT_SEQUENCE_EDITOR: ":",
       GIT_CEILING_DIRECTORIES: "/srv",
     });
+  });
+
+  it("keeps no name the unattended children never get (M9R103)", () => {
+    expect(KEPT.filter((name) => isNeverPassedEnvKey(name))).toEqual([]);
   });
 
   it("carries the other allowlisted variables when the daemon has them", () => {

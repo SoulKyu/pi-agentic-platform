@@ -13,7 +13,7 @@ import { delimiter, join } from "node:path";
 import { ProjectTrustStore } from "@earendil-works/pi-coding-agent";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { HelperContext } from "../ops.ts";
-import { SKILLS_CLI } from "@pap/contracts";
+import { FALLBACK_PATH, SKILLS_CLI } from "@pap/contracts";
 import { installEnv } from "./install-env.ts";
 import { runInstall, SKILLS_CLI_BEFORE } from "./skills-install.ts";
 
@@ -224,7 +224,7 @@ describe("skills.install (M7R112, M7R140)", () => {
     expect(logged[0]).toContain("E404");
   });
 
-  it("gives the child exactly the helper's environment minus the daemon's, with absolute PATH entries only", async () => {
+  it("gives the child exactly the unattended environment, with absolute PATH entries only", async () => {
     fakeNpx();
     await runInstall({ source: "o/r", scope: "global" }, ctxFor(null), {
       env: {
@@ -246,13 +246,14 @@ describe("skills.install (M7R112, M7R140)", () => {
       PATH: `${bin}${delimiter}/usr/bin${delimiter}/bin`,
       HOME: home,
       LANG: "C.UTF-8",
+      TERM: "dumb",
       PI_TELEMETRY: "0",
       PI_SKIP_VERSION_CHECK: "1",
       DISABLE_TELEMETRY: "1",
       DO_NOT_TRACK: "1",
       npm_config_update_notifier: "false",
     });
-    expect(installEnv({ PATH: "relative" }, home).PATH).toBe("/usr/bin:/bin");
+    expect(installEnv({ PATH: "relative" }, home).PATH).toBe(FALLBACK_PATH);
     expect(installEnv({}, home).HOME).toBe(home);
   });
 });

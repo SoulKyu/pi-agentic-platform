@@ -8,6 +8,11 @@ import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
 import type { firstRunEn } from "./catalog/first-run.ts";
 import type { galleryEn } from "./catalog/gallery.ts";
+import type { laneCommitEn } from "./catalog/lane-commit.ts";
+import type { laneCompareEn } from "./catalog/lane-compare.ts";
+import type { laneNewEn } from "./catalog/lane-new.ts";
+import type { laneReviewEn } from "./catalog/lane-review.ts";
+import type { lanesEn } from "./catalog/lanes.ts";
 import type { serverEn } from "./catalog/server.ts";
 import type { sessionModelsEn } from "./catalog/session-models.ts";
 import type { sessionToolsEn } from "./catalog/session-tools.ts";
@@ -44,6 +49,11 @@ export type MessageKey =
   | keyof typeof filesEn
   | keyof typeof changesEn
   | keyof typeof terminalEn
+  | keyof typeof lanesEn
+  | keyof typeof laneNewEn
+  | keyof typeof laneCompareEn
+  | keyof typeof laneCommitEn
+  | keyof typeof laneReviewEn
   | keyof typeof sessionModelsEn
   | keyof typeof sessionToolsEn
   | keyof typeof settingsModelsEn

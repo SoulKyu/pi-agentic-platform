@@ -7,6 +7,7 @@ export type ClientIssue =
   | "keybindings_invalid"
   | "shell_feed_failed"
   | "terminal_feed_failed"
+  | "lane_feed_failed"
   | "file_check_failed"
   | "lazy_chunk_failed"
   | "render_failed"

@@ -14,7 +14,7 @@ import {
 } from "@pap/contracts";
 import { cutUnits, MAX_ID_CHARS } from "../../kernel/text.ts";
 import { isPiSessionFile } from "./pi-files.ts";
-import type { BranchPage } from "./branch.ts";
+import type { BranchPage, BranchPathEntry } from "./branch.ts";
 import {
   fitPage,
   fitPoints,
@@ -106,7 +106,17 @@ export interface SessionReads {
   ): Promise<{ leafId: string | null; points: ForkPoint[]; truncated: boolean }>;
   /** Every session of the caller, newest first, with its live status. */
   summaries(caller: Caller): SessionSummary[];
+  /** The session's current branch, root first, at most 10 000 entries: the live leaf for a hot session, the file's for a cold one. */
+  branchPath(
+    caller: Caller,
+    sessionId: string,
+  ): Promise<{ leafId: string | null; entries: BranchPathEntry[] }>;
+  /** The text of the session's last assistant message on its current branch, cut to `max` characters; null when none. */
+  agentText(sessionId: string, max: number): Promise<string | null>;
 }
+
+/** The newest rows looked at for the last assistant message: tool traffic can sit between it and the leaf. */
+const AGENT_TEXT_ROWS = 40;
 
 export function createSessionReads(deps: SessionReadsDeps): SessionReads {
   let transcript: TranscriptReader | null = null;
@@ -181,6 +191,27 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       // The list is measured in JSON bytes with its envelope, like a history page (M2R54).
       const envelope = sizeOf({ leafId, points: [], truncated: true });
       return { leafId, ...fitPoints(reader.forks(file, known), PAGE_BYTES - envelope) };
+    },
+    async branchPath(caller, sessionId) {
+      const row = deps.owned(sessionId, caller);
+      const reader = await ensureReader();
+      const session = deps.live.get(sessionId);
+      const file = fileOf(row, session);
+      return file ? reader.branchPath(file, session?.leafId() ?? null) : { leafId: null, entries: [] };
+    },
+    async agentText(sessionId, max) {
+      const row = deps.store.get(sessionId);
+      if (!row) return null;
+      const reader = await ensureReader();
+      const session = deps.live.get(sessionId);
+      const file = fileOf(row, session);
+      if (!file) return null;
+      const rows = reader.page(file, { leafId: session?.leafId() ?? null, limit: AGENT_TEXT_ROWS }).rows;
+      for (const { message } of rows.toReversed()) {
+        const { role } = message as { role?: unknown };
+        if (role === "assistant") return cutUnits(textOfResult(message), max);
+      }
+      return null;
     },
     async prepare(sessionId, caller, after) {
       deps.owned(sessionId, caller);

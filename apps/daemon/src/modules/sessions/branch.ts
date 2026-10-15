@@ -171,6 +171,36 @@ export function forkPoints(
   return points;
 }
 
+export const BRANCH_PATH_MAX = 10_000;
+export interface BranchPathEntry {
+  readonly id: string;
+  readonly parentId: string | null;
+  readonly user: boolean;
+  readonly preview: string;
+}
+
+/** The branch that ends at `leafId` (null: the file's last entry), root first; past `max` entries the oldest are dropped. */
+export function branchPath(
+  entries: IndexedEntries,
+  convert: Convert,
+  leafId: string | null | undefined,
+  max = BRANCH_PATH_MAX,
+): { leafId: string | null; entries: BranchPathEntry[] } {
+  const leaf = leafOf(entries, leafId);
+  const newest: BranchPathEntry[] = [];
+  for (const entry of ancestry(entries, leaf)) {
+    if (newest.length >= max) break;
+    const user = entry.type === "message" && roleOf(entry.message) === "user";
+    newest.push({
+      id: entry.id,
+      parentId: entry.parentId,
+      user,
+      preview: user ? previewOf(entry, convert) : "",
+    });
+  }
+  return { leafId: leaf?.id ?? null, entries: newest.toReversed() };
+}
+
 const NOT_FOUND = { result: null, args: null } as const;
 
 const callOf = (

@@ -42,6 +42,24 @@ const AUDIT_REASON = new Map<
   [null, "project_trust_cleared"],
 ]);
 
+/** What lanes ask of trust (M9R39). */
+export interface TrustPort {
+  /** Pi's decision for the folder or the nearest folder above it; null when there is none or the helper failed. */
+  status(folder: string): Promise<boolean | null>;
+  /** Records `true` for `folder` because `from` (its project) is trusted; false when Pi's store refuses or fails. */
+  inherit(
+    ownerId: string,
+    folder: string,
+    from: string,
+    by?: Pick<Caller, "kind" | "credentialId">,
+  ): Promise<boolean>;
+  /** Removes the decision recorded for `folder`; throws `helper_failed` when it is not recorded. */
+  clear(ownerId: string, folder: string): Promise<void>;
+}
+
+const absolute = (folder: string): boolean =>
+  folder.startsWith("/") && !folder.includes("\0") && folder.length <= 4096;
+
 /** The folders the breadth rule compares with: absolute paths the helper's schema accepts, within its bound (M7R104). */
 const projectPaths = (roots: readonly string[]): string[] =>
   roots.filter((root) => root.startsWith("/") && !root.includes("\0") && root.length <= 4096);
@@ -71,7 +89,66 @@ export function createTrustService(deps: TrustServiceDeps) {
     return cwd;
   }
 
+  /** The trust port (M9R39): internal, no step-up. Lanes use it to give a worktree its project's decision. */
+  const port: TrustPort = {
+    async status(folder) {
+      if (!absolute(folder)) return null;
+      try {
+        return (await run("trust.status", {}, folder)).decision;
+      } catch (error) {
+        deps.logger.warn("trust_port_status_failed", { err: error });
+        return null;
+      }
+    },
+    async inherit(ownerId, folder, from, by) {
+      const projects = projectPaths(deps.projects.roots(ownerId));
+      if (!absolute(folder) || projects.length > TRUST_LIMITS.projects) return false;
+      try {
+        return await writes.run(async () => {
+          // An owner revoke between the caller's status check and this queue turn must win (T6a-3).
+          if ((await run("trust.status", {}, from)).decision !== true) return false;
+          const result = await run(
+            "trust.set",
+            { decision: true, projects: projects.slice(0, TRUST_LIMITS.projects) },
+            folder,
+          );
+          if (!result.ok) {
+            deps.logger.info("trust_port_inherit_failed", { folder });
+            return false;
+          }
+          deps.audit.append({
+            ownerId,
+            actor: by?.kind === "token" ? "token" : "user",
+            ...(by?.kind === "token" && by.credentialId ? { actorId: by.credentialId } : {}),
+            kind: "policy",
+            reason: "project_trusted",
+            detail: { folder: result.folder, inheritedFrom: from },
+          });
+          return true;
+        });
+      } catch (error) {
+        deps.logger.warn("trust_port_inherit_failed", { err: error });
+        return false;
+      }
+    },
+    async clear(ownerId, folder) {
+      if (!absolute(folder)) throw new PapError("invalid_cwd");
+      await writes.run(async () => {
+        const result = await run("trust.set", { decision: null, projects: [] }, folder);
+        if (!result.ok) throw new PapError("helper_failed");
+        deps.audit.append({
+          ownerId,
+          actor: "user",
+          kind: "policy",
+          reason: "project_trust_cleared",
+          detail: { folder: result.folder },
+        });
+      });
+    },
+  };
+
   return {
+    port,
     /** What Pi's store says about the folder and what trusting it turns on (M7R107). */
     async status(caller: Caller, cwd: string): Promise<TrustStatus> {
       return run("trust.status", {}, folderOf(caller, cwd));

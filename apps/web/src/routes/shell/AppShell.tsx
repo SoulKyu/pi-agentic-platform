@@ -7,6 +7,9 @@ import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { feedLanes } from "../../stores/lane-feed.ts";
+import { useComposerPrefill } from "../../stores/composer-prefill.ts";
+import { useLaneStore } from "../../stores/lane-store.ts";
 import { feedShell } from "../../stores/shell-feed.ts";
 import { resetFolderMemory } from "../../features/files/folder-memory.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
@@ -15,6 +18,7 @@ import { resetUnsavedFiles } from "../../stores/unsaved-files.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { MobileShell } from "./MobileShell.tsx";
+import { NewLaneHost } from "./NewLaneHost.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
@@ -60,8 +64,11 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
   // The one reader of the `shell` stream while the shell is mounted; the next account starts from nothing.
   useEffect(() => {
     const stop = feedShell(getRuntime().subscriptions, () => reportClientIssue("shell_feed_failed"));
+    const stopLanes = feedLanes(getRuntime().subscriptions, () => reportClientIssue("lane_feed_failed"));
     return () => {
       stop();
+      stopLanes();
+      useLaneStore.getState().reset();
       useShellStore.getState().reset();
       useViewLabels.setState({ labels: {} });
       // Every M8 client store (MC34). Uploads keep no state beyond their own component; the terminal store's reset
@@ -69,6 +76,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
       useVcsStore.getState().reset();
       useTerminalStore.getState().reset();
       resetUnsavedFiles();
+      useComposerPrefill.setState({ items: {} });
       resetFolderMemory();
     };
   }, []);
@@ -79,6 +87,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
       <StepUpHost>
         {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
         <PaletteHost />
+        <NewLaneHost />
         <LazyPanel
           text={lazyText}
           load={loadTreeDrawer}

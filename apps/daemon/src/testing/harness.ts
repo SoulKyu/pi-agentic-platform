@@ -109,6 +109,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
       join(REPO, "packages/pi-host/src/testing/network-guard.ts"),
     ],
     testProviderScript: scriptPath,
+    testGitProtocols: null,
     maxWorkers: 4,
     minFreeMemMb: 0,
     maxTerminals: 8,

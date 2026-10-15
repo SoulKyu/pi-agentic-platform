@@ -16,6 +16,7 @@ import { renderItem } from "./pane-renderers.tsx";
 import { SurfaceBar } from "./SurfaceBar.tsx";
 import { unsplitTab } from "./tab-actions.ts";
 import { SPLIT_PANE_ID } from "./surface.ts";
+import { useLaneStore } from "../../stores/lane-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 /**
@@ -26,6 +27,7 @@ export function PaneHost({ tab, shown }: { readonly tab: Tab | null; readonly sh
   const t = useT();
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
+  const lanes = useLaneStore((state) => state.view);
   const setRatio = useWorkspaceStore((state) => state.setRatio);
   if (!tab) return null;
   const main = (
@@ -62,10 +64,10 @@ export function PaneHost({ tab, shown }: { readonly tab: Tab | null; readonly sh
           tabIndex={-1}
           data-pane-role="split"
           data-pane-kind={item.kind}
-          aria-label={itemTitle(item, sessions, views, t)}
+          aria-label={itemTitle(item, sessions, views, t, lanes)}
           className="flex min-h-0 min-w-0 flex-1 flex-col"
         >
-          <SplitHeader tab={tab} title={itemTitle(item, sessions, views, t)} />
+          <SplitHeader tab={tab} title={itemTitle(item, sessions, views, t, lanes)} />
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
             <PaneBoundary key={`${tab.key}/${item.kind}`}>{renderItem(item)}</PaneBoundary>
           </div>
@@ -90,6 +92,7 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
   const ws = useWorkspaceStore((state) => state.ws);
   const sessions = useShellStore((state) => state.view.sessions);
   const views = useViewLabels((state) => state.labels);
+  const lanes = useLaneStore((state) => state.view);
   const split = useWorkspaceStore((state) => state.split);
   const lazyText = useLazyFailureText();
   const choices: readonly ItemRef[] = ws.tabs
@@ -109,7 +112,7 @@ function SplitHeader({ tab, title }: { readonly tab: Tab; readonly title: string
         )}
         items={choices.map((item) => ({
           id: JSON.stringify(item),
-          label: itemTitle(item, sessions, views, t),
+          label: itemTitle(item, sessions, views, t, lanes),
           onSelect: () => split(tab.key, item),
         }))}
       />

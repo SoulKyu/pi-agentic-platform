@@ -5,6 +5,10 @@ import { commandsEn, commandsFr } from "./catalog/commands.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
 import { filesEn, filesFr } from "./catalog/files.ts";
 import { galleryEn, galleryFr } from "./catalog/gallery.ts";
+import { laneCommitEn, laneCommitFr } from "./catalog/lane-commit.ts";
+import { laneNewEn, laneNewFr } from "./catalog/lane-new.ts";
+import { laneReviewEn, laneReviewFr } from "./catalog/lane-review.ts";
+import { lanesEn, lanesFr } from "./catalog/lanes.ts";
 import { serverEn, serverFr } from "./catalog/server.ts";
 import { sessionPolicyEn, sessionPolicyFr } from "./catalog/session-policy.ts";
 import { sessionFilesEn, sessionFilesFr } from "./catalog/session-files.ts";
@@ -61,6 +65,10 @@ describe("catalog keys never collide", () => {
         files: Object.keys(filesEn),
         changes: Object.keys(changesEn),
         terminal: Object.keys(terminalEn),
+        lanes: Object.keys(lanesEn),
+        laneNew: Object.keys(laneNewEn),
+        laneCommit: Object.keys(laneCommitEn),
+        laneReview: Object.keys(laneReviewEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -86,6 +94,10 @@ describe("catalog keys never collide", () => {
         files: Object.keys(filesFr),
         changes: Object.keys(changesFr),
         terminal: Object.keys(terminalFr),
+        lanes: Object.keys(lanesFr),
+        laneNew: Object.keys(laneNewFr),
+        laneCommit: Object.keys(laneCommitFr),
+        laneReview: Object.keys(laneReviewFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);

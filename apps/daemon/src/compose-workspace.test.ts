@@ -64,7 +64,7 @@ describe("the boundary configuration (M8R29)", () => {
     expect(boundary.home).toEqual([join(base, "link"), join(base, "real")]);
     expect(boundary.papHome).toEqual([join(base, "link", ".pap"), join(base, "real", ".pap")]);
     expect(boundary.agentDir).toEqual([join(base, "missing", "agent")]);
-    expect(boundary.papHomeOpen).toEqual([]);
+    expect(boundary.papHomeOpen).toEqual(["worktrees"]);
     expect(boundary.runtimeDirs).toEqual([]);
   });
 
@@ -145,7 +145,7 @@ describe("the deny set's sources (M8R103, MC8 I3, MC10)", () => {
         join(base, "real", ".kube"),
       ]),
     );
-    expect(sources.skip).toEqual([join(pap, "attachments")]);
+    expect(sources.skip).toEqual([join(pap, "worktrees"), join(pap, "attachments")]);
   });
 
   it("skips attachments/ in both spellings of pap's home, and keeps the owner's open folders as well", () => {

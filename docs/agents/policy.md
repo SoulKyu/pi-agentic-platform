@@ -98,6 +98,15 @@ The git check (owner m3, `git-config-guard.ts`; the code is stricter than the pl
 
 - **Attachments (MC38 I3, closed at the M7 rebase).** `read-target.ts` asks for `$PAP_HOME/attachments/pending/**` always, for `attachments/<sid>/**` unless `sid` is the session's own (`PipelineDeps.sessionId()`, pap's session id from the init record (`papSessionId`, never Pi's own id); absent means every `sid` asks) and for a `grep` / `find` rooted at `attachments/` itself; `ls attachments` shows session ids only and passes. Links are judged as resolved, so a link from the session's own folder to another's asks. Built-in reads and read-only shell commands (`cover`) share the check; read-only mode blocks like for any protected read.
 
+## Lanes (M9, ADR 0033)
+
+- **The R97 narrowing** (`packages/pi-host/src/policy/target-path.ts`, `ownLane`): when a session's folder is inside `<papHome>/worktrees/<laneId>` (named like a lane; any spelling of pap's home), that lane is the session's own folder and not a protected root, so an edit inside it is auto-accepted in the accept-edits mode instead of asking. Other lanes, `worktrees/` itself and the rest of `$PAP_HOME` stay protected, and protected names (`.git`, hooks, editor tasks) stay protected inside the lane. Pi's own files still ask. The sessions module refuses to start a worker inside another owner's lane (`forbidden`, `LanePaths.assertOwnLane`).
+- **Scope alias.** `createPolicyModule({ scopeAlias })`: a lane's sessions share their project's approval rules and always-rules (`scopeOf(cwd)` answers the lane's `project_root`), and a lane is filed under its project in the sidebar (M9R104).
+- **Issue lanes start tainted.** `lanes.create` with an issue calls `markTainted` for the primary session (sticky taint, ADR 0020). The issue text is fenced with `fenceText`, now in `packages/contracts/src/fence.ts` (pi-host re-exports it).
+- **The tainted confirmation.** `lanes.runScript` and `lanes.archive` (when an archive script exists) answer `tainted` while any session of the lane, archived ones included, is tainted, until the call is repeated with `confirmTainted: true`. The fan-out test auto-run never runs in a lane with a tainted session. An unbound policy port counts as tainted.
+- Taint does not gate extension event hooks: they see an issue's text (residual).
+- Scripts, `gh` and installs run outside the policy pipeline (they are not tool calls); the unattended environment and the browser-only rule are their controls (`lanes.md`, ADR 0034).
+
 ## Pi resource loads never install (MC52)
 
 - A Pi resource load installs a missing package (`npm install` with scripts, `git clone`) unless `PI_OFFLINE` is set. That would be code execution from a read, so every helper read op that loads resources or resolves packages runs with the switch on, for that call only: `skills.list`, `skills.setInvocation`, `plugins.list`, `trust.status` and the resource load of `mcp.test` (`helper/ops/offline.ts:6`; list in `skills.md`). A missing package is not listed (or is in `unlisted` for trust) and the answer still comes. Only an explicit, step-up-gated install or update op may reach the network.

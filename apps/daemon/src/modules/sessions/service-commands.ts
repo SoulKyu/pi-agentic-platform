@@ -18,6 +18,8 @@ export interface SessionCommandsDeps {
   owned(sessionId: string, caller: Caller): SessionRow;
   ensureLive(row: SessionRow): Promise<LiveSession>;
   readonly live: ReadonlyMap<string, LiveSession>;
+  /** A prompt of the session waits in the lane hooks: the session is busy for these commands too. */
+  waiting(sessionId: string): boolean;
   readonly reads: Pick<SessionReads, "ensureReader" | "snapshot">;
   readonly hub: Pick<StreamHub, "publish">;
   readonly exports: Pick<Exports, "prepare" | "discard">;
@@ -70,9 +72,9 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
   // can slip in between (M2R88, M2-RT-08).
   async function send(sessionId: string, caller: Caller, input: CommandInput) {
     const row = deps.owned(sessionId, caller);
-    if (deps.live.get(sessionId)?.busy()) throw new PapError("session_busy");
+    if (deps.live.get(sessionId)?.busy() || deps.waiting(sessionId)) throw new PapError("session_busy");
     const session = await deps.ensureLive(row);
-    if (session.busy()) throw new PapError("session_busy");
+    if (session.busy() || deps.waiting(sessionId)) throw new PapError("session_busy");
     const answer = await session.command(input);
     if (!answer.ok) throw refused(input.type, answer.error);
     return { row, session, data: answer.data };

@@ -16,6 +16,8 @@ import { clip } from "./worker-text.ts";
 export interface SessionModelsDeps {
   owned(sessionId: string, caller: Caller): SessionRow;
   ensureLive(row: SessionRow): Promise<LiveSession>;
+  /** A prompt of the session waits in the lane hooks: it is busy for a model or tool change too. */
+  waiting(sessionId: string): boolean;
   readonly logger: Logger;
   readonly store: Pick<SessionsStore, "toolPreset" | "setToolPreset">;
   /** The session's worker if one is up or being started (a start in progress is waited for); none for a cold session. */
@@ -54,7 +56,7 @@ export function createSessionModels(deps: SessionModelsDeps): SessionModels {
     const row = deps.owned(sessionId, caller);
     const session = await deps.ensureLive(row);
     // Nothing is awaited between this check and the send, so no prompt can slip in between (M2-RT-08).
-    if (mustBeIdle && session.busy()) throw new PapError("session_busy");
+    if (mustBeIdle && (session.busy() || deps.waiting(sessionId))) throw new PapError("session_busy");
     const answer = await session.command(input);
     if (!answer.ok) throw refused(input.type, answer.error);
     return answer.data;
@@ -94,7 +96,7 @@ export function createSessionModels(deps: SessionModelsDeps): SessionModels {
         return;
       }
       // Nothing is awaited between this check and the send, so no prompt can slip in between (M2-RT-08).
-      if (worker.busy()) throw new PapError("session_busy");
+      if (worker.busy() || deps.waiting(row.id)) throw new PapError("session_busy");
       const crossesChat = (deps.store.toolPreset(row.id) === "chat") !== (preset === "chat");
       if (crossesChat) {
         deps.store.setToolPreset(row.id, stored);

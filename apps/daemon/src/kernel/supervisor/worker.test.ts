@@ -153,6 +153,7 @@ describe("request timeouts", () => {
     expect(requestTimeoutMs({ type: "compact" })).toBeUndefined();
     expect(requestTimeoutMs({ type: "navigate_tree", targetId: "e1" })).toBeUndefined();
     expect(requestTimeoutMs({ type: "auto_name" })).toBe(120_000);
+    expect(requestTimeoutMs({ type: "suggest_commit", diff: "d" })).toBe(60_000);
     expect(requestTimeoutMs({ type: "export_html", outputPath: "/p/x.html" })).toBe(120_000);
     expect(requestTimeoutMs({ type: "set_session_name", name: "n" })).toBe(DEFAULT_REQUEST_TIMEOUT_MS);
   });

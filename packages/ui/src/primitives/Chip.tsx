@@ -1,6 +1,6 @@
 import { cn } from "../cn.ts";
 
-export type ChipTone = "run" | "ok" | "att" | "err" | "mut" | "ext";
+export type ChipTone = "run" | "ok" | "att" | "err" | "mut" | "ext" | "you";
 
 const CHIP_TONES: Record<ChipTone, string> = {
   run: "border-agent text-agent",
@@ -9,6 +9,8 @@ const CHIP_TONES: Record<ChipTone, string> = {
   err: "border-err text-err",
   mut: "border-border-strong text-muted",
   ext: "border-dashed border-attn text-attn",
+  // The person's turn: a lane waiting for review.
+  you: "border-you-line text-you-text",
 };
 
 /** Status chip: a mono upper-case word, optional dot; the word is what screen readers read (DESIGN.md §12). */

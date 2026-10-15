@@ -57,7 +57,12 @@ it("taints a released session when tool results are appended outside pap, not fo
       30_000,
     );
   await client.call("sessions.prompt", { sessionId, text: "unique-opening-marker" });
-  await client.waitForEvent((f) => f.sub === sub && ev(f).status === "cold", 30_000);
+  // The idle release (1.5 s) can fire before the prompt on a loaded machine: wait for the cold that follows this run.
+  const ended = await client.waitForEvent(
+    (f) => f.sub === sub && (f.event as { event?: { type?: string } }).event?.type === "agent_end",
+    30_000,
+  );
+  await client.waitForEvent((f) => f.sub === sub && f.seq > ended.seq && ev(f).status === "cold", 30_000);
   await indexed("unique-opening-marker");
 
   const file = piFile();

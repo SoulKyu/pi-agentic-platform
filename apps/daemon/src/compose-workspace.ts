@@ -1,15 +1,15 @@
-import { realpathSync } from "node:fs";
+import { chmodSync, mkdirSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { Hono } from "hono";
 import type { Caller } from "@pap/contracts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
 import type { BoundaryConfig } from "./kernel/fs/boundary.ts";
-import { createDenySet, type DenySources } from "./kernel/fs/deny-set.ts";
+import { createDenySet, type DenySet, type DenySources } from "./kernel/fs/deny-set.ts";
 import { httpCaller } from "./kernel/http/caller.ts";
 import { loadNodePty } from "./kernel/pty/load.ts";
 import { guardFilters } from "./kernel/git/filters.ts";
-import { createGitRunner } from "./kernel/git/runner.ts";
+import { createGitRunner, type GitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { WorkerScopes } from "./kernel/supervisor/scope.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
@@ -44,7 +44,7 @@ export function boundaryConfigOf(config: Config, env: NodeJS.ProcessEnv): Bounda
     papHome: spellings(config.home),
     agentDir: spellings(config.piAgentDir),
     home: spellings(config.userHome),
-    papHomeOpen: [],
+    papHomeOpen: ["worktrees"],
     runtimeDirs: runtime !== undefined && runtime.startsWith("/") ? spellings(runtime) : [],
   };
 }
@@ -104,6 +104,22 @@ export interface WorkspaceModules {
   readonly rpc: FilesRpc & VcsRpc & TerminalRpc;
   /** Claims of pending uploads per session (Task 8's prompt path). */
   readonly attachments: AttachmentsPort;
+  /** The guarded git runner the modules share (M8R28); the lanes modules use this same one. */
+  readonly git: GitRunner;
+  /** What lanes read files with: the same boundary, deny set and `$PAP_HOME` as the explorer (M9R22). */
+  readonly boundary: BoundaryConfig;
+  readonly deny: DenySet;
+  readonly home: string;
+  /** The transports a push may use (`https:ssh`; `Config.testGitProtocols` in tests): lanes read `file` from it. */
+  readonly remoteProtocols: string;
+  /** The owner's running terminals in a folder or below: a lane is not archived under a shell (M9R40). */
+  runningIn(ownerId: string, folder: string): number;
+  /** What a lane script is started with: the terminal scopes, the daemon's environment and the starting umask (M9R27). */
+  readonly runtime: {
+    readonly scopes: Pick<WorkerScopes, "next">;
+    readonly env: NodeJS.ProcessEnv;
+    readonly umask: number;
+  };
   /** The HTTP routes of the modules; they are cookie-only (M8R31), so they take the browser-session check. */
   mount(app: Hono, authenticateCookieHeader: (header: string | undefined) => Caller | null): void;
   /** Every terminal's kill ladder in parallel, then drops what the modules cache. Idempotent. */
@@ -118,7 +134,18 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
   const deny = createDenySet(denySourcesOf(boundary), deps.clock, undefined, undefined, {
     logger: deps.logger.child({ module: "deny_set" }),
   });
-  const git = guardFilters(createGitRunner({ env: deps.env, logger: deps.logger.child({ module: "git" }) }));
+  // Temporary git indexes for checkpoints (M9R11): the runner accepts a GIT_INDEX_FILE only inside this folder.
+  const indexDir = join(deps.config.home, "tmp", "git-index");
+  mkdirSync(indexDir, { recursive: true, mode: 0o700 });
+  chmodSync(indexDir, 0o700);
+  const git = guardFilters(
+    createGitRunner({
+      env: deps.env,
+      logger: deps.logger.child({ module: "git" }),
+      indexDir,
+      remoteProtocols: deps.config.testGitProtocols ?? "https:ssh",
+    }),
+  );
   const files = createFilesModule({
     roots: deps.roots,
     boundary,
@@ -157,6 +184,13 @@ export function createWorkspaceModules(deps: WorkspaceDeps, workerUmask: number)
   return {
     rpc: { ...files.rpc, ...vcs.rpc, ...terminal.rpc },
     attachments: files.attachments,
+    git,
+    boundary,
+    deny,
+    home: deps.config.home,
+    remoteProtocols: deps.config.testGitProtocols ?? "https:ssh",
+    runningIn: terminal.runningIn,
+    runtime: { scopes: deps.scopes, env: deps.env, umask: workerUmask },
     mount: (app, authenticate) => files.mount(app, httpCaller(authenticate)),
     shutdown: () => {
       stopping ??= terminal.shutdown().finally(() => {

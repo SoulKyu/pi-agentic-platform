@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { PapError } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
+import { within } from "../../kernel/fs/boundary.ts";
 import { readFileSync } from "node:fs";
 import { parseProcStat, ptyKill, type PtyTarget } from "../../kernel/pty/kill.ts";
 import type { PtyProcess } from "../../kernel/pty/spawn.ts";
@@ -25,6 +26,8 @@ export interface TerminalRegistry {
   /** Null for another owner's terminal. */
   get(ownerId: string, id: string): Terminal | null;
   list(ownerId: string): readonly Terminal[];
+  /** The owner's running terminals whose folder is `folder` or below (the archive of a lane refuses while one runs). */
+  runningIn(ownerId: string, folder: string): number;
   onChange(listener: (ownerId: string, change: TerminalChange) => void): () => void;
   /** True from the start of `closeAll`: a stopping daemon takes no new shell (MC28). */
   readonly closing: boolean;
@@ -153,6 +156,10 @@ export function createTerminalRegistry(deps: TerminalRegistryDeps): TerminalRegi
     },
     get: (ownerId, id) => byOwner.get(ownerId)?.get(id) ?? null,
     list: (ownerId) => [...(byOwner.get(ownerId)?.values() ?? [])],
+    runningIn: (ownerId, folder) =>
+      [...(byOwner.get(ownerId)?.values() ?? [])].filter(
+        (terminal) => terminal.view().status === "running" && within(folder, terminal.cwd),
+      ).length,
     onChange(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);

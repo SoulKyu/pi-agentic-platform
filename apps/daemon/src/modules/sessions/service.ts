@@ -108,11 +108,13 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     summary: shell.summaryFor,
   });
 
+  const promptWaiting = (id: string): boolean => deps.laneHooks?.waiting(id) ?? false;
   const folderRestart = createFolderRestart({
     live,
     reopening,
     row: (id) => deps.store.get(id),
     logger: deps.logger,
+    waiting: promptWaiting,
   });
   const { launch, ensureLive } = createLaunch({
     deps,
@@ -130,6 +132,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
     onPublished: (sessionId, event) => {
       folderRestart.published(sessionId, event);
+      deps.laneHooks?.published(sessionId, event);
       // A run starting is activity: the session leaves Settled and Snoozed (M4R41).
       if (event.kind === "status" && event.status === "running") organiser.activity(sessionId);
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
@@ -165,6 +168,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     owned,
     ensureLive,
     live,
+    waiting: promptWaiting,
     reads,
     hub: deps.hub,
     exports: deps.exports,
@@ -173,6 +177,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   const modelCommands = createSessionModels({
     owned,
     ensureLive,
+    waiting: promptWaiting,
     logger: deps.logger,
     store: deps.store,
     running: async (id) => live.get(id) ?? (await reopening.get(id)?.catch(() => null)) ?? null,
@@ -246,6 +251,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       deps.store.touch(row.id, deps.clock.now());
       organiser.activity(row.id);
       publisher.changed(row.id);
+      const waiting = deps.laneHooks?.beforePrompt(row, session, input.streamingBehavior);
+      if (waiting) await waiting;
       const result = await session.prompt(prepared.text, input.streamingBehavior, prepared.images);
       prepared.accepted();
       return result;
@@ -308,6 +315,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
     },
     restartFolder: folderRestart.restart,
+    releaseIdle: folderRestart.releaseIdle,
+    laneProbe: { live, statusOf, branchPath: reads.branchPath, agentText: reads.agentText },
     inspect(sessionId) {
       const session = live.get(sessionId);
       return session ? { pid: session.pid(), rssMb: session.rssMb() } : null;

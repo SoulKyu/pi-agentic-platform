@@ -90,6 +90,22 @@ describe("dispatch", () => {
     },
   );
 
+  it("answers suggest_commit and asks for no look at the leaf (it appends nothing)", async () => {
+    const order: string[] = [];
+    const dispatch = createDispatch({
+      papHome: "/pap",
+      applyTaint: () => {},
+      session: { model: undefined } as unknown as AgentSession,
+      ipc: { send: (record: { type: string }) => void order.push(record.type) } as unknown as Ipc,
+      ui: {} as UiBridge,
+      approvals: {} as Approvals,
+      leafMayHaveMoved: () => void order.push("look"),
+      setRules: () => {},
+    });
+    dispatch({ type: "suggest_commit", id: "s1", diff: "diff --git a/a b/a" });
+    await vi.waitFor(() => expect(order).toEqual(["response"]));
+  });
+
   it("does not ask for a look when set_session_name failed", async () => {
     const order: string[] = [];
     const session = {

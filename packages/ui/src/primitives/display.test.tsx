@@ -18,6 +18,7 @@ describe("status and structure (DESIGN.md §9.1, §2)", () => {
     expect(html(<Chip tone="ext" label="External content" />)).toMatch(
       /border-dashed[^"]*border-attn|border-attn[^"]*border-dashed/,
     );
+    expect(html(<Chip tone="you" label="In review" />)).toContain("border-you-line");
     expect(html(<Chip tone="att" label="Needs input" dot />)).toContain('data-slot="chip-dot"');
   });
 

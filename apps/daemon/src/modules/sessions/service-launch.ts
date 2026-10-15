@@ -56,6 +56,7 @@ export function createLaunch(ctx: LaunchContext) {
   // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
   // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
   async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
+    deps.laneHooks?.assertOwn(row.ownerId, row.cwd);
     ctx.checkCapacity();
     if (!isNew) ctx.beforeStart?.(row);
     let stored = !isNew;
@@ -100,6 +101,7 @@ export function createLaunch(ctx: LaunchContext) {
           else preReady?.add({ kind: "record", recordKind: kind, data });
         },
         idleMs: deps.idleMs,
+        held: () => deps.laneHooks?.waiting(row.id) ?? false,
         // Before the row exists the name is taken from the session once it is ready (below).
         onName: (name) => {
           if (stored) syncName(row.id, name);

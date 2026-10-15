@@ -180,6 +180,27 @@ describe("the built web app under the daemon's CSP", () => {
     for (const code of holders) expect(code).not.toMatch(/data-settings-screen/);
   });
 
+  it("keeps the lane tab and its strings out of the initial assets (M9R62)", () =>
+    keepsLazyOnly([
+      /data-lane-notice/,
+      /Files differ from this point/,
+      /Les fichiers diffèrent de ce point/,
+    ]));
+
+  it("keeps the new lane dialog and its strings out of the initial assets (M9R95)", () =>
+    keepsLazyOnly([/data-slot":\W*new-lane/, /Fetch issue/, /Récupérer l'issue/]));
+
+  it("keeps the compare tab and its strings out of the initial assets (M9R96)", () =>
+    keepsLazyOnly([/data-winner/, /Close losers/, /Fermer les perdantes/]));
+
+  it("keeps the lane review pane, its diff view and its strings out of the initial assets (M9R87, M9R88)", () =>
+    keepsLazyOnly([
+      /data-review-pane/,
+      /cm-review-comment/,
+      /Too large to show here/,
+      /Trop volumineux pour être affiché ici/,
+    ]));
+
   it("keeps the Approvals strings out of the initial assets", () =>
     keepsLazyOnly([/What the agent may do without asking you/]));
 

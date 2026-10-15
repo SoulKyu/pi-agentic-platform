@@ -30,6 +30,7 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: "settings.open", titleKey: "commands.settings.open", group: "navigation" },
   { id: "shortcuts.help", titleKey: "commands.shortcuts.help", group: "app" },
   { id: "session.new", titleKey: "commands.session.new", group: "session" },
+  { id: "lanes.new", titleKey: "commands.lanes.new", group: "session" },
   { id: "session.stop", titleKey: "commands.session.stop", group: "session" },
   { id: "session.sendOther", titleKey: "commands.session.sendOther", group: "session" },
   { id: "session.showChanges", titleKey: "commands.session.showChanges", group: "session" },
@@ -63,6 +64,7 @@ export const DEFAULT_KEYBINDINGS: readonly KeybindingRule[] = [
   { key: "mod+,", command: "settings.open", when: "!panelFocus && !dialogOpen" },
   { key: "?", command: "shortcuts.help", when: "!panelFocus && !editableFocus && !dialogOpen" },
   { key: "ctrl+alt+n", command: "session.new", when: "!panelFocus && !dialogOpen" },
+  { key: "mod+shift+l", command: "lanes.new", when: "!panelFocus && !dialogOpen" },
   {
     key: "escape",
     command: "session.stop",

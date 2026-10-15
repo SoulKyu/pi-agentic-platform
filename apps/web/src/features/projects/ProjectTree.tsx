@@ -1,14 +1,18 @@
 import "../../i18n/register-sidebar.ts";
 import type { ShellSession } from "@pap/contracts";
 import { Banner, Button, Collapsible, TextField } from "@pap/ui";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { errorKey, plural, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { useEffectiveProject } from "../../stores/current-project.ts";
+import { retryLanes } from "../../stores/lane-feed.ts";
+import { useLaneStore } from "../../stores/lane-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { ArchivedLanesEntry, type ArchivedLanesProps } from "./ArchivedLanesEntry.tsx";
 import { ArchivedShelf } from "./ArchivedShelf.tsx";
 import { Loading } from "./Loading.tsx";
 import { useFocusFallback } from "./menu-focus.ts";
+import { LaneRow } from "./LaneRow.tsx";
 import { ProjectHeading } from "./ProjectHeading.tsx";
 import { SessionRow } from "./SessionRow.tsx";
 import { buildTree, clampShown, ROWS_PER_PROJECT } from "./tree.vm.ts";
@@ -19,6 +23,8 @@ interface ProjectTreeProps {
   onNewSession?(): void;
   /** The palette's effective chord, formatted ("Ctrl+K"); null when it has none. */
   readonly chord: string | null;
+  /** The archived-lanes list's chunk, from the shell; without it the closing entry is not shown. */
+  readonly loadArchivedLanes?: () => Promise<{ default: ComponentType<ArchivedLanesProps> }>;
 }
 
 /** The current time, refreshed every `interval` ms so ages and snoozes stay true. */
@@ -91,10 +97,11 @@ function Shelf({ title, sessions, more, now, onPick }: ShelfProps) {
 }
 
 /** The ⌘B tree: pinned, then projects with their sessions, then the Snoozed, Settled and Archived shelves. */
-export default function ProjectTree({ onPick, onNewSession, chord }: ProjectTreeProps) {
+export default function ProjectTree({ onPick, onNewSession, chord, loadArchivedLanes }: ProjectTreeProps) {
   const t = useT();
   const locale = useLocale();
   const view = useShellStore((state) => state.view);
+  const laneView = useLaneStore((state) => state.view);
   const current = useEffectiveProject();
   const now = useNow(60_000);
   const [filter, setFilter] = useState("");
@@ -110,6 +117,7 @@ export default function ProjectTree({ onPick, onNewSession, chord }: ProjectTree
     projectId: current?.id ?? null,
     shown,
     now,
+    lanes: { items: laneView.lanes.values(), archived: laneView.archived },
   });
   const broken = view.unreadable || view.failed !== null;
   const filtering = filter.trim() !== "";
@@ -135,6 +143,20 @@ export default function ProjectTree({ onPick, onNewSession, chord }: ProjectTree
     banner = (
       <Banner tone="capacity" title={t("sidebar.failed")} actions={retryAction}>
         {t(errorKey(view.failed))}
+      </Banner>
+    );
+  else if (laneView.failed !== null)
+    banner = (
+      <Banner
+        tone="capacity"
+        title={t("sidebar.lanesFailed")}
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => retryLanes(getRuntime().subscriptions)}>
+            {t("sidebar.retry")}
+          </Button>
+        }
+      >
+        {t(errorKey(laneView.failed))}
       </Banner>
     );
   else if (view.unreadable)
@@ -173,6 +195,16 @@ export default function ProjectTree({ onPick, onNewSession, chord }: ProjectTree
               movable={!filtering}
               onNewSession={onNewSession}
             />
+            {group.lanes.length > 0 ? (
+              <ul
+                aria-label={t("sidebar.lanes", { name: group.project?.name ?? t("sidebar.otherFolders") })}
+                className="flex flex-col gap-s1"
+              >
+                {group.lanes.map((row) => (
+                  <LaneRow key={row.lane.id} row={row} now={now} onPick={onPick} />
+                ))}
+              </ul>
+            ) : null}
             {group.sessions.length > 0 ? (
               <ul className="flex flex-col gap-s1">
                 {group.sessions.map((session) => (
@@ -214,6 +246,9 @@ export default function ProjectTree({ onPick, onNewSession, chord }: ProjectTree
       ) : null}
       {archived > 0 && filtering ? (
         <p className="text-ui text-muted">{t("sidebar.archivedNotSearched")}</p>
+      ) : null}
+      {model.archivedLanes > 0 && loadArchivedLanes ? (
+        <ArchivedLanesEntry count={model.archivedLanes} load={loadArchivedLanes} onPick={onPick} />
       ) : null}
       {model.empty && view.loaded && !broken ? (
         <p className="text-ui text-muted">{t(filtering ? "sidebar.noMatch" : "sidebar.empty")}</p>

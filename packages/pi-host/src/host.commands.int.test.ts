@@ -115,3 +115,15 @@ describe("auto_name over IPC", () => {
     });
   });
 });
+
+describe("suggest_commit over IPC", () => {
+  it("answers the scripted model's message, unfenced, and appends nothing to the session", async () => {
+    await bed.start({ steps: [{ text: "```\nfix: stop the leak\n```" }] });
+    expect(
+      await bed.host().request({ type: "suggest_commit", diff: "diff --git a/a b/a\n+x\n" }),
+    ).toMatchObject({
+      success: true,
+      data: { message: "fix: stop the leak" },
+    });
+  });
+});

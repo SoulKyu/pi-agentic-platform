@@ -16,6 +16,7 @@ import {
   handleSetSessionName,
 } from "./session-commands.ts";
 import { handleGetCommands } from "./slash-commands.ts";
+import { handleSuggestCommit } from "./suggest-commit.ts";
 import { handleSetTools } from "./tool-preset-commands.ts";
 import { applyPreset, presetOf } from "./tool-presets.ts";
 import type { UiBridge } from "./ui-bridge.ts";
@@ -88,6 +89,9 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
           // The title is a `session_info` entry, which advances the leaf (a look after a refusal finds nothing).
           handleAutoName(session, record, send).then(() => deps.leafMayHaveMoved()),
         );
+        return;
+      case "suggest_commit":
+        background("suggest_commit", handleSuggestCommit(session, record, send));
         return;
       case "get_available_models":
         background("get_available_models", handleGetAvailableModels(session, record, send));

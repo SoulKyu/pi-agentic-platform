@@ -152,6 +152,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   const state = (): IdleState => {
     const busy =
       status !== "idle" ||
+      deps.held?.() === true ||
       run.promptPending() ||
       ui.dialogs().length > 0 ||
       ui.panels().length > 0 ||

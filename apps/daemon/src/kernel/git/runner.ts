@@ -1,10 +1,13 @@
 import { type ChildProcessByStdio, spawn } from "node:child_process";
+import { basename, dirname } from "node:path";
 import type { Readable, Writable } from "node:stream";
 import { PapError } from "@pap/contracts";
 import type { Logger } from "../logger.ts";
 import { maskedStdio } from "../pty/fd-mask.ts";
 import { cutUnits } from "../text.ts";
-import { FILTER_SCAN_ARGS, gitArgs, gitEnv } from "./exec.ts";
+import { type GitProfile, prepare } from "./allowlist.ts";
+import { gitArgs, gitEnv, isLaneGitDir, WORK_TREE_PINNED } from "./exec.ts";
+import { stageInputAllowed } from "./stage.ts";
 
 export type GitErrorKind = "git_missing" | "timeout" | "too_large" | "failed" | "git_too_old";
 
@@ -36,8 +39,23 @@ export interface GitRunOptions {
   okCodes?: readonly number[];
   /** Bytes written to git's stdin (`check-ignore --stdin`). Without it stdin is empty, so a read ends at once. */
   input?: Buffer;
-  /** `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>` and `GIT_CONFIG_VALUE_<n>` only (MC13); any other name is refused. */
+  /**
+   * The lane's git dir, `<common>/worktrees/<name>`, from pap's record and never from the lane's `.git` file (MC1 I4).
+   * Required by `add`, `commit`, `restore`, `clean` and `reset`; then `--git-dir` is pinned next to `--work-tree`.
+   */
+  gitDir?: string;
+  /**
+   * `GIT_CONFIG_COUNT/KEY_<n>/VALUE_<n>` (MC13), `GIT_INDEX_FILE` as `<indexDir>/idx-<32 hex>`, pap's own author and
+   * committer identity and `GIT_LFS_SKIP_SMUDGE=1` (M9R11); any other name or value is refused before git starts.
+   */
   env?: Readonly<Record<string, string>>;
+  /**
+   * `remote` is for `push` alone (M9R10): the owner's credential helpers and SSH agent, `https` and `ssh` only. Every
+   * other call is `local`, the default, and `push` is refused under it.
+   */
+  profile?: GitProfile;
+  /** Return git's stderr (UTF-8, the first 64 KiB) for the caller to classify; never logged beyond 300 characters (M9R12). */
+  keepStderr?: boolean;
 }
 
 export interface GitRunner {
@@ -50,7 +68,7 @@ export interface GitRunner {
     root: string,
     args: readonly string[],
     options?: GitRunOptions,
-  ): Promise<{ stdout: Buffer; code: number }>;
+  ): Promise<{ stdout: Buffer; code: number; stderr?: string }>;
 }
 
 interface ExecOptions {
@@ -76,6 +94,10 @@ export interface GitRunnerDeps {
   exec?: Exec;
   maxConcurrent?: number;
   maxWaiting?: number;
+  /** Where temporary indexes live (`$PAP_HOME/tmp/git-index`, M9R11). Absent: no `GIT_INDEX_FILE` is accepted. */
+  indexDir?: string;
+  /** The transports a push may use (default `https:ssh`); tests alone replace it (`Config.testGitProtocols`). */
+  remoteProtocols?: string;
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -176,82 +198,33 @@ function classify(error: unknown): GitErrorKind {
   return "failed";
 }
 
-const NO_EXTERNAL_PROGRAMS = ["diff", "log", "show"];
-
-/** What the runner itself adds to diff, log and show; a caller may spell it too (M8R46 does). */
-const OWN_OPTIONS = ["--no-ext-diff", "--no-textconv"];
-
-/**
- * MC18: the exact options each planned caller passes, nothing else. A blocklist was bypassed three times (git has
- * abbreviations, clusters, `-m` with a config value, `--decorate-refs --`...), so an option is accepted only when it is
- * spelled exactly as here: no abbreviation, no cluster, no `--opt value` form. Positional arguments (revs, pathspecs)
- * are accepted when they do not start with `-`, and after `--` too. A caller that needs another option extends this
- * table together with its own review of what that option can start.
- */
-const SUBCOMMANDS: Record<
-  string,
-  {
-    options: readonly string[];
-    positional: boolean;
-    /** Every positional starts with `./` (MC15). */ dotSlash?: true;
-  }
-> = {
-  // Task 4 brief tests: repository root and branch name.
-  "rev-parse": { options: ["--show-toplevel", "--abbrev-ref"], positional: true },
-  // M8R46: status --porcelain=v2 -z --branch --ignore-submodules=dirty
-  status: { options: ["--porcelain=v2", "-z", "--branch", "--ignore-submodules=dirty"], positional: true },
-  // M8R46: diff --numstat -z --ignore-submodules=dirty (a nested repository's own filters, MC13) --no-ext-diff --no-textconv HEAD --
-  diff: { options: ["--numstat", "-z", "--ignore-submodules=dirty", ...OWN_OPTIONS], positional: true },
-  // No planned caller yet (M9): only the runner's own options.
-  log: { options: OWN_OPTIONS, positional: true },
-  show: { options: OWN_OPTIONS, positional: true },
-  // M8R47: cat-file blob <spec>
-  "cat-file": { options: [], positional: true },
-  // M8R24: ls-files -z --cached -- ; M8R27: ls-files -z --cached --others --exclude-standard
-  "ls-files": { options: ["-z", "--cached", "--others", "--exclude-standard"], positional: true },
-  // M8R24: check-ignore -z --stdin --no-index. It runs without --literal-pathspecs (exit 128 under it, MC15), so a path
-  // given as an argument must start with `./`: ':(glob)x' would be pathspec magic. Names on stdin are the caller's
-  // to prefix the same way (modules/files/visibility.ts).
-  "check-ignore": { options: ["-z", "--stdin", "--no-index"], positional: true, dotSlash: true },
-  // No planned caller (tests read stdin); a file argument would run a clean filter, so none is accepted.
-  "hash-object": { options: ["--stdin"], positional: false },
-};
-
-/** The runner's own arguments: an allowlisted subcommand with only its listed options, `--no-ext-diff --no-textconv` after diff/log/show (MC12). */
-function prepare(args: readonly string[]): string[] | null {
-  // MC13: the one `config` call there is, exactly as the filter guard spells it (a bare `config` could write).
-  if (args.length === FILTER_SCAN_ARGS.length && FILTER_SCAN_ARGS.every((arg, at) => args[at] === arg))
-    return [...args];
-  const [subcommand, ...rest] = args;
-  const rule =
-    subcommand === undefined
-      ? undefined
-      : Object.hasOwn(SUBCOMMANDS, subcommand)
-        ? SUBCOMMANDS[subcommand]
-        : undefined;
-  if (subcommand === undefined || !rule) return null;
-  let afterDashes = false;
-  for (const arg of rest) {
-    if (!afterDashes && arg === "--") {
-      afterDashes = true;
-      continue;
-    }
-    if (arg.startsWith("-")) {
-      // After `--` nothing may look like an option; before it only the exact listed spellings.
-      if (afterDashes || !rule.options.includes(arg)) return null;
-    } else if (!rule.positional || (rule.dotSlash && !arg.startsWith("./"))) return null;
-  }
-  return NO_EXTERNAL_PROGRAMS.includes(subcommand)
-    ? [subcommand, ...OWN_OPTIONS, ...rest]
-    : [subcommand, ...rest];
-}
-
 const CONFIG_ENV = /^GIT_CONFIG_(?:COUNT|KEY_\d{1,3}|VALUE_\d{1,3})$/;
+/** Checkpoint commits are pap's own: these values and no others. */
+export const PAP_IDENTITY = { name: "pap", email: "pap@users.noreply.invalid" } as const;
+const IDENTITY: Readonly<Record<string, string>> = {
+  GIT_AUTHOR_NAME: PAP_IDENTITY.name,
+  GIT_AUTHOR_EMAIL: PAP_IDENTITY.email,
+  GIT_COMMITTER_NAME: PAP_IDENTITY.name,
+  GIT_COMMITTER_EMAIL: PAP_IDENTITY.email,
+};
+const INDEX_NAME = /^idx-[0-9a-f]{32}$/;
 
-/** The extra environment a caller may add: config entries and nothing else (MC13). */
-function extraEnv(env: GitRunOptions["env"]): Record<string, string> | null {
-  const entries = Object.entries(env ?? {});
-  return entries.every(([name]) => CONFIG_ENV.test(name)) ? Object.fromEntries(entries) : null;
+/** The extra environment a caller may add (M9R11, MC13): config entries, a temporary index, pap's identity, the LFS switch. */
+function extraEnv(env: GitRunOptions["env"], indexDir: string | null): Record<string, string> | null {
+  const out: Record<string, string> = {};
+  for (const [name, value] of Object.entries(env ?? {})) {
+    const allowed =
+      CONFIG_ENV.test(name) ||
+      (Object.hasOwn(IDENTITY, name) && IDENTITY[name] === value) ||
+      (name === "GIT_INDEX_FILE" &&
+        indexDir !== null &&
+        dirname(value) === indexDir &&
+        INDEX_NAME.test(basename(value))) ||
+      (name === "GIT_LFS_SKIP_SMUDGE" && value === "1");
+    if (!allowed) return null;
+    out[name] = value;
+  }
+  return out;
 }
 
 /** M8R22: at most `maxConcurrent` git processes at once, `maxWaiting` queued; the next call is refused, nothing is evicted. */
@@ -289,9 +262,17 @@ export function createGitRunner(deps: GitRunnerDeps): GitRunner {
 
   return {
     async run(root, args, options = {}) {
-      const prepared = prepare(args);
-      const added = extraEnv(options.env);
+      const added = extraEnv(options.env, deps.indexDir ?? null);
+      const profile = options.profile ?? "local";
+      const prepared = prepare(args, profile, added ?? {});
       if (!prepared || !added) throw fail("failed", args, null);
+      const sub = args[0] ?? "";
+      if (options.gitDir !== undefined && !isLaneGitDir(options.gitDir)) throw fail("failed", args, null);
+      if (WORK_TREE_PINNED.has(sub) && options.gitDir === undefined) throw fail("failed", args, null);
+      // MC1 I3: the staged list is capped, and `add` (and a listed `restore`) has no other source of paths.
+      const listed =
+        sub === "add" || sub === "rm" || (sub === "restore" && args.includes("--pathspec-from-file=-"));
+      if (listed && !stageInputAllowed(options.input)) throw fail("failed", args, null);
       const queued = acquire();
       if (queued) await queued;
       try {
@@ -300,9 +281,9 @@ export function createGitRunner(deps: GitRunnerDeps): GitRunner {
         try {
           result = await exec(
             "git",
-            gitArgs(root, prepared),
+            gitArgs(root, prepared, options.gitDir, profile),
             {
-              env: { ...gitEnv(deps.env, root), ...added },
+              env: { ...gitEnv(deps.env, root, profile, deps.remoteProtocols), ...added },
               encoding: "buffer",
               maxBuffer: options.maxBytes ?? DEFAULT_MAX_BYTES,
               timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
@@ -318,7 +299,9 @@ export function createGitRunner(deps: GitRunnerDeps): GitRunner {
           throw fail(classify(error), args, Buffer.isBuffer(stderr) ? stderr : null);
         }
         if (!okCodes.includes(result.code)) throw fail("failed", args, result.stderr);
-        return { stdout: result.stdout, code: result.code };
+        return options.keepStderr === true
+          ? { stdout: result.stdout, code: result.code, stderr: result.stderr.toString("utf8") }
+          : { stdout: result.stdout, code: result.code };
       } finally {
         release();
       }

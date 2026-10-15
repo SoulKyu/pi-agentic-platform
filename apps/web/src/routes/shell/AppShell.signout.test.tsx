@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { remember, rememberedRoots, resetFolderMemory } from "../../features/files/folder-memory.ts";
 import { RpcError } from "../../runtime/rpc.ts";
 import type { Runtime } from "../../runtime/index.ts";
+import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
 import { hasUnsavedFiles, resetUnsavedFiles, setUnsavedFiles } from "../../stores/unsaved-files.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
@@ -60,7 +61,11 @@ describe("sign-out wipes the M8 client stores (MC34)", () => {
     expect(hasUnsavedFiles("/p")).toBe(true);
     expect(rememberedRoots()).toBe(1);
 
+    useComposerPrefill.getState().push("s1", "Review comments");
+
     await page.unmount();
+
+    expect(useComposerPrefill.getState().take("s1")).toBeNull();
 
     expect(useVcsStore.getState().view.statuses.size).toBe(0);
     expect(useTerminalStore.getState().view.list).toEqual([]);

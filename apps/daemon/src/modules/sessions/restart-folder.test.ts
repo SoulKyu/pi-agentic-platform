@@ -15,7 +15,13 @@ describe("createFolderRestart (M7R105)", () => {
     const live = new Map<string, LiveSession>();
     const reopening = new Map<string, unknown>([["s1", {}]]);
     const row = { ownerId: "o", cwd: "/w" } as SessionRow;
-    const restart = createFolderRestart({ live, reopening, row: () => row, logger: silentLogger });
+    const restart = createFolderRestart({
+      live,
+      reopening,
+      row: () => row,
+      logger: silentLogger,
+      waiting: () => false,
+    });
     restart.restart("o", "/w");
     const { session, stop } = idleWorker();
     reopening.delete("s1");

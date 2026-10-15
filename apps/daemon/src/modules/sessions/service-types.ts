@@ -22,7 +22,10 @@ import type { AttachmentsPort } from "../files/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { Exports } from "./exports.ts";
+import type { LaneHooksSlot } from "./lane-hooks.ts";
+import type { LaneProbe } from "./lane-port.ts";
 import type { PiWriter } from "./pi-writer.ts";
+import type { ReleaseResult } from "./restart-folder.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
 import type { SessionCommands } from "./service-commands.ts";
 import type { SessionModels } from "./service-models.ts";
@@ -62,6 +65,8 @@ export interface SessionsServiceDeps {
   onAdopted?(sessionId: string): void;
   /** A write outside pap added tool results to a session's file: the policy module taints it (M7R27). */
   onOutsideToolResults(sessionId: string): void;
+  /** The lanes module's hooks around a prompt and a run's end (M9R114); none: a prompt goes at once. */
+  readonly laneHooks?: Pick<LaneHooksSlot, "beforePrompt" | "published" | "waiting" | "assertOwn">;
   /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
   loadTranscript(): Promise<TranscriptReader>;
   /** Loads the writer of forks and clones: Pi's own session manager, behind a lazy import (R108, ADR 0009). */
@@ -155,6 +160,10 @@ export interface SessionsService extends SessionCommands, SessionModels {
    * new trust decision (M7R105): the idle ones now, the others when their run is over. Answers how many that concerns.
    */
   restartFolder(ownerId: string, folder: string): number;
+  /** Stops the worker of the owner's session when it is quiet (M9R113, M10R154): `released`, `busy` (left alone) or `cold` (no worker). */
+  releaseIdle(ownerId: string, sessionId: string): ReleaseResult;
+  /** What the lane port reads of live sessions and files (M9R37). */
+  readonly laneProbe: LaneProbe;
   /**
    * Files a session the caller owns: pin, archive, settle, snooze, or Undo (`restore`). Synchronous (M4R126); the
    * worker is never touched (M4R39). `not_found` for another owner's session, `bad_request`/`limit_reached` from the

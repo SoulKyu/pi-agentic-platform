@@ -260,6 +260,7 @@ describe("protocol v2 records", () => {
     { type: "set_session_name", id: "r1", name: "Fix login" },
     { type: "export_html", id: "r1", outputPath: "/pap/exports/x.html" },
     { type: "auto_name", id: "r1" },
+    { type: "suggest_commit", id: "r1", diff: "diff --git a/a b/a" },
     { type: "custom_input", id: "p1", data: "\r" },
     { type: "custom_cancel", id: "p1" },
     { type: "approval_response", id: "a1", answer: "session" },
@@ -267,6 +268,13 @@ describe("protocol v2 records", () => {
   ])("accepts the daemon record $type", (record) => {
     expect(DaemonToWorker.safeParse(record).success).toBe(true);
   });
+
+  it.each([[""], ["x".repeat(200_001)]])(
+    "refuses a suggest_commit diff that is empty or over 200 000 characters",
+    (diff) => {
+      expect(DaemonToWorker.safeParse({ type: "suggest_commit", id: "r1", diff }).success).toBe(false);
+    },
+  );
 
   it("refuses an export path that is not absolute and an answer outside the four", () => {
     expect(DaemonToWorker.safeParse({ type: "export_html", id: "r1", outputPath: "x.html" }).success).toBe(

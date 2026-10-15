@@ -3,3 +3,4 @@
 export { CodeEditor, type CodeEditorProps, type CodeLabels } from "./code/CodeEditor.tsx";
 export { DiffView, type DiffViewProps } from "./code/DiffView.tsx";
 export { languageFor, type LanguageLoader } from "./code/languages.ts";
+export { ReviewDiffView, type DiffComment, type ReviewDiffViewProps } from "./code/ReviewDiff.tsx";
