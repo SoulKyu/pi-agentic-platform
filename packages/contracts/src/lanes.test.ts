@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { BaseRef, BranchName, FanoutView, LaneId, LaneTitle, LaneView, slugOf } from "./lanes.ts";
+import {
+  BaseRef,
+  BranchName,
+  FanoutView,
+  LaneId,
+  LANE_LIMITS,
+  LaneTitle,
+  LaneView,
+  slugOf,
+} from "./lanes.ts";
 
 const oid = "a".repeat(40);
 
@@ -92,6 +101,8 @@ const lane = {
   fanoutSlot: null,
   firstRunEndedAt: null,
   checkpointsFull: false,
+  descriptionPreview: "",
+  descriptionTruncated: false,
   notices: [],
   archivedAt: null,
   createdAt: 1,
@@ -103,6 +114,16 @@ describe("LaneView", () => {
     const eight = { ...lane, createdBy: "token", failedReason: "git", pushRemote: { host: "h", path: "p" } };
     expect(LaneView.safeParse({ ...eight, notices: Array(8).fill(notice) }).success).toBe(true);
     expect(LaneView.safeParse({ ...eight, notices: Array(9).fill(notice) }).success).toBe(false);
+  });
+});
+
+describe("LaneView description preview", () => {
+  it("takes 2000 characters, refuses 2001 and needs the truncation flag", () => {
+    expect(LANE_LIMITS.descriptionPreview).toBe(2000);
+    const view = { ...lane, descriptionPreview: "x".repeat(2000), descriptionTruncated: true };
+    expect(LaneView.safeParse(view).success).toBe(true);
+    expect(LaneView.safeParse({ ...view, descriptionPreview: "x".repeat(2001) }).success).toBe(false);
+    expect(LaneView.safeParse({ ...view, descriptionTruncated: undefined }).success).toBe(false);
   });
 });
 

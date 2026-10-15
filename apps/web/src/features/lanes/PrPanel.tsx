@@ -1,6 +1,7 @@
 import "./register-lane-commit-catalog.ts";
-import type { LaneView } from "@pap/contracts";
+import { LANE_LIMITS, type LaneView } from "@pap/contracts";
 import { Button, Checkbox, Chip, TextField } from "@pap/ui";
+import { escapeHiddenKeepLines } from "../../lib/escape-hidden.ts";
 import { useT } from "../../i18n/index.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { pushModel } from "./commit-bar.vm.ts";
@@ -82,6 +83,7 @@ function Panel({ lane }: { readonly lane: LaneView }) {
     );
   }
 
+  const showPreview = panel.form.body.trim() === "" && lane.descriptionPreview !== "";
   const supported = lane.forge !== "gitlab" && lane.forge !== "gitea";
   return (
     <section data-slot="lane-pr-panel" className="flex flex-col gap-s2">
@@ -96,7 +98,11 @@ function Panel({ lane }: { readonly lane: LaneView }) {
           />
           <TextField
             label={t("laneCommit.pr.body")}
-            hint={t(lane.createdBy === "token" ? "laneCommit.pr.bodyHint.token" : "laneCommit.pr.bodyHint")}
+            hint={t(
+              lane.createdBy === "token" && showPreview
+                ? "laneCommit.pr.bodyHint.token"
+                : "laneCommit.pr.bodyHint",
+            )}
             value={panel.form.body}
             onChange={(body) => panel.edit({ body })}
             multiline
@@ -104,6 +110,21 @@ function Panel({ lane }: { readonly lane: LaneView }) {
             ground="surface"
             disabled={busy}
           />
+          {showPreview ? (
+            <div className="flex flex-col gap-s1">
+              <pre
+                data-slot="lane-pr-body-preview"
+                className="max-h-24 overflow-auto whitespace-pre-wrap break-words font-mono text-code text-muted"
+              >
+                {escapeHiddenKeepLines(lane.descriptionPreview)}
+              </pre>
+              {lane.descriptionTruncated ? (
+                <p className="text-ui text-muted">
+                  {t("laneCommit.pr.bodyClipped", { count: LANE_LIMITS.descriptionPreview })}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
           <Checkbox
             label={t("laneCommit.pr.draft")}
             checked={panel.form.draft}

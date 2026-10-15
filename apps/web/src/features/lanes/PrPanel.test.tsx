@@ -52,16 +52,50 @@ describe("pull request panel: without a PR", () => {
     expect(hasButton(box, "Create PR")).toBe(true);
   });
 
-  it("tells the owner a token wrote the default description, which is not shown here", async () => {
+  it("tells the owner a token wrote the description that is shown under the empty body", async () => {
     const own = await show();
     expect(text(own.box)).toContain("Empty: the lane's description is used");
-    expect(text(own.box)).not.toContain("A token wrote it");
+    expect(text(own.box)).not.toContain("A token wrote");
     document.body.replaceChildren();
     useLaneStore.getState().reset();
-    const { box } = await show({ createdBy: "token" });
-    expect(text(box)).toContain(
-      "A token wrote it and it is not shown here: write a body, or read the lane first",
-    );
+    const { box } = await show({ createdBy: "token", descriptionPreview: "do the thing" });
+    expect(text(box)).toContain("A token wrote this description: read it before you create the PR");
+    expect(text(box)).not.toContain("is not shown here");
+  });
+
+  it("shows the lane's description under the empty body and hides it once the owner types", async () => {
+    const { box } = await show({ descriptionPreview: "Close ticket 412\nand more" });
+    const preview = () => box.querySelector('[data-slot="lane-pr-body-preview"]');
+    expect(preview()?.textContent).toBe("Close ticket 412\nand more");
+    await typeInto(field(box, "Description"), "my own words");
+    expect(preview()).toBeNull();
+    await typeInto(field(box, "Description"), "");
+    expect(preview()?.textContent).toBe("Close ticket 412\nand more");
+  });
+
+  it("shows no preview block for a lane with no description", async () => {
+    const { box } = await show();
+    expect(box.querySelector('[data-slot="lane-pr-body-preview"]')).toBeNull();
+  });
+
+  it("writes hidden characters of a token's description as escapes", async () => {
+    const { box } = await show({
+      createdBy: "token",
+      descriptionPreview: "ok\u202Eevil\u200Bzero\u00A0blank",
+    });
+    const shown = box.querySelector('[data-slot="lane-pr-body-preview"]')?.textContent ?? "";
+    expect(shown).toBe("ok\\u202Eevil\\u200Bzero\\u00A0blank");
+    expect(shown).not.toMatch(/[\u202E\u200B\u00A0]/);
+  });
+
+  it("says the preview is clipped only when the description is truncated", async () => {
+    const note = "first 2000 characters shown; the full description is sent";
+    const clipped = await show({ descriptionPreview: "x".repeat(2000), descriptionTruncated: true });
+    expect(text(clipped.box)).toContain(note);
+    document.body.replaceChildren();
+    useLaneStore.getState().reset();
+    const whole = await show({ descriptionPreview: "short" });
+    expect(text(whole.box)).not.toContain(note);
   });
 
   it("creates the PR with what the form holds, under a command id", async () => {

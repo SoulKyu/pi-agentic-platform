@@ -52,7 +52,8 @@ export const laneCommitEn = {
   "laneCommit.pr.body": "Description",
   "laneCommit.pr.bodyHint": "Empty: the lane's description is used",
   "laneCommit.pr.bodyHint.token":
-    "Empty: the lane's description is used. A token wrote it and it is not shown here: write a body, or read the lane first",
+    "Empty: the lane's description is used. A token wrote this description: read it before you create the PR",
+  "laneCommit.pr.bodyClipped": "first {count} characters shown; the full description is sent",
   "laneCommit.pr.draft": "Draft",
   "laneCommit.pr.create": "Create PR",
   "laneCommit.pr.create.stage": "Creating…",
@@ -135,7 +136,8 @@ export const laneCommitFr: { readonly [K in keyof typeof laneCommitEn]: string }
   "laneCommit.pr.body": "Description",
   "laneCommit.pr.bodyHint": "Vide : la description de la lane est utilisée",
   "laneCommit.pr.bodyHint.token":
-    "Vide : la description de la lane est utilisée. Un jeton l'a écrite et elle n'est pas affichée ici : écrivez un texte, ou lisez d'abord la lane",
+    "Vide : la description de la lane est utilisée. Un jeton a écrit cette description : lisez-la avant de créer la PR",
+  "laneCommit.pr.bodyClipped": "{count} premiers caractères affichés ; la description complète est envoyée",
   "laneCommit.pr.draft": "Brouillon",
   "laneCommit.pr.create": "Créer la PR",
   "laneCommit.pr.create.stage": "Création…",

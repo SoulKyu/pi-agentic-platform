@@ -11,6 +11,8 @@ export const LANE_LIMITS = {
   fanout: 4,
   title: 200,
   description: 20_000,
+  /** What `LaneView` carries of the description, for the PR panel; the full text stays on the daemon (the lane stream has a frame budget). */
+  descriptionPreview: 2000,
   /** The rendered first prompt a fan-out stores (an issue's fenced text included, M9-RT-14). */
   fanoutPrompt: 24_000,
   branch: 200,
@@ -211,6 +213,9 @@ export const LaneView = z.object({
   firstRunEndedAt: Time.nullable(),
   /** The lane holds `checkpointsPerLane` checkpoints: new ones are refused (never evicted) until it is archived. */
   checkpointsFull: z.boolean(),
+  /** The first characters of the lane's description, which `lanes.prCreate` sends whole when the body is empty. */
+  descriptionPreview: z.string().max(LANE_LIMITS.descriptionPreview),
+  descriptionTruncated: z.boolean(),
   notices: z.array(LaneNotice).max(LANE_LIMITS.notices),
   archivedAt: Time.nullable(),
   createdAt: Time,

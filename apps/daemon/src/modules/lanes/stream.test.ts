@@ -153,6 +153,32 @@ describe("the lane stream", () => {
     expect(LaneStreamEvent.safeParse(event).success).toBe(true);
   });
 
+  it("holds the frame budget with 64 lanes of 20 000 character descriptions: previews only, nothing dropped", () => {
+    const { stream } = harness();
+    for (let n = 0; n < 64; n++)
+      store.insert(lane(`lane${String(n).padStart(2, "0")}-0001`, { description: "d".repeat(20_000) }), n);
+    const event = stream.snapshot("u1");
+    if (event.kind !== "snapshot") throw new Error("not a snapshot");
+    expect(sizeOf(event)).toBeLessThanOrEqual(PAGE_BYTES);
+    expect(event.lanes).toHaveLength(64);
+    expect(event.truncated).toBe(false);
+    expect(event.lanes.every((view) => view.descriptionPreview.length === 2000)).toBe(true);
+  });
+
+  it("still fits PAGE_BYTES in the worst case (previews that JSON escapes to six bytes a character)", () => {
+    const { stream } = harness();
+    for (let n = 0; n < 64; n++)
+      store.insert(
+        lane(`lane${String(n).padStart(2, "0")}-0001`, { description: "\u0001".repeat(20_000) }),
+        n,
+      );
+    const event = stream.snapshot("u1");
+    if (event.kind !== "snapshot") throw new Error("not a snapshot");
+    expect(sizeOf(event)).toBeLessThanOrEqual(PAGE_BYTES);
+    expect(event.lanes.length).toBeGreaterThan(0);
+    expect(LaneStreamEvent.safeParse(event).success).toBe(true);
+  });
+
   it("keeps all 64 lanes when they fit", () => {
     const { stream } = harness();
     for (let n = 0; n < 64; n++) store.insert(lane(`lane${String(n).padStart(2, "0")}-0001`), n);

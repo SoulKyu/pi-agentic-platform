@@ -25,6 +25,8 @@ export const laneView = (patch: Partial<LaneView> & { id: string }): LaneView =>
   fanoutSlot: null,
   firstRunEndedAt: null,
   checkpointsFull: false,
+  descriptionPreview: "",
+  descriptionTruncated: false,
   notices: [],
   archivedAt: null,
   createdAt: 1,
