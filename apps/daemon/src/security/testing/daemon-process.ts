@@ -170,7 +170,9 @@ export function createCrashBed(steps: object): CrashBed {
     },
     async signUp(life) {
       const setup = life.lines.find((line) => line.msg === "setup_url");
-      const token = new URL(String(setup?.url)).hash.replace("#token=", "");
+      if (typeof setup?.url !== "string")
+        throw new Error(`the daemon printed no setup_url (stderr: ${life.stderr() || "empty"})`);
+      const token = new URL(setup.url).hash.replace("#token=", "");
       const reply = await httpRequest(`http://127.0.0.1:${life.port}/auth/setup`, {
         method: "POST",
         headers: { origin: life.origin, "content-type": "application/json" },

@@ -37,13 +37,20 @@ const knowProjects = (...list: Array<ReturnType<typeof projectOf>>) =>
     view: { ...EMPTY_SHELL, loaded: true, projects: new Map(list.map((p) => [p.id, p])) },
   });
 
+// local noon: "today" is the local day, so the fixture must sit inside it in every time zone
+const LOCAL_NOON = new Date(2026, 9, 15, 12, 0, 0).getTime();
+
 const handlers = () => ({ onOpenSession: vi.fn(), onOpenTrigger: vi.fn(), onNewTrigger: vi.fn() });
 
 beforeEach(() => {
+  vi.useFakeTimers({ now: LOCAL_NOON, toFake: ["Date"] });
   useTasksStore.getState().reset();
   useShellStore.getState().reset();
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 function phone(on: boolean) {
   vi.stubGlobal("matchMedia", (query: string) => ({
@@ -92,7 +99,7 @@ describe("TasksBoard", () => {
         triggerOf({ id: "g2", name: "weekly", sourceType: "schedule", projectId: "p2", enabled: false }),
       ],
       tasks: [
-        taskOf(),
+        taskOf({ createdAt: LOCAL_NOON - 120_000, startedAt: LOCAL_NOON - 120_000 }),
         taskOf({
           id: "t2",
           projectId: "p2",

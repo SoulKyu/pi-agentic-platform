@@ -184,17 +184,16 @@ describe("create: the remembered request ids are bounded", () => {
       Array.from({ length: 10 }, (_, index) => bed.create({ requestId: String(index).padStart(16, "w") })),
     );
     expect(bed.judged).toHaveLength(9);
-    expect(settled.map((outcome) => outcome.status)).toEqual(
-      Array.from({ length: 10 }, () => "rejected").map((_, i) => (i === 0 ? "fulfilled" : "rejected")),
+    // The nine judged creates race for the one running slot on real filesystem calls: which one wins is not defined.
+    const winners = settled.filter((outcome) => outcome.status === "fulfilled");
+    const refusals = settled.flatMap((outcome) =>
+      outcome.status === "rejected" ? [(outcome.reason as PapError).code] : [],
     );
-    expect(
-      settled
-        .slice(1)
-        .map((outcome) => (outcome.status === "rejected" ? (outcome.reason as PapError).code : "")),
-    ).toEqual(Array.from({ length: 9 }, () => "capacity"));
+    expect(winners).toHaveLength(1);
+    expect(refusals).toEqual(Array.from({ length: 9 }, () => "capacity"));
     // The refused ids left nothing behind: with the first terminal closed, a new id works.
     await bed.rpc["terminal.close"](
-      { terminalId: (settled[0] as PromiseFulfilledResult<string>).value },
+      { terminalId: (winners[0] as PromiseFulfilledResult<string>).value },
       bed.ctxOf(),
     );
     expect(await bed.create({ requestId: "y".repeat(16) })).toMatch(/^[A-Za-z0-9_-]{22}$/);

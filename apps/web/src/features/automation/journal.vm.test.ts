@@ -14,7 +14,6 @@ import {
 } from "./journal.vm.ts";
 import { fireOf } from "./editor-bed.tsx";
 
-const NOW = Date.UTC(2026, 9, 15, 12, 0, 0);
 afterEach(() => setLocale("en"));
 
 describe("verdict chips", () => {
@@ -85,9 +84,12 @@ describe("pages", () => {
 
 describe("times, duration and cost", () => {
   it("shows the clock time of today's line and the range of a collapsed one", () => {
-    const one = whenText(fireOf(), NOW, "en");
+    // local noon: "today's line" is judged on the local day, so keep the fixture inside it in every time zone
+    const noon = new Date(2026, 9, 15, 12, 0, 0).getTime();
+    const at = noon - 60_000;
+    const one = whenText(fireOf({ at, firstAt: at }), noon, "en");
     expect(one).toMatch(/^\d{2}:\d{2}:\d{2}$/);
-    const range = whenText(fireOf({ count: 12, firstAt: NOW - 3_600_000 }), NOW, "en");
+    const range = whenText(fireOf({ count: 12, at, firstAt: noon - 3_600_000 }), noon, "en");
     expect(range).toMatch(/^\d{2}:\d{2}:\d{2} → \d{2}:\d{2}:\d{2}$/);
   });
 

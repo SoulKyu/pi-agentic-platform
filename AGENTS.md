@@ -11,6 +11,10 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - Run the built POC: `pnpm build && node --disable-warning=ExperimentalWarning apps/daemon/dist/main.js serve`, then open the setup URL it prints (`/` answers 404 when `apps/web/dist` does not exist, so build first). From another machine of a trusted LAN (testing only, cookie in clear text): add `--host <LAN IP> --insecure-http` (ADR 0004). `pnpm smoke` boots that same build against the scripted provider and drives it end to end.
 - Dev: `pnpm --filter @pap/daemon dev` (prints its URL; port and PAP_HOME derived from the worktree path), then `PAP_DEV_DAEMON=http://127.0.0.1:<that port> pnpm --filter @pap/web dev` and open http://localhost:5173
 
+## Install
+
+- Method 1 `scripts/install.sh` (checkout); method 2 `pnpm build:archive` then `./pap-install-<id>.sh` (offline archive, pinned SHA-256). `pap service install|uninstall|url` (systemd user unit, no instance lock). `pnpm smoke:install` boots the unit's own command line. Guide: `docs/agents/install.md`; ADRs 0055 to 0057; rulings `docs/research/m6-rulings.md`.
+
 ## Admin CLI (daemon stopped: `systemctl --user stop pap-preview`)
 
 - `pap audit prune [--month YYYY-MM] [--dry-run]` · `pap user add <username> [--password-stdin]` · `pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]`. `pap trace summary [--since 15m|2h|1d]` works while pap runs. Exit 0 / 1 (refusal) / 64 (usage). Details: `docs/agents/daemon.md`, `auth.md`.

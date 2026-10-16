@@ -11,7 +11,10 @@ export const USAGE = [
   "       pap user add <username> [--password-stdin]",
   "       pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]",
   "       pap trace summary [--since <15m|2h|1d>]",
-  "The admin commands (everything but serve and trace summary) need the daemon stopped; for the preview service:",
+  "       pap service install [--node <abs>] [--main <abs>] [--port <1-65535>] [--home <abs>] [--bin-dir <abs>]",
+  "       pap service uninstall [--bin-dir <abs>]",
+  "       pap service url",
+  "The admin commands (everything but serve, trace summary and service) need the daemon stopped; for the preview service:",
   `  ${PREVIEW_STOP_COMMAND}`,
   "",
 ].join("\n");

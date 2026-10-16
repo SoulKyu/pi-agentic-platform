@@ -37,6 +37,9 @@ describe("runCli", () => {
     expect(stderr()).toContain("pap user add <username> [--password-stdin]");
     expect(stderr()).toContain("pap passkey reset [--revoke-tokens] [--keep-password] [--password-stdin]");
     expect(stderr()).toContain("pap trace summary [--since <15m|2h|1d>]");
+    expect(stderr()).toContain("pap service install [--node <abs>]");
+    expect(stderr()).toContain("pap service uninstall [--bin-dir <abs>]");
+    expect(stderr()).toContain("pap service url");
     expect(stderr()).toContain("systemctl --user stop pap-preview");
     expect(stdout()).toBe("");
   });
@@ -49,6 +52,9 @@ describe("runCli", () => {
     expect(Object.keys(COMMANDS).sort()).toEqual([
       "audit prune",
       "passkey reset",
+      "service install",
+      "service uninstall",
+      "service url",
       "trace summary",
       "user add",
     ]);

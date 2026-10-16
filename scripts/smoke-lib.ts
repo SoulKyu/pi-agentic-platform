@@ -83,18 +83,25 @@ export interface Daemon {
   line(msg: string): Promise<Json>;
 }
 
-export function startDaemon(env: NodeJS.ProcessEnv, port: number): Daemon {
+export function startDaemon(
+  env: NodeJS.ProcessEnv,
+  port: number,
+  launch?: { file: string; args: readonly string[] },
+): Daemon {
   // No --conditions: this is the built daemon on its own. The guard reaches workers through PAP_TEST_WORKER_IMPORT.
+  // `launch` replaces the whole command line (smoke-install.ts runs the one the installed unit holds).
   const child = spawn(
-    process.execPath,
-    [
-      "--disable-warning=ExperimentalWarning",
-      `--import=${NETWORK_GUARD}`,
-      DAEMON,
-      "serve",
-      "--port",
-      String(port),
-    ],
+    launch?.file ?? process.execPath,
+    launch
+      ? [...launch.args]
+      : [
+          "--disable-warning=ExperimentalWarning",
+          `--import=${NETWORK_GUARD}`,
+          DAEMON,
+          "serve",
+          "--port",
+          String(port),
+        ],
     { env, stdio: ["ignore", "pipe", "pipe"], detached: true },
   );
   const output: string[] = [];
