@@ -13,7 +13,8 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 | M7 | done | 53f63c4 | 79 |
 | M9 | done | 0b5fd75 | 82 |
 | M10 | done | 30dff83 | 83 |
-| M11 + M6 | next wave (decision 75); M6 is KISS: two install methods (decision 87) | — | — |
+| M6 | done (KISS: git checkout + offline archive; real-host check moved to M6b) | d7c3a40 | 88 |
+| M11 | in progress (wave 5, decision 75); merges as M11a then M11b | — | — |
 | M12 + M6b, then M13; M14 (GitHub) after M11 | to come | — | — |
 
 Off-milestone work merged: design polish 1 and 2 (94e1071, 3d3035a; decision 80), the M9 + M10 follow-ups (2b4ed46, 04d4871 and two flaky-test fixes) and the project home (b7f5820; decisions 85 and 86: every action visible without a shortcut, `projects.add`, Settings › Appearance › Home; owner bundle limit 226 KB for that feature).
@@ -50,7 +51,7 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 
 ## M6b — Update, backup and release (rest of D21, still v1)
 - Domains: OCI image with bubblewrap (S8, R52b), npm channel, `pap doctor`, `pap backup` / `restore`, update with health-checked auto-rollback, release-please, stable / next channels, `PAP_UPDATE_CHECK=0`. Release signing (cosign), SBOM and SLSA provenance stay after v1 (decision 75).
-- Depends on: M6. Runs before M13.
+- Depends on: M6. Runs before M13. Also: the M6 real-host check skipped before its merge (a real `pap.service` under NoNewPrivileges with a worker scope, linger, the archive on a real host).
 - Exit: a failed update rolls back on its own; backup / restore round-trips the state.
 
 ## M7 — Models, tools and Pi extensions
