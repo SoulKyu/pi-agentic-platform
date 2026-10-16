@@ -1,0 +1,29 @@
+{
+ "type": "answers",
+ "choice": "answers-submitted",
+ "page": "agents-autonomy-q1",
+ "answers": {
+  "a1": {
+   "choice": "trusted"
+  },
+  "a2": {
+   "choice": "host"
+  },
+  "a3": {
+   "choice": "wait"
+  },
+  "a4": {
+   "choice": "owneronly"
+  },
+  "a5": {
+   "choice": "sandboxed"
+  },
+  "a6": {
+   "choice": "switch"
+  },
+  "a7": {
+   "choice": "m11a"
+  }
+ },
+ "timestamp": 1792131817424
+}
