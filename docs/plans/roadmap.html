@@ -138,8 +138,8 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <p class="muted">16 jalons (M6b et M14 ajoutés le 15, décision 87). M0 + M1 posent les preuves techniques et le squelette ; la v1 = M2 → M13. Chaque jalon reçoit son plan détaillé (tâches, modèles, estimation) avant de démarrer, validé par toi. Depuis M5, deux jalons tournent à la fois, dans l'ordre choisi par la décision 75 : M8 + M7, puis M9 + M10, puis M11 + M6, puis M12, puis M13. <strong>État au 2026-10-15 :</strong> les vagues 0 à 4 sont terminées (M0 → M5, M7 → M10) ; la prochaine est M11 + M6.</p>
 
 <div class="strip">
-  <div class="stat ok"><div class="label">Terminés</div><div class="big">11</div><div class="muted">M0 → M10 et M11a, mergés (M11a le 17)</div></div>
-  <div class="stat agent"><div class="label">En cours</div><div class="big">1</div><div class="muted">M11b (sous-agents, mémoire)</div></div>
+  <div class="stat ok"><div class="label">Terminés</div><div class="big">12</div><div class="muted">M0 → M11, mergés (M11a et M11b le 17)</div></div>
+  <div class="stat agent"><div class="label">En cours</div><div class="big">0</div><div class="muted">prochaine vague : M12 + M6b</div></div>
   <div class="stat"><div class="label">À venir</div><div class="big">4</div><div class="muted">M12 · M6b · M13 · M14</div></div>
   <div class="stat attn"><div class="label">Décisions à prendre</div><div class="big">4</div><div class="muted">voir plus bas</div></div>
 </div>
@@ -293,7 +293,7 @@ footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid var(--border
 <dt>Livré</dt><dd>Mergé le 2026-10-15 (<span class="mono">30dff83</span>, décision 83), après M9 : squashé sur sa base, rebasé sur M9 en une passe, migrations re-datées, démarrage testé sur une copie de la base du preview. Revue Opus du rebase : 0 critique, 2 importants corrigés (<span class="mono">disk_low</span> sur <span class="mono">lanes.compare</span>, colonne de coût du compare avec le libellé « équivalent API »).</dd>
 </dl></article>
 
-<article class="card" id="m11"><header><span class="id">M11</span><h3>Agents long terme, subagents et mémoire</h3><span class="badge agent">M11a mergé 2487abc · M11b en cours</span></header>
+<article class="card done" id="m11"><header><span class="id">M11</span><h3>Agents long terme, subagents et mémoire</h3><span class="badge ok">terminé · M11a 2487abc · M11b c75517e</span></header>
 <dl>
 <dt>Domaines</dt><dd>Registre d'agents, thread de confiance, rail, inbox, quarantaine ; opérations plateforme (notify / approve / delegate / remind) ; coffre de secrets par agent ; profils sandbox bwrap ; subagents Pi ; mémoire pi-mem0.</dd>
 <dt>Dépend de</dt><dd><span class="chip">M7</span> <span class="chip">M9</span> <span class="chip">M10</span></dd>
