@@ -1,3 +1,4 @@
+import { VAULT_CAPS } from "@pap/contracts";
 import { closeSync, constants, fstatSync, openSync, readSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { createRedactor, type Redactor, type SecretSet } from "./redact.ts";
@@ -89,7 +90,8 @@ const isEnvSecret = (value: string): boolean =>
 /** Pi resolves `$VAR` and `${VAR}` from the environment; `$$` and `$!` are escaped literals: a reference is no secret. */
 const isPiReference = (value: string): boolean => /\$[{A-Za-z_]/.test(value.replace(/\$[$!]/g, ""));
 
-type Candidate = { name: string; value: string; restorable?: false };
+/** `pinned`: a vault value, which the cap on the environment's secrets never drops (M11R26). */
+type Candidate = { name: string; value: string; restorable?: false; pinned?: true };
 
 /** Parses Pi's `auth.json`; `problem` is a stable code, never a message (it can quote the file). */
 function authCandidates(authJson: string): { found: Candidate[]; problem?: string } {
@@ -127,8 +129,13 @@ function authCandidates(authJson: string): { found: Candidate[]; problem?: strin
   return { found };
 }
 
-function build(env: NodeJS.ProcessEnv, authJson: string | null): { set: SecretSet; problem?: string } {
-  const candidates: Candidate[] = [];
+function build(
+  env: NodeJS.ProcessEnv,
+  authJson: string | null,
+  vault: readonly Candidate[] = [],
+): { set: SecretSet; problem?: string } {
+  // The vault goes first: its values keep their names, and an environment secret of the same name gets the counter.
+  const candidates: Candidate[] = [...vault];
   for (const [rawName, value] of Object.entries(env)) {
     if (value === undefined || !isCredentialName(rawName) || !isEnvSecret(value)) continue;
     const name = rawName.replace(/[^A-Za-z0-9_]/g, "_").slice(0, MAX_NAME);
@@ -140,25 +147,36 @@ function build(env: NodeJS.ProcessEnv, authJson: string | null): { set: SecretSe
   const values = new Set<string>();
   const names = new Set<string>();
   let unique: Candidate[] = [];
-  for (const { name, value, restorable } of candidates) {
+  for (const { name, value, restorable, pinned } of candidates) {
     if (values.has(value)) continue;
     values.add(value);
     let final = name;
     for (let n = 2; names.has(final); n++) final = `${name.slice(0, MAX_NAME - 3)}_${n}`;
     names.add(final);
-    unique.push({ name: final, value, ...(restorable === false ? { restorable } : {}) });
+    unique.push({
+      name: final,
+      value,
+      ...(restorable === false ? { restorable } : {}),
+      ...(pinned === true ? { pinned } : {}),
+    });
   }
   if (unique.length > MAX_SECRETS) {
-    const keep = new Set(
-      unique
-        .map((entry, index) => ({ index, length: entry.value.length }))
-        .sort((a, b) => b.length - a.length || a.index - b.index)
-        .slice(0, MAX_SECRETS)
-        .map((item) => item.index),
-    );
+    const keep = new Set(unique.flatMap((entry, index) => (entry.pinned === true ? [index] : [])));
+    const room = Math.max(0, MAX_SECRETS - keep.size);
+    unique
+      .map((entry, index) => ({ index, length: entry.value.length, pinned: entry.pinned === true }))
+      .filter((item) => !item.pinned)
+      .sort((a, b) => b.length - a.length || a.index - b.index)
+      .slice(0, room)
+      .forEach((item) => keep.add(item.index));
     unique = unique.filter((_, index) => keep.has(index));
   }
-  return { set: { entries: unique }, ...(auth.problem === undefined ? {} : { problem: auth.problem }) };
+  const entries = unique.map(({ name, value, restorable }) => ({
+    name,
+    value,
+    ...(restorable === false ? { restorable } : {}),
+  }));
+  return { set: { entries }, ...(auth.problem === undefined ? {} : { problem: auth.problem }) };
 }
 
 const reportProblem = (code: string): void => {
@@ -182,7 +200,33 @@ export interface SecretSource {
   current(): Redactor;
   /** One `stat` of `auth.json`; the redactor is rebuilt only when the file changed. */
   refresh(): void;
+  /**
+   * Replaces the agent's vault (`init.vault`, `vault_update`; M11R26): every value of 8 characters or more is redacted as
+   * `[SECRET:<NAME>]` and never restored into a write. A value that leaves the vault stays redacted (the 128 newest to leave,
+   * until the worker exits): it may already sit in the model's context or in a file, and forgetting it would only help a leak.
+   */
+  setVault(entries: Readonly<Record<string, string>>): void;
+  /**
+   * Replaces the waiting one-use values (Task 18): one redactor entry per VALUE, never a map keyed by name, so two values of
+   * one name are both redacted. Like the vault, a value that leaves stays redacted (within the same 128 retired values).
+   */
+  setOnce(entries: ReadonlyArray<{ readonly name: string; readonly value: string }>): void;
 }
+
+/** What the policy needs of the secrets: it reads them, and only the host changes the vault. */
+export type SecretReader = Pick<SecretSource, "current" | "refresh">;
+
+/** The most one-use values a worker holds (the contract's `OnceValues` maximum; a test pins them equal). */
+export const ONCE_MAX = 3;
+/** Slots of the 256 that environment and `auth.json` credentials always keep, whatever the vault holds. */
+const CREDENTIAL_FLOOR = 75;
+/**
+ * The most values a worker keeps redacting after they left the vault or the one-use list (the oldest are forgotten first).
+ * They are pinned like the live ones, so the pinned total is at most vault names + one-use + this, and the rest of the
+ * 256 slots (at least `CREDENTIAL_FLOOR`) is left to the credentials. Derived from the contract's caps: raising
+ * `VAULT_CAPS.names` lowers this number instead of shrinking the floor.
+ */
+const MAX_RETIRED = MAX_SECRETS - VAULT_CAPS.names - ONCE_MAX - CREDENTIAL_FLOOR;
 
 const codeOf = (error: unknown): string => {
   const code = (error as { code?: unknown } | null)?.code;
@@ -223,6 +267,21 @@ export function createSecretSource({
 }): SecretSource {
   const path = join(agentDir, "auth.json");
   let redactor = createRedactor(build(env, null).set);
+  let authText: string | null = null;
+  let vault: Readonly<Record<string, string>> = {};
+  const retired = new Map<string, string>();
+  let onceList: ReadonlyArray<{ readonly name: string; readonly value: string }> = [];
+  const vaultCandidates = (): Candidate[] =>
+    [
+      ...Object.entries(vault),
+      ...onceList.map(({ name, value }) => [name, value] as const),
+      ...[...retired].map(([value, name]) => [name, value] as const),
+    ]
+      .filter(([, value]) => value.length >= MIN_LENGTH)
+      .map(([name, value]) => ({ name, value, restorable: false as const, pinned: true as const }));
+  const rebuild = (): void => {
+    redactor = createRedactor(build(env, authText, vaultCandidates()).set);
+  };
   let signature: string | undefined;
   let lastCode: string | undefined;
   const fail = (code: string) => {
@@ -251,17 +310,41 @@ export function createSecretSource({
         fail(read.problem);
         return;
       }
-      const built = build(env, read.text);
+      const built = build(env, read.text, vaultCandidates());
       if (built.problem !== undefined) {
         fail(built.problem);
         return;
       }
       lastCode = undefined;
+      authText = read.text;
       redactor = createRedactor(built.set);
     } catch (error) {
       fail(codeOf(error));
     }
   };
   refresh();
-  return { current: () => redactor, refresh };
+  const setVault = (entries: Readonly<Record<string, string>>): void => {
+    for (const [name, value] of Object.entries(vault)) {
+      retired.delete(value);
+      retired.set(value, name);
+    }
+    vault = { ...entries };
+    for (const value of Object.values(vault)) retired.delete(value);
+    for (const oldest of [...retired.keys()].slice(0, Math.max(0, retired.size - MAX_RETIRED)))
+      retired.delete(oldest);
+    rebuild();
+  };
+  const setOnce: SecretSource["setOnce"] = (entries) => {
+    for (const { name, value } of onceList) {
+      retired.delete(value);
+      retired.set(value, name);
+    }
+    onceList = entries.map(({ name, value }) => ({ name, value }));
+    for (const { value } of onceList) retired.delete(value);
+    for (const value of Object.values(vault)) retired.delete(value);
+    for (const oldest of [...retired.keys()].slice(0, Math.max(0, retired.size - MAX_RETIRED)))
+      retired.delete(oldest);
+    rebuild();
+  };
+  return { current: () => redactor, refresh, setVault, setOnce };
 }

@@ -106,7 +106,7 @@ function moduleWith(
   testProviderScript: string | null,
   logger = silentLogger,
   scopes: WorkerScopes = NO_SCOPES,
-  audit: AuditPort = { append: () => {}, fromWorker: () => null },
+  audit: AuditPort = { append: () => {}, reserve: () => true, fromWorker: () => null },
 ) {
   const hub = createStreamHub();
   const sessions = createSessionsModule({
@@ -170,6 +170,7 @@ describe("sessions module", () => {
       const seen: string[] = [];
       const audit: AuditPort = {
         append: () => {},
+        reserve: () => true,
         fromWorker: (_session, _raw, context) => {
           seen.push(context.containment);
           return null;

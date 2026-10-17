@@ -13,7 +13,7 @@ interface ProjectColumnProps {
   onNewTrigger(projectId: string): void;
 }
 
-/** One project (board 11 §2, columns per project until M11): header, its triggers strip, then its tasks. */
+/** One project (board 11 §2, one column per project; agents have their own columns): header, its triggers strip, then its tasks. */
 export function ProjectColumn({
   column,
   now,

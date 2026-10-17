@@ -35,6 +35,7 @@ describe("the task.start handler", () => {
       ownerId: "u1",
       sessionId: "s1",
       text: "Look at the repository and report.",
+      stillWanted: expect.any(Function),
     });
     expect(bed.order).toEqual(["create:s1", "expect:s1", "prompt:s1"]);
     expect(row(taskId)).toMatchObject({ state: "running", session_id: "s1", started_at: bed.clock.now() });

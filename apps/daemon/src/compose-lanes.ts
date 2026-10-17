@@ -6,6 +6,7 @@ import { createPathDiskGuard } from "./kernel/disk.ts";
 import type { Config } from "./kernel/config.ts";
 import { type Forge, forgeFor, prepareForgeDir } from "./kernel/forge/port.ts";
 import type { ForgeKind, HandlerTable, LaneMethodName } from "@pap/contracts";
+import type { PlatformHandler } from "./modules/platform/index.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { AuditModule } from "./modules/audit/index.ts";
@@ -24,6 +25,8 @@ import {
   lanesFanoutRpc,
   lanesGitRpc,
   lanesIssueRpc,
+  createLaneNote,
+  createLanesStore,
 } from "./modules/lanes/index.ts";
 import type { RunsPort } from "./modules/runs/index.ts";
 import type { PolicyPort } from "./modules/policy/index.ts";
@@ -59,6 +62,8 @@ export interface LanesBindDeps {
 export interface LanesCompose {
   readonly rpc: Pick<HandlerTable, LaneMethodName>;
   readonly paths: LanePaths;
+  /** The platform op `lane.note` (M11R41): M11 registers it on the dispatcher. */
+  readonly note: PlatformHandler<"lane.note">;
   /** Late-bound like `ownerOf`: sets the lane hooks on sessions and registers the `lane` stream. */
   bind(deps: LanesBindDeps): void;
   /** Undoes or finishes what a crash left; bounded to 60 s, so a stuck git never keeps the daemon from listening. */
@@ -202,6 +207,12 @@ export function composeLanes(deps: LanesComposeDeps): LanesCompose {
       ...suggest,
     },
     paths: service.paths,
+    note: createLaneNote({
+      store: createLanesStore(deps.db),
+      sessions: { sessionIdsIn: (ownerId, folder) => sessionsPort?.sessionIdsIn(ownerId, folder) ?? [] },
+      clock: deps.clock,
+      publish: service.publish,
+    }),
     bind({ sessions, hub, policy, pi }) {
       pi.useLaneRoots(service.paths.roots);
       sessionsPort = sessions.lanes;

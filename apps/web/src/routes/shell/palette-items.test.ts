@@ -105,6 +105,7 @@ describe("buildPaletteItems", () => {
       "MCP servers",
       "Skills",
       "Automation",
+      "Agents",
       "Account",
     ]);
     settings[1]?.run();

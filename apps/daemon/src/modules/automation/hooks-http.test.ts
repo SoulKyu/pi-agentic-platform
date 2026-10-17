@@ -43,6 +43,7 @@ function trigger(id: string, auth: "secret" | "hmac", extra: Partial<TriggerReco
     sourceType: "webhook",
     input,
     cwd: "/tmp",
+    agentId: null,
     projectId: null,
     secretRotatedAt: null,
     nextFireAt: null,

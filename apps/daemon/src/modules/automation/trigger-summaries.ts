@@ -28,6 +28,7 @@ export function summaryOf(record: TriggerRecord, secretsDir: string): TaskTrigge
     enabled: record.enabled,
     sourceType: record.sourceType as TaskTrigger["sourceType"],
     projectId: record.projectId,
+    agentId: record.agentId,
     state: stateOf(record, secretsDir),
     nextFireAt: record.nextFireAt,
   };

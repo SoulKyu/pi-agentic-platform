@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { gzipSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { build } from "vite";
+import { LAZY_MARKERS } from "./build-output.markers.ts";
 
 const run = promisify(execFile);
 
@@ -166,7 +167,7 @@ describe("the built web app under the daemon's CSP", () => {
     }
   };
 
-  it("keeps the Settings screen out of the initial assets", () => keepsLazyOnly([/data-settings-screen/]));
+  for (const { title, markers } of LAZY_MARKERS) it(title, () => keepsLazyOnly(markers));
 
   it("keeps Settings › Models and its strings out of the initial assets, in a chunk of its own (M7R71)", async () => {
     await keepsLazyOnly([/data-models-section/, /Refresh catalog/, /Actualiser le catalogue/]);
@@ -180,30 +181,6 @@ describe("the built web app under the daemon's CSP", () => {
     for (const code of holders) expect(code).not.toMatch(/data-settings-screen/);
   });
 
-  it("keeps the lane tab and its strings out of the initial assets (M9R62)", () =>
-    keepsLazyOnly([
-      /data-lane-notice/,
-      /Files differ from this point/,
-      /Les fichiers diffèrent de ce point/,
-    ]));
-
-  it("keeps the new lane dialog and its strings out of the initial assets (M9R95)", () =>
-    keepsLazyOnly([/data-slot":\W*new-lane/, /Fetch issue/, /Récupérer l'issue/]));
-
-  it("keeps the Add project dialog and its strings out of the initial assets (decision 85)", () =>
-    keepsLazyOnly([/data-add-project/, /Project folder: /, /Dossier du projet : /]));
-
-  it("keeps the home's launch, project facts and picker, and their strings, out of the initial assets (the 226 KB limit)", () =>
-    keepsLazyOnly([
-      /pap could not open the New lane dialog/,
-      /Lane and Fan-out: not a git repository/,
-      /Lane et Fan-out : pas un dépôt git/,
-      /Launch in which project/,
-    ]));
-
-  it("keeps the home's body, its picker and their strings out of the initial assets (decision 85)", () =>
-    keepsLazyOnly([/data-home-body/, /data-project-picker/, /Recent work/, /Travail récent/]));
-
   it("keeps the home's composer in the initial assets: the first paint at / waits for no chunk (§8)", async () => {
     const initial = [...html.matchAll(/src="\/assets\/([^"]+\.js)"/g)].map((match) => match[1] ?? "");
     const texts = await Promise.all(initial.map((name) => readFile(join(out, "assets", name), "utf8")));
@@ -211,50 +188,6 @@ describe("the built web app under the daemon's CSP", () => {
       true,
     );
   });
-
-  it("keeps the compare tab and its strings out of the initial assets (M9R96)", () =>
-    keepsLazyOnly([/data-winner/, /Close losers/, /Fermer les perdantes/]));
-
-  it("keeps the lane review pane, its diff view and its strings out of the initial assets (M9R87, M9R88)", () =>
-    keepsLazyOnly([
-      /data-review-pane/,
-      /cm-review-comment/,
-      /Too large to show here/,
-      /Trop volumineux pour être affiché ici/,
-    ]));
-
-  it("keeps Settings › Automation and its strings out of the initial assets (M10R121)", () =>
-    keepsLazyOnly([
-      /data-automation-section/,
-      /Counts triggers and automatic resumes/,
-      /Compte les déclencheurs/,
-    ]));
-
-  it("keeps the Approvals strings out of the initial assets", () =>
-    keepsLazyOnly([/What the agent may do without asking you/]));
-
-  it("keeps lazy-only primitives out of the initial assets", () =>
-    keepsLazyOnly([
-      /data-radix-select-viewport/,
-      /"data-slot":\W*segmented/,
-      /"data-slot":\W*slider/,
-      /role:\W*slider/,
-    ]));
-
-  it("keeps the appearance panel out of the initial assets (import it from its file, not from the feature index)", () =>
-    keepsLazyOnly([/data-slot":\W*appearance-status/]));
-
-  it("keeps the shortcuts editor out of the initial assets (import it from its file, not from the feature index)", () =>
-    keepsLazyOnly([/data-slot":\W*shortcuts-status/]));
-
-  it("keeps the theme editor out of the initial assets, in a chunk of its own (M3R117)", () =>
-    keepsLazyOnly([/data-slot":\W*theme-preview/]));
-
-  it("loads the Settings strings with the Settings chunk, not with the initial catalog", () =>
-    keepsLazyOnly([/Saved to your account/, /Enregistré dans votre compte/]));
-
-  it("loads M2's session strings with the session chunk, not with the initial catalog", () =>
-    keepsLazyOnly([/Load older messages/, /Charger les messages plus anciens/]));
 
   it("keeps the files, changes and terminal panes out of the initial assets, each in a chunk of its own (M8R71)", async () => {
     await keepsLazyOnly([/data-files-pane/, /data-changes-pane/, /data-terminal-pane/]);
@@ -267,36 +200,6 @@ describe("the built web app under the daemon's CSP", () => {
     expect(chunks).toHaveLength(3);
     expect(new Set(chunks).size).toBe(3);
   });
-
-  it("keeps the Tasks and Trigger panes out of the initial assets (M10R112)", () =>
-    keepsLazyOnly([/data-tasks-pane/, /data-trigger-pane/, /data-trigger-editor/]));
-
-  it("keeps the Tasks board and its strings out of the initial assets (M10R113)", () =>
-    keepsLazyOnly([/data-tasks-board/, /Triggers run tasks for you on a schedule/]));
-
-  it("loads the pane strings with their chunks, not with the initial catalog (M8R71)", () =>
-    keepsLazyOnly([
-      /Eight files are open and all have unsaved changes/,
-      /Showing the first 2 000 changes/,
-      /Affichage des 2 000 premières modifications/,
-    ]));
-
-  // The app imports CodeEditor (the files viewer) and DiffView (the changes pane) from `@pap/ui/code`, so its build has
-  // the editor chunk and the merge view chunk; neither is in an initial file.
-  it("keeps CodeMirror and the merge view out of the initial assets (the app imports @pap/ui/code)", () =>
-    keepsLazyOnly([/cm-editor/, /cm-mergeView/]));
-
-  // The app imports TerminalSurface from `@pap/ui/terminal`; xterm, its addons and its stylesheet load with the pane.
-  it("keeps xterm and the terminal strings out of the initial assets (M8R80)", () =>
-    keepsLazyOnly([
-      /xterm-helper-textarea/,
-      /xterm-screen/,
-      /Reconnecting… input paused/,
-      /Reconnexion… saisie en pause/,
-    ]));
-
-  it("keeps the project tree and its strings out of the initial assets", () =>
-    keepsLazyOnly([/data-project-tree/, /Show 20 more/]));
 
   // The entry is built on its own to see both CodeMirror and the merge view (the app build holds the editor only, above).
   // What a consumer imports statically is that entry file (M8R74).
@@ -351,25 +254,6 @@ describe("the built web app under the daemon's CSP", () => {
       );
     await keepsLazyOnly([/data-markdown-body/]);
   });
-
-  it("keeps the overlays (dialog, menu) and the shortcuts help out of the initial assets", () =>
-    keepsLazyOnly([/"data-pap-modal":/, /"data-command":/]));
-
-  it("keeps the session screen out of the initial assets, so the session UI of later milestones lands in its chunk", () =>
-    keepsLazyOnly([/"data-failure"/]));
-
-  it("keeps the extension surfaces (@pap/ui/extensions: questions, status bar, widgets, custom panel) out of the initial assets", () =>
-    keepsLazyOnly([
-      /"data-extension-label"/,
-      /"data-terminal-input"/,
-      /"data-widget-line"/,
-      /data-slot":\W*status-bar/,
-      /data-slot":\W*ansi-text/,
-    ]));
-
-  it("keeps the palette (cmdk) out of the initial assets", () => keepsLazyOnly([/cmdk-input/]));
-
-  it("keeps the Inbox panel out of the initial assets", () => keepsLazyOnly([/data-inbox-panel/]));
 
   it("ships nothing of the /dev/ui gallery in any production asset, initial or lazy (ADR 0011, M3R122)", async () => {
     const markers = [

@@ -69,12 +69,14 @@ describe("SettingsScreen", () => {
       "MCP servers",
       "Skills",
       "Automation",
+      "Agents",
       "Account & devices",
     ]);
     expect(links.map((link) => link.getAttribute("aria-current"))).toEqual([
       null,
       null,
       "page",
+      null,
       null,
       null,
       null,

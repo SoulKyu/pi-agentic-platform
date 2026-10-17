@@ -123,6 +123,7 @@ export const lanesEn = {
   "lanes.archived.retry": "Try again",
   "lanes.archived.pr": "PR #{number}",
   "lanes.archived.on": "Archived {date}",
+  "lanes.note.from": "from the agent",
 } as const;
 
 export const lanesFr: { readonly [K in keyof typeof lanesEn]: string } = {
@@ -257,4 +258,5 @@ export const lanesFr: { readonly [K in keyof typeof lanesEn]: string } = {
   "lanes.archived.retry": "Réessayer",
   "lanes.archived.pr": "PR n°{number}",
   "lanes.archived.on": "Archivée le {date}",
+  "lanes.note.from": "de l'agent",
 };

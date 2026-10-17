@@ -112,7 +112,7 @@ export interface SessionReads {
     sessionId: string,
   ): Promise<{ leafId: string | null; entries: BranchPathEntry[] }>;
   /** The text of the session's last assistant message on its current branch, cut to `max` characters; null when none. */
-  agentText(sessionId: string, max: number): Promise<string | null>;
+  agentText(sessionId: string, max: number, since?: number): Promise<string | null>;
 }
 
 /** The newest rows looked at for the last assistant message: tool traffic can sit between it and the leaf. */
@@ -199,7 +199,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const file = fileOf(row, session);
       return file ? reader.branchPath(file, session?.leafId() ?? null) : { leafId: null, entries: [] };
     },
-    async agentText(sessionId, max) {
+    async agentText(sessionId, max, since) {
       const row = deps.store.get(sessionId);
       if (!row) return null;
       const reader = await ensureReader();
@@ -209,7 +209,11 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       const rows = reader.page(file, { leafId: session?.leafId() ?? null, limit: AGENT_TEXT_ROWS }).rows;
       for (const { message } of rows.toReversed()) {
         const { role } = message as { role?: unknown };
-        if (role === "assistant") return cutUnits(textOfResult(message), max);
+        if (role !== "assistant") continue;
+        // A newest answer older than `since` belongs to an earlier run: it is not this task's (fail closed on no time).
+        const at = (message as { timestamp?: unknown }).timestamp;
+        if (since !== undefined && !(typeof at === "number" && at >= since)) return null;
+        return cutUnits(textOfResult(message), max);
       }
       return null;
     },

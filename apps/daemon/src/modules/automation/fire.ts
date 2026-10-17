@@ -67,6 +67,8 @@ export interface FireDeps {
   readonly events: AutomationEvents;
   readonly views: TaskViews;
   readonly newId: () => string;
+  /** An agent trigger's agent is paused or quarantined (M11R75): its fires are journaled `paused`. */
+  readonly agentPaused?: (ownerId: string, agentId: string) => boolean;
 }
 
 /**
@@ -104,11 +106,14 @@ export function createFire(deps: FireDeps) {
     if (record.revision !== revision || trigger === null) return refuse(record, input, "error", "changed");
     if (!record.enabled && !input.gates.exemptDisabled) return refuse(record, input, "disabled", null);
     if (deps.settings.automation(input.ownerId).paused) return refuse(record, input, "paused", null);
+    if (record.agentId !== null && deps.agentPaused?.(input.ownerId, record.agentId))
+      return refuse(record, input, "paused", null);
     const { source } = trigger;
     const hook = input.source === "webhook" && source.type === "webhook" ? source : null;
     if (hook && input.allResolved && hook.onResolved === "skip")
       return refuse(record, input, "resolved", null);
     // The budget (M10R66): a token's fire, a schedule, a webhook, a feed and their retries; not a browser's manual fire.
+    // The owner's line, the trigger's and the agent's own (M11R74): the trigger names the agent.
     if (input.gated && deps.gates.over(input.ownerId, record.id))
       return refuse(record, input, "budget", null);
     if (
@@ -167,6 +172,8 @@ export function createFire(deps: FireDeps) {
       maxRunMs: retry?.caps?.maxRunMs ?? execution.maxRunMinutes * 60_000,
       maxRunUsd: retry?.caps ? retry.caps.maxRunUsd : (execution.maxRunUsd ?? null),
       at,
+      agentId: record.agentId,
+      target: execution.agent?.target ?? null,
     });
     enqueueEffect(db, { kind: "task.start", ownerId: record.ownerId, payload: { taskId } }, at);
     deps.marks.fired(record.ownerId, record.id, at);

@@ -39,7 +39,7 @@ export function composeUsage(
   modules: {
     readonly policy: Pick<PolicyModule, "port">;
     readonly settings: SettingsModule;
-    readonly sessions: Pick<SessionsModule, "automation">;
+    readonly sessions: Pick<SessionsModule, "automation" | "modeOf" | "sandboxedThread" | "kindOf">;
   },
   taskOf?: ResumeDeps["taskOf"],
 ): ComposedUsage {
@@ -62,7 +62,13 @@ export function composeUsage(
     outbox,
     settings,
     taskOf,
-    modeOf: (ownerId, sessionId) => modules.policy.port.sessionPolicy(ownerId, sessionId).mode,
+    // The mode in force: for an agent thread the stricter of its profile's and the session's (W5-R23).
+    modeOf: modules.sessions.modeOf,
+    sandboxedAgent: modules.sessions.sandboxedThread,
+    agentSession: (_ownerId, sessionId) => {
+      const type = modules.sessions.kindOf(sessionId)?.type;
+      return type === "agent-thread" || type === "agent-task" || type === "child";
+    },
     sessions: modules.sessions.automation,
     limitChanged: stream.refresh,
   });

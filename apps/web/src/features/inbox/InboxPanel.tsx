@@ -1,5 +1,5 @@
 import type { InboxItem } from "@pap/contracts";
-import { Button, Chip, EmptyState, Segmented, toast, type Option } from "@pap/ui";
+import { type AvatarStyle, Button, Chip, EmptyState, Segmented, toast, type Option } from "@pap/ui";
 import { useEffect, useMemo, useState } from "react";
 import "../../i18n/register-inbox.ts";
 import { errorKey, useT } from "../../i18n/index.ts";
@@ -11,10 +11,14 @@ import { InboxRow } from "./InboxRow.tsx";
 export interface InboxPanelProps {
   /** The shell opens the session (features never import each other). */
   onOpenSession(sessionId: string): void;
+  /** The shell opens the agent's tab, scrolled to `entryId` when it is given. */
+  onOpenAgent?(agentId: string, entryId: string | null): void;
+  /** The account's avatar style (Settings › Appearance), given by the shell. */
+  readonly avatarStyle?: AvatarStyle;
 }
 
 /** The Inbox (decision 29, board 09 §2): header, filters, rows to handle first. Shown in the right drawer and in the phone's Inbox section. */
-export default function InboxPanel({ onOpenSession }: InboxPanelProps) {
+export default function InboxPanel({ onOpenSession, onOpenAgent, avatarStyle }: InboxPanelProps) {
   const t = useT();
   const view = useInboxStore((state) => state.view);
   const [filter, setFilter] = useState<InboxFilter>("all");
@@ -39,13 +43,21 @@ export default function InboxPanel({ onOpenSession }: InboxPanelProps) {
   const pick = (item: InboxItem) => {
     if (item.readAt === null)
       markRead({ ids: [item.id] }).catch(() => toast({ message: t("inbox.readAllFailed"), tone: "error" }));
-    if (item.sessionId !== null) onOpenSession(item.sessionId);
+    if (item.agentId !== null) onOpenAgent?.(item.agentId, item.entryId);
+    else if (item.sessionId !== null) onOpenSession(item.sessionId);
   };
   const options: Option<InboxFilter>[] = FILTERS.map((value) => ({
     value,
     label: t(`inbox.filter.${value}`),
   }));
-  const emptyKind = filter === "handle" ? "inbox.emptyHandle" : "inbox.empty";
+  const emptyKind = (
+    {
+      all: "inbox.empty",
+      handle: "inbox.emptyHandle",
+      replies: "inbox.emptyReplies",
+      tasks: "inbox.empty",
+    } as const
+  )[filter];
 
   return (
     <section data-inbox-panel="" className="flex min-h-0 flex-col">
@@ -79,7 +91,13 @@ export default function InboxPanel({ onOpenSession }: InboxPanelProps) {
       ) : (
         <ul aria-label={t("inbox.list")}>
           {rows.map((item) => (
-            <InboxRow key={item.id} item={item} now={now} onPick={pick} />
+            <InboxRow
+              key={item.id}
+              item={item}
+              now={now}
+              avatarStyle={avatarStyle ?? "outlined"}
+              onPick={pick}
+            />
           ))}
         </ul>
       )}

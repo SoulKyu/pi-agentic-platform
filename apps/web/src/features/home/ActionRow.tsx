@@ -141,6 +141,7 @@ export function ActionRow({ project, layout, actions, shortcuts }: Props) {
             reason={null}
             onClick={() => actions.open({ kind: "tasks" })}
           />
+          <Action label={t("home.action.newAgent")} reason={null} onClick={() => actions.newAgent()} />
           <Action
             label={t("home.action.inbox")}
             name={

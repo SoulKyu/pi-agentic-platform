@@ -1,8 +1,10 @@
 import { z } from "zod";
+import { agentsMethods } from "./agents-methods.ts";
 import { auditMethods } from "./audit.ts";
 import { authMethods } from "./auth.ts";
 import { automationTaskMethods, automationTriggerMethods } from "./automation-methods.ts";
 import { defineMethod, type MethodDef } from "./define.ts";
+import { AGENT_GATE_ERRORS } from "./errors.ts";
 import { AttachmentId, filesMethods } from "./files.ts";
 import { Cursor } from "./frames.ts";
 import { inboxMethods } from "./inbox.ts";
@@ -11,6 +13,7 @@ import { lanesMethods } from "./lanes-methods.ts";
 import { mcpMethods } from "./mcp-methods.ts";
 import { modelsMethods } from "./models-methods.ts";
 import { policyMethods } from "./policy-methods.ts";
+import { secretsMethods } from "./secrets-methods.ts";
 import { ToolPreset } from "./session-loadout.ts";
 import { sessionModelMethods } from "./session-model-methods.ts";
 import {
@@ -67,6 +70,8 @@ export const methods = catalogue({
   ...automationTaskMethods,
   ...usageMethods,
   ...inboxMethods,
+  ...agentsMethods,
+  ...secretsMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",
@@ -89,7 +94,7 @@ export const methods = catalogue({
     idempotent: false,
     params: z.object({ cwd: z.string().min(1).max(4096), preset: ToolPreset.optional() }),
     result: z.object({ sessionId: SessionId }),
-    errors: ["invalid_cwd", "capacity", "worker_failed"],
+    errors: ["capacity", "worker_failed", ...AGENT_GATE_ERRORS],
   }),
   "sessions.list": defineMethod({
     name: "sessions.list",
@@ -114,7 +119,16 @@ export const methods = catalogue({
       })
       .refine((prompt) => prompt.text.length > 0 || (prompt.attachments?.length ?? 0) > 0),
     result: z.object({ disposition: z.enum(["started", "queued", "handled"]) }),
-    errors: ["not_found", "capacity", "worker_failed", "prompt_rejected", "queue_full", "session_busy"],
+    errors: [
+      "forbidden",
+      "not_found",
+      "capacity",
+      "worker_failed",
+      "prompt_rejected",
+      "queue_full",
+      "session_busy",
+      ...AGENT_GATE_ERRORS,
+    ],
   }),
   // Brings the worker of a cold session back (the crash banner's Retry). A session that already runs is left as it is.
   "sessions.reopen": defineMethod({
@@ -123,7 +137,7 @@ export const methods = catalogue({
     idempotent: false,
     params: z.object({ sessionId: SessionId }),
     result: Ok,
-    errors: ["not_found", "capacity", "worker_failed"],
+    errors: ["not_found", "capacity", "worker_failed", ...AGENT_GATE_ERRORS],
   }),
   "sessions.abort": defineMethod({
     name: "sessions.abort",
@@ -145,7 +159,7 @@ export const methods = catalogue({
       truncated: z.boolean(),
     }),
     // `timeout`: the worker did not answer in time, so whether the queue was cleared is unknown (R105).
-    errors: ["not_found", "worker_failed", "timeout"],
+    errors: ["not_found", "worker_failed", "timeout", ...AGENT_GATE_ERRORS],
   }),
   "sessions.navigate": defineMethod({
     name: "sessions.navigate",
@@ -158,7 +172,15 @@ export const methods = catalogue({
       editorText: z.string().max(UI_LIMITS.editorText).optional(),
     }),
     // No daemon timeout (M2R90): Pi answers when it is done, or the worker is gone (`worker_failed`).
-    errors: ["not_found", "session_busy", "capacity", "worker_failed", "command_failed"],
+    errors: [
+      "forbidden",
+      "not_found",
+      "session_busy",
+      "capacity",
+      "worker_failed",
+      "command_failed",
+      ...AGENT_GATE_ERRORS,
+    ],
   }),
   "sessions.compact": defineMethod({
     name: "sessions.compact",
@@ -171,7 +193,16 @@ export const methods = catalogue({
     }),
     // No daemon timeout either: the model writes the summary. Were one added, its `timeout` would mean the outcome is
     // unknown and the call must not be retried (R105).
-    errors: ["not_found", "session_busy", "capacity", "worker_failed", "command_failed", "session_empty"],
+    errors: [
+      "forbidden",
+      "not_found",
+      "session_busy",
+      "capacity",
+      "worker_failed",
+      "command_failed",
+      "session_empty",
+      ...AGENT_GATE_ERRORS,
+    ],
   }),
   "sessions.rename": defineMethod({
     name: "sessions.rename",
@@ -183,7 +214,15 @@ export const methods = catalogue({
     }),
     result: Ok,
     // A name can change while a run goes on (a file append). `timeout`: whether Pi renamed is unknown (R105).
-    errors: ["not_found", "bad_request", "capacity", "worker_failed", "command_failed", "timeout"],
+    errors: [
+      "not_found",
+      "bad_request",
+      "capacity",
+      "worker_failed",
+      "command_failed",
+      "timeout",
+      ...AGENT_GATE_ERRORS,
+    ],
   }),
   "sessions.autoName": defineMethod({
     name: "sessions.autoName",
@@ -192,7 +231,16 @@ export const methods = catalogue({
     params: z.object({ sessionId: SessionId }),
     result: z.object({ name: SessionName.min(1) }),
     // `timeout`: the model may still have named the session; the outcome is unknown and is not retried (R105).
-    errors: ["not_found", "session_empty", "timeout", "capacity", "worker_failed", "command_failed"],
+    errors: [
+      "forbidden",
+      "not_found",
+      "session_empty",
+      "timeout",
+      "capacity",
+      "worker_failed",
+      "command_failed",
+      ...AGENT_GATE_ERRORS,
+    ],
   }),
   "sessions.exportHtml": defineMethod({
     name: "sessions.exportHtml",
@@ -204,7 +252,7 @@ export const methods = catalogue({
       url: z.string().regex(/^\/api\/sessions\/[A-Za-z0-9_-]{1,128}\/export\/[A-Za-z0-9_-]{43}$/),
     }),
     // `timeout`: Pi may still write the file; the outcome is unknown and the call is not retried (R105, M2R97).
-    errors: ["not_found", "capacity", "timeout", "worker_failed", "command_failed"],
+    errors: ["not_found", "capacity", "timeout", "worker_failed", "command_failed", ...AGENT_GATE_ERRORS],
   }),
   "sessions.fork": defineMethod({
     name: "sessions.fork",
@@ -226,7 +274,7 @@ export const methods = catalogue({
     idempotent: false,
     params: z.object({ sessionId: SessionId }),
     result: z.object({ sessionId: SessionId }),
-    errors: ["not_found", "session_empty", "capacity", "rate_limited", "disk_low"],
+    errors: ["not_found", "bad_request", "session_empty", "capacity", "rate_limited", "disk_low"],
   }),
   "sessions.respondDialog": defineMethod({
     name: "sessions.respondDialog",
@@ -241,7 +289,7 @@ export const methods = catalogue({
     }),
     result: Ok,
     // `bad_request`: an answer the dialog does not offer; the dialog stays open (M2R61).
-    errors: ["not_found", "worker_failed", "bad_request"],
+    errors: ["not_found", "worker_failed", "bad_request", ...AGENT_GATE_ERRORS],
   }),
   "sessions.panelInput": defineMethod({
     name: "sessions.panelInput",

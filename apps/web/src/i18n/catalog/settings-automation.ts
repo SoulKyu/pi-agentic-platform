@@ -23,7 +23,8 @@ export const settingsAutomationEn = {
   "settingsAutomation.budget.hint": "Counts every automatic run, the ones in progress too.",
   "settingsAutomation.budget.error": "A number from 0 to 1000, or empty for no budget.",
   "settingsAutomation.autoResume.label": "Resume after a quota limit",
-  "settingsAutomation.autoResume.hint": "Never for a session in full access.",
+  "settingsAutomation.autoResume.hint":
+    "Never for a session in full access, except an agent thread whose sandbox is on.",
   "settingsAutomation.save": "Save",
   "settingsAutomation.saved": "Saved.",
   "settingsAutomation.loadFailed": "The automation settings could not be read.",
@@ -92,7 +93,8 @@ export const settingsAutomationFr: { readonly [K in keyof typeof settingsAutomat
   "settingsAutomation.budget.hint": "Compte chaque lancement automatique, ceux en cours aussi.",
   "settingsAutomation.budget.error": "Un nombre de 0 à 1000, ou vide pour aucun budget.",
   "settingsAutomation.autoResume.label": "Reprendre après une limite de quota",
-  "settingsAutomation.autoResume.hint": "Jamais pour une session en accès complet.",
+  "settingsAutomation.autoResume.hint":
+    "Jamais pour une session en accès complet, sauf un fil d'agent dont le bac à sable est actif.",
   "settingsAutomation.save": "Enregistrer",
   "settingsAutomation.saved": "Enregistré.",
   "settingsAutomation.loadFailed": "Les réglages d'automatisation n'ont pas pu être lus.",

@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { isNeverPassedEnvKey } from "./child-env.ts";
+import { AgentId } from "./platform.ts";
 import { INVISIBLE, ToolName } from "./policy.ts";
 import { isSupportedRrule } from "./rrule.ts";
 
@@ -177,10 +178,16 @@ export const PrecheckCommand = z
   .max(AUTOMATION_LIMITS.precheckChars)
   .refine((command) => !HIDDEN_IN_TEXT.test(command), "visible text, tabs and new lines only");
 
+/** Where an agent trigger runs (M11R65): `isolated`, a fresh task in the agent's sandbox; `thread`, a prompt in its thread. */
+export const TRIGGER_TARGETS = ["isolated", "thread"] as const;
+export const TriggerAgent = z.object({ agentId: AgentId, target: z.enum(TRIGGER_TARGETS) }).strict();
+export type TriggerAgent = z.infer<typeof TriggerAgent>;
+
 export const TriggerExecution = z
   .object({
-    /** A folder as `sessions.create` takes it; the daemon resolves it (`invalid_cwd`) when saving and at each start. */
-    cwd: AbsoluteFolder,
+    /** A folder as `sessions.create` takes it; the daemon resolves it (`invalid_cwd`) when saving and at each start. Exactly one of `cwd` and `agent`. */
+    cwd: AbsoluteFolder.optional(),
+    agent: TriggerAgent.nullable().default(null),
     tools: ToolAllowlist.default([...AUTOMATION_READ_TOOLS]),
     /** Absent: `supervised` for webhook and feed triggers, `auto-accept-edits` otherwise (`withDefaults`, owner m10a4). */
     mode: z.enum(AUTOMATION_MODES).optional(),
@@ -252,6 +259,19 @@ export const TriggerInput = z
       ctx.addIssue({ code: "custom", path: ["prompt"], message: "{{precheck}} needs a precheck command" });
     if (input.execution.env.length > 0 && input.execution.precheck === null)
       ctx.addIssue({ code: "custom", path: ["execution", "env"], message: "variables are for the precheck" });
+    const { cwd, agent } = input.execution;
+    if ((cwd === undefined) === (agent === null))
+      ctx.addIssue({ code: "custom", path: ["execution", "cwd"], message: "a folder or an agent, not both" });
+    // C §6.1: outside text (a webhook, a feed) never reaches an agent's trusted thread; it runs in an isolated task.
+    // W5-R32: a precheck's output is fenced and tainted, and the thread is the agent's trusted context.
+    if (agent?.target === "thread" && used.has("precheck"))
+      ctx.addIssue({ code: "custom", path: ["prompt"], message: "{{precheck}} is for isolated tasks" });
+    if (agent?.target === "thread" && OUTSIDE_TEXT_SOURCES.has(input.source.type))
+      ctx.addIssue({
+        code: "custom",
+        path: ["execution", "agent"],
+        message: "outside text runs in an isolated task",
+      });
   })
   .transform(withDefaults);
 export type TriggerInput = z.output<typeof TriggerInput>;

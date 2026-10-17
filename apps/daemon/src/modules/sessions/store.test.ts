@@ -151,6 +151,8 @@ describe("the session_name migration", () => {
       "sessions/202610131030_tool_preset.sql",
       "kernel/202610142000_outbox.sql",
       "policy/202610142040_tool_allowlist.sql",
+      "sessions/202610151100_session_kinds.sql",
+      "sessions/202610151152_owner_preset.sql",
     ]);
     expect(second.readOnly).toBe(false);
     second.db.close();

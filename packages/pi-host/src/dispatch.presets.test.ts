@@ -14,6 +14,7 @@ function sessionWith(active: string[]) {
     thinkingLevel: "off",
     getAvailableThinkingLevels: () => ["off"],
     getActiveToolNames: () => [...names],
+    getAllTools: () => [],
     setActiveToolsByName: (next: string[]) => void (names = [...next]),
     settingsManager: { getDefaultTools: () => undefined },
     // Pi restores the tools the branch had, bash included.

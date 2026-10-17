@@ -153,7 +153,8 @@ describe("pi-host worker: runs", () => {
   });
 
   it("sends message updates without the cumulative partial message", async () => {
-    await bed.start({ steps: [{ text: "Hello there, world" }] });
+    const text = "Hello there, world. ".repeat(6);
+    await bed.start({ steps: [{ text }] });
     const host = bed.host();
     await host.request({ type: "prompt", message: "go" });
     await host.waitFor((r) => r.type === "agent_settled");
@@ -161,10 +162,9 @@ describe("pi-host worker: runs", () => {
       (r) =>
         r.type === "message_update" && (r.assistantMessageEvent as { type: string }).type === "text_delta",
     );
+    // The delta gate holds back only a tail that starts a known value (W5-R60), so a plain text streams in many pieces.
     expect(deltas.length).toBeGreaterThan(1);
-    expect(deltas.map((r) => (r.assistantMessageEvent as { delta: string }).delta).join("")).toBe(
-      "Hello there, world",
-    );
+    expect(deltas.map((r) => (r.assistantMessageEvent as { delta: string }).delta).join("")).toBe(text);
     for (const record of deltas) expect(record.assistantMessageEvent).not.toHaveProperty("partial");
   });
 

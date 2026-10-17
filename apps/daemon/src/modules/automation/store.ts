@@ -9,6 +9,8 @@ export interface TriggerRow {
   readonly source_type: string;
   readonly config: string;
   readonly cwd: string;
+  /** The agent the trigger runs as (M11); null for a project trigger. */
+  readonly agent_id: string | null;
   readonly project_id: string | null;
   readonly secret_rotated_at: number | null;
   readonly next_fire_at: number | null;
@@ -27,6 +29,7 @@ export interface NewTrigger {
   readonly sourceType: string;
   readonly config: string;
   readonly cwd: string;
+  readonly agentId: string | null;
   readonly projectId: string | null;
   readonly secretRotatedAt: number | null;
   readonly at: number;
@@ -38,6 +41,7 @@ export interface TriggerChange {
   readonly sourceType: string;
   readonly config: string;
   readonly cwd: string;
+  readonly agentId: string | null;
   readonly projectId: string | null;
   /** The new value of `secret_rotated_at`; `undefined` leaves the column alone. */
   readonly secretRotatedAt?: number | null;
@@ -68,15 +72,22 @@ export function createTriggerStore(db: Db) {
     listEnabled: (): TriggerRow[] =>
       db.all<TriggerRow>("SELECT * FROM triggers WHERE enabled = 1 ORDER BY created_at, id"),
 
+    /** An agent's triggers, all of them (M11): the agent's delete removes them. */
+    ofAgent: (ownerId: string, agentId: string): TriggerRow[] =>
+      db.all<TriggerRow>("SELECT * FROM triggers WHERE owner_id = $ownerId AND agent_id = $agentId", {
+        ownerId,
+        agentId,
+      }),
+
     count: (ownerId: string): number =>
       db.get<{ n: number }>("SELECT count(*) AS n FROM triggers WHERE owner_id = $ownerId", { ownerId })?.n ??
       0,
 
     insert(trigger: NewTrigger): void {
       db.run(
-        `INSERT INTO triggers (id, owner_id, name, enabled, source_type, config, cwd, project_id, secret_rotated_at,
+        `INSERT INTO triggers (id, owner_id, name, enabled, source_type, config, cwd, agent_id, project_id, secret_rotated_at,
            revision, created_at, updated_at)
-         VALUES ($id, $ownerId, $name, $enabled, $sourceType, $config, $cwd, $projectId, $secretRotatedAt, 1, $at, $at)`,
+         VALUES ($id, $ownerId, $name, $enabled, $sourceType, $config, $cwd, $agentId, $projectId, $secretRotatedAt, 1, $at, $at)`,
         {
           id: trigger.id,
           ownerId: trigger.ownerId,
@@ -85,6 +96,7 @@ export function createTriggerStore(db: Db) {
           sourceType: trigger.sourceType,
           config: trigger.config,
           cwd: trigger.cwd,
+          agentId: trigger.agentId,
           projectId: trigger.projectId,
           secretRotatedAt: trigger.secretRotatedAt,
           at: trigger.at,
@@ -98,7 +110,7 @@ export function createTriggerStore(db: Db) {
       return (
         db.run(
           `UPDATE triggers SET name = $name, enabled = $enabled, source_type = $sourceType, config = $config, cwd = $cwd,
-             project_id = $projectId, secret_rotated_at = CASE WHEN $keep = 1 THEN secret_rotated_at ELSE $rotatedAt END,
+             agent_id = $agentId, project_id = $projectId, secret_rotated_at = CASE WHEN $keep = 1 THEN secret_rotated_at ELSE $rotatedAt END,
              next_fire_at = NULL, revision = revision + 1, updated_at = $at
            WHERE id = $id AND owner_id = $ownerId AND revision = $baseRevision`,
           {
@@ -110,6 +122,7 @@ export function createTriggerStore(db: Db) {
             sourceType: change.sourceType,
             config: change.config,
             cwd: change.cwd,
+            agentId: change.agentId,
             projectId: change.projectId,
             keep: keepRotation ? 1 : 0,
             rotatedAt: change.secretRotatedAt ?? null,
@@ -168,3 +181,4 @@ export function createTriggerStore(db: Db) {
     transaction: <T>(fn: () => T): T => db.transaction(fn),
   };
 }
+export type TriggerStore = ReturnType<typeof createTriggerStore>;

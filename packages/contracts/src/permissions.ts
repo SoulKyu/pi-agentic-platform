@@ -13,6 +13,9 @@ export const DOMAINS = [
   "automation",
   "usage",
   "inbox",
+  "agents",
+  "secrets",
+  "memory",
 ] as const;
 export const LEVELS = ["read", "operate", "admin"] as const;
 export type Domain = (typeof DOMAINS)[number];

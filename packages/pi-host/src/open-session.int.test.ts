@@ -58,7 +58,7 @@ afterEach(() => {
   expect(blockedAttempts).toEqual([]);
 });
 
-const initRecord = (): InitRecord => ({
+const initRecord = (extra: Partial<InitRecord> = {}): InitRecord => ({
   type: "init",
   cwd,
   agentDir,
@@ -67,12 +67,13 @@ const initRecord = (): InitRecord => ({
   ...(papSessionId ? { papSessionId } : {}),
   policy: RULES,
   testProviderScript: join(root, "script.json"),
+  ...extra,
 });
 
-async function open(overrides: Partial<OpenSessionDeps> = {}) {
+async function open(overrides: Partial<OpenSessionDeps> = {}, extra: Partial<InitRecord> = {}) {
   const ui = createUiBridge((record) => (requests.push(record), true));
   const approvals = createApprovals((record) => (requests.push(record), true));
-  const session = await openSession(initRecord(), {
+  const session = await openSession(initRecord(extra), {
     ui,
     approvals,
     rules: () => RULES,
@@ -125,6 +126,18 @@ describe("project trust fails closed", () => {
     const { session } = await open();
     expect(ran()).toBe(true);
     expect(paths(session)).toContain(file);
+  });
+
+  it("an agent session is untrusted whatever Pi's own store says (W5-R29)", async () => {
+    const file = addProjectExtension();
+    trust(true);
+    const agent = { id: "atlas-1a2b", name: "Atlas", role: "" };
+    const { session } = await open({}, { agent });
+    expect(ran()).toBe(false);
+    expect(paths(session)).not.toContain(file);
+    expect(loadoutOf(session).projectTrust).toEqual({ required: true, trusted: false });
+    // The control: the same folder and store, an owner session, runs it.
+    expect(loadoutOf((await open()).session).projectTrust).toEqual({ required: true, trusted: true });
   });
 
   it("tells the loadout whether the folder needs a decision and whether the session opened trusted (M7R105)", async () => {

@@ -15,7 +15,11 @@ export interface FakeSessions {
   /** A prompt or reopen of the owner is in flight, its run not started. */
   pending: boolean;
   mode: ApprovalMode | "throw";
+  /** The session is an agent thread whose sandbox is on (owner a5): the sessions module's `sandboxedThread`. */
+  sandboxedAgent: boolean;
   prompts: string[];
+  /** The `sandboxedOnly` each prompt carried (undefined: none). */
+  sandboxedOnly: Array<boolean | undefined>;
   /** What the prompt answers. */
   disposition: "started" | "queued" | "handled";
   /** Runs inside `prompt`, after the call was recorded. */
@@ -78,7 +82,9 @@ export function openResumeBed({
     admits: true,
     pending: false,
     mode: "supervised",
+    sandboxedAgent: false,
     prompts: [],
+    sandboxedOnly: [],
     disposition: "started",
     onPrompt: () => {},
   };
@@ -112,6 +118,7 @@ export function openResumeBed({
       if (sessions.mode === "throw") throw new Error("policy unreadable");
       return sessions.mode;
     },
+    sandboxedAgent: () => sessions.sandboxedAgent,
     limitChanged: (_ownerId, sessionId) => void changed.push(sessionId),
     sessions: {
       state: (ownerId, sessionId) =>
@@ -120,8 +127,9 @@ export function openResumeBed({
           : null,
       admits: () => sessions.admits,
       promptPending: () => sessions.pending,
-      async prompt({ text }) {
+      async prompt({ text, sandboxedOnly }) {
         sessions.prompts.push(text);
+        sessions.sandboxedOnly.push(sandboxedOnly);
         await sessions.onPrompt();
         return sessions.disposition;
       },

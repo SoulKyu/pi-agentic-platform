@@ -8,6 +8,7 @@ import { getRuntime } from "../../runtime/index.ts";
 import { shown } from "./board.vm.ts";
 import { budgetLine, precheckLine, profileLine, splitPrompt, trustKey, verdictText } from "./dry-run.vm.ts";
 import { modeNoteKey, type InputResult, type SourceType } from "./editor.vm.ts";
+import { IsolatedProfile } from "./IsolatedProfile.tsx";
 import { UntrustedFence } from "./UntrustedFence.tsx";
 import { useTrustStatus } from "./use-trust-status.ts";
 
@@ -43,9 +44,11 @@ function Row({ label, children }: { readonly label: string; readonly children: R
 function Result({
   result,
   dedupMinutes,
+  isolated,
 }: {
   readonly result: DryRunResult;
   readonly dedupMinutes: number | null;
+  readonly isolated: boolean;
 }) {
   const t = useT();
   const precheck = precheckLine(result.precheck);
@@ -73,6 +76,7 @@ function Result({
         <Row label={t("automation.dry.tools")}>{result.tools.join(", ")}</Row>
         <Row label={t("automation.dry.profile")}>
           <span>{profileLine(result.profile)}</span>
+          {isolated ? <IsolatedProfile /> : null}
           {writes ? <p className="text-muted">{t(modeNoteKey(result.profile.mode))}</p> : null}
           {result.profile.editsUnasked ? (
             <p className="text-attn">{t("automation.dry.editsUnasked")}</p>
@@ -116,6 +120,8 @@ export function DryRunPanel({ input, sourceType, savedId, onInvalid }: DryRunPan
 
   // An answer is about the draft that was sent: one edit later it is no longer shown as the verdict.
   const result = state.kind === "done" && state.stamp === stamp ? state.result : null;
+  const agent = input.ok ? input.input.execution.agent : null;
+  const payloadHidden = sourceType === "schedule" || agent?.target === "thread";
   const dedup = input.ok && input.input.source.type === "webhook" ? input.input.source.dedupMinutes : null;
 
   const run = () => {
@@ -128,7 +134,7 @@ export function DryRunPanel({ input, sourceType, savedId, onInvalid }: DryRunPan
     const params = {
       ...(savedId === null ? {} : { triggerId: savedId }),
       draft: input.input,
-      ...(payload === "" ? {} : { payload }),
+      ...(payload === "" || payloadHidden ? {} : { payload }),
     };
     void pending.run(async () => {
       try {
@@ -152,7 +158,7 @@ export function DryRunPanel({ input, sourceType, savedId, onInvalid }: DryRunPan
         <h3 className="label-hud text-agent">{t("automation.dry.title")}</h3>
         <Chip tone="mut" label={t("automation.dry.nothingWritten")} />
       </div>
-      {sourceType === "schedule" ? null : (
+      {payloadHidden ? null : (
         <TextField
           multiline
           mono
@@ -177,7 +183,9 @@ export function DryRunPanel({ input, sourceType, savedId, onInvalid }: DryRunPan
           {t("automation.dry.failed")}
         </p>
       ) : null}
-      {result === null ? null : <Result result={result} dedupMinutes={dedup} />}
+      {result === null ? null : (
+        <Result result={result} dedupMinutes={dedup} isolated={agent?.target === "isolated"} />
+      )}
     </section>
   );
 }

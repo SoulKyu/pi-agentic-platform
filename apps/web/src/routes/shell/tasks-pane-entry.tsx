@@ -1,3 +1,4 @@
+import type { AvatarStyle } from "@pap/ui";
 import type { ComponentType } from "react";
 import "../../i18n/register-automation.ts";
 import { TasksBoard } from "../../features/automation/TasksBoard.tsx";
@@ -7,6 +8,8 @@ export interface TasksPaneProps {
   onOpenSession(sessionId: string): void;
   onOpenTrigger(triggerId: string): void;
   onNewTrigger(projectId: string): void;
+  onOpenAgent(agentId: string): void;
+  readonly avatarStyle: AvatarStyle;
 }
 
 /** The Tasks board, its own chunk and catalog (M10R112). The marker keeps the chunk out of the initial assets. */

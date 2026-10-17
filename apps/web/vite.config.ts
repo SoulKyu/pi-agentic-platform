@@ -22,9 +22,20 @@ export default defineConfig({
     assetsInlineLimit: (file) => (file.endsWith(".woff2") ? false : undefined),
     // One shared chunk for the modules already in the initial closure: without it Rolldown cuts them into several
     // small chunks as soon as a lazy chunk reuses them (about 3 KB gzip of glue). Lazy-only modules are untouched.
+    // Besides dependencies and packages, the stores, lib, commands and appearance modules the palette entry reuses.
+    // Failure mode: a directory that an initial module and a lazy chunk both reuse, but this rule does not list, is cut
+    // into small glue chunks and the initial size creeps up. Add the directory to `test` when `pnpm budgets` rises.
     rolldownOptions: {
       output: {
-        codeSplitting: { groups: [{ name: "shared", tags: ["$initial"], test: /node_modules|packages\// }] },
+        codeSplitting: {
+          groups: [
+            {
+              name: "shared",
+              tags: ["$initial"],
+              test: /node_modules|packages\/|apps\/web\/src\/(?:stores|lib|features\/(?:commands|appearance))\//,
+            },
+          ],
+        },
       },
     },
   },

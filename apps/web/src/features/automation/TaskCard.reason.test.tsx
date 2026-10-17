@@ -1,4 +1,5 @@
 // @vitest-environment happy-dom
+import { PAP_TEXT } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
 import { current, newBed, NOW, showWithStepUp, taskOf } from "./board-bed.tsx";
@@ -48,5 +49,26 @@ describe("TaskCard reason", () => {
   it("shows nothing extra without a reason, nor for a plain cancel", async () => {
     expect(await chip({ state: "failed", reason: null })).toBe("Failed");
     expect(await chip({ state: "cancelled", reason: "cancelled" })).toBe("Cancelled");
+  });
+});
+
+describe("TaskCard title pap wrote itself (T12)", () => {
+  const titleOf = async (patch: Parameters<typeof taskOf>[0]) => {
+    newBed();
+    const page = await showWithStepUp(
+      <ul>
+        <TaskCard task={taskOf(patch)} now={NOW} current={false} onOpenSession={() => {}} />
+      </ul>,
+    );
+    return page.container.textContent ?? "";
+  };
+
+  it("shows a reminder's title in the viewer's language", async () => {
+    const reminder = { title: PAP_TEXT.reminderTitle, triggerName: PAP_TEXT.reminderTitle };
+    expect(await titleOf(reminder)).toContain("Reminder");
+    setLocale("fr");
+    const french = await titleOf(reminder);
+    expect(french).toContain("Rappel");
+    expect(french).not.toContain("Reminder");
   });
 });

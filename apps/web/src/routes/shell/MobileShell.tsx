@@ -1,4 +1,4 @@
-import { EmptyState, IconButton, IconLists, IconPlus, IconSearch, Mark } from "@pap/ui";
+import { IconButton, IconLists, IconPlus, IconSearch, Mark } from "@pap/ui";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
@@ -26,12 +26,14 @@ import { SurfaceSwitch, type SwitchChoice } from "./SurfaceSwitch.tsx";
 import { useSurfaceView, viewOf, type SurfaceView } from "./surface-view.ts";
 import { usePaletteChord } from "./shortcut.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
+import { useAgents } from "../../stores/agents-store.ts";
 import { useInboxStore } from "../../stores/inbox-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 
 // A separate chunk (it imports the overlay stack), fetched on first open and mounted only while open.
 const loadTabSwitcher = () => import("./TabSwitcher.tsx");
 const loadTree = () => import("../../features/projects/ProjectTree.tsx");
+const loadAgents = () => import("./AgentsSection.tsx").then((m) => ({ default: m.AgentsSection }));
 const loadInbox = () => import("../../features/inbox/InboxPanel.tsx");
 
 /** The item a session tab shows on a phone: its chat, or its split when the split is what the view names. */
@@ -60,6 +62,7 @@ export function MobileShell() {
   const lanes = useLaneStore((state) => state.view);
   const triggers = useTriggerNames();
   const toHandle = useInboxStore((state) => state.view.toHandle);
+  const agentsUnread = useAgents((view) => view.agents.reduce((sum, agent) => sum + agent.unread, 0));
   const view = useSurfaceView((state) => (tab ? viewOf(state, tab.key) : "chat"));
   const [section, setSection] = useState<MobileSection>("work");
   const [seenPath, setSeenPath] = useState(pathname);
@@ -114,9 +117,14 @@ export function MobileShell() {
       {/* The one main landmark: the screens inside it are sections. */}
       <main className="min-h-0 flex-1 overflow-y-auto">
         {section === "agents" ? (
-          <div className="p-s3">
-            <EmptyState title={t("shell.agents.emptyTitle")} purpose={t("shell.agents.emptyPurpose")} />
-          </div>
+          <LazyPanel
+            text={lazyText}
+            load={loadAgents}
+            fallback={<p className="p-s4 text-ui text-muted">{t("app.loading")}</p>}
+            open={section === "agents"}
+            props={{}}
+            onFailed={() => setSection("work")}
+          />
         ) : section === "lists" ? (
           <>
             <MobileListsMenu onSettings={() => setSection("work")} />
@@ -156,7 +164,7 @@ export function MobileShell() {
           <NotFound />
         )}
       </main>
-      <BottomNav section={section} inboxCount={toHandle} onSection={setSection} />
+      <BottomNav section={section} inboxCount={toHandle} agentsUnread={agentsUnread} onSection={setSection} />
       <LazyPanel
         text={lazyText}
         load={loadTabSwitcher}

@@ -4,12 +4,13 @@ import { join } from "node:path";
 import { NO_TAINT, type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { type ShellFacts, UNKNOWN_SHELL } from "../policy/command-cover.ts";
-import { createTaint } from "../policy/taint.ts";
+import type { MessageMix } from "../policy/message-mix.ts";
+import { type ExternalRoots, createTaint } from "../policy/taint.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
 import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
 import { NO_REDACTOR } from "../policy/redact.ts";
 import { restoreStage, unrestoreInput } from "../policy/restore.ts";
-import type { SecretSource } from "../policy/secrets.ts";
+import type { SecretReader } from "../policy/secrets.ts";
 import { createRunGuard, guardStages } from "../policy/run-guard.ts";
 import type { ToolFacts } from "../policy/tool-kind.ts";
 
@@ -17,7 +18,7 @@ import type { ToolFacts } from "../policy/tool-kind.ts";
 export const idleTaint = () => createTaint(NO_TAINT, () => {});
 
 /** A secret source that knows nothing, for a test that is not about secrets. */
-export const NO_SECRETS: SecretSource = { current: () => NO_REDACTOR, refresh: () => {} };
+export const NO_SECRETS: SecretReader = { current: () => NO_REDACTOR, refresh: () => {} };
 
 export const interactiveRules = PolicyRules.parse({
   profile: "interactive",
@@ -58,6 +59,10 @@ export interface PipelineHarnessOptions {
   shell?: ShellFacts;
   /** The session's own id (its attachments are the only ones a read takes unasked). */
   sessionId?: string;
+  /** The set stage 07 reads: the pipeline puts the calls that read an agent's runs folder in it (M11R181). */
+  externalRoots?: ExternalRoots;
+  /** The per-message marker of the agent profiles (W5-R11). */
+  messageMix?: MessageMix;
 }
 
 /** Temporary directories for a pipeline test: `cwd` is the session directory, `outside`, `agentDir` and `papHome` are not. */
@@ -94,6 +99,8 @@ export async function createPipelineBed() {
           grants,
           toolFacts: (name) => options.tools?.[name] ?? { path: `builtin:${name}` },
           taint,
+          ...(options.externalRoots ? { externalRoots: options.externalRoots } : {}),
+          ...(options.messageMix ? { messageMix: options.messageMix } : {}),
           redact: options.redact ?? ((text) => text),
           redactReason: options.redactReason ?? ((text) => text),
           ask: async (request, signal) => {

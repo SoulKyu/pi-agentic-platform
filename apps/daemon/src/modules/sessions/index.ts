@@ -1,6 +1,7 @@
 import { freemem } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { ApprovalMode } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Config } from "../../kernel/config.ts";
 import type { Db } from "../../kernel/db/database.ts";
@@ -18,6 +19,7 @@ import type { AttachmentsPort } from "../files/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { RunObserver } from "../runs/index.ts";
+import type { AgentSurface } from "./agent-surface.ts";
 import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { createLaneHooks, type LaneRunHooks } from "./lane-hooks.ts";
@@ -29,13 +31,16 @@ import { type SessionsRpc, sessionsRpc } from "./rpc.ts";
 import type { SessionsScanPort } from "./scan-port.ts";
 import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
 import { createSessionsService } from "./service.ts";
+import type { SessionsAgentPort } from "./agent-port.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
+export { agentHomeOf } from "./agent-home.ts";
 export { resolveSessionCwd } from "./cwd.ts";
 export { createExports, type Exports } from "./exports.ts";
 export type { SessionsAutomationPort } from "./automation-port.ts";
+export type { SessionsAgentPort } from "./agent-port.ts";
 export type { Admission } from "./fork-quota.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
@@ -109,6 +114,19 @@ export interface SessionsModule {
   setLaneHooks(hooks: LaneRunHooks): void;
   /** What the automation and runs modules may do to a session (M10R32). */
   readonly automation: SessionsAutomationPort;
+  /** What the agents module and the runner may do to the sessions of agents (M11R50). */
+  readonly agentSessions: SessionsAgentPort;
+  /** The mode in force for a session (the effective mode of an agent thread): what the usage resume reads (M10R104). */
+  readonly modeOf: (ownerId: string, sessionId: string) => ApprovalMode;
+  /** Owner a5: an agent thread whose sandbox is on now and at its worker's start (the usage resume reads it). */
+  readonly sandboxedThread: AgentSurface["sandboxedThread"];
+  /** Who a session is (M11R36), the owner's browser-only approvals (M11R39) and the late-bound ports (M11R42). */
+  readonly kindOf: AgentSurface["kindOf"];
+  /** Only the spending side: an approval is noted by the browser answer path alone. */
+  readonly approvedCalls: Pick<AgentSurface["approvedCalls"], "take">;
+  setAgentPorts: AgentSurface["setAgentPorts"];
+  /** The hosts the owner allowed for agent threads (owner a2): the `network.request` handler and, later, the egress proxy read it. */
+  readonly hostGrants: Pick<AgentSurface["hostGrants"], "has" | "of">;
 }
 
 export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
@@ -223,5 +241,12 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     }),
     setLaneHooks: laneHooks.set,
     automation: service.automation,
+    agentSessions: service.agentSessions,
+    modeOf: service.modeOf,
+    sandboxedThread: service.agent.sandboxedThread,
+    kindOf: service.agent.kindOf,
+    approvedCalls: { take: service.agent.approvedCalls.take },
+    setAgentPorts: service.agent.setAgentPorts,
+    hostGrants: service.agent.hostGrants,
   };
 }

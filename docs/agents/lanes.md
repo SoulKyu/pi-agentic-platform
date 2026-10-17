@@ -121,7 +121,7 @@ The file is `.pi/project.yaml` of the owner's main checkout (not of the base bra
 
 One rule for every child pap starts that nobody watches: lane scripts, `gh`, M7's `npx`, `npm` and `git` installs, and M10's precheck. Names that never pass, even when a caller lists them: the SSH agent (`SSH_AUTH_SOCK`), `GIT_*`, `LD_*`, the model providers' families, anything credential-shaped (`*_TOKEN`, `*_API_KEY`, `*SECRET*`, `*PASSWORD*`), pap's daemon-only keys. What the owner notices:
 
-- No SSH agent, but the keys on disk are readable: a script runs as the owner, with `HOME` kept, and there is no sandbox until M11. `ssh` reads `~/.ssh/id_*` itself, so a key without a passphrase works, and the agent socket is still reachable by its path. pap keeps your SSH agent and tokens, among others, out of its environment. A script that clones a private repository over ssh may therefore succeed; do not approve what you would not run yourself. Scripts run when the owner starts them, and a fan-out's test script also runs once after each lane's first run (ADR 0034).
+- No SSH agent, but the keys on disk are readable: a script runs as the owner, with `HOME` kept, and there is no sandbox: M11 sandboxes agents' shells, not lane scripts. `ssh` reads `~/.ssh/id_*` itself, so a key without a passphrase works, and the agent socket is still reachable by its path. pap keeps your SSH agent and tokens, among others, out of its environment. A script that clones a private repository over ssh may therefore succeed; do not approve what you would not run yourself. Scripts run when the owner starts them, and a fan-out's test script also runs once after each lane's first run (ADR 0034).
 - Tokens in the environment are dropped. Registry token: put it in `~/.npmrc`. Forge: `gh auth login` once (gh answers from its own login, never from `GH_TOKEN`).
 - Tool variables (`JAVA_HOME`, `GOPATH`, `NVM_DIR`, `CARGO_HOME`) do not reach a script: export them inside the script, or put them in the tool's config.
 - A private plugin source over ssh needs the terminal.
@@ -170,6 +170,11 @@ One rule for every child pap starts that nobody watches: lane scripts, `gh`, M7'
 
 In memory, the newest 8 per lane, gone at a restart: `model_refused`, `session_failed`, `checkpoint_before_late`, `checkpoints_full`, `large_files_skipped`, `disk_low`, `copy_skipped`, `nested_repo_left_out`, `auto_test_dropped`. A notice carries a kind and a count, never a file name.
 
+## The agent's note (M11a, `lane.note`)
+
+- A session whose folder is inside an open lane of the owner is type `lane` and may call the platform op `lane.note` (tool `lane_note`, ADR 0047). The note is one line: hidden characters (controls but tab and new line, format, line and paragraph separators) removed, trimmed, cut to 2 000 UTF-16 units; the wire accepts up to 8 000 so it is cleaned and clipped rather than refused (W5-R20); empty clears it. 60 an hour per lane (`rate_limited`); another owner's lane, an archived lane or no lane is `not_found`. Lanes are matched by folder with a prefix-aware test, so `/w/a` and `/w/ab` stay apart.
+- Stored in `lanes.note` and `note_at` (migration `202610151150_lane_note.sql`), published on the lane stream (`LaneView.note`), shown by the desktop lane header as text on one clipped line with the whole note in a tooltip and the label "from the agent". The phone header shows none. The note is the agent's text: never a title, never markup.
+
 ## Residuals (accepted, named)
 
 - A lane from someone else's branch runs that branch's package scripts through an approved `pnpm install`: the approved setup is the owner's, what it installs is not. The hint is in the New lane dialog (`laneNew.from.foreign`), not in the approval box.
@@ -181,7 +186,7 @@ In memory, the newest 8 per lane, gone at a restart: `model_refused`, `session_f
 - The 15 s prompt wait: after it the prompt goes without its `before` checkpoint.
 - The split-index fallback (above) costs one more `read-tree` and `add` pass.
 - A `git worktree add` started when the daemon runs from a terminal (not systemd) can finish after the boot undo; under the systemd unit its cgroup dies with the daemon (M9R20). Run `git worktree prune` and delete the orphan folder by hand.
-- An unsandboxed script until M11: a lane script runs as the owner with the unattended environment, outside the policy.
+- An unsandboxed script: a lane script runs as the owner with the unattended environment, outside the policy. M11's sandbox covers agent shells and agent prechecks only; the consent copy says so ("agents' shells run in a sandbox, lane scripts do not").
 - Extension event hooks see issue text (above).
 - No boot sweep empties `$PAP_HOME/tmp/git-index/`: a crash during a capture can leave one `idx-*` file there. It is harmless; delete it while the daemon is stopped.
 

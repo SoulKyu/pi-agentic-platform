@@ -87,10 +87,12 @@ describe("phone shell", () => {
     await page.unmount();
   });
 
-  it("Agents says there is no agent yet, with no action", async () => {
+  it("Agents offers to create the first agent (M11R109)", async () => {
     const page = await renderShell("/", { phone: true });
     await click(button(nav(page.container) as HTMLElement, "Agents"));
-    expect(page.container.textContent).toContain("No agent yet");
+    await settle();
+    expect(page.container.textContent).toContain("Create your first agent");
+    expect(button(page.container, "New agent")).toBeTruthy();
     expect(page.container.textContent).toContain(
       "A long-term agent has its own thread, memory, budget and triggers.",
     );

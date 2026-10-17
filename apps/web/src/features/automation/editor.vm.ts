@@ -14,7 +14,7 @@ import {
   TriggerInput,
   type TriggerView,
 } from "@pap/contracts";
-import type { MessageKey } from "../../i18n/index.ts";
+import { t, type MessageKey } from "../../i18n/index.ts";
 
 export type SourceType = "schedule" | "webhook" | "feed" | "manual";
 export type Mode = "read-only" | "supervised" | "auto-accept-edits";
@@ -35,6 +35,9 @@ export interface Draft {
   readonly feedUrl: string;
   readonly feedEvery: string;
   readonly cwd: string;
+  /** The agent the trigger runs as; "" is a project trigger that runs in `cwd` (M11R127). */
+  readonly agentId: string;
+  readonly target: "isolated" | "thread";
   readonly tools: readonly string[];
   readonly mode: Mode | null;
   readonly precheck: string;
@@ -72,6 +75,8 @@ export function emptyDraft(cwd: string, timezone: string): Draft {
     feedUrl: "",
     feedEvery: String(feedEveryMinutes.fallback),
     cwd,
+    agentId: "",
+    target: "isolated",
     tools: [...AUTOMATION_READ_TOOLS],
     mode: null,
     precheck: "",
@@ -84,6 +89,16 @@ export function emptyDraft(cwd: string, timezone: string): Draft {
   };
 }
 
+/** A new trigger that runs as an agent: no folder, an isolated task until the person picks the thread. */
+export const agentDraft = (agentId: string, timezone: string): Draft => ({
+  ...emptyDraft("", timezone),
+  agentId,
+});
+
+/** Outside text (a webhook, a feed) never reaches an agent's thread (C §6.1): those sources run isolated, whatever the draft says. */
+export const effectiveTarget = (draft: Draft): "isolated" | "thread" =>
+  OUTSIDE_TEXT_SOURCES.has(draft.sourceType) ? "isolated" : draft.target;
+
 export const browserZone = (): string => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** The draft of a saved trigger, or null when its stored config no longer parses. */
@@ -95,7 +110,9 @@ export function draftOf(view: TriggerView, fallback: Draft): Draft | null {
     name: view.name,
     enabled: view.enabled,
     sourceType: source.type,
-    cwd: execution.cwd,
+    cwd: execution.cwd ?? "",
+    agentId: execution.agent?.agentId ?? "",
+    target: execution.agent?.target ?? "isolated",
     tools: [...execution.tools],
     mode: execution.mode ?? null,
     precheck: execution.precheck ?? "",
@@ -184,6 +201,7 @@ export type InputResult =
 
 /** The draft through the contract's own `TriggerInput`: its refusals, keyed by path (`source.rrule`, `prompt`...), are the form's errors. */
 export function toInput(draft: Draft): InputResult {
+  const onThread = draft.agentId !== "" && effectiveTarget(draft) === "thread";
   const maxRunUsd =
     draft.maxRunUsd === null ? undefined : draft.maxRunUsd === "" ? null : Number(draft.maxRunUsd);
   const parsed = TriggerInput.safeParse({
@@ -191,9 +209,11 @@ export function toInput(draft: Draft): InputResult {
     enabled: draft.enabled,
     source: sourceOf(draft),
     execution: {
-      cwd: draft.cwd.trim(),
-      tools: [...draft.tools],
-      mode: draft.mode ?? undefined,
+      ...(draft.agentId === ""
+        ? { cwd: draft.cwd.trim() }
+        : { agent: { agentId: draft.agentId, target: effectiveTarget(draft) } }),
+      tools: onThread ? undefined : [...draft.tools],
+      mode: onThread ? undefined : (draft.mode ?? undefined),
       precheck: draft.precheck.trim() === "" ? null : draft.precheck,
       env: [...draft.env],
       retryOnInterrupt: draft.retryOnInterrupt,
@@ -205,15 +225,20 @@ export function toInput(draft: Draft): InputResult {
   });
   if (parsed.success) return { ok: true, input: parsed.data };
   const errors: Record<string, string> = {};
-  for (const issue of parsed.error.issues) errors[issue.path.join(".")] ??= issue.message;
+  for (const issue of parsed.error.issues) errors[issue.path.join(".")] ??= pap(issue.message);
   return { ok: false, errors };
 }
+
+/** The contract's refusals that the form words itself (W5-R32): the person never sees the raw text. */
+const pap = (message: string): string =>
+  message === "{{precheck}} is for isolated tasks" ? t("automation.editor.threadPrecheck") : message;
 
 const FIELD_TEXT: Readonly<Record<string, (draft: Draft) => string>> = {
   name: (d) => d.name,
   "source.rrule": (d) => d.rrule,
   "source.url": (d) => d.feedUrl,
   "execution.cwd": (d) => d.cwd,
+  "execution.agent": (d) => d.agentId,
   "execution.precheck": (d) => d.precheck,
   prompt: (d) => d.prompt,
 };

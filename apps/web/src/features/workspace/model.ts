@@ -7,6 +7,7 @@ export const SETTINGS_SECTIONS = [
   "mcp",
   "skills",
   "automation",
+  "agents",
   "account",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
@@ -22,7 +23,8 @@ export type ItemRef =
   | { readonly kind: "lane"; readonly id: string }
   | { readonly kind: "compare"; readonly id: string }
   | { readonly kind: "tasks" }
-  | { readonly kind: "trigger"; readonly id: string };
+  | { readonly kind: "trigger"; readonly id: string }
+  | { readonly kind: "agent"; readonly id: string };
 
 export interface Split {
   readonly item: ItemRef;
@@ -59,6 +61,8 @@ export function itemKey(item: ItemRef): string {
       return `compare:${item.id}`;
     case "trigger":
       return `trigger:${item.id}`;
+    case "agent":
+      return `agent:${item.id}`;
     case "home":
     case "settings":
     case "dev-ui":

@@ -1,19 +1,24 @@
 import type { InboxItem } from "@pap/contracts";
-import { Chip, cn, FOCUS_RING, Icon, IconWork } from "@pap/ui";
+import { type AvatarStyle, Chip, cn, FOCUS_RING, Icon, IconWork } from "@pap/ui";
 import { formatAge } from "../../i18n/age.ts";
 import { useT } from "../../i18n/index.ts";
-import { chipOf, costOf, isOpen, titleOf } from "./inbox.vm.ts";
+import { AgentInboxRow } from "./AgentInboxRow.tsx";
+import { chipOf, costOf, isAgentItem, isOpen, titleOf } from "./inbox.vm.ts";
 
-/** One line of the Inbox (board 09 §2): a task glyph, the title, the kind chip, the age and the cost. A question to handle wears the attention tint. */
-export function InboxRow({
-  item,
-  now,
-  onPick,
-}: {
+export interface InboxRowProps {
   readonly item: InboxItem;
   readonly now: number;
+  readonly avatarStyle: AvatarStyle;
   onPick(item: InboxItem): void;
-}) {
+}
+
+/** An agent's item is an agent row (M11R129); every other kind is M10's task line. */
+export function InboxRow(props: InboxRowProps) {
+  return isAgentItem(props.item) ? <AgentInboxRow {...props} /> : <TaskRow {...props} />;
+}
+
+/** One line of the Inbox (board 09 §2): a task glyph, the title, the kind chip, the age and the cost. A question to handle wears the attention tint. */
+function TaskRow({ item, now, onPick }: InboxRowProps) {
   const t = useT();
   const chip = chipOf(item);
   const cost = costOf(item);

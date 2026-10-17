@@ -31,6 +31,9 @@ describe("the policy in every worker", () => {
     const { sessionId } = await bed.service.create(bed.work, OWNER);
     expect(initOf(0).policy).toEqual({
       profile: "interactive",
+      autonomy: null,
+      trustedSources: [],
+      hostGrants: [],
       approvalMode: "supervised",
       alwaysAllow: [],
       alwaysPrefixes: [],
@@ -45,6 +48,9 @@ describe("the policy in every worker", () => {
       presetTools: null,
       toolAllowlist: null,
       unattended: false,
+      agentHome: null,
+      agentScratch: null,
+      sandbox: null,
     });
     const frames = await bed.subscribe(sessionId);
     policy.setMode(OWNER.userId, sessionId, "read-only");

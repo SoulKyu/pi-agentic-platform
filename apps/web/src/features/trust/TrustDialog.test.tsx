@@ -167,6 +167,7 @@ describe("trust dialog (M7R109)", () => {
     ["home-or-above", "your home folder"],
     ["holds-pi-or-pap", "Pi's own folder or pap's"],
     ["holds-other-projects", "holds other projects"],
+    ["inside-pap-home", "where agents write"],
   ] as const)(
     "shows the copy of the %s refusal (a result, not an error) and records no decision",
     async (refusal, words) => {

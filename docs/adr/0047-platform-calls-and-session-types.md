@@ -1,0 +1,75 @@
+# ADR 0047: platform calls and session types
+
+Status: accepted (M11a, Task 28). A deviation from C §2.6 and §5.4; amends ADR 0020 for agent sessions (decision 90).
+Date: 2026-10-16
+Spec: C §2.6, §5.3, §5.4. Rulings: M11R1 to M11R16, M11R35 to M11R42, M11R100 to M11R107, M11R164, M11R165, M11R175, M11R178, M11R201 to M11R246, W5-R11, W5-R12, W5-R34 to W5-R36, W5-R44 to W5-R46, W5-R53, W5-R54. Owner answers m4, m5, m15, m18, a1 to a7.
+
+## Context
+
+C §2.6 knows three kinds of session and C §5.4 refuses `delegate` and `remind` outright after external content. M11 adds long-term agents, isolated agent tasks and, in M11b, subagent children. pap also needs a way for an agent to ask the platform for something (notify the owner, ask a question, ask for a secret, ask for a host) without giving the model a general RPC. Agents also need a way to work after reading the open world, which a flat refusal makes useless.
+
+## Decision
+
+Session types:
+
+- There are six: `plain`, `lane`, `task` (an M10 run), `agent-thread`, `agent-task` (an isolated run of an agent: trigger, delegation, reminder) and `child` (`SESSION_TYPES`, `sessionTypeOf` in `packages/contracts/src/platform.ts`). The first fact that holds wins: a parent session or the role `child`, then the agent role, then an M10 tool list, then a folder inside a lane worktree, else `plain`. A row that says `child` without a parent is still a child (fail closed).
+- The type is read from the daemon's own session row at every worker start and again at every call. The worker's word is never used. A child of an agent thread keeps the agent's binding with the role `child` and the type `child`.
+- A worker registers, at its start, the tools of `opsFor(type)` whose handler is registered in the daemon and whose switch is on for the owner, and the set is pinned (a later change of type gives it no tool it did not start with). The daemon checks the current type, the handler and the switch at every call. M11a registers no `subagent` tool anywhere (its handler is M11b's).
+
+Platform ops (`PLATFORM_OPS`; each tool is registered by the `pap-platform` inline extension of pi-host, source `<inline:pap-platform>`, classified by source and name, never by name alone):
+
+| Op (tool) | Callers | Tainted caller | Caps |
+| --- | --- | --- | --- |
+| `lane.note` (`lane_note`) | `lane` | runs | 60 an hour per lane; note stripped of hidden characters, cut to 2 000 |
+| `agent.notify` (`agent_notify`) | `agent-thread` | runs | 30 an hour per agent |
+| `agent.approve` (`agent_approve`) | `agent-thread` | runs | 4 open per agent; waits 25 minutes less 2 s, then answers not approved |
+| `agent.delegate` (`agent_delegate`) | `agent-thread` | **asks** | 10 an hour per agent; depth 1 |
+| `agent.remind` (`agent_remind`) | `agent-thread` | **asks** | 5 pending, 24 a day; 15 minutes to 30 days ahead |
+| `secret.request` (`secret_request`) | `agent-thread`, sandbox on only | runs | 3 open per agent; waits 30 minutes less 2 s |
+| `network.request` (`network_request`) | `agent-thread` | runs | 10 an hour per thread |
+| `subagent.run` (`subagent`) | `plain`, `lane`, `agent-thread` | runs, the child starts tainted | M11b |
+
+- `task`, `agent-task` and `child` get no op, so delegation and subagents stay one level deep and an isolated task never reaches the owner's attention by itself (C §5.3).
+- Dispatch (`modules/platform/dispatch.ts`): a call holds an audit slot first (none left: `rate_limited`, nothing runs); then a stopped dispatcher or read-only database, at most 8 calls in flight per session (the earlier worker's calls end `cancelled`), a well-formed id and tool call id, arguments under 64 KiB, the session's row (owner, type, taint), the verdict, the strict argument schema, the handler's presence and switch, and the handler under the op's deadline. These steps run without an `await`, so what was checked is what the handler starts under. The result must fit the op's result schema (`internal` otherwise). Every call writes one audit row (kind `policy`, tool = the op, detail `{op, type, code}`), never the arguments.
+- Errors are fixed codes. The worker turns each into a fixed sentence; no daemon text reaches the model.
+- pap's platform tools load first among the extensions, so a name collision is won by pap's tool and reported once per session as `extension_error` (W5-R12).
+
+The tainted ask (deviation from C §5.4, owner m4):
+
+- A tainted `agent_delegate` or `agent_remind` is not refused. pap-policy asks Deny / Allow once, with no grant (`grantable: false`). The daemon runs the op only when its own record says that a browser session answered Allow once on the card of that tool call for that tool (`approvedCall`, spent once, at most 4 096 records for 10 minutes). A token's answer never counts and the daemon refuses it before the worker sees it (owner m15). An answer given for another tool or another call does not count; a worker that skipped the question gets `tainted`.
+- A tainted delegation that the owner allows runs as an isolated task on the target (owner m18): the target's M10 read tools, `supervised`, its sandbox, its home read-only and a scratch folder of its own. It never enters the target's trusted thread, so one injected page cannot taint another agent's thread. An untainted delegation to an agent that opted in (`acceptsDelegation`) goes to the target's thread.
+- A tainted `agent_remind` may prompt the thread only if the thread session that fires it is the session that set it (W5-R44). A thread reset in between fails the reminder closed, with a card that says why. A cleared taint is the owner's statement of trust, so a reminder set before the clear still fires (W5-R46).
+- `agent_notify` and `agent_approve` run when tainted (owner a4): both reach only the owner, as text, and pap writes the card or item sentence; the agent's words are shown as untrusted text.
+- `secret.request` is for agent threads whose sandbox is on (owner m5). Without the sandbox the worker's shell would not get the value, so the daemon answers `sandbox_unavailable` before any request opens. The card says the run is tainted when it is.
+- An API token may read an agent, open its thread, mark it read, pause or resume it (M11R4), and fire an agent trigger whose target is `isolated`. It never makes the thread run: `sessions.prompt`, `compact`, `navigate`, `autoName` and `usage.resumeNow` answer `forbidden` on an agent's session (W5-R64). It never fires a thread-target trigger, never queues a task for an agent (`agents.queueTask`) and never answers a platform card (owner m15). A payload on a thread-target fire is `bad_request` for every caller.
+
+Agent autonomy and the egress proxy (decision 90, owner a1 to a7):
+
+- The proxy. Every networked sandboxed shell of an agent runs with `--unshare-net`; its only way out is one unix socket to a proxy in the daemon, one listener per command (`modules/egress/`). The sandbox has no resolver: pap resolves the names itself. A command's environment names the proxy (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY` and lower-case twins at `http://127.0.0.1:3128`, `NO_PROXY` empty, `NODE_USE_ENV_PROXY=1`), served inside the sandbox by a small python3 forwarder (the host's `python3`, probed: root-owned, under the system folders, answers a nonce).
+- What the proxy lets through: `CONNECT host:443` (a blind tunnel) and absolute `http://` requests to port 80, nothing else. A target is a lower-case ASCII host name of at least two labels. An IP literal in any spelling, a name that resolves to a private, loopback, link-local, CGNAT, multicast, reserved, NAT64 or ULA address (one blocked answer refuses the name), and a name that does not resolve are refused. pap connects to the address it checked. The allowlist is read at each connection: the worker's start-time host list (the agent's own, else the owner's; no list at all is an empty list), the agent's trusted sources, and the thread's current host grants. A host entry with a port is refused when the profile is saved. The proxy connects directly and never through an upstream proxy.
+- Bounds, per command: 32 connections, 1 GiB up plus down, a request head of 16 KiB within 10 s, 120 s idle, 30 minutes per connection, resolve in 5 s, connect in 10 s; 8 commands per session; two lookups in flight daemon-wide and one per command (W5-R43). A refusal is a `403` with `x-pap-deny: <reason>` and a fixed body, or a refused `CONNECT`.
+- What breaks loudly instead of leaking: `ssh` and `git@` remotes, `git://`, UDP and QUIC, tools with their own resolver or no proxy support, Node without `NODE_USE_ENV_PROXY`, an owner behind a corporate upstream proxy (no networked agents in M11a, W5-R40), and any port other than 80 and 443. A command that cannot reach the proxy gets no network, not the host's. Without a usable python3 or a short enough socket path the proxy is unusable and every launch of a networked agent answers `sandbox_unavailable`; Settings › Agents shows the reason.
+- Taint comes from the proxy's report for that command, not from parsing the command. A networked command taints unless its report exists, is not cut, and every allowed connection was a `CONNECT` to port 443 of a trusted source. Refused connections never taint (pap wrote that text). A command that reached nothing does not taint. Plain HTTP to a trusted source taints. No report (a worker that could not reach the proxy, a cut report) taints. The stage 07 row says which: `egress: trusted sources only`, `egress: no network used`, `egress: no report`, `egress: report cut`, `egress: untrusted host reached`.
+- The refusal line. After the output of a command whose report holds refused hosts, the shell appends `[pap] The egress proxy refused: <host> (<reason>), ... In this thread, ask the owner with network_request {"host": "<host>"}.` (8 hosts, then a count). An isolated task is told it cannot ask.
+- a1, trusted sources: `AgentInput.trustedSources` (exact hosts, at most 20, none by default). They join the allowlist and, reached over HTTPS only, do not taint. Adding one needs the password (step-up).
+- a2, `network_request`: a platform op for agent threads. Its card is Deny / "Allow this host for this thread", answered by a browser session only. The grant lives in daemon memory (W5-R35) and the proxy reads it at the next connection. It ends at the thread's reset, at quarantine, at agent delete and at a daemon restart (the owner is asked again), and is never written to SQLite. A call is blocked before any card when the start-time rules have the sandbox or the network off. A host already granted needs no card.
+- a3: nothing changes; an isolated task's question waits 10 minutes in the Inbox, then is denied (M10). An isolated task has no `network_request`.
+- a4: already the table above (`whenTainted: "run"` for notify and approve, pinned by tests).
+- a5, auto-resume: a quota auto-resume of a `full-access` agent session is allowed when its sandbox is on in the registry now and in the worker's start-time profile; it stays held without the sandbox. This is the one exception to M10R104 (ADR 0045). The continuation goes out marked sandbox-only: a warm worker or a cold start without the sandbox refuses it and the resume is skipped as `full_access`. The run that follows keeps its worker's start-time profile; turning the sandbox off while it runs takes effect at the next worker start.
+- a6, trusted autonomy: a per-agent switch, off by default, step-up to turn on or to grow its host list. It never reaches an isolated task, a child or an owner session. With it on, in an agent thread:
+  - (ii) a tainted `agent_remind` or `agent_delegate` runs without the card. pi-host allows it (reason `trusted autonomy`) and the daemon allows it only when autonomy is on in the worker's start-time profile and in the registry now; the daemon's audit row detail says `relaxed: "autonomy"`. A tainted delegation still runs as an isolated task on the target.
+  - (i) pap's networked sandboxed shell is judged as in a clean thread (W5-R34, W5-R53), but only for an agent with a host list of its own. One flag, computed once, drives the matrix, prefix and session rules, the read-only command cover and the scopes the card offers, so an earlier prefix answer applies after taint. The mode still asks what it asks in a clean thread (auto-accept-edits and supervised ask for a networked shell; full access does not). The result still taints from the egress report.
+  - Never covered: MCP and unknown tools, Pi's own unsandboxed shell, writes outside its folder, protected reads, the read-only preset's hold, the run guard, lever B, read-only mode, an agent without its own list.
+- a7: all of it ships in M11a.
+
+What the proxy does not do (said plainly, M11R245): it guarantees hosts, not content. Any host the agent can reach (on its list, a trusted source or a granted host) can receive whatever the agent sends it, its home and its vault's values included. Under HTTPS pap sees neither path nor body. A reachable relay, CDN, paste site or forge passes data on, and a host on a shared CDN can be fronted. An owner who adds a host to a list accepts that. Fronting also works for what comes in: the taint rule trusts the `CONNECT` name (a1), and pap sees neither the TLS server name nor the `Host` header inside the tunnel, so a trusted source on a CDN that others can use can serve another tenant's content as clean. A trusted source is never a host behind such a CDN.
+
+Logging (W5-R54): the daemon never writes a host name an agent chose to a daemon-side sink. The `egress_command` log line and the `network_request` call audit write a host as is only when it equals, character for character, an entry the owner wrote (the list in force, a trusted source, a grant); every other host, wildcard matches and refused hosts included, is `h:<first 12 hex of sha256(host)> (len N)`. To match a line to a host: `printf %s the-host.example | sha256sum | cut -c1-12` (lower case, no final dot). The hash is unsalted, 48 bits and stored with the length, so a low-entropy secret placed in a host name can be recovered offline from a shared log. Shell command arguments and the stage 02 reasons of URL tools still carry what the agent wrote; the worker's value-based redactor protects them, which does not cover values under 8 characters.
+
+## Consequences
+
+- A tainted agent that wants to delegate or remind costs the owner one card, not a refusal. With autonomy on it costs none.
+- The ops a worker offers can be fewer than the table shows: a missing handler or a switched-off op registers no tool.
+- Grants are lost at a daemon restart: one more question.
+- Residuals: the proxy does not inspect content; a worker that skips the card for `network_request` gets `granted: false` from the daemon's own record; a grant is per host, not per path.
+- The gap from C §5.4: the spec text says a tainted delegate is refused. This ADR replaces that with the ask and the isolated run.

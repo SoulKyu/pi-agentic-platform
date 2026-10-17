@@ -5,7 +5,7 @@ import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import type { TriggerPrefill } from "../../stores/trigger-prefill.ts";
-import { browserZone, draftOf, emptyDraft } from "./editor.vm.ts";
+import { agentDraft, browserZone, draftOf, emptyDraft } from "./editor.vm.ts";
 import { TriggerForm } from "./TriggerForm.tsx";
 
 export interface TriggerEditorProps {
@@ -67,14 +67,19 @@ function SavedTrigger({ triggerId, onOpenSession }: Pick<TriggerEditorProps, "tr
  * browser's zone (RT-34). Features never import each other, so the session link goes out through the pane's callback.
  */
 export function TriggerEditor({ triggerId, prefill, onOpenSession, onCreated }: TriggerEditorProps) {
-  const project = useShellStore((state) => state.view.projects.get(triggerId.slice("new:".length)));
+  const scope = triggerId.slice("new:".length);
+  const project = useShellStore((state) => state.view.projects.get(scope));
+  // `new:agent:<id>`: a trigger that runs as that agent (M11R127), started from the agent's column.
+  const agentId = scope.startsWith("agent:") ? scope.slice("agent:".length) : null;
   return (
     <section data-trigger-pane="" className="flex min-h-0 flex-1 flex-col">
       {triggerId.startsWith("new:") ? (
         <TriggerForm
           view={null}
           draft={{
-            ...emptyDraft(project?.root ?? "", browserZone()),
+            ...(agentId === null
+              ? emptyDraft(project?.root ?? "", browserZone())
+              : agentDraft(agentId, browserZone())),
             ...(prefill ? { name: prefill.name, prompt: prefill.prompt } : {}),
           }}
           onOpenSession={onOpenSession}

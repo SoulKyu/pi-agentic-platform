@@ -151,7 +151,9 @@ describe("the answer's scope", () => {
     });
     expect(policy.added).toHaveLength(1);
     expect(policy.added[0]).toMatchObject({ kind: "prefix", prefix: PREFIX });
-    expect(JSON.stringify(policy.added)).not.toContain("rm");
+    // On the field: the whole JSON also holds the random temporary folder, whose name can contain "rm".
+    expect(policy.added[0]).toHaveProperty("prefix", PREFIX);
+    expect((policy.added[0] as { prefix: readonly string[] }).prefix).not.toContain("rm");
   });
 
   it("stores a tool rule with the source the card offered", async () => {

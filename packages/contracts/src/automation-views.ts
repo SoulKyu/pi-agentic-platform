@@ -4,10 +4,13 @@ import {
   AUTOMATION_LIMITS,
   AUTOMATION_MODES,
   PromptTemplate,
+  TRIGGER_TARGETS,
+  TriggerAgent,
   TriggerExecution,
   TriggerSource,
 } from "./automation.ts";
 import { ToolName } from "./policy.ts";
+import { AgentId } from "./platform.ts";
 
 /** `pwh_` and 32 random bytes in base64url: the prefix lets a secret scanner recognise a leak (M10R18). */
 export const WEBHOOK_SECRET_PATTERN = /^pwh_[A-Za-z0-9_-]{43}$/;
@@ -28,6 +31,8 @@ export const TriggerView = z
     state: z.enum(TRIGGER_STATES),
     source: TriggerSource.nullable(),
     execution: TriggerExecution.nullable(),
+    /** The agent the trigger runs as and where (M11R70); absent or null for a project trigger. */
+    agent: TriggerAgent.nullable().optional(),
     prompt: PromptTemplate.nullable(),
     projectId: z.string().min(1).max(128).nullable(),
     cwd: z.string().min(1).max(4096),
@@ -91,6 +96,15 @@ export const TaskView = z
     resetAt: z.number().int().nullable(),
     /** The task is over and its session no longer carries the trigger's tool list ("Use my normal tools", owner m10a7). */
     toolsReleased: z.boolean(),
+    /** The agent a task runs as and where (M11R70); absent or null for a project task. */
+    agentId: AgentId.nullable().optional(),
+    target: z.enum(TRIGGER_TARGETS).nullable().optional(),
+    /** The agent that handed this task over (a delegation, M11R78); absent or null for any other task. */
+    requestedBy: AgentId.nullable().optional(),
+    /** A reminder's due time (M11R80, ms); null for any other task. Absent from an older daemon. */
+    notBefore: z.number().int().nullable().optional(),
+    /** A reminder's note, clipped to 200 units: agent-written text, shown fenced. Null for any other task. */
+    note: z.string().max(200).nullable().optional(),
   })
   .strict();
 export type TaskView = z.infer<typeof TaskView>;
@@ -103,6 +117,8 @@ export const TaskTrigger = z
     enabled: z.boolean(),
     sourceType: z.enum(["schedule", "webhook", "feed", "manual"]),
     projectId: z.string().min(1).max(128).nullable(),
+    /** The agent the trigger runs as (M11R70); absent or null for a project trigger. */
+    agentId: AgentId.nullable().optional(),
     state: z.enum(TRIGGER_STATES),
     nextFireAt: z.number().int().nullable(),
   })

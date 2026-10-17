@@ -19,11 +19,13 @@ export interface SessionModelsDeps {
   /** A prompt of the session waits in the lane hooks: it is busy for a model or tool change too. */
   waiting(sessionId: string): boolean;
   readonly logger: Logger;
-  readonly store: Pick<SessionsStore, "toolPreset" | "setToolPreset">;
+  readonly store: Pick<SessionsStore, "toolPreset" | "setToolPreset" | "setOwnerPreset">;
   /** The session's worker if one is up or being started (a start in progress is waited for); none for a cold session. */
   running(sessionId: string): Promise<LiveSession | null>;
   /** The stored preset changed: the worker is sent the rules that follow from it. */
   presetChanged(row: SessionRow): void;
+  /** An agent thread's preset never goes wider than its start-time profile's (W5-R26). */
+  clampPreset(row: SessionRow, preset: ToolPreset): ToolPreset;
 }
 
 export interface SessionModels {
@@ -41,7 +43,8 @@ export interface SessionModels {
   /**
    * Changes the session's tool preset (M7R77). A cold session only stores it. A live one must be idle (`session_busy`):
    * between presets other than `chat` the worker applies it in place; crossing the `chat` boundary stores it and releases
-   * the worker, and the next start opens with the new preset. Nothing is stored when the worker refuses.
+   * the worker, and the next start opens with the new preset. Nothing is stored when the change is refused: busy, or
+   * refused by the worker.
    */
   setTools(input: { sessionId: string; preset: ToolPreset }, caller: Caller): Promise<void>;
 }
@@ -86,26 +89,33 @@ export function createSessionModels(deps: SessionModelsDeps): SessionModels {
     async setThinking({ sessionId, level }, caller) {
       await ask(sessionId, caller, { type: "set_thinking_level", level }, false);
     },
-    async setTools({ sessionId, preset }, caller) {
+    async setTools({ sessionId, preset: requested }, caller) {
       const row = deps.owned(sessionId, caller);
       const worker = await deps.running(row.id);
-      const stored = storedPresetOf(preset);
+      // After the wait: a start in progress has set the profile its worker keeps, the one that clamps (W5-R26).
+      const preset = deps.clampPreset(row, requested);
+      // Written only once the change takes effect. The owner's choice is kept apart from the profile's, so a restart
+      // narrows again and never forgets it; a refused change leaves both as they were (W5-R28).
+      const keep = () => {
+        if (row.agentRole === "thread") deps.store.setOwnerPreset(row.id, requested);
+        deps.store.setToolPreset(row.id, storedPresetOf(preset));
+      };
       if (!worker || worker.stopping()) {
         // The next worker reads the stored preset when it starts.
-        deps.store.setToolPreset(row.id, stored);
+        keep();
         return;
       }
       // Nothing is awaited between this check and the send, so no prompt can slip in between (M2-RT-08).
       if (worker.busy() || deps.waiting(row.id)) throw new PapError("session_busy");
       const crossesChat = (deps.store.toolPreset(row.id) === "chat") !== (preset === "chat");
       if (crossesChat) {
-        deps.store.setToolPreset(row.id, stored);
+        keep();
         await worker.stop();
         return;
       }
       const answer = await worker.command({ type: "set_tools", preset });
       if (!answer.ok) throw refused("set_tools", answer.error);
-      deps.store.setToolPreset(row.id, stored);
+      keep();
       deps.presetChanged(row);
     },
   };

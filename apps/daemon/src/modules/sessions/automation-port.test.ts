@@ -143,6 +143,15 @@ describe("prompt, abort, releaseIdle (M10R32, M10R154)", () => {
     expect(bed.spawned[0]?.requests.map((r) => r.type)).toContain("prompt");
   });
 
+  it("drops a prompt nobody wants at the last moment: handled, and the worker is never asked (N1)", async () => {
+    bed = build();
+    const { sessionId } = await task();
+    expect(await auto().prompt({ ownerId: "u1", sessionId, text: "go", stillWanted: () => false })).toBe(
+      "handled",
+    );
+    expect(bed.spawned[0]?.requests.map((r) => r.type)).not.toContain("prompt");
+  });
+
   it("refuses to reopen a cold task session when no worker would stay free", async () => {
     bed = build({ limits: { maxWorkers: 2, minFreeMemMb: 0 } });
     const { sessionId } = await task();
@@ -236,6 +245,7 @@ describe("answerUnattended (owner m10a3, M10R159)", () => {
     bed = build({
       audit: {
         append: () => {},
+        reserve: () => true,
         fromWorker: (_session, _raw, context) => {
           handed.push(context);
           return null;

@@ -9,6 +9,7 @@ import {
   IconWork,
   type IconGlyph,
 } from "@pap/ui";
+import { badgeText } from "../../features/agents/rail.vm.ts";
 import { useT } from "../../i18n/index.ts";
 
 export type MobileSection = "agents" | "work" | "lists" | "inbox";
@@ -28,12 +29,15 @@ interface BottomNavProps {
   readonly section: MobileSection;
   /** Questions waiting for an answer: what the top bar's badge counts too. */
   readonly inboxCount: number;
+  /** Unread activity across the agents: the Agents tab's badge (board 05). */
+  readonly agentsUnread?: number;
   onSection(section: MobileSection): void;
 }
 
 /** The phone's four sections (DESIGN.md §8). Hidden by styles.css while the keyboard is open. */
-export function BottomNav({ section, inboxCount, onSection }: BottomNavProps) {
+export function BottomNav({ section, inboxCount, agentsUnread, onSection }: BottomNavProps) {
   const t = useT();
+  const unread = agentsUnread ?? 0;
   return (
     <nav
       aria-label={t("shell.mobile.sections")}
@@ -58,6 +62,11 @@ export function BottomNav({ section, inboxCount, onSection }: BottomNavProps) {
             <span className="absolute right-s3 top-s1">
               {" "}
               <Badge count={inboxCount} label={t("shell.mobile.inboxCount", { count: inboxCount })} />
+            </span>
+          ) : null}
+          {id === "agents" && unread > 0 ? (
+            <span className="absolute right-s3 top-s1">
+              <Badge count={unread} label={t("shell.agent.unread", { count: badgeText(unread) })} />
             </span>
           ) : null}
         </button>

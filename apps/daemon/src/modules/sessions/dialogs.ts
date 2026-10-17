@@ -52,6 +52,8 @@ export interface Grant {
    * never from the client's answer, which only says which offered scope (M7R24).
    */
   readonly alwaysScopes?: AlwaysScopes;
+  /** The host a `host` answer allows, as the worker's request named it: never the client's (M7R24, M11R209). */
+  readonly host?: string;
 }
 const MAX_LABEL_CHARS = 4096;
 
@@ -176,6 +178,7 @@ function approvalDialog(record: ApprovalRequestRecord): Built {
     ...(record.guard ? { guard: record.guard } : {}),
     tool: record.tool,
     ...(record.alwaysScopes ? { alwaysScopes: record.alwaysScopes } : {}),
+    ...(record.host === undefined ? {} : { host: record.host }),
   });
   if (!parsed.success) {
     const longer = (text: unknown, max: number) => typeof text === "string" && text.length > max;
@@ -225,6 +228,7 @@ export function createDialogRegistry(): DialogRegistry {
         label: labelOf(built.dialog.message ?? ""),
         ...(record.toolCallId === undefined ? {} : { toolCallId: record.toolCallId }),
         ...(record.alwaysScopes ? { alwaysScopes: record.alwaysScopes } : {}),
+        ...(built.dialog.host === undefined ? {} : { host: built.dialog.host }),
       });
     },
     peek: (id) => open.get(id)?.dialog ?? null,

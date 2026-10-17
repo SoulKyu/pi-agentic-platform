@@ -61,6 +61,8 @@ export const trustEn = {
     "This folder holds Pi's own folder or pap's, so trusting it would trust their contents. Choose a project folder.",
   "trust.refusal.holds-other-projects":
     "This folder holds other projects, so trusting it would trust them all. Trust each project on its own.",
+  "trust.refusal.inside-pap-home":
+    "This folder is inside pap's data folder, where agents write. Trusting it would load what an agent wrote. Configure the agent in its profile instead.",
 } as const;
 
 export const trustFr: { readonly [K in keyof typeof trustEn]: string } = {
@@ -105,4 +107,6 @@ export const trustFr: { readonly [K in keyof typeof trustEn]: string } = {
     "Ce dossier contient celui de Pi ou celui de pap : lui faire confiance ferait confiance à leur contenu. Choisissez un dossier de projet.",
   "trust.refusal.holds-other-projects":
     "Ce dossier contient d'autres projets : lui faire confiance leur ferait tous confiance. Faites confiance à chaque projet séparément.",
+  "trust.refusal.inside-pap-home":
+    "Ce dossier est dans le dossier de données de pap, où les agents écrivent. Lui faire confiance chargerait ce qu'un agent a écrit. Configurez plutôt l'agent dans son profil.",
 };

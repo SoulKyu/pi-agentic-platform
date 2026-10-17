@@ -3,6 +3,9 @@ import { Button, Chip, cn, Fence, RunStatusChip } from "@pap/ui";
 import { useState } from "react";
 import { formatAge } from "../../i18n/age.ts";
 import { useT } from "../../i18n/index.ts";
+import { useAgents } from "../../stores/agents-store.ts";
+import { papText } from "../../i18n/pap-text.ts";
+import { requestedByName } from "./agent-columns.vm.ts";
 import {
   actionsFor,
   cardStatus,
@@ -21,11 +24,18 @@ export interface TaskCardProps {
   /** The card whose session was opened last: it wears the agent rule and `aria-current`. */
   readonly current: boolean;
   onOpenSession(sessionId: string, taskId: string): void;
+  /** "requested by <name>" opens that agent (M11R128). */
+  onOpenAgent?(agentId: string): void;
 }
 
 /** One task (board 11 §2): its chip, the trigger name, the fenced detail, the meta line and the buttons its state allows. */
-export function TaskCard({ task, now, current, onOpenSession }: TaskCardProps) {
+export function TaskCard({ task, now, current, onOpenSession, onOpenAgent }: TaskCardProps) {
   const t = useT();
+  const requestedBy = task.requestedBy ?? null;
+  const requester = requestedByName(
+    task,
+    useAgents((view) => view.agents),
+  );
   const actions = useTaskActions(task);
   const [asking, setAsking] = useState<TaskDialogKind | null>(null);
   const status = cardStatus(task);
@@ -62,10 +72,18 @@ export function TaskCard({ task, now, current, onOpenSession }: TaskCardProps) {
           <RunStatusChip status={status.status} label={label} />
         )}
         <div className="flex min-w-0 flex-1 flex-col gap-s1">
-          <p className="break-words text-ui text-fg">{shown(task.triggerName || task.title, "name")}</p>
+          <p className="break-words text-ui text-fg">
+            {shown(papText(t, task.triggerName || task.title), "name")}
+          </p>
           <p className="font-mono text-label text-muted tabular-nums">
             {meta.filter((part) => part !== null).join(" · ")}
           </p>
+          {task.target ? <Chip tone="mut" label={t(`automation.card.target.${task.target}`)} /> : null}
+          {requester !== null && requestedBy ? (
+            <Button size="sm" variant="ghost" onClick={() => onOpenAgent?.(requestedBy)}>
+              {t("automation.card.requestedBy", { name: shown(requester, "name") })}
+            </Button>
+          ) : null}
         </div>
         {task.toolsReleased ? <Chip tone="mut" label={t("automation.card.toolsReleased")} /> : null}
       </div>

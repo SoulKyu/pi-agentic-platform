@@ -45,7 +45,7 @@ export function createAuditModule(deps: {
   });
   return {
     rpc: auditRpc(service),
-    port: { append: service.append, fromWorker: service.fromWorker },
+    port: { append: service.append, reserve: service.reserve, fromWorker: service.fromWorker },
     cli: {
       monthsBefore: store.monthsBefore,
       count: store.count,

@@ -81,7 +81,7 @@ describe("new lane dialog: script approval", () => {
     expect(box.textContent).toContain("Setup script · new");
     expect(box.textContent).toContain("pnpm install && make seed");
     expect(box.textContent).toContain(
-      "Runs as you in the lane, with no sandbox until M11: it can read your files, keys included. pap keeps your SSH agent and tokens, among others, out of its environment. It runs when you start it, and for a fan-out's tests, once after each lane's first run.",
+      "Runs as you in the lane, with your tools and the network: agents' shells run in a sandbox, lane scripts do not. It can read your files, keys included. pap keeps your SSH agent and tokens, among others, out of its environment. It runs when you start it, and for a fan-out's tests, once after each lane's first run.",
     );
   });
 

@@ -87,6 +87,9 @@ const REASON_KEYS = new Set([
   "stopped",
   "crash",
   "archived",
+  "thread_unavailable",
+  "sandbox_unavailable",
+  "quarantined",
 ]);
 
 /** Why a task ended as it did, as words: the daemon's own reasons come from the catalog, anything else is wire text. A plain "cancelled" repeats the chip. */
@@ -113,12 +116,15 @@ export interface BoardColumn {
   readonly tasks: readonly TaskView[];
 }
 
-/** One column per project that has a trigger or a task; the rest fall in "Other folders", last. */
+/** One column per project that has a trigger or a task; the rest fall in "Other folders", last. An agent's own have columns apart (M11R128). */
 export function groupColumns(
-  tasks: readonly TaskView[],
-  triggers: readonly TaskTrigger[],
+  all: readonly TaskView[],
+  allTriggers: readonly TaskTrigger[],
   projects: ReadonlyMap<string, ProjectSummary>,
+  agentIds: ReadonlySet<string> = new Set(),
 ): BoardColumn[] {
+  const tasks = all.filter((task) => !agentIds.has(task.agentId ?? ""));
+  const triggers = allTriggers.filter((one) => !agentIds.has(one.agentId ?? ""));
   const keyOf = (projectId: string | null): string =>
     projectId !== null && projects.has(projectId) ? projectId : "other";
   const keys = new Set([

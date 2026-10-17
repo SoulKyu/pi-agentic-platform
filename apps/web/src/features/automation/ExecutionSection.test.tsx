@@ -24,10 +24,9 @@ const tickbox = (container: HTMLElement, name: string) =>
   ) as HTMLElement;
 
 describe("ExecutionSection: target and folder", () => {
-  it("fixes the target on an isolated task and shows the agent thread as coming later", async () => {
+  it("keeps a project trigger on its folder, with no target to choose", async () => {
     const page = await show(initial());
-    expect(segmentOn(page.container, "Target")).toBe("Isolated task");
-    expect(button(page.container, "Agent thread · arrives with agents").disabled).toBe(true);
+    expect(segmentOn(page.container, "Target")).toBeNull();
     expect((field(page.container, "Folder") as HTMLInputElement).value).toBe("/work/atlas");
   });
 });

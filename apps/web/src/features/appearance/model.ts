@@ -24,6 +24,8 @@ export const DEFAULT_ACCOUNT: AccountAppearance = {
   avatarStyle: "outlined",
   toolDetail: "compact",
   home: DEFAULT_HOME_LAYOUT,
+  eventCards: "cards",
+  statusPanel: "shown",
 };
 
 export interface DeviceAppearance {
@@ -94,6 +96,8 @@ export function parseAccount(value: unknown): AccountAppearance {
     avatarStyle: field("avatarStyle"),
     toolDetail: field("toolDetail"),
     home: field("home"),
+    eventCards: field("eventCards"),
+    statusPanel: field("statusPanel"),
   };
 }
 

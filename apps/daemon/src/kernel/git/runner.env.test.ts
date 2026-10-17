@@ -22,6 +22,14 @@ function bed() {
 
 const okCodes = { okCodes: [0, 1] } as const;
 
+describe("the system git config", () => {
+  it("is switched off on every call", async () => {
+    const { runner, seen } = bed();
+    await runner.run("/r", ["status"], okCodes).catch(() => undefined);
+    expect(seen[0]?.env.GIT_CONFIG_NOSYSTEM).toBe("1");
+  });
+});
+
 describe("the extra environment (M9R11)", () => {
   it.each([
     ["GIT_DIR", "/evil"],

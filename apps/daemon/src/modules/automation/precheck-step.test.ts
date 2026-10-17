@@ -135,7 +135,7 @@ describe("the precheck step (M10R70)", () => {
     expect(await step.run(gone, how)).toMatchObject({
       kind: "stop",
       verdict: "error",
-      detail: "precheck spawn",
+      detail: "invalid_cwd",
     });
     expect(spawn).not.toHaveBeenCalled();
   });

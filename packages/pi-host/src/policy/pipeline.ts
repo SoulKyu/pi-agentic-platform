@@ -18,22 +18,24 @@ import {
   MAX_ENTRY_REASON,
   NO_RULES,
 } from "./evaluate-once.ts";
-import { auditArgs, InputTooLarge, UNREADABLE_INPUT } from "./audit-args.ts";
+import { auditArgs, hostHidden, InputTooLarge, UNREADABLE_INPUT } from "./audit-args.ts";
 import type { ShellFacts } from "./command-cover.ts";
 import { denylistStage } from "./denylist.ts";
 import { egressStage } from "./egress.ts";
 import { grantKey, grantPayload } from "./grant-key.ts";
 import type { PolicyGrants } from "./grants.ts";
+import type { MessageMix } from "./message-mix.ts";
+import { readsAgentHome, readsRunsFolder } from "./read-target.ts";
 import { withRestored } from "./restore.ts";
 import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
+import type { ExternalRoots } from "./taint.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
-import { clipUnits, createTrail } from "./trail.ts";
+import { clipUnits, createTrail, MAX_ID_LENGTH as MAX_FIELD } from "./trail.ts";
 import { checkStage, refuses } from "./unchecked.ts";
 
 export const TOO_LARGE_REASON = "pap-policy blocked this call: its input is too large to judge.";
 export { DENIED_REASON, FAIL_CLOSED_REASON, TOO_LONG_REASON } from "./evaluate-once.ts";
-const MAX_FIELD = 256;
 /** Evaluations of one call before a moving rules version blocks it (M5R12). */
 const MAX_ATTEMPTS = 3;
 
@@ -53,7 +55,10 @@ export interface CallFacts {
   readonly kind: ToolKind;
   readonly rules: PolicyRules;
   readonly cwd: string;
+  /** What the stages judge with (W5-R53): the session's taint, except for a call autonomy covers, which is judged as if clean. */
   readonly tainted: boolean;
+  /** `tainted` was lowered by autonomy for this call: the allow row says `trusted autonomy`. */
+  readonly autonomyLifted?: boolean;
   /** The grant key of the exact call (M2R65). */
   readonly key: string;
   /** A built-in shell call: its payload is the command alone. */
@@ -69,7 +74,13 @@ export type ApprovalPlan =
   | {
       readonly outcome: "ask";
       readonly reason: string;
+      /** What the audit trail says instead of `reason` when the card names a host an agent chose (W5-R54). */
+      readonly auditReason?: string;
+      /** The card's title when the stage writes its own (platform calls); the message then starts with `reason`. */
+      readonly title?: string;
       readonly answers: readonly ApprovalAnswer[];
+      /** The host a `host` answer allows (the `network_request` card, owner a2). */
+      readonly host?: string;
       readonly review?: EditReview;
       /** Session and always grants may skip this question (an ask from the matrix, not from taint or review). */
       readonly grantable: boolean;
@@ -110,6 +121,10 @@ export interface PipelineDeps {
   shell(): ShellFacts;
   toolFacts(toolName: string): ToolFacts | undefined;
   readonly taint: { current(): boolean };
+  /** The set stage 07 reads (M5R39): a call that reads an agent's runs folder is put in it before it runs (M11R181). */
+  readonly externalRoots?: ExternalRoots;
+  /** Keeps a sandboxed shell and Pi's path tools out of one assistant message (W5-R11). */
+  readonly messageMix?: MessageMix;
   redact(text: string): string;
   /** Redacts a reason, whatever its case, before a verdict or an entry clips it. */
   redactReason(text: string): string;
@@ -131,6 +146,14 @@ export async function evaluateToolCall(
   deps: PipelineDeps,
 ): Promise<ToolCallEventResult | undefined> {
   const stages: Stages = { ...PASS_THROUGH, approval: approvalStage, ...deps.stages };
+  const { messageMix } = deps;
+  if (messageMix) {
+    const inner = stages.egress;
+    stages.egress = (call) => {
+      const verdict = inner(call);
+      return verdict.outcome === "block" ? verdict : (messageMix.refusal(call) ?? verdict);
+    };
+  }
   const ids: Ids = {
     toolCallId: clipUnits(event.toolCallId, MAX_FIELD),
     ...(event.parentToolCallId !== undefined
@@ -149,9 +172,15 @@ export async function evaluateToolCall(
   try {
     const kind = classifyTool(event.toolName, deps.toolFacts(event.toolName));
     audited = { category: kind.category, args: UNREADABLE_INPUT };
-    const exec = kind.category === "exec" && kind.builtin;
+    // Pi's own shell and pap's sandboxed one: the command is judged, keyed and audited as a command (M11R25).
+    const exec = kind.category === "exec" && (kind.builtin || kind.sandboxed === true);
     // Both throw on an input that cannot be stated: the catch below blocks the call.
-    const args = auditArgs(event.input, exec, deps.redact);
+    // W5-R54: the host an agent asks for is written to the audit as a hash and a length; the card keeps the exact host.
+    const args = auditArgs(
+      kind.platform?.op === "network.request" ? hostHidden(event.input) : event.input,
+      exec,
+      deps.redact,
+    );
     audited = { category: kind.category, args };
     const prepared: Prepared = {
       kind,
@@ -159,13 +188,37 @@ export async function evaluateToolCall(
       args,
       key: grantKey(event.toolName, grantPayload(event.input, exec)),
     };
+    // M11R181: what an agent's runs folders hold was written by runs nobody watched: its result is external content.
+    const rules = deps.rules();
+    const readDirs = {
+      cwd: ctx.cwd,
+      papHome: deps.papHome,
+      profile: rules?.profile,
+      agentScratch: rules?.agentScratch,
+      agentHome: rules?.agentHome,
+    };
+    // The label of the fence: a runs folder's output, or another agent's home (W5-R45).
+    const agentRead =
+      kind.builtin && kind.category === "read"
+        ? (await readsRunsFolder(event.toolName, event.input, readDirs))
+          ? "agent-run"
+          : (await readsAgentHome(event.toolName, event.input, readDirs))
+            ? "agent-home"
+            : null
+        : null;
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const started = deps.rulesVersion();
       const evaluation = await evaluateOnce(event, ctx, deps, stages, ids, prepared);
       const moved = deps.rulesVersion() !== started;
       // An unanswered allow under rules that moved meanwhile is evaluated again (M5R12 (1)).
       if (moved && !evaluation.answered && evaluation.result === undefined) continue;
-      return settle(evaluation, moved, deps, stages);
+      const result = settle(evaluation, moved, deps, stages);
+      // Only a call that runs counts: a refused or denied read leaves nothing to fence, nothing to mix.
+      if (result === undefined && evaluation.call) {
+        messageMix?.allowed(evaluation.call);
+        if (agentRead !== null) deps.externalRoots?.add(ids.toolCallId, agentRead);
+      }
+      return result;
     }
     deps.audit(fail("policy changed during evaluation"));
     return { block: true, reason: FAIL_CLOSED_REASON };

@@ -1,9 +1,11 @@
+import type { spawn } from "node:child_process";
 import { join } from "node:path";
 import { PROTOCOL_VERSION, type HandlerTable } from "@pap/contracts";
 import type { Context } from "hono";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
 import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
+import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
 import { composePi } from "./compose-pi.ts";
 import { createSystemClock, type Clock } from "./kernel/clock.ts";
 import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
@@ -66,6 +68,8 @@ export interface DaemonDeps {
   readonly onWorkerExit?: (sessionId: string, info: { exit: WorkerExit; outputTail: string }) => void;
   /** Tests only: replaces the boot probe of the worker scopes. */
   readonly probeScopes?: typeof probeScopes;
+  /** Tests only: replaces the process spawn of the sandbox probe (a bwrap that never answers). */
+  readonly sandboxSpawn?: typeof spawn;
 }
 
 /**
@@ -82,6 +86,7 @@ export const MIGRATION_SOURCES = [
   AUDIT_MIGRATIONS,
   ...LANE_MIGRATIONS,
   ...M10_MIGRATION_SOURCES,
+  ...M11_MIGRATION_SOURCES,
 ] as const;
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -241,6 +246,21 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const pi = composePi({ config, env, clock, logger, hub, audit, policy, projects, sessions, settings });
     lanes.bind({ sessions, pi, policy: policy.port, hub });
     const m10Late = composeM10(core, m10, { audit, auth, policy, projects, sessions, settings, wk, scopes });
+    const automationModule = m10Late.automation;
+    const m11 = composeM11(
+      { ...core, probeSpawn: deps.sandboxSpawn },
+      {
+        sessions,
+        policy,
+        audit,
+        lanes,
+        git: wk.git,
+        runs: m10.runs.port,
+        automationModule,
+        inbox: m10Late.inbox,
+        settings,
+      },
+    );
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
@@ -254,6 +274,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...pi.rpc,
       ...lanes.rpc,
       ...m10Late.rpc,
+      ...m11.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger, onCall: m10.onCall });
     const ws = createWsServer({
@@ -343,6 +364,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       killScopes: () => scopes.killAllNow(),
       stop() {
         stopping ??= (async () => {
+          m11.stop();
           await m10Late.stop();
           // Each worker climbs its own ladder (shutdown request, SIGTERM, SIGKILL) and pi-host cleans up Pi's bash
           // trees on the way; SIGKILL to every group first would leak them (R104).

@@ -176,13 +176,13 @@ describe("audit service against hostile entries and floods", () => {
     service.fromWorker({ id: "s2", ownerId: "u1" }, call, { containment: "none" });
     expect(store.count(currentMonth(clock))).toBe(602);
     expect(lines.filter((l) => l.msg === "audit_rows_dropped")).toMatchObject([
-      { sessionId: "s1", dropped: 1 },
+      { sessionId: "s1", dropped: 1, budget: "worker" },
     ]);
     await clock.advance(60_000);
     service.fromWorker({ id: "s1", ownerId: "u1" }, call, { containment: "none" });
     expect(lines.filter((l) => l.msg === "audit_rows_dropped")).toMatchObject([
-      { sessionId: "s1", dropped: 1 },
-      { sessionId: "s1", dropped: 100 },
+      { sessionId: "s1", dropped: 1, budget: "worker" },
+      { sessionId: "s1", dropped: 100, budget: "worker" },
     ]);
     const rows = store.page({ ownerId: "u1", limit: 4 });
     expect(rows.map((r) => r.reason)).toEqual([null, null, AUDIT_RATE_LIMIT_REASON, null]);
@@ -234,11 +234,11 @@ describe("audit service against hostile entries and floods", () => {
       service.fromWorker({ id: `s${i}`, ownerId: "u1" }, call, { containment: "none" });
     // "first" was forgotten with 2 drops: one marker, written at the first, and the count in the log.
     expect(store.page({ ownerId: "u1", limit: 2000 }).filter((r) => r.kind === "audit")).toMatchObject([
-      { sessionId: "first", detail: null },
+      { sessionId: "first", detail: { budget: "worker" } },
     ]);
     expect(lines.filter((l) => l.msg === "audit_rows_dropped")).toMatchObject([
-      { sessionId: "first", dropped: 1 },
-      { sessionId: "first", dropped: 2 },
+      { sessionId: "first", dropped: 1, budget: "worker" },
+      { sessionId: "first", dropped: 2, budget: "worker" },
     ]);
     service.fromWorker({ id: "first", ownerId: "u1" }, call, { containment: "none" });
     expect(store.count(currentMonth(clock))).toBe(600 + 1 + 1024 + 1);

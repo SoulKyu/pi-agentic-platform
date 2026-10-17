@@ -23,6 +23,7 @@ function open() {
     policy,
     audit: {
       append: () => {},
+      reserve: () => true,
       fromWorker: (_session, raw, context) => {
         handed.push({ raw, context });
         return null;

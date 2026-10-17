@@ -80,6 +80,10 @@ export const AccountAppearanceFields = z.object({
   toolDetail: z.enum(["compact", "expanded", "full"]).default("compact"),
   /** Which parts of the project home show (decision 85). */
   home: HomeLayout.default(DEFAULT_HOME_LAYOUT),
+  /** An agent thread's event cards: the boards' cards, or one timeline line each (M11R98). */
+  eventCards: z.enum(["cards", "compact"]).default("cards"),
+  /** The agent's status panel: shown (decision 29), or behind a toggle in the agent header (M11R98). */
+  statusPanel: z.enum(["shown", "hidden"]).default("shown"),
 });
 
 export const AccountAppearance = AccountAppearanceFields.superRefine((value, ctx) => {
@@ -119,7 +123,19 @@ export const KeybindingRules = z.array(KeybindingRule).max(256);
 export const ModelsSettings = z.object({ modelsDevPricing: z.boolean().default(false) });
 export type ModelsSettings = z.infer<typeof ModelsSettings>;
 
-export const SETTING_KEYS = ["appearance", "keybindings", "models", "automation"] as const;
+/** The agents settings (M11R99): the new-agent form's starting sandbox. Every field has a default (owner R3-4). */
+export const AgentsSettings = z.object({
+  newAgent: z
+    .object({
+      sandbox: z
+        .object({ required: z.boolean().default(true), network: z.boolean().default(false) })
+        .default({ required: true, network: false }),
+    })
+    .default({ sandbox: { required: true, network: false } }),
+});
+export type AgentsSettings = z.infer<typeof AgentsSettings>;
+
+export const SETTING_KEYS = ["appearance", "keybindings", "models", "automation", "agents"] as const;
 export const SettingKey = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof SettingKey>;
 export const MAX_SETTING_BYTES = 131_072;
@@ -132,6 +148,7 @@ export const SettingWrite = z.discriminatedUnion("key", [
   z.object({ key: z.literal("keybindings"), value: KeybindingRules, baseRevision: BaseRevision }),
   z.object({ key: z.literal("models"), value: ModelsSettings, baseRevision: BaseRevision }),
   z.object({ key: z.literal("automation"), value: AutomationSettings, baseRevision: BaseRevision }),
+  z.object({ key: z.literal("agents"), value: AgentsSettings, baseRevision: BaseRevision }),
 ]);
 export type SettingWrite = z.infer<typeof SettingWrite>;
 

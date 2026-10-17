@@ -12,6 +12,9 @@ import type { AutomationEvents } from "./events.ts";
 import type { Fire } from "./fire.ts";
 import type { Gates } from "./gates.ts";
 import type { RunLimits, StopReason } from "./limits.ts";
+import type { AgentStart } from "./runner-agent.ts";
+import type { Launch } from "./runner-launch.ts";
+import type { ThreadStart } from "./runner-thread.ts";
 import type { TaskViews } from "./task-view.ts";
 import { createRetry } from "./retry.ts";
 import { isTerminal, type Move, parsePolicy, type TaskRow, type TaskStore } from "./tasks.ts";
@@ -60,6 +63,12 @@ export interface RunnerDeps {
   readonly resumeKeys: (task: TaskRow) => readonly string[];
   readonly resumeSending: (sessionId: string) => boolean;
   readonly holdCancel?: boolean;
+  /** The agent half (M11R67): the start of an isolated agent task, its card at the end. */
+  readonly agents: AgentStart;
+  /** The thread target (M11R71): a task that prompts the agent's own thread. */
+  readonly thread: Pick<ThreadStart, "start" | "runStarted" | "runEnded" | "mayAbort">;
+  /** The commit of a start: the mark, the origin and the prompt (shared with the thread target). */
+  readonly launch: Launch;
 }
 
 const done: Settlement = { outcome: "done" };
@@ -114,10 +123,17 @@ export function createRunner(deps: RunnerDeps) {
    */
   function endHook(row: TaskRow, sessionId: string | null, state: TaskState, release = true): void {
     deps.limits.ended(row.id);
-    if (sessionId === null) return;
-    attempt(sessionId, () => deps.policy.endTaskPolicy(row.owner_id, sessionId));
+    if (sessionId === null) {
+      // A delegation that never got a session still owes its requester an answer (M11R79).
+      attempt(row.id, () => deps.agents.ended(row, state));
+      return;
+    }
+    // An agent's thread outlives the task that prompted it: its policy and its archive mark stay the thread's own (M11R71).
+    const own = row.target !== "thread";
+    if (own) attempt(sessionId, () => deps.policy.endTaskPolicy(row.owner_id, sessionId));
     attempt(sessionId, () => deps.runs.clearExpected(sessionId));
-    if (state === "done") attempt(sessionId, () => deps.sessions.archive(row.owner_id, sessionId));
+    if (state === "done" && own) attempt(sessionId, () => deps.sessions.archive(row.owner_id, sessionId));
+    attempt(sessionId, () => deps.agents.ended(row, state));
     if (release) releaseLater(row.owner_id, sessionId);
   }
 
@@ -146,10 +162,11 @@ export function createRunner(deps: RunnerDeps) {
   async function stopRun(row: TaskRow, reason: StopReason): Promise<void> {
     const sessionId = row.session_id;
     if (sessionId === null) return;
-    deps.runs.markEnding(sessionId, reason);
+    // An owner's open run in the thread is never tagged: only a run the task may abort is marked (N2).
+    if (deps.thread.mayAbort(row)) deps.runs.markEnding(sessionId, reason);
     if (!settle(row, ["running"], "failed", { reason }, { hold: true })) return;
     try {
-      await deps.sessions.abort(row.owner_id, sessionId);
+      if (deps.thread.mayAbort(row)) await deps.sessions.abort(row.owner_id, sessionId);
     } catch (error) {
       logger.warn("task_abort_failed", { taskId: row.id, err: error });
     }
@@ -174,26 +191,39 @@ export function createRunner(deps: RunnerDeps) {
       return done;
     }
     try {
-      deps.triggers.resolveFolder(row.cwd);
+      // An agent's home is inside pap's own folder, which a project task may never use: the agent gate opens it instead.
+      if (row.agent_id === null) deps.triggers.resolveFolder(row.cwd);
     } catch (error) {
       settle(row, ["queued"], "failed", { reason: reasonOf(error) });
       return done;
     }
     // A task admitted before the budget was spent starts after: it fails here, with no session (M10R66).
-    if (row.gated === 1 && deps.gates.over(row.owner_id, row.trigger_id)) {
+    if (row.gated === 1 && deps.gates.over(row.owner_id, row.trigger_id, row.agent_id)) {
       settle(row, ["queued"], "failed", { reason: "budget" });
       return done;
     }
+    // The task of an agent's thread prompts the thread it has: its own gate, card and prompt (M11R71).
+    if (row.target === "thread") return deps.thread.start(row, signal);
     if (signal.aborted) return { outcome: "retry", code: "deadline" };
 
     let sessionId: string;
     try {
-      ({ sessionId } = await deps.sessions.createTaskSession({
-        ownerId: row.owner_id,
-        cwd: row.cwd,
-        policy: { mode: policy.mode, tools: policy.tools, preset: policy.preset, tainted: row.tainted === 1 },
-      }));
+      ({ sessionId } =
+        row.agent_id !== null
+          ? await deps.agents.begin(row, policy)
+          : await deps.sessions.createTaskSession({
+              ownerId: row.owner_id,
+              cwd: row.cwd,
+              policy: {
+                mode: policy.mode,
+                tools: policy.tools,
+                preset: policy.preset,
+                tainted: row.tainted === 1,
+              },
+            }));
     } catch (error) {
+      if (error instanceof PapError && error.code === "agent_paused")
+        return deps.agents.holdBack(row, settle);
       if (error instanceof PapError && error.code === "capacity") {
         deps.putOff.set(row.id, clock.now() + CAPACITY_MS);
         return { outcome: "defer", until: clock.now() + CAPACITY_MS };
@@ -205,40 +235,14 @@ export function createRunner(deps: RunnerDeps) {
       discard(row, sessionId);
       return { outcome: "retry", code: "deadline" };
     }
-
-    // The commit, the origin and the prompt follow without an await between them: a Cancel cannot slip in.
-    const committed = db.transaction(() => {
-      const moved = store.move(row.id, ["queued"], "running", { sessionId, startedAt: clock.now() });
-      if (moved && row.trigger_id !== null) deps.marks.started(row.owner_id, row.trigger_id, clock.now());
-      return moved;
-    });
-    starting.delete(row.id);
-    deps.putOff.delete(row.id);
-    if (!committed) {
-      // Cancelled meanwhile: the session nobody wants goes, and the effect is spent.
+    // A pause that landed while the session was being made is seen here: the session goes, the task waits (M11R75).
+    if (row.agent_id !== null && deps.agents.pausedNow(row)) {
       discard(row, sessionId);
-      return done;
+      return deps.agents.holdBack(row, settle);
     }
-    announce(row.id, "queued");
-    const started: TaskRow = { ...row, state: "running", session_id: sessionId };
-    deps.limits.started(started);
-    if (!deps.runs.expectOrigin(sessionId, { origin: row.origin, taskId: row.id })) {
-      settle(started, ["running"], "failed", { reason: "capacity" });
-      return done;
-    }
-    let disposition: "started" | "queued" | "handled";
-    try {
-      disposition = await deps.sessions.prompt({ ownerId: row.owner_id, sessionId, text: row.prompt });
-    } catch (error) {
-      deps.runs.clearExpected(sessionId);
-      settle(started, ["running"], "failed", { reason: reasonOf(error) });
-      return done;
-    }
-    if (disposition !== "started") {
-      deps.runs.clearExpected(sessionId);
-      settle(started, ["running"], "failed", { reason: "prompt_rejected" });
-    }
-    return done;
+
+    // Cancelled between the admission and the mark: the session nobody wants goes, and the effect is spent.
+    return deps.launch(row, sessionId, { text: row.prompt, cancelled: () => discard(row, sessionId) });
   }
 
   /** The `task.start` handler: starts the next task the admission picks, or says when to look again (M10R36). */
@@ -283,7 +287,7 @@ export function createRunner(deps: RunnerDeps) {
     if (resending && row.session_id !== null) abortNext.armIfReopening(ownerId, row.session_id);
     if (live && row.session_id !== null) {
       try {
-        await deps.sessions.abort(ownerId, row.session_id);
+        if (deps.thread.mayAbort(row)) await deps.sessions.abort(ownerId, row.session_id);
       } catch (error) {
         logger.warn("task_abort_failed", { taskId, err: error });
       }
@@ -294,8 +298,11 @@ export function createRunner(deps: RunnerDeps) {
 
   /** M10R38: a task is settled by the end of the run in its session. A run ending after the task is over is ignored. */
   function onRunEnd(event: RunEndEvent): void {
+    deps.thread.runEnded(event);
     const row = store.bySession(event.sessionId);
     if (!row || row.state !== "running") return;
+    // An agent's thread serves many runs: only the run this task prompted settles it (M11R71).
+    if (row.target === "thread" && event.taskId !== row.id) return;
     const { status } = event;
     if (status === "cancelled" && event.errorClass !== null && RUNNER_ABORTS.has(event.errorClass)) return;
     if (status === "limited") {
@@ -314,8 +321,11 @@ export function createRunner(deps: RunnerDeps) {
 
   function onRunStart(event: RunStartEvent): void {
     abortNext.runStarted(event.sessionId);
+    deps.thread.runStarted(event);
     const row = store.bySession(event.sessionId);
     if (!row || row.state !== "limited") return;
+    // Another run of the agent's thread (the owner's message) is not this task's resume (M11R71).
+    if (row.target === "thread" && event.taskId !== row.id) return;
     // The deadline starts again with the run (M10R39).
     if (settle(row, ["limited"], "running")) deps.limits.started({ ...row, state: "running" });
   }
@@ -327,6 +337,8 @@ export function createRunner(deps: RunnerDeps) {
     if (!row || row.state !== "limited") return;
     if (reason === "budget") settle(row, ["limited"], "failed", { reason: "budget" });
     else if (reason === "archived") settle(row, ["limited"], "cancelled", { reason: "archived" });
+    // The thread has moved on without this task's resume: it ends, so the agent's next thread task can start.
+    else if (row.target === "thread") settle(row, ["limited"], "failed", { reason });
   }
 
   function onAttention(sessionId: string, needsInput: boolean): void {

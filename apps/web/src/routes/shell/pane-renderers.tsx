@@ -9,7 +9,9 @@ import {
 import { HomePane } from "./HomePane.tsx";
 import { runCommand } from "../../lib/command-registry.ts";
 import { type NewLanePrefill, useNewLaneRequest } from "../../stores/new-lane-request.ts";
+import type { Interleave } from "../../stores/thread-interleave.ts";
 import { useTriggerPrefill } from "../../stores/trigger-prefill.ts";
+import type { ThreadSlot } from "../../features/agents/AgentScreen.tsx";
 import type { ReviewSlotProps } from "../../features/lanes/LaneBody.tsx";
 import { useTasksFeed } from "./use-tasks-feed.ts";
 import { LazyPane } from "./LazyPane.tsx";
@@ -53,6 +55,8 @@ const openArchivedLanes = () => {
 // The M10 panes: one chunk each, replaced by Tasks 20 and 21 under the same file names. They read the tasks store.
 const loadTasks = () => import("./tasks-pane-entry.tsx").then((m) => ({ default: m.TasksPaneEntry }));
 const loadTrigger = () => import("./trigger-pane-entry.tsx").then((m) => ({ default: m.TriggerPaneEntry }));
+// The agent tab (M11R109): its own chunk; the thread inside it is the session screen, given by `agentThread`.
+const loadAgent = () => import("./agent-pane-entry.tsx").then((m) => ({ default: m.AgentPaneEntry }));
 
 /**
  * "Open in Files" from the changes pane: the shell opens the folder's Files pane (features never import each other).
@@ -64,12 +68,18 @@ const openInFiles = (root: string) => () => useWorkspaceStore.getState().open({ 
 function SessionPane({
   sessionId,
   beforeComposer,
+  header,
+  interleave,
 }: {
   readonly sessionId: string;
   readonly beforeComposer?: ReactNode;
+  readonly header?: ReactNode;
+  readonly interleave?: Interleave;
 }) {
   const toolDetail = useAppearanceStore((state) => state.account.toolDetail);
-  return <LazyPane load={loadSession} props={{ sessionId, toolDetail, beforeComposer }} />;
+  return (
+    <LazyPane load={loadSession} props={{ sessionId, toolDetail, beforeComposer, header, interleave }} />
+  );
 }
 
 /** The compare tab opens a lane's tab, and "Run again" opens the new lane dialog with the group's prompt and models. */
@@ -104,17 +114,19 @@ const openTrigger = (id: string) => useWorkspaceStore.getState().open({ kind: "t
 const openTasks = () => useWorkspaceStore.getState().open({ kind: "tasks" });
 
 /** The board and the editor reach a session or a trigger through these (features never import each other). */
-const TASKS_CALLBACKS: TasksPaneProps = {
+const TASKS_CALLBACKS: Omit<TasksPaneProps, "avatarStyle"> = {
   onOpenSession: openSession,
   onOpenTrigger: openTrigger,
   onNewTrigger: (projectId) => openTrigger(`new:${projectId}`),
+  onOpenAgent: (agentId) => useWorkspaceStore.getState().open({ kind: "agent", id: agentId }),
 };
 
 /** The `tasks` stream is open while a Tasks pane is mounted, whatever file Tasks 20 puts behind it (RT-31). */
 function TasksPane() {
   useTasksFeed(true);
 
-  return <LazyPane load={loadTasks} props={TASKS_CALLBACKS} />;
+  const avatarStyle = useAppearanceStore((state) => state.account.avatarStyle);
+  return <LazyPane load={loadTasks} props={{ ...TASKS_CALLBACKS, avatarStyle }} />;
 }
 
 function TriggerPane({ triggerId }: { readonly triggerId: string }) {
@@ -138,6 +150,40 @@ function TriggerPane({ triggerId }: { readonly triggerId: string }) {
     onCreated: (id) => openTriggerInstead(triggerId, id),
   };
   return <LazyPane key={held.launches} load={loadTrigger} props={props} />;
+}
+
+/** The agent's thread is the session screen, with the agent's header, its request cards and the cards among the rows. */
+const agentThread = ({ sessionId, header, beforeComposer, interleave }: ThreadSlot) => (
+  <SessionPane
+    key={sessionId}
+    sessionId={sessionId}
+    header={header}
+    beforeComposer={beforeComposer}
+    interleave={interleave}
+  />
+);
+const openAgentSettings = () => useWorkspaceStore.getState().open({ kind: "settings", section: "agents" });
+
+/** The agent tab gets the account's avatar style and event card choice, and mounts the thread's session screen. */
+function AgentTab({ agentId }: { readonly agentId: string }) {
+  const avatarStyle = useAppearanceStore((state) => state.account.avatarStyle);
+  const eventCards = useAppearanceStore((state) => state.account.eventCards);
+  const statusPanel = useAppearanceStore((state) => state.account.statusPanel);
+  return (
+    <LazyPane
+      load={loadAgent}
+      props={{
+        agentId,
+        avatarStyle,
+        eventCards,
+        statusPanel,
+        thread: agentThread,
+        onOpenSettings: openAgentSettings,
+        onOpenSession: openSession,
+        onOpenTrigger: openTrigger,
+      }}
+    />
+  );
 }
 
 /** A failed chunk shows a Retry state in the pane (LazyPane); it is never retried by itself. */
@@ -191,6 +237,7 @@ export const PANE_RENDERERS: Renderers = {
   ),
   tasks: () => <TasksPane />,
   trigger: (item) => <TriggerPane key={item.id} triggerId={item.id} />,
+  agent: (item) => <AgentTab key={item.id} agentId={item.id} />,
   "dev-ui": () =>
     DevGallery ? (
       <Suspense fallback={null}>

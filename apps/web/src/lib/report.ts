@@ -10,6 +10,7 @@ export type ClientIssue =
   | "terminal_feed_failed"
   | "lane_feed_failed"
   | "tasks_feed_failed"
+  | "agents_feed_failed"
   | "file_check_failed"
   | "lazy_chunk_failed"
   | "render_failed"
@@ -17,7 +18,14 @@ export type ClientIssue =
   | "workspace_invalid"
   | "message_missing"
   | "mention_search_failed"
-  | "commands_list_failed";
+  | "agent_prompts_failed"
+  | "agent_prompt_failed"
+  | "agent_hand_off_failed"
+  | "agent_hand_off_undo_failed"
+  | "commands_list_failed"
+  | "agent_cards_failed"
+  | "agent_mark_read_failed"
+  | "agent_status_failed";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.

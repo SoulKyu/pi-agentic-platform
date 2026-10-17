@@ -15,6 +15,8 @@ export interface ShellRow {
   /** The stored tool preset (`configured` when none; a value this version cannot read is `chat`). */
   readonly toolPreset: ToolPreset;
   readonly marks: Marks;
+  /** The agent the session belongs to: its sessions are not in the sidebar (M11R56). */
+  readonly agentId?: string | undefined;
 }
 
 interface RawRow {
@@ -33,6 +35,7 @@ interface RawRow {
   settledAuto: number;
   unsettledAt: number | null;
   snoozedUntil: number | null;
+  agentId: string | null;
 }
 
 /** The Pi ids kept for one draft: one per worker it was started with, the most a person would cause. */
@@ -41,7 +44,7 @@ const MAX_PENDING_IDS = 32;
 const COLUMNS =
   "id, owner_id AS ownerId, cwd, name, preview, project_id AS projectId, created_at AS createdAt, updated_at AS updatedAt, tool_preset AS toolPreset, " +
   "pin_rank AS pinRank, archived_at AS archivedAt, settled_at AS settledAt, settled_auto AS settledAuto, " +
-  "unsettled_at AS unsettledAt, snoozed_until AS snoozedUntil";
+  "unsettled_at AS unsettledAt, snoozed_until AS snoozedUntil, agent_id AS agentId";
 
 const rowOf = (raw: RawRow): ShellRow => ({
   id: raw.id,
@@ -61,6 +64,7 @@ const rowOf = (raw: RawRow): ShellRow => ({
     unsettledAt: raw.unsettledAt,
     snoozedUntil: raw.snoozedUntil,
   },
+  ...(raw.agentId === null ? {} : { agentId: raw.agentId }),
 });
 
 /** A session found by one of its Pi identities. */
@@ -117,28 +121,28 @@ export function createMarksStore(db: Db): MarksStore {
     window: (ownerId, limit) =>
       db
         .all<RawRow>(
-          `SELECT ${COLUMNS} FROM sessions WHERE owner_id = $ownerId AND archived_at IS NULL ` +
+          `SELECT ${COLUMNS} FROM sessions WHERE owner_id = $ownerId AND agent_id IS NULL AND archived_at IS NULL ` +
             "ORDER BY pin_rank IS NULL, pin_rank, updated_at DESC, id LIMIT $limit",
           { ownerId, limit },
         )
         .map(rowOf),
     countActive: (ownerId) =>
       db.get<{ n: number }>(
-        "SELECT count(*) AS n FROM sessions WHERE owner_id = $ownerId AND archived_at IS NULL",
+        "SELECT count(*) AS n FROM sessions WHERE owner_id = $ownerId AND agent_id IS NULL AND archived_at IS NULL",
         {
           ownerId,
         },
       )?.n ?? 0,
     countArchived: (ownerId) =>
       db.get<{ n: number }>(
-        "SELECT count(*) AS n FROM sessions WHERE owner_id = $ownerId AND archived_at IS NOT NULL",
+        "SELECT count(*) AS n FROM sessions WHERE owner_id = $ownerId AND agent_id IS NULL AND archived_at IS NOT NULL",
         { ownerId },
       )?.n ?? 0,
     activeByProject: (ownerId) =>
       new Map(
         db
           .all<{ projectId: string; n: number }>(
-            "SELECT project_id AS projectId, count(*) AS n FROM sessions WHERE owner_id = $ownerId AND archived_at IS NULL AND project_id IS NOT NULL GROUP BY project_id",
+            "SELECT project_id AS projectId, count(*) AS n FROM sessions WHERE owner_id = $ownerId AND agent_id IS NULL AND archived_at IS NULL AND project_id IS NOT NULL GROUP BY project_id",
             { ownerId },
           )
           .map((row) => [row.projectId, row.n]),
@@ -165,14 +169,14 @@ export function createMarksStore(db: Db): MarksStore {
     archivedPage: (ownerId, before, limit) =>
       db
         .all<RawRow>(
-          `SELECT ${COLUMNS} FROM sessions WHERE owner_id = $ownerId AND archived_at IS NOT NULL ` +
+          `SELECT ${COLUMNS} FROM sessions WHERE owner_id = $ownerId AND agent_id IS NULL AND archived_at IS NOT NULL ` +
             "AND ($at IS NULL OR archived_at < $at OR (archived_at = $at AND id < $id)) ORDER BY archived_at DESC, id DESC LIMIT $limit",
           { ownerId, at: before?.archivedAt ?? null, id: before?.id ?? "", limit },
         )
         .map(rowOf),
     pins: (ownerId) =>
       ids(
-        "SELECT id FROM sessions WHERE owner_id = $ownerId AND pin_rank IS NOT NULL ORDER BY pin_rank, id",
+        "SELECT id FROM sessions WHERE owner_id = $ownerId AND agent_id IS NULL AND pin_rank IS NOT NULL ORDER BY pin_rank, id",
         {
           ownerId,
         },
@@ -186,7 +190,7 @@ export function createMarksStore(db: Db): MarksStore {
         );
         if (!pins) return;
         db.run(
-          "UPDATE sessions SET pin_rank = NULL WHERE owner_id = $ownerId AND pin_rank IS NOT NULL AND id NOT IN (SELECT value FROM json_each($order))",
+          "UPDATE sessions SET pin_rank = NULL WHERE owner_id = $ownerId AND agent_id IS NULL AND pin_rank IS NOT NULL AND id NOT IN (SELECT value FROM json_each($order))",
           { ownerId: pins.ownerId, order: JSON.stringify(pins.order) },
         );
         pins.order.forEach((pinned, index) =>
@@ -226,7 +230,7 @@ export function createMarksStore(db: Db): MarksStore {
       }),
     withoutProject: (afterId, limit) =>
       db.all<{ id: string; ownerId: string; cwd: string }>(
-        "SELECT id, owner_id AS ownerId, cwd FROM sessions WHERE project_id IS NULL AND id > $afterId ORDER BY id LIMIT $limit",
+        "SELECT id, owner_id AS ownerId, cwd FROM sessions WHERE project_id IS NULL AND agent_id IS NULL AND id > $afterId ORDER BY id LIMIT $limit",
         { afterId, limit },
       ),
     findByPiPath: (path) =>

@@ -18,17 +18,26 @@ import type { AuditInsert, AuditRow, AuditStore } from "./store.ts";
 /** One security-relevant event of the daemon itself (M5R45). Never a secret, a result or a failed sign-in. */
 export interface AuditLine {
   readonly ownerId: string | null;
-  readonly actor: "user" | "token" | "cli" | "system";
+  readonly actor: "user" | "token" | "cli" | "system" | "worker";
   readonly actorId?: string;
   readonly kind: "auth" | "policy" | "audit";
   readonly reason: string;
   readonly sessionId?: string;
+  /** The daemon's verdict on a worker's call to a platform op (M11R40); every other line is `info`. */
+  readonly tool?: string;
+  readonly decision?: "allow" | "block";
   readonly detail?: Record<string, string | number | boolean | null>;
 }
 
 export interface AuditPort {
   /** Never throws: a failure logs `audit_append_failed` and the event goes on (M5R47). */
   append(line: AuditLine): void;
+  /**
+   * Reserves the audit row of a platform call (W5-R16) in the session's own budget of 120 a minute. False: the budget
+   * is spent, the call must run nothing. The first refusal of a window leaves one marker row; the count is logged when
+   * the window ends.
+   */
+  reserve(session: { readonly id: string; readonly ownerId: string }): boolean;
   /**
    * Parses, scrubs and stores a worker's entry (it arrives as `unknown`). Null when it was malformed. Otherwise the
    * parsed, cleaned entry is returned whether or not it was stored: the session budget or a database failure can leave
@@ -56,6 +65,7 @@ const REASON_MAX = 1_024;
 const ARGS_MAX = 8_192;
 const DEFAULT_LIMIT = 100;
 const WORKER_ROWS_PER_MINUTE = 600;
+const PLATFORM_CALLS_PER_MINUTE = 120;
 
 interface InvalidCount {
   stored: number;
@@ -135,25 +145,30 @@ export function createAuditService(deps: {
     }
   }
 
-  const budget = createRowBudget({
-    clock,
-    perMinute: WORKER_ROWS_PER_MINUTE,
-    maxSessions: MAX_TRACKED_SESSIONS,
-    // The marker goes in where the gap begins, once per window; the count follows in the log when the window ends.
-    onFirstDrop(session) {
-      logger.warn("audit_rows_dropped", { sessionId: session.id, dropped: 1 });
-      tryAppend({
-        at: clock.now(),
-        ownerId: session.ownerId,
-        actor: "worker",
-        kind: "audit",
-        sessionId: session.id,
-        decision: "info",
-        reason: AUDIT_RATE_LIMIT_REASON,
-      });
-    },
-    onWindowEnd: (session, dropped) => logger.warn("audit_rows_dropped", { sessionId: session.id, dropped }),
-  });
+  const budgetOf = (perMinute: number, name: "worker" | "platform") =>
+    createRowBudget({
+      clock,
+      perMinute,
+      maxSessions: MAX_TRACKED_SESSIONS,
+      // The marker goes in where the gap begins, once per window; the count follows in the log when the window ends.
+      onFirstDrop(session) {
+        logger.warn("audit_rows_dropped", { sessionId: session.id, dropped: 1, budget: name });
+        tryAppend({
+          at: clock.now(),
+          ownerId: session.ownerId,
+          actor: "worker",
+          kind: "audit",
+          sessionId: session.id,
+          decision: "info",
+          reason: AUDIT_RATE_LIMIT_REASON,
+          detail: { budget: name },
+        });
+      },
+      onWindowEnd: (session, dropped) =>
+        logger.warn("audit_rows_dropped", { sessionId: session.id, dropped, budget: name }),
+    });
+  const budget = budgetOf(WORKER_ROWS_PER_MINUTE, "worker");
+  const platformBudget = budgetOf(PLATFORM_CALLS_PER_MINUTE, "platform");
 
   function countOf(sessionId: string): InvalidCount {
     let count = invalid.get(sessionId);
@@ -256,11 +271,13 @@ export function createAuditService(deps: {
         actorId: line.actorId,
         kind: line.kind,
         sessionId: line.sessionId,
-        decision: "info",
+        tool: line.tool,
+        decision: line.decision ?? "info",
         reason: clip(replaceNul(line.reason), REASON_MAX),
         detail: line.detail,
       });
     },
+    reserve: (session) => platformBudget.take(session),
     fromWorker(session, raw, context) {
       const parsed = PolicyAuditEntrySchema.safeParse(raw);
       if (!parsed.success) {

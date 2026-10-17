@@ -1,4 +1,4 @@
-import { isFanoutId, isLaneId, isTerminalId, isValidId, isValidRoot } from "./item-path.ts";
+import { isAgentId, isFanoutId, isLaneId, isTerminalId, isValidId, isValidRoot } from "./item-path.ts";
 import {
   clampRatio,
   EMPTY_WORKSPACE,
@@ -49,6 +49,8 @@ function parseItem(value: unknown, devUi: boolean): ItemRef | null {
       return { kind: "tasks" };
     case "trigger":
       return typeof value.id === "string" && isValidId(value.id) ? { kind: "trigger", id: value.id } : null;
+    case "agent":
+      return typeof value.id === "string" && isAgentId(value.id) ? { kind: "agent", id: value.id } : null;
     default:
       return null;
   }

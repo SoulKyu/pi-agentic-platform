@@ -55,7 +55,7 @@ describe("the action row (§3.2)", () => {
     ]);
     expect(groups).toEqual([
       ["Explore", ["Files", "Terminal", "Search"]],
-      ["Automate", ["Tasks", "Inbox, 3 unread"]],
+      ["Automate", ["Tasks", "New agent", "Inbox, 3 unread"]],
       ["Project", ["Archived lanes (2)", "Project settings"]],
       ["Help", ["Keyboard shortcuts"]],
     ]);

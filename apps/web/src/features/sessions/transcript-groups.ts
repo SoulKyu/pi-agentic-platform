@@ -1,3 +1,4 @@
+import type { InterleaveRow } from "../../stores/thread-interleave.ts";
 import type { MessageItem, PartialItem, ToolItem, TranscriptItem } from "./transcript.vm.ts";
 
 /** Rows that stand under one author's header: the agent's text, its tool calls and the reply being written; or your messages. */
@@ -21,14 +22,20 @@ function authorOf(item: TranscriptItem): "agent" | "you" | null {
   return null;
 }
 
-/** Consecutive rows of one author become one run, under one header; summaries, failures and tool-authored messages stand alone. */
-export function groupItems(items: readonly TranscriptItem[]): TranscriptGroup[] {
+/**
+ * Consecutive rows of one author become one run, under one header; summaries, failures and tool-authored messages stand
+ * alone. A row named in `breaks` starts a run of its own (a card, a day or a pause stands before it).
+ */
+export function groupItems(
+  items: readonly TranscriptItem[],
+  breaks?: ReadonlySet<string>,
+): TranscriptGroup[] {
   const groups: TranscriptGroup[] = [];
   for (const item of items) {
     const author = authorOf(item);
     const last = groups.at(-1);
     if (author !== null && (item.kind === "message" || item.kind === "partial" || item.kind === "tool")) {
-      if (last?.kind === "run" && last.author === author) {
+      if (last?.kind === "run" && last.author === author && !breaks?.has(item.key)) {
         groups[groups.length - 1] = { ...last, items: [...last.items, item] };
       } else {
         groups.push({ kind: "run", author, key: item.key, items: [item] });
@@ -38,4 +45,16 @@ export function groupItems(items: readonly TranscriptItem[]): TranscriptGroup[] 
     }
   }
   return groups;
+}
+
+/** What an agent thread's interleave sees of a row: its time, whose it is and its text. */
+export function interleaveRow(item: TranscriptItem): InterleaveRow {
+  const author = authorOf(item) ?? "other";
+  const at = item.kind === "message" || item.kind === "tool" ? (item.at ?? null) : null;
+  return {
+    key: item.key,
+    at,
+    author,
+    text: item.kind === "message" || item.kind === "partial" ? item.text : "",
+  };
 }

@@ -195,7 +195,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     hub,
     policy: options.policy ?? fakePolicyPort(),
     projects,
-    audit: options.audit ?? { append: () => {}, fromWorker: () => null },
+    audit: options.audit ?? { append: () => {}, reserve: () => true, fromWorker: () => null },
     attachments: options.attachments ?? noAttachments,
     containment: options.containment ?? "none",
     exports,

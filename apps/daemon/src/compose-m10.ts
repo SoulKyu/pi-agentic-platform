@@ -21,7 +21,7 @@ import {
   type AutomationRpc,
   type FireResult,
 } from "./modules/automation/index.ts";
-import { INBOX_MIGRATIONS, inboxRpc, type InboxRpc } from "./modules/inbox/index.ts";
+import { type Inbox, INBOX_MIGRATIONS, inboxRpc, type InboxRpc } from "./modules/inbox/index.ts";
 import type { SessionsModule } from "./modules/sessions/index.ts";
 import type { SettingsModule } from "./modules/settings/index.ts";
 import {
@@ -59,12 +59,14 @@ export interface M10Early {
 export type M10Modules = AutomationModules &
   Readonly<Record<string, unknown>> & {
     readonly settings: SettingsModule;
-    readonly sessions: Pick<SessionsModule, "automation">;
+    readonly sessions: Pick<SessionsModule, "automation" | "modeOf" | "sandboxedThread" | "kindOf">;
   };
 
 export interface M10 {
   readonly outbox: Outbox;
   readonly automation: AutomationModule;
+  /** M10's Inbox; M11 writes its agent items through it. */
+  readonly inbox: Inbox;
   /** M10's RPC methods; each task adds its table here, never in `daemon.ts`. */
   readonly rpc: AutomationRpc & RunsRpc & InboxRpc & UsageRpc;
   /**
@@ -131,6 +133,7 @@ export function composeM10(core: M10Core, early: M10Early, modules: M10Modules):
   const m10: M10 = {
     outbox,
     automation,
+    inbox,
     fireManual(ownerId, triggerId) {
       const trigger = automation.triggers.get(ownerId, triggerId);
       if (!trigger) return { verdict: "error", detail: "changed" };

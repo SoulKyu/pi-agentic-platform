@@ -1,6 +1,7 @@
 import type { ToolCallEventResult } from "@earendil-works/pi-coding-agent";
 import type { CallAuditEntry, GuardRule, StageId, ToolCategory } from "@pap/contracts";
 import { GUARD_RULES } from "@pap/contracts";
+import { autonomous } from "./agent-stage.ts";
 import { alwaysScopesOf, patternGrant, rememberScope, scopeOffered } from "./pattern-grants.ts";
 import { describeCall } from "./describe-call.ts";
 import { GUARD_MODEL_REASON } from "./run-guard.ts";
@@ -84,7 +85,19 @@ export async function evaluateOnce(
     trail.skipFrom("01", NO_RULES);
     return finish(null, "block", NO_RULES, { block: true, reason: FAIL_CLOSED_REASON });
   }
-  const call: CallFacts = { event, kind, rules, cwd: ctx.cwd, tainted: deps.taint.current(), key, exec };
+  // W5-R53: one flag for decide, the grants, the read-only cover and the offered scopes. The result's taint still comes from the report.
+  const sessionTainted = deps.taint.current();
+  const lifted = sessionTainted && autonomous({ kind, rules });
+  const call: CallFacts = {
+    event,
+    kind,
+    rules,
+    cwd: ctx.cwd,
+    tainted: sessionTainted && !lifted,
+    ...(lifted ? { autonomyLifted: true } : {}),
+    key,
+    exec,
+  };
   const blocked = (stage: StageId, next: StageId, reason: string, modelReason: string): Evaluation => {
     trail.add(stage, "block", reason);
     trail.skipFrom(next, `blocked at stage ${stage}`);
@@ -123,14 +136,21 @@ export async function evaluateOnce(
   const grantable = plan.outcome === "ask" && plan.grantable && !trip;
   const answers = trip || plan.outcome !== "ask" ? (["deny", "once"] as const) : plan.answers;
   const verdict03 = plan.outcome === "ask" ? "ask" : "allow";
+  const auditReason = plan.outcome === "ask" ? (plan.auditReason ?? plan.reason) : plan.reason;
   if (!ctx.hasUI) {
     if (!trip) return blocked("03", "04", "no UI to ask", `pap-policy blocked this ${kind.category} call.`);
-    trail.add("03", verdict03, plan.reason);
+    trail.add("03", verdict03, auditReason);
     trail.add("04", "block", trip.reason);
     return finish(call, "block", trip.reason, { block: true, reason: GUARD_MODEL_REASON });
   }
   const description = describeCall(event.toolName, event.input, { exec, review });
   if (!description.reviewable) return blocked("03", "04", "too long to review", TOO_LONG_REASON);
+  const own = plan.outcome === "ask" ? plan.title : undefined;
+  // A guard question offers no host answer, so the plan's "if you allow it, the shell can reach the host" would mislead.
+  const planReason =
+    plan.outcome === "ask" && trip && plan.host !== undefined
+      ? `network_request asks for ${plan.host}. Allow once runs this call only: no host is granted for this thread.`
+      : plan.reason;
   if (grantable) {
     const always =
       rules.alwaysAllow.some((rule) => rule.tool === event.toolName && rule.key === key) ||
@@ -143,23 +163,31 @@ export async function evaluateOnce(
       return finish(call, "allow", grantedBy, undefined);
     }
   }
+  const host = plan.outcome === "ask" && !trip && answers.includes("host") ? plan.host : undefined;
   const scopes = grantable && answers.includes("always") ? alwaysScopesOf(call) : undefined;
   const askedAt = deps.grants.version();
   const outcome = await deps.ask(
     {
       category: kind.category,
-      ...uncheckedCard(unchecked, trip, rules.guard, TITLES[kind.category], description.message),
+      ...uncheckedCard(
+        unchecked,
+        trip,
+        rules.guard,
+        own ?? TITLES[kind.category],
+        own === undefined ? description.message : `${planReason}\n${description.message}`,
+      ),
       tool: ids.tool,
       key,
       toolCallId: ids.toolCallId,
       answers,
       ...(scopes ? { alwaysScopes: scopes } : {}),
+      ...(host === undefined ? {} : { host }),
       tainted: call.tainted,
       ...(trip ? { guard: trip.rule } : {}),
     },
     ctx.signal,
   );
-  trail.add("03", verdict03, plan.reason);
+  trail.add("03", verdict03, auditReason);
   if (trip) trail.add("04", "ask", trip.reason);
   else trail.add("04", "pass");
   const answered = { answered: true };

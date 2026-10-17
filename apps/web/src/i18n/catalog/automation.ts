@@ -94,8 +94,9 @@ export const automationFr: { readonly [K in keyof typeof automationEn]: string }
   "automation.board.todayNoBudget": "Aujourd'hui {spent}",
   "automation.board.quiet": "Heures calmes",
   "automation.board.pause": "Tout mettre en pause",
-  "automation.board.pauseHint": "Arrête les nouvelles exécutions automatiques. Celles en cours se terminent.",
-  "automation.board.pauseFailed": "La pause n'a pas pu être modifiée. Réessaie.",
+  "automation.board.pauseHint":
+    "Suspend les nouvelles exécutions automatiques. Celles en cours se terminent.",
+  "automation.board.pauseFailed": "La pause n'a pas pu être modifiée. Réessayez.",
   "automation.board.truncated": "Seules les tâches les plus récentes sont listées.",
   "automation.column.other": "Autres dossiers",
   "automation.column.running": "{count} en cours",
@@ -148,7 +149,7 @@ export const automationFr: { readonly [K in keyof typeof automationEn]: string }
   "automation.dialog.keep": "Continuer",
   "automation.dialog.toolsTitle": "Utiliser mes outils habituels ?",
   "automation.dialog.toolsBody":
-    "La session garde son historique et sa contamination ; sa prochaine exécution utilise tes outils habituels et ton mode d'approbation.",
+    "La session garde son historique et sa contamination ; sa prochaine exécution utilise vos outils habituels et votre mode d'approbation.",
   "automation.dialog.confirm": "Confirmer",
   "automation.dialog.notNow": "Pas maintenant",
   "automation.error.cancel.conflict": "Cette tâche est déjà terminée.",
@@ -167,7 +168,7 @@ export const automationFr: { readonly [K in keyof typeof automationEn]: string }
   "automation.failures.noCode": "sans code",
   "automation.empty.title": "Aucun déclencheur",
   "automation.empty.purpose":
-    "Les déclencheurs lancent des tâches pour toi sur un horaire, un webhook ou un flux.",
+    "Les déclencheurs lancent des tâches pour vous sur un horaire, un webhook ou un flux.",
   "automation.empty.project": "Projet",
-  "automation.empty.noProject": "Démarre d'abord une session dans un dossier, puis ajoute un déclencheur.",
+  "automation.empty.noProject": "Démarrez d'abord une session dans un dossier, puis ajoutez un déclencheur.",
 };

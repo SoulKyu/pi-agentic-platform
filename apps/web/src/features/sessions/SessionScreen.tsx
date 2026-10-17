@@ -17,6 +17,7 @@ import { getRuntime } from "../../runtime/index.ts";
 import "../../i18n/register-sidebar.ts";
 import { feedSession } from "../../stores/session-feed.ts";
 import { EMPTY_VIEW, type SessionView } from "../../stores/session-reducer.ts";
+import type { Interleave } from "../../stores/thread-interleave.ts";
 import { noticeKey, toastLiveInfo, useDismissedNotices } from "./notice-toast.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
@@ -45,9 +46,14 @@ export function SessionScreen({
   sessionId,
   toolDetail,
   beforeComposer,
+  header,
+  interleave,
 }: {
   sessionId: string;
   beforeComposer?: ReactNode;
+  /** An agent thread's own header, above the session's (M11R118), and the cards its transcript interleaves. */
+  header?: ReactNode;
+  interleave?: Interleave;
   /** The account's tool card detail (Settings › Appearance), given by the pane that hosts the screen. */
   toolDetail?: ToolDetail;
 }) {
@@ -102,6 +108,7 @@ export function SessionScreen({
       data-session-screen={sessionId}
       className="flex min-h-0 w-full flex-1 flex-col gap-s3 p-s4"
     >
+      {header}
       <header className="flex flex-wrap items-center gap-s2">
         <div className="flex min-w-0 flex-1 items-baseline gap-s3">
           {view.name ? (
@@ -164,6 +171,7 @@ export function SessionScreen({
         sessionId={sessionId}
         view={view}
         toolDetail={toolDetail ?? "compact"}
+        interleave={interleave}
         rowActions={{
           track: structural.track,
           busy: structural.active,

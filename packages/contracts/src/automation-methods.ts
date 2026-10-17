@@ -109,7 +109,16 @@ export const automationTaskMethods = {
     params: z.object({ taskId: TaskId }).strict(),
     result: z.object({ taskId: TaskId }).strict(),
     // conflict: the task is not failed, interrupted or cancelled, or its trigger is gone, disabled or was edited meanwhile.
-    errors: ["not_found", "conflict", "automation_paused", "budget_reached", "rate_limited", "read_only"],
+    errors: [
+      "not_found",
+      "conflict",
+      "automation_paused",
+      "budget_reached",
+      "rate_limited",
+      "read_only",
+      "forbidden",
+      "bad_request",
+    ],
   }),
   // "Use my normal tools" (owner m10a7): lifts the trigger's tool list from a finished task's session. Owner only, with the
   // password step-up; a token never holds `automation:admin`. session_busy: the task still runs, or its worker is busy.
@@ -127,6 +136,7 @@ export const automationTaskMethods = {
   }),
   // Fires the saved trigger, even a disabled one (M10R63). The payload may hold an alert's text: the receipt hashes the trigger only.
   // A token's fire is budget-gated, a browser session's is not; both count. `rate_limited`: the trigger's queue is full.
+  // An agent trigger on the thread takes no payload (`bad_request`, any caller) and no token (`forbidden`, M11R65).
   "automation.fire": defineMethod({
     name: "automation.fire",
     permission: "automation:operate",
@@ -134,7 +144,15 @@ export const automationTaskMethods = {
     sensitiveParams: ["triggerId"],
     params: z.object({ triggerId: TaskId, payload: FirePayload.optional() }).strict(),
     result: ManualFireResult,
-    errors: ["not_found", "automation_paused", "budget_reached", "rate_limited", "read_only"],
+    errors: [
+      "not_found",
+      "automation_paused",
+      "budget_reached",
+      "rate_limited",
+      "read_only",
+      "forbidden",
+      "bad_request",
+    ],
   }),
   // Nothing is written and no token is spent; a feed is not fetched. A precheck runs only for a browser caller, only when the
   // draft equals the saved trigger in its command, folder and variable names (M10R64).

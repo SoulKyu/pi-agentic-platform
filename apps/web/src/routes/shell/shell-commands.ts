@@ -7,6 +7,7 @@ import { useTerminalReady } from "./surface-view.ts";
 import { placeOf, showSurface, type Surface } from "./surface.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { reportClientIssue } from "../../lib/report.ts";
+import { useAgentCommands } from "./agent-commands.ts";
 import { closeItem, go, goToActive, toggleSplit, unsplitTab } from "./tab-actions.ts";
 
 type Setter = (open: boolean | ((open: boolean) => boolean)) => void;
@@ -32,6 +33,7 @@ export function useShellCommands(state: ShellCommandState): void {
     goToActive(navigate);
   };
 
+  useAgentCommands();
   useCommand("drawer.tree.toggle", () => {
     state.setInboxOpen(false);
     state.setTreeOpen((current) => !current);

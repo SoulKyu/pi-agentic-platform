@@ -44,6 +44,7 @@ describe("create", () => {
       umask: 0o022,
       papSessionId: "p1",
       tools: { preset: "configured" },
+      platform: { ops: [] },
       policy: PolicyRules.parse({
         profile: "interactive",
         approvalMode: "auto-accept-edits",

@@ -1,12 +1,12 @@
 # ADR 0041: automation runs before agents
 
-Status: accepted (M10, Task 24). A deviation from C §5.3 and §6.1 until M11.
+Status: accepted (M10, Task 24). A deviation from C §5.3 and §6.1 for project triggers. M11 sandboxes agent triggers only; project triggers keep this ADR (ADR 0050).
 Date: 2026-10-15
 Spec: C §5.3, §6.1. Rulings: M10R26 to M10R32, M10R36 to M10R44, M10R130 to M10R139, M10R152 to M10R155.
 
 ## Context
 
-C §6.1 describes triggers that start agent runs with an `isolated-task` profile. Agents arrive in M11; the owner wants schedules, webhooks and feeds now (decision 81, owner m10q1). Before agents there is no sandbox (bwrap is M11) and a webhook payload is text from outside.
+C §6.1 describes triggers that start agent runs with an `isolated-task` profile. Agents arrive in M11; the owner wants schedules, webhooks and feeds now (decision 81, owner m10q1). Before agents there is no sandbox (bwrap arrives with M11 and wraps agents only) and a webhook payload is text from outside.
 
 ## Decision
 
@@ -21,7 +21,7 @@ C §6.1 describes triggers that start agent runs with an `isolated-task` profile
 
 ## Consequences
 
-- Board 11's excluded `git push` cannot be expressed by a by-name list. A trigger that lists `bash` can push, subject to the mode's questions, until bwrap and M11's per-command rules. The editor does not offer the line.
+- Board 11's excluded `git push` cannot be expressed by a by-name list. A project trigger that lists `bash` can push, subject to the mode's questions: M11's sandbox covers agent triggers, not project triggers. The editor does not offer the line.
 - An extension tool without annotations cannot run in a trigger until it declares a category. A busy day of alerts stops at the daily budget ($5 by default). With `PAP_MAX_WORKERS=2`, one automatic run at a time.
 - A crash between a draft session's Pi file and its row leaves a file the scanner adopts as an outside session (tainted, no list); the file of a deleted task session can be adopted again after a crash between the row and the file (see `docs/agents/automation.md`).
 - M11 adds agent triggers beside project triggers (M10R130); this profile stays the one for project triggers.

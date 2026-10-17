@@ -1,6 +1,7 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import type { PolicyRules, ToolPreset } from "@pap/contracts";
 import { pinAllowlist } from "./policy/tool-allowlist.ts";
+import { PLATFORM_SOURCE } from "./policy/tool-kind.ts";
 
 /** Pi's own tools that read or change the machine. A preset replaces these and only these (M7R75). */
 export const CODING_TOOLS: ReadonlySet<string> = new Set([
@@ -39,6 +40,13 @@ export const pinToolAllowlist = (session: AgentSession, names: readonly string[]
   if (names) allowlists.set(session, [...names]);
 };
 
+/** M11R10: pap's platform tools are offered under every preset but `none` and `chat`; the ops themselves were pinned at start. */
+const platformTools = (session: AgentSession): string[] =>
+  session
+    .getAllTools()
+    .filter((tool) => tool.sourceInfo.path === PLATFORM_SOURCE)
+    .map((tool) => tool.name);
+
 /** Pi's `defaultTools` setting resolved the way Pi does: plain names replace the four defaults, `+name` and `-name` edit them. */
 function configuredCoding(session: AgentSession): string[] {
   const entries = session.settingsManager.getDefaultTools();
@@ -68,10 +76,18 @@ export function applyPreset(
   let changed = false;
   if (wanted !== null || listed) {
     const active = session.getActiveToolNames();
+    const platform = platformTools(session);
+    const offered = preset === "none" || preset === "chat" ? [] : platform;
     const next = listed
       ? // M10R29: what the model sees is the allowlisted names among the registered tools; stage 02 is the gate.
         listed.filter((name) => session.getAllTools().some((tool) => tool.name === name))
-      : [...new Set([...(wanted ?? []), ...active.filter((name) => !CODING_TOOLS.has(name))])];
+      : [
+          ...new Set([
+            ...(wanted ?? []),
+            ...active.filter((name) => !CODING_TOOLS.has(name) && !platform.includes(name)),
+            ...offered,
+          ]),
+        ];
     changed = !(next.length === active.length && next.every((name) => active.includes(name)));
     if (changed) session.setActiveToolsByName(next);
   }

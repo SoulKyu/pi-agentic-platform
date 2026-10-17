@@ -1,4 +1,10 @@
-import { INBOX_LIMITS, type InboxCursor, type InboxItem } from "@pap/contracts";
+import {
+  INBOX_KINDS,
+  INBOX_LIMITS,
+  type InboxCursor,
+  type InboxFilter,
+  type InboxItem,
+} from "@pap/contracts";
 import type { Db, SqlParams } from "../../kernel/db/database.ts";
 
 interface Row {
@@ -14,6 +20,10 @@ interface Row {
   readonly read_at: number | null;
   readonly resolved_at: number | null;
   readonly resolution: string | null;
+  readonly agent_id: string | null;
+  readonly ref_id: string | null;
+  readonly entry_id: string | null;
+  readonly detail: string | null;
 }
 
 export interface NewItem {
@@ -27,7 +37,28 @@ export interface NewItem {
   readonly triggerName: string;
   readonly costUsd: number | null;
   readonly at: number;
+  /** The agent whose task this is (M11R92); null for a trigger's own task. */
+  readonly agentId?: string | null;
 }
+
+/** An item about a request, a staged fact or an agent: one row per `(refId, kind)` (M11R89). */
+export interface RefItem {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly kind: string;
+  readonly toHandle: boolean;
+  readonly agentId: string;
+  readonly refId: string;
+  readonly entryId: string | null;
+  readonly detail: string | null;
+  readonly at: number;
+}
+
+const FILTER_KINDS: Record<Exclude<InboxFilter, "all">, readonly string[]> = {
+  to_handle: INBOX_KINDS.toHandle,
+  replies: INBOX_KINDS.replies,
+  tasks: INBOX_KINDS.tasks,
+};
 
 function itemOf(row: Row): InboxItem {
   return {
@@ -42,8 +73,15 @@ function itemOf(row: Row): InboxItem {
     readAt: row.read_at,
     resolvedAt: row.resolved_at,
     resolution: row.resolution === "answered" || row.resolution === "timed_out" ? row.resolution : null,
+    agentId: row.agent_id,
+    refId: row.ref_id,
+    entryId: row.entry_id,
+    detail: row.detail,
   };
 }
+
+/** The NOT NULL `title` of an agent item: the row stores no trigger name, and the agent's id lives in `agent_id`. */
+const AGENT_ITEM_LABEL = "agent";
 
 const OPEN = "to_handle = 1 AND resolved_at IS NULL";
 
@@ -66,9 +104,18 @@ export function createInboxStore(db: Db) {
     title: item.triggerName,
     costUsd: item.costUsd,
     at: item.at,
+    agentId: item.agentId ?? null,
   });
-  const INSERT = `INSERT INTO inbox_items (id, owner_id, kind, to_handle, task_id, session_id, title, cost_usd, created_at)
-     VALUES ($id, $ownerId, $kind, $toHandle, $taskId, $sessionId, $title, $costUsd, $at)`;
+  const INSERT = `INSERT INTO inbox_items (id, owner_id, kind, to_handle, task_id, session_id, title, cost_usd, created_at, agent_id)
+     VALUES ($id, $ownerId, $kind, $toHandle, $taskId, $sessionId, $title, $costUsd, $at, $agentId)`;
+
+  const byRef = (kind: string, refId: string): { item: InboxItem; ownerId: string } | null => {
+    const row = db.get<Row>("SELECT * FROM inbox_items WHERE ref_id = $refId AND kind = $kind", {
+      refId,
+      kind,
+    });
+    return row ? { item: itemOf(row), ownerId: row.owner_id } : null;
+  };
 
   return {
     byTaskKind,
@@ -127,19 +174,82 @@ export function createInboxStore(db: Db) {
     },
 
     /** One page older than the cursor, newest first; `limit + 1` rows are read so the caller knows whether more remain. */
-    page(ownerId: string, before: InboxCursor | undefined, limit: number): InboxItem[] {
-      const rows = before
-        ? db.all<Row>(
-            `SELECT * FROM inbox_items WHERE owner_id = $ownerId AND (created_at, id) < ($createdAt, $id)
-             ORDER BY created_at DESC, id DESC LIMIT $limit`,
-            { ownerId, createdAt: before.createdAt, id: before.id, limit: limit + 1 },
-          )
-        : db.all<Row>(
-            "SELECT * FROM inbox_items WHERE owner_id = $ownerId ORDER BY created_at DESC, id DESC LIMIT $limit",
-            { ownerId, limit: limit + 1 },
-          );
+    page(
+      ownerId: string,
+      before: InboxCursor | undefined,
+      limit: number,
+      filter: InboxFilter = "all",
+    ): InboxItem[] {
+      const kinds = filter === "all" ? null : JSON.stringify(FILTER_KINDS[filter]);
+      const rows = db.all<Row>(
+        `SELECT * FROM inbox_items WHERE owner_id = $ownerId
+           ${before ? "AND (created_at, id) < ($createdAt, $id)" : ""}
+           ${kinds ? "AND kind IN (SELECT value FROM json_each($kinds))" : ""}
+         ORDER BY created_at DESC, id DESC LIMIT $limit`,
+        {
+          ownerId,
+          limit: limit + 1,
+          ...(before ? { createdAt: before.createdAt, id: before.id } : {}),
+          ...(kinds ? { kinds } : {}),
+        },
+      );
       return rows.map(itemOf);
     },
+
+    byRef,
+
+    /**
+     * Writes the item of `(refId, kind)`, or reopens the owner's row (read and resolution cleared, text replaced). The unique
+     * index is not owner-scoped: a conflict with another owner's row changes nothing and returns null.
+     */
+    upsertRef(item: RefItem): InboxItem | null {
+      const changed = db.run(
+        `INSERT INTO inbox_items (id, owner_id, kind, to_handle, session_id, title, created_at, agent_id, ref_id, entry_id, detail)
+         VALUES ($id, $ownerId, $kind, $toHandle, NULL, $title, $at, $agentId, $refId, $entryId, $detail)
+         ON CONFLICT(ref_id, kind) WHERE ref_id IS NOT NULL DO UPDATE SET
+           to_handle = excluded.to_handle, resolved_at = NULL, read_at = NULL, resolution = NULL,
+           created_at = excluded.created_at, agent_id = excluded.agent_id, title = excluded.title,
+           entry_id = excluded.entry_id, detail = excluded.detail
+         WHERE inbox_items.owner_id = excluded.owner_id`,
+        { ...item, toHandle: item.toHandle ? 1 : 0, at: item.at, title: AGENT_ITEM_LABEL },
+      ).changes;
+      const written = changed === 1 ? byRef(item.kind, item.refId) : null;
+      return written?.ownerId === item.ownerId ? written.item : null;
+    },
+
+    /**
+     * Closes the owner's open row of this ref and kind; null when there is none. An info item is read as it closes, so its
+     * badge clears (W5-R48); a to-handle item keeps M10's behaviour: answering it does not read it.
+     */
+    resolveRef(
+      ownerId: string,
+      kind: string,
+      refId: string,
+      resolution: "answered" | "timed_out" | null,
+      at: number,
+    ): InboxItem | null {
+      const row = db.get<Row>(
+        `UPDATE inbox_items SET resolved_at = $at, resolution = $resolution,
+           read_at = CASE WHEN to_handle = 0 THEN coalesce(read_at, $at) ELSE read_at END
+         WHERE owner_id = $ownerId AND ref_id = $refId AND kind = $kind AND resolved_at IS NULL RETURNING *`,
+        { ownerId, kind, refId, at, resolution },
+      );
+      return row ? itemOf(row) : null;
+    },
+
+    removeRef: (ownerId: string, kind: string, refId: string): boolean =>
+      db.run("DELETE FROM inbox_items WHERE owner_id = $ownerId AND ref_id = $refId AND kind = $kind", {
+        ownerId,
+        kind,
+        refId,
+      }).changes === 1,
+
+    /** Deletes every item of the owner that carries this agent, resolved or not; the number removed (agent delete). */
+    removeAgentItems: (ownerId: string, agentId: string): number =>
+      db.run("DELETE FROM inbox_items WHERE owner_id = $ownerId AND agent_id = $agentId", {
+        ownerId,
+        agentId,
+      }).changes,
 
     counts(ownerId: string): { unread: number; toHandle: number } {
       const row = db.get<{ unread: number; to_handle: number }>(

@@ -15,6 +15,7 @@ function fakeSession(active: string[], options: { defaultTools?: string[]; idle?
     thinkingLevel: "off",
     getAvailableThinkingLevels: () => ["off"],
     getActiveToolNames: () => [...names],
+    getAllTools: () => [],
     setActiveToolsByName: (next: string[]) => {
       calls.push(next);
       names = [...next];

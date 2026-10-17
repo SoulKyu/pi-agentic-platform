@@ -4,9 +4,9 @@ import { Button } from "../primitives/Button.tsx";
 import { Chip } from "../primitives/Chip.tsx";
 
 /** M2's contract names (agreement 6). P3 pins this union to the one in @pap/contracts with a type-level test. */
-export type ApprovalAnswer = "deny" | "once" | "session" | "always";
-/** DESIGN.md §9.2 order. */
-export const APPROVAL_ORDER: readonly ApprovalAnswer[] = ["deny", "session", "always", "once"];
+export type ApprovalAnswer = "deny" | "once" | "session" | "always" | "host";
+/** DESIGN.md §9.2 order; `host` (owner a2) sits between Always and Allow once. */
+export const APPROVAL_ORDER: readonly ApprovalAnswer[] = ["deny", "session", "always", "host", "once"];
 
 interface ApprovalCardCommon {
   readonly title: string;
@@ -49,24 +49,27 @@ const BODY_CLASSES =
 
 /** The answers offered, their labels, one callback per click. */
 export interface ApprovalCardProps extends ApprovalCardCommon {
-  /** Shown in DESIGN order whatever the order given; "deny" is always offered. Default: all four. */
+  /** Shown in DESIGN order whatever the order given; "deny" is always offered. Default: the four without `host`. */
   readonly answers?: readonly ApprovalAnswer[];
-  readonly labels: Readonly<Record<ApprovalAnswer, string>>;
+  /** `host` has a button only when it is offered and has a label: no card but the network request's asks for it. */
+  readonly labels: Readonly<Record<Exclude<ApprovalAnswer, "host">, string>> & { readonly host?: string };
   onChoose(answer: ApprovalAnswer): void;
 }
 
 interface Choice {
   readonly answers: readonly ApprovalAnswer[];
-  readonly labels: Readonly<Record<ApprovalAnswer, string>>;
+  readonly labels: ApprovalCardProps["labels"];
   choose(answer: ApprovalAnswer): void;
 }
 
 /** The answers offered in DESIGN order, "deny" always among them. */
 function choiceOf(props: ApprovalCardProps): Choice {
-  const offered = new Set<ApprovalAnswer>(props.answers ?? APPROVAL_ORDER);
+  const offered = new Set<ApprovalAnswer>(props.answers ?? ["deny", "session", "always", "once"]);
   offered.add("deny");
   return {
-    answers: APPROVAL_ORDER.filter((answer) => offered.has(answer)),
+    answers: APPROVAL_ORDER.filter(
+      (answer) => offered.has(answer) && (answer !== "host" || props.labels.host !== undefined),
+    ),
     labels: props.labels,
     choose: (answer) => props.onChoose(answer),
   };

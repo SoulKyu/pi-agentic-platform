@@ -101,6 +101,7 @@ describe("the tasks snapshot (M10R43)", () => {
         projectId: trigger.projectId,
         state: "ok",
         nextFireAt: null,
+        agentId: null,
       },
     ]);
   });
@@ -153,6 +154,84 @@ describe("the tasks snapshot (M10R43)", () => {
     bed.runs.endRun({ sessionId: "s1", status: "completed", taskId: taskId as string });
     bed.policy.released.add("s1");
     expect(snapshot().tasks[0]).toMatchObject({ state: "done", toolsReleased: true });
+  });
+
+  it("never asks for input on a task that is over, even when its session (an agent's thread) still waits for the owner", async () => {
+    bed = createRunnerBed();
+    const trigger = bed.trigger();
+    const { taskId } = bed.engine.fire(trigger.id, trigger.revision, fireInput());
+    await bed.engine.runner.handleStart({ taskId: taskId as string }, effectContext());
+    bed.runs.endRun({ sessionId: "s1", status: "completed", taskId: taskId as string });
+    bed.sessions.state.mockReturnValue({ archived: false, running: true, needsInput: true });
+    expect(snapshot().tasks[0]).toMatchObject({ state: "done", needsInput: false });
+  });
+
+  it("names the requester of a delegation task, and nobody for any other task (M11R128)", () => {
+    bed = createRunnerBed();
+    seed("delegated", {
+      origin: "delegate",
+      agent_id: "bolt-0001",
+      target: "isolated",
+      requested_by: "atlas-1a2b",
+    });
+    seed("reminder", {
+      origin: "remind",
+      agent_id: "bolt-0001",
+      target: "isolated",
+      requested_by: "atlas-1a2b",
+    });
+    seed("plain");
+    const byId = new Map(snapshot().tasks.map((task) => [task.id, task.requestedBy]));
+    expect(byId.get("delegated")).toBe("atlas-1a2b");
+    expect(byId.get("reminder")).toBeNull();
+    expect(byId.get("plain")).toBeNull();
+  });
+
+  it("gives a reminder its time and its note, clipped to 200 units, and every other task null (W1)", () => {
+    bed = createRunnerBed();
+    const wrap = (note: string) =>
+      `<untrusted source="reminder" id="0123456789ab">\n${note}\n</untrusted id="0123456789ab">`;
+    seed("r-short", {
+      origin: "remind",
+      agent_id: "bolt-0001",
+      target: "thread",
+      state: "queued",
+      ended_at: null,
+      not_before: 1_800_000_000_000,
+      prompt: wrap("call Bob"),
+    });
+    seed("r-long", {
+      origin: "remind",
+      agent_id: "bolt-0001",
+      target: "thread",
+      state: "queued",
+      ended_at: null,
+      not_before: 1_800_000_000_001,
+      prompt: wrap(`${"x".repeat(198)}😀tail`),
+    });
+    seed("r-bad", {
+      origin: "remind",
+      agent_id: "bolt-0001",
+      target: "thread",
+      state: "queued",
+      ended_at: null,
+      not_before: 1_800_000_000_002,
+      prompt: "not a fence",
+    });
+    seed("delegated", {
+      origin: "delegate",
+      agent_id: "bolt-0001",
+      target: "thread",
+      not_before: 5,
+      prompt: wrap("call Bob"),
+    });
+    seed("plain");
+    const byId = new Map(snapshot().tasks.map((task) => [task.id, task]));
+    expect(byId.get("r-short")).toMatchObject({ notBefore: 1_800_000_000_000, note: "call Bob" });
+    expect(byId.get("r-long")?.note).toBe(`${"x".repeat(198)}\u2026`);
+    expect(byId.get("r-bad")).toMatchObject({ notBefore: 1_800_000_000_002, note: null });
+    expect(byId.get("delegated")).toMatchObject({ notBefore: null, note: null });
+    expect(byId.get("plain")).toMatchObject({ notBefore: null, note: null });
   });
 
   it("uses the title for a task whose trigger is gone", () => {

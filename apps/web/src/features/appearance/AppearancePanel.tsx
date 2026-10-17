@@ -2,6 +2,7 @@ import { Banner, Button, toast } from "@pap/ui";
 import { useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import type { AccountStatus } from "../../lib/account-setting.ts";
+import { AgentsSection } from "./AgentsSection.tsx";
 import { AppearancePreview } from "./AppearancePreview.tsx";
 import { DetailsSection } from "./DetailsSection.tsx";
 import { HomeSection } from "./HomeSection.tsx";
@@ -72,6 +73,7 @@ export function AppearancePanel() {
               <ReadingSection />
               <DetailsSection />
               <HomeSection />
+              <AgentsSection />
             </div>
             <div className="min-w-0">
               <AppearancePreview />

@@ -31,8 +31,16 @@ The daily budget and every cost figure are a lower bound: pap counts runs, not e
 
 ## Limits and auto-resume
 
-- A run whose last stop reason is `error` with a provider limit text is `limited` (`runs/limits.ts`). With `autoResume` on, a reset time and a mode other than `full-access`, a `run.resume` effect is due at the reset plus 0 to 60 s of jitter. Rules, checks and marks: ADR 0045. The `usage` stream carries `limits[]`, `todayUsd`, `budgetUsd`, `autoResume`; the session header's limit chip offers "Resume now" and "Cancel auto-resume" for a session, and a task card offers "Resume now" and "Cancel task".
+- A run whose last stop reason is `error` with a provider limit text is `limited` (`runs/limits.ts`). With `autoResume` on, a reset time and a mode other than `full-access` (one exception, below), a `run.resume` effect is due at the reset plus 0 to 60 s of jitter. Rules, checks and marks: ADR 0045. The `usage` stream carries `limits[]`, `todayUsd`, `budgetUsd`, `autoResume`; the session header's limit chip offers "Resume now" and "Cancel auto-resume" for a session, and a task card offers "Resume now" and "Cancel task".
 - Provider usage (quotas shown on the owner's click) is the models module's `models.usage`, see `models.md`; it is not part of the budget.
+
+## Agents: spend, budget and the resume exception (M11a)
+
+- Every run of an agent session carries `runs.agent_id` (the thread, an isolated task, a delegation, a reminder; migration `202610151130_run_agents.sql`, copied from the session row by the observer, which saves progress before its live hook so the budget reads the row). A child's runs also carry `parent_session_id` (M11b). `runs/agent-spend.ts` sums them; there is no second counter. The status panel's today, 7 and 30 days are `agents.status`, from `runs` (API-equivalent on a subscription).
+- **The agent's own daily budget** (owner m14): `AgentInput.budget {usdPerDay, tokensPerDay}`, both null by default (none; M10's owner-wide budget still applies to its automatic runs). `0` refuses every gated run. It is read from the profile at each gate, so a change applies at once with no worker restart and no password (money, not reach).
+- **Gated:** an agent's schedule, webhook and feed fires, a delegation to it, a reminder firing, a thread task starting and an isolated task starting, each refused with `budget` when either total is reached; across the run, `limits.ts` fails the agent's running gated tasks `budget`. **Counted, never gated:** the owner's own messages in the thread, a browser fire, and a task the owner queued (`agents.queueTask`).
+- **A paused agent** spends nothing on tasks: its fires journal `paused`, its queued tasks wait.
+- **Resume exception (a5, decision 90, ADR 0045 and 0047).** An agent thread in `full-access` still auto-resumes after a quota reset when its sandbox is on, in the registry now and in the worker's start-time profile (`resume.ts`, `heldForFullAccess`). The mode used is the effective one (`modeOf`): the stricter of the agent's and the session's. The continuation is sent sandbox-only; a warm worker or a cold start without the sandbox refuses it and the resume is skipped as `full_access`. A full-access session of any other kind is still held (M10R104).
 
 ## Metrics, trace, stall, OTLP
 

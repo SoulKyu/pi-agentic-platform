@@ -15,6 +15,7 @@ const fakeAudit = () => {
   const calls: Call[] = [];
   const port: AuditPort = {
     append: () => {},
+    reserve: () => true,
     fromWorker: (session, raw, context) => {
       calls.push({
         session: { id: session.id, ownerId: session.ownerId },
@@ -50,6 +51,7 @@ describe("a worker's audit record", () => {
     bed = build({
       audit: {
         append: port.append,
+        reserve: () => true,
         fromWorker: (session, raw, context) => {
           seen.push(bed.store.get(session.id) ? "row" : "no row");
           return port.fromWorker(session, raw, context);
@@ -75,6 +77,7 @@ describe("a worker's audit record", () => {
     bed = build({
       audit: {
         append: () => {},
+        reserve: () => true,
         fromWorker: () => {
           throw new Error("boom");
         },

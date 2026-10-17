@@ -112,7 +112,7 @@ export function sessionPolicyBed<
   const audits: Array<Parameters<AuditPort["append"]>[0]> = [];
   const { service, rpc } = make({
     ...bed,
-    audit: { append: (line) => void audits.push(line), fromWorker: () => null },
+    audit: { append: (line) => void audits.push(line), reserve: () => true, fromWorker: () => null },
     sessionOwner: (sessionId) => owners.get(sessionId) ?? null,
   });
   const changes: string[] = [];

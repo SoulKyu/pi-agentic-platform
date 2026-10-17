@@ -19,13 +19,13 @@ export function checkStage(result: StageResult, mayBeUnchecked = false): StageRe
 }
 
 /**
- * Whether a person can be asked about a call the denylist could not read: a UI, interactive rules, not read-only. When
+ * Whether a person can be asked about a call the denylist could not read: a UI, attended rules (an isolated task is unattended), not read-only. When
  * they can, the call is marked: only its re-check may see `unchecked` again.
  */
 export function markAskable(ctx: PolicyContext, call: CallFacts): boolean {
   const yes =
     ctx.hasUI &&
-    call.rules.profile === "interactive" &&
+    (call.rules.profile === "interactive" || call.rules.profile === "agent-thread") &&
     call.rules.approvalMode !== "read-only" &&
     !call.rules.unattended;
   if (yes) WAS_UNCHECKED.add(call);

@@ -74,7 +74,7 @@ describe("checkForm", () => {
     const label = "a".repeat(63);
     const hosts = Array.from(
       { length: 256 },
-      (_, i) => `${label}.${label}.${label}.${String(i).padStart(3, "0")}${"b".repeat(54)}`,
+      (_, i) => `${label}.${label}.${String(i).padStart(3, "0")}${"b".repeat(54)}.${label}`,
     ).join("\n");
     const deny = Array.from({ length: 64 }, (_, i) => `${String(i).padStart(3, "0")}${"x".repeat(253)}`).join(
       "\n",

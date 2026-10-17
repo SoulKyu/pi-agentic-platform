@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { UploadError } from "../../runtime/upload.ts";
 import { alerts, button, click, field, press, settle, text, typeInto } from "../../testing/dom.ts";
+import { useHandOffPorts } from "../../stores/composer-hand-off.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
 
 const current = vi.hoisted(() => ({
@@ -99,6 +100,23 @@ async function finishUpload(index: number, kind: "image" | "file" = "image", id 
 const png = () => new File(["x"], "shot.png", { type: "image/png" });
 
 describe("Composer attachments", () => {
+  it("keeps `@Name text` a normal prompt when files are attached (a hand-off cannot carry them)", async () => {
+    const handOff = vi.fn(() => true);
+    act(() => useHandOffPorts.getState().register("sess-1", { names: ["Scout"], handOff }));
+    const container = await show({ status: "idle" });
+    await typeInto(field(container, "Message"), "@Scout do it");
+    await dropOn(field(container, "Message"), transferOf([png()]));
+    await finishUpload(0);
+    await click(button(container, "Send"));
+    await settle();
+    expect(handOff).not.toHaveBeenCalled();
+    expect(screen.bed.called("sessions.prompt")[0]?.params).toMatchObject({
+      text: "@Scout do it",
+      attachments: [ID],
+    });
+    act(() => useHandOffPorts.setState({ ports: {} }));
+  });
+
   it("keeps Send off while an upload runs, then sends the ids with an empty text and clears the tray", async () => {
     const container = await show({ status: "idle" });
     await dropOn(field(container, "Message"), transferOf([png()]));

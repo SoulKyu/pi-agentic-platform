@@ -113,9 +113,9 @@ describe("pap-policy protected paths", () => {
     expect(h.entries[0]).toMatchObject({ decision: "approved", reason: "answer: once; protected path" });
   });
 
-  it("blocks a protected path without asking when the rules are not interactive", async () => {
+  it("blocks a protected path without asking when the profile is one this build does not know", async () => {
     const unattended = {
-      profile: "isolated-task",
+      profile: "future-profile",
       approvalMode: "auto-accept-edits",
       toolAllowlist: null,
       unattended: false,

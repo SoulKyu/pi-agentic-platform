@@ -66,7 +66,7 @@ describe("sessions module over a read-only database (RT-04)", () => {
         policy: fakePolicyPort(),
         projects,
         ownerId: () => "u1",
-        audit: { append: () => {}, fromWorker: () => null },
+        audit: { append: () => {}, reserve: () => true, fromWorker: () => null },
         attachments: noAttachments,
         config: {
           home: join(root, "pap"),

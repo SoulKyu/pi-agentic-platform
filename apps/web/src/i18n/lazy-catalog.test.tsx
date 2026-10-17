@@ -103,6 +103,7 @@ describe("lazy catalog (Settings)", () => {
       "features/policy/ReadOnlyCommands.tsx",
       "features/policy/PatternField.tsx",
       "features/policy/RulesByProject.tsx",
+      "features/appearance/AgentsSection.tsx",
       "features/appearance/AppearancePanel.tsx",
       "features/appearance/AppearancePreview.tsx",
       "features/appearance/AppearanceSection.tsx",
@@ -265,7 +266,7 @@ describe("lazy catalog (session screen)", () => {
     await act(async () => registerCatalog({ en: sessionScreenEn, fr: sessionScreenFr }));
     expect(translate("en", "sessions.composer.send")).toBe("Send");
     expect(translate("fr", "sessions.composer.send")).toBe("Envoyer");
-    expect(Object.keys(sessionScreenEn)).toHaveLength(107);
+    expect(Object.keys(sessionScreenEn)).toHaveLength(109);
     expect(Object.keys(sessionScreenFr)).toEqual(Object.keys(sessionScreenEn));
     const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
     for (const key of Object.keys(sessionScreenEn) as Array<keyof typeof sessionScreenEn>)

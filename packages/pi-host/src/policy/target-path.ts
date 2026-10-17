@@ -2,7 +2,7 @@ import { lstat, readlink, realpath } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LaneId } from "@pap/contracts";
+import { AgentId, LaneId } from "@pap/contracts";
 import { kernelResolve, tooLong } from "./kernel-path.ts";
 
 const MAX_LINK_HOPS = 40;
@@ -97,13 +97,64 @@ function hasProtectedName(absolutePath: string): boolean {
 /** Where pap keeps lane worktrees, under its home (spec C 1.2, ADR 0033). */
 export const WORKTREES_DIR = "worktrees";
 
+/** Where pap keeps agent homes and isolated tasks' scratch folders, under its home (spec C 1.2, ADR 0050). */
+export const AGENTS_DIR = "agents";
+export const RUNS_DIR = ".runs";
+const TASK_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** `agents/<id>` (an agent home) or `agents/.runs/<id>/<task id>` (an isolated task's scratch folder), relative to pap's home. */
+function isAgentFolder(rel: string): boolean {
+  const parts = rel.split(sep);
+  if (parts[0] !== AGENTS_DIR) return false;
+  if (parts.length === 2) return AgentId.safeParse(parts[1]).success;
+  return (
+    parts.length === 4 &&
+    parts[1] === RUNS_DIR &&
+    AgentId.safeParse(parts[2]).success &&
+    TASK_ID.test(parts[3] ?? "")
+  );
+}
+
 /**
- * M9 (R97): the lane a session works in, when its folder is inside `<papHome>/worktrees/<lane>`: that lane, in every
- * spelling of pap's home, is the session's own folder and not a protected root. Another lane, `worktrees` itself and
- * the rest of pap's home stay protected. `root` is the session folder's real path.
+ * The folder the rules name, in every spelling of pap's home, when it is an agent folder in fact (M11R28, RT-12): the
+ * spelling has no `.` or `..` segment, ends with the real `agents/...` path relative to pap's home, and what comes before
+ * that is pap's home under some name. A symbolic link inside the folder's own part (a home that leads to another agent,
+ * to `~`) makes the real path differ from the spelled one: none then. Else none.
  */
-async function ownLane(root: string, papHome: string): Promise<readonly string[]> {
+async function namedAgentFolder(
+  papHome: string,
+  agentOwn: string,
+  homes: readonly string[],
+): Promise<readonly string[]> {
+  if (agentOwn.split(sep).some((part) => part === "." || part === "..")) return [];
+  const spelled = resolve(agentOwn);
+  const realHome = await realTarget(resolve(papHome));
+  const real = await realTarget(spelled);
+  if (!within(realHome, real) || real === realHome) return [];
+  const rel = relative(realHome, real);
+  if (!isAgentFolder(rel)) return [];
+  const count = rel.split(sep).length;
+  const parts = spelled.split(sep);
+  if (parts.slice(-count).join(sep) !== rel) return [];
+  const before = parts.slice(0, -count).join(sep) || sep;
+  if ((await realTarget(before)) !== realHome) return [];
+  return [...new Set([...homes.map((each) => join(each, rel)), spelled])];
+}
+
+/**
+ * M9 (R97), M11R28: the folder a session may edit as its own instead of a protected root of pap's home, in every
+ * spelling of pap's home. A lane session: its lane worktree, found from its folder, as in M9. An agent session: only
+ * the folder its rules name (`agentOwn`: the home of an agent thread or of a child of one, the scratch folder of an
+ * isolated task), never one found from the path: a plain session opened inside an agent home owns nothing (RT-12).
+ * `root` is the session folder's real path.
+ */
+export async function ownFolder(
+  root: string,
+  papHome: string,
+  agentOwn: string | null,
+): Promise<readonly string[]> {
   const homes = [...new Set([resolve(papHome), await realTarget(resolve(papHome))])];
+  if (agentOwn !== null) return namedAgentFolder(papHome, agentOwn, homes);
   for (const home of homes) {
     const worktrees = join(home, WORKTREES_DIR);
     if (!within(worktrees, root) || root === worktrees) continue;
@@ -142,7 +193,7 @@ export type EditCheck = { readonly auto: true } | { readonly auto: false; readon
 /**
  * Whether an edit may run without asking. It may when the file Pi would write, symlinks followed, is inside
  * `cwd`, no part of its path or of `cwd` is a protected name, it is not under a protected root (the Pi agent
- * directory and pap's data directory; the session's own lane is no protected root when `papHome` is given, but a file
+ * directory and pap's data directory; the session's own lane, or the agent folder its rules name (`agentOwn`), is no protected root when `papHome` is given, but a file
  * there with more than one hard link still asks), and `cwd` is not the home directory, a parent of it, or a parent of a
  * protected root. The path is judged as Pi rewrites it and as it was spelled. Anything that is not a plain,
  * non-empty path string asks. Otherwise the review says why, and where the write lands: always the file Pi
@@ -153,6 +204,7 @@ export async function checkEditTarget(
   cwd: string,
   protectedRoots: readonly string[],
   papHome?: string,
+  agentOwn: string | null = null,
 ): Promise<EditCheck> {
   if (typeof path !== "string" || path === "" || path.includes("\0") || tooLong(path)) {
     return { auto: false, review: { why: "outside the session directory" } };
@@ -166,7 +218,7 @@ export async function checkEditTarget(
   );
   const tooBroad =
     within(root, await realTarget(resolve(home))) || roots.some(([, real]) => within(root, real));
-  const lane = papHome === undefined ? [] : await ownLane(root, papHome);
+  const lane = papHome === undefined ? [] : await ownFolder(root, papHome, agentOwn);
   const inProtectedRoot = (candidate: string) =>
     !lane.some((dir) => within(dir, candidate)) &&
     roots.some((variants) => variants.some((dir) => within(dir, candidate)));

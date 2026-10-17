@@ -4,8 +4,15 @@ import { reportClientIssue } from "../lib/report.ts";
 import { en } from "./en.ts";
 import { fr } from "./fr.ts";
 
+import type { agentsPhoneEn } from "./catalog/agents-phone.ts";
+import type { agentSafetyEn } from "./catalog/agent-safety.ts";
+import type { agentSpaceEn } from "./catalog/agent-space.ts";
+import type { agentStatusEn } from "./catalog/agent-status.ts";
+import type { agentComposeEn } from "./catalog/agent-compose.ts";
+import type { agentSettingsEn } from "./catalog/agent-settings.ts";
 import type { addProjectEn } from "./catalog/add-project.ts";
 import type { automationEn } from "./catalog/automation.ts";
+import type { automationAgentsEn } from "./catalog/automation-agents.ts";
 import type { automationTriggerEn } from "./catalog/automation-trigger.ts";
 import type { changesEn } from "./catalog/changes.ts";
 import type { filesEn } from "./catalog/files.ts";
@@ -18,6 +25,7 @@ import type { laneReviewEn } from "./catalog/lane-review.ts";
 import type { lanesEn } from "./catalog/lanes.ts";
 import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
+import type { inboxAgentsEn } from "./catalog/inbox-agents.ts";
 import type { modelsUsageEn } from "./catalog/models-usage.ts";
 import type { serverEn } from "./catalog/server.ts";
 import type { sessionModelsEn } from "./catalog/session-models.ts";
@@ -25,6 +33,7 @@ import type { sessionToolsEn } from "./catalog/session-tools.ts";
 import type { sessionPolicyEn } from "./catalog/session-policy.ts";
 import type { sessionFilesEn } from "./catalog/session-files.ts";
 import type { sessionScreenEn } from "./catalog/session-screen.ts";
+import type { settingsAgentsEn } from "./catalog/settings-agents.ts";
 import type { settingsAccessEn } from "./catalog/settings-access.ts";
 import type { settingsAutomationEn } from "./catalog/settings-automation.ts";
 import type { settingsAppearanceEn } from "./catalog/settings-appearance.ts";
@@ -75,10 +84,19 @@ export type MessageKey =
   | keyof typeof trustEn
   | keyof typeof automationEn
   | keyof typeof automationTriggerEn
+  | keyof typeof automationAgentsEn
   | keyof typeof inboxEn
+  | keyof typeof inboxAgentsEn
   | keyof typeof homeEn
   | keyof typeof usageEn
-  | keyof typeof modelsUsageEn;
+  | keyof typeof modelsUsageEn
+  | keyof typeof agentSettingsEn
+  | keyof typeof agentSpaceEn
+  | keyof typeof agentSafetyEn
+  | keyof typeof agentStatusEn
+  | keyof typeof agentComposeEn
+  | keyof typeof agentsPhoneEn
+  | keyof typeof settingsAgentsEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

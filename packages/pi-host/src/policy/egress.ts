@@ -1,5 +1,6 @@
 import type { CallFacts, StageResult } from "./pipeline.ts";
 import { CODING_TOOLS } from "../tool-presets.ts";
+import { sandboxVerdict } from "./sandbox-rule.ts";
 import { listedVerdict } from "./tool-allowlist.ts";
 import { argvOf, CommandTooComplex, CommandTooLong, readCommands } from "./shell-words.ts";
 
@@ -297,7 +298,7 @@ const block = (reason: string, modelReason = EGRESS_MODEL_REASON): StageResult =
 
 /** Stage 02 (M5R21 to M5R24, M5R118): a reason carries the judged host or scheme (clipped) or a fixed client name, nothing else of the input. */
 export function egressStage(call: CallFacts): StageResult {
-  const listed = listedVerdict(call);
+  const listed = listedVerdict(call) ?? sandboxVerdict(call);
   if (listed) return listed;
   // Task 15: a coding tool the preset leaves out is refused by name, whatever reached it (codemode's nested calls,
   // `tool_search` loading it): the active tool set is not the gate.
@@ -311,6 +312,8 @@ export function egressStage(call: CallFacts): StageResult {
   const readOnlySession = call.rules.approvalMode === "read-only" || call.rules.readOnlyPreset;
   if (readOnlySession && call.kind.mcp && call.kind.category !== "read")
     return { outcome: "block", reason: MCP_READ_ONLY, modelReason: MCP_READ_ONLY_MODEL_REASON };
+  // M11R231: pap's networked sandboxed shell reaches hosts only through the proxy, which enforces the list; no URL walk can see what a script does.
+  if (call.kind.sandboxed === true && call.kind.external) return { outcome: "skip", reason: "egress proxy" };
   const allow = call.rules.allowHosts;
   if (allow === null) return { outcome: "skip", reason: "no egress list" };
   if (!call.kind.urlBearing) return { outcome: "skip", reason: "no URL-bearing input" };

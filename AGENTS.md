@@ -30,6 +30,15 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - `PAP_METRICS_TOKEN` (32-256 chars): `GET /metrics` with its own bearer, off (404) when unset. `PAP_OTLP_ENDPOINT` (`https://`, or `http://` to loopback only; opt-in, no exporter exists when unset) with `PAP_OTLP_HEADERS` (`name=value,...`, at most 8, never logged) and `PAP_OTLP_SERVICE_NAME` (default `pap`). Details: `docs/agents/daemon.md`, `finops.md`.
 - Children pap starts without you (M10: the precheck of a trigger) get `unattendedEnv`'s environment (`packages/contracts/src/child-env.ts`, re-exported by `kernel/child-env.ts`; M9 writes it, M10 adds the precheck): an allowlist, never the SSH agent, `GIT_*`, `LD_*`, provider keys or credential-looking names. ADR 0046.
 
+## Agents and the sandbox (M11)
+
+- Agents, platform ops, the vault, the sandbox, the egress proxy and their known limits: `docs/agents/agents.md`; ADRs 0047 to 0051; rulings `docs/research/m11-rulings.md`.
+- bubblewrap (root-owned in `/usr/bin`, `/usr/local/bin` or `/bin`, or `PAP_BWRAP`) is needed by every agent that requires its sandbox (`sandbox_unavailable` without it); a networked agent also needs a root-owned `python3`. Their int tests skip locally with one warning and throw under `CI=1`.
+- An agent's shell has no network but the egress proxy (hosts on ports 80 and 443): it guarantees hosts, not content. Docs and copy never claim more. Tests never name a public host or address.
+- The vault key sits beside the vault in `$PAP_HOME/secrets/vault`: a backup of the whole `$PAP_HOME` holds it. Through pap's own paths a value never reaches a log, an audit row, a response or a receipt; the exceptions are in ADR 0049 (a command the agent runs can print it, the redactor misses values under 8 characters and encoded ones, same-user processes read `/proc/<pid>/environ`, a whole-`$PAP_HOME` backup holds the key).
+- A new platform op declares its callers, `whenTainted` and deadline in `PLATFORM_OPS`; the session type is read from the daemon's row, never from the worker.
+- The daemon logs a host an agent chose as `h:<12 hex> (len N)`, unless the owner wrote it.
+
 ## Rules (CI-enforced)
 
 - 400 lines per file at most. No baseline, no exceptions.
@@ -45,4 +54,4 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 ## Conventions
 
 - Conventional Commits; rebase on the target branch before a PR; no AI attribution trailers.
-- Topic notes: `docs/agents/<domain>.md` (`daemon`, `sessions`, `auth`, `policy`, `search`, `files`, `terminal`, `models`, `mcp`, `skills` (skills and plugins), `lanes` (worktrees, lanes, forges), `automation` (triggers, tasks, Inbox), `finops` (runs, cost, budgets, limits, metrics); UI: `web`). Rulings: `docs/research/m2-rulings.md`, `docs/research/m3-rulings.md`, `docs/research/m4-rulings.md`, `docs/research/m5-rulings.md`, `docs/research/m7-rulings.md` (+ `m7-rulings-after-join.md`), `docs/research/m8-rulings.md`, `docs/research/m9-rulings.md`, `docs/research/m10-rulings.md`. Deviations from spec C: an ADR in `docs/adr/`.
+- Topic notes: `docs/agents/<domain>.md` (`daemon`, `sessions`, `auth`, `policy`, `search`, `files`, `terminal`, `models`, `mcp`, `skills` (skills and plugins), `lanes` (worktrees, lanes, forges), `automation` (triggers, tasks, Inbox), `finops` (runs, cost, budgets, limits, metrics), `agents` (agents, platform ops, vault, sandbox, egress); UI: `web`). Rulings: `docs/research/m2-rulings.md`, `docs/research/m3-rulings.md`, `docs/research/m4-rulings.md`, `docs/research/m5-rulings.md`, `docs/research/m7-rulings.md` (+ `m7-rulings-after-join.md`), `docs/research/m8-rulings.md`, `docs/research/m9-rulings.md`, `docs/research/m10-rulings.md`, `docs/research/m11-rulings.md`. Deviations from spec C: an ADR in `docs/adr/`.

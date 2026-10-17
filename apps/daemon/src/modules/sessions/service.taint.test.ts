@@ -26,6 +26,7 @@ const fakeAudit = () => {
   const calls: unknown[] = [];
   const port: AuditPort = {
     append: () => {},
+    reserve: () => true,
     fromWorker: (_row, raw) => {
       calls.push(raw);
       return null;

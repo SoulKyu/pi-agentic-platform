@@ -244,6 +244,7 @@ export async function trustSet(params: Params<"trust.set">, ctx: Ctx): Promise<T
       home: await realOr(ctx.home),
       agentDir: await realOr(ctx.agentDir),
       papHome: await realOr(ctx.papHome),
+      agents: await realOr(join(ctx.papHome, "agents")),
       projects: await Promise.all(params.projects.map(realOr)),
     });
     if (refusal !== null) return { ok: false, refusal };

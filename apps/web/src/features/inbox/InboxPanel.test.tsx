@@ -5,6 +5,7 @@ import { setLocale } from "../../i18n/index.ts";
 import { RpcError } from "../../runtime/rpc.ts";
 import { useInboxStore } from "../../stores/inbox-store.ts";
 import { button, click, settle, text, type Mounted } from "../../testing/dom.ts";
+import { useAgentsStore } from "../../stores/agents-store.ts";
 import { current, itemOf, loadInbox, newBed, NOW, show } from "./inbox-bed.tsx";
 import InboxPanel from "./InboxPanel.tsx";
 
@@ -80,7 +81,7 @@ describe("InboxPanel", () => {
     mixed();
     page = await show(<InboxPanel onOpenSession={() => {}} />);
     const items = () => [...document.querySelectorAll<HTMLElement>('[data-slot="segmented"] button')];
-    expect(items().map((one) => one.textContent)).toEqual(["All", "To handle", "Tasks"]);
+    expect(items().map((one) => one.textContent)).toEqual(["All", "To handle", "Replies", "Tasks"]);
     await click(button(page.container, "To handle"));
     expect(rows().map((row) => row.dataset["itemId"])).toEqual(["q1"]);
     await click(button(page.container, "Tasks"));
@@ -164,7 +165,7 @@ describe("InboxPanel", () => {
 
   it("renders a hostile trigger name as text", async () => {
     newBed();
-    loadInbox([itemOf({ triggerName: "<img src=x onerror=alert(1)>‮" })]);
+    loadInbox([itemOf({ triggerName: "<img src=x onerror=alert(1)>\u202e" })]);
     page = await show(<InboxPanel onOpenSession={() => {}} />);
     expect(page.container.querySelector("img")).toBeNull();
     expect(text(page.container)).toContain("<img src=x onerror=alert(1)>\\u202E");
@@ -195,5 +196,86 @@ describe("InboxPanel", () => {
     expect(text(page.container)).toContain("Boîte · 1 à traiter");
     expect(text(page.container)).toContain("Seuls les éléments les plus récents sont listés.");
     expect(button(page.container, "Tout lire")).not.toBeNull();
+  });
+});
+
+describe("agent rows in the panel (M11R129)", () => {
+  const agentRows = () => {
+    useAgentsStore.getState().reset();
+    useAgentsStore.getState().apply({
+      kind: "snapshot",
+      agents: [
+        {
+          id: "atlas-1a2b",
+          name: "Atlas",
+          initials: "AT",
+          state: "idle",
+          unread: 0,
+          paused: false,
+          quarantined: false,
+          unreadable: false,
+          threadSessionId: "s1",
+          lastActivityAt: 1,
+        },
+      ],
+      requests: [],
+      truncated: false,
+    });
+    loadInbox([
+      itemOf({ id: "task", kind: "task_done", toHandle: false, createdAt: NOW - 1000 }),
+      itemOf({
+        id: "rep",
+        kind: "agent_reply",
+        toHandle: false,
+        agentId: "atlas-1a2b",
+        refId: null,
+        taskId: null,
+        sessionId: null,
+        entryId: "e7",
+        detail: "Done for today",
+        createdAt: NOW - 2000,
+      }),
+      itemOf({
+        id: "app",
+        kind: "agent_approve",
+        agentId: "atlas-1a2b",
+        refId: "req-1",
+        taskId: null,
+        sessionId: null,
+        detail: "Deploy?",
+        createdAt: NOW - 9000,
+      }),
+    ]);
+  };
+
+  it("lists the agent rows with the to-handle one first, and filters Replies", async () => {
+    newBed();
+    agentRows();
+    page = await show(<InboxPanel onOpenSession={() => {}} />);
+    expect(rows().map((row) => row.dataset["itemId"])).toEqual(["app", "task", "rep"]);
+    expect(button(page.container, "Approve")).not.toBeNull();
+    await click(button(page.container, "Replies"));
+    expect(rows().map((row) => row.dataset["itemId"])).toEqual(["rep"]);
+    await click(button(page.container, "Tasks"));
+    expect(rows().map((row) => row.dataset["itemId"])).toEqual(["task"]);
+  });
+
+  it("opens the agent at the entry and marks the row read when a reply is clicked", async () => {
+    const bed = newBed();
+    bed.handlers["inbox.markRead"] = () => ({ updated: 1 });
+    agentRows();
+    const onOpenAgent = vi.fn();
+    page = await show(<InboxPanel onOpenSession={() => {}} onOpenAgent={onOpenAgent} />);
+    await click(rows().find((row) => row.dataset["itemId"] === "rep") as HTMLElement);
+    expect(onOpenAgent).toHaveBeenCalledWith("atlas-1a2b", "e7");
+    expect(bed.called("inbox.markRead")[0]?.params).toEqual({ ids: ["rep"] });
+  });
+
+  it("shows the Replies empty state with its own words", async () => {
+    newBed();
+    loadInbox([itemOf({ id: "d1", kind: "task_done", toHandle: false })]);
+    page = await show(<InboxPanel onOpenSession={() => {}} />);
+    await click(button(page.container, "Replies"));
+    expect(page.container.querySelector('[data-slot="empty-state"]')?.textContent).toContain("No replies");
   });
 });

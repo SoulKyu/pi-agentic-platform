@@ -100,6 +100,7 @@ const lane = {
   fanoutId: null,
   fanoutSlot: null,
   firstRunEndedAt: null,
+  note: null,
   checkpointsFull: false,
   descriptionPreview: "",
   descriptionTruncated: false,

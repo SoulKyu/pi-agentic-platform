@@ -90,7 +90,7 @@ describe("failures around a mutation", () => {
       settings: createSettingsPolicyStore(db),
       clock,
       logger,
-      audit: { append: () => {}, fromWorker: () => null },
+      audit: { append: () => {}, reserve: () => true, fromWorker: () => null },
       sessionOwner: () => null,
     });
     expect(() => service.markTainted("u1", "s1", 0)).toThrow(new PapError("not_found"));
@@ -123,6 +123,7 @@ describe("failures around a mutation", () => {
         append: () => {
           throw new Error("audit down");
         },
+        reserve: () => true,
         fromWorker: () => null,
       },
       sessionOwner: () => "u1",

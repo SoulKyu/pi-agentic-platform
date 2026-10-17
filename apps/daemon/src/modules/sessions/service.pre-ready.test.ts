@@ -45,6 +45,7 @@ describe("what a new session's worker says before it is ready", () => {
     bed = build({
       audit: {
         append: () => {},
+        reserve: () => true,
         fromWorker: (session) => {
           delivered.push({ id: session.id, stored: bed.store.get(session.id) !== undefined });
           return null;

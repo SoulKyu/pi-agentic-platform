@@ -21,6 +21,7 @@ import { resolveSessionCwd } from "../sessions/index.ts";
 import { newHookSecret } from "./hook-auth.ts";
 import { feedUrlRefusal } from "./net-guard.ts";
 import { createTriggerStore, type TriggerRow } from "./store.ts";
+import { agrees, type AgentBinding, resolveExecution } from "./trigger-agent.ts";
 import { removeTriggerSecret, writeTriggerSecret } from "./trigger-secrets.ts";
 import { redactedFeedUrl, stateOf, summaryOf } from "./trigger-summaries.ts";
 
@@ -37,6 +38,7 @@ export interface TriggersDeps {
   requireStepUp(caller: Caller, now: number): void;
   /** After a trigger was saved, switched, rotated or deleted: the `tasks` stream lists triggers. A throw is logged. */
   onChange?(change: TriggerChanged): void;
+  readonly agents?: AgentBinding;
 }
 
 export interface TriggerChanged {
@@ -54,6 +56,7 @@ export interface TriggerRecord {
   readonly sourceType: string;
   readonly input: TriggerInput | null;
   readonly cwd: string;
+  readonly agentId: string | null;
   readonly projectId: string | null;
   readonly secretRotatedAt: number | null;
   readonly nextFireAt: number | null;
@@ -103,9 +106,7 @@ export function createTriggers(deps: TriggersDeps) {
     let input: TriggerInput | null = null;
     try {
       const parsed = TriggerInput.safeParse(JSON.parse(row.config) as unknown);
-      // The column and the config must agree on the source: a hand-edited row is unreadable, not half-trusted.
-      if (parsed.success && parsed.data.source.type === row.source_type)
-        input = { ...parsed.data, enabled: row.enabled === 1 };
+      if (parsed.success && agrees(parsed.data, row)) input = { ...parsed.data, enabled: row.enabled === 1 };
     } catch {
       input = null;
     }
@@ -117,6 +118,7 @@ export function createTriggers(deps: TriggersDeps) {
       sourceType: row.source_type,
       input,
       cwd: row.cwd,
+      agentId: row.agent_id,
       projectId: row.project_id,
       secretRotatedAt: row.secret_rotated_at,
       nextFireAt: row.next_fire_at,
@@ -157,6 +159,7 @@ export function createTriggers(deps: TriggersDeps) {
           ? { ...input.source, url: redactedFeedUrl(input.source.url) }
           : (input?.source ?? null),
       execution,
+      agent: input?.execution.agent ?? null,
       prompt: input?.prompt ?? null,
       projectId: record.projectId,
       cwd: record.cwd,
@@ -179,7 +182,9 @@ export function createTriggers(deps: TriggersDeps) {
     return real;
   }
 
-  function projectOf(ownerId: string, cwd: string): string | null {
+  function projectOf(ownerId: string, cwd: string, agentId: string | null): string | null {
+    // An agent's home is never filed as a project (decision 85).
+    if (agentId !== null) return null;
     try {
       return deps.projects.ensure(ownerId, deps.scopeOf(cwd))?.id ?? null;
     } catch (error) {
@@ -211,7 +216,7 @@ export function createTriggers(deps: TriggersDeps) {
     const config = JSON.stringify({
       name: input.name,
       source: input.source,
-      execution: { ...input.execution, cwd },
+      execution: input.execution.agent ? input.execution : { ...input.execution, cwd },
       prompt: input.prompt,
     });
     if (config.length > CONFIG_MAX_CHARS) throw new PapError("bad_request");
@@ -280,7 +285,7 @@ export function createTriggers(deps: TriggersDeps) {
     create(caller: Caller, input: TriggerInput): ResultOf<"automation.triggers.create"> {
       deps.requireStepUp(caller, deps.clock.now());
       refuseUnfetchableFeed(input);
-      const cwd = folderOf(input.execution.cwd);
+      const { cwd, agentId } = resolveExecution(deps.agents, caller.userId, input.execution, folderOf);
       const config = configOf(input, cwd);
       // Nothing is written for the 201st trigger, and no older one is evicted (M10R16).
       if (store.count(caller.userId) >= AUTOMATION_LIMITS.triggersPerOwner)
@@ -299,7 +304,8 @@ export function createTriggers(deps: TriggersDeps) {
           sourceType: input.source.type,
           config,
           cwd,
-          projectId: projectOf(caller.userId, cwd),
+          agentId,
+          projectId: projectOf(caller.userId, cwd, agentId),
           secretRotatedAt: secret ? now : null,
           at: now,
         });
@@ -322,7 +328,7 @@ export function createTriggers(deps: TriggersDeps) {
       const before = owned(caller.userId, triggerId);
       if (before.revision !== baseRevision) throw new PapError("conflict");
       refuseUnfetchableFeed(input);
-      const cwd = folderOf(input.execution.cwd);
+      const { cwd, agentId } = resolveExecution(deps.agents, caller.userId, input.execution, folderOf);
       const config = configOf(input, cwd);
       const now = deps.clock.now();
       const isWebhook = input.source.type === "webhook";
@@ -342,7 +348,8 @@ export function createTriggers(deps: TriggersDeps) {
           sourceType: input.source.type,
           config,
           cwd,
-          projectId: projectOf(caller.userId, cwd),
+          agentId,
+          projectId: projectOf(caller.userId, cwd, agentId),
           ...(secret ? { secretRotatedAt: now } : isWebhook ? {} : { secretRotatedAt: null }),
           at: now,
         });
@@ -376,9 +383,9 @@ export function createTriggers(deps: TriggersDeps) {
       return viewOf(record, caller.kind === "token");
     },
 
-    /** The old secret stops working at once: the file is replaced, there is no grace (M10R18). */
-    rotateSecret(caller: Caller, triggerId: string): { secret: string } {
-      deps.requireStepUp(caller, deps.clock.now());
+    /** The old secret stops working at once: the file is replaced, there is no grace (M10R18). `stepUpGiven`: a quarantine asked already (M11R115). */
+    rotateSecret(caller: Caller, triggerId: string, stepUpGiven = false): { secret: string } {
+      if (!stepUpGiven) deps.requireStepUp(caller, deps.clock.now());
       const record = owned(caller.userId, triggerId);
       if (record.input?.source.type !== "webhook") throw new PapError("bad_request");
       const secret = newHookSecret();

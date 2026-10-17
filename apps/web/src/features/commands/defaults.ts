@@ -55,6 +55,8 @@ export const COMMANDS: readonly CommandSpec[] = [
   { id: "auth.signOut", titleKey: "commands.auth.signOut", group: "app" },
 ];
 
+const AGENT_KEYS_WHEN = "!panelFocus && !editableFocus && !dialogOpen";
+
 // pi-web's shortcuts (spec C §7.3) plus the shell's; chords browsers keep are avoided (Review Focus 4). Every chord
 // stays out of an extension's terminal-input panel (`!panelFocus`); Escape also leaves an open menu, select or popover
 // to Radix (`!overlayOpen`) and an inline edit to itself (`!inlineEditFocus`), so it stops the run only when none holds
@@ -88,12 +90,13 @@ export const DEFAULT_KEYBINDINGS: readonly KeybindingRule[] = [
   },
   { key: "alt+w", command: "tab.close", when: "!panelFocus && !editableFocus && !dialogOpen" },
   { key: "mod+\\", command: "pane.split", when: "!panelFocus && !dialogOpen && !mobile" },
-  { key: "alt+arrowdown", command: "agent.nextUnread", when: "!panelFocus && !dialogOpen" },
-  { key: "alt+arrowup", command: "agent.prevUnread", when: "!panelFocus && !dialogOpen" },
+  // The agent keys never fire with the caret in a text field, the composer included (RT-19, M11R109).
+  { key: "alt+arrowdown", command: "agent.nextUnread", when: AGENT_KEYS_WHEN },
+  { key: "alt+arrowup", command: "agent.prevUnread", when: AGENT_KEYS_WHEN },
   ...Array.from({ length: 9 }, (_, i) => ({
     key: `ctrl+alt+${i + 1}`,
     command: `agent.goto.${i + 1}`,
-    when: "!panelFocus && !dialogOpen",
+    when: AGENT_KEYS_WHEN,
   })),
 ];
 

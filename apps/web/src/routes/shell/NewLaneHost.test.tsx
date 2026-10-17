@@ -101,7 +101,8 @@ describe("the new-lane host", () => {
   it("creating opens the new lane's tab", async () => {
     withProjects("a");
     bed.handlers["lanes.create"] = () => ({ laneIds: ["fix-1a2b"], fanoutId: null });
-    const page = await renderShell("/");
+    // The route the creation navigates to: its chunk is loaded here, not left in flight when the file ends.
+    const page = await renderShell("/", { chunks: ["lane"] });
     await chord();
     await vi.waitFor(() => expect(document.querySelector('[data-slot="new-lane"]')).not.toBeNull(), {
       timeout: 2_000,
@@ -121,7 +122,7 @@ describe("the new-lane host", () => {
       laneIds: ["a-1a2b", "b-1a2b"],
       fanoutId: "0123456789abcdef",
     });
-    const page = await renderShell("/");
+    const page = await renderShell("/", { chunks: ["compare"] });
     await chord();
     await vi.waitFor(() => field(document.body, "Issue or description"), { timeout: 2_000 });
     await typeInto(field(document.body, "Issue or description"), "Fix it");

@@ -1,3 +1,4 @@
+import { HOME_SUBCOMMANDS } from "./allowlist-homes.ts";
 import { LANE_SUBCOMMANDS } from "./allowlist-lanes.ts";
 import { FILTER_SCAN_ARGS, ORIGIN_URLS_ARGS, PUSH_SCAN_ARGS } from "./exec.ts";
 
@@ -64,7 +65,11 @@ const READ: Readonly<Record<string, SubcommandRule>> = {
 };
 
 /** A lane entry replaces the read entry of the same subcommand (it lists the read options too). */
-export const SUBCOMMANDS: Readonly<Record<string, SubcommandRule>> = { ...READ, ...LANE_SUBCOMMANDS };
+export const SUBCOMMANDS: Readonly<Record<string, SubcommandRule>> = {
+  ...READ,
+  ...LANE_SUBCOMMANDS,
+  ...HOME_SUBCOMMANDS,
+};
 
 /** The exact `config` reads, the only `config` calls there are: a bare `config` could write. */
 const CONFIG_READS = [FILTER_SCAN_ARGS, PUSH_SCAN_ARGS, ORIGIN_URLS_ARGS] as const;

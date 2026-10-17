@@ -45,6 +45,7 @@ function trigger(
     sourceType: "webhook",
     input,
     cwd: "/tmp",
+    agentId: null,
     projectId: null,
     secretRotatedAt: null,
     nextFireAt: null,

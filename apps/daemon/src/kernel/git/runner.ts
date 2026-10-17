@@ -6,7 +6,7 @@ import type { Logger } from "../logger.ts";
 import { maskedStdio } from "../pty/fd-mask.ts";
 import { cutUnits } from "../text.ts";
 import { type GitProfile, prepare } from "./allowlist.ts";
-import { gitArgs, gitEnv, isLaneGitDir, WORK_TREE_PINNED } from "./exec.ts";
+import { gitArgs, gitEnv, isAgentGitCall, isLaneGitDir, WORK_TREE_PINNED } from "./exec.ts";
 import { stageInputAllowed } from "./stage.ts";
 
 export type GitErrorKind = "git_missing" | "timeout" | "too_large" | "failed" | "git_too_old";
@@ -267,7 +267,12 @@ export function createGitRunner(deps: GitRunnerDeps): GitRunner {
       const prepared = prepare(args, profile, added ?? {});
       if (!prepared || !added) throw fail("failed", args, null);
       const sub = args[0] ?? "";
-      if (options.gitDir !== undefined && !isLaneGitDir(options.gitDir)) throw fail("failed", args, null);
+      if (
+        options.gitDir !== undefined &&
+        !isLaneGitDir(options.gitDir) &&
+        !isAgentGitCall(sub, root, options.gitDir)
+      )
+        throw fail("failed", args, null);
       if (WORK_TREE_PINNED.has(sub) && options.gitDir === undefined) throw fail("failed", args, null);
       // MC1 I3: the staged list is capped, and `add` (and a listed `restore`) has no other source of paths.
       const listed =

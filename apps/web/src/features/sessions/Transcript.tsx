@@ -1,8 +1,9 @@
 import { AuthorGroup, Button, type ToolDetail } from "@pap/ui";
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
+import type { Interleave } from "../../stores/thread-interleave.ts";
 import { useFocusEntry } from "../../stores/focus-entry.ts";
 import { useSessionStore } from "../../stores/session-store.ts";
 import { failureText } from "./failure.ts";
@@ -10,7 +11,7 @@ import { MessageRow, SummaryRow, type RowActions } from "./MessageRow.tsx";
 import { Minimap } from "./Minimap.tsx";
 import { rowId } from "./minimap.vm.ts";
 import { ToolItemCard } from "./ToolItemCard.tsx";
-import { groupItems } from "./transcript-groups.ts";
+import { groupItems, interleaveRow } from "./transcript-groups.ts";
 import { transcriptItems, type TranscriptItem } from "./transcript.vm.ts";
 import type { Track } from "./use-action.ts";
 import { useBranches } from "./use-branches.ts";
@@ -28,6 +29,8 @@ interface TranscriptProps {
     readonly onEdit: (text: string) => void;
     readonly announce?: RowActions["announce"];
   };
+  /** An agent's thread: its event cards and day separators are placed among the rows (M11R118). */
+  readonly interleave?: Interleave;
 }
 
 /** One page of older rows at a time, asked for the view as it is now and dropped by the store if it changed since. */
@@ -114,14 +117,16 @@ function useFocusMatch(
   return asked !== null && view.loaded && itemKey === undefined ? "search.olderMatch" : null;
 }
 
-export function Transcript({ sessionId, view, toolDetail, rowActions }: TranscriptProps) {
+export function Transcript({ sessionId, view, toolDetail, rowActions, interleave }: TranscriptProps) {
   const t = useT();
   const items = transcriptItems(view, t);
-  const groups = groupItems(items);
+  const plan = interleave?.arrange(items.map(interleaveRow), view.history.hasMore);
+  const shown = plan ? items.filter((item) => !plan.hidden.has(item.key)) : items;
+  const groups = groupItems(shown, plan?.breaks);
   const scope = useId();
   const last = items.at(-1);
   const { attach, onScroll, preserveOnPrepend } = useStickToBottom(
-    `${items.length}:${last && "text" in last ? last.text.length : 0}:${view.history.oldestEntryId}`,
+    `${items.length}:${last && "text" in last ? last.text.length : 0}:${view.history.oldestEntryId}:${plan?.after.length ?? 0}`,
   );
   const older = useOlderHistory(sessionId, view, preserveOnPrepend);
   const branches = useBranches(sessionId, view, rowActions !== undefined);
@@ -187,41 +192,53 @@ export function Transcript({ sessionId, view, toolDetail, rowActions }: Transcri
             </li>
           ) : null}
           {groups.map((group) => (
-            <li key={group.key} className="mx-auto w-full max-w-chat">
-              {group.kind === "run" ? (
-                <AuthorGroup author={group.author} name={t(`author.${group.author}`)}>
-                  {group.items.map((item) => (
-                    <div key={item.key} id={rowId(scope, item.key)}>
-                      {item.kind === "tool" ? (
-                        <ToolItemCard item={item} sessionId={sessionId} detail={toolDetail ?? "compact"} />
-                      ) : (
-                        <MessageRow item={item} grouped actions={actionsFor(item)} />
-                      )}
-                    </div>
-                  ))}
-                </AuthorGroup>
-              ) : (
-                <div id={rowId(scope, group.item.key)}>
-                  {group.item.kind === "summary" ? (
-                    <SummaryRow item={group.item} />
-                  ) : group.item.kind === "failure" ? (
-                    <div
-                      data-failure
-                      role={group.item === items.at(-1) ? "alert" : undefined}
-                      className="border-l-2 border-err px-s3 py-s2 text-ui text-err"
-                    >
-                      <p className="label-hud">{t("session.failure")}</p>
-                      <p className="mt-s1 whitespace-pre-wrap break-words">{group.item.text}</p>
-                    </div>
-                  ) : group.item.kind === "message" ? (
-                    <MessageRow item={group.item} actions={actionsFor(group.item)} />
-                  ) : null}
-                </div>
-              )}
+            <Fragment key={group.key}>
+              {plan?.before.get(group.key)?.map((node, n) => (
+                <li key={`extra:${n}`} className="mx-auto w-full max-w-chat">
+                  {node}
+                </li>
+              ))}
+              <li className="mx-auto w-full max-w-chat">
+                {group.kind === "run" ? (
+                  <AuthorGroup author={group.author} name={t(`author.${group.author}`)}>
+                    {group.items.map((item) => (
+                      <div key={item.key} id={rowId(scope, item.key)}>
+                        {item.kind === "tool" ? (
+                          <ToolItemCard item={item} sessionId={sessionId} detail={toolDetail ?? "compact"} />
+                        ) : (
+                          <MessageRow item={item} grouped actions={actionsFor(item)} />
+                        )}
+                      </div>
+                    ))}
+                  </AuthorGroup>
+                ) : (
+                  <div id={rowId(scope, group.item.key)}>
+                    {group.item.kind === "summary" ? (
+                      <SummaryRow item={group.item} />
+                    ) : group.item.kind === "failure" ? (
+                      <div
+                        data-failure
+                        role={group.item === items.at(-1) ? "alert" : undefined}
+                        className="border-l-2 border-err px-s3 py-s2 text-ui text-err"
+                      >
+                        <p className="label-hud">{t("session.failure")}</p>
+                        <p className="mt-s1 whitespace-pre-wrap break-words">{group.item.text}</p>
+                      </div>
+                    ) : group.item.kind === "message" ? (
+                      <MessageRow item={group.item} actions={actionsFor(group.item)} />
+                    ) : null}
+                  </div>
+                )}
+              </li>
+            </Fragment>
+          ))}
+          {plan?.after.map((node, n) => (
+            <li key={`after:${n}`} className="mx-auto w-full max-w-chat">
+              {node}
             </li>
           ))}
         </ol>
-        <Minimap scope={scope} items={items} view={view} onLoadOlder={() => void older.load()} />
+        <Minimap scope={scope} items={shown} view={view} onLoadOlder={() => void older.load()} />
       </div>
       {branches.error ? (
         <p role="alert" className="text-ui text-attn">

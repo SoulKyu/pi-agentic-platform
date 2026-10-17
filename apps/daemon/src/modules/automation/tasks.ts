@@ -31,6 +31,13 @@ export interface TaskRow {
   readonly created_at: number;
   readonly started_at: number | null;
   readonly ended_at: number | null;
+  /** M11: the agent a task runs as and where (`isolated` or `thread`); both null for a project task. */
+  readonly agent_id: string | null;
+  readonly target: "isolated" | "thread" | null;
+  readonly requested_by: string | null;
+  readonly not_before: number | null;
+  /** The session that set a reminder (W5-R44). */
+  readonly set_by_session: string | null;
 }
 /** A row with what the board shows of its trigger: the name and the project; both null once the trigger is deleted. */
 export interface TaskJoined extends TaskRow {
@@ -91,6 +98,15 @@ export interface NewTask {
   readonly maxRunMs: number;
   readonly maxRunUsd: number | null;
   readonly at: number;
+  /** An agent's task (M11R64): both or neither. */
+  readonly agentId?: string | null;
+  readonly target?: "isolated" | "thread" | null;
+  /** The agent whose delegation started this task, or whose delegated run set this reminder (M11R78, M11R80). */
+  readonly requestedBy?: string | null;
+  /** A reminder: not started before this instant (M11R81). */
+  readonly notBefore?: number | null;
+  /** The session that set a reminder: a tainted one may fire only into it (W5-R44). */
+  readonly setBySession?: string | null;
 }
 
 export interface Move {
@@ -113,9 +129,9 @@ export function createTaskStore(db: Db) {
     insert(task: NewTask): void {
       db.run(
         `INSERT INTO tasks (id, owner_id, trigger_id, origin, state, cwd, prompt, tainted, gated, policy, title, detail,
-           retry_of, retry_on_interrupt, max_run_ms, max_run_usd, created_at)
+           retry_of, retry_on_interrupt, max_run_ms, max_run_usd, created_at, agent_id, target, requested_by, not_before, set_by_session)
          VALUES ($id, $ownerId, $triggerId, $origin, 'queued', $cwd, $prompt, $tainted, $gated, $policy, $title, $detail,
-           $retryOf, $retryOnInterrupt, $maxRunMs, $maxRunUsd, $at)`,
+           $retryOf, $retryOnInterrupt, $maxRunMs, $maxRunUsd, $at, $agentId, $target, $requestedBy, $notBefore, $setBySession)`,
         {
           id: task.id,
           ownerId: task.ownerId,
@@ -133,6 +149,11 @@ export function createTaskStore(db: Db) {
           maxRunMs: task.maxRunMs,
           maxRunUsd: task.maxRunUsd,
           at: task.at,
+          agentId: task.agentId ?? null,
+          target: task.target ?? null,
+          requestedBy: task.requestedBy ?? null,
+          notBefore: task.notBefore ?? null,
+          setBySession: task.setBySession ?? null,
         },
       );
     },
@@ -143,8 +164,13 @@ export function createTaskStore(db: Db) {
     getOwned: (ownerId: string, id: string): TaskJoined | undefined =>
       db.get<TaskJoined>(`${JOINED} WHERE t.id = $id AND t.owner_id = $ownerId`, { id, ownerId }),
 
+    /** The task of a session; an agent's thread serves many tasks one after the other, so the live one comes first. */
     bySession: (sessionId: string): TaskJoined | undefined =>
-      db.get<TaskJoined>(`${JOINED} WHERE t.session_id = $sessionId`, { sessionId }),
+      db.get<TaskJoined>(
+        `${JOINED} WHERE t.session_id = $sessionId
+         ORDER BY CASE WHEN t.state IN ('running', 'limited') THEN 0 ELSE 1 END, t.created_at DESC, t.id DESC LIMIT 1`,
+        { sessionId },
+      ),
 
     /** Moves the task when it is in one of `from`: true when this call changed the row (M10R35). */
     move(id: string, from: readonly TaskState[], to: TaskState, change: Move = {}): boolean {
@@ -205,19 +231,66 @@ export function createTaskStore(db: Db) {
      * last start is the oldest (never started first; the tasks of deleted triggers are one group, started when its last
      * task did), then the oldest task of that trigger. One order for everybody: no owner goes first by name.
      */
-    nextQueued(owners: readonly string[], excluded: readonly string[]): TaskRow | undefined {
+    nextQueued(owners: readonly string[], excluded: readonly string[], now: number): TaskRow | undefined {
       return db.get<TaskRow>(
         `SELECT t.* FROM tasks t LEFT JOIN triggers g ON g.id = t.trigger_id
          WHERE t.owner_id IN (SELECT value FROM json_each($owners)) AND t.state = 'queued'
            AND t.id NOT IN (SELECT value FROM json_each($excluded))
+           AND (t.not_before IS NULL OR t.not_before <= $now)
          ORDER BY CASE WHEN t.trigger_id IS NULL
              THEN COALESCE((SELECT max(s.started_at) FROM tasks s WHERE s.trigger_id IS NULL AND s.owner_id = t.owner_id), -1)
              ELSE COALESCE(g.last_start_at, -1) END,
            t.created_at, t.id
          LIMIT 1`,
-        { owners: JSON.stringify(owners), excluded: JSON.stringify(excluded) },
+        { owners: JSON.stringify(owners), excluded: JSON.stringify(excluded), now },
       );
     },
+
+    /** Queued tasks whose `not_before` has come (M11R81): what the due timer hands to the runner. */
+    dueQueued: (now: number, limit: number): TaskRow[] =>
+      db.all<TaskRow>(
+        "SELECT * FROM tasks WHERE state = 'queued' AND not_before IS NOT NULL AND not_before <= $now ORDER BY not_before, id LIMIT $limit",
+        { now, limit },
+      ),
+
+    /** The earliest `not_before` still ahead among queued tasks; null when none waits for a time. */
+    nextNotBefore: (now: number): number | null =>
+      db.get<{ at: number | null }>(
+        "SELECT min(not_before) AS at FROM tasks WHERE state = 'queued' AND not_before > $now",
+        { now },
+      )?.at ?? null,
+
+    /** The requester of the agent's running thread task (null: none runs, or it was not delegated): the depth of M11R78. */
+    runningRequester: (ownerId: string, agentId: string): string | null =>
+      db.get<{ requested_by: string | null }>(
+        `SELECT requested_by FROM tasks WHERE owner_id = $ownerId AND agent_id = $agentId AND target = 'thread'
+           AND state = 'running' ORDER BY started_at DESC, id DESC LIMIT 1`,
+        { ownerId, agentId },
+      )?.requested_by ?? null,
+
+    /** Delegations `requestedBy` asked for since `since`, whatever became of them (the rolling hour of M11R78). */
+    delegationsSince: (ownerId: string, requestedBy: string, since: number): number =>
+      db.get<{ n: number }>(
+        `SELECT count(*) AS n FROM tasks WHERE owner_id = $ownerId AND origin = 'delegate' AND requested_by = $requestedBy
+           AND created_at >= $since`,
+        { ownerId, requestedBy, since },
+      )?.n ?? 0,
+
+    /** Delegations still queued for `agentId`, from any requester (the per-target cap of T12). */
+    queuedDelegationsTo: (ownerId: string, agentId: string): number =>
+      db.get<{ n: number }>(
+        `SELECT count(*) AS n FROM tasks WHERE owner_id = $ownerId AND agent_id = $agentId AND origin = 'delegate'
+           AND state = 'queued'`,
+        { ownerId, agentId },
+      )?.n ?? 0,
+
+    /** The agent's reminders: still queued, and made since `since` (M11R80). */
+    reminders: (ownerId: string, agentId: string, since: number): { pending: number; created: number } =>
+      db.get<{ pending: number; created: number }>(
+        `SELECT count(*) FILTER (WHERE state = 'queued') AS pending, count(*) FILTER (WHERE created_at >= $since) AS created
+         FROM tasks WHERE owner_id = $ownerId AND agent_id = $agentId AND origin = 'remind'`,
+        { ownerId, agentId, since },
+      ) ?? { pending: 0, created: 0 },
 
     queuedIds: (ownerId: string, limit: number): string[] =>
       db
@@ -226,6 +299,36 @@ export function createTaskStore(db: Db) {
           { ownerId, limit },
         )
         .map((row) => row.id),
+
+    /** An agent's tasks in these states (M11): what its delete waits for and cancels. */
+    ofAgent: (ownerId: string, agentId: string, states: readonly TaskState[]): TaskRow[] =>
+      db.all<TaskRow>(
+        `SELECT * FROM tasks WHERE owner_id = $ownerId AND agent_id = $agentId
+           AND state IN (SELECT value FROM json_each($states)) ORDER BY created_at, id`,
+        { ownerId, agentId, states: JSON.stringify(states) },
+      ),
+
+    /** The delegations an agent asked for, in these states (quarantine ends the queued ones, W5-R64 I4). */
+    requestedBy: (ownerId: string, agentId: string, states: readonly TaskState[]): TaskRow[] =>
+      db.all<TaskRow>(
+        `SELECT * FROM tasks WHERE owner_id = $ownerId AND requested_by = $agentId AND origin = 'delegate'
+           AND state IN (SELECT value FROM json_each($states)) ORDER BY created_at, id`,
+        { ownerId, agentId, states: JSON.stringify(states) },
+      ),
+
+    /** The newest tasks of an agent, any state, newest first (the status panel, M11R76). */
+    newestOfAgent: (ownerId: string, agentId: string, limit: number): TaskJoined[] =>
+      db.all<TaskJoined>(
+        `${JOINED} WHERE t.owner_id = $ownerId AND t.agent_id = $agentId ORDER BY t.created_at DESC, t.id DESC LIMIT $limit`,
+        { ownerId, agentId, limit },
+      ),
+
+    /** The newest finished thread tasks, any owner (their cards are settled at boot, M11R71). */
+    endedThreadTasks: (limit: number): TaskRow[] =>
+      db.all<TaskRow>(
+        `SELECT * FROM tasks WHERE target = 'thread' AND ended_at IS NOT NULL ORDER BY ended_at DESC, id DESC LIMIT $limit`,
+        { limit },
+      ),
 
     running: (): TaskRow[] =>
       db.all<TaskRow>("SELECT * FROM tasks WHERE state = 'running' ORDER BY created_at, id"),
@@ -241,17 +344,31 @@ export function createTaskStore(db: Db) {
     doneWithSessionBefore: (before: number, limit: number): TaskRow[] =>
       db.all<TaskRow>(
         `SELECT * FROM tasks WHERE state = 'done' AND session_id IS NOT NULL AND ended_at < $before
-         ORDER BY ended_at, id LIMIT $limit`,
+           AND (target IS NULL OR target <> 'thread') ORDER BY ended_at, id LIMIT $limit`,
         { before, limit },
       ),
 
     remove: (id: string): void => void db.run("DELETE FROM tasks WHERE id = $id", { id }),
 
-    /** Terminal tasks older than `before` that leave no session behind to find again: done ones with a session are the pass's own. */
+    /** Isolated agent tasks `removeEndedBefore` is about to delete: their scratch folders go with them (M11R180). */
+    isolatedEndedBefore: (before: number, limit: number): TaskRow[] =>
+      db.all<TaskRow>(
+        `SELECT * FROM tasks WHERE ended_at < $before AND (state != 'done' OR session_id IS NULL)
+           AND agent_id IS NOT NULL AND target = 'isolated' ORDER BY ended_at, id LIMIT $limit`,
+        { before, limit },
+      ),
+
+    exists: (id: string): boolean => db.get("SELECT 1 AS n FROM tasks WHERE id = $id", { id }) !== undefined,
+
+    /**
+     * Terminal tasks older than `before` that leave no session behind to find again: done ones with a session are the
+     * pass's own. A thread task's session is the agent's thread, which is never the pass's to delete: its row goes alone.
+     */
     removeEndedBefore: (before: number): number =>
-      db.run(`DELETE FROM tasks WHERE ended_at < $before AND (state != 'done' OR session_id IS NULL)`, {
-        before,
-      }).changes,
+      db.run(
+        `DELETE FROM tasks WHERE ended_at < $before AND (state != 'done' OR session_id IS NULL OR target = 'thread')`,
+        { before },
+      ).changes,
 
     /** The board's rows (M10R43): every live task, and the finished ones of the window, newest first. */
     board(ownerId: string, since: number, limit: number): TaskJoined[] {

@@ -10,6 +10,7 @@ export const STREAMS = [
   "tasks",
   "inbox",
   "usage",
+  "agents",
 ] as const;
 export type StreamName = (typeof STREAMS)[number];
 
@@ -25,6 +26,7 @@ import {
   GuardRule,
   SessionPolicyView,
   TOOL_CATEGORIES,
+  TrustedHost,
 } from "./policy.ts";
 import { LoginEvent } from "./models-methods.ts";
 import { SessionLoadout, ToolPreset } from "./session-loadout.ts";
@@ -84,8 +86,16 @@ export const Dialog = z
     tool: z.string().min(1).max(256).optional(),
     /** Approval dialogs only: what "always" may cover besides the exact call (Task 2a). */
     alwaysScopes: AlwaysScopes.optional(),
+    /** Approval dialogs only: the host the `host` answer allows, present exactly when `answers` holds `host` (owner a2). */
+    host: TrustedHost.optional(),
   })
   .superRefine((dialog, ctx) => {
+    if ((dialog.host !== undefined) !== (dialog.answers?.includes("host") ?? false)) {
+      ctx.addIssue({
+        code: "custom",
+        message: "a card carries its host exactly when it offers the host answer",
+      });
+    }
     // An approval without its answers or its category could not be answered by the policy's own rules: refused (M2R61).
     if (dialog.method === "approval" && (!dialog.answers?.length || !dialog.category)) {
       ctx.addIssue({ code: "custom", message: "an approval carries its category and its answers" });

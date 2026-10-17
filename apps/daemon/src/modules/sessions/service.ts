@@ -2,6 +2,10 @@ import { type Caller, PapError, type SessionStatus } from "@pap/contracts";
 import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
 import { createAttention, createAutomationPort } from "./automation-port.ts";
+import { createAgentPort } from "./agent-port.ts";
+import { createSidebarHub } from "./sidebar-hub.ts";
+import { createWorkerRoom } from "./worker-room.ts";
+import { createAgentSurface } from "./agent-surface.ts";
 import { createPolicyLink } from "./policy-link.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
@@ -39,25 +43,24 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     const stored = deps.store.get(row.id);
     return stored ? (stored.toolPreset ?? null) : (row.toolPreset ?? null);
   };
+  const agent = createAgentSurface(deps);
   const policyLink = createPolicyLink({
     ...deps,
     sessions: () => [...live.values(), ...starting],
     toolPreset: presetOf,
+    agentRules: agent.rulesOf,
+    agentModeOf: agent.modeOf,
   });
   const grants = policyLink.grants;
   const attachments = createPromptAttachments(deps);
 
-  const checkCapacity = () => {
-    if (
-      closing ||
-      live.size + starting.size >= deps.limits.maxWorkers ||
-      deps.freeMemMb() < deps.limits.minFreeMemMb
-    ) {
-      throw new PapError("capacity", {
-        workers: { used: live.size + starting.size, max: deps.limits.maxWorkers },
-      });
-    }
-  };
+  const room = createWorkerRoom({
+    live,
+    starting,
+    limits: deps.limits,
+    freeMemMb: () => deps.freeMemMb(),
+    closing: () => closing,
+  });
 
   const marks = deps.store.marks;
   const link = createProjectLink({
@@ -76,8 +79,9 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     live: (id) => ({ status: statusOf(id), needsInput: (live.get(id)?.dialogs().length ?? 0) > 0 }),
   });
   const attention = createAttention(deps.logger);
+  const sidebarHub = createSidebarHub(deps.store, deps.hub);
   const publisher = createShellPublisher({
-    hub: attention.wrap(deps.hub),
+    hub: attention.wrap(sidebarHub),
     summary: shell.summary,
     project: shell.project,
     archivedCount: marks.countArchived,
@@ -125,9 +129,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     starting,
     grants,
     policyLink,
-    checkCapacity,
+    agent,
+    ...room,
     toolPreset: presetOf,
-    projectFor: (row) => link.projectOf(row.ownerId, row.cwd),
+    // An agent's sessions belong to the agent, not to a project (M11R56).
+    projectFor: (row) => (row.agentId === undefined ? link.projectOf(row.ownerId, row.cwd) : null),
     onReopened: (sessionId) => {
       publisher.changed(sessionId);
       folderRestart.reopened(sessionId);
@@ -145,6 +151,19 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   const owned = (sessionId: string, caller: Caller): SessionRow => {
     const row = deps.store.get(sessionId);
     if (!row || row.ownerId !== caller.userId) throw new PapError("not_found");
+    return row;
+  };
+
+  // A token never makes an agent's trusted thread run (M11R4, W5-R64): every method that starts a run in it refuses one.
+  const ownedForRun = (sessionId: string, caller: Caller): SessionRow => {
+    const row = owned(sessionId, caller);
+    if (caller.kind === "token" && row.agentId !== undefined) throw new PapError("forbidden");
+    return row;
+  };
+
+  // A fork would be a second thread, or a plain session in the agent's home (M11R179).
+  const notAgent = (row: SessionRow): SessionRow => {
+    if (row.agentId !== undefined) throw new PapError("bad_request");
     return row;
   };
 
@@ -185,6 +204,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     running: async (id) => live.get(id) ?? (await reopening.get(id)?.catch(() => null)) ?? null,
     // The worker is sent the whole rules, which now say whether the preset is read-only.
     presetChanged: (row) => grants.pushWhere((tracked) => tracked.id === row.id),
+    clampPreset: agent.clampPreset,
   });
   const forks = createForks({
     store: deps.store,
@@ -207,6 +227,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     owned,
     publisher,
     onSnoozeChange: organiser.rearm,
+    // The running worker holds the grants in its rules: it is pushed the rules without them (W5-R35).
+    onArchived: (sessionId) => {
+      agent.hostGrants.drop(sessionId);
+      grants.pushWhere((tracked) => tracked.id === sessionId);
+    },
   });
 
   const filed = <T extends { sessionId: string }>(source: SessionRow, result: T): T => {
@@ -217,13 +242,40 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   };
 
   const automation = createAutomationPort(
-    { deps, live, starting, reopening, launch, attention, publisher, marks },
+    {
+      deps,
+      live,
+      starting,
+      reopening,
+      launch,
+      attention,
+      publisher,
+      marks,
+      room,
+      sandboxed: agent.sandboxed,
+    },
     () => self,
   );
+  const agentSessions = createAgentPort({
+    deps,
+    live,
+    starting,
+    reopening,
+    agent,
+    marks,
+    launch,
+    ...room,
+    releaseIdle: folderRestart.releaseIdle,
+    models: () => self,
+    lastText: reads.agentText,
+  });
   const self: SessionsServiceWithAutomation = {
     automation,
+    agent,
+    agentSessions,
+    modeOf: (ownerId, sessionId) => policyLink.viewOf(owned(sessionId, { userId: ownerId } as Caller)).mode,
     async create(cwdInput, caller, preset) {
-      const cwd = resolveSessionCwd(cwdInput);
+      const cwd = resolveSessionCwd(cwdInput, deps.worker.papHome);
       const now = deps.clock.now();
       const toolPreset = preset === undefined ? null : storedPresetOf(preset);
       const row: SessionRow = {
@@ -248,7 +300,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     listArchived: shell.listArchived,
     summary: shell.summaryFor,
     async prompt(input, caller) {
-      const row = owned(input.sessionId, caller);
+      const row = ownedForRun(input.sessionId, caller);
       // Claimed for this session and owner before a worker is asked for anything; released only once Pi accepted (M8R43).
       const ids = input.attachments ?? [];
       const prepared =
@@ -261,6 +313,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       publisher.changed(row.id);
       const waiting = deps.laneHooks?.beforePrompt(row, session, input.streamingBehavior);
       if (waiting) await waiting;
+      // Asked and sent in one step: nothing is awaited between the answer and the worker's request.
+      if (input.stillWanted && !input.stillWanted()) return { disposition: "handled" };
       const result = await session.prompt(prepared.text, input.streamingBehavior, prepared.images);
       prepared.accepted();
       return result;
@@ -284,11 +338,11 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     setThinking: (input, caller) => modelCommands.setThinking(input, caller),
     setTools: (input, caller) => modelCommands.setTools(input, caller),
     fork: async ({ sessionId, entryId }, caller) => {
-      const row = owned(sessionId, caller);
+      const row = notAgent(owned(sessionId, caller));
       return filed(row, await forks.fork(row, entryId));
     },
     clone: async ({ sessionId }, caller) => {
-      const row = owned(sessionId, caller);
+      const row = notAgent(owned(sessionId, caller));
       return filed(row, await forks.clone(row, live.get(row.id)?.leafId() ?? null));
     },
     async clearQueue(sessionId, caller) {
@@ -302,7 +356,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       // A token answers deny or once (Q7): a rule that outlives the token is a browser session's to make.
       if (caller.kind === "token" && "answer" in input.response && !TOKEN_ANSWERS.has(input.response.answer))
         throw new PapError("forbidden");
+      agent.guardAnswer(session, input.dialogId, caller, input.response, row.id);
       const approved = session.answer(input.dialogId, input.response);
+      agent.noted(row.id, approved, caller);
+      if (approved?.answer === "host") grants.pushWhere((tracked) => tracked.id === row.id);
       grants.answered(session, approved);
       if (approved?.grant.toolCallId !== undefined)
         policyLink.answeredBy(row, approved.grant.toolCallId, caller);
@@ -321,6 +378,8 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       organiser.stop();
       policyLink.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
+      // The workers are gone: the proxy removes its folders under the runtime folder (a tmpfs nobody else empties).
+      await agent.egress()?.shutdown();
     },
     restartFolder: folderRestart.restart,
     releaseIdle: folderRestart.releaseIdle,

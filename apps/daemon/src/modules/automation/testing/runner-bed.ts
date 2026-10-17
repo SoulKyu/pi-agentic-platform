@@ -73,6 +73,9 @@ export function fakeSessions(order: Order) {
       attention.add(listener);
       return () => void attention.delete(listener);
     },
+    /** The thread target's reads (M11R71): a warm thread with nothing pending, until a test says otherwise. */
+    admits: vi.fn<SessionsAutomationPort["admits"]>(() => true),
+    promptPending: vi.fn<SessionsAutomationPort["promptPending"]>(() => false),
   };
   return {
     ...port,
@@ -80,17 +83,7 @@ export function fakeSessions(order: Order) {
     attend: (sessionId: string, needsInput: boolean): void => {
       for (const listener of [...attention]) listener(sessionId, needsInput);
     },
-  } satisfies Pick<
-    SessionsAutomationPort,
-    | "createTaskSession"
-    | "prompt"
-    | "abort"
-    | "releaseIdle"
-    | "archive"
-    | "state"
-    | "answerUnattended"
-    | "onAttention"
-  > & { attend(sessionId: string, needsInput: boolean): void };
+  } satisfies Partial<SessionsAutomationPort> & { attend(sessionId: string, needsInput: boolean): void };
 }
 
 export interface FakeRuns {

@@ -57,6 +57,7 @@ function build(policy = fakePolicyPort(), log: string[] = [], preset: "read-only
     policy,
     audit: {
       append: () => {},
+      reserve: () => true,
       fromWorker: (row, raw) => {
         audited.push([row.id, raw]);
         return null;
@@ -98,6 +99,9 @@ describe("compose", () => {
     policy.markTainted("u1", "s1");
     expect(link.compose(ROW, "/work")).toEqual({
       profile: "interactive",
+      autonomy: null,
+      trustedSources: [],
+      hostGrants: [],
       approvalMode: "supervised",
       alwaysAllow: [testRule(1)],
       alwaysPrefixes: [],
@@ -112,6 +116,9 @@ describe("compose", () => {
       presetTools: null,
       toolAllowlist: null,
       unattended: false,
+      agentHome: null,
+      agentScratch: null,
+      sandbox: null,
     });
   });
 

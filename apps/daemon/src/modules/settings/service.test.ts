@@ -26,6 +26,8 @@ const appearance: AccountAppearance = {
   avatarStyle: "glyph",
   toolDetail: "full",
   home: { status: false, explore: true, automate: true, project: true, help: true, recent: true },
+  eventCards: "compact",
+  statusPanel: "hidden",
 } as const;
 
 let root: string;

@@ -1,4 +1,4 @@
-import type { SessionSummary, TaskTrigger, TerminalView } from "@pap/contracts";
+import type { AgentSummary, SessionSummary, TaskTrigger, TerminalView } from "@pap/contracts";
 import {
   chordJoiner,
   chordTokens,
@@ -11,6 +11,7 @@ import {
 import { SETTINGS_SECTIONS, type ItemRef, type Tab } from "../../features/workspace/index.ts";
 import type { MessageKey, Translate } from "../../i18n/index.ts";
 import type { ViewLabel } from "../../stores/view-labels-store.ts";
+import { agentTarget, railDetail } from "../../features/agents/rail.vm.ts";
 import { itemTitle } from "./item-title.ts";
 import { laneStatusOf } from "../../lib/lane-sessions.ts";
 import { isLiveLane, type LaneState } from "../../stores/lane-reducer.ts";
@@ -37,6 +38,8 @@ interface PaletteItemsInput {
   readonly triggers?: readonly TaskTrigger[];
   /** The project an empty trigger editor opens in; null while none is known (no entry then). */
   readonly newTriggerProject?: string | null;
+  /** The owner's agents in creation order (the agents store): the Agents group (M11R109). */
+  readonly agents?: readonly AgentSummary[];
   readonly t: Translate;
   navigate(item: ItemRef): void;
   run(id: string): void;
@@ -46,7 +49,10 @@ interface PaletteItemsInput {
 export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
   const { t, navigate } = input;
   const known = new Map(input.sessions.map((session) => [session.id, session]));
-  const names = new Map((input.triggers ?? []).map((trigger) => [trigger.id, trigger.name]));
+  const names = new Map([
+    ...(input.triggers ?? []).map((trigger): [string, string] => [trigger.id, trigger.name]),
+    ...(input.agents ?? []).map((agent): [string, string] => [`agent:${agent.id}`, agent.name]),
+  ]);
   const open = input.tabs.map((tab): PaletteItem => {
     const title = itemTitle(tab.item, known, input.views, t, input.lanes, names);
     return {
@@ -105,6 +111,31 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
       run: () => navigate({ kind: "lane", id: lane.id }),
     };
   });
+  const agents = (input.agents ?? []).map((agent): PaletteItem => {
+    // An unreadable profile opens Settings, not the tab: the row says so.
+    const title = t(agent.unreadable ? "commands.palette.fixAgent" : "commands.palette.agent", {
+      name: agent.name,
+    });
+    return {
+      id: `agent:${agent.id}`,
+      group: "agents",
+      title,
+      detail: railDetail(agent, t),
+      searchTerms: [title, agent.name],
+      run: () => navigate(agentTarget(agent)),
+    };
+  });
+  const newAgent: PaletteItem[] = input.has("agents.new")
+    ? [
+        {
+          id: "agents:new",
+          group: "agents",
+          title: t("commands.palette.newAgent"),
+          searchTerms: [t("commands.palette.newAgent"), t("commands.palette.group.agents")],
+          run: () => input.run("agents.new"),
+        },
+      ]
+    : [];
   const settings = SETTINGS_SECTIONS.map((section): PaletteItem => {
     const title = t(`commands.palette.settings.${section}` satisfies MessageKey);
     return {
@@ -154,5 +185,15 @@ export function buildPaletteItems(input: PaletteItemsInput): PaletteItem[] {
       ),
     ),
   ];
-  return [...open, ...terminals, ...actions, ...lanes, ...sessions, ...tasks, ...settings];
+  return [
+    ...open,
+    ...terminals,
+    ...actions,
+    ...agents,
+    ...newAgent,
+    ...lanes,
+    ...sessions,
+    ...tasks,
+    ...settings,
+  ];
 }

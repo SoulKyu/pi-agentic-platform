@@ -55,6 +55,7 @@ export function viewOf(
     fanoutId: row.fanoutId,
     fanoutSlot: row.fanoutSlot,
     firstRunEndedAt: row.firstRunEndedAt,
+    note: row.note,
     checkpointsFull,
     ...previewOf(row.description),
     notices,

@@ -13,6 +13,13 @@ import type { Gates } from "./gates.ts";
 import { type PrecheckPort, runPrecheck } from "./precheck-step.ts";
 import { type FenceSource, RENDERED_PROMPT_MAX, renderPrompt } from "./prompt.ts";
 import type { TaskStore } from "./tasks.ts";
+import {
+  type AgentBinding,
+  precheckRefusal,
+  precheckWrapOf,
+  releaseEgress,
+  resolveExecution,
+} from "./trigger-agent.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
 export interface DryRunDeps {
@@ -26,6 +33,8 @@ export interface DryRunDeps {
   readonly gates: Pick<Gates, "over" | "spentToday">;
   readonly settings: { automation(ownerId: string): AutomationSettings };
   readonly precheck?: PrecheckPort;
+  /** The agents' ports (M11): an agent trigger's folder is its home, and its precheck runs in its sandbox. */
+  readonly agents?: AgentBinding;
 }
 
 export interface DryRunParams {
@@ -67,13 +76,29 @@ export function createDryRun(deps: DryRunDeps) {
       saved.input?.execution.precheck === command &&
       sameNames(saved.input.execution.env, config.execution.env);
     if (!keeps) return "not_run_unsaved";
-    const outcome = await runPrecheck(deps, {
-      command,
-      cwd: saved.cwd,
-      env: config.execution.env,
-      triggerId: saved.id,
-      origin: "manual",
-    });
+    let wrap: ((command: string) => string[]) | undefined;
+    let release: (() => Promise<void>) | undefined;
+    let proxied = false;
+    try {
+      if (saved.agentId !== null)
+        ({ wrap, release, proxied } = await precheckWrapOf(deps.agents, saved.ownerId, saved.agentId));
+    } catch (error) {
+      // No sandbox, no run (M11R68). The output is the gate's closed word, the one the journal would carry.
+      return { verdict: "error", exitCode: null, durationMs: 0, output: precheckRefusal(error) };
+    }
+    let outcome: Awaited<ReturnType<typeof runPrecheck>>;
+    try {
+      outcome = await runPrecheck(deps, {
+        command,
+        cwd: saved.cwd,
+        env: config.execution.env,
+        triggerId: saved.id,
+        origin: "manual",
+        ...(wrap ? { wrap, proxied } : {}),
+      });
+    } finally {
+      await releaseEgress(release, deps.logger);
+    }
     if (outcome === null) return null;
     return {
       verdict: outcome.verdict,
@@ -90,11 +115,16 @@ export function createDryRun(deps: DryRunDeps) {
       if (params.triggerId !== undefined && saved === null) throw new PapError("not_found");
       const config = params.draft ?? saved?.input ?? null;
       if (config === null) throw new PapError("bad_request");
+      // The agent's thread is trusted: the manual fire refuses outside text and a token for it, so the dry run does too.
+      if (config.execution.agent?.target === "thread") {
+        if (params.payload !== undefined && params.payload !== "") throw new PapError("bad_request");
+        if (caller.kind === "token") throw new PapError("forbidden");
+      }
 
       const reasons: Reason[] = [];
       let folder: string | null = null;
       try {
-        folder = deps.triggers.resolveFolder(config.execution.cwd);
+        folder = resolveExecution(deps.agents, ownerId, config.execution, deps.triggers.resolveFolder).cwd;
       } catch (error) {
         if (!(error instanceof PapError && error.code === "invalid_cwd")) throw error;
         reasons.push("invalid_cwd");
@@ -147,7 +177,7 @@ export function createDryRun(deps: DryRunDeps) {
           editsUnasked:
             mode === "auto-accept-edits" && tools.some((tool) => tool === "edit" || tool === "write"),
         },
-        cwd: folder ?? config.execution.cwd,
+        cwd: folder ?? config.execution.cwd ?? "",
         prompt: tooLarge ? rendered.text.slice(0, RENDERED_PROMPT_MAX) : rendered.text,
         precheck,
         budget: { spentUsd: deps.gates.spentToday(ownerId), budgetUsd: settings.dailyBudgetUsd },

@@ -19,6 +19,9 @@ describe("PolicyRules v2", () => {
   it("reads M2 rules with every new field at its default", () => {
     expect(PolicyRules.parse(M2_RULES)).toEqual({
       ...M2_RULES,
+      autonomy: null,
+      trustedSources: [],
+      hostGrants: [],
       alwaysPrefixes: [],
       alwaysTools: [],
       builtinDenylist: true,
@@ -31,6 +34,9 @@ describe("PolicyRules v2", () => {
       presetTools: null,
       toolAllowlist: null,
       unattended: false,
+      agentHome: null,
+      agentScratch: null,
+      sandbox: null,
     });
   });
 
@@ -59,7 +65,7 @@ describe("PolicyRules v2", () => {
   });
 
   it("refuses a key it does not know, so a restriction is never dropped silently (M5R1)", () => {
-    expect(PolicyRules.safeParse({ ...M2_RULES, sandbox: "strict" }).success).toBe(false);
+    expect(PolicyRules.safeParse({ ...M2_RULES, sandboxMode: "strict" }).success).toBe(false);
   });
 
   it("bounds every list and limit", () => {
@@ -68,7 +74,7 @@ describe("PolicyRules v2", () => {
     expect(
       ok(
         "denylist",
-        Array.from({ length: 65 }, (_, i) => `rm ${i}`),
+        Array.from({ length: 129 }, (_, i) => `rm ${i}`),
       ),
     ).toBe(false);
     expect(

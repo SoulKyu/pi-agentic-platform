@@ -42,7 +42,7 @@ export function createAdmission(deps: AdmissionDeps) {
         eligible.push(ownerId);
       }
       const excluded = [...deps.starting.keys(), ...deps.putOff.keys()];
-      const task = eligible.length > 0 ? deps.store.nextQueued(eligible, excluded) : undefined;
+      const task = eligible.length > 0 ? deps.store.nextQueued(eligible, excluded, now) : undefined;
       if (task) return { kind: "task", task };
       if (blocked === null && deps.putOff.size > 0 && eligible.length > 0)
         return { kind: "none", reason: "capacity" };

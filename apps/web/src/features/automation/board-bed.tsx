@@ -1,5 +1,12 @@
 import "../../i18n/register-automation.ts";
-import type { ProjectSummary, TaskFailure, TasksCounts, TaskTrigger, TaskView } from "@pap/contracts";
+import type {
+  AgentSummary,
+  ProjectSummary,
+  TaskFailure,
+  TasksCounts,
+  TaskTrigger,
+  TaskView,
+} from "@pap/contracts";
 import { TooltipProvider } from "@pap/ui";
 import type { ReactElement } from "react";
 import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx";
@@ -40,6 +47,20 @@ export const triggerOf = (over: Partial<TaskTrigger> = {}): TaskTrigger => ({
   state: "ok",
   nextFireAt: null,
   ...over,
+});
+
+export const agentOf = (id: string, name: string, patch: Partial<AgentSummary> = {}): AgentSummary => ({
+  id,
+  name,
+  initials: name.slice(0, 2).toUpperCase(),
+  state: "idle",
+  unread: 0,
+  paused: false,
+  quarantined: false,
+  unreadable: false,
+  threadSessionId: null,
+  lastActivityAt: 1,
+  ...patch,
 });
 
 export const countsOf = (over: Partial<TasksCounts> = {}): TasksCounts => ({

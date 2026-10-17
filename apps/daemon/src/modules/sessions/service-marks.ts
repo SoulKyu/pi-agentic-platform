@@ -17,6 +17,8 @@ export function createSessionMarks(deps: {
   owned(sessionId: string, caller: Caller): SessionRow;
   readonly publisher: ShellPublisher;
   onSnoozeChange(): void;
+  /** A session was archived (its `archivedAt` went from null to set): once per archive. */
+  onArchived?(sessionId: string): void;
 }) {
   return {
     /** Synchronous on purpose: the state changes before the caller's first `await` (M4R126). */
@@ -24,25 +26,28 @@ export function createSessionMarks(deps: {
       const row = deps.owned(input.sessionId, caller);
       const current = deps.store.row(row.id);
       if (!current) throw new PapError("not_found");
-      const pins = deps.store.pins(row.ownerId);
+      // An agent thread is pinned for its own rail, not for the sidebar: it takes no slot and moves no one's rank.
+      const sidebar = row.agentId === undefined;
+      const pins = sidebar ? deps.store.pins(row.ownerId) : [];
       const outcome = applyMark(row.id, current.marks, input.change, pins, deps.clock.now());
       if (!outcome.ok) throw new PapError(outcome.code);
       try {
         deps.store.write(
           row.id,
           outcome.marks,
-          outcome.pins ? { ownerId: row.ownerId, order: outcome.pins } : null,
+          sidebar && outcome.pins ? { ownerId: row.ownerId, order: outcome.pins } : null,
         );
       } catch (error) {
         // A database a newer pap wrote refuses the write: a typed error, not SQLite's message.
         throw isReadOnlyError(error) ? new PapError("read_only") : error;
       }
       deps.publisher.changed(row.id);
-      for (const id of moved(pins, outcome.pins)) deps.publisher.changed(id);
+      for (const id of moved(pins, sidebar ? outcome.pins : null)) deps.publisher.changed(id);
       if ((current.marks.archivedAt === null) !== (outcome.marks.archivedAt === null)) {
         deps.publisher.countsChanged(row.ownerId);
         deps.publisher.projectChanged(row.ownerId, current.projectId);
       }
+      if (current.marks.archivedAt === null && outcome.marks.archivedAt !== null) deps.onArchived?.(row.id);
       if (current.marks.snoozedUntil !== outcome.marks.snoozedUntil) deps.onSnoozeChange();
     },
   };

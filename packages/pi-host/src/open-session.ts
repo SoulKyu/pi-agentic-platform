@@ -13,6 +13,7 @@ import {
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
 import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts";
+import { agentPrompt } from "./agent-prompt.ts";
 import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import { piBuiltins, signInNotifier } from "./builtins.ts";
@@ -21,10 +22,14 @@ import { createLoadoutWatcher, rememberProjectTrust } from "./loadout.ts";
 import { shellFactsOf } from "./shell-facts.ts";
 import { createPresetKeeper } from "./tool-preset-commands.ts";
 import { applyPreset, pinToolAllowlist, presetOf, withPreset } from "./tool-presets.ts";
-import type { SecretSource } from "./policy/secrets.ts";
+import type { SecretReader } from "./policy/secrets.ts";
 import { createPapPolicyExtension, movePolicyLast, type PolicyConfig } from "./policy/extension.ts";
 import { UNTRUSTED_RULE } from "./policy/fence.ts";
 import type { Taint } from "./policy/taint.ts";
+import { createPlatformTools, platformFirst, type PlatformPort } from "./platform-tools.ts";
+import type { EgressClient } from "./egress-client.ts";
+import { createSandboxEnvironment, type SandboxEnvironment } from "./sandbox-env.ts";
+import { createSandboxTool, sandboxFirst } from "./sandbox-tool.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
@@ -45,29 +50,43 @@ export interface OpenSessionDeps {
   readonly taint: Taint;
   audit(entry: PolicyAuditEntry): void;
   /** The secrets the worker knows (stage 06). */
-  readonly secrets: SecretSource;
+  readonly secrets: SecretReader;
   /** Told the active tool names at each `agent_start` (the session entry, M5R15). */
   onAgentStart?(activeToolNames: string[]): void;
   onEvent(event: AgentSessionEvent): void;
   onExtensionError(error: ExtensionErrorReport): void;
   /** Where the loadout record goes when an extension switches the model or the level (M7R44); none: the watcher is not installed. */
   readonly sendLoadout?: (record: Outbound) => unknown;
+  /** The way to the daemon for the platform tools of `init.platform.ops`; absent (tests), every call is answered `unavailable`. */
+  readonly platform?: PlatformPort;
+  /** The environment of the sandboxed shell, which the host rebuilds on a `vault_update`; absent, one is made from the worker's own (tests). */
+  readonly sandboxEnvironment?: SandboxEnvironment;
+  /** The way to the daemon's egress proxy for a networked sandbox (M11R232): its sockets and the reports the policy reads. */
+  readonly egress?: EgressClient;
   /** Inline extensions that load next to the policy and the Pi built-ins (the policy always runs last): tests. */
   readonly extraExtensions?: readonly InlineExtension[];
   /** Builds the policy extension. Only tests replace it, to prove that a session never starts without it. */
   readonly createPolicy?: (config: PolicyConfig) => ReturnType<typeof createPapPolicyExtension>;
 }
 
+const UNAVAILABLE: PlatformPort = { call: async () => ({ ok: false, error: "unavailable" }) };
 const TRUST_EXTENSION_PATH = "<pap:project-trust>";
 
 // Pi's own default is fail open (`projectTrusted: true`) and `reload()` never asks again, so pap decides here, and
 // every failure of the store (unreadable or corrupt file, a held lock, a read-only agent directory) means untrusted.
 // `trusted()` is the last answer, which the loadout tells the daemon (M7R105).
-function projectTrustResolver(agentDir: string, cwd: string, report: OpenSessionDeps["onExtensionError"]) {
+function projectTrustResolver(
+  agentDir: string,
+  cwd: string,
+  report: OpenSessionDeps["onExtensionError"],
+  neverTrusted: boolean,
+) {
   let reported = false;
   let trusted = false;
   return {
     resolve: async (): Promise<boolean> => {
+      // W5-R29: an agent writes its own home, so no trust Pi's store holds (the CLI's, an ancestor's) opens its project resources.
+      if (neverTrusted) return false;
       try {
         trusted = new ProjectTrustStore(agentDir).get(cwd) === true;
       } catch (error) {
@@ -101,6 +120,18 @@ function requireAgentDirEnv(agentDir: string): void {
   }
 }
 
+/** The prompt's facts (M11R55): the home is the sandbox's, else `$PAP_HOME/agents/<id>`; the scratch folder is the rules'. */
+function agentFactsOf(init: InitRecord, scratch: string | null) {
+  const { agent, sandbox, papHome } = init;
+  return {
+    name: agent?.name ?? "",
+    home: sandbox?.home ?? join(papHome, "agents", agent?.id ?? ""),
+    role: agent?.role ?? "",
+    network: sandbox?.network ?? null,
+    scratch,
+  };
+}
+
 export async function openSession(init: InitRecord, deps: OpenSessionDeps): Promise<AgentSession> {
   const { cwd, agentDir, papHome } = init;
   requireAgentDirEnv(agentDir);
@@ -108,6 +139,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   // Chat only (M7R74): no extension, skill or prompt template of the user's, and none of the built-ins below. The inline
   // factories (pap-policy first of all) still load; movePolicyLast refuses to start the session without the policy.
   const chat = preset === "chat";
+  const platformOps = init.platform?.ops ?? [];
   if (init.testProviderScript && process.env.PAP_TEST_PROVIDER !== "1") {
     throw new Error("a test provider script needs PAP_TEST_PROVIDER=1 in the worker environment");
   }
@@ -134,6 +166,8 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     taint: deps.taint,
     audit: deps.audit,
     secrets: deps.secrets,
+    ...(init.sandbox ? { sandbox: { network: init.sandbox.network } } : {}),
+    ...(deps.egress ? { egress: deps.egress } : {}),
     ...(deps.onAgentStart ? { onAgentStart: deps.onAgentStart } : {}),
     agentDir,
     papHome,
@@ -142,7 +176,12 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     shell,
     ask: (request, signal) => deps.approvals.ask(request, signal),
   });
-  const trust = projectTrustResolver(agentDir, cwd, deps.onExtensionError);
+  const platformOrder = platformFirst(deps.onExtensionError);
+  const sandboxOrder = sandboxFirst(deps.onExtensionError);
+  const sandboxEnvironment = init.sandbox
+    ? (deps.sandboxEnvironment ?? createSandboxEnvironment(process.env, init.sandbox, init.vault ?? {}))
+    : undefined;
+  const trust = projectTrustResolver(agentDir, cwd, deps.onExtensionError, init.agent !== undefined);
   const services = await createAgentSessionServices({
     cwd,
     agentDir,
@@ -150,18 +189,45 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     ...(modelRuntime ? { modelRuntime } : {}),
     resourceLoaderOptions: {
       ...(chat ? { noExtensions: true, noSkills: true, noPromptTemplates: true } : {}),
+      // W5-R24: an agent session reads no AGENTS.md / CLAUDE.md. Pi loads them from the agent folder, the cwd and every
+      // parent whatever the trust, and the thread's home is its cwd and agent-writable: a file written once would join
+      // every later system prompt unfenced. pap's own agent prompt is the only instruction source; owner sessions keep Pi's.
+      ...(init.agent ? { agentsFilesOverride: () => ({ agentsFiles: [] }) } : {}),
       // Listed first on purpose: movePolicyLast puts the policy last, so the guarantee does not rest on how Pi orders
       // its extension sources.
       extensionFactories: [
         policy,
         ...(chat ? [] : piBuiltins({ showSignInLink })),
         createPresetKeeper(() => created.session),
+        // M11R22: pap's `bash` in bwrap; without a sandbox in the init record, Pi's own.
+        ...(init.sandbox && sandboxEnvironment
+          ? [
+              createSandboxTool(init.sandbox, sandboxEnvironment.envFor, {
+                ...(deps.egress ? { egress: deps.egress } : {}),
+                redact: () => deps.secrets.current(),
+              }),
+            ]
+          : []),
+        // Loaded in every preset (inline factories always load, M7R74); `applyPreset` decides whether the model sees them.
+        ...(platformOps.length > 0
+          ? [
+              createPlatformTools(
+                platformOps,
+                deps.platform ?? UNAVAILABLE,
+                () => deps.rules()?.autonomy != null,
+              ),
+            ]
+          : []),
         ...(deps.sendLoadout ? [createLoadoutWatcher(deps.sendLoadout, () => created.session)] : []),
         ...(deps.extraExtensions ?? []),
       ],
-      extensionsOverride: movePolicyLast,
+      extensionsOverride: (base) => movePolicyLast(sandboxOrder(platformOrder(base))),
       // Once, at session creation: Pi's session files do not store the system prompt (M5R42).
-      appendSystemPromptOverride: (base) => [...base, UNTRUSTED_RULE],
+      appendSystemPromptOverride: (base) => [
+        ...base,
+        UNTRUSTED_RULE,
+        ...(init.agent ? [agentPrompt(agentFactsOf(init, deps.rules()?.agentScratch ?? null))] : []),
+      ],
     },
     resourceLoaderReloadOptions: {
       resolveProjectTrust: trust.resolve,

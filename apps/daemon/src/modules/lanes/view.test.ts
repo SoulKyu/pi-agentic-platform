@@ -29,6 +29,8 @@ const row = (description: string): LaneRow =>
     testExit: null,
     testFinishedAt: null,
     firstRunEndedAt: null,
+    note: null,
+    noteAt: null,
     prNumber: null,
     prUrl: null,
     state: "active",

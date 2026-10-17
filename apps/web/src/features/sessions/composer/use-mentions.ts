@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useHandOffPorts } from "../../../stores/composer-hand-off.ts";
 import { useShellStore } from "../../../stores/shell-store.ts";
 import { reportClientIssue } from "../../../lib/report.ts";
 import { getRuntime, windowTimers } from "../../../runtime/index.ts";
@@ -98,8 +99,16 @@ export function useMentions(args: MentionsArgs): ComposerMenu & { readonly menu:
     };
   }, [query, start, root, timers]);
 
+  // In an agent thread, while the caret is in the message's first word, the other agents' names come first (M11R123).
+  const port = useHandOffPorts((state) => state.ports[args.sessionId]);
+  const agentNames =
+    mention?.start === 0 && port !== undefined
+      ? port.names.filter((name) => name.toLowerCase().startsWith(query.toLowerCase()))
+      : [];
+  const total = agentNames.length + paths.length;
   const key = mention === null ? null : `${mention.start}:${mention.query}`;
-  const open = mention !== null && query !== "" && paths.length > 0 && key !== dismissed;
+  const open =
+    mention !== null && (agentNames.length > 0 || (query !== "" && paths.length > 0)) && key !== dismissed;
 
   const apply = (inserted: { readonly text: string; readonly caret: number }) => {
     caretAfter.current = inserted.caret;
@@ -108,7 +117,12 @@ export function useMentions(args: MentionsArgs): ComposerMenu & { readonly menu:
     setText(inserted.text);
   };
   const pick = (index: number) => {
-    const path = paths[index];
+    const name = agentNames[index];
+    if (name !== undefined && mention !== null) {
+      apply(insertMention(text, mention, `@${name}`));
+      return;
+    }
+    const path = paths[index - agentNames.length];
     if (path === undefined || mention === null) return;
     apply(insertMention(text, mention, mentionText(mentionPath(path, root, folder))));
   };
@@ -123,8 +137,8 @@ export function useMentions(args: MentionsArgs): ComposerMenu & { readonly menu:
       event.stopPropagation();
       action();
     };
-    if (event.key === "ArrowDown") handled(() => setActive((active + 1) % paths.length));
-    else if (event.key === "ArrowUp") handled(() => setActive((active + paths.length - 1) % paths.length));
+    if (event.key === "ArrowDown") handled(() => setActive((active + 1) % total));
+    else if (event.key === "ArrowUp") handled(() => setActive((active + total - 1) % total));
     else if ((event.key === "Enter" || event.key === "Tab") && plain) handled(() => pick(active));
     else if (event.key === "Escape") handled(close);
   };
@@ -145,10 +159,10 @@ export function useMentions(args: MentionsArgs): ComposerMenu & { readonly menu:
     menu: open
       ? {
           id: listId,
-          items: paths.map((path, index) => ({
-            id: `${listId}-${index}`,
-            label: mentionPath(path, root, folder),
-          })),
+          items: [
+            ...agentNames.map((name) => `@${name}`),
+            ...paths.map((path) => mentionPath(path, root, folder)),
+          ].map((label, index) => ({ id: `${listId}-${index}`, label })),
           active,
           pick,
         }

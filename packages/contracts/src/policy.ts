@@ -3,8 +3,8 @@ import { z } from "zod";
 export const TOOL_CATEGORIES = ["read", "edit", "exec", "network", "external-write", "unknown"] as const;
 export type ToolCategory = (typeof TOOL_CATEGORIES)[number];
 
-/** The four answers of an approval card (spec C §5.3). */
-export const ApprovalAnswer = z.enum(["once", "session", "always", "deny"]);
+/** The four answers of an approval card (spec C §5.3), and owner a2's fifth: this host for the rest of an agent thread. */
+export const ApprovalAnswer = z.enum(["once", "session", "always", "deny", "host"]);
 export type ApprovalAnswer = z.infer<typeof ApprovalAnswer>;
 /** The answers a card offers, in card order: two to four, each at most once (M2-RT-21). */
 export const ApprovalAnswers = z
@@ -80,12 +80,22 @@ export const MAX_SETTINGS_BYTES = 65_536;
  * refused here because a host list is a list of names; Task 5a refuses IP-literal URLs that no entry names.
  */
 const LABEL = "(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)";
+/**
+ * A last label that starts with a digit: no top-level domain does, so the host is an IP literal in some spelling
+ * (`127.1`, `127.0x1`, `2130706433`). The egress proxy refuses it as `ip_literal`; a host list refuses it too.
+ */
+export const lastLabelStartsWithDigit = (host: string): boolean =>
+  /\d/.test(host.split(".").at(-1)?.[0] ?? "");
 export const HostPattern = z
   .string()
   .max(253)
   .regex(new RegExp(`^(?:\\*\\.)?${LABEL}(?:\\.${LABEL})+$`))
-  .refine((host) => !/^(?:\*\.)?(?:\d+\.)+\d+$/.test(host), "an IP address is not a host name");
+  .refine((host) => !lastLabelStartsWithDigit(host), "an IP address is not a host name");
 export const MAX_ALLOW_HOSTS = 256;
+/** A host named exactly (owner a1, a2): a host list's entry without the `*.` form. */
+export const TrustedHost = HostPattern.refine((host) => !host.startsWith("*."), "an exact host, no wildcard");
+export const MAX_TRUSTED_SOURCES = 20;
+export const MAX_HOST_GRANTS = 64;
 
 const SHELL_READ_ONLY = [
   "cat",
@@ -200,16 +210,35 @@ export const NO_TAINT: TaintState = { tainted: false, epoch: 0 };
 /** A tool's registered name as Pi lists it: coding tools, MCP tools (`server__tool`) and extension tools. */
 export const ToolName = z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9_.:-]{0,63}$/);
 
+/** Who the session is to the policy (M11R7): the owner's own sessions, an agent's pinned thread, or an isolated agent task. */
+export const POLICY_PROFILES = ["interactive", "agent-thread", "isolated-task"] as const;
+export const PolicyProfile = z.enum(POLICY_PROFILES);
+export type PolicyProfile = z.infer<typeof PolicyProfile>;
+const RulePath = z
+  .string()
+  .max(4096)
+  .refine((path) => path.startsWith("/") && !path.includes("\0"), "must be an absolute path");
+
 export const PolicyRules = z
   .object({
-    profile: z.literal("interactive"),
+    profile: PolicyProfile,
+    /** The agent home (agent profiles): an agent thread's own folder; an isolated task reads it and never writes it. */
+    agentHome: RulePath.nullable().default(null),
+    /** An isolated task's scratch folder (owner m17): its own folder, its cwd, the only one it writes. Null otherwise. */
+    agentScratch: RulePath.nullable().default(null),
+    /** The agent's sandbox: `required` makes any shell but pap's sandboxed one blocked (stage 02); null: no sandbox profile. */
+    sandbox: z.object({ required: z.boolean(), network: z.boolean() }).strict().nullable().default(null),
     approvalMode: ApprovalMode,
     alwaysAllow: z.array(AlwaysRule).max(MAX_ALWAYS_RULES).default([]),
     alwaysPrefixes: z.array(PrefixRule).max(MAX_ALWAYS_RULES).default([]),
     alwaysTools: z.array(ToolRule).max(MAX_ALWAYS_RULES).default([]),
     /** pap's own catastrophic-command preset (Task 4), on unless the owner turns it off. */
     builtinDenylist: z.boolean().default(true),
-    denylist: z.array(DenyPattern).max(MAX_DENY_PATTERNS).default([]),
+    /** The owner's patterns (64, `MAX_DENY_PATTERNS`) plus an agent's (50). */
+    denylist: z
+      .array(DenyPattern)
+      .max(MAX_DENY_PATTERNS * 2)
+      .default([]),
     /** null: no egress list, the stage is skipped. A list (even empty): only these hosts (Task 5a). */
     allowHosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS).nullable().default(null),
     guard: GuardLimits.default(DEFAULT_GUARD),
@@ -227,6 +256,16 @@ export const PolicyRules = z
     toolAllowlist: z.array(ToolName).max(32).nullable().default(null),
     /** No person watches the run (M10R152): a tool the allowlist does not know is blocked instead of asked. */
     unattended: z.boolean().default(false),
+    /** Owner a6: an agent thread's trusted autonomy, null when off; `hosts`: the agent's own list ([] when it has none). */
+    autonomy: z
+      .object({ hosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS) })
+      .strict()
+      .nullable()
+      .default(null),
+    /** Owner a1: hosts whose content does not taint when the proxy saw only them, over CONNECT 443 (agent profiles). */
+    trustedSources: z.array(TrustedHost).max(MAX_TRUSTED_SOURCES).default([]),
+    /** Owner a2: hosts the owner allowed for the rest of this agent thread (the daemon's record, W5-R35). */
+    hostGrants: z.array(TrustedHost).max(MAX_HOST_GRANTS).default([]),
   })
   .strict();
 export type PolicyRules = z.infer<typeof PolicyRules>;

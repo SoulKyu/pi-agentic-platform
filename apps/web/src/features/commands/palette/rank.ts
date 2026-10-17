@@ -1,4 +1,4 @@
-export type PaletteGroup = "open" | "actions" | "lanes" | "sessions" | "tasks" | "settings";
+export type PaletteGroup = "open" | "actions" | "agents" | "lanes" | "sessions" | "tasks" | "settings";
 
 export interface PaletteItem {
   readonly id: string;
@@ -12,7 +12,15 @@ export interface PaletteItem {
   run(): void;
 }
 
-const GROUP_ORDER: readonly PaletteGroup[] = ["open", "lanes", "sessions", "tasks", "settings", "actions"];
+const GROUP_ORDER: readonly PaletteGroup[] = [
+  "open",
+  "agents",
+  "lanes",
+  "sessions",
+  "tasks",
+  "settings",
+  "actions",
+];
 
 export const normalizeSearch = (text: string): string =>
   text.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase();

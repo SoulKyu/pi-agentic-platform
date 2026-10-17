@@ -5,7 +5,7 @@ import { enqueueEffect, type Outbox } from "../../kernel/outbox/index.ts";
 import { guardTimer } from "../../kernel/timer-guard.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import { trimJournals } from "./fire-journal.ts";
-import type { TaskStore } from "./tasks.ts";
+import type { TaskRow, TaskStore } from "./tasks.ts";
 
 const HOUR_MS = 3_600_000;
 const TASK_KEEP_MS = 30 * 86_400_000;
@@ -18,7 +18,10 @@ export interface HousekeepingDeps {
   readonly db: Db;
   readonly clock: Clock;
   readonly logger: Logger;
-  readonly store: Pick<TaskStore, "doneWithSessionBefore" | "remove" | "removeEndedBefore">;
+  readonly store: Pick<
+    TaskStore,
+    "doneWithSessionBefore" | "remove" | "removeEndedBefore" | "isolatedEndedBefore"
+  >;
   readonly outbox: Pick<Outbox, "purge" | "poke" | "db">;
   readonly sessions: Pick<SessionsAutomationPort, "state" | "lastActivityAt" | "deleteTaskSession">;
   /** Task 6's Inbox retention; none until the Inbox exists. */
@@ -26,6 +29,10 @@ export interface HousekeepingDeps {
   /** The automation time zone, which names the day of the attachment cleanup. */
   readonly timeZone: () => string | null;
   readonly readOnly: boolean;
+  /** An isolated agent task's session was deleted: its scratch folder goes (M11R180). */
+  readonly dropScratch?: (task: TaskRow) => void;
+  /** Removes the scratch folders no task row and no session names (bounded a pass). */
+  readonly sweepScratch?: () => void;
 }
 
 /** The housekeeping of the automation module (M10R44): one guarded Clock timer each hour, none in read-only mode. */
@@ -44,19 +51,20 @@ export function createHousekeeping(deps: HousekeepingDeps) {
   };
 
   /** The session of a done task goes when nobody went back to it; true when the task row can go too. */
-  function sessionGone(task: {
-    owner_id: string;
-    session_id: string | null;
-    ended_at: number | null;
-  }): boolean {
+  function sessionGone(task: TaskRow): boolean {
     const sessionId = task.session_id as string;
     const state = sessions.state(task.owner_id, sessionId);
-    if (state === null) return true;
+    if (state === null) {
+      deps.dropScratch?.(task);
+      return true;
+    }
     const activity = sessions.lastActivityAt(sessionId);
     const reopened = activity === null || activity > (task.ended_at as number) + REOPENED_AFTER_MS;
     // The owner archived it again or went back to it: it is a session of their own now, and the task row goes alone.
     if (!state.archived || reopened) return true;
-    return sessions.deleteTaskSession(task.owner_id, sessionId) !== "busy";
+    const deleted = sessions.deleteTaskSession(task.owner_id, sessionId) !== "busy";
+    if (deleted) deps.dropScratch?.(task);
+    return deleted;
   }
 
   function pass(): void {
@@ -67,7 +75,14 @@ export function createHousekeeping(deps: HousekeepingDeps) {
       for (const task of store.doneWithSessionBefore(now - TASK_KEEP_MS, SESSIONS_PER_PASS))
         if (sessionGone(task)) store.remove(task.id);
     });
-    step("tasks", () => void store.removeEndedBefore(now - TASK_KEEP_MS));
+    step("tasks", () => {
+      // An isolated task that ended any other way than done: its folder goes with its row when no session still works in it.
+      for (const task of store.isolatedEndedBefore(now - TASK_KEEP_MS, SESSIONS_PER_PASS))
+        if (task.session_id === null || sessions.state(task.owner_id, task.session_id) === null)
+          deps.dropScratch?.(task);
+      store.removeEndedBefore(now - TASK_KEEP_MS);
+    });
+    step("scratch", () => deps.sweepScratch?.());
     step("journal", () => void trimJournals(deps.db, now));
     step("inbox", () => deps.inboxRetention?.());
     step("attachments", () => {

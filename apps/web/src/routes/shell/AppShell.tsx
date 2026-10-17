@@ -7,12 +7,14 @@ import { LazyPanel } from "../../lib/LazyPanel.tsx";
 import { activeTab, itemFromPath, useWorkspaceStore } from "../../features/workspace/index.ts";
 import { reportClientIssue } from "../../lib/report.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { feedAgents, useAgentsStore } from "../../stores/agents-store.ts";
 import { feedLanes } from "../../stores/lane-feed.ts";
 import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { feedShell } from "../../stores/shell-feed.ts";
 import { resetFolderMemory } from "../../features/files/folder-memory.ts";
 import { feedInbox, useInboxStore } from "../../stores/inbox-store.ts";
+import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
 import { useTasksStore } from "../../stores/tasks-store.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
@@ -25,11 +27,13 @@ import { useVcsStore } from "../../stores/vcs-store.ts";
 import { AddProjectHost } from "./AddProjectHost.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { MobileShell } from "./MobileShell.tsx";
+import { NewAgentHost } from "./NewAgentHost.tsx";
 import { NewLaneHost } from "./NewLaneHost.tsx";
 import { NotFound } from "./NotFound.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
+import { SecretDialogHost } from "./SecretDialogHost.tsx";
 import { ShellContext } from "./shell-context.ts";
 import { StepUpHost } from "./StepUpHost.tsx";
 import { useShellCommands } from "./shell-commands.ts";
@@ -73,12 +77,15 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
     const stop = feedShell(getRuntime().subscriptions, () => reportClientIssue("shell_feed_failed"));
     const stopLanes = feedLanes(getRuntime().subscriptions, () => reportClientIssue("lane_feed_failed"));
     const stopInbox = feedInbox(getRuntime().subscriptions, () => reportClientIssue("inbox_feed_failed"));
+    const stopAgents = feedAgents(getRuntime().subscriptions, () => reportClientIssue("agents_feed_failed"));
     return () => {
       stop();
       stopLanes();
       stopInbox();
+      stopAgents();
       useLaneStore.getState().reset();
       useInboxStore.getState().reset();
+      useAgentsStore.getState().reset();
       useShellStore.getState().reset();
       useViewLabels.setState({ labels: {} });
       // Every M8 client store (MC34). Uploads keep no state beyond their own component; the terminal store's reset
@@ -91,6 +98,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
       useComposerPrefill.setState({ items: {} });
       useTriggerPrefill.setState({ items: {} });
       useAddProjectRequest.getState().close();
+      useSecretDialog.getState().close();
       usePaletteRequest.setState({ search: null });
       resetFolderMemory();
     };
@@ -103,7 +111,9 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
         {mobile ? <MobileShell /> : <DesktopShell username={username} onSignedOut={onSignedOut} />}
         <PaletteHost />
         <NewLaneHost />
+        <NewAgentHost />
         <AddProjectHost />
+        <SecretDialogHost />
         <LazyPanel
           text={lazyText}
           load={loadTreeDrawer}

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { AutomationSettings } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
@@ -28,7 +30,7 @@ const seedLeased = (test: M10TestCore): number => {
   return id;
 };
 const modules = {
-  audit: { port: { append: () => {}, fromWorker: () => null } },
+  audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
   projects: { port: { ensure: () => null } as unknown as ProjectsPort },
   policy: {
     port: {
@@ -39,6 +41,9 @@ const modules = {
     } as unknown as PolicyPort,
   },
   sessions: {
+    modeOf: () => "supervised",
+    sandboxedThread: () => false,
+    kindOf: () => null,
     automation: {
       onAttention: () => () => {},
       workers: () => ({ used: 0, max: 4 }),
@@ -126,5 +131,13 @@ describe("composeM10", () => {
     expect(open.bed.clock.pending()).toBe(1);
     await late.stop();
     expect(open.bed.clock.pending()).toBe(0);
+  });
+});
+
+describe("the mode the usage resume reads (M10R104, W5-R23)", () => {
+  it("is the sessions module's effective mode, not the raw session mode", () => {
+    const source = readFileSync(fileURLToPath(new URL("./compose-usage.ts", import.meta.url)), "utf8");
+    expect(source).toContain("modeOf: modules.sessions.modeOf");
+    expect(source).not.toContain("sessionPolicy(ownerId, sessionId).mode");
   });
 });

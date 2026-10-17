@@ -26,6 +26,11 @@ export function createManual(deps: ManualDeps) {
       const record = deps.triggers.get(caller.userId, triggerId);
       if (record === null) throw new PapError("not_found");
       const config = record.input;
+      // The agent's thread is trusted (C §6.1, M11R65): outside text never reaches it, and a token never fires it.
+      if (config?.execution.agent?.target === "thread") {
+        if (payload !== undefined && payload !== "") throw new PapError("bad_request");
+        if (caller.kind === "token") throw new PapError("forbidden");
+      }
       // After the pause and the budget (the step hands a refused fire on without a spawn); a token's fire is gated.
       const checked = await step.run(record, {
         source: "manual",

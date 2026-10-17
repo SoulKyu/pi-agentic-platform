@@ -31,6 +31,8 @@ export interface HomeActions {
   openShortcuts(): void;
   /** The New lane dialog with this prefill; false when the shell could not open it. */
   newLane(prefill: NewLanePrefill): boolean;
+  /** The New agent dialog (M11R96); the shell opens the new agent's tab when it is created. */
+  newAgent(): void;
   /** A new trigger's editor in this project, its name and prompt filled in. */
   newTrigger(projectId: string, prefill: TriggerPrefill): void;
   /** The Add project dialog; `onAdded` runs with the new project's id once it is added. */

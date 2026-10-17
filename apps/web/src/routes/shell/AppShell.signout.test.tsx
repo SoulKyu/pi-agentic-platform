@@ -6,6 +6,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import { useAddProjectRequest } from "../../stores/add-project-request.ts";
 import { usePaletteRequest } from "../../stores/palette-request.ts";
 import { useComposerPrefill } from "../../stores/composer-prefill.ts";
+import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
 import { useTerminalStore } from "../../stores/terminal-store.ts";
 import { useTriggerPrefill } from "../../stores/trigger-prefill.ts";
 import { hasUnsavedFiles, resetUnsavedFiles, setUnsavedFiles } from "../../stores/unsaved-files.ts";
@@ -67,11 +68,13 @@ describe("sign-out wipes the M8 client stores (MC34)", () => {
     useComposerPrefill.getState().push("s1", "Review comments");
     useTriggerPrefill.getState().put("p1", { name: "n", prompt: "p" });
 
+    useSecretDialog.getState().open("r1");
     useAddProjectRequest.getState().ask(() => {});
     usePaletteRequest.getState().askSearch("p1");
 
     await page.unmount();
 
+    expect(useSecretDialog.getState().requestId).toBeNull();
     expect(useAddProjectRequest.getState().open).toBe(false);
     expect(useAddProjectRequest.getState().onAdded).toBeNull();
     expect(usePaletteRequest.getState().search).toBeNull();

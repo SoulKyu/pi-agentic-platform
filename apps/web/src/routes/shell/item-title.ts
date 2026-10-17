@@ -13,7 +13,7 @@ export function itemTitle(
   views: Readonly<Record<string, ViewLabel>>,
   t: Translate,
   lanes: Pick<LaneState, "lanes" | "fanouts"> = EMPTY_LANES,
-  /** Trigger names the tasks store holds; an id it lacks is titled without one. */
+  /** Names for titles: trigger names by id, agent names by `agent:<id>`; an id it lacks is titled without one. */
   triggers: ReadonlyMap<string, string> = NO_TRIGGERS,
 ): string {
   switch (item.kind) {
@@ -43,6 +43,8 @@ export function itemTitle(
       return (
         triggers.get(item.id) ?? t(item.id.startsWith("new:") ? "shell.tab.newTrigger" : "shell.tab.trigger")
       );
+    case "agent":
+      return triggers.get(`agent:${item.id}`) ?? t("shell.tab.agent");
     case "dev-ui":
       // Production has no gallery: the tab of a /dev/ui item must not confirm that it exists elsewhere.
       return import.meta.env.DEV ? t("shell.tab.devUi") : t("shell.notFound.title");

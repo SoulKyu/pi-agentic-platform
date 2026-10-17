@@ -15,6 +15,7 @@ interface BedTask {
   readonly ownerId: string;
   readonly triggerName: string;
   readonly sessionId: string | null;
+  readonly agentId?: string | null;
 }
 
 /** A real database through `migrate`, a fake clock and hub, and the Inbox listening to a real `AutomationEvents`. */
@@ -63,8 +64,9 @@ export function createInboxBed(options: { readOnly?: boolean } = {}) {
       ownerId = "u1",
       triggerName = "prod-alerts",
       sessionId: string | null = `s-${taskId}`,
+      agentId: string | null = null,
     ) {
-      tasks.set(taskId, { ownerId, triggerName, sessionId });
+      tasks.set(taskId, { ownerId, triggerName, sessionId, agentId });
     },
     attend: (taskId: string, needsInput: boolean) =>
       events.emit({ kind: "attention", taskId, sessionId: `s-${taskId}`, needsInput }),
@@ -90,6 +92,7 @@ export function createInboxBed(options: { readOnly?: boolean } = {}) {
         costUsd,
         resetAt: null,
         toolsReleased: false,
+        ...(task.agentId ? { agentId: task.agentId, target: "isolated" as const } : {}),
       };
       events.emit({ kind: "task", ownerId: task.ownerId, task: view, previous });
     },

@@ -105,6 +105,7 @@ export const CHAT = {
     deny: "Deny",
     session: "Allow for this session",
     always: "Always allow",
+    host: "Allow this host for this thread",
     once: "Allow once",
   },
   markdown: [

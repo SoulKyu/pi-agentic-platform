@@ -27,6 +27,8 @@ export interface MessageView {
   /** What names the message in Pi's data: a tool result by its call, any other by role and time. */
   readonly ref: string;
   readonly role: MessageRole;
+  /** When Pi stamped the message (ms), null when it carries no time. */
+  readonly at: number | null;
   readonly text: string;
   /** What the model thought, joined; "" when the message has no thinking. */
   readonly thinking: string;
@@ -128,6 +130,8 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     key: ref,
     ref,
     role,
+    at:
+      typeof message.timestamp === "number" && Number.isFinite(message.timestamp) ? message.timestamp : null,
     text,
     thinking,
     toolCallId:

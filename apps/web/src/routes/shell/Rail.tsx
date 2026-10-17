@@ -4,6 +4,7 @@ import { runCommand } from "../../features/commands/index.ts";
 import { pathOfItem } from "../../features/workspace/index.ts";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { LazyMenu } from "../../lib/LazyMenu.tsx";
+import { AgentRail } from "./AgentRail.tsx";
 import { signOut } from "./sign-out.ts";
 import { go } from "./tab-actions.ts";
 import { useShortcut } from "./shortcut.ts";
@@ -13,7 +14,7 @@ interface RailProps {
   onSignedOut(): void;
 }
 
-/** Logo, Tasks, Settings and the account menu (with the keyboard shortcuts, §5). Agent avatars arrive with M11. */
+/** Logo, the agents (M11R108), Tasks, Settings and the account menu (with the keyboard shortcuts, §5). */
 export function Rail({ username, onSignedOut }: RailProps) {
   const t = useT();
   const navigate = useNavigate();
@@ -28,6 +29,7 @@ export function Rail({ username, onSignedOut }: RailProps) {
       <Link to="/" aria-label={t("app.name")} className="focus-ring rounded-sm">
         <Mark />
       </Link>
+      <AgentRail />
       <div className="flex-1" />
       <IconButton
         icon={IconTasks}

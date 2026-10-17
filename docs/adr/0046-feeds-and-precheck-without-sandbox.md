@@ -25,6 +25,6 @@ Precheck:
 
 ## Consequences
 
-- Residual (M10R72): a job the command starts with `setsid` leaves the process group and survives the kill. With systemd scopes the reap ends it; without them it survives. The precheck runs as the owner with no sandbox until M11.
+- Residual (M10R72): a job the command starts with `setsid` leaves the process group and survives the kill. With systemd scopes the reap ends it; without them it survives. A project trigger's precheck runs as the owner with no sandbox; an agent trigger's precheck always runs in the agent's sandbox (ADR 0048, ADR 0050).
 - A value that lives only in an environment variable of a withheld family is not passed; the command sets it inline or reads a file.
 - A hostile feed cannot make pap fetch an internal address, expand an entity or hold more than 1 MiB; it can still put 10 fenced entries a poll into a tainted task.

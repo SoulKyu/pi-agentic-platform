@@ -1,12 +1,16 @@
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
 import { initTools, storeNewSession } from "./automation-port.ts";
+import { type AgentLaunch, applyProfileModel, initFieldsOf } from "./agent-gate.ts";
+import type { AgentSurface } from "./agent-surface.ts";
+import { createEgressLink } from "./egress-link.ts";
 import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import type { PolicyLink } from "./policy-link.ts";
+import { bridgePlatform } from "./platform-bridge.ts";
 import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
-import type { SessionRow, StoredPreset } from "./store.ts";
+import { type SessionRow, type StoredPreset, storedPresetOf } from "./store.ts";
 
 /** What starting a worker needs of the service: its deps and the maps it shares with it (M4R27). */
 export interface LaunchContext {
@@ -17,7 +21,15 @@ export interface LaunchContext {
   readonly grants: ReturnType<typeof createGrantLink>;
   /** What ties the sessions to the policy module: the rules of each worker, its audit hand-over, a refused update. */
   readonly policyLink: PolicyLink;
+  /** Who a session is, which platform tools its worker starts with, and where its platform calls go (M11). */
+  readonly agent: AgentSurface;
   checkCapacity(): void;
+  /** The owner's last worker stays free (M10R154): `capacity` when one more worker would take it. */
+  keepOneFree(): void;
+  /** Sessions whose next launch must leave the last worker free: the agent port's and the runner's (consumed by `launch`). */
+  readonly keepFreeFor: Set<string>;
+  /** Sessions whose cold start must come up in the sandbox (owner a5): `sandbox_unavailable` otherwise. */
+  readonly sandboxedOnly: ReadonlySet<string>;
   /** The session's tool preset now (null: configured): a new session's row is not stored yet, a stored one may have changed. */
   toolPreset(row: SessionRow): StoredPreset | null;
   /** The project for a new session's row, called once after `ready` and before the row is stored (M4R28). */
@@ -43,6 +55,7 @@ export interface LaunchContext {
 /** Starts a session's worker (`launch`) or hands out the one that runs (`ensureLive`). Moved out of `service.ts` as is. */
 export function createLaunch(ctx: LaunchContext) {
   const { deps, live, reopening, starting, grants, policyLink } = ctx;
+  const bridgeEgress = createEgressLink(deps.logger);
   const { bindPiFile, recordEvent, syncName, replayPreReady } = createStoreSync({
     store: deps.store,
     clock: deps.clock,
@@ -57,13 +70,50 @@ export function createLaunch(ctx: LaunchContext) {
   // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
   // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
   async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
+    // The gate of every agent session, first of all (M11R53): the one await before the spawn, so no check can fall between.
+    const gating = ctx.agent.gate(row);
+    const agentLaunch = gating ? await gating : null;
+    // An agent thread runs with its profile's preset narrowed by the owner's choice, read at each start (M11R47, W5-R28).
+    // The choice is read from the store, after the gate: the row was read before the waits of `ensureLive` and `prompt`.
+    if (agentLaunch?.role === "thread" && !isNew) {
+      const ownerPreset = deps.store.get(row.id)?.ownerPreset;
+      deps.store.setToolPreset(
+        row.id,
+        storedPresetOf(ctx.agent.presetFor(ownerPreset, agentLaunch.input.preset)),
+      );
+    }
+    try {
+      // Owner a5, M11R214: an unattended continuation of a full-access agent never starts a worker without its sandbox.
+      if (ctx.sandboxedOnly.has(row.id) && agentLaunch?.sandbox === undefined)
+        throw new PapError("sandbox_unavailable");
+      return await start(row, isNew, agentLaunch);
+    } catch (error) {
+      // Any throw before or after the spawn: the start-time profile of a worker that never came up is dropped (W5-R26).
+      ctx.agent.ended(row.id);
+      throw error;
+    }
+  }
+
+  async function start(
+    row: SessionRow,
+    isNew: boolean,
+    agentLaunch: AgentLaunch | null,
+  ): Promise<LiveSession> {
     deps.laneHooks?.assertOwn(row.ownerId, row.cwd);
     ctx.checkCapacity();
+    if (ctx.keepFreeFor.delete(row.id)) ctx.keepOneFree();
     if (!isNew) ctx.beforeStart?.(row);
     let stored = !isNew;
     const preReady = isNew ? createPreReadyBuffer() : null;
     let bound = row.piPath !== null;
     const scope = grants.scopeOf(row.cwd);
+    // From here to the worker's exit every compose reads the profile this start used (W5-R26).
+    if (agentLaunch)
+      ctx.agent.started(row.id, {
+        input: agentLaunch.input,
+        name: agentLaunch.agent.name,
+        quarantined: false,
+      });
     const rules = policyLink.compose(row, scope);
     const init: InitRecord = {
       type: "init",
@@ -74,6 +124,8 @@ export function createLaunch(ctx: LaunchContext) {
       papSessionId: row.id,
       policy: rules,
       tools: initTools(ctx.toolPreset(row), rules),
+      platform: { ops: ctx.agent.platformOps(row) },
+      ...(agentLaunch ? initFieldsOf(agentLaunch) : {}),
       // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
       ...(row.piPath ? { sessionFile: row.piPath } : {}),
       ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
@@ -85,9 +137,10 @@ export function createLaunch(ctx: LaunchContext) {
       deps.hub.publish("session", row.id, starting);
       ctx.onPublished?.(row.id, starting);
     }
+    const handle = deps.spawn(row.cwd);
     const session: LiveSession = startLiveSession(
       {
-        handle: deps.spawn(row.cwd),
+        handle,
         clock: deps.clock,
         logger,
         publish: (event) => {
@@ -113,7 +166,10 @@ export function createLaunch(ctx: LaunchContext) {
           if (stored && !bound) bound = bindPiFile(row, session);
         },
         onExit: () => {
-          if (live.get(row.id) === session) live.delete(row.id);
+          if (live.get(row.id) === session) {
+            live.delete(row.id);
+            ctx.agent.ended(row.id);
+          }
           ctx.onWorkerEnd?.(row.id);
         },
         onWorkerExit: (info) => deps.onWorkerExit?.(row.id, info),
@@ -121,6 +177,13 @@ export function createLaunch(ctx: LaunchContext) {
         observe: (event) => deps.runs?.onEvent(row.id, event),
       },
       init,
+    );
+    bridgePlatform(handle, row, ctx.agent, logger);
+    // The scope is the start-time snapshot of the rules this worker got (W5-R26); an owner session has none and is refused.
+    bridgeEgress(
+      handle,
+      agentLaunch ? ctx.agent.egressScope(row, rules, agentLaunch.sandbox) : null,
+      ctx.agent.egress,
     );
     // Nothing awaits between the rules in `init` and here, so a change cannot fall between the two.
     grants.track(session, row, scope);
@@ -146,7 +209,14 @@ export function createLaunch(ctx: LaunchContext) {
         ctx.onPublished?.(row.id, named);
       }
       live.set(row.id, session);
+      // A secret saved or deleted while the worker booted found no live session: bring the worker level now (M11R86).
+      const drift = agentLaunch ? ctx.agent.vaultDrift(row, agentLaunch) : null;
+      if (drift && !session.send(drift)) throw new PapError("worker_failed");
       bound = bound || bindPiFile(row, session);
+      if (agentLaunch)
+        await applyProfileModel(session, agentLaunch, (what) =>
+          logger.warn("agent_profile_not_applied", { what }),
+        );
       return session;
     } catch (error) {
       await session.stop();

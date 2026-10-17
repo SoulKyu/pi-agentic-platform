@@ -20,6 +20,7 @@ const SOURCE_KEY: Record<TaskTrigger["sourceType"], MessageKey> = {
 
 interface TriggerStripProps {
   readonly triggers: readonly TaskTrigger[];
+  /** The column's scope for "New trigger": a project id, or `agent:<id>` in an agent's column. Null: no button. */
   readonly projectId: string | null;
   readonly projectName: string;
   onOpenTrigger(triggerId: string): void;

@@ -1,0 +1,74 @@
+# Agents, platform calls, the vault and the sandbox (M11a)
+
+Code: `apps/daemon/src/modules/agents/` (registry, homes, threads, cards, requests, ops, quarantine, status), `modules/platform/` (the dispatcher), `modules/secrets/` (vault, one-use values, secret requests), `modules/egress/` (the proxy), `modules/sessions/{agent-gate,agent-home,agent-rules,agent-port,agent-surface,egress-link,host-grants,approved-calls,session-kind,platform-bridge,preset-clamp}.ts`, `modules/automation/{trigger-agent,runner-agent,runner-thread,thread-queue,agent-tasks,agent-budget,due-timer}.ts`, `modules/inbox/agent-items.ts`, `modules/lanes/note.ts`, `kernel/sandbox/probe.ts`, `kernel/git/allowlist-homes.ts`, composition in `compose-m11.ts`. Worker side: `packages/pi-host/src/{platform-tools,platform-text,sandbox-ops,sandbox-env,sandbox-tool,once-secrets,egress-client,egress-line,agent-prompt}.ts` and `policy/{agent-decide,agent-stage,sandbox-rule,message-mix,egress-taint,network-request-plan}.ts`. Contracts: `packages/contracts/src/{agents,agents-methods,agents-safety,platform,sandbox,egress,secrets-methods,vault-names}.ts`. ADRs 0047 to 0051; rulings `docs/research/m11-rulings.md`. Other notes: `policy.md` (profiles), `sessions.md` (kinds, gate), `automation.md` (agent triggers), `finops.md` (budgets), `daemon.md` (sandbox, egress folder), `web.md`.
+
+## Agents
+
+- `AgentInput` (contracts) is the trust boundary; the row keeps the parsed JSON and parses it again at every read (`unreadable` otherwise). 32 per owner, `@Name` unique per owner whatever the case, id `<slug>-<4 hex>`. Methods: `agents.list|get|create|update|delete|openThread|resetThread|markRead|setPaused|queueTask|answerApproval|events|status|prompts|prompt|permissions|quarantine|sandboxStatus|recheckSandbox`, `subscribe.agents`. `agents:admin` and `secrets:*` are never a token's (`forbidden`); a token may read, open the thread, mark it read, pause or resume (M11R4) and fire an agent trigger whose target is `isolated`; it never makes an agent's session run (`sessions.prompt`, `compact`, `navigate`, `autoName`, `usage.resumeNow` answer `forbidden`, W5-R64).
+- Edits are compare-and-set; the password is asked when `widensReach` says the agent can do more (ADR 0050). A running worker keeps the profile it started with; the owner's session mode and tool preset can narrow it, never widen it (W5-R23, W5-R26, W5-R28).
+- Home: `$PAP_HOME/agents/<id>/` (0700, git repository, `MEMORY.md`, `prompts/`), checked with `O_NOFOLLOW` at every launch (`agent-home.ts`). Scratch folders of isolated tasks: `$PAP_HOME/agents/.runs/<agent>/<task uuid>/`. Deleted homes: `$PAP_HOME/agents/.trash/<id>-<stamp>`. `sessions.create` below `agents/` is `invalid_cwd`.
+- Delete: pause, busy check (`session_busy`), triggers, queued tasks, thread, vault scope, home move, one-use values, Inbox items, row. A failure after the move leaves the agent quarantined (`agent_delete_incomplete`).
+- A row whose id is not a valid agent id is skipped from the list and logged (`agent_row_unlistable`); it cannot be seen or deleted in the UI.
+
+## Threads, cards, unread
+
+- `agents.openThread` is the only way a thread is made (`createAgentSession`, the launch gate runs in `launch`). The thread is the session `agent_role = 'thread'`; a reset archives it and the next open starts a new one. No fork or clone of an agent session. Agent sessions are out of the sidebar and the counts.
+- Cards (`agent_events`, 500 newest per agent): `schedule`, `task`, `isolated`, `delegation`, `reminder`, `notify`. Written by pap before the prompt (`runCard`, state `running`), moved when the task ends; a failed task counts as unread again. Text from outside is stripped and clipped, and shown as text.
+- Unread +1 per completed thread run and per card; `agents.markRead` clears it. Rail state: `needs_input` > `running` > `failed` > `paused` > `idle`, `quarantined` instead of all. `agents` stream: 32 agents, 200 requests, batched 250 ms; the `event` hint tells an open tab to read the cards again.
+- `agents.status`: today against the budget, 7 and 30 days from `runs`, the newest 10 tasks, up to 20 triggers.
+
+## Platform calls
+
+- Session type is read from the session row (ADR 0047). `compose-m11.ts` registers seven handlers: `lane.note`, `agent.notify`, `agent.approve`, `network.request`, `secret.request`, `agent.delegate`, `agent.remind`. `subagent.run` has none in M11a, so no worker is offered a `subagent` tool. A switch (`registry.available`) can turn an op off per owner.
+- `agent.notify`: an Inbox info item and a solid card, 30 an hour per agent. `agent.approve`: a pending request (4 open per agent), a to-handle item, waits 25 minutes less 2 s, then `{approved: false}` and the request is `expired`; an abort cancels it.
+- `agent.delegate`: refusals in this order: unknown caller, itself, unknown target, target not opted in, a tainted request to a `chat` or `none` target, depth (a run that was itself delegated delegates no further), target paused or quarantined, 10 an hour, target over budget. Untainted: a thread task for the target. Tainted (after the owner's Allow once): an isolated, tainted task. The result comes back as a card in the requester's thread (`delegation`) and a `delegation_done` Inbox item; the target's thread also gets a request card while it runs.
+- `agent.remind`: `when` is an ISO time with offset or `<n>m|h|d`, 15 minutes to 30 days ahead; 5 pending, 24 a day; moved to the end of the owner's quiet hours; a reminder set inside a delegated run stays delegated. It is a thread task on the agent's own thread, due on a guarded Clock timer (`due-timer.ts`, dedup `due:<id>`). A tainted reminder fires into its setter's session only (W5-R44, W5-R46).
+- Every call writes one audit row; a call whose audit slot cannot be reserved (120 a minute per session) answers `rate_limited` and runs nothing (W5-R16). A worker in flight with 8 calls gets `rate_limited` for the ninth.
+- `lane.note` writes the lane's one-line note (2 000 characters, 60 an hour per lane) and publishes the lane.
+
+## Requests, the vault and secret requests
+
+- Requests (`agent_requests`): `approve` and `secret`, states `pending`, `approved`, `denied`, `answered`, `declined`, `expired`, `cancelled`. At boot every pending request becomes `expired`. The owner answers with `agents.answerApproval` (approve), `secrets.answerRequest` / `secrets.declineRequest` (secret); a token is `forbidden`, a read-only database is `read_only`.
+- Vault: ADR 0049. `secrets.list|set|delete`; values reach the worker as `init.vault` and `vault_update`, never to a child, never without the sandbox. A set while a worker boots reaches it (`vaultDrift`). Lost key: `secrets.set` answers `command_failed` and logs `vault_key_lost`; the list reads `unreadable`.
+- `secret.request`: sandbox on only (`sandbox_unavailable` before any request). The answer is audited, then kept, then the request closes with the ref's hash. A failed keep writes a second audit row "secret answer failed" with the code only. A one-use value waits 24 hours, 3 per agent, in the daemon and in the asking worker; it goes to the first command that names `$NAME` or `${NAME}` exactly. `vault_update.once` is authoritative: the worker replaces its whole set at each record and drops an expired value by its own clock (W5-R37). A reset, a quarantine and an agent delete drop them; a restart does too.
+- The card for a secret request shows the asking thread's current taint (W5-R38): `AgentRequestView` carries no taint, the web reads the thread's session.
+
+## Sandbox, probe and egress
+
+- ADR 0048 for the argument list, the hides and the limits. The launch gate (`agent-gate.ts`) runs for every agent launch: agent exists, quarantine (`agent_paused`), home check (`invalid_cwd`), probe (`sandbox_unavailable`, logged `agent_sandbox_refused`), spec built from existing real folders and checked with `bwrapArgv` (`agent_sandbox_spec_invalid`). The precheck gate does the same with the `system` view and ignores `sandbox.required` (W5-R31).
+- A networked agent also needs the egress proxy: the gate waits for `egress.ready()`, and an unusable proxy (no `python3` at `/usr/bin`, `/usr/local/bin` or `/bin` whose real path is root-owned, under the system folders and answers a nonce; or no socket path under 107 bytes) is `sandbox_unavailable`, logged `agent_egress_refused`. `agents.sandboxStatus` carries both statuses.
+- The proxy (ADR 0047): one unix-socket listener per command in `<runtime root>/<session key>/<command key>.s`; `egress_open` and `egress_close` from the worker reach it through `egress-link.ts` (a third listener on the worker handle); at a worker's exit its commands end and its folder goes unless a newer worker of the session holds it. The root is `$XDG_RUNTIME_DIR/pap/<6 hex of sha256(real $PAP_HOME)>/egress` when that folder is a private runtime folder (owned, 0700), else `$PAP_HOME/run/egress`; neither fitting 107 bytes makes the proxy unusable (`socket_path`). Boot removes what a dead daemon left and writes the forwarder file `fwd.py`.
+- Scope of a command: the worker's start-time host list (the agent's, else the owner's, else empty), its trusted sources, and the thread's live grants (tasks, children and prechecks have none). An owner session, a child and an agent with the sandbox or network off have no scope.
+- The report of a command carries hosts, ports, kinds, verdicts and counts, never a path, header or body. A missing report taints.
+- Log lines: `egress_status` (at boot and recheck), `egress_command {sessionId, agentId, allowed, refused, up, down, hosts}`, `egress_limit`, `egress_listen_failed`, `egress_handler_failed`, `egress_root_unusable`, `egress_probe_failed`, `egress_boot_foreign`. Hosts in `egress_command`: as is when equal to a list entry, trusted source or grant the owner wrote, else `h:<12 hex> (len N)` (W5-R54). To find the host behind a hash: `printf %s the-host.example | sha256sum | cut -c1-12` (lower case, no final dot). The hash is unsalted and 48 bits: a low-entropy secret placed in a host name can be recovered offline from a shared log. The `network_request` call audit uses the same label; shell command arguments and stage 02 reasons carry what the agent wrote and rely on the worker's value-based redactor.
+- Failures in the other direction: a command with no socket (no answer within 2 s, no free slot) runs without network and its output ends with `[pap] The egress proxy was not available for this command; it ran without network.`
+
+## Quarantine and permissions
+
+- `agents.quarantine` steps: pause with `quarantined_at`; cancel running and queued tasks (10 s); abort, archive and clear the thread (this drops its host grants, W5-R52); cancel pending requests and drop one-use values; rotate the agent's webhook secrets (shown once); list vault names. Each step reports `{step, code}`. Replay answers `conflict` (the secrets are shown once). Resume from quarantine needs the password.
+- `agents.permissions` (browser only): tools (preset, `active` only from a live loadout, else `unknown-until-start`), the effective sandbox, hosts, blocked count, vault names, triggers, trusted sources, autonomy, the egress line, and the three legs of the trifecta. `tools.active` is `unknown-until-start` until a worker has started, and the sheet then says "may" instead of "can".
+- `agents.prompts` / `agents.prompt` read `prompts/*.md` of the home without following links (`O_NOFOLLOW`, uid check, 16 KiB, fatal UTF-8).
+
+## Budgets
+
+See `finops.md`: none by default, `usdPerDay` and `tokensPerDay`, read at each gate, applied at once, no password.
+
+## Known limits (in one place; ADR 0048 and ADR 0049 carry the reasons)
+
+- An agent thread's `read`, `grep`, `find` and `ls` are blocked (no question, every mode) outside its home, its own runs folder (`agents/.runs/<id>/`, read as external content: fenced and tainting, W5-R65), the files attached to the thread and the system folders (W5-R63: "outside this agent's folder"); its edits stay in its home. Your home, the rest of `$PAP_HOME`, other agents' homes and the runs folders are out of reach. These are pap's path rules, not bwrap, and they run in the worker.
+- "Use once" bounds how long a value is available, not who sees it.
+- Values under 8 characters are never redacted; encodings (base64, split, reversed) bypass literal redaction.
+- After a worker restart the redactor no longer knows a one-use value that was used.
+- Kept groups allow `connect()` to group-accessible unix sockets outside `/run` (lxd); tmpfs mounts have no size limit; `AF_VSOCK` is not tied to the network namespace.
+- The proxy guarantees hosts, not content; exfiltration through any reachable host remains.
+- A backup of the whole `$PAP_HOME` holds the vault key (RT-13); a lost key leaves the vault unreadable.
+- The worker (Pi, extensions, MCP stdio) is not sandboxed; R101's residual stays.
+- Host grants and one-use values are lost at a daemon restart.
+- The key write needs hard links (Linux).
+- CI: under `CI=1` `pi-search.symlinks.int.test.ts` makes ripgrep and `fd` hard requirements, and the bwrap and python3 int tests throw without them; locally they skip with one warning.
+
+## Test seams
+
+- Int tests that start real workers need `bwrap` (and, for the proxy, `python3`): they skip with one warning locally and throw under `CI=1`. They use a temporary `PAP_HOME`, `PAP_BWRAP` where a fake is needed, the scripted provider (`PAP_TEST_PROVIDER_SCRIPT`; its `prices` option gives runs a cost), and the steppable clock of `security/steppable-clock.ts`.
+- `modules/egress/testing/` is the only place that reaches `127.0.0.1`: the proxy factory takes `resolve` and `denies` as required dependencies and the production wiring passes `dns.lookup` and `blockedAddress`. No egress test names a public address or a real host; bypass targets are listeners on the loopback and the test asserts they saw nothing; interface isolation is read from `/proc/net/dev` inside the sandbox (W5-R50).
+- Beds: `agents/testing/bed.ts`, `agents/testing/requests-bed.ts`, `secrets/testing/secret-requests-bed.ts`, `platform/testing/dispatch-bed.ts`, `sessions/testing/int-bed.ts`.

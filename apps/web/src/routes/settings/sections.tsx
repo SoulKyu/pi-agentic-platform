@@ -3,6 +3,7 @@ import type { SettingsSection } from "../../features/workspace/index.ts";
 import { AppearancePanel } from "../../features/appearance/AppearancePanel.tsx";
 import { ShortcutsEditor } from "../../features/commands/editor/ShortcutsEditor.tsx";
 import { AccountSection } from "./AccountSection.tsx";
+import { AgentsSettings } from "./AgentsSettings.tsx";
 import { ApprovalsSection } from "./ApprovalsSection.tsx";
 import { LanguageSection } from "./LanguageSection.tsx";
 import { McpSettings } from "./McpSettings.tsx";
@@ -19,5 +20,6 @@ export const SETTINGS_SECTION_RENDERERS: Record<SettingsSection, () => ReactNode
   mcp: () => <McpSettings />,
   skills: () => <SkillsSettings />,
   automation: () => <AutomationSettings />,
+  agents: () => <AgentsSettings />,
   account: () => <AccountSection />,
 };

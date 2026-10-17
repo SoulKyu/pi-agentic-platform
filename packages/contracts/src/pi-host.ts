@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EgressClose, EgressOpen, EgressOpened, EgressReport } from "./egress.ts";
 import { ImageMime } from "./files.ts";
 import {
   AlwaysScope,
@@ -9,7 +10,16 @@ import {
   GuardRule,
   TOOL_CATEGORIES,
   ToolName,
+  TrustedHost,
 } from "./policy.ts";
+import {
+  INIT_PLATFORM_FIELDS,
+  PlatformCallRecord,
+  PlatformCancelRecord,
+  PlatformResultRecord,
+  SecretUsedRecord,
+  VaultUpdateRecord,
+} from "./platform.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 import { SessionName } from "./streams.ts";
 
@@ -52,11 +62,14 @@ export const InitRecord = z.object({
       allowlist: z.array(ToolName).min(1).max(32).optional(),
     })
     .optional(),
+  ...INIT_PLATFORM_FIELDS,
   policy: z.unknown(),
   /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */
   testProviderScript: AbsolutePath.optional(),
 });
-export type InitRecord = z.infer<typeof InitRecord>;
+/** What the daemon builds: `platform` may be left out (parsed, it is `{ ops: [] }`: see `ParsedInitRecord`). */
+export type InitRecord = z.input<typeof InitRecord>;
+export type ParsedInitRecord = z.output<typeof InitRecord>;
 /** An image the daemon claimed for a prompt: the worker reads it itself, from pap's pending uploads only (M8R41). */
 export const PromptImageRef = z.object({ path: AbsolutePath, mimeType: ImageMime });
 export type PromptImageRef = z.infer<typeof PromptImageRef>;
@@ -166,8 +179,12 @@ export const DaemonToWorker = z.discriminatedUnion("type", [
   ApprovalResponseRecord,
   ShutdownRecord,
   PolicyUpdateRecord,
+  PlatformResultRecord,
+  VaultUpdateRecord,
+  EgressOpened,
+  EgressReport,
 ]);
-export type DaemonToWorker = z.infer<typeof DaemonToWorker>;
+export type DaemonToWorker = z.input<typeof DaemonToWorker>;
 type CommandRecord =
   | z.infer<typeof PromptCommand>
   | z.infer<typeof AbortCommand>
@@ -212,22 +229,28 @@ const CustomCloseRecord = z.object({ type: z.literal("custom_close"), id: Id });
  * The policy's own question (Task 13b). The extension API cannot send it (`ctx.ui` has no approval method); code
  * inside the worker process could, which is R101's residual (ADR 0008).
  */
-export const ApprovalRequestRecord = z.object({
-  type: z.literal("approval_request"),
-  id: Id,
-  category: z.enum(TOOL_CATEGORIES),
-  title: z.string().max(4096),
-  message: z.string().max(65_536),
-  answers: ApprovalAnswers,
-  tool: z.string().min(1).max(256),
-  key: GrantKey,
-  tainted: z.boolean().default(false),
-  guard: GuardRule.optional(),
-  /** What "always" may cover besides the exact call (Task 2a). */
-  alwaysScopes: AlwaysScopes.optional(),
-  /** The call the question is about: the audit row of its answer names who answered (M4 of the M5 final review). */
-  toolCallId: z.string().max(256).optional(),
-});
+export const ApprovalRequestRecord = z
+  .object({
+    type: z.literal("approval_request"),
+    id: Id,
+    category: z.enum(TOOL_CATEGORIES),
+    title: z.string().max(4096),
+    message: z.string().max(65_536),
+    answers: ApprovalAnswers,
+    tool: z.string().min(1).max(256),
+    key: GrantKey,
+    tainted: z.boolean().default(false),
+    guard: GuardRule.optional(),
+    /** What "always" may cover besides the exact call (Task 2a). */
+    alwaysScopes: AlwaysScopes.optional(),
+    /** The call the question is about: the audit row of its answer names who answered (M4 of the M5 final review). */
+    toolCallId: z.string().max(256).optional(),
+    /** The host a `host` answer would allow (the `network_request` card); present exactly when `answers` holds `host`. */
+    host: TrustedHost.optional(),
+  })
+  .refine((record) => (record.host !== undefined) === record.answers.includes("host"), {
+    message: "a card carries its host exactly when it offers the host answer",
+  });
 export type ApprovalRequestRecord = z.infer<typeof ApprovalRequestRecord>;
 export const ResponseRecord = z.object({
   type: z.literal("response"),
@@ -306,6 +329,11 @@ const PapRecord = z.discriminatedUnion("type", [
   CustomRenderRecord,
   CustomCloseRecord,
   ApprovalRequestRecord,
+  PlatformCallRecord,
+  PlatformCancelRecord,
+  SecretUsedRecord,
+  EgressOpen,
+  EgressClose,
 ]);
 const PiEventRecord = z.looseObject({ type: z.string() });
 // Derived, so a record added to PapRecord can never be forwarded as a Pi event by mistake.

@@ -114,6 +114,11 @@ describe("api tokens", () => {
       "pi:admin",
       "lanes:admin",
       "automation:admin",
+      "agents:admin",
+      "secrets:read",
+      "secrets:operate",
+      "secrets:admin",
+      "memory:admin",
     ]);
     const params = methods["auth.tokens.create"].params;
     for (const permission of forbidden) {

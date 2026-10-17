@@ -56,7 +56,10 @@ export function createSettingsService(deps: {
     },
     set(caller, write) {
       // A token cannot lift the budget, unpause or add slots: the automation setting is the browser's (M10R162, RT-04).
-      if (write.key === "automation" && caller.kind === "token") throw new PapError("forbidden");
+      // The agents setting is the browser's too: it sets what a new agent starts with (M11R99).
+      if ((write.key === "automation" || write.key === "agents") && caller.kind === "token") {
+        throw new PapError("forbidden");
+      }
       const text = JSON.stringify(write.value);
       if (Buffer.byteLength(text, "utf8") > MAX_SETTING_BYTES) throw new PapError("payload_too_large");
       // Compare-and-set (owner R3-4): a write based on a revision that moved never lands over the newer copy.

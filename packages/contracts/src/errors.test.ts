@@ -8,6 +8,10 @@ describe("error codes", () => {
     expect(new Set(messages).size).toBe(ERROR_CODES.length);
   });
 
+  it("tells a paused agent's owner where to resume it: its header, as the web copy does", () => {
+    expect(ERROR_MESSAGES.agent_paused).toBe("This agent is paused. Resume it from its header.");
+  });
+
   it("keeps a slow answer apart from a dead worker", () => {
     expect(ERROR_CODES).toContain("timeout");
     expect(new PapError("timeout").code).toBe("timeout");
@@ -85,5 +89,20 @@ describe("error codes", () => {
 
   it("travels in an error response frame", () => {
     expect(ResponseFrame.safeParse({ id: 1, ok: false, error: { code: "timeout" } }).success).toBe(true);
+  });
+});
+
+describe("M11 codes (membership, never adjacency)", () => {
+  it("has the two agent codes with fixed messages, before unknown_method", () => {
+    const expected = {
+      sandbox_unavailable: "This agent's sandbox cannot run on this server as set up. See Settings › Agents.",
+      agent_paused: "This agent is paused. Resume it from its header.",
+    } as const;
+    for (const [code, message] of Object.entries(expected)) {
+      expect(ERROR_CODES).toContain(code);
+      expect(ERROR_CODES.indexOf(code as never)).toBeLessThan(ERROR_CODES.indexOf("unknown_method"));
+      expect(ERROR_MESSAGES[code as keyof typeof expected]).toBe(message);
+      expect(new PapError(code as keyof typeof expected).message).toBe(message);
+    }
   });
 });

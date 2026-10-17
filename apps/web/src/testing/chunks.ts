@@ -18,6 +18,9 @@ const CHUNKS = {
   compare: () => import("../features/lanes/CompareScreen.tsx"),
   changes: () => import("../features/vcs/ChangesPane.tsx"),
   terminal: () => import("../features/terminal/TerminalPane.tsx"),
+  agent: () => import("../routes/shell/agent-pane-entry.tsx"),
+  agentsPhone: () => import("../routes/shell/AgentsSection.tsx"),
+  newAgent: () => import("../routes/shell/new-agent-entry.tsx"),
 } as const;
 
 export type ChunkName = keyof typeof CHUNKS;
@@ -30,10 +33,11 @@ const BY_PATH: ReadonlyArray<readonly [prefix: string, chunk: ChunkName]> = [
   ["/trigger/", "trigger"],
   ["/lane/", "lane"],
   ["/compare/", "compare"],
+  ["/agents/", "agent"],
 ];
 
 /** The chunks the shell opens on a gesture (a drawer): always ready. */
-const ALWAYS: readonly ChunkName[] = ["treeDrawer", "inboxDrawer"];
+const ALWAYS: readonly ChunkName[] = ["treeDrawer", "inboxDrawer", "agentsPhone"];
 
 /** Resolves when every chunk the page at `path` can show, and the extra `chunks`, have settled. */
 export async function loadShellChunks(path: string, chunks: readonly ChunkName[] = []): Promise<void> {

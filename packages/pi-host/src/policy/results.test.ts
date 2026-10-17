@@ -10,12 +10,12 @@ import {
   type ResultDeps,
   WITHHELD_TEXT,
 } from "./results.ts";
-import { collectSecrets, type SecretSource } from "./secrets.ts";
+import { collectSecrets, type SecretReader } from "./secrets.ts";
 import { createExternalRoots, createTaint } from "./taint.ts";
 import { classifyTool } from "./tool-kind.ts";
 
 const set = { entries: [{ name: "GH", value: "ghp_abcdefgh" }] };
-const sourceOf = (value: { entries: ReadonlyArray<{ name: string; value: string }> }): SecretSource => {
+const sourceOf = (value: { entries: ReadonlyArray<{ name: string; value: string }> }): SecretReader => {
   const redactor = createRedactor(value);
   return { current: () => redactor, refresh: () => {} };
 };
@@ -23,7 +23,7 @@ const sourceOf = (value: { entries: ReadonlyArray<{ name: string; value: string 
 function deps(options: {
   audits?: PolicyAuditEntry[];
   redactor?: Redactor;
-  secrets?: SecretSource;
+  secrets?: SecretReader;
   audit?: (entry: PolicyAuditEntry) => void;
 }): ResultDeps {
   const { audits, redactor, secrets, audit } = options;
@@ -47,7 +47,7 @@ function resultEvent(text: string, extra: Record<string, unknown> = {}): ToolRes
     ...extra,
   } as unknown as ToolResultEvent;
 }
-const sourceWith = (redactor: Redactor): SecretSource => ({ current: () => redactor, refresh: () => {} });
+const sourceWith = (redactor: Redactor): SecretReader => ({ current: () => redactor, refresh: () => {} });
 
 // The withheld path writes a line to stderr: the unit run prints nothing.
 let quiet: { mockRestore(): void } | undefined;
@@ -229,7 +229,7 @@ describe("audit reasons", () => {
 });
 
 describe("the audit sink wrapper", () => {
-  const source = (): SecretSource => ({
+  const source = (): SecretReader => ({
     current: () => createRedactor({ entries: [{ name: "H", value: "Internal-Host.Example.COM" }] }),
     refresh: () => {},
   });

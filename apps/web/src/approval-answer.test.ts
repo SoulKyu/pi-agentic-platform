@@ -15,7 +15,7 @@ describe("ApprovalAnswer of @pap/ui and of @pap/contracts", () => {
     expect(fromContract("deny")).toBe("deny");
   });
 
-  it("list the same four answers, and the card's order names each exactly once", () => {
+  it("list the same five answers, and the card's order names each exactly once", () => {
     expect([...APPROVAL_ORDER].sort()).toEqual([...ContractAnswer.options].sort());
     expect(new Set(APPROVAL_ORDER).size).toBe(APPROVAL_ORDER.length);
   });

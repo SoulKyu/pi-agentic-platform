@@ -49,6 +49,7 @@ export interface ResumeSessions {
     ownerId: string;
     sessionId: string;
     text: string;
+    sandboxedOnly?: boolean;
   }): Promise<"started" | "queued" | "handled">;
 }
 
@@ -64,6 +65,10 @@ export interface ResumeDeps {
   /** The session's effective mode now (its own, else the owner's default). */
   readonly modeOf: (ownerId: string, sessionId: string) => ApprovalMode;
   readonly sessions: ResumeSessions;
+  /** Owner a5: an agent thread whose sandbox is on (registry now, and its worker's start): its full-access run may resume. */
+  readonly sandboxedAgent?: (ownerId: string, sessionId: string) => boolean;
+  /** The session is an agent's (thread or child): a token never continues it (M11R4, W5-R64). */
+  readonly agentSession?: (ownerId: string, sessionId: string) => boolean;
   /**
    * The task that owns the session (a Resume now click's run carries none, so the chain would lose it) and whether its
    * trigger is over its own daily budget (M10R66): a scheduled resume is skipped then. A click is not asked.
@@ -103,11 +108,20 @@ export function createResume(deps: ResumeDeps): Resume {
     return dailyBudgetUsd !== null && deps.port.spentToday(ownerId, timezone) >= dailyBudgetUsd;
   }
 
-  async function send(ownerId: string, row: RunRow): Promise<void> {
+  /** M10R104 with owner a5's exception (decision 90): full access holds a continuation unless the agent's sandbox is on. */
+  const heldForFullAccess = (ownerId: string, sessionId: string): boolean =>
+    deps.modeOf(ownerId, sessionId) === "full-access" && deps.sandboxedAgent?.(ownerId, sessionId) !== true;
+
+  async function send(ownerId: string, row: RunRow, sandboxedOnly = false): Promise<void> {
     const { sessionId } = row;
     sending.add(sessionId);
     try {
-      const disposition = await sessions.prompt({ ownerId, sessionId, text: RESUME_PROMPT });
+      const disposition = await sessions.prompt({
+        ownerId,
+        sessionId,
+        text: RESUME_PROMPT,
+        ...(sandboxedOnly ? { sandboxedOnly } : {}),
+      });
       // A prompt that starts no run must not leave its origin armed for the owner's next run.
       if (disposition === "handled") {
         deps.port.clearExpected(sessionId);
@@ -116,8 +130,10 @@ export function createResume(deps: ResumeDeps): Resume {
       }
     } catch (error) {
       deps.port.clearExpected(sessionId);
-      // No run will start for this continuation: whoever waits for it (a task's Cancel) stops waiting.
-      runs.resumeSkipped(sessionId, "send_failed");
+      // No run will start for this continuation: whoever waits for it (a task's Cancel) stops waiting. The sandbox
+      // refusal of a sandbox-only send is skipped by the handler as `full_access`, not reported twice.
+      if (!(sandboxedOnly && error instanceof PapError && error.code === "sandbox_unavailable"))
+        runs.resumeSkipped(sessionId, "send_failed");
       throw error;
     } finally {
       sending.delete(sessionId);
@@ -127,7 +143,7 @@ export function createResume(deps: ResumeDeps): Resume {
   function plan(row: RunRow): void {
     const resetAt = row.limitResetAt;
     if (resetAt === null || !deps.settings(row.ownerId).autoResume) return;
-    if (deps.modeOf(row.ownerId, row.sessionId) === "full-access") return;
+    if (heldForFullAccess(row.ownerId, row.sessionId)) return;
     enqueueEffect(
       outbox.db,
       {
@@ -149,7 +165,7 @@ export function createResume(deps: ResumeDeps): Resume {
   ): Skip | null {
     if (state.archived) return "archived";
     if (lookup.newerThan(row) || state.running || sending.has(row.sessionId)) return "newer_input";
-    if (deps.modeOf(ownerId, row.sessionId) === "full-access") return "full_access";
+    if (heldForFullAccess(ownerId, row.sessionId)) return "full_access";
     if (overBudget(ownerId)) return "budget";
     if (deps.taskOf?.(ownerId, row.sessionId)?.overBudget === true) return "budget";
     return null;
@@ -193,13 +209,20 @@ export function createResume(deps: ResumeDeps): Resume {
       return { outcome: "defer", until: clock.now() + CAPACITY_DEFER_MS };
     // From here a crash retires the effect and never replays it (M10R149).
     // Only the test seam returns a promise here; without it nothing yields between the mark and the send.
+    // Owner a5: a full-access continuation goes out sandbox-only; only then is `sandbox_unavailable` a held resume.
+    const sandboxedOnly = deps.modeOf(ownerId, sessionId) === "full-access";
     const held = context.markSent();
     if (held instanceof Promise) await held;
     try {
-      await send(ownerId, row);
+      await send(ownerId, row, sandboxedOnly);
       return done;
     } catch (error) {
       const code = error instanceof PapError ? error.code : "prompt_failed";
+      // The sandbox is gone since the check (a cold start refused, a warm worker without one): held, like full access.
+      if (sandboxedOnly && code === "sandbox_unavailable") {
+        runs.resumeSkipped(sessionId, "full_access");
+        return done;
+      }
       // Pi refused because a run was already going or starting: the owner's input won, and nothing was lost.
       if (code === "session_busy" || code === "prompt_rejected") {
         runs.resumeSkipped(sessionId, "newer_input");
@@ -213,6 +236,8 @@ export function createResume(deps: ResumeDeps): Resume {
     const ownerId = caller.userId;
     const state = sessions.state(ownerId, sessionId);
     if (!state) throw new PapError("not_found");
+    if (caller.kind === "token" && deps.agentSession?.(ownerId, sessionId) === true)
+      throw new PapError("forbidden");
     const row = lookup.latestOf(sessionId);
     if (
       !row ||

@@ -8,7 +8,7 @@ import { ALL_PERMISSIONS, type Permission } from "./permissions.ts";
  * administration (M7R39: it can make pap run a configured command or redirect provider traffic), never a terminal
  * (`terminal:*`, M8R2), never a trigger written or lifted (`automation:admin`, M10R2): a standing credential makes no
  * standing or code-running change. `lanes:admin` approves or runs code, sends it out, reaches a forge or destroys work
- * (M9R1).
+ * (M9R1). An agent is never administered by a token, and a token never sees or answers for a secret (M11R4).
  */
 export const TOKEN_PERMISSIONS: readonly Permission[] = ALL_PERMISSIONS.filter(
   (permission) =>
@@ -17,7 +17,10 @@ export const TOKEN_PERMISSIONS: readonly Permission[] = ALL_PERMISSIONS.filter(
     permission !== "policy:admin" &&
     permission !== "pi:admin" &&
     permission !== "lanes:admin" &&
-    permission !== "automation:admin",
+    permission !== "automation:admin" &&
+    permission !== "agents:admin" &&
+    !permission.startsWith("secrets:") &&
+    permission !== "memory:admin",
 );
 export const TokenPermission = z.enum(TOKEN_PERMISSIONS as [Permission, ...Permission[]]);
 export type TokenPermission = z.infer<typeof TokenPermission>;

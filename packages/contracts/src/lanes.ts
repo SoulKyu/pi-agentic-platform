@@ -211,6 +211,8 @@ export const LaneView = z.object({
   fanoutId: FanoutId.nullable(),
   fanoutSlot: z.number().int().min(0).max(3).nullable(),
   firstRunEndedAt: Time.nullable(),
+  /** What an agent wrote with `lane_note` (M11R41): model text, shown as text and never as markup. */
+  note: z.string().max(2000).nullable(),
   /** The lane holds `checkpointsPerLane` checkpoints: new ones are refused (never evicted) until it is archived. */
   checkpointsFull: z.boolean(),
   /** The first characters of the lane's description, which `lanes.prCreate` sends whole when the body is empty. */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ALL_PERMISSIONS,
   API_TOKEN_PATTERN,
+  DOMAINS,
   MAX_TOKENS_PER_USER,
   methods,
   TOKEN_LIFETIMES_DAYS,
@@ -17,7 +18,10 @@ describe("token contract", () => {
       p === "policy:admin" ||
       p === "pi:admin" ||
       p === "lanes:admin" ||
-      p === "automation:admin";
+      p === "automation:admin" ||
+      p === "agents:admin" ||
+      p.startsWith("secrets:") ||
+      p === "memory:admin";
     expect(TOKEN_PERMISSIONS).toEqual(ALL_PERMISSIONS.filter((p) => !neverForTokens(p)));
     for (const p of ["automation:read", "automation:operate", "usage:operate", "inbox:operate"])
       expect(TOKEN_PERMISSIONS).toContain(p);
@@ -28,6 +32,19 @@ describe("token contract", () => {
     expect(TokenPermission.safeParse("pi:admin").success).toBe(false);
     expect(TokenPermission.safeParse("pi:read").success).toBe(true);
     expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("auth:"))).toBe(false);
+  });
+
+  it("keeps agents, secrets and memory administration away from tokens, but lets them read and operate agents (M11R4)", () => {
+    expect(DOMAINS.slice(DOMAINS.indexOf("inbox"))).toEqual(["inbox", "agents", "secrets", "memory"]);
+    expect(TOKEN_PERMISSIONS.some((p) => p.startsWith("secrets:"))).toBe(false);
+    for (const p of ["agents:admin", "memory:admin", "secrets:read", "secrets:operate", "secrets:admin"]) {
+      expect(TOKEN_PERMISSIONS, p).not.toContain(p);
+      expect(TokenPermission.safeParse(p).success, p).toBe(false);
+      expect(ALL_PERMISSIONS, p).toContain(p);
+    }
+    for (const p of ["agents:read", "agents:operate", "memory:read", "memory:operate"]) {
+      expect(TOKEN_PERMISSIONS, p).toContain(p);
+    }
   });
 
   it("lets a token read and write files and read git, but never hold a terminal permission", () => {

@@ -44,7 +44,7 @@ function rig(options: { autoResume?: boolean } = {}): Rig {
   const prompts: string[] = [];
   const early = composeM10Early(test.core);
   const modules = {
-    audit: { port: { append: () => {}, fromWorker: () => null } },
+    audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
     projects: { port: { ensure: () => null } as unknown as ProjectsPort },
     policy: {
       port: {
@@ -55,6 +55,9 @@ function rig(options: { autoResume?: boolean } = {}): Rig {
       } as unknown as PolicyPort,
     },
     sessions: {
+      modeOf: () => "supervised",
+      sandboxedThread: () => false,
+      kindOf: () => null,
       automation: {
         onAttention: () => () => {},
         workers: () => ({ used: 0, max: 4 }),

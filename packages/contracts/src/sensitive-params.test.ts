@@ -16,6 +16,8 @@ describe("sensitiveParams", () => {
       "models.config.save",
       "models.loginAnswer",
       "models.setApiKey",
+      "secrets.answerRequest",
+      "secrets.set",
       "sessions.respondDialog",
     ]);
   });
@@ -29,6 +31,8 @@ describe("sensitiveParams", () => {
       "models.config.save": "text",
       "models.loginAnswer": "value",
       "models.setApiKey": "key",
+      "secrets.answerRequest": "value",
+      "secrets.set": "value",
       "sessions.respondDialog": "response",
     };
     for (const def of Object.values(methods)) {

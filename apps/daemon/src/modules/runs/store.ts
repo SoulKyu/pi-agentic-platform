@@ -73,6 +73,9 @@ export interface RunsStore {
     readonly taskId: string | null;
     readonly origin: string;
     readonly startedAt: number;
+    /** The agent whose session ran it, and the parent of a subagent's child (M11R73). */
+    readonly agentId?: string | null;
+    readonly parentSessionId?: string | null;
   }): void;
   saveProgress(id: string, progress: RunProgress): void;
   /** Closes a running row; undefined when there is none (already closed, or never opened). */
@@ -180,9 +183,9 @@ export function createRunsStore(db: Db): RunsStore {
   return {
     insertRunning: (run) =>
       void db.run(
-        "INSERT INTO runs (id, owner_id, session_id, task_id, origin, status, started_at) " +
-          "VALUES ($id, $ownerId, $sessionId, $taskId, $origin, 'running', $startedAt)",
-        run,
+        "INSERT INTO runs (id, owner_id, session_id, task_id, origin, status, started_at, agent_id, parent_session_id) " +
+          "VALUES ($id, $ownerId, $sessionId, $taskId, $origin, 'running', $startedAt, $agentId, $parentSessionId)",
+        { agentId: null, parentSessionId: null, ...run },
       ),
     saveProgress: (id, progress) =>
       void db.run(`UPDATE runs SET ${PROGRESS_SET} WHERE id = $id AND status = 'running'`, {

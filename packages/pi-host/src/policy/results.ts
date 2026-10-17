@@ -5,13 +5,13 @@ import { errorClass } from "../bounded.ts";
 import { FENCE_PLACEHOLDER, fenceText, newFenceId } from "./fence.ts";
 import { EDGE_BUDGET, isHeadCut, maskCuts, maskTruncationCopy } from "./edges.ts";
 import type { Redactor } from "./redact.ts";
-import type { SecretSource } from "./secrets.ts";
+import type { SecretReader } from "./secrets.ts";
 import type { ExternalRoots, Taint } from "./taint.ts";
 import type { ToolKind } from "./tool-kind.ts";
-import { clipUnits } from "./trail.ts";
+import { takeStreamCount } from "../redact-stream.ts";
+import { clipUnits, MAX_ID_LENGTH as MAX_ID } from "./trail.ts";
 
 export const WITHHELD_TEXT = "[pap-policy could not check this tool result, so it was withheld.]";
-const MAX_ID = 256;
 const MAX_STAGE_REASON = 256;
 const MAX_REASON = 1024;
 type ResultAuditEntry = Extract<PolicyAuditEntry, { kind: "result" }>;
@@ -19,12 +19,14 @@ const STAGE_06_PASS: StageVerdict = { stage: "06", outcome: "pass" };
 const STAGE_07_PASS: StageVerdict = { stage: "07", outcome: "pass" };
 
 export interface ResultDeps {
-  readonly secrets: SecretSource;
+  readonly secrets: SecretReader;
   audit(entry: PolicyAuditEntry): void;
   /** Used by stage 07. */
   classify(name: string): ToolKind;
   readonly taint: Taint;
   readonly roots: ExternalRoots;
+  /** What the proxy saw of a networked sandboxed shell's call, taken once (M11R233); absent: such a result is external. */
+  readonly egress?: { check(toolCallId: string): { readonly taints: boolean; readonly reason: string } };
   /** Tests only: the real ones by default. */
   newFenceId?(): string;
   fence?(text: string, source: string, id: string): string;
@@ -95,13 +97,48 @@ function raiseVerdict(deps: ResultDeps, reason: string): StageVerdict {
   }
 }
 
+/**
+ * M11R15: the answer of a `subagent` call is external exactly when the daemon said its child was tainted
+ * (`details.tainted`, set by the platform tool from the daemon's result). A success that does not say so is fenced too.
+ */
+function subagentTainted(event: ToolResultEvent, kind: ToolKind): boolean {
+  if (kind.platform?.op !== "subagent.run" || event.isError) return false;
+  return (event.details as { tainted?: unknown } | null | undefined)?.tainted !== false;
+}
+
+/** What the egress report said: why a networked result passed stage 07, or why it was fenced when that is not the usual reason. */
+interface Clean {
+  reason?: string;
+  fenced?: string;
+}
+
+/**
+ * M11R233: pap's networked sandboxed shell is external unless its report shows no taint; the reason of a clean one goes in the
+ * stage 07 row. Any other tool is external by its kind.
+ */
+function kindExternal(kind: ToolKind, id: string, deps: ResultDeps, clean: Clean): boolean {
+  if (kind.sandboxed !== true || !kind.external) return kind.external;
+  const verdict = deps.egress?.check(id);
+  if (verdict === undefined || verdict.taints) {
+    if (verdict?.reason) clean.fenced = verdict.reason;
+    return true;
+  }
+  clean.reason = verdict.reason;
+  return false;
+}
+
 /** M5R39. Anything that throws while deciding counts as external: an unknown result is never trusted. */
-function isExternal(event: ToolResultEvent, deps: ResultDeps): boolean {
+function isExternal(event: ToolResultEvent, deps: ResultDeps, clean: Clean): boolean {
   try {
-    const rooted = deps.roots.take(clipUnits(event.toolCallId, MAX_ID));
+    const id = clipUnits(event.toolCallId, MAX_ID);
+    const rooted = deps.roots.take(id);
     const kind = deps.classify(event.toolName);
     // A script's `load()` returns what an earlier script `store()`d, so a tainted session fences every codemode result.
-    const external = kind.external || rooted || (kind.codemode === true && deps.taint.current());
+    const external =
+      kindExternal(kind, id, deps, clean) ||
+      rooted ||
+      (kind.codemode === true && deps.taint.current()) ||
+      subagentTainted(event, kind);
     if (external && event.parentToolCallId !== undefined)
       deps.roots.add(clipUnits(event.parentToolCallId, MAX_ID));
     return external;
@@ -166,16 +203,18 @@ function fenceResult(
   event: ToolResultEvent,
   done: Redacted,
   deps: ResultDeps,
+  source: string,
+  reason = "fenced; session tainted",
 ): { result: ToolResultEventResult; verdict: StageVerdict } {
   try {
-    const verdict = raiseVerdict(deps, "fenced; session tainted");
+    const verdict = raiseVerdict(deps, reason);
     const hasText = done.content.some((part) => part.type === "text");
     if (!hasText)
       return { result: unfenced(done), verdict: { ...verdict, reason: "session tainted (no text)" } };
     const id = (deps.newFenceId ?? newFenceId)();
     const fence = deps.fence ?? fenceText;
     const content = done.content.map((part) =>
-      part.type === "text" ? { ...part, text: fence(part.text, event.toolName, id) } : part,
+      part.type === "text" ? { ...part, text: fence(part.text, source, id) } : part,
     );
     return { result: unfenced({ ...done, content }), verdict };
   } catch (error) {
@@ -212,29 +251,38 @@ function unfenced(done: Redacted): ToolResultEventResult {
  * raises the taint. An external result is fenced and raises the taint (M5R39, M5R40, M5R43).
  */
 export function onToolResult(event: ToolResultEvent, deps: ResultDeps): ToolResultEventResult | undefined {
-  const external = isExternal(event, deps);
+  // Read before `isExternal` takes the root: a call the pipeline marked as a read of an agent's runs folder names its fence.
+  const source = deps.roots.source?.(clipUnits(event.toolCallId, MAX_ID)) ?? event.toolName;
+  const clean: Clean = {};
+  const external = isExternal(event, deps, clean);
   let done: Redacted;
   try {
     done = redactResult(event, deps);
   } catch (error) {
     return withheld(event, deps, error, external);
   }
+  // A sandboxed command's output was redacted as it streamed (Pi writes it to a file first): that count is part of this row.
+  const redactions = done.count + takeStreamCount(clipUnits(event.toolCallId, MAX_ID));
   const stage06: StageVerdict =
-    done.count === 0
+    redactions === 0
       ? STAGE_06_PASS
       : {
           stage: "06",
           outcome: "acted",
-          reason: `${done.count} ${done.count === 1 ? "secret" : "secrets"} redacted`,
+          reason: `${redactions} ${redactions === 1 ? "secret" : "secrets"} redacted`,
         };
   try {
     if (!external) {
-      if (done.count === 0) return undefined;
-      deps.audit(resultEntry(event, done.count, stage06));
-      return unfenced(done);
+      // A clean networked result is audited whatever it held: the row says why it was not fenced.
+      if (clean.reason !== undefined)
+        deps.audit(
+          resultEntry(event, redactions, stage06, { stage: "07", outcome: "pass", reason: clean.reason }),
+        );
+      else if (redactions > 0) deps.audit(resultEntry(event, redactions, stage06));
+      return done.count === 0 ? undefined : unfenced(done);
     }
-    const fenced = fenceResult(event, done, deps);
-    deps.audit(resultEntry(event, done.count, stage06, fenced.verdict));
+    const fenced = fenceResult(event, done, deps, source, clean.fenced);
+    deps.audit(resultEntry(event, redactions, stage06, fenced.verdict));
     return fenced.result;
   } catch (error) {
     return withheld(event, deps, error, external);
@@ -269,7 +317,7 @@ export function redactAuditReasons(entry: PolicyAuditEntry, redactor: Redactor):
 /** The worker's audit sink with the reasons redacted against the secrets known at that moment. */
 export function redactingAuditSink(
   send: (entry: PolicyAuditEntry) => void,
-  secrets: SecretSource,
+  secrets: SecretReader,
 ): (entry: PolicyAuditEntry) => void {
   return (entry) => send(redactAuditReasons(entry, secrets.current()));
 }

@@ -12,10 +12,10 @@ import { AUDIT_MIGRATIONS, createAuditModule } from "../../audit/index.ts";
 import { requireStepUp } from "../../auth/index.ts";
 import { createProjectsModule, PROJECTS_MIGRATIONS } from "../../projects/index.ts";
 import { RUNS_MIGRATIONS } from "../../runs/index.ts";
-import { AUTOMATION_MIGRATIONS, createTriggers, type TriggerChanged } from "../index.ts";
+import { type AgentBinding, AUTOMATION_MIGRATIONS, createTriggers, type TriggerChanged } from "../index.ts";
 
 /** A real database through `migrate`, a fake clock, a temporary `$PAP_HOME` and Pi folder, and the triggers service over them. */
-export function createAutomationBed(options: { startAt?: number } = {}) {
+export function createAutomationBed(options: { startAt?: number; agents?: AgentBinding } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "pap-automation-"));
   const clock = createFakeClock(options.startAt ?? Date.now());
   const logs: Array<Record<string, unknown>> = [];
@@ -46,6 +46,7 @@ export function createAutomationBed(options: { startAt?: number } = {}) {
   const projects = createProjectsModule({ db, clock, logger, newId });
   const changeListeners: Array<(change: TriggerChanged) => void> = [];
   const triggers = createTriggers({
+    ...(options.agents ? { agents: options.agents } : {}),
     onChange: (change) => changeListeners.forEach((listener) => listener(change)),
     db,
     clock,

@@ -21,8 +21,26 @@ export const INBOX_LIMITS = {
 export const INBOX_RESOLUTIONS = ["answered", "timed_out"] as const;
 
 /**
+ * Every kind the Inbox names, by group (M11R90). A kind outside these lists comes from a newer daemon: the client shows it
+ * as a generic line. The groups are disjoint; the `inbox.list` filters read them (`all` is no group).
+ */
+export const INBOX_KINDS = {
+  toHandle: ["task_needs_input", "agent_approve", "secret_request", "memory_review"],
+  replies: ["agent_reply", "delegation_done"],
+  tasks: ["task_done", "task_failed", "task_interrupted", "task_limited"],
+  info: ["agent_notify"],
+} as const;
+
+export const INBOX_FILTERS = ["all", "to_handle", "replies", "tasks"] as const;
+export type InboxFilter = (typeof INBOX_FILTERS)[number];
+
+/** The longest `detail` of an item: one short line an agent or a memory fact wrote (M11R89). */
+export const INBOX_DETAIL_CHARS = 500;
+
+/**
  * One line of the Inbox. `kind` is open-ended (M11 adds its own); M10 writes `task_needs_input` (to handle) and
- * `task_done`, `task_failed`, `task_interrupted`, `task_limited` (info). `triggerName` is the owner's own text, never a
+ * `task_done`, `task_failed`, `task_interrupted`, `task_limited` (info); M11's are in `INBOX_KINDS`. `agentId`, `refId`, `entryId` and `detail` are set on agent items
+ * (`detail` is untrusted text: shown as text only). `triggerName` is the owner's own text, never a
  * payload; the title shown is built by the client from `kind`. A question that is not resolved is what the badge counts.
  */
 export const InboxItem = z
@@ -38,6 +56,10 @@ export const InboxItem = z
     readAt: z.number().int().nullable(),
     resolvedAt: z.number().int().nullable(),
     resolution: z.enum(INBOX_RESOLUTIONS).nullable(),
+    agentId: z.string().min(6).max(48).nullable().default(null),
+    refId: z.string().min(1).max(128).nullable().default(null),
+    entryId: z.string().max(128).nullable().default(null),
+    detail: z.string().max(INBOX_DETAIL_CHARS).nullable().default(null),
   })
   .strict();
 export type InboxItem = z.infer<typeof InboxItem>;
@@ -83,7 +105,7 @@ export const inboxMethods = {
     name: "inbox.list",
     permission: "inbox:read",
     idempotent: true,
-    params: z.object({ before: InboxCursor.optional() }).strict(),
+    params: z.object({ before: InboxCursor.optional(), filter: z.enum(INBOX_FILTERS).optional() }).strict(),
     result: z.object({ items: z.array(InboxItem).max(INBOX_LIMITS.page), hasMore: z.boolean() }).strict(),
     errors: [],
   }),

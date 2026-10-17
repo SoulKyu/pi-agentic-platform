@@ -22,6 +22,10 @@ export const itemOf = (over: Partial<InboxItem> = {}): InboxItem => ({
   readAt: null,
   resolvedAt: null,
   resolution: null,
+  agentId: null,
+  refId: null,
+  entryId: null,
+  detail: null,
   ...over,
 });
 

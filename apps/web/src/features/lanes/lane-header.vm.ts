@@ -75,6 +75,8 @@ export interface HeaderModel {
   readonly runSetup: boolean;
   /** A token chose the files and the base: shown next to Run setup (M8). */
   readonly byToken: boolean;
+  /** The agent's note: model text, shown as text. */
+  readonly note: string | null;
 }
 
 const reasonKey = (reason: LaneStatusReason | null, lane: LaneView): MessageKey | null => {
@@ -112,6 +114,7 @@ export function headerModel(lane: LaneView, sessions: Iterable<SessionFacts>): H
     pr: lane.pr === null ? null : prBadge(lane.pr),
     runSetup: showsRunSetup(lane),
     byToken: lane.createdBy === "token",
+    note: lane.note,
   };
 }
 

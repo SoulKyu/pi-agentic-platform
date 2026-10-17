@@ -19,7 +19,7 @@ export interface LaneProbe {
     caller: Caller,
     sessionId: string,
   ): Promise<{ leafId: string | null; entries: BranchPathEntry[] }>;
-  agentText(sessionId: string, max: number): Promise<string | null>;
+  agentText(sessionId: string, max: number, since?: number): Promise<string | null>;
 }
 
 /** What a suggested commit message may hold: the characters the model returns are untrusted text (M9R79). */

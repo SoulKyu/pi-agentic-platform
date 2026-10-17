@@ -6,11 +6,19 @@ import { labelValue } from "./labels.ts";
 import { classifyLimit } from "./limits.ts";
 import type { RunBilling, RunErrorClass, RunProgress, RunRow, RunsStore, RunStatus } from "./store.ts";
 
+/** The session's row, as far as a run needs it: its agent and its parent are copied to the run (M11R73). */
+export interface RunSession {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly agentId?: string | undefined;
+  readonly parentSessionId?: string | undefined;
+}
+
 /** What the sessions module calls (M10R84). Neither method ever throws: a failure is logged and the session goes on. */
 export interface RunObserver {
   /** A record of the session's worker; only `run_start` and `run_end` matter. The loadout is the worker's last. */
   onRecord(
-    session: { readonly id: string; readonly ownerId: string },
+    session: RunSession,
     kind: string,
     data: unknown,
     loadout: Pick<SessionLoadout, "billing"> | null,
@@ -196,13 +204,23 @@ export function createRunTracker(deps: {
     if (done) hooks.ended(done.event, done.row);
   }
 
-  function onRunStart(session: { id: string; ownerId: string }, recorded: unknown): void {
+  function onRunStart(session: RunSession, recorded: unknown): void {
     const prior = open.get(session.id);
     if (prior) close(session.id, prior, "interrupted", "crash", "unknown");
     const { origin, taskId } = takeOrigin(session.id, isRecord(recorded) ? recorded.origin : undefined);
     const id = deps.newId();
     const startedAt = clock.now();
-    store.insertRunning({ id, ownerId: session.ownerId, sessionId: session.id, taskId, origin, startedAt });
+    const { agentId = null, parentSessionId = null } = session;
+    store.insertRunning({
+      id,
+      ownerId: session.ownerId,
+      sessionId: session.id,
+      taskId,
+      origin,
+      startedAt,
+      agentId,
+      parentSessionId,
+    });
     open.set(session.id, {
       id,
       ownerId: session.ownerId,
@@ -250,8 +268,9 @@ export function createRunTracker(deps: {
     run.cacheReadTokens += tokens(usage.cacheRead);
     run.cacheWriteTokens += tokens(usage.cacheWrite);
     run.costUsd += money(isRecord(usage.cost) ? usage.cost.total : undefined);
-    hooks.live(sessionId, run.ownerId, run.costUsd);
+    // Saved first: the budget the live hook checks reads the row (M11R74).
     store.saveProgress(run.id, progressOf(run));
+    hooks.live(sessionId, run.ownerId, run.costUsd);
   }
 
   const clipError = (text: unknown): string | null =>

@@ -124,6 +124,7 @@ describe("transcriptItems", () => {
         text: "from an extension",
         thinking: "",
         entryId: null,
+        at: 3,
       },
     ]);
   });

@@ -33,7 +33,11 @@ function sessionsBefore() {
   const old = join(dir, "sessions-before");
   mkdirSync(old);
   for (const file of readdirSync(SESSIONS_MIGRATIONS.dir).filter(
-    (name) => name !== "202610131020_pap_wrote_at.sql" && name !== "202610131030_tool_preset.sql",
+    (name) =>
+      name !== "202610131020_pap_wrote_at.sql" &&
+      name !== "202610131030_tool_preset.sql" &&
+      name !== "202610151100_session_kinds.sql" &&
+      name !== "202610151152_owner_preset.sql",
   ))
     copyFileSync(join(SESSIONS_MIGRATIONS.dir, file), join(old, file));
   return { module: SESSIONS_MIGRATIONS.module, dir: old };

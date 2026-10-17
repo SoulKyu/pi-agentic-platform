@@ -13,6 +13,7 @@ import { createRateLimiter } from "../../kernel/rate-limit.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { type PolicyPort, RESTRICTIVE_SETTINGS } from "../policy/index.ts";
+import { type AgentRuleParts, effectiveMode, type OwnerLists } from "./agent-rules.ts";
 import { auditActorOf, taskRules } from "./automation-port.ts";
 import { createGrantLink, type GrantLink } from "./grants.ts";
 import type { LiveSession } from "./live-session.ts";
@@ -54,6 +55,10 @@ export interface PolicyLinkDeps {
   sessions(): Iterable<LiveSession>;
   /** The session's tool preset now (null: configured): the stored one, not the copy a tracked row holds (Task 15). */
   toolPreset(row: SessionRow): StoredPreset | null;
+  /** The agent's part of the rules of a session that belongs to one (M11R52); none: nothing is added. */
+  agentRules?(row: SessionRow, owner: OwnerLists): AgentRuleParts;
+  /** The mode of the profile of an agent thread, for the `policy` view (W5-R23); null for any other session. */
+  agentModeOf?(ownerId: string, sessionId: string): ApprovalMode | null;
 }
 
 export interface PolicyLink {
@@ -137,6 +142,11 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
       readOnlyCommands: settings.readOnlyCommands,
       readOnlyPreset: deps.toolPreset(row) === "read-only",
       ...taskRules(row, { mode, ...task }),
+      ...deps.agentRules?.(row, {
+        allowHosts: settings.allowHosts,
+        denylist: settings.denylist,
+        session: { mode, explicit: task.explicit },
+      }),
     });
     if (composed.success) return composed.data;
     // A bug, not an answer. The worker refuses invalid rules at start, and read-only is the narrowest valid set.
@@ -163,8 +173,11 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
   };
 
   const viewOfId = (ownerId: string, sessionId: string): SessionPolicyView => {
-    const { mode, explicit, taint } = deps.policy.sessionPolicy(ownerId, sessionId);
-    return { mode, explicit, tainted: taint.tainted, defaultMode: defaultModeOf(ownerId, sessionId) };
+    const session = deps.policy.sessionPolicy(ownerId, sessionId);
+    const agentMode = deps.agentModeOf?.(ownerId, sessionId) ?? null;
+    // On an agent thread the view shows the mode in force (W5-R23).
+    const { mode, explicit } = agentMode === null ? session : effectiveMode(agentMode, session);
+    return { mode, explicit, tainted: session.taint.tainted, defaultMode: defaultModeOf(ownerId, sessionId) };
   };
   const publishView = (ownerId: string, sessionId: string): void =>
     deps.hub.publish("session", sessionId, { kind: "policy", policy: viewOfId(ownerId, sessionId) });

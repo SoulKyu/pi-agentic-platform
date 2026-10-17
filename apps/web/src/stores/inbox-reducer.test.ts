@@ -14,6 +14,10 @@ const item = (id: string, patch: Partial<InboxItem> = {}): InboxItem => ({
   readAt: null,
   resolvedAt: null,
   resolution: null,
+  agentId: null,
+  refId: null,
+  entryId: null,
+  detail: null,
   ...patch,
 });
 const question = (id: string, patch: Partial<InboxItem> = {}) =>

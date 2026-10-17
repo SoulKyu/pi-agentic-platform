@@ -1,15 +1,19 @@
-import type { InboxItem } from "@pap/contracts";
+import { INBOX_KINDS, type InboxItem } from "@pap/contracts";
 import { formatCost, type ChipTone } from "@pap/ui";
 import { t, type MessageKey } from "../../i18n/index.ts";
 import { visibleName } from "../../lib/visible-name.ts";
 
-export type InboxFilter = "all" | "handle" | "tasks";
-export const FILTERS: readonly InboxFilter[] = ["all", "handle", "tasks"];
+export type InboxFilter = "all" | "handle" | "replies" | "tasks";
+export const FILTERS: readonly InboxFilter[] = ["all", "handle", "replies", "tasks"];
 
 /** A question the owner has not answered yet: what the badge counts and the attention tint marks. */
 export const isOpen = (item: InboxItem): boolean => item.toHandle && item.resolvedAt === null;
 
 const isTask = (item: InboxItem): boolean => item.kind.startsWith("task_");
+const isReply = (item: InboxItem): boolean => (INBOX_KINDS.replies as readonly string[]).includes(item.kind);
+
+/** An item an agent raised (M11R91); a kind this build does not know is still drawn as an agent row. */
+export const isAgentItem = (item: InboxItem): boolean => item.agentId !== null;
 
 /** Rows to handle first, then newest first; the id breaks a tie so the order never flickers. */
 export function ordered(items: readonly InboxItem[]): InboxItem[] {
@@ -19,8 +23,8 @@ export function ordered(items: readonly InboxItem[]): InboxItem[] {
 }
 
 export function visible(items: readonly InboxItem[], filter: InboxFilter): InboxItem[] {
-  const kept = filter === "handle" ? items.filter(isOpen) : filter === "tasks" ? items.filter(isTask) : items;
-  return ordered(kept);
+  const only = { all: null, handle: isOpen, replies: isReply, tasks: isTask }[filter];
+  return ordered(only === null ? items : items.filter(only));
 }
 
 /** The line's title: the trigger's name, then what happened. A question has three endings (answered, denied at its timeout, closed with its task). */

@@ -1,11 +1,18 @@
 import { randomUUID } from "node:crypto";
-import { INBOX_LIMITS, type InboxCursor, type InboxItem, type InboxStreamEvent } from "@pap/contracts";
+import {
+  INBOX_LIMITS,
+  type InboxCursor,
+  type InboxFilter,
+  type InboxItem,
+  type InboxStreamEvent,
+} from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Db } from "../../kernel/db/database.ts";
 import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import type { AutomationEvent, AutomationEvents } from "../automation/index.ts";
+import { createAgentItems } from "./agent-items.ts";
 import { createInboxStore, type NewItem } from "./store.ts";
 
 /** What the Inbox asks the automation module about a task it hears of. */
@@ -13,6 +20,8 @@ export interface InboxTaskInfo {
   readonly ownerId: string;
   readonly triggerName: string;
   readonly sessionId: string | null;
+  /** The agent whose task it is (M11R92); absent or null for a trigger's own task. */
+  readonly agentId?: string | null;
 }
 
 export interface InboxDeps {
@@ -81,6 +90,15 @@ export function createInbox(deps: InboxDeps) {
     return false;
   }
 
+  const agentItems = createAgentItems({
+    store,
+    clock,
+    logger,
+    roomFor,
+    announce,
+    counts: (ownerId) => publish(ownerId, { kind: "counts", ...store.counts(ownerId) }),
+  });
+
   function newItem(
     ownerId: string,
     kind: string,
@@ -99,6 +117,7 @@ export function createInbox(deps: InboxDeps) {
       triggerName: nameOf(task.triggerName),
       costUsd,
       at: clock.now(),
+      agentId: task.agentId ?? null,
     };
   }
 
@@ -128,7 +147,12 @@ export function createInbox(deps: InboxDeps) {
     const kind = INFO_KINDS[task.state as keyof typeof INFO_KINDS];
     // The same ending heard twice writes nothing, and costs the owner no old item either.
     if (kind && !store.byTaskKind(task.id, kind) && roomFor(ownerId)) {
-      const from = { ownerId, triggerName: task.triggerName, sessionId: task.sessionId };
+      const from = {
+        ownerId,
+        triggerName: task.triggerName,
+        sessionId: task.sessionId,
+        agentId: task.agentId,
+      };
       if (store.insertInfo(newItem(ownerId, kind, false, from, task.id, task.costUsd))) {
         const written = store.byTaskKind(task.id, kind);
         if (written) changed.push(written);
@@ -163,8 +187,14 @@ export function createInbox(deps: InboxDeps) {
 
   return {
     snapshot,
-    list(ownerId: string, before: InboxCursor | undefined): { items: InboxItem[]; hasMore: boolean } {
-      const rows = store.page(ownerId, before, INBOX_LIMITS.page);
+    /** The port M11's agents, delegations and memory write the Inbox through (M11R91). */
+    agentItems,
+    list(
+      ownerId: string,
+      before: InboxCursor | undefined,
+      filter?: InboxFilter,
+    ): { items: InboxItem[]; hasMore: boolean } {
+      const rows = store.page(ownerId, before, INBOX_LIMITS.page, filter);
       return { items: rows.slice(0, INBOX_LIMITS.page), hasMore: rows.length > INBOX_LIMITS.page };
     },
     markRead(ownerId: string, params: { ids?: string[]; all?: true }): { updated: number } {

@@ -49,7 +49,7 @@ function moduleWith(testProviderScript: string, clock: Clock = createSystemClock
     policy: fakePolicyPort(),
     projects: fakeProjectsPort(),
     ownerId: () => "u1",
-    audit: { append: () => {}, fromWorker: () => null },
+    audit: { append: () => {}, reserve: () => true, fromWorker: () => null },
     attachments: noAttachments,
     config: {
       home: join(root, "pap"),

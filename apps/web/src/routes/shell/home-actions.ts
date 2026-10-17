@@ -38,6 +38,9 @@ export function homeActions(navigate: Navigate): HomeActions {
       useTriggerPrefill.getState().put(projectId, prefill);
       go(navigate, pathOfItem({ kind: "trigger", id: `new:${projectId}` }));
     },
+    newAgent: () => {
+      runCommand("agents.new");
+    },
     addProject: (onAdded) => useAddProjectRequest.getState().ask(onAdded),
   };
 }

@@ -31,10 +31,16 @@ import {
 
 // Keys whose French is the same word (endonyms, product and font names). Every other key must differ.
 const IDENTICAL_IN_FR = new Set([
+  "access.tokens.domain.agents",
+  "access.tokens.domain.secrets",
   "settings.theme.tag.a11y",
   "files.viewer.source",
   "commands.palette.group.lanes",
+  "commands.palette.settings.agents",
+  "settings.section.agents",
   "shell.tab.lane",
+  "shell.tab.agent",
+  "commands.palette.group.agents",
   "launch.mode.session",
   "launch.mode.lane",
   "launch.mode.fanout",

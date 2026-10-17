@@ -1,10 +1,12 @@
-import type { ToolCategory } from "@pap/contracts";
+import { PLATFORM_OPS, type PlatformOp, type ToolCategory, type WhenTainted } from "@pap/contracts";
 
 /** What Pi records about a registered tool (`ToolInfo.sourceInfo.path` and the tool's own hints). */
 export interface ToolFacts {
   readonly path: string;
   readonly readOnlyHint?: boolean | undefined;
   readonly openWorldHint?: boolean | undefined;
+  /** Whether the session's sandbox has network; only the policy extension sets it, from `init.sandbox`, and only a `bash` from `SANDBOX_SOURCE` reads it. */
+  readonly sandboxNetwork?: boolean | undefined;
 }
 
 export interface ToolKind {
@@ -18,6 +20,10 @@ export interface ToolKind {
   readonly builtin: boolean;
   /** Pi's own codemode tool (by registered source): its result can carry a value an earlier script stored (`store`/`load`). */
   readonly codemode?: true;
+  /** A tool of pap's own platform extension (M11R13): the op it calls and what a tainted session gets. */
+  readonly platform?: { readonly op: PlatformOp; readonly whenTainted: WhenTainted };
+  /** pap's own sandboxed `bash` (M11R25, by registered source): a command like Pi's `bash` (`builtin` stays false, so Task 5 can tell the two apart). */
+  readonly sandboxed?: true;
 }
 
 const BUILTIN_CATEGORY: Readonly<Record<string, ToolCategory>> = {
@@ -37,6 +43,13 @@ const BUILTIN_CATEGORY: Readonly<Record<string, ToolCategory>> = {
 export const MCP_SOURCE = "builtin:mcp";
 export const CODEMODE_SOURCE = "builtin:codemode";
 export const TOOL_SEARCH_SOURCE = "builtin:tool-search";
+/** `ToolInfo.sourceInfo.path` of the tools pi-host's inline `pap-platform` extension registers (pinned by `host.platform.int.test.ts`). */
+export const PLATFORM_SOURCE = "<inline:pap-platform>";
+/** `ToolInfo.sourceInfo.path` of the `bash` pi-host's inline `pap-sandbox` extension registers (pinned by `host.sandbox.int.test.ts`). */
+export const SANDBOX_SOURCE = "<inline:pap-sandbox>";
+const PLATFORM_OP_OF_TOOL: ReadonlyMap<string, PlatformOp> = new Map(
+  (Object.keys(PLATFORM_OPS) as PlatformOp[]).map((op) => [PLATFORM_OPS[op].tool, op]),
+);
 const MCP_RESOURCE_TOOLS: ReadonlySet<string> = new Set([
   "read_mcp_resource",
   "list_mcp_resources",
@@ -83,6 +96,8 @@ function extensionKind(name: string, facts: ToolFacts | undefined): ToolKind | n
   if (facts?.path === CODEMODE_SOURCE && name === "codemode")
     return { category: "read", ...pure, codemode: true };
   if (facts?.path === TOOL_SEARCH_SOURCE && name === "tool_search") return { category: "read", ...pure };
+  if (facts?.path === PLATFORM_SOURCE) return platformKind(name);
+  if (facts?.path === SANDBOX_SOURCE) return sandboxKind(name, facts);
   if (facts?.path !== MCP_SOURCE) return null;
   if (MCP_RESOURCE_TOOLS.has(name))
     return { category: "read", external: true, urlBearing: true, mcp: true, builtin: false };
@@ -93,5 +108,36 @@ function extensionKind(name: string, facts: ToolFacts | undefined): ToolKind | n
     urlBearing: true,
     mcp: true,
     builtin: false,
+  };
+}
+
+/** M11R13: only a name of the op table, from the platform source, is a platform tool; any other name from it is unknown (fail closed). */
+function platformKind(name: string): ToolKind | null {
+  const op = PLATFORM_OP_OF_TOOL.get(name);
+  if (op === undefined) return null;
+  return {
+    category: "read",
+    external: false,
+    urlBearing: false,
+    mcp: false,
+    builtin: false,
+    platform: { op, whenTainted: PLATFORM_OPS[op].whenTainted },
+  };
+}
+
+/**
+ * M11R25 (W5-R9): only `bash` from the sandbox source, in a worker whose init record declared a sandbox, is the sandboxed
+ * shell. `external` follows its network: a shell with none reaches nothing outside the machine (like Pi's `bash`), a
+ * networked one can fetch anything and taints its thread at its first result. Anything else from the source is unknown.
+ */
+function sandboxKind(name: string, facts: ToolFacts): ToolKind | null {
+  if (name !== "bash" || facts.sandboxNetwork === undefined) return null;
+  return {
+    category: "exec",
+    external: facts.sandboxNetwork,
+    urlBearing: true,
+    mcp: false,
+    builtin: false,
+    sandboxed: true,
   };
 }

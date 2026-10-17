@@ -50,7 +50,7 @@ export const laneNewEn = {
   "laneNew.script.before": "Approved before",
   "laneNew.script.now": "Now",
   "laneNew.script.reach":
-    "Runs as you in the lane, with no sandbox until M11: it can read your files, keys included. pap keeps your SSH agent and tokens, among others, out of its environment. It runs when you start it, and for a fan-out's tests, once after each lane's first run.",
+    "Runs as you in the lane, with your tools and the network: agents' shells run in a sandbox, lane scripts do not. It can read your files, keys included. pap keeps your SSH agent and tokens, among others, out of its environment. It runs when you start it, and for a fan-out's tests, once after each lane's first run.",
   "laneNew.script.size.lines.one": "{count} line",
   "laneNew.script.size.lines.other": "{count} lines",
   "laneNew.script.size.chars.one": "{count} character",
@@ -123,7 +123,7 @@ export const laneNewFr: { readonly [K in keyof typeof laneNewEn]: string } = {
   "laneNew.script.before": "Approuvé avant",
   "laneNew.script.now": "Maintenant",
   "laneNew.script.reach":
-    "S'exécute en tant que vous dans la lane, sans bac à sable avant M11 : il peut lire vos fichiers, clés comprises. pap garde notamment votre agent SSH et vos jetons hors de son environnement. Il tourne quand vous le lancez, et, pour les tests d'un fan-out, une fois après le premier run de chaque lane.",
+    "S'exécute sous votre identité dans la lane, avec vos outils et le réseau : les shells des agents tournent dans un bac à sable, les scripts de lane non. Il peut lire vos fichiers, clés comprises. pap garde notamment votre agent SSH et vos jetons hors de son environnement. Il tourne quand vous le lancez, et, pour les tests d'un fan-out, une fois après le premier run de chaque lane.",
   "laneNew.script.size.lines.one": "{count} ligne",
   "laneNew.script.size.lines.other": "{count} lignes",
   "laneNew.script.size.chars.one": "{count} caractère",

@@ -22,7 +22,7 @@ const options = () => ({
 });
 
 describe("M10's migrations over a home M9 left (the preview's state.db)", () => {
-  it("applies M10's migrations only, in order, and keeps what M9 wrote", () => {
+  it("applies M10's and M11's migrations only, in order, and keeps what M9 wrote", () => {
     const m9 = migrate({ ...options(), sources: sourcesBeforeM10(dir, MIGRATION_SOURCES) });
     expect(m9.applied).toContain("worktrees/202610141000_worktrees.sql");
     expect(m9.applied).toContain("lanes/202610141010_lanes.sql");
@@ -41,12 +41,23 @@ describe("M10's migrations over a home M9 left (the preview's state.db)", () => 
       "automation/202610142020_automation.sql",
       "inbox/202610142030_inbox.sql",
       "policy/202610142040_tool_allowlist.sql",
+      "sessions/202610151100_session_kinds.sql",
+      "agents/202610151110_agents.sql",
+      "automation/202610151120_agent_tasks.sql",
+      "runs/202610151130_run_agents.sql",
+      "automation/202610151131_thread_tasks.sql",
+      "inbox/202610151140_agent_items.sql",
+      "lanes/202610151150_lane_note.sql",
+      "sessions/202610151152_owner_preset.sql",
+      "automation/202610151153_task_setter.sql",
     ]);
     expect(m10.db.all("SELECT path, state FROM worktrees")).toEqual([{ path: "/pap/wt/a", state: "ready" }]);
     const tables = m10.db
       .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table'")
       .map((row) => row.name);
-    expect(tables).toEqual(expect.arrayContaining(["outbox", "runs", "triggers", "tasks", "inbox_items"]));
+    expect(tables).toEqual(
+      expect.arrayContaining(["outbox", "runs", "triggers", "tasks", "inbox_items", "agents"]),
+    );
     m10.db.close();
   });
 

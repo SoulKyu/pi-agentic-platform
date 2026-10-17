@@ -27,6 +27,7 @@ import "./composer/register-files-catalog.ts";
 import type { Attachments } from "./composer/use-attachments.ts";
 import { failureCode, failureText, outcomeUnknown } from "./failure.ts";
 import { usePrefillInto } from "../../stores/composer-prefill.ts";
+import { useHandOffPorts } from "../../stores/composer-hand-off.ts";
 
 /** Text put in the composer from outside the stream ("Edit from here"); `n` rises with each one. */
 export interface Injected {
@@ -59,6 +60,8 @@ export function useComposer(
 ) {
   const runtime = getRuntime();
   const t = useT();
+  // An agent thread only (M11R123): the agent tab registers the port; a plain session has none.
+  const handOffPort = useHandOffPorts((state) => state.ports[sessionId]);
   const [storage] = useState(deviceStorage);
   const [text, setText] = useState(() => loadDraft(storage, sessionId));
   const [behavior, setBehavior] = useState(() => loadBehavior(storage));
@@ -221,6 +224,12 @@ export function useComposer(
     // A chip that failed would be left out of the message without a word: nothing goes until it is retried or removed.
     if (attached?.uploading || attached?.failed) {
       setNote("files");
+      return;
+    }
+    // `@Name text` goes to that agent as a task instead of to this thread; files cannot go along, so they keep it here.
+    if (!ids.length && handOffPort?.handOff(textRef.current)) {
+      setNote(null);
+      commit("");
       return;
     }
     // Files alone make a message: the daemon cites them in the text (M8R40).

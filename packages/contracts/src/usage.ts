@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
+import { AGENT_GATE_ERRORS } from "./errors.ts";
 import { Cursor } from "./frames.ts";
 
 export const USAGE_RANGES = ["today", "7d", "30d"] as const;
@@ -109,8 +110,18 @@ export const usageMethods = {
     result: Done,
     // conflict: the session's latest run is not limited, is archived, or a resume is already on its way.
     // budget_reached: a token past the daily budget (a browser session is the owner and ignores it).
+    // forbidden: a token, for a session that is an agent's thread (M11R4, W5-R64).
     // automation_paused: a token while the owner's automation is paused.
-    errors: ["not_found", "conflict", "budget_reached", "automation_paused", "capacity", "session_busy"],
+    errors: [
+      "forbidden",
+      "not_found",
+      "conflict",
+      "budget_reached",
+      "automation_paused",
+      "capacity",
+      "session_busy",
+      ...AGENT_GATE_ERRORS,
+    ],
   }),
   "usage.cancelResume": defineMethod({
     name: "usage.cancelResume",

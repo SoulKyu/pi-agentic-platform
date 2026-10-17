@@ -170,5 +170,8 @@ describe("releaseIdle and the lane probe on the service (M9R113, M9R37)", () => 
       "not_found",
     );
     expect(await bed.service.laneProbe.agentText("nope", 10)).toBeNull();
+    // An answer older than `since` is an earlier run's, not this task's (the fixture's assistant messages are stamped 2).
+    expect(await bed.service.laneProbe.agentText(sessionId, 100, 2)).toBe("the last answer");
+    expect(await bed.service.laneProbe.agentText(sessionId, 100, 3)).toBeNull();
   });
 });

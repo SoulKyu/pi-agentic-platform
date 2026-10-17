@@ -1,4 +1,5 @@
 import type {
+  ApprovalMode,
   Caller,
   Cursor,
   DialogResponse,
@@ -22,6 +23,8 @@ import type { AttachmentsPort } from "../files/index.ts";
 import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { RunObserver } from "../runs/index.ts";
+import type { SessionsAgentPort } from "./agent-port.ts";
+import type { AgentSurface } from "./agent-surface.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import type { Exports } from "./exports.ts";
 import type { LaneHooksSlot } from "./lane-hooks.ts";
@@ -89,6 +92,12 @@ export interface PromptInput {
   readonly streamingBehavior?: "steer" | "followUp" | undefined;
   /** Pending uploads to claim for this prompt (M8R40). */
   readonly attachments?: readonly string[] | undefined;
+  /**
+   * Internal callers only (never on the wire): asked once, synchronously, right before the prompt goes to the worker,
+   * after a cold session's reopen and the lane hooks. False: the prompt is dropped and the answer is `handled` (a task
+   * that was cancelled or stopped meanwhile must not send its prompt, N1).
+   */
+  readonly stillWanted?: (() => boolean) | undefined;
 }
 
 export interface SessionsService extends SessionCommands, SessionModels {
@@ -191,4 +200,10 @@ export interface SessionsService extends SessionCommands, SessionModels {
 export interface SessionsServiceWithAutomation extends SessionsService {
   /** What the automation and runs modules may do to a session, and nothing more (M10R32). */
   readonly automation: SessionsAutomationPort;
+  /** Session kinds, the platform bridge's port and the approved calls (M11). */
+  readonly agent: AgentSurface;
+  /** What the agents module and the runner may do to the sessions of agents (M11R50). */
+  readonly agentSessions: SessionsAgentPort;
+  /** The mode in force for a session: the effective mode of an agent thread (W5-R23), else the session's own. */
+  modeOf(ownerId: string, sessionId: string): ApprovalMode;
 }

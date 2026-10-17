@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { auditArgs, UnreadableInput } from "./audit-args.ts";
+import { auditArgs, hostHidden, hostLabel, UnreadableInput } from "./audit-args.ts";
 
 const identity = (text: string) => text;
+
+describe("hostLabel", () => {
+  // The same vector is pinned in the daemon's proxy.lifecycle.test.ts: the worker's audit and the daemon's log cannot drift apart.
+  it("writes the label of evil.test as one fixed vector (W5-R54)", () => {
+    expect(hostLabel("evil.test")).toBe("h:9834f30f8b80 (len 9)");
+    expect(hostHidden({ host: "evil.test", reason: "r" })).toEqual({
+      host: "h:9834f30f8b80 (len 9)",
+      reason: "r",
+    });
+  });
+});
 
 describe("auditArgs", () => {
   it("states the command alone for a built-in shell call", () => {

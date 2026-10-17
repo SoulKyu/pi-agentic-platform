@@ -20,6 +20,8 @@ import { createScriptRunner, type ScriptRunner, type ScriptRunnerDeps } from "./
 
 export { type CheckpointDeps, type CheckpointKernel, createCheckpoints } from "./checkpoints.ts";
 export { createLaneLocks } from "./lane-lock.ts";
+export { createLaneNote } from "./note.ts";
+export { createLanesStore } from "./store.ts";
 export { createLaneNotices } from "./notices.ts";
 export { createRestorer, type RestoreDeps } from "./restore.ts";
 export type { LaneRow } from "./store.ts";

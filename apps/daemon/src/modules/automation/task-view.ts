@@ -4,10 +4,27 @@ import type { RunsPort } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import { detailOf, isTerminal, type TaskJoined } from "./tasks.ts";
 
+const NOTE_UNITS = 200;
+const REMINDER_FENCE =
+  /^<untrusted source="reminder" id="[0-9a-f]+">\n([\s\S]*)\n<\/untrusted id="[0-9a-f]+">$/;
+
+/** The note of a reminder, read back from its fenced prompt and clipped to 200 UTF-16 units (never half a pair). */
+function reminderNote(prompt: string): string | null {
+  const note = REMINDER_FENCE.exec(prompt)?.[1];
+  if (note === undefined) return null;
+  if (note.length <= NOTE_UNITS) return note;
+  let end = NOTE_UNITS - 1;
+  const last = note.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${note.slice(0, end)}\u2026`;
+}
+
 export interface TaskViewDeps {
   readonly sessions: Pick<SessionsAutomationPort, "state">;
   readonly runs: Pick<RunsPort, "sessionCost" | "limitResetAt">;
   readonly policy: Pick<PolicyPort, "sessionPolicy">;
+  /** A thread task shares its session with the others: its cost is that of its own runs (M11R71). */
+  readonly threadCost?: (taskId: string) => number;
 }
 
 /** A stored row as the board shows it: the live parts (a waiting question, the cost, the tool list) are read now. */
@@ -31,12 +48,25 @@ export function createTaskViews(deps: TaskViewDeps) {
       startedAt: row.started_at,
       endedAt: row.ended_at,
       sessionId,
-      needsInput: live?.needsInput ?? false,
-      costUsd: sessionId === null ? 0 : (deps.runs.sessionCost(sessionId) ?? 0),
+      // A thread outlives its task: a question the owner has not answered there is not the finished task's.
+      needsInput: !isTerminal(row.state) && (live?.needsInput ?? false),
+      costUsd:
+        row.target === "thread"
+          ? (deps.threadCost?.(row.id) ?? 0)
+          : sessionId === null
+            ? 0
+            : (deps.runs.sessionCost(sessionId) ?? 0),
       // Read from the run that hit the quota (persisted), so a restart loses nothing.
       resetAt: row.state === "limited" && sessionId !== null ? deps.runs.limitResetAt(sessionId) : null,
       toolsReleased:
         isTerminal(row.state) && policy !== null && policy.recorded && policy.toolAllowlist === null,
+      agentId: row.agent_id,
+      target: row.target,
+      // A reminder inherits `requested_by` to forbid a second delegation (RT-16); only a delegation has a requester to show.
+      requestedBy: row.origin === "delegate" ? row.requested_by : null,
+      // A reminder's time and note (W1); the note is the agent's own text.
+      notBefore: row.origin === "remind" ? row.not_before : null,
+      note: row.origin === "remind" ? reminderNote(row.prompt) : null,
     };
   };
 }

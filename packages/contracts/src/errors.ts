@@ -28,10 +28,19 @@ export const ERROR_CODES = [
   "automation_paused",
   "budget_reached",
   "disk_low",
+  "sandbox_unavailable",
+  "agent_paused",
   "unknown_method",
   "internal",
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+/** What the launch gate of an agent session can refuse with (M11R53, M11R182): declared by every method that can start a worker. */
+export const AGENT_GATE_ERRORS = [
+  "sandbox_unavailable",
+  "agent_paused",
+  "invalid_cwd",
+] as const satisfies readonly ErrorCode[];
 
 export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   bad_request: "The request is invalid.",
@@ -67,6 +76,8 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
     "Today's automation budget is spent. Raise it in Settings › Automation, or wait for tomorrow.",
   disk_low:
     "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
+  sandbox_unavailable: "This agent's sandbox cannot run on this server as set up. See Settings › Agents.",
+  agent_paused: "This agent is paused. Resume it from its header.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

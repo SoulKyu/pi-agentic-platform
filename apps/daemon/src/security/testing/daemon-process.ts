@@ -169,9 +169,18 @@ export function createCrashBed(steps: object): CrashBed {
       };
     },
     async signUp(life) {
+      // `listening` is logged inside the daemon's start and `setup_url` right after it, by main.ts: two writes that
+      // can reach this process in two chunks, so a start that has seen `listening` may not have the setup line yet.
+      const noSetup = () =>
+        new Error(`the daemon printed no setup_url (stderr: ${life.stderr() || "empty"})`);
+      await vi.waitFor(
+        () => {
+          if (!life.lines.some((line) => line.msg === "setup_url")) throw noSetup();
+        },
+        { timeout: 30_000, interval: 50 },
+      );
       const setup = life.lines.find((line) => line.msg === "setup_url");
-      if (typeof setup?.url !== "string")
-        throw new Error(`the daemon printed no setup_url (stderr: ${life.stderr() || "empty"})`);
+      if (typeof setup?.url !== "string") throw noSetup();
       const token = new URL(setup.url).hash.replace("#token=", "");
       const reply = await httpRequest(`http://127.0.0.1:${life.port}/auth/setup`, {
         method: "POST",

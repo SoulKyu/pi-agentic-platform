@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { AUDIT_ARGS_MAX } from "@pap/contracts";
 import { showHidden } from "./describe-call.ts";
 import { grantPayload } from "./grant-key.ts";
@@ -42,4 +43,15 @@ export function auditArgs(input: unknown, exec: boolean, redact: (text: string) 
     i += (escaped.codePointAt(i) ?? 0) > 0xffff ? 2 : 1;
   }
   return points > AUDIT_ARGS_MAX ? `${escaped.slice(0, cutAt)}…(+${points - AUDIT_ARGS_MAX})` : escaped;
+}
+
+/** A host an agent chose, as the audit writes it (W5-R54): a hash and a length. */
+export function hostLabel(host: string): string {
+  return `h:${createHash("sha256").update(host).digest("hex").slice(0, 12)} (len ${host.length})`;
+}
+
+/** The input of a `network_request` with its host as a label; any other input is returned as is. */
+export function hostHidden(input: unknown): unknown {
+  const host = typeof input === "object" && input !== null ? (input as { host?: unknown }).host : undefined;
+  return typeof host === "string" ? { ...(input as object), host: hostLabel(host) } : input;
 }

@@ -1,5 +1,5 @@
 import "./register-lanes-catalog.ts";
-import { Button, Chip, IconButton, IconMore, useIsPhone } from "@pap/ui";
+import { Button, Chip, IconButton, IconMore, Tooltip, useIsPhone } from "@pap/ui";
 import { Menu } from "@pap/ui/overlays";
 import type { ReactNode } from "react";
 import { useT } from "../../i18n/index.ts";
@@ -136,6 +136,13 @@ export function LaneHeader({ title, model, actions, busy, sessionMenu }: Props) 
           {`+${model.facts.additions} −${model.facts.deletions}`}
         </p>
         {model.pr !== null ? <Pr pr={model.pr} onRetry={actions.onRetryPr} compact={false} /> : null}
+        {model.note === null ? null : (
+          <Tooltip label={model.note}>
+            <p tabIndex={0} className="min-w-0 truncate text-ui text-muted">
+              <span className="font-semibold">{t("lanes.note.from")}</span> {model.note}
+            </p>
+          </Tooltip>
+        )}
         <span className="ml-auto flex flex-wrap items-center gap-s2">
           {actions.onOpenCompare !== null ? (
             <Button size="sm" onClick={actions.onOpenCompare}>

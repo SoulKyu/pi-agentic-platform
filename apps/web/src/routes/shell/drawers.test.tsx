@@ -11,6 +11,8 @@ import { renderShell } from "../../testing/shell-bed.tsx";
 import { RpcError } from "../../runtime/rpc.ts";
 import { shellProject, shellSession, shellSnapshot } from "../../testing/shell-snapshot.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
+import { useAgentsStore } from "../../stores/agents-store.ts";
+import { useFocusEntry } from "../../stores/focus-entry.ts";
 
 const current = vi.hoisted(() => ({ runtime: undefined as Runtime | undefined }));
 vi.mock("../../runtime/index.ts", async (original) => ({
@@ -265,6 +267,66 @@ describe("inbox drawer", () => {
     expect(dialog()?.textContent).toContain(
       "Questions and finished tasks of your triggers appear here, those that need you first.",
     );
+    await page.unmount();
+  });
+
+  it("opens an agent row's tab at its entry, and closes", async () => {
+    const page = await withMenu("/");
+    await settle();
+    useAgentsStore.getState().apply({
+      kind: "snapshot",
+      agents: [
+        {
+          id: "atlas-1a2b",
+          name: "Atlas",
+          initials: "AT",
+          state: "idle",
+          unread: 0,
+          paused: false,
+          quarantined: false,
+          unreadable: false,
+          threadSessionId: "s1",
+          lastActivityAt: 1,
+        },
+      ],
+      requests: [],
+      truncated: false,
+    });
+    await act(async () =>
+      bed.emitTo("subscribe.inbox", {
+        kind: "snapshot",
+        items: [
+          {
+            id: "i1",
+            kind: "agent_reply",
+            toHandle: false,
+            taskId: null,
+            sessionId: null,
+            triggerName: "Atlas",
+            costUsd: null,
+            createdAt: Date.now(),
+            readAt: Date.now(),
+            resolvedAt: null,
+            resolution: null,
+            agentId: "atlas-1a2b",
+            refId: null,
+            entryId: "e7",
+            detail: "Done",
+          },
+        ],
+        unread: 0,
+        toHandle: 0,
+        truncated: false,
+      }),
+    );
+    await click(page.container.querySelector('[aria-label="Inbox"]') as HTMLElement);
+    await opened("Inbox");
+    await click(dialog()?.querySelector('[data-slot="inbox-row"]') as HTMLElement);
+    expect(
+      useWorkspaceStore.getState().ws.tabs.some((tab) => JSON.stringify(tab).includes("atlas-1a2b")),
+    ).toBe(true);
+    expect(useFocusEntry.getState().target).toEqual({ sessionId: "s1", entryId: "e7" });
+    await vi.waitFor(() => expect(dialog()).toBeNull());
     await page.unmount();
   });
 });

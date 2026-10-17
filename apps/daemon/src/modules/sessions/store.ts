@@ -20,6 +20,12 @@ export interface SessionRow {
   readonly toolPreset?: StoredPreset | undefined;
   /** A new task session's policy while its row is not stored: never read back from the store (M10R31). */
   readonly task?: TaskSessionPolicy | undefined;
+  /** The agent the session belongs to, its role there, and the session it is a child of (M11R35): set at insert, never changed. */
+  readonly agentId?: string | undefined;
+  readonly agentRole?: "thread" | "task" | "child" | undefined;
+  /** The owner's own tool choice on an agent thread (W5-R28); absent until `sessions.setTools` sets one. */
+  readonly ownerPreset?: ToolPreset | undefined;
+  readonly parentSessionId?: string | undefined;
 }
 
 /** What the column can hold: `configured` is NULL, not a value. */
@@ -51,7 +57,11 @@ export interface SessionsStore {
   /** The stored preset of a session (null: configured), read as `toolPresetOf` reads it. */
   toolPreset(id: string): StoredPreset | null;
   setToolPreset(id: string, preset: StoredPreset | null): void;
+  /** The owner's choice on an agent thread (W5-R28); `configured` is kept as written. */
+  setOwnerPreset(id: string, preset: ToolPreset): void;
   listByOwner(ownerId: string): SessionRow[];
+  /** The folders the sessions of isolated agent tasks work in: a scratch folder one of them names is not an orphan. */
+  taskFolders(): ReadonlySet<string>;
   touch(id: string, at: number): void;
   /** Removes a row (and, by cascade, what hangs on it); for a fork or clone that failed after its insert. */
   remove(id: string): void;
@@ -68,14 +78,18 @@ export interface SessionsStore {
 }
 
 const COLUMNS =
-  "id, pi_path AS piPath, pi_session_id AS piSessionId, cwd, owner_id AS ownerId, name, created_at AS createdAt, updated_at AS updatedAt, tool_preset AS toolPreset";
+  "id, pi_path AS piPath, pi_session_id AS piSessionId, cwd, owner_id AS ownerId, name, created_at AS createdAt, updated_at AS updatedAt, tool_preset AS toolPreset, agent_id AS agentId, agent_role AS agentRole, parent_session_id AS parentSessionId, owner_preset AS ownerPreset";
 
 // A row without a preset has no `toolPreset` key, so the rows of sessions made before the column compare as they did.
 function fit(raw: SessionRow | undefined): SessionRow | undefined {
   if (!raw) return raw;
-  const { toolPreset, ...rest } = raw;
+  const { toolPreset, agentId, agentRole, parentSessionId, ownerPreset, ...rest } = raw;
   const preset = toolPresetOf(toolPreset);
-  return preset === null ? rest : { ...rest, toolPreset: preset };
+  // The kind columns read NULL for most rows: such a row has no key, as before M11.
+  const kind = Object.entries({ agentId, agentRole, parentSessionId, ownerPreset }).filter(
+    ([, value]) => value != null,
+  );
+  return { ...rest, ...(preset === null ? {} : { toolPreset: preset }), ...Object.fromEntries(kind) };
 }
 
 export function createSessionsStore(db: Db): SessionsStore {
@@ -84,7 +98,7 @@ export function createSessionsStore(db: Db): SessionsStore {
     marks: createMarksStore(db),
     insert: (row, projectId = null) => {
       db.run(
-        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, name, project_id, created_at, updated_at, tool_preset) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $name, $projectId, $createdAt, $updatedAt, $toolPreset)",
+        "INSERT INTO sessions (id, pi_path, pi_session_id, cwd, owner_id, name, project_id, created_at, updated_at, tool_preset, agent_id, agent_role, parent_session_id) VALUES ($id, $piPath, $piSessionId, $cwd, $ownerId, $name, $projectId, $createdAt, $updatedAt, $toolPreset, $agentId, $agentRole, $parentSessionId)",
         {
           id: row.id,
           piPath: row.piPath,
@@ -96,6 +110,9 @@ export function createSessionsStore(db: Db): SessionsStore {
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
           toolPreset: row.toolPreset ?? null,
+          agentId: row.agentId ?? null,
+          agentRole: row.agentRole ?? null,
+          parentSessionId: row.parentSessionId ?? null,
         },
       );
     },
@@ -108,6 +125,9 @@ export function createSessionsStore(db: Db): SessionsStore {
     setToolPreset: (id, preset) => {
       db.run("UPDATE sessions SET tool_preset = $preset WHERE id = $id", { id, preset });
     },
+    setOwnerPreset: (id, preset) => {
+      db.run("UPDATE sessions SET owner_preset = $preset WHERE id = $id", { id, preset });
+    },
     listByOwner: (ownerId) =>
       db
         .all<SessionRow>(
@@ -115,6 +135,10 @@ export function createSessionsStore(db: Db): SessionsStore {
           { ownerId },
         )
         .map((row) => fit(row) as SessionRow),
+    taskFolders: () =>
+      new Set(
+        db.all<{ cwd: string }>("SELECT cwd FROM sessions WHERE agent_role = 'task'").map((row) => row.cwd),
+      ),
     touch: (id, at) => {
       db.run("UPDATE sessions SET updated_at = $at WHERE id = $id", { id, at });
     },

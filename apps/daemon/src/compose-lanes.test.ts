@@ -38,7 +38,7 @@ describe("composeLanes", () => {
     const lanes = composeLanes({
       db: bed.db,
       wk: workspace(),
-      audit: { port: { append: () => {}, fromWorker: () => null } },
+      audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
       roots: () => [],
       clock: bed.clock,
       logger: bed.logger,
@@ -60,7 +60,7 @@ describe("composeLanes", () => {
     const lanes = composeLanes({
       db: bed.db,
       wk: workspace(),
-      audit: { port: { append: () => {}, fromWorker: () => null } },
+      audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
       roots: () => [],
       clock: bed.clock,
       logger: bed.logger,
@@ -76,7 +76,7 @@ describe("composeLanes", () => {
     const lanes = composeLanes({
       db: bed.db,
       wk: workspace(),
-      audit: { port: { append: () => {}, fromWorker: () => null } },
+      audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
       roots: () => [],
       clock: createFakeClock(),
       logger: silentLogger,
@@ -94,7 +94,7 @@ describe("composeLanes bind and recovery", () => {
     composeLanes({
       db: bed.db,
       wk: workspace(),
-      audit: { port: { append: () => {}, fromWorker: () => null } },
+      audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
       roots: () => [],
       clock: bed.clock,
       logger: bed.logger,
@@ -173,7 +173,7 @@ describe("composeLanes rpc", () => {
     const lanes = composeLanes({
       db: bed.db,
       wk: workspace(),
-      audit: { port: { append: () => {}, fromWorker: () => null } },
+      audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
       roots: () => [],
       clock: createFakeClock(),
       logger: silentLogger,
@@ -206,7 +206,7 @@ describe("composeLanes outward operations (Task 14)", () => {
     composeLanes({
       db: bed.db,
       wk: { ...workspace(), ...wk },
-      audit: { port: { append: () => {}, fromWorker: () => null } },
+      audit: { port: { append: () => {}, reserve: () => true, fromWorker: () => null } },
       roots: () => [],
       clock: createFakeClock(),
       logger: silentLogger,

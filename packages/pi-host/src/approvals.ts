@@ -23,6 +23,8 @@ export interface ApprovalAsk {
   readonly alwaysScopes?: AlwaysScopes | undefined;
   /** The call being asked about; the daemon matches the answer's credential to the audit row of that call. */
   readonly toolCallId?: string | undefined;
+  /** The host a `host` answer allows: present exactly when `answers` holds `host`. */
+  readonly host?: string | undefined;
 }
 export interface ApprovalOutcome {
   readonly answer: ApprovalAnswer;

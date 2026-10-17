@@ -1,8 +1,9 @@
-import { Button, Checkbox, Segmented, TextField } from "@pap/ui";
+import { Checkbox, Segmented, TextField } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { EditorSection, type SectionProps } from "./EditorSection.tsx";
-import { effectiveMode, effectiveUsd } from "./editor.vm.ts";
+import { effectiveMode, effectiveTarget, effectiveUsd } from "./editor.vm.ts";
 import { EnvList } from "./EnvList.tsx";
+import { RunsAsField } from "./RunsAsField.tsx";
 import { ToolList } from "./ToolList.tsx";
 
 /** Execution (board 11 §1, "isolated-task"): the target, the folder, the tool list and mode, the precheck and the run's bounds. */
@@ -10,41 +11,42 @@ export function ExecutionSection({ draft, set, errors }: SectionProps) {
   const t = useT();
   const mode = effectiveMode(draft);
   const usd = effectiveUsd(draft);
+  const agent = draft.agentId !== "";
+  const thread = agent && effectiveTarget(draft) === "thread";
   return (
     <EditorSection title={t("automation.editor.execution")}>
-      <div className="flex flex-wrap items-end gap-s3">
-        <Segmented
-          label={t("automation.editor.target")}
-          value="isolated"
-          options={[{ value: "isolated", label: t("automation.editor.target.isolated") }]}
-          onChange={() => {}}
+      <RunsAsField draft={draft} set={set} />
+      {agent ? null : (
+        <TextField
+          label={t("automation.editor.cwd")}
+          value={draft.cwd}
+          error={errors["execution.cwd"] ?? null}
+          onChange={(cwd) => set({ cwd })}
         />
-        <Button disabled>{t("automation.editor.target.thread")}</Button>
-      </div>
-      <TextField
-        label={t("automation.editor.cwd")}
-        value={draft.cwd}
-        error={errors["execution.cwd"] ?? null}
-        onChange={(cwd) => set({ cwd })}
-      />
-      <ToolList tools={draft.tools} mode={mode} onChange={(tools) => set({ tools })} />
-      <Segmented
-        label={t("automation.editor.mode")}
-        value={mode}
-        options={[
-          { value: "read-only", label: t("automation.editor.mode.read-only") },
-          { value: "supervised", label: t("automation.editor.mode.supervised") },
-          { value: "auto-accept-edits", label: t("automation.editor.mode.auto-accept-edits") },
-        ]}
-        onChange={(next) => set({ mode: next })}
-      />
+      )}
+      {thread ? null : <ToolList tools={draft.tools} mode={mode} onChange={(tools) => set({ tools })} />}
+      {thread ? null : (
+        <Segmented
+          label={t("automation.editor.mode")}
+          value={mode}
+          options={[
+            { value: "read-only", label: t("automation.editor.mode.read-only") },
+            { value: "supervised", label: t("automation.editor.mode.supervised") },
+            { value: "auto-accept-edits", label: t("automation.editor.mode.auto-accept-edits") },
+          ]}
+          onChange={(next) => set({ mode: next })}
+        />
+      )}
       <EnvList env={draft.env} error={errors["execution.env"] ?? null} onChange={(env) => set({ env })} />
       <TextField
         multiline
         mono
         rows={2}
         label={t("automation.editor.precheck")}
-        hint={t("automation.editor.precheck.hint")}
+        hint={[
+          t("automation.editor.precheck.hint"),
+          ...(agent ? [t("automation.editor.precheck.agent")] : []),
+        ].join(" ")}
         error={errors["execution.precheck"] ?? null}
         value={draft.precheck}
         onChange={(precheck) => set({ precheck })}

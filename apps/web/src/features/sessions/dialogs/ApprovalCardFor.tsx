@@ -1,5 +1,5 @@
 import type { AlwaysScope, Dialog, DialogResponse } from "@pap/contracts";
-import { ApprovalCard, cn, FOCUS_RING } from "@pap/ui";
+import { type ApprovalAnswer as UiApprovalAnswer, ApprovalCard, cn, FOCUS_RING } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
@@ -15,6 +15,9 @@ import { ExpandToggle, useClipped } from "./use-clipped.tsx";
 const BODY_LIMITS = { lines: 200, chars: 4000 } as const;
 const HEADER_LIMITS = { lines: 2, chars: 400 } as const;
 const QUESTION_LIMITS = { lines: 3, chars: 300 } as const;
+
+const uiAnswers = (answers: Dialog["answers"]): UiApprovalAnswer[] =>
+  answers !== undefined && answers.length > 0 ? [...answers] : ["deny"];
 
 /** A clipped text that has been expanded can scroll: it becomes a named region the keyboard can reach. */
 const scrollArea = (expanded: boolean, name: string) =>
@@ -81,6 +84,11 @@ export function ApprovalCardFor(props: {
               {t(`sessionPolicy.guard.${dialog.guard}`)}
             </p>
           ) : null}
+          {dialog.host === undefined ? null : (
+            <p data-approval-host className="mt-s1 break-all font-mono text-ui text-fg">
+              {t("dialog.host", { host: dialog.host })}
+            </p>
+          )}
         </>
       }
       detail={detail}
@@ -109,11 +117,12 @@ export function ApprovalCardFor(props: {
         ) : undefined
       }
       // The daemon refuses an approval without answers; the owner still gets a way to refuse if one arrives.
-      answers={dialog.answers?.length ? dialog.answers : ["deny"]}
+      answers={uiAnswers(dialog.answers)}
       labels={{
         deny: t("dialog.answer.deny"),
         session: t("dialog.answer.session"),
         always: t("dialog.answer.always"),
+        host: t("dialog.answer.host"),
         once: t("dialog.answer.once"),
       }}
       note={dialog.timeout === undefined ? undefined : timeoutLine(dialog.timeout, t)}

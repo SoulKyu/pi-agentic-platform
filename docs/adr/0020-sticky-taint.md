@@ -1,6 +1,6 @@
 # ADR 0020 — Taint is sticky per session
 
-Status: accepted · Date: 2026-10-13 · Spec: C §5.2, §5.3 (deviation) · Decisions: owner Q2, Q15, MQ1, MQ3
+Status: accepted, amended for agent sessions by ADR 0047 (decision 90) · Date: 2026-10-13 · Spec: C §5.2, §5.3 (deviation) · Decisions: owner Q2, Q15, MQ1, MQ3
 
 ## Context
 

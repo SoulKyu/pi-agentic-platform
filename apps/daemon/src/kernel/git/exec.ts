@@ -1,4 +1,5 @@
 import { dirname } from "node:path";
+import { AgentId } from "@pap/contracts";
 import { NETWORK_ENV } from "../child-env.ts";
 import type { GitProfile } from "./allowlist.ts";
 
@@ -81,6 +82,28 @@ export function isLaneGitDir(path: string): boolean {
   return segments.length >= 3 && segments[segments.length - 2] === "worktrees";
 }
 
+/**
+ * M11R46: an agent's home is a repository of its own, `<papHome>/agents/<agent id>/.git`. Only the shape is checked, as
+ * for a lane: absolute, normalised, the last three segments `agents/<id>/.git`. Only the home's first commit uses it.
+ */
+export function isAgentGitDir(path: string): boolean {
+  if (!path.startsWith("/") || path.includes("\0")) return false;
+  const segments = path.slice(1).split("/");
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) return false;
+  const [folder, id, dotGit] = segments.slice(-3);
+  return segments.length >= 3 && folder === "agents" && AgentId.safeParse(id).success && dotGit === ".git";
+}
+
+/**
+ * What pap runs in a home (ADR 0050): the first commit's `add` and `commit`, and the filter scan (`config`, read-only,
+ * its arguments fixed by the allowlist) that `guardFilters` runs before each of them. Nothing else.
+ */
+const AGENT_GIT_SUBCOMMANDS: ReadonlySet<string> = new Set(["add", "commit", "config"]);
+
+/** A call that names an agent's git dir: only `add` and `commit`, and only with the home itself as the root. */
+export const isAgentGitCall = (subcommand: string, root: string, gitDir: string): boolean =>
+  isAgentGitDir(gitDir) && AGENT_GIT_SUBCOMMANDS.has(subcommand) && root === dirname(gitDir);
+
 export function gitArgs(
   root: string,
   args: readonly string[],
@@ -130,6 +153,8 @@ export function gitEnv(
     GIT_TERMINAL_PROMPT: "0",
     GIT_OPTIONAL_LOCKS: "0",
     GIT_NO_LAZY_FETCH: "1",
+    // `/etc/gitconfig` is the host's, not pap's: no runner call reads it.
+    GIT_CONFIG_NOSYSTEM: "1",
     // Overrides every protocol.*.allow of a repository's config, on every git version (GIT_NO_LAZY_FETCH needs 2.44).
     // Local calls reach no transport; a push reaches only https and ssh (M9R10), whatever protocol.* says.
     GIT_ALLOW_PROTOCOL: profile === "remote" ? remoteProtocols : "",

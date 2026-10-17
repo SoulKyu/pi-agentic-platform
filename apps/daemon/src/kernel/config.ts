@@ -67,6 +67,8 @@ export interface Config {
   readonly metricsToken: string | null;
   /** `PAP_OTLP_ENDPOINT` and its companions; null (the default) means no exporter exists (M10R98). */
   readonly otlp: OtlpConfig | null;
+  /** `PAP_BWRAP`: an absolute path the sandbox probe must trust (M11R21); undefined looks in the system folders. */
+  readonly bwrapOverride?: string | undefined;
   readonly staticRoot: string | null;
   readonly logLevel: LogLevel;
 }
@@ -209,6 +211,7 @@ export function loadConfig(input: ConfigInput): Config {
       : 4,
     metricsToken: parseMetricsToken(input.env.PAP_METRICS_TOKEN),
     otlp: parseOtlp(input.env, (message) => new ConfigError(message)),
+    bwrapOverride: parseBwrap(input.env.PAP_BWRAP),
     staticRoot: input.staticRoot,
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),
   };
@@ -340,5 +343,11 @@ function parseMetricsToken(raw: string | undefined): string | null {
   if (raw === undefined) return null;
   if (!METRICS_TOKEN.test(raw))
     throw new ConfigError("PAP_METRICS_TOKEN must be 32 to 256 characters of A-Z a-z 0-9 . _ ~ + / = -");
+  return raw;
+}
+
+function parseBwrap(raw: string | undefined): string | undefined {
+  if (raw === undefined || raw === "") return undefined;
+  if (!isAbsolute(raw)) throw new ConfigError("PAP_BWRAP must be an absolute path");
   return raw;
 }

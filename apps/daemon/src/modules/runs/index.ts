@@ -9,6 +9,7 @@ import { runLine } from "./export-jsonl.ts";
 import { createRunsService, type ObservabilityFacts, type RunsService } from "./service.ts";
 import { createRunsStore } from "./store.ts";
 
+export { type AgentSpend, createAgentSpend } from "./agent-spend.ts";
 export { runsRpc, type RunsRpc, usageRpc, type UsageRpc } from "./rpc.ts";
 export type { RunEndEvent, RunObserver, RunsPort, RunsService, RunStartEvent } from "./service.ts";
 export { metricsAuthorized } from "./metrics-auth.ts";

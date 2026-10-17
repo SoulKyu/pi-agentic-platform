@@ -1,6 +1,6 @@
 import {
   MAX_FRAME_BYTES,
-  methods,
+  METHOD_IDEMPOTENT,
   ResponseFrame,
   type ErrorCode,
   type MethodName,
@@ -86,7 +86,7 @@ export function createRpcClient(
         id,
         method,
         params,
-        ...(methods[method].idempotent ? {} : { commandId: options?.commandId ?? deps.newCommandId() }),
+        ...(METHOD_IDEMPOTENT[method] ? {} : { commandId: options?.commandId ?? deps.newCommandId() }),
       };
       if (encoder.encode(JSON.stringify(frame)).length > MAX_FRAME_BYTES) {
         return Promise.reject(new RpcError("payload_too_large"));

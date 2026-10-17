@@ -8,7 +8,9 @@ import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } fro
 import { pinBareRepositoryExplicit } from "./git-env.ts";
 import type { Ipc } from "./ipc.ts";
 import { loadoutRecord } from "./loadout.ts";
+import { createOnceSecrets, createVaultSink, withOnceSecrets } from "./once-secrets.ts";
 import { openSession } from "./open-session.ts";
+import { createPlatformPort } from "./platform-tools.ts";
 import { auditSinkOf } from "./policy/audit-sink.ts";
 import { redactingAuditSink } from "./policy/results.ts";
 import { NO_REDACTOR } from "./policy/redact.ts";
@@ -16,6 +18,10 @@ import { createTaint } from "./policy/taint.ts";
 import { createSecretSource, type SecretSource } from "./policy/secrets.ts";
 import { createRedactingIpc } from "./redacting-ipc.ts";
 import { redactStdio, type Writable } from "./redact-stdio.ts";
+import { createDeltaGate } from "./delta-gate.ts";
+import { createEgressClient } from "./egress-client.ts";
+import { createSandboxEnvironment } from "./sandbox-env.ts";
+import { SYSTEM_TIMERS } from "./sandbox-ops.ts";
 import { createIsBuiltin } from "./policy/builtin-lookup.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
 import { closeSession } from "./shutdown.ts";
@@ -67,6 +73,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   let tracker: EntryTracker | null = null;
   const ui = createUiBridge((record) => ipc.send(record));
   const approvals = createApprovals((record) => ipc.send(record));
+  const platform = createPlatformPort((record) => ipc.send(record));
   let receiveInit: (record: InitRecord) => void = () => {};
   let failInit: (error: Error) => void = () => {};
   const init = new Promise<InitRecord>((resolve, reject) => {
@@ -140,25 +147,47 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
       process.stderr.write("pi-host: taint record not sent; the next agent_end repeats it\n");
   };
   const taint = createTaint(first.data.taint, reportTaint);
-  const entries = createSessionEntries((record) => ipc.send(record));
+  const entries = createSessionEntries((record) => ipc.send(record), initial.sandbox);
   // Before anything creates a file: the daemon's own 077 is for its state, not for the user's projects (R114).
   process.umask(initial.umask);
   const source = createSecretSource({ env: process.env, agentDir: initial.agentDir });
   secrets = source;
+  // "Use once" (M11R105): the first sandboxed command that names `$NAME` gets the value, then `secret_used` tells the daemon.
+  const once = createOnceSecrets({
+    used: ({ name, id }) => {
+      if (!ipc.send({ type: "secret_used", name, id }))
+        process.stderr.write("pi-host: secret_used not sent\n");
+    },
+  });
+  const sandboxEnvironment = initial.sandbox
+    ? withOnceSecrets(createSandboxEnvironment(process.env, initial.sandbox, initial.vault ?? {}), once)
+    : undefined;
+  // Only a networked agent sandbox asks the daemon for a proxy socket per command (M11R232).
+  const egress = initial.sandbox?.egress
+    ? createEgressClient((record) => ipc.send(record), SYSTEM_TIMERS)
+    : undefined;
+  const vaultSink = createVaultSink({ source, environment: sandboxEnvironment, once });
+  // From the first byte of output: the vault is redacted even when no sandbox gives it to a shell (M11R26).
+  vaultSink.update({ vault: initial.vault ?? {}, once: initial.once ?? [] });
   for (const stream of [process.stdout, process.stderr])
     redactStdio(stream as unknown as Writable, () => source.current());
+  // W5-R60: the pieces of what the model types leave redacted, a value cut across them included.
+  const deltaGate = createDeltaGate(() => source.current());
   const sendAudit = auditSinkOf((record) => ipc.send(record));
   const opened = await openSession(initial, {
     secrets: source,
+    ...(sandboxEnvironment ? { sandboxEnvironment } : {}),
     ui,
     approvals,
+    platform: platform.port,
+    ...(egress ? { egress } : {}),
     rules: () => rules,
     rulesVersion: () => rulesVersion,
     taint,
     audit: redactingAuditSink(sendAudit, source),
     onAgentStart: (names) => entries.agentStart(names, rules?.approvalMode ?? first.data.approvalMode),
     onEvent: (event) => {
-      ipc.send(toWireEvent(event));
+      for (const record of deltaGate.apply(toWireEvent(event))) ipc.send(record);
       tracker?.observe(event);
       if (event.type === "agent_end" && taint.current()) reportTaint();
     },
@@ -180,6 +209,9 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     ipc,
     ui,
     approvals,
+    platform,
+    vault: { update: (record) => vaultSink.update(record) },
+    ...(egress ? { egress } : {}),
     setRules: (next) => {
       rules = next;
       rulesVersion++;

@@ -1,5 +1,7 @@
 import { type StageId, type StageVerdict, STAGE_IDS } from "@pap/contracts";
 
+/** The longest tool call id the policy keeps (audit rows, the set of external calls). */
+export const MAX_ID_LENGTH = 256;
 const MAX_REASON = 256;
 const LAST_CALL_STAGE: StageId = "04";
 

@@ -44,6 +44,8 @@ export interface TestDaemonOptions {
   /** Extra worker environment (a fake `GITHUB_TOKEN`), added to the harness defaults; `HOME` and `PI_*` are refused. */
   readonly workerEnv?: Readonly<Record<string, string>>;
   readonly deps?: Omit<DaemonDeps, "env">;
+  /** Start on the folders of an earlier daemon (a restart): `root` is that daemon's, and `stop()` leaves it in place. */
+  readonly root?: string;
 }
 
 /**
@@ -51,12 +53,12 @@ export interface TestDaemonOptions {
  * nothing reaches a real provider or the real ~/.pi/agent and ~/.pap (R94).
  */
 export async function startTestDaemon(script: object, options: TestDaemonOptions = {}): Promise<TestDaemon> {
-  const root = mkdtempSync(join(tmpdir(), "pap-int-"));
+  const root = options.root ?? mkdtempSync(join(tmpdir(), "pap-int-"));
   try {
     return await startIn(root, script, options);
   } catch (error) {
     // Whatever failed (a certificate, a lock, a taken port), the directory it made goes with it.
-    rmSync(root, { recursive: true, force: true });
+    if (options.root === undefined) rmSync(root, { recursive: true, force: true });
     throw error;
   }
 }
@@ -69,11 +71,11 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
   const agentDir = join(root, "agent");
   const cwd = join(root, "work");
   const userHome = join(root, "user");
-  for (const dir of [agentDir, cwd, userHome]) mkdirSync(dir);
+  for (const dir of [agentDir, cwd, userHome]) mkdirSync(dir, { recursive: true });
   const scriptPath = join(root, "script.json");
   writeFileSync(scriptPath, JSON.stringify(script));
   if (options.extensions) {
-    mkdirSync(join(agentDir, "extensions"));
+    mkdirSync(join(agentDir, "extensions"), { recursive: true });
     for (const [name, source] of Object.entries(options.extensions))
       writeFileSync(join(agentDir, "extensions", `${name}.js`), source);
   }
@@ -184,7 +186,7 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
       try {
         await daemon.stop();
       } finally {
-        rmSync(root, { recursive: true, force: true });
+        if (options.root === undefined) rmSync(root, { recursive: true, force: true });
       }
       // A connection the guard refused may have been swallowed by the code that tried it: the worker's output still
       // says so (R94, R118). Only the last 8 KiB of each worker's output are kept (R102): a refusal followed by more

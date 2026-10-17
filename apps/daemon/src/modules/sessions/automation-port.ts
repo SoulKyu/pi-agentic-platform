@@ -12,6 +12,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
 import { resolveSessionCwd } from "./cwd.ts";
 import type { LiveSession } from "./live-session.ts";
+import type { WorkerRoom } from "./worker-room.ts";
 import type { MarksStore } from "./marks-store.ts";
 import { isPiSessionFile } from "./pi-files.ts";
 import type { SessionsServiceDeps, SessionsService } from "./service-types.ts";
@@ -43,6 +44,10 @@ export interface SessionsAutomationPort {
     ownerId: string;
     sessionId: string;
     text: string;
+    /** See `PromptInput.stillWanted`: false at the last moment drops the prompt (`handled`). */
+    stillWanted?: () => boolean;
+    /** Owner a5: refused with `sandbox_unavailable` unless the worker runs (or starts) in its sandbox. */
+    sandboxedOnly?: boolean;
   }): Promise<"started" | "queued" | "handled">;
   /**
    * A `prompt` now would not be refused for capacity: the session is warm, or a worker stays free for the owner and the
@@ -73,7 +78,7 @@ export interface SessionsAutomationPort {
 }
 
 /** The runner as a caller: the session's owner, the two permissions its calls need, and no step-up. */
-const automationCaller = (ownerId: string): Caller => ({
+export const automationCaller = (ownerId: string): Caller => ({
   userId: ownerId,
   permissions: new Set<Permission>(["sessions:read", "sessions:operate"]),
   kind: "session",
@@ -192,6 +197,10 @@ export interface AutomationContext {
   readonly attention: Attention;
   readonly publisher: ShellPublisher;
   readonly marks: MarksStore;
+  /** The owner's last worker stays free (M10R154); the ids a launch must keep free for or bring up sandboxed. */
+  readonly room: Pick<WorkerRoom, "keepOneFree" | "keepFreeFor" | "sandboxedOnly">;
+  /** The worker of this session started with its sandbox on. */
+  sandboxed(sessionId: string): boolean;
 }
 
 /** The only way the automation and runs modules reach sessions (M10R32). */
@@ -206,12 +215,7 @@ export function createAutomationPort(
     if (!row || row.ownerId !== ownerId) throw new PapError("not_found");
     return row;
   };
-  // One worker stays free for the owner's own sessions (M10R154): a task needs a worker plus one more below the cap.
-  const keepOneFree = () => {
-    const used = live.size + ctx.starting.size;
-    if (used + 2 > deps.limits.maxWorkers)
-      throw new PapError("capacity", { workers: { used, max: deps.limits.maxWorkers } });
-  };
+  const { keepOneFree } = ctx.room;
   const warm = (sessionId: string) => {
     const session = live.get(sessionId);
     return (session !== undefined && !session.stopping()) || reopening.has(sessionId);
@@ -219,7 +223,7 @@ export function createAutomationPort(
   return {
     async createTaskSession({ ownerId, cwd, policy }) {
       if (policy.tools.length === 0) throw new PapError("bad_request");
-      const resolved = resolveSessionCwd(cwd);
+      const resolved = resolveSessionCwd(cwd, deps.worker.papHome);
       deps.admission?.task();
       keepOneFree();
       const now = deps.clock.now();
@@ -240,11 +244,26 @@ export function createAutomationPort(
       ctx.publisher.projectChanged(ownerId, ctx.marks.row(row.id)?.projectId ?? null);
       return { sessionId: row.id };
     },
-    async prompt({ ownerId, sessionId, text }) {
+    async prompt({ ownerId, sessionId, text, stillWanted, sandboxedOnly = false }) {
       ownedRow(ownerId, sessionId);
-      if (!warm(sessionId)) keepOneFree();
-      const { disposition } = await service().prompt({ sessionId, text }, automationCaller(ownerId));
-      return disposition;
+      const cold = !warm(sessionId);
+      if (sandboxedOnly && !cold && !ctx.sandboxed(sessionId)) throw new PapError("sandbox_unavailable");
+      if (cold) keepOneFree();
+      // A cold agent session starts through the gate's await: the check is made again inside `launch`, after it.
+      const recheck = cold && ownedRow(ownerId, sessionId).agentId !== undefined;
+      if (recheck) ctx.room.keepFreeFor.add(sessionId);
+      // Last before the `try`, whose `finally` removes it: nothing between can throw and leave the mark behind.
+      if (sandboxedOnly && cold) ctx.room.sandboxedOnly.add(sessionId);
+      try {
+        const { disposition } = await service().prompt(
+          { sessionId, text, ...(stillWanted ? { stillWanted } : {}) },
+          automationCaller(ownerId),
+        );
+        return disposition;
+      } finally {
+        if (recheck) ctx.room.keepFreeFor.delete(sessionId);
+        if (sandboxedOnly) ctx.room.sandboxedOnly.delete(sessionId);
+      }
     },
     admits(ownerId, sessionId) {
       ownedRow(ownerId, sessionId);

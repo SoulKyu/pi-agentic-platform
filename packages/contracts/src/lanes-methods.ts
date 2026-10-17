@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
+import { AGENT_GATE_ERRORS } from "./errors.ts";
 import { FilePath } from "./files.ts";
 import { Cursor } from "./frames.ts";
 import {
@@ -164,7 +165,7 @@ export const lanesMethods = {
     idempotent: false,
     params: Lane,
     result: z.object({ sessionId: SessionRef }),
-    errors: ["not_found", "conflict", "capacity", "worker_failed", "read_only"],
+    errors: ["not_found", "conflict", "capacity", "worker_failed", "read_only", ...AGENT_GATE_ERRORS],
   }),
   "lanes.commit": defineMethod({
     name: "lanes.commit",
@@ -190,7 +191,15 @@ export const lanesMethods = {
       z.object({ ok: z.literal(true), message: z.string().max(LANE_LIMITS.commitMessage) }),
       refused(["nothing", "no_session", "model_failed"]),
     ]),
-    errors: ["not_found", "capacity", "timeout", "worker_failed", "read_only", "disk_low"],
+    errors: [
+      "not_found",
+      "capacity",
+      "timeout",
+      "worker_failed",
+      "read_only",
+      "disk_low",
+      ...AGENT_GATE_ERRORS,
+    ],
   }),
   "lanes.reviewState.set": defineMethod({
     name: "lanes.reviewState.set",

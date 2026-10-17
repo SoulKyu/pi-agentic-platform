@@ -24,8 +24,12 @@ const SUB_METHODS = [
 export function fakeRuntime(state: ConnectionState = "open") {
   const fake = fakeConnection(state);
   const calls: Array<{ method: string; params: unknown; options?: CallOptions }> = [];
-  // The session screen keeps the usage stream open (the limit chip): its sub id stays out of the numbered ones.
-  const handlers: Record<string, Handler> = { "subscribe.usage": () => ({ sub: "usage-sub" }) };
+  // The session screen keeps the usage stream open (the limit chip) and the shell the agents stream (the rail): their
+  // sub ids stay out of the numbered ones.
+  const handlers: Record<string, Handler> = {
+    "subscribe.usage": () => ({ sub: "usage-sub" }),
+    "subscribe.agents": () => ({ sub: "agents-sub" }),
+  };
   let subs = 0;
   const opened: Array<[method: string, sub: string]> = [];
   let seq = 0;

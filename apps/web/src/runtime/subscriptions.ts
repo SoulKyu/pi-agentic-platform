@@ -55,6 +55,8 @@ const OPENERS: {
   inbox: (rpc, _key, after) => rpc.call("subscribe.inbox", after ? { after } : {}),
   // The caller's own quota limits and spend, like `shell`: the key is a local name (M10R107).
   usage: (rpc, _key, after) => rpc.call("subscribe.usage", after ? { after } : {}),
+  // The caller's own agents, like `shell`: the key is a local name (M11R63).
+  agents: (rpc, _key, after) => rpc.call("subscribe.agents", after ? { after } : {}),
 };
 
 interface Listener {

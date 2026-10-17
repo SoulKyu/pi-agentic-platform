@@ -11,8 +11,8 @@ const older = itemOf({ id: "q2", createdAt: NOW - 600_000 });
 const newer = itemOf({ id: "q3", createdAt: NOW - 120_000 });
 
 describe("the filters", () => {
-  it("offers All, To handle and Tasks, and no Replies before M11", () => {
-    expect(FILTERS).toEqual(["all", "handle", "tasks"]);
+  it("offers All, To handle, Replies and Tasks (M11R129)", () => {
+    expect(FILTERS).toEqual(["all", "handle", "replies", "tasks"]);
   });
 
   it("keeps every item for All, only the open questions for To handle, and only task items for Tasks", () => {
@@ -52,7 +52,7 @@ describe("the order", () => {
 
 describe("the title per kind", () => {
   const cases: ReadonlyArray<[Partial<ReturnType<typeof itemOf>>, string, string]> = [
-    [{}, "prod-alerts · waiting for your reply", "prod-alerts · attend ta réponse"],
+    [{}, "prod-alerts · waiting for your reply", "prod-alerts · attend votre réponse"],
     [{ kind: "task_done", toHandle: false }, "prod-alerts · finished", "prod-alerts · terminée"],
     [{ kind: "task_failed", toHandle: false }, "prod-alerts · failed", "prod-alerts · échec"],
     [{ kind: "task_interrupted", toHandle: false }, "prod-alerts · interrupted", "prod-alerts · interrompue"],
@@ -77,7 +77,7 @@ describe("the title per kind", () => {
   });
 
   it("writes a hidden character of the trigger name out and cuts a long one", () => {
-    expect(titleOf(itemOf({ triggerName: "evil‮gnp" }))).toBe("evil\\u202Egnp · waiting for your reply");
+    expect(titleOf(itemOf({ triggerName: "evil\u202egnp" }))).toBe("evil\\u202Egnp · waiting for your reply");
     const long = titleOf(itemOf({ triggerName: "n".repeat(200) }));
     expect(long).toBe(`${"n".repeat(80)}… · waiting for your reply`);
   });

@@ -13,6 +13,8 @@ export interface MessageItem {
   readonly text: string;
   readonly thinking: string;
   readonly entryId: string | null;
+  /** When the message was written (ms); a thread that interleaves cards reads it. */
+  readonly at?: number | null;
 }
 
 export interface ToolItem {
@@ -31,6 +33,7 @@ export interface ToolItem {
   readonly resultEntryId: string | null;
   /** How big the result was when the server did not send it at all (too big for a message), else null. */
   readonly omittedBytes: number | null;
+  readonly at?: number | null;
 }
 
 export interface SummaryItem {
@@ -68,7 +71,7 @@ interface OpenCall {
 const omittedText = (message: MessageView, t: Translate): string =>
   t("session.omitted", { size: Math.max(1, Math.round((message.omittedBytes ?? 0) / BYTES_PER_KB)) });
 
-function toolItem(owner: string, call: ToolCallView, occurrence: number): ToolItem {
+function toolItem(owner: string, call: ToolCallView, occurrence: number, at: number | null): ToolItem {
   return {
     kind: "tool",
     key: `${owner}:${call.id}#${occurrence}`,
@@ -81,6 +84,7 @@ function toolItem(owner: string, call: ToolCallView, occurrence: number): ToolIt
     argsTruncated: call.argsTruncated,
     resultEntryId: null,
     omittedBytes: null,
+    at,
   };
 }
 
@@ -150,6 +154,7 @@ export function transcriptItems(view: SessionView, translate: Translate): Transc
         text,
         thinking: message.thinking,
         entryId: message.entryId,
+        at: message.at,
       });
     }
     // The owner moves from the message key to the entry id when Pi writes the entry: the row remounts once, before any result exists.
@@ -158,7 +163,7 @@ export function transcriptItems(view: SessionView, translate: Translate): Transc
     for (const call of message.toolCalls) {
       const occurrence = seen.get(call.id) ?? 0;
       seen.set(call.id, occurrence + 1);
-      const item = toolItem(owner, call, occurrence);
+      const item = toolItem(owner, call, occurrence, message.at);
       open.push({ index: items.length, at, item });
       items.push(item);
     }

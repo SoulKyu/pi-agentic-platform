@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { ALL_PERMISSIONS, methods } from "./index.ts";
+import { AGENT_GATE_ERRORS, ALL_PERMISSIONS, methods } from "./index.ts";
 
 describe("method catalogue", () => {
   it("keys every method by its own name and declares a known permission", () => {
@@ -16,6 +16,16 @@ describe("method catalogue", () => {
       .map((def) => def.name)
       .sort();
     expect(mutations).toEqual([
+      "agents.answerApproval",
+      "agents.create",
+      "agents.delete",
+      "agents.markRead",
+      "agents.openThread",
+      "agents.quarantine",
+      "agents.queueTask",
+      "agents.resetThread",
+      "agents.setPaused",
+      "agents.update",
       "auth.devices.revoke",
       "auth.devices.revokeOthers",
       "auth.passkeys.remove",
@@ -75,6 +85,10 @@ describe("method catalogue", () => {
       "policy.setSessionMode",
       "policy.setSettings",
       "projects.update",
+      "secrets.answerRequest",
+      "secrets.declineRequest",
+      "secrets.delete",
+      "secrets.set",
       "sessions.abort",
       "sessions.autoName",
       "sessions.clearQueue",
@@ -129,22 +143,22 @@ describe("method catalogue", () => {
     expect(methods["sessions.clearQueue"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "worker_failed", "timeout"],
+      errors: ["not_found", "worker_failed", "timeout", ...AGENT_GATE_ERRORS],
     });
     expect(methods["sessions.prompt"].errors).toContain("queue_full");
   });
 
   it("declares navigate and compact as sessions:operate mutations that cannot time out", () => {
-    const shared = ["not_found", "session_busy", "capacity", "worker_failed", "command_failed"];
+    const shared = ["forbidden", "not_found", "session_busy", "capacity", "worker_failed", "command_failed"];
     expect(methods["sessions.navigate"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: shared,
+      errors: [...shared, ...AGENT_GATE_ERRORS],
     });
     expect(methods["sessions.compact"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: [...shared, "session_empty"],
+      errors: [...shared, "session_empty", ...AGENT_GATE_ERRORS],
     });
     expect(methods["sessions.prompt"].errors).toContain("session_busy");
     const { params, result } = methods["sessions.navigate"];
@@ -171,12 +185,29 @@ describe("method catalogue", () => {
     expect(methods["sessions.rename"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "bad_request", "capacity", "worker_failed", "command_failed", "timeout"],
+      errors: [
+        "not_found",
+        "bad_request",
+        "capacity",
+        "worker_failed",
+        "command_failed",
+        "timeout",
+        ...AGENT_GATE_ERRORS,
+      ],
     });
     expect(methods["sessions.autoName"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "session_empty", "timeout", "capacity", "worker_failed", "command_failed"],
+      errors: [
+        "forbidden",
+        "not_found",
+        "session_empty",
+        "timeout",
+        "capacity",
+        "worker_failed",
+        "command_failed",
+        ...AGENT_GATE_ERRORS,
+      ],
     });
     const { params } = methods["sessions.rename"];
     expect(params.safeParse({ sessionId: "s", name: "Fix" }).success).toBe(true);
@@ -192,7 +223,7 @@ describe("method catalogue", () => {
     expect(methods["sessions.exportHtml"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "capacity", "timeout", "worker_failed", "command_failed"],
+      errors: ["not_found", "capacity", "timeout", "worker_failed", "command_failed", ...AGENT_GATE_ERRORS],
     });
     const def = methods["sessions.exportHtml"];
     expect(def.params.safeParse({ sessionId: "s" }).success).toBe(true);
@@ -213,7 +244,7 @@ describe("method catalogue", () => {
     expect(methods["sessions.clone"]).toMatchObject({
       permission: "sessions:operate",
       idempotent: false,
-      errors: ["not_found", "session_empty", "capacity", "rate_limited", "disk_low"],
+      errors: ["not_found", "bad_request", "session_empty", "capacity", "rate_limited", "disk_low"],
     });
     const fork = methods["sessions.fork"];
     expect(fork.params.safeParse({ sessionId: "s", entryId: "e".repeat(128) }).success).toBe(true);

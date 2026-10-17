@@ -7,7 +7,7 @@ import { vi } from "vitest";
 import { workerExecArgv } from "../../../kernel/config.ts";
 import { createSystemClock } from "../../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
-import { silentLogger } from "../../../kernel/logger.ts";
+import { type Logger, silentLogger } from "../../../kernel/logger.ts";
 import type { WorkerExit } from "../../../kernel/supervisor/exit.ts";
 import { NO_SCOPES, type WorkerScopes } from "../../../kernel/supervisor/scope.ts";
 import { newId } from "../../../kernel/ids.ts";
@@ -42,6 +42,8 @@ export interface IntBedOptions {
   readonly path?: string;
   /** How the daemon is told where the agent folder is (default: as is); `agentDir` stays the plain path. */
   readonly spellAgentDir?: (agentDir: string) => string;
+  /** The sessions module's logger (default: silent): a test that greps what the daemon logged gives its own. */
+  readonly logger?: Logger;
 }
 
 export interface Subscription {
@@ -84,13 +86,14 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     }).db;
     const hub = createStreamHub(undefined, clock);
     const exits: Array<{ sessionId: string; exit: WorkerExit; outputTail: string }> = [];
-    const projects = createProjectsModule({ db, clock, logger: silentLogger, newId });
-    const audit = createAuditModule({ db, clock, logger: silentLogger });
+    const log = options.logger ?? silentLogger;
+    const projects = createProjectsModule({ db, clock, logger: log, newId });
+    const audit = createAuditModule({ db, clock, logger: log });
     let ownerOf: (sessionId: string) => string | null = () => null;
     const policy = createPolicyModule({
       db,
       clock,
-      logger: silentLogger,
+      logger: log,
       newId,
       audit: audit.port,
       sessionOwner: (sessionId) => ownerOf(sessionId),
@@ -98,7 +101,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     const sessions: SessionsModule = createSessionsModule({
       db,
       clock,
-      logger: silentLogger,
+      logger: log,
       hub,
       policy: policy.port,
       projects: projects.port,
@@ -162,6 +165,17 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
         db.all<{ tool: string | null; decision: string }>(
           "SELECT tool, decision FROM audit WHERE kind = 'call' ORDER BY id",
         ),
+      /** The tool, category and decision of every judged call (`kind = 'call'`), oldest first. */
+      auditCategories: () =>
+        db.all<{ tool: string | null; category: string | null; decision: string }>(
+          "SELECT tool, category, decision FROM audit WHERE kind = 'call' ORDER BY id",
+        ),
+      /** Everything the journal and the audit table hold, as text: what a test greps for a value that must never be stored. */
+      stored: () =>
+        JSON.stringify([
+          db.all("SELECT * FROM session_events ORDER BY id"),
+          db.all("SELECT * FROM audit ORDER BY id"),
+        ]),
       ctx: owner,
       async subscribe(sessionId: string, after?: Cursor): Promise<Subscription> {
         const frames: EventFrame[] = [];

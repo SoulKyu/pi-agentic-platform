@@ -85,7 +85,12 @@ export function createPrecheckPort(deps: PrecheckPortDeps): PrecheckPort & { sto
       const span = deps.span?.();
       const scope = deps.scopes?.next({ kind: "terminal" }) ?? null;
       try {
-        const spec = precheckSpec(input.command, precheckEnv(deps.env, input.env), scope?.launch ?? null);
+        const spec = precheckSpec(
+          input.command,
+          precheckEnv(deps.env, input.env, input.wrap ? { proxied: input.proxied === true } : undefined),
+          scope?.launch ?? null,
+          input.wrap,
+        );
         const outcome = await runPrecheck(spec, input.cwd, deps.runner, {
           timeoutMs: deps.timeoutMs,
           signal: controller.signal,

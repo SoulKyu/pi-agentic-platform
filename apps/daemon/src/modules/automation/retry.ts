@@ -28,6 +28,12 @@ export function createRetry(deps: RetryDeps) {
     const trigger = row.trigger_id === null ? null : deps.triggers.get(ownerId, row.trigger_id);
     // A task of a deleted trigger has no config to run under, and the journal line needs the trigger.
     if ((policy === null && options.asToken !== true) || trigger === null) throw new PapError("conflict");
+    // The new task takes its target from the trigger as it is NOW (`fire`), so that is what is judged (M11R65, owner m15):
+    // a token never fires the agent's trusted thread, and a prompt that carries a payload or precheck output never goes there.
+    if (trigger.input?.execution.agent?.target === "thread") {
+      if (options.asToken === true) throw new PapError("forbidden");
+      if (row.tainted === 1) throw new PapError("bad_request");
+    }
     const result = deps.fire(trigger.id, trigger.revision, {
       ownerId,
       source: "retry",

@@ -25,6 +25,7 @@ export const TRUST_REFUSALS = [
   "home-or-above",
   "holds-pi-or-pap",
   "holds-other-projects",
+  "inside-pap-home",
 ] as const;
 export const TrustRefusal = z.enum(TRUST_REFUSALS);
 export type TrustRefusal = z.infer<typeof TrustRefusal>;

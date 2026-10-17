@@ -41,6 +41,9 @@ export interface LaneRow {
   readonly failedReason: FailedReason | null;
   readonly archivedAt: number | null;
   readonly createdAt: number;
+  /** What an agent wrote with `lane_note` (M11R41); model text. */
+  readonly note: string | null;
+  readonly noteAt: number | null;
 }
 
 /** What phase 1 of `lanes.create` writes; everything else starts at the schema's default. */
@@ -81,6 +84,8 @@ export interface LanesStore {
   setState(id: string, state: LaneState, extra?: { failedReason?: FailedReason; at?: number }): void;
   setPrimarySession(id: string, sessionId: string): void;
   setPr(id: string, number: number, url: string): void;
+  /** The agent's note (null clears it) and when it was written. */
+  setNote(id: string, note: string | null, at: number | null): void;
   /** The first run's end: written once, later calls change nothing. */
   markFirstRunEnded(id: string, at: number): void;
   /** The setup states pap itself decides (the runner writes the others). */
@@ -105,7 +110,7 @@ const COLUMNS = `id, owner_id AS ownerId, workspace_id AS workspaceId, created_b
   setup_state AS setupState, setup_exit AS setupExit, setup_started_at AS setupStartedAt,
   setup_finished_at AS setupFinishedAt, test_state AS testState, test_exit AS testExit,
   test_finished_at AS testFinishedAt, first_run_ended_at AS firstRunEndedAt, pr_number AS prNumber, pr_url AS prUrl, state,
-  failed_reason AS failedReason, archived_at AS archivedAt, created_at AS createdAt`;
+  failed_reason AS failedReason, archived_at AS archivedAt, created_at AS createdAt, note, note_at AS noteAt`;
 
 type Raw = Omit<LaneRow, "source" | "model"> & { source: string | null; model: string | null };
 
@@ -176,6 +181,9 @@ export function createLanesStore(db: Db): LanesStore {
     },
     setPr: (id, number, url) => {
       db.run("UPDATE lanes SET pr_number = $number, pr_url = $url WHERE id = $id", { id, number, url });
+    },
+    setNote: (id, note, at) => {
+      db.run("UPDATE lanes SET note = $note, note_at = $at WHERE id = $id", { id, note, at });
     },
     markFirstRunEnded: (id, at) => {
       db.run("UPDATE lanes SET first_run_ended_at = $at WHERE id = $id AND first_run_ended_at IS NULL", {

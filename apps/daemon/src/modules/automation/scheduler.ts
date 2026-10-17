@@ -4,10 +4,12 @@ import type { Db } from "../../kernel/db/database.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { enqueueEffect, type Outbox } from "../../kernel/outbox/index.ts";
 import { guardTimer } from "../../kernel/timer-guard.ts";
+import { createDueTimer } from "./due-timer.ts";
 import type { FireInput, FireResult } from "./fire.ts";
 import { writeJournal } from "./fire-journal.ts";
 import type { PrecheckRunner } from "./precheck-step.ts";
 import type { createTriggerStore } from "./store.ts";
+import type { TaskStore } from "./tasks.ts";
 import type { TriggerRecord } from "./triggers.ts";
 
 /** An occurrence found later than this at run time is a missed fire, never a silent late one (M10R61, M10R62). */
@@ -35,6 +37,8 @@ export interface SchedulerDeps {
   readonly precheck?: Pick<PrecheckRunner, "run">;
   /** Feed triggers are polled as `feed.poll` effects (M10R73); none: they are not scheduled. */
   readonly outbox?: Pick<Outbox, "poke">;
+  /** Tasks that wait for a time (M11R81): with the outbox, the scheduler also arms a timer for the earliest of them. */
+  readonly tasks?: Pick<TaskStore, "dueQueued" | "nextNotBefore">;
 }
 
 /**
@@ -71,6 +75,10 @@ export function createScheduler(deps: SchedulerDeps) {
   const { clock, logger } = deps;
   let timer: TimerHandle | null = null;
   let running = false;
+  const due =
+    deps.tasks && deps.outbox
+      ? createDueTimer({ db: deps.db, clock, logger, store: deps.tasks, outbox: deps.outbox })
+      : null;
 
   function scheduleOf(record: TriggerRecord): { source: ScheduleSource; rule: ParsedRrule } | null {
     const source = record.input?.source;
@@ -224,6 +232,11 @@ export function createScheduler(deps: SchedulerDeps) {
       if (deps.readOnly || running) return;
       running = true;
       run();
+      due?.start();
+    },
+    /** A task that waits for a time was made (M11R81): its time may be the earliest now. */
+    armDue(): void {
+      due?.refresh();
     },
     /** A trigger was saved, switched or deleted: its next occurrence is recomputed from now (M10R61). */
     refresh(): void {
@@ -232,6 +245,7 @@ export function createScheduler(deps: SchedulerDeps) {
     stop(): void {
       running = false;
       disarm();
+      due?.stop();
     },
   };
 }

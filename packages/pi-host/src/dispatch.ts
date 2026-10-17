@@ -1,7 +1,16 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { type DaemonToWorker, POLICY_EXTENSION_PATH, PolicyRules, type TaintState } from "@pap/contracts";
+import {
+  type DaemonToWorker,
+  type EgressOpened,
+  type EgressReport,
+  POLICY_EXTENSION_PATH,
+  PolicyRules,
+  type PlatformResultRecord,
+  type TaintState,
+  type VaultUpdateRecord,
+} from "@pap/contracts";
 import type { Approvals } from "./approvals.ts";
-import { logLineOf } from "./bounded.ts";
+import { errorClass, logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";
 import { handleAbort, handleGetState, queuePrompt } from "./commands.ts";
 import type { Ipc } from "./ipc.ts";
@@ -34,6 +43,12 @@ export interface DispatchDeps {
   leafMayHaveMoved(): void;
   /** `null`: the update was malformed and every call is blocked until a valid one (M5R11). */
   setRules(rules: PolicyRules | null): void;
+  /** Settles the platform call a `platform_result` answers (Task 2); absent: results are dropped. */
+  readonly platform?: { resolve(record: PlatformResultRecord): void };
+  /** Takes a `vault_update` (the redactor and the sandboxed shell's environment); absent, the record is ignored (M11R26). */
+  readonly vault?: { update(record: VaultUpdateRecord): void };
+  /** Takes the daemon's answers to `egress_open` / `egress_close` (M11R232); absent, they are dropped. */
+  readonly egress?: { opened(record: EgressOpened): void; report(record: EgressReport): void };
   /** The taint of a valid update: a newer epoch replaces the state, the same epoch only raises it (M5R6). */
   applyTaint(taint: TaintState): void;
 }
@@ -131,6 +146,23 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         });
         return;
       }
+      case "platform_result":
+        deps.platform?.resolve(record);
+        return;
+      case "vault_update":
+        try {
+          deps.vault?.update(record);
+        } catch (error) {
+          // The class only: a message could quote a value.
+          process.stderr.write(`pi-host: vault_update failed (${errorClass(error)})\n`);
+        }
+        return;
+      case "egress_opened":
+        deps.egress?.opened(record);
+        return;
+      case "egress_report":
+        deps.egress?.report(record);
+        return;
       case "custom_input":
         ui.panelInput(record.id, record.data);
         return;

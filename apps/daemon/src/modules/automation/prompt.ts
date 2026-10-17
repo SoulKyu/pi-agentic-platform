@@ -1,7 +1,17 @@
 import { randomBytes } from "node:crypto";
 import { fenceText, PLACEHOLDER } from "@pap/contracts";
 
-export const FENCE_SOURCES = ["webhook", "alertmanager", "grafana", "feed", "precheck", "manual"] as const;
+export const FENCE_SOURCES = [
+  "webhook",
+  "alertmanager",
+  "grafana",
+  "feed",
+  "precheck",
+  "manual",
+  "handoff",
+  "delegation",
+  "reminder",
+] as const;
 export type FenceSource = (typeof FENCE_SOURCES)[number];
 /** The `tasks.prompt` CHECK: a rendered prompt longer than this is a journal `error` `prompt_too_large` (RT-24). */
 export const RENDERED_PROMPT_MAX = 131_072;
@@ -17,7 +27,7 @@ const HIDDEN = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F]|\p{Cf}/gu;
  * that drops what a reader cannot see: format characters (tag characters U+E0000-E007F, bidi, zero-width) and the C0/C1
  * controls except newline and tab.
  */
-const fence = (text: string, source: FenceSource, id: string): string =>
+export const fence = (text: string, source: FenceSource, id: string): string =>
   fenceText(text.replace(HIDDEN, ""), source, id);
 
 export interface PromptValues {

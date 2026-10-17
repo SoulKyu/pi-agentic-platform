@@ -66,12 +66,19 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
     return new PapError(refusalOf(command, error));
   };
 
+  // A token never makes an agent's trusted thread run (M11R4, W5-R64).
+  const ownedForRun = (sessionId: string, caller: Caller): SessionRow => {
+    const row = deps.owned(sessionId, caller);
+    if (caller.kind === "token" && row.agentId !== undefined) throw new PapError("forbidden");
+    return row;
+  };
+
   // Navigating or compacting while a run, a prompt or another such command is on would change the branch under it
   // (Pi's `compact()` aborts the current operation). The check runs before the worker is brought up and again after:
   // a prompt may have arrived while it started. Nothing is awaited between the second check and the send, so no prompt
   // can slip in between (M2R88, M2-RT-08).
   async function send(sessionId: string, caller: Caller, input: CommandInput) {
-    const row = deps.owned(sessionId, caller);
+    const row = ownedForRun(sessionId, caller);
     if (deps.live.get(sessionId)?.busy() || deps.waiting(sessionId)) throw new PapError("session_busy");
     const session = await deps.ensureLive(row);
     if (session.busy() || deps.waiting(sessionId)) throw new PapError("session_busy");
@@ -139,7 +146,7 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
       if (!answer.ok) throw refused("set_session_name", answer.error);
     },
     async autoName(sessionId, caller) {
-      const row = deps.owned(sessionId, caller);
+      const row = ownedForRun(sessionId, caller);
       const pending = naming.get(row.id) ?? askTitle(row);
       naming.set(row.id, pending);
       const done = () => {

@@ -42,10 +42,11 @@ describe("router", () => {
     await page.unmount();
   });
 
-  it("declares the ten routes", () => {
+  it("declares the routes", () => {
     const router = createAppRouter(buildRouteTree(Fine), createMemoryHistory({ initialEntries: ["/"] }));
     expect(Object.keys(router.routesByPath).sort()).toEqual([
       "/",
+      "/agents/$id",
       "/changes/$root",
       "/compare/$fanoutId",
       "/dev/ui",

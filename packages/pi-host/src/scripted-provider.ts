@@ -1,12 +1,19 @@
 import { appendFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import {
+  type AssistantMessage,
+  type AssistantMessageEvent,
+  createAssistantMessageEventStream,
+  createFauxCore,
+  createProvider,
   fauxAssistantMessage,
   fauxProvider,
   fauxText,
   fauxToolCall,
   type Provider,
   type ProviderAuth,
+  type RegisterFauxProviderOptions,
+  type StreamFunction,
 } from "@earendil-works/pi-ai";
 import { z } from "zod";
 
@@ -19,6 +26,11 @@ const ScriptStep = z.object({
     .optional(),
   stopReason: z.enum(["stop", "toolUse", "error"]).optional(),
   errorMessage: z.string().optional(),
+  /** Test only: `platform_call` records sent as written when the step is served, as a compromised worker would send them. */
+  rawPlatformCalls: z
+    .array(z.object({ op: z.string(), toolCallId: z.string().default("raw"), args: z.unknown() }))
+    .max(16)
+    .optional(),
 });
 type ScriptStep = z.infer<typeof ScriptStep>;
 
@@ -32,6 +44,15 @@ export const ProviderScript = z
       .array(z.object({ id: z.string().min(1), reasoning: z.boolean().optional() }))
       .max(8)
       .optional(),
+    /**
+     * Test only: what a token costs, in dollars per million (cache reads and writes are priced as input). The faux provider
+     * reports every run as free; with prices each reply carries the cost its estimated tokens come to, so a budget has
+     * something to count.
+     */
+    prices: z
+      .object({ input: z.number().min(0), output: z.number().min(0) })
+      .strict()
+      .optional(),
     steps: z.array(ScriptStep).min(1),
     /** Answer to Pi's compaction request: it is not a step, so a long session can compact without eating the script. */
     summary: z.string().min(1).optional(),
@@ -41,6 +62,8 @@ export const ProviderScript = z
     captureUserMessages: z.string().min(1).optional(),
     /** Test only: a file to which each reply appends `{ model, thinking }` for the request, one JSON line per call. */
     captureThinking: z.string().min(1).optional(),
+    /** Test only: a file to which each daemon answer to a raw call of a step is appended, one JSON line per answer. */
+    captureRawResults: z.string().min(1).optional(),
   })
   .refine((script) => !script.extraModels?.some((extra) => extra.id === script.modelId), {
     message: "an extra model repeats the main model id",
@@ -59,6 +82,23 @@ function stepMessage(step: ScriptStep) {
     stopReason,
     ...(step.errorMessage ? { errorMessage: step.errorMessage } : {}),
   });
+}
+
+let rawCount = 0;
+let rawListening = false;
+/** Test only: sends the step's raw `platform_call` records and appends the answers to their ids (`r1`, `r2`...) to `captureRawResults`. */
+function sendRaw(script: ProviderScript, step: ScriptStep): void {
+  if (!step.rawPlatformCalls || !process.send) return;
+  const file = script.captureRawResults;
+  if (file !== undefined && !rawListening) {
+    rawListening = true;
+    process.on("message", (record: { type?: string; id?: string }) => {
+      if (record?.type === "platform_result" && record.id?.startsWith("r"))
+        appendFileSync(file, `${JSON.stringify(record)}\n`);
+    });
+  }
+  for (const call of step.rawPlatformCalls)
+    process.send({ type: "platform_call", id: `r${++rawCount}`, ...call });
 }
 
 const SUMMARIZATION_PROMPT = "You are a context summarization assistant";
@@ -112,25 +152,84 @@ export function scriptedReplies(
       return fauxAssistantMessage([fauxText(script.summary)], { stopReason: "stop" });
     const step = script.steps[next++];
     if (!step) throw new Error("script exhausted");
+    sendRaw(script, step);
     return stepMessage(step);
   };
 }
 
+type Prices = NonNullable<ProviderScript["prices"]>;
+const PER_MILLION = 1_000_000;
+
+/** The message with the cost its usage comes to at these prices. */
+function priced(message: AssistantMessage, prices: Prices): AssistantMessage {
+  const { usage } = message;
+  const input = (usage.input * prices.input) / PER_MILLION;
+  const output = (usage.output * prices.output) / PER_MILLION;
+  const cacheRead = (usage.cacheRead * prices.input) / PER_MILLION;
+  const cacheWrite = (usage.cacheWrite * prices.input) / PER_MILLION;
+  return {
+    ...message,
+    usage: {
+      ...usage,
+      cost: { input, output, cacheRead, cacheWrite, total: input + output + cacheRead + cacheWrite },
+    },
+  };
+}
+
+const pricedEvent = (event: AssistantMessageEvent, prices: Prices): AssistantMessageEvent => {
+  if (event.type === "done") return { ...event, message: priced(event.message, prices) };
+  if (event.type === "error") return { ...event, error: priced(event.error, prices) };
+  return event;
+};
+
+/** The faux provider as `fauxProvider` builds it, its streams passed through `priced` when the script has prices. */
+function fauxWithPrices(options: RegisterFauxProviderOptions, prices: Prices | undefined) {
+  if (prices === undefined) return fauxProvider(options);
+  const core = createFauxCore(options);
+  const through =
+    (run: StreamFunction<string, never>): StreamFunction<string, never> =>
+    (model, context, streamOptions) => {
+      const inner = run(model, context, streamOptions);
+      const outer = createAssistantMessageEventStream();
+      void (async () => {
+        for await (const event of inner) outer.push(pricedEvent(event, prices));
+        outer.end(priced(await inner.result(), prices));
+      })();
+      return outer;
+    };
+  const provider = createProvider({
+    id: core.provider,
+    auth: { apiKey: { name: "Faux", resolve: async () => ({ auth: {} }) } },
+    models: core.models,
+    api: {
+      stream: through(core.stream as never) as never,
+      streamSimple: through(core.streamSimple as never) as never,
+      fetchDeferred: core.fetchDeferred,
+      cancelDeferred: core.cancelDeferred,
+    },
+  });
+  return { provider, getModel: core.getModel, setResponses: core.setResponses };
+}
+
 export function buildScriptedProvider(script: ProviderScript) {
   // A fixed api id and chunk size keep runs identical: the defaults embed the clock and a random chunk size (S2).
-  const faux = fauxProvider({
-    api: "scripted",
-    models: [
-      { id: script.modelId, ...(script.reasoning ? { reasoning: true } : {}) },
-      ...(script.extraModels ?? []).map((extra) => ({ id: extra.id, reasoning: extra.reasoning === true })),
-    ],
-    tokenSize: { min: 4, max: 4 },
-  });
+  const faux = fauxWithPrices(
+    {
+      api: "scripted",
+      models: [
+        { id: script.modelId, ...(script.reasoning ? { reasoning: true } : {}) },
+        ...(script.extraModels ?? []).map((extra) => ({ id: extra.id, reasoning: extra.reasoning === true })),
+      ],
+      tokenSize: { min: 4, max: 4 },
+    },
+    script.prices,
+  );
   if (script.summary === undefined) {
     faux.setResponses(
       script.steps.map(
         (step) => (call: ModelCall, options?: RequestOptions, _state?: unknown, model?: RequestModel) => {
           capture(script, call, options, model);
+          sendRaw(script, step);
           return stepMessage(step);
         },
       ),

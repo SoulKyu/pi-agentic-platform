@@ -23,6 +23,7 @@ export function buildRouteTree(Root: () => ReactNode) {
     route("/compare/$fanoutId"),
     route("/tasks"),
     route("/trigger/$id"),
+    route("/agents/$id"),
     route("/dev/ui"),
   ]);
 }

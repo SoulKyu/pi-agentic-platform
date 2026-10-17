@@ -32,6 +32,7 @@ export function fakeHomeActions() {
     openShortcuts: vi.fn<() => void>(),
     newLane: vi.fn<HomeActions["newLane"]>(() => true),
     newTrigger: vi.fn<HomeActions["newTrigger"]>(),
+    newAgent: vi.fn<HomeActions["newAgent"]>(),
     addProject: vi.fn<HomeActions["addProject"]>(),
   } satisfies HomeActions;
 }

@@ -9,15 +9,21 @@ import type { PolicyPort } from "../policy/index.ts";
 import type { RunsPort } from "../runs/index.ts";
 import type { SessionsAutomationPort } from "../sessions/index.ts";
 import { createAdmission } from "./admit.ts";
+import { createAgentTasks } from "./agent-tasks.ts";
+import { createAgentBudget } from "./agent-budget.ts";
 import { type BootReport, recoverTasks } from "./boot.ts";
 import { createAutomationEvents } from "./events.ts";
 import { createFire } from "./fire.ts";
 import { createGates } from "./gates.ts";
 import { createRunLimits } from "./limits.ts";
+import { createAgentStart, createAgentTaskLink } from "./runner-agent.ts";
+import { createThreadStart } from "./runner-thread.ts";
+import { createLaunch } from "./runner-launch.ts";
 import { createRunner } from "./runner.ts";
 import { createTaskViews } from "./task-view.ts";
 import { createTaskStore, type TaskRow } from "./tasks.ts";
 import { createTasksStream } from "./tasks-stream.ts";
+import { type AgentBinding, type AgentPorts, createAgentBinding } from "./trigger-agent.ts";
 import type { Triggers } from "./triggers.ts";
 
 export interface EngineDeps {
@@ -40,6 +46,8 @@ export interface EngineDeps {
     | "state"
     | "answerUnattended"
     | "onAttention"
+    | "admits"
+    | "promptPending"
   >;
   readonly runs: Pick<
     RunsPort,
@@ -70,6 +78,8 @@ export interface EngineDeps {
   readonly resumeSending?: (sessionId: string) => boolean;
   /** Tests only (`PAP_TEST_OUTBOX_HOLD=cancel`, M10R80): Cancel stops right after its commit, before it aborts the session. */
   readonly holdCancel?: boolean;
+  /** The agents' ports, bound late (M11); one is made when the caller has none. */
+  readonly agents?: AgentBinding;
 }
 
 /**
@@ -82,10 +92,12 @@ export function createTaskEngine(deps: EngineDeps) {
   const store = createTaskStore(db);
   const events = createAutomationEvents(logger);
   const starting = new Map<string, string>();
+  const agents = deps.agents ?? createAgentBinding();
   const views = createTaskViews({
     sessions: deps.sessions,
     runs: deps.runs,
     policy: deps.policy,
+    threadCost: (taskId) => agents.ports()?.spend.taskRuns(taskId).usd ?? 0,
   });
   const gates = createGates({
     clock,
@@ -93,6 +105,7 @@ export function createTaskEngine(deps: EngineDeps) {
     runs: deps.runs,
     triggers: deps.triggers,
     store,
+    agentBudget: createAgentBudget({ binding: agents, settings: deps.settings }),
   });
   const fire = createFire({
     db,
@@ -107,8 +120,47 @@ export function createTaskEngine(deps: EngineDeps) {
     events,
     views,
     newId: deps.newId ?? randomUUID,
+    agentPaused(ownerId, agentId) {
+      const agent = agents.ports()?.registry.get(ownerId, agentId);
+      return agent !== undefined && agent !== null && (agent.paused || agent.quarantinedAt !== null);
+    },
   });
   const putOff = new Map<string, number>();
+  const launch = createLaunch({
+    db,
+    clock,
+    store,
+    marks: deps.triggerMarks,
+    starting,
+    putOff,
+    announce: (id, previous) => runner.announce(id, previous),
+    limits: { started: (task) => limits.started(task) },
+    runs: deps.runs,
+    sessions: deps.sessions,
+    settle: (row, from, to, change) => runner.settle(row, from, to, change),
+  });
+  const thread = createThreadStart({
+    clock,
+    logger,
+    binding: agents,
+    store,
+    sessions: deps.sessions,
+    starting,
+    putOff,
+    settle: (row, from, to, change) => runner.settle(row, from, to, change),
+    launch,
+  });
+  const agentStart = createAgentStart({
+    db,
+    clock,
+    logger,
+    binding: agents,
+    store,
+    views,
+    policy: deps.policy,
+    putOff,
+    thread,
+  });
   const admission = createAdmission({
     store,
     settings: deps.settings,
@@ -148,6 +200,9 @@ export function createTaskEngine(deps: EngineDeps) {
     resumeKeys: deps.resumeKeys ?? (() => []),
     resumeSending: deps.resumeSending ?? (() => false),
     holdCancel: deps.holdCancel,
+    agents: agentStart,
+    thread,
+    launch,
   });
   const stream = createTasksStream({
     clock,
@@ -174,10 +229,38 @@ export function createTaskEngine(deps: EngineDeps) {
     runner,
     stream,
     events,
+    views,
     store,
     admission,
+    /** The agents' ports (M11): bound once by the composition. */
+    agents,
+    /** The task makers and counts of the delegation and reminder ops (M11R78, M11R80). */
+    agentTasks: createAgentTasks({
+      db,
+      clock,
+      logger,
+      binding: agents,
+      store,
+      outbox: deps.outbox,
+      events,
+      views,
+      gates,
+      newId: deps.newId ?? randomUUID,
+    }),
+    /** Binds them, then settles the cards of thread tasks that ended while they were not there (the boot ran first). */
+    bindAgents(ports: AgentPorts): void {
+      agents.bind(ports);
+      thread.settleCards();
+      agentStart.replay();
+    },
     /** The tasks whose start is in flight. */
     starting: (): string[] => [...starting.keys()],
+    /** What an agent's delete asks of the tasks (carry 1). */
+    taskLink: createAgentTaskLink({
+      store,
+      starting: () => [...starting.keys()],
+      cancel: (ownerId, taskId) => runner.cancel(ownerId, taskId),
+    }),
     counts: stream.counts,
     /** The tasks' part of the boot (M10R42): before the server listens, after the outbox and the runs recovered. */
     recover: (): BootReport =>

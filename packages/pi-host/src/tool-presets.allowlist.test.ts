@@ -9,7 +9,7 @@ function fakeSession(active: string[]) {
   let names = [...active];
   const session = {
     getActiveToolNames: () => [...names],
-    getAllTools: () => REGISTERED.map((name) => ({ name })),
+    getAllTools: () => REGISTERED.map((name) => ({ name, sourceInfo: { path: `builtin:${name}` } })),
     setActiveToolsByName: (next: string[]) => {
       names = [...next];
     },
