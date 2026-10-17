@@ -64,7 +64,7 @@ async function show(
   );
   return page.container;
 }
-const rows = () => [...document.querySelectorAll("[data-model-row]")] as HTMLButtonElement[];
+const rows = () => [...document.querySelectorAll<HTMLElement>("[data-model-row]")];
 const rowFor = (id: string) => {
   const found = rows().find((row) => row.dataset.modelRow === id);
   if (!found) throw new Error(`no row ${id}`);
@@ -112,7 +112,7 @@ describe("ModelBar pill", () => {
   it("marks the current row from the list's own answer when the session is cold", async () => {
     const container = await show({ loadout: null });
     await openModelMenu(container, "Choose a model");
-    expect(rows().filter((row) => row.getAttribute("aria-current") === "true")).toEqual([
+    expect(rows().filter((row) => row.getAttribute("aria-selected") === "true")).toEqual([
       rowFor("claude-sonnet-4"),
     ]);
   });
@@ -160,9 +160,17 @@ describe("ModelBar model menu", () => {
         group.getAttribute("data-model-group"),
       ),
     ).toEqual(["anthropic", "openai"]);
-    expect(rows().filter((row) => row.getAttribute("aria-current") === "true")).toEqual([
+    expect(rows().filter((row) => row.getAttribute("aria-selected") === "true")).toEqual([
       rowFor("claude-sonnet-4"),
     ]);
+  });
+
+  it("keeps the menu body a shrinking flex column, so the list scrolls inside the dialog and the search stays put", async () => {
+    const container = await show();
+    await openModelMenu(container);
+    const body = document.querySelector("[data-model-menu]");
+    for (const name of ["flex", "flex-col", "min-h-0", "flex-1"])
+      expect(body?.classList.contains(name), name).toBe(true);
   });
 
   it("filters by what is typed in the search field", async () => {
@@ -172,7 +180,7 @@ describe("ModelBar model menu", () => {
     expect(rows().map((row) => row.dataset.modelRow)).toEqual(["claude-opus-4"]);
     await typeInto(field(document.body, "Search models"), "zzz");
     expect(rows()).toHaveLength(0);
-    expect(text(document.body)).toContain("No model matches.");
+    expect(text(document.body)).toContain("No model matches");
   });
 
   it("choosing a row sends sessions.setModel with a command id, then closes the menu", async () => {
@@ -214,8 +222,8 @@ describe("ModelBar model menu", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(3100);
     });
-    expect(rowFor("gpt-5").textContent).toContain("Starting the session…");
-    expect(rowFor("claude-opus-4").disabled).toBe(true);
+    expect(rowFor("gpt-5").closest("div")?.parentElement?.textContent).toContain("Starting the session…");
+    expect(rowFor("claude-opus-4").getAttribute("aria-disabled")).toBe("true");
     await click(rowFor("claude-opus-4"));
     expect(bed.called("sessions.setModel")).toHaveLength(1);
     vi.useRealTimers();
@@ -227,14 +235,14 @@ describe("ModelBar model menu", () => {
     const container = await show({}, { models: [], truncated: false, current: null });
     await click(button(container, "anthropic · claude-sonnet-4"));
     await act(async () => {
-      await vi.waitFor(() => expect(text(document.body)).toContain("No model is available."), {
+      await vi.waitFor(() => expect(text(document.body)).toContain("No model available."), {
         timeout: 10_000,
       });
     });
     const link = [...document.querySelectorAll("a")].find(
       (one) => one.getAttribute("href") === "/settings/models",
     );
-    expect(link?.textContent).toBe("Sign in to a provider in Settings › Models.");
+    expect(link?.textContent).toBe("Open settings");
   });
 
   it("shows the code's own text and a retry when the list cannot load", async () => {

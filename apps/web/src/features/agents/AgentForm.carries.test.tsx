@@ -14,7 +14,6 @@ import {
   hasButton,
   mount,
   settle,
-  text,
   typeInto,
   unmountAll,
 } from "../../testing/dom.ts";
@@ -47,22 +46,9 @@ const view = (patch: Partial<Parameters<typeof AgentInput.parse>[0]> = {}, revis
   createdAt: 1,
   updatedAt: 2,
 });
-const model = (provider: string, id: string, name: string, reasoning: boolean) => ({
-  provider,
-  id,
-  name,
-  reasoning,
-  enabled: true,
-});
-
-async function open(
-  agent: AgentView | null,
-  models: { providers: unknown[]; truncated?: boolean } = { providers: [] },
-  onReload?: () => Promise<AgentView | null>,
-) {
+async function open(agent: AgentView | null, onReload?: () => Promise<AgentView | null>) {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
-  bed.handlers["models.overview"] = () => ({ truncated: false, ...models });
   bed.handlers["agents.update"] = () => {
     throw new RpcError("conflict");
   };
@@ -85,7 +71,6 @@ async function open(
   await settle();
   return bed;
 }
-const body = () => text(document.body);
 const save = async (label: string) => {
   await click(button(document.body, label));
   await settle();
@@ -95,7 +80,7 @@ beforeEach(() => setLocale("en"));
 describe("agent form: a conflict on save (carry 2)", () => {
   it("offers to reload the agent, and tells a changed agent from a taken name by the revision", async () => {
     const onReload = vi.fn(async () => view({}, 3));
-    await open(view(), undefined, onReload);
+    await open(view(), onReload);
     await typeInto(field(document.body, "Role"), "new role");
     await save("Save");
     expect(alerts(document.body)).toEqual([
@@ -111,7 +96,6 @@ describe("agent form: a conflict on save (carry 2)", () => {
   it("says when the agent could not be reloaded", async () => {
     await open(
       view(),
-      undefined,
       vi.fn(async () => null),
     );
     await save("Save");
@@ -123,7 +107,6 @@ describe("agent form: a conflict on save (carry 2)", () => {
   it("has no reload for a new agent, nor without a host that can reload", async () => {
     await open(
       null,
-      undefined,
       vi.fn(async () => null),
     );
     await typeInto(field(document.body, "Name"), "atlas");
@@ -138,7 +121,6 @@ describe("agent form: a conflict on save (carry 2)", () => {
   it("offers no reload for another refusal", async () => {
     const bed = await open(
       view(),
-      undefined,
       vi.fn(async () => null),
     );
     bed.handlers["agents.update"] = () => {
@@ -146,42 +128,5 @@ describe("agent form: a conflict on save (carry 2)", () => {
     };
     await save("Save");
     expect(hasButton(document.body, "Reload the agent")).toBe(false);
-  });
-});
-
-describe("agent form: thinking per model (carry 3)", () => {
-  const providers = [
-    {
-      id: "anthropic",
-      models: [model("anthropic", "haiku", "Haiku", false), model("anthropic", "sonnet", "Sonnet", true)],
-    },
-    { id: "bedrock", models: [model("bedrock", "sonnet", "Sonnet", true)] },
-  ];
-
-  it("says thinking stays off for a model that does not reason", async () => {
-    await open(view({ model: { provider: "anthropic", modelId: "haiku" } }), { providers });
-    expect(body()).toContain("This model does not reason: thinking stays off.");
-  });
-
-  it("says nothing for a model that reasons, or for the default model", async () => {
-    await open(view({ model: { provider: "anthropic", modelId: "sonnet" } }), { providers });
-    expect(body()).not.toContain("does not reason");
-    await unmountAll();
-    await open(view(), { providers });
-    expect(body()).not.toContain("does not reason");
-  });
-
-  it("names the provider of a model whose name another provider shares", async () => {
-    await open(view({ model: { provider: "bedrock", modelId: "sonnet" } }), { providers });
-    const trigger = document.querySelector('[data-slot="agent-model"] [role="combobox"]');
-    expect(trigger?.textContent).toContain("Sonnet (bedrock)");
-  });
-
-  it("hints that the model list is cut short", async () => {
-    await open(view(), { providers, truncated: true });
-    expect(body()).toContain("The model list is cut short. Models you enabled may be missing.");
-    await unmountAll();
-    await open(view(), { providers });
-    expect(body()).not.toContain("cut short");
   });
 });

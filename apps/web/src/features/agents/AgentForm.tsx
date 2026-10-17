@@ -3,15 +3,16 @@ import { AgentView, APPROVAL_MODES, type SandboxStatus, type ToolPreset } from "
 import { Button, Collapsible, Segmented, Select, Switch, TextField, usePendingAction } from "@pap/ui";
 import { type ReactNode, useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
+import type { PickerModel } from "../models/picker/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 import { AutonomyFields } from "./AutonomyFields.tsx";
 import { BudgetFields } from "./BudgetFields.tsx";
 import { derivedInitials, draftFromInput, type Draft, needsStepUp, toInput } from "./agent-form.vm.ts";
 import { MemoryFields } from "./MemoryFields.tsx";
+import { levelsFor } from "./model-fields.vm.ts";
 import { ModelFields } from "./ModelFields.tsx";
 import { EgressLine, SandboxLine } from "./SandboxLine.tsx";
-import { useAgentModels } from "./use-agent-models.ts";
 import type { NewAgentStart } from "./use-new-agent-defaults.ts";
 import { useOwnerHosts } from "./use-owner-hosts.ts";
 
@@ -54,12 +55,13 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
   const stepUp = useStepUpRunner();
   const pending = usePendingAction();
   const reloading = usePendingAction();
-  const models = useAgentModels();
   const before = agent?.input ?? null;
   const [draft, setDraft] = useState(() => ({
     ...draftFromInput(before),
     ...(agent === null && start ? { sandboxRequired: start.required, network: start.network } : {}),
   }));
+  // What the picker said about the model picked in this form; a saved model that was not picked has none (all levels).
+  const [picked, setPicked] = useState<PickerModel | undefined>(undefined);
   const [attempted, setAttempted] = useState(false);
   const [problem, setProblem] = useState<MessageKey | null>(null);
   const [roleHelp, setRoleHelp] = useState(false);
@@ -154,10 +156,13 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
         <p className="text-ui text-muted">{t("agentForm.role.help")}</p>
       </Collapsible>
       <ModelFields
-        models={models}
         model={draft.model}
         thinking={draft.thinking}
-        onModel={(model) => set({ model })}
+        levels={levelsFor(picked)}
+        onModel={(model, summary) => {
+          setPicked(summary);
+          set({ model });
+        }}
         onThinking={(thinking) => set({ thinking })}
       />
       <Select

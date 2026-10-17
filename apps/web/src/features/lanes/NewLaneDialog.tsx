@@ -28,7 +28,7 @@ import {
   withTitle,
 } from "./new-lane.vm.ts";
 import { ScriptTrust } from "./ScriptTrust.tsx";
-import { useLanePreview, useModelChoices } from "./use-new-lane-data.ts";
+import { useLanePreview } from "./use-new-lane-data.ts";
 
 export type Created = ResultOf<"lanes.create">;
 
@@ -72,7 +72,6 @@ export function NewLaneDialog({ projects, initialProjectId, prefill, onClose, on
   const [projectId, setProjectId] = useState(initialProjectId ?? projects[0]?.id ?? "");
   const root = projects.find((project) => project.id === projectId)?.root ?? null;
   const { preview, error, reload } = useLanePreview(root);
-  const { choices, truncated } = useModelChoices(root);
   const [draft, setDraft] = useState(() =>
     prefill ? prefillDraft(prefill.text, prefill.models, prefill.title) : emptyDraft(),
   );
@@ -260,8 +259,7 @@ export function NewLaneDialog({ projects, initialProjectId, prefill, onClose, on
             </div>
             <ModelSlots
               slots={draft.slots}
-              choices={choices}
-              truncated={truncated}
+              cwd={root}
               disabled={creating}
               onModel={(key, model) => setDraft((current) => setModel(current, key, model))}
               onAdd={() => setDraft(addSlot)}

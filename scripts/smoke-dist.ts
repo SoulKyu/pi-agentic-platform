@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { checkLanes } from "./smoke-lanes.ts";
+import { checkModels } from "./smoke-models.ts";
 import { checkPwa } from "./smoke-pwa.ts";
 import { checkScannerAndSearch } from "./smoke-search.ts";
 import { checkTerminal } from "./smoke-terminal.ts";
@@ -121,6 +122,7 @@ async function drive(
     await session.waitFor(isPi("agent_settled"), "agent_settled");
     step("prompt -> approval -> tool output -> agent_settled");
     await checkScannerAndSearch({ agentDir, cwd: work, socket: session });
+    await checkModels({ agentDir, socket: session });
     await checkLanes({
       port,
       origin,

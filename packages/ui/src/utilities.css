@@ -101,6 +101,11 @@ html[data-keyboard-open] .pb-safe {
   max-height: var(--radix-select-content-available-height, var(--app-viewport-height, 100dvh));
 }
 
+/* The popover's room: what Radix measured above and below its trigger, never more than the visible viewport. */
+@utility max-h-popover {
+  max-height: var(--radix-popover-content-available-height, var(--app-viewport-height, 100dvh));
+}
+
 /* Radix hides the viewport's scrollbar with an injected rule of one attribute; two attributes win. */
 [data-radix-select-viewport][data-slot="select-viewport"] {
   scrollbar-width: thin;

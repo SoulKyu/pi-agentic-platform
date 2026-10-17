@@ -27,7 +27,7 @@ describe("new lane dialog: the plain case", () => {
   it("reads the project and prefills the title and the branch from the description", async () => {
     const { bed } = await open();
     expect(bed.called("lanes.preview")[0]?.params).toEqual({ projectRoot: "/w/proj" });
-    expect(bed.called("models.overview")[0]?.params).toEqual({ cwd: "/w/proj" });
+    expect(bed.called("models.overview")).toEqual([]);
     await say("Issue or description", "Fix the cache\nit leaks");
     expect((field(document.body, "Title") as HTMLInputElement).value).toBe("Fix the cache");
     expect((field(document.body, "Branch") as HTMLInputElement).value).toBe("pi/fix-the-cache");

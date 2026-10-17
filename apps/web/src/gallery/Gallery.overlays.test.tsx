@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount, press } from "../testing/dom.ts";
 import { Gallery } from "./Gallery.tsx";
 
@@ -53,6 +53,28 @@ describe("gallery overlays", () => {
     await press(document.activeElement ?? document.body, { key: "Escape" });
     expect(document.querySelectorAll('[role="menu"]')).toHaveLength(0);
     expect(opener(page.container, "Menu").getAttribute("aria-haspopup")).toBeNull();
+    await page.unmount();
+  });
+
+  it("gallery-picker-in-dialog: the 2000-model picker opens from its dialog, modal and portalled to the body, on a scrolling list", async () => {
+    window.history.replaceState(null, "", "/dev/ui");
+    const page = await mount(<Gallery />);
+    const figure = page.container.querySelector('[data-testid="gallery-picker-in-dialog"]');
+    await act(async () => figure?.querySelector("button")?.click());
+    await act(async () => {});
+    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
+    const field = dialog.querySelector('button[aria-haspopup="dialog"]') as HTMLElement;
+    await act(async () => field.click());
+    await vi.waitFor(
+      async () => {
+        await act(async () => {});
+        expect(document.querySelectorAll('[role="option"]').length).toBe(2000);
+      },
+      { timeout: 10_000 },
+    );
+    expect(dialog.contains(document.querySelector('[data-slot="popover"]'))).toBe(false);
+    const list = document.querySelector('[role="listbox"]') as HTMLElement;
+    expect(list.classList.contains("overflow-y-auto")).toBe(true);
     await page.unmount();
   });
 });

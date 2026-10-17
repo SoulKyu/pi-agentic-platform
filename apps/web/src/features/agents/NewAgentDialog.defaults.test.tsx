@@ -18,7 +18,6 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
 async function open(settings: () => unknown) {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
-  bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
   bed.handlers["settings.get"] = settings;
   await mount(
     <TooltipProvider>
@@ -87,7 +86,6 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
   it("says Loading… while the defaults are being read", async () => {
     const bed = fakeRuntime();
     current.runtime = bed.runtime;
-    bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
     bed.handlers["settings.get"] = () => new Promise(() => {});
     await mount(
       <TooltipProvider>
@@ -116,7 +114,6 @@ describe("the new-agent dialog starts from the agents settings (M11R99)", () => 
     vi.useFakeTimers();
     const bed = fakeRuntime();
     current.runtime = bed.runtime;
-    bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
     bed.handlers["settings.get"] = () => new Promise(() => {});
     await mount(
       <TooltipProvider>

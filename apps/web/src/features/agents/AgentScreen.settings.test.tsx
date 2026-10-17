@@ -85,7 +85,6 @@ beforeEach(async () => {
     egress: "proxied",
     trifecta: { privateData: false, untrustedContent: false, exfiltration: false },
   });
-  bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
   bed.handlers["secrets.list"] = () => ({ entries: [], state: "ok" });
   stepUp = vi.fn(async (run: (commandId: string) => Promise<unknown>) => run("step-cmd-0004"));
   useAgentsStore.getState().reset();

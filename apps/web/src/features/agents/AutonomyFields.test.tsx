@@ -48,7 +48,6 @@ async function form(
 ) {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
-  bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
   bed.handlers["policy.getSettings"] = () => {
     if (ownerHosts === "fails") throw new Error("offline");
     return { value: { allowHosts: ownerHosts }, revision: 1 };

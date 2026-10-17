@@ -103,6 +103,18 @@ describe("Dialog", () => {
     await page.unmount();
   });
 
+  it("keeps the body a bounded flex column, so a min-h-0 child (the model list) shrinks and scrolls inside it", async () => {
+    const page = await mountWithTooltips(<Harness />);
+    await click(page.container.querySelector("button") as HTMLElement);
+    const panel = dialog() as HTMLElement;
+    const body = (document.querySelector('input[aria-label="Filter"]') as HTMLElement).parentElement;
+    expect(panel.classList.contains("flex-col")).toBe(true);
+    expect(panel.classList.contains("overflow-hidden")).toBe(true);
+    for (const name of ["flex", "flex-col", "flex-1", "min-h-0", "overflow-y-auto"])
+      expect(body?.classList.contains(name), name).toBe(true);
+    await page.unmount();
+  });
+
   it("keeps drawers as drawers on a phone", async () => {
     phoneQuery(true);
     const page = await mountWithTooltips(

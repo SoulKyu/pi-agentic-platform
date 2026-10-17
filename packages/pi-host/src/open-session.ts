@@ -150,7 +150,8 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   if (scripted) {
     modelRuntime = await ModelRuntime.create({
       authPath: join(agentDir, "auth.json"),
-      modelsPath: null,
+      // The worker's own file, like production: a test can add a provider to it and see a warm worker refresh (MPR25).
+      modelsPath: join(agentDir, "models.json"),
       refreshOnCreate: false,
     });
     modelRuntime.registerNativeProvider(scripted.provider);

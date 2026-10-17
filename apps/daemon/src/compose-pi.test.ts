@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 import { composePi, type ComposePiDeps } from "./compose-pi.ts";
 import { createFakeClock } from "./kernel/clock.ts";
+import { testCaller } from "./testing/caller.ts";
 import type { Config } from "./kernel/config.ts";
 import { silentLogger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/process-group.ts";
@@ -94,6 +95,7 @@ describe("composePi", () => {
       "mcp.setInProject",
       "mcp.test",
       "mcp.undo",
+      "models.available",
       "models.cancelLogin",
       "models.config.get",
       "models.config.save",
@@ -125,6 +127,27 @@ describe("composePi", () => {
       "trust.status",
     ]);
     expect(pi.helpers.active()).toBe(0);
+  });
+
+  it("answers models.available through the composed module: one helper run, cached for the second call (MP-RT-06)", async () => {
+    const pi = composePi(deps());
+    const listing = {
+      models: [{ provider: "p", id: "m", name: "M", reasoning: false }],
+      providers: [{ id: "p", name: "P" }],
+      origin: "signed-in",
+      truncated: false,
+    };
+    const child = new FakeChild();
+    state.children.push(child);
+    const ctx = { caller: testCaller() } as never;
+    const first = pi.rpc["models.available"]({}, ctx);
+    expect(child.sent[0]).toMatchObject({ type: "helper_run", op: "models.available" });
+    child.emit("message", { type: "helper_done", ok: true, result: listing });
+    expect(await first).toEqual(listing);
+    child.emit("exit", 0, null);
+    child.emit("close");
+    expect(await pi.rpc["models.available"]({}, ctx)).toEqual(listing);
+    expect(state.forkArgs).toHaveLength(1);
   });
 
   it("starts the helper entry that sits beside the worker entry, in the agent directory, capped by the config", () => {

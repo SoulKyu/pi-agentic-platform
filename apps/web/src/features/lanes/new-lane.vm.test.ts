@@ -1,4 +1,4 @@
-import type { IssueView, LanePreview, ModelsOverview } from "@pap/contracts";
+import type { IssueView, LanePreview } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import {
   addSlot,
@@ -8,7 +8,6 @@ import {
   emptyDraft,
   HEAD_BASE,
   isForeignBase,
-  modelChoices,
   prefillDraft,
   removeSlot,
   setModel,
@@ -147,29 +146,6 @@ describe("base refs", () => {
 });
 
 describe("models and fan-out", () => {
-  const overview = {
-    providers: [
-      {
-        id: "anthropic",
-        models: [
-          { provider: "anthropic", id: "sonnet", name: "Sonnet", reasoning: true, enabled: true },
-          { provider: "anthropic", id: "opus", name: "Opus", reasoning: true, enabled: false },
-        ],
-      },
-      {
-        id: "openai",
-        models: [{ provider: "openai", id: "gpt", name: "GPT", reasoning: false, enabled: true }],
-      },
-    ],
-  } as unknown as ModelsOverview;
-
-  it("offers the enabled models only", () => {
-    expect(modelChoices(overview).map((one) => `${one.provider}/${one.id}`)).toEqual([
-      "anthropic/sonnet",
-      "openai/gpt",
-    ]);
-  });
-
   it("starts with one lane on Pi's default and adds up to four", () => {
     let draft = withText(emptyDraft(), "Fix it", "pi/");
     expect(draft.slots).toHaveLength(1);

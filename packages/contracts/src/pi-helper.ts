@@ -23,6 +23,7 @@ import {
   PricingParams,
   TestModelParams,
 } from "./models-provider.ts";
+import { AvailableModels } from "./models-available.ts";
 import { ModelsUsageParams, ModelsUsageResult } from "./models-usage.ts";
 import {
   LoginParams,
@@ -151,6 +152,8 @@ const Done = z.object({ ok: z.literal(true) }).strict();
  */
 export const HELPER_OPS = {
   "models.overview": { params: NONE, result: ModelsOverview },
+  // The picker list for a context without a session (MPR1): pap's own credential store, no command, no network.
+  "models.available": { params: NONE, result: AvailableModels },
   "models.setDefault": { params: SetDefaultParams, result: Done },
   "models.setDefaultThinking": { params: SetDefaultThinkingParams, result: Done },
   "models.setEnabled": { params: SetEnabledParams, result: SetEnabledResult },

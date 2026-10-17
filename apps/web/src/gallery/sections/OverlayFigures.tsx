@@ -1,6 +1,8 @@
 import { Button, toast } from "@pap/ui";
 import { Dialog, Menu, type DialogVariant } from "@pap/ui/overlays";
 import { useState } from "react";
+import { ModelPickerField } from "../../features/models/picker/index.ts";
+import type { AvailableState } from "../../features/models/picker/use-available-models.ts";
 import { useT, type MessageKey } from "../../i18n/index.ts";
 import { GalleryItem } from "../GalleryItem.tsx";
 
@@ -12,11 +14,27 @@ const DIALOGS: ReadonlyArray<{ readonly variant: DialogVariant; readonly label: 
   { variant: "palette", label: "gallery.open.palette" },
 ];
 
+// 2000 models in 20 providers, the size at which the list must scroll inside a modal dialog (MPR27, controller step C2).
+const PICKER_FIXTURE: AvailableState = {
+  status: "ready",
+  models: Array.from({ length: 2000 }, (_, index) => ({
+    provider: `provider-${String(Math.floor(index / 100)).padStart(2, "0")}`,
+    id: `model-${String(index).padStart(4, "0")}`,
+    name: `Model ${index}`,
+    reasoning: index % 2 === 0,
+  })),
+  labels: new Map(),
+  origin: "signed-in",
+  truncated: false,
+};
+
 /** Overlays open from buttons (M3R123) and exist only while open: a closed gallery holds no dialog and no menu. */
 export function OverlayFigures() {
   const t = useT();
   const [dialog, setDialog] = useState<DialogVariant | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [picked, setPicked] = useState<{ provider: string; modelId: string } | null>(null);
   return (
     <>
       <p data-gallery-note="overlays" className="text-ui text-muted md:col-span-2">
@@ -47,6 +65,33 @@ export function OverlayFigures() {
             <p className="p-s3 text-ui text-muted">{t("gallery.dialog.body")}</p>
           </Dialog>
         )}
+      </GalleryItem>
+      <GalleryItem name="Model picker in a dialog, 2000 models">
+        <div data-testid="gallery-picker-in-dialog">
+          <Button variant="secondary" onClick={() => setPickerOpen(true)}>
+            {t("gallery.open.picker")}
+          </Button>
+          {pickerOpen ? (
+            <Dialog
+              open
+              onOpenChange={(open) => {
+                if (!open) setPickerOpen(false);
+              }}
+              title={t("gallery.picker.title")}
+              closeLabel={t("ui.close")}
+            >
+              <div className="p-s3">
+                <ModelPickerField
+                  label={t("gallery.picker.label")}
+                  value={picked}
+                  cwd={null}
+                  available={PICKER_FIXTURE}
+                  onChange={setPicked}
+                />
+              </div>
+            </Dialog>
+          ) : null}
+        </div>
       </GalleryItem>
       <GalleryItem name="Menu">
         {menuOpen ? (

@@ -58,8 +58,9 @@ function fakeSession(options: {
       return state.idle;
     },
     scopedModels: (options.scoped ?? []).map((model) => ({ model })),
-    settingsManager: { getEnabledModels: () => undefined },
+    settingsManager: { getEnabledModels: () => undefined, reload: async () => {} },
     modelRuntime: {
+      refresh: async () => ({}),
       getAvailable: async () => {
         await Promise.resolve();
         options.whileListing?.(state);

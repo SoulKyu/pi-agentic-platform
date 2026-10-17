@@ -122,6 +122,16 @@ export default defineConfig(
               ],
               allow: [["web-feature", { domain: "trust" }]],
             },
+            // Models batch: the session menu, the agent form, the new-lane dialog and the gallery's figure render the shared model picker (`features/models/picker`).
+            {
+              from: [
+                ["web-feature", { domain: "sessions" }],
+                ["web-feature", { domain: "agents" }],
+                ["web-feature", { domain: "lanes" }],
+                "web-gallery",
+              ],
+              allow: [["web-feature", { domain: "models" }]],
+            },
             {
               from: "web-routes",
               allow: [

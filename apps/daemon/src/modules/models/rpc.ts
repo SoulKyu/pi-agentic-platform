@@ -4,6 +4,7 @@ import type { ModelsService } from "./service.ts";
 export type ModelsRpc = Pick<
   HandlerTable,
   | "models.overview"
+  | "models.available"
   | "models.setDefault"
   | "models.setDefaultThinking"
   | "models.setEnabled"
@@ -26,6 +27,7 @@ export type ModelsRpc = Pick<
 export function modelsRpc(service: ModelsService): ModelsRpc {
   return {
     "models.overview": async ({ cwd }, ctx) => service.overview(ctx.caller, cwd),
+    "models.available": async ({ cwd }, ctx) => service.available(ctx.caller, cwd),
     "models.setDefault": async (params, ctx) => service.setDefault(ctx.caller, params),
     "models.setDefaultThinking": async (params, ctx) => service.setDefaultThinking(ctx.caller, params),
     "models.setEnabled": async (params, ctx) => service.setEnabled(ctx.caller, params),

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { addProjectEn, addProjectFr } from "./catalog/add-project.ts";
 import { changesEn, changesFr } from "./catalog/changes.ts";
 import { commandsEn, commandsFr } from "./catalog/commands.ts";
+import { modelPickerEn, modelPickerFr } from "./catalog/model-picker.ts";
 import { launchEn, launchFr } from "./catalog/launch.ts";
 import { devEn, devFr } from "./catalog/dev.ts";
 import { filesEn, filesFr } from "./catalog/files.ts";
@@ -75,6 +76,7 @@ describe("catalog keys never collide", () => {
         laneCommit: Object.keys(laneCommitEn),
         laneReview: Object.keys(laneReviewEn),
         home: Object.keys(homeEn),
+        modelPicker: Object.keys(modelPickerEn),
         "en.ts": literalKeys("./en.ts"),
       }),
     ).toEqual([]);
@@ -107,6 +109,7 @@ describe("catalog keys never collide", () => {
         laneCommit: Object.keys(laneCommitFr),
         laneReview: Object.keys(laneReviewFr),
         home: Object.keys(homeFr),
+        modelPicker: Object.keys(modelPickerFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),
     ).toEqual([]);

@@ -19,6 +19,7 @@ const signIn = {
   subscribeLogin: async () => ({ sub: "s" }),
   setApiKey: async () => OK,
   logout: async () => OK,
+  available: async () => ({}) as never,
   configGet: async () => ({ text: null, issues: [], revision: "0".repeat(64), path: "/a/models.json" }),
   configSave: async () => ({ revision: "0".repeat(64), enabledModelsSynced: true }),
 };
@@ -88,6 +89,7 @@ describe("modelsRpc: sign-in", () => {
     const rpc = modelsRpc({
       overview: async () => ({}) as never,
       setDefault: async () => OK,
+      available: async () => ({}) as never,
       setDefaultThinking: async () => OK,
       setEnabled: async () => ({ patterns: null }),
       refreshCatalog: async () => ({ changed: false, offline: false, failedProviders: [] }),

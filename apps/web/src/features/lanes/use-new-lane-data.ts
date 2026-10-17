@@ -3,7 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import type { MessageKey } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { failureKey } from "./failure-text.ts";
-import { type ModelChoice, modelChoices } from "./new-lane.vm.ts";
 
 /**
  * `lanes.preview` of the picked project, read again on `reload` (after an approval). A later answer replaces an
@@ -38,30 +37,4 @@ export function useLanePreview(projectRoot: string | null) {
     error: failed !== null && failed.root === projectRoot ? failed.key : null,
     reload,
   };
-}
-
-/** The project's enabled models (`models.overview` for its folder); empty while loading or when it cannot be read. */
-export function useModelChoices(projectRoot: string | null): { choices: ModelChoice[]; truncated: boolean } {
-  const [state, setState] = useState<{ root: string; choices: ModelChoice[]; truncated: boolean } | null>(
-    null,
-  );
-  useEffect(() => {
-    if (projectRoot === null) return undefined;
-    let current = true;
-    getRuntime()
-      .rpc.call("models.overview", { cwd: projectRoot })
-      .then(
-        (overview) => {
-          if (current)
-            setState({ root: projectRoot, choices: modelChoices(overview), truncated: overview.truncated });
-        },
-        () => {
-          if (current) setState({ root: projectRoot, choices: [], truncated: false });
-        },
-      );
-    return () => {
-      current = false;
-    };
-  }, [projectRoot]);
-  return state !== null && state.root === projectRoot ? state : { choices: [], truncated: false };
 }

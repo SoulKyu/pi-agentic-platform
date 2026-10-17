@@ -1,12 +1,14 @@
-import type { AvailableModelsData, ModelSummary } from "@pap/contracts";
-import { Button, TextField, usePendingAction } from "@pap/ui";
+import type { AvailableModelsData } from "@pap/contracts";
+import { Button, usePendingAction, usePendingFeedback } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
-import { Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import ModelList from "../models/picker/ModelList.tsx";
+import { modelKey, toPickerModel, type PickerModel } from "../models/picker/model-picker.vm.ts";
+import type { AvailableState } from "../models/picker/use-available-models.ts";
 import { failureText } from "./failure.ts";
-import { defaultFailureText, groupModels } from "./model-menu.vm.ts";
+import { defaultFailureText } from "./model-menu.vm.ts";
 
 interface ModelMenuProps {
   readonly sessionId: string;
@@ -24,11 +26,17 @@ interface Defaults {
   readonly model: string | null;
 }
 
-const rowKey = (model: ModelSummary): string => `${model.provider}/${model.id}`;
+/** The stage label of a switch that is taking long (DESIGN §7.3): shown beside the row once the wait passes 3 s. */
+function StageLabel({ since, label }: { readonly since: number | null; readonly label: string }) {
+  return usePendingFeedback(since, { remote: false }) === "stage" ? (
+    <span className="px-s2 text-ui text-muted">{label}</span>
+  ) : null;
+}
 
 /**
- * The model menu (M7R51, R52, R53): the session's own models grouped by provider in the list's order, a search field,
- * the current row marked and a star that sets the default. Fetched when it opens; a cold session's worker starts for it.
+ * The model menu (M7R51, R52, R53): the session's own models, in the shared picker list (search, groups by provider in
+ * the list's order), the current row marked and a star that sets the default. Fetched when it opens; a cold session's
+ * worker starts for it.
  */
 export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProps) {
   const t = useT();
@@ -37,7 +45,6 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
   const [attempt, setAttempt] = useState(0);
   const [defaults, setDefaults] = useState<Defaults | null>(null);
   const [defaultsUnknown, setDefaultsUnknown] = useState(false);
-  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [picking, setPicking] = useState<string | null>(null);
@@ -67,12 +74,12 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
     };
   }, [runtime]);
 
-  const choose = async (model: ModelSummary) => {
+  const choose = async (model: PickerModel) => {
     const marked = current ?? data?.current ?? null;
     if (marked?.provider === model.provider && marked.id === model.id) return onClose();
     setError(null);
     setNotice(null);
-    setPicking(rowKey(model));
+    setPicking(modelKey(model));
     const done = await pick.run(async () => {
       try {
         await runtime.rpc.call(
@@ -90,7 +97,7 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
     if (done) onClose();
   };
 
-  const makeDefault = async (model: ModelSummary) => {
+  const makeDefault = async (model: PickerModel) => {
     setStarring(true);
     setError(null);
     setNotice(null);
@@ -115,7 +122,54 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
   };
 
   const data = listing.state === "ready" ? listing.data : null;
-  const groups = data ? groupModels(data.models, query, current ?? data.current, defaults) : [];
+  const marked = current ?? data?.current ?? null;
+  const state = useMemo<AvailableState>(() => {
+    if (listing.state === "loading") return { status: "loading" };
+    if (listing.state === "failed")
+      return {
+        status: "failed",
+        stale: false,
+        message: listing.message,
+        reload: () => {
+          setListing({ state: "loading" });
+          setAttempt((n) => n + 1);
+        },
+      };
+    return {
+      status: "ready",
+      models: listing.data.models.map(toPickerModel),
+      labels: new Map(),
+      origin: "session",
+      truncated: listing.data.truncated,
+    };
+  }, [listing]);
+  const rowEnd = (model: PickerModel) => {
+    const label = model.name === "" ? model.id : model.name;
+    const isDefault =
+      defaults !== null && defaults.provider === model.provider && defaults.model === model.id;
+    const isCurrent = marked !== null && marked.provider === model.provider && marked.id === model.id;
+    return (
+      <>
+        {picking === modelKey(model) ? (
+          <StageLabel since={pick.since} label={t("sessionModels.menu.starting")} />
+        ) : null}
+        {isCurrent ? (
+          <span className="px-s2 text-ui text-muted">{t("sessionModels.menu.current")}</span>
+        ) : null}
+        <Button
+          variant="ghost"
+          aria-label={t("sessionModels.menu.setDefault", { model: label })}
+          aria-pressed={isDefault}
+          disabled={starring}
+          onClick={() => void makeDefault(model)}
+        >
+          <span aria-hidden="true" className={isDefault ? "text-agent" : "text-muted"}>
+            {isDefault ? "★" : "☆"}
+          </span>
+        </Button>
+      </>
+    );
+  };
   return (
     <Dialog
       open
@@ -125,96 +179,14 @@ export default function ModelMenu({ sessionId, current, onClose }: ModelMenuProp
       title={t("sessionModels.menu.title")}
       closeLabel={t("sessionModels.menu.close")}
     >
-      <div data-model-menu className="flex flex-col gap-s2 p-s3">
-        <TextField
-          label={t("sessionModels.menu.search")}
-          value={query}
-          onChange={setQuery}
-          name="model-search"
-          autoComplete="off"
+      <div data-model-menu className="flex min-h-0 flex-1 flex-col gap-s2 p-s3">
+        <ModelList
+          state={state}
+          value={marked ? { provider: marked.provider, modelId: marked.id } : null}
+          disabled={pick.since !== null}
+          renderRowEnd={rowEnd}
+          onPick={(model) => void choose(model)}
         />
-        {listing.state === "loading" ? (
-          <p role="status" className="text-ui text-muted">
-            {t("sessionModels.menu.loading")}
-          </p>
-        ) : null}
-        {listing.state === "failed" ? (
-          <div className="flex flex-col items-start gap-s2">
-            <p role="alert" className="text-ui text-attn">
-              {listing.message}
-            </p>
-            <Button
-              onClick={() => {
-                setListing({ state: "loading" });
-                setAttempt((n) => n + 1);
-              }}
-            >
-              {t("sessionModels.menu.retry")}
-            </Button>
-          </div>
-        ) : null}
-        {data && data.models.length === 0 ? (
-          <p className="text-ui text-fg">
-            {t("sessionModels.menu.empty")}{" "}
-            <Link
-              to="/settings/$section"
-              params={{ section: "models" }}
-              className="text-fg underline focus-ring"
-            >
-              {t("sessionModels.menu.signIn")}
-            </Link>
-          </p>
-        ) : null}
-        {data && data.models.length > 0 && groups.length === 0 ? (
-          <p className="text-ui text-muted">{t("sessionModels.menu.noMatch")}</p>
-        ) : null}
-        {groups.map((group) => (
-          <section
-            key={group.provider}
-            aria-label={group.provider}
-            data-model-group={group.provider}
-            className="flex flex-col gap-s1"
-          >
-            <h3 className="label-hud text-muted">{group.provider}</h3>
-            <ul className="flex flex-col gap-s1">
-              {group.rows.map((row) => {
-                const key = rowKey(row.model);
-                const label = row.model.name === "" ? row.model.id : row.model.name;
-                return (
-                  <li key={key} className="flex items-center gap-s1">
-                    <Button
-                      variant="ghost"
-                      data-model-row={row.model.id}
-                      aria-current={row.current ? "true" : undefined}
-                      disabled={pick.since !== null}
-                      pendingSince={picking === key ? pick.since : null}
-                      remote={false}
-                      stageLabel={t("sessionModels.menu.starting")}
-                      onClick={() => void choose(row.model)}
-                    >
-                      <span className="flex-1 text-left">{label}</span>
-                      {row.current ? (
-                        <span className="text-muted">{t("sessionModels.menu.current")}</span>
-                      ) : null}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      aria-label={t("sessionModels.menu.setDefault", { model: label })}
-                      aria-pressed={row.isDefault}
-                      disabled={starring}
-                      onClick={() => void makeDefault(row.model)}
-                    >
-                      <span aria-hidden="true" className={row.isDefault ? "text-agent" : "text-muted"}>
-                        {row.isDefault ? "★" : "☆"}
-                      </span>
-                    </Button>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
-        {data?.truncated ? <p className="text-ui text-muted">{t("sessionModels.menu.truncated")}</p> : null}
         {defaultsUnknown ? (
           <p className="text-ui text-muted">{t("sessionModels.menu.defaultsUnknown")}</p>
         ) : null}

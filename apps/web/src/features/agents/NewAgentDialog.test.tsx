@@ -32,7 +32,6 @@ const created: AgentView = {
 async function open() {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
-  bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
   bed.handlers["agents.create"] = () => created;
   const onClose = vi.fn();
   const onCreated = vi.fn();

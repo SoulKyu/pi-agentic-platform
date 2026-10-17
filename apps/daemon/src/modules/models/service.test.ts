@@ -159,27 +159,30 @@ describe("the helper op table", () => {
       (call) =>
         call.op === "models.overview"
           ? overview
-          : call.op === "models.refreshCatalog"
-            ? { changed: false, offline: true, failedProviders: [] }
-            : call.op === "models.setEnabled"
-              ? { patterns: null }
-              : call.op === "models.config.get"
-                ? { text: null, issues: [], revision: "0".repeat(64), path: "/a/models.json" }
-                : call.op === "models.config.save"
-                  ? { revision: "0".repeat(64), enabledModelsSynced: true }
-                  : call.op === "models.discover"
-                    ? { models: [] }
-                    : call.op === "models.test"
-                      ? { ok: true, latencyMs: 1 }
-                      : call.op === "models.pricing"
-                        ? { entries: [] }
-                        : call.op === "models.usage"
-                          ? { status: "query_failed" }
-                          : { ok: true },
+          : call.op === "models.available"
+            ? { models: [], providers: [], origin: "signed-in", truncated: false }
+            : call.op === "models.refreshCatalog"
+              ? { changed: false, offline: true, failedProviders: [] }
+              : call.op === "models.setEnabled"
+                ? { patterns: null }
+                : call.op === "models.config.get"
+                  ? { text: null, issues: [], revision: "0".repeat(64), path: "/a/models.json" }
+                  : call.op === "models.config.save"
+                    ? { revision: "0".repeat(64), enabledModelsSynced: true }
+                    : call.op === "models.discover"
+                      ? { models: [] }
+                      : call.op === "models.test"
+                        ? { ok: true, latencyMs: 1 }
+                        : call.op === "models.pricing"
+                          ? { entries: [] }
+                          : call.op === "models.usage"
+                            ? { status: "query_failed" }
+                            : { ok: true },
       undefined,
       { models: () => ({ modelsDevPricing: true }) },
     );
     await service.overview(caller);
+    await service.available(caller);
     await service.setDefault(caller, { provider: "p", modelId: "m" });
     await service.setDefaultThinking(caller, { level: "low" });
     await service.setEnabled(caller, { op: { op: "clear" } });

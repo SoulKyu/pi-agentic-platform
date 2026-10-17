@@ -6,6 +6,7 @@ import {
   resolveModelScopeWithDiagnostics,
   SettingsManager,
 } from "@earendil-works/pi-coding-agent";
+import { createAuthFileStore } from "./auth-store.ts";
 import { type HelperContext, HelperOpError } from "../ops.ts";
 import { parseJsonc, stripBom } from "../jsonc.ts";
 import { PiFileRefused, readPiFile } from "../pi-file.ts";
@@ -56,6 +57,19 @@ export async function openRuntime(ctx: Pick<HelperContext, "agentDir" | "home">)
   await guardFile(authPath, roots);
   await guardFile(modelsPath, roots);
   return ModelRuntime.create({ authPath, modelsPath, refreshOnCreate: false, allowModelNetwork: false });
+}
+
+/** Pi's runtime over pap's credential store (MC25): availability never resolves a stored `!command`. */
+export async function openStoreRuntime(ctx: Pick<HelperContext, "agentDir" | "home">): Promise<ModelRuntime> {
+  const roots = [ctx.agentDir, ctx.home];
+  const modelsPath = join(ctx.agentDir, "models.json");
+  await guardFile(modelsPath, roots);
+  return ModelRuntime.create({
+    credentials: createAuthFileStore(ctx),
+    modelsPath,
+    refreshOnCreate: false,
+    allowModelNetwork: false,
+  });
 }
 
 export interface OpenSettings {

@@ -14,6 +14,7 @@ import {
   mcpSetExposureOp,
   mcpSetInProjectOp,
 } from "./ops/mcp-write.ts";
+import { modelsAvailableOp } from "./ops/models-available.ts";
 import { setEnabledOp } from "./ops/enabled-models.ts";
 import { refreshCatalogDefinition } from "./ops/models-catalog.ts";
 import { setDefaultOp, setDefaultThinkingOp } from "./ops/models-defaults.ts";
@@ -79,6 +80,7 @@ export class HelperOpError extends Error {
 export const opsFor = (env: NodeJS.ProcessEnv): OpTable => ({
   ping: defineOp(ping),
   "models.overview": modelsOverviewOp,
+  "models.available": modelsAvailableOp,
   "models.setDefault": setDefaultOp,
   "models.setDefaultThinking": setDefaultThinkingOp,
   "models.setEnabled": setEnabledOp,

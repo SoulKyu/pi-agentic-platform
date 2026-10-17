@@ -1,5 +1,5 @@
 import type { IssueView, LanePreview, ProjectSummary } from "@pap/contracts";
-import type { ComponentProps } from "react";
+import { act, type ComponentProps } from "react";
 import { expect, type Mock, vi } from "vitest";
 import { StepUpContext, type StepUpRunner } from "../../lib/step-up-context.tsx";
 import { click, field, mount, press, settle, text, typeInto } from "../../testing/dom.ts";
@@ -42,16 +42,11 @@ export const issue: IssueView = {
   labels: ["bug"],
   truncated: false,
 };
-const overview = {
-  providers: [
-    {
-      id: "anthropic",
-      models: [
-        { provider: "anthropic", id: "sonnet", name: "Sonnet", reasoning: true, enabled: true },
-        { provider: "anthropic", id: "opus", name: "Opus", reasoning: true, enabled: false },
-      ],
-    },
-  ],
+/** What `models.available` answers: only the models Pi would let a lane of this project use (MPR4). */
+const available = {
+  models: [{ provider: "anthropic", id: "sonnet", name: "Sonnet", reasoning: true }],
+  providers: [{ id: "anthropic", name: "Anthropic" }],
+  origin: "signed-in",
   truncated: false,
 };
 
@@ -74,7 +69,7 @@ export async function open(
 ) {
   const bed = newBed();
   bed.handlers["lanes.preview"] = () => view;
-  bed.handlers["models.overview"] = () => overview;
+  bed.handlers["models.available"] = () => available;
   bed.handlers["lanes.create"] = () => ({ laneIds: ["fix-it-1a2b"], fanoutId: null });
   const trigger = document.createElement("button");
   document.body.append(trigger);
@@ -99,6 +94,36 @@ export const body = () => text(document.body);
 export const say = async (label: string, value: string) => {
   await typeInto(field(document.body, label), value);
 };
+/** Pays the first transform of the picker's lazy chunks before a test, not inside it. */
+export async function warmPicker() {
+  await import("../models/picker/ModelList.tsx");
+  await import("@pap/ui/overlays");
+}
+/** The trigger of the model picker of a lane, found by the label it is named with. */
+export const modelField = (label: string) =>
+  [
+    ...document.querySelectorAll<HTMLButtonElement>(
+      '[data-slot="model-slots"] button[aria-haspopup="dialog"]',
+    ),
+  ].find((node) =>
+    (node.getAttribute("aria-labelledby") ?? "")
+      .split(" ")
+      .some((id) => document.getElementById(id)?.textContent === label),
+  ) as HTMLButtonElement;
+export const modelRows = () => [...document.querySelectorAll<HTMLElement>('[role="option"]')];
+export async function openModelField(label: string) {
+  await click(modelField(label));
+  await act(async () => {
+    await vi.waitFor(() => expect(modelRows().length).toBeGreaterThan(0), { timeout: 10_000 });
+  });
+}
+export async function chooseModel(label: string, row: string) {
+  await openModelField(label);
+  const item = modelRows().find((node) => node.dataset.modelRow === row || node.textContent === row);
+  if (item === undefined) throw new Error(`no model row ${row}`);
+  await click(item);
+  await settle();
+}
 export const select = (label: string) =>
   [...document.querySelectorAll('[role="combobox"]')].find((node) =>
     (node.getAttribute("aria-labelledby") ?? "")

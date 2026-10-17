@@ -32,7 +32,7 @@ const ancestorsThatTakeThePress = (el: Element): Element[] =>
 
 const INTERACTIVE =
   'button, a[href], input:not([type="hidden"]), select, textarea, [role="button"], [role="tab"], [role="switch"], [role="checkbox"], [role="radio"], [role="slider"], [role="combobox"], [role="menuitem"]';
-const PROBED_CONTROLS = 80;
+const PROBED_CONTROLS = 81;
 // Mounts nine copies of the whole gallery: pure render work (about 1 s unloaded), not a wait on anything.
 const NINE_FRAMES_MS = 20_000;
 

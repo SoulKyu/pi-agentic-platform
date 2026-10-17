@@ -1,67 +1,45 @@
 import { THINKING_LEVELS, type ThinkingLevel } from "@pap/contracts";
 import { Select } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
-import { choiceLabels, levelsFor } from "./model-fields.vm.ts";
-import type { AgentModels } from "./use-agent-models.ts";
+import { ModelPickerField, type PickerModel } from "../models/picker/index.ts";
+import { levelsFor } from "./model-fields.vm.ts";
 
 const DEFAULT = "default";
 
+type ModelRef = { readonly provider: string; readonly modelId: string };
+
 interface Props {
-  readonly models: AgentModels;
-  readonly model: { readonly provider: string; readonly modelId: string } | null;
+  readonly model: ModelRef | null;
   readonly thinking: ThinkingLevel | null;
-  onModel(model: { readonly provider: string; readonly modelId: string } | null): void;
+  /** The levels the picked model allows; the form follows the picker's summary of it (M7R45). */
+  readonly levels: readonly ThinkingLevel[];
+  onModel(model: ModelRef | null, summary?: PickerModel): void;
   onThinking(level: ThinkingLevel | null): void;
 }
 
 /**
- * The model and thinking fields of the agent form. The levels follow the chosen model, as in a session (M7R45): a model
- * that does not reason keeps thinking off. Models that share a name show their provider; a cut-short list says so.
+ * The model and thinking fields of the agent form. The model is the shared picker (MPR4: the models Pi would let a
+ * session use, no project folder for an agent); the levels follow the chosen model, as in a session (M7R45): a model
+ * that does not reason keeps thinking off.
  */
-export function ModelFields({ models, model, thinking, onModel, onThinking }: Props) {
+export function ModelFields({ model, thinking, levels, onModel, onThinking }: Props) {
   const t = useT();
-  const labels = choiceLabels(models.choices, (name, provider) =>
-    t("agentForm.model.provider", { name, provider }),
-  );
-  const modelAt =
-    model === null
-      ? -1
-      : models.choices.findIndex((c) => c.provider === model.provider && c.id === model.modelId);
-  const chosen = modelAt === -1 ? undefined : models.choices[modelAt];
-  const modelOptions = [
-    { value: DEFAULT, label: t("agentForm.model.default") },
-    ...(model !== null && modelAt === -1
-      ? [{ value: "saved", label: `${model.provider}/${model.modelId}` }]
-      : []),
-    ...models.choices.map((_, index) => ({ value: `m${index}`, label: labels[index] ?? "" })),
-  ];
-  const modelValue = model === null ? DEFAULT : modelAt === -1 ? "saved" : `m${modelAt}`;
-  const allowed = levelsFor(chosen);
   // A level saved before the model changed stays visible, so the form never hides what it will send.
-  const shown = THINKING_LEVELS.filter((level) => allowed.includes(level) || level === thinking);
-  const offOnly = allowed.length === 1;
-  const modelHint = models.failed
-    ? t("agentForm.model.failed")
-    : models.truncated
-      ? t("agentForm.model.truncated")
-      : undefined;
+  const shown = THINKING_LEVELS.filter((level) => levels.includes(level) || level === thinking);
+  const offOnly = levels.length === 1;
   return (
     <>
       <div data-slot="agent-model">
-        <Select
+        <ModelPickerField
           label={t("agentForm.model")}
-          value={modelValue}
-          options={modelOptions}
-          onChange={(value) => {
-            const choice = value.startsWith("m") ? models.choices[Number(value.slice(1))] : undefined;
-            if (value === DEFAULT) onModel(null);
-            else if (choice !== undefined) {
-              onModel({ provider: choice.provider, modelId: choice.id });
-              // A model without reasoning cannot keep a level above off.
-              if (thinking !== null && !levelsFor(choice).includes(thinking)) onThinking(null);
-            }
+          value={model}
+          cwd={null}
+          defaultLabel={t("agentForm.model.default")}
+          onChange={(next, summary) => {
+            onModel(next, summary);
+            // A model without reasoning cannot keep a level above off.
+            if (thinking !== null && !levelsFor(summary).includes(thinking)) onThinking(null);
           }}
-          {...(modelHint === undefined ? {} : { hint: modelHint })}
         />
       </div>
       <Select

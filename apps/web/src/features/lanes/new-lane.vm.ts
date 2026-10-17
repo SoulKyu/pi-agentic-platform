@@ -5,7 +5,6 @@ import {
   LaneTitle,
   type LanePreview,
   type ModelPick,
-  type ModelsOverview,
   slugOf,
 } from "@pap/contracts";
 import { issueUrl, parseIssueUrl } from "./issue-url.ts";
@@ -124,19 +123,6 @@ export function baseOptions(preview: LanePreview, headLabel: string): BaseOption
 /** The daemon's lineage answer for the picked base: a commit that is not HEAD or one of its ancestors is not the owner's own. */
 export const isForeignBase = (base: string, preview: LanePreview): boolean =>
   base !== HEAD_BASE && preview.refs.find((ref) => ref.ref === base)?.inLineage === false;
-
-export interface ModelChoice {
-  readonly provider: string;
-  readonly id: string;
-  readonly name: string;
-}
-
-export const modelChoices = (overview: ModelsOverview): ModelChoice[] =>
-  overview.providers.flatMap((provider) =>
-    provider.models
-      .filter((model) => model.enabled)
-      .map((model) => ({ provider: model.provider, id: model.id, name: model.name })),
-  );
 
 const nextKey = (draft: Draft): number => Math.max(-1, ...draft.slots.map((slot) => slot.key)) + 1;
 

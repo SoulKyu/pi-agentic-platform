@@ -1,26 +1,93 @@
 // @vitest-environment happy-dom
 import type { LanePreview } from "@pap/contracts";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { alerts, button, click, field, hasButton, press, settle } from "../../testing/dom.ts";
 import { current } from "./lanes-bed.tsx";
-import { body, calls, choose, open, preview, resetCalls, say, select, sha } from "./new-lane-bed.tsx";
+import {
+  body,
+  calls,
+  choose,
+  chooseModel,
+  modelField,
+  modelRows,
+  open,
+  openModelField,
+  other,
+  preview,
+  project,
+  resetCalls,
+  say,
+  sha,
+  warmPicker,
+} from "./new-lane-bed.tsx";
 
 vi.mock("../../runtime/index.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../runtime/index.ts")>()),
   getRuntime: () => current.runtime,
 }));
 
+beforeAll(warmPicker, 60_000);
 beforeEach(resetCalls);
 
 describe("new lane dialog: models and fan-out", () => {
-  it("lists the enabled models and Pi's default for each lane", async () => {
-    await open();
-    await press(select("Model of lane 1"), { key: "Enter" });
-    await vi.waitFor(() => expect(document.querySelector('[role="listbox"]')).not.toBeNull(), {
-      timeout: 2000,
+  it("lists the pickable models and Pi's default for each lane", async () => {
+    const { bed } = await open();
+    await openModelField("Model of lane 1");
+    expect(modelRows().map((node) => node.textContent)).toEqual([
+      expect.stringContaining("Pi's default"),
+      expect.stringContaining("Sonnet"),
+    ]);
+    expect(bed.called("models.overview")).toEqual([]);
+  });
+
+  it("new-lane.uses-project-cwd: each slot's field asks models.available for the project folder", async () => {
+    const { bed } = await open();
+    await click(button(document.body, "Add a model"));
+    await openModelField("Model of lane 1");
+    await press(document.activeElement ?? document.body, { key: "Escape" });
+    await vi.waitFor(() => expect(document.querySelector('[data-slot="popover"]')).toBeNull());
+    await openModelField("Model of lane 2");
+    expect(bed.called("models.available").map((call) => call.params)).toEqual([
+      { cwd: "/w/proj" },
+      { cwd: "/w/proj" },
+    ]);
+  });
+
+  it("changing the project changes the folder the next open uses", async () => {
+    const { bed } = await open(preview(), [project, other]);
+    await choose("Project", "other");
+    await settle();
+    await openModelField("Model of lane 1");
+    expect(bed.called("models.available").map((call) => call.params)).toEqual([{ cwd: "/w/other" }]);
+  });
+
+  it("a lane's default row is Pi's default (null) and is what a plain lane sends", async () => {
+    const { bed } = await open();
+    await say("Issue or description", "Fix");
+    await chooseModel("Model of lane 1", "sonnet");
+    await chooseModel("Model of lane 1", "Pi's default");
+    await click(button(document.body, "Create lane"));
+    await settle();
+    expect(bed.called("lanes.create")[0]?.params).toMatchObject({ models: [null] });
+  });
+
+  it("saved-model-stays-visible: a prefilled model the project does not offer is shown and still sent", async () => {
+    const { bed } = await open(preview(), [project], {
+      text: "Fix",
+      title: "Fix",
+      models: [{ provider: "old", modelId: "gone-1" }],
     });
-    const options = [...document.querySelectorAll('[role="option"]')].map((node) => node.textContent);
-    expect(options).toEqual(["Pi's default", "Sonnet"]);
+    await openModelField("Model of lane 1");
+    expect(modelRows().find((node) => node.dataset.modelRow === "gone-1")?.textContent).toContain(
+      "Saved model, no longer offered",
+    );
+    await press(document.activeElement ?? document.body, { key: "Escape" });
+    await vi.waitFor(() => expect(document.querySelector('[data-slot="popover"]')).toBeNull());
+    await click(button(document.body, "Create lane"));
+    await settle();
+    expect(bed.called("lanes.create")[0]?.params).toMatchObject({
+      models: [{ provider: "old", modelId: "gone-1" }],
+    });
   });
 
   it("each added lane adds a model row, up to four", async () => {
@@ -29,7 +96,7 @@ describe("new lane dialog: models and fan-out", () => {
     expect(body()).toContain("(up to 4 models)");
     for (let n = 2; n <= 4; n++) {
       await click(button(document.body, "Add a model"));
-      expect(select(`Model of lane ${n}`)).toBeDefined();
+      expect(modelField(`Model of lane ${n}`)).toBeDefined();
     }
     expect(body()).toContain("4 lanes");
     expect(button(document.body, "Add a model").disabled).toBe(true);
@@ -41,7 +108,7 @@ describe("new lane dialog: models and fan-out", () => {
     const { bed } = await open();
     bed.handlers["lanes.create"] = () => ({ laneIds: ["a-1a2b", "b-1a2b"], fanoutId: "0123456789abcdef" });
     await say("Issue or description", "Fix");
-    await choose("Model of lane 1", "Sonnet");
+    await chooseModel("Model of lane 1", "sonnet");
     await click(button(document.body, "Add a model"));
     await click(button(document.body, "Create lane"));
     await settle();
@@ -142,6 +209,6 @@ describe("new lane dialog: the home's prefill (decision 85)", () => {
     });
     expect(field(document.body, "Title").value).toBe("Replace the cache");
     expect(field(document.body, "Issue or description").value).toBe("Keep the API");
-    expect(select("Model of lane 2")).toBeDefined();
+    expect(modelField("Model of lane 2")).toBeDefined();
   });
 });

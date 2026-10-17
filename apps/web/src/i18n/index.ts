@@ -27,6 +27,7 @@ import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
 import type { inboxAgentsEn } from "./catalog/inbox-agents.ts";
 import type { memoryEn } from "./catalog/memory.ts";
+import type { modelPickerEn } from "./catalog/model-picker.ts";
 import type { landingEn } from "./catalog/landing.ts";
 import type { notificationsEn } from "./catalog/notifications.ts";
 import type { pushEn } from "./catalog/push.ts";
@@ -105,6 +106,7 @@ export type MessageKey =
   | keyof typeof agentsPhoneEn
   | keyof typeof settingsAgentsEn
   | keyof typeof subagentsEn
+  | keyof typeof modelPickerEn
   | keyof typeof pwaEn
   | keyof typeof pushEn
   | keyof typeof notificationsEn

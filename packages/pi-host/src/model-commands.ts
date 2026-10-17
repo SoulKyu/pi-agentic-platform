@@ -1,5 +1,6 @@
-import { type AgentSession, resolveModelScopeWithDiagnostics } from "@earendil-works/pi-coding-agent";
+import type { AgentSession } from "@earendil-works/pi-coding-agent";
 import { MAX_LISTED_MODELS, type ModelSummary, type ThinkingLevel, WORKER_BUSY } from "@pap/contracts";
+import { freshAvailable } from "./available-models.ts";
 import { messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
 import { loadoutRecord, summaryOf } from "./loadout.ts";
@@ -12,20 +13,9 @@ const ok = (send: Send, id: string, command: string, data?: unknown) =>
 const failed = (send: Send, id: string, command: string, error: unknown) =>
   send({ type: "response", id, command, success: false, error: messageOf(error) });
 
-/**
- * The models this session may use, in Pi's order (M7R41): the session's scope, else the scope `enabledModels` names
- * (resolved by Pi against the runtime), else everything the runtime has credentials for. Extension providers and the
- * project's trust are part of that runtime, which is why the worker answers and not the daemon.
- */
-async function listedModels(session: AgentSession): Promise<readonly PiModel[]> {
-  if (session.scopedModels.length > 0) return session.scopedModels.map((scoped) => scoped.model);
-  const patterns = session.settingsManager.getEnabledModels();
-  if (patterns && patterns.length > 0) {
-    const { scopedModels } = await resolveModelScopeWithDiagnostics(patterns, session.modelRuntime);
-    if (scopedModels.length > 0) return scopedModels.map((scoped) => scoped.model);
-  }
-  return session.modelRuntime.getAvailable();
-}
+const listedModels = async (session: AgentSession): Promise<readonly PiModel[]> =>
+  (await freshAvailable(session.modelRuntime, session.settingsManager, session.scopedModels, session.isIdle))
+    .models;
 
 /** The list as JSON must stay well inside the 1 MiB frame (names are escaped, up to six bytes a character). */
 const MAX_LIST_BYTES = 600_000;

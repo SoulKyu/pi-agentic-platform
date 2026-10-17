@@ -75,15 +75,6 @@ beforeEach(() => {
 
 async function open(agent: AgentView | null = null, probe: SandboxStatus = usable) {
   const bed = newBed();
-  bed.handlers["models.overview"] = () => ({
-    providers: [
-      {
-        id: "anthropic",
-        models: [{ provider: "anthropic", id: "sonnet", name: "Sonnet", reasoning: true, enabled: true }],
-      },
-    ],
-    truncated: false,
-  });
   bed.handlers["agents.create"] = (params) =>
     view({ name: (params as { input: { name: string } }).input.name }, 1);
   bed.handlers["agents.update"] = () => view({}, 4);

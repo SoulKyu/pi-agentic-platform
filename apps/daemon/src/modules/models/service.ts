@@ -12,6 +12,7 @@ import {
   type ModelsTestResult,
   type ModelsUsageResult,
   type PROVIDER_AUDIT_REASONS,
+  type AvailableModels,
   type ModelsOverview,
   PapError,
   pickPrices,
@@ -28,6 +29,7 @@ import { type AuditPort } from "../audit/index.ts";
 import { requireStepUp } from "../auth/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { SettingsPort } from "../settings/index.ts";
+import { createAvailableCache } from "./available.ts";
 import { createLoginFlows } from "./login-flows.ts";
 import { createLoginPublisher } from "./login-publisher.ts";
 import { createPricingCache } from "./pricing-cache.ts";
@@ -59,6 +61,19 @@ export interface ModelsServiceDeps {
 
 export function createModelsService(deps: ModelsServiceDeps) {
   const writes = deps.writes ?? createPiWriteQueue();
+  /**
+   * `models.available` answers (MP-RT-06): every write of Pi's files below, queued or not, clears it once the helper run
+   * settles, whether it succeeded or failed. A helper killed mid-write (deadline, cancel) may still land its file
+   * afterwards: that answer is then at most one TTL (10 s) old.
+   */
+  const availableCache = createAvailableCache();
+  const clearedAfter = async <T>(task: Promise<T>): Promise<T> => {
+    try {
+      return await task;
+    } finally {
+      availableCache.clear();
+    }
+  };
   /** The cwd the helper reads is a folder the caller has a project in (M7R50): an arbitrary path is no probe. */
   function checkedCwd(caller: Caller, cwd: string | undefined): string | undefined {
     if (cwd === undefined) return undefined;
@@ -67,7 +82,14 @@ export function createModelsService(deps: ModelsServiceDeps) {
   }
 
   /** Every write of Pi's own files goes one after the other, through the queue the mcp module shares (MC28, MC29). */
-  const serialised = <T>(task: () => Promise<T>): Promise<T> => writes.run(task);
+  const serialised = <T>(task: () => Promise<T>): Promise<T> =>
+    writes.run(async () => {
+      try {
+        return await task();
+      } finally {
+        availableCache.clear();
+      }
+    });
 
   /**
    * One helper run. Its result is parsed with the contract's strict schema before it goes anywhere: a field the
@@ -125,14 +147,16 @@ export function createModelsService(deps: ModelsServiceDeps) {
     logger: deps.logger,
     publisher: createLoginPublisher(deps.hub),
     newId,
-    onSignedIn: ({ ownerId, provider, method }) =>
+    onSignedIn: ({ ownerId, provider, method }) => {
+      availableCache.clear();
       deps.audit.append({
         ownerId,
         actor: "user",
         kind: "auth",
         reason: "provider_signed_in",
         detail: { provider, method },
-      }),
+      });
+    },
   });
 
   // MC31: a reload or a closed tab leaves a flow unwatched; the 60 s rule applies again from that moment.
@@ -147,6 +171,13 @@ export function createModelsService(deps: ModelsServiceDeps) {
   return {
     async overview(caller: Caller, cwd?: string): Promise<ModelsOverview> {
       return run("models.overview", {}, READ_DEADLINE_MS, checkedCwd(caller, cwd));
+    },
+    /** Cached 10 s per cwd, one helper run for concurrent callers; the cwd is checked before the cache is asked. */
+    async available(caller: Caller, cwd?: string): Promise<AvailableModels> {
+      const checked = checkedCwd(caller, cwd);
+      return availableCache.read(checked ?? "", deps.clock.now(), () =>
+        run("models.available", {}, READ_DEADLINE_MS, checked),
+      );
     },
     async setDefault(caller: Caller, params: { provider: string; modelId: string; cwd?: string }) {
       const { cwd, ...rest } = params;
@@ -164,7 +195,7 @@ export function createModelsService(deps: ModelsServiceDeps) {
       return serialised(() => run("models.setEnabled", rest, WRITE_DEADLINE_MS, checked));
     },
     async refreshCatalog(): Promise<RefreshCatalogResult> {
-      return run("models.refreshCatalog", {}, REFRESH_DEADLINE_MS, undefined);
+      return clearedAfter(run("models.refreshCatalog", {}, REFRESH_DEADLINE_MS, undefined));
     },
     /** The masked text of `models.json`: a secret never leaves the helper (M7R62). */
     async configGet(): Promise<ConfigGetResult> {
@@ -244,13 +275,13 @@ export function createModelsService(deps: ModelsServiceDeps) {
     /** The password step-up first (owner c3). The key goes to the helper and nowhere else. */
     async setApiKey(caller: Caller, params: { provider: string; key: string }) {
       requireStepUp(caller, deps.clock.now());
-      const result = await run("auth.setApiKey", params, WRITE_DEADLINE_MS, undefined);
+      const result = await clearedAfter(run("auth.setApiKey", params, WRITE_DEADLINE_MS, undefined));
       audit(caller, "provider_key_set", { provider: params.provider });
       return result;
     },
     /** Removing a credential never asks for the password (M7R133). */
     async logout(caller: Caller, params: { provider: string }) {
-      const result = await run("auth.logout", params, WRITE_DEADLINE_MS, undefined);
+      const result = await clearedAfter(run("auth.logout", params, WRITE_DEADLINE_MS, undefined));
       audit(caller, "provider_signed_out", { provider: params.provider });
       return result;
     },

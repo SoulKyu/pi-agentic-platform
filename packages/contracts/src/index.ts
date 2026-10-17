@@ -25,6 +25,7 @@ export * from "./marks.ts";
 export * from "./methods.ts";
 export * from "./methods-idempotent.ts";
 export * from "./mcp-methods.ts";
+export * from "./models-available.ts";
 export * from "./models-config.ts";
 export * from "./models-methods.ts";
 export * from "./models-provider.ts";

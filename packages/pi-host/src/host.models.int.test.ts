@@ -1,10 +1,13 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { WORKER_BUSY } from "@pap/contracts";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setEnabled } from "./helper/ops/enabled-models.ts";
+import { modelsAvailable } from "./helper/ops/models-available.ts";
 import type { HostRecord } from "./testing/fork-host.ts";
-import { bashScript, createHostBed, isApproval } from "./testing/host-bed.ts";
+import { bashScript, createHostBed, isApproval, textOf } from "./testing/host-bed.ts";
 import { writeExtension } from "./testing/extensions.ts";
+import { modelsJsonWith } from "./testing/models-bed.ts";
 
 let bed: ReturnType<typeof createHostBed>;
 beforeEach(() => {
@@ -189,5 +192,88 @@ describe("models and reasoning over IPC (M7 Task 7)", () => {
       { model: "thinker", thinking: "high" },
     ]);
     expect(startLevel).not.toBe("high");
+  });
+});
+
+describe("sessions.models and the helper agree (models batch, MP-RT-01)", () => {
+  const PROVIDER_KEY = "sk-ant-PARITY-KEY";
+  const ctx = () => ({
+    agentDir: bed.agentDir,
+    papHome: bed.papHome,
+    home: bed.home,
+    signal: new AbortController().signal,
+    emit: () => {},
+    prompt: async () => null,
+  });
+  const keyOf = (model: { provider: string; id: string }) => `${model.provider}/${model.id}`;
+  /** The scripted provider's own models exist only in the worker; the helper never runs the test provider. */
+  const workerKeys = async () => {
+    const answer = await bed.host().request({ type: "get_available_models" });
+    return (answer.data as { models: Array<{ provider: string; id: string }> }).models
+      .filter((model) => model.provider !== "faux")
+      .map(keyOf);
+  };
+  const catalogKeys = async (provider: string) => {
+    const { builtinProviders } = await import("@earendil-works/pi-ai/providers/all");
+    const entry = builtinProviders().find((one) => one.id === provider);
+    return (entry?.getModels() ?? []).map((model) => `${provider}/${model.id}`);
+  };
+  const helperKeys = async () => (await modelsAvailable.run({}, ctx())).models.map(keyOf);
+  const useOffline = () => vi.stubEnv("PI_OFFLINE", "1");
+  const authFile = JSON.stringify({ anthropic: { type: "api_key", key: PROVIDER_KEY } });
+
+  it("sessions.models and the helper give the same ordered ids", async () => {
+    useOffline();
+    try {
+      await bed.start(TWO_MODELS, {
+        settings: { enabledModels: ["anthropic/*", "faux/*"] },
+        agentFiles: { "auth.json": authFile },
+      });
+      const fromWorker = await workerKeys();
+      // Exactly Pi's built-in anthropic catalog, in its order: enabledModels names no other provider's models.
+      expect(fromWorker).toEqual(await catalogKeys("anthropic"));
+      expect(fromWorker.length).toBeGreaterThan(1);
+      expect(await helperKeys()).toEqual(fromWorker);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("sessions.models and the helper agree after a write", async () => {
+    useOffline();
+    try {
+      await bed.start(TWO_MODELS, {
+        settings: { enabledModels: ["anthropic/*", "faux/*"] },
+        agentFiles: { "auth.json": authFile },
+      });
+      const host = bed.host();
+      const before = await workerKeys();
+      expect(before.some((key) => key.startsWith("mine/"))).toBe(false);
+      // The owner adds a provider to models.json and widens enabledModels while the worker is warm.
+      writeFileSync(join(bed.agentDir, "models.json"), JSON.stringify(modelsJsonWith(2)));
+      await setEnabled.run({ op: { op: "provider", provider: "mine", enabled: true } }, ctx());
+      const fromWorker = await workerKeys();
+      expect(before).toEqual(await catalogKeys("anthropic"));
+      expect(fromWorker.filter((key) => key.startsWith("mine/"))).toEqual(["mine/m1", "mine/m2"]);
+      expect(fromWorker.filter((key) => !key.startsWith("mine/"))).toEqual(before);
+      expect(await helperKeys()).toEqual(fromWorker);
+      expect(await host.request({ type: "set_model", provider: "mine", modelId: "m1" })).toMatchObject({
+        success: true,
+      });
+      // The refresh did not break the live session: back on the scripted model, a prompt still runs.
+      expect(await host.request({ type: "set_model", provider: "faux", modelId: "plain" })).toMatchObject({
+        success: true,
+      });
+      const from = host.records.length;
+      host.send({ type: "prompt", id: "p1", message: "hello" });
+      await host.waitFor((r) => r.type === "agent_settled", { from });
+      const reply = await host.waitFor(
+        (r) => r.type === "message_end" && (r.message as { role?: string }).role === "assistant",
+        { from },
+      );
+      expect(textOf(reply.message)).toBe("one");
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });

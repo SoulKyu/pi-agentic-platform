@@ -53,7 +53,6 @@ beforeEach(() => {
   bed = fakeRuntime("open");
   current.runtime = bed.runtime;
   bed.handlers["agents.get"] = () => view;
-  bed.handlers["models.overview"] = () => ({ providers: [], truncated: false });
   bed.handlers["policy.getSettings"] = () => ({ value: { allowHosts: null }, revision: 1 });
 });
 

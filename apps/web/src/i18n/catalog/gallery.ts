@@ -24,6 +24,9 @@ export const galleryEn = {
   "gallery.open.palette": "Open a palette",
   "gallery.open.menu": "Open a menu",
   "gallery.open.toast": "Show a toast",
+  "gallery.open.picker": "Open a dialog with a model picker",
+  "gallery.picker.title": "Model picker in a dialog",
+  "gallery.picker.label": "Model",
   "gallery.overlayNote":
     "Dialogs, menus, select lists, tooltips and toasts open in the page body: they follow the app's theme and density, not the frame's.",
   "gallery.dialog.title": "Dialog",
@@ -66,6 +69,9 @@ export const galleryFr: { readonly [K in keyof typeof galleryEn]: string } = {
   "gallery.open.palette": "Ouvrir une palette",
   "gallery.open.menu": "Ouvrir un menu",
   "gallery.open.toast": "Afficher une notification",
+  "gallery.open.picker": "Ouvrir une boîte de dialogue avec un sélecteur de modèle",
+  "gallery.picker.title": "Sélecteur de modèle dans une boîte de dialogue",
+  "gallery.picker.label": "Modèle",
   "gallery.overlayNote":
     "Les boîtes de dialogue, menus, listes, infobulles et notifications s'ouvrent dans le corps de la page : elles suivent le thème et la densité de l'application, pas ceux du cadre.",
   "gallery.dialog.title": "Boîte de dialogue",

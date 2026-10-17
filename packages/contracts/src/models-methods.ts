@@ -2,6 +2,7 @@ import { z } from "zod";
 import { defineMethod } from "./define.ts";
 import { ERROR_CODES } from "./errors.ts";
 import { Cursor } from "./frames.ts";
+import { modelsAvailableMethods } from "./models-available.ts";
 import { modelsConfigMethods } from "./models-config.ts";
 import { modelsProviderMethods } from "./models-provider.ts";
 import { modelsUsageMethods } from "./models-usage.ts";
@@ -216,6 +217,7 @@ const CREDENTIAL_WRITE_ERRORS = [
 ] as const;
 
 export const modelsMethods = {
+  ...modelsAvailableMethods,
   ...modelsConfigMethods,
   ...modelsProviderMethods,
   ...modelsUsageMethods,

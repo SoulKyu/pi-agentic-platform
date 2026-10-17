@@ -93,6 +93,7 @@ export const METHOD_IDEMPOTENT: Readonly<Record<MethodName, boolean>> = {
   "memory.scopes": true,
   "memory.staged": true,
   "memory.status": true,
+  "models.available": true,
   "models.cancelLogin": false,
   "models.config.get": true,
   "models.config.save": false,
