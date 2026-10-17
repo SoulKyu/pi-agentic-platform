@@ -57,6 +57,8 @@ export interface AgentLinks {
     /** The agent's newest tasks and its triggers, as the caller may see them (M11R76). */
     statusOf?(caller: Caller, agentId: string): { tasks: TaskView[]; triggers: TriggerView[] };
   };
+  /** Quarantine step 2 (M11R139 d): the agent's running children are aborted; how many. */
+  readonly subagents?: { cancelAllOf(ownerId: string, agentId: string): number };
   /** What the rail reads beyond the thread and the requests (M11R62): Task 11's cards, Task 30's children. */
   readonly rail?: {
     /** The newest unread event card of the agent says failed. */
@@ -80,6 +82,8 @@ export interface AgentLinks {
   };
   /** The agent's pending requests, closed as cancelled when it is quarantined (Task 17). */
   readonly requests?: { cancelAllOf(ownerId: string, agentId: string): number };
+  /** The agent's staged memory facts, moved aside by quarantine's last step (Task 32); how many were moved. */
+  readonly memory?: { moveStaged(ownerId: string, agentId: string): number };
   /** The "use once" values still waiting for the agent (Task 18). */
   readonly onceValues?: { drop(ownerId: string, agentId: string): void };
 }

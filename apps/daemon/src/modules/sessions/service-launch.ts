@@ -1,5 +1,6 @@
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
 import { initTools, storeNewSession } from "./automation-port.ts";
+import { storeChildPolicy } from "./child-port.ts";
 import { type AgentLaunch, applyProfileModel, initFieldsOf } from "./agent-gate.ts";
 import type { AgentSurface } from "./agent-surface.ts";
 import { createEgressLink } from "./egress-link.ts";
@@ -7,6 +8,7 @@ import type { createGrantLink } from "./grants.ts";
 import { type LiveSession, startLiveSession } from "./live-session.ts";
 import type { PolicyLink } from "./policy-link.ts";
 import { bridgePlatform } from "./platform-bridge.ts";
+import { type MemoryRelease, memoryTrustOf } from "./memory-trust.ts";
 import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
@@ -23,7 +25,11 @@ export interface LaunchContext {
   readonly policyLink: PolicyLink;
   /** Who a session is, which platform tools its worker starts with, and where its platform calls go (M11). */
   readonly agent: AgentSurface;
+  /** Which workers started untainted: a taint releases them once their run settles (M11R143). */
+  readonly memory: MemoryRelease;
   checkCapacity(): void;
+  /** The profile prompt of a child made by this daemon, for a start after the first (M11R136); none otherwise. */
+  childPrompt?(row: SessionRow): string | undefined;
   /** The owner's last worker stays free (M10R154): `capacity` when one more worker would take it. */
   keepOneFree(): void;
   /** Sessions whose next launch must leave the last worker free: the agent port's and the runner's (consumed by `launch`). */
@@ -82,6 +88,14 @@ export function createLaunch(ctx: LaunchContext) {
         storedPresetOf(ctx.agent.presetFor(ownerPreset, agentLaunch.input.preset)),
       );
     }
+    // A child's stored preset is narrowed to its agent's at every reopen, never widened (review I3).
+    if (agentLaunch?.role === "child" && !isNew)
+      deps.store.setToolPreset(
+        row.id,
+        storedPresetOf(
+          ctx.agent.presetFor(deps.store.toolPreset(row.id) ?? "configured", agentLaunch.input.preset),
+        ),
+      );
     try {
       // Owner a5, M11R214: an unattended continuation of a full-access agent never starts a worker without its sandbox.
       if (ctx.sandboxedOnly.has(row.id) && agentLaunch?.sandbox === undefined)
@@ -90,6 +104,7 @@ export function createLaunch(ctx: LaunchContext) {
     } catch (error) {
       // Any throw before or after the spawn: the start-time profile of a worker that never came up is dropped (W5-R26).
       ctx.agent.ended(row.id);
+      ctx.memory.ended(row.id);
       throw error;
     }
   }
@@ -115,6 +130,11 @@ export function createLaunch(ctx: LaunchContext) {
         quarantined: false,
       });
     const rules = policyLink.compose(row, scope);
+    const childPrompt = ctx.childPrompt?.(row);
+    // Read in the same step as the rules: the taint the worker starts with is the taint this decision is made on.
+    const kind = ctx.agent.kindOfRow(row);
+    const trust = memoryTrustOf(kind, agentLaunch);
+    ctx.memory.started(row.id, trust);
     const init: InitRecord = {
       type: "init",
       cwd: row.cwd,
@@ -126,6 +146,8 @@ export function createLaunch(ctx: LaunchContext) {
       tools: initTools(ctx.toolPreset(row), rules),
       platform: { ops: ctx.agent.platformOps(row) },
       ...(agentLaunch ? initFieldsOf(agentLaunch) : {}),
+      ...(childPrompt ? { child: { prompt: childPrompt } } : {}),
+      ...(trust.memory ? { memory: trust.memory } : {}),
       // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
       ...(row.piPath ? { sessionFile: row.piPath } : {}),
       ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
@@ -137,7 +159,7 @@ export function createLaunch(ctx: LaunchContext) {
       deps.hub.publish("session", row.id, starting);
       ctx.onPublished?.(row.id, starting);
     }
-    const handle = deps.spawn(row.cwd);
+    const handle = Object.keys(trust.env).length > 0 ? deps.spawn(row.cwd, trust.env) : deps.spawn(row.cwd);
     const session: LiveSession = startLiveSession(
       {
         handle,
@@ -169,6 +191,7 @@ export function createLaunch(ctx: LaunchContext) {
           if (live.get(row.id) === session) {
             live.delete(row.id);
             ctx.agent.ended(row.id);
+            ctx.memory.ended(row.id);
           }
           ctx.onWorkerEnd?.(row.id);
         },
@@ -194,7 +217,11 @@ export function createLaunch(ctx: LaunchContext) {
       // The file of a recorded session says who it is. Another id means the file was replaced under us.
       if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId)
         throw new PapError("worker_failed");
-      if (isNew) storeNewSession(deps, row, ctx.projectFor?.(row) ?? null);
+      if (isNew)
+        deps.store.transaction(() => {
+          storeNewSession(deps, row, ctx.projectFor?.(row) ?? null);
+          storeChildPolicy(deps, row);
+        });
       stored = true;
       // Pi writes the file with the first message: until then the row keeps the Pi id its worker reported (M4R123).
       const piId = session.piSessionId();

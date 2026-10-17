@@ -114,7 +114,8 @@ export function createPlatformPort(deps: PlatformDeps): PlatformPort {
 
   function end(flight: Flight, code: PlatformError): void {
     flight.forced ??= code;
-    flight.controller.abort();
+    // The code is the signal's reason: an op tells a deadline from a stop (Task 29b).
+    flight.controller.abort(code);
   }
 
   async function run(

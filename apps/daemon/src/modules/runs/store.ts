@@ -266,7 +266,7 @@ export function createRunsStore(db: Db): RunsStore {
     sessionTotals(sessionId) {
       const row = db.get<{ runs: number; costUsd: number }>(
         "SELECT COUNT(*) AS runs, COALESCE(SUM(cost_usd), 0) AS costUsd FROM runs " +
-          "WHERE session_id = $sessionId AND status <> 'running'",
+          "WHERE (session_id = $sessionId OR parent_session_id = $sessionId) AND status <> 'running'",
         { sessionId },
       );
       return { runs: row?.runs ?? 0, costUsd: row?.costUsd ?? 0 };
@@ -275,7 +275,7 @@ export function createRunsStore(db: Db): RunsStore {
       const kinds = new Set(
         db
           .all<{ billing: RunBilling }>(
-            "SELECT DISTINCT billing FROM runs WHERE session_id = $sessionId AND status <> 'running'",
+            "SELECT DISTINCT billing FROM runs WHERE (session_id = $sessionId OR parent_session_id = $sessionId) AND status <> 'running'",
             { sessionId },
           )
           .map((row) => row.billing),

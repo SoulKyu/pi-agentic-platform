@@ -17,6 +17,8 @@ export interface ShellRow {
   readonly marks: Marks;
   /** The agent the session belongs to: its sessions are not in the sidebar (M11R56). */
   readonly agentId?: string | undefined;
+  /** The session this one is a subagent of (M11R153): the sidebar files it under that parent. */
+  readonly parentId?: string | undefined;
 }
 
 interface RawRow {
@@ -36,6 +38,7 @@ interface RawRow {
   unsettledAt: number | null;
   snoozedUntil: number | null;
   agentId: string | null;
+  parentId: string | null;
 }
 
 /** The Pi ids kept for one draft: one per worker it was started with, the most a person would cause. */
@@ -44,7 +47,7 @@ const MAX_PENDING_IDS = 32;
 const COLUMNS =
   "id, owner_id AS ownerId, cwd, name, preview, project_id AS projectId, created_at AS createdAt, updated_at AS updatedAt, tool_preset AS toolPreset, " +
   "pin_rank AS pinRank, archived_at AS archivedAt, settled_at AS settledAt, settled_auto AS settledAuto, " +
-  "unsettled_at AS unsettledAt, snoozed_until AS snoozedUntil, agent_id AS agentId";
+  "unsettled_at AS unsettledAt, snoozed_until AS snoozedUntil, agent_id AS agentId, parent_session_id AS parentId";
 
 const rowOf = (raw: RawRow): ShellRow => ({
   id: raw.id,
@@ -65,6 +68,7 @@ const rowOf = (raw: RawRow): ShellRow => ({
     snoozedUntil: raw.snoozedUntil,
   },
   ...(raw.agentId === null ? {} : { agentId: raw.agentId }),
+  ...(raw.parentId === null ? {} : { parentId: raw.parentId }),
 });
 
 /** A session found by one of its Pi identities. */

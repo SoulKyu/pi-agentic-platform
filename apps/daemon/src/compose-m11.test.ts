@@ -85,11 +85,20 @@ describe("composeM11", () => {
       "agents.setPaused",
       "agents.status",
       "agents.update",
+      "memory.decide",
+      "memory.forget",
+      "memory.list",
+      "memory.save",
+      "memory.scopes",
+      "memory.staged",
+      "memory.status",
       "secrets.answerRequest",
       "secrets.declineRequest",
       "secrets.delete",
       "secrets.list",
       "secrets.set",
+      "subagents.cancel",
+      "subagents.profiles",
       "subscribe.agents",
     ]);
     expect(m11.agents.list("u1")).toEqual([]);
@@ -334,7 +343,7 @@ describe("the agents' vault (M11R86)", () => {
 });
 
 describe("the sandbox probe's folder (W5 carry 5, fix round 2)", () => {
-  const source = readFileSync(fileURLToPath(new URL("./compose-m11.ts", import.meta.url)), "utf8");
+  const source = readFileSync(fileURLToPath(new URL("./compose-m11-probe.ts", import.meta.url)), "utf8");
 
   it("is made in $PAP_HOME, and the canaries of a crashed probe are removed at boot", () => {
     expect(source).toContain("tmp: core.config.home");

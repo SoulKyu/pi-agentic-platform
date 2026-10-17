@@ -44,6 +44,8 @@ export interface TreeModel {
   readonly snoozedMore: number;
   readonly settled: readonly ShellSession[];
   readonly settledMore: number;
+  /** A parent's subagents (M11R153), newest first, by the parent's id: they are filed here, never as rows of their own. */
+  readonly children: ReadonlyMap<string, readonly ShellSession[]>;
   /** The count of the "Archived lanes" entry that ends the tree; 0 hides it. */
   readonly archivedLanes: number;
   readonly empty: boolean;
@@ -68,7 +70,7 @@ const newest = (a: ShellSession, b: ShellSession): number =>
 
 export function buildTree(input: TreeInput): TreeModel {
   const needle = normalize(input.filter.trim());
-  const matches = (session: ShellSession): boolean => {
+  const ownMatch = (session: ShellSession): boolean => {
     if (needle === "") return true;
     const project = session.projectId === null ? "" : (input.projects.get(session.projectId)?.name ?? "");
     return normalize(`${sessionLabel(session)} ${session.cwd} ${project}`).includes(needle);
@@ -79,6 +81,22 @@ export function buildTree(input: TreeInput): TreeModel {
   const groupKey = (projectId: string | null): string | null =>
     projectId !== null && input.projects.has(projectId) ? projectId : null;
   const allSessions = [...input.sessions];
+  // A subagent is filed under its parent when the browser holds that parent, active and not itself a subagent; any other
+  // one (parent unknown, archived, or the child pinned) stays a row of its own so it can still be found.
+  const byId = new Map(allSessions.map((session) => [session.id, session]));
+  const filedUnder = (session: ShellSession): string | null => {
+    const parent = session.parentId == null ? undefined : byId.get(session.parentId);
+    return parent && parent.archivedAt === null && parent.parentId == null && session.pinRank === null
+      ? parent.id
+      : null;
+  };
+  const kids = new Map<string, ShellSession[]>();
+  for (const session of allSessions) {
+    const parent = session.archivedAt === null ? filedUnder(session) : null;
+    if (parent !== null && ownMatch(session)) kids.set(parent, [...(kids.get(parent) ?? []), session]);
+  }
+  for (const [parent, list] of kids) kids.set(parent, list.toSorted(newest));
+  const matches = (session: ShellSession): boolean => ownMatch(session) || kids.has(session.id);
   const liveLanes = [...(input.lanes?.items ?? [])].filter(isLiveLane);
   const laneOf = (session: ShellSession): LaneView | undefined =>
     liveLanes.find((lane) => inLane(lane, session.cwd));
@@ -91,6 +109,7 @@ export function buildTree(input: TreeInput): TreeModel {
   for (const session of allSessions) {
     if (session.archivedAt !== null) continue;
     held.set(session.projectId, (held.get(session.projectId) ?? 0) + 1);
+    if (filedUnder(session) !== null) continue;
     if (!matches(session)) continue;
     const asleep = isSnoozed(session, input.now);
     if (session.pinRank !== null && !asleep) {
@@ -180,6 +199,7 @@ export function buildTree(input: TreeInput): TreeModel {
     snoozedMore: Math.max(0, snoozed.length - SHELF_ROWS),
     settled: settled.slice(0, SHELF_ROWS),
     settledMore: Math.max(0, settled.length - SHELF_ROWS),
+    children: kids,
     archivedLanes: input.lanes?.archived ?? 0,
     empty:
       pinned.length === 0 &&

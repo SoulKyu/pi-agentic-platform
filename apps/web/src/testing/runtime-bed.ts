@@ -50,6 +50,7 @@ export function fakeRuntime(state: ConnectionState = "open") {
     if (method === "sessions.branches") return { leafId: null, points: [], truncated: false };
     if (method === "policy.listRules") return { rules: [], truncated: false };
     if (method === "files.list") return { entries: [], truncated: false };
+    if (method === "memory.list") return { items: [], journal: [] };
     if (method === "audit.list") return { entries: [], nextBefore: null, truncated: false };
     return { ok: true };
   });

@@ -237,6 +237,17 @@ export function createInboxStore(db: Db) {
       return row ? itemOf(row) : null;
     },
 
+    /** The open to-handle items of a kind, oldest first, at most `limit` (a module that restarts finds what it raised). */
+    openRefs: (kind: string, limit: number): Array<{ ownerId: string; agentId: string; refId: string }> =>
+      db
+        .all<{ owner_id: string; agent_id: string; ref_id: string }>(
+          `SELECT owner_id, agent_id, ref_id FROM inbox_items
+           WHERE kind = $kind AND ref_id IS NOT NULL AND agent_id IS NOT NULL AND ${OPEN}
+           ORDER BY created_at, id LIMIT $limit`,
+          { kind, limit },
+        )
+        .map((row) => ({ ownerId: row.owner_id, agentId: row.agent_id, refId: row.ref_id })),
+
     removeRef: (ownerId: string, kind: string, refId: string): boolean =>
       db.run("DELETE FROM inbox_items WHERE owner_id = $ownerId AND ref_id = $refId AND kind = $kind", {
         ownerId,

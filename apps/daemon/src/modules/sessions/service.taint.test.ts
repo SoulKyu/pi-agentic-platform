@@ -67,6 +67,18 @@ describe("the taint a worker reports (M5R60)", () => {
     const policy = fakePolicyPort();
     open({ policy });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
+    // An open question keeps the worker, which a taint would release otherwise (M11R143).
+    bed.spawned[0]?.emit({
+      type: "approval_request",
+      id: "hold",
+      category: "exec",
+      title: "hold",
+      message: "hold",
+      answers: ["deny", "once"],
+      tool: "bash",
+      key: "hold",
+      toolCallId: "hold",
+    } as never);
     bed.spawned[0]?.emit(taintRecord(0));
     policy.clearTaint(OWNER.userId, sessionId);
     expect(policy.taintOf(sessionId)).toEqual({ tainted: false, epoch: 1 });

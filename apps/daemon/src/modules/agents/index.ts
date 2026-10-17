@@ -30,3 +30,4 @@ export { cleanText, createRequests, type RequestItems, type Requests } from "./r
 export { createNotify } from "./ops-notify.ts";
 export { createApprove } from "./ops-approve.ts";
 export { createNetworkRequest } from "./ops-network.ts";
+export { createInboxLink } from "./inbox-link.ts";

@@ -26,6 +26,7 @@ import type { lanesEn } from "./catalog/lanes.ts";
 import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
 import type { inboxAgentsEn } from "./catalog/inbox-agents.ts";
+import type { memoryEn } from "./catalog/memory.ts";
 import type { modelsUsageEn } from "./catalog/models-usage.ts";
 import type { serverEn } from "./catalog/server.ts";
 import type { sessionModelsEn } from "./catalog/session-models.ts";
@@ -45,6 +46,7 @@ import type { settingsModelsEn } from "./catalog/settings-models.ts";
 import type { settingsScreenEn } from "./catalog/settings-screen.ts";
 import type { settingsShortcutsEn } from "./catalog/settings-shortcuts.ts";
 import type { sidebarEn } from "./catalog/sidebar.ts";
+import type { subagentsEn } from "./catalog/subagents.ts";
 import type { terminalEn } from "./catalog/terminal.ts";
 import type { trustBannerEn, trustEn } from "./catalog/trust.ts";
 import type { usageEn } from "./catalog/usage.ts";
@@ -93,10 +95,12 @@ export type MessageKey =
   | keyof typeof agentSettingsEn
   | keyof typeof agentSpaceEn
   | keyof typeof agentSafetyEn
+  | keyof typeof memoryEn
   | keyof typeof agentStatusEn
   | keyof typeof agentComposeEn
   | keyof typeof agentsPhoneEn
-  | keyof typeof settingsAgentsEn;
+  | keyof typeof settingsAgentsEn
+  | keyof typeof subagentsEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

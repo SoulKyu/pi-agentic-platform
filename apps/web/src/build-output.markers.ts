@@ -211,6 +211,17 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
       "keeps the method catalogue's schemas out of the initial assets: rpc.ts reads METHOD_IDEMPOTENT (about 6 KB gzip)",
     markers: [/name:\W*policy\.revokeRule\W*,\s*permission/],
   },
+  {
+    title:
+      "keeps Settings › Memory, the review rows, the status panel's memory and their strings out of the initial assets (M11R150 to M11R152)",
+    markers: [
+      /data-memory-settings/,
+      /data-slot":\W*agent-memory-recent/,
+      /Earlier sessions keep what they already recalled/,
+      /Les sessions précédentes gardent ce qu'elles ont déjà rappelé/,
+      /UNTRUSTED · staged memory/,
+    ],
+  },
 ];
 
 /**
@@ -230,4 +241,6 @@ export const EAGER_FORBIDDEN: ReadonlyArray<{ readonly component: string; readon
   { component: "PermissionsSheet", marker: /data-agent-permissions/ },
   { component: "SecretsList", marker: /data-agent-secrets/ },
   { component: "QuarantineDialog", marker: /This is the incident button/ },
+  { component: "MemorySettings", marker: /data-memory-settings/ },
+  { component: "RecentMemory", marker: /data-slot":\W*agent-memory-recent/ },
 ];

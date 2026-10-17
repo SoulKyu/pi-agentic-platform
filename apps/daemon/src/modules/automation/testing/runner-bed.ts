@@ -21,6 +21,7 @@ import {
 } from "../index.ts";
 import { requireStepUp } from "../../auth/index.ts";
 import { createAutomationBed, manualInput, webhookInput } from "./bed.ts";
+import { createTaskSpend } from "./fake-task-spend.ts";
 
 const assistantEnd = (cost: number) => piAssistantEnd({ cost });
 export interface Deferred<T> {
@@ -101,7 +102,7 @@ export interface FakeRuns {
     limitResetAt(sessionId: string): number | null;
     spentToday(): number;
     spentTodayOf(ownerId: string, timeZone: string | null, taskIds: readonly string[]): number;
-  };
+  } & Pick<ReturnType<typeof createTaskSpend>, "openTaskOf" | "spentByTask">;
   readonly costs: Map<string, number>;
   /** What `spentToday` answers (dollars) and what `spentTodayOf` adds up per task. */
   spent: { value: number };
@@ -124,10 +125,12 @@ export function fakeRuns(order: Order): FakeRuns {
   const spent = { value: 0 };
   const resets = new Map<string, number>();
   const taskSpend = new Map<string, number>();
+  const spend = createTaskSpend();
   return {
     spent,
     taskSpend,
     liveCost: (sessionId, runCostUsd, ownerId = "u1") => {
+      spend.live(sessionId, runCostUsd);
       for (const listener of [...lives]) listener(sessionId, ownerId, runCostUsd);
     },
     skipResume: (sessionId, reason) => {
@@ -155,7 +158,8 @@ export function fakeRuns(order: Order): FakeRuns {
       },
       expectOrigin: vi.fn<
         (sessionId: string, expectation: { origin: string; taskId: string | null }) => boolean
-      >((sessionId) => {
+      >((sessionId, expectation) => {
+        if (expectation.taskId !== null) spend.begin(sessionId, expectation.taskId);
         order.push(`expect:${sessionId}`);
         return true;
       }),
@@ -164,6 +168,8 @@ export function fakeRuns(order: Order): FakeRuns {
       limitResetAt: (sessionId: string): number | null => resets.get(sessionId) ?? null,
       spentToday: (): number => spent.value,
       spentTodayOf: (_owner, _zone, ids) => ids.reduce((sum, id) => sum + (taskSpend.get(id) ?? 0), 0),
+      openTaskOf: spend.openTaskOf,
+      spentByTask: spend.spentByTask,
     },
     costs,
     listeners: () => ({ starts: starts.size, ends: ends.size }),
@@ -173,6 +179,7 @@ export function fakeRuns(order: Order): FakeRuns {
         listener({ runId: `r-${sessionId}`, sessionId, ownerId, taskId, origin });
     },
     endRun(event: Partial<RunEndEvent> & { sessionId: string; status: RunEndEvent["status"] }): void {
+      spend.end(event.sessionId);
       if (event.status === "limited" && event.limitResetAt != null)
         resets.set(event.sessionId, event.limitResetAt);
       for (const listener of [...ends])

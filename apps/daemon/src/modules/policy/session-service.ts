@@ -12,7 +12,7 @@ import { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
-import type { SessionPolicyStore, TaskPolicyInput } from "./session-store.ts";
+import type { ChildPolicyInput, SessionPolicyStore, TaskPolicyInput } from "./session-store.ts";
 import type { SettingsPolicyStore } from "./settings-store.ts";
 
 /**
@@ -58,6 +58,8 @@ export interface SessionPolicyPort {
    * list that is empty or holds a bad name.
    */
   setTaskPolicy(ownerId: string, sessionId: string, task: TaskPolicyInput): void;
+  /** A subagent's child: mode, list (or none) and taint in one statement, not unattended (M11R136). `bad_request` for a bad list. */
+  setChildPolicy(ownerId: string, sessionId: string, child: ChildPolicyInput): void;
   /** The task is over: `unattended = 0`, the list stays until `clearTaskPolicy`. Tells the listeners. */
   endTaskPolicy(ownerId: string, sessionId: string): void;
   /** Every session whose task policy is still unattended, across owners (the boot's orphan sweep, M10R42). */
@@ -160,6 +162,13 @@ export function createSessionPolicyService(deps: {
       owns(ownerId, sessionId);
       if (!TaskTools.safeParse(task.tools).success) throw new PapError("bad_request");
       deps.sessions.setTask(ownerId, sessionId, task, deps.clock.now());
+      sessionChanged(ownerId, sessionId);
+    },
+    setChildPolicy(ownerId: string, sessionId: string, child: ChildPolicyInput): void {
+      owns(ownerId, sessionId);
+      if (child.tools !== null && !TaskTools.safeParse(child.tools).success)
+        throw new PapError("bad_request");
+      deps.sessions.setChild(ownerId, sessionId, child, deps.clock.now());
       sessionChanged(ownerId, sessionId);
     },
     endTaskPolicy(ownerId: string, sessionId: string): void {

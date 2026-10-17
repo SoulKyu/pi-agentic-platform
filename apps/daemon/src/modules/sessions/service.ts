@@ -3,6 +3,7 @@ import { resolveSessionCwd } from "./cwd.ts";
 import { createForks } from "./forks.ts";
 import { createAttention, createAutomationPort } from "./automation-port.ts";
 import { createAgentPort } from "./agent-port.ts";
+import { createChildPort } from "./child-port.ts";
 import { createSidebarHub } from "./sidebar-hub.ts";
 import { createWorkerRoom } from "./worker-room.ts";
 import { createAgentSurface } from "./agent-surface.ts";
@@ -10,13 +11,14 @@ import { createPolicyLink } from "./policy-link.ts";
 import { createProjectLink } from "./project-link.ts";
 import type { LiveSession } from "./live-session.ts";
 import { createOrganiser } from "./organiser.ts";
-import { createPromptAttachments, plainPrompt } from "./prompt-attachments.ts";
+import { createPromptFlow } from "./service-prompt.ts";
 import { createFolderRestart } from "./restart-folder.ts";
 import { createAdoption } from "./service-adopt.ts";
 import { createSessionCommands } from "./service-commands.ts";
 import { createSessionModels } from "./service-models.ts";
 import { createLaunch } from "./service-launch.ts";
 import { createSessionMarks } from "./service-marks.ts";
+import { createMemoryRelease } from "./memory-trust.ts";
 import { createSessionReads } from "./service-reads.ts";
 import { createShellView } from "./service-shell.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
@@ -28,8 +30,6 @@ import type { SessionsService, SessionsServiceDeps, SessionsServiceWithAutomatio
 const SUMMARY_EVENTS: ReadonlySet<string> = new Set(["status", "dialog_open", "dialog_closed", "name"]);
 
 export type { SessionsService, SessionsServiceDeps };
-
-const TOKEN_ANSWERS: ReadonlySet<string> = new Set(["deny", "once"]);
 
 export function createSessionsService(deps: SessionsServiceDeps): SessionsServiceWithAutomation {
   // Workers that are up, by session id. A crashed worker leaves this map and is not replaced until the next prompt.
@@ -52,7 +52,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     agentModeOf: agent.modeOf,
   });
   const grants = policyLink.grants;
-  const attachments = createPromptAttachments(deps);
 
   const room = createWorkerRoom({
     live,
@@ -76,7 +75,10 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   const shell = createShellView({
     store: marks,
     projects: deps.projects,
-    live: (id) => ({ status: statusOf(id), needsInput: (live.get(id)?.dialogs().length ?? 0) > 0 }),
+    live: (id) => ({
+      status: statusOf(id),
+      needsInput: (live.get(id)?.dialogs().length ?? 0) > 0 || child.waiting(id),
+    }),
   });
   const attention = createAttention(deps.logger);
   const sidebarHub = createSidebarHub(deps.store, deps.hub);
@@ -122,8 +124,14 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     logger: deps.logger,
     waiting: promptWaiting,
   });
+  const memory = createMemoryRelease({
+    policy: deps.policy,
+    release: folderRestart.releaseIdle,
+    logger: deps.logger,
+  });
   const { launch, ensureLive } = createLaunch({
     deps,
+    memory,
     live,
     reopening,
     starting,
@@ -133,33 +141,31 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     ...room,
     toolPreset: presetOf,
     // An agent's sessions belong to the agent, not to a project (M11R56).
+    childPrompt: (row) => child.promptOf(row),
     projectFor: (row) => (row.agentId === undefined ? link.projectOf(row.ownerId, row.cwd) : null),
     onReopened: (sessionId) => {
       publisher.changed(sessionId);
       folderRestart.reopened(sessionId);
+      memory.reopened(sessionId);
     },
     onPublished: (sessionId, event) => {
       folderRestart.published(sessionId, event);
+      memory.published(sessionId, event);
       deps.laneHooks?.published(sessionId, event);
+      child.published(sessionId, event);
       // A run starting is activity: the session leaves Settled and Snoozed (M4R41).
       if (event.kind === "status" && event.status === "running") organiser.activity(sessionId);
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
     },
     ...adoption.launchHooks,
   });
-
   const owned = (sessionId: string, caller: Caller): SessionRow => {
     const row = deps.store.get(sessionId);
     if (!row || row.ownerId !== caller.userId) throw new PapError("not_found");
     return row;
   };
 
-  // A token never makes an agent's trusted thread run (M11R4, W5-R64): every method that starts a run in it refuses one.
-  const ownedForRun = (sessionId: string, caller: Caller): SessionRow => {
-    const row = owned(sessionId, caller);
-    if (caller.kind === "token" && row.agentId !== undefined) throw new PapError("forbidden");
-    return row;
-  };
+  const sendPrompt = createPromptFlow({ deps, memory, ensureLive, organiser, publisher, owned });
 
   // A fork would be a second thread, or a plain session in the agent's home (M11R179).
   const notAgent = (row: SessionRow): SessionRow => {
@@ -183,6 +189,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     owned,
     outsideWrite: adoption.outsideWrite,
     policyView: (row) => policyLink.viewOf(row),
+    children: (id) => child.viewsOf(id),
   });
 
   const commands = createSessionCommands({
@@ -231,6 +238,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     onArchived: (sessionId) => {
       agent.hostGrants.drop(sessionId);
       grants.pushWhere((tracked) => tracked.id === sessionId);
+      child.archived(sessionId);
     },
   });
 
@@ -253,6 +261,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       marks,
       room,
       sandboxed: agent.sandboxed,
+      removed: (row) => child.removed(row),
     },
     () => self,
   );
@@ -269,10 +278,22 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     models: () => self,
     lastText: reads.agentText,
   });
+  const child = createChildPort({
+    deps,
+    live,
+    agent,
+    launch,
+    ...room,
+    modeOf: (row) => policyLink.viewOf(row).mode,
+    lastText: reads.agentText,
+    publisher,
+    marks,
+  });
   const self: SessionsServiceWithAutomation = {
     automation,
     agent,
     agentSessions,
+    child,
     modeOf: (ownerId, sessionId) => policyLink.viewOf(owned(sessionId, { userId: ownerId } as Caller)).mode,
     async create(cwdInput, caller, preset) {
       const cwd = resolveSessionCwd(cwdInput, deps.worker.papHome);
@@ -300,24 +321,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     listArchived: shell.listArchived,
     summary: shell.summaryFor,
     async prompt(input, caller) {
-      const row = ownedForRun(input.sessionId, caller);
-      // Claimed for this session and owner before a worker is asked for anything; released only once Pi accepted (M8R43).
-      const ids = input.attachments ?? [];
-      const prepared =
-        ids.length === 0
-          ? plainPrompt(input.text)
-          : await attachments.prepare(caller.userId, row.id, input.text, ids);
-      const session = await ensureLive(row);
-      deps.store.touch(row.id, deps.clock.now());
-      organiser.activity(row.id);
-      publisher.changed(row.id);
-      const waiting = deps.laneHooks?.beforePrompt(row, session, input.streamingBehavior);
-      if (waiting) await waiting;
-      // Asked and sent in one step: nothing is awaited between the answer and the worker's request.
-      if (input.stillWanted && !input.stillWanted()) return { disposition: "handled" };
-      const result = await session.prompt(prepared.text, input.streamingBehavior, prepared.images);
-      prepared.accepted();
-      return result;
+      return sendPrompt(input, caller);
     },
     async abort(sessionId, caller) {
       owned(sessionId, caller);
@@ -353,9 +357,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     respondDialog(input, caller) {
       const row = owned(input.sessionId, caller);
       const session = openWorker(input.sessionId);
-      // A token answers deny or once (Q7): a rule that outlives the token is a browser session's to make.
-      if (caller.kind === "token" && "answer" in input.response && !TOKEN_ANSWERS.has(input.response.answer))
-        throw new PapError("forbidden");
       agent.guardAnswer(session, input.dialogId, caller, input.response, row.id);
       const approved = session.answer(input.dialogId, input.response);
       agent.noted(row.id, approved, caller);
@@ -377,6 +378,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       closing = true;
       organiser.stop();
       policyLink.stop();
+      memory.stop();
       await Promise.allSettled([...live.values(), ...starting].map((session) => session.stop()));
       // The workers are gone: the proxy removes its folders under the runtime folder (a tmpfs nobody else empties).
       await agent.egress()?.shutdown();

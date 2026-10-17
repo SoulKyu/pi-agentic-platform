@@ -17,19 +17,11 @@ export type StreamName = (typeof STREAMS)[number];
 export const SessionStatus = z.enum(["cold", "starting", "idle", "running", "releasing"]);
 export type SessionStatus = z.infer<typeof SessionStatus>;
 
-import {
-  AlwaysScope,
-  AlwaysScopes,
-  ApprovalAnswer,
-  ApprovalAnswers,
-  DEFAULT_SESSION_POLICY_VIEW,
-  GuardRule,
-  SessionPolicyView,
-  TOOL_CATEGORIES,
-  TrustedHost,
-} from "./policy.ts";
+import { AlwaysScope, ApprovalAnswer, DEFAULT_SESSION_POLICY_VIEW, SessionPolicyView } from "./policy.ts";
 import { LoginEvent } from "./models-methods.ts";
 import { SessionLoadout, ToolPreset } from "./session-loadout.ts";
+import { CHILD_VIEWS, ChildView } from "./children.ts";
+import { Dialog } from "./dialog.ts";
 
 /**
  * The most the daemon passes on from a worker for each extension UI surface (R66). The daemon rebuilds every client
@@ -65,43 +57,6 @@ export const SessionName = z
   .string()
   .max(UI_LIMITS.name * 2)
   .refine((name) => [...name].length <= UI_LIMITS.name, "a session name is at most 256 characters");
-
-export const Dialog = z
-  .object({
-    id: z.string().min(1).max(128),
-    method: z.enum(["select", "confirm", "input", "editor", "approval"]),
-    title: z.string().max(4096),
-    message: z.string().max(65_536).optional(),
-    options: z.array(z.string().max(4096)).max(100).optional(),
-    placeholder: z.string().max(4096).optional(),
-    prefill: z.string().max(1_000_000).optional(),
-    timeout: z.number().int().positive().optional(),
-    /** Approval dialogs only (`method: "approval"`): the policy's category and the answers it accepts, in card order. */
-    category: z.enum(TOOL_CATEGORIES).optional(),
-    answers: ApprovalAnswers.optional(),
-    /** Untrusted content reached the session, or the run guard asks: why the card exists (DESIGN §9.2). */
-    tainted: z.boolean().optional(),
-    guard: GuardRule.optional(),
-    /** Approval dialogs only: the tool the question is about (the scope choice names it, Task 2b). */
-    tool: z.string().min(1).max(256).optional(),
-    /** Approval dialogs only: what "always" may cover besides the exact call (Task 2a). */
-    alwaysScopes: AlwaysScopes.optional(),
-    /** Approval dialogs only: the host the `host` answer allows, present exactly when `answers` holds `host` (owner a2). */
-    host: TrustedHost.optional(),
-  })
-  .superRefine((dialog, ctx) => {
-    if ((dialog.host !== undefined) !== (dialog.answers?.includes("host") ?? false)) {
-      ctx.addIssue({
-        code: "custom",
-        message: "a card carries its host exactly when it offers the host answer",
-      });
-    }
-    // An approval without its answers or its category could not be answered by the policy's own rules: refused (M2R61).
-    if (dialog.method === "approval" && (!dialog.answers?.length || !dialog.category)) {
-      ctx.addIssue({ code: "custom", message: "an approval carries its category and its answers" });
-    }
-  });
-export type Dialog = z.infer<typeof Dialog>;
 
 export const DialogResponse = z.union([
   z.object({ confirmed: z.boolean() }),
@@ -275,6 +230,10 @@ const Snapshot = z.object({
   loadout: SessionLoadout.nullable().default(null),
   /** The preset stored for the session, known with or without a worker (MC37); `configured` from an older daemon. */
   toolPreset: ToolPreset.default("configured"),
+  /** The session's subagents, the newest eight, with their open dialogs (M11R140); empty from an older daemon. */
+  children: z.array(ChildView).max(CHILD_VIEWS).default([]),
+  /** Children whose line did not fit the snapshot's room: they exist but are not listed here; 0 from an older daemon. */
+  hiddenChildren: z.number().int().nonnegative().max(CHILD_VIEWS).default(0),
 });
 
 export const SessionStreamEvent = z.discriminatedUnion("kind", [
@@ -314,6 +273,7 @@ export const SessionStreamEvent = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("activity"), activity: Activity }),
   z.object({ kind: z.literal("policy"), policy: SessionPolicyView }),
   z.object({ kind: z.literal("loadout"), loadout: SessionLoadout }),
+  z.object({ kind: z.literal("subagents"), children: z.array(ChildView).max(CHILD_VIEWS) }),
 ]);
 export type SessionStreamEvent = z.infer<typeof SessionStreamEvent>;
 export type SnapshotEvent = Extract<SessionStreamEvent, { kind: "snapshot" }>;

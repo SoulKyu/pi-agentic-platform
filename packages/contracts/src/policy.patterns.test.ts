@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { AlwaysScopes } from "./policy.ts";
 import { methods } from "./methods.ts";
-import { Dialog } from "./streams.ts";
+import { Dialog } from "./dialog.ts";
 
 const listed = methods["policy.listRules"].result;
 const rule = { id: "r1", scope: "/w", tool: "bash", label: "l", createdAt: 1 };

@@ -12,6 +12,8 @@ const REF_ID_MAX = 128;
 const ENTRY_ID_MAX = 128;
 const AGENT_ID_MIN = 6;
 const AGENT_ID_MAX = 48;
+/** The most refs `openRefs` returns: far past any queue a module keeps (the memory review's is 200). */
+const OPEN_REFS_MAX = 1000;
 
 /** What an agent or a memory fact wrote, as kept: one line, hidden characters gone (the emoji joiner stays), clipped on a code point; null when nothing is left. */
 export const cleanDetail = (raw: string | null | undefined): string | null => {
@@ -38,7 +40,7 @@ export interface AgentItemInput {
 export interface AgentItemsDeps {
   readonly store: Pick<
     ReturnType<typeof createInboxStore>,
-    "byRef" | "upsertRef" | "resolveRef" | "removeRef" | "removeAgentItems"
+    "byRef" | "upsertRef" | "resolveRef" | "removeRef" | "removeAgentItems" | "openRefs"
   >;
   readonly clock: Clock;
   readonly logger: Logger;
@@ -100,6 +102,14 @@ export function createAgentItems(deps: AgentItemsDeps) {
       const item = store.resolveRef(ownerId, kind, refId, resolution, clock.now());
       if (item) deps.announce(ownerId, [item]);
       return item !== null;
+    },
+
+    /**
+     * The open to-handle items of this kind with their owner, agent and ref. Not owner-scoped: it returns every owner's
+     * refs, for a module that restarted to find what it already raised.
+     */
+    openRefs(kind: string): Array<{ ownerId: string; agentId: string; refId: string }> {
+      return store.openRefs(kind, OPEN_REFS_MAX);
     },
 
     /** Deletes every item of the owner that carries this agent (the agent was deleted); the badges are told. */

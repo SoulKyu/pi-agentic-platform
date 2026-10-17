@@ -38,6 +38,13 @@ export interface TaskPolicyInput {
   readonly taintedAt: number | null;
 }
 
+/** A subagent's child (M11R136): its mode, its list (null: the parent's preset alone) and the parent's taint; never unattended. */
+export interface ChildPolicyInput {
+  readonly mode: ApprovalMode;
+  readonly tools: readonly string[] | null;
+  readonly taintedAt: number | null;
+}
+
 // Every statement names the owner: a row of another owner is never read nor changed, whatever the session id.
 export function createSessionPolicyStore(db: Db) {
   const read = (ownerId: string, sessionId: string): SessionPolicyRow | undefined => {
@@ -92,6 +99,23 @@ export function createSessionPolicyStore(db: Db) {
           mode: task.mode,
           taintedAt: task.taintedAt,
           list: JSON.stringify(task.tools),
+          now,
+        },
+      );
+    },
+    /** Mode, optional list and taint, `unattended` stays 0: the child is answered for in its parent's screen. */
+    setChild: (ownerId: string, sessionId: string, child: ChildPolicyInput, now: number): void => {
+      db.run(
+        "INSERT INTO session_policy (session_id, owner_id, approval_mode, tainted_at, tool_allowlist, unattended, updated_at) VALUES ($sessionId, $ownerId, $mode, $taintedAt, $list, 0, $now) " +
+          "ON CONFLICT (session_id) DO UPDATE SET approval_mode = excluded.approval_mode, tool_allowlist = excluded.tool_allowlist, " +
+          "tainted_at = COALESCE(session_policy.tainted_at, excluded.tainted_at), updated_at = excluded.updated_at " +
+          "WHERE session_policy.owner_id = excluded.owner_id",
+        {
+          sessionId,
+          ownerId,
+          mode: child.mode,
+          taintedAt: child.taintedAt,
+          list: child.tools && JSON.stringify(child.tools),
           now,
         },
       );

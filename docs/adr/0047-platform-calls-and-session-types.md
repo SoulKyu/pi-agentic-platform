@@ -27,7 +27,7 @@ Platform ops (`PLATFORM_OPS`; each tool is registered by the `pap-platform` inli
 | `agent.remind` (`agent_remind`) | `agent-thread` | **asks** | 5 pending, 24 a day; 15 minutes to 30 days ahead |
 | `secret.request` (`secret_request`) | `agent-thread`, sandbox on only | runs | 3 open per agent; waits 30 minutes less 2 s |
 | `network.request` (`network_request`) | `agent-thread` | runs | 10 an hour per thread |
-| `subagent.run` (`subagent`) | `plain`, `lane`, `agent-thread` | runs, the child starts tainted | M11b |
+| `subagent.run` (`subagent`) | `plain`, `lane`, `agent-thread` | runs; the child takes the caller's taint (ADR 0053) | 30 an hour per owner; `maxConcurrent` (default 2) per parent; 240 minutes |
 
 - `task`, `agent-task` and `child` get no op, so delegation and subagents stay one level deep and an isolated task never reaches the owner's attention by itself (C §5.3).
 - Dispatch (`modules/platform/dispatch.ts`): a call holds an audit slot first (none left: `rate_limited`, nothing runs); then a stopped dispatcher or read-only database, at most 8 calls in flight per session (the earlier worker's calls end `cancelled`), a well-formed id and tool call id, arguments under 64 KiB, the session's row (owner, type, taint), the verdict, the strict argument schema, the handler's presence and switch, and the handler under the op's deadline. These steps run without an `await`, so what was checked is what the handler starts under. The result must fit the op's result schema (`internal` otherwise). Every call writes one audit row (kind `policy`, tool = the op, detail `{op, type, code}`), never the arguments.

@@ -13,12 +13,19 @@ export interface InboxPanelProps {
   onOpenSession(sessionId: string): void;
   /** The shell opens the agent's tab, scrolled to `entryId` when it is given. */
   onOpenAgent?(agentId: string, entryId: string | null): void;
+  /** The shell opens Settings › Memory, where a `memory_review` item's facts wait (W5-R61: the row carries no fact text). */
+  onOpenMemory?(): void;
   /** The account's avatar style (Settings › Appearance), given by the shell. */
   readonly avatarStyle?: AvatarStyle;
 }
 
 /** The Inbox (decision 29, board 09 §2): header, filters, rows to handle first. Shown in the right drawer and in the phone's Inbox section. */
-export default function InboxPanel({ onOpenSession, onOpenAgent, avatarStyle }: InboxPanelProps) {
+export default function InboxPanel({
+  onOpenSession,
+  onOpenAgent,
+  onOpenMemory,
+  avatarStyle,
+}: InboxPanelProps) {
   const t = useT();
   const view = useInboxStore((state) => state.view);
   const [filter, setFilter] = useState<InboxFilter>("all");
@@ -43,7 +50,8 @@ export default function InboxPanel({ onOpenSession, onOpenAgent, avatarStyle }: 
   const pick = (item: InboxItem) => {
     if (item.readAt === null)
       markRead({ ids: [item.id] }).catch(() => toast({ message: t("inbox.readAllFailed"), tone: "error" }));
-    if (item.agentId !== null) onOpenAgent?.(item.agentId, item.entryId);
+    if (item.kind === "memory_review") onOpenMemory?.();
+    else if (item.agentId !== null) onOpenAgent?.(item.agentId, item.entryId);
     else if (item.sessionId !== null) onOpenSession(item.sessionId);
   };
   const options: Option<InboxFilter>[] = FILTERS.map((value) => ({

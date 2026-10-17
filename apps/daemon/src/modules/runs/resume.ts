@@ -69,6 +69,8 @@ export interface ResumeDeps {
   readonly sandboxedAgent?: (ownerId: string, sessionId: string) => boolean;
   /** The session is an agent's (thread or child): a token never continues it (M11R4, W5-R64). */
   readonly agentSession?: (ownerId: string, sessionId: string) => boolean;
+  /** The session is a child of a `subagent` call: its call is over at the run end, so nothing continues it on its own (M11R139). */
+  readonly childSession?: (ownerId: string, sessionId: string) => boolean;
   /**
    * The task that owns the session (a Resume now click's run carries none, so the chain would lose it) and whether its
    * trigger is over its own daily budget (M10R66): a scheduled resume is skipped then. A click is not asked.
@@ -78,7 +80,7 @@ export interface ResumeDeps {
   readonly limitChanged: (ownerId: string, sessionId: string) => void;
 }
 
-type Skip = "archived" | "newer_input" | "full_access" | "budget";
+type Skip = "archived" | "newer_input" | "full_access" | "budget" | "child";
 
 export interface Resume {
   /** Writes the `run.resume` effect for a run that just closed as `limited`, in the caller's transaction. */
@@ -144,6 +146,10 @@ export function createResume(deps: ResumeDeps): Resume {
     const resetAt = row.limitResetAt;
     if (resetAt === null || !deps.settings(row.ownerId).autoResume) return;
     if (heldForFullAccess(row.ownerId, row.sessionId)) return;
+    if (deps.childSession?.(row.ownerId, row.sessionId) === true) {
+      runs.resumeSkipped(row.sessionId, "child");
+      return;
+    }
     enqueueEffect(
       outbox.db,
       {
@@ -164,6 +170,7 @@ export function createResume(deps: ResumeDeps): Resume {
     state: { archived: boolean; running: boolean },
   ): Skip | null {
     if (state.archived) return "archived";
+    if (deps.childSession?.(ownerId, row.sessionId) === true) return "child";
     if (lookup.newerThan(row) || state.running || sending.has(row.sessionId)) return "newer_input";
     if (heldForFullAccess(ownerId, row.sessionId)) return "full_access";
     if (overBudget(ownerId)) return "budget";

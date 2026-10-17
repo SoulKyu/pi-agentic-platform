@@ -32,6 +32,7 @@ import type { SessionsScanPort } from "./scan-port.ts";
 import { type ShellRpc, shellRpc } from "./shell-rpc.ts";
 import { createSessionsService } from "./service.ts";
 import type { SessionsAgentPort } from "./agent-port.ts";
+import type { SessionsChildPort } from "./child-port.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
@@ -41,6 +42,7 @@ export { resolveSessionCwd } from "./cwd.ts";
 export { createExports, type Exports } from "./exports.ts";
 export type { SessionsAutomationPort } from "./automation-port.ts";
 export type { SessionsAgentPort } from "./agent-port.ts";
+export type { ChildProfile, SessionsChildPort } from "./child-port.ts";
 export type { Admission } from "./fork-quota.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
@@ -103,6 +105,10 @@ export interface SessionsModule {
   shutdownAll(): Promise<void>;
   /** The owner of a session, or null when there is none: the policy module's late-bound lookup (M5R56). */
   ownerOf(sessionId: string): string | null;
+  /** The folder of the owner's session; null when there is none or it is another owner's (Task 29a). */
+  cwdOf(ownerId: string, sessionId: string): string | null;
+  /** True for a session that belongs to an agent (its thread, task or child): the profile reader skips project files (W5-R27). */
+  isAgentSession(sessionId: string): boolean;
   inspect(sessionId: string): { pid: number | undefined; rssMb: number | null } | null;
   /** A trust decision applies at the next open (M7R105): releases the owner's workers in the folder or below. */
   restartFolder(ownerId: string, folder: string): number;
@@ -116,6 +122,8 @@ export interface SessionsModule {
   readonly automation: SessionsAutomationPort;
   /** What the agents module and the runner may do to the sessions of agents (M11R50). */
   readonly agentSessions: SessionsAgentPort;
+  /** What the subagents module may do to the child sessions of a parent (M11R136). */
+  readonly child: SessionsChildPort;
   /** The mode in force for a session (the effective mode of an agent thread): what the usage resume reads (M10R104). */
   readonly modeOf: (ownerId: string, sessionId: string) => ApprovalMode;
   /** Owner a5: an agent thread whose sandbox is on now and at its worker's start (the usage resume reads it). */
@@ -185,13 +193,13 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
     loadWriter: () => loadPiWriter(forkTmpDir, { logger }),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
-    spawn: (cwd) => {
+    spawn: (cwd, extraEnv) => {
       const scope = deps.scopes.next();
       return spawnWorker({
         entry: config.piHostEntry,
         execArgv: config.piHostExecArgv,
         cwd,
-        env,
+        env: extraEnv ? { ...env, ...extraEnv } : env,
         clock: deps.clock,
         logger: logger.child({ component: "worker", ...(scope ? { unit: scope.unit } : {}) }),
         ...(scope ? { scope } : {}),
@@ -213,6 +221,8 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     logger.error("session_projects_backfill_failed", { err: error });
   }
   service.startOrganiser();
+  // A prompt file whose session is gone is not kept (W5-R62); a read-only database changes nothing.
+  if (!store.readOnly) service.child.sweepPrompts();
   deps.hub.registerSnapshot("session", (key) => service.snapshot(key));
   // The key is the owner's id, taken from the transport: any key answers, empty for a person without sessions.
   deps.hub.registerSnapshot("shell", (ownerId) => service.shellSnapshot(ownerId));
@@ -228,6 +238,11 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
       }
     },
     ownerOf: (sessionId) => store.get(sessionId)?.ownerId ?? null,
+    cwdOf(ownerId, sessionId) {
+      const row = store.get(sessionId);
+      return row?.ownerId === ownerId ? row.cwd : null;
+    },
+    isAgentSession: (sessionId) => store.get(sessionId)?.agentId !== undefined,
     inspect: (sessionId) => service.inspect(sessionId),
     restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),
     releaseIdle: (ownerId, sessionId) => service.releaseIdle(ownerId, sessionId),
@@ -242,6 +257,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     setLaneHooks: laneHooks.set,
     automation: service.automation,
     agentSessions: service.agentSessions,
+    child: service.child,
     modeOf: service.modeOf,
     sandboxedThread: service.agent.sandboxedThread,
     kindOf: service.agent.kindOf,

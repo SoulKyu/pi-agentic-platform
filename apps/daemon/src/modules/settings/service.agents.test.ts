@@ -35,7 +35,10 @@ afterEach(() => {
 
 const browser = testCaller({ userId: "u1" });
 const token = testCaller({ userId: "u1", kind: "token", credentialId: "tok-1" });
-const value = { newAgent: { sandbox: { required: false, network: true } } };
+const value = {
+  newAgent: { sandbox: { required: false, network: true } },
+  subagents: { enabled: true, maxConcurrent: 2 },
+};
 
 describe("the agents setting (M11R99)", () => {
   it("is the browser's: a token is refused with forbidden and nothing is written", () => {

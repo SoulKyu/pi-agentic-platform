@@ -8,6 +8,7 @@ export const SETTINGS_SECTIONS = [
   "skills",
   "automation",
   "agents",
+  "memory",
   "account",
 ] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];

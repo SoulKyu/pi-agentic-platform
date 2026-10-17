@@ -40,7 +40,7 @@ export const agentSettingsEn = {
   "agentForm.sandbox.unusableHint":
     "Required cannot start this agent until bubblewrap works here. Off is still yours to choose.",
   "agentForm.sandbox.folders":
-    "The shell sees its home and the system, never your home folder. Its file tools read only its home, its own runs folder, the files attached to the thread and the system folders.",
+    "The shell sees its home and the system, never your home folder. Its file tools read only its home, its own runs folder, the files attached to the thread, Pi's skills (read-only) and the system folders.",
   "agentForm.probe.checking": "Checking the sandbox…",
   "agentForm.probe.usable": "bubblewrap found at {path}",
   "agentForm.probe.unusable": "not usable: {reason}",
@@ -171,7 +171,7 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.sandbox.unusableHint":
     "Obligatoire empêche cet agent de démarrer tant que bubblewrap ne fonctionne pas ici. Désactivé reste votre choix.",
   "agentForm.sandbox.folders":
-    "Le shell voit son dossier et le système, jamais votre dossier personnel. Ses outils de fichiers ne lisent que son dossier, son dossier d'exécutions, les fichiers joints au fil et les dossiers système.",
+    "Le shell voit son dossier et le système, jamais votre dossier personnel. Ses outils de fichiers ne lisent que son dossier, son dossier d'exécutions, les fichiers joints au fil, les skills de Pi (en lecture seule) et les dossiers système.",
   "agentForm.probe.checking": "Vérification du bac à sable…",
   "agentForm.probe.usable": "bubblewrap trouvé dans {path}",
   "agentForm.probe.unusable": "inutilisable : {reason}",

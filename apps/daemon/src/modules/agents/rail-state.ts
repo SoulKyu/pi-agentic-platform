@@ -10,7 +10,7 @@ export interface RailFacts {
   readonly threadNeedsInput: boolean;
   /** The agent has a pending request (`agent.approve`, `secret.request`). */
   readonly requestPending: boolean;
-  /** A child of the thread waits for the owner (Task 30). */
+  /** A child of the thread waits for the owner: its approval or input dialog is open (Task 30). */
   readonly childWaiting: boolean;
   readonly threadRunning: boolean;
   /** One of the agent's tasks runs or starts. */

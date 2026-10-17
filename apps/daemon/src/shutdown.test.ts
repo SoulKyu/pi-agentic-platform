@@ -2,7 +2,13 @@ import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
 import { createFakeClock } from "./kernel/clock.ts";
 import { silentLogger } from "./kernel/logger.ts";
-import { createShutdown, forceKill, STOP_DEADLINE_MS, watchSignals } from "./shutdown.ts";
+import {
+  createShutdown,
+  createStartupSignals,
+  forceKill,
+  STOP_DEADLINE_MS,
+  watchSignals,
+} from "./shutdown.ts";
 
 function bed(stop: () => Promise<void>) {
   const clock = createFakeClock();
@@ -77,6 +83,43 @@ describe("shutdown", () => {
     source.emit("SIGHUP");
     source.emit("SIGTERM");
     expect(calls).toEqual(["stop", "killWorkers", "exit 1"]);
+  });
+});
+
+describe("signals during startup", () => {
+  it("waits for the shutdown, then triggers it with the first signal", () => {
+    const { shutdown, calls } = bed(() => new Promise<void>(() => {}));
+    const gaveUp = vi.fn();
+    const startup = createStartupSignals(gaveUp);
+    startup.trigger("SIGHUP");
+    expect(calls).toEqual([]);
+    startup.ready(shutdown);
+    expect(calls).toEqual(["stop"]);
+    expect(gaveUp).not.toHaveBeenCalled();
+  });
+
+  it("passes a signal straight to the shutdown once it is ready, and the second one forces it", () => {
+    const { shutdown, calls } = bed(() => new Promise<void>(() => {}));
+    const startup = createStartupSignals(vi.fn());
+    startup.ready(shutdown);
+    startup.trigger("SIGTERM");
+    startup.trigger("SIGINT");
+    expect(calls).toEqual(["stop", "killWorkers", "exit 1"]);
+  });
+
+  it("gives up on a second signal before the shutdown is there", () => {
+    const gaveUp = vi.fn();
+    const startup = createStartupSignals(gaveUp);
+    startup.trigger("SIGHUP");
+    expect(gaveUp).not.toHaveBeenCalled();
+    startup.trigger("SIGTERM");
+    expect(gaveUp).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing when no signal came", () => {
+    const { shutdown, calls } = bed(() => Promise.resolve());
+    createStartupSignals(vi.fn()).ready(shutdown);
+    expect(calls).toEqual([]);
   });
 });
 

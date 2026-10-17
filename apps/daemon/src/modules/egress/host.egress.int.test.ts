@@ -245,6 +245,8 @@ describe.skipIf(!usable)("a networked agent shell behind the real egress proxy (
       policy,
       testProviderScript: join(root, "script.json"),
       sandbox: spec,
+      // A thread has network_request: that tool is what lets the refusal line tell it to ask (carry 2).
+      platform: { ops: ["network.request"] },
       agent: { id: "atlas-1a2b", name: "Atlas", role: "test" },
     });
     await vi.waitFor(() => expect(records.some((record) => record.type === "ready")).toBe(true), {

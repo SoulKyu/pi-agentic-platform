@@ -35,6 +35,10 @@ export default function InboxDrawer({ open, onOpenChange }: DrawerProps) {
           useWorkspaceStore.getState().open({ kind: "agent", id: agentId });
           onOpenChange(false);
         }}
+        onOpenMemory={() => {
+          useWorkspaceStore.getState().open({ kind: "settings", section: "memory" });
+          onOpenChange(false);
+        }}
         onOpenSession={(id) => {
           useWorkspaceStore.getState().open({ kind: "session", id });
           onOpenChange(false);

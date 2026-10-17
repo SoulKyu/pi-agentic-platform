@@ -1,3 +1,4 @@
+import type { ShellSession } from "@pap/contracts";
 import { cn, FOCUS_RING, IconButton, IconChevronDown, IconChevronRight } from "@pap/ui";
 import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
@@ -8,13 +9,15 @@ import type { TreeLane } from "./tree.vm.ts";
 
 interface LaneRowProps {
   readonly row: TreeLane;
+  /** The sessions' subagents by parent id (M11R153). */
+  readonly subagents: ReadonlyMap<string, readonly ShellSession[]>;
   readonly now: number;
   /** A lane or one of its sessions was picked: the drawer closes. */
   onPick(id: string): void;
 }
 
 /** One lane under its project: status dot and word, title, branch, +ahead, ●dirty, #PR; expands to its sessions. */
-export function LaneRow({ row, now, onPick }: LaneRowProps) {
+export function LaneRow({ row, subagents, now, onPick }: LaneRowProps) {
   const t = useT();
   const { lane, status } = row;
   const [open, setOpen] = useState(false);
@@ -86,7 +89,13 @@ export function LaneRow({ row, now, onPick }: LaneRowProps) {
               className="flex flex-col gap-s1 pl-s4"
             >
               {row.sessions.map((session) => (
-                <SessionRow key={session.id} session={session} now={now} onPick={onPick} />
+                <SessionRow
+                  key={session.id}
+                  session={session}
+                  subagents={subagents.get(session.id)}
+                  now={now}
+                  onPick={onPick}
+                />
               ))}
             </ul>
           ) : (

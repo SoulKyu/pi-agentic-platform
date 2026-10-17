@@ -25,11 +25,11 @@ import { everyOp, rawAnswers, rawCall, rawStep } from "./testing/raw-platform-ex
 // The roadmap's first M11 exit criterion, from inside real workers: "no caller can run an op its session type does not
 // allow". One real session of each type sends a raw `platform_call` for every op (what a compromised worker would send:
 // most types register no such tool). Exactly the table's cells run; every other cell is `forbidden`, changes nothing and
-// leaves one `block` audit row `{op, type, code}`. In M11a the `subagent.run` cells of plain, lane and agent-thread are
-// `unavailable` (no handler yet) and no worker offers a `subagent` tool (RT-09: read from each session's loadout, the tools the worker offers the model; a tool registered but kept inactive would not show there). Task 29b turns those cells into runs.
+// leaves one `block` audit row `{op, type, code}`. The `subagent.run` cells of plain, lane and agent-thread run (Task 29b's
+// handler; the owner's switch is on by default) and each of those workers registers the `subagent` tool (RT-09: read from its loadout).
 const usable = bwrapUsable("platform-ops.int.test");
 
-type Cell = "ok" | "forbidden" | "unavailable";
+type Cell = "ok" | "forbidden";
 const NONE: Record<PlatformOp, Cell> = {
   "agent.notify": "forbidden",
   "agent.approve": "forbidden",
@@ -42,8 +42,8 @@ const NONE: Record<PlatformOp, Cell> = {
 };
 // The table, written out by hand: the oracle does not read the contract it checks.
 const MATRIX: Record<SessionType, Record<PlatformOp, Cell>> = {
-  plain: { ...NONE, "subagent.run": "unavailable" },
-  lane: { ...NONE, "lane.note": "ok", "subagent.run": "unavailable" },
+  plain: { ...NONE, "subagent.run": "ok" },
+  lane: { ...NONE, "lane.note": "ok", "subagent.run": "ok" },
   task: NONE,
   "agent-thread": {
     ...NONE,
@@ -53,7 +53,7 @@ const MATRIX: Record<SessionType, Record<PlatformOp, Cell>> = {
     "agent.remind": "ok",
     "secret.request": "ok",
     "network.request": "ok",
-    "subagent.run": "unavailable",
+    "subagent.run": "ok",
   },
   "agent-task": NONE,
   child: NONE,
@@ -143,17 +143,23 @@ function expectCells(sessionId: string, type: SessionType): void {
   }
 }
 
-/** What the worker itself heard back, for the types whose worker is still up when the answers arrive. */
-function expectAnswers(name: string, type: SessionType): void {
-  const answers = rawAnswers(resultsFile(name));
-  expect(answers.map((answer) => answer.id).sort()).toEqual(
-    PLATFORM_OP_NAMES.map((_, i) => `r${i + 1}`).sort(),
+/**
+ * What the worker itself heard back, for the types whose worker is still up when the answers arrive. A session whose
+ * `subagent.run` runs also starts a child worker that reads the same script: its eight raw calls are all forbidden (type
+ * `child`) and are answered into the same file, so each id is expected twice, once from the parent and once from the child.
+ */
+function expectAnswers(name: string, type: SessionType, childScripted = true): void {
+  const answer = (id: string, cell: Cell) => `${id}:${cell === "ok" ? "ok" : cell}`;
+  const expected = PLATFORM_OP_NAMES.flatMap((op, index) => [
+    answer(`r${index + 1}`, MATRIX[type][op]),
+    ...(childScripted && type !== "child" && MATRIX[type]["subagent.run"] === "ok"
+      ? [answer(`r${index + 1}`, MATRIX.child[op])]
+      : []),
+  ]);
+  const seen = rawAnswers(resultsFile(name)).map((entry) =>
+    answer(entry.id, entry.ok ? "ok" : (entry.error as Cell)),
   );
-  PLATFORM_OP_NAMES.forEach((op, index) => {
-    const cell = MATRIX[type][op];
-    const answer = answers.find((entry) => entry.id === `r${index + 1}`);
-    expect(answer, `${type} ${op}`).toMatchObject(cell === "ok" ? { ok: true } : { ok: false, error: cell });
-  });
+  expect(seen.sort(), type).toEqual(expected.sort());
 }
 
 const WEBHOOK_SOURCE = { type: "webhook", format: "alertmanager" } as const;
@@ -178,7 +184,7 @@ async function fireWebhook(trigger: { id: string; secret: string }, fingerprint:
 }
 
 describe.skipIf(!usable)("every op from every session type, through real workers (M11R111)", () => {
-  it("plain: every op is forbidden but subagent.run, which has no handler yet", async () => {
+  it("plain: every op is forbidden but subagent.run, which runs a child", async () => {
     armScript("plain");
     const before = effectsOf(bed.t);
     const { sessionId } = await call<{ sessionId: string }>("sessions.create", { cwd: bed.t.cwd });
@@ -188,7 +194,9 @@ describe.skipIf(!usable)("every op from every session type, through real workers
     expectAnswers("plain", "plain");
     const tools = await toolsOf(sessionId);
     expect(tools).toContain("bash");
-    expect(tools.filter((name) => /^(agent_|lane_|secret_|network_|subagent)/.test(name))).toEqual([]);
+    expect(tools.filter((name) => /^(agent_|lane_|secret_|network_|subagent)/.test(name))).toEqual([
+      "subagent",
+    ]);
     expect(effectsOf(bed.t)).toEqual(before);
   }, 90_000);
 
@@ -209,7 +217,7 @@ describe.skipIf(!usable)("every op from every session type, through real workers
     expectAnswers("lane", "lane");
     const tools = await toolsOf(sessionId);
     expect(tools).toContain("lane_note");
-    expect(tools).not.toContain("subagent");
+    expect(tools).toContain("subagent");
     expect(tools.filter((name) => /^(agent_|secret_|network_)/.test(name))).toEqual([]);
     expect(rows<{ note: string }>(bed.t.home, "SELECT note FROM lanes WHERE id = ?", lane.id)).toEqual([
       { note: "raw lane note" },
@@ -264,11 +272,23 @@ describe.skipIf(!usable)("every op from every session type, through real workers
     await call("sessions.prompt", { sessionId, text: "go" });
     await settled(sessionId, true);
     expectCells(sessionId, "agent-thread");
-    expectAnswers("thread", "agent-thread");
+    expectAnswers("thread", "agent-thread", false);
     // Scout's thread task has started and ended: no worker of the next case reads a script meant for another.
     await vi.waitFor(() => expect(taskRowsOf(bed.t, scout).map((task) => task.state)).toEqual(["done"]), {
       timeout: 60_000,
     });
+    // The delegation's result card on Atlas's side is written just after the task ends: no later case counts it.
+    await vi.waitFor(
+      () =>
+        expect(
+          rows<{ n: number }>(
+            bed.t.home,
+            "SELECT count(*) AS n FROM agent_events WHERE agent_id = ? AND kind = 'delegation'",
+            atlas,
+          )[0]?.n,
+        ).toBe(1),
+      { timeout: 30_000 },
+    );
     const after = effectsOf(bed.t);
     // notify: an Inbox item and a card; approve and secret: a request each (and an item each); delegate and remind: a task each.
     expect(after.requests - before.requests).toBe(2);
@@ -295,7 +315,7 @@ describe.skipIf(!usable)("every op from every session type, through real workers
       state: "queued",
       target: "thread",
     });
-    // RT-09: the thread's worker offers exactly the tools its type may call; no `subagent` (no handler yet), no `lane_note`.
+    // RT-09: the thread's worker offers exactly the tools its type may call: `subagent`, no `lane_note`.
     const tools = await toolsOf(sessionId);
     expect(tools).toEqual(
       expect.arrayContaining([
@@ -305,15 +325,14 @@ describe.skipIf(!usable)("every op from every session type, through real workers
         "agent_remind",
         "secret_request",
         "network_request",
+        "subagent",
       ]),
     );
-    expect(tools).not.toContain("subagent");
     expect(tools).not.toContain("lane_note");
     // network.request ran: no host was granted by the raw call itself.
-    expect(rawAnswers(resultsFile("thread")).find((answer) => answer.id === "r7")).toMatchObject({
-      ok: true,
-      result: { granted: false },
-    });
+    expect(rawAnswers(resultsFile("thread"))).toContainEqual(
+      expect.objectContaining({ id: "r7", ok: true, result: { granted: false } }),
+    );
   }, 180_000);
 
   it("child: nothing runs, whatever the parent's agent may do", async () => {

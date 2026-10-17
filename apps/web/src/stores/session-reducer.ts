@@ -10,6 +10,7 @@ import {
   type ToolPreset,
   type SessionPolicyView,
   SessionStreamEvent,
+  type ChildView,
   type Dialog,
   type SessionStatus,
 } from "@pap/contracts";
@@ -69,6 +70,8 @@ export interface SessionView extends UiState {
   readonly loadout: SessionLoadout | null;
   /** The session's tool preset as last known, with or without a worker: the snapshot's stored one, then each loadout (MC37). Null before a snapshot or from an older daemon. */
   readonly toolPreset: ToolPreset | null;
+  /** The session's subagents, newest first (M11R153); empty from an older daemon. */
+  readonly children: readonly ChildView[];
   readonly loaded: boolean;
   /** Counts the snapshots this view has had: a page asked for one generation is dropped in another (M2-RT-12). */
   readonly generation: number;
@@ -96,6 +99,7 @@ export const EMPTY_VIEW: SessionView = {
   policy: DEFAULT_SESSION_POLICY_VIEW,
   loadout: null,
   toolPreset: null,
+  children: [],
   loaded: false,
   generation: 0,
   unreadable: false,
@@ -148,6 +152,7 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         policy: event.policy,
         loadout: event.loadout,
         toolPreset: event.loadout?.preset ?? event.toolPreset ?? null,
+        children: event.children,
         loaded: true,
         generation: view.generation + 1,
       };
@@ -210,6 +215,8 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
             ...view,
             messages: appendMessage(view.messages, toMessageView(event.row.message, event.row.entryId)),
           };
+    case "subagents":
+      return { ...view, children: event.children };
     case "loadout":
       return { ...view, loadout: event.loadout, toolPreset: event.loadout.preset };
     default:

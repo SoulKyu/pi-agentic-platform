@@ -54,6 +54,10 @@ export function parts(
   const runs = {
     onRunStart: vi.fn(() => () => {}),
     onRunEnd: vi.fn((listener: (event: unknown) => void) => (runEnds.push(listener), () => {})),
+    expectOrigin: vi.fn(() => true),
+    clearExpected: spy(),
+    openTaskOf: vi.fn((): string | null => null),
+    sessionCost: vi.fn((): number | null => null),
   };
   const sessions = {
     setAgentPorts: spy(),
@@ -70,6 +74,18 @@ export function parts(
     approvedCalls: { take: vi.fn(() => false) },
     releaseIdle: vi.fn(() => "released"),
     automation,
+    child: {
+      admits: vi.fn(() => true),
+      createChildSession: spy(),
+      lastText: spy(),
+      setSource: spy(),
+      refresh: spy(),
+      onGone: vi.fn(() => () => {}),
+      waiting: vi.fn(() => false),
+      waitingAgent: vi.fn(() => false),
+    },
+    cwdOf: vi.fn(() => "/work"),
+    isAgentSession: vi.fn(() => false),
   };
   const laneOf = vi.fn((cwd: string) => (cwd === "/lane" ? { ownerId: "u1" } : null));
   const agentTasks = {
@@ -97,7 +113,13 @@ export function parts(
       statusOf: vi.fn(() => ({ tasks: [], triggers: [] })),
     },
   };
-  const settings = { port: { automation: vi.fn(() => ({ timezone: "UTC", quietHours: null })) } };
+  const settings = {
+    port: {
+      automation: vi.fn(() => ({ timezone: "UTC", quietHours: null })),
+      agents: vi.fn(() => ({ subagents: { enabled: true, maxConcurrent: 2 } })),
+    },
+  };
+  const subagents = { pi: { helpers: { run: spy() }, trust: { status: async () => true } }, sessions };
   // The real Inbox: the delegation result's reply item and an agent's delete are read back from its table.
   const inbox = createInbox({
     db,
@@ -117,7 +139,8 @@ export function parts(
   const m11 = composeM11(
     {
       db,
-      config: { home: dir, bwrapOverride: "/nonexistent/pap-bwrap" },
+      config: { home: dir, bwrapOverride: "/nonexistent/pap-bwrap", piAgentDir: join(dir, "pi-agent") },
+      env: {},
       clock,
       logger: silentLogger,
       readOnly: options.readOnly ?? false,
@@ -132,6 +155,7 @@ export function parts(
       automationModule,
       inbox,
       settings,
+      subagents,
       // The real proxy would probe python3 and write under the home for every composition: the tests that do not need it get a stand-in.
       ...(options.realEgress ? {} : { egress: UNUSABLE_EGRESS }),
     } as never,
@@ -152,5 +176,6 @@ export function parts(
     runEnds,
     clock,
     settings,
+    subagents,
   };
 }

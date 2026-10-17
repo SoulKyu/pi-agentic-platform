@@ -76,7 +76,14 @@ describe("pap serve", () => {
   it("boots, prints the setup address and where it listens, and stops cleanly on SIGTERM", async () => {
     const port = await freePort();
     const serve = run(["serve", "--port", String(port)]);
-    await vi.waitFor(() => expect(serve.line("listening")).toBeDefined(), { timeout: 20_000 });
+    // `setup_url` is printed by main after the daemon returns, a tick after `listening` (which the daemon logs itself).
+    await vi.waitFor(
+      () => {
+        expect(serve.line("listening")).toBeDefined();
+        expect(serve.line("setup_url")).toBeDefined();
+      },
+      { timeout: 20_000 },
+    );
     expect(serve.line("listening")).toMatchObject({ url: `http://localhost:${port}`, port });
     expect(serve.lines.filter((line) => line.msg === "setup_url")).toHaveLength(1);
     expect(String(serve.line("setup_url")?.url)).toMatch(
@@ -123,6 +130,25 @@ describe("pap serve", () => {
     expect(await serve.exit()).toEqual({ code: 0, signal: null });
     expect(serve.line("shutting_down")).toMatchObject({ reason: signal });
   });
+
+  // FLAKE-W5-6: "listening" is logged before main installs its handlers, so a signal sent as soon as a script sees that
+  // line could still meet the default action (the process dies by the signal, code null). Every signal that comes while
+  // the daemon starts now waits for it, and the stop is the graceful one.
+  it.each(["SIGINT", "SIGHUP", "SIGTERM"] as const)(
+    "a %s that arrives while the daemon is still starting waits for it, then stops cleanly",
+    async (signal) => {
+      const serve = run(["serve", "--port", String(await freePort())], join(root, "home"), {
+        PAP_LOG_LEVEL: "debug",
+      });
+      // The first log lines are the migrations, well before the daemon listens.
+      serve.child.stdout?.once("data", () => serve.child.kill(signal));
+      expect(await serve.exit()).toEqual({ code: 0, signal: null });
+      expect(serve.line("shutting_down")).toMatchObject({ reason: signal });
+      expect(existsSync(join(root, "home", "pap.lock"))).toBe(false);
+      expect(serve.stderr()).toBe("");
+    },
+    30_000,
+  );
 
   it("refuses to start a second daemon on the same home and says why (R70)", async () => {
     const first = run(["serve", "--port", String(await freePort())]);

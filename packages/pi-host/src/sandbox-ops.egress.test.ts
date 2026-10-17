@@ -12,6 +12,7 @@ import {
   type SandboxSpec,
 } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { RefusalAdvice } from "./egress-line.ts";
 import { sandboxedShell, type ShellEgress, toolCall } from "./sandbox-ops.ts";
 
 const SOCKET = "/run/user/1000/pap/ab12cd/egress/0/1.s";
@@ -107,12 +108,14 @@ function exec(
   egress: ShellEgress | undefined,
   toolCallId: string | undefined,
   command = "curl https://allowed.test",
+  advice?: () => RefusalAdvice,
 ) {
   const out: string[] = [];
   const ops = sandboxedShell(spec, () => ({ PATH: "/usr/bin" }), {
     timers,
     spawn: fakeSpawn,
     ...(egress ? { egress } : {}),
+    ...(advice ? { advice } : {}),
   });
   const start = () => ops.exec(command, "/", { onData: (data) => out.push(data.toString()) });
   const done = toolCallId === undefined ? start() : toolCall.run(toolCallId, start);
@@ -292,6 +295,26 @@ describe("the line after a refusal (M11R238, worker half)", () => {
   it("gives an isolated task the sentence that says it cannot ask", async () => {
     expect(await run([hostEntry("unlisted.test")], "system")).toBe(
       "body\n[pap] The egress proxy refused: unlisted.test (not on this agent's host list). An isolated task cannot ask for more hosts.\n",
+    );
+  });
+
+  it("follows the session's kind, not the mount view: a child has no one to ask (Task 29b, carry 2)", async () => {
+    const asked = async (advice: () => RefusalAdvice) => {
+      const egress = port([{ id: "c1", socket: SOCKET }], {
+        c1: reportOf("c1", [hostEntry("unlisted.test")]),
+      });
+      const { done, out } = exec(egress, "t1", undefined, advice);
+      await finish(undefined, "body");
+      await done;
+      return out.join("");
+    };
+    // The mount view is `host` in all three: only the advice differs.
+    expect(await asked(() => "child")).toBe(
+      "body\n[pap] The egress proxy refused: unlisted.test (not on this agent's host list). This session cannot ask for more hosts; say in your answer which host you need.\n",
+    );
+    expect(await asked(() => "isolated")).toContain("An isolated task cannot ask for more hosts.");
+    expect(await asked(() => "thread")).toContain(
+      'In this thread, ask the owner with network_request {"host": "unlisted.test"}.',
     );
   });
 

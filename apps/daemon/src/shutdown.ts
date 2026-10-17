@@ -103,3 +103,25 @@ export interface SignalSource {
 export function watchSignals(shutdown: Shutdown, source: SignalSource): void {
   for (const signal of SHUTDOWN_SIGNALS) source.on(signal, () => shutdown.trigger(signal));
 }
+
+/**
+ * The signals of a daemon that is still starting (FLAKE-W5-6). Until the daemon is up there is nothing to stop
+ * gracefully, and without a handler the default action kills the process by the signal. So the first signal waits for
+ * `ready` and then goes to the shutdown; a second one before that gives up at once.
+ */
+export function createStartupSignals(giveUp: () => void) {
+  let shutdown: Shutdown | undefined;
+  let first: string | undefined;
+  return {
+    trigger(reason: string): void {
+      if (shutdown) shutdown.trigger(reason);
+      else if (first === undefined) first = reason;
+      else giveUp();
+    },
+    /** The daemon is up: a signal that came meanwhile starts the stop now. */
+    ready(target: Shutdown): void {
+      shutdown = target;
+      if (first !== undefined) target.trigger(first);
+    },
+  };
+}

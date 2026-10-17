@@ -1,4 +1,5 @@
 import {
+  AgentsSettings,
   AutomationSettings,
   MAX_SETTING_BYTES,
   ModelsSettings,
@@ -17,6 +18,8 @@ export interface SettingsPort {
   models(ownerId: string): ModelsSettings;
   /** The owner's Automation settings; a missing or damaged row reads as the defaults, logged (M10R162). */
   automation(ownerId: string): AutomationSettings;
+  /** The owner's Agents settings; a missing or damaged row reads as the defaults, subagents on (owner m12). */
+  agents(ownerId: string): AgentsSettings;
 }
 
 export interface SettingsService extends SettingsPort {
@@ -53,6 +56,12 @@ export function createSettingsService(deps: {
       if (parsed.success) return parsed.data;
       deps.logger.warn("settings_row_unreadable", { key: "automation" });
       return AutomationSettings.parse({});
+    },
+    agents(ownerId) {
+      const parsed = AgentsSettings.safeParse(read(ownerId, "agents").value ?? {});
+      if (parsed.success) return parsed.data;
+      deps.logger.warn("settings_row_unreadable", { key: "agents" });
+      return AgentsSettings.parse({});
     },
     set(caller, write) {
       // A token cannot lift the budget, unpause or add slots: the automation setting is the browser's (M10R162, RT-04).

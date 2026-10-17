@@ -65,6 +65,24 @@ describe("shell summaries", () => {
     });
   });
 
+  it("names the parent of a subagent's session, and nothing for any other", () => {
+    const row = {
+      id: "c1",
+      ownerId: "u1",
+      cwd: "/w/a",
+      name: null,
+      preview: null,
+      projectId: null,
+      createdAt: 1,
+      updatedAt: 2,
+      toolPreset: "configured" as const,
+      marks: NO_MARKS,
+    };
+    const live = { status: "idle", needsInput: false } as const;
+    expect(summaryOf({ ...row, parentId: "s1" }, live)).toMatchObject({ parentId: "s1" });
+    expect("parentId" in summaryOf(row, live)).toBe(false);
+  });
+
   it("keeps the sessions in order with each named project once, then the other active projects", () => {
     const snapshot = fitShellSnapshot({
       sessions: [summary("a", "p1"), summary("b", "p1"), summary("c", null)],

@@ -124,10 +124,19 @@ describe("egressScopeOf (M11R243, W5-R26)", () => {
     expect(egressScopeOf(row({ agentRole: "task" }), rulesOf(), grants)?.grants()).toEqual([]);
   });
 
-  it("has no scope for an owner session, a child, a network-off agent or a sandbox-off agent", () => {
+  it("gives a child of an agent thread the agent's list and trusted sources, and no grants (Task 29b, carry 3)", () => {
+    const grants = createHostGrants();
+    grants.note("s1", "late.test");
+    const scope = egressScopeOf(row({ agentRole: "child" }), rulesOf(), grants);
+    expect(scope).toMatchObject({ agentId: "atlas-1a2b", sessionId: "s1" });
+    expect(scope?.hosts).toEqual(rulesOf().allowHosts);
+    expect(scope?.trustedSources).toEqual(rulesOf().trustedSources);
+    expect(scope?.grants()).toEqual([]);
+  });
+
+  it("has no scope for an owner session, a network-off agent or a sandbox-off agent", () => {
     const grants = createHostGrants();
     expect(egressScopeOf(row({ agentId: undefined, agentRole: undefined }), rulesOf(), grants)).toBeNull();
-    expect(egressScopeOf(row({ agentRole: "child" }), rulesOf(), grants)).toBeNull();
     const off = { sandbox: { required: true, network: false } };
     expect(egressScopeOf(row(), rulesOf(off), grants)).toBeNull();
     expect(egressScopeOf(row(), rulesOf({ sandbox: null }), grants)).toBeNull();

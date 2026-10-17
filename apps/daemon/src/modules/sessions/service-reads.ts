@@ -1,4 +1,5 @@
 import {
+  type ChildView,
   type Cursor,
   type Caller,
   EMPTY_QUEUE,
@@ -82,6 +83,8 @@ export interface SessionReadsDeps {
   outsideWrite(id: string): boolean;
   /** The session's mode, whether it chose it, and its taint, read from the policy module (M5R61). */
   policyView(row: SessionRow): SessionPolicyView;
+  /** The session's subagents with their open dialogs (M11R140). */
+  children(sessionId: string): ChildView[];
 }
 
 export interface SessionReads {
@@ -269,6 +272,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         policy: deps.policyView(row),
         loadout: session?.loadout() ?? null,
         toolPreset: row.toolPreset ?? "configured",
+        children: deps.children(sessionId),
       });
       return withTrimmedHistory(snapshot, rows, history);
     },

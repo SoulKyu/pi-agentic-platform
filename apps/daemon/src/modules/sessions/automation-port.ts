@@ -201,6 +201,8 @@ export interface AutomationContext {
   readonly room: Pick<WorkerRoom, "keepOneFree" | "keepFreeFor" | "sandboxedOnly">;
   /** The worker of this session started with its sandbox on. */
   sandboxed(sessionId: string): boolean;
+  /** A session row was deleted: a child's prompt file goes, the stop of its children is told (M11R139 c, W5-R62). */
+  removed(row: SessionRow): void;
 }
 
 /** The only way the automation and runs modules reach sessions (M10R32). */
@@ -253,7 +255,8 @@ export function createAutomationPort(
       const recheck = cold && ownedRow(ownerId, sessionId).agentId !== undefined;
       if (recheck) ctx.room.keepFreeFor.add(sessionId);
       // Last before the `try`, whose `finally` removes it: nothing between can throw and leave the mark behind.
-      if (sandboxedOnly && cold) ctx.room.sandboxedOnly.add(sessionId);
+      // Set for a warm worker too: a pending memory release restarts it inside the prompt (31 m3).
+      if (sandboxedOnly) ctx.room.sandboxedOnly.add(sessionId);
       try {
         const { disposition } = await service().prompt(
           { sessionId, text, ...(stillWanted ? { stillWanted } : {}) },
@@ -324,6 +327,7 @@ export function createAutomationPort(
       deps.store.remove(sessionId);
       ctx.publisher.countsChanged(ownerId);
       ctx.publisher.projectChanged(ownerId, projectId);
+      ctx.removed(row);
       // Only a file under Pi's sessions folder, and only that path: a link is unlinked, never followed (M10R155).
       if (row.piPath && isPiSessionFile(deps.worker.agentDir, row.piPath)) {
         try {

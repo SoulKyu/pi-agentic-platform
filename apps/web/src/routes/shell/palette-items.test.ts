@@ -106,6 +106,7 @@ describe("buildPaletteItems", () => {
       "Skills",
       "Automation",
       "Agents",
+      "Memory",
       "Account",
     ]);
     settings[1]?.run();

@@ -30,6 +30,7 @@ export function summaryOf(
     toolPreset: row.toolPreset,
     needsInput: live.needsInput,
     projectId: row.projectId,
+    ...(row.parentId === undefined ? {} : { parentId: row.parentId }),
     pinRank: row.marks.pinRank,
     archivedAt: row.marks.archivedAt,
     settledAt: row.marks.settledAt,

@@ -2,6 +2,7 @@ import type { ApprovalMode, PolicyRules } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AgentProfile } from "./agent-gate.ts";
 import { agentHomePath } from "./agent-home.ts";
+import { childModeOf } from "./child-port.ts";
 import type { SessionRow } from "./store.ts";
 
 /** What the owner's settings contribute, merged with the agent's. */
@@ -73,6 +74,7 @@ export function createAgentRules(deps: AgentRulesDeps) {
     if (agentId === undefined) return {};
     const isTask = row.agentRole === "task";
     const isThread = row.agentRole === "thread";
+    const isChild = row.agentRole === "child";
     const profile = isTask ? "isolated-task" : "agent-thread";
     const agentHome = agentHomePath(deps.papHome, agentId);
     const found = deps.profileOf(row.ownerId, agentId, row.id);
@@ -87,16 +89,23 @@ export function createAgentRules(deps: AgentRulesDeps) {
     const { input } = found;
     return {
       profile,
+      // A child is held to its agent's mode, capped at `auto-accept-edits`, and keeps the lower mode its parent gave it (review I3).
       ...(isTask
         ? {}
-        : { approvalMode: owner.session ? effectiveMode(input.mode, owner.session).mode : input.mode }),
+        : {
+            approvalMode: owner.session
+              ? effectiveMode(isChild ? childModeOf(input.mode) : input.mode, owner.session).mode
+              : isChild
+                ? childModeOf(input.mode)
+                : input.mode,
+          }),
       allowHosts: input.allowHosts === null ? owner.allowHosts && [...owner.allowHosts] : input.allowHosts,
       denylist: [...owner.denylist, ...input.denylist].slice(0, MAX_DENYLIST),
       agentHome,
       agentScratch: isTask ? row.cwd : null,
       sandbox: { required: input.sandbox.required, network: input.sandbox.network },
       autonomy: isThread && input.trustedAutonomy ? { hosts: [...(input.allowHosts ?? [])] } : null,
-      trustedSources: isTask || isThread ? [...input.trustedSources] : [],
+      trustedSources: isTask || isThread || isChild ? [...input.trustedSources] : [],
       hostGrants: isThread ? [...deps.hostGrants(row.id)] : [],
     };
   };

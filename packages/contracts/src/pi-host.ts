@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { EgressClose, EgressOpen, EgressOpened, EgressReport } from "./egress.ts";
 import { ImageMime } from "./files.ts";
+import { InitChild, InitMemory } from "./pi-host-init.ts";
 import {
   AlwaysScope,
   AlwaysScopes,
@@ -63,6 +64,10 @@ export const InitRecord = z.object({
     })
     .optional(),
   ...INIT_PLATFORM_FIELDS,
+  /** A subagent's child: the profile's prompt, appended to the system prompt once like the agent's (M11R136). */
+  child: InitChild.optional(),
+  /** Missing: pi-mem0 gets no entry and runs its ordinary session (M11R142). */
+  memory: InitMemory.optional(),
   policy: z.unknown(),
   /** Tests only: the worker honours it when its environment also has PAP_TEST_PROVIDER=1. */
   testProviderScript: AbsolutePath.optional(),

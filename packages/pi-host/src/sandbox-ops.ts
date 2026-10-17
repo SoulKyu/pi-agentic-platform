@@ -6,7 +6,7 @@ import { bwrapArgv, type EgressReport, type SandboxSpec } from "@pap/contracts";
 import { errorClass } from "./bounded.ts";
 import { clipUnits, MAX_ID_LENGTH } from "./policy/trail.ts";
 import type { EgressGrant } from "./egress-client.ts";
-import { NO_PROXY_LINE, refusedLine } from "./egress-line.ts";
+import { NO_PROXY_LINE, type RefusalAdvice, refusedLine } from "./egress-line.ts";
 import type { Redactor } from "./policy/redact.ts";
 import { addStreamCount, createStreamRedactor } from "./redact-stream.ts";
 
@@ -108,6 +108,8 @@ export function sandboxedShell(
     readonly egress?: ShellEgress;
     /** The worker's secrets: the output Pi receives is redacted as it streams, because Pi writes it to a file first. */
     readonly redact?: () => Redactor;
+    /** Read when a refusal line is written; none: the mount view decides (a system view is an isolated task). */
+    readonly advice?: () => RefusalAdvice;
   } = {},
 ): ShellOperations {
   const timers = deps.timers ?? SYSTEM_TIMERS;
@@ -236,7 +238,7 @@ export function sandboxedShell(
     return run(spec, grant.socket, command, { ...options, onData }, async () => {
       const report = await egress.close(grant.id);
       egress.keep(clipUnits(toolCallId, MAX_ID_LENGTH), report);
-      say(refusedLine(report, spec.view));
+      say(refusedLine(report, deps.advice?.() ?? (spec.view === "system" ? "isolated" : "thread")));
     });
   }
 

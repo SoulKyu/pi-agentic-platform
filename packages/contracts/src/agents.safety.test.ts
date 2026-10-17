@@ -30,7 +30,10 @@ describe("Task 21 contracts", () => {
       errors: [{ step: "thread", code: "failed" }],
     };
     expect(QuarantineResult.parse(answer)).toEqual(answer);
-    expect(QuarantineResult.safeParse({ ...answer, errors: [{ step: "memory", code: "x" }] }).success).toBe(
+    expect(
+      QuarantineResult.safeParse({ ...answer, errors: [{ step: "memory", code: "failed" }] }).success,
+    ).toBe(true);
+    expect(QuarantineResult.safeParse({ ...answer, errors: [{ step: "nonsense", code: "x" }] }).success).toBe(
       false,
     );
     expect(QuarantineResult.safeParse({ ...answer, vaultNames: ["lower"] }).success).toBe(false);

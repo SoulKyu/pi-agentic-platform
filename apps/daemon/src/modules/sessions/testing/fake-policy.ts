@@ -115,6 +115,17 @@ export function fakePolicyPort(options: FakePolicyOptions = {}) {
       });
       for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
     },
+    setChildPolicy(ownerId, sessionId, child) {
+      if (failTask) throw new Error("setChildPolicy failed");
+      modes.set(sessionId, child.mode);
+      if (child.tools) lists.set(sessionId, [...child.tools]);
+      const held = taints.get(sessionId);
+      taints.set(sessionId, {
+        tainted: (held?.tainted ?? false) || child.taintedAt !== null,
+        epoch: held?.epoch ?? 0,
+      });
+      for (const listener of [...sessionListeners]) listener(ownerId, sessionId);
+    },
     endTaskPolicy(ownerId, sessionId) {
       unattended.delete(sessionId);
       for (const listener of [...sessionListeners]) listener(ownerId, sessionId);

@@ -83,6 +83,8 @@ describe("deadlines and cancels", () => {
     await bed.clock.advance(1);
     expect(bed.replies).toEqual([{ type: "platform_result", id: "p1", ok: false, error: "timeout" }]);
     expect(signals[0]?.aborted).toBe(true);
+    // The reason is the code, so an op can tell a deadline from a stop (Task 29b).
+    expect(signals[0]?.reason).toBe("timeout");
     expect(bed.audit[0]).toMatchObject({ decision: "block", reason: "timeout" });
   });
 
@@ -111,6 +113,7 @@ describe("deadlines and cancels", () => {
     bed.cancel("s1", "p1");
     await bed.settle();
     expect(signals[0]?.aborted).toBe(true);
+    expect(signals[0]?.reason).toBe("cancelled");
     expect(bed.replies).toEqual([{ type: "platform_result", id: "p1", ok: false, error: "cancelled" }]);
     expect(bed.clock.pending()).toBe(0);
   });

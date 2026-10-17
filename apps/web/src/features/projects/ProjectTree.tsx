@@ -64,13 +64,14 @@ function SavingStatus({ pending }: { readonly pending: boolean }) {
 interface ShelfProps {
   readonly title: string;
   readonly sessions: readonly ShellSession[];
+  readonly subagents: ReadonlyMap<string, readonly ShellSession[]>;
   readonly more: number;
   readonly now: number;
   onPick(id: string): void;
 }
 
 /** Snoozed and Settled: closed by default, at most 50 rows with "+N more" past them. */
-function Shelf({ title, sessions, more, now, onPick }: ShelfProps) {
+function Shelf({ title, sessions, subagents, more, now, onPick }: ShelfProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const titleId = useId();
@@ -87,7 +88,13 @@ function Shelf({ title, sessions, more, now, onPick }: ShelfProps) {
       >
         <ul className="flex flex-col gap-s1">
           {sessions.map((session) => (
-            <SessionRow key={session.id} session={session} now={now} onPick={onPick} />
+            <SessionRow
+              key={session.id}
+              session={session}
+              subagents={subagents.get(session.id)}
+              now={now}
+              onPick={onPick}
+            />
           ))}
         </ul>
         {more > 0 ? <p className="text-ui text-muted">{t("sidebar.shelfMore", { count: more })}</p> : null}
@@ -175,7 +182,13 @@ export default function ProjectTree({ onPick, onNewSession, chord, loadArchivedL
           </h3>
           <ul className="flex flex-col gap-s1">
             {model.pinned.map((session) => (
-              <SessionRow key={session.id} session={session} now={now} onPick={onPick} />
+              <SessionRow
+                key={session.id}
+                session={session}
+                subagents={model.children.get(session.id)}
+                now={now}
+                onPick={onPick}
+              />
             ))}
           </ul>
         </section>
@@ -201,14 +214,20 @@ export default function ProjectTree({ onPick, onNewSession, chord, loadArchivedL
                 className="flex flex-col gap-s1"
               >
                 {group.lanes.map((row) => (
-                  <LaneRow key={row.lane.id} row={row} now={now} onPick={onPick} />
+                  <LaneRow key={row.lane.id} row={row} subagents={model.children} now={now} onPick={onPick} />
                 ))}
               </ul>
             ) : null}
             {group.sessions.length > 0 ? (
               <ul className="flex flex-col gap-s1">
                 {group.sessions.map((session) => (
-                  <SessionRow key={session.id} session={session} now={now} onPick={onPick} />
+                  <SessionRow
+                    key={session.id}
+                    session={session}
+                    subagents={model.children.get(session.id)}
+                    now={now}
+                    onPick={onPick}
+                  />
                 ))}
               </ul>
             ) : null}
@@ -227,6 +246,7 @@ export default function ProjectTree({ onPick, onNewSession, chord, loadArchivedL
         <Shelf
           title={t("sidebar.snoozed", { count: model.snoozed.length + model.snoozedMore })}
           sessions={model.snoozed}
+          subagents={model.children}
           more={model.snoozedMore}
           now={now}
           onPick={onPick}
@@ -236,6 +256,7 @@ export default function ProjectTree({ onPick, onNewSession, chord, loadArchivedL
         <Shelf
           title={t("sidebar.settled", { count: model.settled.length + model.settledMore })}
           sessions={model.settled}
+          subagents={model.children}
           more={model.settledMore}
           now={now}
           onPick={onPick}

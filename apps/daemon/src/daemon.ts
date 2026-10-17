@@ -43,6 +43,8 @@ export interface DaemonHandle {
   readonly inspect: {
     workerPid(sessionId: string): number | undefined;
     workerRssMb(sessionId: string): number | null;
+    /** Tests: what the runs registry says the session cost, its subagents included (M11R141). */
+    sessionCost(sessionId: string): number | null;
   };
   /** Idempotent. Workers go first (R104), then the sockets, the receipt purge, the database and the instance lock. */
   stop(): Promise<void>;
@@ -259,6 +261,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         automationModule,
         inbox: m10Late.inbox,
         settings,
+        subagents: { pi, sessions },
       },
     );
     const handlers: HandlerTable = {
@@ -360,6 +363,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       inspect: {
         workerPid: (id) => sessions.inspect(id)?.pid,
         workerRssMb: (id) => sessions.inspect(id)?.rssMb ?? null,
+        sessionCost: (id) => m10.runs.port.sessionCost(id),
       },
       killScopes: () => scopes.killAllNow(),
       stop() {

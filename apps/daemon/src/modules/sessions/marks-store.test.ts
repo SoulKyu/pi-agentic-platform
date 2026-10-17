@@ -49,6 +49,35 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+describe("marks store: subagent sessions (M11R153)", () => {
+  const addChild = (id: string, parentSessionId: string) =>
+    createSessionsStore(db).insert(
+      {
+        id,
+        piPath: null,
+        piSessionId: null,
+        cwd: `/w/${id}`,
+        ownerId: "u1",
+        name: null,
+        createdAt: 1,
+        updatedAt: 20,
+        parentSessionId,
+      },
+      null,
+    );
+
+  it("reads the parent of a child and nothing of a session that has none", () => {
+    add("p", 10);
+    addChild("c", "p");
+    expect(marks.row("c")?.parentId).toBe("p");
+    expect(marks.row("p") && "parentId" in (marks.row("p") as object)).toBe(false);
+    expect(marks.window("u1", 10).map((row) => [row.id, row.parentId])).toEqual([
+      ["c", "p"],
+      ["p", undefined],
+    ]);
+  });
+});
+
 describe("marks store", () => {
   it("reads a row with no marks as NO_MARKS", () => {
     add("a", 10, { projectId: "p1" });

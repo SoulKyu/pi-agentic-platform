@@ -66,6 +66,7 @@ export function createPolicyModule(deps: {
       markTainted: sessionPolicy.markTainted,
       inherit: sessionPolicy.inherit,
       setTaskPolicy: sessionPolicy.setTaskPolicy,
+      setChildPolicy: sessionPolicy.setChildPolicy,
       endTaskPolicy: sessionPolicy.endTaskPolicy,
       clearTaskPolicy: sessionPolicy.clearTaskPolicy,
       unattendedSessions: sessionPolicy.unattendedSessions,

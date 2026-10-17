@@ -49,6 +49,12 @@ import {
   SkillsSetInvocationParams,
   SkillsSetInvocationResult,
 } from "./skills-methods.ts";
+import {
+  SubagentProfileFile,
+  SubagentsProfileHelperParams,
+  SubagentsProfilesHelperParams,
+  SubagentsProfilesResult,
+} from "./subagents.ts";
 import { TrustSetHelperParams, TrustSetHelperResult, TrustStatus } from "./trust-methods.ts";
 
 const AbsolutePath = z
@@ -188,4 +194,8 @@ export const HELPER_OPS = {
   "plugins.remove": { params: PluginSourceParams, result: Done },
   "plugins.update": { params: PluginUpdateParams, result: PluginUpdateResult },
   "plugins.setEnabled": { params: PluginSetEnabledParams, result: PluginSetEnabledResult },
+  // Subagent profiles (Task 29a): Pi's agent files, read offline; the project's only while Pi trusts the project (M11R135).
+  "subagents.profiles": { params: SubagentsProfilesHelperParams, result: SubagentsProfilesResult },
+  // One profile whole (Task 29b): the file the front-matter name picks, project over user, a duplicate name refused.
+  "subagents.profile": { params: SubagentsProfileHelperParams, result: SubagentProfileFile },
 } as const;

@@ -74,7 +74,7 @@ export function createQuarantine(deps: QuarantineDeps) {
       }
     };
 
-    // Step 2: its running and queued tasks (and, from Task 30, its children) are cancelled.
+    // Step 2: its running and queued tasks are cancelled, then its running children.
     await run("tasks", async () => {
       let cancelled = 0;
       await bounded(async () => {
@@ -82,6 +82,8 @@ export function createQuarantine(deps: QuarantineDeps) {
       });
       result.tasksCancelled = cancelled;
     });
+
+    await run("subagents", () => void links.subagents?.cancelAllOf(ownerId, agentId));
 
     // Step 3: the thread. Every part runs; the first failure is reported. The archive drops the thread's host grants (W5-R52).
     await run("thread", async () => {
@@ -125,7 +127,8 @@ export function createQuarantine(deps: QuarantineDeps) {
       if (listed.state === "unreadable") throw new Error("vault unreadable");
     });
 
-    // Step 7 (M11b, Task 32): the staged memory facts are moved aside; that task registers its step here.
+    // Step 7: the agent's staged memory facts (untrusted text awaiting the owner) are moved aside, never applied.
+    await run("memory", () => void links.memory?.moveStaged(ownerId, agentId));
 
     deps.audit.append({
       ownerId,

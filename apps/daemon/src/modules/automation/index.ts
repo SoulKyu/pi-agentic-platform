@@ -105,6 +105,8 @@ export interface AutomationDeps {
     | "spentTodayOf"
     | "markEnding"
     | "onLiveCost"
+    | "openTaskOf"
+    | "spentByTask"
     | "onResumeSkipped"
   >;
   readonly settings: { automation(ownerId: string): AutomationSettings };

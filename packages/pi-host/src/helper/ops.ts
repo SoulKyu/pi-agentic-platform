@@ -1,5 +1,7 @@
 import type { HelperCode } from "@pap/contracts";
 import type { z } from "zod";
+import { subagentProfileOp } from "./ops/agent-profile.ts";
+import { subagentProfilesOp } from "./ops/agent-profiles.ts";
 import { loginOp, logoutOp, setApiKeyOp } from "./ops/auth.ts";
 import { mcpCodemodeOp } from "./ops/codemode-settings.ts";
 import { mcpOverviewOp } from "./ops/mcp-read.ts";
@@ -110,6 +112,8 @@ export const opsFor = (env: NodeJS.ProcessEnv): OpTable => ({
   "plugins.remove": pluginsRemoveOp,
   "plugins.update": pluginsUpdateOp,
   "plugins.setEnabled": pluginsSetEnabledOp,
+  "subagents.profiles": subagentProfilesOp,
+  "subagents.profile": subagentProfileOp,
   ...(env.PAP_TEST_PROVIDER === "1" ? testOps : {}),
 });
 

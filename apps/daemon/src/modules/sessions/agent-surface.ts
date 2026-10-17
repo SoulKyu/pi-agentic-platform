@@ -24,6 +24,7 @@ import {
   type SessionsAgentDeps,
 } from "./agent-gate.ts";
 import { type AgentRuleParts, createAgentRules, type OwnerLists } from "./agent-rules.ts";
+import { childModeOf } from "./child-port.ts";
 import { narrowPreset } from "./preset-clamp.ts";
 import { type ApprovedCalls, createApprovedCalls, isPlatformTool } from "./approved-calls.ts";
 import { AUTOMATION_CREDENTIAL } from "./automation-port.ts";
@@ -33,6 +34,8 @@ import { createHostGrants, type HostGrants } from "./host-grants.ts";
 import type { LiveSession } from "./live-session.ts";
 import { type SessionKind, sessionKind } from "./session-kind.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
+
+const TOKEN_ANSWERS: ReadonlySet<string> = new Set(["deny", "once"]);
 
 /** What later modules hand the sessions module once they exist (before any worker starts): `setAgentPorts` fills it. */
 export interface SessionsAgentPorts {
@@ -48,6 +51,8 @@ export interface AgentSurface {
   setAgentPorts(ports: SessionsAgentPorts): void;
   /** The daemon's record of who a session is, read now; null when it does not exist. `autonomous`: owner a6 (ii), M11R220. */
   kindOf(sessionId: string): (SessionKind & { readonly autonomous: boolean }) | null;
+  /** The same for a row not stored yet (a new session's launch): memory trust is decided from it (M11R142). */
+  kindOfRow(row: SessionRow): SessionKind;
   /**
    * After the worker joined the live sessions: the `vault_update` that brings it level with the vault as it is now, or
    * null when `init` already carried that vault. A change made while the worker booted reaches no `live` session (M11R86).
@@ -154,6 +159,7 @@ export function createAgentSurface(deps: {
   return {
     hostGrants,
     setAgentPorts: (next) => void Object.assign(ports, next),
+    kindOfRow: (row) => sessionKind(row, kindDeps),
     kindOf(sessionId) {
       const row = deps.store.get(sessionId);
       return row ? { ...sessionKind(row, kindDeps), autonomous: autonomousOf(row) } : null;
@@ -218,12 +224,15 @@ export function createAgentSurface(deps: {
     },
     modeOf(ownerId, sessionId) {
       const row = deps.store.get(sessionId);
-      if (row?.agentRole !== "thread" || row.agentId === undefined) return null;
+      if ((row?.agentRole !== "thread" && row?.agentRole !== "child") || row.agentId === undefined)
+        return null;
       // A profile that does not read composes read-only rules (M11R52): the view says so.
-      return profileFor(ownerId, row.agentId, sessionId)?.input.mode ?? "read-only";
+      const mode = profileFor(ownerId, row.agentId, sessionId)?.input.mode ?? "read-only";
+      return row.agentRole === "child" ? childModeOf(mode) : mode;
     },
     clampPreset(row, preset) {
-      if (row.agentRole !== "thread" || row.agentId === undefined) return preset;
+      if ((row.agentRole !== "thread" && row.agentRole !== "child") || row.agentId === undefined)
+        return preset;
       const allowed = profileFor(row.ownerId, row.agentId, row.id)?.input.preset;
       return allowed === undefined ? preset : narrowPreset(preset, allowed);
     },
@@ -268,6 +277,9 @@ export function createAgentSurface(deps: {
     rulesOf: (row, owner) => agentRules(row, owner),
     approvedCalls,
     guardAnswer(session, dialogId, caller, response, sessionId) {
+      // A token answers deny or once (Q7): a rule that outlives the token is a browser session's to make.
+      if (caller.kind === "token" && "answer" in response && !TOKEN_ANSWERS.has(response.answer))
+        throw new PapError("forbidden");
       const dialog = session.dialogs().find((open) => open.id === dialogId);
       // A card that does not offer `host` is left to the answer path (bad_request); one that offers it is the owner's alone.
       if ("answer" in response && response.answer === "host" && dialog?.answers?.includes("host")) {

@@ -3,6 +3,7 @@ import type { SandboxSpec } from "@pap/contracts";
 import type { NamedInlineExtension } from "./policy/extension.ts";
 import type { Redactor } from "./policy/redact.ts";
 import { SANDBOX_SOURCE } from "./policy/tool-kind.ts";
+import type { RefusalAdvice } from "./egress-line.ts";
 import { sandboxedShell, type ShellEgress, type ShellTimers, toolCall } from "./sandbox-ops.ts";
 
 /**
@@ -19,6 +20,7 @@ export function createSandboxTool(
     readonly timers?: ShellTimers;
     readonly egress?: ShellEgress;
     readonly redact?: () => Redactor;
+    readonly advice?: () => RefusalAdvice;
   } = {},
 ): NamedInlineExtension {
   return {

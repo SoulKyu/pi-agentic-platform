@@ -13,7 +13,7 @@ import { MigrationError } from "./kernel/db/migrate.ts";
 import { HomeError, InstanceLockError } from "./kernel/home.ts";
 import { createLogger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
-import { createShutdown, forceKill, watchSignals, type Shutdown } from "./shutdown.ts";
+import { createShutdown, createStartupSignals, forceKill, watchSignals, type Shutdown } from "./shutdown.ts";
 
 function readConfig(argv: string[]): Config | null {
   const require = createRequire(import.meta.url);
@@ -54,7 +54,13 @@ async function serve(config: Config): Promise<void> {
   const logger = createLogger({ level: config.logLevel, clock, write });
   const operator = createLogger({ level: "info", clock, write });
   let shutdown: Shutdown | undefined;
-  // Held until the signal handlers exist: a person who reads the address may stop the daemon at once.
+  // Listening before the daemon is up: a signal that comes while it starts waits for it (FLAKE-W5-6), a second one gives up.
+  const startup = createStartupSignals(() => {
+    killAllWorkerGroups();
+    process.exit(1);
+  });
+  watchSignals(startup, process);
+  // Held until the daemon can stop: a person who reads the address may stop it at once.
   let setupUrl: { readonly url: string; readonly hint: string } | undefined;
   try {
     const daemon = await createDaemon(config, {
@@ -74,7 +80,7 @@ async function serve(config: Config): Promise<void> {
       clock,
       logger,
     });
-    watchSignals(shutdown, process);
+    startup.ready(shutdown);
     if (setupUrl) operator.info("setup_url", setupUrl);
   } catch (error) {
     if (!isStartupRefusal(error)) throw error;

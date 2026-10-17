@@ -1,0 +1,83 @@
+// Subagents (M11R153 to M11R155): the bar above the composer, the approvals of a child shown in its parent, the ⌘B tree's
+// count and Settings › Agents › Subagents. Registered by `i18n/register-subagents.ts`, with the chunk that needs it.
+export const subagentsEn = {
+  "subagents.bar.label": "Subagents",
+  "subagents.bar.count.one": "{count} subagent",
+  "subagents.bar.count.other": "{count} subagents",
+  "subagents.state.starting": "Starting",
+  "subagents.state.running": "Running",
+  "subagents.state.done": "Done",
+  "subagents.state.failed": "Failed",
+  "subagents.state.cancelled": "Cancelled",
+  "subagents.state.interrupted": "Interrupted",
+  "subagents.open": "Open",
+  "subagents.openNamed": "Open {title}",
+  "subagents.stop": "Stop",
+  "subagents.stopNamed": "Stop {title}",
+  "subagents.stopFailed": "The subagent could not be stopped. It may have ended already.",
+  "subagents.from": "from subagent {title}",
+  "subagents.settings.title": "Subagents",
+  "subagents.settings.intro":
+    "A session can hand a sub-task to a subagent: a child thread that works on its own and reports back.",
+  "subagents.settings.loading": "Loading the subagents setting…",
+  "subagents.settings.loadFailed": "The subagents setting could not be read. Reload the page to try again.",
+  "subagents.settings.saveFailed": "The subagents setting could not be saved.",
+  "subagents.settings.conflict":
+    "The setting changed elsewhere; it was read again and your change was not saved.",
+  "subagents.settings.enabled": "Allow subagents",
+  "subagents.settings.enabled.hint": "Off removes the tool the next time a session's worker starts.",
+  "subagents.settings.max": "Subagents at once",
+  "subagents.settings.max.hint": "At most this many run for one session, from 1 to 4.",
+  "subagents.profiles.title": "Profiles",
+  "subagents.profiles.hint": "Read from Pi's agents folders. Edit the file in Pi's agents folder.",
+  "subagents.profiles.loading": "Reading the profiles…",
+  "subagents.profiles.needSession": "Open a session to list the profiles.",
+  "subagents.profiles.failed": "The profiles could not be read.",
+  "subagents.profiles.empty": "No profile yet.",
+  "subagents.profiles.truncated": "The list is cut: the folders hold more profiles than it shows.",
+  "subagents.profiles.source.user": "User",
+  "subagents.profiles.source.project": "Project",
+} as const;
+
+export const subagentsFr: Record<keyof typeof subagentsEn, string> = {
+  "subagents.bar.label": "Sous-agents",
+  "subagents.bar.count.one": "{count} sous-agent",
+  "subagents.bar.count.other": "{count} sous-agents",
+  "subagents.state.starting": "Démarrage",
+  "subagents.state.running": "En cours",
+  "subagents.state.done": "Terminé",
+  "subagents.state.failed": "Échec",
+  "subagents.state.cancelled": "Annulé",
+  "subagents.state.interrupted": "Interrompu",
+  "subagents.open": "Ouvrir",
+  "subagents.openNamed": "Ouvrir {title}",
+  "subagents.stop": "Arrêter",
+  "subagents.stopNamed": "Arrêter {title}",
+  "subagents.stopFailed": "Le sous-agent n'a pas pu être arrêté. Il est peut-être déjà terminé.",
+  "subagents.from": "du sous-agent {title}",
+  "subagents.settings.title": "Sous-agents",
+  "subagents.settings.intro":
+    "Une session peut confier une sous-tâche à un sous-agent : un fil enfant qui travaille seul puis rend compte.",
+  "subagents.settings.loading": "Chargement du réglage des sous-agents…",
+  "subagents.settings.loadFailed":
+    "Le réglage des sous-agents n'a pas pu être lu. Rechargez la page pour réessayer.",
+  "subagents.settings.saveFailed": "Le réglage des sous-agents n'a pas pu être enregistré.",
+  "subagents.settings.conflict":
+    "Le réglage a changé ailleurs ; il a été relu et votre modification n'a pas été enregistrée.",
+  "subagents.settings.enabled": "Autoriser les sous-agents",
+  "subagents.settings.enabled.hint":
+    "Désactivé retire l'outil au prochain démarrage du worker d'une session.",
+  "subagents.settings.max": "Sous-agents simultanés",
+  "subagents.settings.max.hint": "Au plus ce nombre tourne pour une même session, de 1 à 4.",
+  "subagents.profiles.title": "Profils",
+  "subagents.profiles.hint":
+    "Lus dans les dossiers agents de Pi. Modifiez le fichier dans le dossier agents de Pi.",
+  "subagents.profiles.loading": "Lecture des profils…",
+  "subagents.profiles.needSession": "Ouvrez une session pour lister les profils.",
+  "subagents.profiles.failed": "Les profils n'ont pas pu être lus.",
+  "subagents.profiles.empty": "Aucun profil pour l'instant.",
+  "subagents.profiles.truncated":
+    "La liste est tronquée : les dossiers contiennent plus de profils qu'elle n'en montre.",
+  "subagents.profiles.source.user": "Utilisateur",
+  "subagents.profiles.source.project": "Projet",
+};

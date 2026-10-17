@@ -21,6 +21,8 @@ type Unsubscribe = () => void;
 export interface RunsPort {
   onRunStart(listener: (event: RunStartEvent) => void): Unsubscribe;
   onRunEnd(listener: (event: RunEndEvent) => void): Unsubscribe;
+  /** The task whose run the session is in now; null when it has no open run or the open run is not a task's (a child's tag, Task 29b). */
+  openTaskOf(sessionId: string): string | null;
   /** The origin and task the next run of the session gets, if it starts within 5 minutes. False: the table is full (64). */
   expectOrigin(sessionId: string, expectation: { origin: string; taskId: string | null }): boolean;
   clearExpected(sessionId: string): void;
@@ -32,6 +34,8 @@ export interface RunsPort {
   spentToday(ownerId: string, timeZone: string | null): number;
   /** The same, for the runs of the given tasks only (a trigger's own budget). */
   spentTodayOf(ownerId: string, timeZone: string | null, taskIds: readonly string[]): number;
+  /** What the task's runs ended since `since` cost, its runs in flight included: a task's own session and its subagents' (M11R141). */
+  spentByTask(ownerId: string, taskId: string, since: number): number;
   /** Everything the session's runs cost, the open run included; null when it has had none (agreement 14). */
   sessionCost(sessionId: string): number | null;
   /** How the session's runs are billed (agreement 14's "API-equivalent" label); `unknown` while only an open run exists, null with none. */
@@ -47,7 +51,7 @@ export interface RunsService {
   readonly observer: RunObserver;
   /** A run in flight as the observer holds it, error text included (Task 17 reads it when the run ends). */
   peek(sessionId: string): OpenRunView | null;
-  /** A resume was not started (`archived`, `newer_input`, `full_access`, `budget`): the runner of a task hears of it. */
+  /** A resume was not started (`archived`, `newer_input`, `full_access`, `budget`, `child`): the runner of a task hears of it. */
   resumeSkipped(sessionId: string, reason: string): void;
   /**
    * Called inside the transaction that closes a run as `limited` (M10R104); one hook, set once at composition. It
@@ -145,6 +149,7 @@ export function createRunsService(deps: {
   const port: RunsPort = {
     onRunStart: started.add,
     onRunEnd: ended.add,
+    openTaskOf: (sessionId) => tracker.peek(sessionId)?.taskId ?? null,
     expectOrigin: tracker.expectOrigin,
     clearExpected: tracker.clearExpected,
     markEnding: tracker.markEnding,
@@ -153,6 +158,8 @@ export function createRunsService(deps: {
       store.spentSince(ownerId, sinceMidnight(timeZone), null) + tracker.liveSpent(ownerId, null),
     spentTodayOf: (ownerId, timeZone, taskIds) =>
       store.spentSince(ownerId, sinceMidnight(timeZone), taskIds) + tracker.liveSpent(ownerId, taskIds),
+    spentByTask: (ownerId, taskId, since) =>
+      store.spentSince(ownerId, since, [taskId]) + tracker.liveSpent(ownerId, [taskId]),
     sessionCost(sessionId) {
       const finished = store.sessionTotals(sessionId);
       const open = tracker.liveCost(sessionId);

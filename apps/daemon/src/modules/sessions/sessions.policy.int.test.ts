@@ -134,7 +134,6 @@ it("a taint the worker reports is stored by the daemon and survives the worker: 
     void bed.rpc["sessions.prompt"]({ sessionId, text: "look" }, bed.ctx).catch(() => {});
     // The extension tool is not covered by a rule: it asks once, and its result taints the session.
     await answerNext(bed, sub, sessionId, "once");
-    await idle(sub);
     await vi.waitFor(
       () => expect(bed.policy.port.sessionPolicy("u1", sessionId).taint).toEqual({ tainted: true, epoch: 0 }),
       { timeout: 20_000 },
@@ -143,7 +142,7 @@ it("a taint the worker reports is stored by the daemon and survives the worker: 
       kind: "policy",
       policy: { mode: "auto-accept-edits", explicit: false, tainted: true, defaultMode: "auto-accept-edits" },
     });
-    bed.killWorker(sessionId);
+    // The worker is released once the tainted run settles (M11R143): no kill needed, the session goes cold by itself.
     await vi.waitFor(
       () => expect(sub.events().filter((e) => e.kind === "status" && e.status === "cold")).toHaveLength(1),
       { timeout: 20_000 },

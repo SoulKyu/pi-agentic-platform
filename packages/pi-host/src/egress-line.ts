@@ -28,11 +28,23 @@ function refusedHosts(report: EgressReport): EgressHost[] {
   });
 }
 
+/** Who reads the line, and so what it can say about asking: a thread asks the owner, an isolated task and a child cannot. */
+export type RefusalAdvice = "thread" | "isolated" | "child";
+
 /**
- * M11R238: the line after the command's own output when the proxy refused hosts (so a fenced result fences it too). An
- * isolated task (`view: "system"`) cannot ask for hosts. Null when nothing was refused.
+ * The advice follows the session's kind, not the mount view (Task 29b, carry 2): a child of an agent thread has the thread's
+ * profile and mount but none of its platform tools, so only the presence of `network.request` makes it a thread.
  */
-export function refusedLine(report: EgressReport | null, view: "host" | "system"): string | null {
+export function refusalAdviceOf(profile: string | undefined, ops: readonly string[]): RefusalAdvice {
+  if (profile === "isolated-task") return "isolated";
+  return profile === "agent-thread" && ops.includes("network.request") ? "thread" : "child";
+}
+
+/**
+ * M11R238: the line after the command's own output when the proxy refused hosts (so a fenced result fences it too). Only a
+ * thread can ask for more hosts. Null when nothing was refused.
+ */
+export function refusedLine(report: EgressReport | null, advice: RefusalAdvice): string | null {
   const refused = report ? refusedHosts(report) : [];
   if (refused.length === 0) return null;
   const named = refused
@@ -41,11 +53,13 @@ export function refusedLine(report: EgressReport | null, view: "host" | "system"
   const more = refused.length - named.length;
   const list = more > 0 ? [...named, `and ${more} more`] : named;
   const asking = refused.find((entry) => (entry.reason ?? "not_listed") === "not_listed");
-  const advice =
-    view === "system"
+  const sentence =
+    advice === "isolated"
       ? " An isolated task cannot ask for more hosts."
-      : asking
-        ? ` In this thread, ask the owner with network_request {"host": "${asking.host}"}.`
-        : "";
-  return `[pap] The egress proxy refused: ${list.join(", ")}.${advice}`;
+      : advice === "child"
+        ? " This session cannot ask for more hosts; say in your answer which host you need."
+        : asking
+          ? ` In this thread, ask the owner with network_request {"host": "${asking.host}"}.`
+          : "";
+  return `[pap] The egress proxy refused: ${list.join(", ")}.${sentence}`;
 }

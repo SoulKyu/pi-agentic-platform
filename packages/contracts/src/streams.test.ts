@@ -127,6 +127,8 @@ describe("session stream v2", () => {
       outsideWrite: false,
       loadout: null,
       toolPreset: "configured",
+      children: [],
+      hiddenChildren: 0,
     });
   });
 

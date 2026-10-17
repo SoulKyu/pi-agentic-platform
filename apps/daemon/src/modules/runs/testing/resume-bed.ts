@@ -17,6 +17,8 @@ export interface FakeSessions {
   mode: ApprovalMode | "throw";
   /** The session is an agent thread whose sandbox is on (owner a5): the sessions module's `sandboxedThread`. */
   sandboxedAgent: boolean;
+  /** The session is a child of a `subagent` call (M11R139): the sessions module's kind. */
+  child: boolean;
   prompts: string[];
   /** The `sandboxedOnly` each prompt carried (undefined: none). */
   sandboxedOnly: Array<boolean | undefined>;
@@ -83,6 +85,7 @@ export function openResumeBed({
     pending: false,
     mode: "supervised",
     sandboxedAgent: false,
+    child: false,
     prompts: [],
     sandboxedOnly: [],
     disposition: "started",
@@ -119,6 +122,7 @@ export function openResumeBed({
       return sessions.mode;
     },
     sandboxedAgent: () => sessions.sandboxedAgent,
+    childSession: () => sessions.child,
     limitChanged: (_ownerId, sessionId) => void changed.push(sessionId),
     sessions: {
       state: (ownerId, sessionId) =>

@@ -15,7 +15,10 @@ export interface RunLimitsDeps {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly store: Pick<TaskStore, "get" | "runningGated">;
-  readonly runs: Pick<RunsPort, "onLiveCost" | "onRunStart" | "onRunEnd" | "markEnding">;
+  readonly runs: Pick<
+    RunsPort,
+    "onLiveCost" | "onRunStart" | "onRunEnd" | "markEnding" | "openTaskOf" | "spentByTask"
+  >;
   readonly port: Pick<SessionsAutomationPort, "answerUnattended" | "abort" | "state">;
   readonly gates: Pick<Gates, "ownerOver" | "triggerOver" | "agentOver">;
   readonly events: AutomationEvents;
@@ -30,6 +33,8 @@ interface Armed {
   /** An agent's thread belongs to its owner: its dialogs wait for them, never for a timer (M11R169, M11R31). */
   readonly thread: boolean;
   readonly maxUsd: number | null;
+  /** When this run of the task began (`started`): its cost cap counts what the task's runs cost from then on. */
+  readonly since: number;
   deadline: TimerHandle | null;
   question: TimerHandle | null;
 }
@@ -96,9 +101,15 @@ export function createRunLimits(deps: RunLimitsDeps) {
     return port.abort(ownerId, sessionId);
   }
 
-  function live(sessionId: string, ownerId: string, runCostUsd: number): void {
-    const entry = bySession.has(sessionId) ? armed.get(bySession.get(sessionId) as string) : undefined;
-    if (entry && entry.maxUsd !== null && runCostUsd >= entry.maxUsd) {
+  function live(sessionId: string, ownerId: string): void {
+    // A subagent's first run carries its parent's task id: its cost is the task's (M11R141).
+    const taskId = bySession.get(sessionId) ?? runs.openTaskOf(sessionId);
+    const entry = taskId === null ? undefined : armed.get(taskId);
+    if (
+      entry &&
+      entry.maxUsd !== null &&
+      runs.spentByTask(entry.ownerId, entry.taskId, entry.since) >= entry.maxUsd
+    ) {
       const row = runningTask(entry.taskId);
       if (row) guarded("task_cost_cap", () => deps.stop(row, "run_budget"));
     }
@@ -139,6 +150,7 @@ export function createRunLimits(deps: RunLimitsDeps) {
         sessionId: task.session_id,
         thread: task.target === "thread",
         maxUsd: task.max_run_usd,
+        since: clock.now(),
         deadline: null,
         question: null,
       };
@@ -169,9 +181,7 @@ export function createRunLimits(deps: RunLimitsDeps) {
     /** Hears the cost of every run and the automatic resume runs (not in read-only mode, where none is recorded). */
     listen(): void {
       listening.push(
-        runs.onLiveCost((sessionId, ownerId, cost) =>
-          guarded("run_limits", () => live(sessionId, ownerId, cost)),
-        ),
+        runs.onLiveCost((sessionId, ownerId) => guarded("run_limits", () => live(sessionId, ownerId))),
         runs.onRunStart((event) => {
           if (event.taskId === null && event.origin === "resume") resumes.set(event.sessionId, event.ownerId);
           if (event.taskId === null && event.origin === "user") ownerRuns.add(event.sessionId);

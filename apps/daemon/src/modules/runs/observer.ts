@@ -81,6 +81,8 @@ interface OpenRun {
   readonly taskId: string | null;
   readonly origin: string;
   readonly startedAt: number;
+  /** The parent of a child's run: its cost rolls up to the parent (M11R141). */
+  readonly parentSessionId: string | null;
   provider: string | null;
   model: string | null;
   inputTokens: number;
@@ -99,7 +101,7 @@ export interface RunTracker extends RunObserver {
   expectOrigin(sessionId: string, expectation: { origin: string; taskId: string | null }): boolean;
   clearExpected(sessionId: string): void;
   markEnding(sessionId: string, errorClass: "deadline" | "run_budget" | "budget"): void;
-  /** The cost so far of the session's open run; null when none is open. */
+  /** The cost so far of the session's open run and of its children's open runs (M11R141); null when none is open. */
   liveCost(sessionId: string): number | null;
   /** The cost so far of the owner's open automatic runs (a task's, or a resume), optionally those of `taskIds`. */
   liveSpent(ownerId: string, taskIds: readonly string[] | null): number;
@@ -227,6 +229,7 @@ export function createRunTracker(deps: {
       taskId,
       origin,
       startedAt,
+      parentSessionId,
       provider: null,
       model: null,
       inputTokens: 0,
@@ -329,7 +332,12 @@ export function createRunTracker(deps: {
       const run = open.get(sessionId);
       if (run) run.ending = errorClass;
     },
-    liveCost: (sessionId) => open.get(sessionId)?.costUsd ?? null,
+    liveCost(sessionId) {
+      let total: number | null = null;
+      for (const [key, run] of open)
+        if (key === sessionId || run.parentSessionId === sessionId) total = (total ?? 0) + run.costUsd;
+      return total;
+    },
     liveSpent(ownerId, taskIds) {
       let total = 0;
       for (const run of open.values()) {

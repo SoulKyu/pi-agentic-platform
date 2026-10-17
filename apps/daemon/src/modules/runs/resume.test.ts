@@ -73,6 +73,13 @@ describe("scheduling (M10R104)", () => {
     expect(t.runs.lookup.latestOf("s1")).toMatchObject({ status: "limited", limitResetAt: null });
   });
 
+  it("writes none for a child session, and says so (M11R139)", () => {
+    t.sessions.child = true;
+    limit();
+    expect(outboxRows()).toBe(0);
+    expect(t.skipped).toEqual(["s1:child"]);
+  });
+
   it("leaves a plain provider error failed, with no resume", () => {
     t.limitRun("Invalid API key");
     expect(t.runs.lookup.latestOf("s1")).toMatchObject({ status: "failed", errorClass: "provider" });
@@ -194,6 +201,15 @@ describe("the handler (M10R105)", () => {
     await t.outbox.drain();
     expect(t.sessions.prompts).toEqual([]);
     expect(t.skipped).toEqual(["s1:full_access"]);
+  });
+
+  it("skips an effect written before the session was known as a child (M11R139)", async () => {
+    limit();
+    t.sessions.child = true;
+    await reachReset();
+    await t.outbox.drain();
+    expect(t.sessions.prompts).toEqual([]);
+    expect(t.skipped).toEqual(["s1:child"]);
   });
 
   it("skips over the daily budget, live cost included, and says so", async () => {

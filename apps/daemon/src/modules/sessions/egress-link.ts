@@ -12,8 +12,8 @@ const cut = (): CommandReport => ({ hosts: [], truncated: true, up: 0, down: 0 }
 
 /**
  * What a worker's commands are judged against, fixed at its start (W5-R26, M11R243): the composed rules' host list and trusted
- * sources, copied, and the thread's live grants. Null for whoever has no network through the proxy: an owner session, a child,
- * an agent with the sandbox or the network off. No host list is an empty one (C 5.3).
+ * sources, copied, and the thread's live grants (a task and a child have none). Null for whoever has no network through the
+ * proxy: an owner session, an agent with the sandbox or the network off. A child of an agent thread has the agent's list. No host list is an empty one (C 5.3).
  */
 export function egressScopeOf(
   row: SessionRow,
@@ -21,7 +21,7 @@ export function egressScopeOf(
   grants: Pick<HostGrants, "of">,
 ): EgressScope | null {
   const { agentId, agentRole } = row;
-  if (agentId === undefined || (agentRole !== "thread" && agentRole !== "task")) return null;
+  if (agentId === undefined || agentRole === undefined) return null;
   if (rules.sandbox?.required !== true || !rules.sandbox.network) return null;
   return {
     ownerId: row.ownerId,

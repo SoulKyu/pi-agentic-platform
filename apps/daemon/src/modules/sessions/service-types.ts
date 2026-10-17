@@ -24,6 +24,7 @@ import type { PolicyPort } from "../policy/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { RunObserver } from "../runs/index.ts";
 import type { SessionsAgentPort } from "./agent-port.ts";
+import type { SessionsChildPort } from "./child-port.ts";
 import type { AgentSurface } from "./agent-surface.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import type { Exports } from "./exports.ts";
@@ -77,7 +78,8 @@ export interface SessionsServiceDeps {
   loadTranscript(): Promise<TranscriptReader>;
   /** Loads the writer of forks and clones: Pi's own session manager, behind a lazy import (R108, ADR 0009). */
   loadWriter(): Promise<PiWriter>;
-  spawn(cwd: string): WorkerHandle;
+  /** `env`: variables for this worker only, over the daemon's (memory trust, M11R142). */
+  spawn(cwd: string, env?: Readonly<Record<string, string>>): WorkerHandle;
   freeMemMb(): number;
   onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
   /** The runs registry: sees each run start and end and every raw Pi event of the session (M10R84). */
@@ -204,6 +206,7 @@ export interface SessionsServiceWithAutomation extends SessionsService {
   readonly agent: AgentSurface;
   /** What the agents module and the runner may do to the sessions of agents (M11R50). */
   readonly agentSessions: SessionsAgentPort;
+  readonly child: SessionsChildPort;
   /** The mode in force for a session: the effective mode of an agent thread (W5-R23), else the session's own. */
   modeOf(ownerId: string, sessionId: string): ApprovalMode;
 }

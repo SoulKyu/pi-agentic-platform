@@ -14,6 +14,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { InitRecord, PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import { agentPrompt } from "./agent-prompt.ts";
+import { refusalAdviceOf } from "./egress-line.ts";
 import type { Approvals } from "./approvals.ts";
 import { messageOf } from "./bounded.ts";
 import { piBuiltins, signInNotifier } from "./builtins.ts";
@@ -30,6 +31,7 @@ import { createPlatformTools, platformFirst, type PlatformPort } from "./platfor
 import type { EgressClient } from "./egress-client.ts";
 import { createSandboxEnvironment, type SandboxEnvironment } from "./sandbox-env.ts";
 import { createSandboxTool, sandboxFirst } from "./sandbox-tool.ts";
+import { appendMemoryTrust } from "./memory-entry.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
@@ -205,6 +207,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
               createSandboxTool(init.sandbox, sandboxEnvironment.envFor, {
                 ...(deps.egress ? { egress: deps.egress } : {}),
                 redact: () => deps.secrets.current(),
+                advice: () => refusalAdviceOf(deps.rules()?.profile, platformOps),
               }),
             ]
           : []),
@@ -227,6 +230,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         ...base,
         UNTRUSTED_RULE,
         ...(init.agent ? [agentPrompt(agentFactsOf(init, deps.rules()?.agentScratch ?? null))] : []),
+        ...(init.child ? [init.child.prompt] : []),
       ],
     },
     resourceLoaderReloadOptions: {
@@ -247,6 +251,8 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   pinToolAllowlist(session, init.tools?.allowlist);
   applyPreset(session, preset);
   session.subscribe((event) => deps.onEvent(event));
+  // M11R142: pi-mem0 reads its profile entry at `session_start`, which `bindExtensions` emits.
+  if (init.memory) appendMemoryTrust(sessionManager, init.memory);
   await session.bindExtensions({
     uiContext: deps.ui.context,
     mode: "rpc",

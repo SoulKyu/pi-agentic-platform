@@ -25,7 +25,8 @@ export type ClientIssue =
   | "commands_list_failed"
   | "agent_cards_failed"
   | "agent_mark_read_failed"
-  | "agent_status_failed";
+  | "agent_status_failed"
+  | "memory_read_failed";
 
 const QUIET_MS = 10_000;
 // Bounded by the closed union above.

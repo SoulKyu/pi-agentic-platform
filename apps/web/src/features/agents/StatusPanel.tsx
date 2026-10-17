@@ -13,6 +13,7 @@ import {
   type TriggerRowVm,
 } from "./status.vm.ts";
 import { papText } from "../../i18n/pap-text.ts";
+import { RecentMemory } from "./RecentMemory.tsx";
 import { useAgentStatus } from "./use-agent-status.ts";
 import { useNow } from "./use-agent-space.ts";
 
@@ -143,6 +144,9 @@ function Body(props: StatusPanelProps & { readonly status: Status }) {
             {t("agentStatus.triggers.new")}
           </Button>
         </div>
+      </Block>
+      <Block title={t("memory.recent.title")}>
+        <RecentMemory agentId={props.agentId} />
       </Block>
       {status.truncated ? <p className="text-ui text-muted">{t("agentStatus.truncated")}</p> : null}
     </>

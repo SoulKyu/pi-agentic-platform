@@ -15,6 +15,7 @@ import type { AuditPort } from "../audit/index.ts";
 import { type PolicyPort, RESTRICTIVE_SETTINGS } from "../policy/index.ts";
 import { type AgentRuleParts, effectiveMode, type OwnerLists } from "./agent-rules.ts";
 import { auditActorOf, taskRules } from "./automation-port.ts";
+import { childRules } from "./child-port.ts";
 import { createGrantLink, type GrantLink } from "./grants.ts";
 import type { LiveSession } from "./live-session.ts";
 import type { SessionRow, StoredPreset } from "./store.ts";
@@ -141,7 +142,7 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
       taint,
       readOnlyCommands: settings.readOnlyCommands,
       readOnlyPreset: deps.toolPreset(row) === "read-only",
-      ...taskRules(row, { mode, ...task }),
+      ...(row.child && !task.recorded ? childRules(row.child) : taskRules(row, { mode, ...task })),
       ...deps.agentRules?.(row, {
         allowHosts: settings.allowHosts,
         denylist: settings.denylist,

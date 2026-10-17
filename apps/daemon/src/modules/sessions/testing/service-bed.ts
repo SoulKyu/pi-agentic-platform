@@ -135,7 +135,7 @@ export interface ServiceParts<Store, Reader> {
   onAdopted?(sessionId: string): void;
   onOutsideToolResults(sessionId: string): void;
   freeMemMb(): number;
-  spawn(cwd: string): WorkerHandle;
+  spawn(cwd: string, env?: Readonly<Record<string, string>>): WorkerHandle;
   loadTranscript(): Promise<Reader>;
   loadWriter(): Promise<PiWriter>;
   readonly admission?: Admission;
@@ -179,6 +179,8 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   const store = factories.createSessionsStore(db);
   const hub: StreamHub = createStreamHub("e1", clock);
   const spawned: FakeWorker[] = [];
+  /** The per-worker environment each spawn was given, by spawn order (undefined: none). */
+  const spawnEnvs: Array<Readonly<Record<string, string>> | undefined> = [];
   /** The session file each worker reported in `ready`, by spawn order. It exists only once the test writes it. */
   const files: string[] = [];
   let ids = 0;
@@ -222,8 +224,9 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
         : loadPiWriter(forkTmpDir, { logger: options.logger ?? silentLogger }),
     freeMemMb: () => options.freeMemMb ?? 4096,
     ...(options.admission ? { admission: options.admission(clock) } : {}),
-    spawn: () => {
+    spawn: (_cwd, env) => {
       const index = spawned.length;
+      spawnEnvs.push(env);
       const worker = createFakeWorker({
         clock,
         ...(options.holdShutdown ? { holdShutdown: true } : {}),
@@ -288,6 +291,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
     hub,
     service,
     spawned,
+    spawnEnvs,
     files,
     transcript,
     /** What a client is given: `subscribe.session` prepares the read first (owner, transcript reader), then the hub builds this. */

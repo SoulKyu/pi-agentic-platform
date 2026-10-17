@@ -282,3 +282,31 @@ describe("an M10 task item of an agent's task", () => {
     expect(items[0]).toMatchObject({ taskId: "t1", agentId: AGENT, refId: null, detail: null });
   });
 });
+
+describe("openRefs (M11 sweep, 32)", () => {
+  it("lists the open items of a kind with owner, agent and ref: resolved, other kinds and info items are left out", () => {
+    bed = createInboxBed();
+    const items = bed.inbox.agentItems;
+    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f1" }));
+    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f2", ownerId: "u2", agentId: "agent-2" }));
+    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f3" }));
+    items.resolveRef("u1", "memory_review", "f3", null);
+    items.upsertAgentItem(ask({ kind: "agent_approve", refId: "f4" }));
+    items.upsertAgentItem(ask({ kind: "memory_review", refId: "f5", toHandle: false }));
+    expect(items.openRefs("memory_review").sort((a, b) => a.refId.localeCompare(b.refId))).toEqual([
+      { ownerId: "u1", agentId: AGENT, refId: "f1" },
+      { ownerId: "u2", agentId: "agent-2", refId: "f2" },
+    ]);
+  });
+
+  it("returns at most 1000 refs", () => {
+    bed = createInboxBed();
+    for (let i = 0; i < 1001; i++)
+      bed.db.run(
+        `INSERT INTO inbox_items (id, owner_id, kind, to_handle, title, created_at, agent_id, ref_id)
+         VALUES ($id, 'u1', 'memory_review', 1, 'agent', $i, 'agent-1', $id)`,
+        { id: `r${i}`, i },
+      );
+    expect(bed.inbox.agentItems.openRefs("memory_review")).toHaveLength(1000);
+  });
+});

@@ -196,13 +196,14 @@ describe("the helper op table", () => {
     await service.test(caller, { provider: "p", modelId: "m" });
     await service.pricing(caller, { modelId: "m" });
     await service.usage(caller, { providerId: "openrouter" });
-    // The MCP overview, the trust decisions, the skills and the plugins belong to their own modules' services.
+    // The MCP overview, the trust decisions, the skills, the plugins and the subagent profiles belong to their own modules' services.
     const modelsOps = Object.keys(HELPER_OPS).filter(
       (op) =>
         !op.startsWith("mcp.") &&
         !op.startsWith("trust.") &&
         !op.startsWith("skills.") &&
-        !op.startsWith("plugins."),
+        !op.startsWith("plugins.") &&
+        !op.startsWith("subagents."),
     );
     expect(calls.map((call) => call.op).sort()).toEqual(modelsOps.sort());
   });

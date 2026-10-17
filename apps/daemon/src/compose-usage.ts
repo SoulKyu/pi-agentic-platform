@@ -69,6 +69,7 @@ export function composeUsage(
       const type = modules.sessions.kindOf(sessionId)?.type;
       return type === "agent-thread" || type === "agent-task" || type === "child";
     },
+    childSession: (_ownerId, sessionId) => modules.sessions.kindOf(sessionId)?.type === "child",
     sessions: modules.sessions.automation,
     limitChanged: stream.refresh,
   });

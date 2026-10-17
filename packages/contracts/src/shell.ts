@@ -70,6 +70,8 @@ export const ShellSession = z.object({
   /** An approval or an extension dialog waits for an answer. */
   needsInput: z.boolean(),
   projectId: Id.nullable(),
+  /** The session this one is a subagent of (M11R153): the tree files it under that parent. Absent for every other session. */
+  parentId: Id.nullable().optional(),
   /** 1 for the first pinned session; null when not pinned. */
   pinRank: z.number().int().min(1).max(SHELL_LIMITS.pins).nullable(),
   archivedAt: Millis.nullable(),

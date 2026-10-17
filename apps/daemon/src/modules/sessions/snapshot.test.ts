@@ -61,7 +61,25 @@ describe("fitSnapshot", () => {
       },
       loadout: null,
       toolPreset: "configured",
+      children: [],
+      hiddenChildren: 0,
     });
+  });
+
+  it("carries the session's children as given (M11R140)", () => {
+    const children = [
+      {
+        id: "c1",
+        runId: "r1",
+        title: "Look",
+        profile: null,
+        state: "running" as const,
+        costUsd: 0.5,
+        dialogs: [],
+        hiddenDialogs: 0,
+      },
+    ];
+    expect(fitSnapshot({ status: "idle", rows: [], dialogs: [], children }).children).toEqual(children);
   });
 
   it("carries whether the file changed outside pap (owner Q13)", () => {
@@ -103,9 +121,40 @@ describe("fitSnapshot", () => {
       dialog("d3", "c".repeat(400)),
     ];
     const rows = [row(1), row(2)];
-    const snapshot = fitSnapshot({ status: "running", rows, dialogs }, 1590);
+    const snapshot = fitSnapshot({ status: "running", rows, dialogs }, 1623);
     expect(snapshot.dialogs.map((d) => d.id)).toEqual(["d1", "d2"]);
-    expect(sizeOf(snapshot)).toBeLessThanOrEqual(1590);
+    expect(sizeOf(snapshot)).toBeLessThanOrEqual(1623);
+  });
+
+  it("keeps the session's own approvals before its children's dialogs when the room is short (review M8)", () => {
+    const approval = {
+      id: "own",
+      method: "approval" as const,
+      title: "Run?",
+      message: "m".repeat(300),
+      category: "exec" as const,
+      answers: ["deny", "once"] as Array<"deny" | "once">,
+    };
+    const waiting = { ...approval, id: "child-card", message: "c".repeat(300) };
+    const child = {
+      id: "c1",
+      runId: "r1",
+      title: "Look",
+      profile: null,
+      state: "running" as const,
+      costUsd: 0,
+      dialogs: [waiting],
+      hiddenDialogs: 0,
+    };
+    const input = { status: "running" as const, rows: [], dialogs: [approval], children: [child] };
+    const roomy = fitSnapshot(input, 100_000);
+    expect(roomy.dialogs.map((d) => d.id)).toEqual(["own"]);
+    expect(roomy.children[0]?.dialogs.map((d) => d.id)).toEqual(["child-card"]);
+    const empty = sizeOf(fitSnapshot({ ...input, dialogs: [], children: [] }, 100_000));
+    // Room for the session's approval and the child's line, not for the child's card as well.
+    const tight = fitSnapshot(input, Math.ceil(((empty + sizeOf(approval) + 400) * 16) / 15));
+    expect(tight.dialogs.map((d) => d.id)).toEqual(["own"]);
+    expect(tight.children[0]).toMatchObject({ id: "c1", dialogs: [], hiddenDialogs: 1 });
   });
 
   it("stays under the default budget with the largest dialogs the registry allows", () => {

@@ -51,6 +51,13 @@ describe("shell schemas (M4)", () => {
     expect(ProjectSummary.safeParse({ ...project, root: "" }).success).toBe(false);
   });
 
+  it("files a subagent's session under its parent, or under none", () => {
+    expect(ShellSession.parse({ ...session, parentId: "s0" }).parentId).toBe("s0");
+    expect(ShellSession.parse({ ...session, parentId: null }).parentId).toBeNull();
+    expect(ShellSession.parse(session).parentId).toBeUndefined();
+    expect(ShellSession.safeParse({ ...session, parentId: "" }).success).toBe(false);
+  });
+
   it("marks a project no session files under yet with unused: true, and nothing else", () => {
     expect(ProjectSummary.parse({ ...project, sessions: 0, unused: true })).toEqual({
       ...project,

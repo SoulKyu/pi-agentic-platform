@@ -50,7 +50,10 @@ describe("the agents settings document (M11R99)", () => {
   });
 
   it("defaults the new-agent form to a required sandbox without network", () => {
-    expect(AgentsSettings.parse({})).toEqual({ newAgent: { sandbox: { required: true, network: false } } });
+    expect(AgentsSettings.parse({})).toEqual({
+      newAgent: { sandbox: { required: true, network: false } },
+      subagents: { enabled: true, maxConcurrent: 2 },
+    });
     expect(AgentsSettings.parse({ newAgent: { sandbox: { network: true } } }).newAgent.sandbox).toEqual({
       required: true,
       network: true,

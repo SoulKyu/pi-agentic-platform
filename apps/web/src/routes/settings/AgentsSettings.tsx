@@ -3,6 +3,7 @@ import { AgentSettingsView } from "../../features/agents/AgentSettingsView.tsx";
 import { AgentsList } from "../../features/agents/AgentsList.tsx";
 import { NewAgentDialog } from "../../features/agents/NewAgentDialog.tsx";
 import { SandboxStatus } from "../../features/agents/SandboxStatus.tsx";
+import { SubagentsSettings } from "../../features/agents/SubagentsSettings.tsx";
 import { useSandboxStatus } from "../../features/agents/use-sandbox-status.ts";
 import { useAppearanceStore } from "../../features/appearance/appearance-store.ts";
 import PresetPicker from "../../features/sessions/PresetPicker.tsx";
@@ -44,6 +45,7 @@ export function AgentsSettings() {
             onNew={() => setCreating(true)}
           />
           <SandboxStatus sandbox={sandbox} />
+          <SubagentsSettings />
         </>
       ) : (
         <AgentSettingsView

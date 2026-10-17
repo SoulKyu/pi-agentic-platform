@@ -34,6 +34,16 @@ describe("InitRecord platform, sandbox, vault and agent fields (M11R8)", () => {
     expect(DaemonToWorker.safeParse(record).success).toBe(true);
   });
 
+  it("carries a child's profile prompt, at most 32 KiB, and nothing else about it", () => {
+    expect(InitRecord.parse(init).child).toBeUndefined();
+    expect(InitRecord.parse({ ...init, child: { prompt: "You scout." } }).child).toEqual({
+      prompt: "You scout.",
+    });
+    expect(InitRecord.safeParse({ ...init, child: { prompt: "x".repeat(32_768) } }).success).toBe(true);
+    expect(InitRecord.safeParse({ ...init, child: { prompt: "x".repeat(32_769) } }).success).toBe(false);
+    expect(InitRecord.safeParse({ ...init, child: { prompt: "p", model: "m" } }).success).toBe(false);
+  });
+
   it("refuses an unknown op, eight ops, a duplicate op", () => {
     const ops = (value: string[]) => InitRecord.safeParse({ ...init, platform: { ops: value } }).success;
     expect(ops(["agent.root"])).toBe(false);

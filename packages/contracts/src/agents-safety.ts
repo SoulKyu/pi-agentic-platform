@@ -8,7 +8,16 @@ import { ToolPreset } from "./session-loadout.ts";
 // Task 21: quarantine, the permissions sheet and the prompt chips. Its own file keeps lane A's additions to `agents.ts` apart.
 
 /** The steps of a quarantine after the first, by name (M11R115); an `errors` entry names the one that failed. */
-export const QUARANTINE_STEPS = ["tasks", "thread", "requests", "once_values", "triggers", "vault"] as const;
+export const QUARANTINE_STEPS = [
+  "tasks",
+  "subagents",
+  "thread",
+  "requests",
+  "once_values",
+  "triggers",
+  "vault",
+  "memory",
+] as const;
 
 /** What `agents.quarantine` answers (M11R115): the new webhook secrets, shown once, and what is left for the owner to rotate. */
 export const QuarantineResult = z

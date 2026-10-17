@@ -37,6 +37,8 @@ const ATLAS_SECOND = [
   delegate(BAD_ASK, "d3"),
   { text: "Delegated, isolated." },
 ];
+// Test C taints the thread, so its worker is released once that run settles (M11R143): test D's worker starts here.
+const ATLAS_THIRD = [delegate(BAD_ASK, "d3"), { text: "Delegated, isolated." }];
 const SCOUT_SECOND = [{ text: "Page summary." }];
 
 const scriptOf = (steps: object[]) => ({ steps, captureUserMessages: join(scratch, "users.jsonl") });
@@ -222,8 +224,14 @@ describe("delegation and reminders in a whole daemon (Task 12)", () => {
       scout,
     )[0]?.id as string;
     const threadLines = userLines().length;
+    await vi.waitFor(() => expect(t.daemon.inspect.workerPid(atlasThread) ?? null).toBeNull(), {
+      timeout: 30_000,
+    });
+    writeScript(ATLAS_THIRD);
     const mark = await prompt("Ask Scout again.");
     const ask = await nextDialog(owner.client, mark);
+    // The next worker to start is Scout's isolated task's.
+    writeScript(SCOUT_SECOND);
     expect(dialogOf(ask)).toMatchObject({ tainted: true, answers: ["deny", "once"] });
     await call("sessions.respondDialog", {
       sessionId: atlasThread,

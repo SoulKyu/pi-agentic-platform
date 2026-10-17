@@ -22,11 +22,13 @@ import { noticeKey, toastLiveInfo, useDismissedNotices } from "./notice-toast.ts
 import { useSessionStore } from "../../stores/session-store.ts";
 import "./register-server-catalog.ts";
 import { Composer } from "./Composer.tsx";
+import { ChildApprovals } from "./ChildApprovals.tsx";
 import { CrashBanner } from "./CrashBanner.tsx";
 import { LimitChip } from "./LimitChip.tsx";
 import { SessionPolicy } from "./SessionPolicy.tsx";
 import { useAnnouncer } from "./announce.ts";
 import { SessionActions } from "./SessionActions.tsx";
+import { SubagentBar } from "./SubagentBar.tsx";
 import { DialogList } from "./dialogs/DialogList.tsx";
 import { CustomPanel } from "./CustomPanel.tsx";
 import { codeText, failureText } from "./failure.ts";
@@ -185,6 +187,7 @@ export function SessionScreen({
         dialogs={view.dialogs}
         hidden={view.hiddenDialogs}
       />
+      <ChildApprovals subagents={view.children} />
       {view.notices.map((notice, index) =>
         notice.level === "info" || dismissedNotices.has(noticeKey(sessionId, notice)) ? null : (
           <p
@@ -218,6 +221,7 @@ export function SessionScreen({
       ) : null}
       <Widgets widgets={view.widgets} placement="aboveEditor" />
       {beforeComposer}
+      <SubagentBar sessionId={sessionId} subagents={view.children} />
       <Composer
         key={sessionId}
         sessionId={sessionId}

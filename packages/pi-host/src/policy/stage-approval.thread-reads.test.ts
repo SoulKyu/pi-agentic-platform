@@ -1,8 +1,12 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { PolicyRules } from "@pap/contracts";
+import type { ToolResultEvent } from "@earendil-works/pi-coding-agent";
+import { NO_TAINT, PolicyRules } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createPipelineBed } from "../testing/pipeline-bed.ts";
+import { createPipelineBed, NO_SECRETS } from "../testing/pipeline-bed.ts";
+import { onToolResult } from "./results.ts";
+import { createExternalRoots, createTaint } from "./taint.ts";
+import { classifyTool } from "./tool-kind.ts";
 
 // W5-R63 (owner, M11a final review I3): in an agent thread Pi's file tools read the agent's home, the files attached to
 // that thread and the system folders of its sandbox view, and nothing else, in every mode. Blocked, never asked.
@@ -138,4 +142,154 @@ describe("a path that does not exist is judged by its nearest existing parent (W
       }
     },
   );
+});
+
+describe("a subagent child keeps its agent's read allow-list (Task 29b, M11b J6)", () => {
+  // What the daemon composes for a child: the agent's profile and home, no autonomy, no host grants, no platform op.
+  it("blocks $HOME/.ssh/x and other homes for the child, without a question", async () => {
+    const rules = PolicyRules.parse({
+      profile: "agent-thread",
+      approvalMode: "auto-accept-edits",
+      agentHome: atlas,
+      autonomy: null,
+      hostGrants: [],
+      sandbox: { required: true, network: false },
+    });
+    const h = bed.harness({ cwd: atlas, rules: () => rules, sessionId: "sess-atlas-child" });
+    for (const path of [join(ownerHome, ".ssh", "id_x"), "~/.ssh/id_x", join(scout, "MEMORY.md")]) {
+      expect(await h.run("read", { path }), path).toMatchObject({ block: true });
+    }
+    expect(await h.run("read", { path: join(atlas, "a.txt") })).toBeUndefined();
+    expect(h.asks).toHaveLength(0);
+  });
+});
+
+describe("an agent thread reads Pi's skills, read-only (W5-R66)", () => {
+  let skill: string;
+  beforeEach(async () => {
+    skill = join(bed.agentDir, "skills", "x", "SKILL.md");
+    await mkdir(join(bed.agentDir, "skills", "x"), { recursive: true });
+    await writeFile(skill, "skill text");
+    await writeFile(join(bed.agentDir, "auth.json"), "{}");
+    await symlink(join(ownerHome, ".ssh", "id_x"), join(bed.agentDir, "skills", "x", "peek.md"));
+    await symlink(join(ownerHome, ".ssh"), join(bed.agentDir, "skills", "sshlink"), "dir");
+  });
+
+  it.each(MODES)(
+    "lets read, ls, grep and find reach the skills folder in %s, unfenced and untainted",
+    async (mode) => {
+      const roots = createExternalRoots();
+      const taint = createTaint(NO_TAINT, () => {});
+      const h = bed.harness({
+        cwd: atlas,
+        rules: () => thread(mode),
+        sessionId: SESSION,
+        externalRoots: roots,
+        taint,
+      });
+      let n = 0;
+      for (const [tool, input] of [
+        ["read", { path: skill }],
+        ["ls", { path: join(bed.agentDir, "skills") }],
+        ["grep", { pattern: "skill", path: join(bed.agentDir, "skills", "x") }],
+        ["find", { pattern: "*.md", path: join(bed.agentDir, "skills") }],
+        ["read", { path: join(bed.agentDir, "skills", "x", "..", "x", "SKILL.md") }],
+      ] as const) {
+        const id = `s${n++}`;
+        expect(await h.run(tool, input, id), `${mode} ${tool}`).toBeUndefined();
+        expect(roots.source?.(id)).toBeUndefined();
+        const out = onToolResult(
+          {
+            type: "tool_result",
+            toolCallId: id,
+            toolName: tool,
+            input: {},
+            content: [{ type: "text", text: "skill text" }],
+            isError: false,
+          } as ToolResultEvent,
+          {
+            secrets: NO_SECRETS,
+            audit: () => {},
+            classify: (name) => classifyTool(name, { path: `builtin:${name}` }),
+            taint,
+            roots,
+          },
+        );
+        expect(out).toBeUndefined();
+      }
+      expect(h.asks).toHaveLength(0);
+      expect(taint.current()).toBe(false);
+    },
+  );
+
+  it.each(MODES)(
+    "blocks a link out of skills, Pi's credentials and a write to skills in %s",
+    async (mode) => {
+      for (const [tool, input] of [
+        ["read", { path: join(bed.agentDir, "skills", "x", "peek.md") }],
+        ["read", { path: join(bed.agentDir, "skills", "sshlink", "id_x") }],
+        ["ls", { path: join(bed.agentDir, "skills", "sshlink") }],
+        ["read", { path: join(bed.agentDir, "auth.json") }],
+        ["ls", { path: bed.agentDir }],
+      ] as const) {
+        const { result } = await run(mode, tool, input);
+        expect(result, `${mode} ${tool} ${JSON.stringify(input)}`).toMatchObject({ block: true });
+      }
+    },
+  );
+
+  it.each(MODES)(
+    "refuses a write or an edit under skills in %s (asked, then denied; blocked in read-only)",
+    async (mode) => {
+      for (const [tool, input] of [
+        ["write", { path: join(bed.agentDir, "skills", "x", "new.md"), content: "x" }],
+        ["edit", { path: skill, oldText: "skill", newText: "evil" }],
+      ] as const) {
+        const h = bed.harness({
+          cwd: atlas,
+          rules: () => thread(mode),
+          sessionId: SESSION,
+          answers: [{ answer: "deny", closed: false }],
+        });
+        expect(await h.run(tool, input), `${mode} ${tool}`).toMatchObject({ block: true });
+      }
+    },
+  );
+
+  it.each(MODES)(
+    "reads the skills through a linked agent folder (readsInside resolves each root), in every spelling, and still fences the links out of it (%s)",
+    async (mode) => {
+      const linked = join(bed.base, "agent-link");
+      await symlink(bed.agentDir, linked, "dir");
+      const h = bed.harness({ cwd: atlas, rules: () => thread(mode), sessionId: SESSION, agentDir: linked });
+      for (const path of [
+        skill,
+        join(linked, "skills", "x", "SKILL.md"),
+        join(linked, "skills", "x", "..", "x", "SKILL.md"),
+      ])
+        expect(await h.run("read", { path }), `${mode} ${path}`).toBeUndefined();
+      expect(await h.run("ls", { path: join(linked, "skills") })).toBeUndefined();
+      for (const path of [
+        join(linked, "skills", "x", "peek.md"),
+        join(linked, "skills", "sshlink", "id_x"),
+        join(linked, "auth.json"),
+      ])
+        expect(await h.run("read", { path }), `${mode} ${path}`).toMatchObject({ block: true });
+      expect(h.asks).toHaveLength(0);
+    },
+  );
+
+  it("gives a child of the thread the same list", async () => {
+    const rules = PolicyRules.parse({
+      profile: "agent-thread",
+      approvalMode: "auto-accept-edits",
+      agentHome: atlas,
+      autonomy: null,
+      hostGrants: [],
+      sandbox: { required: true, network: false },
+    });
+    const h = bed.harness({ cwd: atlas, rules: () => rules, sessionId: "sess-atlas-child" });
+    expect(await h.run("read", { path: skill })).toBeUndefined();
+    expect(await h.run("read", { path: join(bed.agentDir, "auth.json") })).toMatchObject({ block: true });
+  });
 });

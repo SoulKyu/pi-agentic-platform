@@ -102,12 +102,38 @@ describe("the agent's rules (M11R52)", () => {
     expect(rules).toMatchObject({ trustedSources: ["docs.example.com"], hostGrants: [] });
   });
 
-  it("a child carries neither", () => {
+  it("a child carries the agent's trusted sources and no grants, whatever the thread was granted (Task 29b, carry 3)", () => {
     const rules = build({ trustedSources: ["docs.example.com"] }, silentLogger, ["api.example.com"])(
       row({ agentRole: "child" }),
       OWNER,
     );
-    expect(rules).toMatchObject({ trustedSources: [], hostGrants: [] });
+    expect(rules).toMatchObject({ trustedSources: ["docs.example.com"], hostGrants: [], autonomy: null });
+  });
+
+  it("a child is held to its agent's mode, capped at auto-accept-edits, and keeps a lower one of its own (review I3)", () => {
+    const child = build({ mode: "full-access", allowHosts: ["a.example"], denylist: [pattern(1)] })(
+      row({ agentRole: "child", parentSessionId: "parent" }),
+      OWNER,
+    );
+    expect(child).toHaveProperty("approvalMode", "auto-accept-edits");
+    const lower = build({ mode: "supervised" })(row({ agentRole: "child", parentSessionId: "parent" }), {
+      ...OWNER,
+      session: { mode: "read-only", explicit: true },
+    });
+    expect(lower).toHaveProperty("approvalMode", "read-only");
+    const raised = build({ mode: "supervised" })(row({ agentRole: "child", parentSessionId: "parent" }), {
+      ...OWNER,
+      session: { mode: "full-access", explicit: true },
+    });
+    expect(raised).toHaveProperty("approvalMode", "supervised");
+    expect(child).toMatchObject({
+      profile: "agent-thread",
+      allowHosts: ["a.example"],
+      denylist: [pattern(1)],
+      agentHome: join(papHome, "agents", ID),
+      agentScratch: null,
+    });
+    expect(build({ mode: "full-access" })(row(), OWNER)).toHaveProperty("approvalMode", "full-access");
   });
 
   it("the parts make valid rules", () => {

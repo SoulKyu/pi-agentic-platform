@@ -35,6 +35,20 @@ const only = (): RunRow => {
   return store.get(rows[0]?.id ?? "") as RunRow;
 };
 
+describe("openTaskOf (Task 29b: the task a child's runs are tagged with)", () => {
+  it("is the task of the session's open run, and null with no open run, an untagged run or another session", () => {
+    expect(service.port.openTaskOf("s1")).toBeNull();
+    service.port.expectOrigin("s1", { origin: "trigger", taskId: "t9" });
+    start("user");
+    expect(service.port.openTaskOf("s1")).toBe("t9");
+    expect(service.port.openTaskOf("s2")).toBeNull();
+    end({ aborted: false });
+    expect(service.port.openTaskOf("s1")).toBeNull();
+    start("user");
+    expect(service.port.openTaskOf("s1")).toBeNull();
+  });
+});
+
 describe("run boundaries", () => {
   it("opens a running row at run_start with the record's origin", () => {
     start("extension");

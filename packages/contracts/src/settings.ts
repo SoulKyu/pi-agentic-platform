@@ -132,6 +132,13 @@ export const AgentsSettings = z.object({
         .default({ required: true, network: false }),
     })
     .default({ sandbox: { required: true, network: false } }),
+  /** Subagents (owner m12): on by default; off removes the tool at the next worker start. At most `maxConcurrent` children run per parent. */
+  subagents: z
+    .object({
+      enabled: z.boolean().default(true),
+      maxConcurrent: z.number().int().min(1).max(4).default(2),
+    })
+    .default({ enabled: true, maxConcurrent: 2 }),
 });
 export type AgentsSettings = z.infer<typeof AgentsSettings>;
 

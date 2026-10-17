@@ -271,6 +271,31 @@ describe("agent rows in the panel (M11R129)", () => {
     expect(bed.called("inbox.markRead")[0]?.params).toEqual({ ids: ["rep"] });
   });
 
+  it("opens Settings › Memory for a memory review row, not the agent's tab, and marks it read", async () => {
+    const bed = newBed();
+    bed.handlers["inbox.markRead"] = () => ({ updated: 1 });
+    loadInbox([
+      itemOf({
+        id: "mem",
+        kind: "memory_review",
+        agentId: "atlas-1a2b",
+        refId: "fact-1",
+        sessionId: null,
+        taskId: null,
+        detail: null,
+      }),
+    ]);
+    const onOpenAgent = vi.fn();
+    const onOpenMemory = vi.fn();
+    page = await show(
+      <InboxPanel onOpenSession={() => {}} onOpenAgent={onOpenAgent} onOpenMemory={onOpenMemory} />,
+    );
+    await click(rows()[0] as HTMLElement);
+    expect(onOpenMemory).toHaveBeenCalledTimes(1);
+    expect(onOpenAgent).not.toHaveBeenCalled();
+    expect(bed.called("inbox.markRead")[0]?.params).toEqual({ ids: ["mem"] });
+  });
+
   it("shows the Replies empty state with its own words", async () => {
     newBed();
     loadInbox([itemOf({ id: "d1", kind: "task_done", toHandle: false })]);

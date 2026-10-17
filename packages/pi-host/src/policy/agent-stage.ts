@@ -124,7 +124,7 @@ export const OUTSIDE_FOLDER_REASON = "outside this agent's folder";
 
 /**
  * W5-R63: an agent thread's built-in file tools read its home, the files attached to the thread and the system folders of
- * its sandbox view, plus its own runs folder (W5-R65), and nothing else, in every mode. True: the call reaches further (or the rules name no agent home), so
+ * its sandbox view, plus its own runs folder (W5-R65) and Pi's skills folder (W5-R66, read-only, not fenced), and nothing else, in every mode. True: the call reaches further (or the rules name no agent home), so
  * stage 03 blocks it, with no question. The isolated task's read rule (`readsInside`) does the judging.
  */
 export async function readsOutsideThread(call: CallFacts, ctx: PolicyContext, deps: PipelineDeps) {
@@ -143,7 +143,7 @@ export async function readsOutsideThread(call: CallFacts, ctx: PolicyContext, de
   return !(await readsInside(
     readPaths(call),
     ctx.cwd,
-    [...home, ...runs, ...attachments, ...SYSTEM_FOLDERS],
+    [...home, ...runs, ...attachments, join(deps.agentDir, "skills"), ...SYSTEM_FOLDERS],
     true,
   ));
 }

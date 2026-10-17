@@ -100,6 +100,10 @@ export function createAgentStore(db: Db) {
       db.get<{ n: number }>("SELECT count(*) AS n FROM agents WHERE owner_id = $ownerId", { ownerId })?.n ??
       0,
 
+    /** Whose agent this is, for a module that holds an agent id and no owner (the memory review queue). */
+    ownerOf: (id: string): string | null =>
+      db.get<{ owner_id: string }>("SELECT owner_id FROM agents WHERE id = $id", { id })?.owner_id ?? null,
+
     exists: (id: string): boolean => db.get("SELECT 1 AS n FROM agents WHERE id = $id", { id }) !== undefined,
 
     insert(agent: NewAgent): void {

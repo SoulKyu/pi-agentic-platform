@@ -13,6 +13,7 @@ import { lanesMethods } from "./lanes-methods.ts";
 import { mcpMethods } from "./mcp-methods.ts";
 import { modelsMethods } from "./models-methods.ts";
 import { policyMethods } from "./policy-methods.ts";
+import { memoryMethods } from "./memory-methods.ts";
 import { secretsMethods } from "./secrets-methods.ts";
 import { ToolPreset } from "./session-loadout.ts";
 import { sessionModelMethods } from "./session-model-methods.ts";
@@ -28,6 +29,7 @@ import {
 import { settingsMethods } from "./settings.ts";
 import { shellMethods } from "./shell.ts";
 import { skillsMethods } from "./skills-methods.ts";
+import { subagentsMethods } from "./subagents.ts";
 import { terminalMethods } from "./terminal.ts";
 import { trustMethods } from "./trust-methods.ts";
 import { usageMethods } from "./usage.ts";
@@ -72,6 +74,8 @@ export const methods = catalogue({
   ...inboxMethods,
   ...agentsMethods,
   ...secretsMethods,
+  ...subagentsMethods,
+  ...memoryMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",

@@ -6,7 +6,7 @@ import type { MigrationSource } from "./kernel/db/migrate.ts";
 import type { GitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
-import { createSandboxProbe, removeStaleProbes } from "./kernel/sandbox/probe.ts";
+import { bootSandboxProbe } from "./compose-m11-probe.ts";
 import {
   AGENTS_MIGRATIONS,
   type AgentsRpc,
@@ -23,6 +23,7 @@ import {
   createAgentsStream,
   createDelegate,
   createDelegationBack,
+  createInboxLink,
   createRemind,
   createQueueTask,
   createRequestViews,
@@ -34,11 +35,13 @@ import {
 } from "./modules/agents/index.ts";
 import type { AuditPort } from "./modules/audit/index.ts";
 import { bootEgress, type EgressPort } from "./modules/egress/index.ts";
+import { composeSubagents, type M11RunsPort } from "./compose-subagents.ts";
 import { requireStepUp } from "./modules/auth/index.ts";
 import type { AutomationModule } from "./modules/automation/index.ts";
+import { createMemoryModule, type MemoryRpc } from "./modules/memory/index.ts";
 import type { Inbox } from "./modules/inbox/index.ts";
 import { createPlatformPort, type PlatformHandler, type PlatformPort } from "./modules/platform/index.ts";
-import { createAgentSpend, type RunsPort } from "./modules/runs/index.ts";
+import { createAgentSpend } from "./modules/runs/index.ts";
 import {
   createOnceStore,
   createSecretRequests,
@@ -52,15 +55,16 @@ import {
   vaultRootOf,
 } from "./modules/secrets/index.ts";
 import type { SessionsModule } from "./modules/sessions/index.ts";
+import { SUBAGENTS_MIGRATIONS, type SubagentsPorts, type SubagentsRpc } from "./modules/subagents/index.ts";
 import type { SettingsModule } from "./modules/settings/index.ts";
 
 /** The migration sources of M11's new modules. The session kinds migration is the sessions module's own. */
-export const M11_MIGRATION_SOURCES: readonly MigrationSource[] = [AGENTS_MIGRATIONS];
+export const M11_MIGRATION_SOURCES: readonly MigrationSource[] = [AGENTS_MIGRATIONS, SUBAGENTS_MIGRATIONS];
 
 /** What `composeM11` reads of the daemon's core. */
 export interface M11Core {
   readonly db: Db;
-  readonly config: Pick<Config, "home" | "bwrapOverride"> & Partial<Pick<Config, "userHome">>;
+  readonly config: Pick<Config, "home" | "bwrapOverride" | "piAgentDir"> & Partial<Pick<Config, "userHome">>;
   /** The daemon's environment: the egress proxy's sockets live under `$XDG_RUNTIME_DIR` when it is private (W5-R42). */
   readonly env?: Readonly<Record<string, string | undefined>>;
   readonly clock: Clock;
@@ -82,6 +86,7 @@ export interface M11Modules {
     | "automation"
     | "agentSessions"
     | "hostGrants"
+    | "child"
   >;
   /** The owner's settings: their host list is what an agent's own list is judged against (W5-R36). */
   readonly policy?: {
@@ -96,7 +101,7 @@ export interface M11Modules {
   readonly git: GitRunner;
   readonly audit: { readonly port: Pick<AuditPort, "append" | "reserve"> };
   /** The run registry's port: a thread's run start and end move the rail and the unread count. */
-  readonly runs: Pick<RunsPort, "onRunStart" | "onRunEnd">;
+  readonly runs: M11RunsPort;
   /** The lanes module's folder paths: whose lane worktree a folder is in. */
   readonly lanes: {
     readonly paths: { laneOf(cwd: string): { readonly ownerId: string } | null };
@@ -106,12 +111,16 @@ export interface M11Modules {
   readonly automationModule: Pick<AutomationModule, "agentLink" | "bindAgents" | "agentTasks">;
   /** M10's Inbox: the delegation result's reply item, the reply a reset closes, the items a delete drops (M11R79, M11R91). */
   readonly inbox: {
-    readonly agentItems: Pick<Inbox["agentItems"], "upsertAgentItem" | "resolveRef" | "removeAgentItems">;
+    readonly agentItems: Pick<
+      Inbox["agentItems"],
+      "upsertAgentItem" | "resolveRef" | "removeAgentItems" | "openRefs"
+    >;
   };
+  readonly subagents: SubagentsPorts;
   /** Tests only: replaces the egress proxy. The daemon never passes one: production builds the real proxy (M11R244). */
   readonly egress?: EgressPort;
   /** The owner's automation time zone: the day an agent's budget and figures count in (M11R74, M11R76). */
-  readonly settings: { readonly port: Pick<SettingsModule["port"], "automation"> };
+  readonly settings: { readonly port: Pick<SettingsModule["port"], "automation" | "agents"> };
 }
 
 export interface M11 {
@@ -119,7 +128,7 @@ export interface M11 {
   /** The agents registry other M11 modules read (M11R43). */
   readonly agents: AgentsPort;
   /** M11's RPC methods; each task adds its table here, never in `daemon.ts`. */
-  readonly rpc: AgentsRpc & SecretsRpc & SecretRequestsRpc;
+  readonly rpc: AgentsRpc & SecretsRpc & SecretRequestsRpc & SubagentsRpc & MemoryRpc;
   /** First in the daemon's stop: the dispatcher answers `unavailable` before the sessions' workers are stopped. */
   stop(): void;
 }
@@ -137,17 +146,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     platform,
     inLane: (ownerId, cwd) => modules.lanes.paths.laneOf(cwd)?.ownerId === ownerId,
   });
-  // The probe runs in the background: a slow or failing bwrap never delays the boot (cross-plan agreement 10, M11R57).
-  const sandboxProbe = createSandboxProbe({
-    override: core.config.bwrapOverride,
-    clock: core.clock,
-    logger: core.logger,
-    // The canary folder lives in $PAP_HOME, a folder of the read-only root (W5 carry 5).
-    tmp: core.config.home,
-    ...(core.probeSpawn ? { spawn: core.probeSpawn } : {}),
-  });
-  removeStaleProbes(core.config.home, core.logger);
-  void sandboxProbe.recheck();
+  const sandboxProbe = bootSandboxProbe(core);
   const agentsLogger = core.logger.child({ module: "agents" });
   const guard = createAgentGuard();
   platform.register("lane.note", modules.lanes.note);
@@ -200,8 +199,10 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
       ...(core.config.userHome === undefined ? {} : { homeDir: () => core.config.userHome as string }),
     },
   });
-  agents.setLinks({ vault: secrets });
-  agents.setLinks({ onceValues: { drop: (_ownerId, agentId) => void once.dropAgent(agentId) } });
+  agents.setLinks({
+    vault: secrets,
+    onceValues: { drop: (_ownerId, agentId) => void once.dropAgent(agentId) },
+  });
   const { automation } = modules.sessions;
   const threadLink = createThreadLink({
     automation,
@@ -331,23 +332,19 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
       settings: { automation: (ownerId) => modules.settings.port.automation(ownerId) },
     }),
   );
-  agents.setLinks({
-    inbox: {
-      clearReply: (ownerId, agentId) => void items.resolveRef(ownerId, "agent_reply", agentId, null),
-      removeAgentItems(ownerId, agentId) {
-        try {
-          items.removeAgentItems(ownerId, agentId);
-        } catch (error) {
-          agentsLogger.warn("agent_items_remove_failed", { err: error });
-        }
-      },
-    },
+  // Subagents (Task 29b): the op is on the platform port with the owner's switch (M11R36, M11R137).
+  const subagents = composeSubagents(core, modules, platform, {
+    budgetOf: (ownerId, agentId) => agents.port.get(ownerId, agentId)?.input?.budget ?? null,
+    spend,
   });
   agents.setLinks({
     automation: modules.automationModule.agentLink,
-    // The rail's red dot (M11R62); Task 30 replaces the children's half.
-    rail: { failedCard: events.failedCard, childWaiting: () => false },
+    // The rail's red dot (M11R62), and quarantine's step 2 for the agent's children (M11R139).
+    rail: { failedCard: events.failedCard, childWaiting: subagents.childWaiting },
+    subagents: { cancelAllOf: subagents.cancelAgent },
+    inbox: createInboxLink(items, agentsLogger),
   });
+  const memory = createMemoryModule({ core, audit: modules.audit, inbox: modules.inbox, agents });
   return {
     platform,
     agents: agents.port,
@@ -385,9 +382,13 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
       ),
       ...secretsRpc(secrets),
       ...secretRequestsRpc(secretRequests),
+      ...subagents.rpc,
+      ...memory.rpc,
     },
     stop() {
       platform.stop();
+      subagents.stop();
+      memory.stop();
       stopRegistry();
       stream.stop();
       unread.stop();

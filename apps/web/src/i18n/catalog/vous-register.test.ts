@@ -12,6 +12,8 @@ import { inboxAgentsFr } from "./inbox-agents.ts";
 import { inboxFr } from "./inbox.ts";
 import { settingsAgentsFr } from "./settings-agents.ts";
 import { shellFr } from "./shell.ts";
+import { memoryFr } from "./memory.ts";
+import { subagentsFr } from "./subagents.ts";
 
 const WORD_START = String.raw`(?<![\p{L}'])`;
 const WORD_END = String.raw`(?![\p{L}])`;
@@ -37,6 +39,8 @@ const m11Catalogs = {
   inboxAgentsFr,
   inboxFr,
   settingsAgentsFr,
+  memoryFr,
+  subagentsFr,
 } as Record<string, Record<string, string>>;
 
 describe("the French copy of the agents, automation and Inbox speaks to the owner with vous", () => {

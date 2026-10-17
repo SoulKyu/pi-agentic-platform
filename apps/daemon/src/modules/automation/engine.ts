@@ -61,6 +61,8 @@ export interface EngineDeps {
     | "spentTodayOf"
     | "markEnding"
     | "onLiveCost"
+    | "openTaskOf"
+    | "spentByTask"
     | "onResumeSkipped"
   >;
   readonly policy: Pick<PolicyPort, "endTaskPolicy" | "sessionPolicy" | "unattendedSessions">;

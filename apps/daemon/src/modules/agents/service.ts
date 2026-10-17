@@ -53,6 +53,8 @@ export interface AgentsPort extends ScratchPort {
   /** The absolute home folder of an agent of this owner; `not_found` for any other. */
   homeOf(ownerId: string, agentId: string): string;
   list(ownerId: string): AgentRecord[];
+  /** The owner of an agent, null for an id that is not one. */
+  ownerOf(agentId: string): string | null;
   /** After a create, an edit, a switch or a delete; a throwing listener is logged. Returns the way to stop listening. */
   onChange(listener: (change: AgentChanged) => void): () => void;
   /** The rail state now (M11R62); null for an agent that is not the owner's, and before the rail is bound. */
@@ -235,6 +237,7 @@ export function createAgents(deps: AgentsDeps) {
       return homePath(papHome, agentId);
     },
     list: store.list,
+    ownerOf: store.ownerOf,
     onChange(listener) {
       listeners.add(listener);
       return () => void listeners.delete(listener);

@@ -3,6 +3,7 @@ import { MAX_ID_CHARS } from "../../kernel/text.ts";
 import type { BranchPage } from "./branch.ts";
 import {
   type Activity,
+  type ChildView,
   DEFAULT_SESSION_POLICY_VIEW,
   type Dialog,
   type ForkPoint,
@@ -103,6 +104,7 @@ export interface SnapshotInput {
   readonly policy?: SessionPolicyView;
   readonly loadout?: SessionLoadout | null;
   readonly toolPreset?: ToolPreset;
+  readonly children?: readonly ChildView[];
 }
 
 /** A row as it goes into a snapshot: its message bounded like `boundedRow`, its entry id kept. */
@@ -149,6 +151,8 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
     policy: input.policy ?? DEFAULT_SESSION_POLICY_VIEW,
     loadout: input.loadout ?? null,
     toolPreset: input.toolPreset ?? "configured",
+    children: [],
+    hiddenChildren: 0,
   };
   let used = sizeOf(snapshot);
   // Everything but approvals and rows stays under `room`: the rows keep their floor (M4R7).
@@ -178,6 +182,22 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
   snapshot.dialogs = input.dialogs.filter((dialog) => kept.has(dialog));
   // A dialog left out is still open in the worker: the client is told how many, so it can say something is waiting.
   snapshot.hiddenDialogs = input.dialogs.length - snapshot.dialogs.length;
+  // The children's dialogs come after the session's own approvals: they only take what is left of the room (review M8).
+  // A child whose line alone does not fit is left out and counted, so the client knows it exists.
+  for (const child of input.children ?? []) {
+    const size = sizeOf(child) + 1;
+    const fits = used + size <= room;
+    const kept = fits
+      ? child
+      : { ...child, dialogs: [], hiddenDialogs: child.hiddenDialogs + child.dialogs.length };
+    const taken = fits ? size : sizeOf(kept) + 1;
+    if (used + taken > room) {
+      snapshot.hiddenChildren += 1;
+      continue;
+    }
+    used += taken;
+    snapshot.children.push(kept);
+  }
   let decorations = 0;
   // At most `limit` items whatever the source sent (`newest`: the last ones), then as many as the byte budget allows.
   const decorate = <T>(all: readonly T[], limit: number, newest = false): T[] => {

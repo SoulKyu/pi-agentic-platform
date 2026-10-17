@@ -90,6 +90,20 @@ function open() {
   return { bed: made, policy, handler };
 }
 
+/** An open question keeps the worker busy, so the release a taint now causes (M11R143) waits and the test keeps its worker. */
+const holdWorker = (index = 0) =>
+  bed.spawned[index]?.emit({
+    type: "approval_request",
+    id: "hold",
+    category: "exec",
+    title: "hold",
+    message: "hold",
+    answers: ["deny", "once"],
+    tool: "bash",
+    key: "hold",
+    toolCallId: "hold",
+  } as never);
+
 /** A tainted agent thread with its worker up. */
 async function thread() {
   const opened = open();
@@ -97,6 +111,7 @@ async function thread() {
   opened.bed.db.run("UPDATE sessions SET agent_id = 'atlas-0001', agent_role = 'thread' WHERE id = $id", {
     id: sessionId,
   });
+  holdWorker();
   opened.policy.markTainted(OWNER.userId, sessionId, 0);
   return { ...opened, sessionId };
 }

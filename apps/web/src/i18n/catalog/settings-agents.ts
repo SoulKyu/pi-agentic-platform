@@ -57,7 +57,7 @@ export const settingsAgentsEn = {
   "agentsSandbox.gaps.worker":
     "The worker itself (Pi, its extensions, MCP stdio servers) runs outside the sandbox, as you.",
   "agentsSandbox.gaps.fileTools":
-    "read, edit, write, grep, find and ls are held back by pap's path rules, not by the sandbox. A thread's read, grep, find and ls are refused outside its home, its own runs folder (its isolated tasks' output, read as external content), the files attached to the thread and the system folders: your home is out of reach for them too.",
+    "read, edit, write, grep, find and ls are held back by pap's path rules, not by the sandbox. A thread's read, grep, find and ls are refused outside its home, its own runs folder (its isolated tasks' output, read as external content), the files attached to the thread, Pi's skills (read-only) and the system folders: your home is out of reach for them too.",
   "agentsSandbox.gaps.network":
     "With network on, the shell reaches only what pap's egress proxy lets through: your host list, the trusted sources and the hosts you allow in the thread. pap guarantees the hosts, not the content.",
   "agentsSandbox.gaps.proc":
@@ -127,7 +127,7 @@ export const settingsAgentsFr: Record<keyof typeof settingsAgentsEn, string> = {
   "agentsSandbox.gaps.worker":
     "Le worker lui-même (Pi, ses extensions, les serveurs MCP stdio) tourne hors du bac à sable, sous votre identité.",
   "agentsSandbox.gaps.fileTools":
-    "read, edit, write, grep, find et ls sont retenus par les règles de chemins de pap, pas par le bac à sable. Les outils read, grep, find et ls d'un fil sont refusés hors de son dossier, de son dossier d'exécutions (la sortie de ses tâches isolées, lue comme contenu externe), des fichiers joints au fil et des dossiers système : votre dossier personnel leur est aussi inaccessible.",
+    "read, edit, write, grep, find et ls sont retenus par les règles de chemins de pap, pas par le bac à sable. Les outils read, grep, find et ls d'un fil sont refusés hors de son dossier, de son dossier d'exécutions (la sortie de ses tâches isolées, lue comme contenu externe), des fichiers joints au fil, des skills de Pi (en lecture seule) et des dossiers système : votre dossier personnel leur est aussi inaccessible.",
   "agentsSandbox.gaps.network":
     "Avec le réseau, le shell ne joint que ce que le proxy de sortie de pap laisse passer : votre liste d'hôtes, les sources de confiance et les hôtes que vous autorisez dans le fil. pap garantit les hôtes, pas le contenu.",
   "agentsSandbox.gaps.proc":

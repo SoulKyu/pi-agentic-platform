@@ -142,7 +142,8 @@ describe("quarantine and the delegations the agent requested (W5-R64 I4)", () =>
       rows<{ status: string }>(t.home, "SELECT status FROM runs WHERE session_id = ?", scoutThread).map(
         (run) => run.status,
       );
-    expect(runStatus()).toContain("running");
+    // The task is marked running before its run row is written: wait for the row (FLAKE-W5-8).
+    await vi.waitFor(() => expect(runStatus()).toContain("running"), { timeout: 30_000 });
 
     await call("agents.quarantine", { agentId: atlas });
     expect(taskRowsOf(t, scout)[0]).toMatchObject({ state: "cancelled", reason: "cancelled" });

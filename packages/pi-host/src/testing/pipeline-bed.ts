@@ -63,6 +63,8 @@ export interface PipelineHarnessOptions {
   externalRoots?: ExternalRoots;
   /** The per-message marker of the agent profiles (W5-R11). */
   messageMix?: MessageMix;
+  /** Pi's agent folder as the extension was configured with it (a link to `bed.agentDir`, for example). */
+  agentDir?: string;
 }
 
 /** Temporary directories for a pipeline test: `cwd` is the session directory, `outside`, `agentDir` and `papHome` are not. */
@@ -91,7 +93,7 @@ export async function createPipelineBed() {
           rules: options.rules ?? (() => interactiveRules),
           rulesVersion: options.rulesVersion ?? (() => 0),
           audit: options.audit ?? ((entry) => entries.push(entry)),
-          agentDir,
+          agentDir: options.agentDir ?? agentDir,
           papHome,
           home: base,
           sessionId: () => options.sessionId,

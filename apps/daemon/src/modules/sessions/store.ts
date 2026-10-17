@@ -1,6 +1,7 @@
 import { TOOL_PRESETS, type ToolPreset } from "@pap/contracts";
 import type { Db } from "../../kernel/db/database.ts";
 import type { TaskSessionPolicy } from "./automation-port.ts";
+import type { ChildSessionPolicy } from "./child-port.ts";
 import { createMarksStore, type MarksStore } from "./marks-store.ts";
 
 export interface SessionRow {
@@ -20,6 +21,8 @@ export interface SessionRow {
   readonly toolPreset?: StoredPreset | undefined;
   /** A new task session's policy while its row is not stored: never read back from the store (M10R31). */
   readonly task?: TaskSessionPolicy | undefined;
+  /** A new child session's policy while its row is not stored, like `task`: never read back from the store (M11R136). */
+  readonly child?: ChildSessionPolicy | undefined;
   /** The agent the session belongs to, its role there, and the session it is a child of (M11R35): set at insert, never changed. */
   readonly agentId?: string | undefined;
   readonly agentRole?: "thread" | "task" | "child" | undefined;

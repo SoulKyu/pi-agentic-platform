@@ -147,6 +147,10 @@ export function MobileShell() {
             load={loadInbox}
             open={section === "inbox"}
             props={{
+              onOpenMemory: () => {
+                useWorkspaceStore.getState().open({ kind: "settings", section: "memory" });
+                setSection("work");
+              },
               onOpenSession: (id: string) => {
                 useWorkspaceStore.getState().open({ kind: "session", id });
                 setSection("work");
