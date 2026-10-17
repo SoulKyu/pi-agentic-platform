@@ -18,6 +18,7 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 | M11b | done (subagents, memory through pi-mem0) | c75517e | 92 |
 | M12 | done (Web Push, PWA, supervisor polish) | ae0e8ac | 95 |
 | M6b | done (update and rollback, backup and restore, doctor, OCI image, npm package; real-host check done) | 2e2613b | 97 |
+| Models batch (picker A, providers B; outside the milestones) | done | aad544b, 327aaa6 | 96, 98 |
 | M13; M14 (GitHub) after M11 | to come | — | — |
 
 Off-milestone work merged: design polish 1 and 2 (94e1071, 3d3035a; decision 80), the M9 + M10 follow-ups (2b4ed46, 04d4871 and two flaky-test fixes) and the project home (b7f5820; decisions 85 and 86: every action visible without a shortcut, `projects.add`, Settings › Appearance › Home; owner bundle limit 226 KB for that feature).
