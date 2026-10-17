@@ -1,5 +1,5 @@
 import type { PricingEntry, ProviderView } from "@pap/contracts";
-import { t } from "../../i18n/index.ts";
+import { type MessageKey, t } from "../../i18n/index.ts";
 
 /**
  * Small, text-preserving edits of a `models.json` draft (JSONC): a token scan finds the place, the text around it is
@@ -275,7 +275,7 @@ export const discoverSupported = (provider: Pick<ProviderView, "id" | "origin">)
 /** The fixed text of a provider status class; an unknown one gets the generic failure. */
 export function providerCodeText(
   code: string | undefined,
-  fallback: "settingsModels.test.failed" | "settingsModels.discover.failed" = "settingsModels.test.failed",
+  fallback: MessageKey = "settingsModels.test.failed",
 ): string {
   switch (code) {
     case "http_4xx":

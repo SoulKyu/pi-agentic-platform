@@ -173,6 +173,8 @@ describe("helper operations and the hard-link message (R66)", () => {
       "provider_signed_out",
       "models_config_saved",
       "provider_discovered",
+      "provider_saved",
+      "provider_removed",
     ]);
   });
 });

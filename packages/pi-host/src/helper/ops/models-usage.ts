@@ -1,5 +1,3 @@
-import { join } from "node:path";
-import { createAgentSessionServices, ModelRuntime, SettingsManager } from "@earendil-works/pi-coding-agent";
 import {
   HELPER_OPS,
   isProviderUsageId,
@@ -9,10 +7,8 @@ import {
 } from "@pap/contracts";
 import type { z } from "zod";
 import { defineOp, type HelperContext, HelperOpError, type HelperOp } from "../ops.ts";
-import { createAuthFileStore, helperErrorOf } from "./auth-store.ts";
-import { guardFile } from "./models-open.ts";
+import { openExtensionLoad, loadRuntime } from "./extension-load.ts";
 import { normalizeUsage, PROVIDER_NAMES, UnusableAnswer } from "./models-usage-normalize.ts";
-import { offline } from "./offline.ts";
 import { deadline, readCapped, strictFetch } from "./provider-request.ts";
 
 /** The most a usage answer may weigh: these are a few hundred bytes of JSON. */
@@ -81,49 +77,8 @@ export function isOfficialOrigin(providerId: ProviderUsageId, baseUrl: string | 
   }
 }
 
-/**
- * Pi's runtime over the Pi file boundary's credential store (the one `auth.*` uses): when Pi refreshes an expired OAuth
- * credential while resolving it, the new token is written by that store's `modify`, once, atomically, under Pi's own
- * lock folder, so neither a second writer nor a race with Pi's refresh exists. Nothing is refreshed from the network
- * here (`refreshOnCreate: false`, no model network).
- *
- * The enabled global extensions are loaded the way a session loads them (Pi's `createAgentSessionServices`, no project:
- * nothing is trusted), because an extension can repoint a provider; the base URL checked afterwards is then the one a
- * session would use. The providers an extension touched are recorded; a load or registration error is reported.
- */
 async function openUsageRuntime(ctx: HelperContext): Promise<UsageRuntime> {
-  const modelsPath = join(ctx.agentDir, "models.json");
-  await guardFile(modelsPath, [ctx.agentDir, ctx.home]);
-  await guardFile(join(ctx.agentDir, "settings.json"), [ctx.agentDir, ctx.home]);
-  const runtime = await ModelRuntime.create({
-    credentials: createAuthFileStore(ctx),
-    modelsPath,
-    refreshOnCreate: false,
-    allowModelNetwork: false,
-  });
-  const touched = new Set<string>();
-  const { registerProvider, registerNativeProvider, registerVirtualModel } = runtime;
-  runtime.registerProvider = (id, config) => (touched.add(id), registerProvider.call(runtime, id, config));
-  runtime.registerNativeProvider = (provider) => (
-    touched.add(provider.id),
-    registerNativeProvider.call(runtime, provider)
-  );
-  runtime.registerVirtualModel = (definition) => (
-    touched.add(definition.provider),
-    registerVirtualModel.call(runtime, definition)
-  );
-  const settingsManager = SettingsManager.create(ctx.agentDir, ctx.agentDir, { projectTrusted: false });
-  const services = await createAgentSessionServices({
-    cwd: ctx.agentDir,
-    agentDir: ctx.agentDir,
-    settingsManager,
-    modelRuntime: runtime,
-    resourceLoaderOptions: { noSkills: true, noPromptTemplates: true, noThemes: true, noContextFiles: true },
-    resourceLoaderReloadOptions: { resolveProjectTrust: async () => false },
-  });
-  const extensionsFailed =
-    services.diagnostics.some((entry) => entry.type === "error") ||
-    services.resourceLoader.getExtensions().errors.length > 0;
+  const { runtime, touched, extensionsFailed } = await openExtensionLoad(ctx);
   return {
     extensionsFailed,
     overriddenByExtension: (id) => touched.has(id),
@@ -131,15 +86,6 @@ async function openUsageRuntime(ctx: HelperContext): Promise<UsageRuntime> {
     getModels: (id) => runtime.getModels(id),
     getAuth: (id, overrides) => runtime.getAuth(id, overrides),
   };
-}
-
-/** Pi's configuration is loaded with Pi's offline switch on (MC52): a missing package is a fixed failure, never an install. */
-async function loadRuntime(open: NonNullable<UsageDeps["open"]>, ctx: HelperContext): Promise<UsageRuntime> {
-  try {
-    return await offline(() => open(ctx));
-  } catch (error) {
-    throw helperErrorOf(error) ?? new HelperOpError("failed", "pi configuration could not be loaded");
-  }
 }
 
 function endpointOf(providerId: ProviderUsageId, token: string | undefined): string {

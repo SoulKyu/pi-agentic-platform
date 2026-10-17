@@ -11,10 +11,14 @@ export type ModelsRpc = Pick<
   | "models.refreshCatalog"
   | "models.config.get"
   | "models.config.save"
+  | "models.provider.get"
+  | "models.provider.save"
+  | "models.provider.remove"
   | "models.discover"
   | "models.test"
   | "models.pricing"
   | "models.usage"
+  | "models.extensions"
   | "models.login"
   | "models.loginAnswer"
   | "models.loginCancel"
@@ -34,10 +38,14 @@ export function modelsRpc(service: ModelsService): ModelsRpc {
     "models.refreshCatalog": async () => service.refreshCatalog(),
     "models.config.get": async () => service.configGet(),
     "models.config.save": async (params, ctx) => service.configSave(ctx.caller, params),
+    "models.provider.get": async (params, ctx) => service.providerForm.get(ctx.caller, params),
+    "models.provider.save": async (params, ctx) => service.providerForm.save(ctx.caller, params),
+    "models.provider.remove": async (params, ctx) => service.providerForm.remove(ctx.caller, params),
     "models.discover": async (params, ctx) => service.discover(ctx.caller, params),
     "models.test": async (params, ctx) => service.test(ctx.caller, params),
     "models.pricing": async (params, ctx) => service.pricing(ctx.caller, params),
     "models.usage": async (params, ctx) => service.usage(ctx.caller, params),
+    "models.extensions": async () => service.extensions(),
     "models.login": async (params, ctx) => service.login(ctx.caller, params),
     "models.loginAnswer": async (params, ctx) => service.loginAnswer(ctx.caller, params),
     "models.loginCancel": async (params, ctx) => service.loginCancel(ctx.caller, params),

@@ -1,0 +1,326 @@
+// Settings › Models › the provider form (`settingsProviders.*`). Lazy: registered by `register-settings-providers.ts`
+// with the section's chunk. The two `url.policy.*` sentences and `url.clearText` follow HTTP_PLAINTEXT_POLICY
+// (packages/contracts/src/base-url.ts): a flip of the constant is that line plus these three sentences.
+export const settingsProvidersEn = {
+  "settingsProviders.add": "Add a provider",
+  "settingsProviders.edit": "Edit",
+  "settingsProviders.edit.aria": "Edit {name}",
+  "settingsProviders.title.add": "Add a provider",
+  "settingsProviders.title.edit": "Edit {name}",
+  "settingsProviders.loading": "Loading…",
+  "settingsProviders.retry": "Try again",
+  "settingsProviders.close": "Close",
+  "settingsProviders.openRaw": "Open the raw editor",
+  "settingsProviders.save": "Save",
+  "settingsProviders.saving": "Saving…",
+  "settingsProviders.cancel": "Cancel",
+  "settingsProviders.presets.title": "Start from a preset",
+  "settingsProviders.presets.hint": "A preset only fills in the fields below. You can change everything.",
+  "settingsProviders.preset.ollama": "Ollama (this machine)",
+  "settingsProviders.preset.lmstudio": "LM Studio (this machine)",
+  "settingsProviders.preset.vllm": "vLLM (this machine)",
+  "settingsProviders.preset.openrouter": "OpenRouter",
+  "settingsProviders.preset.openai-compatible": "OpenAI-compatible server",
+  "settingsProviders.preset.anthropic-compatible": "Anthropic-compatible server",
+  "settingsProviders.preset.gemini-compatible": "Gemini-compatible server",
+  "settingsProviders.preset.custom": "Custom",
+  "settingsProviders.section.connection": "Connection",
+  "settingsProviders.section.auth": "Authentication",
+  "settingsProviders.section.headers": "Headers",
+  "settingsProviders.section.models": "Models",
+  "settingsProviders.field.name": "Name",
+  "settingsProviders.field.id": "Identifier",
+  "settingsProviders.field.id.hint": "Lower-case letters, digits, - and _. It cannot be changed afterwards.",
+  "settingsProviders.field.api": "API type",
+  "settingsProviders.field.url": "Base URL",
+  "settingsProviders.api.openai-completions": "OpenAI chat completions",
+  "settingsProviders.api.openai-responses": "OpenAI responses",
+  "settingsProviders.api.anthropic-messages": "Anthropic messages",
+  "settingsProviders.api.google-generative-ai": "Google Generative AI",
+  "settingsProviders.api.mistral-conversations": "Mistral conversations",
+  "settingsProviders.url.policy.loopback":
+    "https: addresses are accepted, and http: only for this machine (localhost, 127.x.x.x or [::1]). For a server elsewhere on your network, use the raw editor.",
+  "settingsProviders.url.policy.any": "https: and http: addresses are accepted.",
+  "settingsProviders.url.clearText":
+    "A key or a secret header would travel in clear on your network: http: is not encrypted. Prefer https:.",
+  "settingsProviders.auth.label": "Where the key comes from",
+  "settingsProviders.auth.stored": "Stored key",
+  "settingsProviders.auth.env": "Environment variable",
+  "settingsProviders.auth.none": "No key",
+  "settingsProviders.auth.keep": "Kept as is",
+  "settingsProviders.auth.stored.note":
+    "You will enter the key after saving. It goes to Pi's sign-in file, never to models.json.",
+  "settingsProviders.auth.none.note":
+    "pap writes a placeholder key so that Pi lists this server. No key is sent unless one is already stored for this provider.",
+  "settingsProviders.auth.keyHeld.override":
+    "A key is already stored for this provider, and Pi uses it before this choice. Sign out of the provider on its page to remove it.",
+  "settingsProviders.auth.keyHeld.reused":
+    "A key is already stored under this identifier, probably from an earlier provider. It will be sent to this base URL. Sign out of that identifier first, or replace the key after saving.",
+  "settingsProviders.auth.keep.note":
+    "The key already written in the file is kept as it is. Choose another source to replace it.",
+  "settingsProviders.auth.envName": "Variable name",
+  "settingsProviders.auth.env.hint":
+    "Pi reads this variable when it calls the server, so it must be set where pap runs. A key stored for this provider is used first.",
+  "settingsProviders.headers.none": "No custom header.",
+  "settingsProviders.headers.add": "Add a header",
+  "settingsProviders.headers.name": "Header name",
+  "settingsProviders.headers.value": "Value",
+  "settingsProviders.headers.useEnv": "Value from an environment variable",
+  "settingsProviders.headers.envName": "Header variable name",
+  "settingsProviders.headers.remove": "Remove",
+  "settingsProviders.headers.kept": "Value kept as it is in the file.",
+  "settingsProviders.headers.replace": "Replace",
+  "settingsProviders.headers.credentialReason":
+    "This name looks like a secret: only an environment variable is accepted.",
+  "settingsProviders.models.none":
+    "No model yet. Add the ones this server offers; none is offered while the list is empty.",
+  "settingsProviders.models.add": "Add a model",
+  "settingsProviders.models.id": "Model id",
+  "settingsProviders.models.name": "Display name",
+  "settingsProviders.models.reasoning": "Reasoning",
+  "settingsProviders.models.image": "Images",
+  "settingsProviders.models.contextWindow": "Context window",
+  "settingsProviders.models.maxTokens": "Max output tokens",
+  "settingsProviders.models.remove": "Remove",
+  "settingsProviders.advanced.note":
+    "Advanced settings of this provider (compatibility flags, overrides, model costs) are kept as they are. This form does not edit them; the raw editor does.",
+  "settingsProviders.issue.field": "Refused when saving: check this field.",
+  "settingsProviders.issue.providers": "Too many providers in the file (300 at most).",
+  "settingsProviders.issue.other": "The provider was refused when saving. Check the fields.",
+  "settingsProviders.notEditable.needs_raw_editor":
+    "This file contains comments or trailing commas, or this provider uses settings the form does not cover: edit it in the raw editor.",
+  "settingsProviders.notEditable.url_unsupported":
+    "The form does not accept this provider's address (http: outside this machine): use the raw editor.",
+  "settingsProviders.notEditable.api_unsupported":
+    "This provider uses an API type the form does not offer: use the raw editor.",
+  "settingsProviders.notEditable.builtin":
+    "This is a built-in provider. The form only adds providers; change its address in the raw editor.",
+  "settingsProviders.notEditable.not_in_file":
+    "This provider is no longer in models.json. Close this form and reload the list.",
+  "settingsProviders.problem.id.required": "Enter an identifier.",
+  "settingsProviders.problem.id.format":
+    "Use lower-case letters, digits, - and _, starting with a letter or a digit (64 characters at most).",
+  "settingsProviders.problem.id.builtin": "This identifier belongs to a built-in provider. Choose another.",
+  "settingsProviders.problem.id.exists": "A provider with this identifier already exists.",
+  "settingsProviders.problem.name.long": "The name is too long (128 characters at most).",
+  "settingsProviders.problem.baseUrl.required": "Enter the server address.",
+  "settingsProviders.problem.baseUrl.invalid": "This is not a valid address.",
+  "settingsProviders.problem.baseUrl.scheme": "The address must start with https:// or http://.",
+  "settingsProviders.problem.baseUrl.credentials": "The address must not contain a user name or a password.",
+  "settingsProviders.problem.baseUrl.query": "The address must not contain a query (?) or a fragment (#).",
+  "settingsProviders.problem.baseUrl.host":
+    "http: is accepted only for this machine. Use https:, or the raw editor for a server on your network.",
+  "settingsProviders.problem.baseUrl.long": "The address is too long (2048 characters at most).",
+  "settingsProviders.problem.auth.envName": "Enter a variable name: letters, digits and _, without $.",
+  "settingsProviders.problem.headers.limit": "At most 8 headers.",
+  "settingsProviders.problem.headers.name": "This header name is not accepted.",
+  "settingsProviders.problem.headers.duplicate": "This header is already listed.",
+  "settingsProviders.problem.headers.credential":
+    "This name looks like a secret: use an environment variable.",
+  "settingsProviders.problem.headers.dollar":
+    "A value cannot contain $: use an environment variable instead.",
+  "settingsProviders.problem.headers.bang":
+    "A value cannot start with !: use an environment variable instead.",
+  "settingsProviders.problem.headers.value": "Enter a value.",
+  "settingsProviders.problem.headers.envName": "Enter a variable name: letters, digits and _, without $.",
+  "settingsProviders.problem.models.limit": "At most 500 models per provider.",
+  "settingsProviders.problem.models.idRequired": "Enter the model id.",
+  "settingsProviders.problem.models.duplicate": "This model id is already listed.",
+  "settingsProviders.problem.models.number": "Enter a whole number greater than zero.",
+  "settingsProviders.problem.form.invalid": "Some fields are not valid. Check the form.",
+  "settingsProviders.saved": "Provider saved. Add the key.",
+  "settingsProviders.key.skip": "Skip",
+  "settingsProviders.conflict": "The file changed; check, then save again.",
+  "settingsProviders.conflict.show": "Show the file's version",
+  "settingsProviders.discover.title": "Discover models",
+  "settingsProviders.discover.button": "Discover models",
+  "settingsProviders.discover.needsSave":
+    "Save the provider first, then open it again with Edit: discovery asks the provider as it is saved.",
+  "settingsProviders.discover.found": "{count} models found. Tick the ones to import.",
+  "settingsProviders.discover.none": "The provider lists no models.",
+  "settingsProviders.discover.cut": "The list is cut: the provider offers more models than are shown.",
+  "settingsProviders.discover.failed": "Discovery failed.",
+  "settingsProviders.discover.cap":
+    "Only {room} of these models fit (500 per provider at most). Tick the ones to import.",
+  "settingsProviders.discover.tickAll": "Tick all that fit",
+  "settingsProviders.discover.listed": "Already in the form",
+  "settingsProviders.discover.more": "Show {count} more",
+  "settingsProviders.discover.add": "Add {count} to the form",
+  "settingsProviders.discover.added":
+    "{count} models added to the form. Nothing is saved until you press Save.",
+  "settingsProviders.remove.button": "Remove this provider",
+  "settingsProviders.remove.ask": "Remove {name} from models.json?",
+  "settingsProviders.remove.key": "Also remove the stored key",
+  "settingsProviders.remove.confirm": "Yes, remove it",
+  "settingsProviders.remove.keep": "Keep it",
+  "settingsProviders.remove.conflict": "The file changed; check, then remove again.",
+  "settingsProviders.orphan.note":
+    "{name} is no longer in models.json, but its stored key may remain in Pi's sign-in file.",
+  "settingsProviders.orphan.remove": "Remove the stored key",
+  "settingsProviders.orphan.dismiss": "Dismiss",
+} as const;
+
+export const settingsProvidersFr: Readonly<Record<keyof typeof settingsProvidersEn, string>> = {
+  "settingsProviders.add": "Ajouter un fournisseur",
+  "settingsProviders.edit": "Modifier",
+  "settingsProviders.edit.aria": "Modifier {name}",
+  "settingsProviders.title.add": "Ajouter un fournisseur",
+  "settingsProviders.title.edit": "Modifier {name}",
+  "settingsProviders.loading": "Chargement…",
+  "settingsProviders.retry": "Réessayer",
+  "settingsProviders.close": "Fermer",
+  "settingsProviders.openRaw": "Ouvrir l'éditeur brut",
+  "settingsProviders.save": "Enregistrer",
+  "settingsProviders.saving": "Enregistrement…",
+  "settingsProviders.cancel": "Annuler",
+  "settingsProviders.presets.title": "Partir d'un préréglage",
+  "settingsProviders.presets.hint":
+    "Un préréglage remplit seulement les champs ci-dessous. Vous pouvez tout modifier.",
+  "settingsProviders.preset.ollama": "Ollama (cette machine)",
+  "settingsProviders.preset.lmstudio": "LM Studio (cette machine)",
+  "settingsProviders.preset.vllm": "vLLM (cette machine)",
+  "settingsProviders.preset.openrouter": "OpenRouter",
+  "settingsProviders.preset.openai-compatible": "Serveur compatible OpenAI",
+  "settingsProviders.preset.anthropic-compatible": "Serveur compatible Anthropic",
+  "settingsProviders.preset.gemini-compatible": "Serveur compatible Gemini",
+  "settingsProviders.preset.custom": "Personnalisé",
+  "settingsProviders.section.connection": "Connexion",
+  "settingsProviders.section.auth": "Authentification",
+  "settingsProviders.section.headers": "En-têtes",
+  "settingsProviders.section.models": "Modèles",
+  "settingsProviders.field.name": "Nom",
+  "settingsProviders.field.id": "Identifiant",
+  "settingsProviders.field.id.hint":
+    "Lettres minuscules, chiffres, - et _. Il ne pourra plus être changé ensuite.",
+  "settingsProviders.field.api": "Type d'API",
+  "settingsProviders.field.url": "Adresse de base",
+  "settingsProviders.api.openai-completions": "OpenAI chat completions",
+  "settingsProviders.api.openai-responses": "OpenAI responses",
+  "settingsProviders.api.anthropic-messages": "Anthropic messages",
+  "settingsProviders.api.google-generative-ai": "Google Generative AI",
+  "settingsProviders.api.mistral-conversations": "Mistral conversations",
+  "settingsProviders.url.policy.loopback":
+    "Les adresses https: sont acceptées, et http: seulement pour cette machine (localhost, 127.x.x.x ou [::1]). Pour un serveur ailleurs sur votre réseau, utilisez l'éditeur brut.",
+  "settingsProviders.url.policy.any": "Les adresses https: et http: sont acceptées.",
+  "settingsProviders.url.clearText":
+    "Une clé ou un en-tête secret circulerait en clair sur votre réseau : http: n'est pas chiffré. Préférez https:.",
+  "settingsProviders.auth.label": "D'où vient la clé",
+  "settingsProviders.auth.stored": "Clé enregistrée",
+  "settingsProviders.auth.env": "Variable d'environnement",
+  "settingsProviders.auth.none": "Pas de clé",
+  "settingsProviders.auth.keep": "Conservée",
+  "settingsProviders.auth.stored.note":
+    "Vous saisirez la clé après l'enregistrement. Elle va dans le fichier de connexion de Pi, jamais dans models.json.",
+  "settingsProviders.auth.none.note":
+    "pap écrit une clé factice pour que Pi liste ce serveur. Aucune clé n'est envoyée, sauf si une clé est déjà enregistrée pour ce fournisseur.",
+  "settingsProviders.auth.keyHeld.override":
+    "Une clé est déjà enregistrée pour ce fournisseur, et Pi l'utilise avant ce choix. Déconnectez-vous du fournisseur sur sa page pour la supprimer.",
+  "settingsProviders.auth.keyHeld.reused":
+    "Une clé est déjà enregistrée sous cet identifiant, sans doute par un fournisseur précédent. Elle sera envoyée à cette URL de base. Déconnectez-vous d'abord de cet identifiant, ou remplacez la clé après l'enregistrement.",
+  "settingsProviders.auth.keep.note":
+    "La clé déjà écrite dans le fichier est conservée telle quelle. Choisissez une autre source pour la remplacer.",
+  "settingsProviders.auth.envName": "Nom de la variable",
+  "settingsProviders.auth.env.hint":
+    "Pi lit cette variable quand il appelle le serveur : elle doit être définie là où pap tourne. Une clé enregistrée pour ce fournisseur passe en premier.",
+  "settingsProviders.headers.none": "Aucun en-tête personnalisé.",
+  "settingsProviders.headers.add": "Ajouter un en-tête",
+  "settingsProviders.headers.name": "Nom de l'en-tête",
+  "settingsProviders.headers.value": "Valeur",
+  "settingsProviders.headers.useEnv": "Valeur issue d'une variable d'environnement",
+  "settingsProviders.headers.envName": "Nom de la variable de l'en-tête",
+  "settingsProviders.headers.remove": "Retirer",
+  "settingsProviders.headers.kept": "Valeur conservée telle quelle dans le fichier.",
+  "settingsProviders.headers.replace": "Remplacer",
+  "settingsProviders.headers.credentialReason":
+    "Ce nom ressemble à un secret : seule une variable d'environnement est acceptée.",
+  "settingsProviders.models.none":
+    "Aucun modèle pour l'instant. Ajoutez ceux que ce serveur propose ; aucun n'est proposé tant que la liste est vide.",
+  "settingsProviders.models.add": "Ajouter un modèle",
+  "settingsProviders.models.id": "Identifiant du modèle",
+  "settingsProviders.models.name": "Nom affiché",
+  "settingsProviders.models.reasoning": "Raisonnement",
+  "settingsProviders.models.image": "Images",
+  "settingsProviders.models.contextWindow": "Fenêtre de contexte",
+  "settingsProviders.models.maxTokens": "Jetons de sortie maximum",
+  "settingsProviders.models.remove": "Retirer",
+  "settingsProviders.advanced.note":
+    "Les réglages avancés de ce fournisseur (options de compatibilité, surcharges, coûts des modèles) sont conservés tels quels. Ce formulaire ne les modifie pas ; l'éditeur brut le fait.",
+  "settingsProviders.issue.field": "Refusé à l'enregistrement : vérifiez ce champ.",
+  "settingsProviders.issue.providers": "Trop de fournisseurs dans le fichier (300 au maximum).",
+  "settingsProviders.issue.other": "Le fournisseur a été refusé à l'enregistrement. Vérifiez les champs.",
+  "settingsProviders.notEditable.needs_raw_editor":
+    "Ce fichier contient des commentaires ou des virgules finales, ou ce fournisseur utilise des réglages que le formulaire ne couvre pas : modifiez-le dans l'éditeur brut",
+  "settingsProviders.notEditable.url_unsupported":
+    "L'adresse de ce fournisseur n'est pas acceptée par le formulaire (http: hors de cette machine) : éditeur brut",
+  "settingsProviders.notEditable.api_unsupported":
+    "Ce fournisseur utilise un type d'API que le formulaire ne propose pas : utilisez l'éditeur brut.",
+  "settingsProviders.notEditable.builtin":
+    "Ce fournisseur est intégré. Le formulaire ajoute seulement des fournisseurs ; changez son adresse dans l'éditeur brut.",
+  "settingsProviders.notEditable.not_in_file":
+    "Ce fournisseur n'est plus dans models.json. Fermez ce formulaire et rechargez la liste.",
+  "settingsProviders.problem.id.required": "Saisissez un identifiant.",
+  "settingsProviders.problem.id.format":
+    "Utilisez des lettres minuscules, des chiffres, - et _, en commençant par une lettre ou un chiffre (64 caractères au maximum).",
+  "settingsProviders.problem.id.builtin":
+    "Cet identifiant appartient à un fournisseur intégré. Choisissez-en un autre.",
+  "settingsProviders.problem.id.exists": "Un fournisseur porte déjà cet identifiant.",
+  "settingsProviders.problem.name.long": "Le nom est trop long (128 caractères au maximum).",
+  "settingsProviders.problem.baseUrl.required": "Saisissez l'adresse du serveur.",
+  "settingsProviders.problem.baseUrl.invalid": "Cette adresse n'est pas valide.",
+  "settingsProviders.problem.baseUrl.scheme": "L'adresse doit commencer par https:// ou http://.",
+  "settingsProviders.problem.baseUrl.credentials":
+    "L'adresse ne doit contenir ni nom d'utilisateur ni mot de passe.",
+  "settingsProviders.problem.baseUrl.query": "L'adresse ne doit contenir ni paramètres (?) ni fragment (#).",
+  "settingsProviders.problem.baseUrl.host":
+    "http: n'est accepté que pour cette machine. Utilisez https:, ou l'éditeur brut pour un serveur de votre réseau.",
+  "settingsProviders.problem.baseUrl.long": "L'adresse est trop longue (2048 caractères au maximum).",
+  "settingsProviders.problem.auth.envName": "Saisissez un nom de variable : lettres, chiffres et _, sans $.",
+  "settingsProviders.problem.headers.limit": "8 en-têtes au maximum.",
+  "settingsProviders.problem.headers.name": "Ce nom d'en-tête n'est pas accepté.",
+  "settingsProviders.problem.headers.duplicate": "Cet en-tête figure déjà dans la liste.",
+  "settingsProviders.problem.headers.credential":
+    "Ce nom ressemble à un secret : utilisez une variable d'environnement.",
+  "settingsProviders.problem.headers.dollar":
+    "Une valeur ne peut pas contenir $ : utilisez une variable d'environnement.",
+  "settingsProviders.problem.headers.bang":
+    "Une valeur ne peut pas commencer par ! : utilisez une variable d'environnement.",
+  "settingsProviders.problem.headers.value": "Saisissez une valeur.",
+  "settingsProviders.problem.headers.envName":
+    "Saisissez un nom de variable : lettres, chiffres et _, sans $.",
+  "settingsProviders.problem.models.limit": "500 modèles au maximum par fournisseur.",
+  "settingsProviders.problem.models.idRequired": "Saisissez l'identifiant du modèle.",
+  "settingsProviders.problem.models.duplicate": "Cet identifiant de modèle figure déjà dans la liste.",
+  "settingsProviders.problem.models.number": "Saisissez un nombre entier supérieur à zéro.",
+  "settingsProviders.problem.form.invalid": "Certains champs ne sont pas valides. Vérifiez le formulaire.",
+  "settingsProviders.saved": "Fournisseur enregistré. Ajoutez la clé.",
+  "settingsProviders.key.skip": "Passer",
+  "settingsProviders.conflict": "Le fichier a changé ; vérifiez puis enregistrez de nouveau.",
+  "settingsProviders.conflict.show": "Afficher la version du fichier",
+  "settingsProviders.discover.title": "Découvrir les modèles",
+  "settingsProviders.discover.button": "Découvrir les modèles",
+  "settingsProviders.discover.needsSave":
+    "Enregistrez d'abord le fournisseur, puis rouvrez-le avec Modifier : la découverte interroge le fournisseur tel qu'il est enregistré.",
+  "settingsProviders.discover.found": "{count} modèles trouvés. Cochez ceux à importer.",
+  "settingsProviders.discover.none": "Le fournisseur ne liste aucun modèle.",
+  "settingsProviders.discover.cut":
+    "La liste est coupée : le fournisseur propose plus de modèles que ceux affichés.",
+  "settingsProviders.discover.failed": "La découverte a échoué.",
+  "settingsProviders.discover.cap":
+    "{room} de ces modèles seulement tiennent (500 par fournisseur au maximum). Cochez ceux à importer.",
+  "settingsProviders.discover.tickAll": "Cocher tous ceux qui tiennent",
+  "settingsProviders.discover.listed": "Déjà dans le formulaire",
+  "settingsProviders.discover.more": "Afficher {count} de plus",
+  "settingsProviders.discover.add": "Ajouter {count} au formulaire",
+  "settingsProviders.discover.added":
+    "{count} modèles ajoutés au formulaire. Rien n'est enregistré avant que vous appuyiez sur Enregistrer.",
+  "settingsProviders.remove.button": "Retirer ce fournisseur",
+  "settingsProviders.remove.ask": "Retirer {name} de models.json ?",
+  "settingsProviders.remove.key": "Retirer aussi la clé enregistrée",
+  "settingsProviders.remove.confirm": "Oui, le retirer",
+  "settingsProviders.remove.keep": "Le conserver",
+  "settingsProviders.remove.conflict": "Le fichier a changé ; vérifiez puis retirez de nouveau.",
+  "settingsProviders.orphan.note":
+    "{name} n'est plus dans models.json, mais sa clé enregistrée peut rester dans le fichier de connexion de Pi.",
+  "settingsProviders.orphan.remove": "Supprimer la clé enregistrée",
+  "settingsProviders.orphan.dismiss": "Ignorer",
+};

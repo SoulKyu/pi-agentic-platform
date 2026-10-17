@@ -19,6 +19,8 @@ import { sessionFilesEn, sessionFilesFr } from "./catalog/session-files.ts";
 import { sessionScreenEn, sessionScreenFr } from "./catalog/session-screen.ts";
 import { settingsScreenEn, settingsScreenFr } from "./catalog/settings-screen.ts";
 import { settingsAccessEn, settingsAccessFr } from "./catalog/settings-access.ts";
+import { settingsProvidersEn, settingsProvidersFr } from "./catalog/settings-providers.ts";
+import { settingsAvailabilityEn, settingsAvailabilityFr } from "./catalog/settings-availability.ts";
 import { settingsAppearanceEn, settingsAppearanceFr } from "./catalog/settings-appearance.ts";
 import { settingsApprovalsEn, settingsApprovalsFr } from "./catalog/settings-approvals.ts";
 import { settingsShortcutsEn, settingsShortcutsFr } from "./catalog/settings-shortcuts.ts";
@@ -76,6 +78,8 @@ describe("catalog keys never collide", () => {
         laneCommit: Object.keys(laneCommitEn),
         laneReview: Object.keys(laneReviewEn),
         home: Object.keys(homeEn),
+        settingsProviders: Object.keys(settingsProvidersEn),
+        settingsAvailability: Object.keys(settingsAvailabilityEn),
         modelPicker: Object.keys(modelPickerEn),
         "en.ts": literalKeys("./en.ts"),
       }),
@@ -109,6 +113,8 @@ describe("catalog keys never collide", () => {
         laneCommit: Object.keys(laneCommitFr),
         laneReview: Object.keys(laneReviewFr),
         home: Object.keys(homeFr),
+        settingsProviders: Object.keys(settingsProvidersFr),
+        settingsAvailability: Object.keys(settingsAvailabilityFr),
         modelPicker: Object.keys(modelPickerFr),
         "fr.ts": literalKeys("./fr.ts"),
       }),

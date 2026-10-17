@@ -100,12 +100,16 @@ describe("composePi", () => {
       "models.config.get",
       "models.config.save",
       "models.discover",
+      "models.extensions",
       "models.login",
       "models.loginAnswer",
       "models.loginCancel",
       "models.logout",
       "models.overview",
       "models.pricing",
+      "models.provider.get",
+      "models.provider.remove",
+      "models.provider.save",
       "models.refreshCatalog",
       "models.setApiKey",
       "models.setDefault",
@@ -148,6 +152,55 @@ describe("composePi", () => {
     child.emit("close");
     expect(await pi.rpc["models.available"]({}, ctx)).toEqual(listing);
     expect(state.forkArgs).toHaveLength(1);
+  });
+
+  it("answers models.provider.save through the composed module: step-up first, then one helper run in the shared write queue, then the audit row (M11a I2)", async () => {
+    const audit: unknown[] = [];
+    const base = deps();
+    const clock = createFakeClock();
+    const pi = composePi({
+      ...base,
+      clock,
+      audit: { port: { append: (line: unknown) => void audit.push(line) } },
+    } as unknown as ComposePiDeps);
+    const body = {
+      mode: "create",
+      id: "mine",
+      provider: {
+        id: "mine",
+        api: "openai-completions",
+        baseUrl: "https://example.test/v1",
+        auth: { kind: "stored" },
+        headers: [],
+        models: [],
+      },
+      baseRevision: "a".repeat(64),
+    } as never;
+    await expect(
+      pi.rpc["models.provider.save"](body, { caller: testCaller() } as never),
+    ).rejects.toMatchObject({ code: "step_up_required" });
+    expect(state.forkArgs).toHaveLength(0);
+    const child = new FakeChild();
+    state.children.push(child);
+    const stepped = { caller: testCaller({ stepUpUntil: clock.now() + 60_000 }) } as never;
+    const saving = pi.rpc["models.provider.save"](body, stepped);
+    // The write waits one turn in the queue before its helper starts.
+    await vi.waitFor(() => expect(child.sent).toHaveLength(1));
+    expect(child.sent[0]).toMatchObject({
+      type: "helper_run",
+      op: "models.provider.save",
+      params: { id: "mine", mode: "create", baseRevision: "a".repeat(64) },
+    });
+    expect((child.sent[0] as unknown as { params: { revisionKey: string } }).params.revisionKey).toMatch(
+      /^[0-9a-f]{64}$/,
+    );
+    child.emit("message", {
+      type: "helper_done",
+      ok: true,
+      result: { revision: "b".repeat(64), enabledModelsSynced: true },
+    });
+    expect(await saving).toEqual({ revision: "b".repeat(64), enabledModelsSynced: true });
+    expect(audit).toMatchObject([{ reason: "provider_saved", detail: { provider: "mine" } }]);
   });
 
   it("starts the helper entry that sits beside the worker entry, in the agent directory, capped by the config", () => {

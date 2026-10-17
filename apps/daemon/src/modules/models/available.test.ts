@@ -183,6 +183,32 @@ describe("models service: available", () => {
       ({ service, clock }) => service.setApiKey(confirmed(clock.now()), { provider: "p", key: "k" }),
     ],
     ["models.logout", ({ service }) => service.logout(caller, { provider: "p" })],
+    [
+      "models.provider.save",
+      ({ service, clock }) =>
+        service.providerForm.save(confirmed(clock.now()), {
+          mode: "create",
+          id: "p",
+          provider: {
+            id: "p",
+            api: "openai-completions",
+            baseUrl: "https://example.test/v1",
+            auth: { kind: "stored" },
+            headers: [],
+            models: [],
+          },
+          baseRevision: "0".repeat(64),
+        }),
+    ],
+    [
+      "models.provider.remove",
+      ({ service, clock }) =>
+        service.providerForm.remove(confirmed(clock.now()), {
+          id: "p",
+          baseRevision: "0".repeat(64),
+          alsoRemoveKey: true,
+        }),
+    ],
     ["models.refreshCatalog", ({ service }) => service.refreshCatalog()],
     [
       "the login flow's onSignedIn",
@@ -199,7 +225,9 @@ describe("models service: available", () => {
           ? listing
           : call.op === "models.setEnabled"
             ? { patterns: null }
-            : call.op === "models.config.save"
+            : call.op === "models.config.save" ||
+                call.op === "models.provider.save" ||
+                call.op === "models.provider.remove"
               ? { revision: "0".repeat(64), enabledModelsSynced: true }
               : call.op === "models.refreshCatalog"
                 ? { changed: false, offline: true, failedProviders: [] }

@@ -138,12 +138,13 @@ describe("models.available (helper op)", () => {
     await bed.write(modelsPath(), config);
     const result = await available();
     expect(result.truncated).toBe(true);
-    // A row weighs about 600 bytes here: the budget stops the list near 1000 rows, and fills it to within one row.
+    // The list stops at the first row that would not fit: the answer is under the budget, and one more row of the
+    // size of the last would have crossed it (no magic margin: the row size is measured).
     const bytes = Buffer.byteLength(JSON.stringify(result));
+    const lastRow = Buffer.byteLength(JSON.stringify(result.models.at(-1))) + 1;
     expect(bytes).toBeLessThanOrEqual(MAX_AVAILABLE_BYTES);
-    expect(bytes).toBeGreaterThan(MAX_AVAILABLE_BYTES - 1000);
-    expect(result.models.length).toBeGreaterThan(900);
-    expect(result.models.length).toBeLessThan(1100);
+    expect(bytes + lastRow).toBeGreaterThan(MAX_AVAILABLE_BYTES);
+    expect(result.models.length).toBeLessThan(1500);
   });
 
   it("available.oauth-expired.no-network: an expired OAuth credential neither refreshes nor blocks the answer", async () => {

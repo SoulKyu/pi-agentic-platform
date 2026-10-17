@@ -48,6 +48,8 @@ import type { settingsMcpEn } from "./catalog/settings-mcp.ts";
 import type { settingsMcpAddEn } from "./catalog/settings-mcp-add.ts";
 import type { settingsSkillsEn } from "./catalog/settings-skills.ts";
 import type { settingsModelsEn } from "./catalog/settings-models.ts";
+import type { settingsProvidersEn } from "./catalog/settings-providers.ts";
+import type { settingsAvailabilityEn } from "./catalog/settings-availability.ts";
 import type { settingsScreenEn } from "./catalog/settings-screen.ts";
 import type { settingsShortcutsEn } from "./catalog/settings-shortcuts.ts";
 import type { sidebarEn } from "./catalog/sidebar.ts";
@@ -81,6 +83,8 @@ export type MessageKey =
   | keyof typeof sessionModelsEn
   | keyof typeof sessionToolsEn
   | keyof typeof settingsModelsEn
+  | keyof typeof settingsProvidersEn
+  | keyof typeof settingsAvailabilityEn
   | keyof typeof settingsMcpEn
   | keyof typeof settingsMcpAddEn
   | keyof typeof settingsSkillsEn

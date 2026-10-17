@@ -73,6 +73,8 @@ describe("method catalogue", () => {
       "models.loginAnswer",
       "models.loginCancel",
       "models.logout",
+      "models.provider.remove",
+      "models.provider.save",
       "models.refreshCatalog",
       "models.setApiKey",
       "models.setDefault",

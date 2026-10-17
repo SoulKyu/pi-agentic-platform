@@ -222,6 +222,26 @@ describe("ModelPickerField popover", () => {
     );
   });
 
+  it("a saved model with the same id under another provider is a different row: its summary is passed", async () => {
+    const onChange = vi.fn();
+    const page = await mount(
+      <ModelPickerField
+        label="Model"
+        value={{ provider: "old", modelId: "gpt-5" }}
+        cwd={null}
+        onChange={onChange}
+      />,
+    );
+    await open(page.container);
+    const rows = options().filter((one) => one.dataset.modelRow === "gpt-5");
+    expect(rows).toHaveLength(2); // the saved one (provider old) and the offered one (openai)
+    await click(rows.find((one) => !one.textContent?.includes("no longer offered")) as HTMLElement);
+    expect(onChange).toHaveBeenCalledWith(
+      { provider: "openai", modelId: "gpt-5" },
+      { provider: "openai", id: "gpt-5", name: "GPT-5", reasoning: false },
+    );
+  });
+
   it("carries the two footnotes (extension models, command keys)", async () => {
     const page = await mount(
       <ModelPickerField label="Model" value={SONNET} cwd={null} onChange={() => {}} />,

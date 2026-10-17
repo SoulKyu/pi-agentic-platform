@@ -12,6 +12,8 @@ export const PROVIDER_AUDIT_REASONS = [
   "provider_signed_out",
   "models_config_saved",
   "provider_discovered",
+  "provider_saved",
+  "provider_removed",
 ] as const;
 
 /** The `reason` of the audit rows of a trust decision (M7R106): the row carries the folder and nothing else. */

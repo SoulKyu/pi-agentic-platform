@@ -118,6 +118,13 @@ describe("results", () => {
     expect(fields.tail).toBe(`${"a".repeat(2048 - "npm ERR! 404".length)}npm ERR! 404`);
   });
 
+  it.each(["models.provider.get", "models.provider.save", "models.provider.remove", "auth.setApiKey"])(
+    "logs no output tail for a failed %s (the key flow's output stays out of the log)",
+    async (op) => {
+      expect(await failWithOutput(op)).not.toHaveProperty("tail");
+    },
+  );
+
   it("logs no output tail for a failed op of another kind (MC57)", async () => {
     const fields = await failWithOutput("models.pricing");
     expect(fields).not.toHaveProperty("tail");

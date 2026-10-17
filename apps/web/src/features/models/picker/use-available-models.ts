@@ -29,7 +29,7 @@ type Ready = Extract<AvailableState, { status: "ready" }>;
 const LOADING: AvailableState = { status: "loading" };
 
 /** The contract's own schema, caps included: a provider count or model count past them is a failed answer. */
-function parseAvailable(raw: unknown): Ready | null {
+export function parseAvailable(raw: unknown): Ready | null {
   const parsed = AvailableModels.safeParse(raw);
   if (!parsed.success) return null;
   const labels = new Map<string, string>();
@@ -43,7 +43,7 @@ function parseAvailable(raw: unknown): Ready | null {
   };
 }
 
-const isStale = (error: unknown): boolean =>
+export const isStale = (error: unknown): boolean =>
   (error instanceof RpcError && error.code === "unknown_method") || isStaleChunk(error);
 
 /**

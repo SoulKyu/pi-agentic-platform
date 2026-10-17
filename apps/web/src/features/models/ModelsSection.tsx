@@ -1,18 +1,21 @@
 import "./register-catalog.ts";
 import type { ModelsOverview } from "@pap/contracts";
 import { Button, useIsPhone } from "@pap/ui";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { LazyAvailability } from "./availability/index.ts";
 import { DiscardConfirm } from "./DiscardConfirm.tsx";
 import { failureText } from "./failure.ts";
 import { readOnlyPath, writeFailureText } from "./models.vm.ts";
 import { ProviderDetail } from "./ProviderDetail.tsx";
 import { PricingSwitch } from "./PricingSwitch.tsx";
+import { OrphanKey, ProviderFormPanel } from "./ProviderFormPanel.tsx";
 import { ProviderList } from "./ProviderList.tsx";
 import type { StepUpRunner } from "./step-up.ts";
 import { useOverview } from "./use-overview.ts";
 import { useLoginFlow } from "./use-login-flow.ts";
+import { useProviderFormHost } from "./use-provider-form-host.ts";
 import { useModelWrites } from "./use-model-writes.ts";
 import { usePricingSetting } from "./use-pricing-setting.ts";
 
@@ -57,6 +60,11 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
   const [dirty, setDirty] = useState(false);
   const [switchTo, setSwitchTo] = useState<string | null>(null);
   const pricing = usePricingSetting();
+  const forms = useProviderFormHost();
+  const { setCommented } = forms;
+  // A reload (the editor saved, a switch changed) may have fixed the file: Add is tried again.
+  const loaded = list.value;
+  useEffect(() => setCommented(false), [loaded, setCommented]);
 
   const write = (key: string, call: () => Promise<unknown>, done?: string) =>
     writes.run(key, async () => {
@@ -109,9 +117,13 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
     );
 
   const provider = overview.providers.find((one) => one.id === selected) ?? null;
+  const show = (id: string) => {
+    forms.close();
+    setSelected(id);
+  };
   const choose = (id: string) => {
-    if (dirty && id !== selected) setSwitchTo(id);
-    else setSelected(id);
+    if ((dirty && id !== selected) || forms.dirty) setSwitchTo(id);
+    else show(id);
   };
   return (
     <div data-models-section className="flex flex-col gap-s4">
@@ -146,21 +158,39 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
           {writes.notice.text}
         </p>
       ) : null}
+      {forms.orphanKey !== null ? (
+        <OrphanKey
+          key={forms.orphanKey}
+          id={forms.orphanKey}
+          stepUp={stepUp}
+          onDone={() => forms.setOrphanKey(null)}
+          onChanged={list.reload}
+        />
+      ) : null}
       {switchTo !== null ? (
         <DiscardConfirm
           onDiscard={() => {
             setDirty(false);
-            setSelected(switchTo);
+            show(switchTo);
             setSwitchTo(null);
           }}
           onKeep={() => setSwitchTo(null)}
         />
       ) : null}
+      <LazyAvailability overview={overview} reloadOverview={list.reload} />
       <div className={phone ? "flex flex-col gap-s4" : "flex items-start gap-s4"}>
         <div className={phone ? "" : "w-64 shrink-0"}>
-          <ProviderList providers={overview.providers} selected={selected} onSelect={choose} />
+          <ProviderList providers={overview.providers} selected={selected} onSelect={choose} forms={forms} />
         </div>
-        {provider ? (
+        {forms.form !== null ? (
+          <ProviderFormPanel
+            host={forms}
+            providers={overview.providers}
+            stepUp={stepUp}
+            onChanged={list.reload}
+            onSelect={show}
+          />
+        ) : provider ? (
           <ProviderDetail
             key={provider.id}
             provider={provider}

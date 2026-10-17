@@ -20,6 +20,8 @@ import { refreshCatalogDefinition } from "./ops/models-catalog.ts";
 import { setDefaultOp, setDefaultThinkingOp } from "./ops/models-defaults.ts";
 import { modelsDiscoverOp, modelsTestOp } from "./ops/models-discover.ts";
 import { configGetOp, configSaveOp } from "./ops/models-json.ts";
+import { providerGetOp, providerRemoveOp, providerSaveOp } from "./ops/models-provider.ts";
+import { modelsExtensionsOp } from "./ops/models-extensions.ts";
 import { modelsOverviewOp } from "./ops/models-overview.ts";
 import { modelsPricingOp } from "./ops/models-pricing.ts";
 import { modelsUsageOp } from "./ops/models-usage.ts";
@@ -87,9 +89,13 @@ export const opsFor = (env: NodeJS.ProcessEnv): OpTable => ({
   "models.refreshCatalog": refreshCatalogDefinition,
   "models.config.get": configGetOp,
   "models.config.save": configSaveOp,
+  "models.provider.get": providerGetOp,
+  "models.provider.save": providerSaveOp,
+  "models.provider.remove": providerRemoveOp,
   "models.discover": modelsDiscoverOp,
   "models.test": modelsTestOp,
   "models.pricing": modelsPricingOp,
+  "models.extensions": modelsExtensionsOp,
   "models.usage": modelsUsageOp,
   "auth.login": loginOp,
   "auth.setApiKey": setApiKeyOp,

@@ -60,6 +60,18 @@ describe("providers", () => {
     expect(text(page.container)).not.toContain("Not signed in.");
   });
 
+  it("never draws a hidden character of a provider name in the list", async () => {
+    const base = overviewOf();
+    newBed({
+      ...base,
+      providers: base.providers.map((one, at) => (at === 0 ? { ...one, name: "Evil\u202eName\u200b" } : one)),
+    });
+    const page = await show();
+    await settle();
+    expect(text(page.container)).toContain("EvilName");
+    expect(text(page.container)).not.toMatch(/[\u202e\u200b]/);
+  });
+
   it("shows the environment variable names and whether they are set, never a value (MC26)", async () => {
     const { page } = await open("anthropic");
     const body = text(page.container);

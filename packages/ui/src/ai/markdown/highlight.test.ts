@@ -19,7 +19,9 @@ describe("code highlighting with shiki's JavaScript regex engine (R74: no WebAss
     const tokens = (lines ?? []).flat();
     expect(tokens.map((token) => token.content).join("")).toBe("const x = 1; // one");
     expect(tokens.find((token) => token.content.includes("one"))?.color).toBe("var(--shiki-token-comment)");
-  });
+    // This is the cold load of shiki's engine and grammars: under a full gate it can pass the default 5 s (flaked once
+    // in task 7), so it gets room instead of a warm-up that would hide the load from the WebAssembly guard above.
+  }, 30_000);
 
   it("lets only css-variable colours through", async () => {
     const tokens = (

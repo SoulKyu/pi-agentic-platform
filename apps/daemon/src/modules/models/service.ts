@@ -4,6 +4,7 @@ import {
   type ConfigGetResult,
   type ConfigSaveParams,
   type ConfigSaveResult,
+  type ExtensionProviders,
   HELPER_OPS,
   type EnabledOp,
   type LoginMethod,
@@ -30,9 +31,11 @@ import { requireStepUp } from "../auth/index.ts";
 import type { ProjectsPort } from "../projects/index.ts";
 import type { SettingsPort } from "../settings/index.ts";
 import { createAvailableCache } from "./available.ts";
+import { createExtensionProviders } from "./extensions.ts";
 import { createLoginFlows } from "./login-flows.ts";
 import { createLoginPublisher } from "./login-publisher.ts";
 import { createPricingCache } from "./pricing-cache.ts";
+import { createProviderConfig } from "./provider-config.ts";
 import { createProviderUsage } from "./usage.ts";
 
 /** Reading is quick; a write waits for Pi's settings lock; a catalog refresh is a round of network requests (M7R49). */
@@ -42,6 +45,8 @@ const REFRESH_DEADLINE_MS = 120_000;
 /** A provider request is 15 s in the helper (M7R66); the helper starts, may run a key command, then asks. */
 const PROVIDER_DEADLINE_MS = 60_000;
 const PRICING_DEADLINE_MS = 45_000;
+/** Loading the extensions is Pi's own offline load of them, as a session does. */
+const EXTENSIONS_DEADLINE_MS = 60_000;
 
 export { WRITE_QUEUE_MAX } from "../../kernel/pi-write-queue.ts";
 
@@ -162,13 +167,29 @@ export function createModelsService(deps: ModelsServiceDeps) {
   // MC31: a reload or a closed tab leaves a flow unwatched; the 60 s rule applies again from that moment.
   deps.hub.onLastSubscriberLeft("login", (flowId) => flows.detach(flowId));
 
+  /** The provider form's methods (Task 10): the same queue, run, key and audit as the config save. */
+  const provider = createProviderConfig({
+    run,
+    serialised,
+    revisionKey,
+    clock: deps.clock,
+    audit,
+    invalidate: () => availableCache.clear(),
+    logSaveEvent,
+  });
+
   const pricingCache = createPricingCache();
   const providerUsage = createProviderUsage({
     clock: deps.clock,
     ask: (providerId) => run("models.usage", { providerId }, PROVIDER_DEADLINE_MS, undefined),
   });
 
+  const extensionProviders = createExtensionProviders({
+    ask: () => run("models.extensions", {}, EXTENSIONS_DEADLINE_MS, undefined),
+  });
+
   return {
+    providerForm: provider,
     async overview(caller: Caller, cwd?: string): Promise<ModelsOverview> {
       return run("models.overview", {}, READ_DEADLINE_MS, checkedCwd(caller, cwd));
     },
@@ -246,6 +267,10 @@ export function createModelsService(deps: ModelsServiceDeps) {
     /** The provider's usage quotas on the owner's click; no step-up (an official endpoint, a read, M10R110). */
     async usage(_caller: Caller, params: { providerId: string }): Promise<ModelsUsageResult> {
       return providerUsage.get(params.providerId);
+    },
+    /** The providers the global extensions register: read-only, on the owner's click, no step-up (MPR17). */
+    async extensions(): Promise<ExtensionProviders> {
+      return extensionProviders.get();
     },
     /** Starts a sign-in flow. The password step-up comes first (owner c3): sign-in runs code and redirects traffic. */
     async login(caller: Caller, params: { provider: string; method: LoginMethod }) {

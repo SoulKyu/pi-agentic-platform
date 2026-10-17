@@ -83,6 +83,13 @@ export function newBed(overview: ModelsOverview = overviewOf()) {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
   bed.handlers["models.overview"] = () => overview;
+  // The availability view under the providers reads the preview of what pickers offer.
+  bed.handlers["models.available"] = () => ({
+    models: [],
+    providers: [],
+    origin: "signed-in",
+    truncated: false,
+  });
   return bed;
 }
 

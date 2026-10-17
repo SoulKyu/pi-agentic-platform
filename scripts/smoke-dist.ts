@@ -121,22 +121,23 @@ async function drive(
     await session.waitFor(printed, `the tool result printing ${MARKER}`);
     await session.waitFor(isPi("agent_settled"), "agent_settled");
     step("prompt -> approval -> tool output -> agent_settled");
+    const stepUp = async () => {
+      const confirm = await http(`${base}/auth/confirm`, {
+        method: "POST",
+        headers: { origin, cookie, "content-type": "application/json" },
+        body: JSON.stringify({ password: PASSWORD }),
+      });
+      if (confirm.status !== 204) throw new Error(`/auth/confirm answered ${confirm.status}`);
+    };
     await checkScannerAndSearch({ agentDir, cwd: work, socket: session });
-    await checkModels({ agentDir, socket: session });
+    await checkModels({ agentDir, socket: session, stepUp });
     await checkLanes({
       port,
       origin,
       cookie,
       root: dirname(work),
       userHome,
-      stepUp: async () => {
-        const confirm = await http(`${base}/auth/confirm`, {
-          method: "POST",
-          headers: { origin, cookie, "content-type": "application/json" },
-          body: JSON.stringify({ password: PASSWORD }),
-        });
-        if (confirm.status !== 204) throw new Error(`/auth/confirm answered ${confirm.status}`);
-      },
+      stepUp,
     });
     await checkTerminal({ cwd: work, socket: session });
   } finally {

@@ -16,6 +16,12 @@ import {
   ConfigSaveResult,
 } from "./models-config.ts";
 import {
+  ProviderGetHelperParams,
+  ProviderGetResult,
+  ProviderRemoveHelperParams,
+  ProviderSaveHelperParams,
+} from "./models-provider-form.ts";
+import {
   DiscoverParams,
   ModelsDiscoverResult,
   HelperPricingResult,
@@ -24,6 +30,7 @@ import {
   TestModelParams,
 } from "./models-provider.ts";
 import { AvailableModels } from "./models-available.ts";
+import { ExtensionProviders } from "./models-extensions.ts";
 import { ModelsUsageParams, ModelsUsageResult } from "./models-usage.ts";
 import {
   LoginParams,
@@ -161,12 +168,18 @@ export const HELPER_OPS = {
   // The models.json editor (Task 12a): the text leaves the helper masked, and a save is refused or answered by revision.
   "models.config.get": { params: ConfigGetHelperParams, result: ConfigGetResult },
   "models.config.save": { params: ConfigSaveHelperParams, result: ConfigSaveResult },
+  // The provider form (Task 9): the view is built from the file, so no stored secret leaves; save and remove edit one provider only.
+  "models.provider.get": { params: ProviderGetHelperParams, result: ProviderGetResult },
+  "models.provider.save": { params: ProviderSaveHelperParams, result: ConfigSaveResult },
+  "models.provider.remove": { params: ProviderRemoveHelperParams, result: ConfigSaveResult },
   // Provider discovery, test and pricing (Task 12b): the status class is all that comes back of a failed request.
   "models.discover": { params: DiscoverParams, result: ModelsDiscoverResult },
   "models.test": { params: TestModelParams, result: ModelsTestResult },
   "models.pricing": { params: PricingParams, result: HelperPricingResult },
   // Provider usage quotas (Task 18): the stored credential goes to the official endpoint inside the helper; a status comes back.
   "models.usage": { params: ModelsUsageParams, result: ModelsUsageResult },
+  // The providers the global extensions register (MPR17): an offline load of them, a model list comes back.
+  "models.extensions": { params: NONE, result: ExtensionProviders },
   // Sign-in (Task 11): the credential goes to auth.json inside the helper and nothing of it comes back.
   "auth.login": { params: LoginParams, result: Done },
   "auth.setApiKey": { params: SetApiKeyParams, result: Done },

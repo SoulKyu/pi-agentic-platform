@@ -30,6 +30,14 @@ const provider = {
   test: async () => ({ ok: true, latencyMs: 1 }),
   pricing: async () => ({ entries: [] }),
   usage: async () => ({ status: "unsupported" as const }),
+  extensions: async () => ({ providers: [], truncated: false, failed: false }),
+};
+
+/** The provider form half (Task 10), answering nothing. */
+const providerForm = {
+  get: async () => ({ editable: false as const, reason: "not_in_file" as const, revision: "0".repeat(64) }),
+  save: async () => ({ revision: "0".repeat(64), enabledModelsSynced: true }),
+  remove: async () => ({ revision: "0".repeat(64), enabledModelsSynced: true }),
 };
 
 describe("modelsRpc", () => {
@@ -38,6 +46,7 @@ describe("modelsRpc", () => {
     const rpc = modelsRpc({
       ...signIn,
       ...provider,
+      providerForm,
       overview: async (caller, cwd) => (seen.push(["overview", caller.userId, cwd]), {} as never),
       setDefault: async (caller, params) => (seen.push(["setDefault", caller.userId, params]), { ok: true }),
       setDefaultThinking: async (caller, params) => (
@@ -71,6 +80,7 @@ describe("modelsRpc", () => {
     const rpc = modelsRpc({
       ...signIn,
       ...provider,
+      providerForm,
       overview: async () => {
         throw new PapError("invalid_cwd");
       },
@@ -96,6 +106,7 @@ describe("modelsRpc: sign-in", () => {
       configGet: signIn.configGet,
       configSave: signIn.configSave,
       ...provider,
+      providerForm,
       login: async (caller, params) => (seen.push(["login", caller.userId, params]), { flowId: "f1" }),
       loginAnswer: async (caller, params) => (seen.push(["answer", caller.userId, params]), OK),
       loginCancel: async (caller, params) => (seen.push(["cancel", caller.userId, params]), OK),
@@ -179,5 +190,38 @@ describe("modelsRpc: provider discover, test and pricing", () => {
       },
     });
     await expect(rpc["models.pricing"]({ modelId: "m" }, ctx())).rejects.toMatchObject({ code: "forbidden" });
+  });
+});
+
+describe("modelsRpc: provider form", () => {
+  it("hands get, save and remove to one providerForm call each, with the caller and the params as decoded", async () => {
+    const seen: unknown[] = [];
+    const base = {
+      ...signIn,
+      ...provider,
+      overview: async () => ({}) as never,
+      setDefault: async () => OK,
+      setDefaultThinking: async () => OK,
+      setEnabled: async () => ({ patterns: null }),
+      refreshCatalog: async () => ({ changed: false, offline: false, failedProviders: [] }),
+    };
+    const rpc = modelsRpc({
+      ...base,
+      providerForm: {
+        get: async (caller, params) => (seen.push(["get", caller.userId, params]), providerForm.get()),
+        save: async (caller, params) => (seen.push(["save", caller.userId, params.id]), providerForm.save()),
+        remove: async (caller, params) => (
+          seen.push(["remove", caller.userId, params]),
+          providerForm.remove()
+        ),
+      },
+    });
+    const remove = { id: "Odd", baseRevision: "a".repeat(64), alsoRemoveKey: true };
+    await rpc["models.provider.get"]({ id: "x" }, ctx());
+    await rpc["models.provider.remove"](remove, ctx());
+    expect(seen).toEqual([
+      ["get", "u1", { id: "x" }],
+      ["remove", "u1", remove],
+    ]);
   });
 });

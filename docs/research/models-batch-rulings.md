@@ -1,6 +1,6 @@
 # Models batch rulings (one picker fed by Pi's model list, providers form)
 
-Owner answers of 2026-10-17 and the rulings that bind the batch. "(owner qN)" marks the owner's answer; every answer was the recommendation. "Cost if wrong" is the price of the ruling being wrong. Decision numbers: `docs/research/decisions-log.md`. ADR 0068 holds the decision of chain A. Chain A is MPR1 to MPR7, MPR19, MPR21 to MPR23, MPR25 to MPR27 and MPR29 (the rest is chain B, built later; they are recorded here so the numbers stay in one place).
+Owner answers of 2026-10-17 and the rulings that bind the batch. "(owner qN)" marks the owner's answer; every answer was the recommendation. "Cost if wrong" is the price of the ruling being wrong. Decision numbers: `docs/research/decisions-log.md`. ADR 0068 holds the decision of chain A, ADRs 0069 and 0070 those of chain B. Chain A is MPR1 to MPR7, MPR19, MPR21 to MPR23, MPR25 to MPR27 and MPR29; chain B is MPR8 to MPR18, MPR20, MPR24 and MPR28 (ADRs 0069 and 0070). They are recorded here so the numbers stay in one place.
 
 ## Pre-dispatch rulings
 
@@ -34,13 +34,20 @@ Owner answers of 2026-10-17 and the rulings that bind the batch. "(owner qN)" ma
 - **MPR28** [MP-RT-22] **`$NAME` can name any variable of the helper's environment.** An `apiKey` or header env reference plus a changed `baseUrl` can send a variable of the helper's environment to a chosen host. It needs the browser session and the step-up, and the raw editor allows the same, so this adds no capability; ADR 0069 says so.
 - **MPR29** [MP-RT-23] **Backups.** M6b excludes `models.json`, `auth.json` and `settings.json` from the backup (M6bR3). `docs/agents/models.md` and the restore summary say: after a restore, providers, the model selection and keys must be set again.
 
-## Controller rulings during chain A
+## Controller rulings
 
-MPR-C1, MPR-C3, MPR-C4 and MPR-C5 are chain B rulings; they join this file when chain B closes (task 15).
+The controller's rulings while the batch ran, in order. C1, C3, C4, C5, C8, C9 and C10 are chain B and the close; C2 and C6 are chain A. There is no MPR-C7: the number was never issued.
 
+- **MPR-C1** (task 8) The provider method declarations, their `sensitiveParams`, the `pi-token` sample and the idempotency entries move to task 10, the service test names to task 9, so no commit declares a method without its handler. Why: the daemon typecheck was red between tasks 8 and 10 (methods declared, no handler). Cost if wrong: a carry file (`carry-task-9-10.md`) to keep the moved lines honest.
 - **MPR-C2** Option (a): the `models.available` op calls `runtime.refresh({ allowNetwork: false })` before `listAvailable`, exactly like the worker's `freshAvailable`. Why: MPR1's "same list" must hold after the owner's "Refresh catalog" cached a catalog; probed: no command, no network. Cost if wrong: the op, like the worker, creates `models-store.json` when that file is missing (before Pi takes its lock) and otherwise only reads it. It writes no other file, so the price is one file created by a read.
+- **MPR-C3** (task 9) `models.provider.get` masks every literal header value as `keep` (parity with M7R62); the form offers Replace. Why: no header value leaves the helper without a step-up, and one rule serves both readers (`models.config.get` and `get`). Cost if wrong: the owner re-types a non-secret header to change it.
+- **MPR-C4** (task 11) While a header value is `keep`, its name is locked in the form: Replace the value first, then rename. Why: the daemon never has to carry a kept value across a rename. Cost if wrong: one extra click to rename a masked header.
+- **MPR-C5** (task 10, 12) `alsoRemoveKey` keeps "remove, then log out" in one queue slot. When the log-out fails after the entry left the file, the UI reloads with `models.provider.get` and, on `not_in_file`, offers "Remove the stored key" through `models.logout`. Why: logging out first would delete the key on every refused removal. Cost if wrong: one extra click to clean an orphaned key. `service.ts` compose grew by 11 lines, accepted.
 - **MPR-C6** MPR5 reads "first model row, after Pi's default". Why: Default is a pseudo-row that picks no model; the picker tests pin this order. Cost if wrong: one row swap.
 - **Carry (task 7)** Re-picking the saved-but-unoffered model hands the form no summary: the row's own summary is made up and says "does not reason", which would reset the thinking level. The level is kept and no hint shows (`ModelPickerField`, pinned in `ModelPickerField.test.tsx` and `AgentForm.models.test.tsx`).
+- **MPR-C8** (task 13) `models.extensions` carries a top-level `truncated`: set by the provider cap (a 301st valid provider), by the byte budget at the first hit, and by a provider whose id is over 128 characters (left out, never clipped). A model whose id is over 256 characters is left out and sets that provider's `modelsTruncated` (task 15 carry). Why: as `models.available`'s `truncated`, the UI must say the list is incomplete. Cost if wrong: one contract field.
+- **MPR-C9** Chain B's tail (tasks 14 and 15) starts from B-web, B-daemon and chain A's tip (8f75402b) instead of waiting for main to hold M6b. Why: task 14 needs A's picker types and hooks, and waiting idles B for about ten hours. The rebase on main (M12, A, M6b) stays a step of the B merge. Cost if wrong: one more mechanical conflict pass.
+- **MPR-C10** Task 15 runs on the B branch: docs, ADRs, these rulings, every carry and the full gate here. The rebase on main (M12, A, M6b) and a re-run of the gate are a mechanical step at B's merge. Why: B would idle about eight hours otherwise, and the rebase is whole-line by plan. Cost if wrong: conflicts found at merge time instead of in task 15.
 
 ## Owner answers (2026-10-17)
 

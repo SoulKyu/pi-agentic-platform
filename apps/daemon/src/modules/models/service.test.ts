@@ -169,15 +169,21 @@ describe("the helper op table", () => {
                   ? { text: null, issues: [], revision: "0".repeat(64), path: "/a/models.json" }
                   : call.op === "models.config.save"
                     ? { revision: "0".repeat(64), enabledModelsSynced: true }
-                    : call.op === "models.discover"
-                      ? { models: [] }
-                      : call.op === "models.test"
-                        ? { ok: true, latencyMs: 1 }
-                        : call.op === "models.pricing"
-                          ? { entries: [] }
-                          : call.op === "models.usage"
-                            ? { status: "query_failed" }
-                            : { ok: true },
+                    : call.op === "models.provider.get"
+                      ? { editable: false, reason: "not_in_file", revision: "0".repeat(64) }
+                      : call.op === "models.provider.save" || call.op === "models.provider.remove"
+                        ? { revision: "0".repeat(64), enabledModelsSynced: true }
+                        : call.op === "models.discover"
+                          ? { models: [] }
+                          : call.op === "models.test"
+                            ? { ok: true, latencyMs: 1 }
+                            : call.op === "models.pricing"
+                              ? { entries: [] }
+                              : call.op === "models.usage"
+                                ? { status: "query_failed" }
+                                : call.op === "models.extensions"
+                                  ? { providers: [], truncated: false, failed: false }
+                                  : { ok: true },
       undefined,
       { models: () => ({ modelsDevPricing: true }) },
     );
@@ -192,6 +198,25 @@ describe("the helper op table", () => {
       text: "{}",
       baseRevision: "0".repeat(64),
     });
+    await service.providerForm.get(caller, {});
+    await service.providerForm.save(testCaller({ stepUpUntil: clock.now() + 1 }), {
+      mode: "create",
+      id: "p",
+      provider: {
+        id: "p",
+        api: "openai-completions",
+        baseUrl: "https://example.test/v1",
+        auth: { kind: "stored" },
+        headers: [],
+        models: [],
+      },
+      baseRevision: "0".repeat(64),
+    });
+    await service.providerForm.remove(testCaller({ stepUpUntil: clock.now() + 1 }), {
+      id: "p",
+      baseRevision: "0".repeat(64),
+      alsoRemoveKey: false,
+    });
     await service.setApiKey(testCaller({ stepUpUntil: clock.now() + 1 }), { provider: "p", key: "k" });
     await service.logout(caller, { provider: "p" });
     await service.login(testCaller({ stepUpUntil: clock.now() + 1 }), { provider: "p", method: "oauth" });
@@ -199,6 +224,7 @@ describe("the helper op table", () => {
     await service.test(caller, { provider: "p", modelId: "m" });
     await service.pricing(caller, { modelId: "m" });
     await service.usage(caller, { providerId: "openrouter" });
+    await service.extensions();
     // The MCP overview, the trust decisions, the skills, the plugins and the subagent profiles belong to their own modules' services.
     const modelsOps = Object.keys(HELPER_OPS).filter(
       (op) =>

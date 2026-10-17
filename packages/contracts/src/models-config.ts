@@ -8,13 +8,14 @@ export const MODELS_CONFIG_ISSUES_MAX = 20;
 export const MODELS_CONFIG_ISSUE_MAX_LENGTH = 100;
 
 /** The HMAC-SHA-256 (hex) of the file's text under a key the daemon makes at each boot: not a hash anyone can guess against (MC32). */
-const Revision = z.string().regex(/^[0-9a-f]{64}$/);
+export const Revision = z.string().regex(/^[0-9a-f]{64}$/);
 const Issue = z.string().min(1).max(MODELS_CONFIG_ISSUE_MAX_LENGTH);
 
 /**
  * The file as the browser sees it: every literal secret replaced by `"<redacted:N>"` (M7R62). `text: null` with no issue
  * means there is no file; with issues, the file does not parse and is not shown at all (fail closed, MC32): the issues
- * carry a position and a fixed phrase, never a value.
+ * carry a position and a fixed phrase, never a value. A file too large for the editor is shown the same way, with the
+ * single issue `text too large`.
  */
 export const ConfigGetResult = z
   .object({
@@ -33,7 +34,7 @@ export const ConfigSaveParams = z
 export type ConfigSaveParams = z.infer<typeof ConfigSaveParams>;
 
 /** What the daemon, not the client, gives the helper: the boot key the revision is made with. */
-const RevisionKey = z.object({ revisionKey: z.string().regex(/^[0-9a-f]{64}$/) }).strict();
+const RevisionKey = z.object({ revisionKey: Revision }).strict();
 export const ConfigGetHelperParams = RevisionKey;
 export const ConfigSaveHelperParams = ConfigSaveParams.extend(RevisionKey.shape);
 
