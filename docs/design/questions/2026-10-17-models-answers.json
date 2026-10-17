@@ -1,0 +1,40 @@
+{
+ "version": "models-q1",
+ "submittedAt": "2026-10-17",
+ "source": "owner chat: \"Ok pour les modèle de ta reco\" (all recommendations)",
+ "answers": {
+  "q1": {
+   "choice": "popover"
+  },
+  "q2": {
+   "choice": "presets"
+  },
+  "q3": {
+   "choice": "mode"
+  },
+  "q4": {
+   "choice": "loopback"
+  },
+  "q5": {
+   "choice": "settings"
+  },
+  "q6": {
+   "choice": "keep"
+  },
+  "q7": {
+   "choice": "authjson"
+  },
+  "q8": {
+   "choice": "headers"
+  },
+  "q9": {
+   "choice": "addonly"
+  },
+  "q10": {
+   "choice": "aearly"
+  },
+  "q11": {
+   "choice": "none"
+  }
+ }
+}

@@ -97,6 +97,27 @@ html[data-keyboard-open] .pb-safe {
   max-height: var(--app-viewport-height, 100dvh);
 }
 
+@utility max-h-available {
+  max-height: var(--radix-select-content-available-height, var(--app-viewport-height, 100dvh));
+}
+
+/* Radix hides the viewport's scrollbar with an injected rule of one attribute; two attributes win. */
+[data-radix-select-viewport][data-slot="select-viewport"] {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+[data-radix-select-viewport][data-slot="select-viewport"]::-webkit-scrollbar {
+  display: block;
+  width: var(--spacing-s2);
+}
+
+/* Safari before 18.2 has no `scrollbar-width`: a styled `::-webkit-scrollbar` needs its own thumb to show. */
+[data-radix-select-viewport][data-slot="select-viewport"]::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+
 /* Safe-area insets for notches and home indicators. */
 @utility pt-safe {
   padding-top: env(safe-area-inset-top, 0px);
