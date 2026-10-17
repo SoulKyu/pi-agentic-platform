@@ -17,9 +17,9 @@ Two methods, one service command (`pap service install`) behind both:
 
 Rejected, and why:
 
-- `curl | sh`: no trust root today (private mirror, no signature). Viable at v1 (public repository, published releases, a signature); the archive and installer of this plan stay unchanged under it (M6b).
+- `curl | sh`: no trust root today (private mirror, no signature). Viable at v1 (public repository, published releases, a signature); the archive and installer of this plan stay unchanged under it (M6b built `scripts/get-pap.sh`, ADR 0066; it waits for the public repository).
 - OCI image: needs R52b (`--security-opt systempaths=unconfined` for the bwrap sandbox), the PID-namespace lock story and volume modes, about four more tasks and a security review.
-- npm package: node-pty still compiles on the target; needs a registry account and provenance (M6b).
+- npm package: node-pty still compiles on the target; needs a registry account and provenance (M6b built the package, `pnpm build:npm`, ADR 0066; `npm publish` is the owner's step after v1).
 
 ## Consequences
 

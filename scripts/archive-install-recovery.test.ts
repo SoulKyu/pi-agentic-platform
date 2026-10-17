@@ -9,7 +9,7 @@ describe("archive installer recovery", () => {
     const root = makeRoot();
     expect(installBed("r1", root).run().status).toBe(0);
     const before = lines(root.sysLog).length;
-    const result = installBed("r2", root).run({ env: { NODE_EXIT: "1" } });
+    const result = installBed("r2", root).run({ args: ["--port", "7790"], env: { NODE_EXIT: "1" } });
     expect(result.status).toBe(1);
     const log = lines(root.sysLog).slice(before);
     const reset = log.indexOf("--user reset-failed pap.service");
@@ -20,7 +20,10 @@ describe("archive installer recovery", () => {
   it("I1: a refused reset-failed does not stop the rollback restart", () => {
     const root = makeRoot();
     expect(installBed("r1", root).run().status).toBe(0);
-    const result = installBed("r2", root).run({ env: { NODE_EXIT: "1", RESET_FAILS: "1" } });
+    const result = installBed("r2", root).run({
+      args: ["--port", "7790"],
+      env: { NODE_EXIT: "1", RESET_FAILS: "1" },
+    });
     expect(result.stderr).toContain(
       "the previous release (r1) is back in place and the service was restarted",
     );
@@ -32,7 +35,7 @@ describe("archive installer recovery", () => {
     expect(r1.run().status).toBe(0);
     const before = lines(root.sysLog).length;
     const r2 = installBed("r2", root);
-    const result = r2.run({ env: { NODE_EXIT: "3" } });
+    const result = r2.run({ args: ["--port", "7790"], env: { NODE_EXIT: "3" } });
     expect(result.status).toBe(3);
     expect(current(r2.app)).toBe("releases/r2");
     expect(
@@ -59,7 +62,7 @@ describe("archive installer recovery", () => {
     const root = makeRoot();
     expect(installBed("r1", root).run().status).toBe(0);
     const r2 = installBed("r2", root);
-    expect(r2.run({ env: { NODE_EXIT: "2" } }).status).toBe(1);
+    expect(r2.run({ args: ["--port", "7790"], env: { NODE_EXIT: "2" } }).status).toBe(1);
     expect(current(r2.app)).toBe("releases/r1");
   });
 
@@ -67,8 +70,8 @@ describe("archive installer recovery", () => {
     const root = makeRoot();
     expect(installBed("r1", root).run().status).toBe(0);
     const again = installBed("r2", root);
-    expect(again.run().status).toBe(0);
-    expect(again.run().status).toBe(0);
+    expect(again.run({ args: ["--port", "7790"] }).status).toBe(0);
+    expect(again.run({ args: ["--port", "7790"] }).status).toBe(0);
     expect(current(again.app)).toBe("releases/r2");
     expect(releases(again.app)).toEqual(["r1", "r2"]);
   });

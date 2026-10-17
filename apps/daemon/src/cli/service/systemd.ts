@@ -63,12 +63,22 @@ export interface Systemd {
   invocationId(unit: string): Promise<string | null>;
   /** The unit's lines of the current start; `fallback` also tries `--since` when the invocation match is empty. */
   journal(invocationId: string, sinceUtc: string, fallback: boolean): Promise<string>;
-  /** Everything the journal holds for pap.service since the restart, manager lines included; empty means unreadable. */
+  /** Everything the journal holds for the unit since the restart, manager lines included; empty means unreadable. */
   journalAny(sinceUtc: string): Promise<string>;
+  /** `systemctl show -p ActiveState`, e.g. "active" or "failed"; null when it could not be read. */
+  activeState(unit: string): Promise<string | null>;
+  /** `systemctl show -p NRestarts`: how often the manager restarted the unit by itself; null when it could not be read. */
+  restartCount(unit: string): Promise<number | null>;
+  /** `systemctl cat`: the effective unit text, drop-ins included, capped at 64 KiB. */
+  cat(unit: string): Promise<string>;
 }
 
 /** The only place pap starts systemctl, loginctl or journalctl: argument lists, a filtered env, a timeout, fixed errors. */
-export function createSystemd(env: NodeJS.ProcessEnv, options: { timeoutMs?: number } = {}): Systemd {
+export function createSystemd(
+  env: NodeJS.ProcessEnv,
+  options: { timeoutMs?: number; unit?: string } = {},
+): Systemd {
+  const journalUnit = unitName(options.unit ?? UNIT);
   const timeout = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const must = async (bin: Bin, args: readonly string[], what: string): Promise<string> => {
     const { code, stdout } = await run(env, bin, args, timeout);
@@ -88,8 +98,8 @@ export function createSystemd(env: NodeJS.ProcessEnv, options: { timeoutMs?: num
         "--user",
         "-q",
         "-u",
-        UNIT,
-        `_SYSTEMD_USER_UNIT=${UNIT}`,
+        journalUnit,
+        `_SYSTEMD_USER_UNIT=${journalUnit}`,
         ...selector,
         "-o",
         "cat",
@@ -168,6 +178,30 @@ export function createSystemd(env: NodeJS.ProcessEnv, options: { timeoutMs?: num
       const id = stdout.trim();
       return INVOCATION_ID.test(id) ? id : null;
     },
+    activeState: async (unit) => {
+      const { code, stdout } = await run(
+        env,
+        "systemctl",
+        ["--user", "show", "-p", "ActiveState", "--value", unitName(unit)],
+        timeout,
+      );
+      return code === 0 && /^[a-z-]{1,32}$/.test(stdout.trim()) ? stdout.trim() : null;
+    },
+    restartCount: async (unit) => {
+      const { code, stdout } = await run(
+        env,
+        "systemctl",
+        ["--user", "show", "-p", "NRestarts", "--value", unitName(unit)],
+        timeout,
+      );
+      return code === 0 && /^\d{1,6}$/.test(stdout.trim()) ? Number(stdout.trim()) : null;
+    },
+    cat: async (unit) => {
+      const text = await must("systemctl", ["--user", "cat", unitName(unit)], "cat");
+      if (text.length > 65_536)
+        throw new CliError(`${unit} is larger than 64 KiB: it is not a unit pap wrote`, 1);
+      return text;
+    },
     journal: async (invocationId, sinceUtc, fallback) => {
       if (!INVOCATION_ID.test(invocationId)) throw new CliError("invalid invocation id", 1);
       if (!SINCE_UTC.test(sinceUtc)) throw new CliError("invalid journal start time", 1);
@@ -178,7 +212,7 @@ export function createSystemd(env: NodeJS.ProcessEnv, options: { timeoutMs?: num
       if (!SINCE_UTC.test(sinceUtc)) throw new CliError("invalid journal start time", 1);
       return must(
         "journalctl",
-        ["--user", "-q", "-u", UNIT, "--since", sinceUtc, "-o", "cat", "--no-pager", "-n", "20"],
+        ["--user", "-q", "-u", journalUnit, "--since", sinceUtc, "-o", "cat", "--no-pager", "-n", "20"],
         "read",
       );
     },

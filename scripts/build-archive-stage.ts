@@ -20,6 +20,8 @@ const WORKSPACE_PARENTS = ["apps", "packages"] as const;
 const STATE_FILES = [".modules.yaml", ".pnpm-workspace-state-v1.json"] as const;
 const CREDENTIAL = /_authToken|_password|_auth\s*=|^\s*\/\/[^\s/]+\/[^\s]*:|\bnpm_[A-Za-z0-9]{20,}/m;
 
+export const holdsCredential = (text: string): boolean => CREDENTIAL.test(text);
+
 export const missingDist = (repo: string): string[] =>
   DIST_DIRS.map((dir) => `${dir}/dist`).filter((dir) => !existsSync(join(repo, dir)));
 
@@ -45,7 +47,7 @@ const workspaceManifests = (repo: string): string[] =>
 export const assertNoCredentials = (app: string): void => {
   const files = [".npmrc", "pnpm-workspace.yaml", "package.json", ...workspaceManifests(app)];
   for (const file of files) {
-    if (existsSync(join(app, file)) && CREDENTIAL.test(readFileSync(join(app, file), "utf8"))) {
+    if (existsSync(join(app, file)) && holdsCredential(readFileSync(join(app, file), "utf8"))) {
       throw new Error(`${file} looks like it holds a registry credential: nothing was packed`);
     }
   }
@@ -91,7 +93,7 @@ export const assertNoStagePath = (root: string, stage: string, home = homedir())
   }
 };
 
-const assertNoSymlinks = (dist: string): void => {
+export const assertNoSymlinks = (dist: string): void => {
   const link = entriesUnder(dist).find((entry) => entry.isSymbolicLink());
   if (link) throw new Error(`${relative(dist, join(link.parentPath, link.name))} in ${dist} is a symlink`);
 };

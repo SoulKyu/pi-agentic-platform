@@ -67,12 +67,12 @@ describe("archive installer", () => {
     expect(r1.run().status).toBe(0);
     expect(sentinel()).toEqual([["sentinel"], "keep"]);
     const r2 = installBed("r2", root);
-    expect(r2.run().status).toBe(0);
+    expect(r2.run({ args: ["--port", "7790"] }).status).toBe(0);
     expect(current(r2.app)).toBe("releases/r2");
     expect(releases(r2.app)).toEqual(["r1", "r2"]);
     expect(sentinel()).toEqual([["sentinel"], "keep"]);
     const r3 = installBed("r3", root);
-    expect(r3.run().status).toBe(0);
+    expect(r3.run({ args: ["--port", "7790"] }).status).toBe(0);
     expect(current(r3.app)).toBe("releases/r3");
     expect(releases(r3.app)).toEqual(["r2", "r3"]);
     expect(sentinel()).toEqual([["sentinel"], "keep"]);
@@ -96,7 +96,7 @@ describe("archive installer", () => {
       const r1 = installBed("r1", root);
       expect(r1.run().status).toBe(0);
       const r2 = installBed("r2", root);
-      const result = r2.run({ env: { NODE_EXIT: "1" } });
+      const result = r2.run({ args: ["--port", "7790"], env: { NODE_EXIT: "1" } });
       expect(result.status).toBe(1);
       expect(current(r2.app)).toBe("releases/r1");
       expect(readFileSync(root.sysLog, "utf8")).toContain("--user restart pap.service");
@@ -113,9 +113,9 @@ describe("archive installer", () => {
     it("a failing third install prunes nothing", () => {
       const root = makeRoot();
       expect(installBed("r1", root).run().status).toBe(0);
-      expect(installBed("r2", root).run().status).toBe(0);
+      expect(installBed("r2", root).run({ args: ["--port", "7790"] }).status).toBe(0);
       const r3 = installBed("r3", root);
-      expect(r3.run({ env: { NODE_EXIT: "1" } }).status).toBe(1);
+      expect(r3.run({ args: ["--port", "7790"], env: { NODE_EXIT: "1" } }).status).toBe(1);
       expect(current(r3.app)).toBe("releases/r2");
       expect(releases(r3.app)).toEqual(["r1", "r2", "r3"]);
     });
@@ -224,7 +224,10 @@ describe("archive installer", () => {
   it("says so when the service cannot be restarted on the restored release", () => {
     const root = makeRoot();
     expect(installBed("r1", root).run().status).toBe(0);
-    const result = installBed("r2", root).run({ env: { NODE_EXIT: "1", RESTART_FAILS: "1" } });
+    const result = installBed("r2", root).run({
+      args: ["--port", "7790"],
+      env: { NODE_EXIT: "1", RESTART_FAILS: "1" },
+    });
     expect(result.status).toBe(1);
     expect(current(root.home + "/.local/share/pap")).toBe("releases/r1");
     expect(result.stderr).toContain("restarting failed: run systemctl --user restart pap.service");
@@ -302,14 +305,14 @@ describe("archive installer", () => {
   it("keeps a successful install when an old release cannot be pruned", () => {
     const root = makeRoot();
     expect(installBed("r1", root).run().status).toBe(0);
-    expect(installBed("r2", root).run().status).toBe(0);
+    expect(installBed("r2", root).run({ args: ["--port", "7790"] }).status).toBe(0);
     const stuck = join(root.home, ".local/share/pap/releases/r0/sub");
     mkdirSync(stuck, { recursive: true });
     writeFileSync(join(stuck, "f"), "x");
     chmodSync(stuck, 0o500);
     try {
       const r3 = installBed("r3", root);
-      const result = r3.run();
+      const result = r3.run({ args: ["--port", "7790"] });
       expect(result.status).toBe(0);
       expect(current(r3.app)).toBe("releases/r3");
       expect(result.stderr).toContain("could not remove the old release r0");
@@ -322,7 +325,7 @@ describe("archive installer", () => {
     const root = makeRoot();
     expect(installBed("r1", root).run().status).toBe(0);
     const r2 = installBed("r2", root);
-    const result = r2.run({ env: { NODE_EXIT: "1", FAIL_STAGE_RM: "1" } });
+    const result = r2.run({ args: ["--port", "7790"], env: { NODE_EXIT: "1", FAIL_STAGE_RM: "1" } });
     expect(result.status).toBe(1);
     expect(current(r2.app)).toBe("releases/r1");
     expect(result.stderr).toContain("the previous release (r1) is back in place");

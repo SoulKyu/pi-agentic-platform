@@ -49,6 +49,7 @@ export const makeRoot = (): Root => {
       'if [ "$1 $2" = "--user show-environment" ] && [ -n "$NO_MANAGER" ]; then exit 1; fi',
       'if [ "$2" = reset-failed ] && [ -n "$RESET_FAILS" ]; then exit 1; fi',
       'if [ "$2" = restart ] && [ -n "$RESTART_FAILS" ]; then exit 1; fi',
+      'if [ "$2" = cat ] && [ -n "$UNIT_TEXT" ]; then printf "%s\\n" "$UNIT_TEXT"; exit 0; fi',
       "exit 0",
     ].join("\n"),
   );

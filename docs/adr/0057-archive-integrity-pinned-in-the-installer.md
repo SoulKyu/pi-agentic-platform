@@ -6,7 +6,7 @@ Spec: A success criterion 3. ADR 0055. Rulings: M6R9, M6R20 to M6R26, M6R38, M6R
 
 ## Threat model
 
-The installer script embeds the SHA-256 of the final `.tar.gz`. It protects against corruption and tampering of the archive in transit, if the script itself came over a trusted channel. It does not protect against a compromised build host, nor against script and archive taken together from an untrusted channel. Signing and an SBOM are M6b. Messages say "the archive matches the checksum pinned in this script", never "the archive is safe".
+The installer script embeds the SHA-256 of the final `.tar.gz`. It protects against corruption and tampering of the archive in transit, if the script itself came over a trusted channel. It does not protect against a compromised build host, nor against script and archive taken together from an untrusted channel. Signing and an SBOM come after v1 (ADR 0066). Messages say "the archive matches the checksum pinned in this script", never "the archive is safe".
 
 ## Decision: builder
 
@@ -25,6 +25,6 @@ The installer script embeds the SHA-256 of the final `.tar.gz`. It protects agai
 - Order: switch `current` only after verification; run `pap service install`; on failure put the previous `current` back (after `reset-failed`) and restart the service; exit 3 from it (installed, unverified: unreadable journal) keeps the new release, rolls nothing back and exits 3 itself (W5-R22); prune releases other than the new and the previous last, and skip pruning when the new id is already `current` (the rollback target stays). Prune failures only warn (a successful install is never rolled back for a cleanup problem), and symlinked release entries are skipped.
 - `~/.pap` is never read or written.
 
-## Not covered (M6b)
+## Not covered (after v1; the update path of M6b is ADR 0064)
 
 Archive signature, SBOM, a provenance channel. The link check runs against the stage location. Installed files lose read-only modes (folders are owner-only). Cost if wrong: a pinned but malicious archive from a bad build still runs as the owner once installed, which is the point of the trusted-channel sentence above.

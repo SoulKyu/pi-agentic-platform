@@ -45,7 +45,7 @@ Push and install need a secure origin. `kernel/push-readiness.ts` is the only pl
 ## #keys
 
 - `push.config`: `status` on/off; `reason` `keys_unreadable`, `insecure_http` or `read_only` (database written by a newer pap; subscribe answers `read_only`); `readiness`; `subscribed`/`max`; `lastFailure { at, reason }` per owner (`retry_exhausted`, `rejected`, `refused`, `no_target`; never a response body); `keysReset`.
-- `pap doctor` is M6b's and is not in this branch. Its contract: an `https` check mapped from `pushReadiness`, and a `push` check that applies the daemon's key-file predicate (absent ok, 0600 file in a 0700 folder owned by pap's user ok, else warn). Push is never a doctor failure.
+- `pap doctor` (M6b, `docs/agents/doctor.md`) registers both: an `https` check mapped from `pushReadiness`, and a `push` check that applies the daemon's key-file predicate (absent ok, 0600 file in a 0700 folder owned by pap's user ok, else warn). Push is never a doctor failure.
 - Containers: outbound HTTPS and DNS to the push services, and `$PAP_HOME` on a volume so `secrets/push/` survives.
 - `PAP_TEST_PUSH_LOOPBACK=1` needs `PAP_TEST_PROVIDER_SCRIPT` and lets the validator and sender accept `127.0.0.1`. Tests only; never set it elsewhere.
 

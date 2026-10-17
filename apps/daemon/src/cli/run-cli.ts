@@ -4,12 +4,20 @@ import { HomeError, InstanceLockError } from "../kernel/home.ts";
 import { ConfigError } from "../kernel/config.ts";
 import { AuthCliError } from "../modules/auth/index.ts";
 import { auditPrune } from "./audit-prune.ts";
+import { backup } from "./backup.ts";
+import { doctor } from "./doctor.ts";
 import { CliError, type CliIo } from "./open-home.ts";
 import { passkeyReset } from "./passkey-reset.ts";
+import { restore } from "./restore.ts";
 import { serviceInstall } from "./service/install.ts";
 import { serviceUninstall } from "./service/uninstall.ts";
 import { serviceUrl } from "./service/url.ts";
 import { traceSummary } from "./trace-summary.ts";
+import { updateApply } from "./update/apply-command.ts";
+import { updateCheck } from "./update/check-command.ts";
+import { updateInstall } from "./update/install-command.ts";
+import { updateRecover } from "./update/recover-command.ts";
+import { updateRollback } from "./update/rollback-command.ts";
 import { PREVIEW_STOP_COMMAND, USAGE, UsageError } from "./usage.ts";
 import { userAdd } from "./user-add.ts";
 
@@ -25,12 +33,20 @@ export interface Command {
 /** Keyed by the command words. `USAGE` lists the same commands. */
 export const COMMANDS: Readonly<Record<string, Command>> = {
   "audit prune": auditPrune,
+  backup,
+  restore,
   "user add": userAdd,
   "passkey reset": passkeyReset,
   "trace summary": traceSummary,
   "service install": serviceInstall,
   "service uninstall": serviceUninstall,
   "service url": serviceUrl,
+  "update check": updateCheck,
+  "update install": updateInstall,
+  "update apply": updateApply,
+  "update rollback": updateRollback,
+  "update recover": updateRecover,
+  doctor,
 };
 
 const usage = (io: CliIo, message?: string): number => {
@@ -40,9 +56,12 @@ const usage = (io: CliIo, message?: string): number => {
 
 /** The admin commands. `serve` is not one of them: it lives in `main.ts`. Returns the exit code. */
 export async function runCli(argv: readonly string[], io: CliIo): Promise<number> {
-  const [first, second, ...rest] = argv;
-  const command = first === undefined || second === undefined ? undefined : COMMANDS[`${first} ${second}`];
+  const [first, second] = argv;
+  const pair = first === undefined || second === undefined ? undefined : `${first} ${second}`;
+  const words = pair !== undefined && Object.hasOwn(COMMANDS, pair) ? pair : first;
+  const command = words !== undefined && Object.hasOwn(COMMANDS, words) ? COMMANDS[words] : undefined;
   if (!command) return usage(io);
+  const rest = argv.slice(words === pair ? 2 : 1);
   try {
     const { values, positionals } = parseArgs({
       args: rest,

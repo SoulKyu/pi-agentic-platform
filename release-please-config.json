@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "bump-minor-pre-major": true,
+  "bump-patch-for-minor-pre-major": false,
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "package-name": "pap",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [{ "type": "json", "path": "apps/daemon/package.json", "jsonpath": "$.version" }]
+    }
+  }
+}

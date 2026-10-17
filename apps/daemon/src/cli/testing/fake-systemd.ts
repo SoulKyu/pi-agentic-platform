@@ -4,7 +4,7 @@ import { join } from "node:path";
 /**
  * Executable fakes for systemctl, loginctl, journalctl and node. Each call is appended to `<dir>/calls` as
  * "<bin> <args>" and the names of its environment variables to `<dir>/env-keys`; answers come from `<dir>/answers/`:
- * load-state, active-enter, enabled (kept by enable, disable and is-enabled; absent means not enabled), linger, linger-after-enable (copied to linger by enable-linger), active, invocation-id, journal, journal-since, journal-any (the unmatched query: defaults to a manager line), node-version, hang-<verb>, fail-<verb>, flood-<verb> (2 MB of output).
+ * load-state, active-enter, enabled (kept by enable, disable and is-enabled; absent means not enabled), linger, linger-after-enable (copied to linger by enable-linger), active, active-state, restart-count, cat-unit@<unit> or cat-unit (the text `systemctl cat <unit>` prints; with neither it exits 1, as for a unit that is not installed), invocation-id, journal, journal-since, journal-any (the unmatched query: defaults to a manager line), node-version, restart-hook (an executable run by `restart`), hang-<verb>, fail-<verb>, flood-<verb> (2 MB of output).
  * `is-active` answers yes whatever the journal says: that is the Type=simple trap.
  */
 export function fakeSystemd(dir: string) {
@@ -35,7 +35,9 @@ export function fakeSystemd(dir: string) {
         'verb=$2; case "$1" in --user) ;; *) verb=$1 ;; esac',
         guard,
         'case "$verb" in',
-        `  show) case "$*" in *LoadState*) ${show("load-state")} ;; *ActiveEnterTimestamp*) ${show("active-enter")} ;; *) ${show("invocation-id")} ;; esac; exit 0 ;;`,
+        `  show) case "$*" in *LoadState*) ${show("load-state")} ;; *ActiveEnterTimestamp*) ${show("active-enter")} ;; *ActiveState*) ${show("active-state")} ;; *NRestarts*) ${show("restart-count")} ;; *) ${show("invocation-id")} ;; esac; exit 0 ;;`,
+        '  cat) unit=; for a in "$@"; do unit=$a; done; if [ -e "$A/cat-unit@$unit" ]; then cat "$A/cat-unit@$unit"; exit 0; fi; [ -e "$A/cat-unit" ] && { cat "$A/cat-unit"; exit 0; }; echo SECRET-STDERR >&2; exit 1 ;;',
+        '  restart) [ -x "$A/restart-hook" ] && "$A/restart-hook"; exit 0 ;;',
         '  enable) echo yes > "$A/enabled"; exit 0 ;;',
         '  disable) echo no > "$A/enabled"; exit 0 ;;',
         '  is-enabled) [ "$(cat "$A/enabled" 2>/dev/null)" = yes ] && exit 0; exit 1 ;;',
@@ -61,7 +63,8 @@ export function fakeSystemd(dir: string) {
         guard,
         'file=journal; since=; prev=; for arg in "$@"; do [ "$prev" = --since ] && { file=journal-since; since=$arg; }; prev=$arg; done',
         '[ -n "$since" ] && [ -e "$A/journal-since@$since" ] && file="journal-since@$since"',
-        'trusted=no; for arg in "$@"; do [ "$arg" = _SYSTEMD_USER_UNIT=pap.service ] && trusted=yes; done',
+        'unit=pap.service; prev=; for arg in "$@"; do [ "$prev" = -u ] && unit=$arg; prev=$arg; done',
+        'trusted=no; for arg in "$@"; do [ "$arg" = "_SYSTEMD_USER_UNIT=$unit" ] && trusted=yes; done',
         'anyq=yes; for arg in "$@"; do case "$arg" in _SYSTEMD_*) anyq=no ;; esac; done',
         '[ "$anyq" = yes ] && { if [ -e "$A/journal-any" ]; then cat "$A/journal-any"; else echo "Started pap.service."; fi; exit 0; }',
         '[ "$trusted" = yes ] || file=journal-untrusted',

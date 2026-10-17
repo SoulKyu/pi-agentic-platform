@@ -9,3 +9,5 @@ playwright-report/
 e2e/.state/
 *.tsbuildinfo
 /.pap-archive/
+/.pap-npm/
+/.pap-release/

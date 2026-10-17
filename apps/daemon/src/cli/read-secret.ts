@@ -5,18 +5,23 @@ const MAX_CHARACTERS = 1024;
 const MAX_LINE_BYTES = 1024;
 const CTRL_C = "\u0003";
 const ESCAPE = "\u001b";
-const TOO_LONG = "the password is too long";
-const NONE = "no password on standard input";
 
 type Source = Pick<CliIo, "stdin" | "stdout">;
 
 /**
- * Reads a password. On a terminal: raw mode, nothing echoed, characters until Enter, Backspace removes one code point,
+ * Reads a password (`noun` renames it in the messages, for example "passphrase"). On a terminal: raw mode, nothing echoed, characters until Enter, Backspace removes one code point,
  * at most 1 024 characters; Ctrl-C ends with exit code 130. Otherwise (or with `line`): the first line of standard
  * input, at most 1 024 bytes. The terminal is restored on every path, and the messages are fixed: a stream error's text
  * is never shown. The secret is not written anywhere by this function.
  */
-export function readSecret(io: Source, prompt: string, options: { line?: boolean } = {}): Promise<string> {
+export function readSecret(
+  io: Source,
+  prompt: string,
+  options: { line?: boolean; noun?: string } = {},
+): Promise<string> {
+  const noun = options.noun ?? "password";
+  const TOO_LONG = `the ${noun} is too long`;
+  const NONE = `no ${noun} on standard input`;
   const { stdin } = io;
   const raw = stdin.isTTY === true && options.line !== true && typeof stdin.setRawMode === "function";
   if (raw) io.stdout.write(prompt);
@@ -44,7 +49,7 @@ export function readSecret(io: Source, prompt: string, options: { line?: boolean
       }
     };
     const fail = (message: string, code = 1) => done(() => reject(new CliError(message, code)));
-    const onError = () => fail("cannot read the password");
+    const onError = () => fail(`cannot read the ${noun}`);
     const onEnd = () => fail(NONE);
 
     const onRawData = (chunk: Buffer | string) => {

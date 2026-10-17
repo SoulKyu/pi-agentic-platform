@@ -51,11 +51,19 @@ describe("runCli", () => {
     expect(stderr()).toContain("pap serve");
     expect(Object.keys(COMMANDS).sort()).toEqual([
       "audit prune",
+      "backup",
+      "doctor",
       "passkey reset",
+      "restore",
       "service install",
       "service uninstall",
       "service url",
       "trace summary",
+      "update apply",
+      "update check",
+      "update install",
+      "update recover",
+      "update rollback",
       "user add",
     ]);
   });

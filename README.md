@@ -29,3 +29,11 @@ Method 2, offline archive pinned to a checksum:
 - copy the `.tar.gz` and `pap-install-<id>.sh` to the target (the script over a trusted channel)
 - `./pap-install-<id>.sh` (carries its own Node; refuses a checksum mismatch)
 - open the setup URL it prints; remove with `pap service uninstall` (data in `~/.pap` stays)
+
+## Install, update, backup
+
+- Update: run the new release's `pap-install-<id>.sh` with no flags, or `pap update install` (rolls back by itself if the new release does not start): [docs/agents/update.md](docs/agents/update.md)
+- Backup and restore: `pap backup [--encrypt]`, `pap restore <file>` with pap stopped: [docs/agents/backup.md](docs/agents/backup.md)
+- Check the machine and the install: `pap doctor`: [docs/agents/doctor.md](docs/agents/doctor.md)
+- Container (rootless podman), npm and releases: [docs/agents/install.md](docs/agents/install.md)
+- Everything that needs the public repository (feed, `curl | sh`, `npm publish`) waits for v1.

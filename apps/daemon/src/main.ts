@@ -13,7 +13,9 @@ import { MigrationError } from "./kernel/db/migrate.ts";
 import { HomeError, InstanceLockError } from "./kernel/home.ts";
 import { createLogger } from "./kernel/logger.ts";
 import { killAllWorkerGroups } from "./kernel/supervisor/worker.ts";
+import { VERSION } from "./kernel/version.ts";
 import { createShutdown, createStartupSignals, forceKill, watchSignals, type Shutdown } from "./shutdown.ts";
+import { startUpdateCheck } from "./update-check.ts";
 
 function readConfig(argv: string[]): Config | null {
   const require = createRequire(import.meta.url);
@@ -54,6 +56,7 @@ async function serve(config: Config): Promise<void> {
   const logger = createLogger({ level: config.logLevel, clock, write });
   const operator = createLogger({ level: "info", clock, write });
   let shutdown: Shutdown | undefined;
+  let updateCheck: { stop(): void } | undefined;
   // Listening before the daemon is up: a signal that comes while it starts waits for it (FLAKE-W5-6), a second one gives up.
   const startup = createStartupSignals(() => {
     killAllWorkerGroups();
@@ -70,7 +73,10 @@ async function serve(config: Config): Promise<void> {
       onFatal: () => (shutdown ? shutdown.trigger("server_error", 1) : process.exit(1)),
     });
     shutdown = createShutdown({
-      stop: () => daemon.stop(),
+      stop: () => {
+        updateCheck?.stop();
+        return daemon.stop();
+      },
       killWorkers: forceKill({
         killWorkerGroups: killAllWorkerGroups,
         killScopes: () => daemon.killScopes(),
@@ -81,6 +87,14 @@ async function serve(config: Config): Promise<void> {
       logger,
     });
     startup.ready(shutdown);
+    updateCheck = startUpdateCheck({
+      clock,
+      logger,
+      env: process.env,
+      home: config.home,
+      version: VERSION,
+      dev: config.dev,
+    });
     if (setupUrl) operator.info("setup_url", setupUrl);
   } catch (error) {
     if (!isStartupRefusal(error)) throw error;

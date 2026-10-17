@@ -1,0 +1,66 @@
+name: release
+# workflow_dispatch only while the repository is private (M6bR36). The flip at v1 adds `push: branches: [main]`
+# to `on:` and nothing else (ADR 0066).
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: stable runs release-please; next replaces the assets of the rolling next pre-release
+        type: choice
+        options: [stable, next]
+        default: stable
+permissions:
+  contents: read
+jobs:
+  stable:
+    if: github.ref == 'refs/heads/main' && inputs.channel == 'stable'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm release:check
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+      - if: steps.release.outputs.release_created == 'true'
+        run: pnpm build
+      - if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: |
+          pnpm release:assets --channel stable --tag "$TAG"
+          gh release upload "$TAG" ".pap-release/$TAG"/* --clobber
+  next:
+    if: github.ref == 'refs/heads/main' && inputs.channel == 'next'
+    concurrency:
+      group: release-next
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - run: pnpm release:check
+      - run: pnpm build
+      - env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          pnpm release:assets --channel next --run-number "$RUN_NUMBER"
+          gh release view next >/dev/null 2>&1 || gh release create next --prerelease --title next --notes "Rolling pre-release of main" --target "$GITHUB_SHA"
+          gh release upload next .pap-release/next/* --clobber

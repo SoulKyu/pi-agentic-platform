@@ -15,7 +15,7 @@ import { delimiter, dirname, join } from "node:path";
 import { CliError, type CliIo } from "../open-home.ts";
 import type { Command } from "../run-cli.ts";
 import { UsageError } from "../usage.ts";
-import { JOURNAL_HINT, UNIT, UNVERIFIED_EXIT, unitFilePath, withHint } from "./common.ts";
+import { JOURNAL_HINT, UNIT, UNVERIFIED_EXIT, unitFilePath, waitWithLoopHeld, withHint } from "./common.ts";
 import { renderLauncher, writeLauncher } from "./launcher.ts";
 import { waitForListening } from "./readiness.ts";
 import { createSystemd, type Systemd } from "./systemd.ts";
@@ -103,16 +103,6 @@ function parsePort(raw: string | undefined): number | undefined {
   const port = /^\d{1,5}$/.test(raw) ? Number(raw) : 0;
   if (port < 1 || port > 65_535) throw new UsageError("--port must be an integer from 1 to 65535");
   return port;
-}
-
-/** The kernel Clock unrefs its timers (the daemon must exit on signal), so a CLI that sleeps on it needs the loop held open. */
-async function waitWithLoopHeld<T>(wait: () => Promise<T>): Promise<T> {
-  const hold = setInterval(() => undefined, 60_000);
-  try {
-    return await wait();
-  } finally {
-    clearInterval(hold);
-  }
 }
 
 export const serviceInstall: Command = {

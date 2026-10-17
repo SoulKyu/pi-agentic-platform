@@ -100,6 +100,14 @@ describe("waitForListening", () => {
     expect(log.sleeps).toEqual(Array.from({ length: 39 }, () => 500));
   });
 
+  it("reads at most `reads` times when asked (M6bR11e chunks): 20 reads, 19 sleeps, then the unmatched journal", async () => {
+    const { deps, log } = harness({ journals: [`${OTHER}\n`] });
+    expect(await waitForListening(deps, "pap.service", SINCE, 7777, 20)).toEqual({ kind: "never" });
+    expect(log.journals).toHaveLength(20);
+    expect(log.sleeps).toEqual(Array.from({ length: 19 }, () => 500));
+    expect(log.any).toHaveLength(1);
+  });
+
   it("retries while the invocation id is null", async () => {
     const { deps, log } = harness({ ids: [null, null, ID], journals: [`${LISTENING}\n`] });
     expect(await waitForListening(deps, "pap.service", SINCE, 7777)).toEqual({ kind: "owner" });
