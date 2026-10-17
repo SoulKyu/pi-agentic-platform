@@ -1,5 +1,6 @@
 {
   "initialBundleGzipKb": 300,
+  "serviceWorkerGzipKb": 6,
   "sessionOpenPayloadKb": 64,
   "idleWorkerRssMb": 210,
   "searchP95Ms": 200,

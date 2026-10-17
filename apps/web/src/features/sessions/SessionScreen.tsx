@@ -8,6 +8,7 @@ import {
   RunStatusChip,
   type RunStatus,
   type ToolDetail,
+  useIsPhone,
 } from "@pap/ui";
 import { AnsiText, plainText, StatusBar, Widgets } from "@pap/ui/extensions";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -103,6 +104,18 @@ export function SessionScreen({
   const editHere = (text: string) => setEdit((was) => ({ sessionId, n: (was?.n ?? 0) + 1, text }));
   const title = view.title === null ? "" : plainText(view.title).trim();
   const announcer = useAnnouncer(view);
+  const phone = useIsPhone();
+  const approvals = (
+    <>
+      <DialogList
+        key={`dialogs:${sessionId}`}
+        sessionId={sessionId}
+        dialogs={view.dialogs}
+        hidden={view.hiddenDialogs}
+      />
+      <ChildApprovals subagents={view.children} />
+    </>
+  );
 
   return (
     <section
@@ -168,6 +181,8 @@ export function SessionScreen({
       ) : null}
       <TrustBanner sessionId={sessionId} cwd={view.cwd} trust={view.loadout?.projectTrust ?? null} />
       <CustomPanel key={`panel:${sessionId}`} sessionId={sessionId} panels={view.panels} />
+      {/* On a phone the question comes first: the card a tapped notification opens sits above the thread. */}
+      {phone ? approvals : null}
       <Transcript
         key={`transcript:${sessionId}`}
         sessionId={sessionId}
@@ -181,13 +196,7 @@ export function SessionScreen({
           announce: announcer.say,
         }}
       />
-      <DialogList
-        key={`dialogs:${sessionId}`}
-        sessionId={sessionId}
-        dialogs={view.dialogs}
-        hidden={view.hiddenDialogs}
-      />
-      <ChildApprovals subagents={view.children} />
+      {phone ? null : approvals}
       {view.notices.map((notice, index) =>
         notice.level === "info" || dismissedNotices.has(noticeKey(sessionId, notice)) ? null : (
           <p

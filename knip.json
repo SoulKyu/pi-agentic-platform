@@ -10,7 +10,7 @@
       "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run", "mkfifo"]
     },
     "apps/web": {
-      "entry": ["src/features/appearance/boot-script.js", "vite/*.ts"]
+      "entry": ["src/features/appearance/boot-script.js", "vite/*.ts", "sw/sw.ts"]
     },
     "apps/daemon": {
       "entry": ["src/modules/search/search-thread.ts"],

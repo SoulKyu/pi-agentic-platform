@@ -68,7 +68,7 @@ describe("the reconnect banner", () => {
     const page = await renderShell("/", { phone: false });
     await act(async () => bed.fake.setState("waiting"));
     const status = [...page.container.querySelectorAll('[data-slot="banner"]')].map((el) => el.textContent);
-    expect(status).toEqual(["Reconnecting…Your drafts stay on this device."]);
+    expect(status).toEqual(["The daemon is not answering.Your drafts stay on this device.Retry"]);
     await page.unmount();
   });
 });

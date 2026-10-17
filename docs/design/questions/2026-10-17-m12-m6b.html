@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>M12 + M6b questions</title>
+<style>
+:root{--bg:#0f1115;--surface:#171a21;--surface2:#1f232c;--fg:#e7e9ee;--muted:#9aa1ad;--dim:#6b7280;--border:#2b303b;--agent:#7aa2f7;--you:#e0af68;--ok:#9ece6a;--attn:#ff9e64;--danger:#f7768e;--reco:#2ac3de}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:1080px;margin:0 auto;padding:16px 16px 120px}
+h1{font-size:22px;margin:8px 0 4px}h2{font-size:18px;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 16px}
+code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px}
+.box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin:0 0 18px}
+.q{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;margin:0 0 22px}
+.q .why{color:var(--muted);margin:2px 0 12px}
+.opts{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.opt{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface2);cursor:pointer;position:relative}
+.opt:hover{border-color:var(--agent)}
+.opt.sel{border-color:var(--agent);box-shadow:0 0 0 2px var(--agent) inset}
+.opt h3{font-size:15px;margin:0 0 4px}.opt p{margin:0;color:var(--muted);font-size:14px}
+.tag{display:inline-block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;border:1px solid var(--reco);color:var(--reco);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:middle}
+textarea{width:100%;min-height:44px;margin-top:10px;background:var(--bg);color:var(--fg);border:1px solid var(--border);border-radius:6px;padding:8px;font:inherit}
+.mock{border:1px solid var(--border);border-radius:6px;background:var(--bg);padding:8px;margin:0 0 8px;font-size:12px;color:var(--muted)}
+.mock .bar{display:flex;gap:6px;align-items:center;border-bottom:1px solid var(--border);padding:0 0 6px;margin:0 0 8px}
+.chip{display:inline-block;border:1px solid var(--border);border-radius:4px;padding:0 6px;font-family:ui-monospace,monospace;font-size:11px;color:var(--fg);text-transform:uppercase}
+.chip.on{border-color:var(--agent);color:var(--agent)}
+.compose{border:1px solid var(--border);border-radius:6px;background:var(--surface);padding:8px;color:var(--dim);margin:0 0 6px}
+.grid4{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.card{border:1px solid var(--border);border-radius:5px;padding:5px 6px;background:var(--surface)}
+.card b{color:var(--fg);font-weight:600;display:block;font-size:11px;margin-bottom:2px}
+.row{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+.btn{border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--fg);background:var(--surface);font-size:11px}
+.btn.p{border-color:var(--agent);color:var(--agent)}
+.list div{border-top:1px solid var(--border);padding:3px 0}
+.k{color:var(--dim)}
+table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-top:1px solid var(--border);padding:5px 6px;text-align:left;vertical-align:top}th{color:var(--muted);font-weight:600}
+.foot{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:center}
+.foot button{font:inherit;border-radius:6px;padding:7px 12px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);cursor:pointer}
+.foot button.go{border-color:var(--agent);color:var(--bg);background:var(--agent)}
+#count{color:var(--muted)}
+.tag.def{border-color:var(--dim);color:var(--muted)}
+@media (max-width:560px){.opts{grid-template-columns:1fr}}
+.grp{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:4px;padding:0 5px;margin-left:6px;vertical-align:middle;font-weight:400}
+h2.group{margin-top:28px}
+</style>
+</head>
+<body>
+<main>
+<h1>Vague 6 : M12 (notifications, Web Push, PWA) et M6b (mise à jour, sauvegarde, release)</h1>
+<p class="sub">Page m12m6b-q1, 2026-10-17. Un clic par question. Chaque option marquée <span class="tag def">défaut</span> est ce que fait le plan si tu ne dis rien ; <span class="tag">reco</span> est ma recommandation (parfois la même). Ajoute une note si besoin, puis « Envoyer ».</p>
+<div class="box"><b>Où on en est.</b> Les deux plans sont écrits : M12 en 21 tâches, M6b en 16. Les red-teams ont tourné (M12 : 0 critique, 12 importants ; M6b : 1 critique, 11 importants) ; tout sera corrigé par la correction des plans, tes réponses comprises. Tes réponses deviennent des règles dans les plans, puis je te présente le tableau des modèles avant de lancer.<br><b>Écartées.</b> Réglées par décisions ou triviales : la route HTTPS documentée en premier (décision 75, ngrok), les préréglages de mise en sourdine, ce que couvre <code>pap update</code> (archives seulement), le sens de <code>next</code> (pré-release continue).</div>
+<h2 class="group">Commun</h2>
+<section class="q" data-q="c1">
+<h2>1. Ordre de merge <span class="grp">Commun</span></h2>
+<p class="why">M12 (notifications, PWA) possède les fichiers partagés chers à rebaser : contrats, daemon.ts, compose, navigation des Réglages, catalogues i18n, budgets.json et une migration. M6b n&#x27;en touche aucun ; ses ajouts partagés sont des lignes entières.</p>
+<div class="opts">
+ <div class="opt" data-v="m12first"><h3>M12 d&#x27;abord, M6b se rebase <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>M6b rebase en quelques minutes (run-cli, usage, scripts, knip, AGENTS.md). Aucune migration à re-dater. Les deux plans le proposent. L&#x27;inverse si M6b passe sa revue finale plus d&#x27;un jour ouvré plus tôt.</p></div>
+ <div class="opt" data-v="ready"><h3>Le premier prêt merge d&#x27;abord</h3><p>Pas d&#x27;ordre fixé ; M12 re-date sa migration seulement si un autre horodatage est arrivé.</p></div>
+ <div class="opt" data-v="m6bfirst"><h3>M6b d&#x27;abord</h3><p>Les contrôles de doctor sur HTTPS et push seraient ajoutés par M12 après coup ; M12 supporte un rebase plus lourd.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="c2">
+<h2>2. Escalade Opus aux tours de correction 4–5 pour cette vague <span class="grp">Commun</span></h2>
+<p class="why">Quand un implémenteur Sonnet bloque après 3 tours de correction sur une tâche, un implémenteur Opus reprend (décisions 56, 75 et 81). Cette vague a beaucoup de lignes de revue Opus (crypto, SSRF, archives, installeur).</p>
+<div class="opts">
+ <div class="opt" data-v="yes"><h3>Pré-approuvée pour cette vague <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Pas d&#x27;arrêt en pleine exécution ; chaque usage est noté dans le registre des décisions.</p></div>
+ <div class="opt" data-v="ask"><h3>Me demander à chaque fois</h3><p>L&#x27;exécution s&#x27;arrête sur la tâche jusqu&#x27;à ta réponse.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="c3">
+<h2>3. Découpe de M6b en trois voies <span class="grp">Commun</span></h2>
+<p class="why">La red-team a lancé le code du plan : la chaîne A (7 tâches, 5 revues Opus, 9,5 h) est le goulot, alors que T3-T5 et T6-T9 touchent des fichiers disjoints. Voies : (1) sauvegarde, chiffrement, restauration puis doctor ; (2) mise à jour ; (3) paquets (image, npm, release, get-pap.sh). T1 et T2 en parallèle. Chemin critique ≈ 9,5 h au lieu de 13,25 h. Autres corrections de la red-team : T5 et T7 coupées en deux, T9 et T15 passent en revue Sonnet (6 revues Opus au lieu de 8).</p>
+<div class="opts">
+ <div class="opt" data-v="lanes3"><h3>Trois voies, avec les coupes de T5 et T7 <span class="tag">reco</span></h3><p>M6b mergeable plus tôt. Le plafond des agents simultanés est de 4 ; la voie 3 est la première à différer si le coût compte.</p></div>
+ <div class="opt" data-v="chains2"><h3>Garder les deux chaînes du plan <span class="tag def">défaut</span></h3><p>Plus simple à suivre, mais 14 à 17 h et 5 revues Opus dans la même chaîne.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="c4">
+<h2>4. Ajustements des chaînes de M12 <span class="grp">Commun</span></h2>
+<p class="why">Les chaînes A, B, C n&#x27;étaient pas disjointes. La red-team propose : la tâche 16 (supervision de connexion) passe en chaîne A après la 7 ; la tâche 19 (écrans mobiles) passe en chaîne B après la 12 ; la chaîne C devient 13, 14, 15, 17, 18. Chemin critique ≈ 14 h nominal, 16 h réaliste (le plan disait 14,5 h) ; le port A/B est complété dans la tâche 1 (credentialId, locale, chiffrement côté transport, compose-push découpé par chaîne).</p>
+<div class="opts">
+ <div class="opt" data-v="move"><h3>Tâche 16 en chaîne A, tâche 19 en chaîne B <span class="tag">reco</span></h3><p>La chaîne C n&#x27;est plus le goulot ; la tâche 15 démarre la présence depuis use-shell-effects.ts pour ne partager aucun fichier.</p></div>
+ <div class="opt" data-v="keep"><h3>Chaîne C garde les tâches 13 à 19 <span class="tag def">défaut</span></h3><p>Un plan inchangé, un chemin critique plus long.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="c5">
+<h2>5. Où va la clé VAPID dans les sauvegardes <span class="grp">Commun</span></h2>
+<p class="why">Avec state.db, la clé VAPID permet d&#x27;envoyer n&#x27;importe quel texte sur tes appareils. M6b exclut donc secrets/ (dont secrets/push/) des sauvegardes simples ; avec --secrets include --encrypt, elle revient en 0600 et les notifications continuent. Après une restauration simple, pap crée une nouvelle paire et purge les anciennes inscriptions : chaque appareil se réactive à l&#x27;ouverture (ou d&#x27;un tap sur « Réactiver les notifications »). Le plan M12 disait l&#x27;inverse (« la sauvegarde doit l&#x27;inclure ») ; il est corrigé.</p>
+<div class="opts">
+ <div class="opt" data-v="excluded"><h3>Exclue des sauvegardes simples, comme le reste de secrets/ <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Frottement : un appareil à réactiver après une restauration. Le résumé de restauration le dit.</p></div>
+ <div class="opt" data-v="included"><h3>Toujours incluse, en clair</h3><p>Les notifications survivent à une restauration, mais un fichier de sauvegarde copié ailleurs permet d&#x27;écrire sur tes téléphones.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<h2 class="group">M12</h2>
+<section class="q" data-q="n1">
+<h2>6. Quels services de push peuvent recevoir un envoi ? <span class="grp">M12</span></h2>
+<p class="why">Une liste intégrée (Apple, Google, Mozilla, Microsoft) empêche une session de navigateur volée de faire contacter à pap un hôte arbitraire. Frottement : un service inconnu (autopush auto-hébergé) demande une ligne d&#x27;environnement. La red-team demande de définir l&#x27;interrupteur « liste désactivée » ou de le supprimer.</p>
+<div class="opts">
+ <div class="opt" data-v="list"><h3>Liste intégrée + PAP_PUSH_EXTRA_HOSTS, sans interrupteur pour la désactiver <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Un seul mécanisme : ajouter un hôte. Pas de mode « tout hôte public ».</p></div>
+ <div class="opt" data-v="switch"><h3>Liste intégrée + un interrupteur explicite pour la couper</h3><p>Plus souple, mais un mode non gardé à documenter et à tester.</p></div>
+ <div class="opt" data-v="any"><h3>Tout hôte HTTPS public, pas de liste</h3><p>Pas de friction, la garde SSRF et DNS seule protège.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n2">
+<h2>7. Que montre l&#x27;écran verrouillé dans une notification ? <span class="grp">M12</span></h2>
+<p class="why">Le board 12 (décision 32) montre l&#x27;agent et le texte de la question dans le push ; le plan, lui, envoie un texte générique, et ne le disait pas. Un titre de tâche peut venir d&#x27;un webhook ou d&#x27;un agent contaminé, donc jamais utilisé : le nom ne vient que du nom de trigger que tu as écrit ou du registre des agents. Frottement du défaut : l&#x27;écran verrouillé dit « Une demande attend votre réponse » jusqu&#x27;à ton ouverture.</p>
+<div class="opts">
+ <div class="opt" data-v="generic"><h3>Texte générique seulement</h3><p>Rien de sensible sur l&#x27;écran verrouillé ; aucune option.</p></div>
+ <div class="opt" data-v="names"><h3>Générique ; option dans Réglages pour ajouter le nom du trigger ou de l&#x27;agent (désactivée) <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Jamais le contenu ni un titre libre. Tu choisis d&#x27;afficher plus.</p></div>
+ <div class="opt" data-v="board"><h3>Comme le board : l&#x27;agent et la question, jamais pour une session contaminée</h3><p>Le plus utile d&#x27;un coup d&#x27;œil ; le texte de la question est visible sur l&#x27;écran verrouillé.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n3">
+<h2>8. Chiffrement du payload : web-push (npm) ou node:crypto <span class="grp">M12</span></h2>
+<p class="why">La red-team a vérifié l&#x27;implémentation contre le vecteur de test RFC 8291. node:crypto évite un arbre de dépendances et garde un seul émetteur gardé (DNS, pas de redirection) pour toutes les requêtes. Coût du paquet : une dépendance (minimumReleaseAge) et une enveloppe qui doit refaire la garde.</p>
+<div class="opts">
+ <div class="opt" data-v="crypto"><h3>≈ 150 lignes sur node:crypto <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Aucune dépendance ; épinglé par le vecteur RFC 8291.</p></div>
+ <div class="opt" data-v="webpush"><h3>Le paquet web-push</h3><p>Moins de code à nous, une dépendance de plus.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n4">
+<h2>9. Quelles notifications sont actives par défaut <span class="grp">M12</span></h2>
+<p class="why">Chaque classe est un interrupteur dans Réglages. Le défaut garde ce qui te débloque et coupe le bruit.</p>
+<div class="opts">
+ <div class="opt" data-v="keep"><h3>Actives : approbations et questions (après 60 s), tâches échouées ou interrompues, budgets atteints, notifications d&#x27;agent. Éteintes : tâches terminées, arrêts de limite d&#x27;usage, réponses d&#x27;agent, revues de mémoire <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Les classes éteintes restent visibles dans l&#x27;Inbox.</p></div>
+ <div class="opt" data-v="all"><h3>Tout actif</h3><p>Plus de pushes ; le plafond horaire protège le téléphone.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n5">
+<h2>10. Quand un onglet compte-t-il comme « présent » ? <span class="grp">M12</span></h2>
+<p class="why">Le défaut du plan (focus seulement, règle d&#x27;Orca) a un défaut : un onglet de bureau resté focalisé pendant que tu es parti, ou un focus périmé (capot fermé), supprime les pushes vers ton téléphone. La red-team propose : focalisé, visible et utilisé il y a moins de 2 minutes ; l&#x27;approbation supprimée par le focus est revérifiée pendant qu&#x27;elle attend (3 fois au plus).</p>
+<div class="opts">
+ <div class="opt" data-v="focused"><h3>Seulement le focus d&#x27;un onglet ou d&#x27;une fenêtre installée <span class="tag def">défaut</span></h3><p>Simple ; risque de push perdu avec un onglet oublié.</p></div>
+ <div class="opt" data-v="active"><h3>Focalisé, visible et actif depuis moins de 2 min, avec revérification <span class="tag">reco</span></h3><p>Quelques lignes de plus côté client (pagehide, visibilitychange).</p></div>
+ <div class="opt" data-v="any"><h3>Tout onglet ouvert supprime le push</h3><p>Rate un téléphone laissé avec l&#x27;app ouverte en arrière-plan.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n6">
+<h2>11. Les heures calmes et les approbations <span class="grp">M12</span></h2>
+<p class="why">Spec C : les approbations n&#x27;interrompent pas les heures calmes ; elles arrivent dans le résumé de fin. Coût réel (RT-12) : un agent bloqué jusqu&#x27;au matin, et une question de tâche isolée est refusée après 10 minutes (décision 90 a3), donc refusée sans aucun push et sans trace dans le résumé du matin.</p>
+<div class="opts">
+ <div class="opt" data-v="spec"><h3>Spec C telle quelle <span class="tag def">défaut</span></h3><p>Rien dans le résumé sur les demandes expirées.</p></div>
+ <div class="opt" data-v="digest"><h3>Spec C + une ligne dans le résumé : « 2 demandes ont expiré pendant les heures calmes » <span class="tag">reco</span></h3><p>Le coût devient visible, sans réveiller personne.</p></div>
+ <div class="opt" data-v="toggle"><h3>Réglage « ignorer les heures calmes » par classe, approbations incluses</h3><p>Tu choisis d&#x27;être réveillé ; plus de surface dans Réglages.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n7">
+<h2>12. Combien d&#x27;appareils <span class="grp">M12</span></h2>
+<p class="why">Un abonnement par appareil et navigateur. Le 11e est refusé avec une explication ; il ne remplace jamais un ancien.</p>
+<div class="opts">
+ <div class="opt" data-v="ten"><h3>10 abonnements <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Largement assez pour un seul propriétaire.</p></div>
+ <div class="opt" data-v="five"><h3>5 abonnements</h3><p>Plus strict, vite atteint avec plusieurs navigateurs de test.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n8">
+<h2>13. Comment produire les icônes PNG <span class="grp">M12</span></h2>
+<p class="why">Le plan ajoute @resvg/resvg-js en devDependency (binaire natif) pour `pnpm icons`. La red-team préfère zéro dépendance : le contrôleur rend une fois les trois SVG en PNG avec l&#x27;image Playwright de podman (hôte sans graphique, voir la mémoire) et commite les PNG. Le seul défaut : la tâche 13 dépend d&#x27;un rendu manuel.</p>
+<div class="opts">
+ <div class="opt" data-v="podman"><h3>Rendu par le contrôleur via Playwright (podman), PNG commités, aucune dépendance ni script <span class="tag">reco</span></h3><p>Pas de binaire natif ni de pnpm-lock touché ; compatible avec ta règle de peu de dépendances.</p></div>
+ <div class="opt" data-v="resvg"><h3>devDependency @resvg/resvg-js + pnpm icons <span class="tag def">défaut</span></h3><p>Reproductible, mais une dépendance native de plus.</p></div>
+ <div class="opt" data-v="owner"><h3>Tu fournis les PNG</h3><p>Contrôle total, une attente de ta part.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n9">
+<h2>14. Limites contre les rafales <span class="grp">M12</span></h2>
+<p class="why">Un trigger qui boucle ne doit pas inonder ton téléphone. Les pushes au-delà restent visibles dans l&#x27;Inbox. Red-team : une approbation est rare et urgente, donc elle ne doit pas être bloquée par le plafond horaire.</p>
+<div class="opts">
+ <div class="opt" data-v="exempt"><h3>5 s par clé d&#x27;événement, 20 par heure ; les approbations exemptées du plafond horaire <span class="tag">reco</span></h3><p>Une boucle de tâches échouées ne bloque pas une vraie demande.</p></div>
+ <div class="opt" data-v="plain"><h3>5 s par clé, 20 par heure pour tout <span class="tag def">défaut</span></h3><p>Plus simple ; une rafale peut masquer une approbation.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="n10">
+<h2>15. Notifications de budget <span class="grp">M12</span></h2>
+<p class="why">À l&#x27;atteinte de la limite, owner-wide et par agent. Un avertissement anticipé est un petit ajout ultérieur.</p>
+<div class="opts">
+ <div class="opt" data-v="reached"><h3>À l&#x27;atteinte seulement <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Un push par limite atteinte.</p></div>
+ <div class="opt" data-v="eighty"><h3>Aussi à 80 %</h3><p>Plus tôt, mais plus de bruit.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<h2 class="group">M6b</h2>
+<section class="q" data-q="b1">
+<h2>16. Sauvegardes et dossier secrets/ <span class="grp">M6b</span></h2>
+<p class="why">Le dossier secrets/ contient la clé du coffre et ses valeurs, les clés de webhook, la clé d&#x27;appareil et la clé VAPID. Honnêteté (RT-10) : une sauvegarde simple contient quand même sessions/ (transcriptions), dossiers d&#x27;agent et state.db, qui peuvent contenir un secret collé ou imprimé. Le résumé le dit.</p>
+<div class="opts">
+ <div class="opt" data-v="excluded"><h3>secrets/ exclu des sauvegardes simples ; inclus seulement avec --secrets include --encrypt (mot de passe) <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Sur une nouvelle machine, les secrets sont à ressaisir ou renouveler ; le résumé liste lesquels.</p></div>
+ <div class="opt" data-v="encrypt"><h3>Toujours chiffrer (mot de passe à chaque fois), secrets inclus</h3><p>Le plus sûr ; plus de friction pour une sauvegarde mensuelle.</p></div>
+ <div class="opt" data-v="plain"><h3>Tout en clair, comme « sauvegarder $PAP_HOME »</h3><p>La clé du coffre voyage à côté du coffre (mise en garde de l&#x27;ADR 0049).</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b2">
+<h2>17. Friction d&#x27;une sauvegarde simple <span class="grp">M6b</span></h2>
+<p class="why">Une sauvegarde en clair détecte la corruption, pas la falsification.</p>
+<div class="opts">
+ <div class="opt" data-v="warn"><h3>Autorisée, avec un avertissement d&#x27;une ligne ; --encrypt recommandé <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>KISS : aucune question de plus.</p></div>
+ <div class="opt" data-v="tty"><h3>Chiffrement par défaut quand stdin est un terminal</h3><p>Plus sûr, mais un mot de passe perdu rend la sauvegarde irrécupérable.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b3">
+<h2>18. Sessions Pi dans la sauvegarde <span class="grp">M6b</span></h2>
+<p class="why">Les fichiers de session de Pi vivent hors du home de pap (~/.pi/agent/sessions) mais la base de pap y renvoie. 156 Mo aujourd&#x27;hui sur le preview. Les transcriptions peuvent contenir des secrets : le résumé le dit.</p>
+<div class="opts">
+ <div class="opt" data-v="include"><h3>Inclure sessions/ seulement (jamais auth.json, models.json ni les extensions) ; la restauration ajoute les manquants sans écraser <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Une restauration retrouve ses transcriptions.</p></div>
+ <div class="opt" data-v="exclude"><h3>Exclure : pap sauvegarde ses seules données</h3><p>Plus petit ; une restauration laisse des sessions sans transcription. Sauvegarde ~/.pi toi-même.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b4">
+<h2>19. Nom du paquet npm et publication <span class="grp">M6b</span></h2>
+<p class="why">Le paquet compile node-pty chez l&#x27;utilisateur (chaîne d&#x27;outils requise). Il est construit maintenant et `npm publish` est à toi, après la v1. DESIGN.md dit déjà que « le dépôt et le paquet npm gardent le nom pi-agentic-platform » : seul le scope reste ouvert, et le défaut du plan (@soulkyu/pap) s&#x27;en écarte. Si la mesure de la tâche 13 échoue, npm sort de la v1.</p>
+<div class="opts">
+ <div class="opt" data-v="scoped_pap"><h3>@soulkyu/pap <span class="tag def">défaut</span></h3><p>Court, cohérent avec la commande pap ; contredit DESIGN.md.</p></div>
+ <div class="opt" data-v="scoped_full"><h3>@soulkyu/pi-agentic-platform <span class="tag">reco</span></h3><p>Conforme à DESIGN.md ; la commande installée reste pap.</p></div>
+ <div class="opt" data-v="none"><h3>Ne pas livrer de paquet npm en v1</h3><p>Une tâche de moins.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b5">
+<h2>20. Où vivent les releases et le feed <span class="grp">M6b</span></h2>
+<p class="why">Décisions 75 et 87 : le dépôt devient public à la v1, pas de signature avant la v1. GitHub Releases, lues en HTTPS avec une liste blanche d&#x27;hôtes (github.com et ses deux CDN). La confiance se limite à GitHub et ton TLS ; elle détecte une corruption et des assets échangés, pas un compte compromis.</p>
+<div class="opts">
+ <div class="opt" data-v="github"><h3>GitHub Releases du dépôt public, sans signature avant la v1 <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Aucun hébergement à gérer.</p></div>
+ <div class="opt" data-v="own"><h3>Ton propre hôte</h3><p>Il faut un changement de la liste blanche et un endroit où héberger.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b6">
+<h2>21. Ce que perd un rollback <span class="grp">M6b</span></h2>
+<p class="why">Si la nouvelle version a joué une migration puis échoue, le rollback restaure l&#x27;instantané du début : ce qui a été écrit entre-temps (au plus 120 s de délai + 10 s de stabilisation) est perdu, et le message le dit.</p>
+<div class="opts">
+ <div class="opt" data-v="restore"><h3>Restaurer l&#x27;instantané <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>L&#x27;ancienne version retrouve une base qu&#x27;elle sait lire.</p></div>
+ <div class="opt" data-v="keep"><h3>Ne jamais restaurer la base</h3><p>L&#x27;ancienne version ouvre une base migrée en lecture seule ; restauration à la main.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b7">
+<h2>22. L&#x27;image conteneur et --security-opt systempaths=unconfined (R52b) <span class="grp">M6b</span></h2>
+<p class="why">Sans cette option, les agents qui exigent la sandbox refusent (sandbox_unavailable) dans le conteneur. Avec elle, des chemins de /proc et /sys sont démasqués pour l&#x27;utilisateur non-root ; S8 a mesuré une lecture de quelques fichiers de l&#x27;hôte et aucune écriture. Podman rootless seulement, utilisateur non-root, aucune capacité, loopback. Docker n&#x27;est pas géré.</p>
+<div class="opts">
+ <div class="opt" data-v="unconfined"><h3>Livrer exactement l&#x27;ensemble d&#x27;options mesuré, avec systempaths=unconfined <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Le conteneur sait exécuter des agents.</p></div>
+ <div class="opt" data-v="without"><h3>Livrer sans l&#x27;option</h3><p>Un pap sans agents dans le conteneur.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b8">
+<h2>23. Contrôles sur cet hôte <span class="grp">M6b</span></h2>
+<p class="why">Après la revue finale, le contrôleur peut lancer l&#x27;annexe A (les contrôles de M6 sautés + ceux de M6b) sur cette machine : ports 7791-7793, homes ~/.pap-m6b-try*, le preview sur 7777 et ~/.pap intacts. Un implémenteur ne le fait jamais.</p>
+<div class="opts">
+ <div class="opt" data-v="yes"><h3>Oui, après la revue Opus finale et ton OK dans le registre <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Les chemins update, rollback, sauvegarde, doctor, conteneur et npm sont vraiment essayés.</p></div>
+ <div class="opt" data-v="no"><h3>Non : le merge passe avec « non exécuté »</h3><p>Comme M6 ; les risques restent à ta charge.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b9">
+<h2>24. Nom de l&#x27;unité systemd <span class="grp">M6b</span></h2>
+<p class="why">Ton preview est pap-preview.service, pas pap.service. Sans option, doctor, update, backup et restore ne la trouvent pas et peuvent viser le mauvais home (~/.pap par défaut).</p>
+<div class="opts">
+ <div class="opt" data-v="unit"><h3>--unit et PAP_UNIT sur doctor, update, backup et restore ; pap.service par défaut <span class="tag def">défaut</span> <span class="tag">reco</span></h3><p>Petit ajout qui rend les commandes utilisables sur ton preview.</p></div>
+ <div class="opt" data-v="none"><h3>Seulement pap.service</h3><p>Les commandes ne fonctionnent pas sur le preview.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+<section class="q" data-q="b10">
+<h2>25. Vérification quotidienne des mises à jour avant la v1 <span class="grp">M6b</span></h2>
+<p class="why">Le roadmap dit : active, PAP_UPDATE_CHECK=0 la coupe. Mais le dépôt est privé : chaque requête serait un 404. Elle révèle ton IP à GitHub et rien d&#x27;autre ; résultat dans le journal, `pap update check` et doctor, pas de bannière.</p>
+<div class="opts">
+ <div class="opt" data-v="on"><h3>Active dès maintenant <span class="tag def">défaut</span></h3><p>Une requête par jour qui échoue en 404 jusqu&#x27;à la v1.</p></div>
+ <div class="opt" data-v="v1"><h3>Éteinte jusqu&#x27;au passage à la v1, active ensuite <span class="tag">reco</span></h3><p>Aucun bruit ni requête inutile ; un seul réglage à basculer.</p></div>
+ <div class="opt" data-v="optin"><h3>Opt-in (PAP_UPDATE_CHECK=1)</h3><p>Rien sans ton accord.</p></div>
+</div>
+<textarea placeholder="Note (facultatif)"></textarea>
+</section>
+</main>
+
+<div class="foot">
+ <span id="count"></span>
+ <button type="button" id="defs">Remplir le reste avec les défauts</button>
+ <button type="button" id="recos">Appliquer toutes les recos</button>
+ <button type="button" id="reset">Effacer</button>
+ <button type="button" class="go" id="send">Envoyer</button>
+</div>
+
+<script>
+(function(){
+  var KEY="pap-m12m6b-q1";
+  var state={};
+  try{state=JSON.parse(localStorage.getItem(KEY)||"{}")||{};}catch(e){state={};}
+  var qs=[].slice.call(document.querySelectorAll(".q"));
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+  function render(){
+    var done=0;
+    qs.forEach(function(q){
+      var id=q.dataset.q, v=state[id]||{}, sel=v.choice;
+      [].forEach.call(q.querySelectorAll(".opt"),function(o){
+        var on=q.dataset.multi?(Array.isArray(sel)&&sel.indexOf(o.dataset.v)>=0):sel===o.dataset.v;
+        o.classList.toggle("sel",!!on);
+      });
+      var t=q.querySelector("textarea"); if(t&&document.activeElement!==t) t.value=v.note||"";
+      if(sel&&(!Array.isArray(sel)||sel.length)) done++;
+    });
+    document.getElementById("count").textContent=done+" / "+qs.length+" répondues";
+  }
+  qs.forEach(function(q){
+    var id=q.dataset.q;
+    [].forEach.call(q.querySelectorAll(".opt"),function(o){
+      o.addEventListener("click",function(){
+        var v=state[id]||(state[id]={});
+        if(q.dataset.multi){var a=Array.isArray(v.choice)?v.choice:[];var i=a.indexOf(o.dataset.v);if(i>=0)a.splice(i,1);else a.push(o.dataset.v);v.choice=a;}
+        else v.choice=o.dataset.v;
+        save();render();
+      });
+    });
+    var t=q.querySelector("textarea");
+    if(t) t.addEventListener("input",function(){(state[id]||(state[id]={})).note=t.value;save();render();});
+  });
+  document.getElementById("recos").addEventListener("click",function(){
+    qs.forEach(function(q){
+      var id=q.dataset.q, recos=[].filter.call(q.querySelectorAll(".opt"),function(o){return o.querySelector(".tag:not(.def)");}).map(function(o){return o.dataset.v;});
+      var v=state[id]||(state[id]={});
+      v.choice=q.dataset.multi?recos:recos[0];
+    });
+    save();render();
+  });
+  document.getElementById("defs").addEventListener("click",function(){
+    qs.forEach(function(q){
+      var id=q.dataset.q, v=state[id]||(state[id]={});
+      if(v.choice&&(!Array.isArray(v.choice)||v.choice.length)) return;
+      var d=[].filter.call(q.querySelectorAll(".opt"),function(o){return o.querySelector(".tag.def");}).map(function(o){return o.dataset.v;});
+      if(d.length) v.choice=q.dataset.multi?d:d[0];
+    });
+    save();render();
+  });
+  document.getElementById("reset").addEventListener("click",function(){state={};save();render();});
+  document.getElementById("send").addEventListener("click",function(){
+    var payload={type:"answers",choice:"answers-submitted",version:"m12m6b-q1",answers:state};
+    if(window.brainstorm&&window.brainstorm.send){window.brainstorm.send(payload);}
+    var b=document.getElementById("send"); b.textContent="Envoyé ✓"; setTimeout(function(){b.textContent="Envoyer";},2500);
+  });
+  render();
+})();
+</script>
+</body>
+</html>

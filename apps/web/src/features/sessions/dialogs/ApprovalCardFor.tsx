@@ -1,5 +1,5 @@
 import type { AlwaysScope, Dialog, DialogResponse } from "@pap/contracts";
-import { type ApprovalAnswer as UiApprovalAnswer, ApprovalCard, cn, FOCUS_RING } from "@pap/ui";
+import { type ApprovalAnswer as UiApprovalAnswer, ApprovalCard, cn, FOCUS_RING, useIsPhone } from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
@@ -36,6 +36,8 @@ export function ApprovalCardFor(props: {
 }) {
   const { dialog } = props;
   const t = useT();
+  // On a phone the card fills its row with 44 px answers (decision 32: the card a tapped notification opens).
+  const phone = useIsPhone();
   // The eager inbox store's unresolved question of this session: its trigger name is the owner's own text, shown capped.
   const trigger = useInboxStore((state) =>
     props.sessionId === undefined
@@ -60,6 +62,7 @@ export function ApprovalCardFor(props: {
   const detail = header === null ? bodyText.shown : `${headerText.shown}\n${bodyText.shown}`;
   return (
     <ApprovalCard
+      wide={phone}
       title={t("dialog.approval")}
       category={dialog.tainted ? t("sessionPolicy.taintedCategory", { category }) : category}
       question={

@@ -10,6 +10,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { checkLanes } from "./smoke-lanes.ts";
+import { checkPwa } from "./smoke-pwa.ts";
 import { checkScannerAndSearch } from "./smoke-search.ts";
 import { checkTerminal } from "./smoke-terminal.ts";
 import {
@@ -67,6 +68,7 @@ async function drive(
   if (page.status !== 200 || !String(page.headers["content-type"]).startsWith("text/html"))
     throw new Error(`/ gave ${page.status}: the web build is missing from the dist`);
   step("/healthz and the built web page answer");
+  await checkPwa(base);
 
   const setupUrl = String((await within(daemon.line("setup_url"), STEP_MS, "the setup address")).url);
   const token = new URL(setupUrl).hash.replace("#token=", "");

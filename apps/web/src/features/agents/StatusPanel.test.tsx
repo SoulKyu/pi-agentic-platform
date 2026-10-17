@@ -338,14 +338,17 @@ describe("the three layouts (DESIGN §8) and the setting", () => {
     const { page } = await screen("shown");
     expect(side(page.container)).not.toBeNull();
     expect(threadOf(page.container)).not.toBeNull();
-    expect(bed.called("agents.status")).toHaveLength(1);
+    // the header's one read (cost today, board 12) and the panel's own
+    expect(bed.called("agents.status")).toHaveLength(2);
   });
 
-  it("is hidden by the setting, the toggle stays, and the panel reads nothing", async () => {
+  it("is hidden by the setting, the toggle stays, and only the header reads (cost today)", async () => {
     widths(true, false);
     const { page } = await screen("hidden");
     expect(side(page.container)).toBeNull();
-    expect(bed.called("agents.status")).toEqual([]);
+    expect(bed.called("agents.status")).toHaveLength(1);
+    // the one read is the header's line: today's cost, whatever the panel shows (board 12, decision 32)
+    expect(page.container.querySelector("[data-agent-header]")?.textContent).toContain("$1.20 today");
     await click(button(page.container, "Status panel"));
     await settle();
     expect(side(page.container)).not.toBeNull();

@@ -28,6 +28,11 @@ export function createSettingsModule(deps: {
   const service = createSettingsService({ store: createSettingsStore(deps.db), clock: deps.clock, logger });
   return {
     rpc: settingsRpc(service),
-    port: { models: service.models, automation: service.automation, agents: service.agents },
+    port: {
+      models: service.models,
+      automation: service.automation,
+      agents: service.agents,
+      notifications: service.notifications,
+    },
   };
 }

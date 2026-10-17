@@ -53,6 +53,8 @@ const IDENTICAL_IN_FR = new Set([
   "commands.palette.terminal",
   "commands.palette.settings.skills",
   "settings.section.skills",
+  "settings.section.notifications",
+  "commands.palette.settings.notifications",
   "access.devices.browser.chrome",
   "access.devices.browser.firefox",
   "access.devices.browser.safari",

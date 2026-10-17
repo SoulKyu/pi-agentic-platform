@@ -252,12 +252,18 @@ describe("AutomationForm", () => {
 
   it("explains quiet hours without internal milestone names, in English and French", async () => {
     const page = await open();
-    expect(text(page.container)).toContain("Coming soon: notifications that wait for the end of the window.");
+    expect(text(page.container)).toContain(
+      "Notifications wait for the end of the window and arrive as one summary.",
+    );
     expect(text(page.container)).not.toContain("M12");
+    expect(text(page.container)).not.toContain("Coming soon");
     setLocale("fr");
     await settle();
-    expect(text(page.container)).toContain("Bientôt : des notifications qui attendent la fin de la plage.");
+    expect(text(page.container)).toContain(
+      "Les notifications attendent la fin de la plage et arrivent en un seul résumé.",
+    );
     expect(text(page.container)).not.toContain("M12");
+    expect(text(page.container)).not.toContain("Bientôt");
   });
 
   it("answers in French", async () => {

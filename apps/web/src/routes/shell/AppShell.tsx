@@ -13,6 +13,7 @@ import { useComposerPrefill } from "../../stores/composer-prefill.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { feedShell } from "../../stores/shell-feed.ts";
 import { resetFolderMemory } from "../../features/files/folder-memory.ts";
+import { useInboxReveal } from "../../stores/inbox-reveal.ts";
 import { feedInbox, useInboxStore } from "../../stores/inbox-store.ts";
 import { useSecretDialog } from "../../stores/secret-dialog-store.ts";
 import { useShellStore } from "../../stores/shell-store.ts";
@@ -21,6 +22,7 @@ import { useTerminalStore } from "../../stores/terminal-store.ts";
 import { useAddProjectRequest } from "../../stores/add-project-request.ts";
 import { usePaletteRequest } from "../../stores/palette-request.ts";
 import { useTriggerPrefill } from "../../stores/trigger-prefill.ts";
+import { bannerKind, usePwa } from "../../stores/pwa.ts";
 import { useUsageStore } from "../../stores/usage-store.ts";
 import { resetUnsavedFiles } from "../../stores/unsaved-files.ts";
 import { useVcsStore } from "../../stores/vcs-store.ts";
@@ -29,7 +31,6 @@ import { ConnectionBanner } from "./ConnectionBanner.tsx";
 import { MobileShell } from "./MobileShell.tsx";
 import { NewAgentHost } from "./NewAgentHost.tsx";
 import { NewLaneHost } from "./NewLaneHost.tsx";
-import { NotFound } from "./NotFound.tsx";
 import { PaletteHost } from "./PaletteHost.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { Rail } from "./Rail.tsx";
@@ -38,6 +39,7 @@ import { ShellContext } from "./shell-context.ts";
 import { StepUpHost } from "./StepUpHost.tsx";
 import { useShellCommands } from "./shell-commands.ts";
 import { TabBar } from "./TabBar.tsx";
+import { Unrouted } from "./Unrouted.tsx";
 import { TopBar } from "./TopBar.tsx";
 import { useShellEffects } from "./use-shell-effects.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
@@ -53,6 +55,9 @@ interface AppShellProps {
 const loadTreeDrawer = () => import("./TreeDrawer.tsx");
 const loadInboxDrawer = () => import("./InboxDrawer.tsx");
 const loadShortcutsHelp = () => import("../../features/commands/ShortcutsHelp.tsx");
+const loadUpdateBanner = () => import("./UpdateBanner.tsx");
+
+const noop = () => {};
 
 /** The URL names the active item. Desktop: rail, tabs and split panes; below 768 px: one pane and a bottom nav. */
 export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellProps) {
@@ -61,6 +66,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
   const [treeOpen, setTreeOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const updateShown = usePwa((state) => bannerKind(state) !== null);
   // The dispatcher reads the tree state at each key (`treeOpen`, M3-RT-30), so Ctrl+B can close the drawer it opened.
   const treeRef = useRef(false);
   useEffect(() => {
@@ -99,6 +105,8 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
       useTriggerPrefill.setState({ items: {} });
       useAddProjectRequest.getState().close();
       useSecretDialog.getState().close();
+      usePwa.getState().reset();
+      useInboxReveal.getState().clear();
       usePaletteRequest.setState({ search: null });
       resetFolderMemory();
     };
@@ -128,6 +136,7 @@ export function AppShell({ username, passkeysAvailable, onSignedOut }: AppShellP
           props={{ open: inboxOpen, onOpenChange: setInboxOpen }}
           onFailed={() => setInboxOpen(false)}
         />
+        <LazyPanel text={lazyText} load={loadUpdateBanner} open={updateShown} props={{}} onFailed={noop} />
         <LazyPanel
           text={lazyText}
           load={loadShortcutsHelp}
@@ -153,7 +162,7 @@ function DesktopShell({ username, onSignedOut }: Pick<AppShellProps, "username" 
         <ConnectionBanner />
         {/* The one main landmark: the screens inside it are sections. */}
         <main id="pane-host" className="flex min-h-0 flex-1">
-          {item ? <PaneHost tab={tab} /> : <NotFound />}
+          {item ? <PaneHost tab={tab} /> : <Unrouted />}
         </main>
       </div>
     </div>

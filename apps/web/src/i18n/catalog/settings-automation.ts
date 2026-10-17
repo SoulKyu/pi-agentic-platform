@@ -15,7 +15,7 @@ export const settingsAutomationEn = {
   "settingsAutomation.quiet.from": "Quiet hours from",
   "settingsAutomation.quiet.to": "Quiet hours to",
   "settingsAutomation.quiet.hint":
-    "Runs still execute during quiet hours. Coming soon: notifications that wait for the end of the window.",
+    "Runs still execute during quiet hours. Notifications wait for the end of the window and arrive as one summary.",
   "settingsAutomation.quiet.none": "No window: the two times are the same.",
   "settingsAutomation.quiet.error": "Two times as HH:MM, or both empty.",
   "settingsAutomation.budget.label": "Daily budget (USD)",
@@ -85,7 +85,7 @@ export const settingsAutomationFr: { readonly [K in keyof typeof settingsAutomat
   "settingsAutomation.quiet.from": "Heures calmes de",
   "settingsAutomation.quiet.to": "Heures calmes jusqu'à",
   "settingsAutomation.quiet.hint":
-    "Les lancements s'exécutent toujours pendant les heures calmes. Bientôt : des notifications qui attendent la fin de la plage.",
+    "Les lancements s'exécutent toujours pendant les heures calmes. Les notifications attendent la fin de la plage et arrivent en un seul résumé.",
   "settingsAutomation.quiet.none": "Pas de plage : les deux heures sont identiques.",
   "settingsAutomation.quiet.error": "Deux heures au format HH:MM, ou les deux vides.",
   "settingsAutomation.budget.label": "Budget quotidien (USD)",

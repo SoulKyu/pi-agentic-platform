@@ -67,6 +67,8 @@ export interface AuthModule {
   setupUrl(): string | null;
   /** The instance owner: the oldest user, the one definition of it (M4R61, agreement 6). */
   ownerId(): string | null;
+  /** Whether this browser session (its public id, `caller.credentialId`) of the user is still signed in. Reads only (M12R12). */
+  sessionLive(userId: string, credentialId: string): boolean;
 }
 
 export function createAuthModule(deps: AuthModuleDeps): AuthModule {
@@ -132,5 +134,6 @@ export function createAuthModule(deps: AuthModuleDeps): AuthModule {
     authenticateCookieHeader: (header) => service.authenticate(readCookie(header, SESSION_COOKIE)),
     setupUrl: () => service.setupUrl(),
     ownerId: () => store.firstUserId(),
+    sessionLive: (userId, credentialId) => store.sessionLive(userId, credentialId, deps.clock.now()),
   };
 }

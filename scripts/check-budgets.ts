@@ -17,7 +17,7 @@ export function initialAssets(indexHtml: string): string[] {
   return [...assets];
 }
 
-export function initialBundleGzipKb(distDir: string): number {
+export function initialBundleGzipBytes(distDir: string): number {
   const html = readFileSync(join(distDir, "index.html"), "utf8");
   const assets = initialAssets(html);
   if (assets.length === 0) {
@@ -29,7 +29,18 @@ export function initialBundleGzipKb(distDir: string): number {
     (sum, asset) => sum + gzipSync(readFileSync(join(distDir, asset)), { level: 9 }).length,
     0,
   );
-  return Math.round((bytes / 1024) * 10) / 10;
+  return bytes;
+}
+
+const toKb = (bytes: number): number => Math.round((bytes / 1024) * 10) / 10;
+
+export function initialBundleGzipKb(distDir: string): number {
+  return toKb(initialBundleGzipBytes(distDir));
+}
+
+/** Compared unrounded: 4.04 KB must not pass a 4 KB line because it displays as 4. */
+export function overBudget(bytes: number, budgetKb: number): boolean {
+  return bytes > budgetKb * 1024;
 }
 
 export function lazyAssets(distDir: string): Array<{ file: string; gzipKb: number }> {
@@ -45,29 +56,39 @@ export function lazyAssets(distDir: string): Array<{ file: string; gzipKb: numbe
     }));
 }
 
-function initialBundleBudgetKb(path: string): number {
-  const budget = (JSON.parse(readFileSync(path, "utf8")) as { initialBundleGzipKb?: unknown })
-    .initialBundleGzipKb;
+export function serviceWorkerGzipBytes(distDir: string): number {
+  return gzipSync(readFileSync(join(distDir, "sw.js")), { level: 9 }).length;
+}
+
+export function serviceWorkerGzipKb(distDir: string): number {
+  return toKb(serviceWorkerGzipBytes(distDir));
+}
+
+function budgetKb(path: string, key: "initialBundleGzipKb" | "serviceWorkerGzipKb"): number {
+  const budget = (JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>)[key];
   if (typeof budget !== "number" || !Number.isFinite(budget)) {
-    throw new Error(
-      `${path}: initialBundleGzipKb must be a number, found ${JSON.stringify(budget) ?? "nothing"}`,
-    );
+    throw new Error(`${path}: ${key} must be a number, found ${JSON.stringify(budget) ?? "nothing"}`);
   }
   return budget;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
-    const budget = initialBundleBudgetKb("budgets.json");
-    const measured = initialBundleGzipKb("apps/web/dist");
+    const budget = budgetKb("budgets.json", "initialBundleGzipKb");
+    const measuredBytes = initialBundleGzipBytes("apps/web/dist");
+    const measured = toKb(measuredBytes);
     console.log(`initial bundle: ${measured} KB gzip (budget ${budget} KB)`);
+    const swBudget = budgetKb("budgets.json", "serviceWorkerGzipKb");
+    const swBytes = serviceWorkerGzipBytes("apps/web/dist");
+    const swMeasured = toKb(swBytes);
+    console.log(`service worker: ${swMeasured} KB gzip (budget ${swBudget} KB)`);
     for (const { file, gzipKb } of lazyAssets("apps/web/dist"))
       console.log(`lazy ${file}: ${gzipKb} KB gzip`);
     console.log(`session open payload: measured by ${BUDGET_TEST} (pnpm test:int)`);
     console.log(`idle worker RSS: measured by ${BUDGET_TEST} (pnpm test:int)`);
     console.log(`search p95: measured by ${SEARCH_TEST} (pnpm test:budget)`);
     console.log(`scanner latency: measured by ${SCANNER_TEST} (pnpm test:budget)`);
-    if (measured > budget) process.exitCode = 1;
+    if (overBudget(measuredBytes, budget) || overBudget(swBytes, swBudget)) process.exitCode = 1;
   } catch (error) {
     console.error(`check-budgets: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;

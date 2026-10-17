@@ -13,6 +13,10 @@ import { inboxFr } from "./inbox.ts";
 import { settingsAgentsFr } from "./settings-agents.ts";
 import { shellFr } from "./shell.ts";
 import { memoryFr } from "./memory.ts";
+import { landingFr } from "./landing.ts";
+import { notificationsFr } from "./notifications.ts";
+import { pushFr } from "./push.ts";
+import { pwaFr } from "./pwa.ts";
 import { subagentsFr } from "./subagents.ts";
 
 const WORD_START = String.raw`(?<![\p{L}'])`;
@@ -41,6 +45,10 @@ const m11Catalogs = {
   settingsAgentsFr,
   memoryFr,
   subagentsFr,
+  pwaFr,
+  pushFr,
+  notificationsFr,
+  landingFr,
 } as Record<string, Record<string, string>>;
 
 describe("the French copy of the agents, automation and Inbox speaks to the owner with vous", () => {

@@ -106,3 +106,12 @@ describe("M11 codes (membership, never adjacency)", () => {
     }
   });
 });
+
+describe("M12 codes", () => {
+  it("has push_unavailable with a fixed message", () => {
+    expect(ERROR_CODES).toContain("push_unavailable");
+    expect(new PapError("push_unavailable").message).toBe(
+      "Notifications are not available on this server. See Settings › Notifications.",
+    );
+  });
+});

@@ -79,7 +79,9 @@ describe("the built web app under the daemon's CSP", () => {
     const references = [...html.matchAll(/\b(?:src|href)="([^"]+)"/g)].map((match) => match[1]);
     expect(references.length).toBeGreaterThan(0);
     for (const reference of references)
-      expect(reference, String(reference)).toMatch(/^\/(?:assets\/|favicon\.svg$)/);
+      expect(reference, String(reference)).toMatch(
+        /^\/(?:assets\/|favicon\.svg$|manifest\.webmanifest$|icons\/apple-touch-icon\.png$)/,
+      );
     expect(css).not.toMatch(/@import|url\(\s*["']?(?:https?:)?\/\//i);
   });
 

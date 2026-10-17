@@ -56,6 +56,8 @@ export interface AuthStore extends PasskeyStore {
   extendSession(idHash: string, lastSeenAt: number, expiresAt: number): void;
   deleteSession(idHash: string): void;
   deleteExpiredSessions(now: number): void;
+  /** Whether the user's browser session with this public id exists and has not expired; reads only. */
+  sessionLive(userId: string, publicId: string, now: number): boolean;
   /** Newest first, at most `limit`. */
   listDevices(userId: string, limit: number): DeviceRow[];
   /** Live rows only; the id hashes of the rows deleted: the caller drops whatever it keeps by them. */
@@ -121,6 +123,11 @@ export function createAuthStore(db: Db): AuthStore {
     deleteExpiredSessions: (now) => {
       db.run("DELETE FROM auth_sessions WHERE expires_at <= $now", { now });
     },
+    sessionLive: (userId, publicId, now) =>
+      db.get(
+        "SELECT 1 AS live FROM auth_sessions WHERE user_id = $userId AND public_id = $publicId AND expires_at > $now",
+        { userId, publicId, now },
+      ) !== undefined,
     listDevices: (userId, limit) =>
       db.all<DeviceRow>(
         "SELECT public_id AS publicId, created_at AS createdAt, last_seen_at AS lastSeenAt, expires_at AS expiresAt, user_agent AS userAgent, ip, method FROM auth_sessions WHERE user_id = $userId ORDER BY created_at DESC, rowid DESC LIMIT $limit",

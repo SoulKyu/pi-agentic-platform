@@ -5,7 +5,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { gzipSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { initialAssets, initialBundleGzipKb, lazyAssets } from "./check-budgets.ts";
+import {
+  initialAssets,
+  initialBundleGzipKb,
+  lazyAssets,
+  overBudget,
+  serviceWorkerGzipKb,
+} from "./check-budgets.ts";
 
 const INDEX_HTML =
   '<script type="module" crossorigin src="/assets/index-a1.js"></script><link rel="modulepreload" crossorigin href="/assets/vendor-b2.js"><link rel="stylesheet" crossorigin href="/assets/index-c3.css">';
@@ -22,6 +28,7 @@ beforeEach(() => {
   writeFileSync(join(dist, "assets/vendor-b2.js"), randomBytes(3_000));
   writeFileSync(join(dist, "assets/index-c3.css"), randomBytes(1_500));
   writeFileSync(join(dist, "assets/lazy-d4.js"), randomBytes(500_000));
+  writeFileSync(join(dist, "sw.js"), randomBytes(2_048));
 });
 afterEach(() => rmSync(dist, { recursive: true, force: true }));
 
@@ -42,6 +49,16 @@ describe("bundle budget", () => {
   it("lists every other asset as lazy, with its gzip size", () => {
     const lazyKb = Math.round((gzipBytes("/assets/lazy-d4.js") / 1024) * 10) / 10;
     expect(lazyAssets(dist)).toEqual([{ file: "/assets/lazy-d4.js", gzipKb: lazyKb }]);
+  });
+
+  it("measures dist/sw.js on its own, outside the initial bundle", () => {
+    expect(serviceWorkerGzipKb(dist)).toBe(Math.round((gzipBytes("sw.js") / 1024) * 10) / 10);
+    expect(initialAssets(INDEX_HTML)).not.toContain("/sw.js");
+  });
+
+  it("overBudget is strict on the raw bytes", () => {
+    expect(overBudget(4096, 4)).toBe(false);
+    expect(overBudget(4097, 4)).toBe(true);
   });
 
   it("throws when index.html loads no script or stylesheet, instead of passing on nothing", () => {
@@ -67,9 +84,10 @@ describe("bundle budget", () => {
     };
 
     it("passes under the budget and names the test that measures the other two budgets", () => {
-      const result = run({ initialBundleGzipKb: 180 });
+      const result = run({ initialBundleGzipKb: 180, serviceWorkerGzipKb: 4 });
       expect(result.status).toBe(0);
       expect(result.stdout).toMatch(/initial bundle: [\d.]+ KB gzip \(budget 180 KB\)/);
+      expect(result.stdout).toMatch(/service worker: [\d.]+ KB gzip \(budget 4 KB\)/);
       expect(result.stdout).toContain(
         "session open payload: measured by apps/daemon/src/modules/sessions/sessions.budgets.int.test.ts",
       );
@@ -85,12 +103,26 @@ describe("bundle budget", () => {
     });
 
     it("prints each lazy chunk", () => {
-      const result = run({ initialBundleGzipKb: 180 });
+      const result = run({ initialBundleGzipKb: 180, serviceWorkerGzipKb: 4 });
       expect(result.stdout).toMatch(/^lazy \/assets\/lazy-d4\.js: [\d.]+ KB gzip$/m);
     });
 
+    it("compares the unrounded size: 4.0 KB displayed but 4.02 KB real fails a 4 KB line", () => {
+      writeFileSync(join(dist, "sw.js"), randomBytes(4_100));
+      const result = run({ initialBundleGzipKb: 180, serviceWorkerGzipKb: 4 });
+      expect(result.stdout).toMatch(/service worker: 4 KB gzip \(budget 4 KB\)/);
+      expect(result.status).toBe(1);
+    });
+
+    it("fails when the service worker is over its own budget", () => {
+      const result = run({ initialBundleGzipKb: 180, serviceWorkerGzipKb: 0.001 });
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain("service worker:");
+      expect(result.stdout).toContain("budget 0.001 KB");
+    });
+
     it("fails over the budget and prints the budget it failed", () => {
-      const result = run({ initialBundleGzipKb: 0.001 });
+      const result = run({ initialBundleGzipKb: 0.001, serviceWorkerGzipKb: 4 });
       expect(result.status).toBe(1);
       expect(result.stdout).toContain("budget 0.001 KB");
     });
@@ -108,7 +140,7 @@ describe("bundle budget", () => {
 
     it("fails with a message when index.html loads nothing to measure", () => {
       writeFileSync(join(dist, "index.html"), "<p>no bundle</p>");
-      const result = run({ initialBundleGzipKb: 180 });
+      const result = run({ initialBundleGzipKb: 180, serviceWorkerGzipKb: 4 });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain("loads no script or stylesheet");
     });

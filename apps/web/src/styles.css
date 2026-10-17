@@ -14,6 +14,15 @@ body {
   @apply bg-grid font-sans text-ui text-fg;
 }
 
+html,
+body {
+  overscroll-behavior: none;
+}
+
+[data-shell="mobile"] :is(button, a) {
+  -webkit-touch-callout: none;
+}
+
 html[data-keyboard-open] [data-slot="bottom-nav"] {
   display: none;
 }
@@ -35,4 +44,9 @@ html[data-shell="mobile"] [data-slot="toast-viewport"] {
 /* The keyboard hides the bottom nav, and the layout viewport stays behind it: lift toasts by what the keyboard covers. */
 html[data-keyboard-open] [data-slot="toast-viewport"] {
   bottom: calc(100dvh - var(--app-viewport-height, 100dvh) + 0.5rem);
+}
+
+/* The update banner is fixed to the top: below the notch of an iOS standalone window. */
+[data-update-banner] {
+  top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
 }

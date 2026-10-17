@@ -12,6 +12,7 @@ import {
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
 import { useCommand } from "../../lib/use-command.ts";
 import { LazyPanel } from "../../lib/LazyPanel.tsx";
+import { landingSegmentOf } from "../../features/notifications/landing-path.ts";
 import { loadArchivedLanes } from "./archived-lanes.ts";
 import { BottomNav, type MobileSection } from "./BottomNav.tsx";
 import { ConnectionBanner } from "./ConnectionBanner.tsx";
@@ -19,7 +20,7 @@ import { MobileListsMenu } from "./MobileListsMenu.tsx";
 import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useTriggerNames } from "./use-tasks-feed.ts";
-import { NotFound } from "./NotFound.tsx";
+import { Unrouted } from "./Unrouted.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
 import { SurfaceSwitch, type SwitchChoice } from "./SurfaceSwitch.tsx";
@@ -84,14 +85,18 @@ export function MobileShell() {
   // The home's Inbox entry and status line on a phone: the Inbox section, not the desktop drawer.
   useCommand("mobile.inbox.open", () => setSection("inbox"));
   const item = itemFromPath(pathname, import.meta.env.DEV);
-  const title = item ? itemTitle(item, sessions, views, t, lanes, triggers) : t("shell.notFound.title");
+  const title = item
+    ? itemTitle(item, sessions, views, t, lanes, triggers)
+    : landingSegmentOf(pathname) !== null
+      ? t("app.name")
+      : t("shell.notFound.title");
   return (
     <div data-shell="mobile" className="flex h-app flex-col">
-      <header className="flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2">
+      <header className="box-content flex h-bar shrink-0 items-center gap-s2 border-b border-border bg-bg-side px-s2 pt-safe">
         <Link
           to="/"
           aria-label={t("app.name")}
-          className="focus-ring rounded-sm"
+          className="focus-ring inline-flex items-center justify-center rounded-sm pointer-coarse:min-h-11 pointer-coarse:min-w-11"
           onClick={() => setSection("work")}
         >
           <Mark size={20} />
@@ -165,7 +170,7 @@ export function MobileShell() {
             <PaneHost tab={tab} />
           )
         ) : (
-          <NotFound />
+          <Unrouted />
         )}
       </main>
       <BottomNav section={section} inboxCount={toHandle} agentsUnread={agentsUnread} onSection={setSection} />

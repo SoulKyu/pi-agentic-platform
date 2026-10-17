@@ -7,6 +7,7 @@ import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
 import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
 import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
 import { composePi } from "./compose-pi.ts";
+import { composePush, PUSH_MIGRATIONS, type PushSeams } from "./compose-push.ts";
 import { createSystemClock, type Clock } from "./kernel/clock.ts";
 import { type Config, VITE_DEV_ORIGIN } from "./kernel/config.ts";
 import { ensureInstallTimestamp } from "./kernel/db/meta.ts";
@@ -72,6 +73,7 @@ export interface DaemonDeps {
   readonly probeScopes?: typeof probeScopes;
   /** Tests only: replaces the process spawn of the sandbox probe (a bwrap that never answers). */
   readonly sandboxSpawn?: typeof spawn;
+  readonly push?: PushSeams; // tests only: replaces the transport side
 }
 
 /**
@@ -89,6 +91,7 @@ export const MIGRATION_SOURCES = [
   ...LANE_MIGRATIONS,
   ...M10_MIGRATION_SOURCES,
   ...M11_MIGRATION_SOURCES,
+  PUSH_MIGRATIONS,
 ] as const;
 
 const LOOPBACK = new Set(["127.0.0.1", "localhost", "::1"]);
@@ -248,7 +251,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const pi = composePi({ config, env, clock, logger, hub, audit, policy, projects, sessions, settings });
     lanes.bind({ sessions, pi, policy: policy.port, hub });
     const m10Late = composeM10(core, m10, { audit, auth, policy, projects, sessions, settings, wk, scopes });
-    const automationModule = m10Late.automation;
     const m11 = composeM11(
       { ...core, probeSpawn: deps.sandboxSpawn },
       {
@@ -258,11 +260,16 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         lanes,
         git: wk.git,
         runs: m10.runs.port,
-        automationModule,
+        automationModule: m10Late.automation,
         inbox: m10Late.inbox,
         settings,
         subagents: { pi, sessions },
       },
+    );
+    const agents = { port: m11.agents };
+    const push = composePush(
+      { ...core, closers, m10, inbox: m10Late.inbox, auth, settings, sessions, audit, agents },
+      deps.push,
     );
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
@@ -278,6 +285,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...lanes.rpc,
       ...m10Late.rpc,
       ...m11.rpc,
+      ...push.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger, onCall: m10.onCall });
     const ws = createWsServer({

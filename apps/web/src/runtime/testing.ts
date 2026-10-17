@@ -12,6 +12,7 @@ import { createSubscriptions } from "./subscriptions.ts";
 
 export function fakeConnection(initial: ConnectionState = "open") {
   let state = initial;
+  let retryAt: number | null = null;
   const frameListeners = new Set<(frame: unknown) => void>();
   const stateListeners = new Set<(state: ConnectionState) => void>();
   const binaryListeners = new Set<(data: ArrayBuffer) => void>();
@@ -51,6 +52,12 @@ export function fakeConnection(initial: ConnectionState = "open") {
       };
     },
     nudge: () => {},
+    retry: vi.fn(),
+    resume: () => {},
+    get retryAt() {
+      return retryAt;
+    },
+    attempt: 0,
   };
   return {
     connection,
@@ -62,6 +69,9 @@ export function fakeConnection(initial: ConnectionState = "open") {
     },
     deliver: (frame: unknown) => {
       for (const listener of [...frameListeners]) listener(frame);
+    },
+    setRetryAt: (next: number | null) => {
+      retryAt = next;
     },
     setState: (next: ConnectionState) => {
       state = next;
@@ -186,6 +196,7 @@ export function connectionBed(
       },
     },
     random: () => 0.5,
+    now: () => now,
   });
   const advance = (ms: number) => {
     now += ms;

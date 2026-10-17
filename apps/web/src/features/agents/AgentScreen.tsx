@@ -26,6 +26,7 @@ import { threadInterleave } from "./thread-plan.tsx";
 import { useAgentCards, useMarkRead, useNow, useOpenThread } from "./use-agent-space.ts";
 import { useHandOff } from "./use-hand-off.ts";
 import { useAgentView } from "./use-agent-view.ts";
+import { useCostToday } from "./use-cost-today.ts";
 
 /** What the shell's session screen is given for an agent's thread (features never import each other, M8R77). */
 export interface ThreadSlot {
@@ -110,6 +111,7 @@ function AgentSpace({
   const opened = useOpenThread(agentId, unusable);
   const sessionId = opened.state.kind === "ready" ? opened.state.sessionId : null;
   const detail = useAgentView(agentId, `${agent.lastActivityAt}:${agent.name}:${agent.state}`);
+  const costToday = useCostToday(agentId, `${agent.lastActivityAt}`);
   const events = useAgentCards(agentId, cardTick);
   const tainted = useSessionStore((state) =>
     sessionId === null ? false : (state.views[sessionId]?.policy.tainted ?? false),
@@ -176,6 +178,7 @@ function AgentSpace({
       agent={agent}
       view={detail.load.kind === "ready" ? detail.load.agent : null}
       avatarStyle={avatarStyle}
+      costToday={costToday}
       tainted={tainted}
       pausing={pause.since}
       canReset={sessionId !== null && !agent.quarantined}

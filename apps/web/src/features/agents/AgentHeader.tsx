@@ -1,6 +1,6 @@
 import "./register-space-catalog.ts";
 import type { AgentSummary, AgentView } from "@pap/contracts";
-import { Button, Chip, IconButton, IconMore, Segmented, type AvatarStyle } from "@pap/ui";
+import { Button, Chip, formatCost, IconButton, IconMore, Segmented, type AvatarStyle } from "@pap/ui";
 import type { MenuItem } from "@pap/ui/overlays";
 import type { ReactNode } from "react";
 import { useLazyFailureText, useT } from "../../i18n/index.ts";
@@ -15,6 +15,8 @@ export interface AgentHeaderProps {
   readonly avatarStyle: AvatarStyle;
   /** The thread's current taint (W5-R38). */
   readonly tainted: boolean;
+  /** What the agent spent today in dollars (`agents.status`); null until it is read, or when it cannot be. */
+  readonly costToday?: number | null;
   /** A pause or resume is in flight. */
   readonly pausing: number | null;
   /** The thread can be reset (it exists and the agent is not quarantined). */
@@ -86,6 +88,12 @@ export function AgentHeader(props: AgentHeaderProps) {
             <p className="min-w-0 truncate text-ui text-muted">
               {role === "" ? t("agentSpace.header.noRole") : role}
               {model === null ? null : <span className="font-mono text-label"> · {model}</span>}
+              {props.costToday == null ? null : (
+                <span className="text-label">
+                  {" "}
+                  · {t("agentSpace.header.costToday", { cost: formatCost(props.costToday) })}
+                </span>
+              )}
             </p>
           )}
         </div>

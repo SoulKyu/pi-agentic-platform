@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { cn } from "../cn.ts";
 import { once } from "../once.ts";
 import { Button } from "../primitives/Button.tsx";
 import { Chip } from "../primitives/Chip.tsx";
@@ -31,6 +32,8 @@ interface ApprovalCardCommon {
   readonly collapse?: { readonly show: string; readonly hide: string; readonly blocked: string } | undefined;
   /** Part of the command is withheld by the caller (clipped, not yet asked for): allowing waits, like a collapsed one. */
   readonly withheld?: boolean | undefined;
+  /** A phone's card: it fills its row and the answers share the full width as touch-sized buttons. */
+  readonly wide?: boolean | undefined;
 }
 
 /**
@@ -142,7 +145,7 @@ export function ApprovalCard(props: ApprovalCardProps) {
       data-inline-edit
       aria-label={props.category ? `${props.title} ${props.category}` : props.title}
       aria-describedby={described || undefined}
-      className="rounded-md border border-attn-line bg-attn-tint p-s2"
+      className={cn("rounded-md border border-attn-line bg-attn-tint p-s2", props.wide && "w-full")}
     >
       <h3 className="flex flex-wrap items-center gap-s2 label-hud text-attn-title">
         <span>{props.title}</span>
@@ -202,11 +205,17 @@ export function ApprovalCard(props: ApprovalCardProps) {
             {props.controls}
           </div>
         ) : null}
-        <div className="order-last ml-auto flex flex-wrap gap-s2">
+        <div
+          data-approval-actions
+          className={cn(
+            "order-last gap-s2",
+            props.wide ? "grid w-full grid-cols-2" : "ml-auto flex flex-wrap",
+          )}
+        >
           {answers.map((choice) => (
             <Button
               key={choice}
-              size="sm"
+              size={props.wide ? "md" : "sm"}
               variant={choice === "once" ? "primary" : "secondary"}
               disabled={answered || blocked(choice)}
               onClick={() => answer(choice)}

@@ -1,0 +1,81 @@
+{
+  "answers": {
+    "b1": {
+      "choice": "excluded"
+    },
+    "b10": {
+      "choice": "v1"
+    },
+    "b2": {
+      "choice": "warn"
+    },
+    "b3": {
+      "choice": "include"
+    },
+    "b4": {
+      "choice": "scoped_full"
+    },
+    "b5": {
+      "choice": "github"
+    },
+    "b6": {
+      "choice": "restore"
+    },
+    "b7": {
+      "choice": "unconfined"
+    },
+    "b8": {
+      "choice": "yes"
+    },
+    "b9": {
+      "choice": "unit"
+    },
+    "c1": {
+      "choice": "m12first"
+    },
+    "c2": {
+      "choice": "yes"
+    },
+    "c3": {
+      "choice": "lanes3"
+    },
+    "c4": {
+      "choice": "move"
+    },
+    "c5": {
+      "choice": "excluded"
+    },
+    "n1": {
+      "choice": "list"
+    },
+    "n10": {
+      "choice": "reached"
+    },
+    "n2": {
+      "choice": "names"
+    },
+    "n3": {
+      "choice": "crypto"
+    },
+    "n4": {
+      "choice": "keep"
+    },
+    "n5": {
+      "choice": "active"
+    },
+    "n6": {
+      "choice": "digest"
+    },
+    "n7": {
+      "choice": "ten"
+    },
+    "n8": {
+      "choice": "podman"
+    },
+    "n9": {
+      "choice": "exempt"
+    }
+  },
+  "submittedAt": "2026-10-17T07:08:18.365Z",
+  "version": "m12m6b-q1"
+}

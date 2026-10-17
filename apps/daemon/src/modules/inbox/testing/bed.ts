@@ -16,6 +16,7 @@ interface BedTask {
   readonly triggerName: string;
   readonly sessionId: string | null;
   readonly agentId?: string | null;
+  readonly registeredName: string | null;
 }
 
 /** A real database through `migrate`, a fake clock and hub, and the Inbox listening to a real `AutomationEvents`. */
@@ -65,8 +66,10 @@ export function createInboxBed(options: { readOnly?: boolean } = {}) {
       triggerName = "prod-alerts",
       sessionId: string | null = `s-${taskId}`,
       agentId: string | null = null,
+      /** The trigger's own name; null for a deleted trigger (the title stands in for `triggerName`). */
+      registeredName: string | null = triggerName,
     ) {
-      tasks.set(taskId, { ownerId, triggerName, sessionId, agentId });
+      tasks.set(taskId, { ownerId, triggerName, sessionId, agentId, registeredName });
     },
     attend: (taskId: string, needsInput: boolean) =>
       events.emit({ kind: "attention", taskId, sessionId: `s-${taskId}`, needsInput }),

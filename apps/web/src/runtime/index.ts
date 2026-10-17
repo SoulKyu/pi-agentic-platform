@@ -30,12 +30,20 @@ export function getRuntime(): Runtime {
     probe: probeServer,
     timers,
     random: Math.random,
+    now: Date.now,
   });
   const rpc = createRpcClient(connection, { newCommandId: () => randomId(), timers });
   const subscriptions = createSubscriptions(connection, rpc, timers);
   const onOnline = () => connection.nudge();
+  let hiddenAt: number | null = null;
   const onVisible = () => {
-    if (document.visibilityState === "visible") connection.nudge();
+    if (document.visibilityState !== "visible") {
+      hiddenAt ??= Date.now();
+      return;
+    }
+    const hiddenMs = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+    hiddenAt = null;
+    connection.resume(hiddenMs);
   };
   window.addEventListener("online", onOnline);
   document.addEventListener("visibilitychange", onVisible);

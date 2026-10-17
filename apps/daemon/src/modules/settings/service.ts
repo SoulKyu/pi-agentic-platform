@@ -3,6 +3,7 @@ import {
   AutomationSettings,
   MAX_SETTING_BYTES,
   ModelsSettings,
+  NotificationsSettings,
   PapError,
   type Caller,
   type SettingKey,
@@ -20,6 +21,8 @@ export interface SettingsPort {
   automation(ownerId: string): AutomationSettings;
   /** The owner's Agents settings; a missing or damaged row reads as the defaults, subagents on (owner m12). */
   agents(ownerId: string): AgentsSettings;
+  /** The owner's Notifications settings; a missing or damaged row reads as the defaults, logged (M12R18). */
+  notifications(ownerId: string): NotificationsSettings;
 }
 
 export interface SettingsService extends SettingsPort {
@@ -63,10 +66,20 @@ export function createSettingsService(deps: {
       deps.logger.warn("settings_row_unreadable", { key: "agents" });
       return AgentsSettings.parse({});
     },
+    notifications(ownerId) {
+      const parsed = NotificationsSettings.safeParse(read(ownerId, "notifications").value ?? {});
+      if (parsed.success) return parsed.data;
+      deps.logger.warn("settings_row_unreadable", { key: "notifications" });
+      return NotificationsSettings.parse({});
+    },
     set(caller, write) {
       // A token cannot lift the budget, unpause or add slots: the automation setting is the browser's (M10R162, RT-04).
       // The agents setting is the browser's too: it sets what a new agent starts with (M11R99).
-      if ((write.key === "automation" || write.key === "agents") && caller.kind === "token") {
+      // The notifications setting is the browser's too: a token could mute every push or turn names on (M12R10).
+      if (
+        (write.key === "automation" || write.key === "agents" || write.key === "notifications") &&
+        caller.kind === "token"
+      ) {
         throw new PapError("forbidden");
       }
       const text = JSON.stringify(write.value);

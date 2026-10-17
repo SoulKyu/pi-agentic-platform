@@ -7,6 +7,7 @@ import { createDaemon, type DaemonDeps, type DaemonHandle } from "../daemon.ts";
 import type { Config } from "../kernel/config.ts";
 import type { WorkerExit } from "../kernel/supervisor/exit.ts";
 import { silentLogger } from "../kernel/logger.ts";
+import { createFakeTransport } from "../modules/push/testing/fake-transport.ts";
 import { freePort } from "./free-port.ts";
 import { httpRequest } from "./http-client.ts";
 import { selfSignedCertificate } from "./self-signed.ts";
@@ -122,6 +123,9 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     helpersMax: 4,
     metricsToken: null,
     otlp: null,
+    pushSubject: null,
+    pushExtraHosts: [],
+    testPushLoopback: false,
     staticRoot: null,
     logLevel: "warn",
     ...options.config,
@@ -138,6 +142,9 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
   const daemon = await createDaemon(config, {
     logger: silentLogger,
     ...options.deps,
+    // A recording fake unless the test names its own push seams (`push: {}` is the real sender): no daemon of a test
+    // can reach a vendor push host (W5-R50).
+    push: options.deps?.push ?? { transport: createFakeTransport() },
     onWorkerExit: (sessionId, info) => {
       exits.push({ sessionId, ...info });
       options.deps?.onWorkerExit?.(sessionId, info);

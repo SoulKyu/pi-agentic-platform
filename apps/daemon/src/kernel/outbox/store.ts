@@ -21,6 +21,9 @@ export const REPLAY = {
   "run.resume": "replay-safe",
   "feed.poll": "replay-safe",
   "attachment.cleanup": "replay-safe",
+  // M12: a push is retried per target and a duplicate is collapsed by the push service (M12R13, M12R21).
+  "push.send": "replay-safe",
+  "digest.send": "replay-safe",
 } as const satisfies Record<string, ReplayClass>;
 export type EffectKind = keyof typeof REPLAY;
 
@@ -34,6 +37,8 @@ export const DEADLINE_MS = {
   "run.resume": 60_000,
   "feed.poll": 60_000,
   "attachment.cleanup": 30_000,
+  "push.send": 30_000,
+  "digest.send": 30_000,
 } as const satisfies Record<EffectKind, number>;
 
 const Id = z.string().min(1).max(128);
@@ -42,6 +47,8 @@ export const EFFECT_PAYLOADS = {
   "run.resume": z.object({ sessionId: Id, runId: Id, resetAt: z.number().int().nonnegative() }).strict(),
   "feed.poll": z.object({ triggerId: Id }).strict(),
   "attachment.cleanup": z.object({ day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).strict(),
+  "push.send": z.object({ eventId: z.string().regex(/^[A-Za-z0-9_-]{22}$/) }).strict(),
+  "digest.send": z.object({ ownerId: Id, endMinute: z.number().int() }).strict(),
 } satisfies { [K in EffectKind]: z.ZodType };
 export type EffectPayload<K extends EffectKind> = z.infer<(typeof EFFECT_PAYLOADS)[K]>;
 

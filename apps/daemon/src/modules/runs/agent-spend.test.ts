@@ -171,3 +171,16 @@ describe("what one task's runs cost (a thread task shares its session)", () => {
     expect(spend.taskRuns("nobody")).toEqual({ usd: 0, billing: "unknown" });
   });
 });
+
+describe("agentsRunToday (M12R26: the boot check of the budget push)", () => {
+  it("lists the owner's agents with a run today, open ones included, and not yesterday's, another owner's or none", async () => {
+    const { service, spend } = setup();
+    run(service, { id: "old", ownerId: "u1", agentId: OTHER }, { cost: 1 });
+    await bed.clock.advance(2 * DAY);
+    run(service, { id: "thread", ownerId: "u1", agentId: ATLAS }, { cost: 0.1 });
+    run(service, { id: "live", ownerId: "u1", agentId: "cedar-5e6f" }, { cost: 0.1 }, { live: true });
+    run(service, { id: "plain", ownerId: "u1" }, { cost: 0.1 });
+    run(service, { id: "theirs", ownerId: "u2", agentId: "dune-7a8b" }, { cost: 0.1 });
+    expect(spend.agentsRunToday("u1", "UTC")).toEqual([ATLAS, "cedar-5e6f"]);
+  });
+});

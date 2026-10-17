@@ -6,7 +6,7 @@ import type { EgressStatus } from "@pap/contracts";
 import { EGRESS_LIMITS } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { blockedAddress } from "./address.ts";
+import { blockedAddress } from "../../kernel/net/address.ts";
 import type { EgressScope } from "./allow.ts";
 import { writeForwarder } from "./forwarder.ts";
 import { type CommandListener, createProxy } from "./proxy.ts";

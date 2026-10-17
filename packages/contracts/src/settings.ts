@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AutomationSettings } from "./automation.ts";
 import { defineMethod } from "./define.ts";
+import { NotificationsSettings } from "./push.ts";
 
 // Account-scope settings (DESIGN.md §13): validated here, on the server before a write and on the client before an
 // import, so a stored document is always one the client can read back.
@@ -142,7 +143,14 @@ export const AgentsSettings = z.object({
 });
 export type AgentsSettings = z.infer<typeof AgentsSettings>;
 
-export const SETTING_KEYS = ["appearance", "keybindings", "models", "automation", "agents"] as const;
+export const SETTING_KEYS = [
+  "appearance",
+  "keybindings",
+  "models",
+  "automation",
+  "agents",
+  "notifications",
+] as const;
 export const SettingKey = z.enum(SETTING_KEYS);
 export type SettingKey = z.infer<typeof SettingKey>;
 export const MAX_SETTING_BYTES = 131_072;
@@ -156,6 +164,7 @@ export const SettingWrite = z.discriminatedUnion("key", [
   z.object({ key: z.literal("models"), value: ModelsSettings, baseRevision: BaseRevision }),
   z.object({ key: z.literal("automation"), value: AutomationSettings, baseRevision: BaseRevision }),
   z.object({ key: z.literal("agents"), value: AgentsSettings, baseRevision: BaseRevision }),
+  z.object({ key: z.literal("notifications"), value: NotificationsSettings, baseRevision: BaseRevision }),
 ]);
 export type SettingWrite = z.infer<typeof SettingWrite>;
 

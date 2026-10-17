@@ -120,6 +120,23 @@ describe("http app", () => {
     expect(index.headers.get("cache-control")).toBe("no-cache");
   });
 
+  it("serves the manifest and the icons without a cookie, typed and revalidated (M12R27)", async () => {
+    mkdirSync(join(web, "icons"));
+    writeFileSync(join(web, "manifest.webmanifest"), '{"name":"pap"}');
+    writeFileSync(join(web, "icons", "icon-192.png"), "png");
+    const app = build(web);
+    for (const [path, type] of [
+      ["/manifest.webmanifest", "application/manifest+json"],
+      ["/icons/icon-192.png", "image/png"],
+    ] as const) {
+      const response = await app.request(path);
+      expect(
+        [response.status, response.headers.get("content-type"), response.headers.get("cache-control")],
+        path,
+      ).toEqual([200, type, "no-cache"]);
+    }
+  });
+
   it("falls back to index.html for app routes and 404s missing files", async () => {
     const app = build(web);
     expect(await (await app.request("/s/abc")).text()).toContain("<title>pap</title>");

@@ -21,7 +21,7 @@ const prefix = (ip: string, bits: number): number =>
 const dotted = (high: number, low: number): string => `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
 
 /** The eight 16-bit groups of an IPv6 address in any spelling (`::`, a dotted tail), or null when it is not one. */
-function groupsOf(v6: string): number[] | null {
+export function groupsOf(v6: string): number[] | null {
   const tail = /(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(v6);
   const text = tail
     ? `${v6.slice(0, tail.index)}${((+(tail[1] ?? 0) << 8) | +(tail[2] ?? 0)).toString(16)}:${((+(tail[3] ?? 0) << 8) | +(tail[4] ?? 0)).toString(16)}`

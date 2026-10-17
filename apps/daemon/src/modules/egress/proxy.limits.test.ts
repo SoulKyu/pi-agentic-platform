@@ -1,7 +1,7 @@
 import { connect } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EGRESS_LIMITS } from "@pap/contracts";
-import { blockedAddress } from "./address.ts";
+import { blockedAddress } from "../../kernel/net/address.ts";
 import {
   type Bed,
   bodyOf,

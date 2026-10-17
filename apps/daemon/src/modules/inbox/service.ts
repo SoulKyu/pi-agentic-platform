@@ -22,6 +22,16 @@ export interface InboxTaskInfo {
   readonly sessionId: string | null;
   /** The agent whose task it is (M11R92); absent or null for a trigger's own task. */
   readonly agentId?: string | null;
+  /** The trigger's own `trigger_name`, never the task's title; null once the trigger is deleted (M12, push names). */
+  readonly registeredName: string | null;
+}
+
+/** What the Inbox tells a listener: a row written, reopened for a next question, or closed (M12R22). */
+export type InboxChange = "created" | "reopened" | "resolved";
+export interface InboxItemEvent {
+  readonly ownerId: string;
+  readonly item: InboxItem;
+  readonly change: InboxChange;
 }
 
 export interface InboxDeps {
@@ -52,10 +62,9 @@ const NAME_CHARS = 200;
 const HIDDEN = /[\u0000-\u001F\u007F-\u009F\p{Cf}\p{Zl}\p{Zp}]/gu;
 
 /** The trigger's name as the Inbox keeps it. It is the owner's text, but a deleted trigger leaves a task's title, which can come from a payload. */
-function nameOf(text: string): string {
-  const clean = [...text.replace(HIDDEN, "")].slice(0, NAME_CHARS).join("").trim();
-  return clean === "" ? "?" : clean;
-}
+const cleanName = (text: string): string =>
+  [...text.replace(HIDDEN, "")].slice(0, NAME_CHARS).join("").trim();
+const nameOf = (text: string): string => cleanName(text) || "?";
 
 type Snapshot = Extract<InboxStreamEvent, { kind: "snapshot" }>;
 
@@ -64,6 +73,18 @@ export function createInbox(deps: InboxDeps) {
   const { clock, logger } = deps;
   const store = createInboxStore(deps.db);
   const fullLoggedAt = new Map<string, number>();
+  const listeners = new Set<(event: InboxItemEvent) => void>();
+
+  /** Tells the listeners of a change; one that throws is logged and skipped, as `AutomationEvents` does. */
+  function changed(ownerId: string, item: InboxItem, change: InboxChange): void {
+    for (const listener of [...listeners]) {
+      try {
+        listener({ ownerId, item, change });
+      } catch (error) {
+        logger.warn("inbox_listener_failed", { kind: item.kind, err: error });
+      }
+    }
+  }
 
   function publish(ownerId: string, event: InboxStreamEvent): void {
     try {
@@ -96,6 +117,7 @@ export function createInbox(deps: InboxDeps) {
     logger,
     roomFor,
     announce,
+    changed,
     counts: (ownerId) => publish(ownerId, { kind: "counts", ...store.counts(ownerId) }),
   });
 
@@ -103,7 +125,7 @@ export function createInbox(deps: InboxDeps) {
     ownerId: string,
     kind: string,
     toHandle: boolean,
-    task: InboxTaskInfo,
+    task: Omit<InboxTaskInfo, "registeredName">,
     taskId: string,
     costUsd: number | null,
   ): NewItem {
@@ -124,25 +146,34 @@ export function createInbox(deps: InboxDeps) {
   function onAttention(taskId: string, needsInput: boolean): void {
     const task = deps.tasks.find(taskId);
     if (!task) return;
-    const changed = needsInput
+    const reopening = needsInput && store.byTaskKind(taskId, QUESTION) !== null;
+    const row = needsInput
       ? store.openQuestion(newItem(task.ownerId, QUESTION, true, task, taskId, null))
       : store.resolve(taskId, QUESTION, "answered", clock.now());
-    if (changed) announce(task.ownerId, [changed]);
+    if (!row) return;
+    announce(task.ownerId, [row]);
+    changed(task.ownerId, row, !needsInput ? "resolved" : reopening ? "reopened" : "created");
   }
 
   function onTimeout(taskId: string): void {
     const task = deps.tasks.find(taskId);
-    const changed = task ? store.resolve(taskId, QUESTION, "timed_out", clock.now()) : null;
-    if (task && changed) announce(task.ownerId, [changed]);
+    const row = task ? store.resolve(taskId, QUESTION, "timed_out", clock.now()) : null;
+    if (!task || !row) return;
+    announce(task.ownerId, [row]);
+    changed(task.ownerId, row, "resolved");
   }
 
   function onTask(event: Extract<AutomationEvent, { kind: "task" }>): void {
     const { ownerId, task } = event;
-    const changed: InboxItem[] = [];
+    const moved: InboxChange[] = [];
+    const rows: InboxItem[] = [];
     // A question the task leaves behind is closed with it: it could never be answered now.
     if (OVER.has(task.state)) {
       const closed = store.resolve(task.id, QUESTION, null, clock.now());
-      if (closed) changed.push(closed);
+      if (closed) {
+        rows.push(closed);
+        moved.push("resolved");
+      }
     }
     const kind = INFO_KINDS[task.state as keyof typeof INFO_KINDS];
     // The same ending heard twice writes nothing, and costs the owner no old item either.
@@ -155,10 +186,15 @@ export function createInbox(deps: InboxDeps) {
       };
       if (store.insertInfo(newItem(ownerId, kind, false, from, task.id, task.costUsd))) {
         const written = store.byTaskKind(task.id, kind);
-        if (written) changed.push(written);
+        if (written) {
+          rows.push(written);
+          moved.push("created");
+        }
       }
     }
-    if (changed.length > 0) announce(ownerId, changed);
+    if (rows.length === 0) return;
+    announce(ownerId, rows);
+    rows.forEach((row, index) => changed(ownerId, row, moved[index] ?? "created"));
   }
 
   function snapshot(ownerId: string): Snapshot {
@@ -187,6 +223,17 @@ export function createInbox(deps: InboxDeps) {
 
   return {
     snapshot,
+    /** Hears every row written, reopened or closed, never a re-announce nor a read mark (M12R22); returns the way to stop. */
+    onItem(listener: (event: InboxItemEvent) => void): () => void {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+    get: (ownerId: string, id: string): InboxItem | null => store.get(ownerId, id),
+    /** The name of the trigger a task came from, cleaned; null for a deleted trigger or an unknown task (never the task's title). */
+    registeredName(taskId: string): string | null {
+      const raw = deps.tasks.find(taskId)?.registeredName;
+      return raw ? cleanName(raw) || null : null;
+    },
     /** The port M11's agents, delegations and memory write the Inbox through (M11R91). */
     agentItems,
     list(
@@ -212,7 +259,10 @@ export function createInbox(deps: InboxDeps) {
     retention(): void {
       if (!deps.readOnly) store.removeReadBefore(clock.now() - INBOX_LIMITS.retentionMs);
     },
-    stop,
+    stop: () => {
+      stop();
+      listeners.clear();
+    },
   };
 }
 export type Inbox = ReturnType<typeof createInbox>;

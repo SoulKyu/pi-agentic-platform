@@ -27,6 +27,10 @@ import type { homeEn } from "./catalog/home.ts";
 import type { inboxEn } from "./catalog/inbox.ts";
 import type { inboxAgentsEn } from "./catalog/inbox-agents.ts";
 import type { memoryEn } from "./catalog/memory.ts";
+import type { landingEn } from "./catalog/landing.ts";
+import type { notificationsEn } from "./catalog/notifications.ts";
+import type { pushEn } from "./catalog/push.ts";
+import type { pwaEn } from "./catalog/pwa.ts";
 import type { modelsUsageEn } from "./catalog/models-usage.ts";
 import type { serverEn } from "./catalog/server.ts";
 import type { sessionModelsEn } from "./catalog/session-models.ts";
@@ -100,7 +104,11 @@ export type MessageKey =
   | keyof typeof agentComposeEn
   | keyof typeof agentsPhoneEn
   | keyof typeof settingsAgentsEn
-  | keyof typeof subagentsEn;
+  | keyof typeof subagentsEn
+  | keyof typeof pwaEn
+  | keyof typeof pushEn
+  | keyof typeof notificationsEn
+  | keyof typeof landingEn;
 export type Locale = "en" | "fr";
 
 /** Errors the page raises itself, next to the server's `ERROR_CODES`. */

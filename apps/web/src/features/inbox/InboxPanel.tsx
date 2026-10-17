@@ -1,9 +1,10 @@
 import type { InboxItem } from "@pap/contracts";
 import { type AvatarStyle, Button, Chip, EmptyState, Segmented, toast, type Option } from "@pap/ui";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "../../i18n/register-inbox.ts";
 import { errorKey, useT } from "../../i18n/index.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
+import { useInboxReveal } from "../../stores/inbox-reveal.ts";
 import { useInboxStore } from "../../stores/inbox-store.ts";
 import { FILTERS, visible, type InboxFilter } from "./inbox.vm.ts";
 import { InboxRow } from "./InboxRow.tsx";
@@ -36,6 +37,20 @@ export default function InboxPanel({
     return () => clearInterval(timer);
   }, []);
   const rows = useMemo(() => visible(view.items, filter), [view.items, filter]);
+
+  // A tapped notification named a row: bring it into view once the list holds it. Ids are compared, never put in a selector.
+  const wanted = useInboxReveal((state) => state.itemId);
+  const list = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (wanted === null) return;
+    const row = [...(list.current?.querySelectorAll<HTMLElement>("[data-item-id]") ?? [])].find(
+      (candidate) => candidate.dataset["itemId"] === wanted,
+    );
+    if (row === undefined) return;
+    useInboxReveal.getState().takeItem();
+    row.scrollIntoView?.({ block: "center" });
+    row.focus({ preventScroll: true });
+  }, [wanted, rows]);
 
   const markRead = (params: { ids: string[] } | { all: true }) => {
     const rpc = getRuntime().rpc;
@@ -97,7 +112,7 @@ export default function InboxPanel({
           <EmptyState title={t(`${emptyKind}.title`)} purpose={t(`${emptyKind}.purpose`)} />
         </div>
       ) : (
-        <ul aria-label={t("inbox.list")}>
+        <ul ref={list} aria-label={t("inbox.list")}>
           {rows.map((item) => (
             <InboxRow
               key={item.id}

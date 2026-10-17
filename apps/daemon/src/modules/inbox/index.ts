@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 import type { MigrationSource } from "../../kernel/db/migrate.ts";
 
 export { inboxRpc, type InboxRpc } from "./rpc.ts";
-export { createInbox, type Inbox } from "./service.ts";
+export { createInbox, type Inbox, type InboxItemEvent } from "./service.ts";
 
 export const INBOX_MIGRATIONS: MigrationSource = {
   module: "inbox",

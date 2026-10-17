@@ -1,6 +1,6 @@
 import { Socket } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { blockedAddress } from "./address.ts";
+import { blockedAddress } from "../../kernel/net/address.ts";
 import { type Bed, bodyOf, denyOf, exchange, getLine, scopeOf, startBed, statusOf } from "./testing/bed.ts";
 
 let bed: Bed;

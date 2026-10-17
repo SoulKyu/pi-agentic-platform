@@ -24,6 +24,8 @@ export interface ConnectionDeps {
   probe(): Promise<ProbeResult>;
   readonly timers: Timers;
   random(): number;
+  /** The clock `retryAt` is read on (ms). */
+  now(): number;
 }
 
 export interface Connection {
@@ -38,11 +40,24 @@ export interface Connection {
   onBinary(listener: (data: ArrayBuffer) => void): () => void;
   onState(listener: (state: ConnectionState) => void): () => void;
   nudge(): void;
+  /** The attempts made since the last stable connection or manual retry (the rung of the next delay). */
+  readonly attempt: number;
+  /** When the next attempt starts, on the `now` clock; null unless a retry timer is armed. */
+  readonly retryAt: number | null;
+  /** The banner's button: back to the first rung, then the same as `nudge()`. */
+  retry(): void;
+  /**
+   * The tab is visible again after `hiddenMs` hidden. A long hide (30 s or more) replaces the socket at
+   * once, because a phone can keep a zombie socket for the whole dead window; a short one only nudges.
+   */
+  resume(hiddenMs: number): void;
 }
 
 const DEAD_AFTER_MS = 15_000;
 const MAX_BACKOFF_MS = 30_000;
 const STABLE_AFTER_MS = 10_000;
+/** A tab hidden at least this long cannot be trusted to hold a live socket. */
+export const LONG_HIDDEN_MS = 30_000;
 /** The longest the supervisor waits for the probe: no answer counts as `offline`. */
 export const PROBE_DEADLINE_MS = 10_000;
 
@@ -57,6 +72,8 @@ export function createConnection(deps: ConnectionDeps): Connection {
   let stopped = true;
   // Bumped by every connect and stop: a probe that answers after one of them is for a socket that is gone.
   let round = 0;
+  let retryAt: number | null = null;
+  const now = deps.now;
   const timers: { retry: number | null; dead: number | null; stable: number | null } = {
     retry: null,
     dead: null,
@@ -69,6 +86,7 @@ export function createConnection(deps: ConnectionDeps): Connection {
   const binaryListeners = new Set<(data: ArrayBuffer) => void>();
 
   const clear = (key: keyof typeof timers) => {
+    if (key === "retry") retryAt = null;
     const id = timers[key];
     if (id !== null) deps.timers.clear(id);
     timers[key] = null;
@@ -191,12 +209,35 @@ export function createConnection(deps: ConnectionDeps): Connection {
     const mine = round;
     const result = await probe();
     if (mine !== round || !applyProbe(result)) return;
-    timers.retry = deps.timers.set(connect, backoffDelay(attempt++, deps.random()));
+    const delay = backoffDelay(attempt++, deps.random());
+    retryAt = now() + delay;
+    timers.retry = deps.timers.set(connect, delay);
+  };
+
+  const nudge = () => {
+    // Foreground or back online: a socket still connecting belongs to the network we just left.
+    if (state === "connecting" && socket) {
+      detach(socket);
+      connect();
+      return;
+    }
+    if (state !== "waiting" || timers.retry === null) return;
+    clear("retry");
+    const mine = round;
+    void probe().then((result) => {
+      if (mine === round && applyProbe(result)) connect();
+    });
   };
 
   return {
     get state() {
       return state;
+    },
+    get attempt() {
+      return attempt;
+    },
+    get retryAt() {
+      return retryAt;
     },
     start() {
       // Signed-out is the one end state a start can leave: the caller has signed in again.
@@ -254,19 +295,23 @@ export function createConnection(deps: ConnectionDeps): Connection {
         stateListeners.delete(listener);
       };
     },
-    nudge() {
-      // Foreground or back online: a socket still connecting belongs to the network we just left.
-      if (state === "connecting" && socket) {
-        detach(socket);
+    retry() {
+      attempt = 0;
+      nudge();
+    },
+    resume(hiddenMs) {
+      if (hiddenMs >= LONG_HIDDEN_MS && socket && (state === "open" || state === "connecting")) {
+        const stale = socket;
+        socket = null;
+        clear("dead");
+        clear("stable");
+        attempt = 0;
+        detach(stale);
         connect();
         return;
       }
-      if (state !== "waiting" || timers.retry === null) return;
-      clear("retry");
-      const mine = round;
-      void probe().then((result) => {
-        if (mine === round && applyProbe(result)) connect();
-      });
+      nudge();
     },
+    nudge,
   };
 }

@@ -120,6 +120,15 @@ export function createInboxStore(db: Db) {
   return {
     byTaskKind,
 
+    /** One item of this owner; another owner's id reads as absent. */
+    get(ownerId: string, id: string): InboxItem | null {
+      const row = db.get<Row>("SELECT * FROM inbox_items WHERE owner_id = $ownerId AND id = $id", {
+        ownerId,
+        id,
+      });
+      return row ? itemOf(row) : null;
+    },
+
     /** An info item: one per task and kind, a second one of the same is not written. True when this call wrote it. */
     insertInfo: (item: NewItem): boolean =>
       db.run(`${INSERT} ON CONFLICT(task_id, kind) WHERE task_id IS NOT NULL DO NOTHING`, insertValues(item))

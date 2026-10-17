@@ -42,6 +42,11 @@ export function useShellCommands(state: ShellCommandState): void {
     state.setTreeOpen(false);
     state.setInboxOpen((current) => !current);
   });
+  // A tapped notification names an Inbox item: open the drawer, never toggle it shut (M12).
+  useCommand("drawer.inbox.open", () => {
+    state.setTreeOpen(false);
+    state.setInboxOpen(true);
+  });
   // Palette commands on the active session tab; false when it is not one the shell store holds (nothing to show).
   const surface = (which: Surface) => () => {
     const tab = activeTab(useWorkspaceStore.getState().ws);

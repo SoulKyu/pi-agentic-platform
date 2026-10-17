@@ -63,7 +63,10 @@ export function ProjectHome({ actions, shortcuts, preset, layout, presetField }:
     setSeenStart(startedHere);
     setChosen("session");
   }
+  // On mount the composer takes the focus except under a coarse pointer: a phone's keyboard would cover the page.
+  const mountedAt = useRef(startedHere);
   useEffect(() => {
+    if (startedHere === mountedAt.current && window.matchMedia?.("(pointer: coarse)").matches) return;
     field.current?.focus();
   }, [startedHere]);
   // A mode this project refuses shows Session here; the device keeps the choice for the others (PH14).

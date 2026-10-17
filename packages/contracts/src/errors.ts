@@ -30,6 +30,8 @@ export const ERROR_CODES = [
   "disk_low",
   "sandbox_unavailable",
   "agent_paused",
+  "push_unavailable",
+  "push_revoked",
   "unknown_method",
   "internal",
 ] as const;
@@ -78,6 +80,9 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
     "The disk is almost full: pap keeps some space free for its database. Free some space, then try again.",
   sandbox_unavailable: "This agent's sandbox cannot run on this server as set up. See Settings › Agents.",
   agent_paused: "This agent is paused. Resume it from its header.",
+  push_unavailable: "Notifications are not available on this server. See Settings › Notifications.",
+  push_revoked:
+    "This device was removed from the notification list. Enable notifications again to add it back.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

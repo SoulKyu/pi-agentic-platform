@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { InboxItem } from "@pap/contracts";
+import type { InboxChange } from "./service.ts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { cleanLabel, cutUnits } from "../../kernel/text.ts";
@@ -47,6 +48,8 @@ export interface AgentItemsDeps {
   /** Room for one more info item (the oldest read info item goes at the cap); false when none can. */
   roomFor(ownerId: string): boolean;
   announce(ownerId: string, items: readonly InboxItem[]): void;
+  /** Tells the listeners (M12R22); called after `announce`, for the writes and closings only. */
+  changed(ownerId: string, item: InboxItem, change: InboxChange): void;
   counts(ownerId: string): void;
 }
 
@@ -89,6 +92,9 @@ export function createAgentItems(deps: AgentItemsDeps) {
       });
       if (!item) return false;
       deps.announce(input.ownerId, [item]);
+      // Written again while still open is a refresh, not a next ask.
+      if (!existing) deps.changed(input.ownerId, item, "created");
+      else if (existing.item.resolvedAt !== null) deps.changed(input.ownerId, item, "reopened");
       return true;
     },
 
@@ -100,7 +106,10 @@ export function createAgentItems(deps: AgentItemsDeps) {
       resolution: "answered" | "timed_out" | null,
     ): boolean {
       const item = store.resolveRef(ownerId, kind, refId, resolution, clock.now());
-      if (item) deps.announce(ownerId, [item]);
+      if (item) {
+        deps.announce(ownerId, [item]);
+        deps.changed(ownerId, item, "resolved");
+      }
       return item !== null;
     },
 

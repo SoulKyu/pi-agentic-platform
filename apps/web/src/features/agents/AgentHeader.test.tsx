@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import type { AgentSummary } from "@pap/contracts";
 import { describe, expect, it, vi } from "vitest";
+import { setLocale } from "../../i18n/index.ts";
 import { button, click, mount } from "../../testing/dom.ts";
 import { AgentHeader, type AgentHeaderProps } from "./AgentHeader.tsx";
 
@@ -66,5 +67,33 @@ describe("the header's Resume for a quarantined agent (W5-R58)", () => {
   it("shows no hint while Resume works", async () => {
     const page = await show({ agent: { ...atlas, paused: true, state: "paused" } });
     expect(page.container.textContent).not.toContain("Settings tab");
+  });
+});
+
+describe("the header's cost today (board 12, decision 32)", () => {
+  const line = (page: { container: HTMLElement }) =>
+    page.container.querySelector("header p")?.textContent ?? "";
+
+  it("adds today's cost to the role line, in the account's language", async () => {
+    const view = {
+      input: { role: "Keeps the lights on", model: null },
+    } as unknown as AgentHeaderProps["view"];
+    expect(line(await show({ view, costToday: 1.84 }))).toBe(
+      "Keeps the lights on · default model · $1.84 today",
+    );
+    setLocale("fr");
+    try {
+      expect(line(await show({ view, costToday: 1.84 }))).toContain("$1.84 aujourd'hui");
+    } finally {
+      setLocale("en");
+    }
+  });
+
+  it("says nothing of it until the figure is read", async () => {
+    const view = {
+      input: { role: "Keeps the lights on", model: null },
+    } as unknown as AgentHeaderProps["view"];
+    expect(line(await show({ view, costToday: null }))).not.toContain("today");
+    expect(line(await show({ view }))).not.toContain("today");
   });
 });

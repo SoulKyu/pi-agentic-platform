@@ -39,6 +39,10 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - A new platform op declares its callers, `whenTainted` and deadline in `PLATFORM_OPS`; the session type is read from the daemon's row, never from the worker.
 - The daemon logs a host an agent chose as `h:<12 hex> (len N)`, unless the owner wrote it.
 
+## Notifications and PWA (M12)
+
+- Web Push and the PWA: classes, delivery, payload, key file, HTTPS routes, service worker, troubleshooting in `docs/agents/notifications.md`; ADRs 0058 to 0062; rulings `docs/research/m12-rulings.md`. Env: `PAP_PUSH_SUBJECT` (VAPID `sub`, https or mailto), `PAP_PUSH_EXTRA_HOSTS` (at most 8 extra push hosts), `PAP_TEST_PUSH_LOOPBACK=1` (tests only, needs `PAP_TEST_PROVIDER_SCRIPT`; never set it elsewhere).
+
 ## Rules (CI-enforced)
 
 - 400 lines per file at most. No baseline, no exceptions.

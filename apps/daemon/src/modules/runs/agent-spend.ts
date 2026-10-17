@@ -14,6 +14,8 @@ export interface AgentSpend {
    * says so far (the row is saved after each message). `timeZone` null: the server's.
    */
   agentSpentToday(ownerId: string, agentId: string, timeZone: string | null): { usd: number; tokens: number };
+  /** The agents of the owner with a run today (running or ended since local midnight): who a boot-time budget check looks at. */
+  agentsRunToday(ownerId: string, timeZone: string | null): string[];
   /** The same cost over the last 7 or 30 days, today included. */
   agentUsd(ownerId: string, agentId: string, timeZone: string | null, range: "7d" | "30d"): number;
   /** How the agent's runs are billed: `subscription` if any was, else `api` if any was, else `unknown` (also with none). */
@@ -36,12 +38,24 @@ export function createAgentSpend(deps: { readonly db: Db; readonly clock: Pick<C
     return { usd: row?.usd ?? 0, tokens: row?.tokens ?? 0 };
   }
 
+  function agentsSince(ownerId: string, from: number): string[] {
+    return db
+      .all<{ agent_id: string }>(
+        `SELECT DISTINCT agent_id FROM runs
+         WHERE owner_id = $ownerId AND agent_id IS NOT NULL AND started_at >= $from - ${MAX_RUN_SPAN_MS}
+           AND (status = 'running' OR ended_at >= $from) ORDER BY agent_id`,
+        { ownerId, from },
+      )
+      .map((row) => row.agent_id);
+  }
+
   const billingOf = (kinds: ReadonlySet<RunBilling>): RunBilling =>
     kinds.has("subscription") ? "subscription" : kinds.has("api") ? "api" : "unknown";
 
   return {
     agentSpentToday: (ownerId, agentId, timeZone) =>
       since(ownerId, agentId, startOfLocalDay(clock.now(), timeZone)),
+    agentsRunToday: (ownerId, timeZone) => agentsSince(ownerId, startOfLocalDay(clock.now(), timeZone)),
     agentUsd: (ownerId, agentId, timeZone, range) =>
       since(ownerId, agentId, rangeStart(clock.now(), range, timeZone)).usd,
     agentBilling: (ownerId, agentId) =>

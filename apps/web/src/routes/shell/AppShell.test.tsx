@@ -119,12 +119,12 @@ describe("AppShell", () => {
     await page.unmount();
   });
 
-  it("says it is reconnecting, and offers a reload when the page is out of date", async () => {
+  it("says the daemon is not answering, and offers a reload when the page is out of date", async () => {
     const page = await withMenu("/");
     await act(async () => bed.fake.setState("waiting"));
     expect(
       [...page.container.querySelectorAll('[role="status"]')].some((el) =>
-        el.textContent?.startsWith("Reconnecting…"),
+        el.textContent?.startsWith("The daemon is not answering."),
       ),
     ).toBe(true);
     await act(async () => bed.fake.setState("outdated"));

@@ -14,6 +14,7 @@ export default defineConfig({
           environment: "node",
           include: [
             "{apps,packages}/*/src/**/*.test.{ts,tsx}",
+            "apps/web/sw/*.test.ts",
             "eslint/**/*.test.js",
             "scripts/**/*.test.ts",
           ],

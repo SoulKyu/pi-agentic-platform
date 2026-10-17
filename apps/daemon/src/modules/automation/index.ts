@@ -147,6 +147,8 @@ export interface AutomationModule {
     triggerName: string;
     sessionId: string | null;
     agentId: string | null;
+    /** The trigger's `trigger_name` only; null once the trigger is deleted (the push name, M12). */
+    registeredName: string | null;
   } | null;
   /** The task of a session and whether its trigger is over its daily budget (M10R66): the resume planner reads it. */
   taskOf(ownerId: string, sessionId: string): { taskId: string; overBudget: boolean } | null;
@@ -320,6 +322,7 @@ export function createAutomationModule(deps: AutomationDeps): AutomationModule {
             triggerName: row.trigger_name ?? row.title,
             sessionId: row.session_id,
             agentId: row.agent_id,
+            registeredName: row.trigger_name,
           }
         : null;
     },

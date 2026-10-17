@@ -12,8 +12,8 @@
   ],
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "NODE_OPTIONS=--disable-warning=ExperimentalWarning vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p sw/tsconfig.json"
   },
   "dependencies": {
     "@pap/contracts": "workspace:*",

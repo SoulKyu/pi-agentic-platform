@@ -37,6 +37,8 @@ export * from "./pi-helper.ts";
 export * from "./pi-host.ts";
 export * from "./pi-host-init.ts";
 export * from "./protected-paths.ts";
+export * from "./push.ts";
+export * from "./push-methods.ts";
 export * from "./rrule.ts";
 export * from "./rrule-next.ts";
 export * from "./sandbox.ts";

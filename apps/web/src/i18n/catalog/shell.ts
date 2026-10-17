@@ -116,6 +116,9 @@ export const shellEn = {
   "error.sandbox_unavailable":
     "This agent's sandbox cannot run on this server as set up. See Settings › Agents.",
   "error.agent_paused": "This agent is paused. Resume it from its header.",
+  "error.push_unavailable": "Notifications are not available on this server. See Settings › Notifications.",
+  "error.push_revoked":
+    "This device was removed from the notification list. Enable notifications again to add it back.",
   // The home's Recent list and the tree rows both show an age: eager, because the home paints before the tree.
   "shell.age.now": "now",
   "shell.age.min": "{n} min",
@@ -245,6 +248,10 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "error.sandbox_unavailable":
     "La sandbox de cet agent ne peut pas tourner sur ce serveur dans sa configuration. Voir Réglages › Agents.",
   "error.agent_paused": "Cet agent est en pause. Reprenez-le depuis son en-tête.",
+  "error.push_unavailable":
+    "Les notifications ne sont pas disponibles sur ce serveur. Voir Réglages › Notifications.",
+  "error.push_revoked":
+    "Cet appareil a été retiré de la liste des notifications. Activez de nouveau les notifications pour le remettre.",
   "shell.age.now": "maintenant",
   "shell.age.min": "{n} min",
   "shell.age.hour": "{n} h",

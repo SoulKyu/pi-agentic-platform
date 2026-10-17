@@ -52,6 +52,7 @@ describe("router", () => {
       "/dev/ui",
       "/explore/$root",
       "/lane/$laneId",
+      "/n/$id",
       "/s/$sessionId",
       "/settings",
       "/settings/$section",
