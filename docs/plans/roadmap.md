@@ -141,3 +141,24 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 | File editing (CodeMirror 6) | M8 |
 
 After v1: release signing, SBOM and SLSA provenance (decision 75); spec A §7 (teams and OIDC, per-agent egress proxy, full self-update trial, nightly / Homebrew / apt, agent-managed schedules).
+
+Ideas to study after v1 (not planned yet):
+
+- **Agent self-improvement, after Harness² (owner, 2026-10-18).** Google Research's [harness2](https://github.com/google-research/harness2) (arXiv:2610.14224, Apache-2.0) improves an agent without touching the model, through two loops:
+  - Per task, Propose → Probe → Compose: run the same task K times with different harness edits, compare the executions without a ground truth, and compose a better harness.
+  - Across tasks, a persistent store of evidence-backed lessons.
+
+  The tool itself does not fit pap: it is Python, drives OpenCode or Codex, uses Vertex AI, and runs without a sandbox. The idea maps onto what pap has:
+  - agent profiles (role, preset, skills, memory, subagents);
+  - fan-out and lanes for the K probes;
+  - transcripts plus a judge call for Compose;
+  - the memory review queue for lessons;
+  - budgets for the K-fold cost.
+
+  pap's own limits:
+  - Only the role, skills and memory lessons are editable, never policy, sandbox, egress, plugins or scripts.
+  - Every edit goes to the owner's review.
+  - A lesson drawn from a run that read outside content is tainted.
+  - A budget cap applies per improvement run.
+
+  First step: read the paper, especially how probes are compared without a verifier, then a one-day spike on one agent.
