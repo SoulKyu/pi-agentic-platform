@@ -55,7 +55,14 @@ test("J11: a file is edited and saved, a path outside the project is refused", a
     expect(JSON.parse(body)).toEqual({ error: { code: "not_found" } });
     expect(body).not.toContain("root:");
     await outside.close();
-    await expect.poll(() => refusals(pap.lines()).length).toBeGreaterThan(before);
+    // This request's own line: the boundary's reason for a path that is not canonical, not just any new refusal.
+    await expect
+      .poll(() =>
+        refusals(pap.lines())
+          .slice(before)
+          .map((line) => line["why"]),
+      )
+      .toContain("malformed");
   });
 });
 

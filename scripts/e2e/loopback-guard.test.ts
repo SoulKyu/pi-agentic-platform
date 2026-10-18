@@ -61,6 +61,17 @@ describe("loopback-guard", () => {
     expect(result.stderr).not.toContain("pap-network-guard");
   });
 
+  // Only the literal 127.0.0.1 is let through: a name or another spelling of the same machine is refused even though a
+  // server listens on the port (A4 review).
+  it.each(["localhost", "::1", "::ffff:127.0.0.1"])(
+    "still refuses %s although a server listens",
+    async (host) => {
+      const result = await connectFrom(host, await listen());
+      expect(result.stderr).toContain("pap-network-guard: blocked");
+      expect(result.stdout).not.toContain("connected");
+    },
+  );
+
   it("still refuses any other address (a documentation address, nothing is sent)", async () => {
     const result = await connectFrom("192.0.2.1", 9);
     expect(result.stderr).toContain("pap-network-guard: blocked");
