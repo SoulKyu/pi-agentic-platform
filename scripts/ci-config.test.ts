@@ -109,7 +109,10 @@ describe("CI configuration", () => {
     ].map((command) => steps.findIndex((step) => step.run?.includes(command)));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({ install: "false" });
+    expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({
+      install: "false",
+      sandbox: "true",
+    });
   });
 
   it("builds @pap/contracts before the root typecheck, which resolves it through dist (checks and nightly)", () => {
