@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { bumpCatalog, choose, describePick } from "./pi-compat-bump.ts";
+import { bumpCatalog, choose, describeError, describePick } from "./pi-compat-bump.ts";
 
 export interface Step {
   readonly command: string;
@@ -36,6 +36,12 @@ export function planSteps(options: { repo: string; tree: string; heavyLock?: str
   ];
 }
 
+// The version comes from the registry; the text it is written into is the worktree's own (HEAD), never the working copy's.
+export function bumpWorktreeCatalog(tree: string, version: string): void {
+  const path = join(tree, "pnpm-workspace.yaml");
+  writeFileSync(path, bumpCatalog(readFileSync(path, "utf8"), version));
+}
+
 function run(step: Step): boolean {
   console.log(`pi-compat: ${[step.command, ...step.args].join(" ")}`);
   return spawnSync(step.command, step.args, { cwd: step.cwd, stdio: "inherit" }).status === 0;
@@ -50,7 +56,7 @@ async function main(): Promise<number> {
   try {
     pick = await choose(yaml, Date.now());
   } catch (error) {
-    console.error(`pi-compat: ${error instanceof Error ? error.message : String(error)}`);
+    console.error(`pi-compat: ${describeError(error)}`);
     return 1;
   }
   console.log(describePick(pick));
@@ -58,12 +64,16 @@ async function main(): Promise<number> {
 
   const scratch = mkdtempSync(join(tmpdir(), "pap-pi-compat-"));
   const tree = worktreePath(scratch);
-  const [create, ...checks] = planSteps({ repo, tree, heavyLock: process.env["PAP_HEAVY_LOCK"] });
+  const [create, ...checks] = planSteps({
+    repo,
+    tree,
+    heavyLock: process.env["PAP_HEAVY_LOCK"] || undefined,
+  });
   let created = false;
   try {
     if (create === undefined || !run(create)) return 1;
     created = true;
-    writeFileSync(join(tree, "pnpm-workspace.yaml"), bumpCatalog(yaml, pick.version));
+    bumpWorktreeCatalog(tree, pick.version);
     for (const step of checks) if (!run(step)) return 1;
     console.log(`pi-compat: ${pick.version} passes`);
     return 0;

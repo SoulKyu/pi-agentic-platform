@@ -5,7 +5,7 @@ import { parse } from "yaml";
 
 const root = resolve(import.meta.dirname, "..");
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
-const BYPASS = /minimum-?release-?age(?:\s*[=:]\s*|\s+)["']?0\b/i;
+const BYPASS = /minimum[-_]?release[-_]?age(?:\s*[=:]\s*|\s+)["']?0\b/i;
 
 const workflowFiles = readdirSync(resolve(root, ".github/workflows")).filter((name) => name.endsWith(".yml"));
 
@@ -16,6 +16,8 @@ describe("the release age rule is never bypassed", () => {
       "minimum-release-age=0",
       "minimumReleaseAge: 0",
       "--minimum-release-age 0",
+      "npm_config_minimum_release_age=0",
+      "PNPM_CONFIG_MINIMUM_RELEASE_AGE=0",
     ]) {
       expect(BYPASS.test(text), text).toBe(true);
     }
@@ -51,6 +53,11 @@ describe("the nightly Pi job", () => {
     const install = list.findIndex((step) => step.run?.includes("pnpm install --no-frozen-lockfile"));
     expect(bump).toBeGreaterThanOrEqual(0);
     expect(install).toBeGreaterThan(bump);
+  });
+
+  it("is dispatch-only until the repository is public (M13R33)", () => {
+    const wf = parse(read(".github/workflows/pi-compat.yml")) as { on: Record<string, unknown> };
+    expect(Object.keys(wf.on)).toEqual(["workflow_dispatch"]);
   });
 
   it("installs under the repository's own release age", () => {

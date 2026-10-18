@@ -1,6 +1,8 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { parseArgs, planSteps, worktreePath } from "./pi-compat.ts";
+import { bumpWorktreeCatalog, parseArgs, planSteps, worktreePath } from "./pi-compat.ts";
 
 describe("parseArgs", () => {
   it("defaults to a full run", () => {
@@ -62,5 +64,25 @@ describe("planSteps", () => {
 
   it("never carries a release age bypass", () => {
     for (const line of names("/locks/heavy.lock")) expect(line).not.toMatch(/release-age/i);
+  });
+});
+
+describe("bumpWorktreeCatalog", () => {
+  it("bumps the worktree's own catalog text, keeping its other lines", () => {
+    const tree = mkdtempSync(join(tmpdir(), "pap-tree-"));
+    try {
+      const head = [
+        "catalog:",
+        '  "@earendil-works/pi-ai": 1.1.0 # head',
+        "  zod: 4.1.0",
+        "minimumReleaseAge: 4320",
+        "",
+      ].join("\n");
+      writeFileSync(join(tree, "pnpm-workspace.yaml"), head);
+      bumpWorktreeCatalog(tree, "1.2.0");
+      expect(readFileSync(join(tree, "pnpm-workspace.yaml"), "utf8")).toBe(head.replace("1.1.0", "1.2.0"));
+    } finally {
+      rmSync(tree, { recursive: true, force: true });
+    }
   });
 });

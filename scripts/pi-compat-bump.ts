@@ -13,6 +13,17 @@ const CATALOG_ENTRY = /^([ \t]+"@earendil-works\/[^"]+":[ \t]*)[^\s#]+([ \t]+#.*
 const RELEASE = /^(\d+)\.(\d+)\.(\d+)$/;
 const MINUTE_MS = 60_000;
 const DAY_MS = 86_400_000;
+const FETCH_TIMEOUT_MS = 30_000;
+
+// fetch rejects with "fetch failed" and keeps the reason (ENOTFOUND, ...) in `cause`; a deadline is a TimeoutError.
+export function describeError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  if (error.name === "TimeoutError" || error.name === "AbortError") {
+    return `the registry did not answer within ${FETCH_TIMEOUT_MS / 1000} seconds`;
+  }
+  const code = (error.cause as { code?: unknown } | undefined)?.code;
+  return typeof code === "string" ? `${error.message} (${code})` : error.message;
+}
 
 export function catalogEntryCount(yaml: string): number {
   return [...yaml.matchAll(CATALOG_ENTRY)].length;
@@ -64,7 +75,9 @@ export function pickNewest(times: Times, nowMs: number, minAgeMinutes: number): 
 export async function fetchTimes(): Promise<Times> {
   const times: Times = {};
   for (const name of PACKAGES) {
-    const response = await fetch(`https://registry.npmjs.org/${name}`);
+    const response = await fetch(`https://registry.npmjs.org/${name}`, {
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
     if (!response.ok) throw new Error(`registry answered ${response.status} for ${name}`);
     const body = (await response.json()) as { time?: Record<string, string> };
     times[name] = body.time ?? {};
@@ -118,9 +131,7 @@ export async function main(options: MainOptions): Promise<number> {
     options.log(describePick(pick));
     return 0;
   } catch (error) {
-    options.error(
-      `pi-compat-bump: ${error instanceof Error ? error.message : String(error)} (${options.path})`,
-    );
+    options.error(`pi-compat-bump: ${describeError(error)} (${options.path})`);
     return 1;
   }
 }

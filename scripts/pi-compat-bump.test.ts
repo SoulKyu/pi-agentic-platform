@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { bumpCatalog, catalogEntryCount, main, PACKAGES } from "./pi-compat-bump.ts";
+import { bumpCatalog, catalogEntryCount, describeError, main, PACKAGES } from "./pi-compat-bump.ts";
 
 const fixture = JSON.parse(
   readFileSync(resolve(import.meta.dirname, "fixtures", "pi-registry-time.json"), "utf8"),
@@ -156,13 +156,13 @@ describe("main", () => {
     const code = await main({
       path,
       nowMs: Date.now(),
-      fetchTimes: () => Promise.reject(new Error("getaddrinfo ENOTFOUND")),
+      fetchTimes: () => Promise.reject(new TypeError("fetch failed", { cause: { code: "ENOTFOUND" } })),
       log: () => undefined,
       error: (line) => err.push(line),
     });
     expect(code).toBe(1);
     expect(readFileSync(path, "utf8")).toBe(yaml);
-    expect(err.join("\n")).toContain("ENOTFOUND");
+    expect(err.join("\n")).toContain("fetch failed (ENOTFOUND)");
   });
 });
 
@@ -185,5 +185,17 @@ describe("pi-compat-bump command line", () => {
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("no @earendil-works catalog line found");
     expect(readFileSync(join(cwd, "pnpm-workspace.yaml"), "utf8")).toBe(yaml);
+  });
+});
+
+describe("describeError", () => {
+  it("names the deadline in a sentence", () => {
+    const error = new DOMException("The operation was aborted due to timeout", "TimeoutError");
+    expect(describeError(error)).toBe("the registry did not answer within 30 seconds");
+  });
+
+  it("keeps a plain message and a non-error value", () => {
+    expect(describeError(new Error("registry answered 503 for x"))).toBe("registry answered 503 for x");
+    expect(describeError("boom")).toBe("boom");
   });
 });
