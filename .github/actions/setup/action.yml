@@ -7,6 +7,9 @@ inputs:
   cache:
     description: Restore the pnpm cache ("false" in a job with a write token, where a poisoned cache would run)
     default: "true"
+  sandbox:
+    description: Provide the agent sandbox ("true" installs bubblewrap and lifts the AppArmor limit on unprivileged user namespaces of Ubuntu 24.04 runners)
+    default: "false"
 runs:
   using: composite
   steps:
@@ -29,6 +32,13 @@ runs:
           sudo apt-get install -y --no-install-recommends "${missing[@]}"
         fi
         command -v fd >/dev/null || sudo ln -s "$(command -v fdfind)" /usr/local/bin/fd
+    # The agent sandbox tests (integration, J07) throw under CI without a working bwrap (apps/daemon/src/security/testing/agent-bed.ts).
+    - if: inputs.sandbox == 'true'
+      name: Provide bubblewrap
+      shell: bash
+      run: |
+        command -v bwrap >/dev/null || { sudo apt-get update; sudo apt-get install -y --no-install-recommends bubblewrap; }
+        sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
     - if: inputs.install == 'true'
       run: pnpm install --frozen-lockfile
       shell: bash

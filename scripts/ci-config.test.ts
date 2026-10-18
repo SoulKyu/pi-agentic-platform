@@ -137,6 +137,19 @@ describe("CI configuration", () => {
   });
 });
 
+describe("agent sandbox prerequisites (M13-C9)", () => {
+  it("asks the setup action for bubblewrap in the integration job, and the action installs it and lifts the userns limit", () => {
+    const setup = workflow("ci").jobs["integration"]?.steps.find(
+      (step) => step.uses === "./.github/actions/setup",
+    );
+    expect(setup?.with).toEqual({ sandbox: "true" });
+    const action = read(".github/actions/setup/action.yml");
+    expect(action).toContain("bubblewrap");
+    expect(action).toContain("sysctl -w kernel.apparmor_restrict_unprivileged_userns=0");
+    expect(action).toMatch(/if: inputs\.sandbox == 'true'/);
+  });
+});
+
 describe("systemd user manager (owner M2-Q8)", () => {
   it("starts a lingering systemd user manager before the integration tests", () => {
     const jobs = [workflow("ci").jobs["integration"], Object.values(workflow("pi-compat").jobs)[0]];

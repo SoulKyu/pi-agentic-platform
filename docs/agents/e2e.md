@@ -11,6 +11,10 @@ Fifteen browser journeys (J01 to J15, the `.e2e.ts` files of `scripts/e2e`) driv
 
 Nothing here has run on macOS, Windows or WSL.
 
+## Sandbox requirement (J07)
+
+The agent journey needs a usable bubblewrap. The CI job asks the setup action for `sandbox: "true"`: it installs `bubblewrap` and sets `kernel.apparmor_restrict_unprivileged_userns=0` (Ubuntu 24.04 runners restrict unprivileged user namespaces; the `integration` job asks for the same). ripgrep and `fd` come from the same action. Under a truthy `CI`, an unusable bubblewrap fails J07; on a development machine J07 skips with one warning.
+
 ## Commands
 
 - `pnpm build`: the journeys refuse to start without `apps/daemon/dist` and `apps/web/dist`.
@@ -78,7 +82,6 @@ With `PAP_TEST_PUSH_LOOPBACK=1`, `daemon.ts` starts the **daemon process only** 
 - **J13 does not compare the VAPID `k=` value** in the `Authorization` header with the daemon's public key; it checks that a push arrives, once, encrypted for the sink's key with `aes128gcm`, signed with a `vapid` scheme, carrying the generic sentence and none of the command.
 - **J13 forces the Notification permission to `granted`** in the page (headless Chromium reports `denied`, and the page reads it before asking). It proves pap's handling of a granted browser, not a real permission prompt.
 - **J11 removes `WebGL2RenderingContext`** from the page so xterm uses its DOM renderer, whose text a locator can read. The canvas and WebGL renderers are not exercised.
-- J14 creates its schedule trigger enabled with a 09:00 Asia/Tokyo daily rule; a run that happens to cross that instant (00:00 UTC) could add a scheduled fire to the journal.
 - WebKit here is Playwright's build, not Safari on iOS or macOS.
 - Known limits (M13R34): WebKit passkey, push on Chromium only, the container needs network host mode, and the suite does not cover Windows or WSL.
 
@@ -86,7 +89,7 @@ With `PAP_TEST_PUSH_LOOPBACK=1`, `daemon.ts` starts the **daemon process only** 
 
 Default test timeout 60 s. J09 declares 90 s (the memory review tick is 30 s of real time) and J13 declares 150 s (M13R43): an approval push is enqueued 60 s after the last heartbeat and suppressed while a device is present, a focused page keeps sending heartbeats, and the real clock of a built daemon cannot be advanced. So J13 closes its page, raises the approval from a node client and waits up to 100 s (`WAIT_MS`) for a push that arrives 60 to 70 s later. That is about 10 s over the worst case; a slower host raises `WAIT_MS` and the 150 s timeout together. No test-only delay variable exists for this.
 
-The suite budget is 15 minutes in the container (M13R43). Measured on the development host, full suite, container mode, two workers: 36 passed and 2 skipped (J13 on WebKit) in 4.2 minutes by Playwright's clock, about 4.4 minutes with the container start; the longest tests were the two J13 tests at about 1 minute each. No test went over its own timeout in that run.
+The suite budget is 15 minutes in the container (M13R43). Measured on the development host, full suite, container mode, two workers: 36 passed and 2 skipped (J13 on WebKit) in 4.5 minutes by Playwright's clock; the longest tests were the two J13 tests at 1.0 to 1.1 minutes each. No test went over its own timeout in that run.
 
 ## Verified so far
 

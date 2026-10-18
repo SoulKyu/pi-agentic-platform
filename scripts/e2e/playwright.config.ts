@@ -19,6 +19,7 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   outputDir: "test-results",
+  use: { trace: "retain-on-failure" },
   projects: [
     // M13R40: the desktop projects skip the phone journeys, the phone projects run nothing else.
     {

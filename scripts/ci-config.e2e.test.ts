@@ -57,6 +57,11 @@ describe("the e2e job of ci.yml", () => {
     expect(steps[download]?.with).toEqual({ name: "dist", path: "." });
   });
 
+  it("asks the setup action for the agent sandbox, which J07 needs under CI (M13-C9)", () => {
+    const setup = steps.find((step) => step.uses === "./.github/actions/setup");
+    expect(setup?.with).toEqual({ sandbox: "true" });
+  });
+
   it("installs both browsers with their system dependencies before the suite, then runs pnpm test:e2e", () => {
     const install = index((step) => step.run?.includes("playwright install") === true);
     const suite = index((step) => step.run === "pnpm test:e2e");
@@ -79,8 +84,9 @@ describe("the e2e job of ci.yml", () => {
     );
     expect(steps.length - 1).toBeGreaterThan(suite);
     expect(upload?.if).toBe("failure()");
-    expect(upload?.with?.["path"]).toBe("scripts/e2e/playwright-report");
+    expect(String(upload?.with?.["path"])).toContain("scripts/e2e/playwright-report");
     expect(upload?.with?.["name"]).toBe("playwright-report");
+    expect(String(upload?.with?.["path"] ?? "")).toContain("scripts/e2e/test-results");
   });
 
   it("leaves PAP_E2E_MODE and PAP_E2E_WS unset, so CI uses the browsers it installed", () => {

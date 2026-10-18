@@ -30,12 +30,15 @@ interface TriggerRow {
   source: { type: string; rrule?: string; timezone?: string } | null;
 }
 
+// Only the manual fires of this journey: a scheduled fire of the real clock is not ours and must not move an assertion.
 const journal = async (pap: PapInstance, triggerId: string): Promise<Fire[]> =>
-  (await pap.rpc<{ entries: Fire[] }>("automation.journal", { triggerId })).entries;
+  (await pap.rpc<{ entries: Fire[] }>("automation.journal", { triggerId })).entries.filter(
+    (entry) => entry.source === "manual",
+  );
 const taskRows = (pap: PapInstance) =>
   dbRows<{ id: string; origin: string; state: string }>(
     pap,
-    "SELECT id, origin, state FROM tasks ORDER BY rowid",
+    "SELECT id, origin, state FROM tasks WHERE origin = 'manual' ORDER BY rowid",
   );
 const hourIn = (at: number, zone: string): string =>
   new Intl.DateTimeFormat("en-GB", {
@@ -154,7 +157,7 @@ test("J14: a schedule trigger fires into the Inbox, a paused automation refuses 
   expect(first).toMatchObject({ verdict: "fired", source: "manual", taskState: "done" });
   expect(first?.taskId).toBe(taskRows(pap)[0]?.id);
   // A finished task leaves no worker of its own running (the idle count is the daemon's, as before the task).
-  await expect.poll(() => liveProcesses(pap)).toBeLessThanOrEqual(idleProcesses + 1);
+  await expect.poll(() => liveProcesses(pap)).toBe(idleProcesses);
 
   await test.step("pause automation in Settings: the next manual fire is refused and nothing starts", async () => {
     await setPaused(page, pap, true);

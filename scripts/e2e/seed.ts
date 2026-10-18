@@ -16,7 +16,7 @@ interface Sandbox {
 }
 
 /**
- * The agents of J07 need bubblewrap. Locally a host without it skips the test with a warning; under `CI=1` it is a failure
+ * The agents of J07 need bubblewrap. Locally a host without it skips the test with a warning; under `CI` it is a failure
  * (the rule of AGENTS.md: the int tests skip locally and throw under CI). Waits for the first probe to end.
  */
 export async function bwrapUsable(pap: PapInstance): Promise<boolean> {
@@ -32,7 +32,7 @@ export async function bwrapUsable(pap: PapInstance): Promise<boolean> {
     .toBe(true);
   if (status.usable) return true;
   const why = `bubblewrap is not usable here (${status.reason ?? "unknown"})`;
-  if (process.env["CI"] === "1") throw new Error(why);
+  if (process.env["CI"]) throw new Error(why);
   console.warn(`e2e: skipped, ${why}`);
   test.skip(true, why);
   return false;
