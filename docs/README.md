@@ -1,21 +1,38 @@
 # pi-agentic-platform docs
 
 Self-hosted agentic platform built on the Pi harness. Successor of the pi-web fork.
-Status: design phase complete (specs A, C, D and [DESIGN.md](../DESIGN.md) written); implementation plan in progress. HTML pages open directly in a browser.
+Status: v1 in hardening (M13); specs A and C implemented; spec D: clean start and coexistence (no cutover, M13R56). HTML pages open directly in a browser.
 
-## Specs (written, under review)
+## Specs
 - [specs/2026-10-10-A-product-scope.md](specs/2026-10-10-A-product-scope.md): product, audience, success criteria, v1 scope, defaults, non-goals, roadmap.
 - [specs/2026-10-10-C-architecture.md](specs/2026-10-10-C-architecture.md): consolidated architecture (sections 1–9) + spikes S1–S8.
-- [specs/2026-10-10-D-clean-start.md](specs/2026-10-10-D-clean-start.md): clean start, cutover, risks.
+- [specs/2026-10-10-D-clean-start.md](specs/2026-10-10-D-clean-start.md): clean start, cutover, risks. Implemented: the import ban and coexistence with pi-web; the cutover steps are out of scope (M13R56).
 - [../DESIGN.md](../DESIGN.md): spec B, the Night Control design system (tokens, type, density, logo, layout, components, screens, voice, a11y, customization).
 
 ## Plans
-- [plans/2026-10-10-m0-m1-spikes-skeleton.md](plans/2026-10-10-m0-m1-spikes-skeleton.md): M0 (8 spikes S1–S8) + M1 walking skeleton (Tasks 9–27), TDD, task by task.
 - [plans/roadmap.md](plans/roadmap.md): milestones M2–M13 covering D01–D22 and the v1 additions.
+- [plans/2026-10-10-m0-m1-spikes-skeleton.md](plans/2026-10-10-m0-m1-spikes-skeleton.md): pap M0 + M1: architecture spikes and walking skeleton — Implementation Plan.
+- [plans/2026-10-11-m2-sessions-core.md](plans/2026-10-11-m2-sessions-core.md): pap M2: sessions core and extension UI — Implementation Plan.
+- [plans/2026-10-11-m3-design-system.md](plans/2026-10-11-m3-design-system.md): pap M3: design system and app shell — Implementation Plan.
+- [plans/2026-10-12-m4-projects-search.md](plans/2026-10-12-m4-projects-search.md): pap M4: sidebar, projects and search — Implementation Plan.
+- [plans/2026-10-12-m5-policy-access.md](plans/2026-10-12-m5-policy-access.md): pap M5: policy pipeline and access control — Implementation Plan.
+- [plans/2026-10-13-m7-models-tools.md](plans/2026-10-13-m7-models-tools.md): pap M7: models, tools and Pi extensions — Implementation Plan.
+- [plans/2026-10-13-m8-files-git-terminal.md](plans/2026-10-13-m8-files-git-terminal.md): pap M8: files, git and terminal — Implementation Plan.
+- [plans/2026-10-14-m10-outbox-automation-finops.md](plans/2026-10-14-m10-outbox-automation-finops.md): pap M10: outbox, automation and FinOps — Implementation Plan.
+- [plans/2026-10-14-m9-worktrees-lanes.md](plans/2026-10-14-m9-worktrees-lanes.md): pap M9: worktrees and lanes — Implementation Plan.
+- [plans/2026-10-15-m11-agents-subagents-memory.md](plans/2026-10-15-m11-agents-subagents-memory.md): pap M11: long-term agents, subagents and memory — Implementation Plan.
+- [plans/2026-10-15-m6-install.md](plans/2026-10-15-m6-install.md): pap M6: install (KISS) — Implementation Plan.
+- [plans/2026-10-15-project-home.md](plans/2026-10-15-project-home.md): Project home — Implementation Plan.
+- [plans/2026-10-17-m12-notifications-pwa.md](plans/2026-10-17-m12-notifications-pwa.md): pap M12: Notifications and PWA - Implementation Plan.
+- [plans/2026-10-17-m6b-update-backup-release.md](plans/2026-10-17-m6b-update-backup-release.md): pap M6b: update, backup and release (rest of D21) — Implementation Plan.
+- [plans/2026-10-17-models-picker-providers.md](plans/2026-10-17-models-picker-providers.md): pap models batch: one picker fed by Pi's model list, providers and availability from Settings - Implementation Plan.
+- [plans/2026-10-18-m13-v1-hardening.md](plans/2026-10-18-m13-v1-hardening.md): pap M13: v1 hardening and release — Implementation Plan.
 
 ## Decisions
+- [adr/README.md](adr/README.md): the ADR index (number, title, status, date) and the next free number.
 - [research/decisions-log.md](research/decisions-log.md): every decision taken during brainstorming, numbered.
 - [research/m0-m1-rulings.md](research/m0-m1-rulings.md): the rulings (R1–R130) taken while implementing M0 + M1, incl. backlog items for later milestones.
+- Later rulings: `research/m*-rulings.md` and `research/*-rulings.md` (one file per milestone or batch).
 
 ## Architecture (spec C, validated section by section)
 - [architecture/01-overview.html](architecture/01-overview.html): process view, repo layout, anti-sprawl rules, the `pap` binary.
@@ -49,3 +66,4 @@ Status: design phase complete (specs A, C, D and [DESIGN.md](../DESIGN.md) writt
 - [research/pi-web-inventory.md](research/pi-web-inventory.md): every pi-web feature (D01–D22), source of the matrix rows.
 - [research/feature-matrix.md](research/feature-matrix.md): pi-web vs T3 Code vs Orca, verdict per domain.
 - [research/t3code.md](research/t3code.md), [research/orca.md](research/orca.md): codebase maps of the two references.
+- Final reviews: `research/*-final-review.md` (and `*-final-rereview.md`), one per milestone or batch. SDD ledgers: `research/*-sdd-ledger*.md`.

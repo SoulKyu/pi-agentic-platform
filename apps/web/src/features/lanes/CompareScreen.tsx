@@ -2,7 +2,7 @@ import "./register-compare-catalog.ts";
 import { Button, EmptyState, useIsPhone } from "@pap/ui";
 import { useState } from "react";
 import { getLocale, useT } from "../../i18n/index.ts";
-import { escapeHidden } from "../../lib/escape-hidden.ts";
+import { escapeHiddenKeepLines } from "../../lib/escape-hidden.ts";
 import { useLaneStore } from "../../stores/lane-store.ts";
 import { useComparePick } from "./compare-pick.ts";
 import { agoText, columnModels, losersOf, runAgainPrefill, type RunAgainPrefill } from "./compare.vm.ts";
@@ -53,7 +53,7 @@ export function CompareScreen({ fanoutId, onOpenLane, onRunAgain, now }: Props) 
   const models = columnModels(fanout, view.lanes, columns ?? [], winner);
   const winnerModel = models.find((model) => model.winner);
   const losers = losersOf(models);
-  const prompt = escapeHidden(fanout.prompt);
+  const prompt = escapeHiddenKeepLines(fanout.prompt);
   const longPrompt = prompt.length > PROMPT_PREVIEW;
   const prefill = runAgainPrefill(fanout, view.lanes);
 
