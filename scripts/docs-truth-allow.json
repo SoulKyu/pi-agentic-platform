@@ -223,7 +223,6 @@
     "note": "docs/agents/web.md",
     "rule": "method",
     "token": "agents.new",
-    "reason": "Looks like a domain.name but is not an RPC method; a human must check what the note means",
-    "sweep": "P1b"
+    "reason": "Web command id (registered by NewAgentHost), not an RPC method"
   }
 ]
