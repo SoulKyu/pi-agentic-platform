@@ -21,6 +21,7 @@
     "build:npm": "node --disable-warning=ExperimentalWarning scripts/build-npm.ts",
     "build:image": "scripts/pap-container.sh build",
     "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke-dist.ts",
+    "test:e2e": "node --disable-warning=ExperimentalWarning scripts/e2e/run.ts",
     "release:assets": "node --disable-warning=ExperimentalWarning scripts/release-assets.ts",
     "release:check": "node --disable-warning=ExperimentalWarning scripts/release-check.ts",
     "pi-compat": "node --disable-warning=ExperimentalWarning scripts/pi-compat.ts",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@eslint-community/eslint-plugin-eslint-comments": "4.8.1",
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.63.0",
     "@tailwindcss/node": "4.3.3",
     "@types/node": "24.13.6",
     "@types/ws": "8.18.2",

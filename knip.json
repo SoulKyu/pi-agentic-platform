@@ -3,7 +3,13 @@
   "ignoreExportsUsedInFile": true,
   "workspaces": {
     ".": {
-      "entry": ["scripts/*.ts", "eslint/*.js"]
+      "entry": [
+        "scripts/*.ts",
+        "eslint/*.js",
+        "scripts/e2e/*.e2e.ts",
+        "scripts/e2e/playwright.config.ts",
+        "scripts/e2e/catalog-dump.ts"
+      ]
     },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts", "src/testing/mcp-fixture.mjs"],

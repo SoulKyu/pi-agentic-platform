@@ -1,0 +1,32 @@
+#!/bin/sh
+# The forge CLI of the e2e journeys. It answers exactly the argv that apps/daemon/src/kernel/forge/github.ts builds
+# (`githubArgs`) for the repository github.com/test/repo, with fixed JSON; any other argv (auth status, repo view, a
+# changed flag) exits 2 so a new forge call fails the journey instead of passing unnoticed. No network, no token.
+# Every call is appended to $HOME/gh-calls.log: pap passes the daemon's HOME on (the environment is an allowlist, so no
+# variable of ours would arrive).
+log="${HOME:?}/gh-calls.log"
+repo="--repo=github.com/test/repo"
+args="$*"
+printf 'call %s\n' "$args" >> "$log"
+case "$args" in
+  "pr list $repo --head="*" --state=all --json=number,url,state,isDraft,isCrossRepository --limit=100")
+    printf '[]\n'
+    ;;
+  "pr create $repo --head="*" --title="*" --body-file=-" | \
+  "pr create $repo --head="*" --base="*" --title="*" --body-file=-" | \
+  "pr create $repo --head="*" --title="*" --body-file=- --draft" | \
+  "pr create $repo --head="*" --base="*" --title="*" --body-file=- --draft")
+    printf 'stdin %s\n' "$(cat | tr '\n' ' ')" >> "$log"
+    printf 'https://example.invalid/e2e/pull/1\n'
+    ;;
+  "pr view 1 $repo --json=number,url,state,isDraft,mergeable,statusCheckRollup")
+    printf '%s\n' '{"number":1,"url":"https://example.invalid/e2e/pull/1","state":"OPEN","isDraft":false,"mergeable":"MERGEABLE","statusCheckRollup":[{"conclusion":"SUCCESS"}]}'
+    ;;
+  "issue view "[0-9]*" $repo --json=number,title,body,state,labels,url")
+    printf '{"number":%s,"title":"E2E issue","body":"A body.","state":"OPEN","labels":[],"url":"https://example.invalid/e2e/issues/%s"}\n' "$3" "$3"
+    ;;
+  *)
+    printf 'gh stub: unexpected arguments: %s\n' "$args" >&2
+    exit 2
+    ;;
+esac
