@@ -3,6 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
 import { parse } from "yaml";
+import { checkShrinkwrap } from "./release-check-shrinkwrap.ts";
 
 const VERSION = /^\d+\.\d+\.\d+$/;
 const PINNED = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+@[0-9a-f]{40}$/;
@@ -114,6 +115,7 @@ export function checkRelease(root: string): string[] {
     ["package.json, apps/daemon/package.json, .release-please-manifest.json", versions],
     ["release-please-config.json", config],
     [WORKFLOW, workflow],
+    [".pap-npm/package/npm-shrinkwrap.json", checkShrinkwrap],
   ];
   for (const [files, check] of checks) {
     try {

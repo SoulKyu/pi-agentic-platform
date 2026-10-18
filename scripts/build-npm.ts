@@ -15,6 +15,7 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { assertNoSymlinks, assertNoStagePath, holdsCredential, missingDist } from "./build-archive-stage.ts";
+import { PACKAGE_IMPORTERS, buildShrinkwrap, productionClosure, verifyShrinkwrap } from "./npm-shrinkwrap.ts";
 
 export interface PackageJson {
   name?: string;
@@ -39,6 +40,8 @@ export interface ManifestInput {
   /** Versions of the Pi SDK packages (`parseLockScope`): listed in `dependencies` so a global install cannot float past them. */
   pinned?: Record<string, string>;
   name?: string;
+  /** SPDX id from the root package.json; `UNLICENSED` when it has none. */
+  license?: string;
 }
 
 export const PACKAGE_NAME = "@soulkyu/pi-agentic-platform";
@@ -47,6 +50,8 @@ const BIN = "./apps/daemon/dist/main.js";
 const SHEBANG = "#!/usr/bin/env -S node --disable-warning=ExperimentalWarning";
 const EXACT = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
 const REPOSITORY = { type: "git", url: "git+https://github.com/SoulKyu/pi-agentic-platform.git" };
+/** Installed by the dependency itself (node-gyp); pnpm's lockfile does not record it, so it is listed here. */
+const INSTALL_SCRIPTS = ["node-pty"] as const;
 const TEST_OR_MAP = /\.test\.[^/\\]*$|\.map$/;
 
 /** The `catalog:` block of pnpm-workspace.yaml: `name: version` lines, quoted or bare (no YAML library needed). */
@@ -145,13 +150,14 @@ export const resolveManifest = ({
   catalog,
   pinned = {},
   name,
+  license = "UNLICENSED",
 }: ManifestInput): PackageJson => ({
   name: name ?? PACKAGE_NAME,
   version: daemon.version ?? "0.0.0",
   type: "module",
   bin: { pap: BIN },
   engines: { node: ">=24.14 <25" },
-  license: "UNLICENSED",
+  license,
   repository: REPOSITORY,
   dependencies: sortedEntries({
     ...withPinned(unionDependencies([daemon, contracts, piHost], catalog), pinned),
@@ -269,7 +275,33 @@ export const buildNpm = async ({ repo, out, name, home = homedir() }: BuildNpmOp
     throw new Error("pnpm-lock.yaml is missing: the Pi SDK versions cannot be pinned");
   const pinned = parseLockScope(readFileSync(lockPath, "utf8"));
   if (Object.keys(pinned).length === 0) throw new Error("pnpm-lock.yaml lists no @earendil-works package");
-  const manifest = resolveManifest({ daemon, contracts, piHost, catalog, pinned, name });
+  const rootLicense = read("").license;
+  const manifest = resolveManifest({
+    daemon,
+    contracts,
+    piHost,
+    catalog,
+    pinned,
+    name,
+    license: rootLicense,
+  });
+  const licenseFile = join(repo, "LICENSE");
+  if (manifest.license?.startsWith("AGPL-3.0-") && !existsSync(licenseFile))
+    throw new Error(
+      `license ${manifest.license} needs a LICENSE file at the repository root: nothing was packed`,
+    );
+  const lockText = readFileSync(lockPath, "utf8");
+  const shrinkwrap = buildShrinkwrap({
+    name: manifest.name ?? PACKAGE_NAME,
+    version: manifest.version ?? "0.0.0",
+    rootDependencies: manifest.dependencies ?? {},
+    closure: productionClosure(lockText, PACKAGE_IMPORTERS),
+    bundled: BUNDLED,
+    installScripts: INSTALL_SCRIPTS,
+  });
+  const mismatches = verifyShrinkwrap(shrinkwrap, lockText, PACKAGE_IMPORTERS);
+  if (mismatches.length > 0)
+    throw new Error(`the shrinkwrap differs from pnpm-lock.yaml (${mismatches[0]}): nothing was packed`);
   assertBundledDependencies(manifest, [contracts, piHost], catalog);
   const bundled = [
     ["contracts", contracts],
@@ -283,6 +315,8 @@ export const buildNpm = async ({ repo, out, name, home = homedir() }: BuildNpmOp
   mkdirSync(staged, { recursive: true });
   try {
     writeJson(join(staged, "package.json"), manifest);
+    writeFileSync(join(staged, "npm-shrinkwrap.json"), `${JSON.stringify(shrinkwrap, null, 2)}\n`);
+    if (manifest.license?.startsWith("AGPL-3.0-")) cpSync(licenseFile, join(staged, "LICENSE"));
     // kernel/version.js reads ../../package.json: the daemon's name, version and type are all the runtime needs of it
     mkdirSync(join(staged, "apps/daemon"), { recursive: true });
     writeJson(join(staged, "apps/daemon/package.json"), {

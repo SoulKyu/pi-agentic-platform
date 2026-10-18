@@ -9,3 +9,4 @@ DESIGN.md
 *.html
 THIRD_PARTY_NOTICES.md
 LICENSES/
+scripts/fixtures/pnpm-lock-mini.yaml
