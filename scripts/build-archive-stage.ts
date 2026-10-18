@@ -98,6 +98,9 @@ export const assertNoSymlinks = (dist: string): void => {
   if (link) throw new Error(`${relative(dist, join(link.parentPath, link.name))} in ${dist} is a symlink`);
 };
 
+/** What the archive, the image and the npm package ship beside the code. */
+export const LICENCE_FILES = ["LICENSE", "THIRD_PARTY_NOTICES.md", "LICENSES"] as const;
+
 const storeIsUsable = (storeDir: string): boolean => existsSync(storeDir) && readdirSync(storeDir).length > 0;
 
 /** Copies the allowlist into `app`, installs the production dependencies offline, strips builder state. */
@@ -109,6 +112,12 @@ export const stageTree = async ({ repo, app, run, storeDir }: StageOptions): Pro
   for (const file of copies) {
     mkdirSync(join(app, file, ".."), { recursive: true });
     cpSync(join(repo, file), join(app, file));
+  }
+  // The licence texts travel with every copy: AGPL-3.0 (LICENSE) and the Apache-2.0 notice of the derived ui files (final review I3).
+  for (const file of LICENCE_FILES) {
+    if (!existsSync(join(repo, file)))
+      throw new Error(`${file} is missing from ${repo}: every artefact carries the licence texts`);
+    cpSync(join(repo, file), join(app, file), { recursive: true });
   }
   for (const dir of DIST_DIRS) {
     assertNoSymlinks(join(repo, dir, "dist"));

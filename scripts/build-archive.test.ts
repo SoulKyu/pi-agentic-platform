@@ -15,6 +15,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { putLicences } from "./licence-fixture.ts";
 import { buildArchive, type Runner } from "./build-archive.ts";
 
 const ID = "0.0.0-abc1234-202610151200";
@@ -42,6 +43,7 @@ const fixture = (overrides: { nodeVersion?: string; license?: boolean; manifest?
   put(join(repo, "package.json"), overrides.manifest ?? '{"name":"root","packageManager":"pnpm@10.34.6"}');
   put(join(repo, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n  - packages/*\n");
   put(join(repo, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+  putLicences(repo);
   put(
     join(repo, ".npmrc"),
     "engine-strict=true\n//registry.example/:_authToken=abc\nregistry=https://registry.example/\n",
@@ -126,6 +128,9 @@ describe("buildArchive", () => {
     for (const wanted of [
       "node/bin/node",
       "node/LICENSE",
+      "app/LICENSE",
+      "app/THIRD_PARTY_NOTICES.md",
+      "app/LICENSES/Apache-2.0.txt",
       "app/apps/daemon/dist/main.js",
       "app/apps/web/dist/index.html",
       "app/node_modules/marker",
@@ -226,6 +231,13 @@ describe("buildArchive", () => {
         await expect(build(fx)).rejects.toThrow(/Node v24\.14/);
         noOutputs(fx);
       }
+    });
+
+    it("refuses a repository that lacks a licence text, and packs nothing", async () => {
+      const fx = fixture();
+      rmSync(join(fx.repo, "THIRD_PARTY_NOTICES.md"));
+      await expect(build(fx)).rejects.toThrow(/THIRD_PARTY_NOTICES\.md/);
+      noOutputs(fx);
     });
 
     it("a node without its LICENSE beside the prefix", async () => {
