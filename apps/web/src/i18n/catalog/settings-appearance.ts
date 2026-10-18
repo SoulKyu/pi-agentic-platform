@@ -51,6 +51,8 @@ export const settingsAppearanceEn = {
   "settings.appearance.motion.system": "System",
   "settings.appearance.motion.reduced": "Reduced",
   "settings.appearance.motion.none": "None",
+  "settings.appearance.completionSound":
+    "Play a sound when a run ends while the tab is hidden or in the background",
   "settings.appearance.uiFont": "UI font",
   "settings.appearance.monoFont": "Code font",
   "settings.appearance.fontManrope": "Manrope",
@@ -192,6 +194,8 @@ export const settingsAppearanceFr: { readonly [K in keyof typeof settingsAppeara
   "settings.appearance.motion.system": "Système",
   "settings.appearance.motion.reduced": "Réduites",
   "settings.appearance.motion.none": "Aucune",
+  "settings.appearance.completionSound":
+    "Jouer un son quand une exécution se termine alors que l'onglet est masqué ou en arrière-plan",
   "settings.appearance.uiFont": "Police de l'interface",
   "settings.appearance.monoFont": "Police du code",
   "settings.appearance.fontManrope": "Manrope",

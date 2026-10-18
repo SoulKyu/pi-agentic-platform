@@ -91,6 +91,7 @@ describe("across a restart (MC19 a)", () => {
       startedAt: stamp + 10_000,
       isLive: () => false,
       workerEndedAt: () => null,
+      liveIdleSince: () => null,
     });
     restarted.touched(sessionId, stamp, true, true);
     expect(seen).toEqual([]);

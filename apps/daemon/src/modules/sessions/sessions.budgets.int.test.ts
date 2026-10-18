@@ -23,6 +23,7 @@ it("keeps an idle worker under its RSS budget", async () => {
     const rssMb = bed.sessions.inspect(sessionId)?.rssMb ?? Number.POSITIVE_INFINITY;
     // A reading of 0 would pass the cap without measuring a Node process: S4 never saw less than 153 MB.
     expect(rssMb).toBeGreaterThan(50);
+    console.log(`idle worker RSS: ${rssMb} MB (budget ${budgets.idleWorkerRssMb})`);
     expect(rssMb).toBeLessThanOrEqual(budgets.idleWorkerRssMb);
   } finally {
     await bed.dispose();
@@ -58,6 +59,7 @@ it("opens a ten-exchange session in a snapshot under the payload budget", async 
     const first = opened.events()[0];
     expect(first?.kind).toBe("snapshot");
     const bytes = Buffer.byteLength(JSON.stringify(first));
+    console.log(`session open payload: ${bytes} bytes (budget ${budgets.sessionOpenPayloadKb * 1024})`);
     expect(bytes).toBeLessThanOrEqual(budgets.sessionOpenPayloadKb * 1024);
   } finally {
     await bed.dispose();

@@ -1,7 +1,5 @@
 name: pi-compat
 on:
-  schedule:
-    - cron: "17 3 * * *"
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -21,7 +19,7 @@ jobs:
         with:
           install: "false"
       - run: node --disable-warning=ExperimentalWarning scripts/pi-compat-bump.ts
-      - run: pnpm install --no-frozen-lockfile --config.minimum-release-age=0
+      - run: pnpm install --no-frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm test:unit
       # Worker scopes need a lingering systemd user manager; the scope tests fail in CI without one (owner M2-Q8, R92).

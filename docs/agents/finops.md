@@ -34,6 +34,25 @@ The daily budget and every cost figure are a lower bound: pap counts runs, not e
 - A run whose last stop reason is `error` with a provider limit text is `limited` (`runs/limits.ts`). With `autoResume` on, a reset time and a mode other than `full-access` (one exception, below), a `run.resume` effect is due at the reset plus 0 to 60 s of jitter. Rules, checks and marks: ADR 0045. The `usage` stream carries `limits[]`, `todayUsd`, `budgetUsd`, `autoResume`; the session header's limit chip offers "Resume now" and "Cancel auto-resume" for a session, and a task card offers "Resume now" and "Cancel task".
 - Provider usage (quotas shown on the owner's click) is the models module's `models.usage`, see `models.md`; it is not part of the budget.
 
+## Performance budgets (`budgets.json`, M13)
+
+Final values, one number per key; a change is a deliberate edit of `budgets.json` and `scripts/budgets-keys.test.ts`. `pnpm budgets` first checks that every key is named, as a whole word, in each of its enforcers (`ENFORCERS` in `scripts/check-budgets.ts`), then prints each budget with its enforcers. The CI job `budgets` runs `pnpm budgets` then `pnpm test:budget`.
+
+| Key | Value | Measure on 2026-10-18 | Enforcers |
+|---|---|---|---|
+| `initialBundleGzipKb` | 250 | 232.9 KB gzip | `scripts/check-budgets.ts`, `apps/web/src/build-output.int.test.ts` |
+| `serviceWorkerGzipKb` | 5 | 3.8 KB gzip | `scripts/check-budgets.ts`, `apps/web/src/build-output.pwa.int.test.ts` |
+| `sessionOpenPayloadKb` | 24 | 9.46 KB (ten exchanges) | `sessions.budgets.int.test.ts`, `daemon.int.test.ts` |
+| `idleWorkerRssMb` | 200 | 180 MB | `sessions.budgets.int.test.ts`, `daemon.int.test.ts` |
+| `searchP95Ms` | 200 | p50 7.6 ms, p95 106.0 ms (10 000 sessions); kept until a CI baseline exists | `search.budget.int.test.ts` |
+| `scannerLatencyMs` | 2500 | 1 009 ms; large margin for slower CI hosts | `scanner.exit.int.test.ts` |
+
+Re-measure:
+
+- `pnpm build && pnpm budgets`: the two bundle figures.
+- `pnpm test:int --silent=false` (or the two files `sessions.budgets.int.test.ts`, `daemon.int.test.ts`): the lines `session open payload: <n> bytes` and `idle worker RSS: <n> MB`.
+- `pnpm test:budget`: search p95 and scanner latency (builds the 10 000-session corpus, about 65 s; the step takes about 2.5 minutes).
+
 ## Agents: spend, budget and the resume exception (M11a)
 
 - Every run of an agent session carries `runs.agent_id` (the thread, an isolated task, a delegation, a reminder; migration `202610151130_run_agents.sql`, copied from the session row by the observer, which saves progress before its live hook so the budget reads the row). A child's runs also carry `parent_session_id` (M11b). `runs/agent-spend.ts` sums them; there is no second counter. The status panel's today, 7 and 30 days are `agents.status`, from `runs` (API-equivalent on a subscription).

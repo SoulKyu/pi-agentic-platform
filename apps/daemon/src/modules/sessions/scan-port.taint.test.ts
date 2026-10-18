@@ -46,6 +46,7 @@ function portWith(hook: (id: string) => void, live = new Set<string>(), startedA
     startedAt,
     isLive: (id) => live.has(id),
     workerEndedAt: () => null,
+    liveIdleSince: () => null,
   });
   return { port, changed };
 }

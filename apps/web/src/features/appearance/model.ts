@@ -37,6 +37,8 @@ export interface DeviceAppearance {
   readonly motion: "system" | "reduced" | "none";
   /** Default full width (pi-web rejected a 72ch cap, decision 28). */
   readonly chatWidth: "full" | "wide" | "narrow";
+  /** A short tone when a run ends while the tab is hidden or unfocused (M13R21); off by default. */
+  readonly completionSound: boolean;
 }
 
 export const DEFAULT_DEVICE: DeviceAppearance = {
@@ -46,6 +48,7 @@ export const DEFAULT_DEVICE: DeviceAppearance = {
   codeSize: null,
   motion: "system",
   chatWidth: "full",
+  completionSound: false,
 };
 export const SIZE_RANGES = { uiSize: [12, 16], chatSize: [13, 18], codeSize: [11, 16] } as const;
 
@@ -228,6 +231,7 @@ export function parseDevice(raw: string | null): DeviceAppearance {
     codeSize: size(value.codeSize, SIZE_RANGES.codeSize),
     motion: oneOf(value.motion, ["system", "reduced", "none"] as const, DEFAULT_DEVICE.motion),
     chatWidth: oneOf(value.chatWidth, ["full", "wide", "narrow"] as const, DEFAULT_DEVICE.chatWidth),
+    completionSound: value.completionSound === true,
   };
 }
 

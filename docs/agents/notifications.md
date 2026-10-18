@@ -30,7 +30,7 @@ Web Push (`apps/daemon/src/modules/push/`) and the PWA shell (`apps/web/sw/`, `f
 ## Endpoints
 
 - https only, port 443, no credentials, fragment or IP literal, at most 2048 characters, and the host must be Apple `*.push.apple.com`, `fcm.googleapis.com`, Mozilla `*.push.services.mozilla.com`, Microsoft `*.notify.windows.com`, or one of at most 8 names in `PAP_PUSH_EXTRA_HOSTS` (comma separated, exact). There is no switch to turn the list off.
-- At send time the connection uses a guarded lookup (every answer public by `blockedForPush`), no redirects, a 12 s total deadline, a capped drain of the response; rules are re-checked then. Logs carry `h:<12 hex>` of the endpoint, never a body, key or payload.
+- At send time the connection uses a guarded lookup (every answer public by `blockedStrict`), no redirects, a 12 s total deadline, a capped drain of the response; rules are re-checked then. Logs carry `h:<12 hex>` of the endpoint, never a body, key or payload.
 - Caps: 10 devices per owner (refused, never evicted), 64 presence entries, `push.subscribe` one call per 6 s, `push.test` one per 10 s. Every `push.*` method is for a browser session; a token gets `forbidden`.
 
 ## #https

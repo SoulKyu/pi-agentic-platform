@@ -16,7 +16,7 @@ export type Limits = Record<keyof typeof EGRESS_LIMITS, number>;
 
 /**
  * Everything the proxy reaches the world through. `resolve`, `denies` and `connect` are required and have no default:
- * `index.ts` passes the system resolver, `blockedAddress` and `net.connect`; only tests pass anything else (M11R244).
+ * `index.ts` passes the system resolver, `blockedStrict` and `net.connect`; only tests pass anything else (M11R244).
  */
 export interface ProxyDeps {
   readonly clock: Clock;

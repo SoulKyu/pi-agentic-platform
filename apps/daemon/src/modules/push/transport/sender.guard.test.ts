@@ -7,7 +7,7 @@ import { sendOnce, type Resolver, type SendResult } from "./sender.ts";
 /*
  * Socket-level guard tests use loopback addresses only (W5-R50, W6-R12): 127.0.0.1 is the one the rule allows and the
  * fake listens on; 127.0.0.2 and 127.0.0.3 stand in for "private". A broken guard therefore can only reach loopback,
- * never a real private or public address. The table of real ranges is a pure test in kernel/net/address-push.test.ts.
+ * never a real private or public address. The table of real ranges is a pure test in kernel/net/address-strict.test.ts.
  */
 let fake: FakePushService;
 beforeEach(async () => {

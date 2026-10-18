@@ -41,6 +41,9 @@ interface Adopted {
 // The fence around outside text (a webhook payload): a tab shows the words, not the markup. Plain text stays plain.
 const FENCE_TAG = /<\/?untrusted\b[^>]*>/g;
 
+/** A write to a live worker's file this soon after its last activity is taken as pap's own (M13R13). */
+export const LIVE_GRACE_MS = 10_000;
+
 /** Sessions whose latest outside write is remembered; the oldest is forgotten past this (M4R141). */
 export const MAX_OUTSIDE_WRITES = 1024;
 
@@ -67,6 +70,8 @@ export function createScanPort(deps: {
   isLive(sessionId: string): boolean;
   /** When the session's last pap worker ended in this process. */
   workerEndedAt(sessionId: string): number | null;
+  /** When the live worker last did anything; null when it has work pending or there is no worker (M13R45). */
+  liveIdleSince(sessionId: string): number | null;
 }): SessionsScanPort & {
   outsideWriteAt(sessionId: string): number | null;
   /** Taints a session whose earlier taint could not be stored; throws again when it still cannot (a launch is refused). */
@@ -81,8 +86,11 @@ export function createScanPort(deps: {
   // The latest write the scanner saw without a pap worker, by session (owner Q13): insertion order is age order.
   const outside = new Map<string, number>();
   const noteOutside = (sessionId: string, at: number): boolean => {
-    if (deps.isLive(sessionId) || at <= Math.max(deps.startedAt, deps.workerEndedAt(sessionId) ?? 0))
-      return false;
+    const idleSince = deps.liveIdleSince(sessionId);
+    const live = deps.isLive(sessionId);
+    const own = at <= Math.max(deps.startedAt, deps.workerEndedAt(sessionId) ?? 0);
+    if (own) return false;
+    if (live && (idleSince === null || at <= idleSince + LIVE_GRACE_MS)) return false;
     outside.delete(sessionId);
     outside.set(sessionId, at);
     if (outside.size > MAX_OUTSIDE_WRITES) outside.delete(outside.keys().next().value as string);

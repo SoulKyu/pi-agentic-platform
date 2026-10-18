@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { Clock } from "../../../kernel/clock.ts";
 import type { Logger } from "../../../kernel/logger.ts";
-import { blockedForPush } from "../../../kernel/net/address-push.ts";
+import { blockedStrict } from "../../../kernel/net/address-strict.ts";
 import type { PushReadiness } from "../../../kernel/push-readiness.ts";
 import type { PushTransport, SendOutcome, SubscriptionTarget } from "../service.ts";
 import { encryptPayload } from "./encrypt.ts";
@@ -22,7 +22,7 @@ export interface HttpsTransportDeps {
   readonly loopbackForTests: boolean;
   /** The built-in push-service list plus the owner's extras: the endpoint is judged again at send time. */
   readonly hosts: readonly HostRule[];
-  /** Tests only: replaces the address check (default: nothing `blockedForPush` refuses). */
+  /** Tests only: replaces the address check (default: nothing `blockedStrict` refuses). */
   readonly allowAddress?: (ip: string) => boolean;
   /** Tests only: replaces DNS. */
   readonly lookup?: Resolver;
@@ -66,7 +66,7 @@ const label = (outcome: SendOutcome, result: SendResult | null): string => {
  */
 export function createHttpsTransport(deps: HttpsTransportDeps): PushTransport {
   const { vapid, logger, clock } = deps;
-  const allowAddress = deps.allowAddress ?? ((ip: string) => !blockedForPush(ip));
+  const allowAddress = deps.allowAddress ?? ((ip: string) => !blockedStrict(ip));
   // Per push-service host (the endpoint rules keep this to a handful): rejections since that host was last logged.
   const keyRejected = new Map<string, { count: number; loggedAt: number }>();
 

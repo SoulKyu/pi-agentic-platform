@@ -29,6 +29,7 @@ const portOver = (overrides: Partial<Parameters<typeof createScanPort>[0]> = {})
     startedAt: 0,
     isLive: () => false,
     workerEndedAt: () => null,
+    liveIdleSince: () => null,
     ...overrides,
   });
 

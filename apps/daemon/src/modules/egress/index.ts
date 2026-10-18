@@ -6,7 +6,7 @@ import type { EgressStatus } from "@pap/contracts";
 import { EGRESS_LIMITS } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { blockedAddress } from "../../kernel/net/address.ts";
+import { blockedStrict } from "../../kernel/net/address-strict.ts";
 import type { EgressScope } from "./allow.ts";
 import { writeForwarder } from "./forwarder.ts";
 import { type CommandListener, createProxy } from "./proxy.ts";
@@ -54,7 +54,7 @@ export function createEgress(deps: EgressDeps) {
     clock,
     logger,
     resolve: async (host) => (await lookup(host, { all: true })).map((answer) => answer.address),
-    denies: blockedAddress,
+    denies: blockedStrict,
     connect: (ip, port) => connect({ host: ip, port }),
   });
   // `/run/user/1000/` and `/run/user/1000` are one folder: the root is judged against the runtime folder without the slash.

@@ -1,0 +1,138 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+  .:
+    devDependencies:
+      dev-only:
+        specifier: 1.0.0
+        version: 1.0.0
+
+  apps/daemon:
+    dependencies:
+      '@pap/contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+      '@scope/pkg':
+        specifier: 2.0.0
+        version: 2.0.0(peer-dep@1.0.0)
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+      beta:
+        specifier: 1.0.0
+        version: 1.0.0
+      gamma:
+        specifier: 1.0.0
+        version: 1.0.0
+      native:
+        specifier: 1.0.0
+        version: 1.0.0
+      node-pty:
+        specifier: 1.1.0
+        version: 1.1.0
+    devDependencies:
+      dev-only:
+        specifier: 1.0.0
+        version: 1.0.0
+
+  apps/web:
+    dependencies:
+      web-only:
+        specifier: 1.0.0
+        version: 1.0.0
+
+  packages/contracts:
+    dependencies:
+      alpha:
+        specifier: 1.0.0
+        version: 1.0.0
+
+  packages/pi-host:
+    dependencies:
+      '@pap/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      beta:
+        specifier: 1.0.0
+        version: 1.0.0
+
+packages:
+  '@scope/pkg@2.0.0':
+    resolution: {integrity: sha512-feRVz0t2jiVLQVBHJuS69luz7HeerFAgYH6+Wg0UNATdL26Q9SD109OJuhQUKayPHhG5tK7urXWg/cUTC4PDFw==}
+    peerDependencies:
+      peer-dep: ^1.0.0
+
+  alpha@1.0.0:
+    resolution: {integrity: sha512-rJhIKD/nxAy7TN2Rc75oXbyBlNmhvYtTQaAuukMRVJ7eAQ7d9pWv0VvDxirUqZfg76J81KiarlWj1FaLz6m2Rg==}
+
+  beta@1.0.0:
+    resolution: {integrity: sha512-irmUUZ9AeE/MwdxDZ4PMYNj2p5QxtWJo/0yy0/BKDv7w1+qHKMjFCuzq8F+xZPJN6b6aGFj+2dp8diNFSmlKlg==}
+
+  dev-only@1.0.0:
+    resolution: {integrity: sha512-A1mWZSuCbYyjm0rmQYzUF/calG4IHQtZVvTW6saMNI6p3bfv1fsku3qHHOZxZaNfmeWGHJBrt4zUNiXZb3q53A==}
+
+  gamma@1.0.0:
+    resolution: {integrity: sha512-RyYeCOvu9FNPZOX0lFGQ7LxoNHW6QxEjDUERFlY3sG9w//lRpeBBy8Pg6nK+OmPAxp2ouSO/CTmd+X0GsoRJHQ==}
+
+  native@1.0.0:
+    resolution: {integrity: sha512-timRuxLiY1IU5LMZIgNOel0ryIvZRYZ8Mc1Wo9WCWs2Xk9yxj35dU69WwCS4e8HHssSYE1FNZIDTIiY5dsqg5A==}
+
+  '@native/linux-x64-glibc@1.0.0':
+    resolution: {integrity: sha512-5en1buOdFDrMLpl//+7GWJ50GdXw4rUTRogxq1T23F8fOrcKht7wNadmXFO3X41dOm39RaZEaZoh4wFb2ep1+g==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  node-pty@1.1.0:
+    resolution: {integrity: sha512-e9Lxx7VBpsLIMsJdNLQE0n76yPwT0YZQ8a5WASOLlKDCxyHG7YgSt8hr983eGWZ/JgJkrq1DKx42cPlBXly9fg==}
+
+  peer-dep@1.0.0:
+    resolution: {integrity: sha512-MB1zhP1f8cnXO60iz2ip0Ia5H1R8lNvKvZEebzyFdjg/wtVs+HEIwdZdGj8luCFOavNXeWhYO11bZSHUUQdJlg==}
+
+  shared@1.0.0:
+    resolution: {integrity: sha512-ToN++hY7BaUzhf36HeXiR4GJcG0VqeaPoQmIVh+BZmPqsrmFNv4AmWHXow4zNFn0BatYSEqejKS62TZq555Q2Q==}
+
+  shared@2.0.0:
+    resolution: {integrity: sha512-D6KEXqUAtHEkB7ai0Lf3NI1XaWz/LmuUy7eYQYi9Uxz/JsJgr3BlJqzg6SjbQhbY0Qq3HoOKymJCHs2dcvVv4Q==}
+
+  web-only@1.0.0:
+    resolution: {integrity: sha512-LKKTreyjNJeZVSSD4g7JwCvW9isdMkv42hQEJzEjpsKAPlrdBWTFzIrSQXGaEpc0o/RkaGLHPdAhrCPMc+lRrw==}
+
+snapshots:
+  '@native/linux-x64-glibc@1.0.0': {}
+
+  '@scope/pkg@2.0.0(peer-dep@1.0.0)':
+    dependencies:
+      peer-dep: 1.0.0
+
+  alpha@1.0.0:
+    dependencies:
+      shared: 1.0.0
+
+  beta@1.0.0:
+    dependencies:
+      shared: 1.0.0
+
+  dev-only@1.0.0: {}
+
+  gamma@1.0.0:
+    dependencies:
+      shared: 2.0.0
+
+  native@1.0.0:
+    optionalDependencies:
+      '@native/linux-x64-glibc': 1.0.0
+
+  node-pty@1.1.0: {}
+
+  peer-dep@1.0.0: {}
+
+  shared@1.0.0: {}
+
+  shared@2.0.0: {}
+
+  web-only@1.0.0: {}

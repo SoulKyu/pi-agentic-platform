@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
+import { playCompletion, unlockOnFirstInteraction, useAppearanceStore } from "../appearance/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 
 interface Announcement {
@@ -28,6 +29,23 @@ export function useAnnouncer(view: SessionView): {
     else if (seen.running && view.status === "idle") setSaid({ key: "sessions.announce.runEnded" });
     if (approvals > seen.approvals) setSaid({ key: "sessions.announce.approval" });
   }
+  // The one place a root session's run ends (running to idle): a cold or failed session says nothing.
+  const wasRunning = useRef(running);
+  useEffect(() => {
+    if (wasRunning.current && view.status === "idle") {
+      playCompletion({
+        enabled: useAppearanceStore.getState().device.completionSound,
+        hidden: document.hidden,
+        focused: document.hasFocus(),
+      });
+    }
+    wasRunning.current = running;
+  }, [running, view.status]);
+  // After a reload the context is suspended until a gesture: the first one unlocks it while the setting is on.
+  useEffect(
+    () => (useAppearanceStore.getState().device.completionSound ? unlockOnFirstInteraction() : undefined),
+    [],
+  );
   return {
     text: said ? t(said.key, said.vars) : "",
     say: (key, vars) => setSaid(vars ? { key, vars } : { key }),

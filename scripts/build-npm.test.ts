@@ -151,6 +151,7 @@ const fixture = (): Fixture => {
   const repo = join(root, "repo");
   put(join(repo, "pnpm-workspace.yaml"), workspace);
   put(join(repo, "pnpm-lock.yaml"), readFileSync(join(repoRoot, "pnpm-lock.yaml"), "utf8"));
+  put(join(repo, "package.json"), readFileSync(join(repoRoot, "package.json"), "utf8"));
   for (const dir of ["apps/daemon", "packages/contracts", "packages/pi-host"]) {
     const source = join(repoRoot, dir, "package.json");
     put(join(repo, dir, "package.json"), readFileSync(source, "utf8"));
@@ -186,6 +187,7 @@ describe("buildNpm", () => {
       "node_modules/@pap/pi-host/dist/helper/main.js",
       "node_modules/@pap/pi-host/dist/main.js",
       "node_modules/@pap/pi-host/package.json",
+      "npm-shrinkwrap.json",
       "package.json",
     ]);
   });
