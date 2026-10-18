@@ -120,7 +120,7 @@ Method 2, offline archive pinned to a checksum:
 - Unit and integration tests: `pnpm test:unit`, `pnpm test:int`. Browser tests of the built app: `pnpm test:e2e`, see [docs/agents/e2e.md](docs/agents/e2e.md).
 - Parity with pi-web, row by row with its proof: [docs/agents/parity.md](docs/agents/parity.md). Evidence for the v1 exit criteria: [docs/research/m13-exit-criteria.md](docs/research/m13-exit-criteria.md).
 - Releasing: [docs/agents/release.md](docs/agents/release.md) is the owner's runbook.
-- CI runs on every pull request and on every push to `main`, documentation changes included, so the docs tests always run (`.github/workflows/ci.yml`).
+- CI runs on every pull request and on every push to `main`, documentation changes included, so the docs tests always run (`.github/workflows/ci.yml`). After `checks`, `unit` (2 shards), `integration` (4 shards, vitest `--shard`) and `build` run in parallel; `budgets` and `e2e` follow `build`.
 
 ## License
 

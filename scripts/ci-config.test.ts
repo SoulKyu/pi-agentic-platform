@@ -11,8 +11,10 @@ interface Step {
   readonly with?: Record<string, unknown>;
 }
 interface Job {
+  readonly name?: string;
   readonly "timeout-minutes"?: number;
   readonly needs?: string;
+  readonly strategy?: { readonly "fail-fast"?: boolean; readonly matrix?: { readonly shard?: number[] } };
   readonly steps: readonly Step[];
 }
 interface Workflow {
@@ -61,11 +63,11 @@ describe("CI configuration", () => {
     expect(read("knip.json")).toContain("scripts/e2e");
   });
 
-  it("gives every job a timeout: 15 minutes, 20 for the integration tests and the nightly run (R63)", () => {
+  it("gives every job a timeout: 15 minutes, 25 for an integration shard, 20 for the nightly run (R63)", () => {
     const ci = workflow("ci").jobs;
     expect(
       Object.fromEntries(Object.entries(ci).map(([name, job]) => [name, job["timeout-minutes"]])),
-    ).toMatchObject({ checks: 15, unit: 15, integration: 20, build: 15 });
+    ).toMatchObject({ checks: 15, unit: 15, integration: 25, build: 15 });
     // The budgets (B1) and e2e (A5) jobs pin their own value in ci-config.budgets.test.ts and ci-config.e2e.test.ts.
     for (const [name, job] of Object.entries(ci)) {
       expect(job["timeout-minutes"], name).toBeGreaterThanOrEqual(1);
@@ -159,6 +161,33 @@ describe("CI configuration", () => {
   });
 });
 
+describe("job graph and shards (ci-speed)", () => {
+  it("runs unit, integration and build in parallel after checks; e2e and budgets wait for build only", () => {
+    const { jobs } = workflow("ci");
+    const needs = Object.fromEntries(Object.entries(jobs).map(([name, job]) => [name, job.needs ?? null]));
+    expect(needs).toEqual({
+      checks: null,
+      unit: "checks",
+      integration: "checks",
+      build: "checks",
+      budgets: "build",
+      e2e: "build",
+    });
+  });
+
+  it.each([
+    ["unit", 2, "pnpm test:unit --shard=${{ matrix.shard }}/2"],
+    ["integration", 4, "scripts/ci/without-inherited-fds.sh pnpm test:int --shard=${{ matrix.shard }}/4"],
+  ])("shards %s into %i with vitest's --shard, without cancelling the others", (name, count, command) => {
+    const job = workflow("ci").jobs[name];
+    expect(job?.strategy?.["fail-fast"]).toBe(false);
+    expect(job?.strategy?.matrix).toEqual({ shard: Array.from({ length: count }, (_, i) => i + 1) });
+    expect(job?.name).toBe(`${name} (\${{ matrix.shard }}/${count})`);
+    const runs = job?.steps.filter((step) => step.run?.includes("--shard"));
+    expect(runs?.map((step) => step.run?.trim())).toEqual([command]);
+  });
+});
+
 describe("agent sandbox prerequisites (M13-C9)", () => {
   it.each([
     ["ci integration", () => workflow("ci").jobs["integration"], { sandbox: "true" }],
@@ -180,7 +209,9 @@ describe("inherited descriptors (M13-C13)", () => {
   it("runs test:int through the wrapper that closes every descriptor above 2, in both jobs", () => {
     for (const job of [workflow("ci").jobs["integration"], Object.values(workflow("pi-compat").jobs)[0]]) {
       const run = job?.steps.find((step) => step.run?.includes("pnpm test:int"))?.run;
-      expect(run?.trim()).toBe("scripts/ci/without-inherited-fds.sh pnpm test:int");
+      expect(run?.trim()).toMatch(
+        /^scripts\/ci\/without-inherited-fds\.sh pnpm test:int( --shard=\$\{\{ matrix\.shard \}\}\/4)?$/,
+      );
     }
     const wrapper = read("scripts/ci/without-inherited-fds.sh");
     expect(wrapper).toContain("GitHub's Actions runner");
