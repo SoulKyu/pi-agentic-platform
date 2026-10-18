@@ -7,7 +7,7 @@ Fifteen browser journeys (J01 to J15, the `.e2e.ts` files of `scripts/e2e`) driv
 | Where | What | State |
 | --- | --- | --- |
 | A development machine | `pnpm test:e2e` after `pnpm build` | Run in container mode on the Linux host these journeys were written on (see "Verified so far") |
-| CI, job `e2e` of `.github/workflows/ci.yml` | `needs: build`, downloads the `dist` artifact, installs Chromium and WebKit with their system packages, runs `pnpm test:e2e`, uploads `scripts/e2e/playwright-report` when it fails | Written and pinned by `scripts/ci-config.e2e.test.ts`. **Not yet run on GitHub**: CI runs only once the repository is public (M13R5) |
+| CI, job `e2e` of `.github/workflows/ci.yml` | `needs: build`, downloads the `dist` artifact, installs Chromium and WebKit with their system packages, runs `pnpm test:e2e`, uploads `scripts/e2e/playwright-report` and `scripts/e2e/test-results` when it fails (25 minute timeout) | Written and pinned by `scripts/ci-config.e2e.test.ts`. The repository is public and `ci.yml` runs on pull requests and on pushes to `main`, but this job has **not yet passed on GitHub** (M13R5) |
 
 Nothing here has run on macOS, Windows or WSL.
 
@@ -28,13 +28,13 @@ The agent journey needs a usable bubblewrap. The CI job asks the setup action fo
 | Mode | When | What happens |
 | --- | --- | --- |
 | `local` | the `chromium` and `webkit` executables of Playwright both exist | Playwright launches them itself. CI is this mode |
-| `container` | otherwise, and `podman` exists | A container `mcr.microsoft.com/playwright:v<installed Playwright version>-noble` named `pap-e2e-<port>` is started (`run -d --rm --network host --ipc=host`, the `playwright-core` folder mounted read-only at `/pw`, `run-server --host 127.0.0.1 --port <free port>`). Tests and daemons stay on the host; only the browsers live in the container. The runner stops it when the run ends |
+| `container` | otherwise, and `podman` exists | A container `mcr.microsoft.com/playwright:v<installed Playwright version>-noble` named `pap-e2e-<port>` is started (`run -d --rm --network host --ipc=host`, the `playwright-core` folder mounted read-only at `/pw` with the `Z` label for SELinux, `run-server --host 127.0.0.1 --port <free port>`). Tests and daemons stay on the host; only the browsers live in the container. The runner stops it when the run ends |
 
 `PAP_E2E_MODE=local` or `PAP_E2E_MODE=container` forces one mode and fails with a pointer to this page when it cannot run. `PAP_E2E_WS=ws://...` uses a browser server that already runs. With no browser and no `podman`, the run stops with "no browser and no podman: see docs/agents/e2e.md".
 
 The container needs `--network host`: a rootless podman on a host without it is not supported. The job in CI leaves `PAP_E2E_MODE` and `PAP_E2E_WS` unset, so it uses the browsers it installed.
 
-The runner prints the browser and version of each project and fails when the list is empty or a project has no tests, so a wrong filter cannot pass as green.
+The runner lists the tests first and prints how many spec files each project holds, then the name and version of each browser engine it connects to. It fails when the list is empty, when a journey sits on a project the config does not route it to, or (for a whole-suite run) when a project has no tests, so a wrong filter cannot pass as green.
 
 ## The browser split
 
