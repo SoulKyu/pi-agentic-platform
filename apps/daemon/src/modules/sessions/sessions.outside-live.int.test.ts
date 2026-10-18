@@ -81,6 +81,8 @@ it("notices a second app's append to a live session's file, once, and not pap's 
   }
 }, 60_000);
 
+// The rename case is the weaker guard: its own events touch the idle timer. The set-model case and the unit tests of
+// `quietSince` (live-idle.test.ts) are what pin that a command moves it.
 it.each(["rename", "set-model"] as const)(
   "raises no notice for a %s pap makes on an idle live session after a long quiet period",
   async (command) => {
