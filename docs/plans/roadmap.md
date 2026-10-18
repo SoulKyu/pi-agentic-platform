@@ -21,7 +21,8 @@ M0 (spikes S1–S8) and M1 (walking skeleton) are planned in [2026-10-10-m0-m1-s
 | Models batch (picker A, providers B; outside the milestones) | done | aad544b, 327aaa6 | 96, 98 |
 | M13 | done (e2e journeys, security tests, crash isolation, pi-compat, npm shrinkwrap, parity, code mode card; GitHub CI green) | 5aa4c28 | 99, 100 |
 | Google Fonts; extension models for agents (outside the milestones) | done | 9c968aa, 4179f7e | 101, 102 |
-| v1 flip (release-flip.ts, tag v1.0.0, npm); M14 (GitHub) | to come: first the AGPL "Source" link (owner, before the tag) | — | — |
+| AGPL Source link (owner, before the tag) | done | see decision 103 | 103 |
+| v1 flip (release-flip.ts, tag v1.0.0, npm); M14 (GitHub) | to come: the owner's runbook (`docs/agents/release.md`) | — | — |
 
 Off-milestone work merged: design polish 1 and 2 (94e1071, 3d3035a; decision 80), the M9 + M10 follow-ups (2b4ed46, 04d4871 and two flaky-test fixes) and the project home (b7f5820; decisions 85 and 86: every action visible without a shortcut, `projects.add`, Settings › Appearance › Home; owner bundle limit 226 KB for that feature).
 
