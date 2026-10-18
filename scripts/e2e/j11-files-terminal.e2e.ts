@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { Page } from "@playwright/test";
 import { expect, scripted, t, test } from "./fixtures.ts";
-import { actUntilVisible, liveProcesses } from "./seed.ts";
+import { liveProcesses } from "./seed.ts";
 
 // The session of the terminal test needs a script to start its worker.
 test.use({ papEnv: { PAP_LOG_LEVEL: "debug" }, papScript: scripted([{ text: "Ready." }]) });
@@ -89,7 +89,8 @@ test("J11: a terminal runs a command, keeps its output over a reload and ends wi
       exact: true,
     });
     const choice = page.getByRole("menuitem", { name: basename(pap.work), exact: true });
-    await actUntilVisible(() => chip.click(), choice);
+    await chip.click();
+    await expect(choice).toBeVisible();
     await choice.click();
     await page.getByRole("button", { name: t("home.action.terminal"), exact: true }).click();
     await expect(page).toHaveURL(/\/term\/[A-Za-z0-9_-]{22}$/);

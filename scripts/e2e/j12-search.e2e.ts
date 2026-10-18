@@ -64,6 +64,7 @@ test("J12: the palette finds a word in the session that said it, and shows an em
       [FIRST.word, first],
       [SECOND.word, second],
     ] as const) {
+      // A keyboard chord, not a click: the page has loaded but its shortcut listener may not be attached yet, so the chord can be lost.
       await actUntilVisible(() => palette(page), dialog(page));
       await input(page).fill(word);
       const hits = dialog(page)

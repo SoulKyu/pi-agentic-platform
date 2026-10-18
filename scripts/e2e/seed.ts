@@ -198,9 +198,10 @@ export function applyForgets(pap: PapInstance): void {
 }
 
 /**
- * Performs `action` (a click that opens something) until `target` shows, and only clicks again when the click had no visible
- * effect (so a toggle is never undone). A Tooltip-wrapped trigger is remounted when its lazy popup chunk loads (Tooltip.tsx),
- * dropping a click that spans it; fixed by C8, retries removed after the join.
+ * Performs `action` until `target` shows, and only acts again when the action had no visible effect (so a toggle is never
+ * undone). For input that can be lost for a reason other than a Tooltip remount (C8 fixed that one; first clicks are plain):
+ * a keyboard shortcut sent before the page attached its listener (j12), a rail button whose label changes while the page
+ * rerenders (j14).
  */
 export const actUntilVisible = (action: () => Promise<void>, target: Locator): Promise<void> =>
   expect(async () => {

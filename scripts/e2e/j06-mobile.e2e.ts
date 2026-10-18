@@ -5,7 +5,6 @@
 import { basename } from "node:path";
 import type { Locator, Page } from "@playwright/test";
 import { expect, scripted, t, test } from "./fixtures.ts";
-import { actUntilVisible } from "./seed.ts";
 
 const MARKER = "e2e-j06-ok";
 const TOUCH = 44;
@@ -112,10 +111,8 @@ test("J06: the phone shell", async ({ page, pap, signedIn }) => {
 
   await test.step("Settings fits the screen", async () => {
     const sheet = page.getByRole("dialog", { name: t("shell.mobile.more"), exact: true });
-    await actUntilVisible(
-      () => page.getByRole("button", { name: t("shell.mobile.more"), exact: true }).tap(),
-      sheet,
-    );
+    await page.getByRole("button", { name: t("shell.mobile.more"), exact: true }).tap();
+    await expect(sheet).toBeVisible();
     await sheet.getByRole("button", { name: t("shell.rail.settings"), exact: true }).tap();
     await expect(page).toHaveURL(/\/settings\/appearance$/);
     await expect(

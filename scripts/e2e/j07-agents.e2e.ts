@@ -4,7 +4,7 @@
 // one Inbox item of the agent.
 import type { Page } from "@playwright/test";
 import { expect, scripted, stepUp, t, test } from "./fixtures.ts";
-import { actUntilVisible, bwrapUsable, dbRows, liveProcesses } from "./seed.ts";
+import { bwrapUsable, dbRows, liveProcesses } from "./seed.ts";
 
 const NOTE = "Scout checked in: the board is quiet.";
 
@@ -43,13 +43,10 @@ test("J07: an agent notifies the owner and is quarantined", async ({ page, pap, 
 
   await test.step("create the agent in the form: sandbox on, default model", async () => {
     const dialog = page.getByRole("dialog", { name: t("agentForm.dialog.title"), exact: true });
-    await actUntilVisible(
-      () =>
-        rail(page)
-          .getByRole("button", { name: t("shell.rail.newAgent"), exact: true })
-          .click(),
-      dialog,
-    );
+    await rail(page)
+      .getByRole("button", { name: t("shell.rail.newAgent"), exact: true })
+      .click();
+    await expect(dialog).toBeVisible();
     await dialog.getByLabel(t("agentForm.name"), { exact: true }).fill("Scout");
     await dialog.getByRole("radio", { name: t("agentForm.sandbox.required"), exact: true }).click();
     await dialog.getByRole("button", { name: t("agentForm.create"), exact: true }).click();
@@ -73,14 +70,11 @@ test("J07: an agent notifies the owner and is quarantined", async ({ page, pap, 
     await expect(unreadScout(page)).toBeVisible({ timeout: 30_000 });
     await expect.poll(async () => (await notices()).length).toBe(1);
     const drawer = page.getByRole("dialog", { name: t("shell.inbox.title"), exact: true });
-    await actUntilVisible(
-      () =>
-        page
-          .getByRole("banner")
-          .getByRole("button", { name: /^Inbox/ })
-          .click(),
-      drawer,
-    );
+    await page
+      .getByRole("banner")
+      .getByRole("button", { name: /^Inbox/ })
+      .click();
+    await expect(drawer).toBeVisible();
     const row = drawer.getByRole("button", {
       name: new RegExp(escape(t("inbox.agent.line.notify", { name: "Scout" }))),
     });
