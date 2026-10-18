@@ -81,10 +81,28 @@ describe("a live session's file changed outside pap (spec D 3, M13R13)", () => {
     expect(OUTSIDE_WRITE_MS).toBe(120_000);
   });
 
-  it("(f) never taints for a live outside tool result", () => {
+  it("(f) taints at once for a live outside tool result (M13-C10)", () => {
     const seen: string[] = [];
     const port = livePort(T, (id) => void seen.push(id));
     port.touched("s1", T + 60_000, true, true);
+    expect(port.outsideWriteAt("s1")).toBe(T + 60_000);
+    expect(seen).toEqual(["s1"]);
+  });
+
+  it("(g) never taints for pap's own tool result: inside the grace, or while work is pending", () => {
+    const seen: string[] = [];
+    const port = livePort(T, (id) => void seen.push(id));
+    port.touched("s1", T + 3_000, true, true);
+    port.touched("s1", T + LIVE_GRACE_MS, true, true);
+    const busy = livePort(null, (id) => void seen.push(id));
+    busy.touched("s1", T + 600_000, true, true);
+    expect(seen).toEqual([]);
+  });
+
+  it("(h) does not taint a live outside write that holds no tool result", () => {
+    const seen: string[] = [];
+    const port = livePort(T, (id) => void seen.push(id));
+    port.touched("s1", T + 60_000, true, false);
     expect(port.outsideWriteAt("s1")).toBe(T + 60_000);
     expect(seen).toEqual([]);
   });
