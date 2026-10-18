@@ -4,6 +4,8 @@ One file per decision, numbered. A decision that deviates from a spec or changes
 
 Next free number: 0071
 
+Dates come from the ADR's Date line; where it has none, the date of the file's first commit.
+
 Numbers 0071 to 0076 and 0077 (the licence) are reserved for M13. Numbers marked "not used" were skipped and stay empty.
 
 | No.  | Title | Status | Date |
