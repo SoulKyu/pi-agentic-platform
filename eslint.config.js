@@ -132,7 +132,7 @@ export default defineConfig(
               ],
               allow: [["web-feature", { domain: "models" }]],
             },
-            // M13R21: the session screen's announcer plays the completion sound and reads its device setting (`features/appearance`).
+            // M13R21: the session screen's announcer plays the completion sound and reads its device setting, through the `features/appearance/index.ts` barrel.
             {
               from: [["web-feature", { domain: "sessions" }]],
               allow: [["web-feature", { domain: "appearance" }]],

@@ -10,6 +10,7 @@ import { RpcError } from "../../runtime/index.ts";
 import { click, mount, press } from "../../testing/dom.ts";
 import { AppearancePanel } from "./AppearancePanel.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
+import { resetCompletionSound } from "./completion-sound.ts";
 import { startAppearance, syncAccountAppearance } from "./controller.ts";
 import { DEFAULT_ACCOUNT, DEFAULT_DEVICE } from "./model.ts";
 
@@ -187,6 +188,27 @@ describe("Settings > Appearance", () => {
     expect(state().device.motion).toBe("none");
     await pick("Chat width", "Narrow");
     expect(state().device.chatWidth).toBe("narrow");
+  });
+
+  it("switching the completion sound on builds and resumes the audio context; off does not", async () => {
+    const resume = vi.fn(() => Promise.resolve());
+    const Ctor = vi.fn(function () {
+      return { state: "suspended", resume };
+    });
+    vi.stubGlobal("AudioContext", Ctor);
+    try {
+      await render();
+      await toggle("Play a sound when a run ends while the tab is hidden or in the background");
+      expect(state().device.completionSound).toBe(true);
+      expect(Ctor).toHaveBeenCalledTimes(1);
+      expect(resume).toHaveBeenCalledTimes(1);
+      await toggle("Play a sound when a run ends while the tab is hidden or in the background");
+      expect(state().device.completionSound).toBe(false);
+      expect(resume).toHaveBeenCalledTimes(1);
+    } finally {
+      resetCompletionSound();
+      vi.unstubAllGlobals();
+    }
   });
 
   it("reset covers both scopes, keeps the custom themes, and Undo restores them", async () => {

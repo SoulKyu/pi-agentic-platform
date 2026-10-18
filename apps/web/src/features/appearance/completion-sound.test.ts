@@ -1,7 +1,13 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { playCompletion, resetCompletionSound } from "./completion-sound.ts";
+import {
+  playCompletion,
+  resetCompletionSound,
+  unlockCompletionSound,
+  unlockOnFirstInteraction,
+} from "./completion-sound.ts";
 
-function fakeContext(state: "running" | "suspended" = "running") {
+function fakeContext(initial: "running" | "suspended" = "running") {
   const osc = {
     frequency: { value: 0 },
     type: "",
@@ -11,7 +17,7 @@ function fakeContext(state: "running" | "suspended" = "running") {
   };
   const gain = { gain: { value: 0 }, connect: vi.fn() };
   const ctx = {
-    state,
+    state: initial as string,
     currentTime: 5,
     destination: {},
     resume: vi.fn(() => Promise.resolve()),
@@ -54,17 +60,69 @@ describe("playCompletion", () => {
     expect(playCompletion({ enabled: true, hidden: false, focused: false, ctx })).toBe(true);
   });
 
-  it("creates the context lazily, once, and resumes it when suspended", () => {
+  it("creates the context lazily, once, and gives false with no tone while it is suspended", () => {
     const made = fakeContext("suspended");
     const Ctor = vi.fn(function () {
       return made.ctx;
     });
     vi.stubGlobal("AudioContext", Ctor);
     expect(Ctor).not.toHaveBeenCalled();
-    expect(playCompletion({ ...away })).toBe(true);
-    expect(playCompletion({ ...away })).toBe(true);
+    expect(playCompletion({ ...away })).toBe(false);
+    expect(playCompletion({ ...away })).toBe(false);
     expect(Ctor).toHaveBeenCalledTimes(1);
     expect(made.raw.resume).toHaveBeenCalled();
+    expect(made.raw.createOscillator).not.toHaveBeenCalled();
+  });
+
+  it("unlocking builds the context and resumes it when suspended; a running one is left alone", () => {
+    const made = fakeContext("suspended");
+    const Ctor = vi.fn(function () {
+      return made.ctx;
+    });
+    vi.stubGlobal("AudioContext", Ctor);
+    unlockCompletionSound();
+    expect(Ctor).toHaveBeenCalledTimes(1);
+    expect(made.raw.resume).toHaveBeenCalledTimes(1);
+    made.raw.state = "running";
+    unlockCompletionSound();
+    expect(made.raw.resume).toHaveBeenCalledTimes(1);
+    expect(playCompletion({ ...away })).toBe(true);
+  });
+
+  it("unlocking never throws when the context cannot be built", () => {
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(function () {
+        throw new Error("blocked");
+      }),
+    );
+    expect(() => unlockCompletionSound()).not.toThrow();
+  });
+
+  it("the first pointerdown or keydown unlocks once", () => {
+    const made = fakeContext("suspended");
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(function () {
+        return made.ctx;
+      }),
+    );
+    const off = unlockOnFirstInteraction();
+    document.dispatchEvent(new Event("pointerdown"));
+    document.dispatchEvent(new Event("keydown"));
+    document.dispatchEvent(new Event("pointerdown"));
+    expect(made.raw.resume).toHaveBeenCalledTimes(1);
+    off();
+  });
+
+  it("skips a second tone within the tone's length, and plays again after it", () => {
+    const { ctx, raw, osc } = fakeContext();
+    expect(playCompletion({ ...away, ctx })).toBe(true);
+    raw.currentTime = 5.05;
+    expect(playCompletion({ ...away, ctx })).toBe(false);
+    raw.currentTime = 5.13;
+    expect(playCompletion({ ...away, ctx })).toBe(true);
+    expect(osc.start).toHaveBeenCalledTimes(2);
   });
 
   it("does not build a context while it has nothing to play", () => {

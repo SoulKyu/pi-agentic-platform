@@ -2,6 +2,7 @@ import { Button, DENSITIES, Segmented, Slider, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { AppearanceSection } from "./AppearanceSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
+import { unlockCompletionSound } from "./completion-sound.ts";
 import { SIZE_RANGES, type DeviceAppearance } from "./model.ts";
 
 type SizeField = keyof typeof SIZE_RANGES;
@@ -69,7 +70,10 @@ export function ReadingSection() {
       <Switch
         label={t("settings.appearance.completionSound")}
         checked={device.completionSound}
-        onChange={(completionSound) => setDevice({ ...device, completionSound })}
+        onChange={(completionSound) => {
+          if (completionSound) unlockCompletionSound();
+          setDevice({ ...device, completionSound });
+        }}
       />
     </AppearanceSection>
   );

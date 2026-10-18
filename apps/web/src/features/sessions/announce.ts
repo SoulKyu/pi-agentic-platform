@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useT, type MessageKey } from "../../i18n/index.ts";
-import { useAppearanceStore } from "../appearance/appearance-store.ts";
-import { playCompletion } from "../appearance/completion-sound.ts";
+import { playCompletion, unlockOnFirstInteraction, useAppearanceStore } from "../appearance/index.ts";
 import type { SessionView } from "../../stores/session-reducer.ts";
 
 interface Announcement {
@@ -42,6 +41,11 @@ export function useAnnouncer(view: SessionView): {
     }
     wasRunning.current = running;
   }, [running, view.status]);
+  // After a reload the context is suspended until a gesture: the first one unlocks it while the setting is on.
+  useEffect(
+    () => (useAppearanceStore.getState().device.completionSound ? unlockOnFirstInteraction() : undefined),
+    [],
+  );
   return {
     text: said ? t(said.key, said.vars) : "",
     say: (key, vars) => setSaid(vars ? { key, vars } : { key }),
