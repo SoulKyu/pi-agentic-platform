@@ -105,7 +105,12 @@ describe("signature checks (I2, MC16)", () => {
     writeFileSync(signers, "");
     bed.git(root, "config", "gpg.ssh.allowedSignersFile", signers);
     for (const [k, v] of config) bed.git(root, "config", k, v);
-    bed.git(root, ...args);
+    try {
+      bed.git(root, ...args);
+    } catch (error) {
+      // The plant exits without reading the payload git pipes to it, so git can die of SIGPIPE after the plant ran.
+      if ((error as { signal?: string }).signal !== "SIGPIPE") throw error;
+    }
     expect(existsSync(marker), "control: plain git runs the plant").toBe(true);
     rmSync(marker);
     if (direct) {

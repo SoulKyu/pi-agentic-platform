@@ -263,7 +263,7 @@ describe.skipIf(!usable)("the sandboxed bash in a worker", () => {
       `cat ${bed.home}/.ssh/id ${world.ownerHome}/.ssh/id 2>&1; echo status=$?`,
       "echo ${ANTHROPIC_API_KEY:-none}",
       "echo $VAULT_TOKEN",
-      "ls /proc/$$/fd | tr '\\n' ' '",
+      "ls /proc/$$/fd",
       "cut -d' ' -f6 /proc/$$/stat",
     ]);
     expect(ssh).not.toContain("PRIVATE-KEY");
@@ -272,8 +272,8 @@ describe.skipIf(!usable)("the sandboxed bash in a worker", () => {
     expect(pwd?.trim()).toBe(world.agentHome);
     expect(home?.trim()).toBe(world.agentHome);
     expect(vault?.trim()).toBe("[SECRET:VAULT_TOKEN]");
-    // RT-23: nothing but stdio crosses (fd 3 of the worker is its IPC channel); a session of its own (--new-session).
-    expect(fds?.trim()).toBe("0 1 2");
+    // RT-23: only stdio crosses (fd 3 of the worker is its IPC; no pipe, the shell would hold both ends); own session.
+    expect(fds?.trim().split(/\s+/)).toEqual(["0", "1", "2"]);
     expect(Number(session?.trim())).toBeGreaterThan(0);
     expect(
       bed
