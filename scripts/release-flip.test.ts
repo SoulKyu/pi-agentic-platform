@@ -43,7 +43,7 @@ beforeEach(() => {
 afterEach(() => rmSync(tree, { recursive: true, force: true }));
 
 describe("applyFlip on the real files", () => {
-  it("changes the three files and leaves the rest of each untouched", () => {
+  it("changes the four files and leaves the rest of each untouched", () => {
     const before = real();
     const after = applyFlip(before);
     expect(after.releaseYml).toContain("on:\n  push:\n    branches: [main]\n  workflow_dispatch:");

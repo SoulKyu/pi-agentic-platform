@@ -15,7 +15,7 @@ export interface FlipFiles {
   readonly updateCheckTestTs: string;
 }
 
-/** The two ADR 0066 items no script can do (a private repository answers 404; a setting lives on GitHub). */
+/** What no script can do at the flip: the nightly workflow disabled by hand, and the two ADR 0066 items (a repository casing check; a setting that lives on GitHub). */
 export const OWNER_ONLY_ITEMS: readonly string[] = [
   "enable the nightly workflow, disabled by hand on GitHub: gh workflow enable pi-compat.yml (the flip restores its schedule)",
   "ADR 0066 item 3: check the casing of FEED_REPO (apps/daemon/src/update-check.ts): curl -sIL -o /dev/null -w '%{url_effective}\\n' https://github.com/<FEED_REPO>",
@@ -91,7 +91,7 @@ export function applyFlip(files: FlipFiles): FlipFiles {
   };
 }
 
-/** Reads the four files under `root`, flips them in memory and writes all three only when every one was recognised. */
+/** Reads the four files under `root`, flips them in memory and writes all four only when every one was recognised. */
 export function flipTree(root: string): void {
   const path = (file: string) => join(root, file);
   const flipped = applyFlip({
