@@ -13,7 +13,7 @@ export interface SwitchProps {
 export function Switch({ label, checked, onChange, hint, disabled }: SwitchProps) {
   const id = useId();
   return (
-    <div data-slot="switch" className="flex items-center justify-between gap-s3">
+    <div data-slot="switch" className="relative flex items-center justify-between gap-s3">
       <div className="flex flex-col gap-s1">
         <label id={`${id}-label`} htmlFor={id} className="text-ui text-fg">
           {label}
