@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -46,7 +46,20 @@ function parseRows(source: string, text: string): Row[] {
   const rows: Row[] = [];
   for (const line of text.split("\n")) {
     const m = ROW.exec(line);
-    if (!m) continue;
+    if (!m) {
+      const raw = /^\|\s*(P[^\s|]*)\s*\|/.exec(line);
+      if (raw)
+        rows.push({
+          source,
+          id: raw[1] as string,
+          domain: 0,
+          behaviour: "",
+          proof: "",
+          verdict: "",
+          text: line,
+        });
+      continue;
+    }
     const cells = (m[3] as string).split(" | ").map((c) => c.trim());
     if (cells.length < 3) {
       rows.push({
@@ -98,8 +111,9 @@ function checkRows(rows: Row[], ctx: Context, strict: boolean): Finding[] {
       } else if (!ctx.resolveLoose(token)) add(row.id, "proof", `no such file ${token}`);
     }
     if (VERDICT.test(row.verdict) && !row.verdict.startsWith("green")) {
-      const rulings = row.text.match(RULING) ?? [];
-      const decisions = [...row.text.matchAll(DECISION)].map((m) => m[1] as string);
+      const scanned = strict ? row.verdict : row.text;
+      const rulings = scanned.match(RULING) ?? [];
+      const decisions = [...scanned.matchAll(DECISION)].map((m) => m[1] as string);
       if (rulings.length + decisions.length === 0) add(row.id, "reference", "names no ruling or decision");
       for (const ruling of rulings) if (!ctx.hasRuling(ruling)) add(row.id, "reference", `unknown ${ruling}`);
       for (const n of decisions) if (!ctx.hasDecision(n)) add(row.id, "reference", `unknown decision ${n}`);
@@ -156,6 +170,13 @@ describe("the parity checker on fixtures", () => {
     ]);
     expect(findings("| P03-2 | x | `a/b.test.ts` | dropped later |")).toEqual(["P03-2:verdict"]);
   });
+  it("fails a malformed id instead of dropping the row, and scans only the verdict for a reference", () => {
+    expect(findings("| P7-1 | x | `a/b.test.ts` | green |")).toEqual(["P7-1:shape"]);
+    expect(findings("| P03-2 | x M13R20 | `a/b.test.ts` | after v1 (owner q6) |")).toEqual([
+      "P03-2:reference",
+    ]);
+    expect(findings("| P03-2 | x M13R20 | `a/b.test.ts` | after v1 (owner q6) |", false)).toEqual([]);
+  });
   it("refuses a duplicate id and a short row", () => {
     expect(findings("| P01-1 | x | `a/b.test.ts` | green |")).toEqual(["P01-1:duplicate"]);
     expect(findings("| P03-2 | x | green |")).toEqual(["P03-2:shape"]);
@@ -167,6 +188,7 @@ describe("the parity checker on fixtures", () => {
     expect(findings("| P08-3 | x | dropped by owner (M13R20) | dropped (owner m10) |", false)).toEqual([]);
     expect(findings("| P08-3 | x | dropped by owner (M13R20) | dropped (owner m10) |", true)).toEqual([
       "P08-3:proof",
+      "P08-3:reference",
     ]);
   });
 });
@@ -203,7 +225,7 @@ function realContext(): Context {
   const research = researchText();
   const log = readFileSync(join(ROOT, "docs/research/decisions-log.md"), "utf8");
   return {
-    exists: (p) => existsSync(join(ROOT, p)),
+    exists: (p) => existsSync(join(ROOT, p)) && statSync(join(ROOT, p)).isFile(),
     resolveLoose: (token) => {
       const tail = token.includes("...") ? token.slice(token.lastIndexOf("...") + 3) : token;
       const wanted = tail.replace(/^\/+/, "");
@@ -231,6 +253,12 @@ describe("docs/agents/parity.md", () => {
     ];
     const domains = checkRows([...own, ...models], ctx, true).filter((f) => f.rule === "domain");
     expect([...found, ...domains].map((f) => `${f.row} ${f.rule}: ${f.detail}`)).toEqual([]);
+  });
+
+  it("takes a file as a proof and a directory as none", () => {
+    const { ctx } = load();
+    expect(ctx.exists("scripts/parity-doc.test.ts")).toBe(true);
+    expect(ctx.exists("scripts")).toBe(false);
   });
 
   it("keeps D07 to D10 in models.md and the other domains here, with no id in both", () => {

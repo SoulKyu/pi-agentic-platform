@@ -37,7 +37,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 | P01-1 | Browse Pi sessions read-only from the JSONL files | `apps/daemon/src/modules/sessions/transcript.test.ts`, `apps/daemon/src/modules/sessions/sessions.reads.int.test.ts`, `apps/daemon/src/modules/search/session-file.test.ts` | green |
 | P01-2 | Start and drive a live session through the SDK, any command | `apps/daemon/src/modules/sessions/sessions.int.test.ts`, `apps/daemon/src/modules/sessions/live-session.commands.test.ts`, `packages/pi-host/src/host.commands.int.test.ts` | green |
 | P01-3 | Event stream and reconnect without loss | `apps/web/src/runtime/connection.resume.test.ts`, `apps/web/src/stores/session-reducer.test.ts`, `scripts/e2e/j05-reconnect.e2e.ts` | green |
-| P01-4 | Transcript rendering: user, assistant, tool calls paired with their results, system and usage rows. Code mode calls show as ordinary tool cards: pap has no dedicated codemode card (finding F1 of the audit) | `apps/web/src/features/sessions/Transcript.test.tsx`, `apps/web/src/features/sessions/transcript.vm.test.ts`, `apps/web/src/features/sessions/ToolItemCard.test.tsx`, `apps/web/src/features/sessions/transcript.tools.test.ts`, `apps/daemon/src/security/codemode-nested.int.test.ts` | green |
+| P01-4 | Transcript rendering: user, assistant, tool calls paired with their results, system and usage rows. | `apps/web/src/features/sessions/Transcript.test.tsx`, `apps/web/src/features/sessions/transcript.vm.test.ts`, `apps/web/src/features/sessions/ToolItemCard.test.tsx`, `apps/web/src/features/sessions/transcript.tools.test.ts` | green |
 | P01-5 | Branching: in-session branch navigator, edit from an earlier message | `apps/web/src/features/sessions/BranchSwitcher.test.tsx`, `apps/web/src/features/sessions/branches.vm.test.ts`, `apps/daemon/src/modules/sessions/sessions.commands.int.test.ts`, `apps/daemon/src/modules/sessions/branch.test.ts` | green |
 | P01-6 | Fork from an entry and clone the current branch on disk | `apps/daemon/src/modules/sessions/sessions.forks.int.test.ts`, `apps/daemon/src/modules/sessions/forks.test.ts`, `apps/daemon/src/modules/sessions/service.forks.test.ts` | green |
 | P01-7 | Paged context loading of older rows | `apps/daemon/src/modules/sessions/branch.test.ts`, `apps/daemon/src/modules/sessions/sessions.transcript.int.test.ts`, `apps/daemon/src/modules/sessions/transcript.lazy.test.ts` | green |
@@ -50,6 +50,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 | P01-14 | Drafts persisted locally, one per session | `apps/web/src/stores/drafts.test.ts` | green |
 | P01-15 | Completion sound: a short tone when a run settles and the tab is hidden or unfocused, off by default (B7, owner q5, M13R21) | `apps/web/src/features/appearance/completion-sound.test.ts`, `apps/web/src/features/appearance/AppearancePanel.test.tsx`, `apps/web/src/features/sessions/SessionScreen.live.test.tsx` | green |
 | P01-16 | Chat minimap | `apps/web/src/features/sessions/Minimap.test.tsx`, `apps/web/src/features/sessions/minimap.vm.test.ts`, `apps/web/src/features/sessions/Transcript.minimap.test.tsx` | green |
+| P01-17 | Codemode card: script preview, nested calls, wall time, cleaned output. Owner 2026-10-18: build it in M13 (task C9). The controller flips this verdict to green, with C9's test as proof, when C9 merges | `apps/daemon/src/security/codemode-nested.int.test.ts` | after v1 (pending C9, owner 2026-10-18, M13R20) |
 
 ### D02 Sidebar and projects
 
@@ -144,7 +145,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 | P12-8 | agent.delegate (queue a task for an opted-in agent) | `apps/daemon/src/modules/agents/ops-delegate.test.ts`, `apps/daemon/src/modules/agents/ops-delegate.back.test.ts`, `apps/daemon/src/security/agent-delegate.int.test.ts` | green |
 | P12-9 | agent.remind (one-shot reminder) | `apps/daemon/src/modules/agents/ops-remind.test.ts` | green |
 | P12-10 | @Name task mention from the composer | `apps/web/src/features/sessions/Composer.handoff.test.tsx`, `apps/web/src/features/sessions/composer/use-mentions.handoff.test.tsx`, `apps/web/src/features/agents/hand-off.test.ts` | green |
-| P12-11 | Thread rotation and reset | `apps/daemon/src/modules/automation/agent-rotate.test.ts`, `packages/contracts/src/agents-thread.test.ts` | green |
+| P12-11 | Thread reset | `apps/daemon/src/modules/agents/threads.test.ts`, `packages/contracts/src/agents-thread.test.ts` | green |
 | P12-12 | Quarantine: pause, cancel, archive, rotate secrets | `apps/daemon/src/modules/agents/quarantine.test.ts`, `apps/daemon/src/modules/agents/quarantine.int.test.ts`, `apps/daemon/src/security/agent-quarantine.int.test.ts`, `apps/web/src/features/agents/QuarantineDialog.test.tsx` | green |
 | P12-13 | Prompt chips from the agent's prompts folder | `apps/daemon/src/modules/agents/prompts.test.ts`, `apps/web/src/features/agents/PromptChips.test.tsx` | green |
 | P12-14 | MEMORY.md in an agent home that is a git repository, recent memory in the status panel | `apps/daemon/src/modules/agents/homes.test.ts`, `apps/daemon/src/modules/agents/agents.int.test.ts`, `apps/web/src/features/agents/RecentMemory.test.tsx` | green |
@@ -215,7 +216,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 | P16-4 | OTLP export, opt-in | `apps/daemon/src/kernel/observability/otlp.test.ts`, `apps/daemon/src/kernel/observability/otlp.int.test.ts` | green |
 | P16-5 | Spending panel and budgets in the browser | `apps/web/src/features/usage/SpendingPanel.test.tsx`, `apps/web/src/features/usage/spending.vm.test.ts`, `apps/daemon/src/modules/runs/usage-rpc.test.ts` | green |
 | P16-6 | Trace summary command | `apps/daemon/src/cli/trace-summary.test.ts`, `apps/daemon/src/cli/trace-summary.int.test.ts` | green |
-| P16-7 | Loki and Grafana guide: every claim of the page is checked against the code | `scripts/docs-truth.test.ts` | green |
+| P16-7 | Loki and Grafana guide: no such guide exists in `docs/agents/finops.md` (owner 2026-10-18) | `docs/agents/finops.md` | after v1 (owner 2026-10-18, M13R20) |
 | P16-8 | Plannotator link detection (owner q7) | `docs/plans/2026-10-18-m13-v1-hardening.md` | after v1 (owner q7, M13R20) |
 
 ### D17 Notifications
