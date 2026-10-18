@@ -150,7 +150,7 @@ At most 64 open dialogs and 8 MiB per session; extra ones are answered `cancelle
 
 ## ANSI colours and the extension label (web)
 
-- Extension text is parsed by `apps/web/src/features/sessions/ansi.ts` into spans with token classes (never HTML): SGR 30-37 and 90-97 map black to `text-dim`, red to `error`, green to `ok`, yellow to `human`, blue and cyan to `agent`, magenta to `attention`, white to `text`; bold, faint, italic and underline are kept; backgrounds, inverse, 256-colour and truecolor are ignored. Bidi/control characters are stripped first and a line makes at most 256 spans (`MAX_SPANS`). DESIGN.md §9.2 is the rule.
+- Extension text is parsed by `packages/ui/src/ai/ansi.ts` into spans with token classes (never HTML): SGR 30-37 and 90-97 map black to `text-dim`, red to `error`, green to `ok`, yellow to `human`, blue and cyan to `agent`, magenta to `attention`, white to `text`; bold, faint, italic and underline are kept; backgrounds, inverse, 256-colour and truecolor are ignored. Bidi/control characters are stripped first and a line makes at most 256 spans (`MAX_SPANS`). DESIGN.md §9.2 is the rule.
 - Anything an extension shows carries the "extension" label (`source.extension`): notices with `source: "extension"`, and `dialogs/ExtensionCard.tsx` (`data-extension-label`), which is plain on purpose (no attention tint, never the word "Approval").
 
 ## Prompts with attachments (M8, ADR 0031)

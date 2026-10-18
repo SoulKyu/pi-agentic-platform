@@ -96,7 +96,7 @@ A failed second install leaves the first in `current` and restarts it (method 2)
 
 From M6b, running the installer of a different release **with no flags** over an installed pap is an update with automatic rollback: it calls `pap update apply` of the new release (`update.md`: the transaction, the exit codes, `pap update recover`). With flags it is the M6 reinstall above, with no rollback and no database check. `pap update install` downloads the installer and the archive from the feed and runs it. Back up first if the data matters: `pap backup` (`backup.md`).
 
-Re-running the installer of the release that is already installed, with **no flags** and a unit present, only restarts the unit ("already installed; restarted"): it never rewrites the unit, so a service started with `--port` or `--home` keeps them. A reinstall that fails restores the previous unit file byte-identical, reloads systemd and restarts.
+Re-running the installer of the release that is already installed, with **no flags** and a unit present, only restarts the unit ("already installed; restarted"): it never rewrites the unit, so a service started with `--port` or `--home` keeps them. A reinstall that fails restores the previous unit file byte-identical, reloads systemd and restarts; the launcher and a symlinked unit are restored too (the launcher with its mode, or removed when there was none; the unit as a symlink to the same target).
 
 Repeat the original `--home`, `--port` and `--bin-dir` flags on every reinstall: nothing remembers them, and without them the service moves to `~/.pap` on 7777 with a fresh setup URL. The unit ignores an exported `PAP_HOME` (the installer warns when it is set without `--home`); only `--home` is written into it.
 

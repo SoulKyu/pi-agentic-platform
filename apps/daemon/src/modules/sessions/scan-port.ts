@@ -38,6 +38,9 @@ interface Adopted {
   readonly projectId: string | null;
 }
 
+// The fence around outside text (a webhook payload): a tab shows the words, not the markup. Plain text stays plain.
+const FENCE_TAG = /<\/?untrusted\b[^>]*>/g;
+
 /** Sessions whose latest outside write is remembered; the oldest is forgotten past this (M4R141). */
 export const MAX_OUTSIDE_WRITES = 1024;
 
@@ -185,8 +188,9 @@ export function createScanPort(deps: {
     },
     previewed(sessionId, text) {
       if (store.readOnly) return;
-      const preview = cleanLabel(text, SHELL_LIMITS.preview);
-      if (preview !== null && store.marks.setPreview(sessionId, preview)) deps.publisher.changed(sessionId);
+      const preview = cleanLabel(text.replace(FENCE_TAG, " "), SHELL_LIMITS.preview);
+      if (preview === null || preview === "") return;
+      if (store.marks.setPreview(sessionId, preview)) deps.publisher.changed(sessionId);
     },
     summary: deps.summary,
     outsideWriteAt: (sessionId) => outside.get(sessionId) ?? null,

@@ -1,6 +1,6 @@
 name: release
-# workflow_dispatch only while the repository is private (M6bR36). The flip at v1 adds `push: branches: [main]`
-# to `on:` and nothing else (ADR 0066).
+# workflow_dispatch only while the repository is private (M6bR36). The v1 flip is scripts/release-flip.ts (ADR 0066 and
+# ADR 0076): it adds `push: branches: [main]` to `on:` and lets `stable` run on that push.
 on:
   workflow_dispatch:
     inputs:
@@ -25,6 +25,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
+        with:
+          cache: "false"
       - run: pnpm release:check
       - id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
@@ -55,6 +57,8 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
+        with:
+          cache: "false"
       - run: pnpm release:check
       - run: pnpm build
       - env:

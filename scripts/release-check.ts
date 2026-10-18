@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isDeepStrictEqual } from "node:util";
@@ -7,7 +7,7 @@ import { parse } from "yaml";
 const VERSION = /^\d+\.\d+\.\d+$/;
 const PINNED = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+@[0-9a-f]{40}$/;
 const WORKFLOW = ".github/workflows/release.yml";
-const ALLOWED_TRIGGER = "workflow_dispatch";
+const DISPATCH = "workflow_dispatch";
 const JOB_PERMISSIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   stable: { contents: "write", "pull-requests": "write", issues: "write" },
   next: { contents: "write" },
@@ -15,6 +15,25 @@ const JOB_PERMISSIONS: Readonly<Record<string, Readonly<Record<string, string>>>
 /** Expressions whose value an attacker or a typo controls must reach a script through `env:`, never inside `run:`. */
 const RUN_INJECTION = /\$\{\{[^}]*\b(?:github\.event|github\.head_ref|inputs)\b/;
 const MAIN_GUARD = "github.ref == 'refs/heads/main'";
+const SETUP_ACTION = "./.github/actions/setup";
+
+/** The `if:` of each release job before and after the v1 flip (ADR 0066 as amended by ADR 0076); `next` never changes. */
+export const JOB_CONDITIONS = {
+  before: {
+    stable: `${MAIN_GUARD} && inputs.channel == 'stable'`,
+    next: `${MAIN_GUARD} && inputs.channel == 'next'`,
+  },
+  after: {
+    stable: `${MAIN_GUARD} && (github.event_name == 'push' || inputs.channel == 'stable')`,
+    next: `${MAIN_GUARD} && inputs.channel == 'next'`,
+  },
+} as const;
+
+/** The project licence ids the release accepts once a `LICENSE` file exists (owner q14, M13R57). */
+export const AGPL_IDS: readonly string[] = ["AGPL-3.0-only", "AGPL-3.0-or-later"];
+const UNLICENSED = "UNLICENSED";
+const AFFERO_TITLE = /^\s*GNU AFFERO GENERAL PUBLIC LICENSE\s*$/;
+const APACHE_FILE = "LICENSES/Apache-2.0.txt";
 
 export const EXPECTED_CONFIG = {
   $schema: "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
@@ -68,16 +87,53 @@ const config = (root: string, problems: string[]): void => {
 const triggers = (on: unknown): string[] =>
   typeof on === "string" ? [on] : Array.isArray(on) ? on.map(String) : Object.keys(record(on));
 
+/** `on:` is exactly `workflow_dispatch` (before the flip) or `push: {branches: [main]}` plus `workflow_dispatch` (after). Returns whether it is flipped. */
+const trigger = (on: unknown, problems: string[]): boolean => {
+  const names = triggers(on);
+  const flipped = names.includes("push");
+  for (const name of names)
+    if (name !== DISPATCH && !(flipped && name === "push"))
+      problems.push(
+        `${WORKFLOW}: trigger "${name}" is not allowed (only ${DISPATCH}, and push of main after the v1 flip)`,
+      );
+  if (flipped) {
+    if (!names.includes(DISPATCH)) problems.push(`${WORKFLOW}: trigger push needs ${DISPATCH} next to it`);
+    if (!isDeepStrictEqual(record(on).push, { branches: ["main"] }))
+      problems.push(`${WORKFLOW}: trigger push must be exactly branches: [main]`);
+  }
+  return flipped;
+};
+
+const conditionShape = (name: string, condition: unknown, flipped: boolean, problems: string[]): void => {
+  const table = JOB_CONDITIONS[flipped ? "after" : "before"];
+  const wanted = name === "stable" || name === "next" ? table[name] : undefined;
+  if (wanted !== undefined && condition !== wanted)
+    problems.push(
+      `${WORKFLOW}: job ${name} if must be exactly "${wanted}" ${flipped ? "after" : "before"} the v1 flip`,
+    );
+};
+
+/** A job that holds a write token restores no pnpm cache: a poisoned cache would run with that token (ADR 0066 item 4). */
+const cacheRule = (name: string, job: Record<string, unknown>, problems: string[]): void => {
+  if (record(job.permissions).contents !== "write") return;
+  const steps = Array.isArray(job.steps) ? (job.steps as unknown[]) : [];
+  const setups = steps.map(record).filter((step) => step.uses === SETUP_ACTION);
+  if (setups.length === 0 || setups.some((step) => record(step.with).cache !== "false"))
+    problems.push(
+      `${WORKFLOW}: job ${name} holds contents: write, so its setup step must pass cache: "false"`,
+    );
+};
+
 const workflow = (root: string, problems: string[]): void => {
   const text = readText(root, WORKFLOW);
   const doc = record(parse(text));
-  for (const trigger of triggers(doc.on))
-    if (trigger !== ALLOWED_TRIGGER)
-      problems.push(`${WORKFLOW}: trigger "${trigger}" is not allowed before the v1 flip`);
+  const flipped = trigger(doc.on, problems);
   if (!isDeepStrictEqual(doc.permissions, { contents: "read" }))
     problems.push(`${WORKFLOW}: top-level permissions must be exactly contents: read`);
   for (const [name, job] of Object.entries(record(doc.jobs))) {
     const condition = record(job).if;
+    conditionShape(name, condition, flipped, problems);
+    cacheRule(name, record(job), problems);
     if (typeof condition !== "string" || !condition.startsWith(`${MAIN_GUARD} && `))
       problems.push(`${WORKFLOW}: job ${name} must run only on main: if starts with ${MAIN_GUARD} &&`);
     if (name === "next" && typeof record(record(job).concurrency).group !== "string")
@@ -107,6 +163,45 @@ const workflow = (root: string, problems: string[]): void => {
     problems.push(`${WORKFLOW}: references secrets other than by name; only secrets.GITHUB_TOKEN is allowed`);
 };
 
+const licenseId = (root: string, file: string): string => {
+  const value = record(readJson(root, file)).license;
+  return typeof value === "string" ? value : UNLICENSED;
+};
+
+const licence = (root: string, problems: string[]): void => {
+  const id = licenseId(root, "package.json");
+  const daemon = licenseId(root, "apps/daemon/package.json");
+  const hasFile = existsSync(join(root, "LICENSE"));
+  if (daemon !== id)
+    problems.push(`apps/daemon/package.json: license ${daemon} differs from package.json ${id}`);
+  if (id === UNLICENSED) {
+    if (hasFile)
+      problems.push("LICENSE: the file exists but package.json license is UNLICENSED (or missing)");
+    return;
+  }
+  if (!AGPL_IDS.includes(id)) {
+    problems.push(
+      `package.json: license ${id} is not one of ${AGPL_IDS.join(", ")} (or UNLICENSED with no LICENSE file)`,
+    );
+    return;
+  }
+  if (!hasFile) problems.push(`LICENSE: missing, package.json license is ${id}`);
+  else if (
+    !AFFERO_TITLE.test(
+      readText(root, "LICENSE")
+        .split("\n")
+        .find((line) => line.trim() !== "") ?? "",
+    )
+  )
+    problems.push("LICENSE: the title line is not GNU AFFERO GENERAL PUBLIC LICENSE");
+  if (!existsSync(join(root, APACHE_FILE)))
+    problems.push(`${APACHE_FILE}: missing (the derived ai-elements file needs it)`);
+  const notices = existsSync(join(root, "THIRD_PARTY_NOTICES.md"))
+    ? readText(root, "THIRD_PARTY_NOTICES.md")
+    : "";
+  if (!notices.includes(APACHE_FILE)) problems.push(`THIRD_PARTY_NOTICES.md: does not name ${APACHE_FILE}`);
+};
+
 /** Every problem found under `root`; an empty list means the release setup is consistent. */
 export function checkRelease(root: string): string[] {
   const problems: string[] = [];
@@ -114,6 +209,7 @@ export function checkRelease(root: string): string[] {
     ["package.json, apps/daemon/package.json, .release-please-manifest.json", versions],
     ["release-please-config.json", config],
     [WORKFLOW, workflow],
+    ["package.json, apps/daemon/package.json, LICENSE", licence],
   ];
   for (const [files, check] of checks) {
     try {

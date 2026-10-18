@@ -12,6 +12,7 @@ import {
   filterItems,
   pruneSelection,
   scopeKey,
+  sourceLabel,
   toggleSelection,
 } from "./memory.vm.ts";
 import { useMemoryCall } from "./use-memory-call.ts";
@@ -132,7 +133,10 @@ export function MemoryList({ scope }: { readonly scope: MemoryScopeRef }) {
                 <div className="flex flex-wrap items-center gap-s2">
                   {item.source === null ? null : (
                     <span className="font-mono text-label text-muted">
-                      {t("memory.item.source", { source: stripHidden(item.source) })}
+                      {(() => {
+                        const label = sourceLabel(stripHidden(item.source));
+                        return "params" in label ? t(label.key, label.params) : t(label.key);
+                      })()}
                     </span>
                   )}
                   <span className="flex-1" />
