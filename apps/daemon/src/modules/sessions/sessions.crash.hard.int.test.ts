@@ -90,7 +90,7 @@ async function dieDuringStream(
   expect(seqs.length).toBeGreaterThan(atDeath);
   expect(seqs.map((seq, i) => seq - (seqs[0] ?? 0) - i)).toEqual(seqs.map(() => 0));
   expect(streamedText(otherSub)).toBe(LONG_ANSWER);
-  // The daemon answers, and the dead session's worker can be replaced.
+  // The daemon answers, and lists the dead session as cold.
   expect((await bed.rpc["sessions.list"]({}, bed.ctx)).sessions.map((s) => [s.id, s.status])).toEqual(
     expect.arrayContaining([[doomed, "cold"]]),
   );

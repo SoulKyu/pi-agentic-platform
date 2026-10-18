@@ -169,7 +169,7 @@ export function createScanPort(deps: {
       return { kind: "session", sessionId: row.id, ownerId: row.ownerId };
     },
     touched(sessionId, at, active, toolResults) {
-      noteOutside(sessionId, Math.trunc(at));
+      const noted = noteOutside(sessionId, Math.trunc(at));
       if (store.readOnly) return;
       const row = store.get(sessionId);
       if (!row) return;
@@ -179,7 +179,10 @@ export function createScanPort(deps: {
       const outsideForTaint =
         !deps.isLive(sessionId) &&
         Math.trunc(at) > Math.max(deps.workerEndedAt(sessionId) ?? 0, wrote.at ?? 0);
-      if (owed.has(sessionId) || (toolResults && outsideForTaint)) taint(sessionId);
+      // A tool result a second app wrote while pap holds the session taints at once: the worker's exit stamp would absorb
+      // those bytes and the next prompt would load them untainted (M13-C10). Inside the grace they are pap's own.
+      const liveOutside = noted && deps.isLive(sessionId);
+      if (owed.has(sessionId) || (toolResults && (outsideForTaint || liveOutside))) taint(sessionId);
       const when = Math.min(Math.trunc(at), deps.clock.now());
       const moved = when > row.updatedAt;
       if (moved) store.touch(sessionId, when);

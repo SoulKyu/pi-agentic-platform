@@ -1,3 +1,6 @@
+/** Pi's codemode tool: the one name the transcript and the row store both match. */
+export const CODEMODE_TOOL = "codemode";
+
 /** One call a tool made to other tools, as Pi records it on the tool's result (`nestedCalls`): metadata only, never results. */
 export interface NestedCallView {
   readonly name: string;

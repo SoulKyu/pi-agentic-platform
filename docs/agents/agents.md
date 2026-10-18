@@ -67,6 +67,7 @@ See `finops.md`: none by default, `usdPerDay` and `tokensPerDay`, read at each g
 
 ## Known limits (in one place; ADR 0048 and ADR 0049 carry the reasons)
 
+- **Inherited descriptors.** A daemon started by a parent that leaks non-CLOEXEC descriptors (GitHub's Actions runner does) passes them to sandboxed shells and terminals. Systemd starts it with 0 to 2 only. CI runs `test:int` through `scripts/ci/without-inherited-fds.sh` (M13-C13); closing inherited descriptors at boot comes after v1.
 - An agent thread's `read`, `grep`, `find` and `ls` are blocked (no question, every mode) outside its home, its own runs folder (`agents/.runs/<id>/`, read as external content: fenced and tainting, W5-R65), the files attached to the thread, Pi's skills folder (`<Pi agent dir>/skills/`, read-only, neither fenced nor tainting: instructions you installed, W5-R66) and the system folders (W5-R63: "outside this agent's folder"); its edits stay in its home, and a write under the skills folder is refused like any write outside it. Your home, the rest of `$PAP_HOME`, other agents' homes and the runs folders are out of reach. These are pap's path rules, not bwrap, and they run in the worker.
 - "Use once" bounds how long a value is available, not who sees it.
 - Values under 8 characters are never redacted; encodings (base64, split, reversed) bypass literal redaction.

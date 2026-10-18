@@ -89,13 +89,16 @@ test("J08: Stop on the parent cancels both subagents and leaves no worker", asyn
       ["cancelled", "stopped"],
       ["cancelled", "stopped"],
     ]);
-  expect(
-    dbRows<{ status: string }>(
-      pap,
-      "SELECT status FROM runs WHERE parent_session_id = ? AND origin = 'subagent'",
-      parent,
-    ).map((run) => run.status),
-  ).toEqual(["cancelled", "cancelled"]);
+  // The runs ledger is written apart from the subagent rows and can lag them: poll it too.
+  await expect
+    .poll(() =>
+      dbRows<{ status: string }>(
+        pap,
+        "SELECT status FROM runs WHERE parent_session_id = ? AND origin = 'subagent'",
+        parent,
+      ).map((run) => run.status),
+    )
+    .toEqual(["cancelled", "cancelled"]);
   await expect.poll(() => liveProcesses(pap)).toBeLessThanOrEqual(withoutChildren);
 });
 

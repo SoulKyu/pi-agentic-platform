@@ -13,7 +13,7 @@ A crashing, hung or killed worker does not take the daemon or another session do
 | `apps/daemon/src/modules/sessions/sessions.crash.flood.int.test.ts` | a flood of dialogs and decorations is capped while the daemon answers other sessions | green in `pnpm test:int` |
 | `apps/daemon/src/kernel/supervisor/scope.int.test.ts` | the worker scope: `MemoryMax`, reaping of the worker's process groups, the out-of-memory classification, a forced exit; skipped locally without a user manager, required in CI | green in `pnpm test:int` |
 | `apps/daemon/src/daemon.int.test.ts` | the daemon end to end; `daemon.boot.int.test.ts` pins the stop order with a real worker | green in `pnpm test:int` |
-| `apps/daemon/src/modules/sessions/sessions.crash.hard.int.test.ts` (task B3, M13R51) | `process.exit(7)`, `process.abort()` and `kill -9` of a worker, each while a second session streams: the second stream is gapless across the death | green; SIGKILL hits an active run; 3 runs in a row green; the mutation that breaks the assertion is red |
+| `apps/daemon/src/modules/sessions/sessions.crash.hard.int.test.ts` (task B3, M13R51) | `process.exit(7)`, `process.abort()` and `kill -9` of a worker, each while a second session is parked on an approval card: its stream is gapless across the death | green; SIGKILL hits an active run; 3 runs in a row green; the mutation that breaks the assertion is red |
 | `pnpm test:int` on the join (`6ba3ff83`) | all of the above together | 241 files green |
 
 Limit (B3 re-review): frames in flight at the exact instant of the exit are not exercised, because the parked second session streams nothing at that moment.
@@ -50,4 +50,4 @@ Not proved by these: a real GitHub release, `curl | sh` and `npm publish` have n
 
 ## The whole gate on the join
 
-On `6ba3ff83` (all three chains, F1 and the sweeps P1a, P1b, P2a): unit 20659 tests, integration 241 files, `pnpm budgets`, `pnpm test:budget`, `pnpm smoke`, `pnpm smoke:install`, `pnpm release:check`, `pnpm build:npm` and the e2e run above, all green. The lint, format, typecheck and knip steps are rerun on the join head by task J1b.
+On `2fbca174` (the final CJ1 head, all three chains): unit 1733 files and 20711 tests (3 skipped), integration 241 files and 1382 tests (2 skipped), e2e 36 passed and 2 skipped in 3.8 minutes, `pnpm budgets` (initial bundle 233.5 of 250 KB), `pnpm smoke`, `pnpm smoke:install`, `pnpm release:check` and `pnpm build:npm`, all green. The controller refreshes these numbers after the final-review fixes (task FF). The lint, format, typecheck and knip steps are rerun on the join head by task J1b.

@@ -1,10 +1,10 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { copyPreFlip, REPO } from "./release-bed.ts";
 import { checkRelease } from "./release-check.ts";
 
-const REPO = resolve(import.meta.dirname, "..");
 const FILES = [
   "package.json",
   "apps/daemon/package.json",
@@ -55,8 +55,7 @@ const problems = () => checkRelease(copy).join("\n");
 beforeEach(() => {
   copy = mkdtempSync(join(tmpdir(), "pap-release-v1-"));
   for (const file of FILES) {
-    mkdirSync(dirname(join(copy, file)), { recursive: true });
-    cpSync(join(REPO, file), join(copy, file));
+    copyPreFlip(file, copy);
   }
   // The repository carries its AGPL licence now; these tests start from the unlicensed state they describe.
   setLicense("package.json", "UNLICENSED");
@@ -186,7 +185,7 @@ describe("if: rule", () => {
     );
     expect(problems()).toContain("job next if");
     flipped();
-    cpSync(join(REPO, WORKFLOW), join(copy, WORKFLOW));
+    copyPreFlip(WORKFLOW, copy);
     flipped();
     edit(WORKFLOW, (t) => t.replace("github.event_name == 'push' ||", "github.event_name != 'x' ||"));
     expect(problems()).toContain("job stable if");

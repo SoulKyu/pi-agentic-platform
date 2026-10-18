@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { putLicences } from "./licence-fixture.ts";
 import { buildNpm, type PackageJson } from "./build-npm.ts";
 import { PACKAGE_IMPORTERS, verifyShrinkwrap, type Shrinkwrap } from "./npm-shrinkwrap.ts";
 
@@ -37,8 +38,9 @@ const fixture = (license?: string, licenseText?: string) => {
     JSON.stringify(license === undefined ? rootManifest : { ...rootManifest, license }),
   );
   // The real manifest is AGPL, so a fixture that keeps it carries the real LICENSE; one that overrides the id brings its own text (or none).
+  putLicences(repo);
   if (licenseText !== undefined) put(join(repo, "LICENSE"), licenseText);
-  else if (license === undefined) copy(repo, "LICENSE");
+  else if (license !== undefined) rmSync(join(repo, "LICENSE"));
   put(join(repo, "apps/daemon/dist/main.js"), `${SHEBANG}\nexport {};\n`);
   put(join(repo, "apps/web/dist/index.html"), "<!doctype html>\n");
   put(join(repo, "packages/contracts/dist/index.js"), "export {};\n");

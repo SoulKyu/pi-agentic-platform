@@ -2,8 +2,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
+import { REPO } from "./release-bed.ts";
 
-const root = resolve(import.meta.dirname, "..");
+const root = REPO;
 const read = (path: string) => readFileSync(resolve(root, path), "utf8");
 const BYPASS = /minimum[-_]?release[-_]?age(?:\s*[=:]\s*|\s+)["']?0\b/i;
 
@@ -55,9 +56,11 @@ describe("the nightly Pi job", () => {
     expect(install).toBeGreaterThan(bump);
   });
 
-  it("is dispatch-only until the repository is public (M13R33)", () => {
+  it("is dispatch-only until the v1 flip, then dispatch plus the nightly schedule (M13R33)", () => {
     const wf = parse(read(".github/workflows/pi-compat.yml")) as { on: Record<string, unknown> };
-    expect(Object.keys(wf.on)).toEqual(["workflow_dispatch"]);
+    expect([["workflow_dispatch"], ["schedule", "workflow_dispatch"]]).toContainEqual(
+      Object.keys(wf.on).toSorted(),
+    );
   });
 
   it("installs under the repository's own release age", () => {

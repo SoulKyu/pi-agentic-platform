@@ -7,7 +7,7 @@ Fifteen browser journeys (J01 to J15, the `.e2e.ts` files of `scripts/e2e`) driv
 | Where | What | State |
 | --- | --- | --- |
 | A development machine | `pnpm test:e2e` after `pnpm build` | Run in container mode on the Linux host these journeys were written on (see "Verified so far") |
-| CI, job `e2e` of `.github/workflows/ci.yml` | `needs: build`, downloads the `dist` artifact, installs Chromium and WebKit with their system packages, runs `pnpm test:e2e`, uploads `scripts/e2e/playwright-report` and `scripts/e2e/test-results` when it fails (25 minute timeout) | Written and pinned by `scripts/ci-config.e2e.test.ts`. The repository is public and `ci.yml` runs on pull requests and on pushes to `main`, but this job has **not yet passed on GitHub** (M13R5) |
+| CI, job `e2e` of `.github/workflows/ci.yml` | `needs: build`, downloads the `dist` artifact, installs Chromium and WebKit with their system packages, runs `pnpm test:e2e`, uploads `scripts/e2e/playwright-report` and `scripts/e2e/test-results` when it fails (25 minute timeout) | Written and pinned by `scripts/ci-config.e2e.test.ts`. The repository is public and `ci.yml` runs on pull requests and on pushes to `main`, but this job has **not yet passed on GitHub** (M13R33, M13-C9: the first GitHub run is the real check) |
 
 Nothing here has run on macOS, Windows or WSL.
 
@@ -54,9 +54,9 @@ All journeys run on both engines, with two exceptions (M13R5, M13R6):
    - `scripted([...])` wraps the provider script: pass it to `papScript`, never a bare array.
    - `stepUp(page, pap)` confirms the owner password before a step-up-gated action.
    - `palette(page)` and `chord(page, key)` press Control or Meta by engine.
-3. Locators come from the English catalog: `t("some.key", { vars })` and `plural(...)`, never a typed string. Name locators with `exact: true`. For a name the catalog does not hold (a project folder), use the value you created.
+3. Locators come from the English catalog: `t("some.key", { vars })` and `plural(...)`, never a typed string, and role, label and text are the default. Name locators with `exact: true`. For a name the catalog does not hold (a project folder), use the value you created. Where an element has no accessible name, an app-owned `data-*` hook or a stable structural selector is allowed (M13-C11).
 4. Read the `error-context.md` snapshot that Playwright writes for a failed test under `scripts/e2e/test-results` before changing a locator that failed.
-5. Never `goto` while the app is navigating. A Tooltip-wrapped icon button can drop its first click; `actUntilVisible(action, target)` in `scripts/e2e/seed.ts` repeats the click only while its effect is not visible.
+5. Never `goto` while the app is navigating. First clicks are plain: C8 fixed the Tooltip that used to drop one, so a journey does not need a retry around an icon button. `actUntilVisible(action, target)` in `scripts/e2e/seed.ts` stays for a click whose effect depends on something the page loads on its own.
 6. No `waitForTimeout` and no sleeps: use web-first assertions and `expect.poll`.
 7. End with an assertion on durable state read from outside the page: a file on disk, a database row (`dbRows`), an RPC result, a journal or log line, a process count (`liveProcesses`). A journey that only checks the DOM can pass while testing nothing. Check the journey fails when the product behaviour is broken.
 8. E2E code imports no `@pap/*` package (Playwright's loader lacks the `development` condition). A file that uses DOM names starts with `/// <reference lib="dom" />`. Files stay under 400 lines.
@@ -93,4 +93,4 @@ The suite budget is 15 minutes in the container (M13R43). Measured on the develo
 
 ## Verified so far
 
-On the one Linux x86 host above, container mode, Chromium and WebKit, the whole suite passed once in the run quoted above. An earlier whole run on the same host had one failure in `webkit-phone` J06 (the Tooltip first-click drop named under "Writing a journey", which C8 fixes in the product); it passed in the next run. No journey has been run in `local` mode, on GitHub's runners, or on another host.
+On the one Linux x86 host above, container mode, Chromium and WebKit, the whole suite has passed in every run since the Tooltip fix (J1b twice, CJ1 once; the run quoted above). An earlier whole run on the same host had one failure in `webkit-phone` J06 (the Tooltip first-click drop named under "Writing a journey", which C8 fixes in the product); it passed in the next run. No journey has been run in `local` mode, on GitHub's runners, or on another host.

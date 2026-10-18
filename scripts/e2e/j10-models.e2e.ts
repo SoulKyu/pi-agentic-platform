@@ -82,11 +82,8 @@ test("J10: a provider is added, one model is selected, a new session offers only
     await section.getByRole("radio", { name: t("settingsAvailability.mode.selection"), exact: true }).click();
     // A switch changes after its write is answered, so the click is followed by the state, not by Playwright's own check.
     const anthropic = section.locator('[data-provider-row="anthropic"]').getByRole("switch").first();
-    // WebKit can drop a click that lands while the mode write is still being answered: click again only while it is on.
-    await expect(async () => {
-      if (await anthropic.isChecked()) await anthropic.click();
-      await expect(anthropic).not.toBeChecked({ timeout: 3_000 });
-    }).toPass({ timeout: 20_000 });
+    await anthropic.click();
+    await expect(anthropic).not.toBeChecked();
     await section
       .getByRole("button", { name: t("settingsAvailability.expand", { provider: "Ollama" }), exact: true })
       .click();

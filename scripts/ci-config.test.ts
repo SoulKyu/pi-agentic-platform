@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -27,6 +27,14 @@ const WORKFLOW_FILES = [
 ];
 
 describe("CI configuration", () => {
+  it("runs on every pull request and every push to main, docs-only changes included (M13-C12)", () => {
+    const on = (parse(read(".github/workflows/ci.yml")) as { on: Record<string, Record<string, unknown>> })
+      .on;
+    expect(Object.keys(on).toSorted()).toEqual(["pull_request", "push"]);
+    expect(on["push"]).toEqual({ branches: ["main"] });
+    expect(on["pull_request"] ?? null).toBeNull();
+  });
+
   it("runs knip as a step that can fail the build (R5)", () => {
     const ci = read(".github/workflows/ci.yml");
     expect(ci).toMatch(/^\s+- run: pnpm knip$/m);
@@ -109,7 +117,10 @@ describe("CI configuration", () => {
     ].map((command) => steps.findIndex((step) => step.run?.includes(command)));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({ install: "false" });
+    expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({
+      install: "false",
+      sandbox: "true",
+    });
   });
 
   it("builds @pap/contracts before the root typecheck, which resolves it through dist (checks and nightly)", () => {
@@ -149,15 +160,33 @@ describe("CI configuration", () => {
 });
 
 describe("agent sandbox prerequisites (M13-C9)", () => {
-  it("asks the setup action for bubblewrap in the integration job, and the action installs it and lifts the userns limit", () => {
-    const setup = workflow("ci").jobs["integration"]?.steps.find(
-      (step) => step.uses === "./.github/actions/setup",
-    );
-    expect(setup?.with).toEqual({ sandbox: "true" });
+  it.each([
+    ["ci integration", () => workflow("ci").jobs["integration"], { sandbox: "true" }],
+    ["pi-compat", () => Object.values(workflow("pi-compat").jobs)[0], { install: "false", sandbox: "true" }],
+  ])("asks the setup action for bubblewrap in the %s job (it runs test:int)", (_name, job, inputs) => {
+    const setup = job()?.steps.find((step) => step.uses === "./.github/actions/setup");
+    expect(setup?.with).toEqual(inputs);
+  });
+
+  it("the setup action installs bubblewrap and lifts the userns limit", () => {
     const action = read(".github/actions/setup/action.yml");
     expect(action).toContain("bubblewrap");
     expect(action).toContain("sysctl -w kernel.apparmor_restrict_unprivileged_userns=0");
     expect(action).toMatch(/if: inputs\.sandbox == 'true'/);
+  });
+});
+
+describe("inherited descriptors (M13-C13)", () => {
+  it("runs test:int through the wrapper that closes every descriptor above 2, in both jobs", () => {
+    for (const job of [workflow("ci").jobs["integration"], Object.values(workflow("pi-compat").jobs)[0]]) {
+      const run = job?.steps.find((step) => step.run?.includes("pnpm test:int"))?.run;
+      expect(run?.trim()).toBe("scripts/ci/without-inherited-fds.sh pnpm test:int");
+    }
+    const wrapper = read("scripts/ci/without-inherited-fds.sh");
+    expect(wrapper).toContain("GitHub's Actions runner");
+    expect(wrapper).toContain("bash -c");
+    expect(wrapper).toContain('eval "exec $fd>&-"');
+    expect(statSync(resolve(import.meta.dirname, "ci/without-inherited-fds.sh")).mode & 0o111).not.toBe(0);
   });
 });
 

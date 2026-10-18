@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { putLicences } from "./licence-fixture.ts";
 import { stageApp } from "./stage-app.ts";
 import type { Runner } from "./build-archive-stage.ts";
 
@@ -23,6 +24,7 @@ const fixture = (options: { dist?: boolean; manifest?: string } = {}) => {
   put(join(repo, "package.json"), options.manifest ?? '{"name":"root"}');
   put(join(repo, "pnpm-workspace.yaml"), "packages:\n  - apps/*\n  - packages/*\n");
   put(join(repo, "pnpm-lock.yaml"), "lockfileVersion: '9.0'\n");
+  putLicences(repo);
   for (const dir of ["apps/daemon", "apps/web", "packages/contracts", "packages/pi-host"]) {
     put(join(repo, dir, "package.json"), `{"name":"${dir}"}`);
     if (options.dist !== false) put(join(repo, dir, "dist/main.js"), "export {};");
@@ -66,6 +68,16 @@ describe("stageApp", () => {
     const message = failure instanceof Error ? failure.message : "";
     expect(message).toMatch(/node_modules\/pkg\/cfg\.json names the build directory/);
     expect(message).not.toContain(out);
+  });
+
+  it("stages the licence texts beside the code, and refuses a repository without them", async () => {
+    const { repo, out } = fixture();
+    await stageApp({ repo, out, run: okRunner });
+    for (const file of ["LICENSE", "THIRD_PARTY_NOTICES.md", "LICENSES/Apache-2.0.txt"])
+      expect(existsSync(join(out, file)), file).toBe(true);
+    const bare = fixture();
+    rmSync(join(bare.repo, "LICENSE"));
+    await expect(stageApp({ ...bare, run: okRunner })).rejects.toThrow(/LICENSE/);
   });
 
   it("stages the dist folders and leaves no .bin shim", async () => {

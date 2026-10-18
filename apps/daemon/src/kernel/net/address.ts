@@ -15,10 +15,11 @@ const BLOCKED_V4: ReadonlyArray<readonly [string, number]> = [
 ];
 
 /** The leading `bits` bits of a dotted IPv4 address. */
-const prefix = (ip: string, bits: number): number =>
+export const prefix = (ip: string, bits: number): number =>
   Math.floor(ip.split(".").reduce((sum, octet) => sum * 256 + Number(octet), 0) / 2 ** (32 - bits));
 
-const dotted = (high: number, low: number): string => `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
+export const dotted = (high: number, low: number): string =>
+  `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
 
 /** The eight 16-bit groups of an IPv6 address in any spelling (`::`, a dotted tail), or null when it is not one. */
 export function groupsOf(v6: string): number[] | null {

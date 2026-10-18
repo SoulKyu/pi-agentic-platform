@@ -12,7 +12,7 @@ Playwright 1.63.0 is admitted as an exact-pinned root dev dependency, and R128 i
 
 - `pnpm test:e2e` (`scripts/e2e/run.ts`) runs in `local` mode when the `chromium` and `webkit` executables exist, otherwise in `container` mode: the image `mcr.microsoft.com/playwright:v<installed version>-noble` runs `run-server` with `--network host` and `--ipc=host`; tests and daemons stay on the host. A test pins the image tag to the installed version.
 - Each spec file and project boots its own built daemon on a free port with a scripted provider (a worker-scoped fixture).
-- Locators use roles, labels and text from the English catalog; no CSS or test-id selectors, no `waitForTimeout`.
+- Locators use roles, labels and text from the English catalog, no `waitForTimeout`. Where an element has no accessible name, a journey may use an app-owned `data-*` hook or a stable structural selector (M13-C11).
 - Chromium uses a CDP virtual authenticator for the passkey half of J01; WebKit has none and takes the password path. J13 (push) runs on Chromium only with a stubbed subscription and a loopback sink under `PAP_TEST_PUSH_LOOPBACK=1`.
 - E2E is a gate step at the join and at the final review, plus the CI job `e2e`. It is not in a task gate. `scripts/ci-config.test.ts` was rewritten once, by task A1, to drop the no-browser-runner rule.
 

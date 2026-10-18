@@ -16,4 +16,4 @@ Pi-compat tests "the newest release of `@earendil-works/pi-coding-agent`, `pi-ai
 ## Consequences
 
 - A Pi release is tested at least three days after it ships. Cost: a breaking release is seen late; the supply-chain rule is worth that.
-- A pre-release, a missing `time` entry or clock skew must not be picked as newest; `pi-compat-bump.test.ts` pins the choice.
+- A pre-release, a missing or unreadable `time` entry, or a version one of the three packages lacks is not picked; `pi-compat-bump.pick.test.ts` pins the choice. The age is measured against the runner's own clock (`Date.now()`); a skewed clock is not detected.

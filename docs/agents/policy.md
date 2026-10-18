@@ -136,7 +136,7 @@ The git check (owner m3, `git-config-guard.ts`; the code is stricter than the pl
 ## Security tests
 
 - Spec C section 8.1 lists ten security tests. Each row below is `- <spec item> | <path> | <exact test title>`; `scripts/security-index.test.ts` fails when a row has no file, its title is no longer a test title there (a renamed or deleted test), or one of the ten items has no row. Keep the rows in step with the tests.
-- Crash isolation (spec A criterion 1) is covered by `apps/daemon/src/modules/sessions/sessions.crash.int.test.ts` (SIGKILL), `sessions.crash.hard.int.test.ts` (`process.exit(7)`, `process.abort()`, a worker `kill -9`, each with a gapless stream on a second session), `sessions.crash.oom.int.test.ts` and `kernel/supervisor/scope.int.test.ts` (the memory-limit classification).
+- Crash isolation (spec A criterion 1) is covered by `apps/daemon/src/modules/sessions/sessions.crash.int.test.ts` (SIGKILL), `sessions.crash.hard.int.test.ts` (`process.exit(7)`, `process.abort()`, a worker `kill -9`, each with a gapless stream on a second session parked on an approval card), `sessions.crash.oom.int.test.ts` and `kernel/supervisor/scope.int.test.ts` (the memory-limit classification).
 
 - traversal /files | apps/daemon/src/security/files-traversal.int.test.ts | security: traversal on the files RPC
 - traversal /files | apps/daemon/src/security/files-traversal.int.test.ts | security: traversal on GET /files/raw

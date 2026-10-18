@@ -14,7 +14,13 @@ import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { assertNoSymlinks, assertNoStagePath, holdsCredential, missingDist } from "./build-archive-stage.ts";
+import {
+  assertNoSymlinks,
+  assertNoStagePath,
+  holdsCredential,
+  LICENCE_FILES,
+  missingDist,
+} from "./build-archive-stage.ts";
 import {
   PACKAGE_IMPORTERS,
   buildShrinkwrap,
@@ -289,11 +295,12 @@ export const buildNpm = async ({ repo, out, name, home = homedir() }: BuildNpmOp
     name,
     license: rootLicense,
   });
-  const licenseFile = join(repo, "LICENSE");
-  if (manifest.license?.startsWith("AGPL-3.0-") && !existsSync(licenseFile))
-    throw new Error(
-      `license ${manifest.license} needs a LICENSE file at the repository root: nothing was packed`,
-    );
+  if (manifest.license?.startsWith("AGPL-3.0-"))
+    for (const file of LICENCE_FILES)
+      if (!existsSync(join(repo, file)))
+        throw new Error(
+          `license ${manifest.license} needs ${file} at the repository root: nothing was packed`,
+        );
   const lockText = readFileSync(lockPath, "utf8");
   const shrinkwrap = buildShrinkwrap({
     name: manifest.name ?? PACKAGE_NAME,
@@ -320,7 +327,8 @@ export const buildNpm = async ({ repo, out, name, home = homedir() }: BuildNpmOp
   try {
     writeJson(join(staged, "package.json"), manifest);
     writeFileSync(join(staged, "npm-shrinkwrap.json"), `${JSON.stringify(shrinkwrap, null, 2)}\n`);
-    if (manifest.license?.startsWith("AGPL-3.0-")) cpSync(licenseFile, join(staged, "LICENSE"));
+    if (manifest.license?.startsWith("AGPL-3.0-"))
+      for (const file of LICENCE_FILES) cpSync(join(repo, file), join(staged, file), { recursive: true });
     // kernel/version.js reads ../../package.json: the daemon's name, version and type are all the runtime needs of it
     mkdirSync(join(staged, "apps/daemon"), { recursive: true });
     writeJson(join(staged, "apps/daemon/package.json"), {
