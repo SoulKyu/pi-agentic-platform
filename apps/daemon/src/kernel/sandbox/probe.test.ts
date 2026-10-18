@@ -33,29 +33,31 @@ afterEach(() => {
 
 const lastArg = (calls: Array<{ args: string[] }>): string => calls[0]?.args.at(-1) ?? "";
 const missingResult: SandboxProbe = { usable: false, reason: "missing" };
+/** A root-owned binary every Linux host has: bubblewrap itself is not installed on every test runner. */
+const ROOT_BINARY = "/usr/bin/env";
 const left = (): string[] => readdirSync(work).filter((name) => name.startsWith("pap-probe-"));
 
 describe("trustedBinary", () => {
   it("returns the real path of a root-owned system binary", () => {
-    expect(trustedBinary("/usr/bin/bwrap")).toBe(realpathSync("/usr/bin/bwrap"));
+    expect(trustedBinary(ROOT_BINARY)).toBe(realpathSync(ROOT_BINARY));
     expect(trustedBinary("/bin/sh")).toBe(realpathSync("/bin/sh"));
     expect(trustedBinary("/bin/sh")?.startsWith("/usr/bin/")).toBe(true);
   });
 
   it("refuses a file the test user owns, a relative path, a missing file, a directory, a NUL", () => {
     const copy = join(work, "bwrap");
-    copyFileSync("/usr/bin/bwrap", copy);
+    copyFileSync(ROOT_BINARY, copy);
     expect(trustedBinary(copy)).toBeNull();
-    expect(trustedBinary("usr/bin/bwrap")).toBeNull();
+    expect(trustedBinary(ROOT_BINARY.slice(1))).toBeNull();
     expect(trustedBinary("/usr/bin/pap-no-such-binary")).toBeNull();
     expect(trustedBinary("/usr/bin")).toBeNull();
-    expect(trustedBinary("/usr/bin/bwrap\0")).toBeNull();
+    expect(trustedBinary(`${ROOT_BINARY}\0`)).toBeNull();
   });
 
   it("judges the real path of a link in a user folder, not the link", () => {
     const link = join(work, "bwrap-link");
-    symlinkSync("/usr/bin/bwrap", link);
-    expect(trustedBinary(link)).toBe(realpathSync("/usr/bin/bwrap"));
+    symlinkSync(ROOT_BINARY, link);
+    expect(trustedBinary(link)).toBe(realpathSync(ROOT_BINARY));
   });
 
   describe("every folder above the file (fake file system)", () => {
@@ -113,7 +115,7 @@ describe("trustedBinary", () => {
 describe("probeSandbox, before anything runs", () => {
   it("a user-owned copy is unsafe_path, a name PATH could find is missing", async () => {
     const copy = join(work, "bwrap");
-    copyFileSync("/usr/bin/bwrap", copy);
+    copyFileSync(ROOT_BINARY, copy);
     const deps = { timers: createFakeClock(), tmp: work };
     expect(await probeSandbox(copy, deps)).toEqual({ usable: false, reason: "unsafe_path" });
     expect(await probeSandbox("bwrap", deps)).toEqual({ usable: false, reason: "missing" });
