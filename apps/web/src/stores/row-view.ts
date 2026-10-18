@@ -1,4 +1,4 @@
-import { nestedCallsOf, type NestedCallView } from "./nested-calls.ts";
+import { CODEMODE_TOOL, nestedCallsOf, type NestedCallView } from "./nested-calls.ts";
 
 export interface ToolCallView {
   readonly id: string;
@@ -55,7 +55,6 @@ export interface MessageView {
 
 const MAX_ERROR = 500;
 const MAX_SUMMARY = 200;
-const CODEMODE = "codemode";
 const MAX_NAME = 64;
 const MAX_CALL_ID = 256;
 
@@ -121,7 +120,7 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     .filter((block) => block.type === "toolCall")
     .map((block) => {
       const args = block.arguments ?? block.args ?? block.input;
-      const code = block.name === CODEMODE ? (args as { code?: unknown } | null)?.code : undefined;
+      const code = block.name === CODEMODE_TOOL ? (args as { code?: unknown } | null)?.code : undefined;
       return {
         id: clip(String(block.id ?? ""), MAX_CALL_ID),
         name: clip(String(block.name ?? "tool"), MAX_NAME),

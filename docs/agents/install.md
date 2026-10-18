@@ -167,7 +167,7 @@ The GitHub repository is public (since 2026-10-18), but no release exists yet: v
 | Archive, installer, feed files | `pnpm release:assets` builds them into `.pap-release/<tag>/` | uploading to a GitHub Release (the `gh` commands are printed, never run; the `stable` job of `release.yml` uploads the assets of a release it creates) |
 | release-please | config files and `pnpm release:check` | the release PR needs the workflow: it is `workflow_dispatch` only until the v1 flip and has never been run |
 | `curl` piped to `sh` | tested against a fake `curl` | needs a published release |
-| npm package | `pnpm build:npm` and `npm pack` | `npm publish` (owner's account, after v1) |
+| npm package | `pnpm build:npm` and `npm pack` | `npm publish` (owner's account, the last v1 step, after the verified release) |
 | OCI image | `scripts/pap-container.sh build` and `run` on a host with rootless podman (manual; built and run on 2026-10-17, see the real-host check above) | pushing to a registry |
 | `next` channel | `release:assets --channel next` | the rolling `next` pre-release and its workflow job |
 
@@ -193,7 +193,7 @@ The image runs only under rootless podman. The sandbox for agents needs `--secur
 
 ## npm
 
-`pnpm build && pnpm build:npm [--out <dir>] [--name @soulkyu/pi-agentic-platform]` writes `<out>/package/` (default `.pap-npm/package/`); `(cd .pap-npm/package && npm pack)` makes the tarball. Nothing is published from this host: `npm publish` is the owner's step, after v1, and the package already carries its `npm-shrinkwrap.json` (see below). No `--provenance` before v1.
+`pnpm build && pnpm build:npm [--out <dir>] [--name @soulkyu/pi-agentic-platform]` writes `<out>/package/` (default `.pap-npm/package/`); `(cd .pap-npm/package && npm pack)` makes the tarball. Nothing is published from this host: `npm publish` is the owner's last v1 step, after the GitHub release is verified (`docs/agents/release.md` step 7, q15), and the package already carries its `npm-shrinkwrap.json` (see below). No `--provenance` before v1.
 
 - The package holds `apps/daemon/dist`, `apps/web/dist` and `node_modules/@pap/{contracts,pi-host}` (`package.json` and `dist` only; `bundleDependencies`). `bin` is `pap` -> `./apps/daemon/dist/main.js` (shebang kept, mode 0755), `engines.node` is `>=24.14 <25`, no `scripts`. Every other dependency is the exact version the lockfile uses (`catalog:` resolved by the builder). `@pap/contracts` and `@pap/pi-host` are also listed in `dependencies` at their own version: npm bundles a package only when it is listed there (measured), and the bundled copy satisfies it, so no registry request is made for them, but only while those copies are in the tarball: the builder refuses a missing copy or a version that differs from `dependencies`, and a publish must carry an `npm-shrinkwrap.json` that marks both entries `inBundle` (otherwise a missing copy would resolve `@pap/contracts@0.0.0` from the registry by name). The builder also refuses a `.gitignore` or `.npmignore` anywhere in the package (it would change what `npm pack` ships). Licence field: the root `package.json` `license` (`UNLICENSED` when it has none); an `AGPL-3.0-*` id also needs a `LICENSE` file at the repository root, which the builder copies into the package and refuses to build without.
 - Before the first publish, the owner confirms or reserves the `@soulkyu` scope on npmjs (the published name), and checks who owns `@pap` there: the shrinkwrap above is what keeps an install from ever asking the registry for `@pap/contracts` or `@pap/pi-host`.

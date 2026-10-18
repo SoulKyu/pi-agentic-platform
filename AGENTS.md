@@ -6,7 +6,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 
 - `pnpm install` · `pnpm lint` · `pnpm format:check` · `pnpm typecheck` · `pnpm knip`
 - `pnpm test:unit` · `pnpm test:int` (forks real pi-host workers with a scripted provider) · `pnpm test:e2e` (browser tests of the built app: `docs/agents/e2e.md`, ADR 0071)
-- `pnpm build` · `pnpm budgets` (budgets.json, bundle sizes and their enforcers) · `pnpm test:budget` (timed run: search, scanner, RSS, payload) · `pnpm pi-compat` (newest aged Pi release in a scratch worktree, ADR 0072)
+- `pnpm build` · `pnpm budgets` (budgets.json, bundle sizes and their enforcers) · `pnpm test:budget` (timed run: search and scanner; RSS and payload are measured by `test:int`) · `pnpm pi-compat` (newest aged Pi release in a scratch worktree, ADR 0072)
 - node-pty builds at install: gcc, make, python3.
 - Run the built POC: `pnpm build && node --disable-warning=ExperimentalWarning apps/daemon/dist/main.js serve`, then open the setup URL it prints (`/` answers 404 when `apps/web/dist` does not exist, so build first). From another machine of a trusted LAN (testing only, cookie in clear text): add `--host <LAN IP> --insecure-http` (ADR 0004). `pnpm smoke` boots that same build against the scripted provider and drives it end to end.
 - Dev: `pnpm --filter @pap/daemon dev` (prints its URL; port and PAP_HOME derived from the worktree path), then `PAP_DEV_DAEMON=http://127.0.0.1:<that port> pnpm --filter @pap/web dev` and open http://localhost:5173
@@ -53,7 +53,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 
 - Parity with pi-web: `docs/agents/parity.md` (one row per behaviour, a proof file each; `scripts/parity-doc.test.ts`). Release and the v1 flip: `docs/agents/release.md`. Exit evidence: `docs/research/m13-exit-criteria.md`; rulings `docs/research/m13-rulings.md`; ADRs 0071 to 0077.
 - pap does not replace pi-web (ADR 0075): both share `~/.pi/agent`. Never resume one session in both apps; pap warns when a live session's file changes outside it (ADR 0074) and never reads pi-web's files.
-- Licence: AGPL-3.0-or-later (ADR 0077); the derived vercel/ai-elements file stays Apache-2.0 (`LICENSES/`).
+- Licence: AGPL-3.0-or-later (ADR 0077); the two derived vercel/ai-elements files (`Message.tsx`, `Reasoning.tsx`) stay Apache-2.0 (`LICENSES/`).
 
 ## Rules (CI-enforced)
 

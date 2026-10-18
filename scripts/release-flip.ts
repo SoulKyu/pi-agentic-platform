@@ -18,19 +18,19 @@ export interface FlipFiles {
 /** What no script can do at the flip: the nightly workflow disabled by hand, and the two ADR 0066 items (a repository casing check; a setting that lives on GitHub). */
 export const OWNER_ONLY_ITEMS: readonly string[] = [
   "enable the nightly workflow, disabled by hand on GitHub: gh workflow enable pi-compat.yml (the flip restores its schedule)",
-  "ADR 0066 item 3: check the casing of FEED_REPO (apps/daemon/src/update-check.ts): curl -sIL -o /dev/null -w '%{url_effective}\\n' https://github.com/<FEED_REPO>",
+  "ADR 0066 item 3: check the casing of FEED_REPO (apps/daemon/src/cli/update/feed.ts): curl -sIL -o /dev/null -w '%{url_effective}\\n' https://github.com/<FEED_REPO>",
   'ADR 0066 item 5: enable "Allow GitHub Actions to create and approve pull requests" (Settings, Actions, General)',
 ];
 
 /** Prose that is true before the flip and stale after it, by file and section (line numbers move); release.md step 4.2 lists the same places. */
 export const PROSE_CHECKLIST: readonly string[] = [
   "apps/daemon/src/update-check.ts, the doc comment above UPDATE_CHECK_DEFAULT: the daily check is on by default; PAP_UPDATE_CHECK=0 turns it off, =1 forces it on",
-  'AGENTS.md, the bullet of "Backup, update, doctor, release (M6b)" that says the repository is private until v1: the repository is public; release.yml also runs on push to main (ADR 0066, ADR 0076)',
+  'AGENTS.md, the bullet of "Backup, update, doctor, release (M6b)" that says "Nothing contacts GitHub from tests or from this host" and that release.yml stays workflow_dispatch only until the v1 flip: after the flip the preview\'s daily check contacts GitHub (tests still never do), and release.yml also runs on push to main (ADR 0066, ADR 0076)',
   'docs/agents/update.md, "Daily check" and the troubleshooting row "the update check never says anything": the check is on by default; if it says nothing, look for PAP_UPDATE_CHECK=0 in the unit',
   "docs/agents/doctor.md, the update_available row: written by the daily check (on by default) or PAP_UPDATE_CHECK=1",
-  'docs/agents/install.md, the paragraph under "Container, npm, releases": drop private until v1; the repository is public, CI minutes stay unused unless you say otherwise',
+  'docs/agents/install.md, the paragraph under "Container, npm, releases": release.yml runs only when started by hand until the v1 flip; after it, also on a push to main',
   "docs/agents/install.md, the release-please row of its table: the workflow runs on push to main and on workflow_dispatch; the release PR needs the repository setting of ADR 0066 item 5",
-  'docs/agents/install.md, the first sentence of "Releases and channels": the repository is public; the release steps are local commands plus a workflow that runs on a push to main or when you start it',
+  'docs/agents/install.md, the sentence "Nothing here contacts GitHub from this host" under "Releases and channels": after the flip the daily check does, and the release steps are local commands plus a workflow that runs on a push to main or when you start it',
   'docs/agents/install.md, the bullets of "Releases and channels" that say workflow_dispatch only: the workflow runs on push to main and on workflow_dispatch; stable also runs on a push (the flip adds both push: branches: [main] and the stable if:)',
   "docs/agents/install.md, the get-pap.sh bullet: get-pap.sh needs a published release; the repository is public, so a missing release answers 404",
 ];

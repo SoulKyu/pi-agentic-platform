@@ -1,5 +1,5 @@
 import { isIP } from "node:net";
-import { blockedAddress, groupsOf } from "./address.ts";
+import { blockedAddress, dotted, groupsOf, prefix } from "./address.ts";
 
 /** Reserved IPv4 blocks that `blockedAddress` lets through but neither a push endpoint nor an egress target uses. */
 const EXTRA_V4: ReadonlyArray<readonly [string, number]> = [
@@ -8,10 +8,6 @@ const EXTRA_V4: ReadonlyArray<readonly [string, number]> = [
   ["203.0.113.0", 24],
   ["192.88.99.0", 24],
 ];
-
-const numeric = (ip: string): number => ip.split(".").reduce((sum, octet) => sum * 256 + Number(octet), 0);
-const prefix = (ip: string, bits: number): number => Math.floor(numeric(ip) / 2 ** (32 - bits));
-const dotted = (high: number, low: number): string => `${high >> 8}.${high & 255}.${low >> 8}.${low & 255}`;
 
 const extraV4 = (ip: string): boolean =>
   EXTRA_V4.some(([base, bits]) => prefix(ip, bits) === prefix(base, bits));

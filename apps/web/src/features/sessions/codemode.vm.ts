@@ -1,8 +1,6 @@
-import type { NestedCallView } from "../../stores/nested-calls.ts";
+import { CODEMODE_TOOL, type NestedCallView } from "../../stores/nested-calls.ts";
 import type { FencePart } from "./fence.vm.ts";
 import type { ToolItem } from "./transcript.vm.ts";
-
-export const CODEMODE_TOOL = "codemode";
 
 /** Pi's result starts with these three lines (recorded in spikes/s4/results-codemode.json); input it rejected has none. */
 const HEADER = /^Script (completed|failed)\nWall time ([0-9.]+) seconds\nOutput:(?:\n|$)/;

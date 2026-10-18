@@ -118,6 +118,7 @@ export async function startPap(
     PI_TELEMETRY: "0",
     PAP_WORKER_SCOPE: "off",
     PAP_MIN_FREE_DISK_MB: "0",
+    PAP_UPDATE_CHECK: "0",
     PAP_TEST_PROVIDER_SCRIPT: scriptFile,
     PAP_TEST_WORKER_IMPORT: NETWORK_GUARD,
     ...extraEnv,
