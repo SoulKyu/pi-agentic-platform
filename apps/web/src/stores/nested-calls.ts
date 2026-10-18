@@ -22,7 +22,7 @@ const cut = (text: string, max: number): string =>
 
 function toCall(raw: unknown): NestedCallView | null {
   if (!isRecord(raw) || typeof raw.name !== "string") return null;
-  const status = raw.status === "error" ? "error" : raw.status === "unfinished" ? "cancelled" : "ok";
+  const status = raw.status === "ok" ? "ok" : raw.status === "error" ? "error" : "cancelled";
   const args = isRecord(raw.arguments) ? (JSON.stringify(raw.arguments) ?? "") : "";
   const duration = raw.durationMs;
   return {

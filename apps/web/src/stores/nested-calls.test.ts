@@ -36,8 +36,15 @@ describe("nestedCallsOf", () => {
   it("is undefined when the message has none, and skips entries it cannot read", () => {
     expect(nestedCallsOf(undefined)).toBeUndefined();
     expect(nestedCallsOf({ calls: "x" })).toBeUndefined();
-    expect(nestedCallsOf({ calls: [null, 3, { name: 4 }, { name: "ok" }] })).toEqual([
+    expect(nestedCallsOf({ calls: [null, 3, { name: 4 }, { name: "ok", status: "ok" }] })).toEqual([
       { name: "ok", args: "", status: "ok", durationMs: null, error: null },
+    ]);
+  });
+
+  it("never shows a call it cannot read the status of as ok", () => {
+    expect(nestedCallsOf({ calls: [{ name: "a" }, { name: "b", status: "weird" }] })).toEqual([
+      { name: "a", args: "", status: "cancelled", durationMs: null, error: null },
+      { name: "b", args: "", status: "cancelled", durationMs: null, error: null },
     ]);
   });
 
