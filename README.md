@@ -114,3 +114,7 @@ Method 2, offline archive pinned to a checksum:
 - Check the machine and the install: `pap doctor`: [docs/agents/doctor.md](docs/agents/doctor.md)
 - Container (rootless podman), npm and releases: [docs/agents/install.md](docs/agents/install.md)
 - Everything that needs the public repository (feed, `curl | sh`, `npm publish`) waits for v1.
+
+## License
+
+pap is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (`AGPL-3.0-or-later`). One file derived from vercel/ai-elements stays under the Apache License 2.0: see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and [LICENSES/Apache-2.0.txt](LICENSES/Apache-2.0.txt).
