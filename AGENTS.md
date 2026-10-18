@@ -5,8 +5,8 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 ## Commands
 
 - `pnpm install` · `pnpm lint` · `pnpm format:check` · `pnpm typecheck` · `pnpm knip`
-- `pnpm test:unit` · `pnpm test:int` (forks real pi-host workers with a scripted provider)
-- `pnpm build` · `pnpm budgets`
+- `pnpm test:unit` · `pnpm test:int` (forks real pi-host workers with a scripted provider) · `pnpm test:e2e` (browser tests of the built app: `docs/agents/e2e.md`, ADR 0071)
+- `pnpm build` · `pnpm budgets` (budgets.json, bundle sizes and their enforcers) · `pnpm test:budget` (timed run: search, scanner, RSS, payload) · `pnpm pi-compat` (newest aged Pi release in a scratch worktree, ADR 0072)
 - node-pty builds at install: gcc, make, python3.
 - Run the built POC: `pnpm build && node --disable-warning=ExperimentalWarning apps/daemon/dist/main.js serve`, then open the setup URL it prints (`/` answers 404 when `apps/web/dist` does not exist, so build first). From another machine of a trusted LAN (testing only, cookie in clear text): add `--host <LAN IP> --insecure-http` (ADR 0004). `pnpm smoke` boots that same build against the scripted provider and drives it end to end.
 - Dev: `pnpm --filter @pap/daemon dev` (prints its URL; port and PAP_HOME derived from the worktree path), then `PAP_DEV_DAEMON=http://127.0.0.1:<that port> pnpm --filter @pap/web dev` and open http://localhost:5173
@@ -33,7 +33,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 ## Backup, update, doctor, release (M6b)
 
 - `pap backup [--encrypt [--secrets include]]` · `pap restore <file> [--replace]` (daemon stopped) · `pap doctor [--only id]` (read-only) · `pap update check|install|apply|rollback|recover` (archive installs only; never from pap's own terminal). `--unit`/`PAP_UNIT` name the unit. Guides: `docs/agents/backup.md`, `update.md`, `doctor.md`; image, npm, releases and `get-pap.sh`: `install.md`.
-- A plain backup excludes `secrets/` and is still sensitive; an archive is untrusted input (`listMembers` first, ADR 0063). An update rolls back by itself and restores the snapshot only if a migration ran (ADR 0064). Nothing contacts GitHub from tests or from this host; the repository is private until v1 and `workflow_dispatch` is the only trigger (ADR 0066).
+- A plain backup excludes `secrets/` and is still sensitive; an archive is untrusted input (`listMembers` first, ADR 0063). An update rolls back by itself and restores the snapshot only if a migration ran (ADR 0064). Nothing contacts GitHub from tests or from this host. The repository is public; `release.yml` stays `workflow_dispatch` only until the v1 flip (`scripts/release-flip.ts`, ADR 0066 and 0076).
 - ADRs 0063 to 0067; rulings `docs/research/m6b-rulings.md`. `pnpm release:assets`, `pnpm release:check`, `pnpm build:npm`, `pnpm build:image` are local commands.
 
 ## Agents and the sandbox (M11)
@@ -48,6 +48,12 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 ## Notifications and PWA (M12)
 
 - Web Push and the PWA: classes, delivery, payload, key file, HTTPS routes, service worker, troubleshooting in `docs/agents/notifications.md`; ADRs 0058 to 0062; rulings `docs/research/m12-rulings.md`. Env: `PAP_PUSH_SUBJECT` (VAPID `sub`, https or mailto), `PAP_PUSH_EXTRA_HOSTS` (at most 8 extra push hosts), `PAP_TEST_PUSH_LOOPBACK=1` (tests only, needs `PAP_TEST_PROVIDER_SCRIPT`; never set it elsewhere).
+
+## v1 hardening (M13)
+
+- Parity with pi-web: `docs/agents/parity.md` (one row per behaviour, a proof file each; `scripts/parity-doc.test.ts`). Release and the v1 flip: `docs/agents/release.md`. Exit evidence: `docs/research/m13-exit-criteria.md`; rulings `docs/research/m13-rulings.md`; ADRs 0071 to 0077.
+- pap does not replace pi-web (ADR 0075): both share `~/.pi/agent`. Never resume one session in both apps; pap warns when a live session's file changes outside it (ADR 0074) and never reads pi-web's files.
+- Licence: AGPL-3.0-or-later (ADR 0077); the derived vercel/ai-elements file stays Apache-2.0 (`LICENSES/`).
 
 ## Rules (CI-enforced)
 

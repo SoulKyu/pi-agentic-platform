@@ -2,11 +2,11 @@
 
 One file per decision, numbered. A decision that deviates from a spec or changes a rule gets an ADR; the first line after the title is `Status:` and starts with `accepted` or `superseded by NNNN`.
 
-Next free number: 0071
+Next free number: 0078
 
 Dates come from the ADR's Date line; where it has none, the date of the file's first commit.
 
-Numbers 0071 to 0076 and 0077 (the licence) are reserved for M13. Numbers marked "not used" were skipped and stay empty.
+Numbers marked "not used" were skipped and stay empty.
 
 | No.  | Title | Status | Date |
 | ---- | ----- | ------ | ---- |
@@ -80,3 +80,10 @@ Numbers 0071 to 0076 and 0077 (the licence) are reserved for M13. Numbers marked
 | 0068 | [one source for the models a context may use](0068-one-source-for-available-models.md) | accepted | 2026-10-17 |
 | 0069 | [the provider form writes models.json, field-preserving and strict](0069-provider-form-writes-models-json.md) | accepted | 2026-10-17 |
 | 0070 | [the availability view, extension providers, and the policy hook](0070-availability-view-extensions-and-the-policy-hook.md) | accepted | 2026-10-17 |
+| 0071 | [e2e on the pinned Playwright image](0071-e2e-on-the-pinned-playwright-image.md) | accepted | 2026-10-18 |
+| 0072 | [Pi-compat respects the release age](0072-pi-compat-respects-the-release-age.md) | accepted | 2026-10-18 |
+| 0073 | [npm shrinkwrap from the lockfile](0073-npm-shrinkwrap-from-the-lockfile.md) | accepted | 2026-10-18 |
+| 0074 | [detection of outside writes to a live session](0074-live-session-outside-write-detection.md) | accepted | 2026-10-18 |
+| 0075 | [the spec D cutover is out of scope for v1](0075-spec-d-cutover-out-of-scope-for-v1.md) | accepted | 2026-10-18 |
+| 0076 | [the v1 flip amends ADR 0066](0076-the-v1-flip-amends-adr-0066.md) | accepted | 2026-10-18 |
+| 0077 | [the licence](0077-the-licence.md) | accepted | 2026-10-18 |

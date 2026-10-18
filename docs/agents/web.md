@@ -27,7 +27,7 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 ## Commands (`features/commands/`)
 
 - `defaults.ts` holds the command specs (`COMMANDS`) and the default chords (each has `!panelFocus`, Escape also `!overlayOpen`); `registry.ts` only the handlers that mounted components register. The user's rules live per account (`keybindings-store.ts`, `pap.keybindings.v1`) and merge over the defaults in `resolve.ts`.
-- `when` keys (`CONTEXT_KEYS`): `editableFocus`, `dialogOpen`, `overlayOpen`, `panelFocus` (focus inside `[data-terminal-input]`), `paletteOpen`, `treeOpen`, `sessionFocus`, `mobile`.
+- `when` keys (`CONTEXT_KEYS`): `editableFocus`, `dialogOpen`, `overlayOpen`, `inlineEditFocus` (focus inside `[data-inline-edit]`), `panelFocus` (focus inside `[data-terminal-input]`), `paletteOpen`, `treeOpen`, `sessionFocus`, `mobile`.
 - The dispatcher bails out on a composition (IME `keyCode` 229, `isComposing`), on AltGr, and on a lone modifier. It does not bail out on a reserved chord: only the recorder and the JSON import refuse one (`isReserved`, `RESERVED` in `resolve.ts`, per platform). The recorder stores digits and punctuation by physical key (`event.code`), letters by layout key.
 - The editor (`editor/`, lazy) shows conflicts and overlapping clauses; a JSON import that would wipe the bindings is refused.
 
@@ -103,6 +103,8 @@ Code: `apps/web/src/` and `packages/ui/src/`. Specs: DESIGN.md, spec C §7; ADRs
 - zod probes for `eval` (`new Function("")`) when it builds its first object schema, which the daemon's CSP forbids (R74). `vite.config.ts` aliases `zod` to `csp-safe-zod.ts` in the web build only: it calls `config({ jitless: true })` right after zod evaluates, so every chunk that builds schemas sees it, whatever the chunk order. `main.tsx` still imports the file first. `build-output.int.test.ts` loads the built zod chunk with string evaluation refused and expects zero attempts.
 
 ## Deferred (not done, not checked)
+
+Browser tests of the built app are in `e2e.md` (`pnpm test:e2e`); the unit tests run in happy-dom.
 
 - Runtime CSP violation checks, measured 44 x 44 px targets, gallery screenshots, the R118 Safari 16.4 WebSocket check. The unit tests run in happy-dom; Tailwind compiles and Vite builds.
 
