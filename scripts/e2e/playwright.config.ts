@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// The workers read the daemon's SQLite file (`piFile`): node:sqlite prints an experimental warning in every worker.
+process.env["NODE_OPTIONS"] = [process.env["NODE_OPTIONS"], "--disable-warning=ExperimentalWarning"]
+  .filter(Boolean)
+  .join(" ");
+
 // PAP_E2E_WS is set by run.ts when the browsers live in the pinned container (M13R2); unset, they are local.
 const connectOptions = process.env["PAP_E2E_WS"] ? { wsEndpoint: process.env["PAP_E2E_WS"] } : undefined;
 const desktop = /\.e2e\.ts$/;

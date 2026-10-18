@@ -14,6 +14,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { type Daemon, freePort, NETWORK_GUARD, STEP_MS, startDaemon, within } from "../smoke-lib.ts";
 import { descendantsOf, running, runningUnder } from "../smoke-proc.ts";
@@ -55,7 +56,21 @@ function firstLine(path: string): string {
   return end < 0 ? text : text.slice(0, end);
 }
 
-function findPiFile(agentDir: string, sessionId: string): string {
+/** pap's session id is not the id in the Pi file's header: the daemon's own table maps one to the other. */
+function recordedPiPath(home: string, sessionId: string): string | null {
+  const db = new DatabaseSync(join(home, "state.db"), { readOnly: true });
+  try {
+    const row = db.prepare("SELECT pi_path FROM sessions WHERE id = ?").get(sessionId) as
+      { pi_path: string | null } | undefined;
+    return row?.pi_path ?? null;
+  } finally {
+    db.close();
+  }
+}
+
+function findPiFile(home: string, agentDir: string, sessionId: string): string {
+  const recorded = recordedPiPath(home, sessionId);
+  if (recorded !== null) return recorded;
   const root = join(agentDir, "sessions");
   for (const entry of readdirSync(root, { recursive: true, withFileTypes: true })) {
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
@@ -181,7 +196,7 @@ export async function startPap(
             return [];
           }
         }),
-    piFile: (sessionId) => findPiFile(agentDir, sessionId),
+    piFile: (sessionId) => findPiFile(home, agentDir, sessionId),
     async restart() {
       const code = await halt();
       if (code !== 0) throw new Error(`the daemon exited with ${code} on SIGTERM, expected 0`);

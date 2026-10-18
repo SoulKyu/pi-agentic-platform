@@ -72,6 +72,15 @@ export const test = base.extend<
   },
 });
 
+/**
+ * `test.use({ papScript: scripted([...]) })`. Playwright reads a bare array in `use` as a `[value, options]` fixture pair, so a
+ * script (an array) is wrapped in one.
+ */
+export const scripted = (steps: ScriptStep[]): [ScriptStep[], { scope: "worker" }] => [
+  steps,
+  { scope: "worker" },
+];
+
 const isWebKit = (page: Page): boolean => page.context().browser()?.browserType().name() === "webkit";
 
 /** Meta+K on WebKit, Control+K elsewhere. */
