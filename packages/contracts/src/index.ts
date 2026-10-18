@@ -63,6 +63,7 @@ export * from "./children.ts";
 export * from "./dialog.ts";
 export * from "./streams.ts";
 export * from "./terminal.ts";
+export * from "./source.ts";
 export * from "./trust-methods.ts";
 export * from "./usage.ts";
 export * from "./vcs.ts";

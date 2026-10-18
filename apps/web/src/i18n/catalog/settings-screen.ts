@@ -32,6 +32,8 @@ export const settingsScreenEn = {
   "settings.language.notStored": "Applied to this page only: this browser does not keep settings.",
   "settings.account.username": "Signed in as",
   "settings.account.signOut": "Sign out",
+  "settings.source.lead": "pap is free software under the AGPL-3.0-or-later.",
+  "settings.source.link": "Source code",
 } as const;
 export const settingsScreenFr: { readonly [K in keyof typeof settingsScreenEn]: string } = {
   "settings.nav.label": "Sections des réglages",
@@ -67,4 +69,6 @@ export const settingsScreenFr: { readonly [K in keyof typeof settingsScreenEn]: 
   "settings.language.notStored": "Appliqué à cette page seulement : ce navigateur ne garde pas les réglages.",
   "settings.account.username": "Connecté en tant que",
   "settings.account.signOut": "Se déconnecter",
+  "settings.source.lead": "pap est un logiciel libre sous licence AGPL-3.0-or-later.",
+  "settings.source.link": "Code source",
 };

@@ -1,3 +1,4 @@
+import { PROJECT_REPO } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import {
   type Channel,
@@ -42,6 +43,7 @@ function withInstallerUrl(url: string): Record<string, unknown> {
 
 describe("constants", () => {
   it("derives the path prefix from the repository and lists the three hosts", () => {
+    expect(FEED_REPO).toBe(PROJECT_REPO);
     expect(FEED_REPO).toBe("SoulKyu/pi-agentic-platform");
     expect(FEED_PATH_PREFIX).toBe("/SoulKyu/pi-agentic-platform/releases/");
     expect([...FEED_HOSTS].sort()).toEqual([

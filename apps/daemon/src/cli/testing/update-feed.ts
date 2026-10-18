@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { PROJECT_URL } from "@pap/contracts";
 import { parseArgs } from "node:util";
 import type { Command } from "../run-cli.ts";
 import { UsageError } from "../usage.ts";
@@ -6,7 +7,7 @@ import { cliIo } from "./cli-io.ts";
 import type { Channel, Feed } from "../update/feed.ts";
 import type { FetchLike } from "../update/fetch.ts";
 
-const BASE = "https://github.com/SoulKyu/pi-agentic-platform/releases";
+const BASE = `${PROJECT_URL}/releases`;
 export const STABLE_URL = `${BASE}/latest/download/pap-feed-stable.json`;
 export const NEXT_URL = `${BASE}/download/next/pap-feed-next.json`;
 

@@ -14,6 +14,7 @@ Background: ADR 0066 (channels, feed, the flip) as amended by ADR 0076; the lice
 - The two jobs that hold `contents: write` pass `cache: "false"` to `.github/actions/setup` (ADR 0066 item 4): no pnpm cache is restored where a write token exists. `release:check` fails without it.
 - `pnpm release:check` also checks the licence state: `UNLICENSED` with no `LICENSE` file, or `AGPL-3.0-only` / `AGPL-3.0-or-later` with a `LICENSE` file whose first line is `GNU AFFERO GENERAL PUBLIC LICENSE`, the same `license` in both `package.json` files, `LICENSES/Apache-2.0.txt`, and `THIRD_PARTY_NOTICES.md` naming it. The second shape is the one the repository is in once `e264c2b9` is on the branch you check.
 - `scripts/release-flip.ts` makes the flip edits (step 4.1).
+- Forks and AGPL section 13 (ADR 0077): the "Source code" link in Settings › Account & devices, the update feed's allowed path (`FEED_REPO`), the push subject fallback and the npm `repository` field all derive from one constant, `PROJECT_REPO` in `packages/contracts/src/source.ts`. A fork that serves its own modified pap edits that line (`"<owner>/<repo>"`), and `PROJECT_URL` there if its source is not on `github.com`; there is no environment variable, so the source offer cannot be dropped by configuration. `scripts/source-slug.test.ts` fails if the slug appears anywhere else in the TypeScript sources. The link targets `/tree/v<version>` for a release (`X.Y.Z`) and the repository root for `0.0.0` or a pre-release, so each release workflow run must push the tag `v<version>`.
 
 ## 1. Accept M13
 

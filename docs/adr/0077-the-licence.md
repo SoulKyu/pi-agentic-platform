@@ -15,6 +15,8 @@ pap is licensed under **AGPL-3.0-or-later**. Commit `e264c2b9` on `main` adds th
 - The npm builder copies the root id and the `LICENSE` file into the package and refuses to build without them.
 - The repository `SoulKyu/pi-agentic-platform` went public the same day (2026-10-18).
 
+- Amendment (2026-10-18, before v1): AGPL section 13 makes the offer of source easy to meet, so Settings › Account & devices shows "pap is free software under the AGPL-3.0-or-later. Source code: <link>". The link is the repository at the running version's tag (`/tree/v<version>`, the version from the daemon's hello frame), or the repository root for `0.0.0`, a pre-release or an unknown version. The slug lives once, in `PROJECT_REPO` (`packages/contracts/src/source.ts`), shared with `FEED_REPO` and the push subject. A fork changes that one constant (`docs/agents/release.md`); no environment variable.
+
 ## Consequences
 
 Network users of a modified pap are owed its source (AGPL section 13). Cost if wrong: one constant (the allowed ids) and the `LICENSE` text.

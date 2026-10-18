@@ -1,10 +1,11 @@
+import { PROJECT_REPO } from "@pap/contracts";
 import { z } from "zod";
 
 export const CHANNELS = ["stable", "next"] as const;
 export type Channel = (typeof CHANNELS)[number];
 
 /** The only project the feed may name; every `github.com` URL must be under its releases (one constant, M6bR57). */
-export const FEED_REPO = "SoulKyu/pi-agentic-platform";
+export const FEED_REPO = PROJECT_REPO;
 export const FEED_PATH_PREFIX = `/${FEED_REPO}/releases/`;
 
 /** The only hosts a release asset may come from or be redirected to (GitHub Releases and its asset CDN). */

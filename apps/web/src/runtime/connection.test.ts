@@ -3,6 +3,14 @@ import { backoffDelay, PROBE_DEADLINE_MS, type ProbeResult } from "./connection.
 import { connectionBed as setup, flush } from "./testing.ts";
 
 describe("connection supervisor", () => {
+  it("keeps the daemon version from its hello frame", () => {
+    const { connection, hello } = setup();
+    expect(connection.serverVersion).toBeNull();
+    connection.start();
+    hello(undefined, "1.4.2");
+    expect(connection.serverVersion).toBe("1.4.2");
+  });
+
   it("opens after a matching hello and forwards later frames", () => {
     const { connection, hello, latest } = setup();
     const frames: unknown[] = [];

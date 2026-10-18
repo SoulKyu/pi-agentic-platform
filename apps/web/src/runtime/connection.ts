@@ -30,6 +30,8 @@ export interface ConnectionDeps {
 
 export interface Connection {
   readonly state: ConnectionState;
+  /** The daemon's version from its hello frame; null until the first hello. */
+  readonly serverVersion: string | null;
   start(): void;
   stop(): void;
   send(frame: object): boolean;
@@ -73,6 +75,7 @@ export function createConnection(deps: ConnectionDeps): Connection {
   // Bumped by every connect and stop: a probe that answers after one of them is for a socket that is gone.
   let round = 0;
   let retryAt: number | null = null;
+  let serverVersion: string | null = null;
   const now = deps.now;
   const timers: { retry: number | null; dead: number | null; stable: number | null } = {
     retry: null,
@@ -179,6 +182,7 @@ export function createConnection(deps: ConnectionDeps): Connection {
       if (state === "connecting") {
         const hello = HelloFrame.safeParse(frame);
         if (hello.success && hello.data.protocol === PROTOCOL_VERSION) {
+          serverVersion = hello.data.serverVersion;
           setState("open");
           timers.stable = deps.timers.set(() => {
             attempt = 0;
@@ -230,6 +234,9 @@ export function createConnection(deps: ConnectionDeps): Connection {
   };
 
   return {
+    get serverVersion() {
+      return serverVersion;
+    },
     get state() {
       return state;
     },

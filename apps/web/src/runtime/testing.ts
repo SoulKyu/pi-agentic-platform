@@ -13,6 +13,7 @@ import { createSubscriptions } from "./subscriptions.ts";
 export function fakeConnection(initial: ConnectionState = "open") {
   let state = initial;
   let retryAt: number | null = null;
+  let serverVersion: string | null = null;
   const frameListeners = new Set<(frame: unknown) => void>();
   const stateListeners = new Set<(state: ConnectionState) => void>();
   const binaryListeners = new Set<(data: ArrayBuffer) => void>();
@@ -21,6 +22,9 @@ export function fakeConnection(initial: ConnectionState = "open") {
   const connection: Connection = {
     get state() {
       return state;
+    },
+    get serverVersion() {
+      return serverVersion;
     },
     start: () => {},
     stop: () => {},
@@ -69,6 +73,9 @@ export function fakeConnection(initial: ConnectionState = "open") {
     },
     deliver: (frame: unknown) => {
       for (const listener of [...frameListeners]) listener(frame);
+    },
+    setServerVersion: (next: string | null) => {
+      serverVersion = next;
     },
     setRetryAt: (next: number | null) => {
       retryAt = next;
@@ -208,8 +215,8 @@ export function connectionBed(
     }
   };
   const latest = () => sockets[sockets.length - 1] as FakeSocket;
-  const hello = (protocol = PROTOCOL_VERSION) =>
-    latest().receive({ protocol, capabilities: ["rpc"], serverVersion: "0.0.0" });
+  const hello = (protocol = PROTOCOL_VERSION, serverVersion = "0.0.0") =>
+    latest().receive({ protocol, capabilities: ["rpc"], serverVersion });
   return {
     connection,
     sockets,

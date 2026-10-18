@@ -14,6 +14,7 @@ import { homedir } from "node:os";
 import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { PROJECT_URL } from "../packages/contracts/src/source.ts";
 import {
   assertNoSymlinks,
   assertNoStagePath,
@@ -61,7 +62,7 @@ const BUNDLED = ["@pap/contracts", "@pap/pi-host"] as const;
 const BIN = "./apps/daemon/dist/main.js";
 const SHEBANG = "#!/usr/bin/env -S node --disable-warning=ExperimentalWarning";
 const EXACT = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
-const REPOSITORY = { type: "git", url: "git+https://github.com/SoulKyu/pi-agentic-platform.git" };
+const REPOSITORY = { type: "git", url: `git+${PROJECT_URL}.git` };
 const TEST_OR_MAP = /\.test\.[^/\\]*$|\.map$/;
 
 /** The `catalog:` block of pnpm-workspace.yaml: `name: version` lines, quoted or bare (no YAML library needed). */

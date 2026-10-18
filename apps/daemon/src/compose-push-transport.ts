@@ -1,3 +1,4 @@
+import { PROJECT_URL } from "@pap/contracts";
 import { join } from "node:path";
 import { pushReadiness } from "./kernel/push-readiness.ts";
 import {
@@ -24,8 +25,6 @@ export interface TransportSide {
   readonly sessionLive: SessionLive;
   readonly rpc: TransportRpc;
 }
-
-const PROJECT_URL = "https://github.com/SoulKyu/pi-agentic-platform";
 
 /** M12R5: PAP_PUSH_SUBJECT, else an https PAP_PUBLIC_ORIGIN, else the project URL (never a made-up mailto:). */
 function vapidSubject(config: PushDeps["config"]): string {
