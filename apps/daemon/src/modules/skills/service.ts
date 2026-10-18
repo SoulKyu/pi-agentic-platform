@@ -70,7 +70,7 @@ export function createSkillsService(deps: SkillsServiceDeps) {
   /**
    * The scope rule of M7R140 for the plugin writes: the user scope is the owner's Pi folder (a step-up when `widens`, and
    * whatever `cwd` came along is ignored); the project scope needs a folder of the caller's and the confirmation, and no
-   * step-up. An untrusted project is refused by the helper (`forbidden`).
+   * step-up. An untrusted project is refused by the helper (`project_untrusted`, which maps to `forbidden`).
    */
   function pluginGate<T extends { cwd?: string | undefined } & Confirm>(
     caller: Caller,
@@ -116,7 +116,7 @@ export function createSkillsService(deps: SkillsServiceDeps) {
     /**
      * Installs from skills.sh (M7R112). Global means the owner's Pi folder and takes the password step-up; a project
      * install needs a folder of the caller's and the protected-file confirmation, and no step-up (M7R140). An untrusted
-     * project is refused by the helper (`forbidden`).
+     * project is refused by the helper (`project_untrusted`, which maps to `forbidden`).
      */
     async install(
       caller: Caller,

@@ -29,7 +29,7 @@ interface Props {
  * that cannot run stays visible, `aria-disabled`, and its reason is a visible line its `aria-describedby` names.
  */
 export function ModeChips({ mode, reasons, laneChord, onMode }: Props) {
-  "use no memo"; // first-paint component: the compiler's cache slots would cost bundle (limit 226 KB)
+  "use no memo"; // first-paint component: the compiler's cache slots would cost bundle (the initialBundleGzipKb ceiling in budgets.json)
   const t = useT();
   const group = useRef<HTMLDivElement>(null);
   const reasonId = useId();
