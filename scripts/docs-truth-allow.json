@@ -151,8 +151,7 @@
     "note": "docs/agents/policy.md",
     "rule": "method",
     "token": "models.classify",
-    "reason": "Looks like a domain.name but is not an RPC method; a human must check what the note means",
-    "sweep": "P1b"
+    "reason": "Pi codemode API (the models object scripts would see; pap turns it off), not a pap RPC method"
   },
   {
     "note": "docs/agents/search.md",
