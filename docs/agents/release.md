@@ -25,7 +25,7 @@ Reserve the `@soulkyu` scope on npmjs and check who owns `@pap` there. The publi
 
 ## 3. CI on `main`
 
-Wait for the `e2e` job (and the rest of CI) to be green on `main` on GitHub. `ci.yml` ignores docs-only changes (`paths-ignore: docs/**, **/*.md`), so a push that only edits docs does not start it: check the run of the last push that changed code. Stop if any job is red: nothing is flipped or tagged until it is green. Read the failing job log first; the `e2e` job has not run on GitHub before, so a first failure can be the job and not the product.
+Wait for the `e2e` job (and the rest of CI) to be green on `main` on GitHub. `ci.yml` runs on every push to `main`, docs-only ones included (M13-C12): check the run of the last push. Stop if any job is red: nothing is flipped or tagged until it is green. Read the failing job log first; the `e2e` job has not run on GitHub before, so a first failure can be the job and not the product.
 
 ## 4. The v1 flip (one reviewed commit)
 

@@ -157,7 +157,7 @@ They take no instance lock and never open `$PAP_HOME`, so they work while pap ru
 
 ## Container, npm, releases: what works now, what waits
 
-The GitHub repository is public (since 2026-10-18), but no release exists yet: v1 is cut by the owner (`docs/agents/release.md`). The workflow `ci.yml` runs on pull requests and on pushes to `main` and ignores docs-only changes (`paths-ignore: docs/**, **/*.md`); `release.yml` runs only when started by hand (`workflow_dispatch`) until the v1 flip. So some pieces exist as code and tests but cannot be used end to end before a release is published.
+The GitHub repository is public (since 2026-10-18), but no release exists yet: v1 is cut by the owner (`docs/agents/release.md`). The workflow `ci.yml` runs on every pull request and every push to `main`, docs-only changes included; `release.yml` runs only when started by hand (`workflow_dispatch`) until the v1 flip. So some pieces exist as code and tests but cannot be used end to end before a release is published.
 
 | Piece | Works now from a local command | Waits for the v1 release |
 |---|---|---|

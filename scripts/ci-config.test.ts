@@ -27,6 +27,14 @@ const WORKFLOW_FILES = [
 ];
 
 describe("CI configuration", () => {
+  it("runs on every pull request and every push to main, docs-only changes included (M13-C12)", () => {
+    const on = (parse(read(".github/workflows/ci.yml")) as { on: Record<string, Record<string, unknown>> })
+      .on;
+    expect(Object.keys(on).toSorted()).toEqual(["pull_request", "push"]);
+    expect(on["push"]).toEqual({ branches: ["main"] });
+    expect(on["pull_request"] ?? null).toBeNull();
+  });
+
   it("runs knip as a step that can fail the build (R5)", () => {
     const ci = read(".github/workflows/ci.yml");
     expect(ci).toMatch(/^\s+- run: pnpm knip$/m);
