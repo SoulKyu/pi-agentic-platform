@@ -118,6 +118,9 @@ test("J06: the phone shell", async ({ page, pap, signedIn }) => {
     );
     await sheet.getByRole("button", { name: t("shell.rail.settings"), exact: true }).tap();
     await expect(page).toHaveURL(/\/settings\/appearance$/);
+    await expect(
+      page.getByRole("heading", { name: t("settings.section.appearance"), level: 1, exact: true }),
+    ).toBeVisible();
     await noSidewaysScroll(page);
   });
 

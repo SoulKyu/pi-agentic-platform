@@ -115,7 +115,8 @@ const snapshotPath = (pap: PapInstance, agentId: string): string =>
 const readSnapshot = (pap: PapInstance, agentId: string): Snapshot => {
   try {
     return read<Snapshot>(snapshotPath(pap, agentId));
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return { agent: agentId, updatedAt: new Date(0).toISOString(), memories: [], events: [] };
   }
 };
@@ -143,7 +144,8 @@ export const stagingFiles = (pap: PapInstance): string[] => readdirSync(dir(pap,
 export function decisionOf(pap: PapInstance, factId: string): { approved: boolean } | null {
   try {
     return read<{ approved: boolean }>(join(dir(pap, "staging"), `${factId}.decision.json`));
-  } catch {
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     return null;
   }
 }
@@ -196,13 +198,14 @@ export function applyForgets(pap: PapInstance): void {
 }
 
 /**
- * Performs `action` (a click that opens something) until `target` shows. A click in the first moments after a page load can
- * reach a shell button before its command is registered and do nothing; the owner would click again, so the journey does.
+ * Performs `action` (a click that opens something) until `target` shows, and only clicks again when the click had no visible
+ * effect (so a toggle is never undone). A Tooltip-wrapped trigger is remounted when its lazy popup chunk loads (Tooltip.tsx),
+ * dropping a click that spans it; fixed by C8, retries removed after the join.
  */
 export const actUntilVisible = (action: () => Promise<void>, target: Locator): Promise<void> =>
   expect(async () => {
     if (!(await target.isVisible())) await action();
-    await expect(target).toBeVisible({ timeout: 3_000 });
+    await target.waitFor({ state: "visible", timeout: 3_000 });
   }).toPass({ timeout: 20_000 });
 
 /** How many processes run under this daemon's HOME: the daemon, its workers and what they started. */

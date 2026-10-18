@@ -8,6 +8,7 @@ import { expect, t, test } from "./fixtures.ts";
 import {
   agentMemories,
   applyDecisions,
+  actUntilVisible,
   applyForgets,
   decisionOf,
   requestsOf,
@@ -53,10 +54,15 @@ test("J09: staged memories wait for review, one is approved, one is rejected, on
         { timeout: 45_000, intervals: [1_000] },
       )
       .toBe(2);
-    await page
-      .getByRole("banner")
-      .getByRole("button", { name: /^Inbox/ })
-      .click();
+    const drawer = page.getByRole("dialog", { name: t("shell.inbox.title"), exact: true });
+    await actUntilVisible(
+      () =>
+        page
+          .getByRole("banner")
+          .getByRole("button", { name: /^Inbox/ })
+          .click(),
+      drawer,
+    );
     const rows = page.getByRole("button", { name: new RegExp(escape(line)) });
     await expect(rows).toHaveCount(2);
     // The Inbox row carries no fact text (W5-R61): it opens Settings › Memory, where the owner decides.

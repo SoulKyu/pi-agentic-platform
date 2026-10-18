@@ -26,8 +26,8 @@ interface AgentRow {
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const rail = (page: Page) => page.getByRole("navigation", { name: t("shell.rail.label"), exact: true });
-// The notice and then the agent's reply both count: "N unread" with any N.
-const unread = escape(t("shell.agent.unread", { count: "COUNT" })).replace("COUNT", "[1-9]\\d*");
+// Observed: 2 unread, the notice and then the agent's reply.
+const unread = escape(t("shell.agent.unread", { count: 2 }));
 const unreadScout = (page: Page) =>
   rail(page).getByRole("button", { name: new RegExp(`^Scout,.*${unread}`) });
 
@@ -62,7 +62,11 @@ test("J07: an agent notifies the owner and is quarantined", async ({ page, pap, 
     await page.getByRole("button", { name: t("sessions.composer.send"), exact: true }).click();
     await expect(page.getByRole("article", { name: t("author.you"), exact: true })).toHaveCount(1);
     // Leave the thread now: an open thread marks itself read after a second, and the rail must show the unread.
-    await page.goto(pap.origin);
+    // In the app (the pap mark of the rail), not a `goto` that would race the app's own navigation.
+    await rail(page)
+      .getByRole("link", { name: t("app.name"), exact: true })
+      .click();
+    await expect(page).toHaveURL(`${pap.origin}/`);
   });
 
   await test.step("the rail shows unread and the Inbox holds the notice", async () => {
