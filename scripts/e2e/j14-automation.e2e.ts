@@ -6,7 +6,7 @@ import { basename } from "node:path";
 import type { Page } from "@playwright/test";
 import { expect, scripted, stepUp, t, test } from "./fixtures.ts";
 import type { PapInstance } from "./fixtures.ts";
-import { actUntilVisible, dbRows, liveProcesses } from "./seed.ts";
+import { dbRows, liveProcesses } from "./seed.ts";
 
 test.use({ papScript: scripted([{ text: "Disk check done." }]) });
 
@@ -140,14 +140,13 @@ test("J14: a schedule trigger fires into the Inbox, a paused automation refuses 
     await expect(fireNow(page)).toBeEnabled();
     await fireNow(page).click();
     await expect(page.getByText(t("automation.editor.fired"), { exact: true })).toBeVisible();
-    // The task ends while the page rerenders: the rail button is "Inbox" first and "Inbox: unread items" after, and a click
-    // that lands in between is dropped. Wait for the end, then open the Inbox until its row shows.
+    // Wait for the end of the task, then open the Inbox.
     await expect.poll(() => taskRows(pap).map((task) => task.state)).toEqual(["done"]);
     const inbox = page.getByRole("button", { name: new RegExp(`^${escape(t("shell.top.inbox"))}`) });
     const row = page.getByRole("button", {
       name: new RegExp(`^${escape(t("inbox.title.done", { name: NAME }))}`),
     });
-    await actUntilVisible(() => inbox.click(), row);
+    await inbox.click();
     await expect(row).toBeVisible();
   });
   await expect
