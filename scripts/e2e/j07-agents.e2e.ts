@@ -1,3 +1,4 @@
+/// <reference lib="dom" />
 // J07: an agent is created in the form, its thread is opened and prompted, the agent notifies the owner (an Inbox item and
 // unread on the rail), the permissions sheet is read, and the owner quarantines it with the password step-up. From outside:
 // the agent list says `quarantined` and paused, its thread (archived by the quarantine) has no worker, and the notice is
@@ -92,6 +93,29 @@ test("J07: an agent notifies the owner and is quarantined", async ({ page, pap, 
       sheet.getByRole("heading", { name: t("agentSafety.perm.title"), exact: true }),
     ).toBeVisible();
     await expect(sheet.getByText(t("agentSafety.perm.sandbox.on"), { exact: true })).toBeVisible();
+  });
+
+  await test.step("the Settings tab has one vertical scroll container and no blank tail", async () => {
+    const verticalScrollers = () =>
+      page.evaluate(() => {
+        const scrolls = (el: Element, overflowY: string, shown: number) =>
+          el.scrollHeight > shown + 1 && (overflowY === "auto" || overflowY === "scroll");
+        const found = [...document.querySelectorAll("body *")].filter((el) =>
+          scrolls(el, getComputedStyle(el).overflowY, el.clientHeight),
+        );
+        // The document scrolls on its own when something escapes the clipping containers (an unpositioned hidden input).
+        const root = document.scrollingElement ?? document.documentElement;
+        return { elements: found.length, documentScrolls: root.scrollHeight > window.innerHeight + 1 };
+      });
+    await expect.poll(verticalScrollers).toEqual({ elements: 1, documentScrolls: false });
+    const actions = page.locator("[data-agent-actions]");
+    await actions.scrollIntoViewIfNeeded();
+    const last = actions.getByRole("button", { name: t("agentSafety.actions.delete"), exact: true });
+    await last.scrollIntoViewIfNeeded();
+    const viewport = page.viewportSize()?.height ?? 0;
+    const box = await last.boundingBox();
+    expect(box && box.y + box.height <= viewport + 1).toBe(true);
+    expect(await page.evaluate(() => window.scrollY)).toBe(0);
   });
 
   const threadId = (await agents()).find((agent) => agent.name === "Scout")?.threadSessionId ?? "";

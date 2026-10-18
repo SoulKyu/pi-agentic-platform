@@ -33,7 +33,7 @@ export function Select<V extends string>({
 }: SelectProps<V>) {
   const id = useId();
   return (
-    <div data-slot="select" className="flex flex-col gap-s1">
+    <div data-slot="select" className="relative flex flex-col gap-s1">
       <span id={`${id}-label`} className="label-hud text-muted">
         {label}
       </span>
