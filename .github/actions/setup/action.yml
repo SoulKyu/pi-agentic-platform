@@ -4,6 +4,9 @@ inputs:
   install:
     description: Run pnpm install --frozen-lockfile ("false" leaves the install to the caller)
     default: "true"
+  cache:
+    description: Restore the pnpm cache ("false" in a job with a write token, where a poisoned cache would run)
+    default: "true"
 runs:
   using: composite
   steps:
@@ -11,7 +14,7 @@ runs:
     - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
       with:
         node-version: 24.14.x
-        cache: pnpm
+        cache: ${{ inputs.cache == 'true' && 'pnpm' || '' }}
     # The integration tests run the grep and find tools against injection probes (ripgrep, fd) and look for
     # leftover processes (pgrep). A missing binary fails them in CI instead of skipping them (ruling R92).
     - name: Install ripgrep, fd and procps
