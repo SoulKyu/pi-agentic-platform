@@ -44,7 +44,7 @@ Not proved by these: a real GitHub release, `curl | sh` and `npm publish` have n
 
 | Evidence | What it proves | Result |
 | --- | --- | --- |
-| `docs/agents/parity.md` (task P3) | one row per pi-web behaviour, each with a proof file and a verdict | at P3's first commit (`5c51b6c2`): 196 rows, 186 green, 7 after v1, 3 dropped by the owner, and 1 finding (the codemode cards); the owner then decided to build the codemode card in M13 (task C9). The final counts are those of the file once P3's fix round is merged |
+| `docs/agents/parity.md` (task P3) | one row per pi-web behaviour, each with a proof file and a verdict | 197 rows (160 in `parity.md`, 37 in `models.md`): 186 green, 8 after v1 (each with the owner's decision), 3 dropped by the owner. The one finding of P3's first pass (the codemode card) was built in M13 by task C9 and is green (P01-17) |
 | `scripts/parity-doc.test.ts` | a row with a missing proof file, an unknown verdict or a `gap` fails the unit run | green in `pnpm test:unit` |
 | `pnpm test:e2e` on the join (`6ba3ff83`, container mode, Chromium and WebKit) | fifteen journeys J01 to J15 drive the built app | 36 passed, 2 skipped by design (J13 on WebKit), 4.4 minutes (budget 15) |
 

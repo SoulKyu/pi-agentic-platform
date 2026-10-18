@@ -50,7 +50,7 @@ Written by M13 P3 (M13R20, M13R30) from the final code. The source is `docs/rese
 | P01-14 | Drafts persisted locally, one per session | `apps/web/src/stores/drafts.test.ts` | green |
 | P01-15 | Completion sound: a short tone when a run settles and the tab is hidden or unfocused, off by default (B7, owner q5, M13R21) | `apps/web/src/features/appearance/completion-sound.test.ts`, `apps/web/src/features/appearance/AppearancePanel.test.tsx`, `apps/web/src/features/sessions/SessionScreen.live.test.tsx` | green |
 | P01-16 | Chat minimap | `apps/web/src/features/sessions/Minimap.test.tsx`, `apps/web/src/features/sessions/minimap.vm.test.ts`, `apps/web/src/features/sessions/Transcript.minimap.test.tsx` | green |
-| P01-17 | Codemode card: script preview, nested calls, wall time, cleaned output. Owner 2026-10-18: build it in M13 (task C9). The controller flips this verdict to green, with C9's test as proof, when C9 merges | `apps/daemon/src/security/codemode-nested.int.test.ts` | after v1 (pending C9, owner 2026-10-18, M13R20) |
+| P01-17 | Codemode card: script preview, nested calls, wall time, cleaned output. Owner 2026-10-18: built in M13 (task C9) | `apps/web/src/features/sessions/ToolItemCard.codemode.test.tsx`, `apps/web/src/features/sessions/codemode.vm.test.ts`, `apps/web/src/stores/nested-calls.test.ts` | green |
 
 ### D02 Sidebar and projects
 
