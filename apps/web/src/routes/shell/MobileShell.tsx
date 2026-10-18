@@ -1,10 +1,11 @@
 import { IconButton, IconLists, IconPlus, IconSearch, Mark } from "@pap/ui";
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { runCommand } from "../../features/commands/index.ts";
 import {
   activeTab,
   itemFromPath,
+  pathOfItem,
   useWorkspaceStore,
   type ItemRef,
   type Tab,
@@ -20,6 +21,7 @@ import { MobileListsMenu } from "./MobileListsMenu.tsx";
 import { itemTitle } from "./item-title.ts";
 import { useViewLabels } from "../../stores/view-labels-store.ts";
 import { useTriggerNames } from "./use-tasks-feed.ts";
+import { go } from "./tab-actions.ts";
 import { Unrouted } from "./Unrouted.tsx";
 import { PaneHost } from "./PaneHost.tsx";
 import { ProjectSwitcher } from "./ProjectSwitcher.tsx";
@@ -66,6 +68,13 @@ export function MobileShell() {
   const agentsUnread = useAgents((view) => view.agents.reduce((sum, agent) => sum + agent.unread, 0));
   const view = useSurfaceView((state) => (tab ? viewOf(state, tab.key) : "chat"));
   const [section, setSection] = useState<MobileSection>("work");
+  const navigate = useNavigate();
+  // The URL names the active item (a reload lands on it), so a row opens its tab and navigates to it.
+  const showInWork = (item: ItemRef) => {
+    useWorkspaceStore.getState().open(item);
+    go(navigate, pathOfItem(item));
+    setSection("work");
+  };
   const [seenPath, setSeenPath] = useState(pathname);
   const [tabsOpen, setTabsOpen] = useState(false);
   // Going to an item (a link, the palette, a tab) shows it: adjust state while rendering, not in an effect.
@@ -152,14 +161,8 @@ export function MobileShell() {
             load={loadInbox}
             open={section === "inbox"}
             props={{
-              onOpenMemory: () => {
-                useWorkspaceStore.getState().open({ kind: "settings", section: "memory" });
-                setSection("work");
-              },
-              onOpenSession: (id: string) => {
-                useWorkspaceStore.getState().open({ kind: "session", id });
-                setSection("work");
-              },
+              onOpenMemory: () => showInWork({ kind: "settings", section: "memory" }),
+              onOpenSession: (id: string) => showInWork({ kind: "session", id }),
             }}
             onFailed={() => setSection("work")}
           />

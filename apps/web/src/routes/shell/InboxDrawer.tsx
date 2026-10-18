@@ -1,20 +1,32 @@
 import { Dialog } from "@pap/ui/overlays";
+import { useNavigate } from "@tanstack/react-router";
 import InboxPanel from "../../features/inbox/InboxPanel.tsx";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
-import { useWorkspaceStore } from "../../features/workspace/index.ts";
+import { pathOfItem, useWorkspaceStore, type ItemRef } from "../../features/workspace/index.ts";
 import { useT } from "../../i18n/index.ts";
 import { useAgentsStore } from "../../stores/agents-store.ts";
 import { useFocusEntry } from "../../stores/focus-entry.ts";
+import { go } from "./tab-actions.ts";
 
 interface DrawerProps {
   readonly open: boolean;
   onOpenChange(open: boolean): void;
 }
 
-/** The right drawer (decision 29): the panel under a visually hidden dialog title, since the panel heads itself. A click on a row opens its session and closes the drawer. */
+/**
+ * The right drawer (decision 29): the panel under a visually hidden dialog title, since the panel heads itself. A click
+ * on a row opens its destination and closes the drawer. The URL names the active item, so the row navigates as well as
+ * opening the tab: a reload (the stale-chunk guard, F5) then lands on the destination, not on the home the URL named.
+ */
 export default function InboxDrawer({ open, onOpenChange }: DrawerProps) {
   const t = useT();
   const avatarStyle = useAppearanceStore((state) => state.account.avatarStyle);
+  const navigate = useNavigate();
+  const show = (item: ItemRef) => {
+    useWorkspaceStore.getState().open(item);
+    go(navigate, pathOfItem(item));
+    onOpenChange(false);
+  };
   return (
     <Dialog
       open={open}
@@ -32,17 +44,10 @@ export default function InboxDrawer({ open, onOpenChange }: DrawerProps) {
             .view.agents.find((agent) => agent.id === agentId)?.threadSessionId;
           if (entryId !== null && thread != null)
             useFocusEntry.getState().ask({ sessionId: thread, entryId });
-          useWorkspaceStore.getState().open({ kind: "agent", id: agentId });
-          onOpenChange(false);
+          show({ kind: "agent", id: agentId });
         }}
-        onOpenMemory={() => {
-          useWorkspaceStore.getState().open({ kind: "settings", section: "memory" });
-          onOpenChange(false);
-        }}
-        onOpenSession={(id) => {
-          useWorkspaceStore.getState().open({ kind: "session", id });
-          onOpenChange(false);
-        }}
+        onOpenMemory={() => show({ kind: "settings", section: "memory" })}
+        onOpenSession={(id) => show({ kind: "session", id })}
       />
     </Dialog>
   );

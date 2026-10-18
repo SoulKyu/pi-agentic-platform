@@ -121,6 +121,8 @@ describe("the phone's Inbox", () => {
     );
     expect(bed.called("inbox.markRead")[0]?.params).toEqual({ ids: ["q1"] });
     expect(page.container.querySelector("[data-inbox-panel]")).toBeNull();
+    // The URL names the active item, so a reload lands on the row's session.
+    await vi.waitFor(() => expect(page.router.state.location.pathname).toBe("/s/one"));
     await page.unmount();
   });
 });
