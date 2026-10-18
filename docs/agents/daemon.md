@@ -128,6 +128,11 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 
 - `.github/workflows/ci.yml` (job `integration`) and `pi-compat.yml` run `sudo loginctl enable-linger`, start `user@<uid>.service` and export `XDG_RUNTIME_DIR` before `pnpm test:int`; the scope tests fail in CI without a user manager (owner M2-Q8, R92) and `scripts/ci-config.test.ts` guards the step. Every other test daemon and bed runs with scopes off.
 
+## Pi compatibility
+
+- The nightly `pi-compat.yml` job and `pnpm pi-compat [--dry-run]` test the newest Pi SDK release that is at least `minimumReleaseAge` old (4320 minutes, 3 days), never `latest`. `scripts/pi-compat-bump.ts` reads the `time` object of `@earendil-works/pi-coding-agent`, `pi-ai` and `pi-tui` from the registry, takes the newest `X.Y.Z` (no pre-release) that all three publish and whose last publish is old enough, and writes that exact version into the catalog. No release old enough, or no network: exit 1 with a sentence, nothing written. The install never bypasses the release age; `ci-config.compat.test.ts` fails on any `minimum-release-age=0` in a workflow or a script.
+- `pnpm pi-compat` works in a scratch `git worktree add --detach` of `HEAD` (bump, `pnpm install --no-frozen-lockfile`, `typecheck`, `test:unit`, `test:int`) and removes it in a `finally`: your `node_modules`, `pnpm-workspace.yaml` and lockfile are never touched. Set `PAP_HEAVY_LOCK=<file>` to run `test:int` under `flock`. `--dry-run` prints the pick only. The job is `workflow_dispatch` plus the schedule while the repository is private (ADR 0066).
+
 ## Pi configuration helpers (ADR 0023)
 
 - Pi configuration work (reads and writes under the agent directory, sign-in, catalog refresh, `!cmd` keys, MCP Test, installs) runs in a helper child, never in the daemon: `kernel/helper/pool.ts`, entry `packages/pi-host/src/helper/main.ts` (`@pap/pi-host/helper`), beside the worker entry. A new operation is one `HelperOp` in `helper/ops/` registered in `helper/ops.ts`, called from its module through the pool composed in `compose-pi.ts`.

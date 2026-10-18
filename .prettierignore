@@ -10,3 +10,4 @@ DESIGN.md
 THIRD_PARTY_NOTICES.md
 LICENSES/
 scripts/fixtures/pnpm-lock-mini.yaml
+scripts/fixtures/pi-registry-time.json
