@@ -151,6 +151,7 @@ const fixture = (): Fixture => {
   const repo = join(root, "repo");
   put(join(repo, "pnpm-workspace.yaml"), workspace);
   put(join(repo, "pnpm-lock.yaml"), readFileSync(join(repoRoot, "pnpm-lock.yaml"), "utf8"));
+  put(join(repo, "LICENSE"), readFileSync(join(repoRoot, "LICENSE"), "utf8"));
   put(join(repo, "package.json"), readFileSync(join(repoRoot, "package.json"), "utf8"));
   for (const dir of ["apps/daemon", "packages/contracts", "packages/pi-host"]) {
     const source = join(repoRoot, dir, "package.json");
@@ -178,6 +179,7 @@ describe("buildNpm", () => {
     const pkg = await buildNpm({ repo, out });
     expect(pkg).toBe(join(out, "package"));
     expect(filesUnder(pkg)).toEqual([
+      "LICENSE",
       "apps/daemon/dist/lib/x.js",
       "apps/daemon/dist/main.js",
       "apps/daemon/package.json",

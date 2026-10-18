@@ -56,6 +56,7 @@ const fakeRepo = (): { repo: string; out: string } => {
   const repo = join(root, "repo");
   put(join(repo, "pnpm-workspace.yaml"), readFileSync(join(repoRoot, "pnpm-workspace.yaml"), "utf8"));
   put(join(repo, "pnpm-lock.yaml"), lock);
+  put(join(repo, "LICENSE"), readFileSync(join(repoRoot, "LICENSE"), "utf8"));
   put(join(repo, "package.json"), readFileSync(join(repoRoot, "package.json"), "utf8"));
   for (const dir of ["apps/daemon", "packages/contracts", "packages/pi-host"])
     put(join(repo, dir, "package.json"), readFileSync(join(repoRoot, dir, "package.json"), "utf8"));

@@ -65,7 +65,11 @@ beforeEach(() => {
 afterEach(() => rmSync(copy, { recursive: true, force: true }));
 
 describe("licence rule (M13R57)", () => {
-  it("accepts today: UNLICENSED or no field, with no LICENSE file", () => {
+  it("accepts the repository as it is: its AGPL id with its own LICENSE and notices", () => {
+    expect(checkRelease(REPO)).toEqual([]);
+  });
+
+  it("accepts an UNLICENSED or missing field with no LICENSE file (the state before the licence commit)", () => {
     expect(checkRelease(copy)).toEqual([]);
     setLicense("package.json", "UNLICENSED");
     setLicense("apps/daemon/package.json", "UNLICENSED");
