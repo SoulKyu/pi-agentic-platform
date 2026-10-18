@@ -14,6 +14,11 @@ import { ocean, labelled, named, seed } from "./theme-test-kit.ts";
 registerCatalog({ en: settingsScreenEn, fr: settingsScreenFr });
 registerCatalog({ en: settingsAppearanceEn, fr: settingsAppearanceFr });
 vi.mock("../../lib/report.ts", () => ({ reportClientIssue: vi.fn() }));
+// The panel lists the installed fonts through the runtime: a stub, so no socket is opened.
+vi.mock("../../runtime/index.ts", async (original) => ({
+  ...(await original<typeof import("../../runtime/index.ts")>()),
+  getRuntime: () => ({ rpc: { call: async () => ({ families: [] }) } }),
+}));
 
 const room = (wide: boolean) =>
   vi.stubGlobal("matchMedia", (query: string) => ({

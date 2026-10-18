@@ -119,6 +119,7 @@ export const shellEn = {
   "error.push_unavailable": "Notifications are not available on this server. See Settings › Notifications.",
   "error.push_revoked":
     "This device was removed from the notification list. Enable notifications again to add it back.",
+  "error.network": "pap could not reach the service it needs. Try again later.",
   // The home's Recent list and the tree rows both show an age: eager, because the home paints before the tree.
   "shell.age.now": "now",
   "shell.age.min": "{n} min",
@@ -252,6 +253,7 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
     "Les notifications ne sont pas disponibles sur ce serveur. Voir Réglages › Notifications.",
   "error.push_revoked":
     "Cet appareil a été retiré de la liste des notifications. Activez de nouveau les notifications pour le remettre.",
+  "error.network": "pap n'a pas pu joindre le service dont il a besoin. Réessayez plus tard.",
   "shell.age.now": "maintenant",
   "shell.age.min": "{n} min",
   "shell.age.hour": "{n} h",

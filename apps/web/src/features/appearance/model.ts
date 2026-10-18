@@ -4,8 +4,10 @@ import {
   DEFAULT_HOME_LAYOUT,
   type AccountAppearance,
 } from "@pap/contracts";
+import type { FontFamilyView } from "@pap/contracts";
 import { DENSITIES, type Density, type ThemeName } from "@pap/ui";
 import { deriveTheme, tokenVars } from "./derive.ts";
+import { resolveFont } from "./fonts.ts";
 import { newThemeId } from "./theme-ids.ts";
 
 export const DEVICE_KEY = "pap.appearance.device.v1";
@@ -253,6 +255,8 @@ export type AppearanceAttr = (typeof APPEARANCE_ATTRS)[number];
 export interface ResolvedAppearance {
   readonly attrs: Readonly<Record<AppearanceAttr, string>>;
   readonly vars: Readonly<Record<string, string>>;
+  /** The downloaded families in use: the controller keeps one stylesheet link for each. */
+  readonly fontSlugs?: readonly string[];
 }
 
 function side(
@@ -276,11 +280,12 @@ function deviceVars(device: DeviceAppearance): Record<string, string> {
 function plainAttrs(
   account: AccountAppearance,
   device: DeviceAppearance,
+  families: readonly FontFamilyView[] | null = null,
 ): Omit<Record<AppearanceAttr, string>, "theme"> {
   return {
     density: device.density,
-    "font-ui": account.uiFont === "system" ? "system" : "default",
-    "font-mono": account.monoFont === "system" ? "system" : "default",
+    "font-ui": resolveFont(account.uiFont, "ui", families).attr,
+    "font-mono": resolveFont(account.monoFont, "mono", families).attr,
     labels: account.uppercaseLabels ? "upper" : "sentence",
     grid: account.grid ? "on" : "off",
     rail: account.railPosition,
@@ -295,10 +300,22 @@ export function resolveAppearance(
   account: AccountAppearance,
   device: DeviceAppearance,
   prefersLight: boolean,
+  families: readonly FontFamilyView[] | null = null,
 ): ResolvedAppearance {
   const light = account.mode === "day" || (account.mode === "system" && prefersLight);
   const { theme, vars } = side(account, light);
-  return { attrs: { theme, ...plainAttrs(account, device) }, vars: { ...vars, ...deviceVars(device) } };
+  const ui = resolveFont(account.uiFont, "ui", families);
+  const mono = resolveFont(account.monoFont, "mono", families);
+  return {
+    attrs: { theme, ...plainAttrs(account, device, families) },
+    vars: {
+      ...vars,
+      ...deviceVars(device),
+      ...(ui.stack === null ? {} : { "--font-ui": ui.stack }),
+      ...(mono.stack === null ? {} : { "--font-code": mono.stack }),
+    },
+    fontSlugs: [ui.slug, mono.slug].filter((slug): slug is string => slug !== null),
+  };
 }
 
 export interface BootSide {

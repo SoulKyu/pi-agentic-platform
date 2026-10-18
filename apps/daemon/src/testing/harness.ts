@@ -145,6 +145,8 @@ async function startIn(root: string, script: object, options: TestDaemonOptions)
     // A recording fake unless the test names its own push seams (`push: {}` is the real sender): no daemon of a test
     // can reach a vendor push host (W5-R50).
     push: options.deps?.push ?? { transport: createFakeTransport() },
+    // Same rule for fonts: a test daemon never reaches Google unless the test names its own fetcher.
+    fontsFetcher: options.deps?.fontsFetcher ?? (async () => ({ ok: false, error: "network" })),
     onWorkerExit: (sessionId, info) => {
       exits.push({ sessionId, ...info });
       options.deps?.onWorkerExit?.(sessionId, info);

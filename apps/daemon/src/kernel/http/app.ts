@@ -50,7 +50,7 @@ const notFound = (c: Context) => c.json({ error: { code: "not_found" } }, 404);
 
 // Routes and WebSocket live under these prefixes: a miss is a 404, never index.html, so a typo in an
 // API path cannot be masked by the SPA fallback (R78).
-const RESERVED_PREFIXES = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/ws"];
+const RESERVED_PREFIXES = ["/auth", "/api", "/files", "/upload", "/hooks", "/metrics", "/ws", "/fonts"];
 function isReserved(path: string): boolean {
   const forms = [path];
   try {

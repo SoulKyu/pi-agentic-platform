@@ -116,7 +116,7 @@ Surfaces never cast shadows. Separation comes from surface steps and 1 px border
 
 ## 4. Typography
 
-Two families, **self-hosted as woff2 in `packages/ui`**. No font CDN at runtime: zero telemetry, offline-safe.
+Two families, **self-hosted as woff2 in `packages/ui`**. No font CDN at runtime: zero telemetry, offline-safe. Fonts still come from pap's own origin only (CSP `font-src 'self'`): a Google family the owner adds in Settings › Appearance is downloaded once by the daemon, stored under `$PAP_HOME/fonts` and served from there; the browser never contacts Google.
 
 - **Manrope** (400, 500, 600, 700, 800) for UI, prose and headings.
 - **JetBrains Mono** (400, 500, 600) for structure labels, code, tool output and numbers.

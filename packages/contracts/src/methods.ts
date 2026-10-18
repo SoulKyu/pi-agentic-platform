@@ -6,6 +6,7 @@ import { automationTaskMethods, automationTriggerMethods } from "./automation-me
 import { defineMethod, type MethodDef } from "./define.ts";
 import { AGENT_GATE_ERRORS } from "./errors.ts";
 import { AttachmentId, filesMethods } from "./files.ts";
+import { fontsMethods } from "./fonts.ts";
 import { Cursor } from "./frames.ts";
 import { inboxMethods } from "./inbox.ts";
 import { CommandWord, MAX_ALWAYS_RULES } from "./policy.ts";
@@ -78,6 +79,7 @@ export const methods = catalogue({
   ...subagentsMethods,
   ...memoryMethods,
   ...pushMethods,
+  ...fontsMethods,
   "system.ping": defineMethod({
     name: "system.ping",
     permission: "system:read",

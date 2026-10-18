@@ -42,6 +42,8 @@ describe("method catalogue", () => {
       "automation.triggers.setEnabled",
       "automation.triggers.update",
       "files.write",
+      "fonts.add",
+      "fonts.remove",
       "inbox.markRead",
       "lanes.approveScripts",
       "lanes.archive",

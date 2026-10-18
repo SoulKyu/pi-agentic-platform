@@ -5,6 +5,7 @@ import type { Runtime } from "../../runtime/index.ts";
 import { toast } from "@pap/ui";
 import { t } from "../../i18n/index.ts";
 import { applyAppearance, inlineAppearanceVars, syncThemeColor, writeBootCache } from "./apply.ts";
+import { customSlug } from "./fonts.ts";
 import { useAppearanceStore } from "./appearance-store.ts";
 import {
   changedAccountFields,
@@ -25,6 +26,12 @@ function bootStorage(win: Window): Storage | null {
   }
 }
 
+// One import site: the chunk with the installed-font list and the stylesheet links, loaded when a custom font is first chosen.
+const loadFontSupport = () => import("./font-support.ts");
+type FontSupport = Awaited<ReturnType<typeof loadFontSupport>>;
+const usesCustomFont = ({ uiFont, monoFont }: AccountAppearance): boolean =>
+  customSlug(uiFont) !== null || customSlug(monoFont) !== null;
+
 let active: { stop(): void } | null = null;
 let accountDocument: AccountDocument<AccountAppearance> | null = null;
 
@@ -35,9 +42,27 @@ export function startAppearance(win: Window = window): { stop(): void } {
   // Start from what the boot script set, so the first apply removes what the app no longer resolves (M3-RT-11).
   let vars = inlineAppearanceVars(root);
   const media = typeof win.matchMedia === "function" ? win.matchMedia(LIGHT) : null;
+  let fonts: FontSupport | null = null;
+  let fontsRequested = false;
+  let stopFonts: (() => void) | null = null;
+  let stopped = false;
   const apply = () => {
     const { account, device } = useAppearanceStore.getState();
-    vars = applyAppearance(root, resolveAppearance(account, device, media?.matches ?? false), vars);
+    if (!fontsRequested && usesCustomFont(account)) {
+      fontsRequested = true;
+      loadFontSupport()
+        .then((support) => {
+          if (stopped) return;
+          fonts = support;
+          stopFonts = support.useFontsStore.subscribe(apply);
+          apply();
+        })
+        .catch(() => reportClientIssue("lazy_chunk_failed")); // the default font stays
+    }
+    const families = fonts?.useFontsStore.getState().families ?? null;
+    const resolved = resolveAppearance(account, device, media?.matches ?? false, families);
+    vars = applyAppearance(root, resolved, vars);
+    fonts?.syncFontLinks(win.document, resolved.fontSlugs ?? []);
     const storage = bootStorage(win);
     if (storage) writeBootCache(storage, toBootCache(account, device));
     else reportClientIssue("boot_cache_refused");
@@ -78,6 +103,8 @@ export function startAppearance(win: Window = window): { stop(): void } {
     stop() {
       media?.removeEventListener("change", apply);
       unsubscribe();
+      stopped = true;
+      stopFonts?.();
       doc.dispose();
       if (accountDocument === doc) accountDocument = null;
       active = null;
@@ -87,8 +114,15 @@ export function startAppearance(win: Window = window): { stop(): void } {
 }
 
 /** Each time the socket opens (Task 19b): read the server copy, merge this device's changes, send them. */
-export function syncAccountAppearance(rpc: Runtime["rpc"]): Promise<void> {
-  return accountDocument?.sync(rpc) ?? Promise.resolve();
+export async function syncAccountAppearance(rpc: Runtime["rpc"]): Promise<void> {
+  await accountDocument?.sync(rpc);
+  // The list of downloaded fonts is only needed to draw a custom choice: nobody else pays the call.
+  if (!usesCustomFont(useAppearanceStore.getState().account)) return;
+  try {
+    await (await loadFontSupport()).loadFonts(rpc);
+  } catch {
+    reportClientIssue("lazy_chunk_failed"); // the default font stays
+  }
 }
 
 // A hot update replaces this module: the old controller must not keep its listeners (R125).

@@ -16,6 +16,7 @@ export * from "./env-keys.ts";
 export * from "./egress.ts";
 export * from "./errors.ts";
 export * from "./fence.ts";
+export * from "./fonts.ts";
 export * from "./files.ts";
 export * from "./frames.ts";
 export * from "./handlers.ts";

@@ -2,16 +2,40 @@ import { Segmented, Select, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { AppearanceSection } from "./AppearanceSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
+import { customSlug } from "./fonts.ts";
+import { FontsBlock } from "./FontsBlock.tsx";
+import { useFontsStore } from "./fonts-store.ts";
 
 const RAILS = ["left", "right"] as const;
 const AVATARS = ["outlined", "tinted", "glyph"] as const;
 const TOOL_DETAILS = ["compact", "expanded", "full"] as const;
 
-/** Account scope: the two bundled font families or the system stacks (M3R110), labels, grid, rail, avatars, tool cards. */
+/**
+ * Account scope: the bundled font families, the system stacks (M3R110) or a Google font pap downloaded, labels, grid,
+ * rail, avatars, tool cards.
+ */
 export function DetailsSection() {
   const t = useT();
   const account = useAppearanceStore((state) => state.account);
   const setAccount = useAppearanceStore((state) => state.setAccount);
+  const families = useFontsStore((state) => state.families);
+  // The bundled choices, System, every installed family; a custom choice that is gone is shown as such once the list is known.
+  const fontOptions = (bundled: { value: string; label: string }, current: string) => {
+    const options = [
+      bundled,
+      { value: "system", label: t("settings.appearance.fontSystem") },
+      ...(families ?? []).map((entry) => ({ value: `custom:${entry.slug}`, label: entry.family })),
+    ];
+    const gone =
+      customSlug(current) !== null && families !== null && !options.some((one) => one.value === current);
+    return gone
+      ? [...options, { value: current, label: t("settings.appearance.fonts.removedChoice") }]
+      : options;
+  };
+  const removed = (current: string) =>
+    customSlug(current) !== null &&
+    families !== null &&
+    !families.some((one) => `custom:${one.slug}` === current);
   return (
     <AppearanceSection
       title={t("settings.appearance.section.details")}
@@ -20,21 +44,24 @@ export function DetailsSection() {
       <Select
         label={t("settings.appearance.uiFont")}
         value={account.uiFont}
-        options={[
+        options={fontOptions(
           { value: "manrope", label: t("settings.appearance.fontManrope") },
-          { value: "system", label: t("settings.appearance.fontSystem") },
-        ]}
+          account.uiFont,
+        )}
+        {...(removed(account.uiFont) ? { hint: t("settings.appearance.fonts.removedNote") } : {})}
         onChange={(uiFont) => setAccount({ ...account, uiFont })}
       />
       <Select
         label={t("settings.appearance.monoFont")}
         value={account.monoFont}
-        options={[
+        options={fontOptions(
           { value: "jetbrains-mono", label: t("settings.appearance.fontJetbrains") },
-          { value: "system", label: t("settings.appearance.fontSystem") },
-        ]}
+          account.monoFont,
+        )}
+        {...(removed(account.monoFont) ? { hint: t("settings.appearance.fonts.removedNote") } : {})}
         onChange={(monoFont) => setAccount({ ...account, monoFont })}
       />
+      <FontsBlock />
       <Switch
         label={t("settings.appearance.uppercaseLabels")}
         checked={account.uppercaseLabels}

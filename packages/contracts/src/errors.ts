@@ -32,6 +32,7 @@ export const ERROR_CODES = [
   "agent_paused",
   "push_unavailable",
   "push_revoked",
+  "network",
   "unknown_method",
   "internal",
 ] as const;
@@ -83,6 +84,7 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   push_unavailable: "Notifications are not available on this server. See Settings › Notifications.",
   push_revoked:
     "This device was removed from the notification list. Enable notifications again to add it back.",
+  network: "pap could not fetch this from the network.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

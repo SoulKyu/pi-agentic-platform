@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { AutomationSettings } from "./automation.ts";
 import { defineMethod } from "./define.ts";
+import { CUSTOM_FONT_PATTERN } from "./fonts.ts";
 import { NotificationsSettings } from "./push.ts";
 
 // Account-scope settings (DESIGN.md §13): validated here, on the server before a write and on the client before an
@@ -72,8 +73,15 @@ export const AccountAppearanceFields = z.object({
     .array(CustomTheme)
     .max(16)
     .default(() => []),
-  uiFont: z.enum(["manrope", "system"]).default("manrope"),
-  monoFont: z.enum(["jetbrains-mono", "system"]).default("jetbrains-mono"),
+  /** `manrope`, `system` or `custom:<slug>` of a family pap downloaded (fonts.add). */
+  uiFont: z
+    .string()
+    .regex(new RegExp(`^(manrope|system|${CUSTOM_FONT_PATTERN})$`))
+    .default("manrope"),
+  monoFont: z
+    .string()
+    .regex(new RegExp(`^(jetbrains-mono|system|${CUSTOM_FONT_PATTERN})$`))
+    .default("jetbrains-mono"),
   uppercaseLabels: z.boolean().default(true),
   grid: z.boolean().default(true),
   railPosition: z.enum(["left", "right"]).default("left"),

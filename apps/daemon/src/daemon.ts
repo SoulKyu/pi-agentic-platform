@@ -1,8 +1,9 @@
 import type { spawn } from "node:child_process";
 import { join } from "node:path";
-import { PROTOCOL_VERSION, type HandlerTable } from "@pap/contracts";
-import type { Context } from "hono";
+import type { HandlerTable } from "@pap/contracts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
+import { createWsProbe } from "./compose-ws-probe.ts";
+import { composeFonts, type Fetcher } from "./compose-fonts.ts";
 import { composeLanes, LANE_MIGRATIONS } from "./compose-lanes.ts";
 import { composeM10, composeM10Early, M10_MIGRATION_SOURCES } from "./compose-m10.ts";
 import { composeM11, M11_MIGRATION_SOURCES } from "./compose-m11.ts";
@@ -74,6 +75,7 @@ export interface DaemonDeps {
   /** Tests only: replaces the process spawn of the sandbox probe (a bwrap that never answers). */
   readonly sandboxSpawn?: typeof spawn;
   readonly push?: PushSeams; // tests only: replaces the transport side
+  readonly fontsFetcher?: Fetcher; // tests only: replaces the Google Fonts fetcher
 }
 
 /**
@@ -271,6 +273,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       { ...core, closers, m10, inbox: m10Late.inbox, auth, settings, sessions, audit, agents },
       deps.push,
     );
+    const fonts = composeFonts(core, deps.fontsFetcher);
     const handlers: HandlerTable = {
       ...systemHandlers(clock),
       ...audit.rpc,
@@ -286,6 +289,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...m10Late.rpc,
       ...m11.rpc,
       ...push.rpc,
+      ...fonts.rpc,
     };
     const dispatch = createDispatcher({ handlers, receipts, logger, onCall: m10.onCall });
     const ws = createWsServer({
@@ -299,19 +303,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       serverVersion: VERSION,
       onOriginRefused,
     });
-    // The browser cannot read the status of a failed upgrade, so the client asks this plain GET first.
-    const wsProbe = (c: Context) => {
-      if (c.req.query("proto") !== String(PROTOCOL_VERSION))
-        return c.json({ protocol: PROTOCOL_VERSION }, 426);
-      const credential = auth.credentialOf({
-        cookie: c.req.header("cookie"),
-        authorization: c.req.header("authorization"),
-      });
-      if (credential === "conflict") return c.json({ error: { code: "bad_request" } }, 400);
-      if (!auth.authenticateCredential(credential))
-        return c.json({ error: { code: "unauthenticated" } }, 401);
-      return c.json({ protocol: PROTOCOL_VERSION });
-    };
+    const wsProbe = createWsProbe(auth);
     const app = createHttpApp({
       allowedOrigins: config.allowedOrigins,
       staticRoot: config.staticRoot,
@@ -323,6 +315,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         wk.mount(hono, auth.authenticateCookieHeader);
         sessions.mountExportRoute(hono, auth.authenticateCookieHeader);
         m10Late.mount(hono);
+        fonts.mount(hono);
       },
       wsProbe,
     });
