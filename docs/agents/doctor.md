@@ -52,7 +52,7 @@ They read the home, never write it. The order of the whole list is the order of 
 | `push` | the same readiness, plus `secrets/push/vapid.json` by `lstat`: absent is ok (created at the first start); a regular file of mode 0600 in a folder of mode 0700, both owned by the user, is ok | | push is off (`keys_unreadable`, or the readiness above); never `fail` | localhost only |
 | `bwrap` | the real sandbox probe (never a PATH scan) with `PAP_BWRAP` of the unit | | missing; not root-owned; the probe is refused (in a container: `--security-opt systempaths=unconfined`, `scripts/pap-container.sh run`; on Ubuntu `kernel.apparmor_restrict_unprivileged_userns`); no answer in 5 s | |
 | `python3` | a root-owned `python3` in `/usr/bin`, `/usr/local/bin` or `/bin` (`trustedBinary`; it is not run) | | none: networked agents need it | |
-| `update_available` | `update/last-check.json`, written by the daily check (off by default until the v1 flip: `UPDATE_CHECK_DEFAULT` in `apps/daemon/src/update-check.ts`) or with `PAP_UPDATE_CHECK=1`; no network call | | | |
+| `update_available` | `update/last-check.json`, written by the daily check (on by default; `PAP_UPDATE_CHECK=0` turns it off) or with `PAP_UPDATE_CHECK=1`; no network call | | | |
 
 `update_available` is `skip` when no check has run or the record is unreadable, `ok` otherwise ("<latest> is available on <channel>: pap update install" or "up to date").
 

@@ -1,7 +1,9 @@
 name: release
-# workflow_dispatch only while the repository is private (M6bR36). The v1 flip is scripts/release-flip.ts (ADR 0066 and
-# ADR 0076): it adds `push: branches: [main]` to `on:` and lets `stable` run on that push.
+# Flipped for v1 by scripts/release-flip.ts (ADR 0066 and ADR 0076): a push to main and workflow_dispatch start the
+# jobs; `stable` runs on both, `next` only on a dispatch.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       channel:
@@ -13,7 +15,7 @@ permissions:
   contents: read
 jobs:
   stable:
-    if: github.ref == 'refs/heads/main' && inputs.channel == 'stable'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.channel == 'stable')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
