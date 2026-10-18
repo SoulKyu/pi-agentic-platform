@@ -28,10 +28,16 @@ const EXPECTED_CONFIG = {
   },
 };
 
+/** The repository's own version: 0.0.0 before the first release, then whatever release-please wrote. */
+const VERSION = (JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")) as { version: string }).version;
+
 let copy: string;
 const edit = (file: string, change: (text: string) => string) => {
   const path = join(copy, file);
-  writeFileSync(path, change(readFileSync(path, "utf8")));
+  const before = readFileSync(path, "utf8");
+  const after = change(before);
+  expect(after, `the edit of ${file} changes it`).not.toBe(before);
+  writeFileSync(path, after);
 };
 
 beforeEach(() => {
@@ -51,8 +57,9 @@ describe("the repository", () => {
     expect(JSON.parse(readFileSync(join(REPO, "release-please-config.json"), "utf8"))).toStrictEqual(
       EXPECTED_CONFIG,
     );
+    expect(VERSION).toMatch(/^\d+\.\d+\.\d+$/);
     expect(JSON.parse(readFileSync(join(REPO, ".release-please-manifest.json"), "utf8"))).toStrictEqual({
-      ".": "0.0.0",
+      ".": VERSION,
     });
   });
 });
@@ -65,9 +72,9 @@ describe("version triple", () => {
   });
 
   it.each([
-    ["package.json", (t: string) => t.replace('"version": "0.0.0"', '"version": "0.0.1"')],
-    ["apps/daemon/package.json", (t: string) => t.replace('"version": "0.0.0"', '"version": "0.0.2"')],
-    [".release-please-manifest.json", (t: string) => t.replace("0.0.0", "0.0.3")],
+    ["package.json", (t: string) => t.replace(`"version": "${VERSION}"`, '"version": "9.9.1"')],
+    ["apps/daemon/package.json", (t: string) => t.replace(`"version": "${VERSION}"`, '"version": "9.9.2"')],
+    [".release-please-manifest.json", (t: string) => t.replace(VERSION, "9.9.3")],
   ])("fails naming %s when it is the one that differs", (file, change) => {
     edit(file, change);
     const problems = checkRelease(copy);
@@ -75,7 +82,9 @@ describe("version triple", () => {
   });
 
   it("fails when the root has no version", () => {
-    edit("package.json", (t) => t.replace(/\s*"version": "0.0.0",/, ""));
+    edit("package.json", (t) =>
+      t.replace(new RegExp(`\\s*"version": "${VERSION.replaceAll(".", "\\.")}",`), ""),
+    );
     expect(checkRelease(copy).join("\n")).toContain("package.json");
   });
 });

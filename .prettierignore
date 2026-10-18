@@ -11,3 +11,6 @@ THIRD_PARTY_NOTICES.md
 LICENSES/
 scripts/fixtures/pnpm-lock-mini.yaml
 scripts/fixtures/pi-registry-time.json
+# Written by release-please (release.yml): its format is the tool's, not ours.
+CHANGELOG.md
+.release-please-manifest.json
