@@ -17,7 +17,7 @@ export function Checkbox({ label, checked, onChange, disabled }: CheckboxProps) 
     <label
       htmlFor={id}
       data-slot="checkbox"
-      className="flex items-center gap-s2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
+      className="relative flex items-center gap-s2 pointer-coarse:min-h-11 pointer-coarse:min-w-11"
     >
       <Radix.Root
         id={id}

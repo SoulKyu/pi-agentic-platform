@@ -91,6 +91,7 @@ describe("across a restart (MC19 a)", () => {
       startedAt: stamp + 10_000,
       isLive: () => false,
       workerEndedAt: () => null,
+      liveIdleSince: () => null,
     });
     restarted.touched(sessionId, stamp, true, true);
     expect(seen).toEqual([]);
@@ -158,6 +159,18 @@ describe("a worker never starts on tool results nobody has read (MC19 c)", () =>
   });
 });
 
+/** A real taint (fake policy, the real module) so a Clear and the audit rows can be seen. */
+const withPolicyBed = () => {
+  const policy = fakePolicyPort();
+  const audited: Array<{ reason: string }> = [];
+  const taint = outsideToolResultsTaint({
+    store: { get: (id) => bed.store.get(id) },
+    policy,
+    audit: { append: (line) => void audited.push(line) },
+    logger: captureLogger().logger,
+  });
+  return { policy, audited, options: { policy, onOutsideToolResults: taint } satisfies BedOptions };
+};
 /** The file's mtime, as a cp -p, a sync tool or the clock of another machine can set it (seconds for utimes). */
 const setMtime = (file: string, ms: number): void => utimesSync(file, ms / 1000, ms / 1000);
 
@@ -182,18 +195,6 @@ describe("the gate of the start check: what changed since pap or the scanner las
     expect(h.seen).toEqual([]);
   });
 
-  /** A real taint (fake policy, the real module) so a Clear and the audit rows can be seen. */
-  const withPolicy = () => {
-    const policy = fakePolicyPort();
-    const audited: Array<{ reason: string }> = [];
-    const taint = outsideToolResultsTaint({
-      store: { get: (id) => bed.store.get(id) },
-      policy,
-      audit: { append: (line) => void audited.push(line) },
-      logger: captureLogger().logger,
-    });
-    return { policy, audited, options: { policy, onOutsideToolResults: taint } satisfies BedOptions };
-  };
   /** The scanner reads an outside tool result at `mtime` (the clock has passed it, as in production) and taints. */
   async function scannerTaints(sessionId: string, file: string) {
     const mtime = bed.clock.now() + 1_000;
@@ -204,7 +205,7 @@ describe("the gate of the start check: what changed since pap or the scanner las
   }
 
   it("(3) keeps a Clear made while the session is closed: reopening with nothing new does not taint again", async () => {
-    const w = withPolicy();
+    const w = withPolicyBed();
     const { sessionId, file } = await coldSession(w.options);
     await scannerTaints(sessionId, file);
     expect(w.policy.taintOf(sessionId).tainted).toBe(true);
@@ -215,7 +216,7 @@ describe("the gate of the start check: what changed since pap or the scanner las
   });
 
   it("(4) taints again when something was appended after the Clear", async () => {
-    const w = withPolicy();
+    const w = withPolicyBed();
     const { sessionId, file } = await coldSession(w.options);
     await scannerTaints(sessionId, file);
     w.policy.clearTaint("u1", sessionId);
@@ -235,5 +236,28 @@ describe("the gate of the start check: what changed since pap or the scanner las
     lutimesSync(file, 1, 1); // the link itself looks old too
     await reopen(sessionId);
     expect(h.seen.map((x) => x.id)).toEqual([sessionId]);
+  });
+});
+
+describe("a second app's tool result while pap holds the session (M13-C10)", () => {
+  it("taints at once, and the crash plus the next prompt change nothing", async () => {
+    const w = withPolicyBed();
+    bed = build(w.options);
+    const { sessionId } = await bed.service.create(bed.work, OWNER);
+    const file = bed.writePiFile(0, [["q0", "r0"]]);
+    bed.store.bindPiFile(sessionId, file, "pi-0");
+    await bed.clock.advance(60_000);
+    const mtime = bed.clock.now() + 1_000;
+    appendFileSync(file, TOOL_RESULT);
+    setMtime(file, mtime);
+    await bed.clock.advance(5_000);
+    bed.service.scanPort.touched(sessionId, mtime, false, true);
+    expect(w.policy.taintOf(sessionId).tainted).toBe(true);
+    expect(w.audited.filter((line) => line.reason === "tainted_outside")).toHaveLength(1);
+    bed.spawned[0]?.crash({ code: null, signal: "SIGKILL", cause: "killed" });
+    await bed.clock.advance(0);
+    await reopen(sessionId);
+    expect(bed.spawned).toHaveLength(2);
+    expect(w.policy.taintOf(sessionId).tainted).toBe(true);
   });
 });

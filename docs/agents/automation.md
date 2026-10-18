@@ -8,7 +8,7 @@ Code: `apps/daemon/src/modules/automation/` (triggers, tasks, fire path, runner,
 - Sources: `schedule` (RRULE subset + time zone + catch-up), `webhook` (`secret` or `hmac`, format `raw`, `alertmanager` or `grafana`), `feed`, `manual`.
 - `create`, `update` and `rotateSecret` take the password step-up; switches (`setEnabled`) and `delete` do not. `update` is compare-and-set on `revision`. Every change appends an audit row (kind `policy`, decision `info`; ids, source, mode and counts only, never the prompt, command, folder or secret). A token holds `automation:operate` at most (fire, dry-run, cancel, retry); `automation:admin` (create, update, rotate, delete, setEnabled, releaseTools) is outside `TOKEN_PERMISSIONS`, and a token cannot write the `automation` setting (`forbidden`). A token reads a trigger without its precheck and env, and a feed trigger's URL without query or userinfo (a private feed carries its credential there); the owner's browser sees the stored one.
 - Webhook secret: `pwh_` + 32 random bytes, shown once, stored in `$PAP_HOME/secrets/triggers/<id>.key` (0600), never in the database. Turning a trigger from `secret` to `hmac` issues a new secret shown once; `hmac` to `secret` keeps the key.
-- Prompt template: `{{payload}}`, `{{precheck}}` (each at most once), `{{trigger}}`, `{{firedAt}}`; one pass, inserted text never read again. A payload is always fenced (contracts `fenceText`, fresh 12-hex id) and the run starts tainted. A rendered prompt over 131 072 bytes is `prompt_too_large` (the hook answers 413).
+- Prompt template: `{{payload}}`, `{{precheck}}` (each at most once), `{{trigger}}`, `{{firedAt}}`; one pass, inserted text never read again. A payload is always fenced (contracts `fenceText`, fresh 12-hex id) and the run starts tainted. A rendered prompt over 131 072 characters is `prompt_too_large` (the hook answers 413).
 
 ## Webhooks (`hooks-http.ts`, `hook-auth.ts`, `hook-slots.ts`)
 
@@ -18,7 +18,7 @@ Code: `apps/daemon/src/modules/automation/` (triggers, tasks, fire path, runner,
 
 ## Schedules (`scheduler.ts`, contracts `rrule.ts`)
 
-- RRULE subset: `MINUTELY;INTERVAL=5..1440`, `HOURLY`, `DAILY;BYHOUR`, `WEEKLY;BYDAY;BYHOUR` (`WEEKLY` without `BYHOUR` is refused). Wall time in the trigger's zone; a nonexistent time (spring forward) fires after the gap; a repeated time (fall back) fires at both instants for `MINUTELY` and `HOURLY`, once for `DAILY` and `WEEKLY`.
+- RRULE subset: `MINUTELY;INTERVAL=5..1440`, `HOURLY[;INTERVAL=1..24][;BYMINUTE]` (at most 12 minutes), `DAILY;BYHOUR[;BYMINUTE]`, `WEEKLY;BYDAY;BYHOUR[;BYMINUTE]` (`DAILY` or `WEEKLY` without `BYHOUR`, and `WEEKLY` without `BYDAY`, are refused). Wall time in the trigger's zone; a nonexistent time (spring forward) fires after the gap; a repeated time (fall back) fires at both instants for `MINUTELY` and `HOURLY`, once for `DAILY` and `WEEKLY`.
 - One guarded timer for the earliest `next_fire_at`; every trigger due at that instant is handled from the one tick. A fire more than 2 minutes late is missed: `catchUp: skip` journals `missed N`, `catchUp: once` fires once when the last miss is within 12 h.
 - Quiet hours do not stop runs (only M12's pushes wait).
 
@@ -81,7 +81,7 @@ Project triggers keep everything above (ADR 0041). A trigger that runs as an age
 ## Inbox (`modules/inbox/`)
 
 - M10's rows: one per task and kind (agent kinds are in ADR 0051 and `agents.md`; the stream and filters below hold for both): `task_needs_input` (to handle; resolved by an answer or by the 10-minute timeout, shown "denied (no answer)"; a new question of the same task reopens it), `task_done`, `task_failed`, `task_interrupted`, `task_limited` (info). A cancelled task gets no item. The `inbox` stream carries every unresolved to-handle row plus the newest 100 others, `unread` and `toHandle`; `inbox.markRead` takes ids (200) or `all`.
-- Retention: read items whose task is resolved go after 30 days; 2 000 per owner (read info rows evicted first, a to-handle row always written, a new info row skipped and logged `inbox_full`).
+- Retention: read items that are not an open question go 30 days after their creation (hourly housekeeping); 2 000 per owner (read info rows evicted first, a to-handle row always written, a new info row skipped and logged `inbox_full`).
 
 ## Read-only mode and timers
 
@@ -98,4 +98,4 @@ Project triggers keep everything above (ADR 0041). A trigger that runs as an age
 ## Log lines and test seams
 
 - Lines: `outbox_recovered`, `outbox_unknown_kinds`, `outbox_handler_overdue`, `outbox_handler_error`, `automation_boot_recovered`, `hook_unauthorized`, `hook_backoff`, `hook_unknown_flood`, `hook_failed`, `scheduler_trigger_failed`, `task_*_failed` (abort, release, end step, orphan session), `inbox_full`.
-- Tests: `PAP_TEST_OUTBOX_HOLD` (daemon.md), the `feed-bed` resolver seam (a local HTTPS server, `allowed` set only in tests), `security/steppable-clock.ts`; security suites in `apps/daemon/src/security/automation-*.int.test.ts` and `webhook.int.test.ts`.
+- Tests: `PAP_TEST_OUTBOX_HOLD` (daemon.md), the `feed-bed` resolver seam (`modules/automation/testing/feed-bed.ts`: a local HTTPS server, `allowed` set only in tests), `security/testing/steppable-clock.ts`; security suites in `apps/daemon/src/security/automation-*.int.test.ts` and `webhook.int.test.ts`.

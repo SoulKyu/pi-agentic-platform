@@ -12,6 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { putLicences } from "./licence-fixture.ts";
 import {
   assertBundled,
   assertBundledDependencies,
@@ -56,6 +57,8 @@ const fakeRepo = (): { repo: string; out: string } => {
   const repo = join(root, "repo");
   put(join(repo, "pnpm-workspace.yaml"), readFileSync(join(repoRoot, "pnpm-workspace.yaml"), "utf8"));
   put(join(repo, "pnpm-lock.yaml"), lock);
+  putLicences(repo);
+  put(join(repo, "package.json"), readFileSync(join(repoRoot, "package.json"), "utf8"));
   for (const dir of ["apps/daemon", "packages/contracts", "packages/pi-host"])
     put(join(repo, dir, "package.json"), readFileSync(join(repoRoot, dir, "package.json"), "utf8"));
   put(
@@ -213,6 +216,17 @@ describe("D3: the Pi SDK siblings are pinned to the lockfile", () => {
     const deps = readJson(join(pkg, "package.json")).dependencies ?? {};
     for (const [name, version] of Object.entries(parseLockScope(lock)))
       expect(deps[name], name).toBe(version);
+  });
+
+  it("buildNpm ships the licence texts, and refuses a repository without one", async () => {
+    const ok = fakeRepo();
+    const pkg = await buildNpm(ok);
+    for (const file of ["LICENSE", "THIRD_PARTY_NOTICES.md", "LICENSES/Apache-2.0.txt"])
+      expect(existsSync(join(pkg, file)), file).toBe(true);
+    const bare = fakeRepo();
+    rmSync(join(bare.repo, "LICENSES"), { recursive: true });
+    await expect(buildNpm(bare)).rejects.toThrow(/LICENSES/);
+    expect(existsSync(join(bare.out, "package"))).toBe(false);
   });
 
   it("buildNpm refuses a missing lockfile or one without the Pi SDK, and packs nothing", async () => {

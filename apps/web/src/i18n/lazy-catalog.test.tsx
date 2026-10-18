@@ -268,7 +268,7 @@ describe("lazy catalog (session screen)", () => {
     await act(async () => registerCatalog({ en: sessionScreenEn, fr: sessionScreenFr }));
     expect(translate("en", "sessions.composer.send")).toBe("Send");
     expect(translate("fr", "sessions.composer.send")).toBe("Envoyer");
-    expect(Object.keys(sessionScreenEn)).toHaveLength(109);
+    expect(Object.keys(sessionScreenEn)).toHaveLength(117);
     expect(Object.keys(sessionScreenFr)).toEqual(Object.keys(sessionScreenEn));
     const slots = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
     for (const key of Object.keys(sessionScreenEn) as Array<keyof typeof sessionScreenEn>)
@@ -281,6 +281,7 @@ describe("lazy catalog (session screen)", () => {
         "AlwaysRules",
         "BranchSwitcher",
         "Composer",
+        "CodemodeBody",
         "CrashBanner",
         "CustomPanel",
         "MessageRow",
@@ -305,7 +306,7 @@ describe("lazy catalog (session screen)", () => {
         "use-clipped",
       ].map((name) => `features/sessions/dialogs/${name}.tsx`),
     ]);
-    expect(chunk.size).toBe(23);
+    expect(chunk.size).toBe(24);
     // A stale entry would silently exempt nothing: every listed file must exist.
     expect([...chunk].filter((file) => !existsSync(join(src, file)))).toEqual([]);
     const offenders: string[] = [];

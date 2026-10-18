@@ -15,3 +15,7 @@ Any https host (SSRF with a browser-chosen URL); a list-off switch (a mistake wo
 ## Consequences
 
 A new push vendor needs `PAP_PUSH_EXTRA_HOSTS`. Three address checks remain (`blockedAddress`, `blockedForPush`, `automation/net-guard.ts`); merging them and hardening the egress proxy with the extra ranges is left for the M13 sweep.
+
+M13 (R14, R46): `blockedForPush` is renamed `blockedStrict` (`kernel/net/address-strict.ts`) and the egress proxy uses it too; three predicates remain (`blockedAddress`, `blockedStrict`, `automation/net-guard.ts`), compared by a table test.
+
+Criterion (M13-C5): `blockedStrict` refuses every more-specific IANA special-purpose block marked not globally reachable; the unassigned remainder of 2001::/23 is unrouted and stays open, plus the mapped, SIIT and 6to4 forms of a refused IPv4 address; so 3fff::/20, 2001:2::/48, 2001:10::/28 and 5f00::/16 are added, while 2001:20::/28 (ORCHIDv2, globally reachable) stays allowed.

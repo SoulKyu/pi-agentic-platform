@@ -450,7 +450,7 @@ Screens, detailed typography, spacing, icons and the wordmark belong to DESIGN.m
 
 ### 8.3 CI and repository conventions
 
-- **CI pipeline** (GitHub Actions): install → lint + types + knip → unit → integration → build (web, daemon, archives, image) → e2e → budgets. Docs-only PRs skip the matrix; the Pi-compat job runs nightly.
+- **CI pipeline** (GitHub Actions): install → lint + types + knip → unit → integration → build (web, daemon, archives, image) → e2e → budgets. Every change runs the matrix, docs-only ones included (M13-C12); the Pi-compat job runs nightly.
 - **Dev isolation**: `pap serve --dev` uses a `PAP_HOME` and a port derived from the worktree path.
 - **Repository conventions**:
   - AGENTS.md at most 150 lines;

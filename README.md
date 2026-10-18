@@ -113,7 +113,14 @@ Method 2, offline archive pinned to a checksum:
 - Backup and restore: `pap backup [--encrypt]`, `pap restore <file>` with pap stopped: [docs/agents/backup.md](docs/agents/backup.md)
 - Check the machine and the install: `pap doctor`: [docs/agents/doctor.md](docs/agents/doctor.md)
 - Container (rootless podman), npm and releases: [docs/agents/install.md](docs/agents/install.md)
-- Everything that needs the public repository (feed, `curl | sh`, `npm publish`) waits for v1.
+- The feed, `curl | sh` and `npm publish` wait for the v1 release.
+
+## Testing and releasing
+
+- Unit and integration tests: `pnpm test:unit`, `pnpm test:int`. Browser tests of the built app: `pnpm test:e2e`, see [docs/agents/e2e.md](docs/agents/e2e.md).
+- Parity with pi-web, row by row with its proof: [docs/agents/parity.md](docs/agents/parity.md). Evidence for the v1 exit criteria: [docs/research/m13-exit-criteria.md](docs/research/m13-exit-criteria.md).
+- Releasing: [docs/agents/release.md](docs/agents/release.md) is the owner's runbook.
+- CI runs on every pull request and on every push to `main`, documentation changes included, so the docs tests always run (`.github/workflows/ci.yml`).
 
 ## License
 

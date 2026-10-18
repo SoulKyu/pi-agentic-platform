@@ -6,8 +6,8 @@ Decisions: ADR 0067; rulings M6bR24 to M6bR28 in `docs/research/m6b-rulings.md`.
 
 ## Read-only
 
-- It creates and changes nothing: no `mkdir`, no `writeFile`, no lock taken, no `-wal` or `-shm` next to `state.db`. A home that does not exist is reported, not created.
-- The only child programs are `systemctl --user` (`show`, `cat`, `is-*`, `show-environment`), `loginctl show-user` and `journalctl --user`, each with a timeout and an output cap, started with an argument list.
+- It creates and changes nothing (the only exception is the `bwrap` probe's temporary folder, below): no `mkdir`, no `writeFile`, no lock taken, no `-wal` or `-shm` next to `state.db`. A home that does not exist is reported, not created.
+- The child programs are `systemctl --user` (`show`, `cat`, `is-*`, `show-environment`), `loginctl show-user` and `journalctl --user`, each with a timeout and an output cap, started with an argument list; and, for `bwrap`, the sandbox probe starts bubblewrap itself (5 s limit, below).
 - A check that throws is a `fail` ("the check could not run", fix "report this") and the others still run. A check that does not answer in 10 s is a `warn` ("timed out"); the timer reports it, it does not cancel a synchronous `statfs` on a hung mount, so `disk` on a hung mount can hold the command until the mount answers.
 - No message carries a child's raw error text, and the output carries no control character.
 
@@ -29,7 +29,7 @@ Inside a container (`/run/.containerenv` or `/.dockerenv` exists) `user_manager`
 
 | id | what it looks at | `fail` | `warn` | `info` |
 |---|---|---|---|---|
-| `node` | the Node version | below 24.14 (25 and above pass) | | |
+| `node` | the Node version | below 24.14 | Node 25 and above (pap is tested on Node 24) | |
 | `toolchain` | `gcc g++ make python3` on the absolute entries of `PATH` | | | missing ones: only needed for method 1 and `npm install` |
 | `user_manager` | `systemctl --user show-environment` | the user manager does not answer | | |
 | `linger` | `loginctl show-user <uid>` | | linger off: pap stops at logout | |
@@ -52,11 +52,11 @@ They read the home, never write it. The order of the whole list is the order of 
 | `push` | the same readiness, plus `secrets/push/vapid.json` by `lstat`: absent is ok (created at the first start); a regular file of mode 0600 in a folder of mode 0700, both owned by the user, is ok | | push is off (`keys_unreadable`, or the readiness above); never `fail` | localhost only |
 | `bwrap` | the real sandbox probe (never a PATH scan) with `PAP_BWRAP` of the unit | | missing; not root-owned; the probe is refused (in a container: `--security-opt systempaths=unconfined`, `scripts/pap-container.sh run`; on Ubuntu `kernel.apparmor_restrict_unprivileged_userns`); no answer in 5 s | |
 | `python3` | a root-owned `python3` in `/usr/bin`, `/usr/local/bin` or `/bin` (`trustedBinary`; it is not run) | | none: networked agents need it | |
-| `update_available` | `update/last-check.json`, written by the daily check (off until v1) or `PAP_UPDATE_CHECK=1`; no network call | | | |
+| `update_available` | `update/last-check.json`, written by the daily check (off by default until the v1 flip: `UPDATE_CHECK_DEFAULT` in `apps/daemon/src/update-check.ts`) or with `PAP_UPDATE_CHECK=1`; no network call | | | |
 
 `update_available` is `skip` when no check has run or the record is unreadable, `ok` otherwise ("<latest> is available on <channel>: pap update install" or "up to date").
 
-The `bwrap` probe makes and removes one temporary folder in `os.tmpdir()`; it is the only thing doctor creates, and nothing under the home.
+The `bwrap` probe starts bubblewrap, and makes and removes one temporary folder in `os.tmpdir()`; it is the only thing doctor creates, and nothing under the home.
 
 `https` and `push` read where pap says it is reached from the unit (`listenFacts`): `PAP_PUBLIC_ORIGIN` of the unit's environment (the shell's only when no unit is installed), else `scheme://host:port` with `localhost` for a loopback or wildcard `--host`, the unit's port (7777 by default), `https` with `--tls-cert`, and `--insecure-http`. The fix names `docs/agents/notifications.md#https` and the routes in order: the ngrok origin, `tailscale serve`, a reverse proxy through `PAP_PUBLIC_ORIGIN`, then `--tls-cert`; each is printed once (`push` points at the anchor). When the unit is installed but pap cannot parse it (a hand-written `ExecStart`, for example with a relative main path), both lines are `info`: "cannot read the listen flags of <unit>", with the flags to check by hand; they never claim localhost.
 

@@ -7,6 +7,43 @@ const BUDGET_TEST = "apps/daemon/src/modules/sessions/sessions.budgets.int.test.
 const SEARCH_TEST = "apps/daemon/src/modules/search/search.budget.int.test.ts";
 const SCANNER_TEST = "apps/daemon/src/modules/search/scanner.exit.int.test.ts";
 
+/** Budget key to the files that assert it. Each file must name the key (checked by `checkEnforcers`). */
+export const ENFORCERS = {
+  initialBundleGzipKb: ["scripts/check-budgets.ts", "apps/web/src/build-output.int.test.ts"],
+  serviceWorkerGzipKb: ["scripts/check-budgets.ts", "apps/web/src/build-output.pwa.int.test.ts"],
+  sessionOpenPayloadKb: [BUDGET_TEST, "apps/daemon/src/daemon.int.test.ts"],
+  idleWorkerRssMb: [BUDGET_TEST, "apps/daemon/src/daemon.int.test.ts"],
+  searchP95Ms: [SEARCH_TEST],
+  scannerLatencyMs: [SCANNER_TEST],
+} as const satisfies Record<string, readonly string[]>;
+
+export type BudgetKey = keyof typeof ENFORCERS;
+
+/** Problems: a key with no enforcer, an extra or missing key, a missing enforcer file, a file that does not name the key. */
+export function checkEnforcers(json: unknown, readFile: (path: string) => string): string[] {
+  const problems: string[] = [];
+  const keys = Object.keys((json ?? {}) as Record<string, unknown>);
+  const enforced: Record<string, readonly string[]> = ENFORCERS;
+  for (const key of keys) {
+    if ((enforced[key] ?? []).length === 0)
+      problems.push(`budgets.json: ${key} has no enforcer in ENFORCERS`);
+  }
+  for (const [key, files] of Object.entries(enforced)) {
+    if (!keys.includes(key)) problems.push(`budgets.json: ${key} is missing (ENFORCERS names it)`);
+    for (const file of files) {
+      let text: string;
+      try {
+        text = readFile(file);
+      } catch {
+        problems.push(`${key}: enforcer ${file} cannot be read`);
+        continue;
+      }
+      if (!new RegExp(`\\b${key}\\b`).test(text)) problems.push(`${key}: enforcer ${file} does not name it`);
+    }
+  }
+  return problems;
+}
+
 export function initialAssets(indexHtml: string): string[] {
   const assets = new Set<string>();
   for (const match of indexHtml.matchAll(
@@ -74,6 +111,11 @@ function budgetKb(path: string, key: "initialBundleGzipKb" | "serviceWorkerGzipK
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   try {
+    const root = fileURLToPath(new URL("..", import.meta.url));
+    const real = JSON.parse(readFileSync(join(root, "budgets.json"), "utf8")) as unknown;
+    const problems = checkEnforcers(real, (path) => readFileSync(join(root, path), "utf8"));
+    if (problems.length > 0) throw new Error(`budget enforcers:\n  ${problems.join("\n  ")}`);
+    for (const [key, files] of Object.entries(ENFORCERS)) console.log(`enforced ${key}: ${files.join(", ")}`);
     const budget = budgetKb("budgets.json", "initialBundleGzipKb");
     const measuredBytes = initialBundleGzipBytes("apps/web/dist");
     const measured = toKb(measuredBytes);

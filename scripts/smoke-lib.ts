@@ -102,7 +102,7 @@ export function startDaemon(
           "--port",
           String(port),
         ],
-    { env, stdio: ["ignore", "pipe", "pipe"], detached: true },
+    { env: { PAP_UPDATE_CHECK: "0", ...env }, stdio: ["ignore", "pipe", "pipe"], detached: true },
   );
   const output: string[] = [];
   const lines: Json[] = [];

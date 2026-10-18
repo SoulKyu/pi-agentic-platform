@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { type Cursor, type EventFrame, type HandlerContext, type SessionStreamEvent } from "@pap/contracts";
 import { vi } from "vitest";
 import { workerExecArgv } from "../../../kernel/config.ts";
-import { createSystemClock } from "../../../kernel/clock.ts";
+import { type Clock, createSystemClock } from "../../../kernel/clock.ts";
 import { KERNEL_MIGRATIONS, migrate } from "../../../kernel/db/migrate.ts";
 import { type Logger, silentLogger } from "../../../kernel/logger.ts";
 import type { WorkerExit } from "../../../kernel/supervisor/exit.ts";
@@ -44,10 +44,14 @@ export interface IntBedOptions {
   readonly spellAgentDir?: (agentDir: string) => string;
   /** The sessions module's logger (default: silent): a test that greps what the daemon logged gives its own. */
   readonly logger?: Logger;
+  /** The clock of the sessions module (default: the system clock); a test skews `now()` instead of sleeping. */
+  readonly clock?: Clock;
 }
 
 export interface Subscription {
   events(): SessionStreamEvent[];
+  /** The sequence number of every frame received, in order (a gapless stream counts up by one). */
+  seqs(): number[];
   /** The cursor of the last event received, as a client keeps it for a reopen. */
   cursor(): Cursor | undefined;
   close(): void;
@@ -70,7 +74,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
     }
     if (options.settings) writeFileSync(join(agentDir, "settings.json"), JSON.stringify(options.settings));
     writeFileSync(join(root, "script.json"), JSON.stringify(script));
-    const clock = createSystemClock();
+    const clock = options.clock ?? createSystemClock();
     const db = migrate({
       dbPath: join(root, "state.db"),
       backupsDir: join(root, "backups"),
@@ -187,6 +191,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
         const events = () => frames.map((frame) => frame.event as SessionStreamEvent);
         return {
           events,
+          seqs: () => frames.map((frame) => frame.seq),
           cursor: () => {
             const last = frames.at(-1);
             return last ? { epoch: last.epoch, seq: last.seq } : undefined;

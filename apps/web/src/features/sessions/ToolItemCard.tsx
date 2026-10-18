@@ -1,7 +1,9 @@
 import { Button, Fence, ToolCard, type ToolDetail, type ToolStatus } from "@pap/ui";
 import { useRef, useState } from "react";
-import { useT } from "../../i18n/index.ts";
+import { plural, useLocale, useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
+import { CodemodeBody } from "./CodemodeBody.tsx";
+import { codemodeView, withoutHeader } from "./codemode.vm.ts";
 import { codeText, failureCode } from "./failure.ts";
 import { splitFences, stripFenceMarkers, type FencePart } from "./fence.vm.ts";
 import "./register-policy-catalog.ts";
@@ -35,6 +37,7 @@ export function ToolItemCard({
   detail: ToolDetail;
 }) {
   const t = useT();
+  const locale = useLocale();
   const [output, setOutput] = useState<Output>({ state: "idle" });
   const inFlight = useRef(false);
 
@@ -67,15 +70,68 @@ export function ToolItemCard({
   const shown = complete ?? stripFenceMarkers(item.preview);
   const offerAll = whole !== null && !loaded;
   const showArgs = loaded?.args && item.argsTruncated;
+  const offer = offerAll ? (
+    <div className="flex flex-wrap items-center gap-s2">
+      {item.omittedBytes !== null ? (
+        <p className="text-ui text-muted">{t("sessions.tool.tooLarge")}</p>
+      ) : null}
+      {output.state === "failed" ? (
+        output.code === "not_found" ? (
+          <p role="status" className="text-ui text-muted">
+            {t("sessions.tool.notYet")}
+          </p>
+        ) : (
+          <p role="alert" className="text-ui text-attn">
+            {codeText(output.code)}
+          </p>
+        )
+      ) : null}
+      <Button disabled={output.state === "loading"} onClick={() => void load()}>
+        {output.state === "failed" ? t("sessions.tool.retry") : t("sessions.tool.showAll", { size })}
+      </Button>
+    </div>
+  ) : null;
+  const common = {
+    name: item.name,
+    status: CARD_STATUS[item.status],
+    detail,
+    statusLabel: t(`sessions.tool.${item.status}`),
+    runningLabel: t("sessions.tool.running"),
+    failedLabel: t("sessions.tool.failed"),
+  };
+  const code = codemodeView(item, loaded?.args ?? null);
+  if (code) {
+    const clipped: readonly FencePart[] = shown === "" ? [] : [{ kind: "plain", text: shown }];
+    const stripped = withoutHeader(complete === null ? clipped : parts);
+    const count = code.calls?.length ?? 0;
+    const wall = stripped.wall ?? code.wall;
+    const duration = [count > 0 ? plural(locale, "sessions.codemode.calls", count) : null, wall]
+      .filter((piece) => piece !== null)
+      .join(" · ");
+    return (
+      <ToolCard
+        {...common}
+        summary={code.preview}
+        duration={duration || undefined}
+        footer={
+          <div className="flex flex-col gap-s1">
+            <CodemodeBody
+              code={code.code}
+              calls={code.calls}
+              parts={stripped.parts}
+              failed={item.status === "failed" || stripped.failedHeader}
+              detail={detail}
+            />
+            {offer}
+          </div>
+        }
+      />
+    );
+  }
   return (
     <ToolCard
-      name={item.name}
+      {...common}
       summary={item.summary}
-      status={CARD_STATUS[item.status]}
-      detail={detail}
-      statusLabel={t(`sessions.tool.${item.status}`)}
-      runningLabel={t("sessions.tool.running")}
-      failedLabel={t("sessions.tool.failed")}
       footer={
         showArgs || offerAll || fenced ? (
           <div className="flex flex-col gap-s1">
@@ -93,29 +149,7 @@ export function ToolItemCard({
                 )
               : null}
             {showArgs ? <pre className={PRE}>{loaded.args}</pre> : null}
-            {offerAll ? (
-              <div className="flex flex-wrap items-center gap-s2">
-                {item.omittedBytes !== null ? (
-                  <p className="text-ui text-muted">{t("sessions.tool.tooLarge")}</p>
-                ) : null}
-                {output.state === "failed" ? (
-                  output.code === "not_found" ? (
-                    <p role="status" className="text-ui text-muted">
-                      {t("sessions.tool.notYet")}
-                    </p>
-                  ) : (
-                    <p role="alert" className="text-ui text-attn">
-                      {codeText(output.code)}
-                    </p>
-                  )
-                ) : null}
-                <Button disabled={output.state === "loading"} onClick={() => void load()}>
-                  {output.state === "failed"
-                    ? t("sessions.tool.retry")
-                    : t("sessions.tool.showAll", { size })}
-                </Button>
-              </div>
-            ) : null}
+            {offer}
           </div>
         ) : undefined
       }

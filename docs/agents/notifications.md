@@ -24,13 +24,13 @@ Web Push (`apps/daemon/src/modules/push/`) and the PWA shell (`apps/web/sw/`, `f
 
 - `$PAP_HOME/secrets/push/vapid.json` (dir 0700, file 0600, owned by pap's user), P-256, created once and never overwritten. Damaged, linked, foreign or too open: push is `off`, reason `keys_unreadable`, the file is not touched. Subscriptions store the key id.
 - Recovery: `rm $PAP_HOME/secrets/push/vapid.json`, restart. A new pair is minted, rows with another key id are purged, the count is logged and shown in Settings (`keysReset`) until a device subscribes again. **Notifications: each device re-enables when it next opens pap.** The client compares its `applicationServerKey` with `push.config.publicKey`, shows "Réactiver les notifications" when it differs, and re-binds after a re-login.
-- `secrets/push/` is excluded from plain backups by M6b's plan, on purpose: with `state.db` the key would let the holder push arbitrary text to the owner's devices. M6b's `--secrets include --encrypt` is meant to restore it at 0600/0700 (that is M6b's behaviour, not tested in this branch).
+- `secrets/push/` is excluded from plain backups, on purpose: with `state.db` the key would let the holder push arbitrary text to the owner's devices. `pap backup --encrypt --secrets include` puts the whole `secrets/` folder in the backup, and `pap restore` brings it back owner-only (`docs/agents/backup.md`).
 - `sub`: `PAP_PUSH_SUBJECT` (https or mailto), else an https `PAP_PUBLIC_ORIGIN`, else the project URL. JWT valid 12 h, cached 6 h per audience.
 
 ## Endpoints
 
-- https only, port 443, no credentials, fragment or IP literal, at most 2048 characters, and the host must be Apple `*.push.apple.com`, `fcm.googleapis.com`, Mozilla `*.push.services.mozilla.com`, Microsoft `*.notify.windows.com`, or one of at most 8 names in `PAP_PUSH_EXTRA_HOSTS` (comma separated, exact). There is no switch to turn the list off.
-- At send time the connection uses a guarded lookup (every answer public by `blockedForPush`), no redirects, a 12 s total deadline, a capped drain of the response; rules are re-checked then. Logs carry `h:<12 hex>` of the endpoint, never a body, key or payload.
+- https only, port 443, no credentials, fragment or IP literal, at most 2048 characters, and the host must be Apple `*.push.apple.com`, `fcm.googleapis.com`, Mozilla `*.push.services.mozilla.com` or `updates.push.services.mozilla.com`, Microsoft `*.notify.windows.com`, or one of at most 8 names in `PAP_PUSH_EXTRA_HOSTS` (comma separated, exact). There is no switch to turn the list off.
+- At send time the connection uses a guarded lookup (every answer public by `blockedStrict`), no redirects, a 12 s total deadline, a capped drain of the response; rules are re-checked then. Logs carry `h:<12 hex>` of the endpoint, never a body, key or payload.
 - Caps: 10 devices per owner (refused, never evicted), 64 presence entries, `push.subscribe` one call per 6 s, `push.test` one per 10 s. Every `push.*` method is for a browser session; a token gets `forbidden`.
 
 ## #https
@@ -57,7 +57,7 @@ Push and install need a secure origin. `kernel/push-readiness.ts` is the only pl
 
 ## Service worker and update flow
 
-- `/sw.js`, scope `/`, built from `apps/web/sw/sw.ts` (3.7 KB of a 6 KB budget). Registered only in production on a secure context. It precaches the whole build (index, every asset and chunk, icons, manifest); the build id hashes every shell file and the worker code. Hashed assets install with the HTTP cache; a redirect fails the install.
+- `/sw.js`, scope `/`, built from `apps/web/sw/sw.ts` (budget 5 KB gzip, `serviceWorkerGzipKb` in `budgets.json`; 3.8 KB measured on 2026-10-18). Registered only in production on a secure context. It precaches the whole build (index, every asset and chunk, icons, manifest); the build id hashes every shell file and the worker code. Hashed assets install with the HTTP cache; a redirect fails the install.
 - It intercepts same-origin GET only and never caches `/auth`, `/api`, `/files`, `/upload`, `/hooks`, `/metrics`, `/healthz`, `/ws`, `/sw.js`, `no-store`/`private` responses, redirects or non-200s. Navigations are network-first (8 s) with the cached index as fallback.
 - A new worker waits. The page shows "La page a une mise à jour" (the web shell; not a pap release banner), and Reload posts `skip-waiting`, waits for `controllerchange` and reloads once. The page checks for updates on every reconnect and when it becomes visible, and a failed lazy chunk shows the banner or reloads once. "Later" hides the banner for the page load, including a later stale-chunk signal.
 - Click: the worker opens only `/n/<id>` with a 22-character id, else `/`. A push with an empty or malformed payload still shows a generic notification.
@@ -65,7 +65,7 @@ Push and install need a secure origin. `kernel/push-readiness.ts` is the only pl
 
 ## FinOps
 
-- First install of the worker downloads the whole shell: about 162 files, 5.0 MB raw and 1.5 MB gzip per device (the static handler does not compress, so the wire size is nearer the raw figure). An update downloads only changed chunks. `sw.js` has a 6 KB gzip budget.
+- First install of the worker downloads the whole shell: about 162 files, 5.0 MB raw and 1.5 MB gzip per device (the static handler does not compress, so the wire size is nearer the raw figure). An update downloads only changed chunks. `sw.js` has a 5 KB gzip budget.
 - A failure shown in Settings (`lastFailure`) clears at the next successful push; when push is off, queued events settle `cancelled:push_off` without deliveries.
 
 ## Troubleshooting
@@ -76,7 +76,7 @@ Push and install need a secure origin. `kernel/push-readiness.ts` is the only pl
 - iOS: push needs the Home Screen install (Share, Add to Home Screen) and a tap on Enable; the prompt is never shown at load.
 - A notification that opens the login page: the session expired; sign in, then the device re-binds by itself.
 - Nothing arrives: Settings > Notifications shows the status, `lastFailure` and the devices; "Envoyer une notification de test" tests one device.
-- iOS standalone: `pt-safe` is inert until a status-bar style is chosen (open owner question).
+- iOS standalone: `index.html` sets no `apple-mobile-web-app-status-bar-style` (owner decision of 2026-10-18: keep the iOS default), so `pt-safe` has no effect there.
 
 ## Manual checks (the owner, on real devices)
 

@@ -47,6 +47,19 @@ describe("appearance model", () => {
     });
   });
 
+  it("the completion sound is device-local, off by default, round-trips and bad values fall back", () => {
+    expect(DEFAULT_DEVICE.completionSound).toBe(false);
+    expect(parseDevice('{"completionSound":true,"extra":1}')).toEqual({
+      ...DEFAULT_DEVICE,
+      completionSound: true,
+    });
+    expect(parseDevice(JSON.stringify({ ...DEFAULT_DEVICE, completionSound: true })).completionSound).toBe(
+      true,
+    );
+    expect(parseDevice('{"completionSound":"yes"}').completionSound).toBe(false);
+    expect("extra" in parseDevice('{"extra":1}')).toBe(false);
+  });
+
   it("DEFAULT_ACCOUNT is the contracts' defaults, and anything but an object reads as them", () => {
     expect(AccountAppearance.parse({})).toEqual(DEFAULT_ACCOUNT);
     for (const value of [null, undefined, 3, "x", [1]]) expect(parseAccount(value)).toEqual(DEFAULT_ACCOUNT);

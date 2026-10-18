@@ -53,6 +53,24 @@ describe("form controls", () => {
     await page.unmount();
   });
 
+  it("inside a form, the hidden input Radix adds is contained by the control's own row, not by the page", async () => {
+    const page = await mount(
+      <form>
+        <Switch label="Grid" checked={false} onChange={vi.fn()} />
+        <Checkbox label="Seen" checked={false} onChange={vi.fn()} />
+        <Select label="Density" value="compact" options={DENSITY} onChange={vi.fn()} />
+      </form>,
+    );
+    const hidden = [...page.container.querySelectorAll<HTMLElement>('input[type="checkbox"], select')];
+    expect(hidden).toHaveLength(3);
+    for (const input of hidden) {
+      // Radix positions it `absolute`: with no positioned ancestor it escapes a clipping scroller and the document scrolls.
+      expect(input.style.position).toBe("absolute");
+      expect(input.parentElement?.className.split(" ")).toContain("relative");
+    }
+    await page.unmount();
+  });
+
   it("Checkbox reports the new state", async () => {
     const onChange = vi.fn();
     const page = await mount(<Checkbox label="Seen" checked onChange={onChange} />);

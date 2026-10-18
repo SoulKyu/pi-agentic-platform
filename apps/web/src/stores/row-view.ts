@@ -1,3 +1,5 @@
+import { CODEMODE_TOOL, nestedCallsOf, type NestedCallView } from "./nested-calls.ts";
+
 export interface ToolCallView {
   readonly id: string;
   readonly name: string;
@@ -5,6 +7,8 @@ export interface ToolCallView {
   readonly summary: string;
   /** The arguments were longer than the summary shows. */
   readonly argsTruncated: boolean;
+  /** The script of a `codemode` call (already cut on the wire); absent for any other call or when `code` is not a string. */
+  readonly code?: string;
 }
 
 export type MessageRole =
@@ -45,6 +49,8 @@ export interface MessageView {
   readonly omittedBytes: number | null;
   /** How many characters the full tool output has when the preview was cut on the wire, null when it was not. */
   readonly truncatedChars: number | null;
+  /** The calls a tool result's tool made to other tools (codemode), absent when Pi recorded none. */
+  readonly nestedCalls?: readonly NestedCallView[];
 }
 
 const MAX_ERROR = 500;
@@ -93,6 +99,7 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     tokensBefore?: unknown;
     display?: unknown;
     isError?: unknown;
+    nestedCalls?: unknown;
   };
   if (message.role === "custom" && message.display === false) return null;
   const role = KNOWN_ROLES.has(message.role) ? (message.role as MessageRole) : "other";
@@ -111,11 +118,17 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
           .join("");
   const toolCalls = blocks
     .filter((block) => block.type === "toolCall")
-    .map((block) => ({
-      id: clip(String(block.id ?? ""), MAX_CALL_ID),
-      name: clip(String(block.name ?? "tool"), MAX_NAME),
-      ...summarize(block.arguments ?? block.args ?? block.input),
-    }));
+    .map((block) => {
+      const args = block.arguments ?? block.args ?? block.input;
+      const code = block.name === CODEMODE_TOOL ? (args as { code?: unknown } | null)?.code : undefined;
+      return {
+        id: clip(String(block.id ?? ""), MAX_CALL_ID),
+        name: clip(String(block.name ?? "tool"), MAX_NAME),
+        ...summarize(args),
+        ...(typeof code === "string" ? { code } : {}),
+      };
+    });
+  const nestedCalls = role === "toolResult" ? nestedCallsOf(message.nestedCalls) : undefined;
   const thinking = blocks
     .filter((block) => block.type === "thinking")
     .map((block) => block.thinking ?? block.text)
@@ -151,6 +164,7 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
       : null,
     omittedBytes: omitted ? (message.bytes as number) : null,
     truncatedChars: truncatedChars(message.papTruncated),
+    ...(nestedCalls ? { nestedCalls } : {}),
   };
 }
 
@@ -165,6 +179,7 @@ export const sameContent = (a: MessageView, b: MessageView): boolean =>
   a.isError === b.isError &&
   a.error === b.error &&
   a.omittedBytes === b.omittedBytes &&
+  a.nestedCalls?.length === b.nestedCalls?.length &&
   a.toolCalls.length === b.toolCalls.length &&
   a.toolCalls.every((call, i) => {
     const other = b.toolCalls[i];
@@ -172,7 +187,8 @@ export const sameContent = (a: MessageView, b: MessageView): boolean =>
       other !== undefined &&
       call.id === other.id &&
       call.name === other.name &&
-      call.summary === other.summary
+      call.summary === other.summary &&
+      call.code === other.code
     );
   });
 

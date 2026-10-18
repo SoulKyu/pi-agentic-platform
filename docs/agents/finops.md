@@ -5,7 +5,7 @@ Code: `apps/daemon/src/modules/runs/` (registry, observer, resume, usage stream,
 ## Runs and cost
 
 - One row per Pi run in `runs` (ids, origin, status, tokens, `cost_usd`, turns, tool calls, `error_class`, `limit_reset_at`); never content. Origins: `user`, `extension`, `resume` (automatic continuation) and, for a task's runs, the task's origin (the fire's source, or `retry`). `expectOrigin(sessionId, {origin, taskId})` tags the next run start (5 minutes, consumed).
-- Cost is Pi's `usage.cost.total`, the list price of the tokens, compaction included. `billing` is `api` (provider cost), `subscription` (labelled **API-equivalent** everywhere in the UI, never money spent) or `unknown`; it comes from `modelRuntime.isUsingSubscription(provider)` in the worker's loadout (the plan said `isUsingOAuth`; the code uses `isUsingSubscription`).
+- Cost is Pi's `usage.cost.total`, the list price of the tokens, compaction included. `billing` is `api` (provider cost), `subscription` (labelled **API-equivalent** everywhere in the UI, never money spent) or `unknown`; it comes from `modelRuntime.isUsingSubscription(provider)` in the worker's loadout (`packages/pi-host/src/loadout.ts`).
 - Each ended run appends one line to `$PAP_HOME/logs/runs.jsonl` (`v: 1`; `provider` and `model` through `labelValue`). Boot turns `running` rows into `interrupted`, and does nothing in read-only mode.
 - `RunsPort.sessionCost(sessionId)` (synchronous; finished runs plus the live cost of the open one) is what M9's compare column reads, with `RunsPort.sessionBilling(sessionId)` for its API-equivalent label (a trigger cannot target a lane folder: agreement 16).
 - `usage.summary {range: today|7d|30d}` (`usage:read`): totals, by origin, by model (top 50, the rest `other`); days are counted in the automation time zone. Shown in Settings › Automation › Spending.
@@ -34,6 +34,25 @@ The daily budget and every cost figure are a lower bound: pap counts runs, not e
 - A run whose last stop reason is `error` with a provider limit text is `limited` (`runs/limits.ts`). With `autoResume` on, a reset time and a mode other than `full-access` (one exception, below), a `run.resume` effect is due at the reset plus 0 to 60 s of jitter. Rules, checks and marks: ADR 0045. The `usage` stream carries `limits[]`, `todayUsd`, `budgetUsd`, `autoResume`; the session header's limit chip offers "Resume now" and "Cancel auto-resume" for a session, and a task card offers "Resume now" and "Cancel task".
 - Provider usage (quotas shown on the owner's click) is the models module's `models.usage`, see `models.md`; it is not part of the budget.
 
+## Performance budgets (`budgets.json`, M13)
+
+Final values, one number per key; a change is a deliberate edit of `budgets.json` and `scripts/budgets-keys.test.ts`. `pnpm budgets` first checks that every key is named, as a whole word, in each of its enforcers (`ENFORCERS` in `scripts/check-budgets.ts`), then prints each budget with its enforcers. The CI job `budgets` runs `pnpm budgets` then `pnpm test:budget`.
+
+| Key | Value | Measure on 2026-10-18 | Enforcers |
+|---|---|---|---|
+| `initialBundleGzipKb` | 250 | 232.9 KB gzip | `scripts/check-budgets.ts`, `apps/web/src/build-output.int.test.ts` |
+| `serviceWorkerGzipKb` | 5 | 3.8 KB gzip | `scripts/check-budgets.ts`, `apps/web/src/build-output.pwa.int.test.ts` |
+| `sessionOpenPayloadKb` | 24 | 9.46 KB (ten exchanges) | `sessions.budgets.int.test.ts`, `daemon.int.test.ts` |
+| `idleWorkerRssMb` | 200 | 180 MB | `sessions.budgets.int.test.ts`, `daemon.int.test.ts` |
+| `searchP95Ms` | 200 | p50 7.6 ms, p95 106.0 ms (10 000 sessions); kept until a CI baseline exists | `search.budget.int.test.ts` |
+| `scannerLatencyMs` | 2500 | 1 009 ms; large margin for slower CI hosts | `scanner.exit.int.test.ts` |
+
+Re-measure:
+
+- `pnpm build && pnpm budgets`: the two bundle figures.
+- `pnpm test:int --silent=false` (or the two files `sessions.budgets.int.test.ts`, `daemon.int.test.ts`): the lines `session open payload: <n> bytes` and `idle worker RSS: <n> MB`.
+- `pnpm test:budget`: search p95 and scanner latency (builds the 10 000-session corpus, about 65 s; the step takes about 2.5 minutes).
+
 ## Agents: spend, budget and the resume exception (M11a)
 
 - Every run of an agent session carries `runs.agent_id` (the thread, an isolated task, a delegation, a reminder; migration `202610151130_run_agents.sql`, copied from the session row by the observer, which saves progress before its live hook so the budget reads the row). A child's runs also carry `parent_session_id` (M11b). `runs/agent-spend.ts` sums them; there is no second counter. The status panel's today, 7 and 30 days are `agents.status`, from `runs` (API-equivalent on a subscription).
@@ -56,7 +75,7 @@ The daily budget and every cost figure are a lower bound: pap counts runs, not e
 ## Metrics, trace, stall, OTLP
 
 - `/metrics`: off unless `PAP_METRICS_TOKEN` (32 to 256 characters); own bearer; families from the `runs` table (cached 15 s), automation (`pap_tasks`, `pap_trigger_fires_total{source,verdict}` in-process (one count per journal event, a collapsed refusal row included; `fire-counts.ts`), `pap_outbox_effects`, `pap_automation_paused`, `pap_budget_spent_usd_today`, `pap_budget_usd`) and the kernel (`pap_workers_*`, `pap_event_loop_*`, `pap_otlp_dropped_spans_total`, process gauges). `provider` and `model` labels: `labelValue` plus the 100 most expensive models (`topLabels`).
-- Trace: `$PAP_HOME/logs/trace.jsonl` (10 MiB x 10, 0600), closed span names and attributes. `pap trace summary [--since 15m|2h|1d]` works while pap runs (count, rate, p50/p90/p99/max, failures per span name; exit 64 on a bad flag).
+- Trace: `$PAP_HOME/logs/trace.jsonl` (0600, rotated at 10 MiB, nine rotated files kept), closed span names and attributes. `pap trace summary [--since 15m|2h|1d]` works while pap runs (count, rate, p50/p90/p99/max, failures per span name; exit 64 on a bad flag).
 - Stall monitor: a sample every 30 s on the Clock; over 2 s of delay while active is an `event_loop_stall` warning, a span and two counters.
 - OTLP JSON export: opt-in with `PAP_OTLP_ENDPOINT` (settings in `daemon.md`). Spans every 10 s, a metrics snapshot every 60 s, 10 s timeout, no redirect, no retry before the next interval, `otlp_export_failed` logged (rate-limited). It is the only telemetry-shaped outbound request pap starts.
 - Settings › Automation › Observability shows whether `/metrics` and OTLP are on (host only) and the trace hint; nothing there is writable.

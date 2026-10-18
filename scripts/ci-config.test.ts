@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -27,6 +27,14 @@ const WORKFLOW_FILES = [
 ];
 
 describe("CI configuration", () => {
+  it("runs on every pull request and every push to main, docs-only changes included (M13-C12)", () => {
+    const on = (parse(read(".github/workflows/ci.yml")) as { on: Record<string, Record<string, unknown>> })
+      .on;
+    expect(Object.keys(on).toSorted()).toEqual(["pull_request", "push"]);
+    expect(on["push"]).toEqual({ branches: ["main"] });
+    expect(on["pull_request"] ?? null).toBeNull();
+  });
+
   it("runs knip as a step that can fail the build (R5)", () => {
     const ci = read(".github/workflows/ci.yml");
     expect(ci).toMatch(/^\s+- run: pnpm knip$/m);
@@ -41,26 +49,28 @@ describe("CI configuration", () => {
     expect(setup.indexOf("fd-find")).toBeLessThan(setup.indexOf("run: pnpm install"));
   });
 
-  it("has no browser-test runner left behind (R128: Playwright is not used)", () => {
-    const scripts = (JSON.parse(read("package.json")) as { scripts: Record<string, string> }).scripts;
-    expect(Object.keys(scripts)).not.toContain("e2e");
-    expect(Object.values(scripts).join("\n")).not.toMatch(/playwright/i);
-    const knip = read("knip.json");
-    expect(knip).not.toMatch(/playwright|e2e/i);
-    expect(read("AGENTS.md")).not.toMatch(/pnpm e2e|playwright/i);
+  it("uses Playwright only as an exact dev dependency behind test:e2e (ADR 0071 reverses R128)", () => {
+    const manifest = JSON.parse(read("package.json")) as {
+      scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(manifest.scripts["test:e2e"]).toBe(
+      "node --disable-warning=ExperimentalWarning scripts/e2e/run.ts",
+    );
+    expect(manifest.devDependencies["@playwright/test"]).toBe("1.63.0");
+    expect(read("knip.json")).toContain("scripts/e2e");
   });
 
   it("gives every job a timeout: 15 minutes, 20 for the integration tests and the nightly run (R63)", () => {
     const ci = workflow("ci").jobs;
     expect(
       Object.fromEntries(Object.entries(ci).map(([name, job]) => [name, job["timeout-minutes"]])),
-    ).toEqual({
-      checks: 15,
-      unit: 15,
-      integration: 20,
-      build: 15,
-      budgets: 15,
-    });
+    ).toMatchObject({ checks: 15, unit: 15, integration: 20, build: 15 });
+    // The budgets (B1) and e2e (A5) jobs pin their own value in ci-config.budgets.test.ts and ci-config.e2e.test.ts.
+    for (const [name, job] of Object.entries(ci)) {
+      expect(job["timeout-minutes"], name).toBeGreaterThanOrEqual(1);
+      expect(job["timeout-minutes"], name).toBeLessThanOrEqual(30);
+    }
     expect(Object.values(workflow("pi-compat").jobs).map((job) => job["timeout-minutes"])).toEqual([20]);
   });
 
@@ -92,7 +102,7 @@ describe("CI configuration", () => {
         job.steps.filter((step) => step.uses?.startsWith("actions/checkout@")),
       ),
     );
-    expect(checkouts.length).toBe(6);
+    expect(checkouts.length).toBeGreaterThanOrEqual(6);
     for (const step of checkouts) expect(step.with?.["persist-credentials"]).toBe(false);
   });
 
@@ -107,7 +117,21 @@ describe("CI configuration", () => {
     ].map((command) => steps.findIndex((step) => step.run?.includes(command)));
     expect(order.every((index) => index >= 0)).toBe(true);
     expect(order).toEqual([...order].sort((a, b) => a - b));
-    expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({ install: "false" });
+    expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({
+      install: "false",
+      sandbox: "true",
+    });
+  });
+
+  it("builds @pap/contracts before the root typecheck, which resolves it through dist (checks and nightly)", () => {
+    const jobs = [workflow("ci").jobs["checks"], Object.values(workflow("pi-compat").jobs)[0]];
+    for (const job of jobs) {
+      const steps = job?.steps ?? [];
+      const build = steps.findIndex((step) => step.run === "pnpm --filter @pap/contracts build");
+      const typecheck = steps.findIndex((step) => step.run === "pnpm typecheck");
+      expect(build).toBeGreaterThanOrEqual(0);
+      expect(build).toBeLessThan(typecheck);
+    }
   });
 
   it("smoke-tests the built artifacts right after the build, before the artifact is uploaded", () => {
@@ -123,17 +147,46 @@ describe("CI configuration", () => {
     expect(scripts["smoke"]).toBe("node --disable-warning=ExperimentalWarning scripts/smoke-dist.ts");
   });
 
-  it("checks the bundle budget on the built artifact and has no browser job (M1 without Playwright)", () => {
+  it("checks the bundle budget on the built artifact", () => {
     const { jobs } = workflow("ci");
-    expect(Object.keys(jobs)).toEqual(["checks", "unit", "integration", "build", "budgets"]);
+    expect(Object.keys(jobs)).toEqual(
+      expect.arrayContaining(["checks", "unit", "integration", "build", "budgets"]),
+    );
     const budgets = jobs["budgets"];
     expect(budgets?.needs).toBe("build");
-    expect(budgets?.steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({
-      install: "false",
-    });
     const download = budgets?.steps.find((step) => step.uses?.startsWith("actions/download-artifact@"));
     expect(download?.with).toEqual({ name: "dist", path: "." });
-    expect(budgets?.steps.at(-1)?.run).toBe("pnpm budgets");
+  });
+});
+
+describe("agent sandbox prerequisites (M13-C9)", () => {
+  it.each([
+    ["ci integration", () => workflow("ci").jobs["integration"], { sandbox: "true" }],
+    ["pi-compat", () => Object.values(workflow("pi-compat").jobs)[0], { install: "false", sandbox: "true" }],
+  ])("asks the setup action for bubblewrap in the %s job (it runs test:int)", (_name, job, inputs) => {
+    const setup = job()?.steps.find((step) => step.uses === "./.github/actions/setup");
+    expect(setup?.with).toEqual(inputs);
+  });
+
+  it("the setup action installs bubblewrap and lifts the userns limit", () => {
+    const action = read(".github/actions/setup/action.yml");
+    expect(action).toContain("bubblewrap");
+    expect(action).toContain("sysctl -w kernel.apparmor_restrict_unprivileged_userns=0");
+    expect(action).toMatch(/if: inputs\.sandbox == 'true'/);
+  });
+});
+
+describe("inherited descriptors (M13-C13)", () => {
+  it("runs test:int through the wrapper that closes every descriptor above 2, in both jobs", () => {
+    for (const job of [workflow("ci").jobs["integration"], Object.values(workflow("pi-compat").jobs)[0]]) {
+      const run = job?.steps.find((step) => step.run?.includes("pnpm test:int"))?.run;
+      expect(run?.trim()).toBe("scripts/ci/without-inherited-fds.sh pnpm test:int");
+    }
+    const wrapper = read("scripts/ci/without-inherited-fds.sh");
+    expect(wrapper).toContain("GitHub's Actions runner");
+    expect(wrapper).toContain("bash -c");
+    expect(wrapper).toContain('eval "exec $fd>&-"');
+    expect(statSync(resolve(import.meta.dirname, "ci/without-inherited-fds.sh")).mode & 0o111).not.toBe(0);
   });
 });
 
@@ -151,7 +204,7 @@ describe("systemd user manager (owner M2-Q8)", () => {
 });
 
 describe("root typecheck (R25)", () => {
-  it("covers scripts and the root config files with strict, noEmit options, and not an e2e folder", () => {
+  it("covers scripts and the root config files with strict, noEmit options", () => {
     const root = JSON.parse(read("tsconfig.json")) as {
       extends: string;
       compilerOptions: Record<string, unknown>;

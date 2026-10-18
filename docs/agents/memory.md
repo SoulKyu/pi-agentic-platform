@@ -1,6 +1,6 @@
 # Memory: pi-mem0's files, the review queue, the trust entry (M11b)
 
-ADR 0052; rulings M11R142 to M11R152. Code: daemon `apps/daemon/src/modules/memory/` (the files, the views, the queue), `modules/sessions/memory-trust.ts` (what each worker is told, the release), `packages/pi-host/src/memory-entry.ts` (the entry), contracts `memory.ts` and `memory-methods.ts`, web `features/memory/`, `features/agents/RecentMemory.tsx`. pi-mem0's source is `/home/ubuntu/Workspace/soulkyu/pi-mem0` (read-only reference; its README "staging contract" is the contract).
+ADR 0052; rulings M11R142 to M11R152. Code: daemon `apps/daemon/src/modules/memory/` (the files, the views, the queue), `modules/sessions/memory-trust.ts` (what each worker is told, the release), `packages/pi-host/src/memory-entry.ts` (the entry), contracts `memory.ts` and `memory-methods.ts`, web `features/memory/`, `features/agents/RecentMemory.tsx`. pi-mem0 is a separate project that pap does not vendor; its README "staging contract" is the contract.
 
 ## The contract
 

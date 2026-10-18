@@ -1,3 +1,4 @@
+import "../../features/auth/register-step-up.ts";
 import { useEffect } from "react";
 import type { StepUpRunner } from "../../lib/step-up-context.tsx";
 import { useSettingsStepUp } from "../settings/use-settings-step-up.ts";

@@ -125,6 +125,8 @@ export interface LiveSession {
    * while the worker closes.
    */
   stopping(): boolean;
+  /** The time of the last activity of the worker, or null while it has work pending (M13R45). */
+  quietSince(): number | null;
   /** Resolves, never rejects, once the worker has exited and the exit has been handled (the service has forgotten the session by then). */
   exited(): Promise<void>;
 }

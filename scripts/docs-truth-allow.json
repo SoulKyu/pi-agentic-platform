@@ -1,0 +1,206 @@
+[
+  {
+    "note": "docs/agents/agents.md",
+    "rule": "method",
+    "token": "agents.subagents.enabled",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/backup.md",
+    "rule": "method",
+    "token": "search.db",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "sessions.shutdownAll",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "search.db",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "search.rpc",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "search.start",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "audit.fromWorker",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "memory.events",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "lanes.shutdown",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "sessions.mountExportRoute",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "automation.stop",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/daemon.md",
+    "rule": "method",
+    "token": "push.send",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/files.md",
+    "rule": "method",
+    "token": "search.db",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/finops.md",
+    "rule": "method",
+    "token": "usage.cost.total",
+    "reason": "Pi SDK field (Usage.cost.total of @earendil-works/pi-ai), not an RPC method"
+  },
+  {
+    "note": "docs/agents/install.md",
+    "rule": "method",
+    "token": "secrets.GITHUB_TOKEN",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/lanes.md",
+    "rule": "method",
+    "token": "lanes.note",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/mcp.md",
+    "rule": "method",
+    "token": "settings.json.lock",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/models.md",
+    "rule": "method",
+    "token": "auth.json.lock",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/models.md",
+    "rule": "method",
+    "token": "mcp.parseImport",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/notifications.md",
+    "rule": "method",
+    "token": "push.config.publicKey",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/notifications.md",
+    "rule": "method",
+    "token": "automation.quietHours",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/policy.md",
+    "rule": "method",
+    "token": "models.classify",
+    "reason": "Pi codemode API (the models object scripts would see; pap turns it off), not a pap RPC method"
+  },
+  {
+    "note": "docs/agents/search.md",
+    "rule": "method",
+    "token": "search.db",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/search.md",
+    "rule": "method",
+    "token": "files.indexed_chars",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/search.md",
+    "rule": "method",
+    "token": "search.start",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "sessions.pap_wrote_at",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "sessions.updated_at",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "sessions.name",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "sessions.tool_preset",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "sessions.automation",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "policy.scopeOf",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "sessions.child.onGone",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/sessions.md",
+    "rule": "method",
+    "token": "sessions.parent_session_id",
+    "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
+  },
+  {
+    "note": "docs/agents/web.md",
+    "rule": "method",
+    "token": "agents.new",
+    "reason": "Web command id (registered by NewAgentHost), not an RPC method"
+  }
+]

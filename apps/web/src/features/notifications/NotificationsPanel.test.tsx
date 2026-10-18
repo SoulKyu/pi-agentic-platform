@@ -59,6 +59,20 @@ describe("NotificationsPanel: status and device", () => {
     expect(button(page.container, "Enable on this device").disabled).toBe(true);
   });
 
+  it("shows a flag of the readiness hint in a code element so the font cannot join the dashes (C3)", async () => {
+    s.cfg = config({
+      status: "off",
+      reason: "insecure_http",
+      readiness: { status: "insecure_http", hint: "Or use --tls-cert/--tls-key." },
+      subscribed: 0,
+    });
+    s.devices = [];
+    const { page } = await open({ env: fakePushEnv({ support: () => "insecure" }).env });
+    const flags = [...page.container.querySelectorAll("code")].map((code) => code.textContent);
+    expect(flags).toEqual(["--tls-cert", "--tls-key"]);
+    expect(text(page.container)).toContain("Or use --tls-cert/--tls-key.");
+  });
+
   it("keys unreadable: the reason, and no enabling", async () => {
     s.cfg = config({ status: "off", reason: "keys_unreadable", subscribed: 0 });
     s.devices = [];

@@ -114,6 +114,7 @@ export function createCrashBed(steps: object): CrashBed {
             PAP_WORKER_SCOPE: "off",
             PAP_MIN_FREE_MEM_MB: "0",
             PAP_MIN_FREE_DISK_MB: "0",
+            PAP_UPDATE_CHECK: "0",
             PAP_TEST_PROVIDER_SCRIPT: scriptPath,
             PAP_TEST_WORKER_IMPORT: GUARD,
             ...(hold === undefined ? {} : { PAP_TEST_OUTBOX_HOLD: hold }),

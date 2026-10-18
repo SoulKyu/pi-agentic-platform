@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 // R122 / R128: the React Compiler skips a component it cannot prove safe without saying so. Every component file
 // of the UI package and the web app goes through it here; any CompileError or PipelineError fails the gate.
 const REPO = resolve(import.meta.dirname, "../../..");
-// M2's folder: the compiler bails out on its try/finally; post-merge task P7 removes this exclusion (M3-RT-24).
+// Both roots are covered, M2's folder included; only a `testing` folder is skipped (tsxFiles).
 const ROOTS = ["packages/ui/src", "apps/web/src"];
 
 function tsxFiles(dir: string): string[] {
@@ -69,7 +69,7 @@ describe("React Compiler gate", () => {
     expect(failures.map((e) => JSON.stringify(e.detail ?? e.data ?? e).slice(0, 400))).toEqual([]);
   });
 
-  it("lets only the two first-paint home components opt out of the compiler, each saying why (226 KB limit)", () => {
+  it("lets only the two first-paint home components opt out of the compiler, each saying why (the budgets.json ceiling)", () => {
     const sources = ROOTS.flatMap((root) => sourceFiles(join(REPO, root))).map((path) =>
       relative(REPO, path),
     );
@@ -84,7 +84,7 @@ describe("React Compiler gate", () => {
       const line = readFileSync(join(REPO, file), "utf8")
         .split("\n")
         .find((one) => /["']use no memo["']/.test(one));
-      expect(line, file).toMatch(/;\s*\/\/.*bundle.*226 KB/);
+      expect(line, file).toMatch(/;\s*\/\/.*bundle.*budgets\.json/);
     }
   });
 

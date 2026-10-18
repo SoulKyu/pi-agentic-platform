@@ -18,6 +18,9 @@ import { bash, bwrapUsable, callOf, taskRowsOf, writeScript } from "./testing/ag
 import { markOf, waitIdle } from "./testing/fixtures.ts";
 
 // Review Focus 2 from inside a real bwrap: what an agent's shell cannot reach. (The fail-closed half is sandbox.int.test.ts.)
+/** The ls of a missing /run/user, then systemd-run's refusal: "user scope bus" (older systemd) or "bus: No medium found" (the runner's). */
+const NO_BUS = /^ls: cannot access '\/run\/user'.*\n\/run:\nFailed to connect to (?:user scope )?bus/;
+
 const cleanups: Array<() => Promise<void> | void> = [];
 afterEach(async () => {
   for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
@@ -155,10 +158,8 @@ describe.skipIf(!usable)("the escape list from inside a real bwrap (Review Focus
     expect(seen["varTmp"]).toMatch(/^cat: \/var\/tmp\/.*: No such file or directory/);
     expect(seen["varTmp"]).not.toContain("VAR-TMP-CANARY");
     expect(seen["runUser"]).not.toContain("escaped");
-    // /run is an empty tmpfs (no /run/user/<uid>, no bus): systemd-run cannot reach the user manager.
-    expect(seen["runUser"]).toMatch(
-      /^ls: cannot access '\/run\/user'.*\n\/run:\nFailed to connect to user scope bus/,
-    );
+    // /run is an empty tmpfs (no /run/user/<uid>, no bus): systemd-run cannot reach the user manager, in any systemd wording.
+    expect(seen["runUser"]).toMatch(NO_BUS);
     expect(seen["writes"]).toMatch(/Read-only file system|No such file or directory|Permission denied/);
     expect(seen["writes"]).toContain("x");
     for (const target of ["/usr/pap-escape", "/etc/pap-escape", join(home(t), "pap-escape")])

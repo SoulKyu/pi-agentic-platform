@@ -42,8 +42,16 @@ function makePrivate(path: string, wanted: number, follow: boolean): void {
   try {
     const stat = follow ? statSync(path) : lstatSync(path);
     if (stat.isSymbolicLink()) return;
-    if ((stat.mode & 0o077) !== 0) chmodSync(path, wanted);
+    if ((stat.mode & 0o077) === 0) return;
+    chmodSync(path, wanted);
+    // Some volumes (FUSE, CIFS, vfat) accept chmod and keep the old mode: read it back.
+    if (((follow ? statSync(path) : lstatSync(path)).mode & 0o077) !== 0) {
+      throw new HomeError(
+        `${path} is still open to other users after chmod: its file system ignores permissions. Move the home to a local disk, or set PAP_HOME to a folder on one.`,
+      );
+    }
   } catch (error) {
+    if (error instanceof HomeError) throw error;
     if (codeOf(error) === "ENOENT") return;
     throw new HomeError(
       `cannot make ${path} private (${wanted.toString(8).padStart(4, "0")}): ${codeOf(error)}`,
