@@ -376,8 +376,10 @@ describe.skipIf(!usable)(
       const plain = (await call<{ sessionId: string }>("sessions.create", { cwd: t.cwd })).sessionId;
       await call("policy.setSessionMode", { sessionId: plain, mode: "auto-accept-edits" });
       await call("sessions.prompt", { sessionId: plain, text: "Write a note." });
-      await vi.waitFor(() => expect(existsSync(join(t.cwd, "notes.txt"))).toBe(true), { timeout: 30_000 });
-      expect(readFileSync(join(t.cwd, "notes.txt"), "utf8")).toBe("plain");
+      // Wait for the content: Pi's write tool opens with truncate and then writes, so the file exists empty first.
+      await vi.waitFor(() => expect(readFileSync(join(t.cwd, "notes.txt"), "utf8")).toBe("plain"), {
+        timeout: 30_000,
+      });
     }, 180_000);
   },
 );
