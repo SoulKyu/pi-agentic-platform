@@ -24,8 +24,9 @@ describe("node", () => {
   it.each([
     ["24.14.0", "ok"],
     ["24.15.1", "ok"],
-    ["25.0.0", "ok"],
-    ["26.2.0", "ok"],
+    ["24.99.0", "ok"],
+    ["25.0.0", "warn"],
+    ["26.2.0", "warn"],
     ["24.13.9", "fail"],
     ["23.9.0", "fail"],
     ["22.20.0", "fail"],
@@ -34,6 +35,10 @@ describe("node", () => {
     const result = await run("node", ctx(), { nodeVersion });
     expect(result.status).toBe(status);
     if (status === "fail") expect(result.fix).toContain("24.14");
+    if (status === "warn")
+      expect(result.detail).toBe(
+        `pap is tested on Node 24; Node ${nodeVersion.split(".")[0]} is not supported yet`,
+      );
   });
 });
 

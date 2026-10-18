@@ -86,6 +86,10 @@ export function defaultProbes(): SystemProbes {
 const codeOf = (error: unknown): string => (error as NodeJS.ErrnoException).code ?? "unknown";
 const octal = (mode: number): string => (mode & 0o777).toString(8).padStart(3, "0");
 
+// The same bounds as package.json engines.node (">=24.14 <25"); the daemon cannot import package.json.
+const NODE_TESTED_MAJOR = 24;
+const NODE_MIN_MINOR = 14;
+
 const nodeCheck = (probes: SystemProbes): Check => ({
   id: "node",
   title: "Node.js version",
@@ -93,7 +97,14 @@ const nodeCheck = (probes: SystemProbes): Check => ({
     const match = /^(\d+)\.(\d+)\./.exec(probes.nodeVersion);
     const major = Number(match?.[1]);
     const minor = Number(match?.[2]);
-    const fine = match !== null && (major >= 25 || (major === 24 && minor >= 14));
+    if (match !== null && major > NODE_TESTED_MAJOR) {
+      return {
+        status: "warn",
+        detail: `pap is tested on Node ${NODE_TESTED_MAJOR}; Node ${major} is not supported yet`,
+        fix: `use Node ${NODE_TESTED_MAJOR}.${NODE_MIN_MINOR} or a newer ${NODE_TESTED_MAJOR}.x (docs/agents/install.md)`,
+      };
+    }
+    const fine = match !== null && major === NODE_TESTED_MAJOR && minor >= NODE_MIN_MINOR;
     return fine
       ? { status: "ok", detail: `node ${probes.nodeVersion}` }
       : {

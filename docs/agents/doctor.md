@@ -29,7 +29,7 @@ Inside a container (`/run/.containerenv` or `/.dockerenv` exists) `user_manager`
 
 | id | what it looks at | `fail` | `warn` | `info` |
 |---|---|---|---|---|
-| `node` | the Node version | below 24.14 (25 and above pass) | | |
+| `node` | the Node version | below 24.14 | Node 25 and above (pap is tested on Node 24) | |
 | `toolchain` | `gcc g++ make python3` on the absolute entries of `PATH` | | | missing ones: only needed for method 1 and `npm install` |
 | `user_manager` | `systemctl --user show-environment` | the user manager does not answer | | |
 | `linger` | `loginctl show-user <uid>` | | linger off: pap stops at logout | |
