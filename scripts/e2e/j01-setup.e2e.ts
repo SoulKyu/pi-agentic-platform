@@ -14,10 +14,11 @@ const throttled = (): RegExp => {
 
 // A marker that exists whatever tab the app restores after a sign-in: the project button of the banner.
 const home = (page: Page) =>
-  page
-    .getByRole("banner")
-    .getByRole("button", { name: t("shell.project.label", { name: t("shell.project.all") }) });
-const signInHeading = (page: Page) => page.getByRole("heading", { name: t("login.title") });
+  page.getByRole("banner").getByRole("button", {
+    name: t("shell.project.label", { name: t("shell.project.all") }),
+    exact: true,
+  });
+const signInHeading = (page: Page) => page.getByRole("heading", { name: t("login.title"), exact: true });
 const alert = (page: Page, text: string | RegExp) => page.getByRole("alert").filter({ hasText: text });
 
 async function signInWithPassword(page: Page, username: string, password: string): Promise<void> {
@@ -27,8 +28,8 @@ async function signInWithPassword(page: Page, username: string, password: string
 }
 
 async function signOut(page: Page): Promise<void> {
-  await page.getByRole("button", { name: t("shell.rail.settings") }).click();
-  await page.getByRole("link", { name: t("settings.section.account") }).click();
+  await page.getByRole("button", { name: t("shell.rail.settings"), exact: true }).click();
+  await page.getByRole("link", { name: t("settings.section.account"), exact: true }).click();
   await page.getByRole("button", { name: t("settings.account.signOut"), exact: true }).click();
   await expect(signInHeading(page)).toBeVisible();
 }
@@ -42,16 +43,16 @@ test("J01: the owner is created on the setup page, signs in again by password an
 
   await test.step("setup through the page, then the first-run steps are skipped", async () => {
     await page.goto(pap.setupUrl);
-    await expect(page.getByRole("heading", { name: t("setup.title") })).toBeVisible();
+    await expect(page.getByRole("heading", { name: t("setup.title"), exact: true })).toBeVisible();
     await page.getByLabel(t("setup.username"), { exact: true }).fill(username);
     await page.getByLabel(t("setup.password"), { exact: true }).fill(password);
-    await page.getByRole("button", { name: t("setup.submit") }).click();
+    await page.getByRole("button", { name: t("setup.submit"), exact: true }).click();
     const leave = page.getByRole("button", {
       name: exactly(t("firstRun.skip"), t("firstRun.continue"), t("firstRun.finish")),
     });
-    await expect(page.getByRole("heading", { name: t("firstRun.passkey.title") })).toBeVisible();
+    await expect(page.getByRole("heading", { name: t("firstRun.passkey.title"), exact: true })).toBeVisible();
     await leave.last().click();
-    await expect(page.getByRole("heading", { name: t("firstRun.pi.title") })).toBeVisible();
+    await expect(page.getByRole("heading", { name: t("firstRun.pi.title"), exact: true })).toBeVisible();
     await leave.last().click();
     await expect(home(page)).toBeVisible();
   });
@@ -74,8 +75,8 @@ test("J01: the owner is created on the setup page, signs in again by password an
         automaticPresenceSimulation: true,
       },
     });
-    await page.getByRole("button", { name: t("shell.rail.settings") }).click();
-    await page.getByRole("link", { name: t("settings.section.account") }).click();
+    await page.getByRole("button", { name: t("shell.rail.settings"), exact: true }).click();
+    await page.getByRole("link", { name: t("settings.section.account"), exact: true }).click();
     await page.getByRole("button", { name: t("account.addPasskey"), exact: true }).click();
     await page.getByLabel(t("setup.password"), { exact: true }).fill(password);
     await page.getByRole("button", { name: t("account.addPasskey"), exact: true }).click();
@@ -85,7 +86,7 @@ test("J01: the owner is created on the setup page, signs in again by password an
       .toBe(1);
     await page.getByRole("button", { name: t("settings.account.signOut"), exact: true }).click();
     await expect(signInHeading(page)).toBeVisible();
-    await page.getByRole("button", { name: t("login.passkey") }).click();
+    await page.getByRole("button", { name: t("login.passkey"), exact: true }).click();
     await expect(home(page)).toBeVisible();
     const methods = (
       await pap.rpc<{ devices: { method: string | null }[] }>("auth.devices.list")
@@ -107,7 +108,7 @@ test("J01: the owner is created on the setup page, signs in again by password an
     await signOut(page);
     await page.goto(pap.setupUrl);
     await expect(signInHeading(page)).toBeVisible();
-    await expect(page.getByRole("heading", { name: t("setup.title") })).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: t("setup.title"), exact: true })).toHaveCount(0);
     const refused = await page.request.post(`${pap.origin}/auth/setup`, {
       data: {
         token: new URL(pap.setupUrl).hash.replace("#token=", ""),
