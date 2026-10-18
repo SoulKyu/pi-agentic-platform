@@ -1,6 +1,6 @@
 # M13 exit criteria: the evidence
 
-The four exit criteria of spec A (`docs/specs/2026-10-10-A-product-scope.md`), each with the command or test that proves it and the result recorded in the M13 ledger. Results were measured by the controller on the unified join branch unless a cell says otherwise. Nothing here claims that GitHub CI is green: the first GitHub run of the new jobs (`e2e`, the sandbox provisioning, the typecheck build fix) is part of the release runbook (`docs/agents/release.md`, step 3).
+The four exit criteria of spec A (`docs/specs/2026-10-10-A-product-scope.md`), each with the command or test that proves it and the result recorded in the M13 ledger. Results were measured by the controller on the unified join branch unless a cell says otherwise. GitHub CI ran green on the final head `e736f8e9` (draft PR #1, run https://github.com/SoulKyu/pi-agentic-platform/actions/runs/39134104100): `checks`, `unit`, `integration`, `build`, `e2e` and `budgets`. It was the first GitHub run of the `e2e` job, the sandbox provisioning (M13-C9), the contracts build before typecheck and the descriptor wrapper (M13-C13); the release runbook (`docs/agents/release.md`, step 3) still asks for a green run on `main` before the flip.
 
 ## 1. Crash isolation
 
@@ -50,4 +50,11 @@ Not proved by these: a real GitHub release, `curl | sh` and `npm publish` have n
 
 ## The whole gate on the join
 
-On `2fbca174` (the final CJ1 head, all three chains): unit 1733 files and 20711 tests (3 skipped), integration 241 files and 1382 tests (2 skipped), e2e 36 passed and 2 skipped in 3.8 minutes, `pnpm budgets` (initial bundle 233.5 of 250 KB), `pnpm smoke`, `pnpm smoke:install`, `pnpm release:check` and `pnpm build:npm`, all green. The controller refreshes these numbers after the final-review fixes (task FF). The lint, format, typecheck and knip steps are rerun on the join head by task J1b.
+On the final head `e736f8e9` (all three chains, the sweeps, P3, C9, J1, the final-review fixes FF and the agent-settings scroll fix):
+
+| Where | Result |
+| --- | --- |
+| GitHub CI, run 39134104100 | `checks` green; unit 1735 files, 20724 passed (4 skipped); integration 241 files, 1381 passed (2 skipped); `build` green; e2e 36 passed (4.6 min); budgets green (`pnpm budgets`, `test:budget` 4 passed) |
+| Controller, locally | `pnpm build`, `pnpm smoke`, `pnpm smoke:install`, `pnpm release:check`, `pnpm build:npm` and `pnpm build:archive`, all green |
+| Controller, locally, on `2fbca174` (CJ1, before FF) | unit 1733 files and 20711 tests (3 skipped), integration 241 files and 1382 tests (2 skipped), e2e 36 passed and 2 skipped in 3.8 minutes, initial bundle 233.5 of 250 KB |
+| FF and the scroll fix | the full e2e suite twice each, 36 passed and 2 skipped every time; the v1 flip rehearsed on a scratch copy, then `release:check` and the full unit suite green |
