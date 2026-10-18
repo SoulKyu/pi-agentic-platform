@@ -1,4 +1,5 @@
 import type { Translate } from "../../i18n/index.ts";
+import type { NestedCallView } from "../../stores/nested-calls.ts";
 import type { MessageView, ToolCallView } from "../../stores/row-view.ts";
 import type { SessionView, ToolView } from "../../stores/session-reducer.ts";
 
@@ -33,6 +34,10 @@ export interface ToolItem {
   readonly resultEntryId: string | null;
   /** How big the result was when the server did not send it at all (too big for a message), else null. */
   readonly omittedBytes: number | null;
+  /** A codemode call's script, as far as the wire carries it. */
+  readonly code?: string;
+  /** The calls the tool made to other tools, from its result. */
+  readonly nested?: readonly NestedCallView[];
   readonly at?: number | null;
 }
 
@@ -84,6 +89,7 @@ function toolItem(owner: string, call: ToolCallView, occurrence: number, at: num
     argsTruncated: call.argsTruncated,
     resultEntryId: null,
     omittedBytes: null,
+    ...(call.code === undefined ? {} : { code: call.code }),
     at,
   };
 }
@@ -129,6 +135,7 @@ export function transcriptItems(view: SessionView, translate: Translate): Transc
           truncatedChars: message.truncatedChars,
           resultEntryId: message.entryId,
           omittedBytes: message.omittedBytes,
+          ...(message.nestedCalls ? { nested: message.nestedCalls } : {}),
         };
         return;
       }
