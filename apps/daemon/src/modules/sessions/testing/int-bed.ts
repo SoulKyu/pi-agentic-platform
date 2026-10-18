@@ -50,6 +50,8 @@ export interface IntBedOptions {
 
 export interface Subscription {
   events(): SessionStreamEvent[];
+  /** The sequence number of every frame received, in order (a gapless stream counts up by one). */
+  seqs(): number[];
   /** The cursor of the last event received, as a client keeps it for a reopen. */
   cursor(): Cursor | undefined;
   close(): void;
@@ -189,6 +191,7 @@ export async function createIntBed(script: object, options: IntBedOptions = {}) 
         const events = () => frames.map((frame) => frame.event as SessionStreamEvent);
         return {
           events,
+          seqs: () => frames.map((frame) => frame.seq),
           cursor: () => {
             const last = frames.at(-1);
             return last ? { epoch: last.epoch, seq: last.seq } : undefined;

@@ -132,3 +132,28 @@ The git check (owner m3, `git-config-guard.ts`; the code is stricter than the pl
 
 - `pap serve | audit prune | user add | passkey reset` (`apps/daemon/src/cli/`): see `daemon.md` and `auth.md`.
 - Hostile classes per stage (control and bidi characters, lookalike blanks, oversize, depth, cycles, encodings): `*.hostile.test.ts`, `denylist.variants.test.ts`, `denylist.heredoc.test.ts`, `egress.forms.test.ts`. Exit criteria (spec C §8.1): `apps/daemon/src/security/*.int.test.ts` (fail-closed, taint then exfiltration, forged Origin, traversal, an audit line per stage). No test runs `curl`, `wget` or a destructive command: an exfiltration is `echo exfil`, a blocked command is `pap-test-blocked now` under an owner pattern.
+
+## Security tests
+
+- Spec C section 8.1 lists ten security tests. Each row below is `- <spec item> | <path> | <exact test title>`; `scripts/security-index.test.ts` fails when a row has no file, its title is no longer a test title there (a renamed or deleted test), or one of the ten items has no row. Keep the rows in step with the tests.
+- Crash isolation (spec A criterion 1) is covered by `apps/daemon/src/modules/sessions/sessions.crash.int.test.ts` (SIGKILL), `sessions.crash.hard.int.test.ts` (`process.exit(7)`, `process.abort()`, a worker `kill -9`, each with a gapless stream on a second session), `sessions.crash.oom.int.test.ts` and `kernel/supervisor/scope.int.test.ts` (the memory-limit classification).
+
+- traversal /files | apps/daemon/src/security/files-traversal.int.test.ts | security: traversal on the files RPC
+- traversal /files | apps/daemon/src/security/files-traversal.int.test.ts | security: traversal on GET /files/raw
+- traversal /files | apps/daemon/src/security/files-traversal.int.test.ts | security: traversal on PUT /files/raw
+- traversal /files | apps/daemon/src/security/files-traversal.int.test.ts | security: traversal on search, diff, status and terminals
+- traversal static | apps/daemon/src/security/traversal.int.test.ts | security: path traversal, static serving and the export route
+- webhook bad secret | apps/daemon/src/security/webhook.int.test.ts | answers a bad secret 401, starts no task and counts it in the journal
+- webhook bad hmac | apps/daemon/src/security/webhook.int.test.ts | checks an HMAC trigger on the raw body, and refuses a wrong, a missing or a body-altered signature
+- webhook 64KB+1 | apps/daemon/src/security/webhook.int.test.ts | answers 413 for 64 KiB + 1 with a declared length, and again when no length is declared
+- webhook dedup replay | apps/daemon/src/security/webhook.int.test.ts | answers 202 with the task, then 409 dedup for the same signed body, with one task in all
+- fail-closed rules | packages/pi-host/src/host.failclosed.int.test.ts | refuses to start with invalid rules in its init, and never reports ready
+- fail-closed exceptions | packages/pi-host/src/host.failclosed.int.test.ts | blocks every call after a malformed policy update, says why in the audit, and recovers on the next valid one
+- fail-closed exceptions | apps/daemon/src/security/fail-closed.int.test.ts | blocks a call whose input an earlier extension made unreadable, and the call never runs
+- taint then exfiltration | apps/daemon/src/security/taint.int.test.ts | asks for an always-allowed command once external content arrived, and again after the worker was replaced
+- taint then exfiltration | apps/daemon/src/security/mcp-taint.int.test.ts | runs an untainted read-only MCP tool without a card, fences its output, taints, and asks for the next exfiltration
+- taint then exfiltration | apps/daemon/src/security/automation-journey.int.test.ts | denies an exfiltration attempt after the unattended question times out, and the task still ends done
+- forged origin | apps/daemon/src/security/origin.int.test.ts | refuses every unsafe route with a forged Origin, logs it, and changes nothing
+- forged origin | apps/daemon/src/security/origin.int.test.ts | refuses every unsafe route that carries a bearer token and a forged Origin, or none
+- forged origin | apps/daemon/src/security/origin.int.test.ts | refuses the /ws upgrade with a forged Origin, for a cookie and for a bearer token
+- forged origin | apps/daemon/src/security/files-origin.int.test.ts | security: Origin and credentials on the upload routes
