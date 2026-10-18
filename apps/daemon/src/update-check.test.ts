@@ -74,8 +74,8 @@ describe("when nothing is scheduled", () => {
     expect(served.calls).toEqual([]);
   });
 
-  it("the shipped default is off until the v1 flip", () => {
-    expect(UPDATE_CHECK_DEFAULT).toBe(false);
+  it("the shipped default is on now that the v1 flip is done", () => {
+    expect(UPDATE_CHECK_DEFAULT).toBe(true);
   });
 });
 

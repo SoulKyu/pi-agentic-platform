@@ -33,7 +33,7 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 ## Backup, update, doctor, release (M6b)
 
 - `pap backup [--encrypt [--secrets include]]` · `pap restore <file> [--replace]` (daemon stopped) · `pap doctor [--only id]` (read-only) · `pap update check|install|apply|rollback|recover` (archive installs only; never from pap's own terminal). `--unit`/`PAP_UNIT` name the unit. Guides: `docs/agents/backup.md`, `update.md`, `doctor.md`; image, npm, releases and `get-pap.sh`: `install.md`.
-- A plain backup excludes `secrets/` and is still sensitive; an archive is untrusted input (`listMembers` first, ADR 0063). An update rolls back by itself and restores the snapshot only if a migration ran (ADR 0064). Nothing contacts GitHub from tests or from this host. The repository is public; `release.yml` stays `workflow_dispatch` only until the v1 flip (`scripts/release-flip.ts`, ADR 0066 and 0076).
+- A plain backup excludes `secrets/` and is still sensitive; an archive is untrusted input (`listMembers` first, ADR 0063). An update rolls back by itself and restores the snapshot only if a migration ran (ADR 0064). Tests never contact GitHub (their daemons run with `PAP_UPDATE_CHECK=0`); a running pap checks the release feed once a day (`PAP_UPDATE_CHECK=0` turns it off). `release.yml` runs on a push to main and on `workflow_dispatch` since the v1 flip (`scripts/release-flip.ts`, ADR 0066 and 0076).
 - ADRs 0063 to 0067; rulings `docs/research/m6b-rulings.md`. `pnpm release:assets`, `pnpm release:check`, `pnpm build:npm`, `pnpm build:image` are local commands.
 
 ## Agents and the sandbox (M11)

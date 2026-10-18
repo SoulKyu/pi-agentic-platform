@@ -7,10 +7,10 @@ import type { Clock, TimerHandle } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 
 /**
- * The daily check is off until the v1 flip: the repository is public, but the release feed has no published release yet, so a
- * check would find nothing. The v1 flip commit flips this constant (scripts/release-flip.ts, ADR 0066). `PAP_UPDATE_CHECK=1` turns it on now, `=0` is always off.
+ * The daily check is on by default since the v1 flip (scripts/release-flip.ts, ADR 0066 and ADR 0076).
+ * `PAP_UPDATE_CHECK=0` turns it off, `=1` forces it on.
  */
-export const UPDATE_CHECK_DEFAULT = false;
+export const UPDATE_CHECK_DEFAULT = true;
 
 const FIRST_RUN_MS = 10 * 60_000;
 const INTERVAL_MS = 24 * 60 * 60_000;
