@@ -24,7 +24,12 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm knip
   unit:
+    name: unit (${{ matrix.shard }}/2)
     needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -32,11 +37,16 @@ jobs:
         with:
           persist-credentials: false
       - uses: ./.github/actions/setup
-      - run: pnpm test:unit
+      - run: pnpm test:unit --shard=${{ matrix.shard }}/2
   integration:
-    needs: unit
+    name: integration (${{ matrix.shard }}/4)
+    needs: checks
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     env:
       PI_OFFLINE: "1"
       PI_TELEMETRY: "0"
@@ -52,9 +62,9 @@ jobs:
           sudo loginctl enable-linger "$(id -un)"
           sudo systemctl start "user@$(id -u).service"
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
-      - run: scripts/ci/without-inherited-fds.sh pnpm test:int
+      - run: scripts/ci/without-inherited-fds.sh pnpm test:int --shard=${{ matrix.shard }}/4
   build:
-    needs: integration
+    needs: checks
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:

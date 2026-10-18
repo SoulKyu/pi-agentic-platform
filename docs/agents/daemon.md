@@ -127,7 +127,7 @@ Code: `apps/daemon/src/daemon.ts` (composition root), `main.ts` (`pap serve`), `
 
 ## CI
 
-- `.github/workflows/ci.yml` (job `integration`) and `pi-compat.yml` run `sudo loginctl enable-linger`, start `user@<uid>.service` and export `XDG_RUNTIME_DIR` before `pnpm test:int`; the scope tests fail in CI without a user manager (owner M2-Q8, R92) and `scripts/ci-config.test.ts` guards the step. Every other test daemon and bed runs with scopes off.
+- `.github/workflows/ci.yml` (job `integration`, every one of its 4 shards) and `pi-compat.yml` run `sudo loginctl enable-linger`, start `user@<uid>.service` and export `XDG_RUNTIME_DIR` before `pnpm test:int`; the scope tests fail in CI without a user manager (owner M2-Q8, R92) and `scripts/ci-config.test.ts` guards the step. Every other test daemon and bed runs with scopes off.
 
 ## Pi compatibility
 
