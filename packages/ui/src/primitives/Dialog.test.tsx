@@ -18,6 +18,21 @@ function Harness() {
   );
 }
 
+function Stacked() {
+  const [outer, setOuter] = useState(true);
+  const [inner, setInner] = useState(true);
+  return (
+    <>
+      <Dialog open={outer} onOpenChange={setOuter} title="Outer" closeLabel="Close outer">
+        <p>outer body</p>
+      </Dialog>
+      <Dialog open={inner} onOpenChange={setInner} title="Inner" closeLabel="Close inner">
+        <p>inner body</p>
+      </Dialog>
+    </>
+  );
+}
+
 const dialog = () => document.querySelector('[role="dialog"]');
 
 const phoneQuery = (phone: boolean) =>
@@ -38,6 +53,18 @@ describe("Dialog", () => {
     expect(dialog()?.className).toContain("shadow-overlay");
     await press(document.activeElement ?? document.body, { key: "Escape" });
     expect(dialog()).toBeNull();
+    await page.unmount();
+  });
+
+  it("closes only the top dialog on Escape when two are stacked (parity P20-2)", async () => {
+    const page = await mountWithTooltips(<Stacked />);
+    const titles = () => [...document.querySelectorAll('[role="dialog"]')].map((d) => d.textContent ?? "");
+    expect(titles()).toHaveLength(2);
+    await press(document.activeElement ?? document.body, { key: "Escape" });
+    expect(titles()).toHaveLength(1);
+    expect(titles()[0]).toContain("Outer");
+    await press(document.activeElement ?? document.body, { key: "Escape" });
+    expect(titles()).toHaveLength(0);
     await page.unmount();
   });
 

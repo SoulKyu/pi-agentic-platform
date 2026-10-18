@@ -79,3 +79,9 @@ describe("index.html install tags", () => {
     expect(html).toContain(tag);
   });
 });
+
+describe("iOS status bar (owner q10, parity P19-6)", () => {
+  it("leaves apple-mobile-web-app-status-bar-style out of index.html, so Safari keeps default", () => {
+    expect(html).not.toContain("apple-mobile-web-app-status-bar-style");
+  });
+});
