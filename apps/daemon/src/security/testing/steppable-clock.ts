@@ -1,11 +1,17 @@
 import { type Clock, createSystemClock, type TimerHandle } from "../../kernel/clock.ts";
 
 /** A timer this long or longer is parked until the test moves time; shorter ones run on the real clock. */
-const PARKED_FROM_MS = 60_000;
+export const PARKED_FROM_MS = 60_000;
 
 export interface SteppableClock extends Clock {
   /** Moves time forward and runs the parked timers that are due, oldest first. */
   advance(ms: number): Promise<void>;
+  /**
+   * Moves time to the next multiple of `periodMs` (no timer is due, nothing runs). A schedule created right after waits
+   * a full period, so its wake-up timer is parked: made at a random phase it can be under a minute away, which runs on
+   * the real clock and ignores `advance` (the agent-budget flake).
+   */
+  alignTo(periodMs: number): Promise<void>;
 }
 
 /**
@@ -31,6 +37,7 @@ export function createSteppableClock(): SteppableClock {
       if (!parked.delete(handle.id)) system.clearTimeout(handle);
     },
     sleep: (ms) => new Promise<void>((resolve) => void clock.setTimeout(resolve, ms)),
+    alignTo: (periodMs) => clock.advance(periodMs - (now() % periodMs)),
     async advance(ms) {
       offset += ms;
       for (;;) {

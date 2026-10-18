@@ -2,7 +2,7 @@ import { AgentInput, TriggerInput } from "@pap/contracts";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { startTestDaemon, type TestDaemon } from "../testing/harness.ts";
 import { journalOf, openOwner, type Owner, result, rows } from "./testing/automation-bed.ts";
-import { createSteppableClock, type SteppableClock } from "./testing/steppable-clock.ts";
+import { createSteppableClock, PARKED_FROM_MS, type SteppableClock } from "./testing/steppable-clock.ts";
 
 // M11R74 in a whole daemon: an agent with a daily budget runs a scheduled thread task that spends past it, the next
 // scheduled fire is refused `budget`, the owner's own message in the thread still runs, and clearing the budget in the
@@ -47,6 +47,9 @@ const runsOf = (agentId: string) =>
 
 describe("an agent's daily budget (M11R74, owner m14)", () => {
   it("refuses the next scheduled fire once a thread task spent past it, still takes the owner's message, and a cleared budget lets a fire run", async () => {
+    // The schedule's wake-up must be a parked timer: `advance` cannot move a real one (see `alignTo`).
+    await clock.alignTo(FIVE_MINUTES);
+    await t.confirmStepUp(owner.cookie); // the jump let the step-up lapse
     const created = await call<{ id: string; revision: number }>("agents.create", {
       input: AgentInput.parse({
         name: "Atlas",
@@ -66,6 +69,12 @@ describe("an agent's daily budget (M11R74, owner m14)", () => {
       }),
     });
     const triggerId = trigger.trigger.id;
+    const [armed] = rows<{ next_fire_at: number }>(
+      t.home,
+      "SELECT next_fire_at FROM triggers WHERE id = ?",
+      triggerId,
+    );
+    expect((armed?.next_fire_at ?? 0) - clock.now()).toBeGreaterThanOrEqual(PARKED_FROM_MS);
 
     // 1. The first scheduled fire runs in the agent's thread; its first reply spends past the budget, and the run is cut
     // short across the run (limits): the task fails with `budget`, the thread stays.
