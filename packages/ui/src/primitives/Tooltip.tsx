@@ -1,10 +1,12 @@
 import {
   cloneElement,
+  useCallback,
   useState,
   type FocusEvent,
   type PointerEvent,
   type ReactElement,
   type ReactNode,
+  type Ref,
 } from "react";
 
 type Popup = typeof import("./TooltipPopup.tsx").TooltipPopup;
@@ -41,27 +43,45 @@ export interface TooltipProps {
 interface TriggerProps {
   onPointerEnter?(event: PointerEvent<HTMLElement>): void;
   onFocus?(event: FocusEvent<HTMLElement>): void;
-  autoFocus?: boolean;
 }
 
 /**
- * The bare control until it is first hovered or focused; then the Radix tooltip mounts around it. The element is
- * re-created under the new wrapper, so one that had focus asks for it again (`autoFocus`).
+ * The bare control until it is first hovered or focused; then the Radix tooltip mounts NEXT TO it and anchors to
+ * the control's own node. The control is never wrapped or re-created, so a press that started before the popup
+ * chunk arrived still ends on the same element and its click is not lost.
  */
 export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: TooltipProps) {
   const [Popup, setPopup] = useState<Popup | null>(() => loaded);
-  const [refocus, setRefocus] = useState(false);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const own = children.props as TriggerProps;
+  // The control's node can be replaced by its parent (a key or element-type change): an anchor that is no longer
+  // the current node is dropped, and the next hover or focus arms the new one.
+  const [node, setNode] = useState<HTMLElement | null>(null);
+  const ownRef = (children.props as { ref?: Ref<HTMLElement> }).ref;
+  const track = useCallback(
+    (element: HTMLElement | null) => {
+      setNode(element);
+      if (typeof ownRef === "function") ownRef(element);
+      else if (ownRef) Object.assign(ownRef, { current: element });
+    },
+    [ownRef],
+  );
+  const ownAttributes = Object.fromEntries(
+    Object.entries(children.props as Record<string, unknown>).filter(
+      (entry): entry is [string, string] => /^(data|aria)-/.test(entry[0]) && typeof entry[1] === "string",
+    ),
+  );
+  const armed = anchor !== null && anchor === node ? anchor : null;
   const arm = (target: HTMLElement) => {
-    if (Popup !== null) return;
-    const focused = document.activeElement === target;
+    if (armed !== null) return;
     void loadPopup().then(() => {
       if (loaded === null) return;
-      setRefocus(focused && document.activeElement === target);
       setPopup(() => loaded);
+      setAnchor(target);
     });
   };
-  const bare = cloneElement(children as ReactElement<TriggerProps>, {
+  const bare = cloneElement(children as ReactElement<TriggerProps & { ref?: Ref<HTMLElement> }>, {
+    ref: track,
     onPointerEnter: (event: PointerEvent<HTMLElement>) => {
       own.onPointerEnter?.(event);
       arm(event.currentTarget);
@@ -70,13 +90,20 @@ export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: Too
       own.onFocus?.(event);
       arm(event.currentTarget);
     },
-    autoFocus: refocus ? true : own.autoFocus,
   });
-  return Popup ? (
-    <Popup label={label} shortcut={shortcut} shortcutJoiner={shortcutJoiner} side={side}>
+  return (
+    <>
       {bare}
-    </Popup>
-  ) : (
-    bare
+      {Popup && armed ? (
+        <Popup
+          anchor={armed}
+          ownAttributes={ownAttributes}
+          label={label}
+          shortcut={shortcut}
+          shortcutJoiner={shortcutJoiner}
+          side={side}
+        />
+      ) : null}
+    </>
   );
 }
