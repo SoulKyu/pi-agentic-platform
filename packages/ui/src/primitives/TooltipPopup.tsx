@@ -3,8 +3,12 @@ import { forwardRef, useLayoutEffect, useRef, useState, type ReactElement, type 
 import { Kbd } from "./Kbd.tsx";
 import type { TooltipProps } from "./Tooltip.tsx";
 
+/** The `data-*` and `aria-*` strings the control itself sets, as of this render (never read back from the DOM). */
+export type OwnAttributes = Readonly<Record<string, string>>;
+
 interface AdoptProps {
   readonly anchor: HTMLElement;
+  readonly ownAttributes: OwnAttributes;
 }
 
 /**
@@ -12,11 +16,13 @@ interface AdoptProps {
  * and must keep its node, so this stand-in renders nothing and applies them to `anchor` instead. Only `on*`,
  * `data-*` and `aria-*` props are forwarded: that is all radix-ui 1.7.0's Tooltip.Trigger passes; re-check on upgrade.
  * An attribute the control sets itself (`aria-describedby` on a disabled chip) is kept: the tooltip's value is added
- * to it while open (`aria-describedby`) or replaces it (others), and the control's own value is back when it closes.
+ * to it while open (`aria-describedby`) or replaces it (others), and the control's own value (passed in as `ownAttributes`) is back when it closes.
  */
-const Adopt = forwardRef<HTMLElement, AdoptProps>(function Adopt({ anchor, ...slot }, ref) {
-  const originals = useRef(new Map<string, string | null>());
+const Adopt = forwardRef<HTMLElement, AdoptProps>(function Adopt({ anchor, ownAttributes, ...slot }, ref) {
+  const touched = useRef(new Set<string>());
+  const latest = useRef(ownAttributes);
   useLayoutEffect(() => {
+    latest.current = ownAttributes;
     const setRef = ref as Ref<HTMLElement> | null;
     if (typeof setRef === "function") setRef(anchor);
     const removers: (() => void)[] = [];
@@ -26,8 +32,8 @@ const Adopt = forwardRef<HTMLElement, AdoptProps>(function Adopt({ anchor, ...sl
         anchor.addEventListener(type, value as EventListener);
         removers.push(() => anchor.removeEventListener(type, value as EventListener));
       } else if (/^(data|aria)-/.test(name)) {
-        if (!originals.current.has(name)) originals.current.set(name, anchor.getAttribute(name));
-        const original = originals.current.get(name) ?? null;
+        touched.current.add(name);
+        const original = ownAttributes[name] ?? null;
         const own = typeof value === "string" ? value : null;
         const next =
           name === "aria-describedby" && own !== null && original ? `${original} ${own}` : (own ?? original);
@@ -41,10 +47,11 @@ const Adopt = forwardRef<HTMLElement, AdoptProps>(function Adopt({ anchor, ...sl
     };
   });
   useLayoutEffect(() => {
-    const kept = originals.current;
+    const names = touched.current;
     return () => {
-      for (const [name, original] of kept) {
-        if (original === null) anchor.removeAttribute(name);
+      for (const name of names) {
+        const original = latest.current[name];
+        if (original === undefined) anchor.removeAttribute(name);
         else anchor.setAttribute(name, original);
       }
     };
@@ -63,17 +70,21 @@ function opensOnArrival(anchor: HTMLElement): boolean {
 /** The Radix half of Tooltip, loaded on first hover or focus (delayDuration 400, Orca STYLEGUIDE). */
 export function TooltipPopup({
   anchor,
+  ownAttributes,
   label,
   shortcut,
   shortcutJoiner,
   side,
-}: Omit<TooltipProps, "children"> & { readonly anchor: HTMLElement }): ReactElement {
+}: Omit<TooltipProps, "children"> & {
+  readonly anchor: HTMLElement;
+  readonly ownAttributes: OwnAttributes;
+}): ReactElement {
   const [startOpen] = useState(() => opensOnArrival(anchor)); // the control was focused before this loaded
   return (
     <Radix.Provider delayDuration={400} skipDelayDuration={200}>
       <Radix.Root defaultOpen={startOpen}>
         <Radix.Trigger asChild>
-          <Adopt anchor={anchor} />
+          <Adopt anchor={anchor} ownAttributes={ownAttributes} />
         </Radix.Trigger>
         <Radix.Portal>
           <Radix.Content

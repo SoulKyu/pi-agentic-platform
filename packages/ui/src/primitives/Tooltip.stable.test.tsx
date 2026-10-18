@@ -120,6 +120,30 @@ describe("Tooltip trigger identity (the chunk loads between pointerdown and poin
     expect(node.getAttribute("aria-describedby")).toBe("reason");
   });
 
+  it("follows a description that the control gains after the tooltip armed", async () => {
+    gate.open();
+    const chip = (reason: string | undefined) => (
+      <Tooltip label="Lane">
+        <button type="button" aria-describedby={reason}>
+          lane
+        </button>
+      </Tooltip>
+    );
+    const page = await mountWithTooltips(chip(undefined));
+    const node = page.container.querySelector("button") as HTMLElement;
+    await hover(node);
+    expect(node.getAttribute("aria-describedby")).toBeNull();
+    await page.rerender(chip("reason"));
+    expect(node.getAttribute("aria-describedby")).toBe("reason");
+    await openTooltip(node);
+    const tokens = (node.getAttribute("aria-describedby") ?? "").split(" ");
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0]).toBe("reason");
+    await escape();
+    expect(node.getAttribute("aria-describedby")).toBe("reason");
+    await page.unmount();
+  });
+
   it("arms the new node when the control's node is replaced", async () => {
     gate.open();
     const page = await mountWithTooltips(

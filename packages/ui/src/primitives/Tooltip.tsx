@@ -66,6 +66,11 @@ export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: Too
     },
     [ownRef],
   );
+  const ownAttributes = Object.fromEntries(
+    Object.entries(children.props as Record<string, unknown>).filter(
+      (entry): entry is [string, string] => /^(data|aria)-/.test(entry[0]) && typeof entry[1] === "string",
+    ),
+  );
   const armed = anchor !== null && anchor === node ? anchor : null;
   const arm = (target: HTMLElement) => {
     if (armed !== null) return;
@@ -90,7 +95,14 @@ export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: Too
     <>
       {bare}
       {Popup && armed ? (
-        <Popup anchor={armed} label={label} shortcut={shortcut} shortcutJoiner={shortcutJoiner} side={side} />
+        <Popup
+          anchor={armed}
+          ownAttributes={ownAttributes}
+          label={label}
+          shortcut={shortcut}
+          shortcutJoiner={shortcutJoiner}
+          side={side}
+        />
       ) : null}
     </>
   );
