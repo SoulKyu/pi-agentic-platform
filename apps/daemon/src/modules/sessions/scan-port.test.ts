@@ -74,7 +74,7 @@ const portOver = (overrides: Partial<Parameters<typeof createScanPort>[0]> = {})
     onOutsideToolResults: () => {},
     startedAt: 0,
     isLive: () => false,
-    workerEndedAt: () => null,
+    ...{ workerEndedAt: () => null, liveIdleSince: () => null },
     ...overrides,
   });
 

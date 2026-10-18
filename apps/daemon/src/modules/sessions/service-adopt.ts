@@ -61,6 +61,7 @@ export function createAdoption(ctx: AdoptionContext) {
     startedAt: outside.startedAt,
     isLive: (id) => ctx.live.has(id) || outside.isStarting(id),
     workerEndedAt: outside.workerEndedAt,
+    liveIdleSince: (id) => ctx.live.get(id)?.quietSince() ?? null,
   });
   /** A draft's worker reported its Pi id at `ready`: kept in the table, so a restart forgets nothing (RT-01). */
   const onDraftReady = (sessionId: string, piSessionId: string): void => {

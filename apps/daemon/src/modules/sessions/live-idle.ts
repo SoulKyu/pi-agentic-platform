@@ -7,6 +7,11 @@ import { createIdleRelease, type IdleState } from "./idle-release.ts";
 export interface LiveIdle {
   /** Records an activity of the kinds M2R108 lists. */
   touch(): void;
+  /**
+   * The clock time of the last `touch()` (events and client commands alike), or null while work is pending (a run in
+   * flight, a steer or a compaction queued): the scan port's reference for a write pap did not make (M13R45).
+   */
+  quietSince(): number | null;
   /** The worker was asked to stop (a release, the daemon closing): nothing is sent to it any more (M2R112). */
   stopping(): boolean;
   /**
@@ -34,6 +39,7 @@ export function createLiveIdle(deps: {
   state(): IdleState;
 }): LiveIdle {
   let requestedStop = false;
+  let lastTouch = deps.clock.now();
   const idle = createIdleRelease({
     clock: deps.clock,
     idleMs: deps.idleMs,
@@ -44,6 +50,10 @@ export function createLiveIdle(deps: {
       stop().catch((error: unknown) => deps.logger.warn("worker_stop_failed", { err: error }));
     },
   });
+  const touch = (): void => {
+    lastTouch = deps.clock.now();
+    idle.touch();
+  };
   async function stop(): Promise<void> {
     requestedStop = true;
     idle.stop();
@@ -51,15 +61,16 @@ export function createLiveIdle(deps: {
     await deps.handle.stop();
   }
   return {
-    touch: () => idle.touch(),
+    touch,
+    quietSince: () => (deps.state() === "busy" ? null : lastTouch),
     stopping: () => requestedStop,
     async active(work) {
       if (requestedStop) throw new PapError("worker_failed");
-      idle.touch();
+      touch();
       try {
         return await work();
       } finally {
-        idle.touch();
+        touch();
       }
     },
     stop,
