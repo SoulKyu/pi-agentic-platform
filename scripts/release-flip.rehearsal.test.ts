@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { stripVTControlCharacters } from "node:util";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { REPO } from "./release-bed.ts";
 import {
@@ -58,7 +59,9 @@ describe("the v1 flip leaves the pinned shapes green (final review I2)", () => {
       [vitest, "run", "--project", "unit", "--no-coverage", ...SHAPE_PINS],
       { cwd: CHECKOUT, env: { ...process.env, PAP_FLIP_REPO: copy }, encoding: "utf8", timeout: 120_000 },
     );
-    expect(run.stdout + run.stderr).toMatch(/Tests\s+\d+ passed/);
-    expect(run.status, run.stdout + run.stderr).toBe(0);
+    // CI colours vitest's output: the summary is matched without its escape codes.
+    const output = stripVTControlCharacters(run.stdout + run.stderr);
+    expect(output).toMatch(/Tests\s+\d+ passed/);
+    expect(run.status, output).toBe(0);
   });
 });
