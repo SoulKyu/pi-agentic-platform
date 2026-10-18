@@ -1,10 +1,12 @@
 import {
   cloneElement,
+  useCallback,
   useState,
   type FocusEvent,
   type PointerEvent,
   type ReactElement,
   type ReactNode,
+  type Ref,
 } from "react";
 
 type Popup = typeof import("./TooltipPopup.tsx").TooltipPopup;
@@ -52,15 +54,29 @@ export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: Too
   const [Popup, setPopup] = useState<Popup | null>(() => loaded);
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const own = children.props as TriggerProps;
+  // The control's node can be replaced by its parent (a key or element-type change): an anchor that is no longer
+  // the current node is dropped, and the next hover or focus arms the new one.
+  const [node, setNode] = useState<HTMLElement | null>(null);
+  const ownRef = (children.props as { ref?: Ref<HTMLElement> }).ref;
+  const track = useCallback(
+    (element: HTMLElement | null) => {
+      setNode(element);
+      if (typeof ownRef === "function") ownRef(element);
+      else if (ownRef) Object.assign(ownRef, { current: element });
+    },
+    [ownRef],
+  );
+  const armed = anchor !== null && anchor === node ? anchor : null;
   const arm = (target: HTMLElement) => {
-    if (anchor !== null) return;
+    if (armed !== null) return;
     void loadPopup().then(() => {
       if (loaded === null) return;
       setPopup(() => loaded);
       setAnchor(target);
     });
   };
-  const bare = cloneElement(children as ReactElement<TriggerProps>, {
+  const bare = cloneElement(children as ReactElement<TriggerProps & { ref?: Ref<HTMLElement> }>, {
+    ref: track,
     onPointerEnter: (event: PointerEvent<HTMLElement>) => {
       own.onPointerEnter?.(event);
       arm(event.currentTarget);
@@ -73,14 +89,8 @@ export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: Too
   return (
     <>
       {bare}
-      {Popup && anchor ? (
-        <Popup
-          anchor={anchor}
-          label={label}
-          shortcut={shortcut}
-          shortcutJoiner={shortcutJoiner}
-          side={side}
-        />
+      {Popup && armed ? (
+        <Popup anchor={armed} label={label} shortcut={shortcut} shortcutJoiner={shortcutJoiner} side={side} />
       ) : null}
     </>
   );
