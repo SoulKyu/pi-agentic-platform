@@ -50,13 +50,30 @@ stage="$(mktemp -d "$app/releases/.stage.XXXXXX")"
 switched=0
 previous=""
 case "${XDG_CONFIG_HOME:-}" in /*) unit_file="$XDG_CONFIG_HOME/systemd/user/pap.service" ;; *) unit_file="$HOME/.config/systemd/user/pap.service" ;; esac
-unit_saved=0   # 1 once the unit file as it was is kept in the stage, to be put back byte-identical by the trap (M6b-C13)
+unit_saved=0   # 1 once the unit file as it was is kept in the stage, 2 once a symlinked unit's target is kept in unit_link; the trap puts it back (M6b-C13)
+unit_link=""
+launcher_file=""
+launcher_saved=0   # 1: the launcher as it was is kept in the stage; 2: there was none. "pap service install" rewrites it, the trap puts it back.
 cleanup() {
   status=$?
   set +e   # every step runs, whatever an earlier one did
-  if [ "$status" -ne 0 ] && [ "$switched" = 1 ] && [ "$unit_saved" = 1 ]; then
+  if [ "$status" -ne 0 ] && [ "$switched" = 1 ] && [ "$launcher_saved" != 0 ]; then
+    if [ "$launcher_saved" = 1 ]; then
+      if cp -p -- "$stage/launcher.prev" "$launcher_file.restore" && mv -T -- "$launcher_file.restore" "$launcher_file"; then
+        printf 'pap-install: the previous launcher was restored\n' >&2
+      else
+        rm -f -- "$launcher_file.restore"
+        printf 'pap-install: could not restore the previous launcher %s: check it by hand\n' "$launcher_file" >&2
+      fi
+    elif [ ! -L "$launcher_file" ]; then
+      rm -f -- "$launcher_file"   # there was none before: the one the failed install wrote goes away
+    fi
+  fi
+  if [ "$status" -ne 0 ] && [ "$switched" = 1 ] && [ "$unit_saved" != 0 ]; then
     # "pap service install" may have rewritten the unit (new port, home or release path): the previous one comes back first.
-    if cp -p -- "$stage/unit.prev" "$unit_file.restore" && mv -T -- "$unit_file.restore" "$unit_file"; then
+    # A symlinked unit comes back as a symlink to the same target, never as a regular file.
+    if { if [ "$unit_saved" = 2 ]; then ln -sfn -- "$unit_link" "$unit_file.restore"; else cp -p -- "$stage/unit.prev" "$unit_file.restore"; fi; } \
+       && mv -T -- "$unit_file.restore" "$unit_file"; then
       systemctl --user daemon-reload >/dev/null 2>&1
       printf 'pap-install: the previous unit file was restored\n' >&2
     else
@@ -222,7 +239,28 @@ elif [ "$previous" = "$RELEASE_ID" ] && [ "$#" -eq 0 ] && [ -f "$unit_file" ] &&
 else
   # First install, a re-install of the same release with flags, or an explicit re-install with flags (M6 behaviour, unchanged).
   check_op_lock "$@"
-  if [ -f "$unit_file" ] && [ ! -L "$unit_file" ] && cp -p -- "$unit_file" "$stage/unit.prev"; then unit_saved=1; fi
+  if [ -L "$unit_file" ]; then
+    if unit_link="$(readlink -- "$unit_file")"; then unit_saved=2; fi
+  elif [ -f "$unit_file" ] && cp -p -- "$unit_file" "$stage/unit.prev"; then
+    unit_saved=1
+  fi
+  # The launcher lives in the --bin-dir given (last one wins, both spellings), else ~/.local/bin; a relative one is pap's to refuse.
+  bin_dir="$HOME/.local/bin"
+  want_bin=0
+  for arg in "$@"; do
+    if [ "$want_bin" = 1 ]; then bin_dir="$arg"; want_bin=0; continue; fi
+    case "$arg" in --bin-dir) want_bin=1 ;; --bin-dir=*) bin_dir="${arg#--bin-dir=}" ;; esac
+  done
+  case "$bin_dir" in
+    /*)
+      launcher_file="$bin_dir/pap"
+      if [ -L "$launcher_file" ]; then :   # not ours: pap leaves it alone
+      elif [ -f "$launcher_file" ]; then
+        if cp -p -- "$launcher_file" "$stage/launcher.prev"; then launcher_saved=1; fi
+      elif [ ! -e "$launcher_file" ]; then
+        launcher_saved=2
+      fi ;;
+  esac
   ln -sfn -- "releases/$RELEASE_ID" "$app/current.new"
   mv -T -- "$app/current.new" "$app/current"
   switched=1
