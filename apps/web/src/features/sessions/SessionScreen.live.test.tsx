@@ -127,4 +127,24 @@ describe("completion sound on a settled run", () => {
     await screen.emit({ kind: "status", status: "running", children: [{ id: "c1", status: "idle" }] });
     expect(tones).not.toHaveBeenCalled();
   });
+
+  it("with the setting on at mount, listens for gestures until the context runs", async () => {
+    const ctx = { state: "suspended", resume: vi.fn(() => Promise.resolve()) };
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(function () {
+        return ctx;
+      }),
+    );
+    useAppearanceStore.setState({ device: { ...DEFAULT_DEVICE, completionSound: true } });
+    await screen.show({ status: "idle" });
+    document.dispatchEvent(new Event("pointerdown"));
+    expect(ctx.resume).toHaveBeenCalledTimes(1);
+    document.dispatchEvent(new Event("click"));
+    expect(ctx.resume).toHaveBeenCalledTimes(2);
+    ctx.state = "running";
+    document.dispatchEvent(new Event("click"));
+    document.dispatchEvent(new Event("click"));
+    expect(ctx.resume).toHaveBeenCalledTimes(2);
+  });
 });

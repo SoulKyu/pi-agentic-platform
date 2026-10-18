@@ -99,7 +99,7 @@ describe("playCompletion", () => {
     expect(() => unlockCompletionSound()).not.toThrow();
   });
 
-  it("the first pointerdown or keydown unlocks once", () => {
+  it("keeps listening until the context runs, then stops", () => {
     const made = fakeContext("suspended");
     vi.stubGlobal(
       "AudioContext",
@@ -109,9 +109,14 @@ describe("playCompletion", () => {
     );
     const off = unlockOnFirstInteraction();
     document.dispatchEvent(new Event("pointerdown"));
-    document.dispatchEvent(new Event("keydown"));
-    document.dispatchEvent(new Event("pointerdown"));
     expect(made.raw.resume).toHaveBeenCalledTimes(1);
+    document.dispatchEvent(new Event("pointerup"));
+    expect(made.raw.resume).toHaveBeenCalledTimes(2);
+    made.raw.state = "running";
+    document.dispatchEvent(new Event("click"));
+    document.dispatchEvent(new Event("keydown"));
+    document.dispatchEvent(new Event("click"));
+    expect(made.raw.resume).toHaveBeenCalledTimes(2);
     off();
   });
 

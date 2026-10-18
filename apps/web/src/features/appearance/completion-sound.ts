@@ -34,17 +34,18 @@ export function unlockCompletionSound(): void {
 }
 
 /**
- * Unlocks the sound on the first pointerdown or keydown (a reload leaves the context suspended until a gesture).
- * Returns the cleanup that removes the listeners.
+ * Unlocks the sound on a gesture (a reload leaves the context suspended until one). iOS WebKit unlocks on `click`,
+ * `pointerup` and `keydown`, not on a touch `pointerdown`, so all four are heard; the listeners stay until the shared
+ * context reports `running`, so a refused `resume()` is retried. Returns the cleanup that removes them.
  */
 export function unlockOnFirstInteraction(): () => void {
-  const events = ["pointerdown", "keydown"] as const;
+  const events = ["pointerdown", "pointerup", "click", "keydown"] as const;
   const off = () => events.forEach((name) => document.removeEventListener(name, fire));
   function fire() {
-    off();
     unlockCompletionSound();
+    if (shared?.state === "running") off();
   }
-  events.forEach((name) => document.addEventListener(name, fire, { once: true }));
+  events.forEach((name) => document.addEventListener(name, fire));
   return off;
 }
 
