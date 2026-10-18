@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { putLicences } from "./licence-fixture.ts";
 
 vi.mock("./npm-shrinkwrap.ts", async (importOriginal) => {
   const real = await importOriginal<typeof import("./npm-shrinkwrap.ts")>();
@@ -36,12 +37,12 @@ describe("the builder's post-check", () => {
       "package.json",
       "pnpm-workspace.yaml",
       "pnpm-lock.yaml",
-      "LICENSE",
       "apps/daemon/package.json",
       "packages/contracts/package.json",
       "packages/pi-host/package.json",
     ])
       put(join(repo, file), readFileSync(join(repoRoot, file), "utf8"));
+    putLicences(repo);
     put(
       join(repo, "apps/daemon/dist/main.js"),
       "#!/usr/bin/env -S node --disable-warning=ExperimentalWarning\nexport {};\n",
