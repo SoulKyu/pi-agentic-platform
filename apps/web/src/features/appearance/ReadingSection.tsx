@@ -1,4 +1,4 @@
-import { Button, DENSITIES, Segmented, Slider } from "@pap/ui";
+import { Button, DENSITIES, Segmented, Slider, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { AppearanceSection } from "./AppearanceSection.tsx";
 import { useAppearanceStore } from "./appearance-store.ts";
@@ -15,7 +15,7 @@ export const DENSITY_SIZES: Record<DeviceAppearance["density"], Record<SizeField
 const WIDTHS = ["full", "wide", "narrow"] as const;
 const MOTIONS = ["system", "reduced", "none"] as const;
 
-/** Device scope: density, the three text sizes, chat width and motion. */
+/** Device scope: density, the three text sizes, chat width, motion and the completion sound. */
 export function ReadingSection() {
   const t = useT();
   const device = useAppearanceStore((state) => state.device);
@@ -65,6 +65,11 @@ export function ReadingSection() {
         value={device.motion}
         options={MOTIONS.map((value) => ({ value, label: t(`settings.appearance.motion.${value}`) }))}
         onChange={(motion) => setDevice({ ...device, motion })}
+      />
+      <Switch
+        label={t("settings.appearance.completionSound")}
+        checked={device.completionSound}
+        onChange={(completionSound) => setDevice({ ...device, completionSound })}
       />
     </AppearanceSection>
   );

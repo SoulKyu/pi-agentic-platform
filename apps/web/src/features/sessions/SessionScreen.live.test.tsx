@@ -1,5 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { useAppearanceStore } from "../appearance/appearance-store.ts";
+import { DEFAULT_DEVICE } from "../appearance/model.ts";
+import { resetCompletionSound } from "../appearance/completion-sound.ts";
 import type { Runtime } from "../../runtime/index.ts";
 import { screenBed } from "../../testing/screen-bed.tsx";
 
@@ -64,5 +67,64 @@ describe("polite live regions (DESIGN §12)", () => {
     const container = await screen.show({ status: "running" });
     await screen.emit({ kind: "dialog_open", dialog: { id: "i1", method: "input", title: "Name?" } });
     expect(live(container)?.textContent).toBe("");
+  });
+});
+
+describe("completion sound on a settled run", () => {
+  const tones = vi.fn();
+  const install = (enabled: boolean, hidden: boolean) => {
+    vi.stubGlobal(
+      "AudioContext",
+      vi.fn(function () {
+        return {
+          state: "running",
+          currentTime: 0,
+          destination: {},
+          resume: () => Promise.resolve(),
+          createGain: () => ({ gain: { value: 0 }, connect: vi.fn() }),
+          createOscillator: () => {
+            tones();
+            return { frequency: { value: 0 }, connect: vi.fn(), start: vi.fn(), stop: vi.fn() };
+          },
+        };
+      }),
+    );
+    vi.spyOn(document, "hidden", "get").mockReturnValue(hidden);
+    useAppearanceStore.setState({ device: { ...DEFAULT_DEVICE, completionSound: enabled } });
+  };
+  afterEach(() => {
+    tones.mockClear();
+    resetCompletionSound();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    useAppearanceStore.setState({ device: DEFAULT_DEVICE });
+  });
+
+  it("plays one tone when the run ends while the tab is hidden", async () => {
+    install(true, true);
+    await screen.show({ status: "running" });
+    await screen.emit({ kind: "status", status: "idle" });
+    expect(tones).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays silent when off, when visible and focused, and when the session goes cold", async () => {
+    install(false, true);
+    await screen.show({ status: "running" });
+    await screen.emit({ kind: "status", status: "idle" });
+    install(true, false);
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    await screen.emit({ kind: "status", status: "running" });
+    await screen.emit({ kind: "status", status: "idle" });
+    install(true, true);
+    await screen.emit({ kind: "status", status: "running" });
+    await screen.emit({ kind: "status", status: "cold" });
+    expect(tones).not.toHaveBeenCalled();
+  });
+
+  it("stays silent when a child agent of the session settles", async () => {
+    install(true, true);
+    await screen.show({ status: "running" });
+    await screen.emit({ kind: "status", status: "running", children: [{ id: "c1", status: "idle" }] });
+    expect(tones).not.toHaveBeenCalled();
   });
 });
