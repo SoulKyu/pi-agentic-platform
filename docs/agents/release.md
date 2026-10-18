@@ -42,9 +42,20 @@ Reserve the `@soulkyu` scope on npmjs and check who owns `@pap` there. The publi
 On a branch from `main`:
 
 1. Run `node --disable-warning=ExperimentalWarning scripts/release-flip.ts`. It rewrites `.github/workflows/release.yml` (`push: branches: [main]` and the `stable` job's `if:`), `UPDATE_CHECK_DEFAULT` in `apps/daemon/src/update-check.ts` and its pinned assertion in `apps/daemon/src/update-check.test.ts`. Read the diff. It refuses to run twice ("already flipped") and writes nothing if a file is not in the expected shape. Then `pnpm release:check` and `pnpm test:unit`.
-2. ADR 0066 item 3, the casing of `FEED_REPO` in `apps/daemon/src/update-check.ts`: `curl -sIL -o /dev/null -w '%{url_effective}\n' https://github.com/<FEED_REPO>`. The final URL must carry the same casing; fix the constant if not.
-3. ADR 0066 item 5: enable "Allow GitHub Actions to create and approve pull requests" (Settings, Actions, General), or `gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true`. Without it release-please cannot open its PR.
-4. Commit with the message `feat: v1 release flip` and a body ending with the footer `Release-As: 1.0.0` (owner q17; the manifest is `0.0.0`, so `bump-minor-pre-major` would otherwise give 0.1.0). Open the PR, rebase on `main`, squash-merge with the footer kept in the squash message. There is no "cutover done" condition.
+2. Edit the prose that is true before the flip and stale after it, in the same commit. The script prints this list after it writes the files:
+   - `apps/daemon/src/update-check.ts:10-12` (doc comment): the daily check is on by default; `PAP_UPDATE_CHECK=0` turns it off, `=1` forces it on.
+   - `AGENTS.md:36`: the repository is public; `release.yml` also runs on push to main (ADR 0066, ADR 0076).
+   - `docs/agents/update.md:129`: the check is on by default; if it says nothing, look for `PAP_UPDATE_CHECK=0` in the unit.
+   - `docs/agents/doctor.md:55`: `update_available` is written by the daily check (on by default) or `PAP_UPDATE_CHECK=1`.
+   - `docs/agents/install.md:160`: drop "private until v1"; the repository is public.
+   - `docs/agents/install.md:168`: the workflow runs on push to main and on `workflow_dispatch`; the release PR needs the setting of step 5.4.
+   - `docs/agents/install.md:206`: the repository is public; the release steps are local commands plus a workflow that runs on a push to main or when you start it.
+   - `docs/agents/install.md:212`: the workflow runs on push to main and on `workflow_dispatch`, and `stable` also runs on a push (the flip adds `push: branches: [main]` and rewrites the `stable` `if:`).
+   - `docs/agents/install.md:227`: `get-pap.sh` needs a published release; a missing release answers 404.
+   Line numbers are those of the pre-flip tree: do this before other edits move them.
+3. ADR 0066 item 3, the casing of `FEED_REPO` in `apps/daemon/src/update-check.ts`: `curl -sIL -o /dev/null -w '%{url_effective}\n' https://github.com/<FEED_REPO>`. The final URL must carry the same casing; fix the constant if not.
+4. ADR 0066 item 5: enable "Allow GitHub Actions to create and approve pull requests" (Settings, Actions, General), or `gh api -X PUT repos/<owner>/<repo>/actions/permissions/workflow -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true`. Without it release-please cannot open its PR.
+5. Commit with the message `feat: v1 release flip` and a body ending with the footer `Release-As: 1.0.0` (owner q17; the manifest is `0.0.0`, so `bump-minor-pre-major` would otherwise give 0.1.0). Open the PR, rebase on `main`, squash-merge with the footer kept in the squash message; the `e2e` job must be green on GitHub first. `pnpm release:check` runs in the `stable` job and passes because C6 accepts the flipped shape. There is no "cutover done" condition.
 
 ## 6. Cut v1.0.0
 
@@ -54,7 +65,7 @@ Fallback if a push does not start the job: `gh workflow run release.yml -f chann
 
 ## 7. Verify the release
 
-From a clean machine: `gh release view v1.0.0 --json tagName,assets`; read `get-pap.sh` from the release, then run it; `pap doctor`; open the setup URL; run a session; `pap update check`. Stop at the first failure: do not publish to npm.
+From a clean machine: `gh release view v1.0.0 --json tagName,assets`; `curl -fsSL <release url>/get-pap.sh` (read it first, then run it); `pap doctor`; open the setup URL; run a session; `pap update check`. Stop at the first failure: do not publish to npm.
 
 ## 8. Publish to npm (owner q15)
 

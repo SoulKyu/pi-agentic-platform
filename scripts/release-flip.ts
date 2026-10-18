@@ -19,6 +19,19 @@ export const OWNER_ONLY_ITEMS: readonly string[] = [
   'ADR 0066 item 5: enable "Allow GitHub Actions to create and approve pull requests" (Settings, Actions, General)',
 ];
 
+/** Prose that is true before the flip and stale after it; the owner edits it in the same commit (the script cannot know the wording). */
+export const PROSE_CHECKLIST: readonly string[] = [
+  "apps/daemon/src/update-check.ts:10-12 (doc comment): the daily check is on by default; PAP_UPDATE_CHECK=0 turns it off, =1 forces it on",
+  "AGENTS.md:36: the repository is public; release.yml also runs on push to main (ADR 0066, ADR 0076)",
+  "docs/agents/update.md:129: the check is on by default; if it says nothing, look for PAP_UPDATE_CHECK=0 in the unit",
+  "docs/agents/doctor.md:55: update_available is written by the daily check (on by default) or PAP_UPDATE_CHECK=1",
+  "docs/agents/install.md:160: drop 'private until v1'; the repository is public, CI minutes stay unused unless you say otherwise",
+  "docs/agents/install.md:168: release-please: the workflow runs on push to main and on workflow_dispatch; the release PR needs the repository setting of ADR 0066 item 5",
+  "docs/agents/install.md:206: the repository is public; the release steps are local commands plus a workflow that runs on a push to main or when you start it",
+  "docs/agents/install.md:212: the workflow runs on push to main and on workflow_dispatch; stable also runs on a push (the flip adds both push: branches: [main] and the stable if:)",
+  "docs/agents/install.md:227: get-pap.sh needs a published release; the repository is public, so a missing release answers 404",
+];
+
 const PRE_ON = "on:\n  workflow_dispatch:";
 const POST_ON = "on:\n  push:\n    branches: [main]\n  workflow_dispatch:";
 const PRE_COMMENT = `# workflow_dispatch only while the repository is private (M6bR36). The v1 flip is scripts/release-flip.ts (ADR 0066 and
@@ -94,4 +107,6 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   console.log(`release-flip: rewrote ${RELEASE_YML}, ${UPDATE_CHECK}, ${UPDATE_CHECK_TEST}; read the diff.`);
   console.log("release-flip: owner-only items, not done by this script:");
   for (const item of OWNER_ONLY_ITEMS) console.log(`  - ${item}`);
+  console.log("release-flip: prose to edit in the same commit (true before the flip, stale after):");
+  for (const item of PROSE_CHECKLIST) console.log(`  - ${item}`);
 }

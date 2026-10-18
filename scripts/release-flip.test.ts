@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { checkRelease } from "./release-check.ts";
-import { applyFlip, flipTree, OWNER_ONLY_ITEMS, type FlipFiles } from "./release-flip.ts";
+import { applyFlip, flipTree, OWNER_ONLY_ITEMS, PROSE_CHECKLIST, type FlipFiles } from "./release-flip.ts";
 
 const REPO = resolve(import.meta.dirname, "..");
 const RELEASE_YML = ".github/workflows/release.yml";
@@ -92,5 +92,14 @@ describe("the owner-only items", () => {
     expect(OWNER_ONLY_ITEMS.join("\n")).toContain("FEED_REPO");
     expect(OWNER_ONLY_ITEMS.join("\n")).toContain("create and approve pull requests");
     expect(OWNER_ONLY_ITEMS).toHaveLength(2);
+  });
+});
+
+describe("the prose checklist", () => {
+  it("names every note that says the repository is private or the workflow dispatch-only", () => {
+    const text = PROSE_CHECKLIST.join("\n");
+    for (const where of ["update-check.ts:10-12", "AGENTS.md:36", "update.md:129", "doctor.md:55"])
+      expect(text).toContain(where);
+    for (const line of [160, 168, 206, 212, 227]) expect(text).toContain(`install.md:${line}`);
   });
 });
