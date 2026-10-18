@@ -30,4 +30,4 @@ jobs:
           sudo loginctl enable-linger "$(id -un)"
           sudo systemctl start "user@$(id -u).service"
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
-      - run: pnpm test:int
+      - run: scripts/ci/without-inherited-fds.sh pnpm test:int

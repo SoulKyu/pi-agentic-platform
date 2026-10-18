@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
@@ -173,6 +173,20 @@ describe("agent sandbox prerequisites (M13-C9)", () => {
     expect(action).toContain("bubblewrap");
     expect(action).toContain("sysctl -w kernel.apparmor_restrict_unprivileged_userns=0");
     expect(action).toMatch(/if: inputs\.sandbox == 'true'/);
+  });
+});
+
+describe("inherited descriptors (M13-C13)", () => {
+  it("runs test:int through the wrapper that closes every descriptor above 2, in both jobs", () => {
+    for (const job of [workflow("ci").jobs["integration"], Object.values(workflow("pi-compat").jobs)[0]]) {
+      const run = job?.steps.find((step) => step.run?.includes("pnpm test:int"))?.run;
+      expect(run?.trim()).toBe("scripts/ci/without-inherited-fds.sh pnpm test:int");
+    }
+    const wrapper = read("scripts/ci/without-inherited-fds.sh");
+    expect(wrapper).toContain("GitHub's Actions runner");
+    expect(wrapper).toContain("bash -c");
+    expect(wrapper).toContain('eval "exec $fd>&-"');
+    expect(statSync(resolve(import.meta.dirname, "ci/without-inherited-fds.sh")).mode & 0o111).not.toBe(0);
   });
 });
 
