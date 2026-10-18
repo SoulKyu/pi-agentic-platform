@@ -21,6 +21,8 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm lint
       - run: pnpm format:check
+      # The root tsc resolves @pap/contracts through its dist.
+      - run: pnpm --filter @pap/contracts build
       - run: pnpm typecheck
       - run: pnpm knip
   unit:
