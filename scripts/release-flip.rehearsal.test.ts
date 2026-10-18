@@ -1,10 +1,17 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { REPO } from "./release-bed.ts";
-import { flipTree } from "./release-flip.ts";
+import {
+  flipTree,
+  PI_COMPAT_YML,
+  preFlipShape,
+  RELEASE_YML,
+  UPDATE_CHECK,
+  UPDATE_CHECK_TEST,
+} from "./release-flip.ts";
 
 /** Everything the shape pins read. A directory is copied whole. */
 const READ_BY_THE_PINS = [
@@ -36,6 +43,9 @@ beforeEach(() => {
     mkdirSync(dirname(join(copy, file)), { recursive: true });
     cpSync(join(REPO, file), join(copy, file), { recursive: true });
   }
+  // The checkout may already be flipped (the owner's flip PR): the rehearsal flips from the pre-flip shape either way.
+  for (const file of [RELEASE_YML, PI_COMPAT_YML, UPDATE_CHECK, UPDATE_CHECK_TEST])
+    writeFileSync(join(copy, file), preFlipShape(file, readFileSync(join(copy, file), "utf8")));
 });
 afterEach(() => rmSync(copy, { recursive: true, force: true }));
 
