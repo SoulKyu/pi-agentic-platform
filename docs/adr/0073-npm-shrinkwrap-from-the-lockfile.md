@@ -1,6 +1,6 @@
 # ADR 0073: npm shrinkwrap from the lockfile
 
-Status: accepted · Date: 2026-10-18 · Spec: `docs/specs/2026-10-10-A-product-scope.md` (one-step install). Amends ADR 0055 on the npm channel. Rulings: M13R15, M13R47, M13R48, M13-C3; Appendix A defect D3 of `docs/research/m6b-final-review.md`.
+Status: accepted · Date: 2026-10-18 · Spec: `docs/specs/2026-10-10-A-product-scope.md` (one-step install). Amends ADR 0066 on the npm package. Rulings: M13R15, M13R47, M13R48, M13-C3; Appendix A defect D3 of `docs/research/m6b-final-review.md`.
 
 ## Context
 
