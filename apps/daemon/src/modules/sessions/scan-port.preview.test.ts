@@ -21,4 +21,17 @@ describe("the preview of a session that starts with outside text", () => {
     );
     expect(current.store.marks.row("s1")?.preview).toBe("Disk full on node 3");
   });
+
+  it("stores nothing for an empty fenced payload, so a later real preview still lands", () => {
+    current = bed();
+    const row = { id: "s1", piPath: null, piSessionId: null, cwd: current.work, ownerId: "u1", name: null };
+    current.store.insert({ ...row, createdAt: T, updatedAt: T }, null);
+    current.service.scanPort.previewed(
+      "s1",
+      '<untrusted source="hook" id="0a1b2c3d4e5f">\n\n</untrusted id="0a1b2c3d4e5f">',
+    );
+    expect(current.store.marks.row("s1")?.preview).toBeNull();
+    current.service.scanPort.previewed("s1", "real words");
+    expect(current.store.marks.row("s1")?.preview).toBe("real words");
+  });
 });
