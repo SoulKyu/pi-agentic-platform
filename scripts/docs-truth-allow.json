@@ -105,29 +105,8 @@
   {
     "note": "docs/agents/models.md",
     "rule": "method",
-    "token": "auth.status",
-    "reason": "Looks like a domain.name but is not an RPC method; a human must check what the note means",
-    "sweep": "P2a"
-  },
-  {
-    "note": "docs/agents/models.md",
-    "rule": "method",
-    "token": "auth.env",
-    "reason": "Looks like a domain.name but is not an RPC method; a human must check what the note means",
-    "sweep": "P2a"
-  },
-  {
-    "note": "docs/agents/models.md",
-    "rule": "method",
     "token": "auth.json.lock",
     "reason": "Code identifier (module method, column, table, file or key), not an RPC method"
-  },
-  {
-    "note": "docs/agents/models.md",
-    "rule": "method",
-    "token": "settings.reload",
-    "reason": "Looks like a domain.name but is not an RPC method; a human must check what the note means",
-    "sweep": "P2a"
   },
   {
     "note": "docs/agents/models.md",

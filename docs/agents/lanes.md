@@ -54,7 +54,7 @@ Code: `kernel/git/allowlist.ts` (M8's nine read subcommands) and `allowlist-lane
 | `commit` | `--file=- --no-gpg-sign` (required), `--quiet` | `-- ./path...` | commit |
 | `restore` | `--source=<oid> --worktree` plus either `--staged -- .` or the stdin pair | one of the two forms | restore |
 | `reset` | `--quiet` | `-- .` only | restore |
-| `diff` | M8's plus `--raw -M --no-abbrev --no-color -U3 --cached` | free (read) | review, suggest |
+| `diff` | M8's plus `--raw -M --no-renames --no-abbrev --no-color -U3 --cached` | free (read) | review, suggest |
 | `remote get-url` | `--push --all` (both required) | `origin` | push |
 | `push` | `--porcelain --set-upstream` (both required) | `origin refs/heads/<B>:refs/heads/<B>`, same branch both sides | push (remote profile only) |
 
