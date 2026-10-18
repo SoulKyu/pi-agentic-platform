@@ -81,8 +81,7 @@
     "note": "docs/agents/finops.md",
     "rule": "method",
     "token": "usage.cost.total",
-    "reason": "Looks like a domain.name but is not an RPC method; a human must check what the note means",
-    "sweep": "P2b"
+    "reason": "Pi SDK field (Usage.cost.total of @earendil-works/pi-ai), not an RPC method"
   },
   {
     "note": "docs/agents/install.md",
