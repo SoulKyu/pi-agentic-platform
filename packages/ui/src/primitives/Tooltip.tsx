@@ -41,24 +41,23 @@ export interface TooltipProps {
 interface TriggerProps {
   onPointerEnter?(event: PointerEvent<HTMLElement>): void;
   onFocus?(event: FocusEvent<HTMLElement>): void;
-  autoFocus?: boolean;
 }
 
 /**
- * The bare control until it is first hovered or focused; then the Radix tooltip mounts around it. The element is
- * re-created under the new wrapper, so one that had focus asks for it again (`autoFocus`).
+ * The bare control until it is first hovered or focused; then the Radix tooltip mounts NEXT TO it and anchors to
+ * the control's own node. The control is never wrapped or re-created, so a press that started before the popup
+ * chunk arrived still ends on the same element and its click is not lost.
  */
 export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: TooltipProps) {
   const [Popup, setPopup] = useState<Popup | null>(() => loaded);
-  const [refocus, setRefocus] = useState(false);
+  const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const own = children.props as TriggerProps;
   const arm = (target: HTMLElement) => {
-    if (Popup !== null) return;
-    const focused = document.activeElement === target;
+    if (anchor !== null) return;
     void loadPopup().then(() => {
       if (loaded === null) return;
-      setRefocus(focused && document.activeElement === target);
       setPopup(() => loaded);
+      setAnchor(target);
     });
   };
   const bare = cloneElement(children as ReactElement<TriggerProps>, {
@@ -70,13 +69,19 @@ export function Tooltip({ label, shortcut, shortcutJoiner, side, children }: Too
       own.onFocus?.(event);
       arm(event.currentTarget);
     },
-    autoFocus: refocus ? true : own.autoFocus,
   });
-  return Popup ? (
-    <Popup label={label} shortcut={shortcut} shortcutJoiner={shortcutJoiner} side={side}>
+  return (
+    <>
       {bare}
-    </Popup>
-  ) : (
-    bare
+      {Popup && anchor ? (
+        <Popup
+          anchor={anchor}
+          label={label}
+          shortcut={shortcut}
+          shortcutJoiner={shortcutJoiner}
+          side={side}
+        />
+      ) : null}
+    </>
   );
 }
