@@ -21,6 +21,7 @@
     "build:npm": "node --disable-warning=ExperimentalWarning scripts/build-npm.ts",
     "build:image": "scripts/pap-container.sh build",
     "smoke": "node --disable-warning=ExperimentalWarning scripts/smoke-dist.ts",
+    "test:e2e": "node --disable-warning=ExperimentalWarning scripts/e2e/run.ts",
     "release:assets": "node --disable-warning=ExperimentalWarning scripts/release-assets.ts",
     "release:check": "node --disable-warning=ExperimentalWarning scripts/release-check.ts",
     "smoke:install": "node --disable-warning=ExperimentalWarning scripts/smoke-install.ts"
