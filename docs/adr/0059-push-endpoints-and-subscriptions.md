@@ -15,3 +15,5 @@ Any https host (SSRF with a browser-chosen URL); a list-off switch (a mistake wo
 ## Consequences
 
 A new push vendor needs `PAP_PUSH_EXTRA_HOSTS`. Three address checks remain (`blockedAddress`, `blockedForPush`, `automation/net-guard.ts`); merging them and hardening the egress proxy with the extra ranges is left for the M13 sweep.
+
+M13 (R14, R46): `blockedForPush` is renamed `blockedStrict` (`kernel/net/address-strict.ts`) and the egress proxy uses it too; three predicates remain (`blockedAddress`, `blockedStrict`, `automation/net-guard.ts`), compared by a table test.

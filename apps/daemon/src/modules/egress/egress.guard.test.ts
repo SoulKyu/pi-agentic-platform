@@ -119,7 +119,7 @@ describe("the test override stays in tests", () => {
 
   it("index.ts passes the real resolver, deny list and connector, and nothing else", () => {
     const source = readFileSync(join(HERE, "index.ts"), "utf8");
-    expect(source).toMatch(/blockedAddress/);
+    expect(source).toMatch(/blockedStrict/);
     expect(source).toMatch(/node:dns\/promises/);
     expect(source).not.toMatch(/loopback|bed\.ts/);
   });

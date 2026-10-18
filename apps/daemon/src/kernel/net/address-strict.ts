@@ -1,7 +1,7 @@
 import { isIP } from "node:net";
 import { blockedAddress, groupsOf } from "./address.ts";
 
-/** Reserved IPv4 blocks that `blockedAddress` lets through (they are its public test fixtures) but a push endpoint never uses. */
+/** Reserved IPv4 blocks that `blockedAddress` lets through but neither a push endpoint nor an egress target uses. */
 const EXTRA_V4: ReadonlyArray<readonly [string, number]> = [
   ["192.0.2.0", 24],
   ["198.51.100.0", 24],
@@ -47,9 +47,9 @@ function extraReserved(ip: string): boolean {
 }
 
 /**
- * The push sender's address check (M12R20, ADR 0059): `blockedAddress` plus the ranges `automation/net-guard.ts`
- * refuses. Stricter than the egress proxy's check, which keeps `198.51.100.x` and `203.0.113.x` as public fixtures.
+ * The strict address check of the push sender and the egress proxy (M12R20, M13R14, ADR 0059): `blockedAddress` plus the
+ * ranges `automation/net-guard.ts` refuses. The egress tests inject their own `denies`, so their loopback fixtures are unaffected.
  */
-export function blockedForPush(ip: string): boolean {
+export function blockedStrict(ip: string): boolean {
   return blockedAddress(ip) || extraReserved(ip);
 }

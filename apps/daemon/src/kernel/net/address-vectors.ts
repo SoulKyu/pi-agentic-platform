@@ -1,8 +1,6 @@
-import { describe, expect, it } from "vitest";
-import { blockedAddress } from "./address.ts";
-import { blockedForPush } from "./address-push.ts";
+// Address vectors shared by the tests of the three predicates (M13R46). Plain data: no address here is ever dialled (W5-R50).
 
-const ADDED = [
+export const ADDED = [
   "2001::1",
   "2001:0:1234::1",
   "2001:db8::1",
@@ -22,7 +20,7 @@ const ADDED = [
 ];
 
 /** Boundaries just outside each added range, plus ordinary public and blocked addresses (20 in all). */
-const SHARED = [
+export const SHARED = [
   "172.32.0.1",
   "100.128.0.1",
   "198.17.255.255",
@@ -45,27 +43,9 @@ const SHARED = [
   "",
 ];
 
-describe("blockedForPush", () => {
-  it.each(ADDED)(
-    "refuses %s, which the proxy's check lets through where it is a range of this task",
-    (ip) => {
-      expect(blockedForPush(ip)).toBe(true);
-    },
-  );
-
-  it("is stricter than blockedAddress on the ranges it adds", () => {
-    const loosened = ADDED.filter((ip) => !blockedAddress(ip));
-    expect(loosened.length).toBeGreaterThan(10);
-  });
-
-  it("agrees with blockedAddress everywhere else", () => {
-    expect(SHARED).toHaveLength(20);
-    for (const ip of SHARED) expect([ip, blockedForPush(ip)]).toEqual([ip, blockedAddress(ip)]);
-  });
-});
-
 /** What the push sender's default check refuses, by value: the sender tests never dial any of these (W6-R12). */
-const NEVER_DIALLED = [
+/** What the push sender's default check refuses, by value: the sender tests never dial any of these (W6-R12). */
+export const NEVER_DIALLED = [
   "10.0.0.1",
   "127.0.0.1",
   "127.0.0.2",
@@ -80,9 +60,3 @@ const NEVER_DIALLED = [
   "198.51.100.7",
   "2001:db8::1",
 ];
-
-describe("the default check of the push sender", () => {
-  it.each(NEVER_DIALLED)("refuses %s", (ip) => {
-    expect(blockedForPush(ip)).toBe(true);
-  });
-});
