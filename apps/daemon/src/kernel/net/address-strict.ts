@@ -16,7 +16,7 @@ const dotted = (high: number, low: number): string => `${high >> 8}.${high & 255
 const extraV4 = (ip: string): boolean =>
   EXTRA_V4.some(([base, bits]) => prefix(ip, bits) === prefix(base, bits));
 
-/** The added ranges only: Teredo, documentation, benchmarking, ORCHID, SRv6 and discard IPv6, the four IPv4 documentation and relay blocks (M13-C5: every IANA special-purpose block not globally reachable). */
+/** The added ranges only: Teredo, documentation, benchmarking, ORCHID, SRv6 and discard IPv6, the four IPv4 documentation and relay blocks (M13-C5: every more-specific IANA special-purpose block marked not globally reachable; the unassigned remainder of 2001::/23 is unrouted and stays open). */
 function extraReserved(ip: string): boolean {
   const bare = ip.replace(/%.*$/, "");
   const family = isIP(bare);

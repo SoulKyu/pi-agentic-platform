@@ -25,7 +25,7 @@ export const ADDED = [
   "5f00::1",
 ];
 
-/** Boundaries just outside each added range, plus ordinary public and blocked addresses (25 in all). */
+/** Boundaries just outside each added range, plus ordinary public and blocked addresses (27 in all). */
 export const SHARED = [
   "172.32.0.1",
   "100.128.0.1",
@@ -44,6 +44,8 @@ export const SHARED = [
   "2001:f:ffff::1",
   "2001:20::1",
   "5eff:ffff::1",
+  "5f01::1",
+  "3ffe:ffff::1",
   "127.0.0.1",
   "10.1.2.3",
   "192.168.1.182",

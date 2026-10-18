@@ -14,7 +14,7 @@ describe("blockedStrict", () => {
   });
 
   it("agrees with blockedAddress everywhere else", () => {
-    expect(SHARED).toHaveLength(25);
+    expect(SHARED).toHaveLength(27);
     for (const ip of SHARED) expect([ip, blockedStrict(ip)]).toEqual([ip, blockedAddress(ip)]);
   });
 });
