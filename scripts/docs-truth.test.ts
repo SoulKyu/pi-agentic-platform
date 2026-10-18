@@ -39,6 +39,8 @@ const FILE_EXTENSIONS = new Set([
   "sql",
   "toml",
 ]);
+/** Written by a build or a test run, absent from a fresh checkout: never checked as a path. */
+const BUILD_OUTPUT = /(^|\/)(dist|\.pap-npm|test-results|playwright-report)(\/|$)/;
 const STALE = [
   /Real-host check: pending/i,
   /not yet built/i,
@@ -62,7 +64,7 @@ function checkLine(note: string, line: number, text: string, repo: Repo): Findin
     }
     if (/[*<>{}$\s]|\.\.\./.test(token)) continue;
     const path = token.replace(/#.*$/, "").replace(/:\d+(-\d+)?$/, "");
-    if (PATH_ROOTS.test(path) && !repo.exists(path)) add("path", path);
+    if (PATH_ROOTS.test(path) && !BUILD_OUTPUT.test(path) && !repo.exists(path)) add("path", path);
     const method = /^([a-z][a-z0-9_]*)\.([A-Za-z_][\w.]*)\(?\)?$/.exec(token);
     const name = token.replace(/\(\)?$/, "");
     const ext = name.slice(name.lastIndexOf(".") + 1);
@@ -122,6 +124,17 @@ describe("checkNotes", () => {
   it("skips globs and placeholders", () => {
     const files = { "a.md": "`docs/agents/*.md` `docs/agents/<domain>.md` `apps/{a,b}/x.ts`" };
     expect(checkNotes(files, repo(), [])).toEqual([]);
+  });
+
+  it("does not check build outputs as paths, whatever the tree holds", () => {
+    const files = {
+      "a.md": [
+        "`apps/daemon/dist/main.js` `packages/contracts/dist/index.js` `apps/web/dist/` `apps/web/dist`",
+        "`scripts/.pap-npm/x.tgz` `docs/test-results/a.json` `apps/web/playwright-report/index.html`",
+        "`apps/daemon/src/distant.ts`",
+      ].join("\n"),
+    };
+    expect(rules(checkNotes(files, repo(), []))).toEqual(["path:apps/daemon/src/distant.ts"]);
   });
 
   it("flags a PAP_ variable absent from source, not a present one", () => {

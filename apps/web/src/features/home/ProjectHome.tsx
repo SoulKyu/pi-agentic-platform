@@ -38,7 +38,7 @@ export interface ProjectHomeProps {
  * paint at "/" waits for no chunk. Everything it opens goes through `actions`, which the shell builds.
  */
 export function ProjectHome({ actions, shortcuts, preset, layout, presetField }: ProjectHomeProps) {
-  "use no memo"; // first-paint component: the compiler's cache slots would cost bundle (limit 226 KB)
+  "use no memo"; // first-paint component: the compiler's cache slots would cost bundle (the initialBundleGzipKb ceiling in budgets.json)
   const t = useT();
   const lazyText = useLazyFailureText();
   const { Lazy: Body, attempt, retry } = useRetryableLazy(loadBody);

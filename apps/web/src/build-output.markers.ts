@@ -28,7 +28,7 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
   },
   {
     title:
-      "keeps the home's launch, project facts and picker, and their strings, out of the initial assets (the 226 KB limit)",
+      "keeps the home's launch, project facts and picker, and their strings, out of the initial assets (the initialBundleGzipKb ceiling in budgets.json)",
     markers: [
       /pap could not open the New lane dialog/,
       /Lane and Fan-out: not a git repository/,
