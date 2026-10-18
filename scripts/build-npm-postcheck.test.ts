@@ -36,6 +36,7 @@ describe("the builder's post-check", () => {
       "package.json",
       "pnpm-workspace.yaml",
       "pnpm-lock.yaml",
+      "LICENSE",
       "apps/daemon/package.json",
       "packages/contracts/package.json",
       "packages/pi-host/package.json",

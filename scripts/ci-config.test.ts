@@ -112,6 +112,17 @@ describe("CI configuration", () => {
     expect(steps.find((step) => step.uses === "./.github/actions/setup")?.with).toEqual({ install: "false" });
   });
 
+  it("builds @pap/contracts before the root typecheck, which resolves it through dist (checks and nightly)", () => {
+    const jobs = [workflow("ci").jobs["checks"], Object.values(workflow("pi-compat").jobs)[0]];
+    for (const job of jobs) {
+      const steps = job?.steps ?? [];
+      const build = steps.findIndex((step) => step.run === "pnpm --filter @pap/contracts build");
+      const typecheck = steps.findIndex((step) => step.run === "pnpm typecheck");
+      expect(build).toBeGreaterThanOrEqual(0);
+      expect(build).toBeLessThan(typecheck);
+    }
+  });
+
   it("smoke-tests the built artifacts right after the build, before the artifact is uploaded", () => {
     const steps = workflow("ci").jobs["build"]?.steps ?? [];
     const order = [

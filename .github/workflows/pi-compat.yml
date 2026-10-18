@@ -20,6 +20,8 @@ jobs:
           install: "false"
       - run: node --disable-warning=ExperimentalWarning scripts/pi-compat-bump.ts
       - run: pnpm install --no-frozen-lockfile
+      # The root tsc resolves @pap/contracts through its dist.
+      - run: pnpm --filter @pap/contracts build
       - run: pnpm typecheck
       - run: pnpm test:unit
       # Worker scopes need a lingering systemd user manager; the scope tests fail in CI without one (owner M2-Q8, R92).

@@ -7,8 +7,8 @@ import type { Clock, TimerHandle } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 
 /**
- * The daily check is off until the repository is public (a private repository answers 404 to every request): the commit that
- * makes it public flips this constant, with the workflow flip of ADR 0066. `PAP_UPDATE_CHECK=1` turns it on now, `=0` is always off.
+ * The daily check is off until the v1 flip: the repository is public, but the release feed has no published release yet, so a
+ * check would find nothing. The v1 flip commit flips this constant (scripts/release-flip.ts, ADR 0066). `PAP_UPDATE_CHECK=1` turns it on now, `=0` is always off.
  */
 export const UPDATE_CHECK_DEFAULT = false;
 
