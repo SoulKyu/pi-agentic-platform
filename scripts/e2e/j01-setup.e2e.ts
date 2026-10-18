@@ -12,7 +12,11 @@ const throttled = (): RegExp => {
   return new RegExp(`^${escape(before)}\\d+${escape(after)}$`);
 };
 
-const home = (page: Page) => page.getByRole("heading", { name: t("shell.project.all") });
+// A marker that exists whatever tab the app restores after a sign-in: the project button of the banner.
+const home = (page: Page) =>
+  page
+    .getByRole("banner")
+    .getByRole("button", { name: t("shell.project.label", { name: t("shell.project.all") }) });
 const signInHeading = (page: Page) => page.getByRole("heading", { name: t("login.title") });
 const alert = (page: Page, text: string | RegExp) => page.getByRole("alert").filter({ hasText: text });
 

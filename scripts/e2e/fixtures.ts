@@ -77,7 +77,7 @@ const isWebKit = (page: Page): boolean => page.context().browser()?.browserType(
 /** Meta+K on WebKit, Control+K elsewhere. */
 export const palette = (page: Page): Promise<void> => chord(page, "k");
 
-/** Meta+<key> on WebKit, Control+<key> elsewhere. */
+/** Meta+<key> on WebKit, Control+<key> elsewhere. A single-character key is lowercased (`S` presses `s`); named keys (`Enter`) are kept. */
 export const chord = (page: Page, key: string): Promise<void> =>
   page.keyboard.press(`${isWebKit(page) ? "Meta" : "Control"}+${key.length === 1 ? key.toLowerCase() : key}`);
 

@@ -10,12 +10,15 @@ export async function rpcCall<T>(
   cookie: string,
   method: string,
   params: object = {},
+  timeoutMs = RPC_MS,
 ): Promise<T> {
   const url = `${origin.replace("//localhost:", "//127.0.0.1:").replace(/^http/, "ws")}/ws?proto=2`;
   const socket = new WebSocket(url, { headers: { origin, cookie: `pap_session=${cookie}` } });
+  let timer: NodeJS.Timeout | undefined;
   try {
     return await new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`${method} timed out after ${RPC_MS} ms`)), RPC_MS);
+      timer = setTimeout(() => reject(new Error(`${method} timed out after ${timeoutMs} ms`)), timeoutMs);
+      timer.unref();
       let greeted = false;
       socket.once("error", reject);
       socket.once("unexpected-response", (_req, res) => reject(new Error(`/ws answered ${res.statusCode}`)));
@@ -30,12 +33,12 @@ export async function rpcCall<T>(
           return;
         }
         if (frame["id"] !== 1) return;
-        clearTimeout(timer);
         if (frame["ok"] === true) resolve(frame["result"] as T);
         else reject(new Error(`${method} failed: ${JSON.stringify(frame["error"] ?? frame)}`));
       });
     });
   } finally {
+    clearTimeout(timer);
     socket.close();
   }
 }

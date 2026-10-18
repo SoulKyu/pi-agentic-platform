@@ -48,4 +48,11 @@ describe("rpcCall", () => {
     ]);
     await expect(rpcCall(origin, "c", "x.y")).rejects.toThrow(/x\.y failed: .*forbidden/);
   });
+
+  it("rejects when the daemon never answers, and leaves no timer behind", async () => {
+    const { origin } = await serve(() => []);
+    await expect(rpcCall(origin, "c", "slow.method", {}, 50)).rejects.toThrow(
+      /slow\.method timed out after 50 ms/,
+    );
+  });
 });

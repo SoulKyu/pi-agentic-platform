@@ -145,6 +145,9 @@ export function listProblems(
   return problems;
 }
 
+/** Only a non-flag argument (a file or a title filter) narrows the run: `--headed` or `--reporter=line` do not. */
+export const isFiltered = (args: string[]): boolean => args.some((arg) => !arg.startsWith("-"));
+
 const onPort = (port: number): Promise<boolean> =>
   new Promise((resolve) => {
     const socket = connect(port, "127.0.0.1");
@@ -217,7 +220,7 @@ async function main(): Promise<number> {
   }
   const byProject = listByProject(JSON.parse(listing.stdout));
   const onDisk = readdirSync(HERE).filter((name) => name.endsWith(".e2e.ts"));
-  const problems = listProblems(byProject, onDisk, extraArgs.length > 0);
+  const problems = listProblems(byProject, onDisk, isFiltered(extraArgs));
   if (problems.length > 0) {
     console.error(`test:e2e: ${problems.join("; ")}`);
     return 1;

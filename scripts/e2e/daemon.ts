@@ -154,7 +154,9 @@ export async function startPap(
     const setup = await within((await boot()).line("setup_url"), STEP_MS, "the setup address");
     token = new URL(String(setup["url"])).hash.replace("#token=", "");
   } catch (error) {
-    await cleanup().catch(() => undefined);
+    await cleanup().catch((cleanupError: unknown) =>
+      console.error(`e2e: cleanup after a failed boot also failed: ${String(cleanupError)}`),
+    );
     throw error;
   }
   const owner = { username: "owner", password: `e2e-${randomBytes(9).toString("hex")}` };

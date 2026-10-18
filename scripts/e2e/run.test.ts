@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { listByProject, listProblems, planRun, resolveCoreDir, type PlanInput } from "./run.ts";
+import { isFiltered, listByProject, listProblems, planRun, resolveCoreDir, type PlanInput } from "./run.ts";
 
 const input = (over: Partial<PlanInput> = {}): PlanInput => ({
   localBrowsers: { chromium: true, webkit: true },
@@ -189,4 +189,12 @@ describe("the real list (starts no browser)", () => {
     expect(byProject["webkit"]?.length).toBeGreaterThan(0);
     expect(listProblems(byProject, onDisk, false)).toEqual([]);
   }, 60_000);
+});
+
+describe("isFiltered", () => {
+  it("counts a file or title argument, not a flag", () => {
+    expect(isFiltered([])).toBe(false);
+    expect(isFiltered(["--headed", "--reporter=line"])).toBe(false);
+    expect(isFiltered(["--headed", "j01-setup.e2e.ts"])).toBe(true);
+  });
 });
