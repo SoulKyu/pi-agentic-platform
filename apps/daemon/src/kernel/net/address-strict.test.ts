@@ -1,23 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { blockedAddress } from "./address.ts";
 import { blockedStrict } from "./address-strict.ts";
-import { ADDED, NEVER_DIALLED, SHARED } from "./address-vectors.ts";
+import { ADDED, NEVER_DIALLED, SHARED } from "./testing/address-vectors.ts";
 
 describe("blockedStrict", () => {
-  it.each(ADDED)(
-    "refuses %s, which the proxy's check lets through where it is a range of this task",
-    (ip) => {
-      expect(blockedStrict(ip)).toBe(true);
-    },
-  );
+  it.each(ADDED)("refuses %s, which blockedAddress lets through", (ip) => {
+    expect(blockedStrict(ip)).toBe(true);
+  });
 
   it("is stricter than blockedAddress on the ranges it adds", () => {
     const loosened = ADDED.filter((ip) => !blockedAddress(ip));
-    expect(loosened.length).toBeGreaterThan(10);
+    expect(loosened).toEqual(ADDED);
   });
 
   it("agrees with blockedAddress everywhere else", () => {
-    expect(SHARED).toHaveLength(20);
+    expect(SHARED).toHaveLength(25);
     for (const ip of SHARED) expect([ip, blockedStrict(ip)]).toEqual([ip, blockedAddress(ip)]);
   });
 });

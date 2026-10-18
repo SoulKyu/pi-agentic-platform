@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { blockedAddress } from "../../kernel/net/address.ts";
 import { blockedStrict } from "../../kernel/net/address-strict.ts";
-import { ADDED, NEVER_DIALLED, SHARED } from "../../kernel/net/address-vectors.ts";
+import { ADDED, NEVER_DIALLED, SHARED } from "../../kernel/net/testing/address-vectors.ts";
 import { isPublicAddress } from "./net-guard.ts";
 
 const RANGES_OF_THE_FEED_LIST = [
@@ -24,13 +24,17 @@ const RANGES_OF_THE_FEED_LIST = [
   "2002:c000:0201::",
 ];
 
-/** Not blocked by any of the three today; the Opus review of M13 B4 rules on adding them to `extraReserved`. */
-const CANDIDATES = ["3fff::1", "3fff:fff:ffff::1", "2001:2::1", "2001:10::1", "2001:20::1"];
+const VECTORS = [...ADDED, ...SHARED, ...NEVER_DIALLED, ...RANGES_OF_THE_FEED_LIST];
 
-const VECTORS = [...ADDED, ...SHARED, ...NEVER_DIALLED, ...RANGES_OF_THE_FEED_LIST, ...CANDIDATES];
-
-/** Ledger (M13 B4): refused by blockedStrict and allowed by the feed guard. None. */
-const DIFFERENT_STRICT_ONLY: string[] = [];
+/** Ledger (M13 B4, M13-C5): refused by blockedStrict and allowed by the feed guard: the ranges the feed list lacks. */
+const DIFFERENT_STRICT_ONLY = [
+  "3fff::1",
+  "3fff:fff:ffff::1",
+  "2001:2::1",
+  "2001:10::1",
+  "2001:1f::1",
+  "5f00::1",
+];
 /**
  * Ledger (M13 B4): allowed by blockedStrict and refused by the feed guard. Both embed a public IPv4 address (the feed
  * guard refuses all of 2002::/16 and all of ::ffff:0:0:0/96); neither reaches a reserved IPv4 address.
@@ -42,11 +46,7 @@ describe("the three address predicates over the shared vectors (M13R46)", () => 
   const feedOnly = (ip: string): boolean => !blockedStrict(ip) && !isPublicAddress(ip);
   const unique = [...new Set(VECTORS)];
 
-  it("prints every difference between blockedStrict and the feed guard's list", () => {
-    const differences = unique
-      .filter((ip) => blockedStrict(ip) === isPublicAddress(ip))
-      .map((ip) => `${ip}: strict=${blockedStrict(ip)} feed-public=${isPublicAddress(ip)}`);
-    console.info(`strict vs feed guard differences:\n${differences.join("\n") || "(none)"}`);
+  it("pins every difference between blockedStrict and the feed guard's list (a failure prints it)", () => {
     expect(unique.filter(strictOnly)).toEqual(DIFFERENT_STRICT_ONLY);
     expect(unique.filter(feedOnly)).toEqual(DIFFERENT_FEED_ONLY);
   });

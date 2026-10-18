@@ -32,6 +32,8 @@ const RESERVED = [
   "100::1",
   "::ffff:192.0.2.1",
   "2002:c000:0201::",
+  "3fff::1",
+  "2001:2::1",
 ];
 
 /** Refused by the base check already: kept as pins. */
@@ -70,7 +72,11 @@ describe("the egress proxy refuses the strict reserved ranges (M13R14)", () => {
   );
 
   it("one reserved answer among public-looking ones refuses the whole name", async () => {
-    bed = await startBed({ resolve: async () => ["127.7.0.1", "192.0.2.1"], denies: blockedStrict });
+    // 127.7.0.1 stands in for a public answer (exempted by hand); only the reserved one can refuse the name.
+    bed = await startBed({
+      resolve: async () => ["127.7.0.1", "192.0.2.1"],
+      denies: (ip) => ip !== "127.7.0.1" && blockedStrict(ip),
+    });
     expect(denyOf(await exchange(await path(bed), connectLine("allowed.test:443")))).toBe("blocked_ip");
     expect(bed.calls.connect).toEqual([]);
   });

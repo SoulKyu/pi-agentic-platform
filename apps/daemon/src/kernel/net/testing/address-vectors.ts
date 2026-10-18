@@ -17,9 +17,15 @@ export const ADDED = [
   "::ffff:0:203.0.113.5",
   "::FFFF:C058:6301",
   "2002:c633:6401::1",
+  "3fff::1",
+  "3fff:fff:ffff::1",
+  "2001:2::1",
+  "2001:10::1",
+  "2001:1f::1",
+  "5f00::1",
 ];
 
-/** Boundaries just outside each added range, plus ordinary public and blocked addresses (20 in all). */
+/** Boundaries just outside each added range, plus ordinary public and blocked addresses (25 in all). */
 export const SHARED = [
   "172.32.0.1",
   "100.128.0.1",
@@ -33,6 +39,11 @@ export const SHARED = [
   "2001:1::1",
   "2001:db9::1",
   "100:0:0:1::1",
+  "3fff:1000::1",
+  "2001:2:1::1",
+  "2001:f:ffff::1",
+  "2001:20::1",
+  "5eff:ffff::1",
   "127.0.0.1",
   "10.1.2.3",
   "192.168.1.182",
@@ -43,7 +54,6 @@ export const SHARED = [
   "",
 ];
 
-/** What the push sender's default check refuses, by value: the sender tests never dial any of these (W6-R12). */
 /** What the push sender's default check refuses, by value: the sender tests never dial any of these (W6-R12). */
 export const NEVER_DIALLED = [
   "10.0.0.1",
