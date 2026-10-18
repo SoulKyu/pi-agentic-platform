@@ -48,8 +48,8 @@ test("J05: a daemon restart closes the open approval and the session resumes", a
       .getByText(new RegExp(`^(${t("connection.silent")}|${t("connection.reconnecting")})$`))
       .first();
     const seen = lost.waitFor({ state: "visible" });
-    await pap.restart();
-    await seen;
+    // Both in one `Promise.all`: a restart that throws first leaves no rejection of `seen` unhandled.
+    await Promise.all([seen, pap.restart()]);
     await expect(lost).toBeHidden({ timeout: 30_000 });
     await expect(approval(page)).toBeHidden();
   });
@@ -81,8 +81,10 @@ test("J05: a daemon restart closes the open approval and the session resumes", a
       (entry) =>
         entry.message?.role === role && JSON.stringify(entry.message.content).includes('"type":"text"'),
     );
-  await expect(page.getByRole("article", { name: "You", exact: true })).toHaveCount(texts("user").length);
-  await expect(page.getByRole("article", { name: "Agent", exact: true })).toHaveCount(
+  await expect(page.getByRole("article", { name: t("author.you"), exact: true })).toHaveCount(
+    texts("user").length,
+  );
+  await expect(page.getByRole("article", { name: t("author.agent"), exact: true })).toHaveCount(
     texts("assistant").length,
   );
 });
