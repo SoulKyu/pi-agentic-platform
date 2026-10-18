@@ -16,11 +16,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { acquireInstanceLock, HomeError, InstanceLockError, prepareHome, startTimeOf } from "./home.ts";
 
 // A file system without hard links answers linkSync with an error; the real one never does here.
-const fsHooks = vi.hoisted(() => ({ link: null as (() => void) | null }));
+const fsHooks = vi.hoisted(() => ({ link: null as (() => void) | null, chmodIgnored: false }));
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
   return {
     ...actual,
+    // A volume that accepts chmod and keeps the old mode (some FUSE, CIFS, vfat mounts): the call succeeds, nothing changes.
+    chmodSync: (...args: Parameters<typeof actual.chmodSync>) => {
+      if (!fsHooks.chmodIgnored) actual.chmodSync(...args);
+    },
     linkSync: (...args: Parameters<typeof actual.linkSync>) => {
       fsHooks.link?.();
       return actual.linkSync(...args);
@@ -41,6 +45,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   fsHooks.link = null;
+  fsHooks.chmodIgnored = false;
   for (const child of children.splice(0)) child.kill("SIGKILL");
   process.umask(umask);
   rmSync(root, { recursive: true, force: true });
@@ -136,6 +141,40 @@ describe("prepareHome", () => {
     writeFileSync(join(home, "backups"), "a file where a directory belongs");
     expect(() => prepareHome(home)).toThrow(HomeError);
     expect(() => prepareHome(home)).toThrow(join(home, "backups"));
+  });
+});
+
+describe("prepareHome on a file system that ignores chmod (R119)", () => {
+  it("refuses to boot, naming the path and saying the file system ignores permissions", () => {
+    mkdirSync(home, { mode: 0o755 });
+    chmodSync(home, 0o755);
+    fsHooks.chmodIgnored = true;
+    expect(() => prepareHome(home)).toThrow(HomeError);
+    expect(() => prepareHome(home)).toThrow(home);
+    expect(() => prepareHome(home)).toThrow(/ignores permissions/);
+    expect(() => prepareHome(home)).toThrow(/local disk|PAP_HOME/);
+  });
+
+  it("refuses when only a private subfolder keeps its open mode", () => {
+    prepareHome(home);
+    chmodSync(join(home, "secrets"), 0o755);
+    fsHooks.chmodIgnored = true;
+    expect(() => prepareHome(home)).toThrow(join(home, "secrets"));
+  });
+
+  it("refuses an open database file the same way", () => {
+    prepareHome(home);
+    writeFileSync(join(home, "state.db"), "x");
+    chmodSync(join(home, "state.db"), 0o644);
+    fsHooks.chmodIgnored = true;
+    expect(() => prepareHome(home)).toThrow(/ignores permissions/);
+  });
+
+  it("boots on a file system that honours chmod", () => {
+    mkdirSync(home, { mode: 0o755 });
+    chmodSync(home, 0o755);
+    expect(() => prepareHome(home)).not.toThrow();
+    expect(mode(home)).toBe(0o700);
   });
 });
 
