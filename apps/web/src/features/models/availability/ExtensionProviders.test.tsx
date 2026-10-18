@@ -3,7 +3,9 @@ import type { ExtensionProviders as Answer } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
 import { RpcError } from "../../../runtime/index.ts";
+import { useShellStore } from "../../../stores/shell-store.ts";
 import { alerts, button, click, hasButton, settle, text } from "../../../testing/dom.ts";
+import { forgetExtensions, useExtensionRead } from "../extension-read.ts";
 import { availabilityBed, BASE, current, showAvailability } from "./availability-models-bed.tsx";
 
 vi.mock("../../../runtime/index.ts", async (importOriginal) => ({
@@ -11,10 +13,21 @@ vi.mock("../../../runtime/index.ts", async (importOriginal) => ({
   getRuntime: () => current.runtime,
 }));
 
-afterEach(() => setLocale("en"));
+afterEach(() => {
+  setLocale("en");
+  forgetExtensions();
+});
 
 const READ = "Read providers added by extensions";
-const model = (id: string, name = id) => ({ provider: "x", id, name, reasoning: false });
+const AGAIN = "Read again";
+const model = (id: string, name = id, offered = true) => ({
+  provider: "x",
+  id,
+  name,
+  reasoning: false,
+  offered,
+  enabled: offered,
+});
 const answer = (over: Partial<Answer> = {}): Answer => ({
   providers: [{ id: "ext", name: "Ext", models: [model("e1", "Ext one")], modelsTruncated: false }],
   truncated: false,
@@ -43,14 +56,82 @@ describe("extension providers", () => {
     expect(hasButton(page.container, READ)).toBe(true);
   });
 
-  it("shows providers and models read-only with the session-menu note and no switch", async () => {
+  it("shows providers and models with the switches the other providers have, and the pickers' note", async () => {
     const { page, bed } = await read(() => answer());
     expect(bed.called("models.extensions")).toHaveLength(1);
     const box = page.container.querySelector("[data-extensions]") as HTMLElement;
     expect(text(box)).toContain("Ext");
     expect(text(box)).toContain("Ext one");
-    expect(text(box)).toContain("session's model menu only");
-    expect(box.querySelectorAll('[role="switch"]')).toHaveLength(0);
+    expect(text(box)).toContain("the agent and lane pickers offer what your selection offers");
+    // The provider's switch and one per model.
+    expect(box.querySelectorAll('[role="switch"]')).toHaveLength(2);
+  });
+
+  it("ext.shared-read: a second opening shows the answer it read, runs nothing, and Read again runs it again", async () => {
+    const first = await read(() => answer());
+    expect(first.bed.called("models.extensions")).toHaveLength(1);
+    await first.page.unmount();
+    const again = await showAvailability();
+    await settle();
+    expect(first.bed.called("models.extensions")).toHaveLength(1);
+    expect(text(again.container.querySelector("[data-extensions]") as HTMLElement)).toContain("Ext one");
+    expect(hasButton(again.container, READ)).toBe(false);
+    await click(button(again.container, AGAIN));
+    await settle();
+    expect(first.bed.called("models.extensions")).toHaveLength(2);
+  });
+
+  it("ext.joins-run: a second press while a read runs starts no second call", async () => {
+    let finish: (value: Answer) => void = () => {};
+    const { bed, page } = await read(() => new Promise<Answer>((resolve) => (finish = resolve)));
+    expect(useExtensionRead.getState().status).toBe("reading");
+    expect(button(page.container, AGAIN).disabled).toBe(true);
+    // A picker's click while Settings' read runs joins it too: the store is the one entry.
+    const { readExtensions } = await import("../extension-read.ts");
+    readExtensions();
+    expect(bed.called("models.extensions")).toHaveLength(1);
+    finish(answer());
+    await settle();
+    expect(useExtensionRead.getState().status).toBe("ready");
+  });
+
+  it("ext.sign-out: the shell store's reset (sign-out) forgets the answer and drops a read in flight", async () => {
+    const { bed, page } = await read(() => answer());
+    expect(useExtensionRead.getState().status).toBe("ready");
+    useShellStore.getState().reset();
+    expect(useExtensionRead.getState().status).toBe("idle");
+    await settle();
+    // A read still running when the account goes: its answer never lands.
+    let finish: (value: Answer) => void = () => {};
+    bed.handlers["models.extensions"] = () => new Promise<Answer>((resolve) => (finish = resolve));
+    await click(button(page.container, READ));
+    expect(useExtensionRead.getState().status).toBe("reading");
+    useShellStore.getState().reset();
+    finish(answer());
+    await settle();
+    expect(useExtensionRead.getState().status).toBe("idle");
+  });
+
+  it("marks a model the pickers do not offer", async () => {
+    const { page } = await read(() =>
+      answer({
+        providers: [
+          {
+            id: "ext",
+            name: "Ext",
+            models: [model("e1", "Ext one"), model("e2", "Ext two", false)],
+            modelsTruncated: false,
+          },
+        ],
+      }),
+    );
+    const rows = [...page.container.querySelectorAll<HTMLElement>("[data-extension-model]")];
+    expect(rows.map((row) => [row.dataset.extensionModel, row.dataset.offered])).toEqual([
+      ["e1", "true"],
+      ["e2", "false"],
+    ]);
+    expect(text(rows[1] as HTMLElement)).toContain("Not offered to the pickers and agents");
+    expect(text(rows[0] as HTMLElement)).not.toContain("Not offered");
   });
 
   it("never claims the load is offline", async () => {
@@ -111,6 +192,7 @@ describe("extension providers", () => {
     });
     expect(alerts(stale.page.container).join(" ")).toContain("Reload the page");
     await stale.page.unmount();
+    forgetExtensions();
     const slow = await read(() => {
       throw new RpcError("timeout");
     });
@@ -126,6 +208,6 @@ describe("extension providers", () => {
     await settle();
     await click(button(page.container, "Lire les fournisseurs ajoutés par des extensions"));
     await settle();
-    expect(text(page.container)).toContain("menu des modèles d'une session");
+    expect(text(page.container)).toContain("les sélecteurs d'agent et de lane proposent");
   });
 });

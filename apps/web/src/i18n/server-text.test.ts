@@ -78,7 +78,7 @@ describe("server texts by code (R128)", () => {
       const probe = {
         text: "UNTRANSLATED",
         code,
-        params: { code: "1", signal: "SIGX", event: "e", count: "2", max: "3" },
+        params: { code: "1", signal: "SIGX", event: "e", count: "2", max: "3", model: "p/m", running: "q/n" },
       };
       const en = codedServerText(probe, "en");
       const fr = codedServerText(probe, "fr");
@@ -108,6 +108,21 @@ describe("server texts by code (R128)", () => {
   it("never lets a code select a key outside the server texts", () => {
     for (const code of ["ui.close", "shell.tab.home", "server.cause.stopped"])
       expect(codedServerText({ text: "Sent as is.", code }, "fr")).toBe("Sent as is.");
+  });
+
+  it("says in French which saved model an agent's worker refused and what runs instead", () => {
+    const params = { model: "claude-bridge/claude-opus-4", running: "anthropic/claude-sonnet-4-5" };
+    const english =
+      "This agent's model claude-bridge/claude-opus-4 is not offered to its worker: it runs on anthropic/claude-sonnet-4-5 instead. Settings › Models › Available models decides what is offered.";
+    const french = codedServerText({ text: english, code: "agent_model_refused", params }, "fr");
+    expect(french).toContain("Le modèle de cet agent, claude-bridge/claude-opus-4,");
+    expect(french).toContain("avec anthropic/claude-sonnet-4-5 à la place");
+    expect(french).toContain("Réglages › Modèles › Modèles proposés");
+    // An older daemon's English sentence alone is matched too.
+    expect(codedServerText({ text: english }, "fr")).toBe(french);
+    expect(
+      codedServerText({ text: "x", code: "agent_model_refused_default", params: { model: "p/m" } }, "en"),
+    ).toContain("runs on Pi's default model instead");
   });
 
   it("puts params in as plain text, markup included", () => {

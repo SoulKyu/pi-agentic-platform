@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  cleanUpJudges,
+  entryProvider,
   EXTENSION_MODELS_MAX,
   EXTENSION_PROVIDERS_MAX,
   ExtensionProviders,
@@ -8,7 +10,14 @@ import {
   MODELS_LIMITS,
 } from "./index.ts";
 
-const model = (id: string) => ({ provider: "ext1", id, name: id, reasoning: false });
+const model = (id: string, offered = true) => ({
+  provider: "ext1",
+  id,
+  name: id,
+  reasoning: false,
+  offered,
+  enabled: offered,
+});
 const provider = (extra: object = {}) => ({
   id: "ext1",
   name: "Ext",
@@ -49,6 +58,25 @@ describe("ExtensionProviders", () => {
     const row = { ...model("m"), baseUrl: "https://x" };
     expect(
       ExtensionProviders.safeParse({ ...answer, providers: [provider({ models: [row] })] }).success,
+    ).toBe(false);
+  });
+
+  it("says of each model whether the no-session rule offers it, and requires the flag", () => {
+    const parse = (value: unknown) => ExtensionProviders.safeParse(value).success;
+    expect(parse({ ...answer, providers: [provider({ models: [model("m", false)] })] })).toBe(true);
+    const bare: Partial<ReturnType<typeof model>> = model("m");
+    delete bare.offered;
+    expect(parse({ ...answer, providers: [provider({ models: [bare] })] })).toBe(false);
+    expect(parse({ ...answer, providers: [provider({ models: [{ ...bare, offered: "yes" }] })] })).toBe(
+      false,
+    );
+  });
+
+  it("requires enabled on a model row", () => {
+    const bare: Partial<ReturnType<typeof model>> = model("m");
+    delete bare.enabled;
+    expect(
+      ExtensionProviders.safeParse({ ...answer, providers: [provider({ models: [bare] })] }).success,
     ).toBe(false);
   });
 
@@ -93,5 +121,23 @@ describe("models.extensions", () => {
     expect(HELPER_OPS["models.extensions"].result).toBe(ExtensionProviders);
     expect(HELPER_OPS["models.extensions"].params.safeParse({}).success).toBe(true);
     expect(HELPER_OPS["models.extensions"].params.safeParse({ cwd: "/x" }).success).toBe(false);
+  });
+});
+
+describe("Clean up judges only an entry that names a provider it knows", () => {
+  const known = new Set(["anthropic", "mine"]);
+  it("reads the provider of an entry, and none from a bare id, a fuzzy match or a glob", () => {
+    expect(entryProvider("claude-bridge/claude-opus-4")).toBe("claude-bridge");
+    expect(entryProvider("anthropic/claude-*:high")).toBe("anthropic");
+    expect(entryProvider("openrouter/meta/llama")).toBe("openrouter");
+    for (const none of ["sonnet", "*opus*", "*/claude-a", "an?hropic/x", "[ab]/x", "/x", ""])
+      expect(entryProvider(none), none).toBeNull();
+  });
+
+  it("judges a known provider's entry and keeps an extension's, a bare one and a glob", () => {
+    expect(cleanUpJudges("anthropic/gone", known)).toBe(true);
+    expect(cleanUpJudges("mine/*", known)).toBe(true);
+    for (const kept of ["claude-bridge/x", "claude-bridge/*", "opus", "*/x", "Anthropic/gone"])
+      expect(cleanUpJudges(kept, known), kept).toBe(false);
   });
 });

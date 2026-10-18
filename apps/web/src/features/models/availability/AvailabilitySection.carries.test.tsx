@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../../i18n/index.ts";
 import { RpcError } from "../../../runtime/index.ts";
 import { alerts, button, click, settle, text } from "../../../testing/dom.ts";
+import { forgetExtensions } from "../extension-read.ts";
 import { availabilityBed, BASE, current, showAvailability } from "./availability-models-bed.tsx";
 
 vi.mock("../../../runtime/index.ts", async (importOriginal) => ({
@@ -14,6 +15,8 @@ vi.mock("../../../runtime/index.ts", async (importOriginal) => ({
 afterEach(() => {
   setLocale("en");
   vi.restoreAllMocks();
+  // The extension read lasts for the tab: each test is a fresh tab.
+  forgetExtensions();
 });
 
 const opened = async (over = {}) => {

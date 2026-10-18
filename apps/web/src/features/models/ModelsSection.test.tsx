@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { setLocale } from "../../i18n/index.ts";
 import { RpcError } from "../../runtime/index.ts";
 import { alerts, button, click, hasButton, settle, text } from "../../testing/dom.ts";
+import { forgetExtensions, readExtensions } from "./extension-read.ts";
 import {
   current,
   LAST_MODEL_PROVIDER,
@@ -24,6 +25,7 @@ beforeEach(() => {
 afterEach(() => {
   setLocale("en");
   vi.restoreAllMocks();
+  forgetExtensions();
 });
 
 async function open(id: string, over = overviewOf()) {
@@ -116,6 +118,19 @@ describe("switches", () => {
     ]);
     expect(bed.called("models.setEnabled")[0]?.options?.commandId).toBeTypeOf("string");
     expect(bed.called("models.overview")).toHaveLength(2);
+  });
+
+  it("m2.provider-page: a write on a provider page reads again the extensions read in this tab, and only then", async () => {
+    const { bed, page } = await open("anthropic");
+    bed.handlers["models.extensions"] = () => ({ providers: [], truncated: false, failed: false });
+    await click(switchOf(page.container, "claude-b name"));
+    await settle();
+    expect(bed.called("models.extensions")).toEqual([]);
+    readExtensions();
+    await settle();
+    await click(switchOf(page.container, "claude-a name"));
+    await settle();
+    expect(bed.called("models.extensions")).toHaveLength(2);
   });
 
   it("switches a whole provider", async () => {

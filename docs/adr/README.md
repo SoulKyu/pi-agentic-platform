@@ -79,7 +79,7 @@ Numbers marked "not used" were skipped and stay empty.
 | 0067 | [`pap doctor` and the daily update check](0067-doctor-and-the-update-check.md) | accepted | 2026-10-17 |
 | 0068 | [one source for the models a context may use](0068-one-source-for-available-models.md) | accepted | 2026-10-17 |
 | 0069 | [the provider form writes models.json, field-preserving and strict](0069-provider-form-writes-models-json.md) | accepted | 2026-10-17 |
-| 0070 | [the availability view, extension providers, and the policy hook](0070-availability-view-extensions-and-the-policy-hook.md) | accepted | 2026-10-17 |
+| 0070 | [the availability view, extension providers, and the policy hook](0070-availability-view-extensions-and-the-policy-hook.md) | accepted (amended 2026-10-18) | 2026-10-17 |
 | 0071 | [e2e on the pinned Playwright image](0071-e2e-on-the-pinned-playwright-image.md) | accepted | 2026-10-18 |
 | 0072 | [Pi-compat respects the release age](0072-pi-compat-respects-the-release-age.md) | accepted | 2026-10-18 |
 | 0073 | [npm shrinkwrap from the lockfile](0073-npm-shrinkwrap-from-the-lockfile.md) | accepted | 2026-10-18 |

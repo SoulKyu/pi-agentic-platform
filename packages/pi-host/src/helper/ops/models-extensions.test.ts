@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { ExtensionProviders } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { makeModelsBed, type ModelsBed, modelsJsonWith } from "../../testing/models-bed.ts";
+import { writeBridgeLikeExtension } from "../../testing/extensions.ts";
 import { blockedAttempts } from "../../testing/network-guard.ts";
 import {
   createExtensionsOp,
@@ -47,6 +48,7 @@ const modelsOf = (count: number, prefix = "m") =>
 /** A runtime stand-in: registering hundreds of real providers is quadratic in Pi (a minute for 300). */
 const stand = (ids: string[], models: number, name = "n"): ExtensionsLoad => ({
   extensionsFailed: false,
+  selection: async () => ({ offered: new Set(), enabled: null }),
   runtime: {
     getRegisteredProviderIds: () => ids,
     getProvider: (id) => ({ id, name: `Name ${id}` }) as never,
@@ -78,7 +80,16 @@ describe("models.extensions (helper op)", () => {
         name: "Name of ext1",
         modelsTruncated: false,
         models: [
-          { provider: "ext1", id: "m0", name: "Model 0", reasoning: true, contextWindow: 1000, images: true },
+          {
+            provider: "ext1",
+            id: "m0",
+            name: "Model 0",
+            reasoning: true,
+            contextWindow: 1000,
+            images: true,
+            offered: true,
+            enabled: true,
+          },
           {
             provider: "ext1",
             id: "m1",
@@ -86,10 +97,86 @@ describe("models.extensions (helper op)", () => {
             reasoning: false,
             contextWindow: 1001,
             images: true,
+            offered: true,
+            enabled: true,
           },
         ],
       },
     ]);
+  });
+
+  it("extensions.offered: a model is offered when the no-session rule offers it under the global selection", async () => {
+    await globalExtension(factory(registration("ext1", modelsOf(2))));
+    const offered = async () =>
+      (await run()).providers.flatMap((provider) =>
+        provider.models.map((model) => [model.id, model.offered]),
+      );
+    // No selection: every model of a provider with a key.
+    expect(await offered()).toEqual([
+      ["m0", true],
+      ["m1", true],
+    ]);
+    // A selection that names one of them.
+    await bed.write(join(bed.agentDir, "settings.json"), { enabledModels: ["ext1/m1"] });
+    expect(await offered()).toEqual([
+      ["m0", false],
+      ["m1", true],
+    ]);
+    // A selection of models.json models only: the extension's are outside it.
+    await bed.write(join(bed.agentDir, "models.json"), modelsJsonWith(1));
+    await bed.write(join(bed.agentDir, "settings.json"), { enabledModels: ["mine/*"] });
+    expect(await offered()).toEqual([
+      ["m0", false],
+      ["m1", false],
+    ]);
+  });
+
+  it("extensions.enabled: a model is enabled when the selection names it, offered or not", async () => {
+    // A provider with no key: what the selection names is enabled, yet nothing is offered.
+    await globalExtension(
+      factory(
+        `pi.registerProvider("nokey", { baseUrl: "https://x.invalid/v1", api: "openai-completions", ` +
+          `models: ${modelsOf(2)} });`,
+      ),
+    );
+    await bed.write(join(bed.agentDir, "models.json"), modelsJsonWith(1));
+    const flags = async () =>
+      (await run()).providers.flatMap((provider) =>
+        provider.models.map((model) => [model.id, model.enabled, model.offered]),
+      );
+    expect(await flags()).toEqual([
+      ["m0", true, false],
+      ["m1", true, false],
+    ]);
+    await bed.write(join(bed.agentDir, "settings.json"), { enabledModels: ["mine/*", "nokey/m1"] });
+    expect(await flags()).toEqual([
+      ["m0", false, false],
+      ["m1", true, false],
+    ]);
+  });
+
+  it("extensions.offered: a project's selection never counts (the op has no project scope)", async () => {
+    await globalExtension(factory(registration("ext1", modelsOf(1))));
+    await bed.trust(bed.project);
+    await bed.write(join(bed.project, ".pi", "settings.json"), { enabledModels: ["nothing/*"] });
+    const result = await run(bed.project);
+    expect(result.providers[0]?.models[0]?.offered).toBe(true);
+  });
+
+  it("extensions.once-per-process: a second load in one process misses a provider that registers once per process", async () => {
+    // Why every read runs in a helper of its own (the pool forks one per call): pi-claude-bridge registers at load in
+    // the first instance of a process only. This control proves the fixture reproduces it.
+    const forget = () => Reflect.deleteProperty(globalThis, Symbol.for("pap-test-bridge:registered"));
+    forget();
+    try {
+      writeBridgeLikeExtension(bed.agentDir);
+      const ids = async () => (await run()).providers.map((provider) => provider.id);
+      expect(await ids()).toEqual(["pap-test-bridge"]);
+      expect(await ids()).toEqual([]);
+    } finally {
+      // Whatever failed above, the next test of this process starts with no instance registered.
+      forget();
+    }
   });
 
   it("extensions.nothing: no extension, no providers, not failed", async () => {
@@ -196,7 +283,7 @@ describe("models.extensions (helper op)", () => {
       ["p0", 500, false],
       ["p1", 500, false],
       ["p2", 500, false],
-      ["p3", 342, true],
+      ["p3", 182, true],
     ]);
     expect(result.truncated).toBe(true);
     expect(ExtensionProviders.safeParse(result).success).toBe(true);

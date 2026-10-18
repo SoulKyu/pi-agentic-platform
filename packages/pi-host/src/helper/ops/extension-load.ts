@@ -7,6 +7,8 @@ import { offline } from "./offline.ts";
 
 export interface ExtensionLoad {
   readonly runtime: ModelRuntime;
+  /** The global settings the load used (no project scope): the selection the no-session rule reads. */
+  readonly settings: SettingsManager;
   /** The provider ids an enabled extension registered or replaced. */
   readonly touched: ReadonlySet<string>;
   /** True when an enabled extension failed to load or to register. */
@@ -59,7 +61,7 @@ export async function openExtensionLoad(ctx: HelperContext): Promise<ExtensionLo
   const extensionsFailed =
     services.diagnostics.some((entry) => entry.type === "error") ||
     services.resourceLoader.getExtensions().errors.length > 0;
-  return { runtime, touched, extensionsFailed };
+  return { runtime, settings: settingsManager, touched, extensionsFailed };
 }
 
 /** Pi's configuration is loaded with Pi's offline switch on (MC52): a missing package is a fixed failure, never an install. */

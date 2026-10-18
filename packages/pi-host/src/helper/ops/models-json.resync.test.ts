@@ -44,6 +44,16 @@ describe("models.config.save: enabledModels follows the file (M7R65)", () => {
     expect(await bed.read(settings)).toEqual({ theme: "dark", enabledModels: ["mine/*"] });
   });
 
+  it("never folds an entry an extension's model may share into the provider's glob (review I1)", async () => {
+    await fs.writeFile(file, withModels(["m1", "m2"]));
+    // `*/m1*` covers mine/m1 here and may cover an extension's model too: it stays as written.
+    await bed.write(settings, { enabledModels: ["*/m1*", "mine/m2"] });
+    const { text, revision } = await get();
+    const result = await save((text ?? "").replace(`"id": "m2"`, `"id": "m2"},{"id": "m3"`), revision);
+    expect(result).toMatchObject({ enabledModelsSynced: true });
+    expect(await bed.read(settings)).toEqual({ enabledModels: ["*/m1*", "mine/m2", "mine/m3"] });
+  });
+
   it("leaves a provider that was only partly enabled alone", async () => {
     await fs.writeFile(file, withModels(["m1", "m2"]));
     await bed.write(settings, { enabledModels: ["mine/m1"] });

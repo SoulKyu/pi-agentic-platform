@@ -71,7 +71,7 @@ describe("new lane dialog: models and fan-out", () => {
     expect(bed.called("lanes.create")[0]?.params).toMatchObject({ models: [null] });
   });
 
-  it("saved-model-stays-visible: a prefilled model the project does not offer is shown and still sent", async () => {
+  it("saved-model-stays-visible: a prefilled model of a provider the list lacks says an extension may add it, and is still sent", async () => {
     const { bed } = await open(preview(), [project], {
       text: "Fix",
       title: "Fix",
@@ -79,7 +79,7 @@ describe("new lane dialog: models and fan-out", () => {
     });
     await openModelField("Model of lane 1");
     expect(modelRows().find((node) => node.dataset.modelRow === "gone-1")?.textContent).toContain(
-      "Saved model, no longer offered",
+      "May come from an extension, checked when it runs",
     );
     await press(document.activeElement ?? document.body, { key: "Escape" });
     await vi.waitFor(() => expect(document.querySelector('[data-slot="popover"]')).toBeNull());

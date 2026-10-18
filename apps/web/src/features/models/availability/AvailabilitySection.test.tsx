@@ -154,8 +154,8 @@ describe("the mode", () => {
 
 describe("unmatched patterns", () => {
   it("offer a clean up only for a No model matches warning, and call prune", async () => {
-    const { page, bed } = await opened({ dead: ["gone/*"] });
-    expect(text(page.container)).toContain('No model matches "gone/*".');
+    const { page, bed } = await opened({ dead: ["openai/gone-*"] });
+    expect(text(page.container)).toContain('No model matches "openai/gone-*".');
     await click(button(page.container, "Clean up"));
     await settle();
     expect(calls(bed, "models.setEnabled")).toEqual([{ op: { op: "prune" } }]);

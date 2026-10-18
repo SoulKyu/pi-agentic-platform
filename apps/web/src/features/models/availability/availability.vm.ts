@@ -1,4 +1,4 @@
-import type { ExtensionProviders, ProviderView } from "@pap/contracts";
+import { cleanUpJudges, entryProvider, type ExtensionProviders, type ProviderView } from "@pap/contracts";
 import { stripHidden } from "../../../lib/untrusted-text.ts";
 import { groupAndRank, shownText, type PickerGroup } from "../picker/model-picker.vm.ts";
 import type { AvailableState } from "../picker/use-available-models.ts";
@@ -51,22 +51,59 @@ export function providerRows(providers: readonly ProviderView[], available: Avai
   });
 }
 
-const UNMATCHED = /^No model matches "/;
+const UNMATCHED = /^No model matches "([\s\S]*)"\.$/;
 
-/** The overview warnings that say an entry of the list matches nothing (the helper's own sentence), text cleaned. */
-export const unmatchedWarnings = (warnings: readonly string[]): string[] =>
-  warnings.filter((warning) => UNMATCHED.test(warning)).map(stripHidden);
+export interface UnmatchedRow {
+  /** The helper's own sentence, cleaned. */
+  readonly text: string;
+  /**
+   * Why Clean up keeps it (`cleanUpJudges`, the helper's own rule): `extension`, a provider the extensions read in this
+   * tab add; `unjudged`, any other entry naming no provider this view knows. null: Clean up removes it.
+   */
+  readonly kept: "extension" | "unjudged" | null;
+}
+
+/** The overview warnings that say an entry of the list matches nothing, and what Clean up does with each. */
+export function unmatchedRows(
+  warnings: readonly string[],
+  providers: readonly ProviderView[],
+  extensionProviders: ReadonlySet<string>,
+): UnmatchedRow[] {
+  const known = new Set(providers.map((provider) => provider.id));
+  return warnings.flatMap((warning) => {
+    const entry = UNMATCHED.exec(warning)?.[1];
+    if (entry === undefined) return [];
+    const kept = cleanUpJudges(entry, known)
+      ? null
+      : extensionProviders.has(entryProvider(entry) ?? "")
+        ? "extension"
+        : "unjudged";
+    return [{ text: stripHidden(warning), kept }];
+  });
+}
 
 /** The preview's groups, by provider, in the order of the answer. */
 export const previewGroups = (available: AvailableState): PickerGroup[] =>
   available.status === "ready" ? groupAndRank(available.models, available.labels, "") : [];
 
+export interface ExtensionModelRow {
+  /** Pi's own id, for a write; never shown. */
+  readonly modelId: string;
+  /** The id as shown (cleaned). */
+  readonly id: string;
+  readonly label: string;
+  readonly offered: boolean;
+  readonly enabled: boolean;
+}
+
 export interface ExtensionRow {
+  /** Pi's own provider id, for a write; never shown. */
+  readonly provider: string;
   readonly id: string;
   readonly name: string;
   readonly overrides: boolean;
   readonly modelsTruncated: boolean;
-  readonly models: ReadonlyArray<{ readonly id: string; readonly label: string }>;
+  readonly models: readonly ExtensionModelRow[];
 }
 
 /**
@@ -79,13 +116,17 @@ export function extensionRows(
 ): ExtensionRow[] {
   const own = new Set(providers.filter((provider) => provider.origin === "models.json").map((one) => one.id));
   return answer.providers.map((provider) => ({
+    provider: provider.id,
     id: shownText(provider.id),
     name: shownText(provider.name),
     overrides: own.has(provider.id),
     modelsTruncated: provider.modelsTruncated,
     models: provider.models.map((model) => ({
+      modelId: model.id,
       id: shownText(model.id),
       label: shownText(model.name === "" ? model.id : model.name),
+      offered: model.offered,
+      enabled: model.enabled,
     })),
   }));
 }

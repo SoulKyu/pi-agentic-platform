@@ -157,6 +157,7 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
       </Collapsible>
       <ModelFields
         model={draft.model}
+        preset={draft.preset}
         thinking={draft.thinking}
         levels={levelsFor(picked)}
         onModel={(model, summary) => {

@@ -2,6 +2,7 @@ import type { EnabledOp, ModelsOverview } from "@pap/contracts";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { reportClientIssue } from "../../../lib/report.ts";
 import { getRuntime } from "../../../runtime/index.ts";
+import { refreshExtensions } from "../extension-read.ts";
 import { readOnlyPath, writeFailureText } from "../models.vm.ts";
 import { isStale, parseAvailable, type AvailableState } from "../picker/use-available-models.ts";
 import { useModelWrites } from "../use-model-writes.ts";
@@ -91,9 +92,11 @@ export function useAvailability(overview: AvailabilitySource) {
 
   const path = readOnlyPath(value.enabled);
   const failure = useCallback((error: unknown) => writeFailureText(error, path), [path]);
+  // After a write the extensions read in this tab are read again too: their `enabled` and `offered` follow the selection.
   const reload = useCallback(() => {
     reloadOverview();
     request();
+    refreshExtensions();
   }, [reloadOverview, request]);
   const writes = useModelWrites(reload, failure);
   const { run } = writes;

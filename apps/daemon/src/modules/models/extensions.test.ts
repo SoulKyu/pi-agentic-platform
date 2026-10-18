@@ -20,7 +20,7 @@ const found: ExtensionProviders = {
       id: "ext1",
       name: "Ext",
       modelsTruncated: false,
-      models: [{ provider: "ext1", id: "m", name: "M", reasoning: false }],
+      models: [{ provider: "ext1", id: "m", name: "M", reasoning: false, offered: true, enabled: true }],
     },
   ],
   failed: false,

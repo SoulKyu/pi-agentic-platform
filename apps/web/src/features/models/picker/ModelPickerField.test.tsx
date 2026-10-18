@@ -41,7 +41,7 @@ const SONNET = { provider: "anthropic", modelId: "claude-sonnet-4" };
 
 beforeAll(async () => {
   // The first transform of the overlay and list chunks is slow: pay it here, not inside a test.
-  await import("./ModelList.tsx");
+  await import("./PickerList.tsx");
   await import("@pap/ui/overlays");
 }, 60_000);
 beforeEach(() => {
@@ -186,12 +186,12 @@ describe("ModelPickerField popover", () => {
     expect(onChange).toHaveBeenCalledWith(null);
   });
 
-  it("a value the list does not offer shows as saved, no longer offered, first and pickable", async () => {
+  it("a value the list does not offer, of a provider it knows, shows as saved, no longer offered, first and pickable", async () => {
     const onChange = vi.fn();
     const page = await mount(
       <ModelPickerField
         label="Model"
-        value={{ provider: "old", modelId: "gone-1" }}
+        value={{ provider: "anthropic", modelId: "gone-1" }}
         cwd={null}
         onChange={onChange}
       />,
@@ -201,7 +201,7 @@ describe("ModelPickerField popover", () => {
     expect(options()[0]?.textContent).toContain("Saved model, no longer offered");
     await click(options()[0] as HTMLElement);
     // No summary: the row's synthetic one would claim the model does not reason.
-    expect(onChange.mock.calls).toEqual([[{ provider: "old", modelId: "gone-1" }]]);
+    expect(onChange.mock.calls).toEqual([[{ provider: "anthropic", modelId: "gone-1" }]]);
   });
 
   it("with a saved-but-unoffered value, picking another row still passes that row's summary", async () => {
@@ -235,7 +235,7 @@ describe("ModelPickerField popover", () => {
     await open(page.container);
     const rows = options().filter((one) => one.dataset.modelRow === "gpt-5");
     expect(rows).toHaveLength(2); // the saved one (provider old) and the offered one (openai)
-    await click(rows.find((one) => !one.textContent?.includes("no longer offered")) as HTMLElement);
+    await click(rows.find((one) => one.getAttribute("aria-selected") !== "true") as HTMLElement);
     expect(onChange).toHaveBeenCalledWith(
       { provider: "openai", modelId: "gpt-5" },
       { provider: "openai", id: "gpt-5", name: "GPT-5", reasoning: false },
@@ -248,7 +248,7 @@ describe("ModelPickerField popover", () => {
     );
     await open(page.container);
     const body = text(document.body);
-    expect(body).toContain("Models added by an extension appear in a session's menu.");
+    expect(body).toContain("Models added by an extension are listed only when you ask for them.");
     expect(body).toContain("A key that is a command is offered but may fail when used.");
   });
 
@@ -280,8 +280,8 @@ describe("ModelPickerField popover", () => {
 describe("ModelPickerField source", () => {
   it("field.lazy: the list chunk is a dynamic import, never a static one, and goes through useRetryableLazy", () => {
     const source = readFileSync(join(import.meta.dirname, "ModelPickerField.tsx"), "utf8");
-    expect(source).not.toMatch(/from\s+["']\.\/ModelList\.tsx["']/);
-    expect(source).toMatch(/import\(\s*["']\.\/ModelList\.tsx["']\s*\)/);
+    expect(source).not.toMatch(/from\s+["']\.\/(ModelList|PickerList)\.tsx["']/);
+    expect(source).toMatch(/import\(\s*["']\.\/PickerList\.tsx["']\s*\)/);
     expect(source).toContain("useRetryableLazy");
     expect(source).not.toMatch(/\blazy\(/);
   });

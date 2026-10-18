@@ -102,10 +102,14 @@ describe("models.setEnabled", () => {
     expect(await bed.read(settings)).toEqual({ theme: "dark" });
   });
 
-  it("prune drops the entries that match nothing", async () => {
-    await bed.write(settings, { enabledModels: ["gone/*", "mine/m1", "renamed-x"] });
-    expect(await edit({ op: "prune" })).toEqual({ patterns: ["mine/m1"] });
-    expect(((await bed.read(settings)) as { enabledModels: string[] }).enabledModels).toEqual(["mine/m1"]);
+  it("prune drops the entries of a known provider that match nothing, and keeps those it cannot judge", async () => {
+    await bed.write(settings, { enabledModels: ["gone/*", "mine/m1", "mine/renamed", "renamed-x"] });
+    expect(await edit({ op: "prune" })).toEqual({ patterns: ["gone/*", "mine/m1", "renamed-x"] });
+    expect(((await bed.read(settings)) as { enabledModels: string[] }).enabledModels).toEqual([
+      "gone/*",
+      "mine/m1",
+      "renamed-x",
+    ]);
   });
 
   it("provider off keeps the other providers enabled", async () => {

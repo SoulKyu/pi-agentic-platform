@@ -84,6 +84,7 @@ describe("helperErrorCode", () => {
       config_invalid: "config_invalid",
       config_path_refused: "config_path_refused",
       config_hard_link: "config_hard_link",
+      extensions_failed: "extensions_failed",
       failed: "helper_failed",
     };
     for (const [code, mapped] of Object.entries(expected))

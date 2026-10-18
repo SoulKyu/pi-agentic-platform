@@ -105,6 +105,30 @@ const SENTENCES: readonly Sentence[] = [
     key: "server.cause.spawnFailure",
     re: /^Agent process could not start\.$/,
   },
+  {
+    code: "agent_model_refused",
+    key: "server.notice.agentModelRefused",
+    re: /^This agent's model (.{1,400}) is not offered to its worker: it runs on (.{1,400}) instead\. Settings › Models › Available models decides what is offered\.$/,
+    vars: ["model", "running"],
+  },
+  {
+    code: "agent_model_refused_default",
+    key: "server.notice.agentModelRefusedDefault",
+    re: /^This agent's model (.{1,400}) is not offered to its worker: it runs on Pi's default model instead\. Settings › Models › Available models decides what is offered\.$/,
+    vars: ["model"],
+  },
+  {
+    code: "agent_model_refused_chat",
+    key: "server.notice.agentModelRefusedChat",
+    re: /^This agent uses Chat only, which loads no extension: its model (.{1,400}) is not offered there, so it runs on another model\. Choose a model Pi has, or another tool preset\.$/,
+    vars: ["model"],
+  },
+  {
+    code: "agent_model_not_applied",
+    key: "server.notice.agentModelNotApplied",
+    re: /^This agent's model (.{1,400}) could not be applied when its worker started, so it runs on another model\. Settings › Models shows the provider's state\.$/,
+    vars: ["model"],
+  },
 ];
 
 const clipped = (text: string): string => (text.length > MAX ? `${text.slice(0, MAX)}…` : text);

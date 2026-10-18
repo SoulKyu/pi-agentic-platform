@@ -1,5 +1,12 @@
 import type { AgentSession } from "@earendil-works/pi-coding-agent";
-import { MAX_LISTED_MODELS, type ModelSummary, type ThinkingLevel, WORKER_BUSY } from "@pap/contracts";
+import {
+  MAX_LISTED_MODELS,
+  MODEL_NOT_OFFERED,
+  MODEL_PROVIDER_UNKNOWN,
+  type ModelSummary,
+  type ThinkingLevel,
+  WORKER_BUSY,
+} from "@pap/contracts";
 import { freshAvailable } from "./available-models.ts";
 import { messageOf } from "./bounded.ts";
 import type { Outbound } from "./ipc.ts";
@@ -69,7 +76,11 @@ export async function handleSetModel(
     const wanted = (await listedModels(session)).find(
       (model) => model.provider === command.provider && model.id === command.modelId,
     );
-    if (!wanted) throw new Error("unknown model");
+    // A provider this runtime lacks is said apart: in Chat only, with no extension loaded, that is the reason.
+    if (!wanted)
+      throw new Error(
+        session.modelRuntime.getProvider(command.provider) ? MODEL_NOT_OFFERED : MODEL_PROVIDER_UNKNOWN,
+      );
     // Nothing is awaited between this check and the call that switches.
     if (running()) return busy(send, command.id);
     // No `persist`: the pick is the session's, settings.json is the owner's (M7R42).

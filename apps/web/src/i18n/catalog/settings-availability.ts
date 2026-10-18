@@ -33,6 +33,10 @@ export const settingsAvailabilityEn = {
   "settingsAvailability.models.truncated": "The list of this provider is cut short.",
   "settingsAvailability.unmatched.title": "These entries of your selection match no model:",
   "settingsAvailability.unmatched.clean": "Clean up",
+  "settingsAvailability.unmatched.kept.extension":
+    "An extension adds this provider: its models are matched when the extensions load, and Clean up keeps it.",
+  "settingsAvailability.unmatched.kept.unjudged":
+    "Kept by Clean up: it names no provider loaded here, so it may be an extension's.",
   "settingsAvailability.preview.title": "What your pickers offer",
   "settingsAvailability.preview.count.one": "{count} model",
   "settingsAvailability.preview.count.other": "{count} models",
@@ -51,7 +55,12 @@ export const settingsAvailabilityEn = {
   "settingsAvailability.extensions.read": "Read providers added by extensions",
   "settingsAvailability.extensions.reading": "Reading the extensions",
   "settingsAvailability.extensions.note":
-    "Read-only. These models appear in a session's model menu only, not in the other pickers. Reading runs your global extensions, and an extension may use the network on its own. No key or header is shown.",
+    "Once read, here or in a model picker, their models get switches like the others, and the agent and lane pickers offer what your selection offers. Reading them runs your global extensions, and so does a switch Pi cannot apply without them (one of their models, leaving all the models on, or an entry they may share); an extension may use the network on its own. No key or header is shown.",
+  "settingsAvailability.extensions.again": "Read again",
+  "settingsAvailability.extensions.refreshFailed":
+    "They could not be read again ({reason}): the switches below show the last reading.",
+  "settingsAvailability.extensions.notOffered":
+    "Not offered to the pickers and agents: outside your selection, or its provider has no key.",
   "settingsAvailability.extensions.empty": "No extension adds a provider.",
   "settingsAvailability.extensions.noModels": "No models",
   "settingsAvailability.extensions.failed":
@@ -97,6 +106,10 @@ export const settingsAvailabilityFr: Record<keyof typeof settingsAvailabilityEn,
   "settingsAvailability.models.truncated": "La liste de ce fournisseur est tronquée.",
   "settingsAvailability.unmatched.title": "Ces entrées de votre sélection ne correspondent à aucun modèle :",
   "settingsAvailability.unmatched.clean": "Nettoyer",
+  "settingsAvailability.unmatched.kept.extension":
+    "Une extension ajoute ce fournisseur : ses modèles correspondent une fois les extensions chargées, et Nettoyer la garde.",
+  "settingsAvailability.unmatched.kept.unjudged":
+    "Gardée par Nettoyer : elle ne nomme aucun fournisseur chargé ici, elle peut donc être celle d'une extension.",
   "settingsAvailability.preview.title": "Ce que proposent vos sélecteurs",
   "settingsAvailability.preview.count.one": "{count} modèle",
   "settingsAvailability.preview.count.other": "{count} modèles",
@@ -115,7 +128,12 @@ export const settingsAvailabilityFr: Record<keyof typeof settingsAvailabilityEn,
   "settingsAvailability.extensions.read": "Lire les fournisseurs ajoutés par des extensions",
   "settingsAvailability.extensions.reading": "Lecture des extensions",
   "settingsAvailability.extensions.note":
-    "Lecture seule. Ces modèles apparaissent uniquement dans le menu des modèles d'une session, pas dans les autres sélecteurs. La lecture exécute vos extensions globales, et une extension peut utiliser le réseau de son propre chef. Ni clé ni en-tête ne sont affichés.",
+    "Une fois lus, ici ou dans un sélecteur de modèle, leurs modèles ont des interrupteurs comme les autres, et les sélecteurs d'agent et de lane proposent ce que votre sélection propose. Les lire exécute vos extensions globales, comme un interrupteur que Pi ne peut pas appliquer sans elles (l'un de leurs modèles, quitter tous les modèles activés, ou une entrée qu'elles peuvent partager) ; une extension peut utiliser le réseau de son propre chef. Ni clé ni en-tête ne sont affichés.",
+  "settingsAvailability.extensions.again": "Relire",
+  "settingsAvailability.extensions.refreshFailed":
+    "Ils n'ont pas pu être relus ({reason}) : les interrupteurs ci-dessous montrent la dernière lecture.",
+  "settingsAvailability.extensions.notOffered":
+    "Non proposé aux sélecteurs ni aux agents : hors de votre sélection, ou son fournisseur n'a pas de clé.",
   "settingsAvailability.extensions.empty": "Aucune extension n'ajoute de fournisseur.",
   "settingsAvailability.extensions.noModels": "Aucun modèle",
   "settingsAvailability.extensions.failed":

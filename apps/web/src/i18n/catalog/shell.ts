@@ -100,6 +100,7 @@ export const shellEn = {
   "error.terminal_unavailable":
     "Terminals are not available on this server: the terminal module did not load.",
   "error.helper_failed": "The Pi configuration helper failed. Try again.",
+  "error.extensions_failed": "An extension did not load: nothing was changed.",
   "error.project_scope":
     "This project sets its own value in .pi/settings.json, which wins over the global one.",
   "error.config_invalid": "A Pi configuration file is not valid. Fix the file, then try again.",
@@ -233,6 +234,7 @@ export const shellFr: { readonly [K in keyof typeof shellEn]: string } = {
   "error.terminal_unavailable":
     "Les terminaux ne sont pas disponibles sur ce serveur : le module terminal ne s'est pas chargé.",
   "error.helper_failed": "L'assistant de configuration de Pi a échoué. Réessayez.",
+  "error.extensions_failed": "Une extension ne s'est pas chargée : rien n'a été modifié.",
   "error.project_scope":
     "Ce projet définit sa propre valeur dans .pi/settings.json, qui l'emporte sur la valeur globale.",
   "error.config_invalid": "Un fichier de configuration de Pi n'est pas valide. Corrigez-le, puis réessayez.",

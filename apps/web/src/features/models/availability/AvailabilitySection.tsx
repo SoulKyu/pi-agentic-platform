@@ -3,7 +3,8 @@ import { Button, useIsPhone } from "@pap/ui";
 import { useMemo, useState } from "react";
 import "../../../i18n/register-settings-availability.ts";
 import { useT } from "../../../i18n/index.ts";
-import { modeOf, providerRows, unmatchedWarnings, type AvailabilityMode } from "./availability.vm.ts";
+import { useExtensionRead } from "../extension-read.ts";
+import { modeOf, providerRows, unmatchedRows, type AvailabilityMode } from "./availability.vm.ts";
 import { ExtensionProviders } from "./ExtensionProviders.tsx";
 import { ModeSwitch } from "./ModeSwitch.tsx";
 import { Preview } from "./Preview.tsx";
@@ -31,7 +32,16 @@ export function AvailabilitySection({
   const shown: AvailabilityMode = chosen ? "selection" : modeOf(overview.enabled.patterns);
   const readOnly = view.readOnlyPath !== null;
   const rows = useMemo(() => providerRows(overview.providers, view.available), [overview, view.available]);
-  const unmatched = unmatchedWarnings(overview.enabled.warnings);
+  const read = useExtensionRead();
+  const extensionIds = useMemo(
+    () => new Set(read.status === "ready" ? read.answer.providers.map((provider) => provider.id) : []),
+    [read],
+  );
+  const unmatched = useMemo(
+    () => unmatchedRows(overview.enabled.warnings, overview.providers, extensionIds),
+    [overview, extensionIds],
+  );
+  const cleanable = unmatched.some((row) => row.kept === null);
   const handlers = {
     onProvider: (provider: string, enabled: boolean) =>
       void view.write({ op: "provider", provider, enabled }),
@@ -76,16 +86,21 @@ export function AvailabilitySection({
         <div className="flex flex-col items-start gap-s2">
           <p className="text-ui text-fg">{t("settingsAvailability.unmatched.title")}</p>
           <ul className="flex flex-col gap-s1 text-ui text-muted">
-            {unmatched.map((warning, index) => (
-              <li key={`${index}:${warning}`}>{warning}</li>
+            {unmatched.map((row, index) => (
+              <li key={`${index}:${row.text}`} data-unmatched={row.kept ?? "removed"}>
+                {row.text}
+                {row.kept === null ? null : ` ${t(`settingsAvailability.unmatched.kept.${row.kept}`)}`}
+              </li>
             ))}
           </ul>
-          <Button
-            disabled={readOnly || view.pending.has("prune")}
-            onClick={() => void view.write({ op: "prune" })}
-          >
-            {t("settingsAvailability.unmatched.clean")}
-          </Button>
+          {cleanable ? (
+            <Button
+              disabled={readOnly || view.pending.has("prune")}
+              onClick={() => void view.write({ op: "prune" })}
+            >
+              {t("settingsAvailability.unmatched.clean")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       <ProviderRows
@@ -96,7 +111,11 @@ export function AvailabilitySection({
         handlers={handlers}
       />
       <Preview available={view.available} />
-      <ExtensionProviders providers={overview.providers} providersTruncated={overview.truncated} />
+      <ExtensionProviders
+        providers={overview.providers}
+        providersTruncated={overview.truncated}
+        selection={{ disabled: readOnly || shown === "all", pending: view.pending, ...handlers }}
+      />
     </section>
   );
 }

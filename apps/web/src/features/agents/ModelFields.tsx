@@ -1,4 +1,4 @@
-import { THINKING_LEVELS, type ThinkingLevel } from "@pap/contracts";
+import { THINKING_LEVELS, type ThinkingLevel, type ToolPreset } from "@pap/contracts";
 import { Select } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { ModelPickerField, type PickerModel } from "../models/picker/index.ts";
@@ -10,6 +10,8 @@ type ModelRef = { readonly provider: string; readonly modelId: string };
 
 interface Props {
   readonly model: ModelRef | null;
+  /** The form's tool preset: Chat only loads no extension, so no model an extension adds is offered to the agent. */
+  readonly preset: ToolPreset;
   readonly thinking: ThinkingLevel | null;
   /** The levels the picked model allows; the form follows the picker's summary of it (M7R45). */
   readonly levels: readonly ThinkingLevel[];
@@ -22,7 +24,7 @@ interface Props {
  * session use, no project folder for an agent); the levels follow the chosen model, as in a session (M7R45): a model
  * that does not reason keeps thinking off.
  */
-export function ModelFields({ model, thinking, levels, onModel, onThinking }: Props) {
+export function ModelFields({ model, preset, thinking, levels, onModel, onThinking }: Props) {
   const t = useT();
   // A level saved before the model changed stays visible, so the form never hides what it will send.
   const shown = THINKING_LEVELS.filter((level) => levels.includes(level) || level === thinking);
@@ -35,6 +37,7 @@ export function ModelFields({ model, thinking, levels, onModel, onThinking }: Pr
           value={model}
           cwd={null}
           defaultLabel={t("agentForm.model.default")}
+          extensionsLoaded={preset !== "chat"}
           onChange={(next, summary) => {
             onModel(next, summary);
             // A model without reasoning cannot keep a level above off.

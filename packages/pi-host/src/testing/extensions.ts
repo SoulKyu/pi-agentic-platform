@@ -1,11 +1,22 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 /** Writes `<agentDir>/extensions/<name>.js`, which Pi loads at start. */
 export function writeExtension(agentDir: string, name: string, source: string): void {
   const dir = join(agentDir, "extensions");
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${name}.js`), source);
+}
+
+/**
+ * The registration rule of pi-claude-bridge, mimicked (`bridge-like-extension.mjs`): `pap-test-bridge/bridge-one`,
+ * registered at load by the first instance in a process only. Its stream answers `BRIDGE-REPLY-7c41`.
+ */
+export const BRIDGE_LIKE_EXTENSION = fileURLToPath(new URL("./bridge-like-extension.mjs", import.meta.url));
+
+export function writeBridgeLikeExtension(agentDir: string): void {
+  writeExtension(agentDir, "pap-test-bridge", readFileSync(BRIDGE_LIKE_EXTENSION, "utf8"));
 }
 
 /** `/pick`: a two-item list panel (arrow down moves, enter answers), then a notification with the choice. */

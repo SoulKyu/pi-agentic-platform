@@ -42,6 +42,16 @@ describe("models.available (helper op)", () => {
     expect(modelsAvailable.params.safeParse({ cwd: "/x" }).success).toBe(false);
   });
 
+  it("available.provider-ids: names every provider Pi has without extensions, offered or not (review M4)", async () => {
+    await bed.write(modelsPath(), modelsJsonWith(2));
+    await bed.write(join(bed.agentDir, "settings.json"), { enabledModels: ["mine/m1"] });
+    const result = await available();
+    expect(AvailableModels.safeParse(result).success).toBe(true);
+    // Signed out (anthropic) and switched off (none of mine but m1 offered): both are Pi's own providers.
+    expect(result.providerIds).toEqual(expect.arrayContaining(["anthropic", "openai", "mine"]));
+    expect(result.providers.map((provider) => provider.id)).toEqual(["mine"]);
+  });
+
   it("available.signed-in-only: lists the models of the providers with a key, as listAvailable does", async () => {
     await bed.write(authPath(), { anthropic: apiKey(SECRET_AUTH_KEY) });
     await bed.write(modelsPath(), modelsJsonWith(2));

@@ -222,6 +222,16 @@ export const LAZY_MARKERS: readonly LazyMarkers[] = [
       /UNTRUSTED · staged memory/,
     ],
   },
+  {
+    title:
+      "keeps the model picker's extension models (the button, the store, their strings) out of the initial assets (ADR 0070 as amended)",
+    markers: [
+      /data-extension-controls/,
+      /Show models added by extensions/,
+      /Afficher les modèles ajoutés par des extensions/,
+      /May come from an extension, checked when it runs/,
+    ],
+  },
 ];
 
 /**

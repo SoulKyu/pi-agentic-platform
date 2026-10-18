@@ -115,12 +115,18 @@ export async function openSettings(
 export async function enabledByPatterns(
   runtime: ModelRuntime,
   patterns: readonly string[],
-): Promise<{ keys: ReadonlySet<string>; unmatched: string[] }> {
+): Promise<{
+  keys: ReadonlySet<string>;
+  /** The same models as objects, for a caller that keys them its own way. */
+  models: ReadonlyArray<{ readonly provider: string; readonly id: string }>;
+  unmatched: string[];
+}> {
   const everything = runtime.getModels();
   const view = { getAvailable: async () => everything } as unknown as ModelRuntime;
   const { scopedModels, diagnostics } = await resolveModelScopeWithDiagnostics([...patterns], view);
   return {
     keys: new Set(scopedModels.map(({ model }) => `${model.provider}/${model.id}`)),
+    models: scopedModels.map(({ model }) => model),
     unmatched: diagnostics.filter((entry) => entry.code === "no-match").map((entry) => entry.pattern),
   };
 }

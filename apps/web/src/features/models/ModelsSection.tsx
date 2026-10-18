@@ -6,6 +6,7 @@ import { useT } from "../../i18n/index.ts";
 import { getRuntime } from "../../runtime/index.ts";
 import { LazyAvailability } from "./availability/index.ts";
 import { DiscardConfirm } from "./DiscardConfirm.tsx";
+import { refreshExtensions } from "./extension-read.ts";
 import { failureText } from "./failure.ts";
 import { readOnlyPath, writeFailureText } from "./models.vm.ts";
 import { ProviderDetail } from "./ProviderDetail.tsx";
@@ -53,8 +54,14 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
   const [refreshing, setRefreshing] = useState(false);
   const path = overview ? readOnlyPath(overview.enabled) : null;
   const failure = useCallback((error: unknown) => writeFailureText(error, path), [path]);
-  const writes = useModelWrites(list.reload, failure);
-  const login = useLoginFlow({ stepUp, onFinished: list.reload });
+  // A write of Pi's files may change what the extensions read in this tab mark (`enabled`, `offered`): read them again.
+  const { reload } = list;
+  const reloadAfterWrite = useCallback(() => {
+    reload();
+    refreshExtensions();
+  }, [reload]);
+  const writes = useModelWrites(reloadAfterWrite, failure);
+  const login = useLoginFlow({ stepUp, onFinished: reloadAfterWrite });
   // A sign-in restored after a reload belongs to its provider: that one is selected from the start and stays so.
   const [selected, setSelected] = useState<string | null>(() => login.flow?.provider ?? null);
   const [dirty, setDirty] = useState(false);
@@ -94,7 +101,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
       )
       .finally(() => {
         setRefreshing(false);
-        list.reload();
+        reloadAfterWrite();
       });
   };
 
@@ -164,7 +171,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
           id={forms.orphanKey}
           stepUp={stepUp}
           onDone={() => forms.setOrphanKey(null)}
-          onChanged={list.reload}
+          onChanged={reloadAfterWrite}
         />
       ) : null}
       {switchTo !== null ? (
@@ -187,7 +194,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
             host={forms}
             providers={overview.providers}
             stepUp={stepUp}
-            onChanged={list.reload}
+            onChanged={reloadAfterWrite}
             onSelect={show}
           />
         ) : provider ? (
@@ -203,7 +210,7 @@ export function ModelsSection({ stepUp }: { readonly stepUp: StepUpRunner }) {
             dirty={dirty}
             onDirty={setDirty}
             onPricingForbidden={pricing.reload}
-            onChanged={list.reload}
+            onChanged={reloadAfterWrite}
             onSaid={(text) => writes.say({ tone: "status", text })}
             handlers={{
               onProvider: (on) =>

@@ -1,64 +1,18 @@
-import { resolveModelScopeWithDiagnostics, type ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vitest";
 import {
-  type CatalogFacts,
-  type EnabledOp,
-  type EnabledPlan,
-  PlanMismatch,
-  planEnabledEdit,
-} from "./enabled-models.ts";
-
-const models = (provider: string, ids: readonly string[]) => ids.map((id) => ({ provider, id, name: id }));
-
-/** Flat ids, a nested-id provider (OpenRouter style) and a provider mixing both. */
-const CATALOG: CatalogFacts = {
-  models: [
-    ...models("anthropic", ["claude-a", "claude-b"]),
-    ...models("openai", ["gpt-1", "gpt-2", "gpt-3"]),
-    ...models("p", ["m1", "m2", "m3"]),
-    ...models("solo", ["only"]),
-    ...models("openrouter", ["meta/llama", "meta/mistral"]),
-    ...models("mixed", ["x", "a/b"]),
-  ],
-};
-/** An aggregator whose model id repeats another provider's reference: `anthropic/*` reaches it by id. */
-const COLLIDING: CatalogFacts = {
-  models: [...models("anthropic", ["claude-a", "claude-b"]), ...models("agg", ["anthropic/claude-a"])],
-};
-const SINGLE: CatalogFacts = { models: models("solo", ["only"]) };
-
-const keyOf = (model: { provider: string; id: string }) => `${model.provider}/${model.id}`;
-/** Pi's own answer to "which models do these patterns enable?" (empty scope: every model). */
-async function enabledKeys(patterns: readonly string[] | undefined, catalog: CatalogFacts) {
-  const all = catalog.models.map(keyOf);
-  if (!patterns || patterns.length === 0) return new Set(all);
-  const view = { getAvailable: async () => catalog.models } as unknown as ModelRuntime;
-  const { scopedModels } = await resolveModelScopeWithDiagnostics([...patterns], view);
-  return scopedModels.length === 0 ? new Set(all) : new Set(scopedModels.map(({ model }) => keyOf(model)));
-}
-
-const off = (provider: string, modelId: string): EnabledOp => ({
-  op: "toggle",
-  provider,
-  modelId,
-  enabled: false,
-});
-const on = (provider: string, modelId: string): EnabledOp => ({
-  op: "toggle",
-  provider,
-  modelId,
-  enabled: true,
-});
-const providerOn = (provider: string): EnabledOp => ({ op: "provider", provider, enabled: true });
-const providerOff = (provider: string): EnabledOp => ({ op: "provider", provider, enabled: false });
-
-interface Row {
-  readonly name: string;
-  readonly patterns: readonly string[] | undefined;
-  readonly op: EnabledOp;
-  readonly expected: string[] | undefined | "last-model" | "too-large";
-  readonly catalog?: CatalogFacts;
-}
+  CATALOG,
+  COLLIDING,
+  enabledKeys,
+  models,
+  off,
+  on,
+  providerOff,
+  providerOn,
+  type Row,
+  runRows,
+  SINGLE,
+} from "../../testing/enabled-plans.ts";
+import { type CatalogFacts, type EnabledPlan, PlanMismatch, planEnabledEdit } from "./enabled-models.ts";
 
 const ROWS: readonly Row[] = [
   {
@@ -250,94 +204,11 @@ const ROWS: readonly Row[] = [
     op: providerOff("openrouter"),
     expected: ["anthropic/*", "openai/*", "p/*", "solo/only", "mixed/**"],
   },
-  {
-    name: "prune drops only the unmatched entries",
-    patterns: ["foo/*", "anthropic/claude-a", "unknown-x", "p/*:low"],
-    op: { op: "prune" },
-    expected: ["anthropic/claude-a", "p/*:low"],
-  },
-  {
-    name: "prune with nothing to drop changes nothing",
-    patterns: ["anthropic/*", "p/m1"],
-    op: { op: "prune" },
-    expected: ["anthropic/*", "p/m1"],
-  },
-  {
-    name: "prune of a list that matches nothing clears the key",
-    patterns: ["foo/*", "unknown-x"],
-    op: { op: "prune" },
-    expected: undefined,
-  },
-  { name: "clear removes the key", patterns: ["anthropic/*"], op: { op: "clear" }, expected: undefined },
-  {
-    name: "resync re-asserts a provider that was fully enabled and left every other entry alone",
-    patterns: ["x/old", "p/m1", "p/m2"],
-    op: { op: "resync", providers: ["p"] },
-    expected: ["x/old", "p/*"],
-  },
-  {
-    name: "resync with no provider changes nothing",
-    patterns: ["x/old", "p/m1"],
-    op: { op: "resync", providers: [] },
-    expected: ["x/old", "p/m1"],
-  },
-  {
-    name: "resync with every model enabled changes nothing",
-    patterns: undefined,
-    op: { op: "resync", providers: ["p"] },
-    expected: undefined,
-  },
-  {
-    name: "a list that would need more entries than the contract allows is refused",
-    patterns: ["big/*"],
-    op: off("big", "m0"),
-    expected: "too-large",
-    catalog: {
-      models: models(
-        "big",
-        Array.from({ length: 300 }, (_, i) => `m${i}`),
-      ),
-    },
-  },
 ];
 
 describe("planEnabledEdit: table", () => {
   it("has at least 20 rows", () => expect(ROWS.length).toBeGreaterThanOrEqual(20));
-
-  for (const row of ROWS) {
-    it(row.name, async () => {
-      const catalog = row.catalog ?? CATALOG;
-      const plan = await planEnabledEdit(row.patterns, row.op, catalog);
-      if (row.expected === "last-model" || row.expected === "too-large") {
-        expect(plan).toEqual({ refused: row.expected });
-        return;
-      }
-      expect(plan).toEqual({ patterns: row.expected });
-      const after = (plan as { patterns: string[] | undefined }).patterns;
-      const before = await enabledKeys(row.patterns, catalog);
-      const now = await enabledKeys(after, catalog);
-      const expectedSet = new Set(before);
-      if (row.op.op === "toggle") {
-        if (row.op.enabled) expectedSet.add(`${row.op.provider}/${row.op.modelId}`);
-        else expectedSet.delete(`${row.op.provider}/${row.op.modelId}`);
-      } else if (row.op.op === "provider") {
-        for (const model of catalog.models.filter(
-          (m) => m.provider === (row.op as { provider: string }).provider,
-        )) {
-          if ((row.op as { enabled: boolean }).enabled) expectedSet.add(keyOf(model));
-          else expectedSet.delete(keyOf(model));
-        }
-      } else if (row.op.op === "resync") {
-        for (const model of catalog.models.filter((m) =>
-          (row.op as { providers: string[] }).providers.includes(m.provider),
-        ))
-          expectedSet.add(keyOf(model));
-      } else if (row.op.op === "clear") {
-        for (const model of catalog.models) expectedSet.add(keyOf(model));
-      }
-      expect([...now].sort()).toEqual([...expectedSet].sort());
-    });
-  }
+  runRows(ROWS);
 });
 
 describe("planEnabledEdit: Pi's own resolution decides", () => {

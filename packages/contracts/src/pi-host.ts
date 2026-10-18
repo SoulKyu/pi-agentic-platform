@@ -104,6 +104,11 @@ const PolicyUpdateRecord = z.object({ type: z.literal("policy_update"), rules: z
  */
 export const WORKER_BUSY = "pap:session_busy";
 
+/** The `error` of a refused `set_model`: the worker does not offer that model (its `listAvailable` rule, ADR 0068). */
+export const MODEL_NOT_OFFERED = "pap:model_not_offered";
+/** The same refusal when the worker has no such provider at all: an extension's, say, in a run that loads none. */
+export const MODEL_PROVIDER_UNKNOWN = "pap:model_provider_unknown";
+
 const Id = z.string().min(1).max(128);
 const ClearQueueCommand = z.object({ type: z.literal("clear_queue"), id: z.string() });
 const CompactCommand = z.object({

@@ -17,6 +17,11 @@ export const AvailableModels = z
     providers: z
       .array(z.object({ id: z.string().min(1).max(128), name: z.string().max(256) }).strict())
       .max(AVAILABLE_PROVIDERS_MAX),
+    /**
+     * Every provider Pi has without extensions (built-in and `models.json`), offered or not, at most 300: a picker says a
+     * saved model "may come from an extension" only when its provider is not here. Absent from an older daemon.
+     */
+    providerIds: z.array(z.string().min(1).max(128)).max(AVAILABLE_PROVIDERS_MAX).optional(),
     /** No `session` here: the helper has no session. */
     origin: z.enum(["scope", "signed-in"]),
     /** Models were left out to stay within the count or the byte budget. */

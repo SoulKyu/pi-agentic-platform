@@ -96,7 +96,7 @@ export const say = async (label: string, value: string) => {
 };
 /** Pays the first transform of the picker's lazy chunks before a test, not inside it. */
 export async function warmPicker() {
-  await import("../models/picker/ModelList.tsx");
+  await import("../models/picker/PickerList.tsx");
   await import("@pap/ui/overlays");
 }
 /** The trigger of the model picker of a lane, found by the label it is named with. */

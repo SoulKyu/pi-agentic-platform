@@ -5,8 +5,12 @@ import {
   bwrapArgv,
   type CommandInput,
   EGRESS_SOCKET,
+  MODEL_NOT_OFFERED,
+  MODEL_PROVIDER_UNKNOWN,
+  type Notice,
   PapError,
   type SandboxSpec,
+  SERVER_CODES,
 } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { SandboxProbe } from "../../kernel/sandbox/probe.ts";
@@ -214,23 +218,94 @@ export const initFieldsOf = (launch: AgentLaunch) => ({
 
 /**
  * After `ready`: the profile's model and thinking level, for this session only (M7R42: never Pi's settings). A model the
- * runtime does not offer is logged and the session keeps Pi's default; it never fails the start. Neither the model's
- * name nor the worker's words are logged.
+ * runtime does not offer is reported `refused` (the worker's typed refusal), any other failure `failed`; neither fails
+ * the start, and the session keeps the model it has. Neither the model's name nor the worker's words are logged.
  */
 export async function applyProfileModel(
   session: Pick<LiveSession, "command">,
   launch: AgentLaunch,
-  report: (what: "model" | "thinking") => void,
+  report: (what: "model" | "thinking", how: RefusedModel["how"]) => void,
 ): Promise<void> {
   const { model, thinking } = launch.input;
   const attempt = async (what: "model" | "thinking", input: CommandInput) => {
     try {
       const answer = await session.command(input);
-      if (!answer.ok) report(what);
+      if (!answer.ok)
+        report(
+          what,
+          answer.error === MODEL_NOT_OFFERED
+            ? "refused"
+            : answer.error === MODEL_PROVIDER_UNKNOWN
+              ? "unknown-provider"
+              : "failed",
+        );
     } catch {
-      report(what);
+      report(what, "failed");
     }
   };
   if (model) await attempt("model", { type: "set_model", provider: model.provider, modelId: model.modelId });
   if (thinking) await attempt("thinking", { type: "set_thinking_level", level: thinking });
+}
+
+/** A param of a coded sentence holds 64 characters (`ServerParams`); the English text keeps the whole id. */
+const PARAM_MAX = 64;
+const asParam = (text: string): string =>
+  text.length > PARAM_MAX ? `${text.slice(0, PARAM_MAX - 1)}…` : text;
+
+/** Why the worker did not take the saved model, as the session's notice says it. */
+export interface RefusedModel {
+  readonly saved: { readonly provider: string; readonly modelId: string };
+  /** What the worker runs on instead; null: it named none (Pi's default). */
+  readonly running: { readonly provider: string; readonly id: string } | null;
+  /**
+   * `refused`: not offered; `unknown-provider`: not offered, and the worker has no such provider (an extension's when it
+   * loads none); `failed`: the change did not go through (a timeout, a failed key check).
+   */
+  readonly how: "refused" | "unknown-provider" | "failed";
+  /** The worker runs Chat only, which loads no extension: for a provider it lacks, the preset is the reason. */
+  readonly chatOnly: boolean;
+}
+
+/**
+ * The session's own line when the profile's model did not apply (the run keeps the model it has, M7R42): the saved
+ * model, the one it runs on, and what the owner can do about it.
+ */
+export function refusedModelNotice({
+  saved,
+  running,
+  how,
+  chatOnly,
+}: RefusedModel): Pick<Notice, "level" | "text" | "code" | "params"> {
+  const model = `${saved.provider}/${saved.modelId}`;
+  const params = { model: asParam(model) };
+  if (how === "failed")
+    return {
+      level: "warning",
+      text: `This agent's model ${model} could not be applied when its worker started, so it runs on another model. Settings › Models shows the provider's state.`,
+      code: SERVER_CODES.agentModelNotApplied,
+      params,
+    };
+  // Only a provider the worker lacks is Chat only's doing; a model of Pi's own providers is refused for what it is (N1).
+  if (chatOnly && how === "unknown-provider")
+    return {
+      level: "warning",
+      text: `This agent uses Chat only, which loads no extension: its model ${model} is not offered there, so it runs on another model. Choose a model Pi has, or another tool preset.`,
+      code: SERVER_CODES.agentModelRefusedChat,
+      params,
+    };
+  const where = "Settings › Models › Available models decides what is offered.";
+  if (running === null)
+    return {
+      level: "warning",
+      text: `This agent's model ${model} is not offered to its worker: it runs on Pi's default model instead. ${where}`,
+      code: SERVER_CODES.agentModelRefusedDefault,
+      params,
+    };
+  const now = `${running.provider}/${running.id}`;
+  return {
+    level: "warning",
+    text: `This agent's model ${model} is not offered to its worker: it runs on ${now} instead. ${where}`,
+    code: SERVER_CODES.agentModelRefused,
+    params: { ...params, running: asParam(now) },
+  };
 }

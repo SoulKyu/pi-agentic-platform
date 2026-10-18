@@ -142,12 +142,14 @@ export async function resync(ctx: HelperContext, providers: readonly string[]): 
     if (current === undefined) return true;
     if (!Array.isArray(current) || !current.every((entry) => typeof entry === "string")) return false;
     const models = runtime.getModels().map(({ provider, id, name }) => ({ provider, id, name }));
+    // Without extensions loaded (a models.json save never loads them): what this view cannot judge stays as it was.
+    const known = runtime.getProviders().map((provider) => provider.id);
     const plan = await planEnabledEdit(
       current as string[],
       { op: "resync", providers: [...providers] },
-      { models },
+      { models, providers: known, complete: false },
     );
-    if ("refused" in plan) return false;
+    if (!("patterns" in plan)) return false;
     if (same(plan.patterns, current as string[])) return true;
     await guardSettingsWrite(ctx);
     settings.manager.setEnabledModels(plan.patterns);

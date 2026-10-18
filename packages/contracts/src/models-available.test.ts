@@ -19,6 +19,14 @@ describe("models.available contract", () => {
     ).toBe(false);
   });
 
+  it("takes the providers Pi has without extensions, optional for an older daemon, within the providers cap", () => {
+    const ids = (count: number) => Array.from({ length: count }, (_, i) => `p${i}`);
+    expect(AvailableModels.safeParse({ ...answer, providerIds: ["p", "q"] }).success).toBe(true);
+    expect(AvailableModels.safeParse({ ...answer, providerIds: ids(300) }).success).toBe(true);
+    expect(AvailableModels.safeParse({ ...answer, providerIds: ids(301) }).success).toBe(false);
+    expect(AvailableModels.safeParse({ ...answer, providerIds: [""] }).success).toBe(false);
+  });
+
   it("refuses more than 2000 models and the session origin", () => {
     const many = (count: number) => Array.from({ length: count }, () => model);
     expect(AvailableModels.safeParse({ ...answer, models: many(AVAILABLE_MODELS_MAX) }).success).toBe(true);

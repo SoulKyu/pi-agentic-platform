@@ -7,6 +7,35 @@ export const EXTENSION_PROVIDERS_MAX = 300;
 export const EXTENSION_MODELS_MAX = 500;
 
 /**
+ * A model an extension registers. `offered`: the no-session rule (`listAvailable`, the global selection, no project)
+ * offers it, so an agent's worker accepts it; the pickers list only these. `enabled`: the global selection names it
+ * (true with no selection), what Settings' switch shows (ADR 0070, amended 2026-10-18).
+ */
+export const ExtensionModel = ModelSummary.extend({ offered: z.boolean(), enabled: z.boolean() }).strict();
+export type ExtensionModel = z.infer<typeof ExtensionModel>;
+
+/**
+ * The provider an `enabledModels` entry names (`provider/model`, an optional `:level` after it), or null when it names
+ * none: a bare id, a fuzzy match, or a glob in the provider part. Pi matches all of these against every model, an
+ * extension's included.
+ */
+export function entryProvider(entry: string): string | null {
+  const slash = entry.indexOf("/");
+  if (slash <= 0) return null;
+  const provider = entry.slice(0, slash);
+  return /[*?[\]]/.test(provider) ? null : provider;
+}
+
+/**
+ * Whether "Clean up" (`prune`) may judge an entry that matches nothing: only when it names a provider the view without
+ * extensions knows. Any other entry may match a model an extension adds, so Clean up keeps it.
+ */
+export const cleanUpJudges = (entry: string, known: ReadonlySet<string>): boolean => {
+  const provider = entryProvider(entry);
+  return provider !== null && known.has(provider);
+};
+
+/**
  * The providers the owner's global extensions register, as Pi's offline load of them sees them (MPR17). A model list,
  * never a base URL, a header or a key: the schema is strict at both levels so none can ride along.
  */
@@ -18,7 +47,7 @@ export const ExtensionProviders = z
           .object({
             id: z.string().min(1).max(128),
             name: z.string().max(256),
-            models: z.array(ModelSummary.strict()).max(EXTENSION_MODELS_MAX),
+            models: z.array(ExtensionModel).max(EXTENSION_MODELS_MAX),
             modelsTruncated: z.boolean(),
           })
           .strict(),

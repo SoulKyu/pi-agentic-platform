@@ -113,6 +113,8 @@ export const HELPER_CODES = [
   "config_invalid",
   "config_path_refused",
   "config_hard_link",
+  /** A write needed the owner's extensions and one did not load: nothing was written. */
+  "extensions_failed",
   "failed",
 ] as const;
 export type HelperCode = (typeof HELPER_CODES)[number];
@@ -144,6 +146,7 @@ const HELPER_ERROR_CODES: { readonly [C in HelperCode]: ErrorCode } = {
   config_invalid: "config_invalid",
   config_path_refused: "config_path_refused",
   config_hard_link: "config_hard_link",
+  extensions_failed: "extensions_failed",
   failed: "helper_failed",
 };
 

@@ -12,7 +12,7 @@
       ]
     },
     "packages/pi-host": {
-      "entry": ["src/testing/*.ts", "src/testing/mcp-fixture.mjs"],
+      "entry": ["src/testing/*.ts", "src/testing/mcp-fixture.mjs", "src/testing/bridge-like-extension.mjs"],
       "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run", "mkfifo"]
     },
     "apps/web": {

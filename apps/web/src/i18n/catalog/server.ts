@@ -22,6 +22,14 @@ export const serverEn = {
   "server.cause.killed": "Agent process killed (SIGKILL), possibly out of memory.",
   "server.cause.oom": "Agent process ran out of memory and was stopped.",
   "server.cause.spawnFailure": "Agent process could not start.",
+  "server.notice.agentModelRefused":
+    "This agent's model {model} is not offered to its worker: it runs on {running} instead. Settings › Models › Available models decides what is offered.",
+  "server.notice.agentModelRefusedDefault":
+    "This agent's model {model} is not offered to its worker: it runs on Pi's default model instead. Settings › Models › Available models decides what is offered.",
+  "server.notice.agentModelRefusedChat":
+    "This agent uses Chat only, which loads no extension: its model {model} is not offered there, so it runs on another model. Choose a model Pi has, or another tool preset.",
+  "server.notice.agentModelNotApplied":
+    "This agent's model {model} could not be applied when its worker started, so it runs on another model. Settings › Models shows the provider's state.",
 } as const;
 
 export const serverFr: { readonly [K in keyof typeof serverEn]: string } = {
@@ -49,4 +57,12 @@ export const serverFr: { readonly [K in keyof typeof serverEn]: string } = {
   "server.cause.killed": "Le processus de l'agent a été tué (SIGKILL), peut-être faute de mémoire.",
   "server.cause.oom": "Le processus de l'agent a manqué de mémoire et a été arrêté.",
   "server.cause.spawnFailure": "Le processus de l'agent n'a pas pu démarrer.",
+  "server.notice.agentModelRefused":
+    "Le modèle de cet agent, {model}, n'est pas proposé à son processus : il s'exécute avec {running} à la place. Réglages › Modèles › Modèles proposés décide de ce qui est proposé.",
+  "server.notice.agentModelRefusedDefault":
+    "Le modèle de cet agent, {model}, n'est pas proposé à son processus : il s'exécute avec le modèle par défaut de Pi à la place. Réglages › Modèles › Modèles proposés décide de ce qui est proposé.",
+  "server.notice.agentModelRefusedChat":
+    "Cet agent utilise Chat seul, qui ne charge aucune extension : son modèle, {model}, n'y est pas proposé, il s'exécute donc avec un autre modèle. Choisissez un modèle de Pi, ou un autre préréglage d'outils.",
+  "server.notice.agentModelNotApplied":
+    "Le modèle de cet agent, {model}, n'a pas pu être appliqué au démarrage de son processus : il s'exécute donc avec un autre modèle. Réglages › Modèles montre l'état du fournisseur.",
 };

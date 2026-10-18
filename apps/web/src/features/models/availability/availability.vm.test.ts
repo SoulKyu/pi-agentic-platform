@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AvailableState } from "../picker/use-available-models.ts";
 import { toPickerModel } from "../picker/model-picker.vm.ts";
 import { BASE, overviewOfWorld, type World } from "./availability-world.ts";
-import { extensionRows, modeOf, previewGroups, providerRows, unmatchedWarnings } from "./availability.vm.ts";
+import { extensionRows, modeOf, previewGroups, providerRows, unmatchedRows } from "./availability.vm.ts";
 
 const world = (selected: string[] | null): World => ({
   providers: BASE,
@@ -67,14 +67,25 @@ describe("provider rows", () => {
 });
 
 describe("unmatched warnings", () => {
-  it("keeps only the No model matches form, without hidden characters", () => {
+  it("keeps only the No model matches form, without hidden characters, and says what Clean up does", () => {
     expect(
-      unmatchedWarnings([
-        'No model matches "nothing/here".',
-        "Something else.",
-        'No model matches "a\u202eb".',
-      ]),
-    ).toEqual(['No model matches "nothing/here".', 'No model matches "ab".']);
+      unmatchedRows(
+        [
+          'No model matches "openai/gone".',
+          "Something else.",
+          'No model matches "a\u202eb".',
+          'No model matches "claude-bridge/x".',
+          'No model matches "other-ext/*".',
+        ],
+        BASE,
+        new Set(["claude-bridge"]),
+      ),
+    ).toEqual([
+      { text: 'No model matches "openai/gone".', kept: null },
+      { text: 'No model matches "ab".', kept: "unjudged" },
+      { text: 'No model matches "claude-bridge/x".', kept: "extension" },
+      { text: 'No model matches "other-ext/*".', kept: "unjudged" },
+    ]);
   });
 });
 
@@ -103,7 +114,9 @@ describe("extension rows", () => {
       {
         id: "ext\u202ea",
         name: "E\u200bxt",
-        models: [{ provider: "x", id: "m\u200b1", name: "M", reasoning: false }],
+        models: [
+          { provider: "x", id: "m\u200b1", name: "M", reasoning: false, offered: false, enabled: true },
+        ],
         modelsTruncated: true,
       },
       { id: "mine", name: "Mine", models: [], modelsTruncated: false },
@@ -115,7 +128,14 @@ describe("extension rows", () => {
   it("cleans provider and model ids as well as names", () => {
     const rows = extensionRows(answer, BASE);
     expect(rows[0]).toMatchObject({ id: "exta", name: "Ext", modelsTruncated: true });
-    expect(rows[0]?.models[0]).toMatchObject({ id: "m1" });
+    expect(rows[0]).toMatchObject({ provider: "ext\u202ea" });
+    // Writes carry Pi's own ids; only what is shown is cleaned.
+    expect(rows[0]?.models[0]).toMatchObject({
+      modelId: "m\u200b1",
+      id: "m1",
+      offered: false,
+      enabled: true,
+    });
   });
 
   it("marks a provider that re-registers one of models.json, and only that one", () => {

@@ -22,6 +22,8 @@ export type AvailableState =
       readonly labels: ReadonlyMap<string, string>;
       readonly origin: "scope" | "signed-in" | "session";
       readonly truncated: boolean;
+      /** Every provider Pi has without extensions (`models.available`); absent: only the providers listed are known. */
+      readonly known?: ReadonlySet<string>;
     };
 
 type Ready = Extract<AvailableState, { status: "ready" }>;
@@ -40,6 +42,7 @@ export function parseAvailable(raw: unknown): Ready | null {
     labels,
     origin: parsed.data.origin,
     truncated: parsed.data.truncated,
+    ...(parsed.data.providerIds === undefined ? {} : { known: new Set(parsed.data.providerIds) }),
   };
 }
 

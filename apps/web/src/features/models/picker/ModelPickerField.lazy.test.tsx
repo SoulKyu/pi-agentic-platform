@@ -14,10 +14,10 @@ vi.mock("../../../runtime/index.ts", async (importOriginal) => ({
 
 // The list chunk is gone (a tab open across a pap update) until `chunk.gone` is switched off.
 const chunk = vi.hoisted(() => ({ gone: true, loads: 0 }));
-vi.mock("./ModelList.tsx", async (importOriginal) => {
+vi.mock("./PickerList.tsx", async (importOriginal) => {
   chunk.loads += 1;
   if (chunk.gone)
-    throw new TypeError("Failed to fetch dynamically imported module: /assets/ModelList-old.js");
+    throw new TypeError("Failed to fetch dynamically imported module: /assets/PickerList-old.js");
   return importOriginal();
 });
 

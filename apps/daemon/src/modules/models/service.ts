@@ -47,6 +47,8 @@ const PROVIDER_DEADLINE_MS = 60_000;
 const PRICING_DEADLINE_MS = 45_000;
 /** Loading the extensions is Pi's own offline load of them, as a session does. */
 const EXTENSIONS_DEADLINE_MS = 60_000;
+/** A selection edit that names an extension's model loads the extensions first (`enabled-models.ts`). */
+const SET_ENABLED_DEADLINE_MS = EXTENSIONS_DEADLINE_MS;
 
 export { WRITE_QUEUE_MAX } from "../../kernel/pi-write-queue.ts";
 
@@ -72,11 +74,19 @@ export function createModelsService(deps: ModelsServiceDeps) {
    * afterwards: that answer is then at most one TTL (10 s) old.
    */
   const availableCache = createAvailableCache();
+  const extensionProviders = createExtensionProviders({
+    ask: () => run("models.extensions", {}, EXTENSIONS_DEADLINE_MS, undefined),
+  });
+  /** A write of Pi's files settled: the available lists are read again, and an extension read joins no older run. */
+  const wrote = (): void => {
+    availableCache.clear();
+    extensionProviders.invalidate();
+  };
   const clearedAfter = async <T>(task: Promise<T>): Promise<T> => {
     try {
       return await task;
     } finally {
-      availableCache.clear();
+      wrote();
     }
   };
   /** The cwd the helper reads is a folder the caller has a project in (M7R50): an arbitrary path is no probe. */
@@ -92,7 +102,7 @@ export function createModelsService(deps: ModelsServiceDeps) {
       try {
         return await task();
       } finally {
-        availableCache.clear();
+        wrote();
       }
     });
 
@@ -153,7 +163,7 @@ export function createModelsService(deps: ModelsServiceDeps) {
     publisher: createLoginPublisher(deps.hub),
     newId,
     onSignedIn: ({ ownerId, provider, method }) => {
-      availableCache.clear();
+      wrote();
       deps.audit.append({
         ownerId,
         actor: "user",
@@ -174,7 +184,7 @@ export function createModelsService(deps: ModelsServiceDeps) {
     revisionKey,
     clock: deps.clock,
     audit,
-    invalidate: () => availableCache.clear(),
+    invalidate: wrote,
     logSaveEvent,
   });
 
@@ -182,10 +192,6 @@ export function createModelsService(deps: ModelsServiceDeps) {
   const providerUsage = createProviderUsage({
     clock: deps.clock,
     ask: (providerId) => run("models.usage", { providerId }, PROVIDER_DEADLINE_MS, undefined),
-  });
-
-  const extensionProviders = createExtensionProviders({
-    ask: () => run("models.extensions", {}, EXTENSIONS_DEADLINE_MS, undefined),
   });
 
   return {
@@ -213,7 +219,7 @@ export function createModelsService(deps: ModelsServiceDeps) {
     async setEnabled(caller: Caller, params: { op: EnabledOp; cwd?: string }) {
       const { cwd, ...rest } = params;
       const checked = checkedCwd(caller, cwd);
-      return serialised(() => run("models.setEnabled", rest, WRITE_DEADLINE_MS, checked));
+      return serialised(() => run("models.setEnabled", rest, SET_ENABLED_DEADLINE_MS, checked));
     },
     async refreshCatalog(): Promise<RefreshCatalogResult> {
       return clearedAfter(run("models.refreshCatalog", {}, REFRESH_DEADLINE_MS, undefined));

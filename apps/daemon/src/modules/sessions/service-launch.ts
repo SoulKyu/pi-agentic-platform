@@ -1,7 +1,7 @@
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
 import { initTools, storeNewSession } from "./automation-port.ts";
 import { storeChildPolicy } from "./child-port.ts";
-import { type AgentLaunch, applyProfileModel, initFieldsOf } from "./agent-gate.ts";
+import { type AgentLaunch, applyProfileModel, initFieldsOf, refusedModelNotice } from "./agent-gate.ts";
 import type { AgentSurface } from "./agent-surface.ts";
 import { createEgressLink } from "./egress-link.ts";
 import type { createGrantLink } from "./grants.ts";
@@ -241,9 +241,21 @@ export function createLaunch(ctx: LaunchContext) {
       if (drift && !session.send(drift)) throw new PapError("worker_failed");
       bound = bound || bindPiFile(row, session);
       if (agentLaunch)
-        await applyProfileModel(session, agentLaunch, (what) =>
-          logger.warn("agent_profile_not_applied", { what }),
-        );
+        await applyProfileModel(session, agentLaunch, (what, how) => {
+          logger.warn("agent_profile_not_applied", { what, how });
+          // The owner sees it in the session too: the run goes on, on the model the worker has.
+          const saved = agentLaunch.input.model;
+          const loadout = session.loadout();
+          if (what === "model" && saved)
+            session.notice(
+              refusedModelNotice({
+                saved,
+                running: loadout?.model ?? null,
+                how,
+                chatOnly: loadout?.preset === "chat",
+              }),
+            );
+        });
       return session;
     } catch (error) {
       await session.stop();

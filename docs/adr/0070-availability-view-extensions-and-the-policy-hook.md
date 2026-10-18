@@ -1,6 +1,6 @@
 # ADR 0070: the availability view, extension providers, and the policy hook
 
-Status: accepted (models batch, chain B)
+Status: accepted (models batch, chain B; amended 2026-10-18: extension models in the no-session pickers)
 Date: 2026-10-17
 Spec: `docs/specs/2026-10-17-models-picker-providers-design.md` (the availability view, and section 8, the hook). ADR 0068 (one source), ADR 0069 (the provider form). Rulings: MPR16, MPR17, MPR18, MPR-C8 in `docs/research/models-batch-rulings.md`.
 
@@ -25,6 +25,21 @@ export interface ModelPolicy { filter(models: readonly ModelSummary[], who: { us
 
 ## Consequences
 
-- Extension models appear in a session's model menu and in this read-only list, not in the agent form or the new-lane picker; the picker footnote says so.
+- Extension models appear in a session's model menu and in this read-only list, not in the agent form or the new-lane picker; the picker footnote says so. *(Replaced by the amendment below: the pickers list them on their own click.)*
 - A trust change reaches the pickers within the 10 s cache TTL; the `trust` module is not wired to the cache.
-- The saved choice that a switch hides stays visible in the pickers as "saved, no longer offered" (MPR5); no run-start check exists, a follow-up.
+- The saved choice that a switch hides stays visible in the pickers as "saved, no longer offered" (MPR5); no run-start check exists, a follow-up. *(Amended: a refused agent model is said in its session.)*
+
+## Amendment (2026-10-18): extension models in the no-session pickers
+
+The owner asked to choose pi-claude-bridge's models for agents. The consent model does not change: extension code runs only on a click, through the same `pi:admin` op, and the daemon keeps nothing.
+
+- **The click moves into the pickers too.** Under the list of the agent form's and the new-lane dialog's picker, "Show models added by extensions" calls `models.extensions`. Its models join the list in a group per provider, marked "from an extension"; picking one stores `{provider, modelId}` like any other. This replaces the first consequence above ("not in the agent form or the new-lane picker") and narrows the rejected alternative: still never on a picker's open, now on its own click.
+- **`offered` per model.** The op marks each model with what Pi's one rule (ADR 0068, `listAvailable`) says over the same load, with the global selection and no project. The pickers list offered models only, so they never offer a model an agent's worker would refuse at `set_model` (a refused model leaves the thread on another model), except for an agent in Chat only, whose worker loads no extension: its form's picker hides the extension part and says so, and the refusal of a model whose provider the worker lacks has a notice of its own (`agent_model_refused_chat`; a model of Pi's own providers keeps the regular one). Settings lists them all and marks the others "not offered". The contract gains one boolean per model row.
+- **One answer per tab.** The web keeps the last answer in one store shared by Settings and the pickers (`features/models/extension-read.ts`): reopening runs nothing, "Read again" reads again, a sign-out forgets it.
+- **One helper per read, pinned.** pi-claude-bridge registers at load only in the first instance of its module in a process. The helper pool already forks one process per call; a fixture with that rule (`packages/pi-host/src/testing/bridge-like-extension.mjs`) and two reads in a row through a real pool pin it (`apps/daemon/src/modules/models/extensions.int.test.ts`).
+
+- **"My selection" names an extension's models** (fix round, same day). Once read, each extension provider and model gets the switches of the others and the same `models.setEnabled` ops (no step-up, M7R133). The helper plans over its runtime without extensions unless that runtime cannot plan the edit without losing an extension's model: an op naming a model or provider it lacks, an entry it cannot judge that the edit would rewrite or fold, leaving "All the models" (every model listed from no list), a "last model" while such an entry remains, or a list it matches nowhere. Only then does a write load the owner's global extensions, the way `models.extensions` does; the list is read again after the load, and a failed load writes nothing (`extensions_failed`). Each of these is a switch the owner clicked, so the consent is the same. After any write of Pi's files, from this view or another Settings page, an answer read in this tab is read again so its marks stay true, and the daemon never lets that read join a run that started before the write.
+- **Clean up keeps what it cannot judge.** `prune` removes an entry that matches nothing only when it names a provider known without extensions (`cleanUpJudges`, one rule in the contracts for the helper and the web). An extension's entry (`claude-bridge/x`), a glob or a bare id stays, marked in Settings; the button shows only when an entry would go.
+- **A refused agent model is said in the session.** When an agent's worker refuses the saved model, the session gets a warning notice (`agent_model_refused`, the saved model and the one that runs, with the way to Settings › Models › Available models; `agent_model_refused_chat` in Chat only for a provider the worker lacks; `agent_model_not_applied` when the change failed otherwise), kept for a later tab's snapshot. A picker field that learned its value is not offered keeps a line under it, without blocking a save.
+
+Residuals are in `docs/agents/models.md` (Residuals, models batch): a selection made only of extension entries reads as "every model" without extensions, Clean up never removes an entry it cannot judge (a typo of a provider name included), a lane's project selection that the mark ignores, the not-offered line that appears only once the picker was opened, and a switch that may load the extensions (leaving "All the models" always does).

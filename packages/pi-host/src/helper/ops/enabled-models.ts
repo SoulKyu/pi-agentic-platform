@@ -1,7 +1,14 @@
 import { resolveModelScopeWithDiagnostics, type ModelRuntime } from "@earendil-works/pi-coding-agent";
-import { ENABLED_PATTERN_MAX_LENGTH, ENABLED_PATTERNS_MAX, HELPER_OPS, type EnabledOp } from "@pap/contracts";
+import {
+  cleanUpJudges,
+  ENABLED_PATTERN_MAX_LENGTH,
+  ENABLED_PATTERNS_MAX,
+  HELPER_OPS,
+  type EnabledOp,
+} from "@pap/contracts";
 import type { z } from "zod";
-import { defineOp, type HelperOp, HelperOpError } from "../ops.ts";
+import { defineOp, type HelperContext, type HelperOp, HelperOpError } from "../ops.ts";
+import { loadRuntime, openExtensionLoad } from "./extension-load.ts";
 import { commit, settingsToWrite } from "./models-defaults.ts";
 import { guardSettingsWrite, openRuntime } from "./models-open.ts";
 
@@ -15,11 +22,21 @@ export interface CatalogModel {
 /** Every model Pi knows (signed in or not): the planner reads nothing else. */
 export interface CatalogFacts {
   readonly models: readonly CatalogModel[];
+  /** The providers Clean up may judge an entry of (default: those of `models`); see `cleanUpJudges`. */
+  readonly providers?: readonly string[];
+  /**
+   * False for Pi's runtime without extensions: an entry it cannot judge may also match an extension's model, so the
+   * planner never folds one into a glob and answers `widen` where it would rewrite one, list every model from no list,
+   * or call a model the last one (default: true, a catalog that holds every model an entry can name).
+   */
+  readonly complete?: boolean;
 }
 export type EnabledPlan =
   | { patterns: string[] | undefined }
   /** `last-model`: nothing would stay enabled. `too-large`: the list would not fit the contract's bounds. */
-  | { refused: "last-model" | "too-large" };
+  | { refused: "last-model" | "too-large" }
+  /** This catalog cannot plan the edit without losing an extension's model: plan it again over the extensions' one. */
+  | { widen: true };
 
 /** The plan did not resolve, in Pi's own matching, to what was intended: nothing is written (fail closed). */
 export class PlanMismatch extends Error {
@@ -69,6 +86,13 @@ function makePlanner(catalog: CatalogFacts) {
   const unchanged = (current: readonly string[] | undefined): EnabledPlan => ({
     patterns: current === undefined ? undefined : [...current],
   });
+  const complete = catalog.complete ?? true;
+  const WIDEN: EnabledPlan = { widen: true };
+  // An entry that matches nothing goes only when it names a provider this view knows: any other may be an extension's.
+  const known = new Set(catalog.providers ?? providerKeys.keys());
+  const unjudged = (text: string): boolean => !complete && !cleanUpJudges(text, known);
+  /** Covers models here and may cover an extension's too: never folded, never rewritten from this view alone. */
+  const opaque = (entry: Entry): boolean => entry.cover.size > 0 && unjudged(entry.text);
 
   /** The glob that matches exactly this provider's models (nested ids need the double star), or null. */
   async function exactGlob(provider: string, keys: readonly string[]): Promise<string | null> {
@@ -111,9 +135,16 @@ function makePlanner(catalog: CatalogFacts) {
     const before = effective(new Map(entries.flatMap((entry) => [...entry.cover])));
     if (![...remove].some((key) => before.has(key))) return unchanged(list);
     const expected = new Set([...before].filter((key) => !remove.has(key)));
-    if (expected.size === 0) return { refused: "last-model" };
+    // An entry this view cannot judge may still enable an extension's model: only the full catalog can say "last".
+    if (expected.size === 0) return list.some(unjudged) ? WIDEN : { refused: "last-model" };
+    const fromAll = entries.every((entry) => entry.cover.size === 0);
+    // Every model listed from no list, or an entry rewritten from its cover here, would leave the extensions' out.
+    const rewritesOpaque = entries.some(
+      (entry) => opaque(entry) && [...entry.cover.keys()].some((key) => remove.has(key)),
+    );
+    if (!complete && (fromAll || rewritesOpaque)) return WIDEN;
     let out: string[];
-    if (entries.every((entry) => entry.cover.size === 0)) out = [...list, ...(await allExcept(remove))];
+    if (fromAll) out = [...list, ...(await allExcept(remove))];
     else {
       out = [];
       for (const entry of entries) {
@@ -138,7 +169,8 @@ function makePlanner(catalog: CatalogFacts) {
     const entries = await analyse(list);
     const own = new Set(keys);
     const owned = entries.filter(
-      (entry) => entry.cover.size > 0 && [...entry.cover.keys()].every((key) => own.has(key)),
+      (entry) =>
+        entry.cover.size > 0 && !opaque(entry) && [...entry.cover.keys()].every((key) => own.has(key)),
     );
     if (owned.length < 2 || owned.some((entry) => entry.level !== undefined)) return list;
     if (!keys.every((key) => owned.some((entry) => entry.cover.has(key)))) return list;
@@ -159,14 +191,17 @@ function makePlanner(catalog: CatalogFacts) {
   ): Promise<EnabledPlan> {
     const entries = await analyse(list);
     const scoped = new Set(entries.flatMap((entry) => [...entry.cover.keys()]));
-    if (scoped.size === 0) return unchanged(list);
+    // Matching nothing here, the list reads as "every model on", unless it is an extension's models only.
+    if (scoped.size === 0) return list.some(unjudged) ? WIDEN : unchanged(list);
     const missing = keys.filter((key) => !scoped.has(key));
     const out = await collapse([...list, ...missing], provider);
     return settle(out, new Set([...scoped, ...keys]), list);
   }
 
   async function prune(list: readonly string[]): Promise<EnabledPlan> {
-    const kept = (await analyse(list)).filter((entry) => entry.cover.size > 0).map((entry) => entry.text);
+    const kept = (await analyse(list))
+      .filter((entry) => entry.cover.size > 0 || !cleanUpJudges(entry.text, known))
+      .map((entry) => entry.text);
     if (kept.length === list.length) return unchanged(list);
     return { patterns: kept.length === 0 ? undefined : kept };
   }
@@ -178,7 +213,8 @@ function makePlanner(catalog: CatalogFacts) {
       if (!keys || !("patterns" in plan) || plan.patterns === undefined) continue;
       plan = await enable(plan.patterns, keys, provider);
     }
-    return plan;
+    // A models.json save never loads the extensions: what this view cannot judge stays as it was.
+    return "widen" in plan ? unchanged(list) : plan;
   }
 
   return { disable, enable, prune, resync, providerKeys, everyKey };
@@ -222,28 +258,69 @@ export async function planEnabledEdit(
 type Params = z.infer<(typeof HELPER_OPS)["models.setEnabled"]["params"]>;
 type Result = z.infer<(typeof HELPER_OPS)["models.setEnabled"]["result"]>;
 
+/** The edit names a model or provider this runtime lacks: an extension's, or none at all. */
+const namesUnknown = (runtime: ModelRuntime, op: EnabledOp): boolean =>
+  (op.op === "toggle" && !runtime.getModel(op.provider, op.modelId)) ||
+  (op.op === "provider" && !runtime.getModels().some((model) => model.provider === op.provider));
+
+/** The owner's global extensions loaded as `models.extensions` loads them (offline, no project, nothing trusted). */
+async function extensionRuntime(ctx: HelperContext): Promise<ModelRuntime> {
+  const load = await loadRuntime(openExtensionLoad, ctx);
+  if (load.extensionsFailed) throw new HelperOpError("extensions_failed", "extensions_failed");
+  return load.runtime;
+}
+
+/** The list as Pi reads it now: read again after an extension load, so a write made meanwhile is not lost (M11). */
+async function readList(ctx: HelperContext) {
+  const settings = await settingsToWrite(ctx, ["enabledModels"]);
+  const current: unknown = settings.manager.getEnabledModels();
+  if (current !== undefined && !(Array.isArray(current) && current.every((p) => typeof p === "string")))
+    throw new HelperOpError("config_invalid", "enabledModels");
+  return { settings, current: current as string[] | undefined };
+}
+
+async function planOver(
+  runtime: ModelRuntime,
+  op: EnabledOp,
+  current: string[] | undefined,
+  complete: boolean,
+): Promise<EnabledPlan> {
+  const models = runtime.getModels().map(({ provider, id, name }) => ({ provider, id, name }));
+  if (op.op === "toggle" && !runtime.getModel(op.provider, op.modelId))
+    throw new HelperOpError("not_found", "model");
+  if (op.op === "provider" && !models.some((model) => model.provider === op.provider))
+    throw new HelperOpError("not_found", "provider");
+  const providers = runtime.getProviders().map((provider) => provider.id);
+  return planEnabledEdit(current, op, { models, providers, complete }).catch((error: unknown) => {
+    if (error instanceof PlanMismatch) throw new HelperOpError("failed", error.message);
+    throw error;
+  });
+}
+
+/**
+ * Planned over Pi's runtime without extensions (M7R46), or over the one with the owner's global extensions loaded when
+ * that one cannot plan the edit: it names an extension's model or provider, or the planner answers `widen` (it would
+ * rewrite, or fold, an entry an extension's model may share, list every model from no list, or call a model the last).
+ * So only an edit that needs them runs extension code, on a switch the owner clicked; a load that fails writes nothing.
+ */
 export const setEnabled: HelperOp<Params, Result> = {
   params: HELPER_OPS["models.setEnabled"].params,
   run: async (params, ctx) => {
-    const runtime = await openRuntime(ctx);
-    const models = runtime.getModels().map(({ provider, id, name }) => ({ provider, id, name }));
     const { op } = params;
-    if (op.op === "toggle" && !runtime.getModel(op.provider, op.modelId))
-      throw new HelperOpError("not_found", "model");
-    if (op.op === "provider" && !models.some((model) => model.provider === op.provider))
-      throw new HelperOpError("not_found", "provider");
-    const settings = await settingsToWrite(ctx, ["enabledModels"]);
-    const current: unknown = settings.manager.getEnabledModels();
-    if (current !== undefined && !(Array.isArray(current) && current.every((p) => typeof p === "string")))
-      throw new HelperOpError("config_invalid", "enabledModels");
-    const plan = await planEnabledEdit(current as string[] | undefined, op, { models }).catch(
-      (error: unknown) => {
-        if (error instanceof PlanMismatch) throw new HelperOpError("failed", error.message);
-        throw error;
-      },
-    );
+    let read = await readList(ctx);
+    const plain = await openRuntime(ctx);
+    let plan: EnabledPlan = namesUnknown(plain, op)
+      ? { widen: true }
+      : await planOver(plain, op, read.current, false);
+    if ("widen" in plan) {
+      const runtime = await extensionRuntime(ctx);
+      read = await readList(ctx);
+      plan = await planOver(runtime, op, read.current, true);
+    }
+    if ("widen" in plan) throw new HelperOpError("failed", "plan");
     if ("refused" in plan) throw new HelperOpError("conflict", plan.refused);
-    if (same(plan.patterns, current as string[] | undefined)) return { patterns: plan.patterns ?? null };
+    const { settings, current } = read;
+    if (same(plan.patterns, current)) return { patterns: plan.patterns ?? null };
     await guardSettingsWrite(ctx);
     settings.manager.setEnabledModels(plan.patterns);
     await commit(settings);

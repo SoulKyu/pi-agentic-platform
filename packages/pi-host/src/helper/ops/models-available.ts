@@ -15,6 +15,7 @@ import { openSettings, openStoreRuntime } from "./models-open.ts";
 /** The most the answer may weigh: the daemon's page is 900 000 bytes and the helper's record 1 MiB. */
 export const MAX_AVAILABLE_BYTES = 600_000;
 const MAX_NAME = 256;
+const MAX_PROVIDER_ID = 128;
 const size = (value: unknown): number => Buffer.byteLength(JSON.stringify(value)) + 1;
 
 /**
@@ -46,6 +47,11 @@ export const modelsAvailable: HelperOp<
     const result: AvailableModels = {
       models: [],
       providers: [],
+      providerIds: runtime
+        .getProviders()
+        .map((provider) => provider.id)
+        .filter((id) => id.length > 0 && id.length <= MAX_PROVIDER_ID)
+        .slice(0, AVAILABLE_PROVIDERS_MAX),
       origin: listed.origin === "scope" ? "scope" : "signed-in",
       truncated: false,
     };

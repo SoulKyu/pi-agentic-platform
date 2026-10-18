@@ -33,6 +33,7 @@ export const ERROR_CODES = [
   "push_unavailable",
   "push_revoked",
   "network",
+  "extensions_failed",
   "unknown_method",
   "internal",
 ] as const;
@@ -85,6 +86,7 @@ export const ERROR_MESSAGES: { readonly [C in ErrorCode]: string } = {
   push_revoked:
     "This device was removed from the notification list. Enable notifications again to add it back.",
   network: "pap could not fetch this from the network.",
+  extensions_failed: "An extension did not load: nothing was changed.",
   unknown_method: "Unknown method.",
   internal: "Internal error.",
 };

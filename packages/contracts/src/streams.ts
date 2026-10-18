@@ -128,6 +128,14 @@ export const SERVER_CODES = {
   processKilled: "process_killed",
   processOom: "process_oom",
   processSpawnFailure: "process_spawn_failure",
+  /** An agent's saved model was refused by its worker; `running` names the model the thread runs on. */
+  agentModelRefused: "agent_model_refused",
+  /** The same, when the worker said no model: the thread runs on Pi's default. */
+  agentModelRefusedDefault: "agent_model_refused_default",
+  /** Refused in Chat only, which loads no extension: the selection is not what decides. */
+  agentModelRefusedChat: "agent_model_refused_chat",
+  /** The worker did not answer the model change, or failed it otherwise (a timeout, a failed key check). */
+  agentModelNotApplied: "agent_model_not_applied",
 } as const;
 export const ServerCode = z.string().min(1).max(64);
 /** Values for the `{name}` slots of the client's sentence: short strings, at most four. */

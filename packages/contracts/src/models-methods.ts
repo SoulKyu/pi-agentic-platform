@@ -277,6 +277,7 @@ export const modelsMethods = {
     params: SetEnabledParams.extend({ cwd: Cwd.optional() }),
     result: SetEnabledResult,
     errors: [
+      "extensions_failed",
       "bad_request",
       "not_found",
       "conflict",

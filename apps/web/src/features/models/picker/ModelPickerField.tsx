@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import "../../../i18n/register-model-picker.ts";
 import { useLazyFailureText, useT } from "../../../i18n/index.ts";
 import { LazyPopover } from "../../../lib/LazyPopover.tsx";
@@ -6,8 +6,9 @@ import { LazyBoundary, notifyLazyFailure, useRetryableLazy } from "../../../lib/
 import { shownText, type PickerModel } from "./model-picker.vm.ts";
 import { useAvailableModels, type AvailableState } from "./use-available-models.ts";
 
-// The list (search, rows, keys) is a chunk of its own, fetched when the popover opens (MP-RT-09: never a bare lazy).
-const loadList = () => import("./ModelList.tsx");
+// The list (search, rows, keys, the extension models) is a chunk of its own, fetched when the popover opens (MP-RT-09:
+// never a bare lazy).
+const loadList = () => import("./PickerList.tsx");
 
 interface ModelRef {
   readonly provider: string;
@@ -24,6 +25,8 @@ export interface ModelPickerFieldProps {
   readonly hint?: string;
   /** A fixed list for the gallery's figure: `models.available` is not called when it is set. */
   readonly available?: AvailableState;
+  /** False: the run loads no extension (an agent in Chat only), so none of their models is offered (default true). */
+  readonly extensionsLoaded?: boolean;
   onChange(model: ModelRef | null, summary?: PickerModel): void;
 }
 
@@ -32,7 +35,8 @@ const TRIGGER_CLASSES =
 
 /**
  * A model chosen from a popover (MPR6): the field is a button, the list loads when it opens. Calls `models.available`
- * only while open. The popover is modal and portalled to the body, also from a dialog (a dialog's panel would clip it).
+ * only while open, and `models.extensions` only on the list's own click. The popover is modal and portalled to the
+ * body, also from a dialog (a dialog's panel would clip it).
  */
 export function ModelPickerField({
   label,
@@ -42,6 +46,7 @@ export function ModelPickerField({
   disabled: disabledProp,
   hint,
   available,
+  extensionsLoaded,
   onChange,
 }: ModelPickerFieldProps) {
   const disabled = disabledProp ?? false;
@@ -53,6 +58,26 @@ export function ModelPickerField({
   const { Lazy: List, attempt, retry } = useRetryableLazy(loadList);
   const fetched = useAvailableModels(cwd, open && available === undefined);
   const state = available ?? fetched;
+  // What the list last said of this value: "not offered" stays under the field once closed, never blocking a save.
+  const [said, setSaid] = useState<{ readonly value: ModelRef; readonly status: string } | null>(null);
+  const onValueStatus = useCallback(
+    (status: string) => setSaid(value === null ? null : { value, status }),
+    [value],
+  );
+  const heard =
+    said !== null &&
+    value !== null &&
+    said.value.provider === value.provider &&
+    said.value.modelId === value.modelId
+      ? said.status
+      : null;
+  // Under Chat only the preset, not the selection, keeps an extension's model out (review N2).
+  const notOffered =
+    heard === "not-offered"
+      ? t("modelPicker.notOfferedHint")
+      : heard === "not-offered-chat"
+        ? t("modelPicker.notOfferedChatHint")
+        : null;
 
   const change = (next: boolean) => {
     // A list that failed to load is imported afresh by the next opening.
@@ -63,12 +88,7 @@ export function ModelPickerField({
     setOpen(next);
   };
 
-  const missing =
-    value !== null &&
-    state.status === "ready" &&
-    !state.models.some((model) => model.provider === value.provider && model.id === value.modelId);
   const chosen = value === null ? (defaultLabel ?? t("modelPicker.choose")) : shownText(value.modelId);
-  const footnote = `${t("modelPicker.footnote.extensions")} ${t("modelPicker.footnote.command")}`;
 
   return (
     <div className="flex flex-col gap-s1">
@@ -121,23 +141,27 @@ export function ModelPickerField({
           <List
             state={state}
             value={value}
-            savedUnavailable={missing ? value : null}
-            footnote={footnote}
+            extensions={available === undefined}
+            extensionsLoaded={extensionsLoaded ?? true}
+            onValueStatus={onValueStatus}
             {...(defaultLabel === undefined ? {} : { defaultLabel })}
             onPickDefault={() => {
               onChange(null);
               setOpen(false);
             }}
-            onPick={(model) => {
-              const ref = { provider: model.provider, modelId: model.id };
-              // The saved-but-unoffered row has a made-up summary (it claims no reasoning): hand over none.
-              if (missing && model.provider === value?.provider && model.id === value.modelId) onChange(ref);
-              else onChange(ref, model);
+            onPick={(ref, summary) => {
+              if (summary === undefined) onChange(ref);
+              else onChange(ref, summary);
               setOpen(false);
             }}
           />
         </LazyBoundary>
       </LazyPopover>
+      {notOffered === null ? null : (
+        <p data-model-not-offered className="text-ui text-attn">
+          {notOffered}
+        </p>
+      )}
       {hint ? <p className="text-ui text-muted">{hint}</p> : null}
     </div>
   );
