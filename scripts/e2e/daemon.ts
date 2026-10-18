@@ -16,9 +16,12 @@ import {
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
-import { type Daemon, freePort, NETWORK_GUARD, STEP_MS, startDaemon, within } from "../smoke-lib.ts";
+import { fileURLToPath } from "node:url";
+import { DAEMON, type Daemon, freePort, NETWORK_GUARD, STEP_MS, startDaemon, within } from "../smoke-lib.ts";
 import { descendantsOf, running, runningUnder } from "../smoke-proc.ts";
 
+// J13 only: the guard lets the daemon reach the loopback push sink (see loopback-guard.ts).
+const LOOPBACK_GUARD = fileURLToPath(new URL("./loopback-guard.ts", import.meta.url));
 const STOP_MS = 20_000;
 const REAP_MS = 5_000;
 
@@ -124,7 +127,22 @@ export async function startPap(
   let daemon: Daemon | null = null;
 
   const boot = async (): Promise<Daemon> => {
-    const started = startDaemon(env, port);
+    // PAP_TEST_PUSH_LOOPBACK means a push sink on 127.0.0.1: the daemon's own guard must let that connect through.
+    const launch =
+      env["PAP_TEST_PUSH_LOOPBACK"] === "1"
+        ? {
+            file: process.execPath,
+            args: [
+              "--disable-warning=ExperimentalWarning",
+              `--import=${LOOPBACK_GUARD}`,
+              DAEMON,
+              "serve",
+              "--port",
+              String(port),
+            ],
+          }
+        : undefined;
+    const started = startDaemon(env, port, launch);
     journal.push(started.output);
     daemon = started;
     await within(started.line("listening"), STEP_MS, "the daemon to listen");
