@@ -3,10 +3,10 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { JOB_CONDITIONS, PI_COMPAT_CRON } from "./release-check.ts";
 
-const RELEASE_YML = ".github/workflows/release.yml";
-const PI_COMPAT_YML = ".github/workflows/pi-compat.yml";
-const UPDATE_CHECK = "apps/daemon/src/update-check.ts";
-const UPDATE_CHECK_TEST = "apps/daemon/src/update-check.test.ts";
+export const RELEASE_YML = ".github/workflows/release.yml";
+export const PI_COMPAT_YML = ".github/workflows/pi-compat.yml";
+export const UPDATE_CHECK = "apps/daemon/src/update-check.ts";
+export const UPDATE_CHECK_TEST = "apps/daemon/src/update-check.test.ts";
 
 export interface FlipFiles {
   readonly releaseYml: string;
@@ -47,14 +47,35 @@ const PRE_DEFAULT = "export const UPDATE_CHECK_DEFAULT = false;";
 const POST_DEFAULT = "export const UPDATE_CHECK_DEFAULT = true;";
 const PRE_ASSERT = "expect(UPDATE_CHECK_DEFAULT).toBe(false);";
 const POST_ASSERT = "expect(UPDATE_CHECK_DEFAULT).toBe(true);";
-const PRE_NAME = "the shipped default is off until the repository is public";
-const POST_NAME = "the shipped default is on now that the repository is public";
+const PRE_NAME = "the shipped default is off until the v1 flip";
+const POST_NAME = "the shipped default is on now that the v1 flip is done";
 
 const swap = (text: string, from: string, to: string, file: string): string => {
   if (text.split(from).length !== 2)
     throw new Error(`${file}: expected exactly one "${from}"; the file is not in the pre-flip shape`);
   return text.replace(from, () => to);
 };
+
+const REVERSALS: Readonly<Record<string, ReadonlyArray<readonly [string, string]>>> = {
+  [RELEASE_YML]: [
+    [POST_ON, PRE_ON],
+    [`if: ${JOB_CONDITIONS.after.stable}`, `if: ${JOB_CONDITIONS.before.stable}`],
+    [POST_COMMENT, PRE_COMMENT],
+  ],
+  [PI_COMPAT_YML]: [[POST_COMPAT_ON, PRE_COMPAT_ON]],
+  [UPDATE_CHECK]: [[POST_DEFAULT, PRE_DEFAULT]],
+  [UPDATE_CHECK_TEST]: [
+    [POST_ASSERT, PRE_ASSERT],
+    [POST_NAME, PRE_NAME],
+  ],
+};
+
+/** A flip file in its pre-flip shape, whichever shape it is in (tests start from it, so they hold before and after the flip). */
+export function preFlipShape(file: string, text: string): string {
+  let out = text;
+  for (const [post, pre] of REVERSALS[file] ?? []) out = out.split(post).join(pre);
+  return out;
+}
 
 /** The four files after the v1 flip. Throws "already flipped" on a flipped input and names a file it does not recognise. */
 export function applyFlip(files: FlipFiles): FlipFiles {

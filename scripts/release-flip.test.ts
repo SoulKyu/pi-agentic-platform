@@ -1,15 +1,23 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { copyPreFlip, REPO } from "./release-bed.ts";
 import { checkRelease } from "./release-check.ts";
-import { applyFlip, flipTree, OWNER_ONLY_ITEMS, PROSE_CHECKLIST, type FlipFiles } from "./release-flip.ts";
+import {
+  applyFlip,
+  flipTree,
+  OWNER_ONLY_ITEMS,
+  PI_COMPAT_YML,
+  PROSE_CHECKLIST,
+  RELEASE_YML,
+  UPDATE_CHECK,
+  UPDATE_CHECK_TEST,
+  preFlipShape,
+  type FlipFiles,
+} from "./release-flip.ts";
 
-const REPO = resolve(import.meta.dirname, "..");
-const RELEASE_YML = ".github/workflows/release.yml";
-const UPDATE_CHECK = "apps/daemon/src/update-check.ts";
-const UPDATE_CHECK_TEST = "apps/daemon/src/update-check.test.ts";
-const PI_COMPAT = ".github/workflows/pi-compat.yml";
+const PI_COMPAT = PI_COMPAT_YML;
 const CHECKED = [
   "package.json",
   "apps/daemon/package.json",
@@ -26,19 +34,17 @@ const CHECKED = [
 
 let tree: string;
 const read = (root: string, file: string) => readFileSync(join(root, file), "utf8");
+/** The four files in the pre-flip shape, whichever shape the checkout is in: these tests hold before and after the flip. */
 const real = (): FlipFiles => ({
-  releaseYml: read(REPO, RELEASE_YML),
-  piCompatYml: read(REPO, PI_COMPAT),
-  updateCheckTs: read(REPO, UPDATE_CHECK),
-  updateCheckTestTs: read(REPO, UPDATE_CHECK_TEST),
+  releaseYml: preFlipShape(RELEASE_YML, read(REPO, RELEASE_YML)),
+  piCompatYml: preFlipShape(PI_COMPAT, read(REPO, PI_COMPAT)),
+  updateCheckTs: preFlipShape(UPDATE_CHECK, read(REPO, UPDATE_CHECK)),
+  updateCheckTestTs: preFlipShape(UPDATE_CHECK_TEST, read(REPO, UPDATE_CHECK_TEST)),
 });
 
 beforeEach(() => {
   tree = mkdtempSync(join(tmpdir(), "pap-release-flip-"));
-  for (const file of CHECKED) {
-    mkdirSync(dirname(join(tree, file)), { recursive: true });
-    cpSync(join(REPO, file), join(tree, file));
-  }
+  for (const file of CHECKED) copyPreFlip(file, tree);
 });
 afterEach(() => rmSync(tree, { recursive: true, force: true }));
 
@@ -95,7 +101,7 @@ describe("applyFlip on the real files", () => {
   it("writes nothing when one of the files is not recognised", () => {
     const original = read(tree, RELEASE_YML);
     const compat = read(tree, PI_COMPAT);
-    cpSync(join(REPO, "package.json"), join(tree, UPDATE_CHECK));
+    cpSync(join(tree, "package.json"), join(tree, UPDATE_CHECK));
     expect(() => flipTree(tree)).toThrow();
     expect(read(tree, RELEASE_YML)).toBe(original);
     expect(read(tree, PI_COMPAT)).toBe(compat);

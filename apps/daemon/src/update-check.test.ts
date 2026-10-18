@@ -65,7 +65,6 @@ describe("when nothing is scheduled", () => {
     ["version 0.0.0", { version: "0.0.0" }],
     ["PAP_UPDATE_CHECK=0", { env: { PAP_UPDATE_CHECK: "0" } }],
     ["PAP_UPDATE_CHECK=0 even when the default is on", { env: { PAP_UPDATE_CHECK: "0" }, defaultOn: true }],
-    ["unset while the default is off", { env: {} }],
     ["unset with the default injected as false", { env: {}, defaultOn: false }],
     ["any other value", { env: { PAP_UPDATE_CHECK: "yes" } }],
   ] as const)("%s", async (_name, options) => {
@@ -75,7 +74,7 @@ describe("when nothing is scheduled", () => {
     expect(served.calls).toEqual([]);
   });
 
-  it("the shipped default is off until the repository is public", () => {
+  it("the shipped default is off until the v1 flip", () => {
     expect(UPDATE_CHECK_DEFAULT).toBe(false);
   });
 });

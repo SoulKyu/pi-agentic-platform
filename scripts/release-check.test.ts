@@ -1,10 +1,10 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { checkRelease, releaseTag } from "./release-check.ts";
+import { copyPreFlip, REPO } from "./release-bed.ts";
 
-const REPO = resolve(import.meta.dirname, "..");
 const FILES = [
   "package.json",
   "apps/daemon/package.json",
@@ -37,8 +37,7 @@ const edit = (file: string, change: (text: string) => string) => {
 beforeEach(() => {
   copy = mkdtempSync(join(tmpdir(), "pap-release-check-"));
   for (const file of FILES) {
-    mkdirSync(dirname(join(copy, file)), { recursive: true });
-    cpSync(join(REPO, file), join(copy, file));
+    copyPreFlip(file, copy);
   }
 });
 afterEach(() => rmSync(copy, { recursive: true, force: true }));
@@ -143,7 +142,7 @@ describe("workflow", () => {
       );
       expect(checkRelease(copy).join("\n")).toContain(`job ${job}`);
       expect(checkRelease(copy).join("\n")).toContain("refs/heads/main");
-      cpSync(join(REPO, ".github/workflows/release.yml"), join(copy, ".github/workflows/release.yml"));
+      copyPreFlip(".github/workflows/release.yml", copy);
     }
   });
 
@@ -170,7 +169,7 @@ describe("workflow", () => {
       ),
     );
     expect(checkRelease(copy).join("\n")).toContain("job next permissions");
-    cpSync(join(REPO, ".github/workflows/release.yml"), join(copy, ".github/workflows/release.yml"));
+    copyPreFlip(".github/workflows/release.yml", copy);
     edit(".github/workflows/release.yml", (t) => t.replace("      issues: write\n", ""));
     expect(checkRelease(copy).join("\n")).toContain("job stable permissions");
   });
