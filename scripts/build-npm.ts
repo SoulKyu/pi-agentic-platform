@@ -15,7 +15,13 @@ import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { assertNoSymlinks, assertNoStagePath, holdsCredential, missingDist } from "./build-archive-stage.ts";
-import { PACKAGE_IMPORTERS, buildShrinkwrap, productionClosure, verifyShrinkwrap } from "./npm-shrinkwrap.ts";
+import {
+  PACKAGE_IMPORTERS,
+  buildShrinkwrap,
+  installScriptsOf,
+  productionClosure,
+  verifyShrinkwrap,
+} from "./npm-shrinkwrap.ts";
 
 export interface PackageJson {
   name?: string;
@@ -50,8 +56,6 @@ const BIN = "./apps/daemon/dist/main.js";
 const SHEBANG = "#!/usr/bin/env -S node --disable-warning=ExperimentalWarning";
 const EXACT = /^\d+\.\d+\.\d+(-[\w.]+)?$/;
 const REPOSITORY = { type: "git", url: "git+https://github.com/SoulKyu/pi-agentic-platform.git" };
-/** Installed by the dependency itself (node-gyp); pnpm's lockfile does not record it, so it is listed here. */
-const INSTALL_SCRIPTS = ["node-pty"] as const;
 const TEST_OR_MAP = /\.test\.[^/\\]*$|\.map$/;
 
 /** The `catalog:` block of pnpm-workspace.yaml: `name: version` lines, quoted or bare (no YAML library needed). */
@@ -297,7 +301,7 @@ export const buildNpm = async ({ repo, out, name, home = homedir() }: BuildNpmOp
     rootDependencies: manifest.dependencies ?? {},
     closure: productionClosure(lockText, PACKAGE_IMPORTERS),
     bundled: BUNDLED,
-    installScripts: INSTALL_SCRIPTS,
+    installScripts: installScriptsOf(readFileSync(join(repo, "pnpm-workspace.yaml"), "utf8")),
   });
   const mismatches = verifyShrinkwrap(shrinkwrap, lockText, PACKAGE_IMPORTERS);
   if (mismatches.length > 0)

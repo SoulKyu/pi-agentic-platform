@@ -2,7 +2,13 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { PACKAGE_IMPORTERS, buildShrinkwrap, productionClosure, type Shrinkwrap } from "./npm-shrinkwrap.ts";
+import {
+  PACKAGE_IMPORTERS,
+  buildShrinkwrap,
+  installScriptsOf,
+  productionClosure,
+  type Shrinkwrap,
+} from "./npm-shrinkwrap.ts";
 import { checkShrinkwrap } from "./release-check-shrinkwrap.ts";
 
 const mini = readFileSync(join(import.meta.dirname, "fixtures/pnpm-lock-mini.yaml"), "utf8");
@@ -28,7 +34,12 @@ const tree = (withShrinkwrap: boolean, edit?: (shrinkwrap: Shrinkwrap) => void) 
   const root = mkdtempSync(join(tmpdir(), "pap-sw-check-"));
   roots.push(root);
   put(join(root, "pnpm-lock.yaml"), mini);
-  put(join(root, ".pap-npm/package/package.json"), JSON.stringify({ dependencies }));
+  const workspace = "packages:\n  - apps/*\nonlyBuiltDependencies:\n  - node-pty\n";
+  put(join(root, "pnpm-workspace.yaml"), workspace);
+  put(
+    join(root, ".pap-npm/package/package.json"),
+    JSON.stringify({ dependencies, bundleDependencies: ["@pap/contracts"] }),
+  );
   if (withShrinkwrap) {
     const shrinkwrap = buildShrinkwrap({
       name: "pkg",
@@ -36,7 +47,7 @@ const tree = (withShrinkwrap: boolean, edit?: (shrinkwrap: Shrinkwrap) => void) 
       rootDependencies: dependencies,
       closure: productionClosure(mini, PACKAGE_IMPORTERS),
       bundled: ["@pap/contracts"],
-      installScripts: [],
+      installScripts: installScriptsOf(workspace),
     });
     edit?.(shrinkwrap);
     put(join(root, ".pap-npm/package/npm-shrinkwrap.json"), JSON.stringify(shrinkwrap));
@@ -88,5 +99,36 @@ describe("checkShrinkwrap", () => {
       problems,
     );
     expect(problems.join("\n")).toMatch(/dependencies/);
+  });
+
+  it("reports a hand-added hasInstallScript that the lockfile does not name", () => {
+    const problems: string[] = [];
+    checkShrinkwrap(
+      tree(true, (shrinkwrap) => {
+        const entry = shrinkwrap.packages["node_modules/alpha"];
+        if (entry !== undefined) entry.hasInstallScript = true;
+      }),
+      problems,
+    );
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("hasInstallScript");
+  });
+
+  it("reports drift in os, cpu, libc, optional and inBundle", () => {
+    for (const edit of [
+      (e: Shrinkwrap) =>
+        Object.assign(e.packages["node_modules/@native/linux-x64-glibc"] ?? {}, { libc: ["musl"] }),
+      (e: Shrinkwrap) =>
+        Object.assign(e.packages["node_modules/@native/linux-x64-glibc"] ?? {}, { os: ["darwin"] }),
+      (e: Shrinkwrap) => Object.assign(e.packages["node_modules/native"] ?? {}, { optional: true }),
+      (e: Shrinkwrap) => Object.assign(e.packages["node_modules/@pap/contracts"] ?? {}, { version: "9.9.9" }),
+    ]) {
+      const problems: string[] = [];
+      checkShrinkwrap(
+        tree(true, (shrinkwrap) => void edit(shrinkwrap)),
+        problems,
+      );
+      expect(problems.length).toBeGreaterThan(0);
+    }
   });
 });

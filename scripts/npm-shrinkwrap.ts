@@ -1,21 +1,16 @@
 import { parse } from "yaml";
+import { compareVersions, id, productionClosure, splitKey, type ClosureEntry } from "./npm-lock-closure.ts";
+
+export { productionClosure, type ClosureEntry };
 
 /** The workspace packages whose production dependencies the npm package installs. */
 export const PACKAGE_IMPORTERS = ["apps/daemon", "packages/contracts", "packages/pi-host"] as const;
 
-export interface ClosureEntry {
-  name: string;
-  version: string;
-  integrity: string;
-  resolved: string;
-  dependencies: Record<string, string>;
-  optionalDependencies: Record<string, string>;
-  os?: string[];
-  cpu?: string[];
-  libc?: string[];
-  peerDependencies?: Record<string, string>;
-  optional: boolean;
-}
+/** Packages whose install script pnpm lets run (`onlyBuiltDependencies`): pnpm's lockfile has no `requiresBuild` for them, so npm's `hasInstallScript` comes from here. */
+export const installScriptsOf = (workspaceYaml: string): string[] => {
+  const names = ((parse(workspaceYaml) ?? {}) as { onlyBuiltDependencies?: unknown }).onlyBuiltDependencies;
+  return Array.isArray(names) ? names.filter((name): name is string => typeof name === "string") : [];
+};
 
 export interface ShrinkwrapPackage {
   name?: string;
@@ -42,175 +37,45 @@ export interface Shrinkwrap {
   packages: Record<string, ShrinkwrapPackage>;
 }
 
-type Edges = Record<string, string>;
-interface LockPackage {
-  resolution?: { integrity?: string; [key: string]: unknown };
-  os?: string[];
-  cpu?: string[];
-  libc?: string[];
-  peerDependencies?: Edges;
-}
-interface LockSnapshot {
-  dependencies?: Edges;
-  optionalDependencies?: Edges;
-}
-interface LockImporter {
-  dependencies?: Record<string, { version: string }>;
-  optionalDependencies?: Record<string, { version: string }>;
-}
-interface Lock {
-  importers?: Record<string, LockImporter>;
-  packages?: Record<string, LockPackage>;
-  snapshots?: Record<string, LockSnapshot>;
-}
-
-const PLAIN_VERSION = /^\d+\.\d+\.\d+(?:-[\w.]+)?$/;
-const id = (name: string, version: string): string => `${name}@${version}`;
-
-/** `name@1.2.3(peer@4)(...)` -> name and version without the peer suffix. */
-const splitKey = (key: string): { name: string; version: string } => {
-  const at = key.indexOf("@", 1);
-  if (at === -1) throw new Error(`pnpm-lock.yaml: cannot read the key ${key}`);
-  return { name: key.slice(0, at), version: stripPeers(key.slice(at + 1)) };
-};
-const stripPeers = (version: string): string => {
-  const paren = version.indexOf("(");
-  return paren === -1 ? version : version.slice(0, paren);
-};
-
-const plainVersion = (owner: string, name: string, raw: string): string => {
-  const version = stripPeers(raw);
-  if (!PLAIN_VERSION.test(version))
-    throw new Error(
-      `pnpm-lock.yaml: ${owner} depends on ${name} as "${raw}", which is not a registry version`,
-    );
-  return version;
-};
-
-const compareVersions = (a: string, b: string): number => {
-  const [coreA = "", preA] = a.split("-", 2);
-  const [coreB = "", preB] = b.split("-", 2);
-  const partsA = coreA.split(".").map(Number);
-  const partsB = coreB.split(".").map(Number);
-  for (let index = 0; index < 3; index += 1) {
-    const difference = (partsA[index] ?? 0) - (partsB[index] ?? 0);
-    if (difference !== 0) return difference;
-  }
-  if (preA === preB) return 0;
-  if (preA === undefined) return 1;
-  if (preB === undefined) return -1;
-  return preA < preB ? -1 : 1;
-};
-
-const mergeEdges = (target: Map<string, string>, edges: Edges | undefined, owner: string): void => {
-  for (const [name, raw] of Object.entries(edges ?? {})) {
-    const version = plainVersion(owner, name, raw);
-    const known = target.get(name);
-    if (known === undefined || compareVersions(version, known) > 0) target.set(name, version);
-  }
-};
-
-/**
- * The production closure of the given importers, read from pnpm-lock.yaml v9. Peer suffixes are stripped, snapshots that differ
- * only by suffix are one entry (a conflicting dependency version keeps the highest), `integrity` is copied, never recomputed.
- */
-export function productionClosure(lock: string, importers: readonly string[]): ClosureEntry[] {
-  const doc = (parse(lock) ?? {}) as Lock;
-  const packages = doc.packages ?? {};
-  const required = new Map<string, Map<string, string>>();
-  const optionalEdges = new Map<string, Map<string, string>>();
-  for (const [key, snapshot] of Object.entries(doc.snapshots ?? {})) {
-    const { name, version } = splitKey(key);
-    const node = id(name, version);
-    const owner = key;
-    if (!required.has(node)) required.set(node, new Map());
-    if (!optionalEdges.has(node)) optionalEdges.set(node, new Map());
-    mergeEdges(required.get(node) ?? new Map(), snapshot.dependencies, owner);
-    mergeEdges(optionalEdges.get(node) ?? new Map(), snapshot.optionalDependencies, owner);
-  }
-
-  const roots: { node: string; optional: boolean }[] = [];
-  for (const importer of importers) {
-    const section = doc.importers?.[importer];
-    if (section === undefined) throw new Error(`pnpm-lock.yaml has no importer ${importer}`);
-    for (const [kind, optional] of [
-      ["dependencies", false],
-      ["optionalDependencies", true],
-    ] as const)
-      for (const [name, { version }] of Object.entries(section[kind] ?? {})) {
-        if (version.startsWith("link:")) continue;
-        roots.push({ node: id(name, plainVersion(importer, name, version)), optional });
-      }
-  }
-
-  const reach = (start: string[], viaOptional: boolean): Set<string> => {
-    const seen = new Set<string>();
-    const queue = [...start];
-    for (let node = queue.pop(); node !== undefined; node = queue.pop()) {
-      if (seen.has(node)) continue;
-      seen.add(node);
-      const edges = required.get(node);
-      if (edges === undefined) throw new Error(`pnpm-lock.yaml has no snapshot for ${node}`);
-      const all = viaOptional ? [...edges, ...(optionalEdges.get(node) ?? [])] : [...edges];
-      for (const [name, version] of all) queue.push(id(name, version));
-    }
-    return seen;
-  };
-  const requiredReach = reach(
-    roots.filter((root) => !root.optional).map((root) => root.node),
-    false,
-  );
-  const everything = reach(
-    roots.map((root) => root.node),
-    true,
-  );
-
-  const entries: ClosureEntry[] = [];
-  for (const node of everything) {
-    const { name, version } = splitKey(node);
-    const locked = packages[node];
-    const integrity = locked?.resolution?.integrity;
-    const resolutionKeys = Object.keys(locked?.resolution ?? {});
-    if (typeof integrity !== "string" || resolutionKeys.some((key) => key !== "integrity"))
-      throw new Error(`pnpm-lock.yaml: ${node} does not resolve to a registry tarball with an integrity`);
-    const dependencies = Object.fromEntries(required.get(node) ?? []);
-    const optionalDependencies = Object.fromEntries(optionalEdges.get(node) ?? []);
-    const peers = Object.fromEntries(
-      Object.entries(locked?.peerDependencies ?? {}).filter(
-        ([peer]) => peer in dependencies || peer in optionalDependencies,
-      ),
-    );
-    entries.push({
-      name,
-      version,
-      integrity,
-      resolved: `https://registry.npmjs.org/${name}/-/${name.slice(name.lastIndexOf("/") + 1)}-${version}.tgz`,
-      dependencies,
-      optionalDependencies,
-      ...(locked?.os === undefined ? {} : { os: locked.os }),
-      ...(locked?.cpu === undefined ? {} : { cpu: locked.cpu }),
-      ...(locked?.libc === undefined ? {} : { libc: locked.libc }),
-      ...(Object.keys(peers).length === 0 ? {} : { peerDependencies: peers }),
-      optional: !requiredReach.has(node),
-    });
-  }
-  return entries.sort((a, b) => a.name.localeCompare(b.name) || compareVersions(a.version, b.version));
-}
-
 const parentOf = (path: string): string => {
   const index = path.lastIndexOf("node_modules/");
   return index <= 0 ? "" : path.slice(0, index - 1);
 };
 /** npm's lookup: the package folder's own node_modules first, then every ancestor's, up to the root. */
+const lookupPath = (
+  packages: Record<string, ShrinkwrapPackage>,
+  from: string,
+  name: string,
+): string | undefined => {
+  for (let at = from; ; at = parentOf(at)) {
+    const path = at === "" ? `node_modules/${name}` : `${at}/node_modules/${name}`;
+    if (packages[path] !== undefined) return path;
+    if (at === "") return undefined;
+  }
+};
 const lookup = (
   packages: Record<string, ShrinkwrapPackage>,
   from: string,
   name: string,
 ): ShrinkwrapPackage | undefined => {
-  for (let at = from; ; at = parentOf(at)) {
-    const found = packages[at === "" ? `node_modules/${name}` : `${at}/node_modules/${name}`];
-    if (found !== undefined || at === "") return found;
-  }
+  const path = lookupPath(packages, from, name);
+  return path === undefined ? undefined : packages[path];
+};
+
+/** Paths no root dependency and no edge of another entry resolves to: npm would install them for nobody. */
+const unreferenced = (
+  packages: Record<string, ShrinkwrapPackage>,
+  rootNames: readonly string[],
+  edges: (path: string) => [string, string][],
+): string[] => {
+  const used = new Set(rootNames.map((name) => `node_modules/${name}`));
+  for (const path of Object.keys(packages))
+    if (path !== "")
+      for (const [name] of edges(path)) {
+        const target = lookupPath(packages, path, name);
+        if (target !== undefined) used.add(target);
+      }
+  return Object.keys(packages).filter((path) => path !== "" && !used.has(path));
 };
 
 const edgesOf = (entry: ClosureEntry): [string, string][] =>
@@ -306,6 +171,15 @@ export function buildShrinkwrap(input: ShrinkwrapInput): Shrinkwrap {
     for (const [child, childEntry] of nested) expand(child, childEntry);
   };
   for (const name of names) expand(`node_modules/${name}`, entryOf(name, top.get(name) ?? ""));
+  const edgesAt = (path: string): [string, string][] => {
+    const found = packages[path];
+    const entry = found === undefined ? undefined : byId.get(id(nameOfPath(path), found.version));
+    return entry === undefined ? [] : edgesOf(entry);
+  };
+  for (let dead = unreferenced(packages, Object.keys(rootDependencies), edgesAt); dead.length > 0;) {
+    for (const path of dead) Reflect.deleteProperty(packages, path);
+    dead = unreferenced(packages, Object.keys(rootDependencies), edgesAt);
+  }
 
   const placed = new Set(
     Object.entries(packages).flatMap(([path, entry]) =>
@@ -343,6 +217,7 @@ export function verifyShrinkwrap(
   const problems: string[] = [];
   const seen = new Set<string>();
   const changed = new Map<ShrinkwrapPackage, string>();
+  const extra = new Set<string>();
   const entries = Object.entries(shrinkwrap.packages).filter(
     ([path, entry]) => path !== "" && entry.inBundle !== true,
   );
@@ -355,7 +230,10 @@ export function verifyShrinkwrap(
         problems.push(`${path}: integrity differs from the lockfile`);
       if (entry.resolved !== expected.resolved) problems.push(`${path}: resolved differs from the lockfile`);
     } else if (closure.some((candidate) => candidate.name === name)) changed.set(entry, path);
-    else problems.push(`${path}: ${name} is not in the lockfile's production closure (extra entry)`);
+    else {
+      extra.add(path);
+      problems.push(`${path}: ${name} is not in the lockfile's production closure (extra entry)`);
+    }
   }
   // a changed version is one problem: it also stands for the lockfile version that no longer appears
   const missing = new Set([...byId.keys()].filter((key) => !seen.has(key)));
@@ -390,5 +268,13 @@ export function verifyShrinkwrap(
         `node_modules/${name}: the root asks for ${version}, the top-level copy is ${found?.version ?? "missing"}`,
       );
   }
+  const verifyEdges = (path: string): [string, string][] => {
+    const found = shrinkwrap.packages[path];
+    const entry = found === undefined ? undefined : byId.get(id(nameOfPath(path), found.version));
+    return entry === undefined ? [] : edgesOf(entry);
+  };
+  const roots = Object.keys(shrinkwrap.packages[""]?.dependencies ?? {});
+  for (const path of unreferenced(shrinkwrap.packages, roots, verifyEdges).filter((p) => !extra.has(p)))
+    problems.push(`${path}: an entry nothing resolves to`);
   return problems;
 }

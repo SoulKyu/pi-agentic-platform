@@ -100,15 +100,54 @@ describe("productionClosure", () => {
     );
   });
 
-  it("merges two snapshots that differ only by peer suffix into one entry with the packages: version", () => {
+  it("merges two snapshots that differ only by peer suffix (same stripped edges) into one entry", () => {
+    const text = mini.replace(
+      "  beta@1.0.0:\n    dependencies:",
+      "  beta@1.0.0(peer-dep@1.0.0):\n    dependencies:\n      shared: 1.0.0\n\n  beta@1.0.0:\n    dependencies:",
+    );
+    const closureOfText = productionClosure(text, IMPORTERS);
+    const beta = find(closureOfText, "beta", "1.0.0");
+    expect(beta?.version).toBe("1.0.0");
+    expect(beta?.dependencies).toEqual({ shared: "1.0.0" });
+    expect(closureOfText.filter((entry) => entry.name === "beta")).toHaveLength(1);
+  });
+
+  it("throws when two snapshots of one package have different stripped edges, naming both", () => {
     const text = mini.replace(
       "  beta@1.0.0:\n    dependencies:",
       "  beta@1.0.0(peer-dep@1.0.0):\n    dependencies:\n      peer-dep: 1.0.0\n      shared: 1.0.0\n\n  beta@1.0.0:\n    dependencies:",
     );
-    const beta = find(productionClosure(text, IMPORTERS), "beta", "1.0.0");
-    expect(beta?.version).toBe("1.0.0");
-    expect(beta?.dependencies).toEqual({ "peer-dep": "1.0.0", shared: "1.0.0" });
-    expect(productionClosure(text, IMPORTERS).filter((entry) => entry.name === "beta")).toHaveLength(1);
+    expect(() => productionClosure(text, IMPORTERS)).toThrow(
+      /beta@1\.0\.0 has snapshots with different dependencies.*beta@1\.0\.0\(peer-dep@1\.0\.0\).*"peer-dep":"1\.0\.0"/,
+    );
+  });
+
+  it("throws on diverging peer variants that resolve a peer to two versions (review repro)", () => {
+    const lock = `lockfileVersion: '9.0'
+importers:
+  apps/daemon:
+    dependencies:
+      x: {specifier: 1.0.0, version: 1.0.0(q@1.0.0)}
+      y: {specifier: 1.0.0, version: 1.0.0(q@2.0.0)}
+packages:
+  x@1.0.0: {resolution: {integrity: sha512-x}}
+  y@1.0.0: {resolution: {integrity: sha512-y}}
+  p@1.0.0: {resolution: {integrity: sha512-p}}
+  q@1.0.0: {resolution: {integrity: sha512-q1}}
+  q@2.0.0: {resolution: {integrity: sha512-q2}}
+snapshots:
+  x@1.0.0(q@1.0.0):
+    dependencies: {p: 1.0.0(q@1.0.0)}
+  y@1.0.0(q@2.0.0):
+    dependencies: {p: 1.0.0(q@2.0.0), q: 2.0.0}
+  p@1.0.0(q@1.0.0):
+    dependencies: {q: 1.0.0}
+  p@1.0.0(q@2.0.0):
+    dependencies: {q: 2.0.0}
+  q@1.0.0: {}
+  q@2.0.0: {}
+`;
+    expect(() => productionClosure(lock, ["apps/daemon"])).toThrow(/p@1\.0\.0 has snapshots with different/);
   });
 
   it("refuses a resolution that is not a registry tarball", () => {

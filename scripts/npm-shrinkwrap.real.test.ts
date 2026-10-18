@@ -5,8 +5,10 @@ import { parseCatalog, parseLockScope, resolveManifest, type PackageJson } from 
 import {
   PACKAGE_IMPORTERS as REAL_IMPORTERS,
   buildShrinkwrap,
+  installScriptsOf,
   productionClosure,
   verifyShrinkwrap,
+  type ClosureEntry,
   type Shrinkwrap,
 } from "./npm-shrinkwrap.ts";
 
@@ -25,17 +27,37 @@ describe("the real pnpm-lock.yaml", () => {
     catalog,
     pinned: parseLockScope(real),
   });
-  const closure = productionClosure(real, REAL_IMPORTERS);
+  let closure: ClosureEntry[];
   let shrinkwrap: Shrinkwrap;
   beforeAll(() => {
+    closure = productionClosure(real, REAL_IMPORTERS);
     shrinkwrap = buildShrinkwrap({
       name: "pkg",
       version: "0.0.0",
       rootDependencies: manifest.dependencies ?? {},
       closure,
       bundled: ["@pap/contracts", "@pap/pi-host"],
-      installScripts: ["node-pty"],
+      installScripts: installScriptsOf(workspace),
     });
+  });
+
+  it("the production closure has no diverging peer variants today", () => {
+    expect(() => productionClosure(real, REAL_IMPORTERS)).not.toThrow();
+    expect(closure.length).toBeGreaterThan(100);
+  });
+
+  it("hasInstallScript is exactly onlyBuiltDependencies, and each is in the closure", () => {
+    const allowed = installScriptsOf(workspace);
+    expect(allowed).toEqual(["node-pty"]);
+    for (const name of allowed)
+      expect(
+        closure.some((entry) => entry.name === name),
+        name,
+      ).toBe(true);
+    const flagged = Object.entries(shrinkwrap.packages)
+      .filter(([, entry]) => entry.hasInstallScript === true)
+      .map(([path]) => path.slice(path.lastIndexOf("node_modules/") + 13));
+    expect(flagged).toEqual(allowed);
   });
 
   it("pins the Pi SDK packages to the catalog version", () => {

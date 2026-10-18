@@ -1,7 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { PACKAGE_IMPORTERS, verifyShrinkwrap, type Shrinkwrap } from "./npm-shrinkwrap.ts";
+import {
+  PACKAGE_IMPORTERS,
+  buildShrinkwrap,
+  installScriptsOf,
+  productionClosure,
+  verifyShrinkwrap,
+  type Shrinkwrap,
+} from "./npm-shrinkwrap.ts";
 
 const PACKAGE = ".pap-npm/package";
 const FILE = `${PACKAGE}/npm-shrinkwrap.json`;
@@ -17,14 +24,26 @@ export function checkShrinkwrap(root: string, problems: string[]): void {
   const shrinkwrap = JSON.parse(readFileSync(join(root, FILE), "utf8")) as Shrinkwrap;
   const manifest = JSON.parse(readFileSync(join(root, PACKAGE, "package.json"), "utf8")) as {
     dependencies?: Record<string, string>;
+    bundleDependencies?: string[];
   };
-  const found = verifyShrinkwrap(
-    shrinkwrap,
-    readFileSync(join(root, "pnpm-lock.yaml"), "utf8"),
-    PACKAGE_IMPORTERS,
-  );
+  const lock = readFileSync(join(root, "pnpm-lock.yaml"), "utf8");
+  const found = verifyShrinkwrap(shrinkwrap, lock, PACKAGE_IMPORTERS);
   if (!isDeepStrictEqual(shrinkwrap.packages[""]?.dependencies, manifest.dependencies))
     found.unshift("the root dependencies differ from the package.json dependencies");
+  if (found.length === 0) {
+    const regenerated = buildShrinkwrap({
+      name: shrinkwrap.name,
+      version: shrinkwrap.version,
+      rootDependencies: manifest.dependencies ?? {},
+      closure: productionClosure(lock, PACKAGE_IMPORTERS),
+      bundled: manifest.bundleDependencies ?? [],
+      installScripts: installScriptsOf(readFileSync(join(root, "pnpm-workspace.yaml"), "utf8")),
+    });
+    if (!isDeepStrictEqual(shrinkwrap, regenerated))
+      found.push(
+        "differs from the shrinkwrap regenerated from pnpm-lock.yaml (a field such as hasInstallScript, optional, os, cpu, libc, dependencies or inBundle)",
+      );
+  }
   for (const problem of found.slice(0, MAX_LISTED)) problems.push(`${FILE}: ${problem}`);
   if (found.length > MAX_LISTED) problems.push(`${FILE}: ${found.length - MAX_LISTED} more problems`);
 }
