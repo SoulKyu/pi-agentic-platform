@@ -43,14 +43,13 @@ const theDialog = (): Element => {
   return found;
 };
 
-function seed(lanes = [laneView({ id: A, fanoutSlot: 0 }), laneView({ id: B, fanoutSlot: 1 })]) {
+function seed(
+  lanes = [laneView({ id: A, fanoutSlot: 0 }), laneView({ id: B, fanoutSlot: 1 })],
+  prompt = "Replace the cache",
+) {
   useLaneStore
     .getState()
-    .apply(
-      laneSnapshot(lanes, [
-        fanoutView({ id: FAN, prompt: "Replace the cache", laneIds: lanes.map((lane) => lane.id) }),
-      ]),
-    );
+    .apply(laneSnapshot(lanes, [fanoutView({ id: FAN, prompt, laneIds: lanes.map((lane) => lane.id) })]));
 }
 
 async function show(
@@ -118,9 +117,9 @@ describe("compare screen", () => {
   });
 
   it("writes hidden characters of an untrusted summary as escapes", async () => {
-    await show([column(A, { summary: "ok‮hidden​here" })]);
+    await show([column(A, { summary: "ok\u202Ehidden\u200Bhere" })]);
     expect(body()).toContain("ok\\u202Ehidden\\u200Bhere");
-    expect(body()).not.toContain("‮");
+    expect(body()).not.toContain("\u202E");
   });
 
   it("keeps Close losers disabled until a winner is picked, then marks it and opens its lane", async () => {
@@ -326,5 +325,12 @@ describe("close losers", () => {
     await click(button(theDialog(), "Close 1 lane"));
     await settle();
     expect(text(theDialog())).toContain("not a lane of this group");
+  });
+
+  it("keeps the new lines of a multi-line prompt and still escapes hidden characters (C3)", async () => {
+    seed(undefined, "Replace the cache\n- keep the API\u202Eevil");
+    await show();
+    const header = document.querySelector('[aria-label="Prompt"]');
+    expect(header?.textContent).toBe("Replace the cache\n- keep the API\\u202Eevil");
   });
 });

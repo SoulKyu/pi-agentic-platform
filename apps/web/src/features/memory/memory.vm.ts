@@ -58,3 +58,18 @@ export function decideOutcome(code: string): DecideOutcome {
   if (code === "not_found") return { key: "memory.review.handled", settled: true };
   return { key: null, settled: false };
 }
+
+const KNOWN_SOURCES = ["staged", "memory_save", "auto", "pi-web", "agent", "user"] as const;
+type KnownSource = (typeof KNOWN_SOURCES)[number];
+
+export type SourceLabel =
+  | { readonly key: `memory.source.${KnownSource}` }
+  | { readonly key: "memory.item.source"; readonly params: { readonly source: string } };
+
+/** A memory's `source` token as words (pi-mem0 writes these six); any other token is shown as it is. */
+export function sourceLabel(source: string): SourceLabel {
+  const known = KNOWN_SOURCES.find((each) => each === source);
+  return known === undefined
+    ? { key: "memory.item.source", params: { source } }
+    : { key: `memory.source.${known}` };
+}

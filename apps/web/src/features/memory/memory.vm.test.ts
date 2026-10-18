@@ -5,6 +5,7 @@ import {
   filterItems,
   pruneSelection,
   scopeKey,
+  sourceLabel,
   toggleSelection,
 } from "./memory.vm.ts";
 
@@ -75,5 +76,23 @@ describe("decideOutcome", () => {
   });
   it("leaves any other failure as an error that keeps the row", () => {
     expect(decideOutcome("command_failed")).toEqual({ key: null, settled: false });
+  });
+});
+
+describe("sourceLabel (C3)", () => {
+  it("maps every token pi-mem0 writes to a catalog key", () => {
+    expect(sourceLabel("staged")).toEqual({ key: "memory.source.staged" });
+    expect(sourceLabel("memory_save")).toEqual({ key: "memory.source.memory_save" });
+    expect(sourceLabel("auto")).toEqual({ key: "memory.source.auto" });
+    expect(sourceLabel("pi-web")).toEqual({ key: "memory.source.pi-web" });
+    expect(sourceLabel("agent")).toEqual({ key: "memory.source.agent" });
+    expect(sourceLabel("user")).toEqual({ key: "memory.source.user" });
+  });
+  it("falls back to the raw token for an unknown source, never to a prototype key", () => {
+    expect(sourceLabel("import")).toEqual({ key: "memory.item.source", params: { source: "import" } });
+    expect(sourceLabel("constructor")).toEqual({
+      key: "memory.item.source",
+      params: { source: "constructor" },
+    });
   });
 });

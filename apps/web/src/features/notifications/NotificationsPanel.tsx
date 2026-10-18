@@ -175,6 +175,21 @@ export function NotificationsPanel(props: NotificationsPanelProps) {
   );
 }
 
+const FLAG = /(--[a-z][a-z0-9-]*)/;
+
+/** A command-line flag in the daemon's hint is set in the code font: the UI font joins `--` into one dash. */
+function withFlagsInCode(hint: string): ReactNode[] {
+  return hint.split(FLAG).map((part, index) =>
+    index % 2 === 1 ? (
+      <code key={index} className="font-mono">
+        {part}
+      </code>
+    ) : (
+      part
+    ),
+  );
+}
+
 function StatusBlock({ view }: { readonly view: ReturnType<typeof statusView> }) {
   const t = useT();
   return (
@@ -182,7 +197,7 @@ function StatusBlock({ view }: { readonly view: ReturnType<typeof statusView> })
       <p role="status" className={`text-ui ${view.line.tone === "ok" ? "text-fg" : "text-attn"}`}>
         {t(view.line.key)}
       </p>
-      {view.hint === null ? null : <p className="text-ui text-muted">{view.hint}</p>}
+      {view.hint === null ? null : <p className="text-ui text-muted">{withFlagsInCode(view.hint)}</p>}
       {view.notes.map((key) => (
         <p key={key} className="text-ui text-muted">
           {t(key)}

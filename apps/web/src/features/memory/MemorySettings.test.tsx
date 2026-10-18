@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import type { MemoryItemView, StagedFactView } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { setLocale } from "../../i18n/index.ts";
+import { setLocale, t } from "../../i18n/index.ts";
 import { RpcError, type Runtime } from "../../runtime/index.ts";
 import { useAgentsStore } from "../../stores/agents-store.ts";
 import { alerts, button, click, field, hasButton, mount, settle, text, typeInto } from "../../testing/dom.ts";
@@ -167,6 +167,17 @@ describe("scopes and the list", () => {
     const page = await show();
     expect(page.container.querySelector("img")).toBeNull();
     expect(text(page.container)).toContain("<img src=x onerror=alert(1)> **bold**");
+  });
+
+  it("labels a known source in words and keeps the raw token of an unknown one (C3)", async () => {
+    items = [item("m1", "Prefers dark mode", "staged"), item("m2", "Uses Vim", "import")];
+    const page = await show();
+    expect(text(page.container)).toContain(t("memory.source.staged"));
+    expect(text(page.container)).not.toContain("Written by staged");
+    expect(text(page.container)).toContain(t("memory.item.source", { source: "import" }));
+    setLocale("fr");
+    const french = await show();
+    expect(text(french.container)).toContain("Approuvé");
   });
 
   it("filters the list by the box", async () => {
