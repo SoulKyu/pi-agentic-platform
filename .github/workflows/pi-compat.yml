@@ -18,6 +18,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           install: "false"
+          sandbox: "true"
       - run: node --disable-warning=ExperimentalWarning scripts/pi-compat-bump.ts
       - run: pnpm install --no-frozen-lockfile
       # The root tsc resolves @pap/contracts through its dist.

@@ -149,11 +149,15 @@ describe("CI configuration", () => {
 });
 
 describe("agent sandbox prerequisites (M13-C9)", () => {
-  it("asks the setup action for bubblewrap in the integration job, and the action installs it and lifts the userns limit", () => {
-    const setup = workflow("ci").jobs["integration"]?.steps.find(
-      (step) => step.uses === "./.github/actions/setup",
-    );
-    expect(setup?.with).toEqual({ sandbox: "true" });
+  it.each([
+    ["ci integration", () => workflow("ci").jobs["integration"], { sandbox: "true" }],
+    ["pi-compat", () => Object.values(workflow("pi-compat").jobs)[0], { install: "false", sandbox: "true" }],
+  ])("asks the setup action for bubblewrap in the %s job (it runs test:int)", (_name, job, inputs) => {
+    const setup = job()?.steps.find((step) => step.uses === "./.github/actions/setup");
+    expect(setup?.with).toEqual(inputs);
+  });
+
+  it("the setup action installs bubblewrap and lifts the userns limit", () => {
     const action = read(".github/actions/setup/action.yml");
     expect(action).toContain("bubblewrap");
     expect(action).toContain("sysctl -w kernel.apparmor_restrict_unprivileged_userns=0");
