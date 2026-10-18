@@ -178,7 +178,7 @@ describe("the real sender in production wiring (task 7)", () => {
     [
       "the project URL for a localhost origin",
       { publicOrigin: "http://localhost:7777" },
-      "https://github.com/soulkyu/pi-agentic-platform",
+      "https://github.com/SoulKyu/pi-agentic-platform",
     ],
   ])(
     "with the loopback switch the real transport reaches the fake service; sub is %s",

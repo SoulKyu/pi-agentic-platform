@@ -11,8 +11,10 @@ const FILES = [
   ".release-please-manifest.json",
   "release-please-config.json",
   ".github/workflows/release.yml",
+  ".github/workflows/pi-compat.yml",
 ];
 const WORKFLOW = ".github/workflows/release.yml";
+const PI_COMPAT = ".github/workflows/pi-compat.yml";
 const AFFERO =
   "                    GNU AFFERO GENERAL PUBLIC LICENSE\n                       Version 3, 19 November 2007\n";
 
@@ -37,12 +39,17 @@ const licensed = (id: string) => {
   put("LICENSES/Apache-2.0.txt", "Apache License\n");
   put("THIRD_PARTY_NOTICES.md", "reproduced in full in `LICENSES/Apache-2.0.txt`.\n");
 };
-const flipped = () =>
+const flipped = () => {
+  edit(PI_COMPAT, (t) => t.replace("on:\n", 'on:\n  schedule:\n    - cron: "17 3 * * *"\n'));
+  flippedRelease();
+};
+const flippedRelease = () =>
   edit(WORKFLOW, (t) =>
     t
       .replace("on:\n  workflow_dispatch:", "on:\n  push:\n    branches: [main]\n  workflow_dispatch:")
       .replace("inputs.channel == 'stable'", "(github.event_name == 'push' || inputs.channel == 'stable')"),
   );
+const read = (file: string) => readFileSync(join(copy, file), "utf8");
 const problems = () => checkRelease(copy).join("\n");
 
 beforeEach(() => {
@@ -51,6 +58,9 @@ beforeEach(() => {
     mkdirSync(dirname(join(copy, file)), { recursive: true });
     cpSync(join(REPO, file), join(copy, file));
   }
+  // The repository carries its AGPL licence now; these tests start from the unlicensed state they describe.
+  setLicense("package.json", "UNLICENSED");
+  setLicense("apps/daemon/package.json", "UNLICENSED");
 });
 afterEach(() => rmSync(copy, { recursive: true, force: true }));
 
@@ -199,5 +209,40 @@ describe("cache rule (M13R36)", () => {
   it("fails on cache: true and on a cache input of another value", () => {
     edit(WORKFLOW, (t) => t.replaceAll('cache: "false"', 'cache: "true"'));
     expect(problems()).toContain('cache: "false"');
+  });
+});
+
+describe("pi-compat schedule (flip)", () => {
+  it("accepts dispatch only before the flip and dispatch plus the nightly schedule after it", () => {
+    expect(read(PI_COMPAT)).not.toContain("schedule:");
+    expect(checkRelease(copy)).toEqual([]);
+    flipped();
+    expect(read(PI_COMPAT)).toContain('cron: "17 3 * * *"');
+    expect(checkRelease(copy)).toEqual([]);
+  });
+
+  it("rejects the schedule while release.yml is not flipped, and the missing schedule once it is", () => {
+    edit(PI_COMPAT, (t) => t.replace("on:\n", 'on:\n  schedule:\n    - cron: "17 3 * * *"\n'));
+    expect(problems()).toContain("pi-compat.yml");
+    flippedRelease();
+    expect(problems()).toBe("");
+    flipped();
+    edit(PI_COMPAT, (t) => t.replace(/ {2}schedule:\n.*\n.*\n/, ""));
+    expect(problems()).toContain("pi-compat.yml");
+  });
+
+  it.each([
+    ["another cron", 'on:\n  schedule:\n    - cron: "0 * * * *"\n'],
+    ["two schedules", 'on:\n  schedule:\n    - cron: "17 3 * * *"\n    - cron: "17 4 * * *"\n'],
+    ["a push trigger", 'on:\n  push:\n    branches: [main]\n  schedule:\n    - cron: "17 3 * * *"\n'],
+  ])("rejects %s after the flip", (_name, head) => {
+    flipped();
+    edit(PI_COMPAT, (t) => t.replace(/on:\n {2}schedule:\n {4}- cron: "17 3 \* \* \*"\n/, head));
+    expect(problems()).toContain("pi-compat.yml");
+  });
+
+  it("rejects a trigger other than dispatch before the flip", () => {
+    edit(PI_COMPAT, (t) => t.replace("on:\n", "on:\n  pull_request:\n"));
+    expect(problems()).toContain("pi-compat.yml");
   });
 });

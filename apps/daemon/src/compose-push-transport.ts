@@ -25,7 +25,7 @@ export interface TransportSide {
   readonly rpc: TransportRpc;
 }
 
-const PROJECT_URL = "https://github.com/soulkyu/pi-agentic-platform";
+const PROJECT_URL = "https://github.com/SoulKyu/pi-agentic-platform";
 
 /** M12R5: PAP_PUSH_SUBJECT, else an https PAP_PUBLIC_ORIGIN, else the project URL (never a made-up mailto:). */
 function vapidSubject(config: PushDeps["config"]): string {

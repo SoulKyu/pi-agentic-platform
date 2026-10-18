@@ -8,7 +8,10 @@ import { checkShrinkwrap } from "./release-check-shrinkwrap.ts";
 const VERSION = /^\d+\.\d+\.\d+$/;
 const PINNED = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_./-]+@[0-9a-f]{40}$/;
 const WORKFLOW = ".github/workflows/release.yml";
+const PI_COMPAT = ".github/workflows/pi-compat.yml";
 const DISPATCH = "workflow_dispatch";
+/** The nightly pi-compat schedule the v1 flip restores (it ran at this time before M13R33 made the workflow dispatch-only). */
+export const PI_COMPAT_CRON = "17 3 * * *";
 const JOB_PERMISSIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   stable: { contents: "write", "pull-requests": "write", issues: "write" },
   next: { contents: "write" },
@@ -203,6 +206,20 @@ const licence = (root: string, problems: string[]): void => {
   if (!notices.includes(APACHE_FILE)) problems.push(`THIRD_PARTY_NOTICES.md: does not name ${APACHE_FILE}`);
 };
 
+/** pi-compat.yml `on:` is exactly `workflow_dispatch` while release.yml is not flipped, and the nightly `schedule` plus `workflow_dispatch` once it is. */
+const piCompat = (root: string, problems: string[]): void => {
+  const flipped = triggers(record(parse(readText(root, WORKFLOW))).on).includes("push");
+  const on = record(parse(readText(root, PI_COMPAT))).on;
+  const wanted = flipped ? { schedule: [{ cron: PI_COMPAT_CRON }], [DISPATCH]: null } : { [DISPATCH]: null };
+  const normalized = Object.fromEntries(
+    Object.entries(record(on)).map(([name, value]) => [name, name === DISPATCH ? null : value]),
+  );
+  if (!isDeepStrictEqual(normalized, wanted))
+    problems.push(
+      `${PI_COMPAT}: on: must be exactly ${flipped ? `schedule cron "${PI_COMPAT_CRON}" plus ${DISPATCH} after` : `${DISPATCH} before`} the v1 flip (found ${triggers(on).join(", ") || "nothing"})`,
+    );
+};
+
 /** Every problem found under `root`; an empty list means the release setup is consistent. */
 export function checkRelease(root: string): string[] {
   const problems: string[] = [];
@@ -210,6 +227,7 @@ export function checkRelease(root: string): string[] {
     ["package.json, apps/daemon/package.json, .release-please-manifest.json", versions],
     ["release-please-config.json", config],
     [WORKFLOW, workflow],
+    [`${PI_COMPAT} and ${WORKFLOW}`, piCompat],
     ["package.json, apps/daemon/package.json, LICENSE", licence],
     [".pap-npm/package/npm-shrinkwrap.json", checkShrinkwrap],
   ];

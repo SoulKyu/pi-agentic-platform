@@ -11,6 +11,7 @@ const FILES = [
   ".release-please-manifest.json",
   "release-please-config.json",
   ".github/workflows/release.yml",
+  ".github/workflows/pi-compat.yml",
 ];
 const EXPECTED_CONFIG = {
   $schema: "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
