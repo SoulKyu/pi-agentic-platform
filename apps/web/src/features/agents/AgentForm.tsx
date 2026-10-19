@@ -5,7 +5,10 @@ import { type ReactNode, useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
 import type { PickerModel } from "../models/picker/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
+import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
+import { AgentPackages } from "./AgentPackages.tsx";
+import { AgentResources } from "./AgentResources.tsx";
 import { AutonomyFields } from "./AutonomyFields.tsx";
 import { BudgetFields } from "./BudgetFields.tsx";
 import { derivedInitials, draftFromInput, type Draft, needsStepUp, toInput } from "./agent-form.vm.ts";
@@ -54,6 +57,7 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
   const t = useT();
   const stepUp = useStepUpRunner();
   const pending = usePendingAction();
+  const vm = useVmStatus().status?.runtime === "vm";
   const reloading = usePendingAction();
   const before = agent?.input ?? null;
   const [draft, setDraft] = useState(() => ({
@@ -175,35 +179,41 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
       {presetField(draft.preset, (preset) => set({ preset }))}
       <fieldset data-slot="agent-sandbox" className="flex min-w-0 flex-col gap-s2">
         <legend className="label-hud text-muted">{t("agentForm.sandbox")}</legend>
-        <SandboxLine probe={probe} />
-        <Segmented
-          label={t("agentForm.sandbox")}
-          value={draft.sandboxRequired ? "required" : "off"}
-          options={[
-            { value: "required", label: t("agentForm.sandbox.required") },
-            { value: "off", label: t("agentForm.sandbox.off") },
-          ]}
-          onChange={(value) => set({ sandboxRequired: value === "required" })}
-        />
-        {draft.sandboxRequired && probe.checkedAt !== 0 && !probe.usable ? (
-          <p className="text-ui text-attn">{t("agentForm.sandbox.unusableHint")}</p>
-        ) : null}
-        {draft.sandboxRequired ? (
-          <Switch
-            label={t("agentForm.network")}
-            hint={t("agentForm.network.hint")}
-            checked={draft.network}
-            onChange={(network) => set({ network })}
-          />
+        {vm ? (
+          <p className="text-ui text-muted">{t("agentVm.sandboxNote")}</p>
         ) : (
-          <p role="status" className="text-ui text-attn">
-            {typedName === ""
-              ? t("agentForm.sandbox.offWarning.unnamed")
-              : t("agentForm.sandbox.offWarning", { name: typedName })}
-          </p>
+          <>
+            <SandboxLine probe={probe} />
+            <Segmented
+              label={t("agentForm.sandbox")}
+              value={draft.sandboxRequired ? "required" : "off"}
+              options={[
+                { value: "required", label: t("agentForm.sandbox.required") },
+                { value: "off", label: t("agentForm.sandbox.off") },
+              ]}
+              onChange={(value) => set({ sandboxRequired: value === "required" })}
+            />
+            {draft.sandboxRequired && probe.checkedAt !== 0 && !probe.usable ? (
+              <p className="text-ui text-attn">{t("agentForm.sandbox.unusableHint")}</p>
+            ) : null}
+            {draft.sandboxRequired ? (
+              <Switch
+                label={t("agentForm.network")}
+                hint={t("agentForm.network.hint")}
+                checked={draft.network}
+                onChange={(network) => set({ network })}
+              />
+            ) : (
+              <p role="status" className="text-ui text-attn">
+                {typedName === ""
+                  ? t("agentForm.sandbox.offWarning.unnamed")
+                  : t("agentForm.sandbox.offWarning", { name: typedName })}
+              </p>
+            )}
+            {draft.sandboxRequired && draft.network ? <EgressLine probe={probe} /> : null}
+            <p className="text-ui text-muted">{t("agentForm.sandbox.folders")}</p>
+          </>
         )}
-        {draft.sandboxRequired && draft.network ? <EgressLine probe={probe} /> : null}
-        <p className="text-ui text-muted">{t("agentForm.sandbox.folders")}</p>
       </fieldset>
       <fieldset data-slot="agent-hosts" className="flex min-w-0 flex-col gap-s2">
         <legend className="label-hud text-muted">{t("agentForm.hosts")}</legend>
@@ -249,6 +259,10 @@ export function AgentForm({ agent, probe, presetField, start, onSaved, onCancel,
         onChange={(acceptsDelegation) => set({ acceptsDelegation })}
       />
       <MemoryFields draft={draft} errors={errors} set={set} />
+      {vm ? <AgentResources draft={draft} errors={errors} set={set} /> : null}
+      {vm ? (
+        <AgentPackages systemPackages={draft.systemPackages} packages={draft.packages} set={set} />
+      ) : null}
       {widens ? (
         <p role="status" className="text-ui text-attn">
           {t("agentForm.stepUp", { name: typedName })}

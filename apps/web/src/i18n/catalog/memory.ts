@@ -5,6 +5,7 @@ export const memoryEn = {
     "What pi-mem0 remembers for you, your projects and your agents. A memory can come from any session, so it is shown as plain text.",
   "memory.loading": "Reading memory…",
   "memory.retry": "Try again",
+  "memory.vmNote": "pi-mem0 does not work in VM agents (sub-project 5).",
   "memory.status.failed": "The state of pi-mem0 could not be read.",
   "memory.status.notInstalled":
     "pi-mem0 is not installed. Nothing is remembered until it is, and there is nothing to show here.",
@@ -81,6 +82,7 @@ export const memoryFr: { readonly [K in keyof typeof memoryEn]: string } = {
     "Ce que pi-mem0 retient pour vous, vos projets et vos agents. Un souvenir peut venir de n'importe quelle session : il est affiché en texte brut.",
   "memory.loading": "Lecture de la mémoire…",
   "memory.retry": "Réessayer",
+  "memory.vmNote": "pi-mem0 ne fonctionne pas dans les agents en VM (sous-projet 5).",
   "memory.status.failed": "L'état de pi-mem0 n'a pas pu être lu.",
   "memory.status.notInstalled":
     "pi-mem0 n'est pas installé. Rien n'est retenu tant qu'il ne l'est pas, et il n'y a rien à afficher ici.",

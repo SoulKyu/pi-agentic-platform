@@ -73,3 +73,14 @@ describe("groupItems", () => {
     expect(grown).toBe(first);
   });
 });
+
+describe("a row pap did not send", () => {
+  it("stands in a run of its own, between the runs of the same author", () => {
+    const forged: MessageItem = { ...message("b", "you"), unverified: true };
+    expect(shape([message("a", "you"), forged, message("c", "you"), message("d", "you")])).toEqual([
+      ["you", "a"],
+      ["you", "b"],
+      ["you", "c", "d"],
+    ]);
+  });
+});

@@ -200,7 +200,15 @@ export function Transcript({ sessionId, view, toolDetail, rowActions, interleave
               ))}
               <li className="mx-auto w-full max-w-chat">
                 {group.kind === "run" ? (
-                  <AuthorGroup author={group.author} name={t(`author.${group.author}`)}>
+                  <AuthorGroup
+                    author={group.author}
+                    name={t(`author.${group.author}`)}
+                    meta={
+                      group.items[0]?.kind === "message" && group.items[0].unverified
+                        ? t("sessionPolicy.unverified")
+                        : undefined
+                    }
+                  >
                     {group.items.map((item) => (
                       <div key={item.key} id={rowId(scope, item.key)}>
                         {item.kind === "tool" ? (

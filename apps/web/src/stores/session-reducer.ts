@@ -136,7 +136,9 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
       return {
         ...EMPTY_VIEW,
         status: event.status,
-        messages: keyMessages(event.rows.flatMap((row) => toMessageView(row.message, row.entryId) ?? [])),
+        messages: keyMessages(
+          event.rows.flatMap((row) => toMessageView(row.message, row.entryId, row.unverified === true) ?? []),
+        ),
         dialogs: event.dialogs,
         hiddenDialogs: event.hiddenDialogs,
         partial: event.partial,
@@ -213,7 +215,10 @@ export function reduceSession(view: SessionView, raw: unknown): SessionView {
         ? view
         : {
             ...view,
-            messages: appendMessage(view.messages, toMessageView(event.row.message, event.row.entryId)),
+            messages: appendMessage(
+              view.messages,
+              toMessageView(event.row.message, event.row.entryId, event.row.unverified === true),
+            ),
           };
     case "subagents":
       return { ...view, children: event.children };

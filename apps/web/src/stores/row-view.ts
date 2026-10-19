@@ -51,6 +51,8 @@ export interface MessageView {
   readonly truncatedChars: number | null;
   /** The calls a tool result's tool made to other tools (codemode), absent when Pi recorded none. */
   readonly nestedCalls?: readonly NestedCallView[];
+  /** A user entry of a VM session that pap did not send (R32): the row says so on its author line. */
+  readonly unverified?: true;
 }
 
 const MAX_ERROR = 500;
@@ -84,7 +86,11 @@ const truncatedChars = (marker: unknown): number | null => {
 };
 
 /** Null for a message that is not shown: a custom message its extension marked `display: false`. */
-export function toMessageView(raw: unknown, entryId: string | null = null): MessageView | null {
+export function toMessageView(
+  raw: unknown,
+  entryId: string | null = null,
+  unverified = false,
+): MessageView | null {
   const message = (raw ?? {}) as {
     role?: unknown;
     content?: unknown;
@@ -165,6 +171,7 @@ export function toMessageView(raw: unknown, entryId: string | null = null): Mess
     omittedBytes: omitted ? (message.bytes as number) : null,
     truncatedChars: truncatedChars(message.papTruncated),
     ...(nestedCalls ? { nestedCalls } : {}),
+    ...(unverified ? { unverified: true as const } : {}),
   };
 }
 
