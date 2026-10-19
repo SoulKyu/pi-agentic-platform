@@ -18,6 +18,8 @@ import { createFakeClock, type FakeClock } from "./testing/fake-clock.ts";
  *    bad_request and runs nothing".
  *  - M-mode-not-enforced: no chmod 0600 after the bind (the socket keeps the umask's mode): killed by "the socket is 0600".
  *  - M-owner-not-enforced: no chown to papUid:papGid: killed by "the socket is owned by papUid" (fake chown).
+ *  - M-error-listener-removed-at-capacity: no 'error' listener on a refused (capacity) socket: a client that closes at
+ *    once raises an unhandled EPIPE and the process dies: killed by "a client that closes at once at the cap".
  *  - M-log-request: the logger gets the request: killed by "the log line of a vm.start has no token".
  */
 const hex = (n: number, ch: string): string => ch.repeat(n);
@@ -213,6 +215,8 @@ describe("one request per connection", () => {
 
   it("a silent connection is answered bad_request after the read deadline", async () => {
     const answer = exchange(null, "none");
+    // The deadline is armed when the server accepts the connection: wait for that, then advance.
+    await vi.waitFor(() => expect(clock.pending()).toBe(1));
     await clock.advance(REQUEST_READ_MS - 1);
     await clock.advance(1);
     expect(JSON.parse(await answer)).toEqual({ ok: false, code: "bad_request" });
@@ -269,6 +273,28 @@ describe("connections", () => {
     expect(JSON.parse(await exchange(null, "none"))).toEqual({ ok: false, code: "capacity" });
     release();
     await Promise.all(holding);
+    expect(await call({ op: "vm.list" })).toEqual({ ok: true, result: { done: true } });
+  });
+
+  it("a client that closes at once at the cap does not take the server down (an unhandled EPIPE killed it)", async () => {
+    await server({ maxConnections: 1 }).listen();
+    let release: () => void = () => undefined;
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    handler = () => released.then(() => ({ done: true }));
+    const holding = exchange('{"op":"vm.list"}', "end");
+    await vi.waitFor(() => expect(handled).toHaveLength(1));
+    for (let i = 0; i < 20; i += 1) {
+      await new Promise<void>((resolve) => {
+        const quick = net.createConnection(socketPath);
+        quick.on("error", () => undefined);
+        quick.on("close", () => resolve());
+        quick.on("connect", () => quick.destroy());
+      });
+    }
+    release();
+    await holding;
     expect(await call({ op: "vm.list" })).toEqual({ ok: true, result: { done: true } });
   });
 });

@@ -106,6 +106,8 @@ export function createVmdServer(deps: VmdServerDeps): VmdServer {
   }
 
   function onConnection(socket: net.Socket): void {
+    // Once, at accept, for every path (capacity, oversize, timeout, normal reply): a socket error never escapes.
+    socket.on("error", () => socket.destroy());
     const since = clock.now();
     if (open.size >= maxConnections) {
       record(null, null, null, "capacity", since);
@@ -154,7 +156,6 @@ export function createVmdServer(deps: VmdServerDeps): VmdServer {
     socket.on("end", () => {
       if (!settled) complete();
     });
-    socket.on("error", () => socket.destroy());
     socket.on("close", () => {
       settled = true;
       stopTimer();
@@ -186,7 +187,7 @@ export function createVmdServer(deps: VmdServerDeps): VmdServer {
         });
       });
       try {
-        // Until here the socket answers only root: a socket needs write permission to be connected to.
+        // Until here the socket answers only root when the umask strips group and other write (a socket needs write permission to be connected to).
         chmodSync(socketPath, 0o600);
         chown(socketPath, deps.papUid, deps.papGid);
       } catch (error) {
