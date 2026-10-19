@@ -164,6 +164,15 @@ Ideas to study after v1 (not planned yet):
 
   First step: read the paper, especially how probes are compared without a verifier, then a one-day spike on one agent.
 
+- **The agent checks its own work (owner, 2026-10-19).** Today the agent reads, greps and runs commands in its shell, and a fan-out runs the lane's test script once after each lane's first run (ADR 0034). It gets no editor diagnostics after an edit, has no browser to look at what it built (a v1 non-goal, decision 13), and the transcript shows no image a tool returned. Cursor and Claude Code feed diagnostics back; Orca and Devin drive a browser.
+  1. **Diagnostics after an edit** (small): a Pi extension runs the project's check command (typecheck, lint; declared in `project.yaml`) when a turn edited files and hands the errors back to the agent. Time and output are capped; the errors cost tokens. No LSP.
+  2. **An LSP** (later, only if 1 falls short): per-file diagnostics, definitions and references for the agent.
+  3. **Browser checks** (medium): a headless Chromium the agent drives through a Playwright MCP server or a CDP bridge, against the lane's dev server on a loopback port; screenshots shown in the transcript. Constraints:
+     - in an agent session each shell command is its own sandbox, so a dev server that outlives one command needs a lane-scoped sandboxed service;
+     - Chromium runs inside bwrap with its own sandbox off (bwrap is the outer one);
+     - page text and screenshots are external content: fenced, and they taint the session;
+     - one browser per lane at most, released when idle, counted in the budget.
+
 - **Scale in and out on Kubernetes (owner, 2026-10-19).** pap is a platform: agents should scale out on modern infrastructure. Today it is one host: one daemon, SQLite with one writer, workers forked locally in a systemd scope with bwrap, files on local disk. The OCI image (M6b) runs as one pod, which does not scale.
   - What already helps:
     - one launch point, `WorkerHandle` (`kernel/supervisor/worker.ts`), speaking JSON records (spec C §2.3, transport adapter foreseen in §2.2);
