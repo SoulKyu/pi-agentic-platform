@@ -123,6 +123,16 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
 - **Sub-projects:** 0 spike (done); 1 the runtime (spec `docs/specs/2026-10-19-agents-microvm-runtime-design.md`, plan `docs/plans/2026-10-19-agents-microvm-runtime.md`, SDD running since 2026-10-19); 2 egress proxy v2 (vault values bound to hosts, apt in the shell); 3 agent policy at the box's exits and the default switch (deletes the host-bwrap agent code); 4 per-agent backups (toggle, frequency, S3 later); 5 OKF `knowledge/` memory replacing mem0.
 - **Follow-up (owner, 2026-10-19, decision 115):** bring the same isolated runtime to every other pap component that runs code: sessions, lanes, triggers and the rest. Each gets the VM's scaling (Kubernetes as a later backend of the `AgentRuntime` port) and its security (closed box, no credential inside, delete without lateral impact). Its own spec after sub-project 3: sub-project 1 keys the runtime and pap-vmd by agent id, so the follow-up generalizes that identity to "a box" (agent, session, lane, trigger task) as a contract migration; sub-project 1 is not changed for it.
 
+## Lane judge (owner, 2026-10-19, decision 116)
+- **Asked:** once every lane of a fan-out has finished, pap can send an agent that compares the lanes and gives each a score out of 10.
+- **Shape to settle in its plan:**
+  - It builds on what M9 already has: `lanes.compare { fanoutId }` (summary, files, additions, deletions, duration, cost per lane), `lanes.review` (the diff), the lanes' script results, and `lanes.closeLosers` for the pick.
+  - The judge is read-only. It sees each lane's diff, its test and script output and the task prompt, and never writes to a worktree.
+  - It returns a card with one score out of 10 per lane, the criteria behind each score (correctness, tests, scope, readability, risk), and a recommended winner. The owner still picks; the judge never merges or closes lanes on its own.
+  - It is opt-in per fan-out, or automatic as a setting. It shows its cost before it runs (one model call per comparison, FinOps), and its model is chosen in the picker.
+  - The lanes' content is untrusted input for the judge (a lane can contain text written to sway it). Scores are advice, the judge's output is fenced like any tool result, and it runs in a box once lanes do (decision 115).
+- **Depends on:** M9 (lanes, compare), M10 (runs, cost), M11 (agents). Fits after the approvals fix (decision 117).
+
 ## Coverage
 
 | Domain / addition | Milestone |
