@@ -3,6 +3,12 @@ export * from "./agents-net.ts";
 export * from "./agents-resources.ts";
 export * from "./agents-vm.ts";
 export * from "./agents-vm-methods.ts";
+export {
+  createFrameDecoder,
+  encodeFrame as encodeSocketFrame,
+  type FrameDecoder,
+  type FrameError,
+} from "./socket-frames.ts";
 export * from "./agents-methods.ts";
 export * from "./agents-safety.ts";
 export * from "./audit.ts";

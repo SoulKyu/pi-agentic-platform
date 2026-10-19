@@ -143,7 +143,19 @@ describe("worker and guest records", () => {
   });
 
   it("accepts only canonical base64", () => {
-    for (const data of ["abc", "aGk", "aGk==", "=aGk", "a=Gk", "aG k"]) {
+    for (const data of [
+      "abc",
+      "aGk",
+      "aGk==",
+      "=aGk",
+      "a=Gk",
+      "aG k",
+      // Mutants (run for real): `(?:[A-Za-z0-9+/]{4})*` -> `{2}*` accepts "aG"; a lone trailing character
+      // (`[A-Za-z0-9+/]?` after the groups) accepts "A" and "aGkhA". These cases kill them.
+      "A",
+      "aG",
+      "aGkhA",
+    ]) {
       expect(SessionAppend.safeParse({ ...append, data }).success, data).toBe(false);
     }
     for (const data of ["", "aGk=", "aA==", "aGkh"]) {
@@ -179,6 +191,7 @@ describe("worker and guest records", () => {
     const names = [".x", "../x", "a/b", `a${String.fromCharCode(0)}b`, "a".repeat(129)];
     for (const name of names) expect(FilePut.safeParse({ ...put, name }).success, name).toBe(false);
     expect(FilePut.safeParse({ ...put, data: "A".repeat(FILE_CHUNK_B64 + 4) }).success).toBe(false);
+    expect(FilePut.safeParse({ ...put, data: "aG*=" }).success).toBe(false);
   });
 
   it("refuses a relative sessionFile in spawn and a relative layout path in VmInit", () => {
