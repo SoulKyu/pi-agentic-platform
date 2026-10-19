@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents en microVM · Questions après le red-team</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .v.risk { color: var(--human); border: 1px solid #FB923C88; }
+  .v.new { color: var(--ai); border: 1px solid #A78BFA88; }
+
+  /* diagram */
+  .zone { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 14px; position: relative; }
+  .zone > .zl { position: absolute; top: -9px; left: 12px; background: var(--bg); padding: 0 6px; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .zone.host { border-color: #34D39955; } .zone.host > .zl { color: var(--ok); }
+  .zone.vm { border-color: #EC489988; border-style: solid; background: #EC48990A; } .zone.vm > .zl { color: var(--attn); }
+  .zone.sh { border-color: #FB923C88; } .zone.sh > .zl { color: var(--human); }
+  .node { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; }
+  .node b { display: block; font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .node.root { border-color: var(--err); } .node.root b { color: var(--err); }
+  .node.new b::after { content: "nouveau"; margin-left: 6px; font: 600 9px var(--mono); color: #1B0D00; background: var(--human); padding: 0 4px; border-radius: 2px; vertical-align: 1px; }
+  .flow { font: 11px var(--mono); color: var(--muted); text-align: center; padding: 6px 0; }
+  .flow b { color: var(--ai); }
+  .row3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
+
+  /* choices */
+  .q { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 14px 16px; margin-top: 14px; }
+  .q .why { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface2); border-radius: var(--r); padding: 8px 12px; font-size: 12.5px; cursor: pointer; user-select: none; color: var(--text); max-width: 420px; }
+  .opt small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .opt .tag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: 2px; margin-left: 6px; }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .opt.selected small, .opt.selected .tag { color: #3a1d00; border-color: #3a1d0055; }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  @media (max-width: 860px) { .grid2, .grid3, .row3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Agents en microVM · Sous-projet 1 · Après le red-team du plan</div>
+  <h1>13 questions avant la correction du plan</h1>
+  <p class="lead">Le red-team Opus a trouvé 5 Critiques, 23 Importants, 20 Mineurs. Verdict : prêt après corrections, pas de re-plan. Les Critiques sont corrigés quoi qu'il arrive ; ces questions fixent ce que la correction doit faire là où c'est ton choix. Chaque question a une reco ; « Appliquer toutes les recos » remplit tout.</p>
+
+  <h2>Les 5 Critiques (corrigés dans tous les cas)</h2>
+  <table>
+    <tr><th>Id</th><th>Problème</th><th>Correction</th></tr>
+    <tr><td>RT-01</td><td>La règle de chemins de la VM ignore les réécritures de Pi (<code>@</code>, <code>~</code>, <code>file:</code>) et accepte un lien pendant : l'agent peut réécrire la transcription que tu lis et lire le jeton dans <code>/proc/self/environ</code>.</td><td>Réutiliser la logique existante de pap (<code>asPiResolves</code>), exiger que le chemin existe en lecture, refuser tout lien en écriture, ouvrir composant par composant sans suivre les liens.</td></tr>
+    <tr><td>RT-02</td><td>Aucun shell sandboxé n'est enregistré dans la VM : soit pas de shell du tout, soit le <code>bash</code> de Pi en root dans le worker (voit le jeton).</td><td>Dans la VM, pap enregistre toujours son shell bwrap, quel que soit l'interrupteur « sandbox » de l'agent.</td></tr>
+    <tr><td>RT-03</td><td>Le relay n'authentifie pas l'appelant et reste joignable hors des VM (processus locaux, conteneurs Docker, LAN) : n'importe qui dépenserait tes clés.</td><td>Règle nftables : ports 7841/7842 seulement depuis <code>pap0</code> ; plus un identifiant par lancement que le relay vérifie.</td></tr>
+    <tr><td>RT-04</td><td>Pas d'anti-usurpation sur le bridge : une VM compromise peut se faire passer pour une autre (ARP) et lire ou injecter son canal en clair. C'est du mouvement latéral.</td><td>Voir Q13 (choix du moyen).</td></tr>
+    <tr><td>RT-05</td><td>Le contrat de pap-vmd ne distingue pas le disque d'une tâche isolée : la fin d'une tâche pourrait supprimer le disque de l'agent.</td><td>Clé de tâche sur toutes les opérations disque ; pap-vmd crée et détruit lui-même le disque d'une tâche.</td></tr>
+  </table>
+
+  <h2>Tes choix · clique une réponse par question</h2>
+
+  <div class="q"><h3>Q1 · Quelle machine fera tourner les agents en VM ?</h3>
+    <p class="why">Ce VPS est une VM Hyper-V sans virtualisation imbriquée : on ne peut pas essayer CyberLooker en VM ici. Il faut une machine avec KVM avant T15 (le premier vrai agent en VM).</p>
+    <div class="opts">
+      <div class="opt" data-choice="q1-nested-here" onclick="pick(this)">A · Activer la virtualisation imbriquée sur ce VPS<span class="tag">reco</span><small>Si l'hôte Hyper-V est à toi : VM arrêtée, <code>Set-VMProcessor -VMName &lt;vm&gt; -ExposeVirtualizationExtensions $true</code>. Le preview reste où il est.</small></div>
+      <div class="opt" data-choice="q1-other-host" onclick="pick(this)">B · Une autre machine avec KVM<small>Tu me donnes l'accès ; pap y tournera pour les agents.</small></div>
+      <div class="opt" data-choice="q1-later" onclick="pick(this)">C · Plus tard : T0 sur un runner GitHub, la machine avant T15<small>Le défaut du red-team.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q2 · Le vault et les valeurs « à usage unique » dans la VM, au sous-projet 1</h3>
+    <p class="why">Sans réseau dans le shell (sous-projet 2), une valeur du vault n'a nulle part où servir.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q2-none" onclick="pick(this)">A · Aucune valeur dans la VM ; <code>secret.request</code> indisponible jusqu'au sous-projet 2<span class="tag">reco</span><small>Rien de sensible n'entre dans la boîte tant qu'il n'y a pas de raison.</small></div>
+      <div class="opt" data-choice="q2-pass" onclick="pick(this)">B · Les passer comme aujourd'hui<small>Elles seraient dans la VM sans usage possible.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q3 · Après la migration, l'agent peut-il revenir au mode hôte ?</h3>
+    <p class="why">Son home est sur son disque de VM ; l'ancien home est à la corbeille.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q3-refuse" onclick="pick(this)">A · Non : le mode hôte refuse cet agent avec une phrase claire<span class="tag">reco</span><small>Évite deux versions divergentes de son home.</small></div>
+      <div class="opt" data-choice="q3-allow" onclick="pick(this)">B · Oui, sur l'ancien home (à la corbeille 7 jours)<small>Retour arrière possible, mais l'agent perd ce qu'il a fait en VM.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q4 · Ce que le relay vérifie</h3>
+    <p class="why">Il porte tes clés et ton jeton Claude.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q4-full" onclick="pick(this)">A · Identifiant par lancement + liste des fournisseurs et modèles de l'agent + budget de l'agent<span class="tag">reco</span><small>Chaque appel est attribué à un agent ; un agent ne dépense pas plus que son budget.</small></div>
+      <div class="opt" data-choice="q4-auth-only" onclick="pick(this)">B · Identifiant par lancement seulement<small>Plus simple ; pas de contrôle de modèle ni de budget au relay.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q5 · Quand la VM remplace la transcription (resync)</h3>
+    <p class="why">La VM fait foi (décision 110), mais une VM compromise pourrait réécrire l'historique que tu lis.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q5-keep-old" onclick="pick(this)">A · L'ancienne copie est gardée 7 jours, une note s'affiche et la session est marquée<span class="tag">reco</span><small>« La sécurité rend les erreurs réversibles. »</small></div>
+      <div class="opt" data-choice="q5-replace" onclick="pick(this)">B · Remplacement silencieux<small>Comme la décision 110 l'écrivait.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q6 · Comment le shell de la VM est jugé au sous-projet 1</h3>
+    <p class="why">Sans réseau, le shell n'agit que sur le disque de l'agent.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q6-own-folder" onclick="pick(this)">A · Comme une modification de son propre dossier : sans demande en auto-accept-edits et full access<span class="tag">reco</span><small>Sinon CyberLooker demanderait plus en VM qu'aujourd'hui.</small></div>
+      <div class="opt" data-choice="q6-exec" onclick="pick(this)">B · Comme une commande (exec) : demande selon le mode<small>Plus prudent, mais contraire au but.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q7 · Pré-checks de déclencheurs et suggestions de prompts pour un agent en VM</h3>
+    <p class="why">Les pré-checks tournent aujourd'hui dans le sandbox hôte ; les suggestions lisent <code>prompts/</code> dans le home, désormais dans la VM.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q7-later" onclick="pick(this)">A · Pré-checks refusés avec une phrase, suggestions vides ; dans la VM au sous-projet 3<span class="tag">reco</span><small>Évite de démarrer une VM juste pour un pré-check.</small></div>
+      <div class="opt" data-choice="q7-now" onclick="pick(this)">B · Les faire tourner dans la VM dès maintenant<small>Élargit le sous-projet 1.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q8 · pi-mem0 dans les agents en VM</h3>
+    <div class="opts">
+      <div class="opt" data-choice="q8-exclude" onclick="pick(this)">A · Exclu jusqu'au sous-projet 5 (mémoire OKF)<span class="tag">reco</span><small>De toute façon remplacé.</small></div>
+      <div class="opt" data-choice="q8-include" onclick="pick(this)">B · L'inclure en attendant<small>Il faudrait faire entrer le dossier mem0 dans la VM.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q9 · Le shell root (R2) au sous-projet 1, alors qu'apt n'a pas encore de réseau</h3>
+    <div class="opts">
+      <div class="opt" data-choice="q9-keep-root" onclick="pick(this)">A · Garder root + 7 capabilities, avec le seccomp renforcé du red-team ; la vérif apt passe au sous-projet 2<span class="tag">reco</span><small>Tu as dit « l'agent a root dans sa VM ».</small></div>
+      <div class="opt" data-choice="q9-unpriv" onclick="pick(this)">B · Shell non privilégié au sous-projet 1, root au sous-projet 2<small>Moins de surface tant qu'apt ne sert à rien.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q10 · <code>sudo pap vm setup</code> après chaque mise à jour (R6)</h3>
+    <div class="opts">
+      <div class="opt" data-choice="q10-setup-pinned" onclick="pick(this)">A · Oui, et setup installe pap-vmd et Node depuis les artefacts épinglés de la release (jamais depuis ton dossier)<span class="tag">reco</span><small>Le code exécuté par root ne vient jamais d'un dossier modifiable par ton utilisateur.</small></div>
+      <div class="opt" data-choice="q10-auto" onclick="pick(this)">B · Une mise à jour automatique de pap-vmd par un timer root<small>Plus pratique, mais du code root qui se met à jour seul.</small></div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q11 · Le tableau des modèles (change ce que tu as validé)</h3>
+    <p class="why">Le red-team signale 4 tâches sensibles relues par Sonnet et 4 tâches trop grosses pour une seule revue.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q11-opus-4-split" onclick="pick(this)">A · Reviewers Opus aussi pour T8, T14, T15, T17 + découper T11, T13, T14, T16 en a/b<span class="tag">reco</span><small>T15 et T17 touchent à la suppression de disques et aux copies faites par root : une erreur y coûte cher. Coût : 4 revues Opus de plus.</small></div>
+      <div class="opt" data-choice="q11-opus-2-split" onclick="pick(this)">B · Opus seulement pour T8 et T14 + les découpages<small>Le minimum du red-team.</small></div>
+      <div class="opt" data-choice="q11-keep" onclick="pick(this)">C · Garder le tableau validé, sans découpage</div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q12 · Lancer T0 tout de suite sur un runner GitHub</h3>
+    <p class="why">Les runners Linux de GitHub ont KVM. Un workflow jetable sur une branche du dépôt public vérifierait Kata, le disque direct, le bridge et nftables sans attendre ta machine. La branche et ses runs sont supprimés après.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q12-yes" onclick="pick(this)">A · Oui, en parallèle de la correction du plan<span class="tag">reco</span><small>Les risques 2 à 5 et 7 sont levés en quelques heures ; les étapes 8 et 9 (jeton Claude, OAuth) tournent ici, sans KVM.</small></div>
+      <div class="opt" data-choice="q12-no" onclick="pick(this)">B · Non, attendre la machine de Q1</div>
+    </div>
+  </div>
+
+  <div class="q"><h3>Q13 · Protéger le canal entre VM (amende la décision 110 Q3)</h3>
+    <p class="why">RT-04 : sur le bridge, une VM peut se faire passer pour une autre. Le canal en clair suppose le contraire.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q13-antispoof" onclick="pick(this)">A · Anti-usurpation sur le bridge : chaque port n'émet que son adresse MAC/IP, ARP filtré, IPv6 bloqué, voisins figés<span class="tag">reco</span><small>Protège aussi le relay ; rien à changer dans le canal ; vérifié par T0 (<code>arping</code> depuis une VM).</small></div>
+      <div class="opt" data-choice="q13-tls-psk" onclick="pick(this)">B · Chiffrer le canal (TLS avec le jeton du lancement comme clé partagée)<small>Tient même si le réseau est compromis, prêt pour Kubernetes, mais plus de code et TLS 1.2 seulement en PSK avec Node.</small></div>
+      <div class="opt" data-choice="q13-both" onclick="pick(this)">C · Les deux<small>Défense en profondeur ; le plus cher.</small></div>
+    </div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation</span>
+    <div>Une réponse par question (ou rien = la reco), puis valide. Les notes se donnent en terminal.</div>
+    <div class="bar">
+      <div class="btn" onclick="applyRecos()">Appliquer toutes les recos</div>
+      <div class="btn pri" data-choice="avm1-q-submit" onclick="submitS('avm1-q')">Valider les réponses</div>
+    </div>
+  </div>
+</div>
+<script>
+  function pick(el) {
+    el.parentElement.querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function applyRecos() {
+    document.querySelectorAll('.q').forEach(q => {
+      const reco = [...q.querySelectorAll('.opt')].find(o => o.querySelector('.tag'));
+      if (reco) pick(reco);
+    });
+  }
+  function submitS(s) {
+    const answers = {};
+    document.querySelectorAll('.q').forEach((q, i) => {
+      const sel = q.querySelector('.opt.selected');
+      answers['q' + (i + 1)] = sel ? sel.dataset.choice : 'reco';
+    });
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: s + '-submitted', answers });
+  }
+</script>
+</body>
+</html>
