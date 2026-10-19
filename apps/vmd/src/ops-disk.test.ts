@@ -30,6 +30,8 @@ import {
  *  - M-grow-smaller: `disk.grow` truncates to the requested size whatever it is: killed by "disk.grow refuses a smaller size".
  *  - M-grow-running: no running-VM check in `disk.grow`: killed by "disk.grow is conflict while a VM of the agent runs".
  *  - M-grow-resizes: `e2fsck` or `resize2fs` runs after the truncate (R31): killed by "disk.grow only extends the file".
+ *  - M-unknown-status-is-stopped (I1): a status nerdctl prints that pap does not know counts as stopped: killed by
+ *    "an unknown, a pausing or an empty status blocks disk.grow and disk.delete".
  *  - M-delete-running: `disk.delete` of the agent's disk without the running check: killed by "disk.delete of the agent's disk
  *    is conflict while a VM of the agent runs" (thread VM, task VM).
  *  - M-create-overwrites: `disk.create` on an existing disk: killed by "disk.create refuses an existing disk".
@@ -147,6 +149,37 @@ describe("disk.grow (R31)", () => {
   });
 });
 
+describe("fail closed on a status pap does not know (I1)", () => {
+  it("an unknown, a pausing or an empty status blocks disk.grow and disk.delete", async () => {
+    use();
+    const file = seedDisk(fx);
+    for (const status of ["Unknown", "Pausing", "", "Removing"]) {
+      fx.ps = [`pap-${AGENT} ${status}`.trimEnd()];
+      await expect(fx.ops.handle(grow())).rejects.toMatchObject({ code: "conflict" });
+      await expect(fx.ops.handle(del(null))).rejects.toMatchObject({ code: "conflict" });
+      await expect(fx.ops.handle(del(null, true))).rejects.toMatchObject({ code: "conflict" });
+      expect(existsSync(file)).toBe(true);
+    }
+    fx.ps = [`pap-${AGENT}`];
+    await expect(fx.ops.handle(grow())).rejects.toMatchObject({ code: "conflict" });
+  });
+
+  it("an unknown status keeps a task disk out of the start sweep", async () => {
+    use();
+    for (const status of ["Unknown", "Pausing", ""]) {
+      fx.ps = [`pap-${AGENT}-${TASK} ${status}`.trimEnd()];
+      const disk = fx.state.diskPath(AGENT, TASK);
+      mkdirSync(path.dirname(disk), { recursive: true });
+      writeFileSync(disk, "task disk");
+      fx.state.sweepAtStart(await fx.ops.runningTasks());
+      expect(existsSync(disk)).toBe(true);
+    }
+    fx.ps = [`pap-${AGENT}-${TASK} Exited (0) 1 hour ago`];
+    fx.state.sweepAtStart(await fx.ops.runningTasks());
+    expect(existsSync(fx.state.diskPath(AGENT, TASK))).toBe(false);
+  });
+});
+
 describe("disk.delete (R30)", () => {
   it("disk.delete of the agent's disk is conflict while a VM of the agent runs (thread or task)", async () => {
     use();
@@ -249,6 +282,16 @@ describe("disk.populate (R31)", () => {
     mkdirSync(path.join(fx.papHome, "vm", "staging"), { recursive: true });
     symlinkSync(fx.work, staging());
     await expect(fx.ops.handle(populate)).rejects.toMatchObject({ code: "bad_request" });
+    expect(fx.exec.calls).toEqual([]);
+  });
+
+  it("checks the free space before it copies anything", async () => {
+    use();
+    stage();
+    fx.room = () => Promise.reject(new VmdFailure("disk_low"));
+    await expect(fx.ops.handle(populate)).rejects.toMatchObject({ code: "disk_low" });
+    expect(existsSync(stateDir("staging", AGENT))).toBe(false);
+    expect(fx.roomAsked).toEqual([1024]);
     expect(fx.exec.calls).toEqual([]);
   });
 

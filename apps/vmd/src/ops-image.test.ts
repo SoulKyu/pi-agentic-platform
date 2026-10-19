@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VmdFailure } from "./errors.ts";
 import { renderDockerfile } from "./dockerfile.ts";
 import type { ImageBuildRequest } from "./ops.ts";
@@ -17,6 +17,8 @@ import { createFixture, type Fixture } from "./testing/ops-fixture.ts";
  *  - M-base-cached: a base build without `--no-cache`: killed by "a base build has --no-cache and the others do not".
  *  - M-prune-running: `image.prune` removes an image a container uses: killed by "image.prune keeps the given tags and the
  *    images of existing containers".
+ *  - M-shared-build-folder (I2): the context and Dockerfile folders are per layer, not per tag: killed by "two builds of one layer
+ *    at once each keep their own context and Dockerfile".
  *  - M-no-join: a second build of a tag already building runs again: killed by "a second build of the same tag joins".
  */
 const DIGEST = `docker.io/library/node@sha256:${"9".repeat(64)}`;
@@ -108,9 +110,9 @@ describe("image.build", () => {
     put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "settings.json"), "{}");
     const request = build("profile");
     await fx.ops.handle(request);
-    expect(seen?.context).toBe(fx.state.buildDir("profile"));
+    expect(seen?.context).toBe(path.join(fx.state.buildDir("profile"), request.tag));
     expect(seen?.contextFiles).toEqual(["pi-agent"]);
-    expect(seen?.dockerfileDir).toBe(fx.state.dockerfileDir("profile"));
+    expect(seen?.dockerfileDir).toBe(path.join(fx.state.dockerfileDir("profile"), request.tag));
     expect(path.relative(seen?.context ?? "", seen?.dockerfileDir ?? "").startsWith("..")).toBe(true);
     expect(seen?.dockerfile).toBe(renderDockerfile(request));
   });
@@ -132,18 +134,50 @@ describe("image.build", () => {
   it("a failed build is failed, and the copy of the context is removed after any build", async () => {
     put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "x"), "x");
     await fx.ops.handle(build("profile"));
-    expect(existsSync(fx.state.buildDir("profile"))).toBe(false);
+    expect(readdirSync(fx.state.buildDir("profile"))).toEqual([]);
     use((argv) => (isBuild(argv) ? { code: 1 } : undefined));
     put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "x"), "x");
     await expect(fx.ops.handle(build("profile"))).rejects.toMatchObject({ code: "failed" });
-    expect(existsSync(fx.state.buildDir("profile"))).toBe(false);
+    expect(readdirSync(fx.state.buildDir("profile"))).toEqual([]);
   });
 
   it("disk_low refuses before copying", async () => {
     put(path.join(fx.bundle, "marker"), "bundle");
     fx.room = () => Promise.reject(new VmdFailure("disk_low"));
     await expect(fx.ops.handle(build("base"))).rejects.toMatchObject({ code: "disk_low" });
-    expect(existsSync(fx.state.buildDir("base"))).toBe(false);
+    expect(existsSync(path.join(fx.state.buildDir("base"), tag("base", "1")))).toBe(false);
+  });
+
+  it("two builds of one layer at once each keep their own context and Dockerfile", async () => {
+    const A = build("profile", { tag: tag("profile", "1"), from: tag("base", "2") });
+    const B = build("profile", { tag: tag("profile", "3"), from: tag("base", "4") });
+    const after: { dockerfile: string; contextKept: boolean; own: boolean }[] = [];
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const seenBuilds: number[] = [];
+    use(async (argv) => {
+      if (!isBuild(argv)) return undefined;
+      const order = seenBuilds.push(seenBuilds.length);
+      const context = argv[argv.indexOf("--local") + 1]?.replace("context=", "") ?? "";
+      const dockerfileDir = argv[argv.lastIndexOf("--local") + 1]?.replace("dockerfile=", "") ?? "";
+      if (order === 1) await gate;
+      after[order - 1] = {
+        dockerfile: readFileSync(path.join(dockerfileDir, "Dockerfile"), "utf8"),
+        contextKept: existsSync(path.join(context, "pi-agent", "x")),
+        own: context.endsWith(order === 1 ? A.tag : B.tag),
+      };
+      return undefined;
+    });
+    put(path.join(fx.papHome, "vm", "build", "profile", "pi-agent", "x"), "x");
+    const first = fx.ops.handle(A);
+    await vi.waitFor(() => expect(fx.exec.calls.filter(isBuild)).toHaveLength(1), { timeout: 2000 });
+    await fx.ops.handle(B);
+    release();
+    await first;
+    expect(after.map((a) => a.own)).toEqual([true, true]);
+    expect(after[0]?.contextKept).toBe(true);
+    expect(after[0]?.dockerfile).toBe(renderDockerfile(A));
+    expect(after[1]?.dockerfile).toBe(renderDockerfile(B));
   });
 
   it("a second build of the same tag joins the one running", async () => {

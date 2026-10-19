@@ -1,25 +1,15 @@
 import { createSystemClock } from "./clock.ts";
 import { CONFIG_PATH, loadVmdConfig } from "./config.ts";
-import { VmdFailure } from "./errors.ts";
 import { createExec } from "./exec.ts";
 import { createLocks, createRoomCheck } from "./locks.ts";
 import { createStderrLogger } from "./log.ts";
-import { BUNDLE_ROOT, createOps, VMD_VERSION, VOLUME_ROOT, type NetPort } from "./ops.ts";
+import { unavailableNet } from "./net-unavailable.ts";
+import { BUNDLE_ROOT, createOps, VMD_VERSION, VOLUME_ROOT } from "./ops.ts";
 import { createVmdServer } from "./server.ts";
 import { createState } from "./state.ts";
 
 const SOCKET_PATH = "/run/pap-vm/vmd.sock";
 const DEFAULT_MIN_FREE_MB = 1024;
-
-/** Until T16a composes the real network, every start fails closed: no VM runs without its anti-spoofing guard (R22). */
-const unavailableNet: NetPort = {
-  allocate() {
-    throw new VmdFailure("unavailable");
-  },
-  attach: () => Promise.reject(new VmdFailure("unavailable")),
-  detach: () => Promise.resolve(),
-  restore: () => Promise.resolve(),
-};
 
 function minFreeMb(): number {
   const value = Number(process.env.PAP_MIN_FREE_DISK_MB ?? DEFAULT_MIN_FREE_MB);

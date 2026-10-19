@@ -2,9 +2,9 @@ import { VmdRequest } from "@pap/contracts";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createLocks } from "../locks.ts";
+import { createLocks, type Locks } from "../locks.ts";
 import type { Logger } from "../log.ts";
-import { createOps, type Ops } from "../ops.ts";
+import { createOps, type NetPort, type Ops } from "../ops.ts";
 import { createState, type VmdState } from "../state.ts";
 import { createFakeClock, type FakeClock } from "./fake-clock.ts";
 import { createFakeExec, type ExecHandler, type FakeExec } from "./fake-exec.ts";
@@ -58,7 +58,10 @@ export function startRequest(extra: Record<string, unknown> = {}): Record<string
   };
 }
 
-export function createFixture(handler: ExecHandler = () => undefined): Fixture {
+export function createFixture(
+  handler: ExecHandler = () => undefined,
+  options: { locks?: Locks; net?: NetPort } = {},
+): Fixture {
   const work = mkdtempSync(path.join(tmpdir(), "pap-vmd-ops-"));
   const clock = createFakeClock();
   const logs: Fixture["logs"] = [];
@@ -97,9 +100,9 @@ export function createFixture(handler: ExecHandler = () => undefined): Fixture {
   const uid = process.getuid?.() ?? 0;
   const ops = createOps({
     exec: exec.exec,
-    net,
+    net: options.net ?? net,
     state,
-    locks: createLocks(),
+    locks: options.locks ?? createLocks(),
     room: (needMb) => {
       fixture.roomAsked.push(needMb);
       return fixture.room(needMb);

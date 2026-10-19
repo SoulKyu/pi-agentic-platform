@@ -33,12 +33,13 @@ const NO_SUCH_CONTAINER = /no such container/i;
 /** Values that reach the env file: one visible token each, so no line break can enter (R8). */
 const ENV_VALUE = /^[A-Za-z0-9._:-]+$/;
 
-/** Maps `nerdctl ps` Status text; anything unknown counts as stopped (never "running"). */
+/** Maps `nerdctl ps` Status text; fails closed: anything not explicitly stopped counts as a VM that may hold its disk (I1). */
 function stateOfStatus(status: string): VmStateName {
   if (/^Paused/i.test(status) || /\(Paused\)/i.test(status)) return "paused";
-  if (/^Up/i.test(status)) return "running";
   if (/^(Created|Restarting)/i.test(status)) return "starting";
-  return "stopped";
+  // Only an explicit exit counts as stopped: Pausing, Unknown, an empty or a new status may still hold the disk.
+  if (/^(Exited|Stopped)/i.test(status)) return "stopped";
+  return "running";
 }
 
 const stateOfInspect = (text: string): VmStateName => {
@@ -60,14 +61,18 @@ const stateOfInspect = (text: string): VmStateName => {
 export function parseVmList(text: string): VmEntry[] {
   const entries: VmEntry[] = [];
   for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
     const space = line.indexOf(" ");
-    if (space === -1) continue;
-    const match = NAME.exec(line.slice(0, space));
+    const match = NAME.exec(space === -1 ? line.trim() : line.slice(0, space));
     const agentId = match?.[1];
     const taskKey = match?.[2] ?? null;
     if (agentId === undefined || !AgentId.safeParse(agentId).success) continue;
     if (taskKey !== null && !TaskKey.safeParse(taskKey).success) continue;
-    entries.push({ agentId, taskKey, state: stateOfStatus(line.slice(space + 1).trim()) });
+    entries.push({
+      agentId,
+      taskKey,
+      state: stateOfStatus(space === -1 ? "" : line.slice(space + 1).trim()),
+    });
   }
   return entries;
 }
@@ -84,7 +89,10 @@ export function createVmOps(deps: OpsDeps) {
   /** Cleanup steps never stop each other: each failure is logged by name and the next step still runs. */
   async function step(name: string, run: () => Promise<unknown> | unknown): Promise<boolean> {
     try {
-      await run();
+      if ((await run()) === false) {
+        log.info("vmd_cleanup_failed", { step: name, error: "refused" });
+        return false;
+      }
       return true;
     } catch (error) {
       log.info("vmd_cleanup_failed", { step: name, error: error instanceof Error ? error.name : "unknown" });
@@ -158,10 +166,11 @@ export function createVmOps(deps: OpsDeps) {
       });
       return { address: address.ip };
     } catch (error) {
-      await step("rm", () => removeContainer(name));
+      const removed = await step("rm", () => removeContainer(name));
       await step("detach", () => net.detach(name));
       await step("volume", () => removeVolume(volume));
-      if (diskMade) await step("task_disk", () => removeTaskDir(disk));
+      // As in vm.stop: a container that could not be removed may still hold the task disk.
+      if (diskMade && removed) await step("task_disk", () => removeTaskDir(disk));
       state.removeEnvFile(request.launchId);
       throw error instanceof VmdFailure ? error : new VmdFailure("failed");
     }

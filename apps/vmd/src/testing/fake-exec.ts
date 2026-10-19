@@ -1,6 +1,8 @@
 import type { Exec, ExecResult } from "../ops.ts";
 
-export type ExecHandler = (argv: readonly string[]) => Partial<ExecResult> | undefined;
+export type ExecHandler = (
+  argv: readonly string[],
+) => Partial<ExecResult> | undefined | Promise<Partial<ExecResult> | undefined>;
 
 export interface FakeExec {
   readonly exec: Exec;
@@ -13,9 +15,9 @@ export function createFakeExec(handler: ExecHandler = () => undefined): FakeExec
   const calls: string[][] = [];
   return {
     calls,
-    exec: (argv) => {
+    exec: async (argv) => {
       calls.push([...argv]);
-      return Promise.resolve({ code: 0, stdout: "", stderr: "", ...handler(argv) });
+      return { code: 0, stdout: "", stderr: "", ...(await handler(argv)) };
     },
   };
 }

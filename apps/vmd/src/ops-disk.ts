@@ -168,6 +168,8 @@ export function createDiskOps(deps: OpsDeps, list: () => Promise<VmEntry[]>) {
     return locks.joinPopulate(request.agentId, async () => {
       const file = state.diskPath(request.agentId, null);
       if (fileExists(file)) throw new VmdFailure("conflict");
+      // Minor 1: room for at least the smallest disk is checked before anything is copied into root's state.
+      await room(POPULATE_MIN_MB);
       const copy = state.stagingDir(request.agentId);
       const source = path.join(deps.papHome, "vm", "staging", request.agentId);
       try {

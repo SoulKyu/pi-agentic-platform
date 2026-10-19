@@ -50,9 +50,11 @@ export function createImageOps(deps: OpsDeps) {
 
   async function runBuild(request: ImageBuildRequest): Promise<unknown> {
     await room(BUILD_NEED_MB);
-    const context = state.buildDir(request.layer);
-    const dockerfileDir = state.dockerfileDir(request.layer);
+    // I2: folders are keyed by tag, so two builds of one layer never share or delete each other's.
+    const context = path.join(state.buildDir(request.layer), request.tag);
+    const dockerfileDir = path.join(state.dockerfileDir(request.layer), request.tag);
     try {
+      mkdirSync(path.dirname(context), { recursive: true, mode: 0o700 });
       copyContext(request, context);
       // RT-33: the Dockerfile is rendered here, in a folder of its own, never inside the context.
       mkdirSync(dockerfileDir, { recursive: true, mode: 0o700 });
@@ -62,6 +64,7 @@ export function createImageOps(deps: OpsDeps) {
       return { tag: request.tag };
     } finally {
       rmSync(context, { recursive: true, force: true });
+      rmSync(dockerfileDir, { recursive: true, force: true });
     }
   }
 
@@ -72,7 +75,7 @@ export function createImageOps(deps: OpsDeps) {
     return { tags: await papTags() };
   }
 
-  /** Removes every pap image that is not in `keep` and that no container (running or not) uses. */
+  /** Caller contract: an image just built and not yet started must be in `keep`. Removes every pap image that is not in `keep` and that no container (running or not) uses. */
   async function prune(request: Prune): Promise<unknown> {
     const tags = await papTags();
     const used = await exec(psImagesArgv());

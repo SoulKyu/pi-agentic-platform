@@ -2,6 +2,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { VmdFailure } from "./errors.ts";
+import { createLocks } from "./locks.ts";
+import { unavailableNet } from "./net-unavailable.ts";
 import type { ExecHandler } from "./testing/fake-exec.ts";
 import {
   AGENT,
@@ -26,6 +28,10 @@ import {
  *  - M-volume-remove-skipped: the cleanup after a failure skips `direct-volume remove`: killed by "a failed run removes the
  *    container, the volume and the port".
  *  - M-no-rm-before-run: no leftover `rm --force` before `run`: killed by "rm --force runs before every run".
+ *  - M-env-file-cleanup-dropped (I3): the failure cleanup no longer removes the env file (only `withStart`'s `finally` does):
+ *    killed by "an env file written before a start that never ran is removed" (a `withStart` that rejects).
+ *  - M-disk-removed-after-rm-failed (I4): the task disk is removed although `rm --force` failed: killed by "a cleanup rm that
+ *    fails is logged by class and keeps the task disk".
  *  - M-task-disk-kept: a failed isolated start keeps its task disk: killed by "a failed isolated start deletes its task disk".
  */
 const VOLUME = (fx: Fixture, name: string): string => path.join(fx.volumeRoot, name);
@@ -209,6 +215,31 @@ describe("vm.start", () => {
     expect(readdirSync(path.join(fx.state.root, "run"))).toEqual([]);
   });
 
+  it("an env file written before a start that never ran is removed (R8)", async () => {
+    fx.cleanup();
+    fx = createFixture(undefined, {
+      locks: { ...createLocks(), withStart: () => Promise.reject(new VmdFailure("capacity")) },
+    });
+    seedDisk(fx);
+    await expect(fx.ops.handle(startRequest())).rejects.toMatchObject({ code: "capacity" });
+    expect(fx.exec.calls.some(isRun)).toBe(false);
+    expect(readdirSync(path.join(fx.state.root, "run"))).toEqual([]);
+  });
+
+  it("the throwing net of main refuses every start and runs no container", async () => {
+    fx.cleanup();
+    fx = createFixture(undefined, { net: unavailableNet });
+    seedDisk(fx);
+    await expect(fx.ops.handle(startRequest())).rejects.toMatchObject({ code: "unavailable" });
+    expect(fx.exec.calls.some((argv) => isRun(argv) || isAdd(argv))).toBe(false);
+    expect(() => unavailableNet.allocate()).toThrow(VmdFailure);
+    await expect(
+      unavailableNet.attach("x", { ip: "10.213.0.2", mac: "02:70:61:00:00:02" }),
+    ).rejects.toMatchObject({
+      code: "unavailable",
+    });
+  });
+
   it("an unavailable net refuses the start before any container exists", async () => {
     seedDisk(fx);
     fx.net.allocate = () => {
@@ -264,6 +295,18 @@ describe("vm.start, isolated (R30)", () => {
     await expect(fx.ops.handle(taskRequest())).rejects.toMatchObject({ code: "failed" });
     expect(existsSync(taskDisk)).toBe(false);
     expect(existsSync(path.dirname(taskDisk))).toBe(false);
+  });
+
+  it("a cleanup rm that fails is logged by class and keeps the task disk", async () => {
+    prepare((argv) => {
+      if (isRun(argv)) return { code: 1 };
+      return isRm(argv) ? { code: 1, stderr: `containerd refused ${TOKEN}` } : undefined;
+    });
+    await expect(fx.ops.handle(taskRequest())).rejects.toMatchObject({ code: "failed" });
+    expect(existsSync(taskDisk)).toBe(true);
+    expect(fx.logs).toContainEqual({ event: "vmd_cleanup_failed", fields: { step: "rm", error: "refused" } });
+    expect(JSON.stringify(fx.logs)).not.toContain(TOKEN);
+    expect(readdirSync(path.join(fx.state.root, "run"))).toEqual([]);
   });
 
   it("a failed mkfs deletes the half-made task disk and starts nothing", async () => {
