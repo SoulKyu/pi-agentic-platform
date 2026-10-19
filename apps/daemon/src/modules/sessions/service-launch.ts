@@ -14,6 +14,7 @@ import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
 import { type SessionRow, type StoredPreset, storedPresetOf } from "./store.ts";
+import { vmTargets } from "./vm-attachments.ts";
 import { vmBranchOf, type VmStarted } from "./vm-launch.ts";
 
 /** What starting a worker needs of the service: its deps and the maps it shares with it (M4R27). */
@@ -243,6 +244,7 @@ export function createLaunch(ctx: LaunchContext) {
       },
       init,
     );
+    if (init.vm) vmTargets.set(session, { handle, inbox: init.vm.layout.inbox, clock: deps.clock });
     bridgePlatform(handle, row, ctx.agent, logger);
     // The scope is the start-time snapshot of the rules this worker got (W5-R26); an owner session has none and is refused.
     bridgeEgress(
