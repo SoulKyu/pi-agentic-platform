@@ -148,10 +148,7 @@ describe("composeAgentsVm in vm mode", () => {
       )
       .catch(() => undefined);
     await vi.waitFor(() => expect(vm.runtime.phase(ID)).toBe("running"));
-    closers
-      .splice(0)
-      .reverse()
-      .forEach((c) => void c.close());
+    await Promise.all(closers.splice(0).map((closer) => closer.close()));
     await spawning;
   });
 });

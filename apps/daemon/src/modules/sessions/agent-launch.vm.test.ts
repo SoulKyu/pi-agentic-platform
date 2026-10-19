@@ -28,14 +28,14 @@ interface World {
   /** Holds every runtime.spawn until `release()`. */
   hold: boolean;
   release(): void;
-  profile: { sandboxRequired: boolean };
+  profile: { sandboxRequired: boolean; quarantined: boolean };
 }
 const world: World = {
   specs: [],
   reads: { probe: 0, vault: 0, once: 0 },
   hold: false,
   release: () => {},
-  profile: { sandboxRequired: true },
+  profile: { sandboxRequired: true, quarantined: false },
 };
 const taskKeyOf = (row: { agentRole?: string | undefined; id: string }): string | null =>
   row.agentRole === "task" ? row.id.replaceAll("-", "") : null;
@@ -45,7 +45,7 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
   world.reads = { probe: 0, vault: 0, once: 0 };
   world.hold = false;
   world.release = () => {};
-  world.profile = { sandboxRequired: true };
+  world.profile = { sandboxRequired: true, quarantined: false };
   bed = build({
     ...options,
     ...(vm
@@ -95,7 +95,7 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
               sandbox: { required: world.profile.sandboxRequired, network: true },
             }),
             name: "Atlas",
-            quarantined: false,
+            quarantined: world.profile.quarantined,
           }
         : null,
     vaultOf: () => (world.reads.vault++, { TOKEN: "s3cret" }),
@@ -253,7 +253,63 @@ describe("capacity of VM launches (R29)", () => {
   });
 });
 
+describe("what the VM boot may change (fail closed)", () => {
+  it("stops the worker and refuses the start when the agent is quarantined during the boot wait", async () => {
+    setup();
+    world.hold = true;
+    const starting = thread();
+    await vi.waitFor(() => expect(world.specs).toHaveLength(1));
+    world.profile.quarantined = true;
+    world.release();
+    expect(await codeOf(starting)).toBe("agent_paused");
+    expect(bed.spawned).toHaveLength(1);
+    expect(bed.spawned[0]?.stopped()).toBe(true);
+    expect(bed.spawned[0]?.sent.filter((record) => record.type === "init")).toEqual([]);
+  });
+});
+
+describe("a shutdown during the VM boot (fail closed)", () => {
+  it("stops the worker and refuses the start", async () => {
+    setup();
+    world.hold = true;
+    const starting = thread();
+    await vi.waitFor(() => expect(world.specs).toHaveLength(1));
+    const closing = bed.service.shutdownAll();
+    world.release();
+    expect(await codeOf(starting)).toBe("capacity");
+    await closing;
+    expect(bed.spawned[0]?.stopped()).toBe(true);
+  });
+});
+
+describe("RT-10: a full-access VM thread's continuation is not held", () => {
+  // Mutant: the VM line of sandboxedThread removed (runs/resume.ts `heldForFullAccess` would hold every continuation).
+  it("sandboxedThread is true for a VM thread whose profile has no host sandbox, false for a host one", async () => {
+    setup();
+    world.profile.sandboxRequired = false;
+    const vm = await thread();
+    expect(bed.service.agent.sandboxedThread("u1", vm.sessionId)).toBe(true);
+    expect(bed.service.agent.sandboxedThread("u2", vm.sessionId)).toBe(false);
+    await bed.dispose();
+    setup({}, false);
+    world.profile.sandboxRequired = false;
+    const host = await thread();
+    expect(bed.service.agent.sandboxedThread("u1", host.sessionId)).toBe(false);
+  });
+});
+
 describe("a booting VM and a cold reopen (R29)", () => {
+  // Mutant: `used >= max` skipped for a VM launch.
+  it("a cold VM reopen is refused capacity when the live workers are at the cap", async () => {
+    setup({ limits: { maxWorkers: 2, minFreeMemMb: 0 } });
+    const { sessionId } = await thread();
+    bed.service.agentSessions.releaseIdle("u1", sessionId);
+    await bed.spawned[0]?.exited;
+    await bed.service.create(bed.work, OWNER);
+    await bed.service.create(bed.work, OWNER);
+    expect(await codeOf(bed.service.reopen(sessionId, OWNER))).toBe("capacity");
+    expect(world.specs).toHaveLength(1);
+  });
   it("a reopen's VM that is still booting counts against the cap for the plain sessions meanwhile", async () => {
     setup({ limits: { maxWorkers: 2, minFreeMemMb: 0 } });
     const { sessionId } = await thread();

@@ -33,6 +33,8 @@ export interface LaunchContext {
   checkCapacity(vm?: boolean): void;
   /** Sessions whose VM worker is being spawned: they count against `PAP_MAX_WORKERS` (R29). */
   readonly booting: Set<string>;
+  /** The service is shutting down: no worker starts. */
+  closing(): boolean;
   /** The profile prompt of a child made by this daemon, for a start after the first (M11R136); none otherwise. */
   childPrompt?(row: SessionRow): string | undefined;
   /** The owner's last worker stays free (M10R154): `capacity` when one more worker would take it. */
@@ -81,7 +83,8 @@ export function createLaunch(ctx: LaunchContext) {
   // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
   // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
   async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
-    // The gate of every agent session, first of all (M11R53): the one await before the spawn, so no check can fall between.
+    // The gate of every agent session, first of all (M11R53): for a host row the one await before the spawn, so no check
+    // can fall between; a VM row awaits its VM too, and `start` reads again what the boot may have changed.
     const gating = ctx.agent.gate(row);
     const agentLaunch = gating ? await gating : null;
     // An agent thread runs with its profile's preset narrowed by the owner's choice, read at each start (M11R47, W5-R28).
@@ -183,7 +186,14 @@ export function createLaunch(ctx: LaunchContext) {
       } finally {
         ctx.booting.delete(row.id);
       }
-      composed = started.bind(compose);
+      // The gate's facts and the capacity check are older than the boot: read again, and a refusal stops the worker.
+      composed = started.bind(() => {
+        const profile = ctx.agent.profileOf(row.ownerId, agentLaunch.agent.id);
+        if (profile === null) throw new PapError("not_found");
+        if (profile.quarantined) throw new PapError("agent_paused");
+        if (ctx.closing()) throw new PapError("capacity");
+        return compose();
+      });
       handle = started.handle;
     } else {
       const { env } = composed.trust;

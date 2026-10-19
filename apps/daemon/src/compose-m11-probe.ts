@@ -1,6 +1,7 @@
 import type { spawn } from "node:child_process";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
+import { bootEgress } from "./modules/egress/index.ts";
 import { createSandboxProbe, removeStaleProbes } from "./kernel/sandbox/probe.ts";
 
 /** What the boot of the sandbox probe reads of the daemon's core. */
@@ -8,6 +9,8 @@ interface ProbeCore {
   readonly config: { readonly home: string; readonly bwrapOverride?: string | undefined };
   readonly clock: Clock;
   readonly logger: Logger;
+  /** The daemon's environment: the egress proxy's sockets live under `$XDG_RUNTIME_DIR` when it is private (W5-R42). */
+  readonly env?: Readonly<Record<string, string | undefined>>;
   /** Tests only: the process spawn of the sandbox probe. */
   readonly probeSpawn?: typeof spawn | undefined;
 }
@@ -26,3 +29,12 @@ export function bootSandboxProbe(core: ProbeCore) {
   void probe.recheck();
   return probe;
 }
+
+/** The egress proxy (M11R243): production builds the real one (M11R244). */
+export const bootAgentEgress = (core: ProbeCore) =>
+  bootEgress({
+    clock: core.clock,
+    logger: core.logger.child({ module: "egress" }),
+    papHome: core.config.home,
+    runtimeDir: core.env?.["XDG_RUNTIME_DIR"],
+  });

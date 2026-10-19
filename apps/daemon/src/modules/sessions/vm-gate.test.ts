@@ -68,12 +68,10 @@ describe("vmGate (T8a, RT-08)", () => {
   it("never opens the agent's host home: the only paths are the mirror folders", async () => {
     const { fs, paths } = recordingFs();
     await vmGate(row(), deps(profile(), fs));
-    const hostHome = join(home, "agents", ID);
-    expect(paths.length).toBeGreaterThan(0);
-    for (const path of paths) {
-      expect(path === hostHome || path.startsWith(`${hostHome}/`)).toBe(false);
-      expect(path === join(home, "agents") || path.startsWith(join(home, "agents", ".mirrors"))).toBe(true);
-    }
+    const agents = join(home, "agents");
+    const mirrors = join(agents, ".mirrors");
+    // lstat then mkdir of each folder, in order: nothing else, in particular not `agents/<id>` (the host home).
+    expect(paths).toEqual([agents, agents, mirrors, mirrors, join(mirrors, ID), join(mirrors, ID)]);
   });
   it("makes $PAP_HOME/agents/.mirrors/<id> 0700 when missing", async () => {
     await vmGate(row(), deps());
@@ -83,7 +81,8 @@ describe("vmGate (T8a, RT-08)", () => {
     // A second launch finds it and changes nothing.
     await vmGate(row(), deps());
   });
-  // Mutant: the lstat/symlink check removed (a link at the mirror folder is followed). Killed by the next three cases.
+  // Mutant: `lstat` replaced by `stat`, which follows a link (a link at the mirror folder is accepted). Killed by the next case.
+  // (Removing only `isSymbolicLink()` survives by design: the lstat of a link is never a directory.)
   it("refuses a link at .mirrors/<id>, at .mirrors and at agents (invalid_cwd)", async () => {
     mkdirSync(join(home, "agents", ".mirrors"), { recursive: true });
     mkdirSync(join(home, "elsewhere"));

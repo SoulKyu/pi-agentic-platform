@@ -31,6 +31,6 @@ export function createWorkerRoom(deps: {
     if (deps.closing() || used >= deps.limits.maxWorkers || floor)
       throw new PapError("capacity", { workers: { used, max: deps.limits.maxWorkers } });
   };
-  return { keepFreeFor, sandboxedOnly, keepOneFree, checkCapacity, booting };
+  return { keepFreeFor, sandboxedOnly, keepOneFree, checkCapacity, booting, closing: deps.closing };
 }
 export type WorkerRoom = ReturnType<typeof createWorkerRoom>;

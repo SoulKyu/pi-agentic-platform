@@ -183,7 +183,7 @@ describe("createVmLaunch (T8a)", () => {
   it("spawns nothing when the init is not the VM's (host rules, the layout unwired)", async () => {
     const bed = setup();
     const r = bed.use(row());
-    expect(await codeOf(bed.vmLaunch.spawn(r, launch(), hostInit(r, false)))).not.toBeNull();
+    expect(await codeOf(bed.vmLaunch.spawn(r, launch(), hostInit(r, false)))).toBe("bad_request");
     expect(bed.spawn).not.toHaveBeenCalled();
   });
   it("spawns nothing when the rules lack the VM's sandbox", async () => {

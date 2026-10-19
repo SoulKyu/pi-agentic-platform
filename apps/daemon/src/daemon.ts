@@ -160,7 +160,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const hub = createStreamHub(undefined, clock);
     const env = deps.env ?? process.env;
     const core = { db, clock, logger, config, readOnly, hub, env };
-    // In vm mode the gateway listens here, before the server and any worker (RT-35); null in host mode.
     const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);

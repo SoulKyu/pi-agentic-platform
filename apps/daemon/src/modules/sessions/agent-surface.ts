@@ -247,6 +247,8 @@ export function createAgentSurface(deps: {
     sandboxedThread(ownerId, sessionId) {
       const row = deps.store.get(sessionId);
       if (row?.ownerId !== ownerId || row.agentRole !== "thread" || row.agentId === undefined) return false;
+      // RT-10, R15: a VM thread's shell is always sandboxed, whatever its profile's host-sandbox switch says.
+      if (vmLayoutOf(row) !== null) return true;
       const started = startTime.get(sessionId);
       if (started !== undefined && started.input.sandbox.required !== true) return false;
       return profileOf(ownerId, row.agentId)?.input.sandbox.required === true;
