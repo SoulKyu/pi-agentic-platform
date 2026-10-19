@@ -118,6 +118,11 @@ Open before M6b (or M6, if an OCI method is chosen): R52b, the rootless podman t
   - The remote clone and fork paths reuse M9's push profile and target rules, the host binding and the repository-config scans.
 - **Depends on:** M9 (forge port), M11 (secrets). It pairs with the after-v1 multi-user work (teams and OIDC).
 
+## Agents in microVMs (post-v1, decisions 106 to 115)
+- **Why:** an agent is a closed box: a Kata Containers microVM (Cloud Hypervisor) with bwrap and seccomp around its shell, its own block disk, CPU and memory, no credential inside (pap's relay and proxy inject them), no path to the host or another VM. It replaces today's host-bwrap agents.
+- **Sub-projects:** 0 spike (done); 1 the runtime (spec `docs/specs/2026-10-19-agents-microvm-runtime-design.md`, plan `docs/plans/2026-10-19-agents-microvm-runtime.md`, SDD running since 2026-10-19); 2 egress proxy v2 (vault values bound to hosts, apt in the shell); 3 agent policy at the box's exits and the default switch (deletes the host-bwrap agent code); 4 per-agent backups (toggle, frequency, S3 later); 5 OKF `knowledge/` memory replacing mem0.
+- **Follow-up (owner, 2026-10-19, decision 115):** bring the same isolated runtime to every other pap component that runs code: sessions, lanes, triggers and the rest. Each gets the VM's scaling (Kubernetes as a later backend of the `AgentRuntime` port) and its security (closed box, no credential inside, delete without lateral impact). Its own spec after sub-project 3: sub-project 1 keys the runtime and pap-vmd by agent id, so the follow-up generalizes that identity to "a box" (agent, session, lane, trigger task) as a contract migration; sub-project 1 is not changed for it.
+
 ## Coverage
 
 | Domain / addition | Milestone |
