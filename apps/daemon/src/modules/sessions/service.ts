@@ -166,7 +166,6 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   };
 
   const sendPrompt = createPromptFlow({ deps, memory, ensureLive, organiser, publisher, owned });
-
   // A fork would be a second thread, or a plain session in the agent's home (M11R179).
   const notAgent = (row: SessionRow): SessionRow => {
     if (row.agentId !== undefined) throw new PapError("bad_request");
@@ -201,6 +200,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     hub: deps.hub,
     exports: deps.exports,
     logger: deps.logger,
+    runsInVm: (row) => agent.vmLayoutOf(row) !== null,
   });
   const modelCommands = createSessionModels({
     owned,

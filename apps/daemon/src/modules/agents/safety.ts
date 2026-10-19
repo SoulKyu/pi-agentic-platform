@@ -24,6 +24,8 @@ export interface AgentSafetyDeps {
   ): { readonly allowHosts: readonly string[] | null; readonly denylist: readonly unknown[] } | undefined;
   readonly liveTools: PermissionsDeps["liveTools"];
   readonly hostGrants: PermissionsDeps["hostGrants"];
+  /** The agent runs in a VM (R16): no prompt chips. */
+  runsInVm?(ownerId: string, agentId: string): boolean;
 }
 
 /** Task 21's three services behind `agents.quarantine`, `agents.permissions` and `agents.prompts`. */

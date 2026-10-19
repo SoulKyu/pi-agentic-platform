@@ -9,6 +9,7 @@ import {
   type SandboxSpec,
   type ToolPreset,
   VaultUpdateRecord,
+  type VmLayout,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -90,6 +91,8 @@ export interface AgentSurface {
   egressScope(row: SessionRow, rules: PolicyRules, spec: SandboxSpec | undefined): EgressScope | null;
   /** The egress proxy, once bound. */
   egress(): EgressPort | undefined;
+  /** The row runs in a VM (R15, R37): its layout, else null. */
+  vmLayoutOf(row: SessionRow): VmLayout | null;
   /** The agent's part of the session's rules (M11R52); nothing for a session without an agent. */
   rulesOf(row: SessionRow, owner: OwnerLists): AgentRuleParts;
   readonly approvedCalls: ApprovedCalls;
@@ -124,12 +127,14 @@ export function createAgentSurface(deps: {
   const startTime = new Map<string, AgentProfile>();
   const profileFor = (ownerId: string, agentId: string, sessionId: string): AgentProfile | null =>
     startTime.get(sessionId) ?? profileOf(ownerId, agentId);
+  const vmLayoutOf = (row: SessionRow): VmLayout | null => ports.agents?.vmLayoutOf?.(row) ?? null;
   const hostGrants = createHostGrants(deps.logger);
   const agentRules = createAgentRules({
     papHome: deps.worker.papHome,
     profileOf: profileFor,
     hostGrants: hostGrants.of,
     logger: deps.logger,
+    vmLayoutOf,
   });
   const gateDeps = (agents: SessionsAgentDeps): AgentGateDeps => ({
     ...agents,
@@ -171,8 +176,10 @@ export function createAgentSurface(deps: {
       try {
         // A thread started without the sandbox has no vault to ask for (ADR 0047): the tool would only refuse (review M5).
         const unsandboxed = startTime.has(row.id) && startTime.get(row.id)?.input.sandbox.required !== true;
+        // R11: a VM session has no vault, so no tool to ask for a secret.
+        const noVault = unsandboxed || vmLayoutOf(row) !== null;
         return opsFor(sessionKind(row, kindDeps).type).filter(
-          (op) => platform.available(op, row.ownerId) && !(unsandboxed && op === "secret.request"),
+          (op) => platform.available(op, row.ownerId) && !(noVault && op === "secret.request"),
         );
       } catch (error) {
         // Fail closed: a worker whose type cannot be read starts without platform tools.
@@ -182,7 +189,8 @@ export function createAgentSurface(deps: {
     },
     platform: () => ports.platform,
     vaultDrift(row, launch) {
-      if (!launch.vault || row.agentId === undefined) return null;
+      // R11: nothing of the vault reaches a VM session.
+      if (!launch.vault || row.agentId === undefined || vmLayoutOf(row) !== null) return null;
       const now = ports.agents?.vaultOf?.(row.ownerId, row.agentId) ?? {};
       const sent = launch.vault;
       const same =
@@ -274,6 +282,7 @@ export function createAgentSurface(deps: {
     },
     egressScope: (row, rules, spec) => (spec?.egress ? egressScopeOf(row, rules, hostGrants) : null),
     egress: () => ports.agents?.egress,
+    vmLayoutOf,
     rulesOf: (row, owner) => agentRules(row, owner),
     approvedCalls,
     guardAnswer(session, dialogId, caller, response, sessionId) {

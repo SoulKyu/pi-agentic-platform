@@ -11,6 +11,7 @@ import {
   PapError,
   type SandboxSpec,
   SERVER_CODES,
+  type VmLayout,
 } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { SandboxProbe } from "../../kernel/sandbox/probe.ts";
@@ -18,6 +19,7 @@ import { agentHomeOf, agentScratchOf } from "./agent-home.ts";
 import type { LiveSession } from "./live-types.ts";
 import type { EgressPort } from "./egress-link.ts";
 import type { SessionRow } from "./store.ts";
+import { VM_REFUSALS } from "./vm-rules.ts";
 
 /** What the agents registry tells the sessions module about an agent (null: no such agent of this owner, or a profile that does not parse). */
 export interface AgentProfile {
@@ -50,6 +52,10 @@ export interface SessionsAgentDeps {
   ownerHosts?(ownerId: string): readonly string[] | null;
   /** The owner's home folder, hidden from every agent shell; `os.homedir()` by default (the daemon passes its `userHome`). */
   readonly homeDir?: () => string;
+  /** The VM layout of a session row that runs in a VM, else null (R15, R37). */
+  vmLayoutOf?(row: SessionRow): VmLayout | null;
+  /** The agent runs in a VM: no precheck, no chips (R16). */
+  runsInVm?(ownerId: string, agentId: string): boolean;
 }
 
 export interface AgentGateDeps extends SessionsAgentDeps {
@@ -145,6 +151,10 @@ export async function agentPrecheckSandbox(
   const profile = deps.profileOf(ownerId, agentId);
   if (profile === null) throw new PapError("not_found");
   if (profile.quarantined) throw new PapError("agent_paused");
+  if (deps.runsInVm?.(ownerId, agentId)) {
+    deps.logger.warn("agent_precheck_refused", { agentId, reason: VM_REFUSALS.precheck.en });
+    throw new PapError("sandbox_unavailable");
+  }
   const home = agentHomeOf(deps.papHome, agentId, () =>
     deps.logger.warn("agent_home_mode_repaired", { agentId }),
   );

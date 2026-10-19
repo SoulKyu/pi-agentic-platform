@@ -18,6 +18,7 @@ import type { GitRunner } from "../../kernel/git/runner.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { withDeadline } from "./deadline.ts";
+import { checkAgentResources } from "./resources-check.ts";
 import { homeExists, HomeMovedRunsLeft, homePath, initHome, makeHome, trashHomeOrFind } from "./homes.ts";
 import { changedFields, type ReachDeps, stepUpIfWider } from "./reach.ts";
 import type { AgentLinks } from "./links.ts";
@@ -38,6 +39,8 @@ export interface AgentsDeps extends ReachDeps {
   readonly randomHex?: () => string;
   /** Shared with the thread's open: a delete and an open of one agent never run together (M11R59). */
   readonly guard?: AgentGuard;
+  /** The host's ceilings for an agent VM (RT-30); missing: no VM runtime, nothing to check. */
+  readonly resourceHost?: () => { memoryCapMb: number; cores: number };
 }
 
 export interface AgentChanged {
@@ -279,6 +282,7 @@ export function createAgents(deps: AgentsDeps) {
       stepUpIfWider(deps, caller, null, input, clock.now());
       const ownerId = caller.userId;
       const profile = profileOf(input);
+      if (deps.resourceHost) checkAgentResources(input.resources, null, deps.resourceHost());
       if (store.count(ownerId) >= AGENT_LIMITS.perOwner) throw new PapError("limit_reached");
       if (store.byName(ownerId, input.name)) throw new PapError("conflict");
       const { id, home } = newHome(input.name);
@@ -306,6 +310,8 @@ export function createAgents(deps: AgentsDeps) {
       stepUpIfWider(deps, caller, before.input, input, clock.now());
       if (before.revision !== baseRevision) throw new PapError("conflict");
       const profile = profileOf(input);
+      if (deps.resourceHost)
+        checkAgentResources(input.resources, before.input?.resources ?? null, deps.resourceHost());
       const taken = store.byName(caller.userId, input.name);
       if (taken && taken.id !== agentId) throw new PapError("conflict");
       const fields = changedFields(before.input, input);
