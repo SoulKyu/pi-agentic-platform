@@ -59,6 +59,7 @@ function make(
     clock,
     logger: log.logger,
     label: { slot: "s" },
+    slot: "s",
     input,
     wire,
     mirror: options.mirror ?? null,
@@ -157,6 +158,11 @@ describe("the session mirror", () => {
     make({ mirror, reported: { file: "s.jsonl", size: 10, lastEntryId: "e1" } });
     expect(frames).toEqual([]);
     expect(worker.handle.piFile()).toBe("/home/pap/.mirrors/a/s.jsonl");
+  });
+
+  it("carries the guest's slot id on the handle (the shell overlay is named by it, R27)", () => {
+    make();
+    expect(worker.handle.slot).toBe("s");
   });
 
   it("opens the mirror of a new session at its first append and feeds it, never to the listeners", () => {

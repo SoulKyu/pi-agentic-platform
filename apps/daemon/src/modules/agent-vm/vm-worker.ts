@@ -42,6 +42,8 @@ export interface MirrorPort {
 }
 
 export interface VmWorkerHandle extends WorkerHandle {
+  /** The guest's slot id of this worker: the shell overlay's folder is named by it (R27). */
+  readonly slot: string;
   /** The mirror's path once it is open. */
   piFile(): string | null;
 }
@@ -60,6 +62,7 @@ export function createVmWorker(deps: {
   clock: Clock;
   logger: Logger;
   label: Record<string, unknown>;
+  slot: string;
   input: WorkerSpawnInput;
   wire: Wire;
   /** What the worker's hello said about its session file. */
@@ -158,6 +161,7 @@ export function createVmWorker(deps: {
     stop,
     outputTail: () => tail,
     stats: core.stats,
+    slot: deps.slot,
     piFile: () => mirror?.path ?? null,
   };
 

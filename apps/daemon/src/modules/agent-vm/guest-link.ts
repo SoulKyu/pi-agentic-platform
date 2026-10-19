@@ -135,6 +135,7 @@ export function createGuestLink(deps: {
         clock,
         logger,
         label: { agentId },
+        slot: hello.slot,
         input: entry.input,
         wire: workerWire,
         reported: hello.session,
