@@ -11,12 +11,17 @@ export function encodeFrame(value: unknown): Buffer {
 export type FrameError = "too_large" | "bad_json";
 export interface FrameDecoder {
   push(chunk: Buffer): void;
+  /** Nothing is delivered or buffered afterwards, not even the rest of the current chunk (safe to call from `onFrame`). */
+  stop(): void;
 }
+
+const utf8 = new TextDecoder("utf-8", { fatal: true });
 
 /**
  * Length-prefixed JSON frames. A declared length over `maxBytes()` fails on the header, before any body byte is kept (the
  * receive-side bound Node's IPC never had, R101). `maxBytes` is read at each header, so the gateway can hold a connection to
- * HELLO_MAX_BYTES until its hello is accepted (RT-27). After a failure nothing more is delivered; the caller closes the socket.
+ * HELLO_MAX_BYTES until its hello is accepted (RT-27); a bound that is NaN or throws refuses the frame. After a failure or
+ * `stop()` nothing more is delivered or buffered; the caller closes the socket. Invalid UTF-8 is `bad_json`, never replaced.
  */
 export function createFrameDecoder(options: {
   maxBytes(): number;
@@ -26,12 +31,22 @@ export function createFrameDecoder(options: {
   let parts: Buffer[] = [];
   let size = 0;
   let need = -1;
-  let failed = false;
-  const fail = (error: FrameError): void => {
-    failed = true;
+  let closed = false;
+  const close = (): void => {
+    closed = true;
     parts = [];
     size = 0;
+  };
+  const fail = (error: FrameError): void => {
+    close();
     options.onError(error);
+  };
+  const withinBound = (length: number): boolean => {
+    try {
+      return length <= options.maxBytes();
+    } catch {
+      return false;
+    }
   };
   const take = (count: number): Buffer => {
     const all = parts.length === 1 ? (parts[0] as Buffer) : Buffer.concat(parts, size);
@@ -42,26 +57,28 @@ export function createFrameDecoder(options: {
   };
   return {
     push(chunk) {
-      if (failed) return;
+      if (closed) return;
       parts.push(chunk);
       size += chunk.length;
-      while (!failed) {
+      for (;;) {
         if (need < 0) {
           if (size < 4) return;
-          need = take(4).readUInt32BE(0);
-          if (need > options.maxBytes()) return fail("too_large");
+          const length = take(4).readUInt32BE(0);
+          if (!withinBound(length)) return fail("too_large");
+          need = length;
         }
         if (size < need) return;
         const body = take(need);
         need = -1;
         let value: unknown;
         try {
-          value = JSON.parse(body.toString("utf8"));
+          value = JSON.parse(utf8.decode(body));
         } catch {
           return fail("bad_json");
         }
         options.onFrame(value);
       }
     },
+    stop: close,
   };
 }
