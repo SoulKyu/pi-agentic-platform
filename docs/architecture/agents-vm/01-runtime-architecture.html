@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents en microVM · Section 1 · Architecture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .v.risk { color: var(--human); border: 1px solid #FB923C88; }
+  .v.new { color: var(--ai); border: 1px solid #A78BFA88; }
+
+  /* diagram */
+  .zone { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 14px; position: relative; }
+  .zone > .zl { position: absolute; top: -9px; left: 12px; background: var(--bg); padding: 0 6px; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .zone.host { border-color: #34D39955; } .zone.host > .zl { color: var(--ok); }
+  .zone.vm { border-color: #EC489988; border-style: solid; background: #EC48990A; } .zone.vm > .zl { color: var(--attn); }
+  .zone.sh { border-color: #FB923C88; } .zone.sh > .zl { color: var(--human); }
+  .node { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; }
+  .node b { display: block; font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .node.root { border-color: var(--err); } .node.root b { color: var(--err); }
+  .node.new b::after { content: "nouveau"; margin-left: 6px; font: 600 9px var(--mono); color: #1B0D00; background: var(--human); padding: 0 4px; border-radius: 2px; vertical-align: 1px; }
+  .flow { font: 11px var(--mono); color: var(--muted); text-align: center; padding: 6px 0; }
+  .flow b { color: var(--ai); }
+  .row3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
+
+  /* choices */
+  .q { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 14px 16px; margin-top: 14px; }
+  .q .why { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface2); border-radius: var(--r); padding: 8px 12px; font-size: 12.5px; cursor: pointer; user-select: none; color: var(--text); max-width: 420px; }
+  .opt small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .opt .tag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: 2px; margin-left: 6px; }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .opt.selected small, .opt.selected .tag { color: #3a1d00; border-color: #3a1d0055; }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  @media (max-width: 860px) { .grid2, .grid3, .row3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Agents en microVM · Sous-projet 1 · Runtime d'agent · Section 1 / 5</div>
+  <h1>Architecture et frontières de confiance</h1>
+  <p class="lead">Un agent vit dans sa propre microVM : liberté totale dedans, aucune vue sur l'hôte, des garde-fous seulement sur ce qui sort. Si l'agent est compromis, on le supprime : rien d'autre n'est touché. Cette section fixe les pièces et qui a le droit de parler à qui.</p>
+
+  <h2>0 · Déjà décidé (rappel)</h2>
+  <table>
+    <tr><th>Sujet</th><th>Décision</th></tr>
+    <tr><td>Mode d'agent</td><td>Le mode VM <b>remplace</b> les agents actuels (bwrap sur l'hôte). Agents désactivés par défaut ; sans KVM + Kata, pas d'agent.</td></tr>
+    <tr><td>Isolation</td><td>Kata Containers + Cloud Hypervisor ; <b>bwrap + seccomp dans la VM</b> autour du shell.</td></tr>
+    <tr><td>Réseau</td><td>Le proxy de sortie de pap (pas tinyproxy / Squid / Envoy), étendu : écoute par VM, adresses internes qui injectent les identifiants.</td></tr>
+    <tr><td>Identifiants</td><td>Aucun dans la VM. pi-claude-bridge passe par <code>claude.internal</code> (spike 0 concluant).</td></tr>
+    <tr><td>Stockage</td><td>Disque bloc ext4 par agent, jamais monté par l'hôte. Backups activables, fréquence et rétention dans la config de l'agent ; S3 plus tard (même fichier).</td></tr>
+    <tr><td>Ressources</td><td>La config de l'agent fixe <b>mémoire, CPU, taille de disque</b>.</td></tr>
+    <tr><td>Image</td><td>Générée par pap depuis ton <code>~/.pi/agent</code> (packages, skills, réglages), sans aucun secret.</td></tr>
+    <tr><td>Mémoire</td><td>Dossier <code>knowledge/</code> au format OKF sur le disque de l'agent ; l'intégration mem0 de pap est retirée.</td></tr>
+  </table>
+
+  <h2>1 · Spike 0 · pi-claude-bridge sans identifiant dans la VM</h2>
+  <div class="grid3">
+    <div class="box"><span class="lbl">Résultat</span><span class="v ok">concluant</span><p class="small" style="margin-top:6px">Binaire <code>claude</code> du bridge, <code>HOME</code> vide, <code>ANTHROPIC_BASE_URL</code> vers le proxy + jeton factice : le proxy injecte <code>Bearer &lt;OAuth&gt;</code> → 200 (Haiku, Sonnet). Aucun en-tête OAuth en plus.</p></div>
+    <div class="box"><span class="lbl">Hôtes contactés</span><span class="v ok">1 seul</span><p class="small" style="margin-top:6px"><code>api.anthropic.com</code>. Sans <code>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1</code> : 2 tentatives de télémétrie, refusées, sans effet sur la réponse → variable mise dans l'image.</p></div>
+    <div class="box"><span class="lbl">Risque</span><span class="v risk">renouvellement</span><p class="small" style="margin-top:6px">Le jeton d'accès expire en quelques heures ; deux renouveleurs (ton Claude Code + pap) se casseraient. Reco : <code>claude setup-token</code> (jeton longue durée) rangé dans le vault de pap, injecté par le proxy. Non testé : interactif.</p></div>
+  </div>
+
+  <h2>2 · Les pièces</h2>
+  <div class="zone host">
+    <span class="zl">Hôte</span>
+    <div class="row3">
+      <div class="node"><b>pap daemon</b>utilisateur normal (ubuntu). Ne parle jamais directement à containerd.</div>
+      <div class="node root new"><b>pap-vmd</b>service root, API étroite sur socket unix : <code>start</code> <code>stop</code> <code>pause</code> <code>snapshot</code> <code>status</code> <code>disk create|resize|delete</code>. Valide chaque champ.</div>
+      <div class="node"><b>containerd + Kata + CLH</b>lancés uniquement par pap-vmd.</div>
+    </div>
+    <div class="flow">daemon <b>→ AgentRuntime →</b> socket unix <b>→</b> pap-vmd <b>→</b> containerd / Kata</div>
+    <div class="grid2">
+      <div class="node new"><b>Passerelle des agents</b>écoute sur le bridge des VM. Le worker s'y connecte avec un jeton lié à <i>cet agent et ce lancement</i>. Trames de taille bornée à la réception.</div>
+      <div class="node"><b>Proxy de sortie</b>(sous-projet 2) liste d'hôtes, autorisations, adresses internes qui injectent les identifiants, refus journalisés et signalés.</div>
+    </div>
+    <div class="flow">réseau des VM : VM <b>→</b> passerelle + proxy, rien d'autre · VM <b>↔</b> VM bloqué</div>
+    <div class="zone vm" style="margin-top:10px">
+      <span class="zl">microVM « cyberlooker » · noyau invité · CPU / mémoire / disque de la config</span>
+      <div class="grid2">
+        <div class="node"><b>pi-host + Pi + packages</b>image générée par pap, en lecture seule. Canal vers la passerelle via l'interface <code>Ipc</code> existante (nouveau transport socket, même protocole).</div>
+        <div class="node"><b>/agent</b>disque bloc ext4 : home, <code>knowledge/</code>, sessions Pi. L'agent y est root.</div>
+      </div>
+      <div class="zone sh" style="margin-top:12px">
+        <span class="zl">Shell de l'agent</span>
+        <div class="node">bwrap + seccomp (pas de <code>socket(AF_VSOCK)</code>), pas de réseau direct, ne voit ni le jeton du worker ni son canal. Réseau via le proxy (sous-projet 2).</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3 · Les choix structurants · clique ta réponse sur chacun</h2>
+
+  <div class="q">
+    <h3>Q1 · Qui a les droits root sur la machine ?</h3>
+    <p class="why">Accéder à la socket de containerd équivaut à être root. Si le daemon y a accès, une faille de pap devient une prise de contrôle de l'hôte.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q1-vmd" onclick="pick(this)">A · Un service root séparé, <code>pap-vmd</code><span class="tag">reco</span><small>Une API étroite et vérifiée. Le daemon reste un utilisateur normal.</small></div>
+      <div class="opt" data-choice="q1-socket-group" onclick="pick(this)">B · Le daemon dans le groupe de la socket containerd<small>Plus simple, mais le daemon devient équivalent à root.</small></div>
+      <div class="opt" data-choice="q1-sudoers" onclick="pick(this)">C · Une règle sudoers pour <code>nerdctl</code><small>Toujours équivalent à root : <code>nerdctl run</code> peut tout monter.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q2 · Comment le daemon pilote les VM</h3>
+    <p class="why">Cette machine n'a pas KVM, et les tests doivent tourner partout (en CI, les runners Linux de GitHub ont <code>/dev/kvm</code>).</p>
+    <div class="opts">
+      <div class="opt" data-choice="q2-port-kata-fake" onclick="pick(this)">A · L'interface <code>AgentRuntime</code> avec deux implémentations : Kata et un faux runtime de test<span class="tag">reco</span><small>Le faux lance le worker comme un simple processus, avec le même canal. Seulement par <code>PAP_TEST_*</code>, jamais en production. Kubernetes viendra comme 3ᵉ implémentation.</small></div>
+      <div class="opt" data-choice="q2-kata-only" onclick="pick(this)">B · Kata seulement<small>Pas de faux runtime : les tests d'intégration ne tournent qu'en CI ou sur une machine avec KVM.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q3 · Le canal entre le worker et le daemon</h3>
+    <p class="why">L'IPC de Node ne traverse pas une VM. Le protocole <code>DaemonToWorker</code> ne change pas, seul le transport change.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q3-gateway" onclick="pick(this)">A · Le worker se connecte à une passerelle sur le bridge, avec un jeton par lancement<span class="tag">reco</span><small>Identique sous Kubernetes (un Service). Jeton révoqué à l'arrêt.</small></div>
+      <div class="opt" data-choice="q3-vsock" onclick="pick(this)">B · vsock (une socket unix côté hôte)<small>Pas de réseau à filtrer, mais propre à Kata et à cet hôte : à refaire pour Kubernetes.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q4 · Ce que le réseau d'une VM peut atteindre</h3>
+    <p class="why">C'est la protection contre le mouvement latéral entre agents et vers l'hôte.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q4-gw-proxy-only" onclick="pick(this)">A · Seulement la passerelle et le proxy ; VM ↔ VM bloqué ; tout le reste refusé<span class="tag">reco</span><small>Règles nftables posées par pap-vmd (NetworkPolicy plus tard sous Kubernetes).</small></div>
+      <div class="opt" data-choice="q4-proxy-only-vsock" onclick="pick(this)">B · Seulement le proxy, et le canal passe par vsock<small>Va avec Q3 = B.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q5 · Le disque de l'agent</h3>
+    <p class="why">L'hôte ne monte jamais le disque : aucun fichier de l'agent n'est lu sur l'hôte pendant que la VM tourne.</p>
+    <div class="opts">
+      <div class="opt" data-choice="q5-direct-volume" onclick="pick(this)">A · Volume passé directement par Kata (virtio-blk)<span class="tag">reco</span><small><span class="v risk">à vérifier</span> en tout premier sur une machine avec KVM : c'est le 1ᵉʳ risque du plan.</small></div>
+      <div class="opt" data-choice="q5-loop-bind" onclick="pick(this)">B · Monter le disque sur l'hôte (loop) puis le partager avec la VM<small>Refusé par principe : l'hôte monterait des fichiers écrits par l'agent.</small></div>
+    </div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation de la section 1</span>
+    <div>Clique une réponse par question (ou rien = la reco), puis valide. Commente en terminal si besoin.</div>
+    <div class="bar">
+      <div class="btn" onclick="applyRecos()">Appliquer toutes les recos</div>
+      <div class="btn pri" data-choice="s1-submit" onclick="submitS1()">Valider la section 1</div>
+      <div class="btn" data-choice="s1-revise" onclick="window.brainstorm && window.brainstorm.send({type:'answers', choice:'s1-revise'})">À revoir (je commente en terminal)</div>
+    </div>
+  </div>
+</div>
+<script>
+  function pick(el) {
+    el.parentElement.querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function applyRecos() {
+    document.querySelectorAll('.q').forEach(q => {
+      const reco = [...q.querySelectorAll('.opt')].find(o => o.querySelector('.tag'));
+      if (reco) pick(reco);
+    });
+  }
+  function submitS1() {
+    const answers = {};
+    document.querySelectorAll('.q').forEach((q, i) => {
+      const sel = q.querySelector('.opt.selected');
+      answers['q' + (i + 1)] = sel ? sel.dataset.choice : 'reco';
+    });
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: 's1-submitted', answers });
+  }
+</script>
+</body>
+</html>
