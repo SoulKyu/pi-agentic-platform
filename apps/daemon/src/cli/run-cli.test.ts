@@ -65,6 +65,8 @@ describe("runCli", () => {
       "update recover",
       "update rollback",
       "user add",
+      "vm setup",
+      "vm uninstall",
     ]);
   });
 

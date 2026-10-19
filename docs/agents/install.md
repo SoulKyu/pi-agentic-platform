@@ -232,6 +232,17 @@ It needs a published release: without one the feed URL answers 404 and the scrip
 - Refuses: root, anything but linux-x64, a missing `curl`, `sha256sum`, `bash` or `mktemp`, an unknown channel, and a feed URL outside `https://github.com/<repo>/releases/download/`. `PAP_GET_REPO=owner/name` points it at a fork or mirror (validated, no `..`).
 - The whole body is one function called on the last line, so a download cut at a line boundary runs nothing. Tests: `scripts/get-pap.test.ts` against a fake `curl`: they pin the flags the script passes, not what a real `curl` enforces with them. `--max-filesize` is a no-op when the server sends no `Content-Length`; the installer's SHA-256 check is what makes that safe. The trap on `EXIT HUP INT TERM` removes the work folder; the signal forms do not exit, so the shell goes on. The stable feed comes from `releases/latest/download/`, not from the pinned script tag: the script and the release it installs are not the same version by design.
 
+## Agent VMs: `sudo pap vm setup --user <name>`
+
+Installs the root-owned stack the agent VMs run on, from pinned release artefacts (SHA-256 in `vm-assets.json`; a mismatch stops before anything is installed). Needs root, `tar` with zstd and xz, and `systemd`. `--user` is the user that runs pap (R36); `--home <abs>` overrides `$PAP_HOME` (default `<home>/.pap`); `--assets <file>` reads a release's `vm-assets.json` (the repository's copy holds placeholders for the node, pap-vmd and agent-bundle pins, which setup refuses).
+
+- Layout: `/opt/pap-vm/{nerdctl,node,vmd,agent-bundle,bin}` (pap-vmd: `/opt/pap-vm/vmd/dist/main.js`; `bin/` holds only the `containerd-shim-kata-clh-v2` wrapper), Kata at `/opt/kata` (both refused when they exist without pap's `.pap-vm-setup` marker), configs in `/etc/pap-vm/` (`config.json` `{ papUid, papGid, papHome }`, `containerd.toml`, `buildkitd.toml`, `/etc/pap-vm/agents.nft`, `cni/pap-agents.conflist`), units `pap-vm-containerd`, `pap-vm-buildkit` and `pap-vmd` in `/etc/systemd/system`, state in `/var/lib/pap-vm`.
+- The one host-global file: `/etc/kata-containers/runtime-rs/configuration.toml`, whose first line is `# written by pap vm setup`; setup refuses to overwrite a file or link without that line and uninstall removes it only while it still has it. Never touched: `/etc/cni/net.d`, the system containerd, another owner's Kata files.
+- A second run changes nothing (every write compares first). When `ufw` or `firewalld` is active setup prints the rule that lets the VMs reach ports 7841 and 7842 on `pap0`.
+- `--dev-from-tree` (tests, CI, a try from a checkout) copies the built `apps/vmd/dist`, contracts' `dist`, the checkout's `dist-agent` and the running Node instead of the pap-vmd, Node and bundle artefacts, and prints "Code your user can change will run as root (testing only)."
+- `sudo pap vm uninstall [--purge]` reverts exactly what setup wrote and keeps `/var/lib/pap-vm` (the VM disks) unless `--purge`.
+- Release: `pnpm release:assets` also builds `pap-vmd-<version>.tar.gz` and `pap-agent-bundle-<version>.tar.gz` (same offline `pnpm deploy` as the agent bundle) and writes both hashes into the release's `vm-assets.json`.
+
 ## Uninstall
 
 `pap service uninstall` (also through `~/.local/bin/pap`). Method 2 releases stay under `~/.local/share/pap`: `rm -rf ~/.local/share/pap` when you want them gone. Your data stays in `~/.pap` until you delete it.

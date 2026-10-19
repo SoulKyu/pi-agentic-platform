@@ -21,6 +21,8 @@ export const USAGE = [
   "       pap update apply --release <id> [--app-root <abs>] [--deadline-s 30..600] [--settle-s 0..60] [--unit <name>]",
   "       pap update rollback [--to <id>] [--restore-database | --keep-database] [--app-root <abs>] [--unit <name>]",
   "       pap update recover [--keep-database] [--app-root <abs>] [--unit <name>]",
+  "       pap vm setup --user <name> [--home <abs dir>] [--assets <vm-assets.json>] [--dev-from-tree]",
+  "       pap vm uninstall [--purge]",
   "       pap doctor [--json] [--only id[,id...]] [--unit <name>] [--home <abs dir>]",
   "backup --keep N keeps the new backup and the N most recent older pap-backup-* files of the output folder",
   "The admin commands (everything but serve, backup, update, doctor, trace summary and service) need the daemon stopped (restore included); for the preview service:",

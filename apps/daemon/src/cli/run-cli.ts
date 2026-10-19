@@ -20,6 +20,8 @@ import { updateRecover } from "./update/recover-command.ts";
 import { updateRollback } from "./update/rollback-command.ts";
 import { PREVIEW_STOP_COMMAND, USAGE, UsageError } from "./usage.ts";
 import { userAdd } from "./user-add.ts";
+import { vmSetup } from "./vm/setup.ts";
+import { vmUninstall } from "./vm/uninstall.ts";
 
 export interface Command {
   readonly options: NonNullable<ParseArgsConfig["options"]>;
@@ -46,6 +48,8 @@ export const COMMANDS: Readonly<Record<string, Command>> = {
   "update apply": updateApply,
   "update rollback": updateRollback,
   "update recover": updateRecover,
+  "vm setup": vmSetup,
+  "vm uninstall": vmUninstall,
   doctor,
 };
 

@@ -1,10 +1,18 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseArgs } from "node:util";
+import { parseArgs, promisify } from "node:util";
 import { CHANNELS, FEED_REPO, type Channel } from "../apps/daemon/src/cli/update/feed.ts";
+import { sha256File } from "../apps/daemon/src/cli/vm/assets.ts";
+import type { Runner } from "./build-archive-stage.ts";
 import { generateFeed } from "./release-feed.ts";
+import { buildVmArtefacts } from "./release-vm-assets.ts";
+
+const execAsync = promisify(execFile);
+const run: Runner = async (cmd, args, cwd) => {
+  await execAsync(cmd, [...args], { cwd, maxBuffer: 64 * 1024 * 1024, timeout: 600_000 });
+};
 
 const quote = (text: string): string =>
   /^[A-Za-z0-9_./:=@+-]+$/.test(text) ? text : `'${text.replaceAll("'", "'\\''")}'`;
@@ -27,7 +35,7 @@ export const printedCommands = (channel: Channel, tag: string, repo: string, dir
   return [create, `gh release upload ${tag} --repo ${repo} --clobber ${files}`];
 };
 
-const main = (): void => {
+const main = async (): Promise<void> => {
   const { values } = parseArgs({
     options: {
       channel: { type: "string", default: "stable" },
@@ -51,6 +59,21 @@ const main = (): void => {
     ["--disable-warning=ExperimentalWarning", join(repo, "scripts/build-archive.ts"), "--out", dir],
     { cwd: repo, stdio: "inherit", timeout: 900_000 },
   );
+  const storeDir = execFileSync("pnpm", ["store", "path"], {
+    cwd: repo,
+    encoding: "utf8",
+    timeout: 30_000,
+  }).trim();
+  await buildVmArtefacts({
+    repo,
+    run,
+    storeDir,
+    dir,
+    tag,
+    version: rootVersion,
+    feedRepo: FEED_REPO,
+    sha256: sha256File,
+  });
   generateFeed({
     dir,
     channel,
@@ -71,10 +94,8 @@ const main = (): void => {
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  try {
-    main();
-  } catch (error: unknown) {
+  main().catch((error: unknown) => {
     console.error(`release-assets: ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
-  }
+  });
 }

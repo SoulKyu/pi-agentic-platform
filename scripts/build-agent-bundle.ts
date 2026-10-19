@@ -34,8 +34,12 @@ const inside = (root: string, path: string): boolean => path === root || path.st
  * Refuses a bundle that lacks a required file or a `node_modules`, or holds a link that is absolute, dangling or
  * resolves outside the bundle (T13a copies links as links, so a link out would read the builder's disk at build time).
  */
-export const assertAgentBundle = (bundle: string, forbidden: readonly string[] = []): void => {
-  for (const file of REQUIRED_FILES)
+export const assertAgentBundle = (
+  bundle: string,
+  forbidden: readonly string[] = [],
+  required: readonly string[] = REQUIRED_FILES,
+): void => {
+  for (const file of required)
     if (!existsSync(join(bundle, file)))
       throw new Error(`the agent bundle lacks ${file}: run pnpm build first`);
   if (!existsSync(join(bundle, "node_modules")))
@@ -91,6 +95,46 @@ export const finishAgentBundle = (folder: string): void => {
   );
 };
 
+export interface DeployProdOptions {
+  repo: string;
+  run: Runner;
+  storeDir: string;
+  /** The workspace package, e.g. `@pap/pi-host`. */
+  filter: string;
+  dest: string;
+}
+
+/** `pnpm deploy` of one workspace package: production dependencies, hoisted, copied from the local store, no network. */
+export const deployProd = async ({ repo, run, storeDir, filter, dest }: DeployProdOptions): Promise<void> => {
+  try {
+    await run(
+      "pnpm",
+      [
+        "--filter",
+        filter,
+        "deploy",
+        "--prod",
+        "--offline",
+        "--package-import-method=copy",
+        "--config.node-linker=hoisted",
+        "--config.inject-workspace-packages=true",
+        "--store-dir",
+        storeDir,
+        dest,
+      ],
+      repo,
+    );
+  } catch (error) {
+    const stderr = String((error as { stderr?: unknown }).stderr ?? "")
+      .trim()
+      .slice(-400);
+    throw new Error(
+      `pnpm deploy failed: the pnpm store at ${storeDir} may lack the packages, run pnpm install first${stderr === "" ? "" : ` (${stderr})`}`,
+      { cause: error },
+    );
+  }
+};
+
 export interface BuildAgentBundleOptions {
   repo: string;
   run: Runner;
@@ -113,33 +157,7 @@ export const buildAgentBundle = async ({
   const building = out === undefined ? join(repo, BUILDING) : `${out}.building`;
   rmSync(building, { recursive: true, force: true });
   try {
-    try {
-      await run(
-        "pnpm",
-        [
-          "--filter",
-          "@pap/pi-host",
-          "deploy",
-          "--prod",
-          "--offline",
-          "--package-import-method=copy",
-          "--config.node-linker=hoisted",
-          "--config.inject-workspace-packages=true",
-          "--store-dir",
-          storeDir,
-          building,
-        ],
-        repo,
-      );
-    } catch (error) {
-      const stderr = String((error as { stderr?: unknown }).stderr ?? "")
-        .trim()
-        .slice(-400);
-      throw new Error(
-        `pnpm deploy failed: the pnpm store at ${storeDir} may lack the packages, run pnpm install first${stderr === "" ? "" : ` (${stderr})`}`,
-        { cause: error },
-      );
-    }
+    await deployProd({ repo, run, storeDir, filter: "@pap/pi-host", dest: building });
     finishAgentBundle(building);
     assertAgentBundle(building, [homedir(), repo, storeDir]);
     rmSync(target, { recursive: true, force: true });
