@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents en microVM · Section 5 · Installation et bascule</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .v.risk { color: var(--human); border: 1px solid #FB923C88; }
+  .v.new { color: var(--ai); border: 1px solid #A78BFA88; }
+
+  /* diagram */
+  .zone { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 14px; position: relative; }
+  .zone > .zl { position: absolute; top: -9px; left: 12px; background: var(--bg); padding: 0 6px; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .zone.host { border-color: #34D39955; } .zone.host > .zl { color: var(--ok); }
+  .zone.vm { border-color: #EC489988; border-style: solid; background: #EC48990A; } .zone.vm > .zl { color: var(--attn); }
+  .zone.sh { border-color: #FB923C88; } .zone.sh > .zl { color: var(--human); }
+  .node { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; }
+  .node b { display: block; font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .node.root { border-color: var(--err); } .node.root b { color: var(--err); }
+  .node.new b::after { content: "nouveau"; margin-left: 6px; font: 600 9px var(--mono); color: #1B0D00; background: var(--human); padding: 0 4px; border-radius: 2px; vertical-align: 1px; }
+  .flow { font: 11px var(--mono); color: var(--muted); text-align: center; padding: 6px 0; }
+  .flow b { color: var(--ai); }
+  .row3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
+
+  /* choices */
+  .q { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 14px 16px; margin-top: 14px; }
+  .q .why { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface2); border-radius: var(--r); padding: 8px 12px; font-size: 12.5px; cursor: pointer; user-select: none; color: var(--text); max-width: 420px; }
+  .opt small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .opt .tag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: 2px; margin-left: 6px; }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .opt.selected small, .opt.selected .tag { color: #3a1d00; border-color: #3a1d0055; }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  @media (max-width: 860px) { .grid2, .grid3, .row3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Agents en microVM · Sous-projet 1 · Runtime d'agent · Section 5 / 5</div>
+  <h1>Installation, tests, migration et bascule</h1>
+  <p class="lead">Ce qu'il faut sur la machine, comment on teste sans KVM ici, comment CyberLooker passe dans sa VM sans rien perdre, et comment on bascule de l'ancien mode au nouveau sans période où les agents ne marchent plus.</p>
+
+  <h2>1 · <code>pap doctor</code> · ce qu'il vérifie</h2>
+  <table>
+    <tr><th>Contrôle</th><th>Sans lui</th></tr>
+    <tr><td><code>/dev/kvm</code> accessible</td><td>« Pas de virtualisation : activer la virtualisation imbriquée chez l'hébergeur »</td></tr>
+    <tr><td><code>pap-vmd</code> actif, version = celle de pap</td><td>« Lancer <code>sudo pap vm setup</code> »</td></tr>
+    <tr><td>containerd, runtime Kata, Cloud Hypervisor, BuildKit</td><td>nom du composant manquant et sa version attendue</td></tr>
+    <tr><td>Bridge des VM et règles nftables en place</td><td>« Réseau des agents absent : <code>sudo pap vm setup</code> »</td></tr>
+    <tr><td>Images Base et Profil Pi construites et à jour</td><td>« Reconstruction au prochain démarrage » (avertissement, pas erreur)</td></tr>
+    <tr><td>Place disque : disques d'agents + backups + plancher <code>PAP_MIN_FREE_DISK_MB</code></td><td>la place qui manque, agent par agent</td></tr>
+  </table>
+  <p class="small" style="margin-top:8px">Un contrôle en échec grise les agents dans l'UI avec la même phrase ; rien d'autre de pap n'est bloqué.</p>
+
+  <h2>2 · Les choix · clique ta réponse sur chacun</h2>
+
+  <div class="q">
+    <h3>Q1 · Installer les prérequis (root)</h3>
+    <p class="why">containerd, Kata (avec Cloud Hypervisor et son noyau invité), nerdctl et BuildKit, plus l'unité <code>pap-vmd</code>, le bridge et les règles nftables.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s5q1-pap-vm-setup" onclick="pick(this)">A · <code>sudo pap vm setup</code> : installe des archives officielles aux versions et SHA-256 épinglés par la release de pap<span class="tag">reco</span><small>Idempotent, <code>pap vm uninstall</code> pour revenir en arrière ; même principe que l'archive d'install de pap (SHA-256 épinglé). Kata : son archive statique ; containerd, nerdctl, BuildKit : l'archive « nerdctl-full ».</small></div>
+      <div class="opt" data-choice="s5q1-guide-only" onclick="pick(this)">B · Un guide d'installation manuelle ; pap ne fait que vérifier<small>Pas de code root dans pap hors pap-vmd, mais chaque auto-hébergeur assemble la pile à la main.</small></div>
+      <div class="opt" data-choice="s5q1-distro-pkgs" onclick="pick(this)">C · Paquets de la distribution (apt)<small>Mises à jour par le système, mais versions de Kata très variables d'une distribution à l'autre.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q2 · Les tests</h3>
+    <p class="why">Ce VPS n'a pas KVM. Les runners Linux de GitHub l'exposent (à vérifier en premier, comme le volume direct de la section 1).</p>
+    <div class="opts">
+      <div class="opt" data-choice="s5q2-fake-plus-ci-kvm" onclick="pick(this)">A · Unitaires et intégration sur le faux runtime partout ; tests Kata réels en CI, sautés localement avec un avertissement<span class="tag">reco</span><small>Même règle que les tests bwrap aujourd'hui : sous <code>CI=1</code> ils échouent sans KVM au lieu de sauter. Couvre : démarrage, canal, copie de transcription, disque, réseau (VM ↔ VM bloqué, rien hors passerelle et proxy), suppression.</small></div>
+      <div class="opt" data-choice="s5q2-nightly" onclick="pick(this)">B · Tests Kata réels seulement dans un job de nuit<small>CI plus rapide, mais une régression d'isolation peut rester un jour sur main.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q3 · Migrer CyberLooker (et tout agent existant)</h3>
+    <p class="why">Règle de la section 1 : l'hôte ne monte jamais le disque d'un agent. <code>mkfs.ext4 -d &lt;dossier&gt;</code> remplit un disque neuf depuis un dossier, sans le monter.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s5q3-mkfs-d" onclick="pick(this)">A · Au premier démarrage en VM, pap-vmd crée le disque avec <code>mkfs.ext4 -d</code> depuis l'ancien home + la session du thread en cours<span class="tag">reco</span><small>L'agent reprend sa conversation et son <code>state/</code> là où il en était ; l'ancien home part à la corbeille 7 jours. Ses souvenirs mem0 seront convertis en <code>knowledge/</code> par le sous-projet 5.</small></div>
+      <div class="opt" data-choice="s5q3-fresh" onclick="pick(this)">B · Disque neuf avec l'ancien home seulement ; nouveau thread<small>Plus simple, mais l'agent perd le fil de sa conversation.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q4 · La bascule de l'ancien mode au nouveau</h3>
+    <p class="why">Les sous-projets 1, 2 et 3 doivent tous être là pour qu'un agent en VM soit utilisable (réseau par le proxy, plus de demandes dans la boîte).</p>
+    <div class="opts">
+      <div class="opt" data-choice="s5q4-flag-then-switch" onclick="pick(this)">A · Le mode VM arrive derrière <code>PAP_AGENTS_RUNTIME=vm</code> ; l'ancien mode reste le défaut jusqu'à la fin du sous-projet 3, qui bascule le défaut et supprime l'ancien code<span class="tag">reco</span><small>Tu peux essayer CyberLooker en VM dès le sous-projet 1 ; aucune période sans agents ; l'ancien code n'est supprimé qu'une fois le nouveau prouvé.</small></div>
+      <div class="opt" data-choice="s5q4-big-bang" onclick="pick(this)">B · Une seule grosse bascule à la fin des sous-projets 1 à 3<small>Pas de double chemin à maintenir, mais rien d'essayable avant la fin.</small></div>
+    </div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation de la section 5 (dernière)</span>
+    <div>Clique une réponse par question (ou rien = la reco), puis valide. Ensuite j'écris la spec complète du sous-projet 1 dans le dépôt et je te la donne à relire.</div>
+    <div class="bar">
+      <div class="btn" onclick="applyRecos()">Appliquer toutes les recos</div>
+      <div class="btn pri" data-choice="s5-submit" onclick="submitS('s5')">Valider la section 5</div>
+      <div class="btn" data-choice="s5-revise" onclick="window.brainstorm && window.brainstorm.send({type:'answers', choice:'s5-revise'})">À revoir (je commente en terminal)</div>
+    </div>
+  </div>
+</div>
+<script>
+  function pick(el) {
+    el.parentElement.querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function applyRecos() {
+    document.querySelectorAll('.q').forEach(q => {
+      const reco = [...q.querySelectorAll('.opt')].find(o => o.querySelector('.tag'));
+      if (reco) pick(reco);
+    });
+  }
+  function submitS(s) {
+    const answers = {};
+    document.querySelectorAll('.q').forEach((q, i) => {
+      const sel = q.querySelector('.opt.selected');
+      answers['q' + (i + 1)] = sel ? sel.dataset.choice : 'reco';
+    });
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: s + '-submitted', answers });
+  }
+</script>
+</body>
+</html>
