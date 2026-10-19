@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents en microVM · Section 2 · Image</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .v.risk { color: var(--human); border: 1px solid #FB923C88; }
+  .v.new { color: var(--ai); border: 1px solid #A78BFA88; }
+
+  /* diagram */
+  .zone { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 14px; position: relative; }
+  .zone > .zl { position: absolute; top: -9px; left: 12px; background: var(--bg); padding: 0 6px; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .zone.host { border-color: #34D39955; } .zone.host > .zl { color: var(--ok); }
+  .zone.vm { border-color: #EC489988; border-style: solid; background: #EC48990A; } .zone.vm > .zl { color: var(--attn); }
+  .zone.sh { border-color: #FB923C88; } .zone.sh > .zl { color: var(--human); }
+  .node { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; }
+  .node b { display: block; font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .node.root { border-color: var(--err); } .node.root b { color: var(--err); }
+  .node.new b::after { content: "nouveau"; margin-left: 6px; font: 600 9px var(--mono); color: #1B0D00; background: var(--human); padding: 0 4px; border-radius: 2px; vertical-align: 1px; }
+  .flow { font: 11px var(--mono); color: var(--muted); text-align: center; padding: 6px 0; }
+  .flow b { color: var(--ai); }
+  .row3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
+
+  /* choices */
+  .q { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 14px 16px; margin-top: 14px; }
+  .q .why { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface2); border-radius: var(--r); padding: 8px 12px; font-size: 12.5px; cursor: pointer; user-select: none; color: var(--text); max-width: 420px; }
+  .opt small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .opt .tag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: 2px; margin-left: 6px; }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .opt.selected small, .opt.selected .tag { color: #3a1d00; border-color: #3a1d0055; }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  @media (max-width: 860px) { .grid2, .grid3, .row3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Agents en microVM · Sous-projet 1 · Runtime d'agent · Section 2 / 5</div>
+  <h1>L'image de l'agent, générée par pap</h1>
+  <p class="lead">pap construit l'image à partir de ton <code>~/.pi/agent</code> : tes packages, tes skills, tes réglages. Aucun secret n'y entre : ce sont les adresses internes du proxy qui portent les identifiants. Une seule image partagée sert de base ; chaque agent n'y ajoute que ce qui lui est propre.</p>
+
+  <h2>1 · Ce qui entre dans l'image · par liste blanche, jamais par liste noire</h2>
+  <div class="grid2">
+    <div class="box">
+      <span class="lbl">Entre (copié depuis l'hôte, versions figées)</span>
+      <ul class="tight">
+        <li>Base Debian slim épinglée par digest dans la release de pap, Node 24 à la même version que l'hôte</li>
+        <li>Outils : <code>bwrap</code>, <code>git</code>, <code>curl</code>, <code>jq</code>, <code>python3</code>, <code>ripgrep</code>, <code>fd</code>, <code>ca-certificates</code></li>
+        <li><code>pi-host</code> (dist de pap) + le SDK Pi de pap</li>
+        <li>Packages de <code>settings.json</code> : npm (depuis <code>~/.pi/agent/npm</code>), git (depuis <code>~/.pi/agent/git</code>), chemins locaux (copiés)</li>
+        <li>Skills (<code>~/.pi/agent/skills</code> + celles des packages), en lecture seule</li>
+        <li>Réglages assainis : compaction, niveaux de réflexion, modèles activés, la liste des packages</li>
+        <li>Fournisseurs : URL de base → <code>http://llm.internal/&lt;fournisseur&gt;</code>, clé → valeur factice</li>
+        <li><code>CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1</code></li>
+      </ul>
+    </div>
+    <div class="box">
+      <span class="lbl">N'entre jamais</span>
+      <ul class="tight">
+        <li><code>auth.json</code>, <code>~/.claude/.credentials.json</code>, toute clé de fournisseur</li>
+        <li>Les sessions, <code>mem0/</code>, les index et l'état de pi-web</li>
+        <li>Les fichiers de config des extensions tels quels (ex. la config de recherche de pi-web-access : elle contient des clés)</li>
+        <li>Tout ce qui n'est pas dans la liste blanche : un nouveau fichier dans <code>~/.pi/agent</code> n'entre pas tant que pap ne le connaît pas</li>
+      </ul>
+      <span class="lbl" style="margin-top:12px">Adaptateurs pour 3 packages connus</span>
+      <table>
+        <tr><td><code>pi-claude-bridge</code></td><td><code>ANTHROPIC_BASE_URL=http://claude.internal</code> + jeton factice (spike 0)</td></tr>
+        <tr><td><code>pi-web-access</code></td><td>config régénérée : clés factices, URLs des fournisseurs de recherche → adresses internes</td></tr>
+        <tr><td><code>pi-mcp-adapter</code></td><td>serveurs MCP stdio : binaires dans l'image ; MCP HTTP : URL interne, jeton injecté</td></tr>
+      </table>
+      <p class="small" style="margin-top:8px">Un package inconnu entre sans sa config : s'il a besoin d'une clé, il échoue proprement dans la VM.</p>
+    </div>
+  </div>
+
+  <h2>2 · Les couches</h2>
+  <div class="grid3">
+    <div class="node"><b>Base</b>Debian + Node + outils + pi-host + SDK Pi. Change avec une release de pap.</div>
+    <div class="node"><b>Profil Pi</b>tes packages, skills, réglages assainis, adaptateurs. Partagée par tous les agents. Change quand ton <code>~/.pi/agent</code> change.</div>
+    <div class="node"><b>Agent</b>ce qui est propre à l'agent (voir Q2). Petite, optionnelle.</div>
+  </div>
+  <p class="small" style="margin-top:8px">Tag = sha256 des entrées de chaque couche : rien ne se reconstruit si rien n'a changé. Les couches partagées ne coûtent leur place disque qu'une fois.</p>
+
+  <h2>3 · Les choix · clique ta réponse sur chacun</h2>
+
+  <div class="q">
+    <h3>Q1 · Comment l'image est construite</h3>
+    <p class="why">pap-vmd (root) est déjà le seul à parler à containerd ; la construction a besoin du réseau de l'hôte pour l'image de base et les paquets Debian.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s2q1-dockerfile-buildkit" onclick="pick(this)">A · Un Dockerfile généré par pap, construit par pap-vmd avec BuildKit<span class="tag">reco</span><small>Une image Docker classique : lisible, reproductible, et tu peux la reconstruire ailleurs (ta CI) avec le même Dockerfile.</small></div>
+      <div class="opt" data-choice="s2q1-pap-oci" onclick="pick(this)">B · pap assemble lui-même les couches OCI (tar + manifeste)<small>Pas de BuildKit, mais du code de construction d'images à maintenir dans pap.</small></div>
+      <div class="opt" data-choice="s2q1-owner-ci" onclick="pick(this)">C · pap génère le Dockerfile, ta CI construit et pousse, pap tire l'image<small>Il faut un registre et une CI ; chaque changement de ton Pi passe par elle.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q2 · Les outils système qu'un agent installe</h3>
+    <p class="why">L'agent est root dans sa VM, mais le système de fichiers racine vient de l'image : ce qu'il installe à la main disparaît au redémarrage. CyberLooker, par exemple, a besoin de <code>curl</code>, <code>jq</code>, <code>python3</code>.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s2q2-agent-layer" onclick="pick(this)">A · Une liste « paquets système » dans la config de l'agent → la couche Agent<span class="tag">reco</span><small>Déclaratif, reconstruit proprement ; l'agent peut aussi installer à chaud pour essayer, puis demander à l'ajouter à sa liste.</small></div>
+      <div class="opt" data-choice="s2q2-ephemeral" onclick="pick(this)">B · Rien de persistant : il réinstalle à chaque démarrage<small>Zéro config, mais lent et fragile à chaque démarrage à froid.</small></div>
+      <div class="opt" data-choice="s2q2-persistent-root" onclick="pick(this)">C · Racine persistante (overlay sur son disque)<small>Il garde tout, y compris ce qu'il a cassé ; seuls les backups permettent de revenir en arrière.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q3 · Quand l'image est reconstruite</h3>
+    <p class="why">Tu installes un package Pi, ou pap passe à une nouvelle version : les entrées changent.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s2q3-auto" onclick="pick(this)">A · Automatiquement, au prochain démarrage d'un agent<span class="tag">reco</span><small>L'agent démarre sur l'ancienne image en attendant la nouvelle, avec une note dans son thread. Une image dont le protocole pap n'est plus compatible est refusée, et on attend la nouvelle.</small></div>
+      <div class="opt" data-choice="s2q3-manual" onclick="pick(this)">B · Seulement sur un bouton « Reconstruire »<small>Contrôle total, mais un agent peut tourner longtemps sur une image périmée.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q4 · Les packages Pi d'un agent</h3>
+    <p class="why">Moins de code dans la VM = moins de surface d'attaque ; CyberLooker n'a pas besoin de plannotator.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s2q4-shared-select" onclick="pick(this)">A · Une image Profil Pi partagée ; chaque agent coche ses packages, appliqués au démarrage<span class="tag">reco</span><small>Une seule image à construire ; par défaut, tous les packages de l'image.</small></div>
+      <div class="opt" data-choice="s2q4-per-agent-image" onclick="pick(this)">B · Une image par agent, avec seulement ses packages<small>Le code non coché n'est même pas présent, mais une construction par agent.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q5 · Mises à jour de sécurité de la base</h3>
+    <p class="why">La base Debian reçoit des correctifs ; une image figée vieillit.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s2q5-weekly" onclick="pick(this)">A · Reconstruction hebdomadaire de la base, appliquée au prochain démarrage<span class="tag">reco</span><small>Le digest épinglé par la release de pap reste le point de départ ; <code>apt upgrade</code> à la construction.</small></div>
+      <div class="opt" data-choice="s2q5-release-only" onclick="pick(this)">B · Seulement à chaque release de pap<small>Reproductible au bit près, mais les correctifs attendent une release.</small></div>
+    </div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation de la section 2</span>
+    <div>Clique une réponse par question (ou rien = la reco), puis valide. Commente en terminal si besoin.</div>
+    <div class="bar">
+      <div class="btn" onclick="applyRecos()">Appliquer toutes les recos</div>
+      <div class="btn pri" data-choice="s2-submit" onclick="submitS('s2')">Valider la section 2</div>
+      <div class="btn" data-choice="s2-revise" onclick="window.brainstorm && window.brainstorm.send({type:'answers', choice:'s2-revise'})">À revoir (je commente en terminal)</div>
+    </div>
+  </div>
+</div>
+<script>
+  function pick(el) {
+    el.parentElement.querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function applyRecos() {
+    document.querySelectorAll('.q').forEach(q => {
+      const reco = [...q.querySelectorAll('.opt')].find(o => o.querySelector('.tag'));
+      if (reco) pick(reco);
+    });
+  }
+  function submitS(s) {
+    const answers = {};
+    document.querySelectorAll('.q').forEach((q, i) => {
+      const sel = q.querySelector('.opt.selected');
+      answers['q' + (i + 1)] = sel ? sel.dataset.choice : 'reco';
+    });
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: s + '-submitted', answers });
+  }
+</script>
+</body>
+</html>
