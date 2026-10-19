@@ -59,7 +59,7 @@ describe("createInbox (R33, RT-15)", () => {
       const part = whole.subarray(cuts[n], cuts[n + 1]);
       return box.put(chunk(part, { offset: cuts[n] ?? 0, last: n === 2 }));
     });
-    expect(answers).toEqual([null, null, { type: "file_put_result", id: ID, ok: true }]);
+    expect(answers).toEqual(Array.from({ length: 3 }, () => ({ type: "file_put_result", id: ID, ok: true })));
     expect(readdirSync(inbox)).toEqual(["photo.png"]);
     expect(readFileSync(join(inbox, "photo.png")).equals(whole)).toBe(true);
     expect(statSync(join(inbox, "photo.png")).mode & 0o777).toBe(0o644);
@@ -72,7 +72,7 @@ describe("createInbox (R33, RT-15)", () => {
 
   it("answers order for a chunk out of order and removes the part", () => {
     const box = createInbox(inbox);
-    expect(box.put(chunk(Buffer.from("abcd")))).toBeNull();
+    expect(box.put(chunk(Buffer.from("abcd")))).toMatchObject({ ok: true });
     expect(box.put(chunk(Buffer.from("ef"), { offset: 9 }))).toEqual({
       type: "file_put_result",
       id: ID,
@@ -92,11 +92,11 @@ describe("createInbox (R33, RT-15)", () => {
   it("answers too_large on the byte past the limit and removes the part", () => {
     const box = createInbox(inbox);
     const half = Buffer.alloc(FILE_LIMITS.uploadBytes - 1);
-    expect(box.put(chunk(half))).toBeNull();
+    expect(box.put(chunk(half))).toMatchObject({ ok: true });
     // exactly the limit is accepted
     expect(box.put(chunk(Buffer.alloc(1), { offset: half.length, last: true }))?.ok).toBe(true);
     const again = createInbox(inbox);
-    expect(again.put(chunk(half, { id: OTHER, name: "b.png" }))).toBeNull();
+    expect(again.put(chunk(half, { id: OTHER, name: "b.png" }))).toMatchObject({ ok: true });
     expect(
       again.put(chunk(Buffer.alloc(2), { id: OTHER, name: "b.png", offset: half.length, last: true })),
     ).toEqual({

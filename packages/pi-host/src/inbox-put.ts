@@ -26,7 +26,7 @@ const result = (id: string, code?: NonNullable<FilePutResult["code"]>): FilePutR
     ? { type: "file_put_result", id, ok: true }
     : { type: "file_put_result", id, ok: false, code };
 
-export function createInbox(inbox: string): { put(chunk: FilePut): FilePutResult | null } {
+export function createInbox(inbox: string): { put(chunk: FilePut): FilePutResult } {
   const transfers = new Map<string, Transfer>();
 
   const abandon = (id: string): void => {
@@ -90,7 +90,8 @@ export function createInbox(inbox: string): { put(chunk: FilePut): FilePutResult
     }
     for (let done = 0; done < bytes.length;) done += writeSync(transfer.fd, bytes, done, bytes.length - done);
     transfer.written += bytes.length;
-    return chunk.last ? finish(chunk.id, transfer) : null;
+    // Every chunk is answered (J1): the daemon sends the next one only after the answer, so the wire's backlog stays at one chunk.
+    return chunk.last ? finish(chunk.id, transfer) : result(chunk.id);
   };
 
   return {

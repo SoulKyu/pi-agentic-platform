@@ -146,13 +146,13 @@ describe("dispatch file_put (R33)", () => {
     return { sent, dispatch };
   };
 
-  it("sends the inbox's answer, and nothing while a transfer is open", () => {
-    const answers = [null, { type: "file_put_result", id: put.id, ok: true }];
-    const { sent, dispatch } = make({ put: () => answers.shift() });
+  it("sends the inbox's answer for every chunk (the daemon waits for each one, J1)", () => {
+    const answer = { type: "file_put_result", id: put.id, ok: true };
+    const { sent, dispatch } = make({ put: () => answer });
+    dispatch({ ...put, last: false });
+    expect(sent).toEqual([answer]);
     dispatch(put);
-    expect(sent).toEqual([]);
-    dispatch(put);
-    expect(sent).toEqual([{ type: "file_put_result", id: put.id, ok: true }]);
+    expect(sent).toEqual([answer, answer]);
   });
 
   it("ignores a file_put outside a VM", () => {
