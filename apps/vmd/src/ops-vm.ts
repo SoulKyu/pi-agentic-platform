@@ -132,7 +132,7 @@ export function createVmOps(deps: OpsDeps) {
     else if (!fileExists(disk)) throw new VmdFailure("not_found");
     let diskMade = false;
     try {
-      const address = net.allocate();
+      const address = net.allocate(name);
       if (isolated) {
         diskMade = true;
         await makeBlankDisk(exec, disk, request.resources.diskMb);
@@ -149,6 +149,8 @@ export function createVmOps(deps: OpsDeps) {
           .join("\n")}\n`,
       );
       await locks.withStart(async () => {
+        // AVM-E37: the bridge's ports before this run; the VM's port is the one that is new afterwards.
+        await net.prepare(name);
         try {
           const placement = {
             ip: address.ip,

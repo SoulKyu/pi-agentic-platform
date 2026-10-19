@@ -17,6 +17,10 @@ export function createFakeNet(): FakeNet {
       events.push("allocate");
       return { ip: `10.213.0.${last}`, mac: `02:70:61:00:00:${last.toString(16).padStart(2, "0")}` };
     },
+    prepare(name) {
+      events.push(`prepare ${name}`);
+      return Promise.resolve();
+    },
     attach(name) {
       events.push(`attach ${name}`);
       return net.failAttach ? Promise.reject(new Error("no bridge port")) : Promise.resolve();

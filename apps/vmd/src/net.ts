@@ -18,10 +18,7 @@ const LAST_HOST = 254;
 /** The port appears after `nerdctl run` returns: poll for up to 5 s. */
 const PORT_WAIT_MS = 5000;
 const PORT_POLL_MS = 250;
-/** An address handed out but never attached (the start failed in between) is free again after this long. */
-const PENDING_TTL_MS = 15 * 60 * 1000;
 const MISSING = /No such file or directory|does not exist|No such process/i;
-const LINK_LINE = /^\d+:\s+([^\s:@]+)(?:@[^\s:]+)?:/;
 const MAC_PREFIX = "02:70:61:00:00:";
 
 export interface NetDeps {
@@ -31,14 +28,16 @@ export interface NetDeps {
   readonly log: Logger;
 }
 
-/** One address: reserved by `allocate` (`name` and `port` null), bound to a VM and its bridge port by `attach`. */
+/** One address of one VM: reserved by `allocate` (`port` and `ifindex` null), bound to its bridge port by `attach`. */
 interface Lease {
   readonly ip: string;
   readonly mac: string;
-  readonly name: string | null;
+  readonly name: string;
   readonly port: string | null;
-  readonly at: number;
+  readonly ifindex: number | null;
 }
+type Bound = Lease & { readonly port: string; readonly ifindex: number };
+const isBound = (lease: Lease): lease is Bound => lease.port !== null && lease.ifindex !== null;
 
 const macOf = (last: number): string => `${MAC_PREFIX}${last.toString(16).padStart(2, "0")}`;
 const lastOctet = (ip: string): number => Number(ip.slice(SUBNET_PREFIX.length));
@@ -58,7 +57,7 @@ const neighAddArgv = (ip: string, mac: string): string[] => [
   "permanent",
 ];
 const neighDeleteArgv = (ip: string): string[] => [IP, "neigh", "del", ip, "dev", AGENT_NET.bridge];
-const bridgePortsArgv = (): string[] => [IP, "-o", "link", "show", "master", AGENT_NET.bridge];
+const bridgePortsArgv = (): string[] => [IP, "-j", "link", "show", "master", AGENT_NET.bridge];
 
 function parseLeases(text: string): Lease[] {
   const data: unknown = JSON.parse(text);
@@ -66,16 +65,15 @@ function parseLeases(text: string): Lease[] {
   if (!Array.isArray(list)) throw new Error("net: addresses.json is not a lease list");
   return list.map((raw: unknown): Lease => {
     const item = (typeof raw === "object" && raw !== null ? raw : {}) as Record<string, unknown>;
-    const { ip, mac, name, port, at } = item;
+    const { ip, mac, name, port, ifindex } = item;
     if (typeof ip !== "string" || !VM_IPV4.test(ip) || mac !== macOf(lastOctet(ip))) {
       throw new Error("net: addresses.json holds a bad address");
     }
-    if ((name !== null && typeof name !== "string") || (port !== null && typeof port !== "string")) {
+    const bound = port !== null || ifindex !== null;
+    if (typeof name !== "string" || (bound && (typeof port !== "string" || !Number.isInteger(ifindex)))) {
       throw new Error("net: addresses.json holds a bad lease");
     }
-    if (typeof at !== "number" || !Number.isFinite(at))
-      throw new Error("net: addresses.json holds a bad time");
-    return { ip, mac, name, port, at };
+    return { ip, mac, name, port: port as string | null, ifindex: ifindex as number | null };
   });
 }
 
@@ -89,6 +87,8 @@ export function createNet(deps: NetDeps): NetPort {
   const { exec, state, clock, log } = deps;
   const file = path.join(state.root, "run", "addresses.json");
   let leases: Lease[] = load();
+  /** The bridge ports seen by `prepare`, per VM name; memory only (a restart of pap-vmd fails a start in flight). */
+  const snapshots = new Map<string, Set<string>>();
 
   function load(): Lease[] {
     let text: string;
@@ -123,7 +123,6 @@ export function createNet(deps: NetDeps): NetPort {
     renameSync(temp, file);
   }
 
-  const expired = (lease: Lease): boolean => lease.name === null && clock.now() - lease.at > PENDING_TTL_MS;
   const replace = (next: Lease[]): void => {
     leases = next;
     save();
@@ -137,13 +136,13 @@ export function createNet(deps: NetDeps): NetPort {
   }
 
   async function release(lease: Lease): Promise<void> {
+    // Nothing was added for a lease without a port (the bind is recorded before the first command).
+    if (lease.port === null) return;
     let failed = false;
-    if (lease.port !== null) {
-      try {
-        await quietDelete(deleteElementArgv(portElement({ port: lease.port, mac: lease.mac, ip: lease.ip })));
-      } catch {
-        failed = true;
-      }
+    try {
+      await quietDelete(deleteElementArgv(portElement({ port: lease.port, mac: lease.mac, ip: lease.ip })));
+    } catch {
+      failed = true;
     }
     try {
       await quietDelete(neighDeleteArgv(lease.ip));
@@ -153,7 +152,7 @@ export function createNet(deps: NetDeps): NetPort {
     if (failed) throw new Error("net: release failed");
   }
 
-  async function guard(lease: Lease & { readonly port: string }): Promise<void> {
+  async function guard(lease: Bound): Promise<void> {
     // portElement throws for any port name, MAC or address outside its patterns: nothing unchecked reaches an argv.
     const element = portElement({ port: lease.port, mac: lease.mac, ip: lease.ip });
     if ((await exec(addElementArgv(element))).code !== 0) throw new Error("net: guard element refused");
@@ -161,63 +160,90 @@ export function createNet(deps: NetDeps): NetPort {
       throw new Error("net: neighbour entry refused");
   }
 
-  async function listPorts(): Promise<string[] | null> {
+  /** The ports of the bridge with their interface index; null when `ip` fails or answers something else. */
+  async function listPorts(): Promise<Map<string, number> | null> {
     const result = await exec(bridgePortsArgv());
     if (result.code !== 0) return null;
-    return result.stdout.split("\n").flatMap((line) => {
-      const name = LINK_LINE.exec(line)?.[1];
-      return name === undefined ? [] : [name];
-    });
+    try {
+      const data: unknown = result.stdout.trim() === "" ? [] : JSON.parse(result.stdout);
+      if (!Array.isArray(data)) return null;
+      const ports = new Map<string, number>();
+      for (const item of data as Record<string, unknown>[]) {
+        const { ifname, ifindex } = item;
+        if (typeof ifname !== "string" || typeof ifindex !== "number") return null;
+        ports.set(ifname.split("@")[0] ?? ifname, ifindex);
+      }
+      return ports;
+    } catch {
+      return null;
+    }
   }
 
-  /** The new port of the bridge: the one no VM owns yet. Starts are serialised by the caller, so there is at most one. */
-  async function findPort(): Promise<string> {
+  /** AVM-E37: the VM's port is the one port that is new since `prepare`; an orphan of an earlier crash is in the snapshot. */
+  async function findPort(before: Set<string>): Promise<{ port: string; ifindex: number }> {
     const deadline = clock.now() + PORT_WAIT_MS;
     for (;;) {
       const ports = await listPorts();
-      const bound = new Set(leases.flatMap((lease) => (lease.port === null ? [] : [lease.port])));
-      const fresh = (ports ?? []).filter((port) => !bound.has(port));
-      if (fresh.length === 1 && fresh[0] !== undefined) return fresh[0];
-      if (clock.now() >= deadline) throw new VmdFailure("failed");
+      const fresh = [...(ports ?? [])].filter(([port]) => !before.has(port));
+      const only = fresh.length === 1 ? fresh[0] : undefined;
+      if (only !== undefined) return { port: only[0], ifindex: only[1] };
+      if (clock.now() >= deadline) {
+        log.info("vmd_net_port_not_found", {
+          reason: ports === null ? "ip_failed" : `new_ports_${fresh.length}`,
+        });
+        throw new VmdFailure("failed");
+      }
       await sleep(PORT_POLL_MS);
     }
   }
 
-  function allocate(): { ip: string; mac: string } {
-    const live = leases.filter((lease) => !expired(lease));
-    const used = new Set(live.map((lease) => lease.ip));
+  function allocate(name: string): { ip: string; mac: string } {
+    const used = new Set(leases.map((lease) => lease.ip));
     for (let last = FIRST_HOST; last <= LAST_HOST; last += 1) {
       const ip = `${SUBNET_PREFIX}${last}`;
       if (used.has(ip)) continue;
       const mac = macOf(last);
-      replace([...live, { ip, mac, name: null, port: null, at: clock.now() }]);
+      replace([...leases, { ip, mac, name, port: null, ifindex: null }]);
       return { ip, mac };
     }
     throw new VmdFailure("unavailable");
   }
 
+  async function prepare(name: string): Promise<void> {
+    const ports = await listPorts();
+    if (ports === null) throw new VmdFailure("failed");
+    snapshots.set(name, new Set(ports.keys()));
+  }
+
   async function attach(name: string, address: { ip: string; mac: string }): Promise<void> {
     const reserved = leases.find(
-      (lease) => lease.ip === address.ip && lease.mac === address.mac && lease.name === null,
+      (lease) =>
+        lease.ip === address.ip && lease.mac === address.mac && lease.name === name && lease.port === null,
     );
-    if (reserved === undefined) throw new VmdFailure("failed");
-    const dropReservation = (): void => replace(leases.filter((lease) => lease !== reserved));
-    let port: string;
+    const before = snapshots.get(name);
+    snapshots.delete(name);
+    if (reserved === undefined || before === undefined) {
+      log.info("vmd_net_attach_refused", {
+        reason: reserved === undefined ? "not_allocated" : "not_prepared",
+      });
+      throw new VmdFailure("failed");
+    }
+    let found: { port: string; ifindex: number };
     try {
-      // A leftover lease of this name (a start that was never detached) is released first.
-      const old = leases.find((lease) => lease.name === name);
+      // A leftover bound lease of this name (a start that was never detached) is released first.
+      const old = leases.find((lease) => lease.name === name && lease !== reserved && lease.port !== null);
       if (old !== undefined) {
         replace(leases.filter((lease) => lease !== old));
         await release(old).catch(() => log.info("vmd_net_stale_release_failed", { ip: old.ip }));
       }
-      port = await findPort();
-      portElement({ port, mac: reserved.mac, ip: reserved.ip });
+      found = await findPort(before);
+      portElement({ port: found.port, mac: reserved.mac, ip: reserved.ip });
     } catch (error) {
-      dropReservation();
+      // The reservation stays: the start's cleanup calls `detach(name)`, which frees it.
       throw error instanceof VmdFailure ? error : new VmdFailure("failed");
     }
     // Recorded before the first command: a half-done attach is undone by `detach`.
-    const bound: Lease & { readonly port: string } = { ...reserved, name, port };
+    const bound: Bound = { ...reserved, port: found.port, ifindex: found.ifindex };
     replace(leases.map((lease) => (lease === reserved ? bound : lease)));
     try {
       await guard(bound);
@@ -228,11 +254,18 @@ export function createNet(deps: NetDeps): NetPort {
   }
 
   async function detach(name: string): Promise<void> {
-    const lease = leases.find((entry) => entry.name === name);
-    if (lease === undefined) return;
-    // The address is only reusable once its guard is gone: a failed release keeps the lease and throws.
-    await release(lease);
-    replace(leases.filter((entry) => entry !== lease));
+    snapshots.delete(name);
+    let failed = false;
+    for (const lease of leases.filter((entry) => entry.name === name)) {
+      // The address is only reusable once its guard is gone: a failed release keeps the lease and throws below.
+      try {
+        await release(lease);
+        replace(leases.filter((entry) => entry !== lease));
+      } catch {
+        failed = true;
+      }
+    }
+    if (failed) throw new Error("net: detach failed");
   }
 
   async function restore(): Promise<void> {
@@ -246,26 +279,31 @@ export function createNet(deps: NetDeps): NetPort {
     );
     const ports = await listPorts();
     if (ports === null) throw new Error("net: restore cannot list the bridge ports");
+    // AVM-E37 / T13b's rule: a lease is dropped only when its VM is explicitly stopped or absent.
     const keep: Lease[] = [];
     for (const lease of leases) {
-      if (lease.name !== null && running.has(lease.name)) keep.push(lease);
-      else if (lease.name === null) continue;
+      if (running.has(lease.name)) keep.push(lease);
       else await release(lease).catch(() => log.info("vmd_net_stale_release_failed", { ip: lease.ip }));
     }
     replace(keep);
     for (const lease of keep) {
-      if (lease.port === null || !ports.includes(lease.port)) {
+      if (!isBound(lease)) {
+        log.info("vmd_net_unbound_vm", { ip: lease.ip });
+        continue;
+      }
+      // The saved port counts only if a port of that name still exists with the same interface index.
+      if (ports.get(lease.port) !== lease.ifindex) {
         log.info("vmd_net_port_missing", { ip: lease.ip });
         continue;
       }
-      await guard({ ...lease, port: lease.port });
+      await guard(lease);
     }
     const known = new Set(keep.map((lease) => lease.name));
     for (const name of running) if (!known.has(name)) log.info("vmd_net_unknown_vm", { vm: name });
     log.info("vmd_net_restored", { vms: keep.length });
   }
 
-  return { allocate, attach, detach, restore };
+  return { allocate, prepare, attach, detach, restore };
 }
 
 /** pap-vmd's start: the net with its guards back in place. It rejects when they cannot be restored, so nothing is served. */

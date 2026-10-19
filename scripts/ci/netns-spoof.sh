@@ -10,10 +10,12 @@
 #   - after VM a sends forged ARP replies claiming VM b's address and SYNs from VM b's address, the host's neighbour
 #     entry for VM b keeps VM b's MAC and the drop counter moved; VM a and VM b still reach the gateway.
 # With the ruleset of the original plan (no bridge-family guard, no `iifname != pap0` drop on the two ports) this script
-# FAILS: the ARP poisoning moves the neighbour entry to VM a's MAC and the local relay connection succeeds.
+# FAILS: there is no bridge table to add the elements to, and the local relay connection succeeds. The drop counter is the
+# proof of the guard (the permanent neighbour entry alone already ignores ARP updates).
 #
 # POSIX sh. Needs root, `ip`, `nft` and `python3`, and must run in a throwaway network namespace or container:
-#   CI:    sudo unshare --net sh scripts/ci/netns-spoof.sh
+#   CI:    sudo unshare --net --mount sh -c 'mount -t tmpfs tmpfs /run && sh scripts/ci/netns-spoof.sh'
+#          (the private tmpfs keeps /run/netns off the runner's real /run)
 #   local: podman run --rm --network none --privileged -v <checkout>:/work:ro <image with python3> \
 #            sh /work/scripts/ci/netns-spoof.sh
 # `IP` and `NFT` may name the programs (words are split, e.g. IP="/lib64/ld-linux-x86-64.so.2 /hostusr/sbin/ip").
@@ -30,8 +32,9 @@ if [ "$(id -u)" -ne 0 ]; then
   exit 2
 fi
 # Refuse to touch a real host: the default namespace of a machine already has a pap0 or other bridges only if pap runs.
-if ip link show pap0 >/dev/null 2>&1; then
-  echo "netns-spoof: a pap0 already exists here; run in a fresh network namespace" >&2
+if ip link show pap0 >/dev/null 2>&1 || nft list table inet pap_agents >/dev/null 2>&1 ||
+  nft list table bridge pap_agents >/dev/null 2>&1; then
+  echo "netns-spoof: a pap0 or a pap_agents table already exists here; run in a fresh network namespace" >&2
   exit 2
 fi
 

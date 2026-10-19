@@ -127,7 +127,7 @@ describe("vm.start", () => {
         `pap.local/${IMAGE}:1`,
       ],
     ]);
-    expect(fx.net.events).toEqual(["allocate", "attach pap-helper-1a2b"]);
+    expect(fx.net.events).toEqual(["allocate", "prepare pap-helper-1a2b", "attach pap-helper-1a2b"]);
   });
 
   it("rm --force runs before every run", async () => {
@@ -192,7 +192,7 @@ describe("vm.start", () => {
     expect(after.filter(isRemove)).toEqual([
       ["/opt/kata/bin/kata-ctl", "direct-volume", "remove", VOLUME(fx, "pap-helper-1a2b")],
     ]);
-    expect(fx.net.events).toEqual(["allocate", "detach pap-helper-1a2b"]);
+    expect(fx.net.events).toEqual(["allocate", "prepare pap-helper-1a2b", "detach pap-helper-1a2b"]);
   });
 
   it("a failed volume add is cleaned up: no run, the volume removed again", async () => {
@@ -211,7 +211,12 @@ describe("vm.start", () => {
     const after = fx.exec.calls.slice(fx.exec.calls.findIndex(isRun) + 1);
     expect(after.some(isRm)).toBe(true);
     expect(after.some(isRemove)).toBe(true);
-    expect(fx.net.events).toEqual(["allocate", "attach pap-helper-1a2b", "detach pap-helper-1a2b"]);
+    expect(fx.net.events).toEqual([
+      "allocate",
+      "prepare pap-helper-1a2b",
+      "attach pap-helper-1a2b",
+      "detach pap-helper-1a2b",
+    ]);
     expect(readdirSync(path.join(fx.state.root, "run"))).toEqual([]);
   });
 
@@ -232,7 +237,7 @@ describe("vm.start", () => {
     seedDisk(fx);
     await expect(fx.ops.handle(startRequest())).rejects.toMatchObject({ code: "unavailable" });
     expect(fx.exec.calls.some((argv) => isRun(argv) || isAdd(argv))).toBe(false);
-    expect(() => unavailableNet.allocate()).toThrow(VmdFailure);
+    expect(() => unavailableNet.allocate("x")).toThrow(VmdFailure);
     await expect(
       unavailableNet.attach("x", { ip: "10.213.0.2", mac: "02:70:61:00:00:02" }),
     ).rejects.toMatchObject({

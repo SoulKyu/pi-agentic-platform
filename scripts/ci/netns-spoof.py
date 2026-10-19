@@ -3,6 +3,7 @@
 `run` orchestrates; `connect`, `listen`, `spoof` run inside a VM namespace through `ip netns exec`. Standard library only.
 """
 
+import json
 import os
 import re
 import socket
@@ -89,6 +90,12 @@ def add_guard(port, mac, ip):
     check(neigh.returncode == 0, "ip neigh replace %s: %s" % (ip, neigh.stderr.strip()))
 
 
+def bridge_mac_of():
+    """pap0's MAC from netlink (`ip -j`), not /sys: under `unshare --net` without a /sys remount, /sys shows the outer namespace."""
+    links = json.loads(sh(IP + ["-j", "link", "show", "pap0"]).stdout)
+    return links[0]["address"]
+
+
 def mac_bytes(text):
     return bytes(int(part, 16) for part in text.split(":"))
 
@@ -157,7 +164,7 @@ def run():
         check(not can_connect(GATEWAY, GATEWAY_PORT), "the gateway port does not answer the host's own loopback path")
 
         # 3. VM a forges VM b's address.
-        bridge_mac = open("/sys/class/net/pap0/address").read().strip()
+        bridge_mac = bridge_mac_of()
         before = drop_counter()
         spoofed = sh(in_ns("vma", "spoof", B_IP, bridge_mac))
         check(spoofed.returncode == 0, "the spoofing frames were sent: %s" % spoofed.stderr.strip())

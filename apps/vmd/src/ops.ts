@@ -30,7 +30,10 @@ export type Exec = (
 
 /** AVM-P11: T16a's network port. `allocate` picks the VM's address and MAC (R22); `attach` and `detach` fill and empty the guard set. */
 export interface NetPort {
-  allocate(): { ip: string; mac: string };
+  /** Reserves the VM's address and MAC (persisted); `detach(name)` frees it, bound or not. */
+  allocate(name: string): { ip: string; mac: string };
+  /** AVM-E37: inside the start mutex, before `nerdctl run`: records the bridge ports that exist now, so `attach` takes only a new one. */
+  prepare(name: string): Promise<void>;
   attach(name: string, address: { ip: string; mac: string }): Promise<void>;
   detach(name: string): Promise<void>;
   restore(): Promise<void>;
