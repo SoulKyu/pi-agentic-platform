@@ -163,3 +163,28 @@ Ideas to study after v1 (not planned yet):
   - A budget cap applies per improvement run.
 
   First step: read the paper, especially how probes are compared without a verifier, then a one-day spike on one agent.
+
+- **Scale in and out on Kubernetes (owner, 2026-10-19).** pap is a platform: agents should scale out on modern infrastructure. Today it is one host: one daemon, SQLite with one writer, workers forked locally in a systemd scope with bwrap, files on local disk. The OCI image (M6b) runs as one pod, which does not scale.
+  - What already helps:
+    - one launch point, `WorkerHandle` (`kernel/supervisor/worker.ts`), speaking JSON records (spec C §2.3, transport adapter foreseen in §2.2);
+    - a disposable worker (a crash goes `cold`, the Pi JSONL survives);
+    - platform calls run in the daemon, so a worker needs no database and no authority;
+    - idle release after 30 minutes (scale to zero) and explicit capacity refusals;
+    - `owner_id` and `workspace_id` on root entities;
+    - the session scanner reconciles periodically, so it works on a network volume where inotify does not.
+  - What blocks:
+    - shared files: the worker edits the repository and the Pi JSONL, the daemon reads the same files (transcripts, git, checkpoints, review, Files, terminal);
+    - host-bound containment (systemd scope, process group, `oom_score_adj`, parent watchdog);
+    - bwrap in a pod needs an unmasked `/proc` (same issue as R52b);
+    - several daemons: SQLite single writer with a synchronous API (15 store files, about 5 500 lines, 58 transactions), in-memory state (lane locks, notices, host grants, one-use values, `/ws` streams, PTYs), a single-instance scheduler and outbox.
+  - Three levels:
+    1. **Sessions and agents as pods** (about one milestone, M11a size): a `local` | `kubernetes` worker backend behind `WorkerHandle`, a WebSocket or gRPC stream over mTLS instead of Node IPC, an RWX volume mounted at the same paths, the pod as the sandbox (gVisor or Kata RuntimeClass, deny-all NetworkPolicy, egress only through pap's proxy as a Service; this also closes the "worker is not sandboxed" residual), a warm pod pool because a pod starts in seconds.
+    2. **Tasks and triggers as Jobs** (small, on top of 1): the outbox creates one Job per isolated task; KEDA or Karpenter for fan-out bursts; a ResourceQuota as the FinOps cap.
+    3. **Several daemons** (the largest refactor since M1): Postgres (FTS5 becomes tsvector), async stores, advisory locks, pub/sub for streams, a Lease for the scheduler.
+  - Recommendation: levels 1 and 2 after v1, `local` stays the default (spec A success criterion 3). Skip level 3: for teams, use cells (one daemon per workspace, a one-replica StatefulSet with SQLite on a PVC, a router by workspace in front). Postgres only if one workspace saturates its daemon, measured first with `pap trace summary` and the event-loop stall monitor.
+  - Constraints:
+    - an ADR, because it reopens a v1 non-goal (remote runtimes, spec A §6); it pairs with spec A §7 Teams (Helm chart, Postgres evaluation);
+    - RBAC limited to one namespace, pod specs built only by the daemon (never from agent input), PodSecurity `restricted`, NetworkPolicy;
+    - FinOps: a pod per session costs more than a fork at small volume, so Kubernetes is an option, not the default.
+
+  First step: a one-day spike, a minimal `kubernetes` backend on k3s or kind with one pi-host worker in a pod and an RWX volume, measuring start time and stream latency.
