@@ -142,6 +142,25 @@ describe("adapterSecrets", () => {
     ]);
   });
 
+  it("takes a URL with userinfo whatever its key: the value and its password (AVM-E30)", () => {
+    input();
+    s.json("agent/mcp.json", {
+      mcpServers: {
+        a: {
+          command: "x",
+          env: { DATABASE_URL: "postgres://u:secretpass@h/db", PLAIN_URL: "postgres://h/db" },
+          headers: { "X-Upstream": "https://tok-en-0123456789@h/x" },
+        },
+      },
+    });
+    expect(adapterSecrets(s.agentDir).sort()).toEqual([
+      "https://tok-en-0123456789@h/x",
+      "postgres://u:secretpass@h/db",
+      "secretpass",
+      "tok-en-0123456789",
+    ]);
+  });
+
   it("an absent or damaged config gives nothing", () => {
     input();
     s.put("agent/mcp.json", "{nope");

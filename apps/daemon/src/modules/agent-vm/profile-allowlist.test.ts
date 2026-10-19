@@ -5,11 +5,13 @@ import {
   copyPackage,
   type CopyRun,
   isDeniedName,
+  literalValuesOf,
   modelsFile,
   parsePackageSource,
   RELAY_BASE,
   SETTINGS_KEYS,
   sanitizeSettings,
+  secretValuesOf,
 } from "./profile-allowlist.ts";
 import { listAll, MARKER, mkfifo, type Scratch, scratch } from "./testing/profile-fixture.ts";
 
@@ -201,5 +203,46 @@ describe("modelsFile (RT-16, RT-18)", () => {
     expect(JSON.stringify(file)).not.toContain("literal");
     expect(RELAY_BASE).toBe("http://llm.internal:7842");
     expect(skipped).toEqual(["provider:oauthy: api not served by the relay", "provider:Bad Name: name"]);
+  });
+});
+
+describe("secretValuesOf (AVM-E30)", () => {
+  // Mutant "userinfo test removed": a URL under a harmless key gives nothing.
+  it("takes the value and the password of a URL with userinfo under any key", () => {
+    expect(secretValuesOf("DATABASE_URL", "postgres://u:secretpass@h/db")).toEqual([
+      "postgres://u:secretpass@h/db",
+      "secretpass",
+    ]);
+    expect(secretValuesOf("x", "https://tok-en-0123456789@h/x")).toEqual([
+      "https://tok-en-0123456789@h/x",
+      "tok-en-0123456789",
+    ]);
+    expect(secretValuesOf("x", "https://u:p%40ss-word-1@h/x")).toEqual([
+      "https://u:p%40ss-word-1@h/x",
+      "p%40ss-word-1",
+      "p@ss-word-1",
+    ]);
+  });
+
+  it("takes a credential-named literal as it is, and nothing else", () => {
+    expect(secretValuesOf("API_TOKEN", "abcdef-0123")).toEqual(["abcdef-0123"]);
+    for (const [key, value] of [
+      ["NODE_ENV", "production"],
+      ["DATABASE_URL", "postgres://h:5432/db"],
+      ["CONTACT", "ops@example.test"],
+      ["x", "https://example.test/p?next=a@b"],
+      ["API_TOKEN", "$API_TOKEN"],
+      ["x", "!pass show db"],
+      ["x", "http://${USER}:${PASS}@h/"],
+    ] as const)
+      expect(secretValuesOf(key, value), `${key}=${value}`).toEqual([]);
+  });
+
+  it("reaches a provider header of models.json whatever its name", () => {
+    expect(
+      literalValuesOf({
+        providers: { acme: { headers: { "X-Upstream": "https://u:secretpass@h/x", Accept: "text/plain" } } },
+      }),
+    ).toEqual(["https://u:secretpass@h/x", "secretpass"]);
   });
 });

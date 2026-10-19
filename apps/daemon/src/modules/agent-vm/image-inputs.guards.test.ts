@@ -21,7 +21,9 @@ import {
 let s: Scratch;
 afterEach(() => s?.cleanup());
 const papHome = () => join(s.root, "pap-home");
-const prepare = (secrets: string[] = []) => prepareProfileContext(s.agentDir, s.out, secrets, papHome());
+const BASE = `pap-agent-base-${"c".repeat(64)}`;
+const prepare = (secrets: string[] = []) =>
+  prepareProfileContext(s.agentDir, s.out, secrets, papHome(), BASE);
 const read = (rel: string) => readFileSync(join(s.out, rel), "utf8");
 
 describe("a copied root may not be, or hold, the agent folder (RT-18)", () => {
@@ -167,6 +169,63 @@ describe("credential-looking keys only (N1)", () => {
       expect(() => prepare(), where).toThrow(ProfileSecretError);
       s.cleanup();
     }
+  });
+});
+
+/*
+ * AVM-E30 mutants, each run for real: the userinfo test removed from the MCP env/header rule (the mcp cases); from the
+ * provider header rule (the models.json case); the password part left out of the needles ("password only").
+ */
+describe("a URL that holds userinfo is a secret whatever its key (AVM-E30)", () => {
+  const URL_VALUE = "postgres://u:secretpass@h/db";
+  const planted = (where: "mcp-env" | "mcp-headers" | "models-headers") => {
+    s = scratch();
+    plantAgentDir(s);
+    if (where === "mcp-env")
+      s.json("agent/mcp.json", { mcpServers: { a: { command: "/x", env: { DATABASE_URL: URL_VALUE } } } });
+    else if (where === "mcp-headers")
+      s.json("agent/mcp.json", {
+        mcpServers: { a: { command: "/x", headers: { "X-Upstream": "https://u:secretpass@h/x" } } },
+      });
+    else
+      s.json("agent/models.json", {
+        providers: {
+          acme: { api: "openai-completions", headers: { "X-Upstream": "https://u:secretpass@h/x" } },
+        },
+      });
+  };
+
+  for (const where of ["mcp-env", "mcp-headers", "models-headers"] as const)
+    it(`refuses a copied file that holds only the password (${where})`, () => {
+      planted(where);
+      s.put("agent/skills/hello/SKILL.md", "connect with secretpass here");
+      expect(() => prepare()).toThrow(ProfileSecretError);
+    });
+
+  it("refuses a copied file that holds the whole URL", () => {
+    planted("mcp-env");
+    s.put("agent/skills/hello/SKILL.md", `url ${URL_VALUE}`);
+    expect(() => prepare()).toThrow(ProfileSecretError);
+  });
+
+  it("a URL without userinfo, an address and a variable reference never refuse a build", () => {
+    s = scratch();
+    plantAgentDir(s);
+    s.json("agent/mcp.json", {
+      mcpServers: {
+        a: {
+          command: "/x",
+          env: {
+            DATABASE_URL: "postgres://h:5432/db",
+            CONTACT: "ops@example.test",
+            PROXY: "http://${PROXY_USER}:${PROXY_PASS}@h/",
+          },
+          headers: { "X-Upstream": "https://example.test/path?next=a@b" },
+        },
+      },
+    });
+    s.put("agent/skills/hello/SKILL.md", "postgres://h:5432/db ops@example.test https://example.test/path");
+    expect(() => prepare()).not.toThrow();
   });
 });
 

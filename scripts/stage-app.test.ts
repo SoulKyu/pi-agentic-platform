@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { putAgentBundle } from "./agent-bundle-fixture.ts";
 import { putLicences } from "./licence-fixture.ts";
 import { stageApp } from "./stage-app.ts";
 import type { Runner } from "./build-archive-stage.ts";
@@ -29,6 +30,7 @@ const fixture = (options: { dist?: boolean; manifest?: string } = {}) => {
     put(join(repo, dir, "package.json"), `{"name":"${dir}"}`);
     if (options.dist !== false) put(join(repo, dir, "dist/main.js"), "export {};");
   }
+  if (options.dist !== false) putAgentBundle(join(repo, "packages/pi-host/dist-agent"));
   return { repo, out: join(root, "stage") };
 };
 

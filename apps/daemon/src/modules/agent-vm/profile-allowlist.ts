@@ -173,6 +173,38 @@ export const isLiteralValue = (value: string): boolean =>
   !value.startsWith("!") &&
   !/^\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$/.test(value);
 
+/**
+ * A value that holds URL userinfo (a password inside a URL) is a secret whatever its key. Copied from pi-host's maskers:
+ * `USERINFO` of `packages/pi-host/src/helper/models-json-mask.ts` and `URL_USERINFO` of `.../helper/mask.ts`.
+ */
+const USERINFO = /^[a-z][a-z0-9+.-]*:\/\/[^/?#\s]*@/i;
+
+/** The password of the URL (or its whole userinfo when it has no colon), as written and percent-decoded. */
+function userinfoParts(value: string): string[] {
+  const match = USERINFO.exec(value);
+  if (match === null) return [];
+  const userinfo = match[0].slice(match[0].indexOf("//") + 2, -1);
+  const colon = userinfo.indexOf(":");
+  const password = colon < 0 ? userinfo : userinfo.slice(colon + 1);
+  let decoded = password;
+  try {
+    decoded = decodeURIComponent(password);
+  } catch {
+    // not percent-encoded text: the written form is the only one
+  }
+  return [...new Set([password, decoded])].filter((part) => part !== "" && isLiteralValue(part));
+}
+
+/**
+ * The needles one `key: value` pair of the owner's files gives the scan: the value when its key looks like a credential
+ * or the value is a URL whose userinfo is a literal, and then that password on its own. Not a `$NAME` or `!command` form.
+ */
+export function secretValuesOf(key: string, value: string): string[] {
+  if (!isLiteralValue(value)) return [];
+  const parts = userinfoParts(value);
+  return credentialName(key) || parts.length > 0 ? [value, ...parts] : [];
+}
+
 /** Literal strings of provider `headers` and `apiKey` in the owner's models.json: known secrets for the scan. */
 export function literalValuesOf(source: ModelsSource): string[] {
   const values: string[] = [];
@@ -182,7 +214,7 @@ export function literalValuesOf(source: ModelsSource): string[] {
     for (const holder of [provider, ...(Array.isArray(provider.models) ? provider.models : [])]) {
       if (!isRecord(holder) || !isRecord(holder.headers)) continue;
       for (const [name, value] of Object.entries(holder.headers))
-        if (typeof value === "string" && credentialName(name) && isLiteralValue(value)) values.push(value);
+        if (typeof value === "string") values.push(...secretValuesOf(name, value));
     }
   }
   return values;

@@ -15,6 +15,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { putAgentBundle } from "./agent-bundle-fixture.ts";
 import { putLicences } from "./licence-fixture.ts";
 import { buildArchive, type Runner } from "./build-archive.ts";
 
@@ -57,6 +58,7 @@ const fixture = (overrides: { nodeVersion?: string; license?: boolean; manifest?
   put(join(repo, "apps/web/dist/index.html"), "<html></html>");
   put(join(repo, "packages/contracts/dist/main.js"), "export {};");
   put(join(repo, "packages/pi-host/dist/main.js"), "export {};");
+  putAgentBundle(join(repo, "packages/pi-host/dist-agent"));
   put(join(repo, ".env"), "KEY=1");
   put(join(repo, "docs/readme.md"), "docs");
   put(

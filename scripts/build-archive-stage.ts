@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { join, relative } from "node:path";
+import { AGENT_BUNDLE, assertAgentBundle } from "./build-agent-bundle.ts";
 
 export type Runner = (cmd: string, args: readonly string[], cwd: string) => Promise<void>;
 
@@ -123,6 +124,9 @@ export const stageTree = async ({ repo, app, run, storeDir }: StageOptions): Pro
     assertNoSymlinks(join(repo, dir, "dist"));
     cpSync(join(repo, dir, "dist"), join(app, dir, "dist"), { recursive: true });
   }
+  // The base image of the agent VMs is built from this folder; its links stay links (checked to stay inside, T14b).
+  assertAgentBundle(join(repo, AGENT_BUNDLE));
+  cpSync(join(repo, AGENT_BUNDLE), join(app, AGENT_BUNDLE), { recursive: true, verbatimSymlinks: true });
   const npmrc = existsSync(join(repo, ".npmrc"))
     ? allowlistNpmrc(readFileSync(join(repo, ".npmrc"), "utf8"))
     : "";

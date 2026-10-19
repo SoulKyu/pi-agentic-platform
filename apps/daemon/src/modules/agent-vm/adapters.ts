@@ -5,7 +5,7 @@ import { z } from "zod";
 import { readJsonBounded } from "../../kernel/json-bounded.ts";
 import { within } from "../../kernel/fs/boundary.ts";
 import { MIN_SECRET_LENGTH } from "./secret-scan.ts";
-import { IMAGE_AGENT_DIR, isLiteralValue, PLACEHOLDER_KEY } from "./profile-allowlist.ts";
+import { IMAGE_AGENT_DIR, isLiteralValue, PLACEHOLDER_KEY, secretValuesOf } from "./profile-allowlist.ts";
 
 const CONFIG_MAX_BYTES = 256 * 1024;
 const SERVER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
@@ -123,7 +123,7 @@ export function adapterSecrets(agentDir: string): string[] {
         const held = (server as Record<string, unknown>)[field];
         if (typeof held === "object" && held !== null)
           for (const [key, value] of Object.entries(held))
-            if (typeof value === "string" && credentialName(key) && isLiteralValue(value)) found.push(value);
+            if (typeof value === "string") found.push(...secretValuesOf(key, value));
       }
   return found;
 }

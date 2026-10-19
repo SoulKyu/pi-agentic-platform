@@ -30,6 +30,8 @@ export default defineConfig(
   {
     ignores: [
       "**/dist/**",
+      "packages/pi-host/dist-agent/**",
+      "packages/pi-host/.dist-agent-building/**",
       "**/node_modules/**",
       "spikes/**",
       "docs/**",

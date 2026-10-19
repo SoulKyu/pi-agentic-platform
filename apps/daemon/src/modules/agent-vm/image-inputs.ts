@@ -33,6 +33,7 @@ const FORMAT = "pap-profile-1";
 const JSON_MAX_BYTES = 1024 * 1024;
 const MAX_PACKAGES = 64;
 const MAX_NPM_PACKAGES = 2000;
+const BASE_TAG = /^pap-agent-base-[0-9a-f]{64}$/;
 const MEM0 = /pi-mem0/i;
 const MEM0_NOTE = "pi-mem0: R17, memory stays out of VM images";
 /** The bridge registers its own provider; it must keep its own route (`claude.internal`), not `llm.internal`. */
@@ -279,8 +280,9 @@ function writeJson(out: string, name: string, value: unknown): void {
   writeFileSync(join(out, name), `${JSON.stringify(value, null, 2)}\n`, { mode: 0o644 });
 }
 
-function treeDigest(out: string): string {
-  const hash = createHash("sha256").update(`${FORMAT}\n`);
+/** The sha256 of a tree: names, kinds, the executable bit, link targets and file bytes; `format` keeps two uses apart. */
+export function treeDigest(out: string, format = FORMAT): string {
+  const hash = createHash("sha256").update(`${format}\n`);
   const chunk = Buffer.alloc(64 * 1024);
   for (const entry of walkTree(out)) {
     const exec = entry.mode & 0o111 ? "x" : "-";
@@ -309,6 +311,7 @@ function build(
   out: string,
   secrets: KnownSecrets,
   papHome: string,
+  baseTag: string,
 ): { tag: string; skipped: string[] } {
   const b = new Build(agentDir, out, papHome);
   const settings = readSettings(agentDir);
@@ -336,19 +339,25 @@ function build(
   };
   for (const name of b.adapted) applyAdapter(name, input);
   scanTree(out, known);
-  return { tag: `pap-agent-profile-${treeDigest(out)}`, skipped: safeNotes(b.run.skipped, known) };
+  return {
+    tag: `pap-agent-profile-${treeDigest(out, `${FORMAT}\0${baseTag}`)}`,
+    skipped: safeNotes(b.run.skipped, known),
+  };
 }
 
 /**
  * RT-18: writes the Pi profile the image gets, by allowlist (`out` is replaced). Every file written is scanned for
- * every known secret before the tag is computed; a hit, or any other failure, removes `out` and throws.
+ * every known secret before the tag is computed; a hit, or any other failure, removes `out` and throws. The base tag
+ * enters the profile tag, so a new bundle, digest or weekly rebuild of the base reaches the profile and the agent images.
  */
 export function prepareProfileContext(
   agentDir: string,
   out: string,
   secrets: KnownSecrets,
   papHome: string,
+  baseTag: string,
 ): { tag: string; skipped: string[] } {
+  if (!BASE_TAG.test(baseTag)) throw new Error("profile base tag is not a base tag");
   if (
     !isAbsolute(agentDir) ||
     !isAbsolute(out) ||
@@ -360,7 +369,7 @@ export function prepareProfileContext(
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   try {
-    return build(agentDir, out, secrets, papHome);
+    return build(agentDir, out, secrets, papHome, baseTag);
   } catch (error) {
     rmSync(out, { recursive: true, force: true });
     throw error;

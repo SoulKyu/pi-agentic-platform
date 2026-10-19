@@ -22,7 +22,9 @@ import {
 let s: Scratch;
 afterEach(() => s?.cleanup());
 const papHome = () => join(s.root, "pap-home");
-const prepare = (secrets: string[] = []) => prepareProfileContext(s.agentDir, s.out, secrets, papHome());
+const BASE = `pap-agent-base-${"c".repeat(64)}`;
+const prepare = (secrets: string[] = [], base = BASE) =>
+  prepareProfileContext(s.agentDir, s.out, secrets, papHome(), base);
 const read = (rel: string) => readFileSync(join(s.out, rel), "utf8");
 
 describe("prepareProfileContext (RT-18)", () => {
@@ -165,6 +167,25 @@ describe("prepareProfileContext (RT-18)", () => {
     expect(prepare().tag).not.toBe(first);
   });
 
+  // Mutant "base tag left out of the profile tag": a new bundle or a weekly rebuild would not reach the profile image.
+  it("a new base tag changes the profile tag, and through it the agent layer's tag (base tag)", () => {
+    s = scratch();
+    plantAgentDir(s);
+    const first = prepare().tag;
+    expect(prepare([], BASE).tag).toBe(first);
+    const other = prepare([], `pap-agent-base-${"d".repeat(64)}`).tag;
+    expect(other).not.toBe(first);
+    expect(agentLayerTag(other, ["jq"])).not.toBe(agentLayerTag(first, ["jq"]));
+  });
+
+  it("refuses a base tag that is not a base tag", () => {
+    s = scratch();
+    plantAgentDir(s);
+    expect(() => prepare([], "latest")).toThrow(/base tag/);
+    expect(() => prepare([], `pap-agent-profile-${"c".repeat(64)}`)).toThrow(/base tag/);
+    expect(existsSync(s.out)).toBe(false);
+  });
+
   it("skips a package whose installed version differs from the pinned one", () => {
     s = scratch();
     plantAgentDir(s);
@@ -177,11 +198,11 @@ describe("prepareProfileContext (RT-18)", () => {
   it("refuses an output folder that overlaps the agent dir", () => {
     s = scratch();
     plantAgentDir(s);
-    expect(() => prepareProfileContext(s.agentDir, join(s.agentDir, "pi-agent"), [], papHome())).toThrow(
-      /output/,
-    );
-    expect(() => prepareProfileContext(s.agentDir, s.root, [], papHome())).toThrow(/output/);
-    expect(() => prepareProfileContext(s.agentDir, "relative/out", [], papHome())).toThrow(/output/);
+    expect(() =>
+      prepareProfileContext(s.agentDir, join(s.agentDir, "pi-agent"), [], papHome(), BASE),
+    ).toThrow(/output/);
+    expect(() => prepareProfileContext(s.agentDir, s.root, [], papHome(), BASE)).toThrow(/output/);
+    expect(() => prepareProfileContext(s.agentDir, "relative/out", [], papHome(), BASE)).toThrow(/output/);
   });
 
   it("works on an empty agent dir", () => {
