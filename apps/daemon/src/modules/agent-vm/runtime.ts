@@ -84,6 +84,9 @@ interface Entry {
   teardown: Promise<void> | undefined;
 }
 
+/** A function, so a check after an await is not narrowed by the checks before it. */
+const isStopping = (entry: { phase: string }): boolean => entry.phase === "stopping";
+
 export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
   const { backend, gateway, tokens, clock, logger } = deps;
   const entries = new Map<string, Entry>();
@@ -130,8 +133,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     return entry.teardown;
   }
 
+  async function stopLate(entry: Entry): Promise<void> {
+    try {
+      await backend.stop(entry.spec.agentId, taskKeyOf(entry.spec));
+    } catch (error) {
+      logger.warn("agent_vm_stop_failed", { agentId: entry.spec.agentId, err: error });
+    }
+  }
+
   function onClosed(entry: Entry): void {
-    if (entry.phase === "stopping") return;
+    if (isStopping(entry)) return;
     const hadWorkers = entry.idle.live > 0;
     const agentId = entry.spec.agentId;
     logger.warn("agent_vm_exited", { agentId, withWorkers: hadWorkers });
@@ -178,6 +189,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     entry.ready = (async () => {
       try {
         const { address } = await backend.start(spec, { launchId: entry.launchId, token: issued.token });
+        if (isStopping(entry)) {
+          // A stop arrived while the VM was starting: its teardown ran before the VM existed, so stop it now.
+          await stopLate(entry);
+          throw new PapError("worker_failed");
+        }
         deps.onLaunch({
           launchId: entry.launchId,
           agentId: spec.agentId,
@@ -185,7 +201,11 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
           address,
         });
         const link = await gateway.awaitGuest(entry.launchId);
-        if (entry.phase === "stopping") throw new PapError("worker_failed");
+        if (isStopping(entry)) {
+          link.shutdown();
+          await stopLate(entry);
+          throw new PapError("worker_failed");
+        }
         entry.link = link;
         entry.phase = "running";
         void link.closed.then(() => onClosed(entry));
@@ -212,18 +232,20 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       }
       entry ??= entries.get(key) ?? startVm(spec, key);
       const link = await entry.ready;
+      if (isStopping(entry)) throw new PapError("worker_failed");
       entry.idle.workerStarted();
       let handle: VmWorkerHandle;
       try {
         handle = await link.spawnWorker({ ...worker, sessionsDir: entry.layout.sessions }, packages);
       } catch (error) {
-        entry.idle.workerEnded();
+        if (!isStopping(entry)) entry.idle.workerEnded();
         throw error;
       }
       entry.workers.add(handle);
       void handle.exited.then(() => {
         entry.workers.delete(handle);
-        entry.idle.workerEnded();
+        // A stopping entry has its idle timer cancelled for good: a worker leaving it must not arm one.
+        if (!isStopping(entry)) entry.idle.workerEnded();
       });
       return { handle, layout: entry.layout, relayKey: entry.relayKey, slot: handle.slot };
     },
@@ -238,7 +260,16 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     async stopAll() {
       try {
         await Promise.all([...entries.values()].map(tearDown));
-        for (const vm of await backend.list()) await backend.stop(vm.agentId, vm.taskKey);
+        let failed: unknown;
+        for (const vm of await backend.list()) {
+          try {
+            await backend.stop(vm.agentId, vm.taskKey);
+          } catch (error) {
+            failed ??= error;
+            logger.error("agent_vm_boot_stop_failed", { agentId: vm.agentId, err: error });
+          }
+        }
+        if (failed !== undefined) throw failed;
         boot.state = "ok";
       } catch (error) {
         boot.state = "failed";

@@ -44,7 +44,7 @@ export interface FakeGuest {
   shutdown: ReturnType<typeof vi.fn>;
 }
 
-function fakeGuest(order: string[]): FakeGuest {
+export function fakeGuest(order: string[]): FakeGuest {
   let crash: () => void = () => {};
   const closed = new Promise<void>((resolve) => {
     crash = resolve;
@@ -91,7 +91,11 @@ export interface Bed {
   capacity: string[][];
   listed: Array<{ agentId: string; taskKey: string | null }>;
   failStart: { error: Error | null };
-  backend: AgentRuntimeBackend & { stop: ReturnType<typeof vi.fn>; list: ReturnType<typeof vi.fn> };
+  backend: AgentRuntimeBackend & {
+    start: ReturnType<typeof vi.fn>;
+    stop: ReturnType<typeof vi.fn>;
+    list: ReturnType<typeof vi.fn>;
+  };
   gateway: Gateway & { awaitGuest: ReturnType<typeof vi.fn> };
   runtime: AgentRuntime;
   /** The i-th started launch (negative: from the end), its guest and its grant. */
