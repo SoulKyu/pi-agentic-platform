@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readlinkSync } from "node:fs";
+import { existsSync, linkSync, readFileSync, readlinkSync, rmSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { IMAGE_TAG } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
@@ -13,6 +13,12 @@ import {
   VAULT_VALUE,
 } from "./testing/profile-fixture.ts";
 
+/*
+ * Fix-round mutants, each run for real: roots guard removed (the "may not be, or hold" cases); optional/peer dependencies
+ * not followed ("npm closure"); auth.json inode check removed ("hard link"); notes not withheld ("withholds a skip note");
+ * `$NAME`/`!command` taken as literals ("environment variable or command"); adapter secrets left out of the needles;
+ * local-inside-agent check removed ("." and the absolute agent dir).
+ */
 let s: Scratch;
 afterEach(() => s?.cleanup());
 const prepare = (secrets: string[] = []) => prepareProfileContext(s.agentDir, s.out, secrets);
@@ -104,7 +110,7 @@ describe("prepareProfileContext (RT-18)", () => {
     const urls = listAll(s.out).flatMap(
       (entry) => entry.text?.match(/https?:\/\/[a-z.]+\.internal[:\d]*/g) ?? [],
     );
-    expect(urls.length).toBeGreaterThan(1);
+    expect(urls).toEqual(["http://llm.internal:7842"]);
     for (const url of urls) expect(url).toMatch(/:7842$/);
   });
 
@@ -112,9 +118,7 @@ describe("prepareProfileContext (RT-18)", () => {
     s = scratch();
     plantAgentDir(s);
     const { skipped } = prepare();
-    expect(JSON.parse(read("pi-claude-bridge.json"))).toEqual({
-      env: { ANTHROPIC_BASE_URL: "http://claude.internal:7842" },
-    });
+    expect(existsSync(join(s.out, "pi-claude-bridge.json"))).toBe(false);
     expect(JSON.parse(read("web-search.json"))).toEqual({ exaApiKey: "pap-placeholder" });
     expect(Object.keys((JSON.parse(read("mcp.json")) as { mcpServers: object }).mcpServers)).toEqual([
       "inside",
@@ -185,6 +189,195 @@ describe("prepareProfileContext (RT-18)", () => {
     expect(skipped).toEqual([]);
     expect(JSON.parse(read("models.json"))).toEqual({ providers: {} });
     expect(JSON.parse(read("settings.json"))).toEqual({});
+  });
+});
+
+describe("a copied root may not be, or hold, the agent folder (RT-18)", () => {
+  const FORBIDDEN = [
+    "sessions",
+    "mem0",
+    "pi-web-session-index.json",
+    "auth.json",
+    "mcp-auth.json",
+    ".credentials.json",
+  ];
+  function build(packages: unknown[] | ((x: Scratch) => unknown[]), extra: (s: Scratch) => void = () => {}) {
+    s = scratch();
+    plantAgentDir(s);
+    s.json("agent/mcp-auth.json", { srv: { access_token: `${MARKER}-oauth` } });
+    s.json("agent/settings.json", { packages: typeof packages === "function" ? packages(s) : packages });
+    extra(s);
+    const result = prepare();
+    const all = listAll(s.out);
+    expect(all.filter((entry) => entry.text?.includes(MARKER))).toEqual([]);
+    expect(all.filter((entry) => entry.rel.split("/").some((part) => FORBIDDEN.includes(part)))).toEqual([]);
+    expect(all.some((entry) => entry.rel.split("/").includes(".."))).toBe(false);
+    return result;
+  }
+
+  it('refuses "." (a value Pi writes for a local install) and reports it', () => {
+    expect(build(["."]).skipped).toEqual(["local/agent: a local package inside the agent folder"]);
+  });
+
+  it("refuses the absolute agent dir", () => {
+    expect(build((x) => [x.agentDir]).skipped).toEqual([
+      "local/agent: a local package inside the agent folder",
+    ]);
+  });
+
+  it('refuses ".." (it holds the agent dir and the output)', () => {
+    const { skipped } = build([".."]);
+    expect(skipped).toEqual([
+      expect.stringMatching(
+        /^local\/pap-profile-\w+: the folder holds or is part of the agent folder, the home or the output$/,
+      ),
+    ]);
+  });
+
+  it("refuses a skills folder that is a link to the agent dir", () => {
+    const { skipped } = build([], (x) => {
+      rmSync(join(x.agentDir, "skills"), { recursive: true });
+      symlinkSync(x.agentDir, join(x.agentDir, "skills"));
+    });
+    expect(skipped).toEqual([
+      "skills: the folder holds or is part of the agent folder, the home or the output",
+    ]);
+  });
+
+  it("refuses an npm package that is a link to another part of the agent dir", () => {
+    const { skipped } = build(["npm:linked@1.0.0"], (x) => {
+      x.json("agent/sessions/package.json", { name: "linked", version: "1.0.0" });
+      symlinkSync(join(x.agentDir, "sessions"), join(x.agentDir, "npm/node_modules/linked"));
+    });
+    expect(skipped).toContain(
+      "npm/node_modules/linked: the folder holds or is part of the agent folder, the home or the output",
+    );
+  });
+
+  it("refuses a local package that holds the output folder", () => {
+    const { skipped } = build(["../build"]);
+    expect(skipped).toEqual([
+      "local/build: the folder holds or is part of the agent folder, the home or the output",
+    ]);
+  });
+});
+
+describe("npm closure", () => {
+  const withDeps = (s2: Scratch) => {
+    s2.json("agent/npm/node_modules/demo-pkg/package.json", {
+      name: "demo-pkg",
+      version: "1.2.3",
+      optionalDependencies: { "opt-installed": "1.0.0", "opt-missing": "1.0.0" },
+      peerDependencies: { "peer-installed": "*", "peer-missing": "*" },
+    });
+    for (const name of ["opt-installed", "peer-installed"]) {
+      s2.json(`agent/npm/node_modules/${name}/package.json`, { name, version: "1.0.0" });
+      s2.put(`agent/npm/node_modules/${name}/.npmrc`, MARKER);
+      s2.put(`agent/npm/node_modules/${name}/bin/claude`, "binary");
+    }
+  };
+
+  it("follows installed optional and peer dependencies through the same copy and notes a missing optional one", () => {
+    s = scratch();
+    plantAgentDir(s);
+    withDeps(s);
+    const { skipped } = prepare();
+    const names = listAll(s.out).map((entry) => entry.rel);
+    expect(names).toContain("npm/node_modules/opt-installed/bin/claude");
+    expect(names).toContain("npm/node_modules/peer-installed/bin/claude");
+    expect(names).not.toContain("npm/node_modules/opt-installed/.npmrc");
+    expect(skipped).toContain("npm:opt-missing: optional dependency not installed");
+    expect(skipped.filter((note) => note.includes("peer-missing"))).toEqual([]);
+  });
+
+  it("scans an optional dependency like any copied file", () => {
+    s = scratch();
+    plantAgentDir(s);
+    withDeps(s);
+    s.put("agent/npm/node_modules/opt-installed/bin/claude", `x ${VAULT_VALUE}`);
+    expect(() => prepare([VAULT_VALUE])).toThrow(ProfileSecretError);
+  });
+});
+
+describe("known secrets and notes", () => {
+  it("a models.json that names credentials by environment variable or command builds, with that text in a README", () => {
+    s = scratch();
+    plantAgentDir(s);
+    s.json("agent/models.json", {
+      providers: {
+        acme: {
+          api: "openai-completions",
+          apiKey: "$OPENAI_API_KEY",
+          headers: { a: "${ACME_TOKEN_VALUE}", b: "!pass show acme/token" },
+        },
+      },
+    });
+    s.put(
+      "agent/skills/hello/README.md",
+      "set $OPENAI_API_KEY and ${ACME_TOKEN_VALUE} and run !pass show acme/token",
+    );
+    expect(() => prepare()).not.toThrow();
+  });
+
+  it("the web-search key, MCP env values and MCP OAuth tokens of the owner are known secrets", () => {
+    for (const planted of [`${MARKER}-exa`, `${MARKER}-mcp-env`, `${MARKER}-oauth`]) {
+      s = scratch();
+      plantAgentDir(s);
+      s.json("agent/mcp-auth.json", { srv: { access_token: `${MARKER}-oauth` } });
+      s.put("agent/skills/hello/SKILL.md", `leak ${planted}`);
+      expect(() => prepare()).toThrow(ProfileSecretError);
+      s.cleanup();
+    }
+  });
+
+  it("withholds a skip note that holds a known secret", () => {
+    s = scratch();
+    plantAgentDir(s);
+    s.json("agent/mcp.json", { mcpServers: { "server-with-secret-name": { command: "/usr/bin/true" } } });
+    const { skipped } = prepare(["server-with-secret-name"]);
+    expect(skipped).toContain("[note withheld]");
+    expect(skipped.join("\n")).not.toContain("server-with-secret-name");
+  });
+
+  it("skips a hard link to auth.json under any name", () => {
+    s = scratch();
+    plantAgentDir(s);
+    linkSync(join(s.agentDir, "auth.json"), join(s.agentDir, "npm/node_modules/demo-pkg/lib/data.dat"));
+    s.put("agent/npm/node_modules/demo-pkg/.gitconfig", MARKER);
+    s.put("agent/npm/node_modules/demo-pkg/mcp-auth.json", MARKER);
+    prepare();
+    expect(existsSync(join(s.out, "npm/node_modules/demo-pkg/lib/data.dat"))).toBe(false);
+    expect(listAll(s.out).filter((entry) => entry.text?.includes(MARKER))).toEqual([]);
+  });
+});
+
+describe("settings skills entries", () => {
+  it("keeps exclusion entries of copied skills, rewritten, and reports each entry it cannot keep", () => {
+    s = scratch();
+    plantAgentDir(s);
+    s.put("agent/skills/hello/draft.md", "d");
+    s.json("agent/settings.json", {
+      skills: [
+        "skills/hello",
+        "!skills/hello/draft.md",
+        "-skills/hello/SKILL.md",
+        "+skills/hello",
+        "!skills/old/**",
+        "!../../etc/*",
+        `!${s.outside}/x`,
+        "/etc/passwd",
+        7,
+      ],
+    });
+    const { skipped } = prepare();
+    expect((JSON.parse(read("settings.json")) as { skills: string[] }).skills).toEqual([
+      "skills/hello",
+      "!skills/hello/draft.md",
+      "-skills/hello/SKILL.md",
+      "+skills/hello",
+      "!skills/old/**",
+    ]);
+    expect(skipped.filter((note) => note.startsWith("settings.json: a skills entry"))).toHaveLength(4);
   });
 });
 

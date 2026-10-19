@@ -1,5 +1,7 @@
 import {
   linkSync,
+  lstatSync,
+  readlinkSync,
   readdirSync,
   renameSync,
   chmodSync,
@@ -44,6 +46,39 @@ const writeImage = (name: string, text: string): void => {
   mkdirSync(join(layout.imageAgentDir, name, ".."), { recursive: true });
   writeFileSync(join(layout.imageAgentDir, name), text);
 };
+
+describe("seedAgentFolder links (AVM-E26)", () => {
+  // Mutant: the link branch left out -> "keeps a link" fails; the inside check removed -> "refuses" fails.
+  it("keeps a link whose target stays inside the image as a relative link", () => {
+    writeImage("npm/pkg/lib/a.js", "a");
+    symlinkSync("lib/a.js", join(layout.imageAgentDir, "npm/pkg/link"));
+    seedAgentFolder(layout);
+    const seeded = join(layout.piAgentDir, "npm/pkg/link");
+    expect(lstatSync(seeded).isSymbolicLink()).toBe(true);
+    expect(readlinkSync(seeded)).toBe("lib/a.js");
+    expect(readFileSync(seeded, "utf8")).toBe("a");
+  });
+
+  it("refuses a link that leaves the image and one that dangles", () => {
+    writeFileSync(join(dir, "elsewhere"), "x");
+    symlinkSync(join(dir, "elsewhere"), join(layout.imageAgentDir, "out"));
+    expect(() => seedAgentFolder(layout)).toThrow(/leaves the image/);
+    rmSync(join(layout.imageAgentDir, "out"));
+    symlinkSync("missing", join(layout.imageAgentDir, "gone"));
+    expect(() => seedAgentFolder(layout)).toThrow(/does not resolve/);
+  });
+
+  it("replaces a link or file the disk holds under an image link's name, never writing through it", () => {
+    writeImage("a.js", "a");
+    symlinkSync("a.js", join(layout.imageAgentDir, "l"));
+    mkdirSync(layout.piAgentDir, { recursive: true });
+    writeFileSync(join(dir, "victim"), "keep");
+    symlinkSync(join(dir, "victim"), join(layout.piAgentDir, "l"));
+    seedAgentFolder(layout);
+    expect(readlinkSync(join(layout.piAgentDir, "l"))).toBe("a.js");
+    expect(readFileSync(join(dir, "victim"), "utf8")).toBe("keep");
+  });
+});
 
 describe("seedAgentFolder", () => {
   it("makes the layout folders of a blank disk (AVM-P5)", () => {
@@ -137,10 +172,10 @@ describe("seedAgentFolder", () => {
     expect(existsSync(join(dir, "outside", "one"))).toBe(false);
   });
 
-  it("does not copy a link of the image", () => {
+  it("refuses an image link to an absolute path outside the image, writing nothing through it", () => {
     writeImage("settings.json", "image");
     symlinkSync("/etc/passwd", join(layout.imageAgentDir, "passwd"));
-    seedAgentFolder(layout);
+    expect(() => seedAgentFolder(layout)).toThrow(/leaves the image/);
     expect(existsSync(join(layout.piAgentDir, "passwd"))).toBe(false);
   });
 });

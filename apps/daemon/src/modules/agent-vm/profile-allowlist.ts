@@ -38,7 +38,7 @@ const MAX_MODELS = 512;
 
 /** RT-18: inside every copied folder, a name that can hold a credential never enters. */
 const DENIED_NAME =
-  /^(?:\.env.*|\.npmrc|\.netrc|.*\.pem|.*\.key|id_.*|auth\.json|.*credentials.*|.*\.(?:sqlite|db)(?:-wal|-shm|-journal)?)$/i;
+  /^(?:\.env.*|\.npmrc|\.netrc|\.gitconfig|.*\.pem|.*\.key|id_.*|.*auth.*\.json|.*credentials.*|.*\.(?:sqlite|db)(?:-wal|-shm|-journal)?)$/i;
 export const isDeniedName = (name: string): boolean => name === ".git" || DENIED_NAME.test(name);
 
 /** The budget of one profile build, shared by every folder it copies. `max*` override the limits in tests. */
@@ -46,6 +46,8 @@ export interface CopyRun {
   files: number;
   bytes: number;
   readonly skipped: string[];
+  /** Files of the owner's that must never enter, whatever their name: a hard link to one is skipped (device and inode). */
+  readonly denyIds?: ReadonlyArray<{ readonly dev: number; readonly ino: number }>;
   readonly maxFiles?: number;
   readonly maxBytes?: number;
 }
@@ -78,7 +80,9 @@ export function copyPackage(srcRoot: string, dstRoot: string, run: CopyRun, labe
       const from = join(realRoot, path);
       const stat = lstatSync(from);
       if (stat.isDirectory()) walk(path, depth + 1);
-      else if (stat.isFile()) {
+      else if (stat.isFile() && run.denyIds?.some((id) => id.dev === stat.dev && id.ino === stat.ino)) {
+        skip(run, `${note}: name`);
+      } else if (stat.isFile()) {
         run.files += 1;
         run.bytes += stat.size;
         if (run.files > maxFiles || run.bytes > maxBytes)
@@ -162,15 +166,22 @@ export interface ModelsSource {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** Pi documents `$NAME`, `${NAME}` and `!command` as ways to name a credential without writing it: no secret value. */
+export const isLiteralValue = (value: string): boolean =>
+  value.length > 0 &&
+  !value.startsWith("!") &&
+  !/^\$(?:\{[A-Za-z_][A-Za-z0-9_]*\}|[A-Za-z_][A-Za-z0-9_]*)$/.test(value);
+
 /** Literal strings of provider `headers` and `apiKey` in the owner's models.json: known secrets for the scan. */
 export function literalValuesOf(source: ModelsSource): string[] {
   const values: string[] = [];
   for (const provider of Object.values(source.providers)) {
     if (!isRecord(provider)) continue;
-    if (typeof provider.apiKey === "string") values.push(provider.apiKey);
+    if (typeof provider.apiKey === "string" && isLiteralValue(provider.apiKey)) values.push(provider.apiKey);
     for (const holder of [provider, ...(Array.isArray(provider.models) ? provider.models : [])]) {
       if (!isRecord(holder) || !isRecord(holder.headers)) continue;
-      for (const value of Object.values(holder.headers)) if (typeof value === "string") values.push(value);
+      for (const value of Object.values(holder.headers))
+        if (typeof value === "string" && isLiteralValue(value)) values.push(value);
     }
   }
   return values;

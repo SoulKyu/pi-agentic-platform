@@ -63,10 +63,9 @@ function needlesOf(secrets: KnownSecrets): Buffer[] {
 const holds = (haystack: Buffer, needles: readonly Buffer[]) =>
   needles.some((needle) => haystack.includes(needle));
 
-function fileHolds(path: string, needles: readonly Buffer[], longest: number): boolean {
+function fileHolds(path: string, needles: readonly Buffer[], longest: number, chunk: Buffer): boolean {
   const fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
-    const chunk = Buffer.alloc(SCAN_CHUNK_BYTES);
     let carry: Buffer = Buffer.alloc(0);
     for (;;) {
       const read = readSync(fd, chunk, 0, chunk.length, null);
@@ -88,11 +87,29 @@ export function scanTree(root: string, secrets: KnownSecrets): void {
   const needles = needlesOf(secrets);
   if (needles.length === 0) return;
   const longest = Math.max(...needles.map((needle) => needle.length));
+  const chunk = Buffer.alloc(SCAN_CHUNK_BYTES);
   for (const entry of walkTree(root)) {
     if (holds(Buffer.from(entry.rel), needles)) throw new ProfileSecretError(WITHHELD);
     const path = join(root, entry.rel);
     if (entry.kind === "link" && holds(Buffer.from(readlinkSync(path)), needles))
       throw new ProfileSecretError(entry.rel);
-    if (entry.kind === "file" && fileHolds(path, needles, longest)) throw new ProfileSecretError(entry.rel);
+    if (entry.kind === "file" && fileHolds(path, needles, longest, chunk))
+      throw new ProfileSecretError(entry.rel);
   }
+}
+
+const NOTE_MAX = 200;
+/**
+ * Skip notes as they may leave this module: withheld when it holds a known secret (checked before clipping), else
+ * clipped and every character outside printable ASCII written as a `\\uXXXX` escape.
+ */
+export function safeNotes(notes: readonly string[], secrets: KnownSecrets): string[] {
+  const needles = needlesOf(secrets);
+  return notes.map((note) =>
+    holds(Buffer.from(note), needles)
+      ? "[note withheld]"
+      : note
+          .slice(0, NOTE_MAX)
+          .replace(/[^\x20-\x7e]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`),
+  );
 }

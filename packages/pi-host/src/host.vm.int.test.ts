@@ -328,6 +328,15 @@ describe("a VM session in this process", () => {
     await open(false);
     expect((await session?.modelRuntime.getAuth("zai"))?.auth.apiKey).toBe(KEY);
     expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe(KEY);
+    expect(process.env.ANTHROPIC_BASE_URL).toBe("http://claude.internal:7842");
+  });
+
+  it("a host worker's environment carries neither the relay key nor the relay's base URL", async () => {
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "");
+    vi.stubEnv("ANTHROPIC_BASE_URL", "");
+    await launch([{ text: "done" }], "full-access", { vm: undefined });
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe("");
+    expect(process.env.ANTHROPIC_BASE_URL).toBe("");
   });
 
   // Mutant F1: `vmFilesFirst` left out of the extension order: the shadow's tools win and the sources below are the shadow's.

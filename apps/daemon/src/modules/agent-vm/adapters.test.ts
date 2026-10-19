@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { type AdapterInput, applyAdapter } from "./adapters.ts";
+import { type AdapterInput, adapterSecrets, applyAdapter } from "./adapters.ts";
 import { IMAGE_AGENT_DIR } from "./profile-allowlist.ts";
 import { MARKER, type Scratch, scratch } from "./testing/profile-fixture.ts";
 
@@ -23,13 +23,13 @@ function input(): AdapterInput {
 }
 
 describe("adapters", () => {
-  it("pi-claude-bridge: base url on the relay's port, no token anywhere", () => {
+  // AVM-E25: the worker exports the bridge's base URL and token (relay-key.ts); no config file is written for it.
+  it("pi-claude-bridge: no adapter, nothing written", () => {
     const i = input();
+    s.json("agent/claude-bridge.json", { token: `${MARKER}-bridge` });
     applyAdapter("pi-claude-bridge", i);
-    expect(read("pi-claude-bridge.json")).toEqual({
-      env: { ANTHROPIC_BASE_URL: "http://claude.internal:7842" },
-    });
-    expect(readFileSync(join(s.out, "pi-claude-bridge.json"), "utf8")).not.toMatch(/TOKEN|token/);
+    expect(readdirSync(s.out)).toEqual([]);
+    expect(i.skipped).toEqual([]);
   });
 
   it("pi-web-access: placeholder keys only, nothing else of the original", () => {
@@ -98,5 +98,44 @@ describe("adapters", () => {
     applyAdapter("demo-pkg", i);
     expect(existsSync(join(s.out, "demo-pkg.json"))).toBe(false);
     expect(i.skipped).toEqual([]);
+  });
+});
+
+describe("adapterSecrets", () => {
+  it("collects literal web-search keys, MCP env and header values and MCP OAuth tokens, not the non-literal forms", () => {
+    input();
+    s.json("agent/web-search.json", {
+      exaApiKey: "exa-literal-0001",
+      other: "not-a-key-value",
+      envKey: "$EXA_KEY",
+    });
+    s.json("agent/mcp.json", {
+      mcpServers: {
+        a: {
+          command: "x",
+          env: { T: "env-literal-0002", U: "${TOKEN_VAR}" },
+          headers: { H: "header-literal-0003", I: "!pass show x" },
+        },
+        b: { env: "oops", headers: null },
+      },
+    });
+    s.json("agent/mcp-auth.json", {
+      srv: {
+        tokens: { access_token: "oauth-literal-0004", token_type: "bearer" },
+        url: "https://x.test/mcp",
+      },
+    });
+    expect(adapterSecrets(s.agentDir).sort()).toEqual([
+      "env-literal-0002",
+      "exa-literal-0001",
+      "header-literal-0003",
+      "oauth-literal-0004",
+    ]);
+  });
+
+  it("an absent or damaged config gives nothing", () => {
+    input();
+    s.put("agent/mcp.json", "{nope");
+    expect(adapterSecrets(s.agentDir)).toEqual([]);
   });
 });

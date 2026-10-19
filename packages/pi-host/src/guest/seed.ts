@@ -1,6 +1,16 @@
 import { randomBytes } from "node:crypto";
-import { closeSync, constants, fchmodSync, readdirSync, readFileSync, statSync, writeSync } from "node:fs";
-import { join } from "node:path";
+import {
+  closeSync,
+  constants,
+  fchmodSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  statSync,
+  symlinkSync,
+  writeSync,
+} from "node:fs";
+import { isAbsolute, join, relative, sep } from "node:path";
 import type { VmLayout } from "@pap/contracts";
 import { openAt, openChain, openDirAt, openRootDir, renameAt, unlinkAt } from "../nofollow.ts";
 
@@ -19,16 +29,42 @@ function writeFileAt(dirFd: number, name: string, data: Buffer, mode: number, fl
   }
 }
 
-function copyTree(source: string, destination: number): void {
+/**
+ * AVM-E26: a link of the image (T14a keeps those whose target stays inside the package) is copied as a relative link
+ * when its target, resolved, stays inside the image's agent folder; any other link is refused.
+ */
+function copyLink(from: string, imageRoot: string, destination: number, name: string): void {
+  let real: string;
+  try {
+    real = realpathSync(from);
+  } catch {
+    throw new Error(`${name} is a link that does not resolve`);
+  }
+  const rel = relative(imageRoot, real);
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel))
+    throw new Error(`${name} is a link that leaves the image`);
+  const target = relative(realpathSync(join(from, "..")), real) || ".";
+  const path = `/proc/self/fd/${destination}/${name}`;
+  try {
+    unlinkAt(destination, name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  symlinkSync(target, path);
+}
+
+function copyTree(source: string, destination: number, imageRoot: string): void {
   for (const entry of readdirSync(source, { withFileTypes: true })) {
     const from = join(source, entry.name);
     if (entry.isDirectory()) {
       const child = openDirAt(destination, entry.name, { create: PRIVATE_FOLDER });
       try {
-        copyTree(from, child);
+        copyTree(from, child, imageRoot);
       } finally {
         closeSync(child);
       }
+    } else if (entry.isSymbolicLink()) {
+      copyLink(from, imageRoot, destination, entry.name);
     } else if (entry.isFile()) {
       // The image is read-only and ours; the disk side is where a link could have been planted.
       const executable = (statSync(from).mode & 0o100) !== 0;
@@ -54,7 +90,7 @@ export function seedAgentFolder(layout: VmLayout): void {
     }
     const agentFd = openChain(rootFd, layout.root, layout.piAgentDir, PRIVATE_FOLDER);
     try {
-      copyTree(layout.imageAgentDir, agentFd);
+      copyTree(layout.imageAgentDir, agentFd, realpathSync(layout.imageAgentDir));
     } finally {
       closeSync(agentFd);
     }

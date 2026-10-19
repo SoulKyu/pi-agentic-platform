@@ -9,12 +9,15 @@ import { applyRelayKey } from "./relay-key.ts";
  * Mutants (RT-43), each run for real:
  *  - M-skip-provider: stop after the first provider -> "every provider gets the key" fails.
  *  - M-env: do not set ANTHROPIC_AUTH_TOKEN -> "sets ANTHROPIC_AUTH_TOKEN" fails.
+ *  - M-base: do not set ANTHROPIC_BASE_URL -> "sets the bridge's base URL" fails.
  */
 const KEY = "ab".repeat(32);
-const saved = process.env.ANTHROPIC_AUTH_TOKEN;
+const saved = { token: process.env.ANTHROPIC_AUTH_TOKEN, base: process.env.ANTHROPIC_BASE_URL };
 afterEach(() => {
-  if (saved === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN;
-  else process.env.ANTHROPIC_AUTH_TOKEN = saved;
+  if (saved.token === undefined) delete process.env.ANTHROPIC_AUTH_TOKEN;
+  else process.env.ANTHROPIC_AUTH_TOKEN = saved.token;
+  if (saved.base === undefined) delete process.env.ANTHROPIC_BASE_URL;
+  else process.env.ANTHROPIC_BASE_URL = saved.base;
 });
 
 describe("applyRelayKey", () => {
@@ -36,6 +39,12 @@ describe("applyRelayKey", () => {
     delete process.env.ANTHROPIC_AUTH_TOKEN;
     await applyRelayKey({ setRuntimeApiKey: async () => {} }, KEY, []);
     expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe(KEY);
+  });
+
+  it("sets the bridge's base URL on the relay's port (M-base)", async () => {
+    delete process.env.ANTHROPIC_BASE_URL;
+    await applyRelayKey({ setRuntimeApiKey: async () => {} }, KEY, []);
+    expect(process.env.ANTHROPIC_BASE_URL).toBe("http://claude.internal:7842");
   });
 
   it("writes no credential to a file and resolves as the provider's key on a real runtime", async () => {

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import {
   closeSync,
+  existsSync,
   mkdirSync,
   openSync,
   readlinkSync,
@@ -13,9 +14,9 @@ import {
 import { homedir } from "node:os";
 import { basename, isAbsolute, join, relative, resolve } from "node:path";
 import { z } from "zod";
-import { readJsonBounded } from "../../cli/ops/paths.ts";
+import { readJsonBounded } from "../../kernel/json-bounded.ts";
 import { within } from "../../kernel/fs/boundary.ts";
-import { type AdapterInput, applyAdapter, type CopiedRoot } from "./adapters.ts";
+import { type AdapterInput, adapterSecrets, applyAdapter, type CopiedRoot } from "./adapters.ts";
 import {
   type CopyRun,
   copyPackage,
@@ -26,7 +27,7 @@ import {
   sanitizeSettings,
   skip,
 } from "./profile-allowlist.ts";
-import { type KnownSecrets, scanTree, walkTree } from "./secret-scan.ts";
+import { type KnownSecrets, safeNotes, scanTree, walkTree } from "./secret-scan.ts";
 
 const FORMAT = "pap-profile-1";
 const JSON_MAX_BYTES = 1024 * 1024;
@@ -41,11 +42,52 @@ const Loose = z.record(z.string(), z.unknown());
 const Entry = z.union([z.string(), z.object({ source: z.string() }).loose()]);
 const Entries = z.array(Entry).max(MAX_PACKAGES);
 const ModelsFile = z.object({ providers: Loose.default({}) }).loose();
-const PackageJson = z.object({ version: z.string().optional(), dependencies: Loose.optional() }).loose();
+const PackageJson = z
+  .object({
+    version: z.string().optional(),
+    dependencies: Loose.optional(),
+    optionalDependencies: Loose.optional(),
+    peerDependencies: Loose.optional(),
+  })
+  .loose();
+const NPM_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+const GLOB = /[*?[{]/;
+/** The only parts of the agent folder a copied root may live in (Pi's own install folders and the skills). */
+const INSIDE_AGENT = ["npm", "git", "skills"];
 const FILTER_KEYS = ["extensions", "skills", "prompts", "themes"] as const;
 
+function statOrNull(path: string) {
+  try {
+    return statSync(path);
+  } catch {
+    return null;
+  }
+}
+
+function realOf(path: string): string | null {
+  try {
+    return realpathSync(path);
+  } catch {
+    return null;
+  }
+}
+
+/** A name for `local/<name>`, from the real folder's own name: never empty, `.` or `..`, never a hidden name. */
+function localName(agentDir: string, path: string): string {
+  const real = realOf(
+    path === "~" || path.startsWith("~/") ? join(homedir(), path.slice(1)) : resolve(agentDir, path),
+  );
+  const clean = basename(real ?? path)
+    .replace(/[^A-Za-z0-9._-]/g, "_")
+    .replace(/^\.+/, "");
+  return clean === "" ? "package" : clean;
+}
+
 class Build {
-  readonly run: CopyRun = { files: 0, bytes: 0, skipped: [] };
+  readonly run: CopyRun;
+  /** RT-18: a copied root may never be, or contain, one of these. */
+  private readonly forbidden: string[];
+  private readonly realAgent: string;
   readonly roots: CopiedRoot[] = [];
   readonly adapted = new Set<string>();
   readonly npm = new Set<string>();
@@ -55,6 +97,15 @@ class Build {
   constructor(agentDir: string, out: string) {
     this.agentDir = agentDir;
     this.out = out;
+    this.realAgent = realpathSync(agentDir);
+    this.forbidden = [this.realAgent, realpathSync(out), realOf(homedir())].filter((p) => p !== null);
+    const auth = statOrNull(join(agentDir, "auth.json"));
+    this.run = {
+      files: 0,
+      bytes: 0,
+      skipped: [],
+      denyIds: auth === null ? [] : [{ dev: auth.dev, ino: auth.ino }],
+    };
   }
 
   note = (text: string) => skip(this.run, text);
@@ -65,6 +116,12 @@ class Build {
       if (!statSync(src).isDirectory()) return false;
       real = realpathSync(src);
     } catch {
+      return false;
+    }
+    const insideAgent = within(this.realAgent, real);
+    const allowedInside = INSIDE_AGENT.some((name) => within(join(this.realAgent, name), real));
+    if (this.forbidden.some((f) => within(real, f)) || (insideAgent && !allowedInside)) {
+      this.note(`${label}: the folder holds or is part of the agent folder, the home or the output`);
       return false;
     }
     copyPackage(real, join(this.out, dst), this.run, label);
@@ -83,11 +140,19 @@ class Build {
       this.npm.add(next);
       const json = readJsonBounded(join(this.agentDir, dst, "package.json"), PackageJson, JSON_MAX_BYTES);
       if (json === null || json === "damaged") continue;
-      for (const dependency of Object.keys(json.dependencies ?? {})) {
-        if (MEM0.test(dependency)) this.note(MEM0_NOTE);
-        else if (/^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/.test(dependency))
-          queue.push(dependency);
-      }
+      const groups: Array<[string, Record<string, unknown> | undefined]> = [
+        ["dependency", json.dependencies],
+        ["optional", json.optionalDependencies],
+        ["peer", json.peerDependencies],
+      ];
+      for (const [kind, group] of groups)
+        for (const dependency of Object.keys(group ?? {})) {
+          if (MEM0.test(dependency)) this.note(MEM0_NOTE);
+          else if (!NPM_NAME.test(dependency)) continue;
+          else if (kind === "dependency" || existsSync(join(this.agentDir, "npm/node_modules", dependency)))
+            queue.push(dependency);
+          else if (kind === "optional") this.note(`npm:${dependency}: optional dependency not installed`);
+        }
     }
   }
 
@@ -108,7 +173,7 @@ class Build {
         written = `git:${ref.host}/${ref.path}${ref.ref === null ? "" : `@${ref.ref}`}`;
       else this.note(`git:${ref.host}/${ref.path}: not installed`);
     } else if (ref.kind === "local") {
-      name = basename(ref.path).replace(/[^A-Za-z0-9._-]/g, "_") || "package";
+      name = localName(this.agentDir, ref.path);
       written = MEM0.test(name) ? null : this.localEntry(ref.path, name);
     } else this.note("settings.json: a package source was not understood");
     if (MEM0.test(name) || MEM0.test(source)) {
@@ -144,10 +209,15 @@ class Build {
   private localEntry(path: string, name: string): string | null {
     const from =
       path === "~" || path.startsWith("~/") ? join(homedir(), path.slice(1)) : resolve(this.agentDir, path);
+    const real = realOf(from);
+    if (real !== null && within(this.realAgent, real)) {
+      this.note(`local/${name}: a local package inside the agent folder`);
+      return null;
+    }
     let unique = name;
     for (let n = 2; this.localNames.has(unique); n++) unique = `${name}-${n}`;
     if (!this.copy(from, `local/${unique}`, `local/${unique}`)) {
-      this.note(`local/${name}: not a folder`);
+      if (!statOrNull(from)?.isDirectory()) this.note(`local/${name}: not a folder`);
       return null;
     }
     this.localNames.add(unique);
@@ -156,17 +226,21 @@ class Build {
 
   /** A `skills` entry kept only when it points inside a folder that was copied; rewritten to its place in the profile. */
   skillEntry(raw: unknown): string | null {
-    if (typeof raw !== "string" || raw.length === 0 || raw.length > 1024 || raw.includes("\0")) return null;
-    let real: string;
-    try {
-      real = realpathSync(isAbsolute(raw) ? raw : resolve(this.agentDir, raw));
-    } catch {
+    if (typeof raw !== "string" || raw.length === 0 || raw.length > 1024 || raw.includes("\0")) {
+      this.note("settings.json: a skills entry was not understood");
       return null;
     }
-    for (const root of this.roots)
-      if (within(root.src, real)) return join(root.dst, relative(root.src, real));
-    this.note("settings.json: a skills entry points outside the copied folders");
-    return null;
+    // Exclusion and inclusion entries (`!`, `+`, `-`) keep their prefix.
+    const prefix = /^[!+-]/.test(raw) ? (raw[0] ?? "") : "";
+    const path = raw.slice(prefix.length);
+    if (prefix !== "" && GLOB.test(path) && !isAbsolute(path) && !path.split("/").includes("..")) return raw;
+    const real = realOf(isAbsolute(path) ? path : resolve(this.agentDir, path));
+    const root = real === null ? undefined : this.roots.find((r) => within(r.src, real));
+    if (real === null || root === undefined) {
+      this.note("settings.json: a skills entry was dropped, it does not point inside the copied folders");
+      return null;
+    }
+    return `${prefix}${join(root.dst, relative(root.src, real))}`;
   }
 }
 
@@ -238,6 +312,7 @@ function build(agentDir: string, out: string, secrets: KnownSecrets): { tag: str
   if (skills.length > 0) profile.skills = skills;
   writeJson(out, "settings.json", profile);
   writeJson(out, "models.json", modelsFile(models, derivedProviders(settings), b.run.skipped));
+  const known = [...secrets, ...literalValuesOf(models), ...adapterSecrets(agentDir)];
   const input: AdapterInput = {
     agentDir: realpathSync(agentDir),
     out,
@@ -245,8 +320,8 @@ function build(agentDir: string, out: string, secrets: KnownSecrets): { tag: str
     skipped: b.run.skipped,
   };
   for (const name of b.adapted) applyAdapter(name, input);
-  scanTree(out, [...secrets, ...literalValuesOf(models)]);
-  return { tag: `pap-agent-profile-${treeDigest(out)}`, skipped: b.run.skipped };
+  scanTree(out, known);
+  return { tag: `pap-agent-profile-${treeDigest(out)}`, skipped: safeNotes(b.run.skipped, known) };
 }
 
 /**
