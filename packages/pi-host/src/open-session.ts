@@ -31,6 +31,9 @@ import { createPlatformTools, platformFirst, type PlatformPort } from "./platfor
 import type { EgressClient } from "./egress-client.ts";
 import { createSandboxEnvironment, type SandboxEnvironment } from "./sandbox-env.ts";
 import { createSandboxTool, sandboxFirst } from "./sandbox-tool.ts";
+import { createVmFileTools, vmFilesFirst } from "./vm-files/extension.ts";
+import { realVmRoots } from "./policy/vm-paths.ts";
+import { createVmShellTool } from "./vm-shell/tool.ts";
 import { appendMemoryTrust } from "./memory-entry.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
@@ -122,14 +125,14 @@ function requireAgentDirEnv(agentDir: string): void {
   }
 }
 
-/** The prompt's facts (M11R55): the home is the sandbox's, else `$PAP_HOME/agents/<id>`; the scratch folder is the rules'. */
+/** The prompt's facts (M11R55): the home is the VM's (RT-06), else the sandbox's, else `$PAP_HOME/agents/<id>`; the scratch folder is the rules'. */
 function agentFactsOf(init: InitRecord, scratch: string | null) {
-  const { agent, sandbox, papHome } = init;
+  const { agent, sandbox, papHome, vm } = init;
   return {
     name: agent?.name ?? "",
-    home: sandbox?.home ?? join(papHome, "agents", agent?.id ?? ""),
+    home: vm?.layout.home ?? sandbox?.home ?? join(papHome, "agents", agent?.id ?? ""),
     role: agent?.role ?? "",
-    network: sandbox?.network ?? null,
+    network: vm ? false : (sandbox?.network ?? null),
     scratch,
   };
 }
@@ -148,6 +151,8 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   if (init.testProviderScript && process.env.PAP_TEST_PROVIDER !== "1") {
     throw new Error("a test provider script needs PAP_TEST_PROVIDER=1 in the worker environment");
   }
+  // A VM session's file roots, real folders checked once: a root that is a link stops the worker (R26).
+  const vm = init.vm ? { layout: init.vm.layout, roots: await realVmRoots(init.vm.layout) } : undefined;
   const scripted = init.testProviderScript ? await loadScriptedProvider(init.testProviderScript) : null;
   let modelRuntime: ModelRuntime | undefined;
   if (scripted) {
@@ -172,7 +177,12 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
     taint: deps.taint,
     audit: deps.audit,
     secrets: deps.secrets,
-    ...(init.sandbox ? { sandbox: { network: init.sandbox.network } } : {}),
+    // R15: pap's shell is the only shell of a VM session, with no network, whatever `init.sandbox` says.
+    ...(vm
+      ? { vm, sandbox: { network: false } }
+      : init.sandbox
+        ? { sandbox: { network: init.sandbox.network } }
+        : {}),
     ...(deps.egress ? { egress: deps.egress } : {}),
     ...(deps.onAgentStart ? { onAgentStart: deps.onAgentStart } : {}),
     agentDir,
@@ -184,8 +194,10 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   });
   const platformOrder = platformFirst(deps.onExtensionError);
   const sandboxOrder = sandboxFirst(deps.onExtensionError);
-  const sandboxEnvironment = init.sandbox
-    ? (deps.sandboxEnvironment ?? createSandboxEnvironment(process.env, init.sandbox, init.vault ?? {}))
+  const vmOrder = vm ? vmFilesFirst(deps.onExtensionError) : undefined;
+  const hostSandbox = vm ? undefined : init.sandbox;
+  const sandboxEnvironment = hostSandbox
+    ? (deps.sandboxEnvironment ?? createSandboxEnvironment(process.env, hostSandbox, init.vault ?? {}))
     : undefined;
   const trust = projectTrustResolver(agentDir, cwd, deps.onExtensionError, init.agent !== undefined);
   const services = await createAgentSessionServices({
@@ -206,9 +218,15 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         ...(chat ? [] : piBuiltins({ showSignInLink })),
         createPresetKeeper(() => created.session),
         // M11R22: pap's `bash` in bwrap; without a sandbox in the init record, Pi's own.
-        ...(init.sandbox && sandboxEnvironment
+        ...(init.vm && vm
           ? [
-              createSandboxTool(init.sandbox, sandboxEnvironment.envFor, {
+              createVmShellTool(init.vm, { redact: () => deps.secrets.current() }),
+              createVmFileTools(vm.roots, init.vm.layout.home),
+            ]
+          : []),
+        ...(hostSandbox && sandboxEnvironment
+          ? [
+              createSandboxTool(hostSandbox, sandboxEnvironment.envFor, {
                 ...(deps.egress ? { egress: deps.egress } : {}),
                 redact: () => deps.secrets.current(),
                 advice: () => refusalAdviceOf(deps.rules()?.profile, platformOps),
@@ -228,7 +246,10 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         ...(deps.sendLoadout ? [createLoadoutWatcher(deps.sendLoadout, () => created.session)] : []),
         ...(deps.extraExtensions ?? []),
       ],
-      extensionsOverride: (base) => movePolicyLast(sandboxOrder(platformOrder(base))),
+      extensionsOverride: (base) => {
+        const ordered = sandboxOrder(platformOrder(base));
+        return movePolicyLast(vmOrder ? vmOrder(ordered) : ordered);
+      },
       // Once, at session creation: Pi's session files do not store the system prompt (M5R42).
       appendSystemPromptOverride: (base) => [
         ...base,

@@ -245,6 +245,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     session: opened,
     leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
     ...(mirror ? { mirror } : {}),
+    ...(vm ? { vm: true } : {}),
     ...(vm ? { inbox: createInbox(vm.layout.inbox), inboxDir: vm.layout.inbox } : {}),
     ipc,
     ui,

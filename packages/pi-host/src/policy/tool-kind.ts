@@ -13,6 +13,8 @@ export interface ToolFacts {
   readonly openWorldHint?: boolean | undefined;
   /** Whether the session's sandbox has network; only the policy extension sets it, from `init.sandbox`, and only a `bash` from `SANDBOX_SOURCE` reads it. */
   readonly sandboxNetwork?: boolean | undefined;
+  /** The worker's policy config has `vm`; only the policy extension sets it, and only `read`/`write`/`edit`/`ls` from `VM_FILES_SOURCE` read it. */
+  readonly vm?: boolean | undefined;
 }
 
 export interface ToolKind {
@@ -53,6 +55,9 @@ export const TOOL_SEARCH_SOURCE = "builtin:tool-search";
 export const PLATFORM_SOURCE = "<inline:pap-platform>";
 /** `ToolInfo.sourceInfo.path` of the `bash` pi-host's inline `pap-sandbox` extension registers (pinned by `host.sandbox.int.test.ts`). */
 export const SANDBOX_SOURCE = "<inline:pap-sandbox>";
+/** `ToolInfo.sourceInfo.path` of the `read`, `write`, `edit` and `ls` pi-host's inline `pap-vm-files` extension registers in a VM session (R26). */
+export const VM_FILES_SOURCE = "<inline:pap-vm-files>";
+const VM_FILE_TOOLS: ReadonlySet<string> = new Set(["read", "write", "edit", "ls"]);
 const PLATFORM_OP_OF_TOOL: ReadonlyMap<string, PlatformOp> = new Map(
   (Object.keys(PLATFORM_OPS) as PlatformOp[]).map((op) => [PLATFORM_OPS[op].tool, op]),
 );
@@ -79,7 +84,9 @@ export function classifyTool(
   localTools: readonly LocalToolRule[] = [],
 ): ToolKind {
   const category = Object.hasOwn(BUILTIN_CATEGORY, name) ? BUILTIN_CATEGORY[name] : undefined;
-  if (category !== undefined && facts?.path === `builtin:${name}`)
+  // R26: pap's VM file tools are Pi's own definitions over pap's operations: classified like the built-in, in a VM worker only.
+  const vmFiles = facts?.path === VM_FILES_SOURCE && facts.vm === true && VM_FILE_TOOLS.has(name);
+  if (category !== undefined && (facts?.path === `builtin:${name}` || vmFiles))
     return {
       category,
       external: category === "network",

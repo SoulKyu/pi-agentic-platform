@@ -7,7 +7,7 @@ import { type ShellFacts, UNKNOWN_SHELL } from "../policy/command-cover.ts";
 import type { MessageMix } from "../policy/message-mix.ts";
 import { type ExternalRoots, type Taint, createTaint } from "../policy/taint.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
-import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
+import { evaluateToolCall, type PipelineDeps, type Stages } from "../policy/pipeline.ts";
 import { NO_REDACTOR } from "../policy/redact.ts";
 import { restoreStage, unrestoreInput } from "../policy/restore.ts";
 import type { SecretReader } from "../policy/secrets.ts";
@@ -65,6 +65,8 @@ export interface PipelineHarnessOptions {
   messageMix?: MessageMix;
   /** Pi's agent folder as the extension was configured with it (a link to `bed.agentDir`, for example). */
   agentDir?: string;
+  /** The VM facts of a worker with `init.vm` (agents in microVMs). */
+  vm?: PipelineDeps["vm"];
 }
 
 /** Temporary directories for a pipeline test: `cwd` is the session directory, `outside`, `agentDir` and `papHome` are not. */
@@ -103,6 +105,7 @@ export async function createPipelineBed() {
           taint,
           ...(options.externalRoots ? { externalRoots: options.externalRoots } : {}),
           ...(options.messageMix ? { messageMix: options.messageMix } : {}),
+          ...(options.vm ? { vm: options.vm } : {}),
           redact: options.redact ?? ((text) => text),
           redactReason: options.redactReason ?? ((text) => text),
           ask: async (request, signal) => {

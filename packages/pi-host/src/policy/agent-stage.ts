@@ -4,6 +4,7 @@ import { agentCategory, type AgentCallFacts, decideIsolated } from "./agent-deci
 import type { ApprovalPlan, CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
 import { readsInside, SESSION_FOLDER } from "./read-target.ts";
 import { checkEditTarget, ownFolder, realTarget, RUNS_DIR, within } from "./target-path.ts";
+import { vmOwnFolder } from "./vm-stage.ts";
 
 export const SANDBOXED_SHELL_REASON = "sandboxed shell, its own folder only";
 
@@ -85,6 +86,7 @@ export async function hasOwnFolder(
   ctx: PolicyContext,
   deps: PipelineDeps,
 ): Promise<boolean> {
+  if (deps.vm) return vmOwnFolder(call.rules, deps.vm);
   return (await named(agentOwnOf(call.rules), call.rules.profile === "isolated-task", ctx, deps)) !== null;
 }
 
@@ -97,6 +99,11 @@ async function reachRoots(call: CallFacts, ctx: PolicyContext, deps: PipelineDep
 
 /** Whether everything the call names lies where an isolated task may reach: false when unsure. */
 async function insideReach(call: CallFacts, category: ToolCategory, ctx: PolicyContext, deps: PipelineDeps) {
+  // In a VM the file rule judged a built-in's paths already, and bwrap confines pap's shell to the VM's home.
+  if (deps.vm)
+    return call.kind.sandboxed === true
+      ? vmOwnFolder(call.rules, deps.vm)
+      : call.kind.builtin && (category === "read" || category === "edit");
   const scratch = call.rules.agentScratch;
   const folders = await named(scratch, true, ctx, deps);
   if (scratch === null || folders === null) return false;
@@ -128,6 +135,7 @@ export const OUTSIDE_FOLDER_REASON = "outside this agent's folder";
  * stage 03 blocks it, with no question. The isolated task's read rule (`readsInside`) does the judging.
  */
 export async function readsOutsideThread(call: CallFacts, ctx: PolicyContext, deps: PipelineDeps) {
+  if (deps.vm) return false; // the VM file stage judged it
   const home = call.rules.agentHome === null ? null : await named(call.rules.agentHome, false, ctx, deps);
   if (home === null) return true;
   const sessionId = deps.sessionId?.();

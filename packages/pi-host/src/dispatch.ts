@@ -49,6 +49,8 @@ export interface DispatchDeps {
   readonly platform?: { resolve(record: PlatformResultRecord): void };
   /** Takes a `vault_update` (the redactor and the sandboxed shell's environment); absent, the record is ignored (M11R26). */
   readonly vault?: { update(record: VaultUpdateRecord): void };
+  /** A VM session (`init.vm`): R11, no vault value ever enters a VM, so a `vault_update` is dropped. */
+  readonly vm?: boolean;
   /** Takes the daemon's answers to `egress_open` / `egress_close` (M11R232); absent, they are dropped. */
   readonly egress?: { opened(record: EgressOpened): void; report(record: EgressReport): void };
   /** The taint of a valid update: a newer epoch replaces the state, the same epoch only raises it (M5R6). */
@@ -67,6 +69,7 @@ export interface DispatchDeps {
 /** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
 export function createDispatch(deps: DispatchDeps): (record: Command) => void {
   const { session, ipc, ui } = deps;
+  let vaultDropLogged = false;
   // AVM-E14: the lines Pi appended go out before the response that refers to them.
   const send = (record: Parameters<Ipc["send"]>[0]) => {
     if (record.type === "response") deps.mirror?.flush();
@@ -168,6 +171,12 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         deps.platform?.resolve(record);
         return;
       case "vault_update":
+        if (deps.vm) {
+          // Type only, once: the payload holds values.
+          if (!vaultDropLogged) process.stderr.write("pi-host: vault_update dropped in a VM session\n");
+          vaultDropLogged = true;
+          return;
+        }
         try {
           deps.vault?.update(record);
         } catch (error) {
