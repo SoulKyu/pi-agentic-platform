@@ -20,6 +20,8 @@ import { createFakeClock, type FakeClock } from "./testing/fake-clock.ts";
  *  - M-owner-not-enforced: no chown to papUid:papGid: killed by "the socket is owned by papUid" (fake chown).
  *  - M-error-listener-removed-at-capacity: no 'error' listener on a refused (capacity) socket: a client that closes at
  *    once raises an unhandled EPIPE and the process dies: killed by "a client that closes at once at the cap".
+ *  - M-no-server-error-listener: no 'error' listener on the server after listen: killed by "an accept error after listen is
+ *    logged and does not throw".
  *  - M-log-request: the logger gets the request: killed by "the log line of a vm.start has no token".
  */
 const hex = (n: number, ch: string): string => ch.repeat(n);
@@ -296,5 +298,27 @@ describe("connections", () => {
     release();
     await holding;
     expect(await call({ op: "vm.list" })).toEqual({ ok: true, result: { done: true } });
+  });
+});
+
+describe("server errors", () => {
+  it("an accept error after listen is logged and does not throw", async () => {
+    const created: net.Server[] = [];
+    const original = net.createServer.bind(net);
+    const spy = vi.spyOn(net, "createServer").mockImplementation(((
+      ...args: Parameters<typeof net.createServer>
+    ) => {
+      const made = original(...args);
+      created.push(made);
+      return made;
+    }) as typeof net.createServer);
+    try {
+      await server().listen();
+    } finally {
+      spy.mockRestore();
+    }
+    const error = Object.assign(new Error("too many open files"), { code: "EMFILE" });
+    expect(() => created[0]?.emit("error", error)).not.toThrow();
+    expect(records).toContainEqual({ event: "vmd_server_error", fields: { code: "EMFILE" } });
   });
 });

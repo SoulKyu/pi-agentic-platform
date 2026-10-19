@@ -182,6 +182,10 @@ export function createVmdServer(deps: VmdServerDeps): VmdServer {
         server.once("error", reject);
         server.listen(socketPath, () => {
           server.off("error", reject);
+          // A later accept error (EMFILE, ENOMEM) must be logged, not thrown: an uncaught 'error' would stop the root process.
+          server.on("error", (error: NodeJS.ErrnoException) =>
+            log.info("vmd_server_error", { code: error.code ?? null }),
+          );
           bound = true;
           resolve();
         });

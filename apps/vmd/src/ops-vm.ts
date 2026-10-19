@@ -1,0 +1,206 @@
+import { mkdirSync, rmSync } from "node:fs";
+import { AGENT_NET, AgentId, TaskKey, VM_IPV4, type VmState } from "@pap/contracts";
+import {
+  directVolumeAddArgv,
+  directVolumeRemoveArgv,
+  inspectArgv,
+  KATA_RUNTIME,
+  pauseArgv,
+  psArgv,
+  rmArgv,
+  runArgv,
+  unpauseArgv,
+  vmName,
+  volumePath,
+} from "./argv.ts";
+import { VmdFailure } from "./errors.ts";
+import { fileExists, makeBlankDisk, removeTaskDir } from "./ops-disk.ts";
+import type { OpsDeps, VmStartRequest } from "./ops.ts";
+
+export type VmStateName = ReturnType<(typeof VmState)["parse"]>;
+export interface VmEntry {
+  readonly agentId: string;
+  readonly taskKey: string | null;
+  readonly state: VmStateName;
+}
+
+type Stop = { op: "vm.stop"; agentId: string; taskKey: string | null };
+type Named = { agentId: string };
+type Status = { agentId: string; taskKey: string | null };
+
+const NAME = /^pap-(.+?)(?:-([0-9a-f]{32}))?$/;
+const NO_SUCH_CONTAINER = /no such container/i;
+/** Values that reach the env file: one visible token each, so no line break can enter (R8). */
+const ENV_VALUE = /^[A-Za-z0-9._:-]+$/;
+
+/** Maps `nerdctl ps` Status text; anything unknown counts as stopped (never "running"). */
+function stateOfStatus(status: string): VmStateName {
+  if (/^Paused/i.test(status) || /\(Paused\)/i.test(status)) return "paused";
+  if (/^Up/i.test(status)) return "running";
+  if (/^(Created|Restarting)/i.test(status)) return "starting";
+  return "stopped";
+}
+
+const stateOfInspect = (text: string): VmStateName => {
+  switch (text.trim()) {
+    case "running":
+      return "running";
+    case "paused":
+      return "paused";
+    case "created":
+      return "starting";
+    case "exited":
+    case "stopped":
+      return "stopped";
+    default:
+      return "absent";
+  }
+};
+
+export function parseVmList(text: string): VmEntry[] {
+  const entries: VmEntry[] = [];
+  for (const line of text.split("\n")) {
+    const space = line.indexOf(" ");
+    if (space === -1) continue;
+    const match = NAME.exec(line.slice(0, space));
+    const agentId = match?.[1];
+    const taskKey = match?.[2] ?? null;
+    if (agentId === undefined || !AgentId.safeParse(agentId).success) continue;
+    if (taskKey !== null && !TaskKey.safeParse(taskKey).success) continue;
+    entries.push({ agentId, taskKey, state: stateOfStatus(line.slice(space + 1).trim()) });
+  }
+  return entries;
+}
+
+export function createVmOps(deps: OpsDeps) {
+  const { exec, net, state, locks, log } = deps;
+
+  async function list(): Promise<VmEntry[]> {
+    const result = await exec(psArgv());
+    if (result.code !== 0) throw new VmdFailure("failed");
+    return parseVmList(result.stdout);
+  }
+
+  /** Cleanup steps never stop each other: each failure is logged by name and the next step still runs. */
+  async function step(name: string, run: () => Promise<unknown> | unknown): Promise<boolean> {
+    try {
+      await run();
+      return true;
+    } catch (error) {
+      log.info("vmd_cleanup_failed", { step: name, error: error instanceof Error ? error.name : "unknown" });
+      return false;
+    }
+  }
+
+  async function removeContainer(name: string): Promise<boolean> {
+    const result = await exec(rmArgv(name));
+    return result.code === 0 || NO_SUCH_CONTAINER.test(result.stderr);
+  }
+
+  async function removeVolume(volume: string): Promise<void> {
+    const result = await exec(directVolumeRemoveArgv(volume));
+    if (result.code !== 0) log.info("vmd_volume_remove", { code: result.code });
+    rmSync(volume, { recursive: true, force: true });
+  }
+
+  const succeed = (code: number): void => {
+    if (code !== 0) throw new VmdFailure("failed");
+  };
+
+  async function startVm(request: VmStartRequest, name: string): Promise<{ address: string }> {
+    const isolated = request.taskKey !== null;
+    // R30: an isolated VM gets a blank disk of its own; the agent's disk is not even looked at.
+    const disk = state.diskPath(request.agentId, request.taskKey);
+    const volume = volumePath(deps.volumeRoot, name);
+    const env = {
+      PAP_GATEWAY: `${AGENT_NET.host}:${AGENT_NET.gatewayPort}`,
+      PAP_GATEWAY_TOKEN: request.token,
+      PAP_LAUNCH_ID: request.launchId,
+      PAP_AGENT_ID: request.agentId,
+      PAP_IMAGE_TAG: request.image,
+    };
+    if (!Object.values(env).every((value) => ENV_VALUE.test(value))) throw new VmdFailure("bad_request");
+    if (isolated) await deps.room(request.resources.diskMb);
+    else if (!fileExists(disk)) throw new VmdFailure("not_found");
+    let diskMade = false;
+    try {
+      const address = net.allocate();
+      if (isolated) {
+        diskMade = true;
+        await makeBlankDisk(exec, disk, request.resources.diskMb);
+      }
+      // RT-33: a leftover container or volume of that name is cleared first.
+      await exec(rmArgv(name));
+      await exec(directVolumeRemoveArgv(volume));
+      mkdirSync(volume, { recursive: true, mode: 0o700 });
+      succeed((await exec(directVolumeAddArgv(volume, disk))).code);
+      const envFile = state.writeEnvFile(
+        request.launchId,
+        `${Object.entries(env)
+          .map(([key, value]) => `${key}=${value}`)
+          .join("\n")}\n`,
+      );
+      await locks.withStart(async () => {
+        try {
+          const placement = {
+            ip: address.ip,
+            mac: address.mac,
+            disk: ["-v", `${volume}:/agent`],
+            envFile,
+            runtime: KATA_RUNTIME,
+          };
+          succeed((await exec(runArgv(request, placement))).code);
+        } finally {
+          // R8: the token file is gone whatever `nerdctl run` did.
+          state.removeEnvFile(request.launchId);
+        }
+        await net.attach(name, address);
+      });
+      return { address: address.ip };
+    } catch (error) {
+      await step("rm", () => removeContainer(name));
+      await step("detach", () => net.detach(name));
+      await step("volume", () => removeVolume(volume));
+      if (diskMade) await step("task_disk", () => removeTaskDir(disk));
+      state.removeEnvFile(request.launchId);
+      throw error instanceof VmdFailure ? error : new VmdFailure("failed");
+    }
+  }
+
+  async function start(request: VmStartRequest): Promise<{ address: string }> {
+    const name = vmName(request.agentId, request.taskKey);
+    const result = await locks.withAgent(request.agentId, () => startVm(request, name));
+    if (!VM_IPV4.test(result.address)) throw new VmdFailure("failed");
+    return result;
+  }
+
+  function stop(request: Stop): Promise<unknown> {
+    const name = vmName(request.agentId, request.taskKey);
+    const volume = volumePath(deps.volumeRoot, name);
+    return locks.withAgent(request.agentId, async () => {
+      // containerd forgets the token with the container (R8); a container already gone is fine.
+      const removed = await removeContainer(name);
+      const detached = await step("detach", () => net.detach(name));
+      await step("volume", () => removeVolume(volume));
+      // R30: a task's disk goes with its VM, but never while the container may still hold it.
+      if (removed && request.taskKey !== null) {
+        removeTaskDir(state.diskPath(request.agentId, request.taskKey));
+      }
+      if (!removed || !detached) throw new VmdFailure("failed");
+      return { stopped: true };
+    });
+  }
+
+  const control = (argv: (name: string) => string[]) => (request: Named) =>
+    locks.withAgent(request.agentId, async () => {
+      succeed((await exec(argv(vmName(request.agentId, null)))).code);
+      return {};
+    });
+
+  async function status(request: Status): Promise<unknown> {
+    const result = await exec(inspectArgv(vmName(request.agentId, request.taskKey)));
+    return { state: result.code === 0 ? stateOfInspect(result.stdout) : "absent" };
+  }
+
+  return { start, stop, pause: control(pauseArgv), resume: control(unpauseArgv), status, list };
+}
