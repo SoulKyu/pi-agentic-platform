@@ -46,7 +46,9 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   const { handle, logger, onCardShown } = deps;
   let status: SessionStatus = "starting";
   let rss: number | null = null;
-  let piFile: string | undefined;
+  let reportedFile: string | undefined;
+  // A VM worker reports a path inside its VM: the session's file is its mirror on the host (R23), null until it is open.
+  const piFile = (): string | undefined => (handle.piFile ? (handle.piFile() ?? undefined) : reportedFile);
   let piSessionId: string | undefined;
   let leafId: string | null = null;
   let name: string | null = null;
@@ -140,7 +142,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     setStatus,
     record: deps.record,
     onActivity: deps.onActivity,
-    piFile: () => piFile,
+    piFile,
     leafId: () => leafId,
     getState,
     queue,
@@ -183,7 +185,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       if (record.type !== "ready") return;
       off();
       deps.clock.clearTimeout(timer);
-      piFile = record.sessionFile;
+      reportedFile = record.sessionFile;
       piSessionId = record.sessionId;
       leafId = knownId(record.leafId);
       setName(nameOf(record.sessionName), false);
@@ -344,7 +346,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     status: () => status,
     rssMb: () => rss,
     pid: () => handle.pid,
-    piFile: () => piFile,
+    piFile,
     piSessionId: () => piSessionId,
     name: () => name,
     dialogs: () => ui.dialogs(),

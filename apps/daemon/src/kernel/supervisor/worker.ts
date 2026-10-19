@@ -55,6 +55,8 @@ export interface WorkerHandle {
   /** The last bytes of stdout and stderr, at most `OUTPUT_TAIL_BYTES`. */
   outputTail(): string;
   stats(): WorkerStats;
+  /** A VM worker only (R23): where the daemon keeps its session file, the mirror; null until it is open. */
+  piFile?(): string | null;
 }
 
 export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
