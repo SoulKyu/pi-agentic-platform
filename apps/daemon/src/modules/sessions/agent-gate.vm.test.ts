@@ -33,6 +33,6 @@ describe("a precheck of a VM agent (R16)", () => {
     );
     expect(error?.code).toBe("sandbox_unavailable");
     expect(probed()).toBe(0);
-    expect(JSON.stringify(logs.lines)).toContain(VM_REFUSALS.precheck.en);
+    expect(JSON.stringify(logs.lines)).toContain(VM_REFUSALS.precheck);
   });
 });

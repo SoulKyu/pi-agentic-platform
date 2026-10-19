@@ -48,6 +48,15 @@ describe("secret.request: the op (M11R103)", () => {
     expect(t.changed).toEqual([]);
   });
 
+  it("answers unavailable before any card opens for a session that runs in a VM, whatever its sandbox switch says (R11)", async () => {
+    const s = await setup({ vm: true });
+    const { t } = s;
+    await expect(s.ask().promise).rejects.toMatchObject({ code: "unavailable" });
+    expect(t.bed.db.all("SELECT id FROM agent_requests")).toEqual([]);
+    expect(t.upserts).toEqual([]);
+    expect(t.changed).toEqual([]);
+  });
+
   it("answers sandbox_unavailable too when the sandbox is unusable now", async () => {
     const s = await setup({ usable: false });
     const { t } = s;

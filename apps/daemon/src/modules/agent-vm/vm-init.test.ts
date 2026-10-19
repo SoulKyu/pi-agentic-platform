@@ -1,4 +1,4 @@
-import { InitRecord, type VmInit } from "@pap/contracts";
+import { InitRecord, PolicyRules, type VmInit } from "@pap/contracts";
 import { describe, expect, it } from "vitest";
 import { layoutOf } from "./layouts.ts";
 import { vmInitOf } from "./vm-init.ts";
@@ -13,6 +13,18 @@ const vm: VmInit = {
   slot: "cd".repeat(16),
   rootView: "overlay",
 };
+const rulesOf = (extra: object) =>
+  PolicyRules.parse({ profile: "agent-thread", approvalMode: "supervised", ...extra });
+const hostRules = rulesOf({
+  agentHome: `${PAP_HOME}/agents/atlas-1a2b`,
+  agentScratch: `${PAP_HOME}/agents/.runs/atlas-1a2b/t1`,
+  sandbox: { required: false, network: true },
+});
+const vmRules = rulesOf({
+  agentHome: layout.home,
+  agentScratch: null,
+  sandbox: { required: true, network: false },
+});
 const host: InitRecord = {
   type: "init",
   cwd: `${PAP_HOME}/agents/atlas-1a2b`,
@@ -36,7 +48,7 @@ const host: InitRecord = {
   agent: { id: "atlas-1a2b", name: "Atlas", role: "r" },
   memory: { profile: "atlas", trust: "trusted" },
   testProviderScript: `${PAP_HOME}/script.json`,
-  policy: { rules: 1 },
+  policy: vmRules,
 };
 
 describe("vmInitOf (R11, R17, RT-06)", () => {
@@ -64,10 +76,42 @@ describe("vmInitOf (R11, R17, RT-06)", () => {
     expect(vmInitOf(host, vm, null)).not.toHaveProperty("sessionFile");
   });
   it("keeps the other fields and still parses as an init record", () => {
-    expect(out).toMatchObject({ type: "init", umask: 0o022, papSessionId: "s1", policy: { rules: 1 } });
+    expect(out).toMatchObject({ type: "init", umask: 0o022, papSessionId: "s1" });
     expect(out.agent).toEqual(host.agent);
     const parsed = InitRecord.safeParse(out);
     expect(parsed.error?.issues).toBeUndefined();
+  });
+  it("refuses host-composed rules: a home or scratch outside the VM's root, or one that steps out of it", () => {
+    for (const bad of [
+      hostRules,
+      rulesOf({ agentHome: `${PAP_HOME}/x` }),
+      rulesOf({ agentScratch: "/agent2/x" }),
+    ])
+      expect(() => vmInitOf({ ...host, policy: bad }, vm, null)).toThrow(
+        expect.objectContaining({ code: "bad_request" }),
+      );
+    expect(() =>
+      vmInitOf({ ...host, policy: rulesOf({ agentHome: `${layout.root}/../etc` }) }, vm, null),
+    ).toThrow(expect.objectContaining({ code: "bad_request" }));
+  });
+  it("refuses rules that do not parse, and an always grant made for a host call", () => {
+    for (const bad of [
+      { rules: 1 },
+      undefined,
+      null,
+      { ...vmRules, alwaysAllow: [{ tool: "bash", key: "a".repeat(64) }] },
+    ])
+      expect(() => vmInitOf({ ...host, policy: bad }, vm, null)).toThrow(
+        expect.objectContaining({ code: "bad_request" }),
+      );
+  });
+  it("accepts a task's scratch inside the VM", () => {
+    const task = rulesOf({ agentHome: layout.home, agentScratch: layout.home });
+    expect(vmInitOf({ ...host, policy: task }, vm, null).policy).toMatchObject({ agentScratch: layout.home });
+  });
+  it("refuses a mirror file that is not one session file name", () => {
+    for (const file of ["../x.jsonl", "a/b.jsonl", "x.json"])
+      expect(() => vmInitOf(host, vm, file)).toThrow(expect.objectContaining({ code: "bad_request" }));
   });
   it("does not change its input", () => {
     expect(host.vault).toEqual({ TOKEN: "s3cret" });

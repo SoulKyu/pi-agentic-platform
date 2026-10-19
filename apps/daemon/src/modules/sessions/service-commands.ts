@@ -126,7 +126,7 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
       const row = deps.owned(sessionId, caller);
       // R37: the VM would write a host path.
       if (deps.runsInVm?.(row)) {
-        logger.warn("export_refused", { sessionId, reason: VM_REFUSALS.export.en });
+        logger.warn("export_refused", { sessionId, reason: VM_REFUSALS.export });
         throw new PapError("sandbox_unavailable");
       }
       // Before the worker is brought up: a full table refuses without starting one.

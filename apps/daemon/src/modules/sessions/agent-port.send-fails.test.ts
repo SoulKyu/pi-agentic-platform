@@ -12,7 +12,7 @@ function setup(session: { send: () => boolean; stop: () => Promise<void> }) {
   const port = createAgentPort({
     deps: { store: { get: () => ROW }, logger },
     live,
-    agent: { sandboxed: () => true, onceOf: () => [] },
+    agent: { sandboxed: () => true, onceOf: () => [], vmLayoutOf: () => null },
   } as unknown as AgentPortContext);
   return { port, lines };
 }

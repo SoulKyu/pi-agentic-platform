@@ -1,23 +1,14 @@
 import type { VmLayout } from "@pap/contracts";
 import type { AgentRuleParts } from "./agent-rules.ts";
 
-/** What a VM session cannot do in sub-project 1: French for the catalogs, English for the logs. */
+/** What a VM session cannot do in sub-project 1, in English for the logs (the French copy is the web catalogs', T19). */
 export const VM_REFUSALS = {
   /** R11. */
-  vault: {
-    fr: "Le coffre des agents en VM arrive avec le sous-projet 2.",
-    en: "The vault of VM agents arrives with sub-project 2.",
-  },
+  vault: "The vault of VM agents arrives with sub-project 2.",
   /** R16. */
-  precheck: {
-    fr: "Les pré-checks d'un agent en VM arrivent avec le sous-projet 3.",
-    en: "Prechecks of a VM agent arrive with sub-project 3.",
-  },
+  precheck: "Prechecks of a VM agent arrive with sub-project 3.",
   /** R37. */
-  export: {
-    fr: "L'export HTML d'un agent en VM arrive plus tard.",
-    en: "HTML export of a VM agent arrives later.",
-  },
+  export: "HTML export of a VM agent arrives later.",
 } as const;
 
 /**

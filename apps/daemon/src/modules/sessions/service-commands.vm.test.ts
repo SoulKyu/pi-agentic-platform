@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { AgentInput } from "@pap/contracts";
 import { afterEach, describe, expect, it } from "vitest";
@@ -42,6 +42,7 @@ describe("exporting a VM session (R37)", () => {
     const before = bed.spawned.length;
     expect(await codeOf(bed.service.exportHtml(sessionId, OWNER))).toBe("sandbox_unavailable");
     expect(bed.spawned.length).toBe(before);
-    expect(JSON.stringify(logs.lines)).toContain(VM_REFUSALS.export.en);
+    expect(readdirSync(bed.exportsDir)).toEqual([]);
+    expect(JSON.stringify(logs.lines)).toContain(VM_REFUSALS.export);
   });
 });

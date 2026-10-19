@@ -152,7 +152,7 @@ export async function agentPrecheckSandbox(
   if (profile === null) throw new PapError("not_found");
   if (profile.quarantined) throw new PapError("agent_paused");
   if (deps.runsInVm?.(ownerId, agentId)) {
-    deps.logger.warn("agent_precheck_refused", { agentId, reason: VM_REFUSALS.precheck.en });
+    deps.logger.warn("agent_precheck_refused", { agentId, reason: VM_REFUSALS.precheck });
     throw new PapError("sandbox_unavailable");
   }
   const home = agentHomeOf(deps.papHome, agentId, () =>

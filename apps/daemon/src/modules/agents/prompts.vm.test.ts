@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createPrompts } from "./prompts.ts";
@@ -25,6 +25,11 @@ async function world(vm: boolean) {
 describe("agents.prompts of a VM agent (R16)", () => {
   it("lists nothing though the host home has chips", async () => {
     const { id, service } = await world(true);
+    expect(service.list(bed.owner(), id)).toEqual({ names: [] });
+  });
+  it("lists nothing, not invalid_cwd, when the host home is gone", async () => {
+    const { id, service } = await world(true);
+    rmSync(join(bed.papHome, "agents", id), { recursive: true });
     expect(service.list(bed.owner(), id)).toEqual({ names: [] });
   });
   it("reads none either", async () => {
