@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status (2026-10-19):** draft for the owner's review. Not red-teamed yet (an Opus red-team and plan fix are proposed before execution, as for M7 to M13). The plan adds nine rulings to the spec (R1 to R9, "Plan rulings" below); the owner confirms them with the plan. 22 tasks (T0 to T21).
+**Status (2026-10-19):** rulings R1 to R9 and the model table approved by the owner (decision 112). Opus red-team in progress (`.superpowers/redteam-agents-vm-1.md`), plan fix to follow before execution. 22 tasks (T0 to T21).
 
 **Goal:** an agent runs in its own Kata Containers microVM (Cloud Hypervisor) with its own block disk, CPU and memory, reaches pap only through an authenticated gateway and its model providers only through a host relay that injects the credentials, so nothing inside the VM needs a question and a compromised agent is deleted without touching the rest of the platform. Shipped behind `PAP_AGENTS_RUNTIME=vm`; the host-bwrap agents stay the default until sub-project 3.
 
