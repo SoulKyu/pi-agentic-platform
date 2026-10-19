@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents en microVM · Section 4 · Canal et transcription</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .v.risk { color: var(--human); border: 1px solid #FB923C88; }
+  .v.new { color: var(--ai); border: 1px solid #A78BFA88; }
+
+  /* diagram */
+  .zone { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 14px; position: relative; }
+  .zone > .zl { position: absolute; top: -9px; left: 12px; background: var(--bg); padding: 0 6px; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .zone.host { border-color: #34D39955; } .zone.host > .zl { color: var(--ok); }
+  .zone.vm { border-color: #EC489988; border-style: solid; background: #EC48990A; } .zone.vm > .zl { color: var(--attn); }
+  .zone.sh { border-color: #FB923C88; } .zone.sh > .zl { color: var(--human); }
+  .node { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; }
+  .node b { display: block; font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .node.root { border-color: var(--err); } .node.root b { color: var(--err); }
+  .node.new b::after { content: "nouveau"; margin-left: 6px; font: 600 9px var(--mono); color: #1B0D00; background: var(--human); padding: 0 4px; border-radius: 2px; vertical-align: 1px; }
+  .flow { font: 11px var(--mono); color: var(--muted); text-align: center; padding: 6px 0; }
+  .flow b { color: var(--ai); }
+  .row3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
+
+  /* choices */
+  .q { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 14px 16px; margin-top: 14px; }
+  .q .why { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface2); border-radius: var(--r); padding: 8px 12px; font-size: 12.5px; cursor: pointer; user-select: none; color: var(--text); max-width: 420px; }
+  .opt small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .opt .tag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: 2px; margin-left: 6px; }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .opt.selected small, .opt.selected .tag { color: #3a1d00; border-color: #3a1d0055; }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  @media (max-width: 860px) { .grid2, .grid3, .row3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Agents en microVM · Sous-projet 1 · Runtime d'agent · Section 4 / 5</div>
+  <h1>Le canal worker ↔ daemon et la copie de la transcription</h1>
+  <p class="lead">Le protocole entre pap et ses workers ne change pas : seul le transport passe de l'IPC de Node à une socket vers la passerelle. Ce qui change vraiment : le daemon ne peut plus lire le fichier de session Pi, qui vit sur le disque de l'agent. Il en garde donc une copie sur l'hôte, alimentée par le canal, et la traite comme un contenu non fiable.</p>
+
+  <h2>1 · Pourquoi le daemon a besoin du fichier de session</h2>
+  <div class="grid3">
+    <div class="node"><b>Affichage</b>le snapshot d'une session (les ~75 derniers messages), <code>sessions.history</code>, <code>toolOutput</code>, <code>branches</code> lisent le fichier Pi.</div>
+    <div class="node"><b>Recherche</b>l'index de recherche lit les fichiers de session.</div>
+    <div class="node"><b>Contrôles</b>la détection des écritures extérieures (ADR 0074) compare taille et date.</div>
+  </div>
+  <p class="small" style="margin-top:8px">Une VM arrêtée doit rester lisible : ouvrir l'historique d'un agent ne doit pas démarrer sa VM.</p>
+
+  <h2>2 · Le canal</h2>
+  <table>
+    <tr><th>Étape</th><th>Ce qui se passe</th></tr>
+    <tr><td><code>hello</code></td><td>Premier message du worker : agent, lancement, jeton, version du protocole et de l'image. Comparaison du jeton en temps constant ; jeton inconnu, révoqué ou version incompatible → connexion fermée, journalisée.</td></tr>
+    <tr><td>Jeton</td><td>Un par lancement de VM, donné à la création du conteneur (seuls daemon et pap-vmd le voient). Le worker le retire de son environnement dès sa lecture ; le shell (bwrap, autre espace de pid) ne voit ni le jeton ni le processus du worker. Révoqué à l'arrêt de la VM.</td></tr>
+    <tr><td>Trames</td><td>Longueur sur 4 octets + JSON. Au-delà de 4 Mio, la trame est refusée <b>avant</b> d'être lue (l'IPC de Node n'avait pas de limite à la réception : la limite R101 disparaît).</td></tr>
+    <tr><td>Nouvelles trames</td><td><code>session_append</code> (worker → daemon) : les lignes que Pi vient d'écrire. <code>file_put</code> (daemon → worker) : une pièce jointe copiée dans <code>/agent/inbox</code>, bornée en taille.</td></tr>
+    <tr><td>Vie</td><td>Ping toutes les 15 s ; 3 sans réponse = worker mort, comme une déconnexion IPC aujourd'hui.</td></tr>
+  </table>
+
+  <h2>3 · Les choix · clique ta réponse sur chacun</h2>
+
+  <div class="q">
+    <h3>Q1 · D'où vient la transcription que le daemon lit</h3>
+    <p class="why">Le fichier de la VM reste celui que Pi relit pour reprendre une session ; le daemon a besoin de son propre exemplaire.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s4q1-mirror" onclick="pick(this)">A · Une copie miroir sur l'hôte, alimentée par <code>session_append</code><span class="tag">reco</span><small>Chaque ligne est vérifiée (JSON, taille, forme d'une entrée Pi) avant d'être ajoutée ; le daemon la lit ensuite comme aujourd'hui, VM arrêtée ou non.</small></div>
+      <div class="opt" data-choice="s4q1-on-demand" onclick="pick(this)">B · Lecture à la demande dans la VM<small>Aucune copie, mais chaque historique ouvert démarre la VM (coût, latence) ; la recherche ne voit rien.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q2 · Où vit la copie sur l'hôte</h3>
+    <p class="why">pap et pi-web partagent <code>~/.pi/agent</code> (ADR 0075) : une session ne doit jamais être reprise dans les deux.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s4q2-pap-home" onclick="pick(this)">A · <code>$PAP_HOME/agents/&lt;id&gt;/sessions/</code>, hors de <code>~/.pi</code><span class="tag">reco</span><small>pi-web ne voit jamais les sessions des agents ; tout ce qui concerne un agent est sous son dossier (supprimé et sauvegardé avec lui).</small></div>
+      <div class="opt" data-choice="s4q2-pi-dir" onclick="pick(this)">B · Dans <code>~/.pi/agent/sessions</code> comme les autres sessions<small>Rien à changer côté lecture, mais pi-web les liste et pourrait en reprendre une.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q3 · Chiffrement du canal</h3>
+    <p class="why">Le trafic reste sur le bridge local, dans le noyau de l'hôte : seul root peut l'écouter, et root peut déjà tout lire.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s4q3-plain-local" onclick="pick(this)">A · En clair sur le bridge local ; mTLS quand Kubernetes arrivera<span class="tag">reco</span><small>Le jeton par lancement authentifie ; pas de certificats à gérer tant que tout est sur une machine.</small></div>
+      <div class="opt" data-choice="s4q3-tls-now" onclick="pick(this)">B · TLS dès maintenant, certificat par lancement<small>Prêt pour plusieurs machines, mais une autorité de certification à gérer pour rien en mono-nœud.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q4 · Perte de connexion</h3>
+    <p class="why">Aujourd'hui, une déconnexion IPC veut dire que le worker est mort.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s4q4-no-reconnect" onclick="pick(this)">A · Pas de reconnexion : connexion perdue = worker mort, pap vérifie l'état de la VM<span class="tag">reco</span><small>Même sémantique qu'aujourd'hui ; le message suivant relance le worker.</small></div>
+      <div class="opt" data-choice="s4q4-reconnect" onclick="pick(this)">B · Reconnexion avec le même jeton pendant 30 s<small>Survit à un hoquet réseau, mais un jeton réutilisable est un jeton qu'on peut rejouer.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q5 · Copie et VM qui divergent (restauration d'un backup, crash pendant un envoi)</h3>
+    <p class="why">Après une restauration, le disque de la VM revient en arrière ; la copie de l'hôte, elle, ne bouge pas.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s4q5-vm-truth" onclick="pick(this)">A · Le fichier de la VM fait foi : au <code>hello</code>, le worker donne le dernier id et la taille ; si ça ne correspond pas, il renvoie tout et la copie est remplacée<span class="tag">reco</span><small>Ce que l'agent voit et ce que tu lis restent toujours identiques.</small></div>
+      <div class="opt" data-choice="s4q5-host-truth" onclick="pick(this)">B · La copie de l'hôte fait foi : pap renvoie le fichier dans la VM<small>Annule une partie de la restauration ; et l'hôte écrirait dans la VM des données qu'il ne contrôle pas.</small></div>
+    </div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation de la section 4</span>
+    <div>Clique une réponse par question (ou rien = la reco), puis valide. Commente en terminal si besoin.</div>
+    <div class="bar">
+      <div class="btn" onclick="applyRecos()">Appliquer toutes les recos</div>
+      <div class="btn pri" data-choice="s4-submit" onclick="submitS('s4')">Valider la section 4</div>
+      <div class="btn" data-choice="s4-revise" onclick="window.brainstorm && window.brainstorm.send({type:'answers', choice:'s4-revise'})">À revoir (je commente en terminal)</div>
+    </div>
+  </div>
+</div>
+<script>
+  function pick(el) {
+    el.parentElement.querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function applyRecos() {
+    document.querySelectorAll('.q').forEach(q => {
+      const reco = [...q.querySelectorAll('.opt')].find(o => o.querySelector('.tag'));
+      if (reco) pick(reco);
+    });
+  }
+  function submitS(s) {
+    const answers = {};
+    document.querySelectorAll('.q').forEach((q, i) => {
+      const sel = q.querySelector('.opt.selected');
+      answers['q' + (i + 1)] = sel ? sel.dataset.choice : 'reco';
+    });
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: s + '-submitted', answers });
+  }
+</script>
+</body>
+</html>
