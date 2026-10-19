@@ -6,6 +6,7 @@ import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } from "./descendants.ts";
 import { pinBareRepositoryExplicit } from "./git-env.ts";
+import { createInbox } from "./inbox-put.ts";
 import type { Ipc } from "./ipc.ts";
 import { loadoutRecord } from "./loadout.ts";
 import { createOnceSecrets, createVaultSink, withOnceSecrets } from "./once-secrets.ts";
@@ -244,6 +245,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     session: opened,
     leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
     ...(mirror ? { mirror } : {}),
+    ...(vm ? { inbox: createInbox(vm.layout.inbox), inboxDir: vm.layout.inbox } : {}),
     ipc,
     ui,
     approvals,

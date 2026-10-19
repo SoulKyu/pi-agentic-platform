@@ -21,6 +21,7 @@ import {
   openChain,
   openDirAt,
   openFileChain,
+  linkAt,
   openRootDir,
   renameAt,
   unlinkAt,
@@ -177,6 +178,18 @@ describe("nofollow helpers", () => {
     renameAt(root, "from", "to");
     expect(existsSync(join(dir, "to"))).toBe(true);
     expect(() => renameAt(root, "to", "a/b")).toThrow(/single name/);
+    closeSync(root);
+  });
+
+  it("links a file under a new name, refusing an existing entry or a planted link without following it", () => {
+    const root = openRootDir(dir);
+    writeFileSync(join(dir, "from"), "x");
+    linkAt(root, "from", "to");
+    expect(readFileSync(join(dir, "to"), "utf8")).toBe("x");
+    expect(() => linkAt(root, "from", "to")).toThrow(/EEXIST/);
+    symlinkSync(join(dir, "nowhere"), join(dir, "dangling"));
+    expect(() => linkAt(root, "from", "dangling")).toThrow(/EEXIST/);
+    expect(existsSync(join(dir, "nowhere"))).toBe(false);
     closeSync(root);
   });
 });

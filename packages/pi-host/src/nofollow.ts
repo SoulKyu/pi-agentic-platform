@@ -3,6 +3,7 @@ import {
   constants,
   fchmodSync,
   fstatSync,
+  linkSync,
   mkdirSync,
   openSync,
   renameSync,
@@ -52,6 +53,14 @@ export function openAt(dirFd: number, name: string, flags: number, mode = 0o600)
 /** Renames `from` to `to`, both entries of the folder `dirFd`. */
 export function renameAt(dirFd: number, from: string, to: string): void {
   renameSync(inside(dirFd, from), inside(dirFd, to));
+}
+
+/**
+ * Gives the file `from` a second name `to`, both entries of the folder `dirFd`. Atomic and never replacing: an existing
+ * `to`, a link or a dangling one included, is EEXIST and is not followed.
+ */
+export function linkAt(dirFd: number, from: string, to: string): void {
+  linkSync(inside(dirFd, from), inside(dirFd, to));
 }
 
 /**

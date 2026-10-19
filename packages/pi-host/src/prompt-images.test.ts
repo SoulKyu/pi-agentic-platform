@@ -95,3 +95,66 @@ describe("readPromptImages", () => {
     expect(await readPromptImages(home, [png(good)])).toHaveLength(1);
   });
 });
+
+/*
+ * Mutants (RT-06), each killed by the named case:
+ *  V1 the inbox is not consulted (the pending folder is still the only one) -> "reads a PNG of the inbox"
+ *  V2 the pending folder stays accepted in a VM                              -> "refuses the host pending folder"
+ *  V3 the folder check is dropped or compares unresolved paths               -> "refuses a file outside the inbox" and "reads through a link to the inbox folder"
+ *  V4 the link count is not checked                                          -> "refuses a file with two links"
+ */
+describe("readPromptImage in a VM (RT-06)", () => {
+  let inbox: string;
+  beforeEach(() => {
+    inbox = join(home, "inbox");
+    mkdirSync(inbox);
+  });
+
+  it("reads a PNG of the inbox", async () => {
+    const path = join(inbox, "photo.png");
+    writeFileSync(path, solidPng(8, 8));
+    expect(await readPromptImage(home, png(path), inbox)).toMatchObject({
+      type: "image",
+      mimeType: "image/png",
+    });
+  });
+
+  it("reads through a link to the inbox folder: the real folder is compared", async () => {
+    writeFileSync(join(inbox, "photo.png"), solidPng(8, 8));
+    symlinkSync(inbox, join(home, "via"));
+    expect(await readPromptImage(home, png(join(home, "via", "photo.png")), inbox)).not.toBeNull();
+  });
+
+  it("refuses a file outside the inbox", async () => {
+    const outside = join(home, "outside.png");
+    writeFileSync(outside, solidPng(8, 8));
+    expect(await readPromptImage(home, png(outside), inbox)).toBeNull();
+    expect(await readPromptImage(home, png(join(inbox, "..", "outside.png")), inbox)).toBeNull();
+  });
+
+  it("refuses the host pending folder", async () => {
+    const path = join(pending, "good");
+    writeFileSync(path, solidPng(8, 8));
+    expect(await readPromptImage(home, png(path), inbox)).toBeNull();
+  });
+
+  it("refuses a file with two links", async () => {
+    const path = join(inbox, "photo.png");
+    writeFileSync(path, solidPng(8, 8));
+    linkSync(path, join(home, "second"));
+    expect(await readPromptImage(home, png(path), inbox)).toBeNull();
+  });
+
+  it("refuses a link in the inbox to a file outside it", async () => {
+    const outside = join(home, "outside.png");
+    writeFileSync(outside, solidPng(8, 8));
+    symlinkSync(outside, join(inbox, "link.png"));
+    expect(await readPromptImage(home, png(join(inbox, "link.png")), inbox)).toBeNull();
+  });
+
+  it("readPromptImages passes the inbox on", async () => {
+    writeFileSync(join(inbox, "photo.png"), solidPng(8, 8));
+    expect(await readPromptImages(home, [png(join(inbox, "photo.png"))], inbox)).toHaveLength(1);
+    expect(await readPromptImages(home, [png(join(inbox, "photo.png"))])).toBeNull();
+  });
+});
