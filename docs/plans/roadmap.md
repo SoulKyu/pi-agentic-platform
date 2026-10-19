@@ -172,6 +172,15 @@ Ideas to study after v1 (not planned yet):
      - Chromium runs inside bwrap with its own sandbox off (bwrap is the outer one);
      - page text and screenshots are external content: fenced, and they taint the session;
      - one browser per lane at most, released when idle, counted in the budget.
+  4. **A live browser pane and Design Mode, after Orca** (medium, after 3). Orca embeds Chromium through Electron, drives it over a CDP bridge, streams it to remote clients (`browser.screencast.v1`) and has a Design Mode (click an element, its HTML, CSS and a cropped screenshot go into the prompt). pap has no Electron, so it takes Orca's remote-client path:
+     - the lane's server-side Chromium (step 3) is shared by the agent and the owner; CDP `Page.startScreencast` frames travel on `/ws` over the terminal's binary channel (acks, flow control) into a Browser pane, and clicks and keys go back through `Input.dispatch*Event`. It works on a phone, and the owner's browser only ever receives images, so no untrusted page runs on pap's origin;
+     - no iframe of the dev server: the agent cannot drive it, and an untrusted app on pap's origin could reach its cookies and `/ws` (a separate origin needs wildcard DNS and TLS);
+     - Design Mode: a click maps to `DOM.getNodeForLocation`; the element's HTML, computed styles and a cropped screenshot become a composer attachment;
+     - the server-side browser must not become an SSRF tool: URLs limited to the lane's preview ports on the loopback, anything else through the egress proxy or refused, its own profile, never pap's own port;
+     - the owner's own clicks do not taint; what the agent reads from the page does;
+     - an ADR, because an embedded browser is a v1 non-goal (decision 13).
+
+  Steps 3 and 4 together are about one milestone, M8's size. Order: 1, then 3, then 4 (pane, then Design Mode); 2 only if needed.
 
 - **Scale in and out on Kubernetes (owner, 2026-10-19).** pap is a platform: agents should scale out on modern infrastructure. Today it is one host: one daemon, SQLite with one writer, workers forked locally in a systemd scope with bwrap, files on local disk. The OCI image (M6b) runs as one pod, which does not scale.
   - What already helps:
