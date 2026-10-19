@@ -51,12 +51,21 @@ export interface DispatchDeps {
   readonly egress?: { opened(record: EgressOpened): void; report(record: EgressReport): void };
   /** The taint of a valid update: a newer epoch replaces the state, the same epoch only raises it (M5R6). */
   applyTaint(taint: TaintState): void;
+  /** The transcript mirror of a worker in a VM (T9a): flushed after every response, resent on `session_resync`. */
+  readonly mirror?: {
+    flush(): void;
+    resync(request: Extract<DaemonToWorker, { type: "session_resync" }>): void;
+  };
 }
 
 /** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
 export function createDispatch(deps: DispatchDeps): (record: Command) => void {
   const { session, ipc, ui } = deps;
-  const send = (record: Parameters<Ipc["send"]>[0]) => ipc.send(record);
+  const send = (record: Parameters<Ipc["send"]>[0]) => {
+    const sent = ipc.send(record);
+    if (record.type === "response") deps.mirror?.flush();
+    return sent;
+  };
   // The handlers answer their own failures; this only catches a failure after the answer (a throwing `send`).
   const background = (command: string, work: Promise<void>): void => {
     work.catch((error: unknown) =>
@@ -170,8 +179,10 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         ui.panelCancel(record.id);
         return;
       case "session_resync":
+        deps.mirror?.resync(record);
+        return;
       case "file_put":
-        // VM-only records (R1, R33): a worker outside a VM never receives them; the VM tasks give them a handler.
+        // VM-only record (R33): a worker outside a VM never receives it; its task gives it a handler.
         return;
       default: {
         // Compile-time guard (M2R81): a command added to the contract without a case here fails the build.

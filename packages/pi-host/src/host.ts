@@ -25,6 +25,7 @@ import { createSandboxEnvironment } from "./sandbox-env.ts";
 import { SYSTEM_TIMERS } from "./sandbox-ops.ts";
 import { createIsBuiltin } from "./policy/builtin-lookup.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
+import { createSessionMirror, openUnderRoot, type SessionMirror } from "./session-mirror.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 import { logLineOf } from "./bounded.ts";
@@ -72,6 +73,8 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   const early: Command[] = [];
   // Created once the session exists; what Pi emits while it opens is before the leaf `ready` reports.
   let tracker: EntryTracker | null = null;
+  // Only a worker in a VM mirrors its session file to the daemon (T9a).
+  let mirror: SessionMirror | null = null;
   const ui = createUiBridge((record) => ipc.send(record));
   const approvals = createApprovals((record) => ipc.send(record));
   const platform = createPlatformPort((record) => ipc.send(record));
@@ -93,7 +96,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     const current = session;
     if (!current) exit(null, 0);
     const finish = () => exit(current, 0);
-    void closeSession(current, graceMs).then(finish, finish);
+    void closeSession(current, graceMs, undefined, undefined, () => mirror?.close()).then(finish, finish);
   };
   // One listener from the first record on, so nothing sent while the session opens is lost: records after
   // `init` wait here until the session is ready, then run in order.
@@ -216,16 +219,31 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   session = opened;
   if (noteWanted) noteMidRun();
   entries.opened(opened.getActiveToolNames(), first.data.approvalMode);
+  const vm = initial.vm;
+  if (vm) {
+    mirror = createSessionMirror({
+      file: () => opened.sessionFile ?? null,
+      send: (record) => ipc.send(record),
+      open: openUnderRoot(vm.layout.root),
+      clock: {
+        setTimeout: (fn, ms) => setTimeout(fn, ms).unref(),
+        clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
+      },
+      log: (line) => void process.stderr.write(line),
+    });
+  }
   tracker = createEntryTracker({
     manager: opened.sessionManager,
     send: (record) => ipc.send(record),
     defer: (task) => void setImmediate(task),
     onError: (error) => process.stderr.write(`pi-host: entry tracking failed: ${logLineOf(error)}\n`),
+    afterWalk: () => mirror?.flush(),
   });
   dispatch = createDispatch({
     papHome: initial.papHome,
     session: opened,
     leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
+    ...(mirror ? { mirror } : {}),
     ipc,
     ui,
     approvals,
@@ -250,6 +268,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     sessionName: opened.sessionName ?? null,
   });
   ipc.send(loadoutRecord(opened));
+  mirror?.flush();
   for (const record of early.splice(0)) dispatch(record);
   const health = () =>
     ipc.send({

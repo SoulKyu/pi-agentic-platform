@@ -134,6 +134,9 @@ function agentFactsOf(init: InitRecord, scratch: string | null) {
   };
 }
 
+/** R28: a new VM session is created in the layout's sessions folder, which the mirror reads. */
+export const sessionDirOf = (init: InitRecord): string | undefined => init.vm?.layout.sessions;
+
 export async function openSession(init: InitRecord, deps: OpenSessionDeps): Promise<AgentSession> {
   const { cwd, agentDir, papHome } = init;
   requireAgentDirEnv(agentDir);
@@ -240,7 +243,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
   });
   const sessionManager = init.sessionFile
     ? SessionManager.open(init.sessionFile)
-    : SessionManager.create(cwd);
+    : SessionManager.create(cwd, sessionDirOf(init));
   const { session } = await createAgentSessionFromServices({
     services,
     sessionManager,
