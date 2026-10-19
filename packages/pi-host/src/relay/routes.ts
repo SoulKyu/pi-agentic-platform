@@ -1,3 +1,5 @@
+import { hasDuplicateTopLevelKey } from "./json-keys.ts";
+
 export type ApiKind =
   "anthropic-messages" | "openai-completions" | "openai-responses" | "google-generative-ai";
 export const RELAY_HOSTS = Object.freeze({ llm: "llm.internal", claude: "claude.internal" });
@@ -71,6 +73,8 @@ export function modelOf(api: string, path: string, body: Buffer): string | null 
     return null;
   }
   if (typeof value !== "object" || value === null || Array.isArray(value)) return null;
+  // JSON.parse keeps the last of two `model` keys; the provider may keep the first (T12): such a body names no model.
+  if (hasDuplicateTopLevelKey(body, "model")) return null;
   const model = (value as { model?: unknown }).model;
   return typeof model === "string" && model.length > 0 && model.length <= 256 ? model : null;
 }

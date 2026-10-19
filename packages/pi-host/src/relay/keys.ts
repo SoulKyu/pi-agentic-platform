@@ -42,28 +42,44 @@ export type RelayKeys = ReturnType<typeof createRelayKeys>;
 export function createRelayKeys() {
   const byDigest = new Map<string, RelayGrant>();
   const digestOf = new Map<string, string>();
-  const remove = (launchId: string): void => {
+  const revoked = new Set<(launchId: string) => void>();
+  const forget = (launchId: string): void => {
     const found = digestOf.get(launchId);
     if (found !== undefined) byDigest.delete(found);
     digestOf.delete(launchId);
   };
+  /** A revoke: the key goes, then whoever holds a request open for it is told (a stream outlives a lookup). */
+  const remove = (launchId: string): void => {
+    forget(launchId);
+    for (const listener of revoked) listener(launchId);
+  };
   return {
+    /** Called after a key was revoked (`remove`), never after a re-grant or a replacement. */
+    onRemove(listener: (launchId: string) => void): void {
+      revoked.add(listener);
+    },
     add(grant: RelayGrant): void {
       if (grant.key.length !== 32) throw new RangeError("relay key");
       // A launch has one key: a second grant for it replaces the first instead of leaving both valid.
-      remove(grant.launchId);
+      forget(grant.launchId);
       const hex = grant.key.toString("hex");
       byDigest.set(digest(hex), grant);
       digestOf.set(grant.launchId, digest(hex));
     },
     remove,
-    /** The agent a request speaks for, or null: unknown or revoked key, or a key presented from another address. */
-    agentOf(key: string | null, address: string | undefined): string | null {
+    /** The launch and agent a request speaks for, or null: unknown or revoked key, or a key presented from another address. */
+    grantOf(
+      key: string | null,
+      address: string | undefined,
+    ): { readonly launchId: string; readonly agentId: string } | null {
       if (key === null || address === undefined || !KEY.test(key)) return null;
       const grant = byDigest.get(digest(key));
       if (grant === undefined) return null;
       const same = timingSafeEqual(Buffer.from(key, "hex"), grant.key);
-      return same && grant.address === address ? grant.agentId : null;
+      return same && grant.address === address ? { launchId: grant.launchId, agentId: grant.agentId } : null;
+    },
+    agentOf(key: string | null, address: string | undefined): string | null {
+      return this.grantOf(key, address)?.agentId ?? null;
     },
   };
 }

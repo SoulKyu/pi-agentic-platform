@@ -134,6 +134,12 @@ function readBody(req: http.IncomingMessage): Promise<Buffer | "too_large" | nul
 export function createRelayServer(deps: RelayServerDeps): http.Server {
   const active = new Map<string, number>();
   const idleMs = deps.upstreamIdleMs ?? UPSTREAM_IDLE_MS;
+  // The responses a launch's key has open: a revoke ends them (T12), the upstream request closes with its response.
+  const open = new Map<string, Set<http.ServerResponse>>();
+  deps.keys.onRemove((launchId) => {
+    for (const res of open.get(launchId) ?? []) res.destroy();
+    open.delete(launchId);
+  });
 
   const refuse = (res: http.ServerResponse, reason: Reason, agentId: string | null): void => {
     deps.log(`agent_relay_refused ${JSON.stringify({ agentId, reason })}`);
@@ -217,8 +223,16 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
       if (left <= 0) active.delete(address);
       else active.set(address, left);
     });
-    const agentId = deps.keys.agentOf(presentedKey(req.headers), req.socket.remoteAddress);
-    if (agentId === null) return refuse(res, "key", null);
+    const grant = deps.keys.grantOf(presentedKey(req.headers), req.socket.remoteAddress);
+    if (grant === null) return refuse(res, "key", null);
+    const { agentId, launchId } = grant;
+    const mine = open.get(launchId) ?? new Set<http.ServerResponse>();
+    mine.add(res);
+    open.set(launchId, mine);
+    res.once("close", () => {
+      mine.delete(res);
+      if (mine.size === 0 && open.get(launchId) === mine) open.delete(launchId);
+    });
     const declared = Number(req.headers["content-length"] ?? 0);
     const body = declared > MAX_BODY_BYTES ? "too_large" : await readBody(req);
     if (body === null) return;
@@ -228,7 +242,7 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
       return refuse(res, "too_large", agentId);
     }
     // A key revoked or rotated while the body arrived is not served.
-    if (deps.keys.agentOf(presentedKey(req.headers), req.socket.remoteAddress) !== agentId)
+    if (deps.keys.grantOf(presentedKey(req.headers), req.socket.remoteAddress)?.launchId !== launchId)
       return refuse(res, "key", null);
     deps.usage.request(agentId, { bytesIn: body.length });
     const model = modelOf(modelSourceOf(route.path), route.path, body);

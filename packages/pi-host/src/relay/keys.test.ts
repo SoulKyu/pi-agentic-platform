@@ -129,3 +129,21 @@ describe("presentedKey", () => {
     expect(presentedKey({ "x-api-key": k.toUpperCase() })).toBeNull();
   });
 });
+
+describe("createRelayKeys: revoke listeners and the launch of a request (T12)", () => {
+  it("tells the launch of a key, and the listeners only of a remove", () => {
+    const keys = createRelayKeys();
+    const told: string[] = [];
+    keys.onRemove((launchId) => void told.push(launchId));
+    const one = grant();
+    keys.add(one);
+    expect(keys.grantOf(one.key.toString("hex"), "10.213.0.2")).toEqual({
+      launchId: one.launchId,
+      agentId: "agent-one",
+    });
+    keys.add({ ...one, key: randomBytes(32) });
+    expect(told).toEqual([]);
+    keys.remove(one.launchId);
+    expect(told).toEqual([one.launchId]);
+  });
+});

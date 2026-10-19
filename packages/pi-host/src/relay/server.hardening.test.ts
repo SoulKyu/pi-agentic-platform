@@ -7,7 +7,7 @@ import { HEADERS_TIMEOUT_MS, MAX_CONNECTIONS_PER_ADDRESS, REQUEST_TIMEOUT_MS } f
  * Mutants (RT-43), each run for real:
  *  - M-conn-cap: no per-address connection limit -> "closes the 33rd connection" fails.
  *  - M-timeouts: leave Node's default request/headers timeouts -> "sets its own timeouts" fails.
- *  - M-recheck: no second `agentOf` after the body -> "does not serve a key revoked while its body arrived" fails.
+ *  - M-recheck: no second `grantOf` after the body -> "does not serve a key revoked while its body arrived" fails.
  *  - M-reset-log: log an ECONNRESET as a refusal -> "does not log a client reset" fails.
  *  - M-answer-list: (server.test.ts) forward every upstream header -> "lets only an allow-list..." fails.
  *  - M-tls: (relay.int.test.ts) drop `rejectUnauthorized: true` -> the inherited-environment case fails.
@@ -49,7 +49,7 @@ describe("the relay server: connection hygiene", () => {
 describe("the relay server: a key revoked while its body arrives", () => {
   it("is not served (M-recheck)", async () => {
     const { port, keys, seen, resolveProvider } = await bed();
-    const checks = vi.spyOn(keys, "agentOf");
+    const checks = vi.spyOn(keys, "grantOf");
     const body = chat();
     const socket = net.connect(port, "127.0.0.1");
     socket.on("error", () => {});
@@ -65,7 +65,13 @@ describe("the relay server: a key revoked while its body arrives", () => {
       `POST /zai/chat/completions HTTP/1.1\r\nHost: llm.internal:7842\r\nAuthorization: Bearer ${KEY}\r\nContent-Length: ${Buffer.byteLength(body)}\r\n\r\n${body.slice(0, 5)}`,
     );
     await vi.waitFor(() => expect(checks).toHaveBeenCalledTimes(1), { timeout: 5000 });
-    keys.remove("a".repeat(32));
+    // A rotation (a new key for the same launch) leaves the request open; a revoke would end it (server.revoke.test.ts).
+    keys.add({
+      launchId: "a".repeat(32),
+      agentId: "scout-0001",
+      key: Buffer.from("cd".repeat(32), "hex"),
+      address: "127.0.0.1",
+    });
     socket.write(body.slice(5));
     expect(await answered).toMatch(/^HTTP\/1\.1 403 /);
     expect(resolveProvider).not.toHaveBeenCalled();
