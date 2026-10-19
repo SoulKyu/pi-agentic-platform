@@ -61,10 +61,10 @@ export interface DispatchDeps {
 /** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
 export function createDispatch(deps: DispatchDeps): (record: Command) => void {
   const { session, ipc, ui } = deps;
+  // AVM-E14: the lines Pi appended go out before the response that refers to them.
   const send = (record: Parameters<Ipc["send"]>[0]) => {
-    const sent = ipc.send(record);
     if (record.type === "response") deps.mirror?.flush();
-    return sent;
+    return ipc.send(record);
   };
   // The handlers answer their own failures; this only catches a failure after the answer (a throwing `send`).
   const background = (command: string, work: Promise<void>): void => {

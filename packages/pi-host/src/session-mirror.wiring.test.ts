@@ -28,8 +28,9 @@ function dispatchBed(mirror?: { flush(): void; resync(request: unknown): void })
   return { order, dispatch };
 }
 
+// Mutant: send the response, then flush -> the order is ["response", "flush"] and the test below fails.
 describe("the mirror's flush points", () => {
-  it("flushes after the response of a command, not before it", () => {
+  it("flushes before the response of a command is sent (AVM-E14)", () => {
     const order: string[] = [];
     const mirror = { flush: () => void order.push("flush"), resync: () => {} };
     const dispatch = createDispatch({
@@ -44,7 +45,7 @@ describe("the mirror's flush points", () => {
       mirror,
     });
     dispatch({ type: "get_state", id: "g1" });
-    expect(order).toEqual(["response", "flush"]);
+    expect(order).toEqual(["flush", "response"]);
   });
 
   it("hands session_resync to the mirror, and ignores it without one", () => {

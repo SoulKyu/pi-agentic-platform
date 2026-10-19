@@ -129,8 +129,10 @@ export function openFileChain(
   flags: number,
   mode = 0o600,
 ): number {
+  if (root === "") throw new Error("the root is empty");
+  const base = root.replace(/\/+$/, "") || "/";
   const name = basename(path);
-  if (dirname(path) === root) return openAt(rootFd, name, flags, mode);
+  if (dirname(path) === base) return openAt(rootFd, name, flags, mode);
   const parent = openChain(rootFd, root, dirname(path));
   try {
     return openAt(parent, name, flags, mode);

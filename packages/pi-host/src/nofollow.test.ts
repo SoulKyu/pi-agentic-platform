@@ -153,6 +153,16 @@ describe("nofollow helpers", () => {
     closeSync(root);
   });
 
+  it("opens a direct child of a root written with trailing slashes, and refuses an empty root", () => {
+    writeFileSync(join(dir, "top"), "t");
+    const root = openRootDir(dir);
+    for (const spelled of [`${dir}/`, `${dir}//`]) {
+      closeSync(openFileChain(root, spelled, join(dir, "top"), constants.O_RDONLY));
+    }
+    expect(() => openFileChain(root, "", join(dir, "top"), constants.O_RDONLY)).toThrow(/empty/);
+    closeSync(root);
+  });
+
   // Mutant: skip the component check -> a NUL or a path outside the root reaches the open (killed here).
   it("refuses a path outside its root and the root itself", () => {
     expect(componentsUnder(dir, join(dir, "a", "b"))).toEqual(["a", "b"]);
