@@ -2,6 +2,7 @@ import {
   closeSync,
   constants,
   fstatSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readdirSync,
@@ -16,11 +17,13 @@ const { O_RDONLY, O_WRONLY, O_CREAT, O_TRUNC, O_DIRECTORY, O_NOFOLLOW, O_NONBLOC
 export const VM_READ_MAX_BYTES = 64 * 1024 * 1024;
 const at = (dirFd: number, name: string): string => `/proc/self/fd/${dirFd}/${name}`;
 
+const OUTSIDE_OR_LINK =
+  "pap: outside this agent's folders, or a link (Pi's file tools never follow links in a VM; the shell can)";
+
+/** A refused call. The default message is for a path outside the folders, a link or a file that is not a regular one; size and missing have their own. */
 export class VmFileRefused extends Error {
-  constructor() {
-    super(
-      "pap: outside this agent's folders, or a link (Pi's file tools never follow links in a VM; the shell can)",
-    );
+  constructor(message: string = OUTSIDE_OR_LINK) {
+    super(message);
   }
 }
 
@@ -33,12 +36,29 @@ function split(absolute: string, roots: readonly string[]): { root: string; part
   return parts.some((part) => part === "" || part === "." || part === "..") ? null : { root, parts };
 }
 
+/** What a refused open says: a missing path and a link are different answers; a system error (EMFILE, ENOSPC...) is passed on as it is. */
+function refusalOf(error: unknown): unknown {
+  switch ((error as NodeJS.ErrnoException).code) {
+    case "ENOENT":
+      return new VmFileRefused("pap: no such file");
+    case "ELOOP":
+    case "ENOTDIR":
+    case "ENXIO":
+    case "EISDIR":
+    case "EACCES":
+    case "EPERM":
+      return new VmFileRefused();
+    default:
+      return error;
+  }
+}
+
 function openNoFollow(where: string, flags: number): number {
   try {
     // O_NONBLOCK: a FIFO the shell planted opens at once and is refused below by its type, never waited on.
     return openSync(where, flags | O_NOFOLLOW | O_NONBLOCK, 0o644);
-  } catch {
-    throw new VmFileRefused();
+  } catch (error) {
+    throw refusalOf(error);
   }
 }
 
@@ -58,7 +78,7 @@ function openPath(absolute: string, roots: readonly string[], leafFlags: number,
         try {
           mkdirSync(at(fd, name), { mode: 0o755 });
         } catch (error) {
-          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw new VmFileRefused();
+          if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw refusalOf(error);
         }
       }
       const next = openNoFollow(at(fd, name), last ? leafFlags : O_RDONLY | O_DIRECTORY);
@@ -66,7 +86,7 @@ function openPath(absolute: string, roots: readonly string[], leafFlags: number,
       fd = next;
     } catch (error) {
       closeSync(fd);
-      throw error instanceof VmFileRefused ? error : new VmFileRefused();
+      throw error;
     }
   });
   return fd;
@@ -95,7 +115,10 @@ function readAll(fd: number): Buffer {
     const n = readSync(fd, chunk, 0, chunk.length, null);
     if (n === 0) return Buffer.concat(chunks, total);
     total += n;
-    if (total > VM_READ_MAX_BYTES) throw new VmFileRefused();
+    if (total > VM_READ_MAX_BYTES)
+      throw new VmFileRefused(
+        `pap: file over ${VM_READ_MAX_BYTES} bytes: read it with the shell (head, sed -n)`,
+      );
     chunks.push(chunk.subarray(0, n));
   }
 }
@@ -154,8 +177,16 @@ export function createVmFileOps(roots: VmFileRoots) {
           return false;
         }
       },
+      // The entry itself, never what it points to: a link or a socket in a listed folder shows as a non-folder.
       stat: (absolute: string) => {
-        const directory = withFd(openPath(absolute, readable, O_RDONLY), (fd) => fstatSync(fd).isDirectory());
+        const where = split(absolute, readable);
+        if (where === null) throw new VmFileRefused();
+        const directory =
+          where.parts.length === 0
+            ? withFd(openPath(absolute, readable, O_RDONLY | O_DIRECTORY), () => true)
+            : withFd(openPath(path.dirname(absolute), readable, O_RDONLY | O_DIRECTORY), (fd) =>
+                lstatSync(at(fd, path.basename(absolute))).isDirectory(),
+              );
         return { isDirectory: () => directory };
       },
       readdir: (absolute: string): string[] =>

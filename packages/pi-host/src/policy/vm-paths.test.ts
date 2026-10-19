@@ -8,8 +8,9 @@ import { judgeVmPath, realVmRoots, vmFileFolders, type VmFileRoots } from "./vm-
 //  - M1 the judge without the rewrite refusal (`REWRITTEN`/`UNICODE_SPACE` line removed): "refuses what Pi would rewrite"
 //    (the `@`, `~`, `file:` and U+00A0 cases expect `rewritten path`; a NBSP name inside home would be judged as itself).
 //  - M2 the judge without the leaf `link` refusal: "refuses a link as `link`" (dangling and live links).
-//  - M3 the judge without the real-path checks (`realOrNearest` and `kernelResolve`, which back each other up): "a folder link is outside"
-//    (`home/dl -> .pi`); alone, `kernelResolve` is killed by the `dl/../new.txt` case.
+//  - M3a the judge without `realOrNearest`: killed by `a/../dl/sessions/s.jsonl` (kernelResolve appends what follows the
+//    first missing component lexically, so only the real-path check sees through `a/..` then the folder link).
+//  - M3b the judge without `kernelResolve`: killed by `dl/../new.txt` (`..` applied to the link's target).
 //  - M4 a write allowed under the read-only roots: "a write under the read-only roots is outside".
 
 let world: ReturnType<typeof makeVmWorld>;
@@ -67,6 +68,9 @@ describe("judgeVmPath: links and folders", () => {
     expect(await verdict("dl/sessions/s.jsonl")).toEqual(refused("outside this agent's folders"));
     expect(await verdict("dl/sessions/s.jsonl", true)).toEqual(refused("outside this agent's folders"));
     expect(await verdict("dl/sessions/new.jsonl", true)).toEqual(refused("outside this agent's folders"));
+    // A missing first component, then `..` into the link: only the real-path check sees where it lands.
+    expect(await verdict("a/../dl/sessions/s.jsonl")).toEqual(refused("outside this agent's folders"));
+    expect(await verdict("a/../dl/sessions", false)).toEqual(refused("outside this agent's folders"));
   });
 
   it("judges `..` after a folder link the way the kernel resolves it: `dl/../new.txt` leaves home", async () => {

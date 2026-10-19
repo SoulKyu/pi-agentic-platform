@@ -182,6 +182,9 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
         process.stderr.write("pi-host: secret_used not sent\n");
     },
   });
+  // Fail closed: a VM session's shell is pap's VM shell only; a host sandbox next to it would build an environment and an egress client for nothing.
+  if (initial.vm && initial.sandbox)
+    throw new Error("pi-host: an init record with `vm` must not carry `sandbox`: refusing to start");
   const sandboxEnvironment = initial.sandbox
     ? withOnceSecrets(createSandboxEnvironment(process.env, initial.sandbox, initial.vault ?? {}), once)
     : undefined;

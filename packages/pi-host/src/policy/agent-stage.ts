@@ -4,7 +4,6 @@ import { agentCategory, type AgentCallFacts, decideIsolated } from "./agent-deci
 import type { ApprovalPlan, CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
 import { readsInside, SESSION_FOLDER } from "./read-target.ts";
 import { checkEditTarget, ownFolder, realTarget, RUNS_DIR, within } from "./target-path.ts";
-import { vmOwnFolder } from "./vm-stage.ts";
 
 export const SANDBOXED_SHELL_REASON = "sandboxed shell, its own folder only";
 
@@ -30,6 +29,10 @@ export function agentOwnOf(rules: PolicyRules): string | null {
   if (rules.profile === "agent-thread") return rules.agentHome;
   return rules.profile === "isolated-task" ? rules.agentScratch : null;
 }
+
+/** In a VM the folder the rules name for the session's shell is the VM's own home (the host has no agent folder to check). */
+export const vmOwnFolder = (rules: PolicyRules, vm: NonNullable<PipelineDeps["vm"]>): boolean =>
+  agentOwnOf(rules) === vm.layout.home;
 
 /** Without a `sandbox` in the rules a sandboxed shell is judged as if it had network: the stricter reading. */
 function factsOf(call: CallFacts): AgentCallFacts {

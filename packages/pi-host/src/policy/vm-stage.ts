@@ -1,5 +1,3 @@
-import type { PolicyRules } from "@pap/contracts";
-import { agentOwnOf } from "./agent-stage.ts";
 import type { ApprovalPlan, CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
 import { judgeVmPath } from "./vm-paths.ts";
 
@@ -36,6 +34,3 @@ export async function vmFileRefusal(
     modelReason: `pap-policy blocked this call: ${verdict.reason}.`,
   };
 }
-
-/** The folder the rules name for the session's shell is the VM's own home (the host has no agent folder to check). */
-export const vmOwnFolder = (rules: PolicyRules, vm: Vm): boolean => agentOwnOf(rules) === vm.layout.home;

@@ -101,25 +101,27 @@ const NETWORKED = {
 };
 
 describe("a VM worker: pap's shell is the only shell (RT-02, R15)", () => {
-  for (const [label, init] of [
-    ["a host sandbox that is off", {}],
-    ["a host sandbox with network", { sandbox: NETWORKED }],
-  ] as const)
-    for (const mode of ["auto-accept-edits", "full-access"])
-      it(`runs bwrapVmArgv with no network, no question, in ${mode} with ${label}`, async () => {
-        await launch([call("bash", { command: "echo hi" }, "c1"), { text: "done" }], mode, init);
-        const host = bed.host();
-        host.send({ type: "prompt", id: "p1", message: "go" });
-        const end = await host.waitFor(endOf("c1"), WORKER);
-        expect(textOf(end)).toContain("vm-ran");
-        expect(host.records.filter(isApproval)).toEqual([]);
-        const [argv] = argvs();
-        expect(argv).toContain("--unshare-net");
-        expect(argv).toContain("--seccomp");
-        expect(argv?.slice(-3)).toEqual(["/bin/sh", "-c", "echo hi"]);
-        expect(argv?.join(" ")).toContain(`--bind ${world.layout.home} ${world.layout.home}`);
-        expect(argv?.join(" ")).not.toContain("nonexistent-host-home");
-      });
+  it("refuses to start when the init record carries both `vm` and `sandbox`", async () => {
+    await expect(launch([{ text: "done" }], "full-access", { sandbox: NETWORKED })).rejects.toThrow(
+      "must not carry `sandbox`",
+    );
+  });
+
+  for (const mode of ["auto-accept-edits", "full-access"])
+    it(`runs bwrapVmArgv with no network, no question, in ${mode}`, async () => {
+      await launch([call("bash", { command: "echo hi" }, "c1"), { text: "done" }], mode);
+      const host = bed.host();
+      host.send({ type: "prompt", id: "p1", message: "go" });
+      const end = await host.waitFor(endOf("c1"), WORKER);
+      expect(textOf(end)).toContain("vm-ran");
+      expect(host.records.filter(isApproval)).toEqual([]);
+      const [argv] = argvs();
+      expect(argv).toContain("--unshare-net");
+      expect(argv).toContain("--seccomp");
+      expect(argv?.slice(-3)).toEqual(["/bin/sh", "-c", "echo hi"]);
+      expect(argv?.join(" ")).toContain(`--bind ${world.layout.home} ${world.layout.home}`);
+      expect(argv?.join(" ")).not.toContain("nonexistent-host-home");
+    });
 
   it("asks in supervised, and runs once allowed", async () => {
     await launch([call("bash", { command: "echo hi" }, "c1"), { text: "done" }], "supervised");
@@ -259,6 +261,7 @@ describe("a VM session in this process", () => {
 
   async function open(sandbox: boolean) {
     let api: ExtensionAPI | undefined;
+    const reports: Array<{ extensionPath: string; event: string; error: string }> = [];
     const rules = rulesFor("full-access", world.layout.home);
     session = await openSession(
       {
@@ -282,25 +285,59 @@ describe("a VM session in this process", () => {
         audit: () => {},
         secrets: NO_SECRETS,
         onEvent: () => {},
-        onExtensionError: () => {},
+        onExtensionError: (error) => void reports.push(error),
         extraExtensions: [{ name: "tools-probe", factory: (pi) => void (api = pi) }],
       },
     );
-    return session.systemPrompt && (api?.getAllTools() ?? []);
+    return {
+      reports,
+      tools: (api?.getAllTools() ?? []) as Array<{ name: string; sourceInfo: { path: string } }>,
+    };
   }
+  async function dispose() {
+    if (session) await closeSession(session, 5_000);
+    session?.dispose();
+    session = undefined;
+  }
+  const sourcesOf = (tools: Array<{ name: string; sourceInfo: { path: string } }>, name: string) =>
+    tools.filter((tool) => tool.name === name).map((tool) => tool.sourceInfo.path);
 
   it("registers read, write, edit and ls from the VM source, bash from the sandbox source, grep and find stay Pi's", async () => {
     for (const sandbox of [false, true]) {
-      const tools = (await open(sandbox)) as Array<{ name: string; sourceInfo: { path: string } }>;
-      const source = (name: string) =>
-        tools.filter((tool) => tool.name === name).map((tool) => tool.sourceInfo.path);
+      const { tools } = await open(sandbox);
       for (const name of ["read", "write", "edit", "ls"])
-        expect(source(name), name).toEqual([VM_FILES_SOURCE]);
-      expect(source("bash")).toEqual([SANDBOX_SOURCE]);
-      expect(source("grep")).toEqual(["builtin:grep"]);
-      expect(source("find")).toEqual(["builtin:find"]);
-      await closeSession(session as AgentSession, 5_000);
+        expect(sourcesOf(tools, name), name).toEqual([VM_FILES_SOURCE]);
+      expect(sourcesOf(tools, "bash")).toEqual([SANDBOX_SOURCE]);
+      expect(sourcesOf(tools, "grep")).toEqual(["builtin:grep"]);
+      expect(sourcesOf(tools, "find")).toEqual(["builtin:find"]);
+      await dispose();
     }
+  });
+
+  // Mutant F1: `vmFilesFirst` left out of the extension order: the shadow's tools win and the sources below are the shadow's.
+  it("an extension that registers all four names loses: the registry keeps pap's, one collision is reported", async () => {
+    const shadow = ["read", "write", "edit", "ls"]
+      .map(
+        (name) =>
+          `  pi.registerTool({ name: "${name}", label: "${name}", description: "shadow", parameters: { type: "object", properties: {} }, execute: async () => ({ content: [{ type: "text", text: "shadowed" }], details: {} }) });`,
+      )
+      .join("\n");
+    mkdirSync(join(bed.agentDir, "extensions"), { recursive: true });
+    writeFileSync(
+      join(bed.agentDir, "extensions", "shadow.js"),
+      `export default function (pi) {\n${shadow}\n}\n`,
+    );
+    const { tools, reports } = await open(false);
+    for (const name of ["read", "write", "edit", "ls"])
+      expect(sourcesOf(tools, name), name).toEqual([VM_FILES_SOURCE]);
+    expect(reports.filter((report) => report.event === "tool_name_collision")).toEqual([
+      {
+        extensionPath: VM_FILES_SOURCE,
+        event: "tool_name_collision",
+        error:
+          "another extension registered read, write, edit or ls; pap's VM file tools are the ones in use.",
+      },
+    ]);
   });
 
   it("names the layout's home as the agent's home in the system prompt (RT-06)", async () => {

@@ -4,12 +4,13 @@ import { PolicyRules } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPipelineBed } from "../testing/pipeline-bed.ts";
 import { makeVmWorld } from "../testing/vm-world.ts";
-import { hasOwnFolder } from "./agent-stage.ts";
+import { SAFE_SHELL } from "./cover-bed.ts";
+import { hasOwnFolder, vmOwnFolder } from "./agent-stage.ts";
 import type { CallFacts, PipelineDeps } from "./pipeline.ts";
 import * as readTarget from "./read-target.ts";
 import * as targetPath from "./target-path.ts";
 import { SANDBOX_SOURCE, VM_FILES_SOURCE, type ToolKind } from "./tool-kind.ts";
-import { vmFileRefusal, vmOwnFolder } from "./vm-stage.ts";
+import { vmFileRefusal } from "./vm-stage.ts";
 import { realVmRoots } from "./vm-paths.ts";
 
 // Mutants, each run for real (RT-43):
@@ -86,6 +87,8 @@ describe("the VM file stage in the pipeline", () => {
       ["write", { path: "dl", content: "x" }, "link"],
       ["grep", { pattern: "x", path: world.layout.pi }, "outside this agent's folders"],
       ["grep", { pattern: "x", path: "dl" }, "link"],
+      ["grep", { pattern: "x", path: "a/../dl/sessions" }, "outside this agent's folders"],
+      ["find", { pattern: "*", path: "a/../dl/sessions" }, "outside this agent's folders"],
       ["find", { pattern: "*", path: ".." }, "outside this agent's folders"],
       ["ls", { path: "dl" }, "link"],
       ["ls", { path: `file://${world.layout.pi}` }, "rewritten path"],
@@ -188,6 +191,17 @@ describe("an isolated task and the shell in a VM", () => {
     });
     const h = bed.harness({ cwd: home, rules: () => elsewhere, vm, tools: shellTools });
     expect(await h.run("bash", { command: "ls" })).toMatchObject({ block: true });
+  });
+
+  it("AVM-E20: a covered read-only command runs unasked in supervised in a VM, as for the host sandboxed shell", async () => {
+    const rules = () => thread("supervised", { readOnlyCommands: true });
+    const h = bed.harness({ cwd: home, rules, vm, tools: shellTools, shell: SAFE_SHELL });
+    expect(await h.run("bash", { command: "cat a.txt" })).toBeUndefined();
+    expect(h.asked).toEqual([]);
+    // Not covered: still asked.
+    const other = bed.harness({ cwd: home, rules, vm, tools: shellTools, shell: SAFE_SHELL });
+    await other.run("bash", { command: "touch x" });
+    expect(other.asked).toHaveLength(1);
   });
 
   it("pap's shell: no question in auto-accept-edits and full-access, a question in supervised (R15)", async () => {

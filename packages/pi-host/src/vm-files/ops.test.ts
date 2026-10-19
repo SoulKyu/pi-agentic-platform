@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import {
   existsSync,
+  readdirSync,
   linkSync,
   mkdirSync,
   readFileSync,
@@ -19,8 +20,10 @@ import { createVmFileOps, VM_READ_MAX_BYTES, VmFileRefused } from "./ops.ts";
 //  - O1 no O_NOFOLLOW on the leaf (the flag dropped from the last component): "a file swapped for a link ... writeFile".
 //  - O2 the whole path opened at once (one `openSync(absolute, flags | O_NOFOLLOW)` instead of component by component):
 //    "a folder swapped for a link ... readFile" and "mkdir through a link" (the middle component is followed).
-//  - O3 O_NONBLOCK dropped: "a FIFO is refused ... without blocking" hangs (the test's own timeout fails it).
+//  - O3 O_NONBLOCK dropped: "a FIFO is refused ... without blocking": the blocking open hangs the
+//    thread, so the test's own timeout cannot fire; the run is killed by its outer timeout (a failure all the same).
 //  - O4 `regular()` dropped: the same FIFO case and "a folder is not a file".
+//  - O6 `regular()` leaking the descriptor (no close before the throw): "does not leak a descriptor on a refused open".
 //  - O5 `split` accepting `..`: "a `..` spelling is refused".
 
 let world: ReturnType<typeof makeVmWorld>;
@@ -79,7 +82,8 @@ describe("createVmFileOps: links planted before or during a call", () => {
     symlinkSync(world.layout.pi, join(home, "dl"));
     await expect(ops.read.readFile(join(home, "t"))).rejects.toThrow(VmFileRefused);
     expect(() => ops.ls.readdir(join(home, "dl"))).toThrow(VmFileRefused);
-    expect(() => ops.ls.stat(join(home, "dl"))).toThrow(VmFileRefused);
+    // The entry itself, not what it points to: a link in a listing is a non-folder, never followed.
+    expect(ops.ls.stat(join(home, "dl")).isDirectory()).toBe(false);
     expect(ops.ls.exists(join(home, "dl"))).toBe(false);
     expect(ops.ls.exists(join(home, "t"))).toBe(false);
   });
@@ -126,6 +130,50 @@ describe("createVmFileOps: what is refused", () => {
     );
     expect((await ops.read.readFile(skill)).toString()).toBe("skill\n");
     expect(readFileSync(skill, "utf8")).toBe("skill\n");
+  });
+
+  it("says what went wrong: size, missing and link have their own messages", async () => {
+    const big = join(home, "big2.bin");
+    writeFileSync(big, "");
+    truncateSync(big, VM_READ_MAX_BYTES + 1);
+    await expect(ops.read.readFile(big)).rejects.toThrow(
+      `file over ${VM_READ_MAX_BYTES} bytes: read it with the shell (head, sed -n)`,
+    );
+    await expect(ops.read.readFile(join(home, "none.txt"))).rejects.toThrow("pap: no such file");
+    await expect(ops.read.readFile(join(home, "none", "deeper.txt"))).rejects.toThrow("pap: no such file");
+    symlinkSync(world.transcript, join(home, "t2"));
+    await expect(ops.read.readFile(join(home, "t2"))).rejects.toThrow(
+      "outside this agent's folders, or a link",
+    );
+    // A file where a folder is expected is a refusal (ENOTDIR), not a system error.
+    writeFileSync(join(home, "plain.txt"), "p");
+    await expect(ops.write.mkdir(join(home, "plain.txt", "sub"))).rejects.toThrow(VmFileRefused);
+  });
+
+  it("does not leak a descriptor on a refused open (a FIFO, a folder, a link, over many tries)", async () => {
+    const fifo = join(home, "pipe2");
+    execFileSync("mkfifo", [fifo]);
+    symlinkSync(world.transcript, join(home, "t3"));
+    const count = () => readdirSync("/proc/self/fd").length;
+    const before = count();
+    for (let i = 0; i < 100; i++) {
+      await expect(ops.read.readFile(fifo)).rejects.toThrow(VmFileRefused);
+      await expect(ops.read.readFile(home)).rejects.toThrow(VmFileRefused);
+      await expect(ops.write.writeFile(join(home, "t3"), "x")).rejects.toThrow(VmFileRefused);
+    }
+    expect(count()).toBe(before);
+  });
+
+  it("lists a link, a dangling link and a file, none of them followed", async () => {
+    mkdirSync(join(home, "list"));
+    writeFileSync(join(home, "list", "file.txt"), "f");
+    symlinkSync(world.transcript, join(home, "list", "link"));
+    symlinkSync(join(home, "list", "nowhere"), join(home, "list", "dangling"));
+    symlinkSync(world.layout.pi, join(home, "list", "folderlink"));
+    const names = ops.ls.readdir(join(home, "list")).sort();
+    expect(names).toEqual(["dangling", "file.txt", "folderlink", "link"]);
+    for (const name of names) expect(ops.ls.stat(join(home, "list", name)).isDirectory(), name).toBe(false);
+    expect(transcript()).toBe("TRANSCRIPT\n");
   });
 
   it("refuses a read over VM_READ_MAX_BYTES", async () => {

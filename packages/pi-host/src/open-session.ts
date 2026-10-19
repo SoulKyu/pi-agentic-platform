@@ -221,7 +221,7 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
         ...(init.vm && vm
           ? [
               createVmShellTool(init.vm, { redact: () => deps.secrets.current() }),
-              createVmFileTools(vm.roots, init.vm.layout.home),
+              createVmFileTools(vm.roots, cwd),
             ]
           : []),
         ...(hostSandbox && sandboxEnvironment
