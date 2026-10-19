@@ -1,21 +1,16 @@
 import { type ChildProcess, fork, spawn } from "node:child_process";
-import {
-  type CommandInput,
-  type DaemonToWorker,
-  PapError,
-  parseWorkerRecord,
-  type ResponseRecord,
-  type WorkerRecord,
-} from "@pap/contracts";
-import type { Clock, TimerHandle } from "../clock.ts";
+import type { CommandInput, DaemonToWorker, ResponseRecord, WorkerRecord } from "@pap/contracts";
+import type { Clock } from "../clock.ts";
 import type { Logger } from "../logger.ts";
 import { classifyExit, type WorkerExit } from "./exit.ts";
 import { killLadder, WORKER_SHUTDOWN_GRACE_MS } from "./kill-ladder.ts";
 import { releaseGroup, signalGroup, trackGroup } from "./process-group.ts";
 import type { WorkerScope } from "./scope.ts";
-import { boundedOutbound, boundedRecord, createTail, failedHandle, requestTimeoutMs } from "./worker-io.ts";
+import { createWorkerCore, type WorkerStats } from "./worker-core.ts";
+import { boundedOutbound, createTail, failedHandle, requestTimeoutMs } from "./worker-io.ts";
 
 export { killAllWorkerGroups } from "./process-group.ts";
+export type { WorkerStats } from "./worker-core.ts";
 export {
   boundedOutbound,
   clipWorkerString,
@@ -43,16 +38,6 @@ export interface SpawnWorkerOptions {
   readonly scope?: WorkerScope;
 }
 
-export interface WorkerStats {
-  /** Records that were not valid worker records. */
-  readonly droppedRecords: number;
-  /** Responses whose request is gone: it timed out, or the id was never issued. */
-  readonly unknownResponses: number;
-  /** Record listeners that threw. */
-  readonly listenerErrors: number;
-  readonly pendingRequests: number;
-}
-
 export interface WorkerHandle {
   readonly pid: number | undefined;
   readonly exited: Promise<WorkerExit>;
@@ -70,15 +55,6 @@ export interface WorkerHandle {
   /** The last bytes of stdout and stderr, at most `OUTPUT_TAIL_BYTES`. */
   outputTail(): string;
   stats(): WorkerStats;
-}
-
-// Powers of two: the first drop is logged, then the 2nd, 4th, 8th… so a flood of garbage cannot flood the log.
-const worthLogging = (count: number): boolean => (count & (count - 1)) === 0;
-
-interface Pending {
-  readonly resolve: (record: ResponseRecord) => void;
-  readonly reject: (error: Error) => void;
-  readonly timer: TimerHandle | undefined;
 }
 
 export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
@@ -116,23 +92,13 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     stream?.on("data", (chunk: Buffer) => tail.push(chunk));
     stream?.on("error", () => {});
   }
-  const listeners = new Set<(record: WorkerRecord) => void>();
-  const pending = new Map<string, Pending>();
-  const stats = { droppedRecords: 0, unknownResponses: 0, listenerErrors: 0 };
+  const core = createWorkerCore({ clock, logger, label: { pid } });
   let alive = true;
   // The leader has been reaped: its pid, which is also its group id, may belong to someone else from now on.
   let reaped = false;
-  let nextId = 0;
   let inFlight = 0;
   let stopping: Promise<WorkerExit> | undefined;
 
-  const failPending = (): void => {
-    for (const entry of pending.values()) {
-      if (entry.timer) clock.clearTimeout(entry.timer);
-      entry.reject(new PapError("worker_failed"));
-    }
-    pending.clear();
-  };
   let resolveExited: (exit: WorkerExit) => void = () => {};
   const exited = new Promise<WorkerExit>((resolve) => {
     resolveExited = resolve;
@@ -141,7 +107,7 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     if (!alive) return;
     alive = false;
     if (pid !== undefined) releaseGroup(pid);
-    failPending();
+    core.failPending();
     resolveExited(exit);
   };
 
@@ -197,51 +163,11 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
   });
   child.once("disconnect", () => {
     // No answer can come any more, and the worker can no longer be told to stop: fail what waits and take it down.
-    failPending();
+    core.failPending();
     if (alive) void stop();
   });
   child.on("message", (raw: unknown) => {
-    if (!alive) return;
-    const record = parseWorkerRecord(raw);
-    if (!record) {
-      stats.droppedRecords++;
-      if (worthLogging(stats.droppedRecords)) {
-        const type = typeof raw === "object" && raw !== null ? (raw as { type?: unknown }).type : undefined;
-        logger.warn("worker_record_dropped", {
-          pid,
-          dropped: stats.droppedRecords,
-          recordType: typeof type === "string" ? type.slice(0, 64) : typeof raw,
-        });
-      }
-      return;
-    }
-    if (record.type === "response") {
-      const entry = pending.get(record.id);
-      if (!entry) {
-        stats.unknownResponses++;
-        if (worthLogging(stats.unknownResponses)) {
-          logger.warn("worker_response_unknown", { pid, unknown: stats.unknownResponses });
-        }
-        return;
-      }
-      pending.delete(record.id);
-      if (entry.timer) clock.clearTimeout(entry.timer);
-      entry.resolve(boundedRecord(record) as ResponseRecord);
-      return;
-    }
-    const bounded = boundedRecord(record);
-    // The listeners there were when the record arrived: one that leaves or joins while it is delivered does not
-    // change who hears this record.
-    for (const listener of [...listeners]) {
-      try {
-        listener(bounded);
-      } catch (error) {
-        stats.listenerErrors++;
-        if (worthLogging(stats.listenerErrors)) {
-          logger.error("worker_listener_failed", { pid, failures: stats.listenerErrors, err: error });
-        }
-      }
-    }
+    if (alive) core.receive(raw);
   });
 
   const send = (record: DaemonToWorker): boolean => {
@@ -291,32 +217,10 @@ export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {
     pid,
     exited,
     send,
-    request(command, timeoutMs = requestTimeoutMs(command)) {
-      const id = `r${++nextId}`;
-      return new Promise<ResponseRecord>((resolve, reject) => {
-        const timer =
-          timeoutMs === undefined
-            ? undefined
-            : clock.setTimeout(() => {
-                pending.delete(id);
-                reject(new PapError("timeout"));
-              }, timeoutMs);
-        pending.set(id, { resolve, reject, timer });
-        if (!send({ ...command, id } as DaemonToWorker)) {
-          pending.delete(id);
-          if (timer) clock.clearTimeout(timer);
-          reject(new PapError("worker_failed"));
-        }
-      });
-    },
-    onRecord(listener) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
+    request: (command, timeoutMs = requestTimeoutMs(command)) => core.request(command, timeoutMs, send),
+    onRecord: core.onRecord,
     stop,
     outputTail: tail.text,
-    stats: () => ({ ...stats, pendingRequests: pending.size }),
+    stats: core.stats,
   };
 }
