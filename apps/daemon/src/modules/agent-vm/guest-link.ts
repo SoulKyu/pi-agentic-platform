@@ -58,6 +58,9 @@ interface Slot {
   wire?: Wire;
 }
 
+/** What a slot keeps once its worker has exited: the fact that it was used, so a later hello is a duplicate and not an unknown slot. */
+const USED = "used" as const;
+
 // Powers of two, like the worker core: a guest that floods garbage cannot flood the log.
 const worthLogging = (count: number): boolean => (count & (count - 1)) === 0;
 
@@ -68,7 +71,7 @@ export function createGuestLink(deps: {
   wire: Wire;
 }): GuestLinkInternals {
   const { clock, logger, agentId, wire } = deps;
-  const slots = new Map<string, Slot>();
+  const slots = new Map<string, Slot | typeof USED>();
   let isClosed = false;
   let dropped = 0;
   let markClosed: () => void = () => {};
@@ -85,6 +88,11 @@ export function createGuestLink(deps: {
   };
   const signal = (slot: string, name: "SIGTERM" | "SIGKILL"): void => {
     wire.send({ type: "signal", slot, signal: name } satisfies GuestCommand);
+  };
+  /** AVM-E10: a worker hello refused here burns its slot: the worker is killed and the spawn fails, no retry can hang it. */
+  const burn = (slot: string, entry: Slot): void => {
+    signal(slot, "SIGKILL");
+    giveUp(entry, new PapError("worker_failed"));
   };
 
   const link: GuestLink = {
@@ -118,32 +126,48 @@ export function createGuestLink(deps: {
     link,
     acceptWorker(hello, workerWire) {
       const entry = slots.get(hello.slot);
-      if (!entry) return "slot";
-      if (entry.state !== "asked") return "duplicate";
-      if (entry.input.sessionFile !== null && hello.session.file !== entry.input.sessionFile)
+      if (entry === undefined) return "slot";
+      if (entry === USED || entry.state !== "asked") return "duplicate";
+      // A reopen names its file; a new session names none (its file does not exist yet).
+      if (hello.session.file !== entry.input.sessionFile) {
+        burn(hello.slot, entry);
         return "protocol";
-      let mirror: MirrorPort | null = null;
-      if (hello.session.file !== null) {
-        const opened = entry.input.mirrorFor(hello.session.file);
-        if (opened === "refused") return "protocol";
-        mirror = opened;
       }
+      let mirror: MirrorPort | null = null;
+      let worker: VmWorker;
+      try {
+        if (hello.session.file !== null) {
+          const opened = entry.input.mirrorFor(hello.session.file);
+          if (opened === "refused") {
+            burn(hello.slot, entry);
+            return "protocol";
+          }
+          mirror = opened;
+        }
+        worker = createVmWorker({
+          clock,
+          logger,
+          label: { agentId },
+          slot: hello.slot,
+          input: entry.input,
+          wire: workerWire,
+          reported: hello.session,
+          mirror,
+          signal: (name) => signal(hello.slot, name),
+        });
+      } catch (error) {
+        logger.warn("agent_gateway_worker_failed", { agentId, err: error });
+        mirror?.close();
+        burn(hello.slot, entry);
+        return "protocol";
+      }
+      // Used only now that the worker exists: a throw above leaves the slot to `burn`, never half taken.
       entry.state = "used";
       if (entry.timer) clock.clearTimeout(entry.timer);
       entry.timer = undefined;
-      const worker = createVmWorker({
-        clock,
-        logger,
-        label: { agentId },
-        slot: hello.slot,
-        input: entry.input,
-        wire: workerWire,
-        reported: hello.session,
-        mirror,
-        signal: (name) => signal(hello.slot, name),
-      });
       entry.worker = worker;
       entry.wire = workerWire;
+      void worker.handle.exited.then(() => slots.set(hello.slot, USED));
       entry.resolve(worker.handle);
       return { frame: (raw) => worker.receive(raw), closed: () => worker.wireClosed() };
     },
@@ -156,15 +180,17 @@ export function createGuestLink(deps: {
       }
       if (report.data.type !== "exited") return;
       const entry = slots.get(report.data.slot);
-      if (!entry) return;
+      if (entry === undefined || entry === USED) return;
       const { code, signal: name, tail } = report.data;
       if (entry.worker) entry.worker.guestExited(classifyExit(code, name as NodeJS.Signals | null), tail);
       else giveUp(entry, new PapError("worker_failed"));
+      slots.set(report.data.slot, USED);
     },
     closed() {
       if (isClosed) return;
       isClosed = true;
       for (const entry of slots.values()) {
+        if (entry === USED) continue;
         giveUp(entry, new PapError("worker_failed"));
         entry.wire?.close();
       }

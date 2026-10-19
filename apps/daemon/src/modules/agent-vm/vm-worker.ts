@@ -21,6 +21,9 @@ export interface Wire {
   /** Encodes and writes one frame. False when it cannot be sent (closed, over the frame bound, a peer that never reads); never throws. */
   send(frame: unknown): boolean;
   close(): void;
+  /** R32: reads nothing more from the connection until `resume` (a long line is parsed meanwhile). Idempotent. */
+  pause(): void;
+  resume(): void;
 }
 
 /** What a worker's handle needs to keep its session mirror (T9b implements it). */
@@ -34,11 +37,16 @@ export interface WorkerSpawnInput {
   /** Every prompt, steer and follow-up text sent to this worker (R32). */
   sent(text: string): void;
 }
+/** What the mirror says of one `session_append`: taken, the worker must send from elsewhere (RT-39), or the connection ends. */
+export type AppendResult = "ok" | { resync: SessionResync } | "refused";
 export interface MirrorPort {
   /** Where the mirror lives on the host: what `piFile()` answers. */
   readonly path: string;
   facts(): { size: number; lastEntryId: string | null };
-  onSessionAppend(append: SessionAppend): "ok" | { resync: SessionResync } | "refused";
+  /** A line over 1 MiB is parsed in the parse thread: the answer is then a promise, and the connection is paused until it settles (R32). */
+  onSessionAppend(append: SessionAppend): AppendResult | Promise<AppendResult>;
+  /** The worker's connection ended: a partial line is dropped, a replacement left short keeps its old copy (R14). Idempotent. */
+  close(): void;
 }
 
 export interface VmWorkerHandle extends WorkerHandle {
@@ -77,6 +85,9 @@ export function createVmWorker(deps: {
   let mirror = deps.mirror;
   let mirrorFile = mirror ? deps.reported.file : null;
   let alive = true;
+  /** R32: the mirror is parsing a long line; every frame that arrives meanwhile waits here, in order (AVM-E14). */
+  let blocked = false;
+  const held: unknown[] = [];
   let tail = "";
   let stopping: Promise<WorkerExit> | undefined;
   let resolveExited: (exit: WorkerExit) => void = () => {};
@@ -87,7 +98,9 @@ export function createVmWorker(deps: {
   const finish = (exit: WorkerExit): void => {
     if (!alive) return;
     alive = false;
+    held.length = 0;
     core.failPending();
+    mirror?.close();
     resolveExited(exit);
   };
   const end = (exit: WorkerExit): void => {
@@ -112,6 +125,11 @@ export function createVmWorker(deps: {
     }
   };
 
+  const settle = (result: AppendResult): void => {
+    if (result === "ok") return;
+    if (result === "refused") return refuse("append");
+    send(result.resync);
+  };
   const append = (record: SessionAppend): void => {
     if (mirrorFile !== null && record.file !== mirrorFile) return refuse("file");
     if (mirror === null) {
@@ -121,10 +139,45 @@ export function createVmWorker(deps: {
       mirrorFile = record.file;
     }
     const result = mirror.onSessionAppend(record);
-    if (result === "ok") return;
-    if (result === "refused") return refuse("append");
-    send(result.resync);
+    if (!(result instanceof Promise)) return settle(result);
+    blocked = true;
+    wire.pause();
+    void result
+      .then(
+        (outcome) => {
+          if (alive) settle(outcome);
+        },
+        () => {
+          if (alive) refuse("append");
+        },
+      )
+      .then(() => {
+        blocked = false;
+        drain();
+        if (alive && !blocked) wire.resume();
+      })
+      .catch((error: unknown) => {
+        logger.warn("agent_vm_mirror_drain_failed", { ...label, err: error });
+        refuse("drain");
+      });
   };
+  const MAX_HELD_FRAMES = 256;
+  const receive = (raw: unknown): void => {
+    if (!alive) return;
+    if (blocked) {
+      if (held.length >= MAX_HELD_FRAMES) return refuse("backlog");
+      held.push(raw);
+      return;
+    }
+    if (typeof raw === "object" && raw !== null && (raw as { type?: unknown }).type === "session_append") {
+      const parsed = SessionAppend.safeParse(raw);
+      if (parsed.success) return append(parsed.data);
+    }
+    core.receive(raw);
+  };
+  function drain(): void {
+    while (alive && !blocked && held.length > 0) receive(held.shift());
+  }
 
   if (mirror) {
     const facts = mirror.facts();
@@ -167,14 +220,7 @@ export function createVmWorker(deps: {
 
   return {
     handle,
-    receive(raw) {
-      if (!alive) return;
-      if (typeof raw === "object" && raw !== null && (raw as { type?: unknown }).type === "session_append") {
-        const parsed = SessionAppend.safeParse(raw);
-        if (parsed.success) return append(parsed.data);
-      }
-      core.receive(raw);
-    },
+    receive,
     wireClosed: () => finish(classifyExit(null, null)),
     guestExited(exit, text) {
       if (!alive) return;

@@ -11,7 +11,8 @@ import {
   createLaunchTokens,
   createProcessBackend,
   layoutOf,
-  mirrorFileOf,
+  type MirrorHooks,
+  createMirrorInputs,
 } from "./modules/agent-vm/index.ts";
 import {
   createVmLaunch,
@@ -31,6 +32,7 @@ export interface AgentsVmCore {
     | "testAgentRuntime"
     | "testProviderScript"
     | "workerIdleMs"
+    | "minFreeDiskMb"
   >;
   readonly clock: Clock;
   readonly logger: Logger;
@@ -42,7 +44,7 @@ export interface AgentsVmSeams {
   readonly process?: { guestEntry: string; execArgv: readonly string[]; imageAgentSource: string };
   /** Tests only: replaces the process backend; it learns the gateway's address when asked. */
   readonly backend?: (gatewayAddress: () => { host: string; port: number }) => AgentRuntimeBackend;
-  /** T9b's mirrors; until it lands, inputs that refuse every append. */
+  /** Tests only: replaces the daemon's mirrors of the VM session files (T9b). */
   readonly mirrors?: MirrorInputs;
   /** The image tag an agent's VM starts with (T14b's image policy replaces the test tag). */
   readonly imageTagOf?: (agentId: string) => string;
@@ -57,6 +59,13 @@ export interface AgentsVm {
   vmLayoutOf(row: SessionRow): VmLayout | null;
   /** By agent (the gate, the prompt chips): every agent runs in a VM in this mode. Not the agent port's `runsInVm`, which is by session. */
   agentRunsInVm(ownerId: string, agentId: string): boolean;
+  /** The mirrors of the VM session files (R23): `inputFor` is the launcher's. */
+  readonly mirrors: MirrorInputs;
+  /**
+   * Where a mirror's notices and taints go (R14, R32): the sessions that post and taint are composed after this, so they are
+   * bound later. Until then a notice or a taint is logged, never lost silently.
+   */
+  bindMirrorHooks(hooks: MirrorHooks): void;
   /** The host's ceilings for an agent's resources (RT-30). */
   resourceHost(): { memoryCapMb: number; cores: number };
   /** Where the gateway listens (the process backend's loopback port). */
@@ -64,16 +73,6 @@ export interface AgentsVm {
 }
 
 const TEST_IMAGE_TAG = `pap-agent-agent-${"0".repeat(64)}`;
-
-/** A mirror that opens no file: every `session_append` is refused, and the worker with it (T9b replaces it). */
-const refusingMirrors = (papHome: string): MirrorInputs => ({
-  inputFor: (row) => ({
-    sessionFile: mirrorFileOf(papHome, row),
-    sessionsDir: "",
-    mirrorFor: () => "refused",
-    sent: () => {},
-  }),
-});
 
 /**
  * `PAP_AGENTS_RUNTIME=vm` (T8a): the launch tokens, the gateway, the runtime and the agents' launcher. The gateway listens
@@ -134,6 +133,26 @@ export async function composeAgentsVm(
     });
     imageOf = runtime.imageOf;
     await runtime.stopAll();
+    let hooks: MirrorHooks = {
+      notice: (sessionId) => agentsLogger.warn("agent_mirror_notice_unbound", { sessionId }),
+      taint: (sessionId) => agentsLogger.error("agent_mirror_taint_unbound", { sessionId }),
+      canWrite: () => true,
+    };
+    const own =
+      seams.mirrors === undefined
+        ? createMirrorInputs({
+            papHome: config.home,
+            clock,
+            logger: agentsLogger,
+            minFreeDiskMb: config.minFreeDiskMb,
+            notice: (sessionId, text) => hooks.notice(sessionId, text),
+            taint: (sessionId) => hooks.taint(sessionId),
+            canWrite: () => hooks.canWrite(),
+          })
+        : null;
+    const mirrors: MirrorInputs = seams.mirrors ?? (own as NonNullable<typeof own>);
+    own?.start();
+    if (own) closers.push({ name: "agent_mirrors", close: () => own.close() });
     closers.push({
       name: "agent_vm",
       close: async () => {
@@ -155,10 +174,14 @@ export async function composeAgentsVm(
         papHome: config.home,
         layoutOf: vmLayoutOf,
         imageTagOf: seams.imageTagOf ?? (() => TEST_IMAGE_TAG),
-        mirrors: seams.mirrors ?? refusingMirrors(config.home),
+        mirrors,
         logger: agentsLogger,
       }),
       vmLayoutOf,
+      mirrors,
+      bindMirrorHooks(next) {
+        hooks = next;
+      },
       agentRunsInVm: () => true,
       resourceHost: () => ({ memoryCapMb: config.agentsMemoryMaxMb, cores: availableParallelism() }),
       gatewayPort: port,

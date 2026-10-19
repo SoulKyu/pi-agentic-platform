@@ -1,4 +1,6 @@
+import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { connect } from "node:net";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AGENT_VM_PROTOCOL, DEFAULT_AGENT_RESOURCES, encodeSocketFrame } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -23,6 +25,7 @@ const config = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore["conf
   testAgentRuntime: "process",
   testProviderScript: "/script.json",
   workerIdleMs: 0,
+  minFreeDiskMb: 0,
   ...extra,
 });
 const core = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore => ({
@@ -150,6 +153,73 @@ describe("composeAgentsVm in vm mode", () => {
     await vi.waitFor(() => expect(vm.runtime.phase(ID)).toBe("running"));
     await Promise.all(closers.splice(0).map((closer) => closer.close()));
     await spawning;
+  });
+});
+
+describe("composeAgentsVm's mirrors (T9b)", () => {
+  const FILE = "2026-10-19T10-00-00-000Z_0f6c0f2e.jsonl";
+  const idle = (): AgentRuntimeBackend => ({
+    start: vi.fn(async () => ({ address: "127.0.0.1" })),
+    stop: vi.fn(async () => {}),
+    list: vi.fn(async () => []),
+  });
+  const line = (value: unknown) => `${JSON.stringify(value)}\n`;
+  const header = line({ type: "session", version: 3, id: "hdr00001" });
+  const chunk = (offset: number, text: string, replace = false) => ({
+    type: "session_append" as const,
+    file: FILE,
+    offset,
+    data: Buffer.from(text).toString("base64"),
+    replace,
+  });
+  let home = "";
+  afterEach(() => home && rmSync(home, { recursive: true, force: true }));
+
+  it("composes the real mirrors: a worker's file opens under .mirrors/<agent>/ and takes appends", async () => {
+    home = mkdtempSync(join(tmpdir(), "pap-compose-"));
+    mkdirSync(join(home, "agents", ".mirrors", ID), { recursive: true, mode: 0o700 });
+    const vm = (await compose(core({ home }), { backend: () => idle() })) as AgentsVm;
+    const port = vm.mirrors.inputFor(row({ piPath: null })).mirrorFor(FILE);
+    if (port === "refused") throw new Error("the mirror refused");
+    expect(port.path).toBe(join(home, "agents", ".mirrors", ID, FILE));
+    expect(port.onSessionAppend(chunk(0, header))).toBe("ok");
+    expect(readdirSync(join(home, "agents", ".mirrors", ID))).toEqual([FILE]);
+  });
+
+  it("hands a replacement to the hooks that are bound later: the notice and the taint", async () => {
+    home = mkdtempSync(join(tmpdir(), "pap-compose-"));
+    mkdirSync(join(home, "agents", ".mirrors", ID), { recursive: true, mode: 0o700 });
+    const vm = (await compose(core({ home }), { backend: () => idle() })) as AgentsVm;
+    const seen: string[] = [];
+    vm.bindMirrorHooks({
+      notice: (id, text) => void seen.push(`notice:${id}:${text.slice(0, 10)}`),
+      taint: (id) => void seen.push(`taint:${id}`),
+      canWrite: () => true,
+    });
+    const port = vm.mirrors.inputFor(row({ piPath: null })).mirrorFor(FILE);
+    if (port === "refused") throw new Error("the mirror refused");
+    port.onSessionAppend(chunk(0, header + line({ type: "message", id: "e1" })));
+    port.onSessionAppend(chunk(0, header + line({ type: "message", id: "x1" }), true));
+    expect(seen).toEqual([
+      "notice:0f6c0f2e-1111-4222-8333-444455556666:La VM a ré",
+      "taint:0f6c0f2e-1111-4222-8333-444455556666",
+    ]);
+  });
+
+  it("stops the sweeper of the kept copies when the daemon stops", async () => {
+    home = mkdtempSync(join(tmpdir(), "pap-compose-"));
+    const clock = createFakeClock();
+    const vm = (await compose({ ...core({ home }), clock }, { backend: () => idle() })) as AgentsVm;
+    expect(vm.mirrors).toBeDefined();
+    expect(clock.pending()).toBeGreaterThan(0);
+    for (const closer of closers.splice(0).reverse()) await closer.close();
+    expect(clock.pending()).toBe(0);
+  });
+
+  it("keeps a mirrors seam that a test supplies", async () => {
+    const mirrors = { inputFor: vi.fn(), close: vi.fn() };
+    const vm = (await compose(core(), { backend: () => idle(), mirrors: mirrors as never })) as AgentsVm;
+    expect(vm.mirrors).toBe(mirrors);
   });
 });
 

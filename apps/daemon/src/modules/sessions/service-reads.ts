@@ -14,6 +14,7 @@ import {
   type TranscriptRow,
 } from "@pap/contracts";
 import { cutUnits, MAX_ID_CHARS } from "../../kernel/text.ts";
+import { mirrorFileOf, unverifiedIds } from "../agent-vm/index.ts";
 import { isPiSessionFile } from "./pi-files.ts";
 import type { BranchPage, BranchPathEntry } from "./branch.ts";
 import {
@@ -74,6 +75,8 @@ const textOfResult = (result: unknown): string => {
 export interface SessionReadsDeps {
   readonly store: SessionsStore;
   readonly agentDir: string;
+  /** A VM row's Pi file is its mirror under `<papHome>/agents/.mirrors/<agent id>/` (R23). */
+  readonly papHome: string;
   /** Loads the reader of Pi's session files; the SDK behind it is heavy, so it is asked for when first needed. */
   loadTranscript(): Promise<TranscriptReader>;
   readonly live: ReadonlyMap<string, LiveSession>;
@@ -137,11 +140,25 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
     return loadingTranscript;
   };
 
-  // The file a session is read from: the one it recorded, else the one its worker reported if it is a Pi session file.
-  // A draft's file is read only if it is where Pi keeps session files.
+  // The file a session is read from: the one it recorded, else the one its worker reported if it is a Pi session file or
+  // the mirror of its own agent (a VM session, R23). A draft's file is read only if it is where Pi keeps session files.
   const fileOf = (row: SessionRow, session: LiveSession | undefined): string | null => {
     const reported = session?.piFile();
-    return row.piPath ?? (reported && isPiSessionFile(deps.agentDir, reported) ? reported : null);
+    const trusted =
+      reported &&
+      (isPiSessionFile(deps.agentDir, reported) ||
+        mirrorFileOf(deps.papHome, { piPath: reported, agentId: row.agentId }) !== null);
+    return row.piPath ?? (trusted ? reported : null);
+  };
+  // R32: the user entries of a mirror that pap did not send show as such.
+  const withMarks = (row: SessionRow, file: string | null, page: BranchPage): BranchPage => {
+    if (!file || mirrorFileOf(deps.papHome, { piPath: file, agentId: row.agentId }) === null) return page;
+    const listed = unverifiedIds(file);
+    if (listed.size === 0) return page;
+    const rows = page.rows.map((r) =>
+      r.entryId !== null && listed.has(r.entryId) ? { ...r, unverified: true as const } : r,
+    );
+    return { ...page, rows };
   };
 
   return {
@@ -163,7 +180,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       if (!file) return { rows: [], hasMore: false, oldestEntryId: null, turnsBefore: 0 };
       // The whole file: rows older than the cursor were written before the run that may be going on (R38).
       const { rows, hasMore, oldestEntryId, turnsBefore } = fitPage(
-        reader.page(file, { before, limit: limit ?? DEFAULT_PAGE_ROWS }),
+        withMarks(row, file, reader.page(file, { before, limit: limit ?? DEFAULT_PAGE_ROWS })),
         PAGE_BYTES,
       );
       return { rows, hasMore, oldestEntryId, turnsBefore };
@@ -239,11 +256,15 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
       // worker reported; with none known (a cold session, an id the contract cannot carry) it follows the file's last
       // entry (M2R4).
       const page = file
-        ? transcript.page(file, {
-            leafId: run ? run.leafAtStart : session?.leafId(),
-            upToBytes: run?.baselineBytes,
-            limit: SNAPSHOT_ROWS,
-          })
+        ? withMarks(
+            row,
+            file,
+            transcript.page(file, {
+              leafId: run ? run.leafAtStart : session?.leafId(),
+              upToBytes: run?.baselineBytes,
+              limit: SNAPSHOT_ROWS,
+            }),
+          )
         : EMPTY_PAGE;
       const rows: TranscriptRow[] = [...page.rows, ...(run?.rows ?? [])];
       // Only the three fields of the contract: the page's own rows are not part of it.

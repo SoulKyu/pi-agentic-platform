@@ -111,7 +111,8 @@ export interface SnapshotInput {
 export function fitRow(row: TranscriptRow): { row: TranscriptRow; size: number } {
   const size = sizeOf(row);
   if (size <= ROW_BYTES) return { row, size };
-  const bounded = { entryId: row.entryId, message: placeholderRow(row.message, size) };
+  // `unverified` (R32) survives the bound: a forged user entry too big to show is still shown as forged.
+  const bounded: TranscriptRow = { ...row, message: placeholderRow(row.message, size) };
   return { row: bounded, size: sizeOf(bounded) };
 }
 

@@ -19,7 +19,7 @@
       "entry": ["src/features/appearance/boot-script.js", "vite/*.ts", "sw/sw.ts"]
     },
     "apps/daemon": {
-      "entry": ["src/modules/search/search-thread.ts"],
+      "entry": ["src/modules/search/search-thread.ts", "src/modules/agent-vm/mirror-parse-thread.ts"],
       "ignoreBinaries": ["openssl", "loginctl", "systemd-run", "mkfifo"]
     }
   }

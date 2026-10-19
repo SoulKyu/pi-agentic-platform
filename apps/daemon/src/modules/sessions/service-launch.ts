@@ -75,6 +75,7 @@ export function createLaunch(ctx: LaunchContext) {
     logger: deps.logger,
     hub: deps.hub,
     agentDir: deps.worker.agentDir,
+    papHome: deps.worker.papHome,
     onPolicyRecord: (row, raw) => policyLink.audited(row, raw),
     onTaint: (row, epoch) => policyLink.tainted(row, epoch),
   });

@@ -104,9 +104,18 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
     let outstanding = 0;
     let helloTimer: TimerHandle | undefined;
     let pingTimer: TimerHandle | undefined;
+    // Two reasons to read nothing: the byte window is used up, or a long line is parsed (R32). Resumed when neither holds.
+    let meterPaused = false;
+    let mirrorPaused = false;
     const meter = limits.meter(
-      () => socket.pause(),
-      () => socket.resume(),
+      () => {
+        meterPaused = true;
+        socket.pause();
+      },
+      () => {
+        meterPaused = false;
+        if (!mirrorPaused) socket.resume();
+      },
     );
 
     const close = (): void => {
@@ -143,6 +152,14 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
         return true;
       },
       close,
+      pause() {
+        mirrorPaused = true;
+        socket.pause();
+      },
+      resume() {
+        mirrorPaused = false;
+        if (!meterPaused) socket.resume();
+      },
     };
 
     const tick = (): void => {
@@ -237,8 +254,11 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
     accept,
     listen: () => Promise.reject(new Error("the core has no listener")),
     awaitGuest(launchId) {
+      if (stopped) return Promise.reject(new PapError("worker_failed"));
       const live = guests.get(launchId);
       if (live) return Promise.resolve(live.link);
+      // AVM-E10: a launch has one guest in its lifetime; one that left cannot come back, so nobody waits for it.
+      if (everSeen.has(launchId)) return Promise.reject(new PapError("worker_failed"));
       return new Promise<GuestLink>((resolve, reject) => {
         const waiter: Waiter = { resolve, reject, timer: undefined };
         const mine = waiters.get(launchId) ?? new Set<Waiter>();

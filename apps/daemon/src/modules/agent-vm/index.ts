@@ -1,5 +1,7 @@
 export { createGateway, type Gateway } from "./gateway.ts";
 export { layoutOf } from "./layouts.ts";
+export { removeMirrorFiles, unverifiedIds } from "./mirror-facts.ts";
+export { createMirrorInputs, type MirrorHooks } from "./mirror-inputs.ts";
 export { mirrorFileOf } from "./mirror-paths.ts";
 export { createProcessBackend } from "./process-backend.ts";
 export { type AgentRuntime, type AgentRuntimeBackend, createAgentRuntime, type VmSpec } from "./runtime.ts";

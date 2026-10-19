@@ -178,6 +178,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   const reads = createSessionReads({
     store: deps.store,
     agentDir: deps.worker.agentDir,
+    papHome: deps.worker.papHome,
     loadTranscript: deps.loadTranscript,
     live,
     statusOf,

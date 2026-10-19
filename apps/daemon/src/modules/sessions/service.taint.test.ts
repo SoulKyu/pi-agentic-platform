@@ -131,6 +131,7 @@ describe("which session a taint record belongs to", () => {
       logger,
       hub: { publish: () => {} },
       agentDir: "/a",
+      papHome: "/p",
       onPolicyRecord: () => {},
       onTaint: (_row, epoch) => void told.push(epoch),
     });

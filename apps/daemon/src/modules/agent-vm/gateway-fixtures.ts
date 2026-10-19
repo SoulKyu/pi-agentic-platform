@@ -150,6 +150,7 @@ export const mirrorStub = (path = "/mirrors/s.jsonl"): MirrorPort => ({
   path,
   facts: () => ({ size: 0, lastEntryId: null }),
   onSessionAppend: () => "ok",
+  close: () => {},
 });
 
 export const spawnInput = (overrides: Partial<WorkerSpawnInput> = {}): WorkerSpawnInput => ({

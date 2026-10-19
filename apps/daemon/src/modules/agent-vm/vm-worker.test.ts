@@ -11,7 +11,7 @@ let signals: string[];
 let closed: number;
 let wireOpen: boolean;
 let sentTexts: string[];
-let mirrorResult: ReturnType<MirrorPort["onSessionAppend"]>;
+let mirrorResult: Exclude<ReturnType<MirrorPort["onSessionAppend"]>, Promise<unknown>>;
 let appended: SessionAppend[];
 let worker: VmWorker;
 const log = captureLogger();
@@ -25,6 +25,8 @@ const wire: Wire = {
   close() {
     closed++;
   },
+  pause: () => {},
+  resume: () => {},
 };
 const mirror: MirrorPort = {
   path: "/home/pap/.mirrors/a/s.jsonl",
@@ -33,6 +35,7 @@ const mirror: MirrorPort = {
     appended.push(append);
     return mirrorResult;
   },
+  close: () => {},
 };
 const append = (overrides: Partial<SessionAppend> = {}): SessionAppend => ({
   type: "session_append",

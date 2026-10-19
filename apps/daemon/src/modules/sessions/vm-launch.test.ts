@@ -158,7 +158,8 @@ describe("createVmLaunch (T8a)", () => {
     const bed = setup();
     const r = bed.use(row());
     await bed.vmLaunch.spawn(r, launch(), hostInit(r));
-    expect(bed.inputFor).toHaveBeenCalledWith(r);
+    // The launch's resources go with the row: the mirror's quota is the agent's diskMb (R32).
+    expect(bed.inputFor).toHaveBeenCalledWith(r, launch().input.resources);
     expect(bed.inputs[0]).toMatchObject({ marker: "s1", sessionsDir: vmLayout(r).sessions });
     expect(bed.packages[0]).toEqual(["npm:left-pad"]);
   });

@@ -20,9 +20,9 @@ export const VM_ROOT_VIEW = "read-only" as const;
 const CHECK_RELAY_KEY = "0".repeat(64);
 const CHECK_SLOT = "0".repeat(32);
 
-/** What a VM worker's mirror needs of the sessions module: T9b's inputs of a row (until it lands, a stub that refuses appends). */
+/** What a VM worker's mirror needs of the sessions module: the inputs of a row (T9b); `resources` bound the agent's mirrors (R32). */
 export interface MirrorInputs {
-  inputFor(row: SessionRow): WorkerSpawnInput;
+  inputFor(row: SessionRow, resources?: { readonly diskMb: number }): WorkerSpawnInput;
 }
 
 /** A VM worker, spawned and not yet told its `init`. */
@@ -85,7 +85,7 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
         throw error;
       }
       const spec = specOf(row, launch, deps.imageTagOf(row.agentId));
-      const worker = { ...deps.mirrors.inputFor(row), sessionsDir: layout.sessions };
+      const worker = { ...deps.mirrors.inputFor(row, launch.input.resources), sessionsDir: layout.sessions };
       const started = await deps.runtime.spawn(spec, worker, launch.input.packages);
       const { handle } = started;
       return {

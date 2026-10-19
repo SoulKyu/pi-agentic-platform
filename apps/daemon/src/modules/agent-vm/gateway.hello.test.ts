@@ -257,9 +257,9 @@ describe("workers", () => {
     socket.feed(workerHello(launch, slot, { session: { file: "other.jsonl", lastEntryId: null, size: 0 } }));
     expect(socket.destroyed).toBe(true);
     expect(h.refusals()).toEqual([{ agentId: AGENT, reason: "protocol" }]);
-    const rejected = expect(spawning).rejects.toEqual(new PapError("timeout"));
-    await h.clock.advance(GUEST_BOOT_TIMEOUT_MS);
-    await rejected;
+    // AVM-E10: the refused hello burns the slot and fails the spawn at once, with the worker killed.
+    await expect(spawning).rejects.toEqual(new PapError("worker_failed"));
+    expect(guest.socket.frames().at(-1)).toEqual({ type: "signal", slot, signal: "SIGKILL" });
   });
 
   it("rejects spawnWorker when the guest reports the worker exited before its hello, or the guest goes away", async () => {
