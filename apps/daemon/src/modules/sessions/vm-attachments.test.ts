@@ -14,9 +14,24 @@ import type { z } from "zod";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createFakeClock } from "../../kernel/clock.ts";
 import { createFakeWorker, type FakeWorker } from "../../kernel/testing/fake-worker.ts";
-import { codeOf } from "./testing/helpers.ts";
-import { putAttachments, vmDelivery } from "./vm-attachments.ts";
+import { silentLogger } from "../../kernel/logger.ts";
+import { captureLogger, codeOf } from "./testing/helpers.ts";
+import { putAttachments, readOpened, type VmTarget, vmDelivery } from "./vm-attachments.ts";
 
+/*
+ * Mutants (each was run for real; the case that kills it):
+ * - M1 no size check in putAttachments: "refuses a file over the attachment limit before sending anything".
+ * - M2 no retry on exists: the "retries once on exists" cases.
+ * - M3 no name sanitising: "makes a name the schema refuses one it accepts".
+ * - M4 no vmTargets.set (service.vm-attachments.test.ts): both service cases.
+ * - M5 open without O_NOFOLLOW: "a good file then a link/folder/oversize file leaves puts empty".
+ * - M6 ignore the worker's result: the failure-code cases.
+ * - M7 timeout never fires: "fails the prompt when a chunk is never answered".
+ * - M8 validate while sending (read+put one at a time): "a good file then a link/folder/oversize file leaves puts empty".
+ * - M9 no shrink check: "refuses a file that shrank".
+ * - M10 suffix keeps a long extension: "keeps the retry name inside the schema with a very long extension".
+ * - M11 listener never removed: "stops listening".
+ */
 type Put = z.infer<typeof FilePut>;
 const INBOX = "/agent/inbox";
 const clock = createFakeClock();
@@ -25,6 +40,12 @@ const nth = <T>(items: readonly T[], index: number): T => {
   if (item === undefined) throw new Error(`no item ${index}`);
   return item;
 };
+const target = (worker: FakeWorker, logger: VmTarget["logger"] = silentLogger): VmTarget => ({
+  handle: worker,
+  inbox: INBOX,
+  clock,
+  logger,
+});
 const puts = (worker: FakeWorker): Put[] =>
   worker.sent.filter((record): record is Put & DaemonToWorker => record.type === "file_put");
 
@@ -194,15 +215,63 @@ describe("putAttachments (R33)", () => {
     expect(await done).toBe("prompt_rejected");
   });
 
+  it("gives the second of two names that sanitise alike the suffix, keeping its extension", async () => {
+    const taken = new Set<string>();
+    const worker = workerAnswering((frame) => {
+      if (taken.has(frame.name)) return { ok: false, code: "exists" };
+      taken.add(frame.name);
+      return {};
+    });
+    const paths = await put(worker, [
+      { name: "a b.txt", bytes: Buffer.from("1") },
+      { name: "a_b.txt", bytes: Buffer.from("2") },
+    ]);
+    expect(paths[0]).toBe(`${INBOX}/a_b.txt`);
+    expect(paths[1]).toMatch(/^\/agent\/inbox\/a_b-[0-9a-f]{4}\.txt$/);
+  });
+
+  it("keeps the retry name inside the schema with a very long extension", async () => {
+    const name = `a.${"e".repeat(125)}`;
+    let first = true;
+    const worker = createFakeWorker({
+      onSend: (record) => {
+        if (record.type !== "file_put") return;
+        const exists = first;
+        first = false;
+        queueMicrotask(() =>
+          worker.emit({
+            type: "file_put_result",
+            id: record.id,
+            ok: !exists,
+            ...(exists ? { code: "exists" as const } : {}),
+          }),
+        );
+      },
+    });
+    await put(worker, [{ name, bytes: Buffer.from("x") }]);
+    const retried = nth(puts(worker), 1);
+    expect(FilePut.safeParse(retried).success).toBe(true);
+    expect(retried.name).toMatch(/-[0-9a-f]{4}/);
+  });
+
   it("fails the prompt when a chunk is never answered, and stops listening", async () => {
     const worker = createFakeWorker();
+    let listening = 0;
+    const subscribe = worker.onRecord.bind(worker);
+    worker.onRecord = (listener) => {
+      listening++;
+      const off = subscribe(listener);
+      return () => {
+        listening--;
+        off();
+      };
+    };
     const done = codeOf(put(worker, [{ name: "a.txt", bytes: Buffer.from("x") }]));
     await Promise.resolve();
+    expect(listening).toBe(1);
     await clock.advance(60_000);
     expect(await done).toBe("prompt_rejected");
-    expect(() =>
-      worker.emit({ type: "file_put_result", id: nth(puts(worker), 0).id, ok: true }),
-    ).not.toThrow();
+    expect(listening).toBe(0);
   });
 });
 
@@ -227,7 +296,7 @@ describe("vmDelivery", () => {
       images: [{ id: "-img12345678901234567", path: photo, mimeType: "image/png" as const }],
       files: [file("notes.txt")],
     };
-    const sent = await vmDelivery("look", claimed, announce)({ handle: worker, inbox: INBOX, clock });
+    const sent = await vmDelivery("look", claimed, announce)(target(worker));
     const names = puts(worker).map((frame) => frame.name);
     expect(names).toHaveLength(2);
     expect(sent.images).toEqual([{ path: `${INBOX}/${names[0]}`, mimeType: "image/png" }]);
@@ -238,30 +307,79 @@ describe("vmDelivery", () => {
 
   it("sends no images field without images", async () => {
     const worker = workerAnswering();
-    const sent = await vmDelivery(
-      "t",
-      { images: [], files: [file("a.txt")] },
-      announce,
-    )({ handle: worker, inbox: INBOX, clock });
+    const sent = await vmDelivery("t", { images: [], files: [file("a.txt")] }, announce)(target(worker));
     expect(sent.images).toBeUndefined();
   });
 
   it("refuses a symbolic link, a folder and a file over the limit, sending nothing for them", async () => {
     const worker = workerAnswering();
-    const target = file("real.txt");
+    const real = file("real.txt");
     const link = join(dir, "link.txt");
-    symlinkSync(target.path, link);
+    symlinkSync(real.path, link);
     const folder = join(dir, "folder");
     mkdirSync(folder);
     const huge = file("huge.bin", "");
     truncateSync(huge.path, FILE_LIMITS.uploadBytes + 1);
     for (const path of [link, folder, huge.path]) {
       const claimed = { images: [], files: [{ id: "f".repeat(22), path, name: "x.txt", size: 1 }] };
-      expect(
-        await codeOf(vmDelivery("t", claimed, announce)({ handle: worker, inbox: INBOX, clock })),
-        path,
-      ).toBe("prompt_rejected");
+      expect(await codeOf(vmDelivery("t", claimed, announce)(target(worker))), path).toBe("prompt_rejected");
     }
     expect(puts(worker)).toHaveLength(0);
+  });
+  it("a good file followed by a link, a folder or an oversize file leaves puts empty", async () => {
+    const real = file("real.txt");
+    const link = join(dir, "link.txt");
+    symlinkSync(real.path, link);
+    const folder = join(dir, "folder");
+    mkdirSync(folder);
+    const huge = file("huge.bin", "");
+    truncateSync(huge.path, FILE_LIMITS.uploadBytes + 1);
+    for (const bad of [link, folder, huge.path]) {
+      const worker = workerAnswering();
+      const claimed = {
+        images: [],
+        files: [file("good.txt"), { id: "f".repeat(22), path: bad, name: "bad.txt", size: 1 }],
+      };
+      expect(await codeOf(vmDelivery("t", claimed, announce)(target(worker))), bad).toBe("prompt_rejected");
+      expect(puts(worker), bad).toHaveLength(0);
+    }
+  });
+
+  it("logs the class of a refused open and never the path", async () => {
+    const logs = captureLogger();
+    const worker = workerAnswering();
+    const link = join(dir, "secret-link.txt");
+    symlinkSync(file("real.txt").path, link);
+    const missing = join(dir, "secret-missing.txt");
+    for (const path of [link, missing]) {
+      const claimed = { images: [], files: [{ id: "f".repeat(22), path, name: "x.txt", size: 1 }] };
+      await codeOf(vmDelivery("t", claimed, announce)(target(worker, logs.logger)));
+    }
+    const text = JSON.stringify(logs.lines);
+    expect(text).toContain('"link"');
+    expect(text).toContain('"missing"');
+    expect(text).not.toContain("secret-");
+    expect(text).not.toContain(dir);
+  });
+
+  it("refuses a file that shrank between the check and the read", async () => {
+    const logs = captureLogger();
+    let calls = 0;
+    const shrunk = { handle: { read: async () => ({ bytesRead: calls++ === 0 ? 3 : 0 }) } as never, size: 5 };
+    expect(await codeOf(readOpened(shrunk, logs.logger))).toBe("prompt_rejected");
+    expect(JSON.stringify(logs.lines)).toContain("shrunk");
+  });
+
+  it("logs a worker refusal and leaves the files already sent", async () => {
+    const logs = captureLogger();
+    const worker = workerAnswering((frame) =>
+      frame.name === "two.txt" ? { ok: false, code: "write_failed" } : {},
+    );
+    const claimed = { images: [], files: [file("one.txt"), file("two.txt")] };
+    expect(await codeOf(vmDelivery("t", claimed, announce)(target(worker, logs.logger)))).toBe(
+      "prompt_rejected",
+    );
+    expect(puts(worker).map((frame) => frame.name)).toEqual(["one.txt", "two.txt"]);
+    expect(JSON.stringify(logs.lines)).toContain("worker");
   });
 });

@@ -244,7 +244,7 @@ export function createLaunch(ctx: LaunchContext) {
       },
       init,
     );
-    if (init.vm) vmTargets.set(session, { handle, inbox: init.vm.layout.inbox, clock: deps.clock });
+    if (init.vm) vmTargets.set(session, { handle, inbox: init.vm.layout.inbox, clock: deps.clock, logger });
     bridgePlatform(handle, row, ctx.agent, logger);
     // The scope is the start-time snapshot of the rules this worker got (W5-R26); an owner session has none and is refused.
     bridgeEgress(
