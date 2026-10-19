@@ -1,0 +1,181 @@
+import {
+  type DaemonToWorker,
+  type PackagePicks as PackagePicksSchema,
+  SessionAppend,
+  type SessionResync as SessionResyncSchema,
+} from "@pap/contracts";
+import type { z } from "zod";
+import type { Clock } from "../../kernel/clock.ts";
+import type { Logger } from "../../kernel/logger.ts";
+import { classifyExit, type WorkerExit } from "../../kernel/supervisor/exit.ts";
+import { killLadder, WORKER_SHUTDOWN_GRACE_MS } from "../../kernel/supervisor/kill-ladder.ts";
+import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
+import { createWorkerCore } from "../../kernel/supervisor/worker-core.ts";
+import { boundedOutbound, requestTimeoutMs } from "../../kernel/supervisor/worker-io.ts";
+
+export type PackagePicks = z.infer<typeof PackagePicksSchema>;
+type SessionResync = z.infer<typeof SessionResyncSchema>;
+
+/** One end of an accepted connection, as the guest link and the worker handles use it. */
+export interface Wire {
+  /** Encodes and writes one frame. False when it cannot be sent (closed, over the frame bound, a peer that never reads); never throws. */
+  send(frame: unknown): boolean;
+  close(): void;
+}
+
+/** What a worker's handle needs to keep its session mirror (T9b implements it). */
+export interface WorkerSpawnInput {
+  /** The VM file the guest names at spawn (a reopen), as a basename, or null (a new session). */
+  readonly sessionFile: string | null;
+  /** The VM's sessions folder: the spawn command names the file by its absolute path. */
+  readonly sessionsDir: string;
+  /** The mirror of `file`, opened at the hello (a reopen) or at the first `session_append` (a new session, R28). */
+  mirrorFor(file: string): MirrorPort | "refused";
+  /** Every prompt, steer and follow-up text sent to this worker (R32). */
+  sent(text: string): void;
+}
+export interface MirrorPort {
+  /** Where the mirror lives on the host: what `piFile()` answers. */
+  readonly path: string;
+  facts(): { size: number; lastEntryId: string | null };
+  onSessionAppend(append: SessionAppend): "ok" | { resync: SessionResync } | "refused";
+}
+
+export interface VmWorkerHandle extends WorkerHandle {
+  /** The mirror's path once it is open. */
+  piFile(): string | null;
+}
+
+export interface VmWorker {
+  readonly handle: VmWorkerHandle;
+  /** One frame from the worker's connection (not a ping or pong). */
+  receive(raw: unknown): void;
+  /** The worker's connection closed. */
+  wireClosed(): void;
+  /** The guest reported the worker's process ended. */
+  guestExited(exit: WorkerExit, tail: string): void;
+}
+
+export function createVmWorker(deps: {
+  clock: Clock;
+  logger: Logger;
+  label: Record<string, unknown>;
+  input: WorkerSpawnInput;
+  wire: Wire;
+  /** What the worker's hello said about its session file. */
+  reported: { file: string | null; size: number; lastEntryId: string | null };
+  /** The mirror opened for `reported.file` at the hello, or null. */
+  mirror: MirrorPort | null;
+  /** A signal to the worker's process through the guest. */
+  signal(signal: "SIGTERM" | "SIGKILL"): void;
+}): VmWorker {
+  const { clock, logger, label, input, wire } = deps;
+  const core = createWorkerCore({ clock, logger, label });
+  let mirror = deps.mirror;
+  let mirrorFile = mirror ? deps.reported.file : null;
+  let alive = true;
+  let tail = "";
+  let stopping: Promise<WorkerExit> | undefined;
+  let resolveExited: (exit: WorkerExit) => void = () => {};
+  const exited = new Promise<WorkerExit>((resolve) => {
+    resolveExited = resolve;
+  });
+
+  const finish = (exit: WorkerExit): void => {
+    if (!alive) return;
+    alive = false;
+    core.failPending();
+    resolveExited(exit);
+  };
+  const end = (exit: WorkerExit): void => {
+    if (!alive) return;
+    finish(exit);
+    wire.close();
+  };
+  const refuse = (reason: string): void => {
+    logger.warn("agent_vm_mirror_refused", { ...label, reason });
+    deps.signal("SIGKILL");
+    end(classifyExit(null, null));
+  };
+
+  const send = (record: DaemonToWorker): boolean => {
+    if (!alive) return false;
+    try {
+      if (record.type === "prompt") input.sent(record.message);
+      return wire.send(boundedOutbound(record));
+    } catch (error) {
+      logger.warn("agent_vm_send_failed", { ...label, err: error });
+      return false;
+    }
+  };
+
+  const append = (record: SessionAppend): void => {
+    if (mirrorFile !== null && record.file !== mirrorFile) return refuse("file");
+    if (mirror === null) {
+      const opened = input.mirrorFor(record.file);
+      if (opened === "refused") return refuse("mirror");
+      mirror = opened;
+      mirrorFile = record.file;
+    }
+    const result = mirror.onSessionAppend(record);
+    if (result === "ok") return;
+    if (result === "refused") return refuse("append");
+    send(result.resync);
+  };
+
+  if (mirror) {
+    const facts = mirror.facts();
+    if (facts.size !== deps.reported.size || facts.lastEntryId !== deps.reported.lastEntryId) {
+      send({ type: "session_resync", fromOffset: facts.size, lastEntryId: facts.lastEntryId });
+    }
+  }
+
+  function stop(): Promise<WorkerExit> {
+    if (!alive) return exited;
+    stopping ??= killLadder(
+      {
+        shutdown: () => void send({ type: "shutdown", graceMs: WORKER_SHUTDOWN_GRACE_MS }),
+        signal: (signal) => {
+          deps.signal(signal);
+          return true;
+        },
+        exited,
+      },
+      clock,
+    ).then((exit) => {
+      end(exit);
+      return exited;
+    });
+    return stopping;
+  }
+
+  const handle: VmWorkerHandle = {
+    pid: undefined,
+    exited,
+    send,
+    request: (command, timeoutMs = requestTimeoutMs(command)) => core.request(command, timeoutMs, send),
+    onRecord: core.onRecord,
+    stop,
+    outputTail: () => tail,
+    stats: core.stats,
+    piFile: () => mirror?.path ?? null,
+  };
+
+  return {
+    handle,
+    receive(raw) {
+      if (!alive) return;
+      if (typeof raw === "object" && raw !== null && (raw as { type?: unknown }).type === "session_append") {
+        const parsed = SessionAppend.safeParse(raw);
+        if (parsed.success) return append(parsed.data);
+      }
+      core.receive(raw);
+    },
+    wireClosed: () => finish(classifyExit(null, null)),
+    guestExited(exit, text) {
+      if (!alive) return;
+      tail = text;
+      end(exit);
+    },
+  };
+}
