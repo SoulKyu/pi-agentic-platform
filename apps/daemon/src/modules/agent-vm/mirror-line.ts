@@ -3,8 +3,6 @@ import { MAX_SESSION_LINE_BYTES } from "@pap/contracts";
 
 /** RT-27: a line up to this size is parsed on the event loop; a longer one in the mirror's parse thread, one at a time. */
 export const INLINE_PARSE_BYTES = 1024 * 1024;
-/** Pi writes `type` and `id` first: the id of a line is read from its first bytes when it is there. */
-export const HEAD_BYTES = 512;
 export type MirrorRefusal =
   "offset" | "line_too_large" | "not_json" | "not_entry" | "no_header" | "duplicate_id" | "file" | "quota";
 
@@ -44,7 +42,7 @@ export function userTextOf(message: unknown): string | null {
  * a control character) is not a Pi id, and could not be told apart in the unverified list or survive a round trip.
  */
 export const ENTRY_ID = /^[A-Za-z0-9._:-]{1,128}$/;
-/** The header is small; a longer first line is not one the mirror keeps (its id is read by a bounded parse at open). */
+/** The header is small; a longer first line is not one the mirror keeps. */
 export const HEADER_MAX_BYTES = 64 * 1024;
 
 const validId = (id: unknown): id is string => typeof id === "string" && ENTRY_ID.test(id);
@@ -77,17 +75,6 @@ export function checkMirrorLine(line: Buffer, first: boolean): Checked {
     return { ok: false, reason: "not_json" };
   }
   return entryFacts(value, first);
-}
-
-const HEAD_ID = /^\{"type":"[^"\\]{1,64}","id":"([A-Za-z0-9._:-]{1,128})"/;
-
-/**
- * The id as the open scan reads it, from the first bytes of the line (where Pi writes `type` then `id`), or null when it
- * is not there. JSON.parse keeps the LAST of two `id` keys, this reads the first: the mirror refuses a line whose id is not
- * exactly this one, so an id is the same at append and at open and the open scan never parses a line (R32, AVM-E23).
- */
-export function headIdOf(line: Buffer): string | null {
-  return HEAD_ID.exec(line.subarray(0, HEAD_BYTES).toString("utf8"))?.[1] ?? null;
 }
 
 /**

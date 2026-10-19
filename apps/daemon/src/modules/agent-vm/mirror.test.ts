@@ -283,22 +283,54 @@ describe("a long line (R32, Review Focus 1)", () => {
   });
 });
 
-// Mutant M-HEAD-OPTIONAL: take a line whose id is not where the open scan reads it (the old "parse at open" fallback): killed
-// by the next two cases (AVM-E23).
-describe("the id must be where the open scan reads it (AVM-E23)", () => {
-  it("refuses a line whose id is after the first 512 bytes, or before its type", () => {
+// Mutant M-ESCAPED-KEY-ACCEPTED: take a line the byte scan cannot vouch for (`topLevelIdOf(line) ?? id`): killed by the
+// escaped-key and duplicate-key cases (AVM-E27). Mutant M-NESTED-TAKEN and M-DUP-ACCEPTED are in mirror-id.test.ts.
+describe("the id the parse gave must be the top-level id the byte scan finds (AVM-E27)", () => {
+  const lineWith = (id: string, rest: string) => `{"type":"custom",${rest}"id":"${id}"}\n`;
+
+  it("takes an id wherever Pi writes it: after the data, before the type, after 512 bytes", () => {
     fresh();
     const mirror = open();
     mirror.onSessionAppend(appendOf(0, HEADER));
+    const custom = `${JSON.stringify({ type: "custom", customType: "pap:memory-trust", data: { id: "nested", k: 1 }, id: "c1", parentId: null })}\n`;
     const late = `${JSON.stringify({ type: "custom", pad: "x".repeat(700), id: "late1" })}\n`;
-    expect(mirror.onSessionAppend(appendOf(HEADER.length, late))).toBe("refused");
-    expect(refusals().at(-1)?.reason).toBe("not_entry");
-    const other = open();
     const idFirst = `${JSON.stringify({ id: "first1", type: "custom" })}\n`;
-    expect(other.onSessionAppend(appendOf(HEADER.length, idFirst))).toBe("refused");
+    expect(mirror.onSessionAppend(appendOf(HEADER.length, custom + late + idFirst))).toBe("ok");
+    expect(mirror.facts().lastEntryId).toBe("first1");
+  });
+
+  it("refuses a line with two top-level ids (the parse keeps the last, a scan the first)", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, HEADER));
+    expect(mirror.onSessionAppend(appendOf(HEADER.length, lineWith("e1", '"id":"e1x",')))).toBe("refused");
+    expect(refusals().at(-1)?.reason).toBe("not_entry");
+  });
+
+  it("refuses a line whose id key is escaped (the parse reads it as id, a scan cannot)", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, HEADER));
+    expect(mirror.onSessionAppend(appendOf(HEADER.length, '{"type":"custom","\\u0069d":"e9"}\n'))).toBe(
+      "refused",
+    );
+    expect(refusals().at(-1)?.reason).toBe("not_entry");
     expect(fileText()).toBe(HEADER);
   });
 
+  it("does not take an id nested in data for the line's own", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(
+      appendOf(0, HEADER + `${JSON.stringify({ type: "custom", id: "real1", data: { id: "nested1" } })}\n`),
+    );
+    // The nested id is no entry's: a later entry may use it, a repeat of the real one is a duplicate.
+    expect(mirror.onSessionAppend(appendOf(mirror.facts().size, entry("nested1")))).toBe("ok");
+    expect(mirror.onSessionAppend(appendOf(mirror.facts().size, entry("real1")))).toBe("refused");
+  });
+});
+
+describe("the cap on ids and the open scan (AVM-E23, AVM-E27)", () => {
   // Mutant M-IDCAP: no cap on ids: killed here.
   it("refuses `quota` past the cap on ids per file, with the notice", () => {
     fresh();

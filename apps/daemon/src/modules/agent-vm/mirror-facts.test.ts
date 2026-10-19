@@ -94,16 +94,17 @@ describe("scanMirror: ids come from each line's first 512 bytes", () => {
     expect(scanned.lastEntryId).toBe("e2");
   });
 
-  // Mutant M-OPEN-PARSE: parse the lines whose head has no id (the old scan): killed by the next case (a long line is parsed).
-  it("never parses a line at open, however long: only the small header is parsed (AVM-E23)", () => {
+  // Mutant M-OPEN-PARSE: parse (or fall back to parsing) a line at open: killed by the spy, which sees no parse at all.
+  it("never parses anything at open, whatever the line: ids come from the byte scan (AVM-E27)", () => {
     fresh();
+    const custom = `${JSON.stringify({ type: "custom", customType: "x", data: { id: "nested" }, id: "c1" })}\n`;
     const late = `${JSON.stringify({ type: "custom", pad: "x".repeat(700), id: "late1" })}\n`;
-    writeFileSync(bed.path, HEADER + imageEntry("img1", 3 * 1024 * 1024) + late + entry("e2"));
+    writeFileSync(bed.path, HEADER + imageEntry("img1", 3 * 1024 * 1024) + custom + late + entry("e2"));
     const parse = vi.spyOn(JSON, "parse");
     try {
       const scanned = scan(bed.path);
-      expect(parse.mock.calls.map(([text]) => String(text).length)).toEqual([HEADER.length - 1]);
-      expect([...scanned.ids].sort()).toEqual(["e2", "hdr00001", "img1"]);
+      expect(parse).not.toHaveBeenCalled();
+      expect([...scanned.ids].sort()).toEqual(["c1", "e2", "hdr00001", "img1", "late1"]);
       expect(scanned.lastEntryId).toBe("e2");
     } finally {
       parse.mockRestore();

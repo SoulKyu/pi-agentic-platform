@@ -18,11 +18,11 @@ import {
   type Checked,
   checkMirrorLine,
   HEADER_MAX_BYTES,
-  headIdOf,
   INLINE_PARSE_BYTES,
   type MirrorRefusal,
   type Provenance,
 } from "./mirror-line.ts";
+import { topLevelIdOf } from "./mirror-id.ts";
 import type { LineParser } from "./mirror-parse.ts";
 import type { Quota } from "./mirror-quota.ts";
 import type { AppendResult, MirrorPort } from "./vm-worker.ts";
@@ -210,9 +210,9 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
     if (!checked.ok) return refuse(checked.reason);
     const { id, userText, headerId } = checked.facts;
     if (id === null && line.length > HEADER_MAX_BYTES) return refuse("line_too_large");
-    // AVM-E23: the id must be exactly where the open scan reads it, so no line is ever parsed at open and JSON.parse's
-    // last-key-wins cannot give a line two ids.
-    if (id !== null && headIdOf(line) !== id) return refuse("not_entry");
+    // AVM-E27: the id JSON.parse gave must be the one the byte scanner finds at the top level (so the open scan, which only
+    // scans, reads the same id, and a duplicate `id` key or an `id` nested in `data` cannot give a line two).
+    if (id !== null && topLevelIdOf(line) !== id) return refuse("not_entry");
     const entryId = id ?? headerId;
     if (entryId !== null) {
       if (ids.has(entryId) || staged.ids.has(entryId)) return refuse("duplicate_id");

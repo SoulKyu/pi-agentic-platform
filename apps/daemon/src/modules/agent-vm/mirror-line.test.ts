@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import {
   checkMirrorLine,
   createProvenance,
-  headIdOf,
   INLINE_PARSE_BYTES,
   promptHash,
   userTextOf,
@@ -120,17 +119,6 @@ describe("checkMirrorLine (R1, R32)", () => {
       ok: false,
       reason: "line_too_large",
     });
-  });
-});
-
-describe("headIdOf", () => {
-  it("reads the id where Pi writes it, right after the type", () => {
-    expect(headIdOf(Buffer.from('{"type":"message","id":"a1b2","parentId":null}'))).toBe("a1b2");
-  });
-  it("is null when the id is not in the first 512 bytes, or not right after the type", () => {
-    expect(headIdOf(Buffer.from(`{"type":"message","pad":"${"x".repeat(600)}","id":"a1"}`))).toBeNull();
-    expect(headIdOf(Buffer.from('{"id":"a1","type":"message"}'))).toBeNull();
-    expect(headIdOf(Buffer.from('{"type":"session","version":3,"id":"h"}'))).toBeNull();
   });
 });
 

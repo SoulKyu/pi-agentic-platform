@@ -1,6 +1,7 @@
 import { closeSync, constants, fstatSync, ftruncateSync, readSync, rmSync } from "node:fs";
 import { existsNoFollow, openPrivate } from "./mirror-files.ts";
-import { ENTRY_ID, HEAD_BYTES, HEADER_MAX_BYTES, headIdOf } from "./mirror-line.ts";
+import { ENTRY_ID } from "./mirror-line.ts";
+import { createIdScanner } from "./mirror-id.ts";
 
 export interface MirrorScan {
   /** The bytes of the complete lines: the size the worker is told, and the offset of the next append. */
@@ -19,51 +20,28 @@ const NEWLINE = 0x0a;
 /** A copy that holds no reference to the 512-byte head it was cut from. */
 const flat = (id: string): string => Buffer.from(id, "latin1").toString("latin1");
 
-function headerIdOf(text: Buffer): string | null {
-  try {
-    const { id } = JSON.parse(text.toString("utf8")) as { id?: unknown };
-    return typeof id === "string" && ENTRY_ID.test(id) ? flat(id) : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Reads the mirror's file once: the id of each line from its first 512 bytes, where the mirror required Pi's `type` and `id`
- * to be (AVM-E23: no line is ever parsed here but the small header). The end of the last complete line is the size; a partial
- * last line, left by a crash, is cut off the file (Review Focus 5). Throws past `maxIds` ids. `fd` is open for reading and writing.
+ * Reads the mirror's file once: the top-level id of each line from a byte scan that never parses (AVM-E27), so no line costs
+ * the event loop more than a pass over its bytes, however long. The end of the last complete line is the size; a partial last
+ * line, left by a crash, is cut off the file (Review Focus 5). Throws past `maxIds` ids. `fd` is open for reading and writing.
  */
 export function scanMirror(fd: number, maxIds = MAX_MIRROR_IDS): MirrorScan {
   const ids = new Set<string>();
   let lastEntryId: string | null = null;
   const block = Buffer.allocUnsafe(BLOCK_BYTES);
-  let first = true;
-  let head: Buffer[] = [];
-  let headLength = 0;
+  let scanner = createIdScanner();
   let lineBytes = 0;
   let lineEnd = 0;
 
   const finishLine = (): void => {
-    const text = Buffer.concat(head);
-    const id = first ? (lineBytes <= HEADER_MAX_BYTES ? headerIdOf(text) : null) : headIdOf(text);
-    first = false;
+    const id = scanner.result();
     if (id !== null) {
       ids.add(flat(id));
       if (ids.size > maxIds) throw new Error("the mirror holds too many entries");
       lastEntryId = flat(id);
     }
-    head = [];
-    headLength = 0;
+    scanner = createIdScanner();
     lineBytes = 0;
-  };
-  const feed = (segment: Buffer): void => {
-    lineBytes += segment.length;
-    // The header is read whole (bounded), every other line by its head.
-    const room = (first ? HEADER_MAX_BYTES : HEAD_BYTES) - headLength;
-    if (room <= 0) return;
-    const take = segment.subarray(0, room);
-    head.push(Buffer.from(take));
-    headLength += take.length;
   };
 
   for (let position = 0; ;) {
@@ -73,7 +51,9 @@ export function scanMirror(fd: number, maxIds = MAX_MIRROR_IDS): MirrorScan {
     let from = 0;
     while (from < read) {
       const newline = filled.indexOf(NEWLINE, from);
-      feed(filled.subarray(from, newline < 0 ? read : newline));
+      const segment = filled.subarray(from, newline < 0 ? read : newline);
+      scanner.feed(segment);
+      lineBytes += segment.length;
       if (newline < 0) break;
       finishLine();
       lineEnd = position + newline + 1;
