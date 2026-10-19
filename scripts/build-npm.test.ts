@@ -211,6 +211,7 @@ describe("buildNpm", () => {
     expect(piHost.exports).toEqual({
       ".": { default: "./dist/main.js" },
       "./helper": { default: "./dist/helper/main.js" },
+      "./guest": { default: "./dist/guest/main.js" },
     });
   });
 
