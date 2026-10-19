@@ -36,6 +36,7 @@ import type { SessionsChildPort } from "./child-port.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+import type { VmLaunch } from "./vm-launch.ts";
 
 export { agentHomeOf } from "./agent-home.ts";
 export { resolveSessionCwd } from "./cwd.ts";
@@ -46,6 +47,8 @@ export type { ChildProfile, SessionsChildPort } from "./child-port.ts";
 export type { Admission } from "./fork-quota.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
+export type { SessionRow } from "./store.ts";
+export { createVmLaunch, type MirrorInputs, taskKeyOf, type VmLaunch } from "./vm-launch.ts";
 export type { LaneRunHooks, LaneRunInfo } from "./lane-hooks.ts";
 export type { SessionsLanePort } from "./lane-port.ts";
 
@@ -83,6 +86,8 @@ export interface SessionsModuleDeps {
   readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
   readonly scopes: WorkerScopes;
+  /** `PAP_AGENTS_RUNTIME=vm` only (T8a): the agents' sessions start in their VMs through it. */
+  readonly vmLaunch?: VmLaunch | undefined;
   /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
   ownerId(): string | null;
   /** Once per adopted row, after its insert (agreement 8); M5 wires it to the taint of adopted sessions. */
@@ -207,6 +212,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     ...(deps.runs ? { runs: deps.runs } : {}),
+    ...(deps.vmLaunch ? { vmLaunch: deps.vmLaunch } : {}),
     admission: createAdmission({
       clock: deps.clock,
       logger,

@@ -38,6 +38,7 @@ import type { SessionCommands } from "./service-commands.ts";
 import type { SessionModels } from "./service-models.ts";
 import type { SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
+import type { VmLaunch } from "./vm-launch.ts";
 
 export interface SessionsServiceDeps {
   readonly store: SessionsStore;
@@ -86,6 +87,8 @@ export interface SessionsServiceDeps {
   readonly runs?: RunObserver;
   /** The fork cap and the free-disk floor (M10R100, M10R101); the daemon always gives it. */
   readonly admission?: Admission;
+  /** Present under `PAP_AGENTS_RUNTIME=vm` only (T8a): the agents' sessions start in their VMs through it. */
+  readonly vmLaunch?: VmLaunch;
 }
 
 export interface PromptInput {

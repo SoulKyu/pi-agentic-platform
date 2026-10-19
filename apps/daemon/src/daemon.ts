@@ -2,6 +2,7 @@ import type { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { HandlerTable } from "@pap/contracts";
 import { agentsVmRpcStub } from "./agents-vm-rpc-stub.ts";
+import { type AgentsVmSeams, composeAgentsVm } from "./compose-agents-vm.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createWsProbe } from "./compose-ws-probe.ts";
 import { composeFonts, type Fetcher } from "./compose-fonts.ts";
@@ -77,6 +78,7 @@ export interface DaemonDeps {
   readonly sandboxSpawn?: typeof spawn;
   readonly push?: PushSeams; // tests only: replaces the transport side
   readonly fontsFetcher?: Fetcher; // tests only: replaces the Google Fonts fetcher
+  readonly agentsVm?: AgentsVmSeams; // PAP_AGENTS_RUNTIME=vm: the guest seam, T9b's mirrors (J1)
 }
 
 /**
@@ -158,6 +160,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const hub = createStreamHub(undefined, clock);
     const env = deps.env ?? process.env;
     const core = { db, clock, logger, config, readOnly, hub, env };
+    // In vm mode the gateway listens here, before the server and any worker (RT-35); null in host mode.
+    const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
 
@@ -237,6 +241,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       workerUmask,
       env,
       scopes,
+      vmLaunch: agentsVm?.launch,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
     ownerOf = sessions.ownerOf;
@@ -267,6 +272,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         inbox: m10Late.inbox,
         settings,
         subagents: { pi, sessions },
+        vm: agentsVm,
       },
     );
     const agents = { port: m11.agents };

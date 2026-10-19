@@ -6,6 +6,7 @@ import { layoutOf } from "../agent-vm/index.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
 import { captureLogger, codeOf } from "./testing/helpers.ts";
+import { fakeVmLaunch } from "./testing/fake-vm-launch.ts";
 import { createServiceBed, OWNER } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 import { VM_REFUSALS } from "./vm-rules.ts";
@@ -17,7 +18,7 @@ const logs = captureLogger();
 const build = () =>
   createServiceBed(
     { createSessionsStore, createSessionsService, loadTranscriptReader },
-    { logger: logs.logger },
+    { logger: logs.logger, vmLaunch: fakeVmLaunch },
   );
 afterEach(() => bed.dispose());
 
@@ -29,6 +30,7 @@ async function world(vm: boolean) {
       profileOf: () => ({ input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: false }),
       probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
       vmLayoutOf: () => (vm ? layoutOf("kata", bed.dir, { agentId: ID, taskKey: null }) : null),
+      agentRunsInVm: () => vm,
     },
   });
   return (

@@ -251,7 +251,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       publisher,
       marks,
       room,
-      sandboxed: agent.sandboxed,
+      sandboxed: agent.shellSandboxed,
       removed: (row) => child.removed(row),
     },
     () => self,

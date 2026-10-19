@@ -115,8 +115,19 @@ describe("vmInitOf (R11, R17, RT-06)", () => {
       );
   });
   it("accepts a task's scratch inside the VM", () => {
-    const task = rulesOf({ agentHome: layout.home, agentScratch: layout.home });
+    const task = rulesOf({
+      agentHome: layout.home,
+      agentScratch: layout.home,
+      sandbox: { required: true, network: false },
+    });
     expect(vmInitOf({ ...host, policy: task }, vm, null).policy).toMatchObject({ agentScratch: layout.home });
+  });
+  // Mutant: the `sandbox.required` / `network` check removed from vmRulesOf. Killed by the next two cases.
+  it("refuses rules without the VM's fixed sandbox (T8a): none, not required, or with a network", () => {
+    for (const sandbox of [null, { required: false, network: false }, { required: true, network: true }])
+      expect(() =>
+        vmInitOf({ ...host, policy: rulesOf({ agentHome: layout.home, sandbox }) }, vm, null),
+      ).toThrow(expect.objectContaining({ code: "internal" }));
   });
   it("refuses a mirror file that is not one session file name", () => {
     for (const file of ["../x.jsonl", "a/b.jsonl", "x.json"])

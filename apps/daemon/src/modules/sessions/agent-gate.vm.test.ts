@@ -12,7 +12,7 @@ function deps(vm: boolean) {
     papHome: "/nonexistent/pap",
     agentDir: "/nonexistent/pi",
     profileOf: () => ({ input: AgentInput.parse({ name: "Atlas" }), name: "Atlas", quarantined: false }),
-    runsInVm: () => vm,
+    agentRunsInVm: () => vm,
     probe: {
       ensure: async () => {
         probed += 1;

@@ -32,6 +32,7 @@ import { fakePolicyPort } from "./fake-policy.ts";
 import { noAttachments } from "./no-attachments.ts";
 import { fakeProjectsPort } from "./fake-projects.ts";
 import { sessionFileText } from "./pi-file-writers.ts";
+import type { VmLaunch } from "../index.ts";
 import { testCaller } from "../../../testing/caller.ts";
 
 export { sessionFileText };
@@ -84,6 +85,10 @@ export interface BedOptions {
   holdShutdown?: boolean;
   /** The fork cap and the disk floor; none by default. */
   admission?: (clock: Clock) => Admission;
+  /** Agents run in VMs (T8a): the launcher, given a maker of the bed's fake workers. */
+  vmLaunch?(makeWorker: () => WorkerHandle, bed: { papHome: string }): VmLaunch;
+  /** Replaces the session id source (`p1`, `p2`, ...). */
+  newId?(): string;
   /** By the order the workers are spawned in, from 0. */
   start?(index: number, init: InitRecord): StartBehavior | undefined;
   /**
@@ -190,6 +195,53 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
   const forkTmpDir = join(dir, "pap", "fork-tmp");
   const exports = createExports({ dir: exportsDir, clock, logger: options.logger ?? silentLogger });
   const projects = options.projects ?? fakeProjectsPort();
+  const makeWorker = (env?: Readonly<Record<string, string>>): FakeWorker => {
+    const index = spawned.length;
+    spawnEnvs.push(env);
+    const worker = createFakeWorker({
+      clock,
+      ...(options.holdShutdown ? { holdShutdown: true } : {}),
+      onSend: (record, self) => {
+        if (record.type !== "init") return;
+        const behavior = options.start?.(index, record) ?? { kind: "ready" };
+        if (behavior.kind === "silent") return;
+        if (behavior.kind === "exit70") {
+          queueMicrotask(() => self.crash({ code: 70, signal: null, cause: "exit_code" }));
+          return;
+        }
+        // Pi reopens a file under the id in its header, and starts a session of its own for a draft.
+        const piId =
+          behavior.piId ?? (record.sessionFile ? basename(record.sessionFile, ".jsonl") : `pi-${index}`);
+        const sessionFile = behavior.sessionFile ?? record.sessionFile ?? join(sessionsDir, `${piId}.jsonl`);
+        files[index] = sessionFile;
+        queueMicrotask(() => {
+          for (const record of behavior.before ?? []) self.emit(record);
+          self.emit({
+            type: "ready",
+            sessionId: piId,
+            sessionFile,
+            piVersion: "1.1.0",
+            leafId: behavior.leafId ?? null,
+            sessionName: behavior.sessionName ?? null,
+          });
+        });
+      },
+      reply: (command) => {
+        const scripted = options.replies?.[command.type];
+        if (scripted === "held") return undefined;
+        if (scripted) return scripted;
+        if (command.type === "navigate_tree") return { data: { cancelled: false, leafId: null } };
+        if (command.type === "compact") return { data: { tokensBefore: 10, estimatedTokensAfter: 5 } };
+        if (command.type === "prompt") return { data: { disposition: "started" } };
+        if (command.type === "get_state") return { data: IDLE_STATE };
+        if (command.type === "clear_queue")
+          return { data: { steering: ["left"], followUp: ["after"], truncated: false } };
+        return undefined;
+      },
+    });
+    spawned.push(worker);
+    return worker;
+  };
   const service = factories.createSessionsService({
     store,
     clock,
@@ -209,7 +261,7 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
       umask: options.umask ?? 0o022,
       testProviderScript: options.testProviderScript ?? null,
     },
-    newId: () => `p${++ids}`,
+    newId: options.newId ?? (() => `p${++ids}`),
     ownerId: options.ownerId ?? (() => "u1"),
     ...(options.onAdopted ? { onAdopted: options.onAdopted } : {}),
     onOutsideToolResults: options.onOutsideToolResults ?? (() => {}),
@@ -224,54 +276,10 @@ export function createServiceBed<Store, Reader, Service extends ServiceLike>(
         : loadPiWriter(forkTmpDir, { logger: options.logger ?? silentLogger }),
     freeMemMb: () => options.freeMemMb ?? 4096,
     ...(options.admission ? { admission: options.admission(clock) } : {}),
-    spawn: (_cwd, env) => {
-      const index = spawned.length;
-      spawnEnvs.push(env);
-      const worker = createFakeWorker({
-        clock,
-        ...(options.holdShutdown ? { holdShutdown: true } : {}),
-        onSend: (record, self) => {
-          if (record.type !== "init") return;
-          const behavior = options.start?.(index, record) ?? { kind: "ready" };
-          if (behavior.kind === "silent") return;
-          if (behavior.kind === "exit70") {
-            queueMicrotask(() => self.crash({ code: 70, signal: null, cause: "exit_code" }));
-            return;
-          }
-          // Pi reopens a file under the id in its header, and starts a session of its own for a draft.
-          const piId =
-            behavior.piId ?? (record.sessionFile ? basename(record.sessionFile, ".jsonl") : `pi-${index}`);
-          const sessionFile =
-            behavior.sessionFile ?? record.sessionFile ?? join(sessionsDir, `${piId}.jsonl`);
-          files[index] = sessionFile;
-          queueMicrotask(() => {
-            for (const record of behavior.before ?? []) self.emit(record);
-            self.emit({
-              type: "ready",
-              sessionId: piId,
-              sessionFile,
-              piVersion: "1.1.0",
-              leafId: behavior.leafId ?? null,
-              sessionName: behavior.sessionName ?? null,
-            });
-          });
-        },
-        reply: (command) => {
-          const scripted = options.replies?.[command.type];
-          if (scripted === "held") return undefined;
-          if (scripted) return scripted;
-          if (command.type === "navigate_tree") return { data: { cancelled: false, leafId: null } };
-          if (command.type === "compact") return { data: { tokensBefore: 10, estimatedTokensAfter: 5 } };
-          if (command.type === "prompt") return { data: { disposition: "started" } };
-          if (command.type === "get_state") return { data: IDLE_STATE };
-          if (command.type === "clear_queue")
-            return { data: { steering: ["left"], followUp: ["after"], truncated: false } };
-          return undefined;
-        },
-      });
-      spawned.push(worker);
-      return worker;
-    },
+    spawn: (_cwd, env) => makeWorker(env),
+    ...(options.vmLaunch
+      ? { vmLaunch: options.vmLaunch(() => makeWorker(), { papHome: join(dir, "pap") }) }
+      : {}),
   });
   hub.registerSnapshot("session", (key) => service.snapshot(key));
   return {

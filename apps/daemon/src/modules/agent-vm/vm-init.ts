@@ -20,6 +20,8 @@ function vmRulesOf(policy: unknown, root: string): PolicyRules {
     rules.data.alwaysTools.length > 0
   )
     throw new PapError("bad_request");
+  // R15 (T8a): `vmRuleParts` always sets this; rules without it were not composed for a VM, whatever their folders say.
+  if (rules.data.sandbox?.required !== true || rules.data.sandbox.network) throw new PapError("internal");
   return rules.data;
 }
 

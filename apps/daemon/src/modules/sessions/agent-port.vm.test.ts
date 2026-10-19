@@ -6,13 +6,18 @@ import { layoutOf } from "../agent-vm/index.ts";
 import type { SessionsAgentDeps } from "./agent-gate.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
+import { fakeVmLaunch } from "./testing/fake-vm-launch.ts";
 import { createServiceBed } from "./testing/service-bed.ts";
 import { loadTranscriptReader } from "./transcript.ts";
 
 // R11 (RT-11): a vault change or a one-use value never reaches a live VM session, though its profile's sandbox switch is on.
 const ID = "atlas-1a2b";
 const RECORD: VaultUpdateRecord = { type: "vault_update", vault: { API_TOKEN: "v" }, once: [] };
-const build = () => createServiceBed({ createSessionsStore, createSessionsService, loadTranscriptReader });
+const build = () =>
+  createServiceBed(
+    { createSessionsStore, createSessionsService, loadTranscriptReader },
+    { vmLaunch: fakeVmLaunch },
+  );
 let bed: ReturnType<typeof build>;
 afterEach(() => bed.dispose());
 
@@ -24,6 +29,7 @@ async function live(vm: boolean) {
     probe: { ensure: async () => ({ usable: true, path: "/usr/bin/bwrap" }) },
     onceOf: () => [{ id: "o".repeat(8), name: "ONE", value: "once-value", expiresAt: 9 }],
     vmLayoutOf: () => (vm ? layoutOf("kata", bed.dir, { agentId: ID, taskKey: null }) : null),
+    agentRunsInVm: () => vm,
   };
   bed.service.agent.setAgentPorts({ agents });
   const { sessionId } = await bed.service.agentSessions.createAgentSession({

@@ -7,6 +7,7 @@ import type { GitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import { bootSandboxProbe } from "./compose-m11-probe.ts";
+import { type AgentsVm, sessionAgentsOf, vmPortsOf } from "./compose-m11-vm.ts";
 import {
   AGENTS_MIGRATIONS,
   type AgentsRpc,
@@ -117,6 +118,7 @@ export interface M11Modules {
     >;
   };
   readonly subagents: SubagentsPorts;
+  readonly vm?: AgentsVm | undefined;
   /** Tests only: replaces the egress proxy. The daemon never passes one: production builds the real proxy (M11R244). */
   readonly egress?: EgressPort;
   /** The owner's automation time zone: the day an agent's budget and figures count in (M11R74, M11R76). */
@@ -148,6 +150,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   });
   const sandboxProbe = bootSandboxProbe(core);
   const agentsLogger = core.logger.child({ module: "agents" });
+  const vm = vmPortsOf(modules.vm);
   const guard = createAgentGuard();
   platform.register("lane.note", modules.lanes.note);
   const agents = createAgents({
@@ -160,12 +163,9 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
     papHome: core.config.home,
     requireStepUp,
     ownerHosts: (ownerId) => modules.policy?.port.settings(ownerId).allowHosts,
+    ...vm.agents,
   });
-  const sessionAgents = (ownerId: string, agentId: string) => {
-    const record = agents.port.get(ownerId, agentId);
-    if (!record?.input) return null;
-    return { input: record.input, name: record.name, quarantined: record.quarantinedAt !== null };
-  };
+  const sessionAgents = sessionAgentsOf(agents.port);
   // The agents' secrets (Task 13): sealed under $PAP_HOME/secrets/vault, decrypted for a worker with the sandbox on only.
   const secrets = createSecrets({
     vault: createVaultStore(vaultRootOf(core.config.home)),
@@ -197,6 +197,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
       egress,
       ownerHosts: (ownerId) => modules.policy?.port.settings(ownerId).allowHosts ?? null,
       ...(core.config.userHome === undefined ? {} : { homeDir: () => core.config.userHome as string }),
+      ...vm.sessions,
     },
   });
   agents.setLinks({
@@ -378,6 +379,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
           ownerSettings: (ownerId) => modules.policy?.port.settings(ownerId),
           liveTools: modules.sessions.agentSessions.activeTools,
           hostGrants: (sessionId) => modules.sessions.hostGrants.of(sessionId),
+          ...vm.safety,
         }),
       ),
       ...secretsRpc(secrets),

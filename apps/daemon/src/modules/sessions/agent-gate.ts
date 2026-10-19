@@ -19,6 +19,7 @@ import { agentHomeOf, agentScratchOf } from "./agent-home.ts";
 import type { LiveSession } from "./live-types.ts";
 import type { EgressPort } from "./egress-link.ts";
 import type { SessionRow } from "./store.ts";
+import { vmGate } from "./vm-gate.ts";
 import { VM_REFUSALS } from "./vm-rules.ts";
 
 /** What the agents registry tells the sessions module about an agent (null: no such agent of this owner, or a profile that does not parse). */
@@ -54,8 +55,8 @@ export interface SessionsAgentDeps {
   readonly homeDir?: () => string;
   /** The VM layout of a session row that runs in a VM, else null (R15, R37). */
   vmLayoutOf?(row: SessionRow): VmLayout | null;
-  /** The agent runs in a VM: no precheck, no chips (R16). */
-  runsInVm?(ownerId: string, agentId: string): boolean;
+  /** The agent runs in a VM: no precheck, no chips (R16). By agent, not session: `runsInVm` of the agent port is by session. */
+  agentRunsInVm?(ownerId: string, agentId: string): boolean;
 }
 
 export interface AgentGateDeps extends SessionsAgentDeps {
@@ -76,6 +77,8 @@ export interface AgentLaunch {
   readonly vault?: Record<string, string>;
   /** Present only with a sandbox and values waiting: the asking thread's "use once" values, handed to its worker at start. */
   readonly once?: OnceEntry[];
+  /** The session runs in a VM (`vmGate`): none of the above exists for it (T8a). */
+  readonly vm?: true;
 }
 
 /**
@@ -151,7 +154,7 @@ export async function agentPrecheckSandbox(
   const profile = deps.profileOf(ownerId, agentId);
   if (profile === null) throw new PapError("not_found");
   if (profile.quarantined) throw new PapError("agent_paused");
-  if (deps.runsInVm?.(ownerId, agentId)) {
+  if (deps.agentRunsInVm?.(ownerId, agentId)) {
     deps.logger.warn("agent_precheck_refused", { agentId, reason: VM_REFUSALS.precheck });
     throw new PapError("sandbox_unavailable");
   }
@@ -184,6 +187,8 @@ export async function agentGate(row: SessionRow, deps: AgentGateDeps): Promise<A
   const { agentId } = row;
   const role = row.agentRole;
   if (agentId === undefined || role === undefined) throw new PapError("bad_request");
+  // T8a: a VM row never reaches the host home, the sandbox probe, the vault or the egress proxy below.
+  if (deps.vmLayoutOf?.(row)) return vmGate(row, deps);
   const profile = deps.profileOf(row.ownerId, agentId);
   if (profile === null) throw new PapError("not_found");
   if (profile.quarantined) throw new PapError("agent_paused");

@@ -18,7 +18,7 @@ async function world(vm: boolean) {
   writeFileSync(join(prompts, "daily.md"), "text");
   return {
     id,
-    service: createPrompts({ store: bed.agents.store, papHome: bed.papHome, runsInVm: () => vm }),
+    service: createPrompts({ store: bed.agents.store, papHome: bed.papHome, agentRunsInVm: () => vm }),
   };
 }
 
