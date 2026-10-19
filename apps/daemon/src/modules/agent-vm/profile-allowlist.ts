@@ -9,6 +9,7 @@ import {
   symlinkSync,
 } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
+import { credentialName } from "@pap/contracts";
 import { within } from "../../kernel/fs/boundary.ts";
 
 /** R28: where the image keeps Pi's profile (read-only); the guest seeds `/agent/.pi/agent` from it. */
@@ -180,8 +181,8 @@ export function literalValuesOf(source: ModelsSource): string[] {
     if (typeof provider.apiKey === "string" && isLiteralValue(provider.apiKey)) values.push(provider.apiKey);
     for (const holder of [provider, ...(Array.isArray(provider.models) ? provider.models : [])]) {
       if (!isRecord(holder) || !isRecord(holder.headers)) continue;
-      for (const value of Object.values(holder.headers))
-        if (typeof value === "string" && isLiteralValue(value)) values.push(value);
+      for (const [name, value] of Object.entries(holder.headers))
+        if (typeof value === "string" && credentialName(name) && isLiteralValue(value)) values.push(value);
     }
   }
   return values;

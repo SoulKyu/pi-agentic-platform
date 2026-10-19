@@ -88,17 +88,21 @@ class Build {
   /** RT-18: a copied root may never be, or contain, one of these. */
   private readonly forbidden: string[];
   private readonly realAgent: string;
+  private readonly realPapHome: string;
   readonly roots: CopiedRoot[] = [];
   readonly adapted = new Set<string>();
   readonly npm = new Set<string>();
   readonly localNames = new Set<string>();
   readonly agentDir: string;
   readonly out: string;
-  constructor(agentDir: string, out: string) {
+  constructor(agentDir: string, out: string, papHome: string) {
     this.agentDir = agentDir;
     this.out = out;
     this.realAgent = realpathSync(agentDir);
-    this.forbidden = [this.realAgent, realpathSync(out), realOf(homedir())].filter((p) => p !== null);
+    this.realPapHome = realOf(papHome) ?? resolve(papHome);
+    this.forbidden = [this.realAgent, realpathSync(out), this.realPapHome, realOf(homedir())].filter(
+      (p) => p !== null,
+    );
     const auth = statOrNull(join(agentDir, "auth.json"));
     this.run = {
       files: 0,
@@ -120,8 +124,14 @@ class Build {
     }
     const insideAgent = within(this.realAgent, real);
     const allowedInside = INSIDE_AGENT.some((name) => within(join(this.realAgent, name), real));
-    if (this.forbidden.some((f) => within(real, f)) || (insideAgent && !allowedInside)) {
-      this.note(`${label}: the folder holds or is part of the agent folder, the home or the output`);
+    if (
+      this.forbidden.some((f) => within(real, f)) ||
+      within(this.realPapHome, real) ||
+      (insideAgent && !allowedInside)
+    ) {
+      this.note(
+        `${label}: the folder holds or is part of the agent folder, the home, pap's home or the output`,
+      );
       return false;
     }
     copyPackage(real, join(this.out, dst), this.run, label);
@@ -294,8 +304,13 @@ function treeDigest(out: string): string {
   return hash.digest("hex");
 }
 
-function build(agentDir: string, out: string, secrets: KnownSecrets): { tag: string; skipped: string[] } {
-  const b = new Build(agentDir, out);
+function build(
+  agentDir: string,
+  out: string,
+  secrets: KnownSecrets,
+  papHome: string,
+): { tag: string; skipped: string[] } {
+  const b = new Build(agentDir, out, papHome);
   const settings = readSettings(agentDir);
   const models = readModels(agentDir);
   const entries = Entries.safeParse(settings.packages ?? []);
@@ -332,13 +347,20 @@ export function prepareProfileContext(
   agentDir: string,
   out: string,
   secrets: KnownSecrets,
+  papHome: string,
 ): { tag: string; skipped: string[] } {
-  if (!isAbsolute(agentDir) || !isAbsolute(out) || within(agentDir, out) || within(out, agentDir))
+  if (
+    !isAbsolute(agentDir) ||
+    !isAbsolute(out) ||
+    !isAbsolute(papHome) ||
+    within(agentDir, out) ||
+    within(out, agentDir)
+  )
     throw new Error("profile output folder is not usable");
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   try {
-    return build(agentDir, out, secrets);
+    return build(agentDir, out, secrets, papHome);
   } catch (error) {
     rmSync(out, { recursive: true, force: true });
     throw error;

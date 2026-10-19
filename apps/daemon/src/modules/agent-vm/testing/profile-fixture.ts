@@ -121,7 +121,7 @@ export function plantAgentDir(s: Scratch, version = "1.2.3"): void {
       inside: {
         command: join(s.agentDir, "npm/node_modules/demo-pkg/lib/a.js"),
         args: ["--x"],
-        env: { T: `${MARKER}-mcp-env` },
+        env: { API_TOKEN: `${MARKER}-mcp-env` },
       },
       outside: { command: "/usr/bin/true", args: [] },
       remote: { url: "https://mcp.test/sse" },

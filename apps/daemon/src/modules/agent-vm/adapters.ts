@@ -1,5 +1,6 @@
 import { mkdirSync, realpathSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve } from "node:path";
+import { credentialName } from "@pap/contracts";
 import { z } from "zod";
 import { readJsonBounded } from "../../kernel/json-bounded.ts";
 import { within } from "../../kernel/fs/boundary.ts";
@@ -10,7 +11,6 @@ const CONFIG_MAX_BYTES = 256 * 1024;
 const SERVER_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const MAX_SERVERS = 64;
 const MAX_ARGS = 64;
-const CREDENTIAL_FIELD = /token|secret|key|password|credential/i;
 const MAX_LEAVES = 4096;
 
 /** `src`: the package's real path on the host; `dst`: its folder inside the profile (relative to the image's agent dir). */
@@ -101,8 +101,7 @@ export function applyAdapter(packageName: string, input: AdapterInput): void {
 function leaves(value: unknown, out: string[], field = "", depth = 0): void {
   if (out.length >= MAX_LEAVES || depth > 8) return;
   if (typeof value === "string") {
-    if (CREDENTIAL_FIELD.test(field) && value.length >= MIN_SECRET_LENGTH && isLiteralValue(value))
-      out.push(value);
+    if (credentialName(field) && value.length >= MIN_SECRET_LENGTH && isLiteralValue(value)) out.push(value);
   } else if (Array.isArray(value)) for (const item of value) leaves(item, out, field, depth + 1);
   else if (typeof value === "object" && value !== null)
     for (const [key, item] of Object.entries(value)) leaves(item, out, key, depth + 1);
@@ -110,7 +109,8 @@ function leaves(value: unknown, out: string[], field = "", depth = 0): void {
 
 /**
  * The literal secrets the owner's extension configs hold (web-search keys, MCP env and header values, MCP OAuth tokens):
- * they join the scan's needles whether or not their package is copied.
+ * only values under a credential-looking key (`credentialName`, the vocabulary of the MCP masker in `@pap/contracts`),
+ * so `Content-Type: application/json` or `NODE_ENV=production` never refuse a build. They join the scan's needles whether or not their package is copied.
  */
 export function adapterSecrets(agentDir: string): string[] {
   const found: string[] = [];
@@ -122,8 +122,8 @@ export function adapterSecrets(agentDir: string): string[] {
       for (const field of ["env", "headers"]) {
         const held = (server as Record<string, unknown>)[field];
         if (typeof held === "object" && held !== null)
-          for (const value of Object.values(held))
-            if (typeof value === "string" && isLiteralValue(value)) found.push(value);
+          for (const [key, value] of Object.entries(held))
+            if (typeof value === "string" && credentialName(key) && isLiteralValue(value)) found.push(value);
       }
   return found;
 }

@@ -3,14 +3,17 @@ import {
   closeSync,
   constants,
   fchmodSync,
+  lstatSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   realpathSync,
+  rmSync,
   statSync,
   symlinkSync,
   writeSync,
 } from "node:fs";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { VmLayout } from "@pap/contracts";
 import { openAt, openChain, openDirAt, openRootDir, renameAt, unlinkAt } from "../nofollow.ts";
 
@@ -53,19 +56,49 @@ function copyLink(from: string, imageRoot: string, destination: number, name: st
   symlinkSync(target, path);
 }
 
-function copyTree(source: string, destination: number, imageRoot: string): void {
+const lexicallyInside = (root: string, target: string): boolean => {
+  const rel = relative(root, target);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+};
+
+/**
+ * The image owns the names it holds. When the entry the disk has under such a name is of another kind (the image turned
+ * a link into a file or a folder, or a folder into a link), it is replaced instead of failing the seed: a file where a
+ * folder goes is unlinked, a folder where a file or link goes is removed, and a link that resolves inside Pi's agent
+ * folder (what an earlier seed made) is unlinked. A link that points elsewhere is left for the no-follow open to refuse.
+ */
+function clearForKind(destination: number, name: string, want: "dir" | "file", agentRoot: string): void {
+  const path = `/proc/self/fd/${destination}/${name}`;
+  let stat;
+  try {
+    stat = lstatSync(path);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  if (stat.isSymbolicLink()) {
+    const base = readlinkSync(`/proc/self/fd/${destination}`);
+    if (lexicallyInside(agentRoot, resolve(base, readlinkSync(path)))) unlinkAt(destination, name);
+  } else if (stat.isDirectory() && want === "file") rmSync(path, { recursive: true, force: true });
+  else if (stat.isFile() && want === "dir") unlinkAt(destination, name);
+}
+
+function copyTree(source: string, destination: number, imageRoot: string, agentRoot: string): void {
   for (const entry of readdirSync(source, { withFileTypes: true })) {
     const from = join(source, entry.name);
     if (entry.isDirectory()) {
+      clearForKind(destination, entry.name, "dir", agentRoot);
       const child = openDirAt(destination, entry.name, { create: PRIVATE_FOLDER });
       try {
-        copyTree(from, child, imageRoot);
+        copyTree(from, child, imageRoot, agentRoot);
       } finally {
         closeSync(child);
       }
     } else if (entry.isSymbolicLink()) {
+      clearForKind(destination, entry.name, "file", agentRoot);
       copyLink(from, imageRoot, destination, entry.name);
     } else if (entry.isFile()) {
+      clearForKind(destination, entry.name, "file", agentRoot);
       // The image is read-only and ours; the disk side is where a link could have been planted.
       const executable = (statSync(from).mode & 0o100) !== 0;
       writeFileAt(destination, entry.name, readFileSync(from), executable ? 0o700 : 0o600);
@@ -90,7 +123,7 @@ export function seedAgentFolder(layout: VmLayout): void {
     }
     const agentFd = openChain(rootFd, layout.root, layout.piAgentDir, PRIVATE_FOLDER);
     try {
-      copyTree(layout.imageAgentDir, agentFd, realpathSync(layout.imageAgentDir));
+      copyTree(layout.imageAgentDir, agentFd, realpathSync(layout.imageAgentDir), resolve(layout.piAgentDir));
     } finally {
       closeSync(agentFd);
     }

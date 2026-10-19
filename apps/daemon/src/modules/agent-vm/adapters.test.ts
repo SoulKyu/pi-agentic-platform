@@ -113,8 +113,17 @@ describe("adapterSecrets", () => {
       mcpServers: {
         a: {
           command: "x",
-          env: { T: "env-literal-0002", U: "${TOKEN_VAR}" },
-          headers: { H: "header-literal-0003", I: "!pass show x" },
+          env: {
+            API_TOKEN: "env-literal-0002",
+            U_TOKEN: "${TOKEN_VAR}",
+            NODE_ENV: "production",
+            REGION: "us-east-1",
+          },
+          headers: {
+            Authorization: "header-literal-0003",
+            "X-Api-Key": "!pass show x",
+            "Content-Type": "application/json",
+          },
         },
         b: { env: "oops", headers: null },
       },
@@ -137,5 +146,16 @@ describe("adapterSecrets", () => {
     input();
     s.put("agent/mcp.json", "{nope");
     expect(adapterSecrets(s.agentDir)).toEqual([]);
+  });
+});
+
+describe("the credential vocabulary", () => {
+  // The daemon reads the list from @pap/contracts (credentialName); pi-host's MCP masker re-exports the same one.
+  it("pi-host's credential-words file still re-exports contracts' list, so both maskers agree", () => {
+    const text = readFileSync(
+      join(import.meta.dirname, "../../../../../packages/pi-host/src/helper/credential-words.ts"),
+      "utf8",
+    );
+    expect(text).toContain('export { COMMENT_WORD, CREDENTIAL_WORDS, credentialName } from "@pap/contracts"');
   });
 });

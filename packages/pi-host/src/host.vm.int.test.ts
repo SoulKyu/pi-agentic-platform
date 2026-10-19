@@ -259,7 +259,7 @@ describe("a VM session in this process", () => {
     vi.unstubAllEnvs();
   });
 
-  async function open(sandbox: boolean) {
+  async function open(sandbox: boolean, vm = true) {
     let api: ExtensionAPI | undefined;
     const reports: Array<{ extensionPath: string; event: string; error: string }> = [];
     const rules = rulesFor("full-access", world.layout.home);
@@ -273,7 +273,7 @@ describe("a VM session in this process", () => {
         policy: rules,
         testProviderScript: join(world.base, "script.json"),
         agent: { id: "atlas-1a2b", name: "Atlas", role: "" },
-        vm: vmInit(),
+        ...(vm ? { vm: vmInit() } : {}),
         ...(sandbox ? { sandbox: NETWORKED } : {}),
       } as never,
       {
@@ -317,6 +317,7 @@ describe("a VM session in this process", () => {
   // Mutant R1: `applyRelayKey` left out of `openSession`: the provider keeps its placeholder and the bridge has no token.
   it("gives every provider the launch's relay key and the bridge its token (RT-03)", async () => {
     vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "before");
+    vi.stubEnv("ANTHROPIC_BASE_URL", "before");
     writeFileSync(
       join(bed.agentDir, "models.json"),
       JSON.stringify({
@@ -331,12 +332,12 @@ describe("a VM session in this process", () => {
     expect(process.env.ANTHROPIC_BASE_URL).toBe("http://claude.internal:7842");
   });
 
-  it("a host worker's environment carries neither the relay key nor the relay's base URL", async () => {
-    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "");
-    vi.stubEnv("ANTHROPIC_BASE_URL", "");
-    await launch([{ text: "done" }], "full-access", { vm: undefined });
-    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe("");
-    expect(process.env.ANTHROPIC_BASE_URL).toBe("");
+  it("a host session leaves ANTHROPIC_AUTH_TOKEN and ANTHROPIC_BASE_URL unset", async () => {
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", undefined);
+    vi.stubEnv("ANTHROPIC_BASE_URL", undefined);
+    await open(false, false);
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBeUndefined();
+    expect(process.env.ANTHROPIC_BASE_URL).toBeUndefined();
   });
 
   // Mutant F1: `vmFilesFirst` left out of the extension order: the shadow's tools win and the sources below are the shadow's.

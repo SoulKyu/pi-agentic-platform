@@ -47,6 +47,42 @@ const writeImage = (name: string, text: string): void => {
   writeFileSync(join(layout.imageAgentDir, name), text);
 };
 
+describe("seedAgentFolder when the image changes an entry's kind", () => {
+  // Mutant: clearForKind left out -> the seed throws on the first changed entry.
+  it("replaces a seeded link by a file, a seeded link by a folder, and a folder by a link; keeps Pi's own files", () => {
+    writeImage("lib/a.js", "a");
+    symlinkSync("lib/a.js", join(layout.imageAgentDir, "x"));
+    symlinkSync("lib/a.js", join(layout.imageAgentDir, "y"));
+    mkdirSync(join(layout.imageAgentDir, "z"));
+    writeFileSync(join(layout.imageAgentDir, "z", "old.txt"), "old");
+    seedAgentFolder(layout);
+    writeFileSync(join(layout.piAgentDir, "pi-state.json"), "pi");
+    rmSync(join(layout.imageAgentDir, "x"));
+    writeFileSync(join(layout.imageAgentDir, "x"), "now a file");
+    rmSync(join(layout.imageAgentDir, "y"));
+    mkdirSync(join(layout.imageAgentDir, "y"));
+    writeFileSync(join(layout.imageAgentDir, "y", "in.txt"), "in");
+    rmSync(join(layout.imageAgentDir, "z"), { recursive: true });
+    symlinkSync("lib/a.js", join(layout.imageAgentDir, "z"));
+    seedAgentFolder(layout);
+    expect(lstatSync(join(layout.piAgentDir, "x")).isFile()).toBe(true);
+    expect(readFileSync(join(layout.piAgentDir, "x"), "utf8")).toBe("now a file");
+    expect(readFileSync(join(layout.piAgentDir, "y/in.txt"), "utf8")).toBe("in");
+    expect(readlinkSync(join(layout.piAgentDir, "z"))).toBe("lib/a.js");
+    expect(readFileSync(join(layout.piAgentDir, "pi-state.json"), "utf8")).toBe("pi");
+  });
+
+  it("still refuses a link that points outside the agent folder", () => {
+    writeImage("x", "image");
+    seedAgentFolder(layout);
+    writeFileSync(join(dir, "victim"), "untouched");
+    rmSync(join(layout.piAgentDir, "x"));
+    symlinkSync(join(dir, "victim"), join(layout.piAgentDir, "x"));
+    expect(() => seedAgentFolder(layout)).toThrow();
+    expect(readFileSync(join(dir, "victim"), "utf8")).toBe("untouched");
+  });
+});
+
 describe("seedAgentFolder links (AVM-E26)", () => {
   // Mutant: the link branch left out -> "keeps a link" fails; the inside check removed -> "refuses" fails.
   it("keeps a link whose target stays inside the image as a relative link", () => {
