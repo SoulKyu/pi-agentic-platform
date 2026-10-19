@@ -43,20 +43,13 @@ describe("the real parse thread (Review Focus 1)", () => {
     });
   });
 
-  it("keeps the event loop turning while it parses", async () => {
+  it("keeps the event loop turning while it parses: a callback queued behind it runs first", async () => {
     parser = createLineParser({ clock: createFakeClock(), logger: captureLogger().logger });
     const line = noNewline(imageEntry("img1", 30 * MiB));
-    let ticks = 0;
-    let running = true;
-    const spin = (): void => {
-      if (!running) return;
-      ticks++;
-      setImmediate(spin);
-    };
-    spin();
-    await parser.parse(line, false);
-    running = false;
-    expect(ticks).toBeGreaterThan(2);
+    const parsing = parser.parse(line, false).then(() => "parsed");
+    const turn = new Promise<string>((resolve) => setImmediate(() => resolve("loop")));
+    expect(await Promise.race([parsing, turn])).toBe("loop");
+    expect(await parsing).toBe("parsed");
   });
 });
 

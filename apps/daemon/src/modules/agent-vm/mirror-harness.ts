@@ -48,6 +48,7 @@ export function open(
     parser?: LineParser;
     provenance?: ReturnType<typeof createProvenance>;
     createOnly?: boolean;
+    maxIds?: number;
   } = {},
 ) {
   const parser = options.parser ?? inlineParser();
@@ -68,6 +69,7 @@ export function open(
     limitBytes: options.limitBytes ?? 1024 * MiB,
     announce: (kind) => void announced.push(kind),
     ...(options.createOnly === undefined ? {} : { createOnly: options.createOnly }),
+    ...(options.maxIds === undefined ? {} : { maxIds: options.maxIds }),
   });
 }
 

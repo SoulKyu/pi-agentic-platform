@@ -1,8 +1,21 @@
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { MAX_SESSION_LINE_BYTES } from "@pap/contracts";
-import { afterEach, describe, expect, it } from "vitest";
-import { AGENT, appendOf, entry, HEADER, imageEntry } from "./mirror-fixtures.ts";
-import { bed, cleanup, clock, fileText, fresh, log, MiB, open, parsed, refusals } from "./mirror-harness.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { UNVERIFIED_MAX_BYTES } from "./mirror-facts.ts";
+import { AGENT, appendOf, entry, HEADER, imageEntry, userEntry } from "./mirror-fixtures.ts";
+import {
+  announced,
+  bed,
+  cleanup,
+  clock,
+  fileText,
+  fresh,
+  log,
+  MiB,
+  open,
+  parsed,
+  refusals,
+} from "./mirror-harness.ts";
 import { checkMirrorLine } from "./mirror-line.ts";
 import { createLineParser } from "./mirror-parse.ts";
 
@@ -267,5 +280,83 @@ describe("a long line (R32, Review Focus 1)", () => {
     expect(whole.onSessionAppend(appendOf(0, huge))).toBe("refused");
     expect(refusals().at(-1)).toEqual({ agentId: AGENT, reason: "line_too_large" });
     expect(statSync(bed.path).size).toBe(0);
+  });
+});
+
+// Mutant M-HEAD-OPTIONAL: take a line whose id is not where the open scan reads it (the old "parse at open" fallback): killed
+// by the next two cases (AVM-E23).
+describe("the id must be where the open scan reads it (AVM-E23)", () => {
+  it("refuses a line whose id is after the first 512 bytes, or before its type", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, HEADER));
+    const late = `${JSON.stringify({ type: "custom", pad: "x".repeat(700), id: "late1" })}\n`;
+    expect(mirror.onSessionAppend(appendOf(HEADER.length, late))).toBe("refused");
+    expect(refusals().at(-1)?.reason).toBe("not_entry");
+    const other = open();
+    const idFirst = `${JSON.stringify({ id: "first1", type: "custom" })}\n`;
+    expect(other.onSessionAppend(appendOf(HEADER.length, idFirst))).toBe("refused");
+    expect(fileText()).toBe(HEADER);
+  });
+
+  // Mutant M-IDCAP: no cap on ids: killed here.
+  it("refuses `quota` past the cap on ids per file, with the notice", () => {
+    fresh();
+    const mirror = open({ maxIds: 3 });
+    expect(mirror.onSessionAppend(appendOf(0, HEADER + entry("e1") + entry("e2")))).toBe("ok");
+    expect(mirror.onSessionAppend(appendOf(mirror.facts().size, entry("e3")))).toBe("refused");
+    expect(refusals().at(-1)?.reason).toBe("quota");
+    expect(announced).toEqual(["quota"]);
+  });
+
+  it("reopens a mirror with a long line without parsing it", () => {
+    fresh();
+    writeFileSync(bed.path, HEADER + imageEntry("img1", 3 * MiB) + entry("e2"), { mode: 0o600 });
+    const parse = vi.spyOn(JSON, "parse");
+    try {
+      const mirror = open();
+      expect(mirror.facts().lastEntryId).toBe("e2");
+      expect(parse.mock.calls.every(([text]) => String(text).length < MiB)).toBe(true);
+    } finally {
+      parse.mockRestore();
+    }
+  });
+});
+
+describe("the unverified list is written before the line (AVM-E22)", () => {
+  // Mutant M-LIST-AFTER: write the line, then the list: killed here (the line is on disk although its list failed).
+  it("does not write the line when the list cannot be written", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, HEADER));
+    mkdirSync(`${bed.path}.unverified`);
+    expect(mirror.onSessionAppend(appendOf(HEADER.length, userEntry("u1", "forged")))).toBe("refused");
+    expect(refusals().at(-1)?.reason).toBe("file");
+    expect(fileText()).toBe(HEADER);
+  });
+
+  // Mutant M-LIST-CAP: no bound on the list: killed here.
+  it("refuses `quota` before the list would pass its bound, and writes nothing", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, HEADER));
+    writeFileSync(`${bed.path}.unverified`, Buffer.alloc(UNVERIFIED_MAX_BYTES - 2, 0x61), { mode: 0o600 });
+    expect(mirror.onSessionAppend(appendOf(HEADER.length, userEntry("u1", "forged")))).toBe("refused");
+    expect(refusals().at(-1)?.reason).toBe("quota");
+    expect(announced).toEqual(["quota"]);
+    expect(fileText()).toBe(HEADER);
+  });
+
+  it("counts the list's bytes in the agent's quota", () => {
+    fresh();
+    const user = userEntry("u1", "forged");
+    // The line and its id ("u1\n", 3 bytes) together: two bytes short refuses, exact passes.
+    const tight = open({ limitBytes: HEADER.length + user.length + 2 });
+    tight.onSessionAppend(appendOf(0, HEADER));
+    expect(tight.onSessionAppend(appendOf(HEADER.length, user))).toBe("refused");
+    fresh();
+    const exact = open({ limitBytes: HEADER.length + user.length + 3 });
+    exact.onSessionAppend(appendOf(0, HEADER));
+    expect(exact.onSessionAppend(appendOf(HEADER.length, user))).toBe("ok");
   });
 });

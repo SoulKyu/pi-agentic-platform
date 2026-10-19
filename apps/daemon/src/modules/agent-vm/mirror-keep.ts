@@ -8,11 +8,11 @@ import { ensureFolder, existsNoFollow, FOLDER_MODE } from "./mirror-files.ts";
 export const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 const SWEEP_EVERY_MS = 60 * 60 * 1000;
 const KEPT_FOLDER = "replaced";
-const STAMPED = /^(.+)\.(\d{10,16})$/;
+const STAMPED = /^(.+)\.(\d{10,16})(?:\.unverified)?$/;
 
 /**
- * Moves the mirror at `path` to `replaced/<name>.<stamp>` beside it (0700 folder, the file keeps its 0600) and returns the
- * new path. Never overwrites an earlier copy: a stamp already taken is moved on by one.
+ * Moves the mirror at `path` (and its unverified list) to `replaced/<name>.<stamp>` beside it (0700 folder, the file keeps
+ * its 0600) and returns the new path. Never overwrites an earlier copy: a stamp already taken is moved on by one.
  */
 export function keepCopy(path: string, clock: Clock): string {
   const folder = join(dirname(path), KEPT_FOLDER);
@@ -22,7 +22,19 @@ export function keepCopy(path: string, clock: Clock): string {
   let target = join(folder, `${basename(path)}.${stamp}`);
   while (existsNoFollow(target)) target = join(folder, `${basename(path)}.${++stamp}`);
   renameSync(path, target);
+  // The list of unsent user entries goes with the copy it describes.
+  const list = `${path}.unverified`;
+  if (existsNoFollow(list)) renameSync(list, `${target}.unverified`);
   return target;
+}
+
+function isRealFolder(path: string): boolean {
+  try {
+    const found = lstatSync(path);
+    return found.isDirectory() && !found.isSymbolicLink();
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -45,6 +57,8 @@ export function sweepKept(
   }
   for (const agent of folders) {
     const kept = join(root, agent, KEPT_FOLDER);
+    // Never into a folder that is a link (an agent's host shell cannot plant one here, but nothing relies on that).
+    if (!isRealFolder(join(root, agent)) || !isRealFolder(kept)) continue;
     let names: string[];
     try {
       names = readdirSync(kept);

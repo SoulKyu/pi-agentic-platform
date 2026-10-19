@@ -39,7 +39,15 @@ export function userTextOf(message: unknown): string | null {
     .join("\n");
 }
 
-const validId = (id: unknown): id is string => typeof id === "string" && id.length > 0 && id.length <= 128;
+/**
+ * AVM-E22: an entry id is plain ASCII. Pi writes 8 hex characters (or a UUID); anything else (a newline, a lone surrogate,
+ * a control character) is not a Pi id, and could not be told apart in the unverified list or survive a round trip.
+ */
+export const ENTRY_ID = /^[A-Za-z0-9._:-]{1,128}$/;
+/** The header is small; a longer first line is not one the mirror keeps (its id is read by a bounded parse at open). */
+export const HEADER_MAX_BYTES = 64 * 1024;
+
+const validId = (id: unknown): id is string => typeof id === "string" && ENTRY_ID.test(id);
 
 /** Spec §11, R1, R32: a completed line is a Pi entry, or the mirror stops. `value` is the parsed line (inline or in the thread). */
 export function entryFacts(value: unknown, first: boolean): Checked {
@@ -50,7 +58,8 @@ export function entryFacts(value: unknown, first: boolean): Checked {
     return { ok: false, reason: "not_entry" };
   if (first) {
     if (type !== "session") return { ok: false, reason: "no_header" };
-    return { ok: true, facts: { id: null, userText: null, headerId: validId(id) ? id : null } };
+    if (id !== undefined && !validId(id)) return { ok: false, reason: "not_entry" };
+    return { ok: true, facts: { id: null, userText: null, headerId: id ?? null } };
   }
   if (!validId(id)) return { ok: false, reason: "not_entry" };
   const text = type === "message" ? userTextOf(message) : null;
@@ -70,12 +79,12 @@ export function checkMirrorLine(line: Buffer, first: boolean): Checked {
   return entryFacts(value, first);
 }
 
-const HEAD_ID = /^\{"type":"[^"\\]{1,64}",\s*"id":"([^"\\]{1,128})"/;
+const HEAD_ID = /^\{"type":"[^"\\]{1,64}","id":"([A-Za-z0-9._:-]{1,128})"/;
 
 /**
  * The id as the open scan reads it, from the first bytes of the line (where Pi writes `type` then `id`), or null when it
- * is not there. JSON.parse keeps the LAST of two `id` keys, this reads the first: the mirror refuses a line where the two
- * differ, so an id is the same at append and at open (R32).
+ * is not there. JSON.parse keeps the LAST of two `id` keys, this reads the first: the mirror refuses a line whose id is not
+ * exactly this one, so an id is the same at append and at open and the open scan never parses a line (R32, AVM-E23).
  */
 export function headIdOf(line: Buffer): string | null {
   return HEAD_ID.exec(line.subarray(0, HEAD_BYTES).toString("utf8"))?.[1] ?? null;

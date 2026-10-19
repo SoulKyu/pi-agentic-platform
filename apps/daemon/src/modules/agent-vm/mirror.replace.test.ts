@@ -1,11 +1,22 @@
-import { readFileSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, fstatSync, openSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { unverifiedIds } from "./mirror-facts.ts";
-import { appendOf, entry, FILE, HEADER, userEntry } from "./mirror-fixtures.ts";
-import { announced, bed, cleanup, clock, fileText, fresh, keptFiles, open } from "./mirror-harness.ts";
+import { appendOf, entry, FILE, HEADER, imageEntry, userEntry } from "./mirror-fixtures.ts";
+import {
+  announced,
+  bed,
+  cleanup,
+  clock,
+  fileText,
+  fresh,
+  keptFiles,
+  open,
+  refusals,
+} from "./mirror-harness.ts";
 import { createProvenance, promptHash } from "./mirror-line.ts";
 import { REPLACED_NOTICE } from "./mirror.ts";
+import { MiB } from "./mirror-harness.ts";
 
 afterEach(cleanup);
 
@@ -84,7 +95,7 @@ describe("a replacement (R14)", () => {
     mirror.onSessionAppend(appendOf(0, HEADER, { replace: true }));
     mirror.onSessionAppend(appendOf(0, original.slice(0, 30), { replace: true }));
     expect(announced).toEqual(["replaced"]);
-    expect(keptFiles().length).toBeGreaterThanOrEqual(1);
+    expect(keptFiles()).toHaveLength(2);
   });
 
   it("keeps the copy counted in the quota", () => {
@@ -120,7 +131,7 @@ describe("provenance (R32)", () => {
           entry("a1"),
       ),
     );
-    expect([...unverifiedIds(bed.path)]).toEqual(["u2"]);
+    expect([...unverifiedIds(bed.path).ids]).toEqual(["u2"]);
     expect(statSync(`${bed.path}.unverified`).mode & 0o777).toBe(0o600);
   });
 
@@ -132,14 +143,14 @@ describe("provenance (R32)", () => {
     mirror.onSessionAppend(
       appendOf(0, HEADER + userEntry("u1", "the expanded text") + userEntry("u2", "second")),
     );
-    expect([...unverifiedIds(bed.path)]).toEqual(["u2"]);
+    expect([...unverifiedIds(bed.path).ids]).toEqual(["u2"]);
   });
 
   it("an entry the VM wrote that is not a user message is not judged", () => {
     fresh();
     const mirror = open();
     mirror.onSessionAppend(appendOf(0, HEADER + entry("a1") + entry("c1", { type: "custom" })));
-    expect(unverifiedIds(bed.path).size).toBe(0);
+    expect(unverifiedIds(bed.path).ids.size).toBe(0);
     expect(promptHash("x")).toHaveLength(64);
   });
 });
@@ -161,5 +172,101 @@ describe("a disconnect and a crash (Review Focus 5)", () => {
     const mirror = open();
     expect(mirror.facts()).toEqual({ size: HEADER.length, lastEntryId: "hdr00001" });
     expect(fileText()).toBe(HEADER);
+  });
+});
+
+// Mutant M-SETTLE-EARLY: settle an extension in `append` from the incoming bytes, before they are checked or written (the
+// old behaviour): killed by "old bytes plus a refused line" and "close during the parse".
+describe("a replacement settles on committed bytes only (R14, Review Focus 3)", () => {
+  const original = HEADER + entry("e1") + entry("e2");
+
+  it("old bytes plus a line the mirror refuses keep the copy, and the close posts the notice", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, original));
+    const result = mirror.onSessionAppend(appendOf(0, original + entry("e1"), { replace: true }));
+    expect(result).toBe("refused");
+    expect(refusals().at(-1)?.reason).toBe("duplicate_id");
+    expect(keptFiles()).toHaveLength(1);
+    expect(readFileSync(join(bed.folder, "replaced", keptFiles()[0] as string), "utf8")).toBe(original);
+    expect(fileText()).toBe("");
+    mirror.close();
+    expect(announced).toEqual(["replaced"]);
+  });
+
+  it("a close during the parse of the last replace chunk keeps the copy, with the notice", async () => {
+    fresh();
+    const big = HEADER + imageEntry("img1", 2 * MiB);
+    const mirror = open();
+    expect(await mirror.onSessionAppend(appendOf(0, big))).toBe("ok");
+    const pending = mirror.onSessionAppend(appendOf(0, big, { replace: true }));
+    expect(pending).toBeInstanceOf(Promise);
+    mirror.close();
+    expect(await pending).toBe("refused");
+    // The copy and its unverified list (the image entry is a user entry pap never sent).
+    expect(keptFiles().map((name) => name.replace(/\.unverified$/, ""))).toEqual([
+      `${FILE}.${clock.now()}`,
+      `${FILE}.${clock.now()}`,
+    ]);
+    expect(announced).toEqual(["replaced"]);
+    expect(fileText()).toBe("");
+  });
+
+  it("the copy goes only when the bytes up to the old size are on disk", async () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, original));
+    mirror.onSessionAppend(appendOf(0, HEADER + entry("e1"), { replace: true }));
+    expect(keptFiles()).toHaveLength(1);
+    mirror.onSessionAppend(appendOf(mirror.facts().size, entry("e2")));
+    expect(keptFiles()).toEqual([]);
+    expect(announced).toEqual([]);
+  });
+});
+
+describe("a replacement that fails half way (R14)", () => {
+  it("counts as kept with its notice, and the descriptor is closed once (no stray close of another)", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, HEADER + entry("e1")));
+    // The kept-copies folder cannot be made: a file stands where it should be.
+    writeFileSync(join(bed.folder, "replaced"), "in the way");
+    expect(mirror.onSessionAppend(appendOf(0, HEADER, { replace: true }))).toBe("refused");
+    expect(announced).toEqual(["replaced"]);
+    const probe = openSync(join(bed.root, "probe"), "w");
+    try {
+      mirror.close();
+      expect(fstatSync(probe).isFile()).toBe(true);
+    } finally {
+      closeSync(probe);
+    }
+    expect(fileText()).toBe(HEADER + entry("e1"));
+  });
+});
+
+describe("the unverified list follows its copy (R32, R14)", () => {
+  it("moves with the kept copy to replaced/<name>.<stamp>.unverified", () => {
+    fresh();
+    const mirror = open();
+    mirror.onSessionAppend(appendOf(0, HEADER + userEntry("u1", "forged")));
+    expect([...unverifiedIds(bed.path).ids]).toEqual(["u1"]);
+    mirror.onSessionAppend(appendOf(0, HEADER + entry("x1"), { replace: true }));
+    expect(keptFiles().sort()).toEqual([`${FILE}.${clock.now()}`, `${FILE}.${clock.now()}.unverified`]);
+    expect(unverifiedIds(bed.path).ids.size).toBe(0);
+  });
+
+  // Mutant M-INHERIT: judge the bytes of an extension again against the provenance (already consumed): killed here, a
+  // prompt pap sent would be shown as forged after every resend, and a forged one would not stay marked.
+  it("an extension keeps the old verdicts: a sent prompt stays sent, a forged one stays marked", () => {
+    fresh();
+    const provenance = createProvenance();
+    provenance.sent("hello");
+    const mirror = open({ provenance });
+    const text = HEADER + userEntry("u1", "hello") + userEntry("u2", "forged");
+    mirror.onSessionAppend(appendOf(0, text));
+    expect([...unverifiedIds(bed.path).ids]).toEqual(["u2"]);
+    mirror.onSessionAppend(appendOf(0, text + entry("e9"), { replace: true }));
+    expect(keptFiles()).toEqual([]);
+    expect([...unverifiedIds(bed.path).ids]).toEqual(["u2"]);
   });
 });

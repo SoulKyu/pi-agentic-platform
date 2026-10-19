@@ -1,7 +1,23 @@
-import { closeSync, constants, openSync, readFileSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { readMirrorFacts, scanMirror, unverifiedIds, unverifiedPathOf } from "./mirror-facts.ts";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  readMirrorFacts,
+  scanMirror,
+  UNVERIFIED_MAX_BYTES,
+  unverifiedIds,
+  unverifiedPathOf,
+} from "./mirror-facts.ts";
 import { type Bed, entry, HEADER, imageEntry, makeBed } from "./mirror-fixtures.ts";
 
 let bed: Bed;
@@ -63,7 +79,7 @@ describe("readMirrorFacts (Review Focus 5)", () => {
   });
 });
 
-describe("scanMirror: ids come from each line's first 512 bytes, else the line is parsed", () => {
+describe("scanMirror: ids come from each line's first 512 bytes", () => {
   it("lists the header's id and every entry's id", () => {
     fresh();
     writeFileSync(bed.path, HEADER + entry("e1") + entry("e2"));
@@ -78,15 +94,33 @@ describe("scanMirror: ids come from each line's first 512 bytes, else the line i
     expect(scanned.lastEntryId).toBe("e2");
   });
 
-  it("parses a line whose id is not in the head", () => {
+  // Mutant M-OPEN-PARSE: parse the lines whose head has no id (the old scan): killed by the next case (a long line is parsed).
+  it("never parses a line at open, however long: only the small header is parsed (AVM-E23)", () => {
     fresh();
     const late = `${JSON.stringify({ type: "custom", pad: "x".repeat(700), id: "late1" })}\n`;
-    const idFirst = `${JSON.stringify({ id: "first1", type: "custom" })}\n`;
-    writeFileSync(bed.path, HEADER + late + idFirst);
-    const scanned = scan(bed.path);
-    expect(scanned.ids.has("late1")).toBe(true);
-    expect(scanned.ids.has("first1")).toBe(true);
-    expect(scanned.lastEntryId).toBe("first1");
+    writeFileSync(bed.path, HEADER + imageEntry("img1", 3 * 1024 * 1024) + late + entry("e2"));
+    const parse = vi.spyOn(JSON, "parse");
+    try {
+      const scanned = scan(bed.path);
+      expect(parse.mock.calls.map(([text]) => String(text).length)).toEqual([HEADER.length - 1]);
+      expect([...scanned.ids].sort()).toEqual(["e2", "hdr00001", "img1"]);
+      expect(scanned.lastEntryId).toBe("e2");
+    } finally {
+      parse.mockRestore();
+    }
+  });
+
+  it("throws past the cap on ids (AVM-E23)", () => {
+    fresh();
+    const lines = Array.from({ length: 6 }, (_, i) => entry(`e${i}`)).join("");
+    writeFileSync(bed.path, HEADER + lines);
+    const fd = openSync(bed.path, constants.O_RDWR);
+    try {
+      expect(scanMirror(fd, 7).ids.size).toBe(7);
+      expect(() => scanMirror(fd, 6)).toThrow(/too many/);
+    } finally {
+      closeSync(fd);
+    }
   });
 
   it("finds a line split across read blocks", () => {
@@ -96,24 +130,36 @@ describe("scanMirror: ids come from each line's first 512 bytes, else the line i
   });
 });
 
-describe("unverifiedIds (R32)", () => {
-  it("is empty without a sidecar", () => {
+describe("unverifiedIds (R32, AVM-E22)", () => {
+  it("is empty and trusted without a sidecar", () => {
     fresh();
-    expect(unverifiedIds(bed.path).size).toBe(0);
+    expect(unverifiedIds(bed.path)).toEqual({ ids: new Set(), all: false });
   });
 
   it("lists the ids of the sidecar next to the file", () => {
     fresh();
     expect(unverifiedPathOf(bed.path)).toBe(`${bed.path}.unverified`);
-    writeFileSync(unverifiedPathOf(bed.path), "u1\nu2\n\n");
-    expect([...unverifiedIds(bed.path)].sort()).toEqual(["u1", "u2"]);
+    writeFileSync(unverifiedPathOf(bed.path), "u1\nu2\n");
+    const listed = unverifiedIds(bed.path);
+    expect([...listed.ids].sort()).toEqual(["u1", "u2"]);
+    expect(listed.all).toBe(false);
   });
 
-  it("does not follow a link at the sidecar", () => {
+  // Mutant M-SIDECAR-OPEN: an unreadable list is an empty one (fail open): killed by the next three cases.
+  it("marks everything when the sidecar is a link", () => {
     fresh();
     const target = join(bed.root, "other");
     writeFileSync(target, "u1\n");
     symlinkSync(target, unverifiedPathOf(bed.path));
-    expect(unverifiedIds(bed.path).size).toBe(0);
+    expect(unverifiedIds(bed.path)).toEqual({ ids: new Set(), all: true });
+  });
+
+  it("marks everything when the sidecar is not readable or is over its bound", () => {
+    fresh();
+    writeFileSync(unverifiedPathOf(bed.path), Buffer.alloc(UNVERIFIED_MAX_BYTES + 1, 0x61));
+    expect(unverifiedIds(bed.path).all).toBe(true);
+    rmSync(unverifiedPathOf(bed.path));
+    mkdirSync(unverifiedPathOf(bed.path));
+    expect(unverifiedIds(bed.path).all).toBe(true);
   });
 });

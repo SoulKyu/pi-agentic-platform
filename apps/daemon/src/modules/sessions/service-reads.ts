@@ -154,10 +154,13 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
   const withMarks = (row: SessionRow, file: string | null, page: BranchPage): BranchPage => {
     if (!file || mirrorFileOf(deps.papHome, { piPath: file, agentId: row.agentId }) === null) return page;
     const listed = unverifiedIds(file);
-    if (listed.size === 0) return page;
-    const rows = page.rows.map((r) =>
-      r.entryId !== null && listed.has(r.entryId) ? { ...r, unverified: true as const } : r,
-    );
+    if (!listed.all && listed.ids.size === 0) return page;
+    // A list that cannot be trusted (unreadable, cut) marks every user row: fail closed (AVM-E22).
+    const unsent = (r: TranscriptRow): boolean =>
+      listed.all
+        ? (r.message as { role?: unknown } | null)?.role === "user"
+        : r.entryId !== null && listed.ids.has(r.entryId);
+    const rows = page.rows.map((r) => (unsent(r) ? { ...r, unverified: true as const } : r));
     return { ...page, rows };
   };
 

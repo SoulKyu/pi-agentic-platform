@@ -1,5 +1,5 @@
 import { availableParallelism } from "node:os";
-import type { VmLayout } from "@pap/contracts";
+import { PapError, type VmLayout } from "@pap/contracts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
 import type { Logger } from "./kernel/logger.ts";
@@ -150,7 +150,16 @@ export async function composeAgentsVm(
             canWrite: () => hooks.canWrite(),
           })
         : null;
-    const mirrors: MirrorInputs = seams.mirrors ?? (own as NonNullable<typeof own>);
+    // AVM-E21: until the hooks are bound a notice or a taint could go nowhere, so no VM session starts (a seam's mirrors are the test's).
+    let bound = false;
+    const mirrors: MirrorInputs =
+      seams.mirrors ??
+      ({
+        inputFor(row, resources) {
+          if (!bound) throw new PapError("internal");
+          return (own as NonNullable<typeof own>).inputFor(row, resources);
+        },
+      } satisfies MirrorInputs);
     own?.start();
     if (own) closers.push({ name: "agent_mirrors", close: () => own.close() });
     closers.push({
@@ -181,6 +190,7 @@ export async function composeAgentsVm(
       mirrors,
       bindMirrorHooks(next) {
         hooks = next;
+        bound = true;
       },
       agentRunsInVm: () => true,
       resourceHost: () => ({ memoryCapMb: config.agentsMemoryMaxMb, cores: availableParallelism() }),

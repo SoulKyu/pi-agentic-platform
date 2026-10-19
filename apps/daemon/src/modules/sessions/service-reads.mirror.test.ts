@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Caller, TranscriptRow } from "@pap/contracts";
@@ -85,7 +85,7 @@ describe("the file a VM session is read from (T9b)", () => {
 });
 
 describe("unverified user entries (R32)", () => {
-  async function readsOf(unverified: string[]) {
+  async function readsOf(unverified: string[], sidecar: "list" | "link" = "list") {
     const bed = setup({ reported: () => null });
     const path = mirrorOf(bed.papHome);
     writeFileSync(
@@ -96,7 +96,10 @@ describe("unverified user entries (R32)", () => {
       ]),
       { mode: 0o600 },
     );
-    writeFileSync(`${path}.unverified`, unverified.map((id) => `${id}\n`).join(""), { mode: 0o600 });
+    if (sidecar === "link") {
+      writeFileSync(join(bed.papHome, "elsewhere"), "u1\n");
+      symlinkSync(join(bed.papHome, "elsewhere"), `${path}.unverified`);
+    } else writeFileSync(`${path}.unverified`, unverified.map((id) => `${id}\n`).join(""), { mode: 0o600 });
     const row = { id: "s1", ownerId: "u1", cwd: "/w", piPath: path, name: null, ...vmRow } as SessionRow;
     const reads = createSessionReads({
       store: { get: () => row } as never,
@@ -131,5 +134,14 @@ describe("unverified user entries (R32)", () => {
     const snapshot = reads.snapshot("s1");
     if (snapshot.kind !== "snapshot") throw new Error("no snapshot");
     expect(flagged(snapshot.rows)).toEqual([]);
+  });
+
+  // Mutant M-READS-FAILOPEN: an unreadable list marks nothing: killed here (AVM-E22).
+  it("marks EVERY user row when the list cannot be read", async () => {
+    const reads = await readsOf([], "link");
+    const snapshot = reads.snapshot("s1");
+    if (snapshot.kind !== "snapshot") throw new Error("no snapshot");
+    expect(flagged(snapshot.rows)).toEqual(["u0", "u1"]);
+    expect(snapshot.rows.find((row) => row.entryId === "a0")).not.toHaveProperty("unverified");
   });
 });

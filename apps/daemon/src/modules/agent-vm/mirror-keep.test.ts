@@ -71,6 +71,29 @@ describe("sweepKept: a kept copy lives 7 days", () => {
     expect(readdirSync(keptDir())).toEqual(["notes.txt"]);
   });
 
+  // Mutant M-SWEEP-LINK: sweep through a `replaced` that is a link: killed here.
+  it("never sweeps through a `replaced` folder that is a link", () => {
+    bed = makeBed();
+    const clock = createFakeClock();
+    const elsewhere = join(bed.root, "elsewhere");
+    mkdirSync(elsewhere);
+    const old = join(elsewhere, `${FILE}.${clock.now() - 9 * DAY}`);
+    writeFileSync(old, "x");
+    symlinkSync(elsewhere, keptDir());
+    expect(sweepKept(bed.root, clock, captureLogger().logger)).toEqual({ removed: 0, agents: [] });
+    expect(existsSync(old)).toBe(true);
+  });
+
+  it("sweeps the kept unverified list with its copy", () => {
+    bed = makeBed();
+    const clock = createFakeClock();
+    mkdirSync(keptDir());
+    const stamp = clock.now() - 8 * DAY;
+    for (const name of [`${FILE}.${stamp}`, `${FILE}.${stamp}.unverified`])
+      writeFileSync(join(keptDir(), name), "x");
+    expect(sweepKept(bed.root, clock, captureLogger().logger).removed).toBe(2);
+  });
+
   it("is quiet when nothing was ever kept", () => {
     bed = makeBed();
     expect(sweepKept(bed.root, createFakeClock(), captureLogger().logger)).toEqual({

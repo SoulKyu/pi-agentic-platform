@@ -179,6 +179,7 @@ describe("composeAgentsVm's mirrors (T9b)", () => {
     home = mkdtempSync(join(tmpdir(), "pap-compose-"));
     mkdirSync(join(home, "agents", ".mirrors", ID), { recursive: true, mode: 0o700 });
     const vm = (await compose(core({ home }), { backend: () => idle() })) as AgentsVm;
+    vm.bindMirrorHooks({ notice: () => {}, taint: () => {}, canWrite: () => true });
     const port = vm.mirrors.inputFor(row({ piPath: null })).mirrorFor(FILE);
     if (port === "refused") throw new Error("the mirror refused");
     expect(port.path).toBe(join(home, "agents", ".mirrors", ID, FILE));
@@ -204,6 +205,17 @@ describe("composeAgentsVm's mirrors (T9b)", () => {
       "notice:0f6c0f2e-1111-4222-8333-444455556666:La VM a ré",
       "taint:0f6c0f2e-1111-4222-8333-444455556666",
     ]);
+  });
+
+  // Mutant M-UNBOUND: inputFor works before the hooks are bound: killed here (AVM-E21).
+  it("refuses to make a session's mirror input until the hooks are bound", async () => {
+    home = mkdtempSync(join(tmpdir(), "pap-compose-"));
+    const vm = (await compose(core({ home }), { backend: () => idle() })) as AgentsVm;
+    expect(() => vm.mirrors.inputFor(row({ piPath: null }))).toThrow(
+      expect.objectContaining({ code: "internal" }),
+    );
+    vm.bindMirrorHooks({ notice: () => {}, taint: () => {}, canWrite: () => true });
+    expect(() => vm.mirrors.inputFor(row({ piPath: null }))).not.toThrow();
   });
 
   it("stops the sweeper of the kept copies when the daemon stops", async () => {

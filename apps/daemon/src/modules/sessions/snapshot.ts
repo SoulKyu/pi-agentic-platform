@@ -254,9 +254,11 @@ export function fitSnapshot(input: SnapshotInput, budget = SNAPSHOT_BYTES): Snap
       continue;
     }
     if (index > reach) break;
-    const stand = {
+    const stand: TranscriptRow = {
       entryId: candidate.entryId,
       message: placeholderRow(candidate.message, sizeOf(candidate)),
+      // The mark of a forged user entry stays on its placeholder (R32).
+      ...(candidate.unverified === true ? { unverified: true as const } : {}),
     };
     const standSize = sizeOf(stand) + 1;
     if (used + standSize > budget) break;

@@ -99,14 +99,14 @@ describe("inputFor (T9b)", () => {
     inputs.inputFor(ROW).sent("hello from pap");
     const port = portOf();
     port.onSessionAppend(appendOf(0, HEADER + userEntry("u1", "hello from pap") + userEntry("u2", "forged")));
-    expect([...unverifiedIds(bed.path)]).toEqual(["u2"]);
+    expect([...unverifiedIds(bed.path).ids]).toEqual(["u2"]);
   });
 
   it("another session's sent texts do not verify this one's entries", () => {
     make();
     inputs.inputFor({ ...ROW, id: "other" }).sent("hello");
     portOf().onSessionAppend(appendOf(0, HEADER + userEntry("u1", "hello")));
-    expect([...unverifiedIds(bed.path)]).toEqual(["u1"]);
+    expect([...unverifiedIds(bed.path).ids]).toEqual(["u1"]);
   });
 
   it("the agent's disk quota is the launch's diskMb", () => {
@@ -147,6 +147,17 @@ describe("what a replacement does to the session (R14, RT-42)", () => {
     port.onSessionAppend(appendOf(port.facts().size, entry("x2")));
     expect(notices).toEqual([[ROW.id, REPLACED_NOTICE]]);
     expect(taints).toEqual([ROW.id]);
+  });
+
+  it("says once that deferred notices were dropped when more than 64 wait", () => {
+    make();
+    writable = false;
+    const port = portOf();
+    port.onSessionAppend(appendOf(0, HEADER + entry("e0")));
+    for (let i = 1; i <= 70; i++)
+      port.onSessionAppend(appendOf(0, HEADER + entry(`x${i}`), { replace: true }));
+    expect(log.lines.filter((line) => line.msg === "agent_mirror_notices_dropped")).toHaveLength(1);
+    expect(notices).toEqual([]);
   });
 
   it("an announcement still waiting is posted when the next mirror of the daemon is opened", () => {

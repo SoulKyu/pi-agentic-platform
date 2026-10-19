@@ -57,6 +57,30 @@ describe("checkMirrorLine (R1, R32)", () => {
     expect(checkMirrorLine(line(value), false)).toEqual({ ok: false, reason: "not_entry" });
   });
 
+  // Mutant M-CHARSET: accept any string id again: killed here (AVM-E22).
+  it.each([
+    ["a newline", "a\nb"],
+    ["a lone surrogate", "a\ud800"],
+    ["a space", "a b"],
+    ["a control character", "a\u0001"],
+    ["a slash", "a/b"],
+    ["a non-ASCII letter", "\u00e9"],
+  ])("refuses an id with %s as not_entry, and a header with one", (_name, id) => {
+    expect(checkMirrorLine(Buffer.from(JSON.stringify({ type: "message", id })), false)).toEqual({
+      ok: false,
+      reason: "not_entry",
+    });
+    expect(checkMirrorLine(Buffer.from(JSON.stringify({ type: "session", id })), true)).toEqual({
+      ok: false,
+      reason: "not_entry",
+    });
+  });
+
+  it("takes Pi's ids: 8 hex characters and a UUID", () => {
+    for (const id of ["a1b2c3d4", "0f6c0f2e-1111-4222-8333-444455556666"])
+      expect(checkMirrorLine(line({ type: "message", id }), false)).toMatchObject({ ok: true });
+  });
+
   it("takes a 64 character type and a 128 character id", () => {
     expect(checkMirrorLine(line({ type: "t".repeat(64), id: "i".repeat(128) }), false)).toMatchObject({
       ok: true,

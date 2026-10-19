@@ -1,14 +1,23 @@
-import { closeSync, constants, readSync, unlinkSync, writeSync } from "node:fs";
+import { closeSync, constants, fstatSync, readSync, rmSync, writeSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import { MAX_SESSION_LINE_BYTES, type SessionAppend } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { ensureFolder, existsNoFollow, openPrivate } from "./mirror-files.ts";
 import { keepCopy } from "./mirror-keep.ts";
-import { type MirrorScan, scanMirror, unverifiedPathOf } from "./mirror-facts.ts";
+import {
+  MAX_MIRROR_IDS,
+  type MirrorScan,
+  scanMirror,
+  UNVERIFIED_MAX_BYTES,
+  type Unverified,
+  unverifiedIds,
+  unverifiedPathOf,
+} from "./mirror-facts.ts";
 import {
   type Checked,
   checkMirrorLine,
+  HEADER_MAX_BYTES,
   headIdOf,
   INLINE_PARSE_BYTES,
   type MirrorRefusal,
@@ -38,6 +47,8 @@ export interface MirrorDeps {
   announce(kind: "replaced" | "quota"): void;
   /** A new session's file: it must not exist yet, or it could be another session's mirror. */
   readonly createOnly?: boolean;
+  /** Tests: the cap on ids per file (AVM-E23). */
+  readonly maxIds?: number;
 }
 
 /** What a chunk's lines leave to commit once all of them passed. */
@@ -45,13 +56,15 @@ interface Staged {
   first: boolean;
   lastId: string | null;
   readonly ids: Set<string>;
-  readonly users: Array<{ id: string; hash: string }>;
+  readonly users: Array<{ id: string; hash: string; line: number }>;
 }
 
 interface Replacement {
   readonly kept: string;
   readonly fd: number;
   readonly oldSize: number;
+  /** The old copy's verdicts: a line inside the old size keeps its verdict instead of asking the provenance again. */
+  readonly inherited: Unverified;
 }
 
 function writeAll(fd: number, bytes: Buffer): void {
@@ -67,12 +80,13 @@ function writeAll(fd: number, bytes: Buffer): void {
 export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
   const name = basename(path);
   const { agentId, logger } = deps;
+  const maxIds = deps.maxIds ?? MAX_MIRROR_IDS;
   ensureFolder(dirname(path));
   if (deps.createOnly === true && existsNoFollow(path)) throw new Error("the mirror file exists");
   let fd = openPrivate(path, READ_WRITE);
   let scan: MirrorScan;
   try {
-    scan = scanMirror(fd);
+    scan = scanMirror(fd, maxIds);
   } catch (error) {
     closeSync(fd);
     throw error;
@@ -115,101 +129,142 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
     logger.warn("agent_mirror_replaced", { agentId });
     announce("replaced");
   };
-  /** The new file reached the old size byte for byte: an extension, nothing to keep. */
+  /** The new file reached the old size byte for byte, all of it on disk: an extension, nothing to keep. */
   const settleExtension = (): void => {
     const current = replacement;
     if (current === null) return;
     releaseReplacement();
     try {
-      unlinkSync(current.kept);
+      rmSync(current.kept, { force: true });
+      rmSync(`${current.kept}.unverified`, { force: true });
     } catch (error) {
       logger.warn("agent_mirror_keep_not_removed", { agentId, err: error });
     }
     deps.quota.forget(agentId);
   };
-  const compare = (data: Buffer, position: number): void => {
+  /** Whether the committed bytes `data` at `position` are the old copy's bytes there (read only; nothing settles here). */
+  const matchesOld = (data: Buffer, position: number): boolean => {
     const current = replacement;
-    if (current === null) return;
+    if (current === null) return true;
     const end = Math.min(position + data.length, current.oldSize);
-    if (end > position) {
-      const old = Buffer.allocUnsafe(end - position);
-      if (readSync(current.fd, old, 0, old.length, position) !== old.length) return settleKept();
-      if (!old.equals(data.subarray(0, old.length))) return settleKept();
-    }
-    if (position + data.length >= current.oldSize) settleExtension();
+    if (end <= position) return true;
+    const old = Buffer.allocUnsafe(end - position);
+    return (
+      readSync(current.fd, old, 0, old.length, position) === old.length &&
+      old.equals(data.subarray(0, old.length))
+    );
   };
 
-  /** `replace: true` at offset 0: the current mirror is kept aside and the new file starts empty. */
+  /**
+   * `replace: true` at offset 0: the current mirror (and its unverified list) is kept aside and the new file starts empty.
+   * Descriptors are opened before the old one is closed, and any failure counts as a kept copy with its notice and taint (R14).
+   */
   const startOver = (): void => {
     settleKept();
-    closeSync(fd);
     partial.length = 0;
     partialLength = 0;
+    let next: Replacement | null = null;
+    let newFd = fd;
     if (size > 0) {
-      const kept = keepCopy(path, deps.clock);
-      replacement = { kept, fd: openPrivate(kept, constants.O_RDONLY), oldSize: size };
+      let keptFd: number | null = null;
+      try {
+        const kept = keepCopy(path, deps.clock);
+        keptFd = openPrivate(kept, constants.O_RDONLY);
+        const inherited = unverifiedIds(kept);
+        newFd = openPrivate(path, READ_WRITE);
+        next = { kept, fd: keptFd, oldSize: size, inherited };
+      } catch (error) {
+        if (keptFd !== null) closeSync(keptFd);
+        logger.warn("agent_mirror_replaced", { agentId, failed: true });
+        announce("replaced");
+        throw error;
+      }
+      closeSync(fd);
     }
-    fd = openPrivate(path, READ_WRITE);
-    try {
-      unlinkSync(unverifiedPathOf(path));
-    } catch {
-      // No list yet.
-    }
+    fd = newFd;
+    replacement = next;
     ids = new Set();
     first = true;
     size = 0;
     lastEntryId = null;
   };
 
-  const appendUnverified = (listed: readonly string[]): void => {
+  /** Appends to the unverified list, before the lines it describes are written. False when the list would pass its bound. */
+  const appendUnverified = (listed: readonly string[]): boolean => {
+    const text = Buffer.from(listed.map((id) => `${id}\n`).join(""));
     const list = openPrivate(
       unverifiedPathOf(path),
       constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND,
     );
     try {
-      writeAll(list, Buffer.from(listed.map((id) => `${id}\n`).join("")));
+      if (fstatSync(list).size + text.length > UNVERIFIED_MAX_BYTES) return false;
+      writeAll(list, text);
+      return true;
     } finally {
       closeSync(list);
     }
   };
 
   /** One completed line: its facts, or the refusal. Nothing is committed here. */
-  const accept = (line: Buffer, checked: Checked, staged: Staged): "refused" | null => {
+  const accept = (line: Buffer, checked: Checked, staged: Staged, index: number): "refused" | null => {
     if (!checked.ok) return refuse(checked.reason);
     const { id, userText, headerId } = checked.facts;
-    if (id !== null) {
-      // JSON.parse keeps the last of two `id` keys, the open scan reads the first: a line where they differ is not a Pi entry.
-      const head = headIdOf(line);
-      if (head !== null && head !== id) return refuse("not_entry");
-    }
+    if (id === null && line.length > HEADER_MAX_BYTES) return refuse("line_too_large");
+    // AVM-E23: the id must be exactly where the open scan reads it, so no line is ever parsed at open and JSON.parse's
+    // last-key-wins cannot give a line two ids.
+    if (id !== null && headIdOf(line) !== id) return refuse("not_entry");
     const entryId = id ?? headerId;
     if (entryId !== null) {
       if (ids.has(entryId) || staged.ids.has(entryId)) return refuse("duplicate_id");
-      staged.ids.add(entryId);
-      staged.lastId = entryId;
+      // A flat copy: no reference to the line's bytes or head.
+      const kept = Buffer.from(entryId, "latin1").toString("latin1");
+      staged.ids.add(kept);
+      staged.lastId = kept;
     }
-    if (userText !== null && id !== null) staged.users.push({ id, hash: userText });
+    if (userText !== null && id !== null) staged.users.push({ id, hash: userText, line: index });
     staged.first = false;
     return null;
   };
 
+  const full = (): "refused" => {
+    announce("quota");
+    return refuse("quota");
+  };
+
   const commit = (lines: readonly Buffer[], staged: Staged): AppendResult => {
     if (lines.length === 0) return "ok";
+    if (ids.size + staged.ids.size > maxIds) return full();
     const bytes = Buffer.concat(lines.flatMap((line) => [line, NEWLINE_BYTE]));
-    if (!deps.quota.allow(agentId, bytes.length, deps.limitBytes)) {
-      announce("quota");
-      return refuse("quota");
+    // The old copy decides a verdict only for bytes that really are the old copy's.
+    const same = matchesOld(bytes, size);
+    const ends: number[] = [];
+    for (let end = size, index = 0; index < lines.length; index++) {
+      end += (lines[index] as Buffer).length + 1;
+      ends.push(end);
     }
+    const unsent: string[] = [];
+    for (const user of staged.users) {
+      const old = replacement;
+      if (same && old !== null && (ends[user.line] as number) <= old.oldSize) {
+        if (old.inherited.all || old.inherited.ids.has(user.id)) unsent.push(user.id);
+      } else if (!deps.provenance.verify(user.hash)) unsent.push(user.id);
+    }
+    const listText = unsent.map((id) => `${id}\n`).join("");
+    if (!deps.quota.allow(agentId, bytes.length + listText.length, deps.limitBytes)) return full();
+    // The list first: if it cannot be written, the line is not (a line without its mark would read as sent).
+    if (unsent.length > 0 && !appendUnverified(unsent)) return full();
     writeAll(fd, bytes);
+    const before = size;
     size += bytes.length;
-    deps.quota.added(agentId, bytes.length);
+    deps.quota.added(agentId, bytes.length + listText.length);
     for (const id of staged.ids) ids.add(id);
     lastEntryId = staged.lastId ?? lastEntryId;
     first = staged.first;
-    const unverified = staged.users
-      .filter((user) => !deps.provenance.verify(user.hash))
-      .map((user) => user.id);
-    if (unverified.length > 0) appendUnverified(unverified);
+    // Only bytes that are on disk settle a replacement (R14): a refused or unfinished chunk leaves the copy kept.
+    if (replacement !== null) {
+      if (!same) settleKept();
+      else if (before + bytes.length >= replacement.oldSize) settleExtension();
+    }
     return "ok";
   };
 
@@ -230,13 +285,13 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
         return deps.parser.parse(line, staged.first).then((checked) => {
           if (closed || dead) return "refused";
           try {
-            return accept(line, checked, staged) ?? consume(lines, index + 1, staged);
+            return accept(line, checked, staged, index) ?? consume(lines, index + 1, staged);
           } catch (error) {
             return fail(error);
           }
         });
       }
-      const refused = accept(line, checkMirrorLine(line, staged.first), staged);
+      const refused = accept(line, checkMirrorLine(line, staged.first), staged, index);
       if (refused !== null) return refused;
     }
     return commit(lines, staged);
@@ -253,8 +308,6 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
       partialLength = 0;
       return { resync: { type: "session_resync", fromOffset: size, lastEntryId } };
     }
-    compare(data, size + partialLength);
-
     const lines: Buffer[] = [];
     let at = 0;
     for (let newline = data.indexOf(NEWLINE, at); newline >= 0; newline = data.indexOf(NEWLINE, at)) {

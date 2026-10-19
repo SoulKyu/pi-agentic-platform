@@ -73,12 +73,18 @@ export function createMirrorInputs(deps: MirrorInputsDeps): MirrorInputs {
 
   // RT-42: in read-only database mode the mirror still appends (it is a file), but nothing is posted or tainted: the notice waits.
   const deferred: Array<() => void> = [];
+  let overflowSaid = false;
   const post = (work: () => void): void => {
     if (deps.canWrite()) work();
     else if (deferred.length < MAX_DEFERRED) deferred.push(work);
+    else if (!overflowSaid) {
+      overflowSaid = true;
+      logger.warn("agent_mirror_notices_dropped", { max: MAX_DEFERRED });
+    }
   };
   const flush = (): void => {
     if (deferred.length === 0 || !deps.canWrite()) return;
+    overflowSaid = false;
     for (const work of deferred.splice(0)) work();
   };
 
