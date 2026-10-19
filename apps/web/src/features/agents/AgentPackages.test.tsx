@@ -37,17 +37,23 @@ function Host({ system, picks }: { system: readonly string[]; picks: readonly st
   );
 }
 
-async function open(system: readonly string[] = [], picks: readonly string[] | null = null) {
+async function open(
+  system: readonly string[] = [],
+  picks: readonly string[] | null = null,
+  list?: () => unknown,
+) {
   const bed = fakeRuntime();
   current.runtime = bed.runtime;
-  bed.handlers["plugins.list"] = () => ({
-    plugins: [
-      plugin("npm:pi-mem0"),
-      plugin("git:github.com/acme/pi-tools"),
-      plugin("npm:project-only", "project"),
-    ],
-    truncated: false,
-  });
+  bed.handlers["plugins.list"] =
+    list ??
+    (() => ({
+      plugins: [
+        plugin("npm:pi-mem0"),
+        plugin("git:github.com/acme/pi-tools"),
+        plugin("npm:project-only", "project"),
+      ],
+      truncated: false,
+    }));
   await mount(<Host system={system} picks={picks} />);
   await settle();
   return bed;
@@ -143,19 +149,62 @@ describe("Pi packages", () => {
     expect(hasButton(document.body, "Add")).toBe(true);
   });
 
-  it("says so when the profile has no package, and when the list cannot be read", async () => {
-    const bed = await open([], []);
-    bed.handlers["plugins.list"] = () => ({ plugins: [], truncated: false });
-    document.body.replaceChildren();
-    await mount(<Host system={[]} picks={[]} />);
-    await settle();
+  it("says so when the profile has no package", async () => {
+    await open([], [], () => ({ plugins: [], truncated: false }));
     expect(body()).toContain("Your Pi profile has no package.");
-    bed.handlers["plugins.list"] = () => {
+  });
+
+  // Mutant "failed read treated as empty": usePiSources answers ready with [] on a rejection. The two tests below fail.
+  it("shows an error and a retry when the read fails, never the empty-profile message, and All cannot be unticked", async () => {
+    const bed = await open([], null, () => {
       throw new Error("no");
-    };
-    document.body.replaceChildren();
-    await mount(<Host system={[]} picks={null} />);
+    });
+    expect(body()).toContain("Your Pi packages could not be read.");
+    expect(body()).not.toContain("Your Pi profile has no package.");
+    await click(tick("All") as HTMLElement);
+    expect(seen.picks).toBeNull();
+    expect((tick("All") as HTMLButtonElement).disabled).toBe(true);
+    bed.handlers["plugins.list"] = () => ({ plugins: [plugin("npm:pi-mem0")], truncated: false });
+    await click(button(document.body, "Try again"));
     await settle();
-    expect(tick("All")?.getAttribute("aria-checked")).toBe("true");
+    expect(body()).not.toContain("could not be read");
+    await click(tick("All") as HTMLElement);
+    expect(seen.picks).toEqual(["npm:pi-mem0"]);
+  });
+
+  it("keeps All locked and says nothing about an empty profile while the read is pending", async () => {
+    await open([], [], () => new Promise(() => {}));
+    expect(body()).toContain("Reading your Pi packages...");
+    expect(body()).not.toContain("Your Pi profile has no package.");
+    expect((tick("All") as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  // Mutant "masked source tickable": drop `disabled={isMasked(source)}` and the isMasked guards in toggle and in the All
+  // handler. The next test fails (the masked source is ticked and sent).
+  it("never offers a masked source: it is disabled with a note, left out of All's picks, and sent nowhere", async () => {
+    const masked = "git:https://\u2022\u2022\u2022@github.com/acme/private";
+    await open([], null, () => ({
+      plugins: [plugin(masked), plugin("npm:pi-mem0")],
+      truncated: false,
+    }));
+    await click(tick("All") as HTMLElement);
+    expect(seen.picks).toEqual(["npm:pi-mem0"]);
+    expect((tick(masked) as HTMLButtonElement).disabled).toBe(true);
+    expect(tick(masked)?.getAttribute("aria-checked")).toBe("false");
+    expect(body()).toContain("Masked source (credentials in the address)");
+    await click(tick(masked) as HTMLElement);
+    expect(seen.picks).toEqual(["npm:pi-mem0"]);
+  });
+
+  it("renders two sources that mask alike once, with no duplicate key", async () => {
+    const masked = "git:https://\u2022\u2022\u2022@github.com/acme/private";
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await open([], null, () => ({ plugins: [plugin(masked), plugin(masked)], truncated: false }));
+    await click(tick("All") as HTMLElement);
+    expect([...document.querySelectorAll("label")].filter((one) => one.textContent === masked)).toHaveLength(
+      1,
+    );
+    expect(errors).not.toHaveBeenCalled();
+    errors.mockRestore();
   });
 });

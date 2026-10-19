@@ -25,6 +25,11 @@ export const agentVmEn = {
   "agentVm.pi.all": "All",
   "agentVm.pi.hint": "All the packages of your Pi profile go into the image. Untick All to choose.",
   "agentVm.pi.none": "Your Pi profile has no package.",
+  "agentVm.pi.loading": "Reading your Pi packages...",
+  "agentVm.pi.failed": "Your Pi packages could not be read.",
+  "agentVm.pi.retry": "Try again",
+  "agentVm.pi.masked":
+    "Masked source (credentials in the address): it cannot be picked yet, so it stays out of the image's package list.",
   "agentVm.sandboxNote": "Does not apply to VM agents: their shell is always isolated, with no network.",
   "agentVm.vault": "The vault for VM agents arrives with sub-project 2.",
   "agentVm.prechecks": "Trigger prechecks for a VM agent arrive with sub-project 3.",
@@ -80,6 +85,11 @@ export const agentVmFr: Record<keyof typeof agentVmEn, string> = {
   "agentVm.pi.all": "Tous",
   "agentVm.pi.hint": "Tous les paquets de votre profil Pi vont dans l'image. Décochez « Tous » pour choisir.",
   "agentVm.pi.none": "Votre profil Pi n'a aucun paquet.",
+  "agentVm.pi.loading": "Lecture de vos paquets Pi...",
+  "agentVm.pi.failed": "Vos paquets Pi n'ont pas pu être lus.",
+  "agentVm.pi.retry": "Réessayer",
+  "agentVm.pi.masked":
+    "Source masquée (identifiants dans l'adresse) : elle ne peut pas encore être choisie, elle reste donc hors de la liste de paquets de l'image.",
   "agentVm.sandboxNote": "Ne s'applique pas aux agents en VM : leur shell est toujours isolé, sans réseau.",
   "agentVm.vault": "Le coffre des agents en VM arrive avec le sous-projet 2.",
   "agentVm.prechecks": "Les pré-checks d'un agent en VM arrivent avec le sous-projet 3.",
