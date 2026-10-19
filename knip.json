@@ -13,7 +13,7 @@
     },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts", "src/testing/mcp-fixture.mjs", "src/testing/bridge-like-extension.mjs"],
-      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run", "mkfifo"]
+      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run", "mkfifo", "openssl"]
     },
     "apps/web": {
       "entry": ["src/features/appearance/boot-script.js", "vite/*.ts", "sw/sw.ts"]

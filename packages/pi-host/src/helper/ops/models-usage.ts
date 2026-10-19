@@ -6,6 +6,7 @@ import {
   UsageReport,
 } from "@pap/contracts";
 import type { z } from "zod";
+import { authHeaderEntries } from "../../relay/credentials.ts";
 import { defineOp, type HelperContext, HelperOpError, type HelperOp } from "../ops.ts";
 import { openExtensionLoad, loadRuntime } from "./extension-load.ts";
 import { normalizeUsage, PROVIDER_NAMES, UnusableAnswer } from "./models-usage-normalize.ts";
@@ -96,9 +97,7 @@ function endpointOf(providerId: ProviderUsageId, token: string | undefined): str
 
 function requestHeaders(auth: { apiKey?: string; headers?: Readonly<Record<string, string | null>> }) {
   const headers = new Headers({ accept: "application/json" });
-  for (const [name, value] of Object.entries(auth.headers ?? {}))
-    if (typeof value === "string" && !["host", "cookie", "content-length"].includes(name.toLowerCase()))
-      headers.set(name, value);
+  for (const [name, value] of authHeaderEntries(auth.headers)) headers.set(name, value);
   if (!headers.has("authorization") && auth.apiKey) headers.set("authorization", `Bearer ${auth.apiKey}`);
   return headers;
 }

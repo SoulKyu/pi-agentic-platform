@@ -35,6 +35,7 @@ import { createVmFileTools, vmFilesFirst } from "./vm-files/extension.ts";
 import { realVmRoots } from "./policy/vm-paths.ts";
 import { createVmShellTool } from "./vm-shell/tool.ts";
 import { appendMemoryTrust } from "./memory-entry.ts";
+import { applyRelayKey } from "./relay-key.ts";
 import { loadScriptedProvider } from "./scripted-provider.ts";
 import type { UiBridge } from "./ui-bridge.ts";
 
@@ -262,6 +263,13 @@ export async function openSession(init: InitRecord, deps: OpenSessionDeps): Prom
       resolveProjectTrust: trust.resolve,
     },
   });
+  // RT-03: in a VM every provider's key is the launch's relay key; the credentials stay on the host.
+  if (init.vm)
+    await applyRelayKey(
+      services.modelRuntime,
+      init.vm.relayKey,
+      services.modelRuntime.getProviders().map((p) => p.id),
+    );
   const sessionManager = init.sessionFile
     ? SessionManager.open(init.sessionFile)
     : SessionManager.create(cwd, sessionDirOf(init));

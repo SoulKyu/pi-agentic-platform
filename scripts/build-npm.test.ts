@@ -212,6 +212,7 @@ describe("buildNpm", () => {
       ".": { default: "./dist/main.js" },
       "./helper": { default: "./dist/helper/main.js" },
       "./guest": { default: "./dist/guest/main.js" },
+      "./relay": { default: "./dist/relay/main.js" },
     });
   });
 

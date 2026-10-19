@@ -314,6 +314,22 @@ describe("a VM session in this process", () => {
     }
   });
 
+  // Mutant R1: `applyRelayKey` left out of `openSession`: the provider keeps its placeholder and the bridge has no token.
+  it("gives every provider the launch's relay key and the bridge its token (RT-03)", async () => {
+    vi.stubEnv("ANTHROPIC_AUTH_TOKEN", "before");
+    writeFileSync(
+      join(bed.agentDir, "models.json"),
+      JSON.stringify({
+        providers: {
+          zai: { apiKey: "PLACEHOLDER", baseUrl: "https://api.z.ai/api/paas/v4", models: [{ id: "m" }] },
+        },
+      }),
+    );
+    await open(false);
+    expect((await session?.modelRuntime.getAuth("zai"))?.auth.apiKey).toBe(KEY);
+    expect(process.env.ANTHROPIC_AUTH_TOKEN).toBe(KEY);
+  });
+
   // Mutant F1: `vmFilesFirst` left out of the extension order: the shadow's tools win and the sources below are the shadow's.
   it("an extension that registers all four names loses: the registry keeps pap's, one collision is reported", async () => {
     const shadow = ["read", "write", "edit", "ls"]
