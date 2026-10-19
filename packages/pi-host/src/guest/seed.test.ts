@@ -1,4 +1,7 @@
 import {
+  linkSync,
+  readdirSync,
+  renameSync,
   chmodSync,
   existsSync,
   mkdirSync,
@@ -192,5 +195,29 @@ describe("pickPackages", () => {
     symlinkSync(join(dir, "victim"), join(layout.piAgentDir, "settings.json"));
     expect(() => pickPackages(layout, ["npm:a@1.0.0"])).toThrow();
     expect(readFileSync(join(dir, "victim"), "utf8")).toBe("untouched");
+  });
+
+  // Mutant: pickPackages opens piAgentDir by its full path -> the link at `.pi` is followed (killed).
+  it("refuses a link at a middle component of Pi's agent folder path", () => {
+    seeded();
+    mkdirSync(join(dir, "elsewhere", "agent"), { recursive: true });
+    writeFileSync(join(dir, "elsewhere", "agent", "settings.json"), "{}");
+    renameSync(layout.pi, join(dir, "moved"));
+    symlinkSync(join(dir, "elsewhere"), layout.pi);
+    expect(() => pickPackages(layout, ["npm:a@1.0.0"])).toThrow();
+    expect(readFileSync(join(dir, "elsewhere", "agent", "settings.json"), "utf8")).toBe("{}");
+  });
+
+  // Mutant: write settings.json in place (O_TRUNC) -> a hard link made earlier changes too; a temp file stays behind.
+  it("replaces settings.json by rename and leaves no temporary file", () => {
+    seeded();
+    const settings = join(layout.piAgentDir, "settings.json");
+    linkSync(settings, join(dir, "old-copy"));
+    const before = readFileSync(settings, "utf8");
+    pickPackages(layout, ["npm:c@1.0.0"]);
+    expect(readFileSync(join(dir, "old-copy"), "utf8")).toBe(before);
+    expect(readdirSync(layout.piAgentDir).filter((name) => name.includes("settings"))).toEqual([
+      "settings.json",
+    ]);
   });
 });

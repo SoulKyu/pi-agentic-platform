@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import {
   closeSync,
   constants,
@@ -14,7 +15,16 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openAt, openDirAt, openRootDir, unlinkAt } from "./nofollow.ts";
+import {
+  componentsUnder,
+  openAt,
+  openChain,
+  openDirAt,
+  openFileChain,
+  openRootDir,
+  renameAt,
+  unlinkAt,
+} from "./nofollow.ts";
 
 let dir: string;
 beforeEach(() => {
@@ -106,6 +116,57 @@ describe("nofollow helpers", () => {
     unlinkAt(root, "link");
     expect(existsSync(join(dir, "link"))).toBe(false);
     expect(readFileSync(join(dir, "target"), "utf8")).toBe("keep");
+    closeSync(root);
+  });
+
+  // Mutant: openChain opens the whole path with one openSync -> a link at a middle component is followed (killed here).
+  it("walks a path component by component and refuses a link at a middle component", () => {
+    mkdirSync(join(dir, "outside"));
+    writeFileSync(join(dir, "outside", "secret"), "s");
+    mkdirSync(join(dir, "a"));
+    symlinkSync(join(dir, "outside"), join(dir, "a", "mid"));
+    const root = openRootDir(dir);
+    expect(() => openFileChain(root, dir, join(dir, "a", "mid", "secret"), constants.O_RDONLY)).toThrow(
+      /not a folder/,
+    );
+    expect(() => openChain(root, dir, join(dir, "a", "mid"), 0o700)).toThrow(/not a folder/);
+    mkdirSync(join(dir, "a", "real"));
+    writeFileSync(join(dir, "a", "real", "f"), "ok");
+    const fd = openFileChain(root, dir, join(dir, "a", "real", "f"), constants.O_RDONLY);
+    expect(readFileSync(fd, "utf8")).toBe("ok");
+    closeSync(fd);
+    closeSync(openFileChain(root, dir, join(dir, "a", "real", "f"), constants.O_RDONLY));
+    writeFileSync(join(dir, "top"), "t");
+    closeSync(openFileChain(root, dir, join(dir, "top"), constants.O_RDONLY));
+    closeSync(root);
+  });
+
+  // Mutant: drop the fstat isFile check or O_NONBLOCK -> opening the FIFO blocks the test (killed by the timeout).
+  it("refuses a FIFO without blocking", () => {
+    execFileSync("mkfifo", [join(dir, "pipe")]);
+    const root = openRootDir(dir);
+    expect(() => openAt(root, "pipe", constants.O_RDONLY)).toThrow(/not a regular file/);
+    expect(() => openFileChain(root, dir, join(dir, "pipe"), constants.O_RDONLY)).toThrow(
+      /not a regular file/,
+    );
+    expect(() => openAt(root, "pipe", constants.O_WRONLY)).toThrow(/ENXIO/);
+    closeSync(root);
+  });
+
+  // Mutant: skip the component check -> a NUL or a path outside the root reaches the open (killed here).
+  it("refuses a path outside its root and the root itself", () => {
+    expect(componentsUnder(dir, join(dir, "a", "b"))).toEqual(["a", "b"]);
+    for (const path of [dir, join(dir, ".."), "/etc/passwd", `${dir}/a\0b`]) {
+      expect(() => componentsUnder(dir, path)).toThrow();
+    }
+  });
+
+  it("renames inside a folder it holds", () => {
+    writeFileSync(join(dir, "from"), "x");
+    const root = openRootDir(dir);
+    renameAt(root, "from", "to");
+    expect(existsSync(join(dir, "to"))).toBe(true);
+    expect(() => renameAt(root, "to", "a/b")).toThrow(/single name/);
     closeSync(root);
   });
 });

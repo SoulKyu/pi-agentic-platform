@@ -1,4 +1,14 @@
-import { closeSync, constants, fchmodSync, mkdirSync, openSync, unlinkSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  unlinkSync,
+} from "node:fs";
+import { basename, dirname, isAbsolute, relative, sep } from "node:path";
 
 /**
  * Descriptor-relative opens that never follow a link (R26, AVM-P7). A caller holds a folder's descriptor and names ONE
@@ -24,9 +34,24 @@ export function openRootDir(path: string): number {
   return openSync(path, FOLDER);
 }
 
-/** Opens `name` inside the folder `dirFd`. O_NOFOLLOW is always added: a link as `name` is ELOOP. */
+/**
+ * Opens `name` inside the folder `dirFd`. O_NOFOLLOW is always added (a link as `name` is ELOOP) and so is O_NONBLOCK, and
+ * anything that is not a regular file is closed and refused, so a planted FIFO or device cannot block or feed the caller.
+ */
 export function openAt(dirFd: number, name: string, flags: number, mode = 0o600): number {
-  return openSync(inside(dirFd, name), flags | constants.O_NOFOLLOW, mode);
+  const fd = openSync(inside(dirFd, name), flags | constants.O_NOFOLLOW | constants.O_NONBLOCK, mode);
+  try {
+    if (!fstatSync(fd).isFile()) throw new Error(`${name} is not a regular file`);
+  } catch (error) {
+    closeSync(fd);
+    throw error;
+  }
+  return fd;
+}
+
+/** Renames `from` to `to`, both entries of the folder `dirFd`. */
+export function renameAt(dirFd: number, from: string, to: string): void {
+  renameSync(inside(dirFd, from), inside(dirFd, to));
 }
 
 /**
@@ -64,6 +89,54 @@ export function openDirAt(dirFd: number, name: string, options: { create?: numbe
 /** Removes the entry `name` of `dirFd`; a link is removed itself, never its target. */
 export function unlinkAt(dirFd: number, name: string): void {
   unlinkSync(inside(dirFd, name));
+}
+
+/** The components of `path` below `root`; refuses a path outside it, and `.`, `..`, empty or NUL components. */
+export function componentsUnder(root: string, path: string): string[] {
+  const rel = relative(root, path);
+  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error("the path is outside its root");
+  }
+  const names = rel.split(sep);
+  for (const name of names) inside(0, name);
+  return names;
+}
+
+/**
+ * Walks `path` below `root` one component at a time, each opened from its parent's descriptor with O_NOFOLLOW, and returns
+ * the last folder (the caller closes it, and `rootFd` stays the caller's). With `create`, missing folders are made with it.
+ */
+export function openChain(rootFd: number, root: string, path: string, create?: number): number {
+  let current = rootFd;
+  try {
+    for (const name of componentsUnder(root, path)) {
+      const next = openDirAt(current, name, create === undefined ? {} : { create });
+      if (current !== rootFd) closeSync(current);
+      current = next;
+    }
+  } catch (error) {
+    if (current !== rootFd) closeQuietly(current);
+    throw error;
+  }
+  return current;
+}
+
+/** Opens the regular file `path` below `root`, a link refused at every component, the leaf included. */
+export function openFileChain(
+  rootFd: number,
+  root: string,
+  path: string,
+  flags: number,
+  mode = 0o600,
+): number {
+  const name = basename(path);
+  if (dirname(path) === root) return openAt(rootFd, name, flags, mode);
+  const parent = openChain(rootFd, root, dirname(path));
+  try {
+    return openAt(parent, name, flags, mode);
+  } finally {
+    closeSync(parent);
+  }
 }
 
 export const closeQuietly = (fd: number): void => {

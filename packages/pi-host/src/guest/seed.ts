@@ -1,38 +1,16 @@
+import { randomBytes } from "node:crypto";
 import { closeSync, constants, fchmodSync, readdirSync, readFileSync, statSync, writeSync } from "node:fs";
-import { isAbsolute, join, relative, sep } from "node:path";
+import { join } from "node:path";
 import type { VmLayout } from "@pap/contracts";
-import { closeQuietly, openAt, openDirAt, openRootDir } from "../nofollow.ts";
+import { openAt, openChain, openDirAt, openRootDir, renameAt, unlinkAt } from "../nofollow.ts";
 
 const PUBLIC_FOLDER = 0o755;
 const PRIVATE_FOLDER = 0o700;
+const WRITE_NEW = constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL;
 const WRITE_FILE = constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC;
 
-function componentsUnder(root: string, path: string): string[] {
-  const rel = relative(root, path);
-  if (rel === "" || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
-    throw new Error("the layout holds a folder outside its root");
-  }
-  return rel.split(sep);
-}
-
-/** Walks `path` below `root` one component at a time, each opened from its parent's descriptor, and returns the last. */
-function openChain(rootFd: number, path: string, root: string, create: number): number {
-  let current = rootFd;
-  try {
-    for (const name of componentsUnder(root, path)) {
-      const next = openDirAt(current, name, { create });
-      if (current !== rootFd) closeSync(current);
-      current = next;
-    }
-  } catch (error) {
-    if (current !== rootFd) closeQuietly(current);
-    throw error;
-  }
-  return current;
-}
-
-function writeFileAt(dirFd: number, name: string, data: Buffer, mode: number): void {
-  const fd = openAt(dirFd, name, WRITE_FILE, mode);
+function writeFileAt(dirFd: number, name: string, data: Buffer, mode: number, flags = WRITE_FILE): void {
+  const fd = openAt(dirFd, name, flags, mode);
   try {
     for (let done = 0; done < data.length;) done += writeSync(fd, data, done);
     fchmodSync(fd, mode);
@@ -69,12 +47,12 @@ export function seedAgentFolder(layout: VmLayout): void {
   const rootFd = openRootDir(layout.root);
   try {
     for (const folder of [layout.home, layout.knowledge, layout.inbox]) {
-      closeSync(openChain(rootFd, folder, layout.root, PUBLIC_FOLDER));
+      closeSync(openChain(rootFd, layout.root, folder, PUBLIC_FOLDER));
     }
     for (const folder of [layout.pi, layout.sessions]) {
-      closeSync(openChain(rootFd, folder, layout.root, PRIVATE_FOLDER));
+      closeSync(openChain(rootFd, layout.root, folder, PRIVATE_FOLDER));
     }
-    const agentFd = openChain(rootFd, layout.piAgentDir, layout.root, PRIVATE_FOLDER);
+    const agentFd = openChain(rootFd, layout.root, layout.piAgentDir, PRIVATE_FOLDER);
     try {
       copyTree(layout.imageAgentDir, agentFd);
     } finally {
@@ -117,21 +95,35 @@ function readSettings(dirFd: number): Record<string, unknown> | null {
  */
 export function pickPackages(layout: VmLayout, picks: string[] | null): void {
   if (picks === null) return;
-  const imageFd = openRootDir(layout.imageAgentDir);
-  const agentFd = openRootDir(layout.piAgentDir);
+  const topFd = openRootDir("/");
+  let imageFd = -1;
+  let agentFd = -1;
   try {
+    imageFd = openChain(topFd, "/", layout.imageAgentDir);
+    agentFd = openChain(topFd, "/", layout.piAgentDir);
     const offered = readSettings(imageFd)?.packages;
     const wanted = new Set<unknown>(picks);
     const kept = Array.isArray(offered) ? offered.filter((entry) => wanted.has(sourceOf(entry))) : [];
     const settings = readSettings(agentFd) ?? {};
-    writeFileAt(
-      agentFd,
-      "settings.json",
-      Buffer.from(`${JSON.stringify({ ...settings, packages: kept }, null, 2)}\n`),
-      0o600,
-    );
+    const temp = `.settings.json.${process.pid}.${randomBytes(6).toString("hex")}`;
+    try {
+      writeFileAt(
+        agentFd,
+        temp,
+        Buffer.from(`${JSON.stringify({ ...settings, packages: kept }, null, 2)}\n`),
+        0o600,
+        WRITE_NEW,
+      );
+      renameAt(agentFd, temp, "settings.json");
+    } catch (error) {
+      try {
+        unlinkAt(agentFd, temp);
+      } catch {
+        // never created, or already renamed
+      }
+      throw error;
+    }
   } finally {
-    closeSync(imageFd);
-    closeSync(agentFd);
+    for (const fd of [imageFd, agentFd, topFd]) if (fd >= 0) closeSync(fd);
   }
 }
