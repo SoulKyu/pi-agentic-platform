@@ -62,6 +62,18 @@ function verdictOf(value: unknown): Checked {
   return REFUSED;
 }
 
+/**
+ * AVM-E27, AVM-E29: the id the parse gave must be the top-level id the byte scan found; a line where they differ, or
+ * where the scan answered nothing usable, is not an entry. The scan of a long line is done in the thread, the compare here.
+ */
+export function withTopId(checked: Checked, topId: unknown): Checked {
+  if (!checked.ok) return checked;
+  const own = checked.facts.id ?? checked.facts.headerId;
+  return (topId === null || typeof topId === "string") && own === topId
+    ? checked
+    : { ok: false, reason: "not_entry" };
+}
+
 interface Job {
   readonly line: Buffer;
   readonly first: boolean;
@@ -115,9 +127,9 @@ export function createLineParser(deps: {
     const made = spawn();
     made.unref();
     made.on("message", (message) => {
-      const answer = message as { id?: unknown; checked?: unknown } | null;
+      const answer = message as { id?: unknown; checked?: unknown; topId?: unknown } | null;
       if (current === null || answer?.id !== current.id) return;
-      finish(verdictOf(answer.checked));
+      finish(withTopId(verdictOf(answer.checked), answer.topId));
     });
     made.on("error", (error) => {
       if (thread === made) fail(error);

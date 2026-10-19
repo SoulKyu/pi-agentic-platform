@@ -65,8 +65,14 @@ class FakeThread extends EventEmitter implements ParseThread {
     return Promise.resolve(0);
   }
   unref(): void {}
-  answer(id: number, checked: unknown): void {
-    this.emit("message", { id, checked });
+  answer(id: number, checked: unknown, topId?: string | null): void {
+    // The thread also scans the line: by default it found the id the parse did.
+    const facts = (checked as { facts?: { id: string | null; headerId: string | null } }).facts;
+    this.emit("message", {
+      id,
+      checked,
+      topId: topId === undefined ? (facts?.id ?? facts?.headerId ?? null) : topId,
+    });
   }
 }
 

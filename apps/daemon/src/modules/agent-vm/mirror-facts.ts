@@ -17,12 +17,13 @@ export const MAX_MIRROR_IDS = 200_000;
 const BLOCK_BYTES = 1024 * 1024;
 const NEWLINE = 0x0a;
 
-/** A copy that holds no reference to the 512-byte head it was cut from. */
+/** A copy that holds no reference to the block it was cut from. */
 const flat = (id: string): string => Buffer.from(id, "latin1").toString("latin1");
 
 /**
- * Reads the mirror's file once: the top-level id of each line from a byte scan that never parses (AVM-E27), so no line costs
- * the event loop more than a pass over its bytes, however long. The end of the last complete line is the size; a partial last
+ * The slow way to know a mirror: reads the whole file once, the top-level id of each line from a byte scan that never parses (AVM-E27), so no line costs
+ * more than a pass over its bytes. The open of a mirror does NOT use this (AVM-E29: it reads the id index, `mirror-index.ts`); it
+ * serves `readMirrorFacts` and the tests. The end of the last complete line is the size; a partial last
  * line, left by a crash, is cut off the file (Review Focus 5). Throws past `maxIds` ids. `fd` is open for reading and writing.
  */
 export function scanMirror(fd: number, maxIds = MAX_MIRROR_IDS): MirrorScan {
@@ -80,10 +81,11 @@ export function readMirrorFacts(path: string): { size: number; lastEntryId: stri
 /** `<name>.jsonl.unverified`: the ids of the user entries pap did not send, one per line, 0600 (R32). */
 export const unverifiedPathOf = (path: string): string => `${path}.unverified`;
 
-/** RT-45: removes a mirror and its unverified list. A link at either is unlinked, never followed. */
+/** RT-45: removes a mirror, its unverified list and its id index. A link at either is unlinked, never followed. */
 export function removeMirrorFiles(path: string): void {
   rmSync(path, { force: true });
   rmSync(unverifiedPathOf(path), { force: true });
+  rmSync(`${path}.ids`, { force: true });
 }
 
 /** AVM-E22: the list stays under this; an append that would pass it is refused `quota`, so a read of it is never cut short. */

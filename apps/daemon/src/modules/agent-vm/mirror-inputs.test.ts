@@ -132,7 +132,7 @@ describe("what a replacement does to the session (R14, RT-42)", () => {
     rewrite(port);
     expect(notices).toEqual([[ROW.id, REPLACED_NOTICE]]);
     expect(taints).toEqual([ROW.id]);
-    expect(readdirSync(join(bed.folder, "replaced"))).toHaveLength(1);
+    expect(readdirSync(join(bed.folder, "replaced")).filter((n) => !n.endsWith(".ids"))).toHaveLength(1);
   });
 
   it("in read-only database mode the file is still kept, nothing is posted, and the notice waits", () => {
@@ -142,7 +142,7 @@ describe("what a replacement does to the session (R14, RT-42)", () => {
     rewrite(port);
     expect(notices).toEqual([]);
     expect(taints).toEqual([]);
-    expect(readdirSync(join(bed.folder, "replaced"))).toHaveLength(1);
+    expect(readdirSync(join(bed.folder, "replaced")).filter((n) => !n.endsWith(".ids"))).toHaveLength(1);
     writable = true;
     port.onSessionAppend(appendOf(port.facts().size, entry("x2")));
     expect(notices).toEqual([[ROW.id, REPLACED_NOTICE]]);
@@ -176,7 +176,7 @@ describe("the kept copies (R14)", () => {
     const port = portOf();
     port.onSessionAppend(appendOf(0, HEADER + entry("e1")));
     port.onSessionAppend(appendOf(0, HEADER + entry("x1"), { replace: true }));
-    expect(readdirSync(join(bed.folder, "replaced"))).toHaveLength(1);
+    expect(readdirSync(join(bed.folder, "replaced")).filter((n) => !n.endsWith(".ids"))).toHaveLength(1);
     inputs.start();
     await clock.advance(7 * 24 * 3_600_000 + 3_600_000);
     expect(readdirSync(join(bed.folder, "replaced"))).toHaveLength(0);

@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SessionAppend } from "@pap/contracts";
@@ -60,4 +60,17 @@ export function makeBed(): Bed {
     path: join(folder, FILE),
     dispose: () => rmSync(root, { recursive: true, force: true }),
   };
+}
+
+/** A mirror file as the mirror leaves it: the text, and its id index (AVM-E29). A partial last line gets no record. */
+export function writeMirror(path: string, text: string): void {
+  let end = 0;
+  let records = "";
+  for (const line of text.split("\n").slice(0, -1)) {
+    end += Buffer.byteLength(line) + 1;
+    const { id } = JSON.parse(line) as { id?: string };
+    if (id !== undefined) records += `${end} ${id}\n`;
+  }
+  writeFileSync(path, text, { mode: 0o600 });
+  writeFileSync(`${path}.ids`, records, { mode: 0o600 });
 }

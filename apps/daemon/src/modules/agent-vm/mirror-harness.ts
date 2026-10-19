@@ -3,8 +3,10 @@ import { join } from "node:path";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import { createLogger } from "../../kernel/logger.ts";
 import { AGENT, type Bed, makeBed } from "./mirror-fixtures.ts";
+import { topLevelIdOf } from "./mirror-id.ts";
 import { createProvenance, entryFacts } from "./mirror-line.ts";
-import type { LineParser } from "./mirror-parse.ts";
+import { type LineParser, withTopId } from "./mirror-parse.ts";
+import type { ReadAt } from "./mirror-index.ts";
 import { createQuota } from "./mirror-quota.ts";
 import { openMirror } from "./mirror.ts";
 
@@ -31,7 +33,7 @@ const inlineParser = (): LineParser => ({
     parsed++;
     const text = line.toString("utf8");
     try {
-      return Promise.resolve(entryFacts(JSON.parse(text), first));
+      return Promise.resolve(withTopId(entryFacts(JSON.parse(text), first), topLevelIdOf(line)));
     } catch {
       return Promise.resolve({ ok: false, reason: "not_json" });
     }
@@ -49,6 +51,7 @@ export function open(
     provenance?: ReturnType<typeof createProvenance>;
     createOnly?: boolean;
     maxIds?: number;
+    read?: ReadAt;
   } = {},
 ) {
   const parser = options.parser ?? inlineParser();
@@ -70,12 +73,15 @@ export function open(
     announce: (kind) => void announced.push(kind),
     ...(options.createOnly === undefined ? {} : { createOnly: options.createOnly }),
     ...(options.maxIds === undefined ? {} : { maxIds: options.maxIds }),
+    ...(options.read === undefined ? {} : { read: options.read }),
   });
 }
 
 export const fileText = () => readFileSync(bed.path, "utf8");
 export const keptFiles = () =>
-  existsSync(join(bed.folder, "replaced")) ? readdirSync(join(bed.folder, "replaced")) : [];
+  existsSync(join(bed.folder, "replaced"))
+    ? readdirSync(join(bed.folder, "replaced")).filter((name) => !name.endsWith(".ids"))
+    : [];
 export const refusals = () =>
   log.lines
     .filter((line) => line.msg === "agent_mirror_refused")

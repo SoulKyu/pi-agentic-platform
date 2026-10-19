@@ -7,8 +7,6 @@ import { ensureFolder, existsNoFollow, openPrivate } from "./mirror-files.ts";
 import { keepCopy } from "./mirror-keep.ts";
 import {
   MAX_MIRROR_IDS,
-  type MirrorScan,
-  scanMirror,
   UNVERIFIED_MAX_BYTES,
   type Unverified,
   unverifiedIds,
@@ -23,6 +21,7 @@ import {
   type Provenance,
 } from "./mirror-line.ts";
 import { topLevelIdOf } from "./mirror-id.ts";
+import { indexPathOf, indexRecord, loadMirrorIndex, type ReadAt } from "./mirror-index.ts";
 import type { LineParser } from "./mirror-parse.ts";
 import type { Quota } from "./mirror-quota.ts";
 import type { AppendResult, MirrorPort } from "./vm-worker.ts";
@@ -49,6 +48,8 @@ export interface MirrorDeps {
   readonly createOnly?: boolean;
   /** Tests: the cap on ids per file (AVM-E23). */
   readonly maxIds?: number;
+  /** Tests: the reads of the open, to count the bytes (AVM-E29). */
+  readonly read?: ReadAt;
 }
 
 /** What a chunk's lines leave to commit once all of them passed. */
@@ -56,6 +57,8 @@ interface Staged {
   first: boolean;
   lastId: string | null;
   readonly ids: Set<string>;
+  /** The id of each line, for the index. */
+  readonly entries: Array<{ line: number; id: string }>;
   readonly users: Array<{ id: string; hash: string; line: number }>;
 }
 
@@ -84,12 +87,22 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
   ensureFolder(dirname(path));
   if (deps.createOnly === true && existsNoFollow(path)) throw new Error("the mirror file exists");
   let fd = openPrivate(path, READ_WRITE);
-  let scan: MirrorScan;
+  let scan;
   try {
-    scan = scanMirror(fd, maxIds);
+    scan = loadMirrorIndex(fd, path, maxIds, deps.read);
   } catch (error) {
     closeSync(fd);
     throw error;
+  }
+  let recovered = false;
+  if (scan === null) {
+    // AVM-E29: an index that is missing, malformed or not where the file ends cannot be trusted, and the file is not
+    // scanned to make a new one: the mirror is kept aside (with its notice) and starts empty, so the worker resends.
+    closeSync(fd);
+    keepCopy(path, deps.clock);
+    fd = openPrivate(path, READ_WRITE);
+    scan = { size: 0, lastEntryId: null, ids: new Set<string>() };
+    recovered = true;
   }
   let { size, lastEntryId } = scan;
   let ids = scan.ids;
@@ -112,6 +125,10 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
       logger.warn("agent_mirror_announce_failed", { agentId, kind, err: error });
     }
   };
+  if (recovered) {
+    logger.warn("agent_mirror_replaced", { agentId, recovered: true });
+    announce("replaced");
+  }
 
   const releaseReplacement = (): void => {
     if (replacement === null) return;
@@ -137,6 +154,7 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
     try {
       rmSync(current.kept, { force: true });
       rmSync(`${current.kept}.unverified`, { force: true });
+      rmSync(`${current.kept}.ids`, { force: true });
     } catch (error) {
       logger.warn("agent_mirror_keep_not_removed", { agentId, err: error });
     }
@@ -205,22 +223,33 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
     }
   };
 
+  const appendIndex = (text: string): void => {
+    const index = openPrivate(indexPathOf(path), constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND);
+    try {
+      writeAll(index, Buffer.from(text, "latin1"));
+    } finally {
+      closeSync(index);
+    }
+  };
+
   /** One completed line: its facts, or the refusal. Nothing is committed here. */
   const accept = (line: Buffer, checked: Checked, staged: Staged, index: number): "refused" | null => {
     if (!checked.ok) return refuse(checked.reason);
     const { id, userText, headerId } = checked.facts;
     if (id === null && line.length > HEADER_MAX_BYTES) return refuse("line_too_large");
-    // AVM-E27: the id JSON.parse gave must be the one the byte scanner finds at the top level (so the open scan, which only
-    // scans, reads the same id, and a duplicate `id` key or an `id` nested in `data` cannot give a line two).
-    if (id !== null && topLevelIdOf(line) !== id) return refuse("not_entry");
     const entryId = id ?? headerId;
-    if (entryId !== null) {
-      if (ids.has(entryId) || staged.ids.has(entryId)) return refuse("duplicate_id");
-      // A flat copy: no reference to the line's bytes or head.
-      const kept = Buffer.from(entryId, "latin1").toString("latin1");
-      staged.ids.add(kept);
-      staged.lastId = kept;
-    }
+    // A header without an id would leave the index short of the file: Pi always writes one.
+    if (entryId === null) return refuse("not_entry");
+    // AVM-E27: the id the parse gave must be the top-level id the byte scan finds, the header's too (so the index, which the
+    // open reads instead of the lines, holds the id JSON.parse sees, and a duplicate `id` key or an `id` nested in `data`
+    // cannot give a line two). A line over 1 MiB was scanned in the parse thread (AVM-E29), the others here.
+    if (line.length <= INLINE_PARSE_BYTES && topLevelIdOf(line) !== entryId) return refuse("not_entry");
+    if (ids.has(entryId) || staged.ids.has(entryId)) return refuse("duplicate_id");
+    // A flat copy: no reference to the line's bytes.
+    const kept = Buffer.from(entryId, "latin1").toString("latin1");
+    staged.ids.add(kept);
+    staged.lastId = kept;
+    staged.entries.push({ line: index, id: kept });
     if (userText !== null && id !== null) staged.users.push({ id, hash: userText, line: index });
     staged.first = false;
     return null;
@@ -250,13 +279,19 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
       } else if (!deps.provenance.verify(user.hash)) unsent.push(user.id);
     }
     const listText = unsent.map((id) => `${id}\n`).join("");
-    if (!deps.quota.allow(agentId, bytes.length + listText.length, deps.limitBytes)) return full();
+    const indexText = staged.entries
+      .map((entry) => indexRecord(ends[entry.line] as number, entry.id))
+      .join("");
+    const extra = listText.length + indexText.length;
+    if (!deps.quota.allow(agentId, bytes.length + extra, deps.limitBytes)) return full();
     // The list first: if it cannot be written, the line is not (a line without its mark would read as sent).
     if (unsent.length > 0 && !appendUnverified(unsent)) return full();
+    // The index too, before the line (AVM-E29): a crash between the two leaves an entry past the file, which the open ignores.
+    appendIndex(indexText);
     writeAll(fd, bytes);
     const before = size;
     size += bytes.length;
-    deps.quota.added(agentId, bytes.length + listText.length);
+    deps.quota.added(agentId, bytes.length + extra);
     for (const id of staged.ids) ids.add(id);
     lastEntryId = staged.lastId ?? lastEntryId;
     first = staged.first;
@@ -326,7 +361,7 @@ export function openMirror(path: string, deps: MirrorDeps): MirrorPort {
       partial.push(Buffer.from(tail));
       partialLength += tail.length;
     }
-    return consume(lines, 0, { first, lastId: null, ids: new Set(), users: [] });
+    return consume(lines, 0, { first, lastId: null, ids: new Set(), entries: [], users: [] });
   }
 
   return {

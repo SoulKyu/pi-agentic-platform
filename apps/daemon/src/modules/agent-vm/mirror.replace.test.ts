@@ -2,7 +2,7 @@ import { closeSync, fstatSync, openSync, readFileSync, statSync, writeFileSync }
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { unverifiedIds } from "./mirror-facts.ts";
-import { appendOf, entry, FILE, HEADER, imageEntry, userEntry } from "./mirror-fixtures.ts";
+import { appendOf, entry, FILE, HEADER, imageEntry, userEntry, writeMirror } from "./mirror-fixtures.ts";
 import {
   announced,
   bed,
@@ -168,7 +168,7 @@ describe("a disconnect and a crash (Review Focus 5)", () => {
 
   it("cuts a partial last line found at open", () => {
     fresh();
-    writeFileSync(bed.path, `${HEADER}{"type":"message","id":"e1","pa`, { mode: 0o600 });
+    writeMirror(bed.path, `${HEADER}{"type":"message","id":"e1","pa`);
     const mirror = open();
     expect(mirror.facts()).toEqual({ size: HEADER.length, lastEntryId: "hdr00001" });
     expect(fileText()).toBe(HEADER);

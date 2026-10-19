@@ -184,7 +184,7 @@ describe("composeAgentsVm's mirrors (T9b)", () => {
     if (port === "refused") throw new Error("the mirror refused");
     expect(port.path).toBe(join(home, "agents", ".mirrors", ID, FILE));
     expect(port.onSessionAppend(chunk(0, header))).toBe("ok");
-    expect(readdirSync(join(home, "agents", ".mirrors", ID))).toEqual([FILE]);
+    expect(readdirSync(join(home, "agents", ".mirrors", ID))).toEqual([FILE, `${FILE}.ids`]);
   });
 
   it("hands a replacement to the hooks that are bound later: the notice and the taint", async () => {

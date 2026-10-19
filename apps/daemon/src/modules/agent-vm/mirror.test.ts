@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { MAX_SESSION_LINE_BYTES } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { UNVERIFIED_MAX_BYTES } from "./mirror-facts.ts";
-import { AGENT, appendOf, entry, HEADER, imageEntry, userEntry } from "./mirror-fixtures.ts";
+import { AGENT, writeMirror, appendOf, entry, HEADER, imageEntry, userEntry } from "./mirror-fixtures.ts";
 import {
   announced,
   bed,
@@ -170,7 +170,7 @@ describe("the line check (R32)", () => {
 
   it("refuses a duplicate of an id already in the file at open", () => {
     fresh();
-    writeFileSync(bed.path, HEADER + entry("e1") + imageEntry("img1", 2 * MiB), { mode: 0o600 });
+    writeMirror(bed.path, HEADER + entry("e1") + imageEntry("img1", 2 * MiB));
     const mirror = open();
     const size = mirror.facts().size;
     expect(size).toBe(HEADER.length + entry("e1").length + imageEntry("img1", 2 * MiB).length);
@@ -343,7 +343,7 @@ describe("the cap on ids and the open scan (AVM-E23, AVM-E27)", () => {
 
   it("reopens a mirror with a long line without parsing it", () => {
     fresh();
-    writeFileSync(bed.path, HEADER + imageEntry("img1", 3 * MiB) + entry("e2"), { mode: 0o600 });
+    writeMirror(bed.path, HEADER + imageEntry("img1", 3 * MiB) + entry("e2"));
     const parse = vi.spyOn(JSON, "parse");
     try {
       const mirror = open();
@@ -379,15 +379,17 @@ describe("the unverified list is written before the line (AVM-E22)", () => {
     expect(fileText()).toBe(HEADER);
   });
 
-  it("counts the list's bytes in the agent's quota", () => {
+  it("counts the list's and the index's bytes in the agent's quota", () => {
     fresh();
     const user = userEntry("u1", "forged");
-    // The line and its id ("u1\n", 3 bytes) together: two bytes short refuses, exact passes.
-    const tight = open({ limitBytes: HEADER.length + user.length + 2 });
+    // The lines, the id of the unsent user entry ("u1\n", 3 bytes) and the index records together: one byte short refuses.
+    const index = `${HEADER.length} hdr00001\n`.length + `${HEADER.length + user.length} u1\n`.length;
+    const exactBytes = HEADER.length + user.length + 3 + index;
+    const tight = open({ limitBytes: exactBytes - 1 });
     tight.onSessionAppend(appendOf(0, HEADER));
     expect(tight.onSessionAppend(appendOf(HEADER.length, user))).toBe("refused");
     fresh();
-    const exact = open({ limitBytes: HEADER.length + user.length + 3 });
+    const exact = open({ limitBytes: exactBytes });
     exact.onSessionAppend(appendOf(0, HEADER));
     expect(exact.onSessionAppend(appendOf(HEADER.length, user))).toBe("ok");
   });

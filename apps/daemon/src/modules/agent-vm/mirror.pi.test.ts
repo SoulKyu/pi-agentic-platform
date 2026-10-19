@@ -1,11 +1,22 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, readSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { appendOf } from "./mirror-fixtures.ts";
+import type { ReadAt } from "./mirror-index.ts";
 import { cleanup, fileText, fresh, MiB, open, refusals } from "./mirror-harness.ts";
 
 afterEach(cleanup);
+
+const counting = () => {
+  const reads = { bytes: 0 };
+  const read: ReadAt = (fd, buffer, offset, length, position) => {
+    const got = readSync(fd, buffer, offset, length, position);
+    reads.bytes += got;
+    return got;
+  };
+  return { reads, read };
+};
 
 /** Pi's own writer, from the installed SDK: the entries the mirror will really meet (AVM-E27). */
 async function piSession(dir: string): Promise<string> {
@@ -70,10 +81,13 @@ describe("every entry Pi writes goes through the mirror, closes and reopens (AVM
 
       const parse = vi.spyOn(JSON, "parse");
       try {
-        const again = open();
+        const { reads, read } = counting();
+        const again = open({ read });
         expect(again.facts()).toEqual({ size: bytes.length, lastEntryId: ids.at(-1) });
         // No line is parsed on the event loop at open, a long one least of all (AVM-E27).
         expect(parse).not.toHaveBeenCalled();
+        // Through the id index: a few KB of a multi-MiB transcript (AVM-E29).
+        expect(reads.bytes).toBeLessThan(bytes.length / 20);
         // The ids are the ones read at append: a repeat of any of them is a duplicate, the nested ones are not ids.
         const next = bytes.length;
         const repeat = `${JSON.stringify({ type: "label", id: ids[3], parentId: null })}\n`;

@@ -79,14 +79,14 @@ describe("readMirrorFacts (Review Focus 5)", () => {
   });
 });
 
-describe("scanMirror: ids come from each line's first 512 bytes", () => {
+describe("scanMirror: the top-level id of each line, by a byte scan", () => {
   it("lists the header's id and every entry's id", () => {
     fresh();
     writeFileSync(bed.path, HEADER + entry("e1") + entry("e2"));
     expect([...scan(bed.path).ids].sort()).toEqual(["e1", "e2", "hdr00001"]);
   });
 
-  it("reads the id of a line from its head even when the line is far over the inline bound", () => {
+  it("reads the id of a line even when the line is far over the inline bound", () => {
     fresh();
     writeFileSync(bed.path, HEADER + imageEntry("img1", 3 * 1024 * 1024) + entry("e2"));
     const scanned = scan(bed.path);

@@ -8,10 +8,10 @@ import { ensureFolder, existsNoFollow, FOLDER_MODE } from "./mirror-files.ts";
 export const KEEP_MS = 7 * 24 * 60 * 60 * 1000;
 const SWEEP_EVERY_MS = 60 * 60 * 1000;
 const KEPT_FOLDER = "replaced";
-const STAMPED = /^(.+)\.(\d{10,16})(?:\.unverified)?$/;
+const STAMPED = /^(.+)\.(\d{10,16})(?:\.unverified|\.ids)?$/;
 
 /**
- * Moves the mirror at `path` (and its unverified list) to `replaced/<name>.<stamp>` beside it (0700 folder, the file keeps
+ * Moves the mirror at `path` (and its unverified list and id index) to `replaced/<name>.<stamp>` beside it (0700 folder, the file keeps
  * its 0600) and returns the new path. Never overwrites an earlier copy: a stamp already taken is moved on by one.
  */
 export function keepCopy(path: string, clock: Clock): string {
@@ -23,8 +23,9 @@ export function keepCopy(path: string, clock: Clock): string {
   while (existsNoFollow(target)) target = join(folder, `${basename(path)}.${++stamp}`);
   renameSync(path, target);
   // The list of unsent user entries goes with the copy it describes.
-  const list = `${path}.unverified`;
-  if (existsNoFollow(list)) renameSync(list, `${target}.unverified`);
+  for (const suffix of [".unverified", ".ids"]) {
+    if (existsNoFollow(`${path}${suffix}`)) renameSync(`${path}${suffix}`, `${target}${suffix}`);
+  }
   return target;
 }
 
