@@ -1,28 +1,21 @@
 import { spawn as nodeSpawn } from "node:child_process";
 import { lstatSync, realpathSync } from "node:fs";
-import { AsyncLocalStorage } from "node:async_hooks";
-import { constants as osConstants } from "node:os";
 import { bwrapArgv, type EgressReport, type SandboxSpec } from "@pap/contracts";
 import { errorClass } from "./bounded.ts";
 import { clipUnits, MAX_ID_LENGTH } from "./policy/trail.ts";
+import {
+  runShellProcess,
+  SYSTEM_TIMERS,
+  toolCall,
+  type ShellCallOptions,
+  type ShellOperations,
+  type ShellTimers,
+} from "./shell-process.ts";
 import type { EgressGrant } from "./egress-client.ts";
 import { NO_PROXY_LINE, type RefusalAdvice, refusedLine } from "./egress-line.ts";
 import type { Redactor } from "./policy/redact.ts";
-import { addStreamCount, createStreamRedactor } from "./redact-stream.ts";
 
-/** Pi's `BashOperations` shape (`@earendil-works/pi-coding-agent`), repeated so this file has no SDK import. */
-export interface ShellOperations {
-  exec(
-    command: string,
-    cwd: string,
-    options: {
-      onData: (data: Buffer) => void;
-      signal?: AbortSignal;
-      timeout?: number;
-      env?: NodeJS.ProcessEnv;
-    },
-  ): Promise<{ exitCode: number | null }>;
-}
+export { SYSTEM_TIMERS, toolCall, type ShellOperations, type ShellTimers };
 
 /** The proxy's side of a networked command: what `createEgressClient` offers the shell (M11R232). */
 export interface ShellEgress {
@@ -30,31 +23,6 @@ export interface ShellEgress {
   close(id: string): Promise<EgressReport | null>;
   keep(toolCallId: string, report: EgressReport | null): void;
 }
-
-/** The id of the tool call whose `execute` is running: Pi passes none to `operations.exec` (set by `createSandboxTool`). */
-export const toolCall = new AsyncLocalStorage<string>();
-
-/** The worker's timer seam (tests drive the tool timeout without sleeping). */
-export interface ShellTimers {
-  setTimeout(fn: () => void, ms: number): unknown;
-  clearTimeout(handle: unknown): void;
-}
-export const SYSTEM_TIMERS: ShellTimers = {
-  setTimeout: (fn, ms) => setTimeout(fn, ms),
-  clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
-};
-/** What `setTimeout` takes: a longer delay fires at once (Node's overflow), which would kill a command the model gave a day. */
-const MAX_TIMER_MS = 2 ** 31 - 1;
-
-const killGroup = (pid: number | undefined): void => {
-  // Never `process.kill(-0)` or `-1`: those are this process group and every process the user owns.
-  if (pid === undefined || pid <= 1) return;
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch {
-    // already gone
-  }
-};
 
 /** A real folder: not a link, and no link above it (`realpath` is the path itself). bwrap follows a link on the host, so one planted in place of the home would bind another folder. */
 function isRealFolder(path: string): boolean {
@@ -127,86 +95,24 @@ export function sandboxedShell(
     shape: SandboxSpec,
     socket: string | undefined,
     command: string,
-    { onData, signal, timeout }: Parameters<ShellOperations["exec"]>[2],
+    options: ShellCallOptions,
     after: () => Promise<void>,
   ): Promise<{ exitCode: number | null }> {
-    return new Promise((resolve, reject) => {
-      let child: ReturnType<typeof nodeSpawn>;
-      try {
-        if (
-          timeout !== undefined &&
-          !(Number.isFinite(timeout) && timeout > 0 && timeout * 1000 <= MAX_TIMER_MS)
-        )
-          throw new Error("Invalid timeout: must be a finite number of seconds");
+    return runShellProcess(
+      () => {
         const safe = checked(shape);
-        child = spawn(safe.bwrap, bwrapArgv(safe, command, socket), {
+        return spawn(safe.bwrap, bwrapArgv(safe, command, socket), {
           cwd: safe.writable ?? safe.home,
           env: { ...envFor(command) },
           detached: true,
           stdio: ["ignore", "pipe", "pipe"],
         });
-      } catch (error) {
-        // Nothing started: a granted socket is still given back.
-        afterThen(after, () => reject(error));
-        return;
-      }
-      const callId = toolCall.getStore();
-      // One stream per pipe: each has its own decoder, and a multi-byte character never spans the two.
-      const streams = deps.redact
-        ? [createStreamRedactor(deps.redact), createStreamRedactor(deps.redact)]
-        : null;
-      const hand = (index: 0 | 1) => (data: Buffer) => {
-        const safe = streams ? (streams[index]?.push(data) ?? data) : data;
-        if (safe.length > 0) onData(safe);
-      };
-      let timedOut = false;
-      const timer =
-        timeout !== undefined
-          ? timers.setTimeout(() => {
-              timedOut = true;
-              killGroup(child.pid);
-            }, timeout * 1000)
-          : undefined;
-      const onAbort = () => killGroup(child.pid);
-      signal?.addEventListener("abort", onAbort, { once: true });
-      // Aborted while the proxy was being asked: the listener above would never hear it.
-      if (signal?.aborted) onAbort();
-      const finish = () => {
-        if (timer !== undefined) timers.clearTimeout(timer);
-        signal?.removeEventListener("abort", onAbort);
-        for (const stream of streams ?? []) {
-          const rest = stream.flush();
-          if (rest.length > 0) onData(rest);
-        }
-        if (streams && callId !== undefined)
-          addStreamCount(
-            clipUnits(callId, MAX_ID_LENGTH),
-            streams.reduce((sum, stream) => sum + stream.count(), 0),
-          );
-      };
-      child.stdout?.on("data", hand(0));
-      child.stderr?.on("data", hand(1));
-      // An error and a close can both come for one child: the first ends the call, `after` runs once.
-      let ended = false;
-      child.once("error", (error) => {
-        if (ended) return;
-        ended = true;
-        finish();
-        afterThen(after, () => reject(error));
-      });
-      child.once("close", (code, signalName) => {
-        if (ended) return;
-        ended = true;
-        finish();
-        afterThen(after, () => {
-          if (signal?.aborted) return reject(new Error("aborted"));
-          if (timedOut) return reject(new Error(`timeout:${timeout}`));
-          resolve({
-            exitCode: code ?? (signalName ? 128 + (osConstants.signals[signalName] ?? 0) : 1),
-          });
-        });
-      });
-    });
+      },
+      options,
+      { timers, ...(deps.redact ? { redact: deps.redact } : {}) },
+      after,
+      afterThen,
+    );
   }
 
   /** A networked spec (M11R230): the proxy's socket for this call, or no network at all and a line saying so. */
