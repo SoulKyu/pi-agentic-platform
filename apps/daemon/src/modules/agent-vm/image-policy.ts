@@ -53,6 +53,8 @@ export function isoWeek(ms: number): string {
 export interface ImagePolicy {
   /** Spec §6: `use`, `build-then-use` (the notice once per agent and wanted image) or `refuse` on a protocol change. */
   decide(input: DecideInput): ImageDecision;
+  /** An agent was deleted: its notice memory goes with it. */
+  forget(agentId: string): void;
   /** The ISO week to rebuild the base for, handed out once; null when this week is done, a build runs or a retry waits. */
   claimBaseUpgrade(): string | null;
   /** The caller's build ended: a success records the week, a failure allows a retry after an hour. */
@@ -80,6 +82,7 @@ export function createImagePolicy(options: { clock: Clock; lastBaseWeek?: string
         return {
           action: "refuse",
           reason: "protocol",
+          build: wanted,
           running: running.protocol,
           expected: AGENT_VM_PROTOCOL,
         };
@@ -93,6 +96,7 @@ export function createImagePolicy(options: { clock: Clock; lastBaseWeek?: string
         notice: first ? BUILD_NOTICE : null,
       };
     },
+    forget: (agentId) => void noticed.delete(agentId),
     claimBaseUpgrade() {
       const week = isoWeek(clock.now());
       if (inFlight || week === upgradedWeek || clock.now() < retryAt) return null;

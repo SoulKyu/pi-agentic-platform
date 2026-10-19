@@ -51,6 +51,14 @@ describe("decide", () => {
     expect(image.decide({ ...input, wanted: tag("profile", "c") })).toMatchObject({ notice: BUILD_NOTICE });
   });
 
+  it("forget drops an agent's notice memory", () => {
+    const { image } = policy();
+    const input = { agentId: "a1", wanted: NEW, running: running(OLD), built: none };
+    image.decide(input);
+    image.forget("a1");
+    expect(image.decide(input)).toMatchObject({ notice: BUILD_NOTICE });
+  });
+
   it("with no image yet, builds and the start waits: no notice about an old image", () => {
     const { image } = policy();
     expect(image.decide({ agentId: "a1", wanted: NEW, running: null, built: none })).toEqual({
@@ -68,11 +76,15 @@ describe("decide", () => {
     const refused = {
       action: "refuse",
       reason: "protocol",
+      build: NEW,
       running: old.protocol,
       expected: AGENT_VM_PROTOCOL,
     };
     expect(image.decide({ agentId: "a1", wanted: NEW, running: old, built: none })).toEqual(refused);
-    expect(image.decide({ agentId: "a1", wanted: OLD, running: old, built: none })).toEqual(refused);
+    expect(image.decide({ agentId: "a1", wanted: OLD, running: old, built: none })).toEqual({
+      ...refused,
+      build: OLD,
+    });
     expect(image.decide({ agentId: "a1", wanted: NEW, running: old, built: new Set([NEW]) })).toEqual({
       action: "use",
       tag: NEW,

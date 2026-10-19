@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  readlinkSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -12,6 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { putAgentBundle } from "./agent-bundle-fixture.ts";
+import { createHash } from "node:crypto";
 import { AGENT_BUNDLE, assertAgentBundle, buildAgentBundle } from "./build-agent-bundle.ts";
 
 /*
@@ -83,6 +85,37 @@ describe("assertAgentBundle", () => {
   });
 });
 
+describe("assertAgentBundle: what a build must not leave (leftovers)", () => {
+  it("refuses test files, pnpm state, contracts sources and a file that names a forbidden path", () => {
+    const bundle = bundleIn(tmp());
+    writeFileSync(join(bundle, "node_modules/dep/x.test.js"), "x");
+    expect(() => assertAgentBundle(bundle)).toThrow(/test file/);
+    rmSync(join(bundle, "node_modules/dep/x.test.js"));
+    writeFileSync(join(bundle, "node_modules/.modules.yaml"), "x");
+    expect(() => assertAgentBundle(bundle)).toThrow(/builder state/);
+    rmSync(join(bundle, "node_modules/.modules.yaml"));
+    mkdirSync(join(bundle, "node_modules/@pap/contracts/src"), { recursive: true });
+    expect(() => assertAgentBundle(bundle)).toThrow(/source folder/);
+    rmSync(join(bundle, "node_modules/@pap/contracts"), { recursive: true });
+    writeFileSync(join(bundle, "dist/main.js"), "const p = '/home/builder/x';");
+    expect(() => assertAgentBundle(bundle, ["/home/builder"])).toThrow(/dist\/main\.js/);
+    expect(() => assertAgentBundle(bundle, ["/home/other"])).not.toThrow();
+  });
+});
+
+const digestOf = (dir: string): string => {
+  const hash = createHash("sha256");
+  for (const entry of readdirSync(dir, { recursive: true, withFileTypes: true }).sort((a, b) =>
+    join(a.parentPath, a.name).localeCompare(join(b.parentPath, b.name)),
+  )) {
+    const path = join(entry.parentPath, entry.name);
+    hash.update(`${path.slice(dir.length)}\0`);
+    if (entry.isFile()) hash.update(readFileSync(path));
+    else if (entry.isSymbolicLink()) hash.update(readlinkSync(path));
+  }
+  return hash.digest("hex");
+};
+
 describe("buildAgentBundle", () => {
   const setup = () => {
     const repo = tmp();
@@ -138,6 +171,40 @@ describe("buildAgentBundle", () => {
     expect(existsSync(join(t.out, "dist/guest/main.js"))).toBe(true);
     expect(existsSync(join(t.out, "dist/relay/main.js"))).toBe(true);
     expect(readdirSync(join(t.repo, "packages/pi-host"))).toEqual(["dist-agent"]);
+  });
+
+  it("cleans pnpm state, sources, tests and builder paths, and two builds from other paths give the same bytes (reproducible)", async () => {
+    const digests: string[] = [];
+    for (const delay of [1, 2]) {
+      const t = setup();
+      await new Promise((r) => setTimeout(r, delay));
+      const out = await buildAgentBundle({
+        repo: t.repo,
+        storeDir: "/store",
+        run: t.run((dest) => putAgentBundle(dest, { deployed: true })),
+      });
+      const names = readdirSync(out, { recursive: true }).map(String);
+      expect(
+        names.filter((n) =>
+          /\.test\.|\.spec\.|modules\.yaml|\.pnpm|contracts\/src|tsconfig|dist-agent/.test(n),
+        ),
+      ).toEqual([]);
+      expect(readFileSync(join(out, "package.json"), "utf8")).not.toMatch(/file:|dependencies/);
+      expect(existsSync(join(out, "node_modules/@pap/contracts/dist/main.js"))).toBe(true);
+      digests.push(digestOf(out));
+    }
+    expect(digests[1]).toBe(digests[0]);
+  });
+
+  it("keeps pnpm's stderr, clipped, in the failure", async () => {
+    const t = setup();
+    const run = () =>
+      Promise.reject(
+        Object.assign(new Error("x"), { stderr: `ERR_PNPM_NO_OFFLINE_TARBALL ${"y".repeat(900)}` }),
+      );
+    const failure = await buildAgentBundle({ repo: t.repo, storeDir: "/store", run }).catch((e: Error) => e);
+    expect((failure as Error).message).toMatch(/yyy\)$/);
+    expect((failure as Error).message.length).toBeLessThan(600);
   });
 
   it("replaces the previous bundle", async () => {
