@@ -1,5 +1,7 @@
 import { z } from "zod";
+import { VM_IPV4 } from "./agents-net.ts";
 import { LaunchId, RelayKey } from "./agents-vm.ts";
+import { ClaudeToken } from "./agents-vm-methods.ts";
 import { AgentId } from "./platform.ts";
 
 const Provider = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
@@ -12,7 +14,8 @@ export const RelayCommand = z.discriminatedUnion("type", [
       launchId: LaunchId,
       agentId: AgentId,
       key: RelayKey,
-      address: z.string().regex(/^(?:10\.213\.0\.\d{1,3}|127\.0\.0\.1)$/),
+      /** A VM on the bridge, or loopback for the process backend (tests). */
+      address: z.union([z.string().regex(VM_IPV4), z.literal("127.0.0.1")]),
     })
     .strict(),
   z.object({ type: z.literal("relay_revoke"), launchId: LaunchId }).strict(),
@@ -26,9 +29,11 @@ export const RelayCommand = z.discriminatedUnion("type", [
       blocked: z.enum(["paused", "budget"]).nullable(),
     })
     .strict(),
-  z.object({ type: z.literal("claude_token"), token: z.string().min(1).max(512).nullable() }).strict(),
+  z.object({ type: z.literal("claude_token"), token: ClaudeToken.nullable() }).strict(),
 ]);
 export type RelayCommand = z.infer<typeof RelayCommand>;
+/** The most agents one `relay_usage` report holds: the relay splits a longer list over several reports. */
+export const RELAY_USAGE_MAX_AGENTS = 64;
 /** What the relay child reports: its port once listening, and counts per agent every 60 s (attribution, RT-17). */
 export const RelayReport = z.discriminatedUnion("type", [
   z.object({ type: z.literal("relay_ready"), port: z.number().int().min(1).max(65_535) }).strict(),
@@ -47,7 +52,7 @@ export const RelayReport = z.discriminatedUnion("type", [
             })
             .strict(),
         )
-        .max(64),
+        .max(RELAY_USAGE_MAX_AGENTS),
     })
     .strict(),
 ]);

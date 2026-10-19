@@ -10,7 +10,8 @@ export interface VmPort {
 }
 const PORT_NAME = /^[A-Za-z0-9_.-]{1,15}$/;
 const MAC = /^[0-9a-f]{2}(?::[0-9a-f]{2}){5}$/;
-const IPV4 = /^10\.213\.0\.(?:[2-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/;
+/** A VM's address on the bridge: 10.213.0.2 to 10.213.0.254 (.1 is the host, .0 and .255 are not hosts). */
+export const VM_IPV4 = /^10\.213\.0\.(?:[2-9]|[1-9]\d|1\d\d|2[0-4]\d|25[0-4])$/;
 
 /**
  * Spec §4, decision 107 Q4, owner Q13 (R22), RT-03, RT-04, RT-21. The inet table: a VM reaches the gateway and the relay on
@@ -61,7 +62,7 @@ export function agentNetRuleset(net: AgentNet = AGENT_NET): string {
 
 /** The set element of one VM (added at start, deleted at stop), from checked values only. */
 export function portElement(vm: VmPort): string {
-  if (!PORT_NAME.test(vm.port) || !MAC.test(vm.mac) || !IPV4.test(vm.ip)) throw new RangeError("vm port");
+  if (!PORT_NAME.test(vm.port) || !MAC.test(vm.mac) || !VM_IPV4.test(vm.ip)) throw new RangeError("vm port");
   return `{ "${vm.port}" . ${vm.mac} . ${vm.ip} }`;
 }
 

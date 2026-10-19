@@ -1,11 +1,12 @@
 import { z } from "zod";
+import { LINE_HIDDEN } from "./text-rules.ts";
 
 /** Decision 109. Host-dependent ceilings (the memory cap, the host's cores) are checked by the agents service at save (RT-30). */
 export const AgentResources = z
   .object({
-    memoryMb: z.number().int().min(512).max(1_048_576).default(1024),
-    cpus: z.number().int().min(1).max(256).default(1),
-    diskMb: z.number().int().min(1024).max(65_536).default(4096),
+    memoryMb: z.number().int().min(512).max(1_048_576),
+    cpus: z.number().int().min(1).max(256),
+    diskMb: z.number().int().min(1024).max(65_536),
   })
   .strict();
 export type AgentResources = z.output<typeof AgentResources>;
@@ -17,8 +18,6 @@ export const DEFAULT_AGENT_RESOURCES: AgentResources = Object.freeze({
 
 export const AGENT_VM_LIMITS = Object.freeze({ systemPackages: 64, packages: 64 });
 const unique = (items: readonly string[]): boolean => new Set(items).size === items.length;
-// The rule of agents.ts' LINE_HIDDEN, kept here: agents.ts imports this file.
-const LINE_HIDDEN = /\p{Cc}|[\p{Cf}\p{Zl}\p{Zp}]/u;
 
 /** A Debian package name (Debian policy 5.6.1), at most 63 characters: it reaches `apt-get install` (R7). */
 export const SystemPackage = z.string().regex(/^[a-z0-9][a-z0-9+.-]{0,62}$/);

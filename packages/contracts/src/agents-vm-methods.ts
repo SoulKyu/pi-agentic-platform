@@ -1,8 +1,11 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
+import { ApiKeyValue } from "./models-methods.ts";
 import { AgentId } from "./platform.ts";
 
 const Params = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
+/** The owner's `claude setup-token`, as typed: trimmed, one line (it ends up in a header), at most 512 characters. */
+export const ClaudeToken = ApiKeyValue.max(512);
 const Ok = z.object({ ok: z.literal(true) }).strict();
 
 /** The phases `agents.vmStatus` reports for an agent's VM. */
@@ -25,13 +28,13 @@ export type VmStatusView = z.infer<typeof VmStatusView>;
 
 export const agentsVmMethods = {
   // Browser only like `models.setApiKey` (pi:admin is outside the token permissions); the token is a secret, so the
-  // receipt hashes no params (`sensitiveParams: []`, like a trigger create: the only field is the secret, MC30). `sandbox_unavailable` is the brief's `unavailable` (no such code exists): the VM runtime is off. timeout: whether the token was stored is unknown.
+  // receipt hashes no params (`sensitiveParams: []`: the only field is the secret, MC30). timeout: the outcome is unknown.
   "agents.vm.setClaudeToken": defineMethod({
     name: "agents.vm.setClaudeToken",
     permission: "pi:admin",
     idempotent: false,
     sensitiveParams: [],
-    params: Params({ token: z.string().min(1).max(512) }),
+    params: Params({ token: ClaudeToken }),
     result: Ok,
     errors: ["step_up_required", "sandbox_unavailable"],
   }),

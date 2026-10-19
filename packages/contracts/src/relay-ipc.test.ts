@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { RelayCommand, RelayReport } from "./relay-ipc.ts";
+import { RELAY_USAGE_MAX_AGENTS, RelayCommand, RelayReport } from "./relay-ipc.ts";
 
 const grant = {
   type: "relay_grant",
@@ -23,7 +23,15 @@ describe("RelayCommand", () => {
   });
 
   it("refuses a grant for another address or with an upper-case key", () => {
-    for (const patch of [{ address: "192.168.1.5" }, { address: "10.214.0.7" }, { key: "B".repeat(64) }]) {
+    const patches = [
+      { address: "192.168.1.5" },
+      { address: "10.214.0.7" },
+      { address: "10.213.0.1" },
+      { address: "10.213.0.999" },
+      { address: "10.213.0.255" },
+      { key: "B".repeat(64) },
+    ];
+    for (const patch of patches) {
       expect(RelayCommand.safeParse({ ...grant, ...patch }).success, JSON.stringify(patch)).toBe(false);
     }
   });
@@ -34,6 +42,8 @@ describe("RelayCommand", () => {
     expect(RelayCommand.safeParse(policy).success).toBe(true);
     expect(RelayCommand.safeParse({ type: "claude_token", token: "" }).success).toBe(false);
     expect(RelayCommand.safeParse({ type: "claude_token", token: null }).success).toBe(true);
+    expect(RelayCommand.safeParse({ type: "claude_token", token: "abc\r\nX-Evil: 1" }).success).toBe(false);
+    expect(RelayCommand.safeParse({ type: "claude_token", token: "   " }).success).toBe(false);
   });
 
   it("bounds the model list and the blocked reasons", () => {
@@ -52,6 +62,11 @@ describe("RelayReport", () => {
     };
     expect(RelayReport.safeParse(usage).success).toBe(true);
     expect(RelayReport.safeParse({ type: "relay_ready", port: 7842 }).success).toBe(true);
+    const agents = (count: number) => Array.from({ length: count }, () => usage.agents[0]);
+    expect(RelayReport.safeParse({ ...usage, agents: agents(RELAY_USAGE_MAX_AGENTS) }).success).toBe(true);
+    expect(RelayReport.safeParse({ ...usage, agents: agents(RELAY_USAGE_MAX_AGENTS + 1) }).success).toBe(
+      false,
+    );
     expect(RelayReport.safeParse({ type: "relay_ready", port: 0 }).success).toBe(false);
   });
 });

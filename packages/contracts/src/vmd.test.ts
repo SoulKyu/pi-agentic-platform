@@ -48,6 +48,8 @@ describe("VmdRequest", () => {
     expect(VmdRequest.safeParse(request).success).toBe(true);
   });
 
+  // Mutant: drop the `isolated iff taskKey` refine in vm.start. Killed by "ties kind isolated to a task key": an isolated
+  // start without a key and a thread start with one both parse without it.
   it("ties kind isolated to a task key", () => {
     expect(VmdRequest.safeParse({ ...start, kind: "isolated" }).success).toBe(false);
     expect(VmdRequest.safeParse({ ...start, taskKey: key }).success).toBe(false);
@@ -74,6 +76,25 @@ describe("VmdRequest", () => {
     }
   });
 
+  it("fails closed on resources: no default fills a missing figure", () => {
+    for (const resources of [{}, { memoryMb: 1024, diskMb: 4096 }, { memoryMb: 1024, cpus: 1 }]) {
+      expect(VmdRequest.safeParse({ ...start, resources }).success, JSON.stringify(resources)).toBe(false);
+    }
+    for (const name of ["disk.create", "disk.grow"]) {
+      const without: Record<string, unknown> = { ...(valid[name] as Record<string, unknown>) };
+      delete without.diskMb;
+      expect(VmdRequest.safeParse(without).success, `${name} without diskMb`).toBe(false);
+    }
+  });
+
+  it("makes vm.stop and vm.status name the VM they mean", () => {
+    for (const name of ["vm.stop", "vm.status"]) {
+      const without: Record<string, unknown> = { ...(valid[name] as Record<string, unknown>) };
+      delete without.taskKey;
+      expect(VmdRequest.safeParse(without).success, name).toBe(false);
+    }
+  });
+
   it("makes disk.delete name its disk", () => {
     const without: Record<string, unknown> = { ...(valid["disk.delete"] as Record<string, unknown>) };
     delete without.taskKey;
@@ -89,7 +110,21 @@ describe("VmdRequest", () => {
     expect(VmdRequest.safeParse({ ...build, from: "evil.example/node@sha256:" + hex(64, "d") }).success).toBe(
       false,
     );
-    expect(VmdRequest.safeParse({ ...build, from: tag("base") }).success).toBe(true);
+    expect(
+      VmdRequest.safeParse({ ...build, layer: "agent", tag: tag("agent"), from: tag("base") }).success,
+    ).toBe(true);
+  });
+
+  it("keeps the layers apart: the tag names the layer, base from Node, the others from a pap tag, no apt in profile", () => {
+    const build = valid["image.build"] as Record<string, unknown>;
+    const agent = { ...build, layer: "agent", tag: tag("agent"), from: tag("profile") };
+    expect(VmdRequest.safeParse(agent).success).toBe(true);
+    expect(VmdRequest.safeParse({ ...build, tag: tag("agent") }).success, "tag of another layer").toBe(false);
+    expect(VmdRequest.safeParse({ ...build, from: tag("base") }).success, "base from a pap tag").toBe(false);
+    expect(VmdRequest.safeParse({ ...agent, from: NODE }).success, "agent from Node").toBe(false);
+    const profile = { ...agent, layer: "profile", tag: tag("profile"), from: tag("base") };
+    expect(VmdRequest.safeParse(profile).success, "profile with apt").toBe(false);
+    expect(VmdRequest.safeParse({ ...profile, aptPackages: [] }).success).toBe(true);
   });
 
   it("refuses an unknown op and unknown keys", () => {
@@ -102,7 +137,9 @@ describe("VmdRequest", () => {
 describe("responses", () => {
   it("parses an address and a failure code", () => {
     expect(VmStartResult.safeParse({ address: "10.213.0.7" }).success).toBe(true);
-    expect(VmStartResult.safeParse({ address: "192.168.0.7" }).success).toBe(false);
+    for (const address of ["192.168.0.7", "10.213.0.1", "10.213.0.999", "10.213.0.255", "10.213.0.0"]) {
+      expect(VmStartResult.safeParse({ address }).success, address).toBe(false);
+    }
     expect(VmdResponse.safeParse({ ok: false, code: "capacity" }).success).toBe(true);
     expect(VmdResponse.safeParse({ ok: false, code: "boom" }).success).toBe(false);
   });

@@ -5,9 +5,11 @@ import {
   FILE_CHUNK_B64,
   FilePut,
   GuestCommand,
+  GuestReport,
   Hello,
   SESSION_CHUNK_B64,
   SessionAppend,
+  SessionResync,
   VmInit,
 } from "./agents-vm.ts";
 import { QUARANTINE_STEPS } from "./agents-safety.ts";
@@ -140,6 +142,37 @@ describe("worker and guest records", () => {
     }
   });
 
+  it("accepts only canonical base64", () => {
+    for (const data of ["abc", "aGk", "aGk==", "=aGk", "a=Gk", "aG k"]) {
+      expect(SessionAppend.safeParse({ ...append, data }).success, data).toBe(false);
+    }
+    for (const data of ["", "aGk=", "aA==", "aGkh"]) {
+      expect(SessionAppend.safeParse({ ...append, data }).success, data).toBe(true);
+    }
+  });
+
+  it("bounds what the VM names: a signal and an entry id", () => {
+    const exited = { type: "exited", slot: hex(32), code: null, tail: "" };
+    for (const signal of ["SIGTERM", "SIGRTMIN1", null]) {
+      expect(GuestReport.safeParse({ ...exited, signal }).success, String(signal)).toBe(true);
+    }
+    for (const signal of ["sigterm", "TERM", "SIG", `SIG${"A".repeat(14)}`, "SIGT\nERM"]) {
+      expect(GuestReport.safeParse({ ...exited, signal }).success, signal).toBe(false);
+    }
+    const session = (lastEntryId: string) => ({
+      ...workerHello,
+      session: { file: "s.jsonl", lastEntryId, size: 0 },
+    });
+    for (const code of [0x0a, 0x202e, 0x200b, 0x2028]) {
+      const id = `e${String.fromCharCode(code)}1`;
+      expect(Hello.safeParse(session(id)).success, String(code)).toBe(false);
+      expect(
+        SessionResync.safeParse({ type: "session_resync", fromOffset: 0, lastEntryId: id }).success,
+      ).toBe(false);
+    }
+    expect(Hello.safeParse(session("a1b2c3d4")).success).toBe(true);
+  });
+
   it("checks a file_put", () => {
     const put = { type: "file_put", id: hex(32), name: "report.txt", offset: 0, data: "aGk=", last: true };
     expect(FilePut.safeParse(put).success).toBe(true);
@@ -194,6 +227,28 @@ describe("pi-host wiring", () => {
     expect(DaemonToWorker.safeParse({ ...init, vm: { ...vmInit, rootView: "bind" } }).success).toBe(false);
   });
 
+  it("refuses a vault, one-use values or memory on the init of a VM worker (R11, R17)", () => {
+    const init = {
+      type: "init",
+      cwd: "/a",
+      agentDir: "/b",
+      papHome: "/c",
+      umask: 0o22,
+      policy: {},
+      vm: vmInit,
+    };
+    for (const extra of [
+      { vault: { ABC: "x" } },
+      { once: [] },
+      { memory: { profile: "p", trust: "trusted" } },
+    ]) {
+      expect(DaemonToWorker.safeParse({ ...init, ...extra }).success, JSON.stringify(extra)).toBe(false);
+    }
+    const host: Record<string, unknown> = { ...init };
+    delete host.vm;
+    expect(DaemonToWorker.safeParse({ ...host, vault: { ABC: "x" } }).success).toBe(true);
+  });
+
   it("marks a user entry pap did not send, and quarantines the VM first", () => {
     expect(TranscriptRow.safeParse({ entryId: "e1", message: {}, unverified: true }).success).toBe(true);
     expect(TranscriptRow.safeParse({ entryId: "e1", message: {}, unverified: false }).success).toBe(false);
@@ -202,7 +257,7 @@ describe("pi-host wiring", () => {
 });
 
 describe("frame bounds", () => {
-  it("keeps the WebSocket bound under the bare name and the gateway bound under its own", () => {
+  it("keeps the WebSocket bound under the bare name and the gateway bound under its own name", () => {
     expect(MAX_FRAME_BYTES).toBe(1024 * 1024);
     expect(AGENT_VM_MAX_FRAME_BYTES).toBe(4 * 1024 * 1024);
   });

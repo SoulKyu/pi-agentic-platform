@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AgentResources, SystemPackage } from "./agents-resources.ts";
+import { VM_IPV4 } from "./agents-net.ts";
 import { GatewayToken, IMAGE_TAG, LaunchId } from "./agents-vm.ts";
 import { AgentId } from "./platform.ts";
 
@@ -60,7 +61,16 @@ export const VmdRequest = z.discriminatedUnion("op", [
       aptPackages: z.array(SystemPackage).max(64),
       upgrade: z.boolean(),
     })
-    .strict(),
+    .strict()
+    .refine((build) => build.tag.startsWith(`pap-agent-${build.layer}-`), "the tag names the layer")
+    .refine(
+      (build) => (build.layer === "base") === NodeImage.safeParse(build.from).success,
+      "base from Node, others from a pap tag",
+    )
+    .refine(
+      (build) => build.layer !== "profile" || build.aptPackages.length === 0,
+      "the profile layer has no apt packages",
+    ),
   z.object({ op: z.literal("image.list") }).strict(),
   z.object({ op: z.literal("image.prune"), keep: z.array(Tag).max(256) }).strict(),
   z.object({ op: z.literal("version") }).strict(),
@@ -71,7 +81,7 @@ export type VmdRequest = z.infer<typeof VmdRequest>;
 
 export const VmState = z.enum(["absent", "starting", "running", "paused", "stopped"]);
 /** `vm.start`'s result: the bridge address pap-vmd gave the VM (the relay binds the launch's key to it, R13). */
-export const VmStartResult = z.object({ address: z.string().regex(/^10\.213\.0\.\d{1,3}$/) }).strict();
+export const VmStartResult = z.object({ address: z.string().regex(VM_IPV4) }).strict();
 export const VmdHealth = z
   .object({
     version: z.string().max(64),

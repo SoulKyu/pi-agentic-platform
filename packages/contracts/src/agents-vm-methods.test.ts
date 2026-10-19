@@ -31,6 +31,13 @@ describe("agentsVmMethods", () => {
     expect(agentsVmMethods["agents.vm.setClaudeToken"].params.safeParse({ token: "t" }).success).toBe(true);
   });
 
+  it("trims the token and refuses a control character (header injection)", () => {
+    const params = agentsVmMethods["agents.vm.setClaudeToken"].params;
+    expect(params.safeParse({ token: "abc\r\nX-Evil: 1" }).success).toBe(false);
+    expect(params.safeParse({ token: "   " }).success).toBe(false);
+    expect(params.parse({ token: "  sk-ant-oat01-x \n" }).token).toBe("sk-ant-oat01-x");
+  });
+
   it("is in the catalogue, as a mutation", () => {
     for (const name of [
       "agents.vm.setClaudeToken",

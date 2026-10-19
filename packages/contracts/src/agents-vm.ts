@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { PackagePicks } from "./agents-resources.ts";
 import { AgentId } from "./platform.ts";
+import { AbsolutePath, LINE_HIDDEN } from "./text-rules.ts";
 
 /** Spec §4, decision 107. Fixed in v1; `pap vm setup` writes the same values. Sub-project 2 adds a proxy port (seam). */
 export const AGENT_NET = Object.freeze({
@@ -12,11 +13,8 @@ export const AGENT_NET = Object.freeze({
   relayPort: 7842,
 });
 export const AGENT_VM_PROTOCOL = 1;
-/**
- * The gateway frame bound. `frames.ts` has a `MAX_FRAME_BYTES` of its own (the WebSocket, 1 MiB) and `index.ts` exports
- * that one under the bare name: `index.ts` re-exports this one as `AGENT_VM_MAX_FRAME_BYTES`.
- */
-export const MAX_FRAME_BYTES = 4 * 1024 * 1024;
+/** The gateway frame bound. `frames.ts` has the WebSocket's `MAX_FRAME_BYTES` (1 MiB): a different bound. */
+export const AGENT_VM_MAX_FRAME_BYTES = 4 * 1024 * 1024;
 /** RT-27: what a connection may send before its hello is accepted, and the gateway's other bounds. */
 export const HELLO_MAX_BYTES = 4096;
 export const HELLO_TIMEOUT_MS = 10_000;
@@ -46,12 +44,14 @@ export const SlotId = hex(16);
 export const GatewayToken = hex(32);
 /** RT-03, R13: the launch's key for the relay, presented by the worker as its provider credential. Never logged. */
 export const RelayKey = hex(32);
-const Base64 = /^[A-Za-z0-9+/]*={0,2}$/;
-// The rule of pi-host.ts' AbsolutePath, kept here so this file imports nothing of pi-host.ts.
-const AbsolutePath = z
+/** Canonical base64: whole groups of four, padded only at the end. */
+const Base64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+/** A Pi entry id as the VM names it: one visible line. */
+const EntryId = z
   .string()
-  .max(4096)
-  .refine((path) => path.startsWith("/") && !path.includes("\0"), "must be an absolute path");
+  .min(1)
+  .max(128)
+  .refine((text) => !LINE_HIDDEN.test(text), "visible text on one line");
 /** A Pi session file's name in the VM's sessions folder: the mirror keeps the same name (R23, R28). */
 export const SessionFileName = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}\.jsonl$/);
 
@@ -104,7 +104,7 @@ export const WorkerHello = z
     session: z
       .object({
         file: SessionFileName.nullable(),
-        lastEntryId: z.string().min(1).max(128).nullable(),
+        lastEntryId: EntryId.nullable(),
         size: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
       })
       .strict(),
@@ -139,7 +139,10 @@ export const GuestReport = z.discriminatedUnion("type", [
       type: z.literal("exited"),
       slot: SlotId,
       code: z.number().int().nullable(),
-      signal: z.string().max(16).nullable(),
+      signal: z
+        .string()
+        .regex(/^SIG[A-Z0-9]{1,13}$/)
+        .nullable(),
       tail: z.string().max(8192),
     })
     .strict(),
@@ -165,7 +168,7 @@ export const SessionResync = z
   .object({
     type: z.literal("session_resync"),
     fromOffset: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
-    lastEntryId: z.string().min(1).max(128).nullable(),
+    lastEntryId: EntryId.nullable(),
   })
   .strict();
 const FileId = z.string().regex(/^[0-9a-f]{32}$/);

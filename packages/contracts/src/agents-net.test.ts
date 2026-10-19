@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agentNetRuleset, cniConflist, portElement } from "./agents-net.ts";
+import { agentNetRuleset, cniConflist, portElement, VM_IPV4 } from "./agents-net.ts";
 
 const EXPECTED = `table inet pap_agents
 delete table inet pap_agents
@@ -82,6 +82,24 @@ describe("portElement", () => {
     ];
     for (const patch of bad)
       expect(() => portElement({ ...vm, ...patch }), JSON.stringify(patch)).toThrow(RangeError);
+  });
+});
+
+describe("VM_IPV4", () => {
+  it("is 10.213.0.2 to 10.213.0.254", () => {
+    for (const ip of ["10.213.0.2", "10.213.0.9", "10.213.0.99", "10.213.0.200", "10.213.0.254"]) {
+      expect(VM_IPV4.test(ip), ip).toBe(true);
+    }
+    for (const ip of [
+      "10.213.0.0",
+      "10.213.0.1",
+      "10.213.0.255",
+      "10.213.0.256",
+      "10.213.0.999",
+      "10.213.1.5",
+    ]) {
+      expect(VM_IPV4.test(ip), ip).toBe(false);
+    }
   });
 });
 
