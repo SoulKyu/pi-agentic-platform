@@ -105,6 +105,15 @@ describe("vmInitOf (R11, R17, RT-06)", () => {
         expect.objectContaining({ code: "bad_request" }),
       );
   });
+  it("refuses prefix and tool always rules too", () => {
+    for (const extra of [
+      { alwaysPrefixes: [{ prefix: ["ls"] }] },
+      { alwaysTools: [{ tool: "t", source: "mcp" }] },
+    ])
+      expect(() => vmInitOf({ ...host, policy: { ...vmRules, ...extra } }, vm, null)).toThrow(
+        expect.objectContaining({ code: "bad_request" }),
+      );
+  });
   it("accepts a task's scratch inside the VM", () => {
     const task = rulesOf({ agentHome: layout.home, agentScratch: layout.home });
     expect(vmInitOf({ ...host, policy: task }, vm, null).policy).toMatchObject({ agentScratch: layout.home });

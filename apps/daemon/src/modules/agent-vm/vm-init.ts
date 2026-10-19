@@ -15,7 +15,9 @@ function vmRulesOf(policy: unknown, root: string): PolicyRules {
     !rules.success ||
     !within(rules.data.agentHome, root) ||
     !within(rules.data.agentScratch, root) ||
-    rules.data.alwaysAllow.length > 0
+    rules.data.alwaysAllow.length > 0 ||
+    rules.data.alwaysPrefixes.length > 0 ||
+    rules.data.alwaysTools.length > 0
   )
     throw new PapError("bad_request");
   return rules.data;

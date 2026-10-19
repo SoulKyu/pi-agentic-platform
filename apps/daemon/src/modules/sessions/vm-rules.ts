@@ -21,5 +21,9 @@ export function vmRuleParts(parts: AgentRuleParts, layout: VmLayout, isTask: boo
     agentHome: layout.home,
     agentScratch: isTask ? layout.home : null,
     sandbox: { required: true, network: false },
+    // AVM-E18: the owner's "always" grants were made for host calls and never cross into the box.
+    alwaysAllow: [],
+    alwaysPrefixes: [],
+    alwaysTools: [],
   };
 }

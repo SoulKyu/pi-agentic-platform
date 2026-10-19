@@ -1,10 +1,10 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentInput } from "@pap/contracts";
+import { AgentInput, PolicyRules } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { silentLogger } from "../../kernel/logger.ts";
-import { layoutOf } from "../agent-vm/index.ts";
+import { layoutOf, vmInitOf } from "../agent-vm/index.ts";
 import { createAgentRules } from "./agent-rules.ts";
 import type { SessionRow } from "./store.ts";
 
@@ -87,5 +87,46 @@ describe("the rules of a VM session (R15)", () => {
   });
   it("leaves a host row on the host's home", () => {
     expect(rulesFor(false)(row(), OWNER)).toMatchObject({ agentHome: join(root, "agents", ID) });
+  });
+
+  // The way `policy-link` composes: the owner's grants first, the agent's parts spread after (AVM-E18).
+  const OWNER_GRANTS = {
+    alwaysAllow: [{ tool: "bash", key: "a".repeat(64) }],
+    alwaysPrefixes: [{ prefix: ["git", "status"] }],
+    alwaysTools: [{ tool: "mcp__fix__write", source: "mcp" as const }],
+  };
+  const composed = (vm: boolean) =>
+    PolicyRules.parse({
+      profile: "interactive",
+      approvalMode: "supervised",
+      ...OWNER_GRANTS,
+      ...rulesFor(vm)(row(), OWNER),
+    });
+
+  it("empties the owner's three kinds of always rules for a VM session, and vmInitOf then accepts the rules", () => {
+    const rules = composed(true);
+    expect([rules.alwaysAllow, rules.alwaysPrefixes, rules.alwaysTools]).toEqual([[], [], []]);
+    const vm = {
+      layout,
+      bwrap: "/usr/bin/bwrap",
+      relayKey: "ab".repeat(32),
+      slot: "cd".repeat(16),
+      rootView: "overlay" as const,
+    };
+    const init = {
+      type: "init" as const,
+      cwd: "/h",
+      agentDir: "/h",
+      papHome: "/h",
+      umask: 0o22,
+      policy: rules,
+    };
+    expect(() => vmInitOf(init, vm, null)).not.toThrow();
+  });
+  it("leaves a host session of the same owner its rules", () => {
+    const rules = composed(false);
+    expect(rules.alwaysAllow).toEqual(OWNER_GRANTS.alwaysAllow);
+    expect(rules.alwaysPrefixes).toEqual(OWNER_GRANTS.alwaysPrefixes);
+    expect(rules.alwaysTools).toEqual(OWNER_GRANTS.alwaysTools);
   });
 });

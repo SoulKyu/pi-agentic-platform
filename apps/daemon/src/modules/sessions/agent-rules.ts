@@ -48,6 +48,9 @@ export type AgentRuleParts = Partial<
     | "autonomy"
     | "trustedSources"
     | "hostGrants"
+    | "alwaysAllow"
+    | "alwaysPrefixes"
+    | "alwaysTools"
   >
 >;
 

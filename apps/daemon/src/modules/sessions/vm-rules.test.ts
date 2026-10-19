@@ -33,4 +33,12 @@ describe("vmRuleParts (R15)", () => {
     expect(out).toMatchObject({ profile: "agent-thread", approvalMode: "full-access", denylist: ["rm*"] });
     expect(JSON.stringify(out)).not.toContain("/p/");
   });
+  it("empties the always rules whatever the parts carry (AVM-E18)", () => {
+    const out = vmRuleParts(
+      { ...host, alwaysAllow: [{ tool: "bash", key: "a".repeat(64) }], alwaysPrefixes: [{ prefix: ["ls"] }] },
+      layout,
+      false,
+    );
+    expect([out.alwaysAllow, out.alwaysPrefixes, out.alwaysTools]).toEqual([[], [], []]);
+  });
 });
