@@ -7,7 +7,7 @@ export const UNIT_NAMES = [
   "pap-vmd.service",
 ] as const;
 
-const PATH_ENV = `${PATHS.opt}/bin:${PATHS.opt}/nerdctl/bin:${PATHS.kata}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
+const PATH_ENV = `${PATHS.opt}/bin:${PATHS.kata}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`;
 const INSTALL = ["[Install]", "WantedBy=multi-user.target"];
 const RUNTIME_DIR = ["RuntimeDirectory=pap-vm", "RuntimeDirectoryPreserve=yes"];
 
@@ -22,7 +22,7 @@ export const containerdUnit = (): string =>
     "[Service]",
     `Environment=PATH=${PATH_ENV}`,
     ...RUNTIME_DIR,
-    `ExecStart=${PATHS.opt}/nerdctl/bin/containerd --config ${PATHS.etc}/containerd.toml`,
+    `ExecStart=${PATHS.opt}/bin/containerd --config ${PATHS.etc}/containerd.toml`,
     "Delegate=yes",
     "KillMode=process",
     "Restart=on-failure",
@@ -41,7 +41,7 @@ export const buildkitUnit = (): string =>
     "[Service]",
     `Environment=PATH=${PATH_ENV}`,
     ...RUNTIME_DIR,
-    `ExecStart=${PATHS.opt}/nerdctl/bin/buildkitd --config ${PATHS.etc}/buildkitd.toml`,
+    `ExecStart=${PATHS.opt}/bin/buildkitd --config ${PATHS.etc}/buildkitd.toml`,
     "Restart=on-failure",
     "",
     ...INSTALL,

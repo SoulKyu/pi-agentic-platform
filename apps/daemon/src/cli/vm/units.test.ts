@@ -37,6 +37,13 @@ describe("units", () => {
     ]);
   });
 
+  it("containerd and buildkitd run from /opt/pap-vm/bin", () => {
+    expect(UNIT_FILES["pap-vm-containerd.service"]()).toContain(
+      "ExecStart=/opt/pap-vm/bin/containerd --config",
+    );
+    expect(UNIT_FILES["pap-vm-buildkit.service"]()).toContain("ExecStart=/opt/pap-vm/bin/buildkitd --config");
+  });
+
   it("pap's containerd finds the shim wrapper first", () => {
     expect(UNIT_FILES["pap-vm-containerd.service"]()).toMatch(/^Environment=PATH=\/opt\/pap-vm\/bin:/m);
   });

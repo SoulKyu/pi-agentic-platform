@@ -49,16 +49,26 @@ export const packFolder = (run: Runner, folder: string, archive: string): Promis
     folder,
   );
 
-/** pap-vmd's production deploy (contracts' dist included), same offline deploy and pruning as the agent bundle (T14b). */
-export const buildVmdBundle = async (o: VmArtefactOptions, archive: string): Promise<void> => {
+/**
+ * pap-vmd's production deploy (contracts' dist and zod included), pruned and checked, into `dest`: the same offline deploy
+ * as the agent bundle (T14b). The release packs it; `pap vm setup --dev-from-tree` installs it.
+ */
+export const buildVmdFolder = async (
+  o: Pick<VmArtefactOptions, "repo" | "run" | "storeDir">,
+  dest: string,
+): Promise<void> => {
   if (!existsSync(join(o.repo, VMD_PACKAGE, "package.json")))
     throw new Error(`${VMD_PACKAGE} does not exist`);
+  rmSync(dest, { recursive: true, force: true });
+  await deployProd({ repo: o.repo, run: o.run, storeDir: o.storeDir, filter: "@pap/vmd", dest });
+  finishAgentBundle(dest);
+  assertAgentBundle(dest, [homedir(), o.repo, o.storeDir], VMD_REQUIRED);
+};
+
+export const buildVmdBundle = async (o: VmArtefactOptions, archive: string): Promise<void> => {
   const building = join(o.repo, VMD_BUILDING);
-  rmSync(building, { recursive: true, force: true });
   try {
-    await deployProd({ repo: o.repo, run: o.run, storeDir: o.storeDir, filter: "@pap/vmd", dest: building });
-    finishAgentBundle(building);
-    assertAgentBundle(building, [homedir(), o.repo, o.storeDir], VMD_REQUIRED);
+    await buildVmdFolder(o, building);
     await packFolder(o.run, building, archive);
   } finally {
     rmSync(building, { recursive: true, force: true });

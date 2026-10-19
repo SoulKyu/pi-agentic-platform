@@ -1,8 +1,18 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { ASSET_NAMES, bundledAssets, fetchVerified, isPlaceholder, parseAssets } from "./assets.ts";
+import {
+  ASSET_NAMES,
+  RELEASE_FILLED,
+  applyOverrides,
+  bundledAssets,
+  fetchVerified,
+  isPlaceholder,
+  openNoFollow,
+  parseAssets,
+  type OpenFile,
+} from "./assets.ts";
 
 /* Mutant: the SHA comparison in fetchVerified removed. Killed by "refuses a download whose SHA-256 differs". */
 const dirs: string[] = [];
@@ -34,7 +44,9 @@ describe("vm-assets.json", () => {
     expect(assets["nerdctl-full"].sha256).toBe(
       "ff018f11ac2f1354bf7b3aaaca6e0b52d81139c746a89134744d0b7be3a0e62f",
     );
-    expect(isPlaceholder(assets["pap-vmd"])).toBe(true);
+    expect(assets.node.sha256).toBe("84d38715d449447117d05c3e71acd78daa49d5b1bfa8aacf610303920c3322be");
+    for (const name of ASSET_NAMES)
+      expect(isPlaceholder(assets[name]), name).toBe(RELEASE_FILLED.includes(name));
     for (const name of ASSET_NAMES) expect(assets[name].url.startsWith("https://")).toBe(true);
   });
 
@@ -81,5 +93,54 @@ describe("fetchVerified", () => {
       }),
     ).rejects.toThrow(/not pinned/);
     expect(called).toBe(false);
+  });
+});
+
+/* Mutants: the owner check removed ("not owned by root"); a Kata override accepted ("overrides kata-static"). */
+describe("--assets overrides (AVM-E35)", () => {
+  const compiled = parseAssets(file());
+  const text = (changed: Record<string, object> = {}) =>
+    JSON.stringify({ assets: ASSET_NAMES.map((n) => ({ ...compiled[n], ...changed[n] })), baseImages: [] });
+  const open =
+    (over: Partial<ReturnType<OpenFile>> = {}): OpenFile =>
+    () => ({
+      isFile: true,
+      uid: 0,
+      mode: 0o100644,
+      text: text(),
+      ...over,
+    });
+
+  it("refuses a file owned by a user, writable by group or others, or not regular", () => {
+    expect(() => applyOverrides(compiled, "/f", open({ uid: 1000 }))).toThrow(/not owned by root/);
+    expect(() => applyOverrides(compiled, "/f", open({ mode: 0o100664 }))).toThrow(/writable by its group/);
+    expect(() => applyOverrides(compiled, "/f", open({ mode: 0o100646 }))).toThrow(
+      /writable by its group or others/,
+    );
+    expect(() => applyOverrides(compiled, "/f", open({ isFile: false }))).toThrow(/regular file/);
+  });
+
+  it("refuses a symbolic link (O_NOFOLLOW)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pap-vm-link-"));
+    dirs.push(dir);
+    writeFileSync(join(dir, "real.json"), "{}");
+    symlinkSync(join(dir, "real.json"), join(dir, "link.json"));
+    expect(() => openNoFollow(join(dir, "link.json"))).toThrow(/symbolic link/);
+    expect(openNoFollow(join(dir, "real.json")).isFile).toBe(true);
+  });
+
+  it("refuses an override of kata-static or any other pinned name, naming it", () => {
+    for (const name of ["kata-static", "kata-tools-static", "nerdctl-full", "node"])
+      expect(() =>
+        applyOverrides(compiled, "/f", open({ text: text({ [name]: { sha256: "b".repeat(64) } }) })),
+      ).toThrow(new RegExp(`overrides ${name}`));
+  });
+
+  it("accepts pap-vmd and the agent bundle and returns them as accepted", () => {
+    const changed = { "pap-vmd": { sha256: "d".repeat(64) }, "pap-agent-bundle": { version: "2" } };
+    const result = applyOverrides(compiled, "/f", open({ text: text(changed) }));
+    expect(result.accepted.map((a) => a.name)).toEqual(["pap-vmd", "pap-agent-bundle"]);
+    expect(result.assets["pap-vmd"].sha256).toBe("d".repeat(64));
+    expect(applyOverrides(compiled, "/f", open()).accepted).toEqual([]);
   });
 });

@@ -17,6 +17,8 @@ import { KATA_MARKER } from "./configs.ts";
 import { makeBed, snapshot } from "./testing/bed.ts";
 
 /*
+ * Fix round 1 mutants: the chmod step removed ("makes everything root-owned...", "strips setuid..."); the owner check of
+ * --assets removed and a Kata override accepted (assets.test.ts "--assets" cases, setup "prints every accepted override").
  * Mutants, each run for real (a guard removed, the named case fails):
  * - SHA check skipped (fetchVerified compares nothing): "stops on a SHA-256 mismatch before anything is installed",
  *   "checks every archive before installing the first one".
@@ -108,10 +110,9 @@ describe("pap vm setup: refusals", () => {
   it("refuses a placeholder SHA-256", async () => {
     const b = bed();
     const assets = { ...b.assets, node: { ...b.assets.node, sha256: "0".repeat(64) } };
-    await expect(runSetup(opts(), { ...b.deps, loadAssets: () => assets }, b.io)).rejects.toThrow(
-      /not pinned/,
-    );
+    await expect(runSetup(opts(), { ...b.deps, compiled: assets }, b.io)).rejects.toThrow(/not pinned/);
     expect(b.calls).toEqual([]);
+    expect(b.downloads).toEqual([]);
   });
 });
 
@@ -123,7 +124,9 @@ describe("pap vm setup: install", () => {
     expect(readFileSync(join(b.roots.opt, "node/bin/node"), "utf8")).toBe("node");
     expect(readFileSync(join(b.roots.opt, "vmd/dist/main.js"), "utf8")).toBe("vmd");
     expect(existsSync(join(b.roots.opt, "agent-bundle/dist/guest/main.js"))).toBe(true);
-    expect(existsSync(join(b.roots.opt, "nerdctl/libexec/cni/bridge"))).toBe(true);
+    expect(existsSync(join(b.roots.opt, "libexec/cni/bridge"))).toBe(true);
+    expect(readFileSync(join(b.roots.opt, "bin/nerdctl"), "utf8")).toBe("n");
+    expect(existsSync(join(b.roots.opt, "nerdctl"))).toBe(false);
     expect(existsSync(join(b.roots.kata, "bin/kata-ctl"))).toBe(true);
     expect(existsSync(join(b.roots.opt, "node.pap-staging"))).toBe(false);
     expect(b.stdout()).not.toContain(DEV_RESIDUAL);
@@ -133,6 +136,53 @@ describe("pap vm setup: install", () => {
       "systemctl enable pap-vm-containerd.service pap-vm-buildkit.service pap-vmd.service",
       "systemctl restart pap-vm-containerd.service pap-vm-buildkit.service pap-vmd.service",
     ]);
+  });
+
+  it("makes everything root-owned without group/other write or setuid bits, then writes the marker (chmod)", async () => {
+    const b = bed({ setuid: true });
+    await runSetup(opts(), b.deps, b.io);
+    const last = b.calls.filter((c) => c.startsWith("tar")).length;
+    expect(last).toBe(6);
+    const at = (prefix: string) => b.calls.findIndex((c) => c.startsWith(prefix));
+    expect(b.calls).toContain(`chown -R 0:0 ${b.roots.opt} ${b.roots.kata}`);
+    expect(b.calls).toContain(`chmod -R u-s,g-s,go-w ${b.roots.opt} ${b.roots.kata}`);
+    expect(at("chown")).toBeGreaterThan(
+      b.calls.map((c, i) => (c.startsWith("tar") ? i : -1)).reduce((a, c) => Math.max(a, c)),
+    );
+    expect(statSync(join(b.roots.kata, "bin/kata-ctl")).mode & 0o7022).toBe(0);
+    expect(
+      JSON.parse(readFileSync(join(b.roots.kata, SETUP_MARKER), "utf8")).installed["kata-static"],
+    ).toBeTypeOf("string");
+    expect(JSON.parse(readFileSync(join(b.roots.opt, SETUP_MARKER), "utf8")).installed.node).toBeTypeOf(
+      "string",
+    );
+  });
+
+  it("warns that running agent VMs may be stopped before it restarts the units", async () => {
+    const b = bed();
+    await runSetup(opts(), b.deps, b.io);
+    expect(b.stdout()).toContain("running agent VMs may be stopped");
+  });
+
+  it("prints every override --assets gave, with name, version, URL and SHA-256, before installing", async () => {
+    const b = bed();
+    const entry = { ...b.assets["pap-vmd"], version: "9.9.9", sha256: "c".repeat(64) };
+    const deps = {
+      ...b.deps,
+      compiled: { ...b.assets, "pap-vmd": { ...entry, version: "0.0.0", sha256: "0".repeat(64) } },
+      openFile: () => ({
+        isFile: true,
+        uid: 0,
+        mode: 0o100644,
+        text: JSON.stringify({ assets: Object.values({ ...b.assets, "pap-vmd": entry }), baseImages: [] }),
+      }),
+      download: (a: { name: string }, dest: string) => b.deps.download(a as never, dest),
+    };
+    await expect(runSetup(opts({ assets: "/x/vm-assets.json" }), deps, b.io)).rejects.toThrow(
+      /SHA-256 mismatch/,
+    );
+    expect(b.stdout()).toContain(`override accepted: pap-vmd 9.9.9 ${entry.url} sha256:${"c".repeat(64)}`);
+    expect(b.calls.filter((c) => c.startsWith("tar"))).toEqual([]);
   });
 
   it("writes config.json with the uid, gid and home of --user, and the home given", async () => {
@@ -209,19 +259,17 @@ describe("pap vm setup: install", () => {
 });
 
 describe("pap vm setup --dev-from-tree", () => {
-  it("copies the built vmd, contracts, bundle and the running Node, and prints the residual", async () => {
+  it("deploys pap-vmd with its dependencies, copies the bundle and the running Node, and prints the residual", async () => {
     const b = bed();
     await runSetup(opts({ devFromTree: true }), b.deps, b.io);
     expect(b.downloads).not.toContain("node");
     expect(b.downloads).not.toContain("pap-vmd");
     expect(b.copies.map(([source]) => source)).toEqual([
       b.deps.nodePath,
-      join(b.tree, "apps/vmd/dist"),
-      join(b.tree, "apps/vmd/package.json"),
-      join(b.tree, "packages/contracts/dist"),
-      join(b.tree, "packages/contracts/package.json"),
       join(b.tree, "packages/pi-host/dist-agent"),
     ]);
+    expect(b.deploys).toEqual([[b.tree, join(b.roots.opt, "vmd")]]);
+    expect(existsSync(join(b.roots.opt, "vmd/node_modules/zod/package.json"))).toBe(true);
     expect(readFileSync(join(b.roots.opt, "node/bin/node"), "utf8")).toBe("running node");
     expect(readFileSync(join(b.roots.opt, "vmd/dist/main.js"), "utf8")).toBe("dev vmd");
     expect(readFileSync(join(b.roots.opt, "agent-bundle/dist/guest/main.js"), "utf8")).toBe("dev guest");

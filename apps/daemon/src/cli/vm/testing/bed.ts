@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import {
+  chmodSync,
   cpSync,
   mkdirSync,
   mkdtempSync,
@@ -63,7 +64,9 @@ export function snapshot(dir: string): Record<string, string> {
   return Object.fromEntries(Object.entries(out).sort());
 }
 
-export function makeBed(overrides: { tamper?: AssetName; ufw?: string; noTree?: boolean } = {}) {
+export function makeBed(
+  overrides: { tamper?: AssetName; ufw?: string; noTree?: boolean; setuid?: boolean } = {},
+) {
   const root = mkdtempSync(join(tmpdir(), "pap-vm-bed-"));
   const roots: VmRoots = {
     opt: join(root, "opt/pap-vm"),
@@ -78,9 +81,6 @@ export function makeBed(overrides: { tamper?: AssetName; ufw?: string; noTree?: 
     mkdirSync(dir, { recursive: true });
   const tree = join(root, "tree");
   put(join(tree, "apps/vmd/dist/main.js"), "dev vmd");
-  put(join(tree, "apps/vmd/package.json"), "{}");
-  put(join(tree, "packages/contracts/dist/index.js"), "c");
-  put(join(tree, "packages/contracts/package.json"), "{}");
   put(join(tree, "packages/pi-host/dist-agent/dist/guest/main.js"), "dev guest");
   put(join(root, "running-node"), "running node");
 
@@ -96,12 +96,25 @@ export function makeBed(overrides: { tamper?: AssetName; ufw?: string; noTree?: 
   const calls: string[] = [];
   const downloads: string[] = [];
   const copies: Array<[string, string]> = [];
+  const deploys: Array<[string, string]> = [];
   const exec: Exec = (cmd, args) => {
     calls.push([cmd, ...args].join(" "));
     if (cmd === "tar") {
       const into = args[args.indexOf("-C") + 1] as string;
       const name = basename(args[1] as string) as AssetName;
       for (const [file, text] of MEMBERS[name]) put(join(into, file), text);
+      if (overrides.setuid && name === "kata-tools-static")
+        chmodSync(join(into, "opt/kata/bin/kata-ctl"), 0o4777);
+    }
+    if (cmd === "chmod" && args[1] === "u-s,g-s,go-w") {
+      for (const dir of args.slice(2))
+        for (const entry of [
+          dir,
+          ...readdirSync(dir, { recursive: true }).map((e) => join(dir, String(e))),
+        ]) {
+          const stat = lstatSync(entry);
+          if (!stat.isSymbolicLink()) chmodSync(entry, stat.mode & 0o7777 & ~0o6022);
+        }
     }
     if (cmd === "ufw")
       return Promise.resolve({ code: overrides.ufw === undefined ? 127 : 0, stdout: overrides.ufw ?? "" });
@@ -121,7 +134,16 @@ export function makeBed(overrides: { tamper?: AssetName; ufw?: string; noTree?: 
         : name === "root"
           ? { uid: 0, gid: 0, home: "/root" }
           : undefined,
-    loadAssets: () => assets,
+    compiled: assets,
+    openFile: () => {
+      throw new Error("no override file in this bed");
+    },
+    deployVmd: (tree, dest) => {
+      deploys.push([tree, dest]);
+      put(join(dest, "dist/main.js"), "dev vmd");
+      put(join(dest, "node_modules/zod/package.json"), "{}");
+      return Promise.resolve();
+    },
     download: (asset, dest) => {
       downloads.push(asset.name);
       writeFileSync(dest, asset.name === overrides.tamper ? "tampered" : payload(asset.name));
@@ -140,6 +162,7 @@ export function makeBed(overrides: { tamper?: AssetName; ufw?: string; noTree?: 
     calls,
     downloads,
     copies,
+    deploys,
     tree,
     assets,
     cleanup: () => rmSync(root, { recursive: true, force: true }),

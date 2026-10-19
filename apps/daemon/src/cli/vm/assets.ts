@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { closeSync, constants, createReadStream, fstatSync, openSync, readFileSync } from "node:fs";
 import { z } from "zod";
 import { CliError } from "../open-home.ts";
 import bundled from "./vm-assets.json" with { type: "json" };
@@ -69,4 +69,72 @@ export async function fetchVerified(asset: VmAsset, dest: string, download: Down
   await download(asset, dest);
   const actual = await sha256File(dest);
   if (actual !== asset.sha256) throw new CliError(`${asset.name}: SHA-256 mismatch, nothing was installed`);
+}
+
+/** The only entries a release fills per build (AVM-E35); everything else comes from the compiled file. */
+export const RELEASE_FILLED: readonly AssetName[] = ["pap-vmd", "pap-agent-bundle"];
+
+export interface OpenedFile {
+  readonly isFile: boolean;
+  readonly uid: number;
+  readonly mode: number;
+  readonly text: string;
+}
+export type OpenFile = (path: string) => OpenedFile;
+
+/** Opens without following a final link and reads through the fstat'ed descriptor, so the checks hold for the bytes read. */
+export const openNoFollow: OpenFile = (path) => {
+  let fd: number;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch (error) {
+    const code = (error as { code?: string }).code;
+    throw new CliError(
+      code === "ELOOP"
+        ? `${path} is a symbolic link: refusing it`
+        : `cannot open ${path} (${code ?? "error"})`,
+    );
+  }
+  try {
+    const stat = fstatSync(fd);
+    return { isFile: stat.isFile(), uid: stat.uid, mode: stat.mode, text: readFileSync(fd, "utf8") };
+  } finally {
+    closeSync(fd);
+  }
+};
+
+const sameEntry = (a: VmAsset, b: VmAsset): boolean =>
+  a.version === b.version && a.url === b.url && a.sha256 === b.sha256;
+
+/**
+ * AVM-E35: `--assets` may replace pap-vmd and the agent bundle only. The file must be a regular file owned by root that
+ * nobody else can write. Any other entry that differs from the compiled one is refused, naming it.
+ */
+export function applyOverrides(
+  compiled: VmAssets,
+  file: string,
+  open: OpenFile,
+): { assets: VmAssets; accepted: VmAsset[] } {
+  const opened = open(file);
+  if (!opened.isFile) throw new CliError(`${file} is not a regular file`);
+  if (opened.uid !== 0) throw new CliError(`${file} is not owned by root (uid ${opened.uid}): refusing it`);
+  if ((opened.mode & 0o022) !== 0)
+    throw new CliError(`${file} is writable by its group or others: refusing it`);
+  let raw: unknown;
+  try {
+    raw = JSON.parse(opened.text);
+  } catch {
+    throw new CliError(`${file} is not valid JSON`);
+  }
+  const given = parseAssets(raw);
+  const merged: Record<string, VmAsset> = { ...compiled };
+  const accepted: VmAsset[] = [];
+  for (const name of ASSET_NAMES) {
+    if (sameEntry(given[name], compiled[name])) continue;
+    if (!RELEASE_FILLED.includes(name))
+      throw new CliError(`${file} overrides ${name}: only ${RELEASE_FILLED.join(" and ")} may be overridden`);
+    merged[name] = given[name];
+    accepted.push(given[name]);
+  }
+  return { assets: merged as VmAssets, accepted };
 }

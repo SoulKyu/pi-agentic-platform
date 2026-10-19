@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { sha256File } from "../apps/daemon/src/cli/vm/assets.ts";
 import { putAgentBundle } from "./agent-bundle-fixture.ts";
 import { AGENT_BUNDLE } from "./build-agent-bundle.ts";
-import { buildVmArtefacts, type VmArtefactOptions } from "./release-vm-assets.ts";
+import { buildVmArtefacts, buildVmdFolder, type VmArtefactOptions } from "./release-vm-assets.ts";
 
 /* Mutant: the vm-assets.json hash taken from the wrong tarball (vmd hash written for the bundle). Killed by "writes both
    SHA-256 into vm-assets.json". Mutant: the deploy run without --offline is the build-agent-bundle test's. */
@@ -40,6 +40,7 @@ const setup = (withVmd = true) => {
       put(join(dest, "src/main.ts"), "export {};\n");
       put(join(dest, "node_modules/@pap/contracts/package.json"), "{}");
       put(join(dest, "node_modules/@pap/contracts/dist/index.js"), "export {};\n");
+      put(join(dest, "node_modules/zod/package.json"), '{"name":"zod"}');
     } else {
       const archive = args[args.indexOf("-czf") + 1] as string;
       writeFileSync(archive, `tar of ${args.at(-1)} from ${cwd.split("/").pop()}`);
@@ -103,6 +104,18 @@ describe("buildVmArtefacts", () => {
         expect.arrayContaining(["--sort=name", "--owner=0", "--group=0", "--numeric-owner", "--mtime=@0"]),
       );
     expect(existsSync(join(t.repo, "apps/vmd/.release-building"))).toBe(false);
+  });
+
+  it("builds the dev pap-vmd folder with the same deploy: @pap/vmd, contracts and zod, pruned", async () => {
+    const t = setup();
+    const dest = join(t.repo, "dev-vmd");
+    await buildVmdFolder(t.options, dest);
+    expect(t.calls[0]?.args).toEqual(
+      expect.arrayContaining(["--filter", "@pap/vmd", "deploy", "--prod", "--offline"]),
+    );
+    expect(existsSync(join(dest, "node_modules/zod/package.json"))).toBe(true);
+    expect(existsSync(join(dest, "node_modules/@pap/contracts/dist/index.js"))).toBe(true);
+    expect(existsSync(join(dest, "src"))).toBe(false);
   });
 
   it("fails closed when apps/vmd is missing or the deployed folder lacks its entry", async () => {

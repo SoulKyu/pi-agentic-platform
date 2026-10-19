@@ -5,6 +5,7 @@ import {
   lstatSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -14,7 +15,14 @@ import { dirname, isAbsolute, join } from "node:path";
 import type { Command } from "../run-cli.ts";
 import { CliError, type CliIo } from "../open-home.ts";
 import { UsageError } from "../usage.ts";
-import { fetchVerified, type AssetName, type VmAsset, type VmAssets } from "./assets.ts";
+import {
+  applyOverrides,
+  fetchVerified,
+  isPlaceholder,
+  type AssetName,
+  type VmAsset,
+  type VmAssets,
+} from "./assets.ts";
 import {
   KATA_MARKER,
   PATHS,
@@ -118,7 +126,32 @@ async function installArchive(deps: VmDeps, archive: string, dest: string, strip
   }
 }
 
-async function installKata(deps: VmDeps, archives: readonly string[]): Promise<void> {
+/** nerdctl-full's `bin/*` go to `/opt/pap-vm/bin` and `libexec/cni` to `/opt/pap-vm/libexec/cni` (pap-vmd's fixed paths, AVM-E36). */
+async function installNerdctl(deps: VmDeps, archive: string): Promise<void> {
+  const { opt } = deps.roots;
+  const staging = join(opt, "nerdctl.pap-staging");
+  rmSync(staging, { recursive: true, force: true });
+  mkdirSync(staging, { recursive: true, mode: 0o755 });
+  try {
+    await must(deps, "tar", extract(archive, staging, 0));
+    for (const [from, to] of [
+      ["bin", "bin"],
+      ["libexec/cni", "libexec/cni"],
+    ] as const) {
+      if (!existsSync(join(staging, from))) throw new CliError(`the nerdctl-full archive holds no ${from}`);
+      mkdirSync(join(opt, to), { recursive: true, mode: 0o755 });
+      for (const entry of from === "bin" ? readdirSync(join(staging, from)) : [""]) {
+        const target = join(opt, to, entry);
+        rmSync(target, { recursive: true, force: true });
+        renameSync(join(staging, from, entry), target);
+      }
+    }
+  } finally {
+    rmSync(staging, { recursive: true, force: true });
+  }
+}
+
+async function installKata(deps: VmDeps, archives: readonly string[], marker: string): Promise<void> {
   const { kata } = deps.roots;
   const staging = `${kata}.pap-staging`;
   rmSync(staging, { recursive: true, force: true });
@@ -126,6 +159,8 @@ async function installKata(deps: VmDeps, archives: readonly string[]): Promise<v
   try {
     for (const archive of archives) await must(deps, "tar", extract(archive, staging, 0));
     if (!existsSync(join(staging, "opt/kata"))) throw new CliError("the Kata archives hold no opt/kata");
+    // The marker travels with the folder: a crash after the rename cannot leave /opt/kata looking foreign.
+    writeFileSync(join(staging, "opt/kata", SETUP_MARKER), marker);
     rmSync(kata, { recursive: true, force: true });
     renameSync(join(staging, "opt/kata"), kata);
   } finally {
@@ -139,16 +174,9 @@ function devSources(deps: VmDeps): Array<readonly [string, string]> {
   const { opt } = deps.roots;
   const pairs: Array<readonly [string, string]> = [
     [deps.nodePath, join(opt, "node/bin/node")],
-    [join(tree, "apps/vmd/dist"), join(opt, "vmd/dist")],
-    [join(tree, "apps/vmd/package.json"), join(opt, "vmd/package.json")],
-    [join(tree, "packages/contracts/dist"), join(opt, "vmd/node_modules/@pap/contracts/dist")],
-    [
-      join(tree, "packages/contracts/package.json"),
-      join(opt, "vmd/node_modules/@pap/contracts/package.json"),
-    ],
     [join(tree, "packages/pi-host/dist-agent"), join(opt, "agent-bundle")],
   ];
-  for (const [source] of pairs)
+  for (const [source] of [...pairs, [join(tree, "apps/vmd/dist")]] as Array<readonly [string]>)
     if (!existsSync(source)) throw new CliError(`${source} does not exist: run pnpm build first`);
   return pairs;
 }
@@ -196,7 +224,13 @@ export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): 
   const papHome = options.home ?? join(user.home, ".pap");
   if (!isAbsolute(papHome)) throw new CliError("--home must be an absolute path");
   const { roots } = deps;
-  const assets: VmAssets = deps.loadAssets(options.assets);
+  let assets: VmAssets = deps.compiled;
+  if (options.assets !== undefined) {
+    const merged = applyOverrides(deps.compiled, options.assets, deps.openFile);
+    assets = merged.assets;
+    for (const a of merged.accepted)
+      io.stdout.write(`override accepted: ${a.name} ${a.version} ${a.url} sha256:${a.sha256}\n`);
+  }
   const shipped = join(roots.kata, PATHS.kataShipped);
   refuseForeign(roots.opt);
   refuseForeign(roots.kata);
@@ -207,6 +241,12 @@ export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): 
   const stale = groups(options.devFromTree).filter((group) =>
     group.names.some((name) => (group.key === "kata" ? markedKata : markedOpt)[name] !== assets[name].sha256),
   );
+  for (const group of stale)
+    for (const name of group.names)
+      if (isPlaceholder(assets[name]))
+        throw new CliError(
+          `${name} is not pinned in this build (placeholder SHA-256): pass --assets <the release's vm-assets.json>`,
+        );
   const dev = options.devFromTree ? devSources(deps) : [];
 
   // Everything is downloaded and checked before the first byte is installed.
@@ -226,12 +266,13 @@ export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): 
     if (readMarker(roots.opt) === undefined)
       writeFileSync(join(roots.opt, SETUP_MARKER), '{"installed":{}}\n');
     const installedOpt: Record<string, string> = { ...markedOpt };
-    let installedKata: Record<string, string> = { ...markedKata };
     for (const group of stale) {
       if (group.key === "kata") {
-        await installKata(deps, group.names.map(file));
-        installedKata = Object.fromEntries(group.names.map((name) => [name, assets[name].sha256]));
-        writeFileSync(join(roots.kata, SETUP_MARKER), `${JSON.stringify({ installed: installedKata })}\n`);
+        const installedKata = Object.fromEntries(group.names.map((name) => [name, assets[name].sha256]));
+        await installKata(deps, group.names.map(file), `${JSON.stringify({ installed: installedKata })}\n`);
+      } else if (group.key === "nerdctl") {
+        await installNerdctl(deps, file("nerdctl-full"));
+        installedOpt["nerdctl-full"] = assets["nerdctl-full"].sha256;
       } else {
         const name = group.names[0] as AssetName;
         const dest = join(roots.opt, group.key);
@@ -247,14 +288,18 @@ export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): 
         mkdirSync(dirname(dest), { recursive: true, mode: 0o755 });
         deps.copyTree(source, dest);
       }
+      // pap-vmd with its production dependencies (contracts, zod): the release step's deploy and pruning.
+      await deps.deployVmd(deps.treeRoot as string, join(roots.opt, "vmd"));
       for (const name of ["node", "pap-vmd", "pap-agent-bundle"]) Reflect.deleteProperty(installedOpt, name);
       installedOpt["dev-from-tree"] = "tree";
       changed = true;
     }
     if (changed) {
-      if (!options.devFromTree) delete installedOpt["dev-from-tree"];
+      if (!options.devFromTree) Reflect.deleteProperty(installedOpt, "dev-from-tree");
+      // Root ownership and no setuid, setgid or group/other write bit, then the marker: a failed step is retried by the next run.
+      await must(deps, "chown", ["-R", "0:0", roots.opt, roots.kata]);
+      await must(deps, "chmod", ["-R", "u-s,g-s,go-w", roots.opt, roots.kata]);
       writeFileSync(join(roots.opt, SETUP_MARKER), `${JSON.stringify({ installed: installedOpt })}\n`);
-      await must(deps, "chmod", ["-R", "go-w", roots.opt, roots.kata]);
     }
 
     if (!existsSync(shipped)) throw new CliError(`the Kata archives hold no ${PATHS.kataShipped}`);
@@ -271,6 +316,7 @@ export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): 
     if (changed || writes.includes(true)) {
       await must(deps, "systemctl", ["daemon-reload"]);
       await must(deps, "systemctl", ["enable", ...UNIT_NAMES]);
+      io.stdout.write("restarting the pap-vm units: running agent VMs may be stopped\n");
       await must(deps, "systemctl", ["restart", ...UNIT_NAMES]);
       io.stdout.write("pap vm setup done\n");
     } else io.stdout.write("pap vm setup: nothing to change\n");

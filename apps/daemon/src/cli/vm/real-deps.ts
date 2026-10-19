@@ -2,9 +2,10 @@ import { execFile } from "node:child_process";
 import { cpSync, createWriteStream, existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
+import { pathToFileURL } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { CliError } from "../open-home.ts";
-import { bundledAssets, parseAssets, type VmAsset } from "./assets.ts";
+import { bundledAssets, openNoFollow, type VmAsset } from "./assets.ts";
 import { REAL_ROOTS, type Exec, type VmDeps, type VmUser } from "./deps.ts";
 
 const exec: Exec = (cmd, args) =>
@@ -42,6 +43,34 @@ function findTree(): string | undefined {
   return undefined;
 }
 
+/** Dev only: the release step's own deploy and pruning, loaded from the checkout, run as root (the residual setup prints). */
+async function deployVmd(tree: string, dest: string): Promise<void> {
+  const mod = (await import(pathToFileURL(join(tree, "scripts/release-vm-assets.ts")).href)) as {
+    buildVmdFolder: (
+      o: {
+        repo: string;
+        run: (cmd: string, args: readonly string[], cwd: string) => Promise<void>;
+        storeDir: string;
+      },
+      dest: string,
+    ) => Promise<void>;
+  };
+  const run = async (cmd: string, args: readonly string[], cwd: string): Promise<void> => {
+    const result = await new Promise<number>((done) =>
+      execFile(cmd, [...args], { cwd, timeout: 600_000, maxBuffer: 64 * 1024 * 1024 }, (error) =>
+        done(error === null ? 0 : typeof error.code === "number" ? error.code : 127),
+      ),
+    );
+    if (result !== 0) throw new CliError(`${cmd} ${args[0] ?? ""} failed (exit code ${result})`);
+  };
+  const storeDir = await new Promise<string>((done, fail) =>
+    execFile("pnpm", ["store", "path"], { cwd: tree, timeout: 30_000 }, (error, stdout) =>
+      error === null ? done(String(stdout).trim()) : fail(new CliError("pnpm store path failed")),
+    ),
+  );
+  await mod.buildVmdFolder({ repo: tree, run, storeDir }, dest);
+}
+
 export function realDeps(): VmDeps {
   return {
     roots: REAL_ROOTS,
@@ -50,8 +79,9 @@ export function realDeps(): VmDeps {
     copyTree: (source, destination) =>
       cpSync(source, destination, { recursive: true, verbatimSymlinks: true, force: true }),
     lookupUser,
-    loadAssets: (file) =>
-      file === undefined ? bundledAssets() : parseAssets(JSON.parse(readFileSync(file, "utf8"))),
+    compiled: bundledAssets(),
+    openFile: openNoFollow,
+    deployVmd,
     download,
     nodePath: process.execPath,
     treeRoot: findTree(),

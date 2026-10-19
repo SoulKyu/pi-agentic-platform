@@ -1,4 +1,4 @@
-import type { Download, VmAssets } from "./assets.ts";
+import type { Download, OpenFile, VmAssets } from "./assets.ts";
 import { PATHS } from "./configs.ts";
 
 /** Where setup writes. Real runs use `PATHS`; tests inject temp folders, so no test touches /etc, /opt or /var/lib. */
@@ -37,7 +37,11 @@ export interface VmDeps {
   /** Copies a file or folder (links stay links). Only `--dev-from-tree` may call it. */
   readonly copyTree: (source: string, destination: string) => void;
   readonly lookupUser: (name: string) => VmUser | undefined;
-  readonly loadAssets: (file: string | undefined) => VmAssets;
+  /** The pins compiled into this pap. */
+  readonly compiled: VmAssets;
+  readonly openFile: OpenFile;
+  /** Deploys pap-vmd with its production dependencies from the checkout into `dest` (the release step's code). */
+  readonly deployVmd: (tree: string, dest: string) => Promise<void>;
   readonly download: Download;
   readonly nodePath: string;
   /** The checkout this pap runs from, or undefined when it is not one. */
