@@ -131,6 +131,8 @@ export function createVmOps(deps: OpsDeps) {
     if (isolated) await deps.room(request.resources.diskMb);
     else if (!fileExists(disk)) throw new VmdFailure("not_found");
     let diskMade = false;
+    /** Set by the cleanup inside the start lock: whether `rm --force` succeeded. The outer cleanup then does not repeat it. */
+    let cleaned = null as boolean | null;
     try {
       const address = net.allocate(name);
       if (isolated) {
@@ -149,28 +151,39 @@ export function createVmOps(deps: OpsDeps) {
           .join("\n")}\n`,
       );
       await locks.withStart(async () => {
-        // AVM-E37: the bridge's ports before this run; the VM's port is the one that is new afterwards.
-        await net.prepare(name);
         try {
-          const placement = {
-            ip: address.ip,
-            mac: address.mac,
-            disk: ["-v", `${volume}:/agent`],
-            envFile,
-            runtime: KATA_RUNTIME,
-          };
-          succeed((await exec(runArgv(request, placement))).code);
-        } finally {
-          // R8: the token file is gone whatever `nerdctl run` did.
-          state.removeEnvFile(request.launchId);
+          // AVM-E37: the bridge's ports before this run; the VM's port is the one that is new afterwards.
+          await net.prepare(name);
+          try {
+            const placement = {
+              ip: address.ip,
+              mac: address.mac,
+              disk: ["-v", `${volume}:/agent`],
+              envFile,
+              runtime: KATA_RUNTIME,
+            };
+            succeed((await exec(runArgv(request, placement))).code);
+          } finally {
+            // R8: the token file is gone whatever `nerdctl run` did.
+            state.removeEnvFile(request.launchId);
+          }
+          await net.attach(name, address);
+        } catch (error) {
+          // N1: a late veth of this VM must not show up after the lock is released and be taken by the next start.
+          cleaned = await step("rm", () => removeContainer(name));
+          await step("detach", () => net.detach(name));
+          await step("volume", () => removeVolume(volume));
+          throw error;
         }
-        await net.attach(name, address);
       });
       return { address: address.ip };
     } catch (error) {
-      const removed = await step("rm", () => removeContainer(name));
-      await step("detach", () => net.detach(name));
-      await step("volume", () => removeVolume(volume));
+      let removed = cleaned;
+      if (removed === null) {
+        removed = await step("rm", () => removeContainer(name));
+        await step("detach", () => net.detach(name));
+        await step("volume", () => removeVolume(volume));
+      }
       // As in vm.stop: a container that could not be removed may still hold the task disk.
       if (diskMade && removed) await step("task_disk", () => removeTaskDir(disk));
       state.removeEnvFile(request.launchId);

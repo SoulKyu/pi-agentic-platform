@@ -18,6 +18,7 @@ const LAST_HOST = 254;
 /** The port appears after `nerdctl run` returns: poll for up to 5 s. */
 const PORT_WAIT_MS = 5000;
 const PORT_POLL_MS = 250;
+const INTERRUPTED = /Dump was interrupted/i;
 const MISSING = /No such file or directory|does not exist|No such process/i;
 const MAC_PREFIX = "02:70:61:00:00:";
 
@@ -38,6 +39,16 @@ interface Lease {
 }
 type Bound = Lease & { readonly port: string; readonly ifindex: number };
 const isBound = (lease: Lease): lease is Bound => lease.port !== null && lease.ifindex !== null;
+
+/** A port name that may enter an argv: `portElement` accepts it (and so has no `@`). */
+function portNameAllowed(name: string): boolean {
+  try {
+    portElement({ port: name, mac: macOf(FIRST_HOST), ip: `${SUBNET_PREFIX}${FIRST_HOST}` });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const macOf = (last: number): string => `${MAC_PREFIX}${last.toString(16).padStart(2, "0")}`;
 const lastOctet = (ip: string): number => Number(ip.slice(SUBNET_PREFIX.length));
@@ -160,18 +171,27 @@ export function createNet(deps: NetDeps): NetPort {
       throw new Error("net: neighbour entry refused");
   }
 
-  /** The ports of the bridge with their interface index; null when `ip` fails or answers something else. */
+  /**
+   * The ports of the bridge with their interface index; null when `ip` fails, says its dump was interrupted (the listing may
+   * be incomplete) or answers something else. Only items whose `master` is the bridge count; a name with `@` or one that
+   * `portElement` refuses is logged and left out, so it can never be chosen.
+   */
   async function listPorts(): Promise<Map<string, number> | null> {
     const result = await exec(bridgePortsArgv());
-    if (result.code !== 0) return null;
+    if (result.code !== 0 || INTERRUPTED.test(result.stderr)) return null;
     try {
       const data: unknown = result.stdout.trim() === "" ? [] : JSON.parse(result.stdout);
       if (!Array.isArray(data)) return null;
       const ports = new Map<string, number>();
       for (const item of data as Record<string, unknown>[]) {
-        const { ifname, ifindex } = item;
+        const { ifname, ifindex, master } = item;
+        if (master !== AGENT_NET.bridge) continue;
         if (typeof ifname !== "string" || typeof ifindex !== "number") return null;
-        ports.set(ifname.split("@")[0] ?? ifname, ifindex);
+        if (!portNameAllowed(ifname)) {
+          log.info("vmd_net_port_name_refused", { length: ifname.length });
+          continue;
+        }
+        ports.set(ifname, ifindex);
       }
       return ports;
     } catch {
@@ -179,18 +199,24 @@ export function createNet(deps: NetDeps): NetPort {
     }
   }
 
-  /** AVM-E37: the VM's port is the one port that is new since `prepare`; an orphan of an earlier crash is in the snapshot. */
+  /**
+   * AVM-E37: the VM's port is the one port that is new since `prepare` and that no lease owns; an orphan of an earlier crash
+   * is in the snapshot. A listing that failed is retried within the deadline; two new ports fail the start at once.
+   */
   async function findPort(before: Set<string>): Promise<{ port: string; ifindex: number }> {
     const deadline = clock.now() + PORT_WAIT_MS;
     for (;;) {
       const ports = await listPorts();
-      const fresh = [...(ports ?? [])].filter(([port]) => !before.has(port));
+      const owned = new Set(leases.flatMap((lease) => (lease.port === null ? [] : [lease.port])));
+      const fresh = [...(ports ?? [])].filter(([port]) => !before.has(port) && !owned.has(port));
       const only = fresh.length === 1 ? fresh[0] : undefined;
       if (only !== undefined) return { port: only[0], ifindex: only[1] };
+      if (fresh.length > 1) {
+        log.info("vmd_net_port_not_found", { reason: `new_ports_${fresh.length}` });
+        throw new VmdFailure("failed");
+      }
       if (clock.now() >= deadline) {
-        log.info("vmd_net_port_not_found", {
-          reason: ports === null ? "ip_failed" : `new_ports_${fresh.length}`,
-        });
+        log.info("vmd_net_port_not_found", { reason: ports === null ? "ip_failed" : "no_new_port" });
         throw new VmdFailure("failed");
       }
       await sleep(PORT_POLL_MS);
@@ -211,7 +237,10 @@ export function createNet(deps: NetDeps): NetPort {
 
   async function prepare(name: string): Promise<void> {
     const ports = await listPorts();
-    if (ports === null) throw new VmdFailure("failed");
+    if (ports === null) {
+      log.info("vmd_net_prepare_failed", { reason: "ip_failed" });
+      throw new VmdFailure("failed");
+    }
     snapshots.set(name, new Set(ports.keys()));
   }
 

@@ -33,6 +33,8 @@ export interface Fixture {
   readonly ops: FixtureOps;
   readonly exec: FakeExec;
   readonly net: FakeNet;
+  /** One ordered log of `prepare`, `attach`, `run <name>` and `rm <name>`, from the fake net and the fake exec. */
+  readonly order: string[];
   readonly clock: FakeClock;
   readonly logs: { event: string; fields: Record<string, unknown> }[];
   /** What `nerdctl ps` prints, one `<name> <status>` line each. */
@@ -73,7 +75,8 @@ export function createFixture(
   const volumeRoot = path.join(work, "vol");
   mkdirSync(papHome);
   mkdirSync(bundle);
-  const net = createFakeNet();
+  const order: string[] = [];
+  const net = createFakeNet(order);
   const fixture: Fixture = {
     work,
     papHome,
@@ -81,6 +84,7 @@ export function createFixture(
     volumeRoot,
     state,
     net,
+    order,
     clock,
     logs,
     ps: [],
@@ -95,6 +99,8 @@ export function createFixture(
   const exec = createFakeExec((argv) => {
     if (argv.at(-1) === "{{.Names}} {{.Status}}")
       return { code: fixture.psCode, stdout: fixture.ps.map((line) => `${line}\n`).join("") };
+    if (argv.includes("run")) order.push("run");
+    if (argv.includes("rm")) order.push(`rm ${argv.at(-1) ?? ""}`);
     return handler(argv);
   });
   const uid = process.getuid?.() ?? 0;
