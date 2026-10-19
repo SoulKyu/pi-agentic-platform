@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents en microVM · Section 3 · Disque et cycle de vie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  .lbl { font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .v.risk { color: var(--human); border: 1px solid #FB923C88; }
+  .v.new { color: var(--ai); border: 1px solid #A78BFA88; }
+
+  /* diagram */
+  .zone { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 14px; position: relative; }
+  .zone > .zl { position: absolute; top: -9px; left: 12px; background: var(--bg); padding: 0 6px; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .zone.host { border-color: #34D39955; } .zone.host > .zl { color: var(--ok); }
+  .zone.vm { border-color: #EC489988; border-style: solid; background: #EC48990A; } .zone.vm > .zl { color: var(--attn); }
+  .zone.sh { border-color: #FB923C88; } .zone.sh > .zl { color: var(--human); }
+  .node { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; }
+  .node b { display: block; font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .node.root { border-color: var(--err); } .node.root b { color: var(--err); }
+  .node.new b::after { content: "nouveau"; margin-left: 6px; font: 600 9px var(--mono); color: #1B0D00; background: var(--human); padding: 0 4px; border-radius: 2px; vertical-align: 1px; }
+  .flow { font: 11px var(--mono); color: var(--muted); text-align: center; padding: 6px 0; }
+  .flow b { color: var(--ai); }
+  .row3 { display: grid; grid-template-columns: 1.1fr 1fr 1fr; gap: 10px; }
+
+  /* choices */
+  .q { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 14px 16px; margin-top: 14px; }
+  .q .why { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .opts { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { border: 1px solid var(--border-strong); background: var(--surface2); border-radius: var(--r); padding: 8px 12px; font-size: 12.5px; cursor: pointer; user-select: none; color: var(--text); max-width: 420px; }
+  .opt small { display: block; color: var(--muted); font-size: 11.5px; margin-top: 2px; }
+  .opt .tag { font: 600 9.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ok); border: 1px solid #34D39966; padding: 0 4px; border-radius: 2px; margin-left: 6px; }
+  .opt.selected { background: var(--human); color: #1B0D00; border-color: transparent; }
+  .opt.selected small, .opt.selected .tag { color: #3a1d00; border-color: #3a1d0055; }
+  .ask-box { margin-top: 36px; border: 1px solid var(--attn); background: #EC48991A; border-radius: var(--r); padding: 16px 18px; }
+  .ask-box .lbl { color: var(--attn); }
+  .bar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 7px 12px; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; color: var(--text); }
+  .btn.pri { background: var(--human); color: #1B0D00; border-color: transparent; }
+  @media (max-width: 860px) { .grid2, .grid3, .row3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Agents en microVM · Sous-projet 1 · Runtime d'agent · Section 3 / 5</div>
+  <h1>Disque, ressources et cycle de vie</h1>
+  <p class="lead">Chaque agent a sa VM, son disque et ses ressources, fixés dans sa config. Une VM par agent ; à l'intérieur, plusieurs workers (le thread, ses sous-agents, ses tâches) partagent son disque et sa mémoire. L'hôte garde un plafond global pour ne jamais être mis à genoux.</p>
+
+  <h2>1 · La config de l'agent · nouveaux champs</h2>
+  <table>
+    <tr><th>Champ</th><th>Défaut</th><th>Bornes</th><th>Appliqué</th></tr>
+    <tr><td><code>resources.memoryMb</code></td><td>1024</td><td>512 → plafond hôte</td><td>au prochain démarrage de la VM</td></tr>
+    <tr><td><code>resources.cpus</code></td><td>1</td><td>1 → nombre de cœurs de l'hôte</td><td>au prochain démarrage de la VM</td></tr>
+    <tr><td><code>resources.diskMb</code></td><td>4096 (fichier creux : la place n'est prise qu'à l'écriture)</td><td>1024 → 65536</td><td>voir Q2</td></tr>
+    <tr><td><code>systemPackages</code></td><td>vide</td><td>noms de paquets Debian (section 2)</td><td>reconstruction de la couche Agent</td></tr>
+    <tr><td><code>packages</code></td><td>tous ceux de l'image</td><td>sous-ensemble du Profil Pi</td><td>au prochain démarrage</td></tr>
+  </table>
+
+  <h2>2 · Le disque de l'agent · <code>/agent</code></h2>
+  <div class="grid3">
+    <div class="node"><b>/agent/home</b>son espace de travail, son <code>state/</code>, ses rapports. L'ancien home y est copié à la migration.</div>
+    <div class="node"><b>/agent/knowledge</b>sa mémoire OKF (sous-projet 5).</div>
+    <div class="node"><b>/agent/.pi</b>ses sessions Pi. La copie lue par le daemon est faite sur l'hôte (section 4).</div>
+  </div>
+  <p class="small" style="margin-top:8px">Fichier image ext4 dans <code>$PAP_HOME/agents/&lt;id&gt;/disk.img</code> (0600), créé, agrandi et supprimé par pap-vmd uniquement. Les pièces jointes du thread y sont copiées dans <code>/agent/inbox</code>.</p>
+
+  <h2>3 · Les états d'une VM</h2>
+  <div class="grid3">
+    <div class="node"><b>arrêtée</b>disque au repos. Démarre sur : un message dans le thread, une tâche planifiée, une délégation, un rappel.</div>
+    <div class="node"><b>en marche</b>workers connectés à la passerelle. Arrêt sur : inactivité (<code>PAP_WORKER_IDLE_MINUTES</code>, 30), arrêt manuel, pause, quarantaine, arrêt de pap.</div>
+    <div class="node"><b>en pause</b>VM gelée (snapshot de backup, sous-projet 4) ; reprend aussitôt après.</div>
+  </div>
+  <p class="small" style="margin-top:8px">Crash de la VM = comme un crash de worker aujourd'hui : la session le dit, la VM redémarre au prochain message ; 3 crashs en 10 minutes mettent l'agent en pause avec une notification.</p>
+
+  <h2>4 · Les choix · clique ta réponse sur chacun</h2>
+
+  <div class="q">
+    <h3>Q1 · Plafond de l'hôte</h3>
+    <p class="why">Avec 19 Go de RAM et 14 cœurs ici, trois agents à 4 Go + pap + pi-web peuvent déjà saturer la machine.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s3q1-cap" onclick="pick(this)">A · <code>PAP_AGENTS_MEMORY_MAX_MB</code> (défaut 50 % de la RAM) : une VM qui dépasserait le total est refusée<span class="tag">reco</span><small>Refus clair (<code>capacity</code>) avec la liste des agents en marche ; une tâche planifiée est retentée plus tard, comme le plancher mémoire actuel.</small></div>
+      <div class="opt" data-choice="s3q1-no-cap" onclick="pick(this)">B · Pas de plafond global : on compte sur le surengagement de Kata<small>Simple, mais l'hôte peut swapper ou tuer pap en cas de pic.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q2 · Changer la taille du disque</h3>
+    <p class="why">Agrandir un ext4 est sûr VM arrêtée ; le réduire exige de copier les fichiers vers un disque neuf.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s3q2-grow-only" onclick="pick(this)">A · Agrandir seulement, VM arrêtée, au prochain démarrage ; réduire est refusé<span class="tag">reco</span><small>Pour réduire : backup, nouvel agent plus petit, restauration de ses fichiers (manuel).</small></div>
+      <div class="opt" data-choice="s3q2-grow-shrink" onclick="pick(this)">B · Agrandir et réduire (copie vers un disque neuf)<small>Plus souple, plus de code et une copie complète à chaque réduction.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q3 · Les tâches isolées (webhooks, déclencheurs non fiables)</h3>
+    <p class="why">Aujourd'hui une tâche isolée tourne dans un dossier jetable, avec le home de l'agent en lecture seule. Un disque bloc ne peut pas être ouvert en écriture par une VM et lu par une autre sans risque.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s3q3-ephemeral-vm" onclick="pick(this)">A · Une VM jetable avec un disque vierge, sans accès au disque de l'agent<span class="tag">reco</span><small>Le résultat revient en carte dans le thread ; la VM et son disque sont détruits à la fin. Même image, mêmes ressources.</small></div>
+      <div class="opt" data-choice="s3q3-snapshot-ro" onclick="pick(this)">B · Une VM jetable avec une copie du disque de l'agent<small>La tâche voit le contexte de l'agent, mais une copie complète à chaque tâche.</small></div>
+      <div class="opt" data-choice="s3q3-same-vm" onclick="pick(this)">C · Dans la VM de l'agent, dans un dossier à part<small>Rapide, mais un contenu hostile partage la VM du thread.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q4 · Redémarrage de pap (mise à jour, crash)</h3>
+    <p class="why">Aujourd'hui les workers meurent avec le daemon. Avec pap-vmd, les VM pourraient lui survivre.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s3q4-stop-all" onclick="pick(this)">A · Au démarrage, pap arrête toutes les VM d'agents restées en marche<span class="tag">reco</span><small>Même comportement qu'aujourd'hui ; la tâche interrompue est marquée comme telle. Reprendre des VM vivantes viendra plus tard si besoin.</small></div>
+      <div class="opt" data-choice="s3q4-adopt" onclick="pick(this)">B · pap reprend les VM vivantes (nouveau jeton, reconnexion)<small>Pas d'interruption, mais il faut prouver que la VM n'a pas changé pendant l'absence de pap.</small></div>
+    </div>
+  </div>
+
+  <div class="q">
+    <h3>Q5 · Supprimer un agent</h3>
+    <p class="why">Aujourd'hui le home part dans <code>.trash</code>. Le disque et les backups peuvent peser plusieurs Go.</p>
+    <div class="opts">
+      <div class="opt" data-choice="s3q5-trash-7d" onclick="pick(this)">A · Disque et backups vont à la corbeille, purgés après 7 jours<span class="tag">reco</span><small>Réversible une semaine ; un bouton « Purger maintenant » libère la place tout de suite.</small></div>
+      <div class="opt" data-choice="s3q5-immediate" onclick="pick(this)">B · Suppression immédiate après confirmation<small>La place revient tout de suite ; aucun retour possible.</small></div>
+    </div>
+  </div>
+
+  <div class="ask-box">
+    <span class="lbl">Ta validation de la section 3</span>
+    <div>Clique une réponse par question (ou rien = la reco), puis valide. Commente en terminal si besoin (défauts des ressources, etc.).</div>
+    <div class="bar">
+      <div class="btn" onclick="applyRecos()">Appliquer toutes les recos</div>
+      <div class="btn pri" data-choice="s3-submit" onclick="submitS('s3')">Valider la section 3</div>
+      <div class="btn" data-choice="s3-revise" onclick="window.brainstorm && window.brainstorm.send({type:'answers', choice:'s3-revise'})">À revoir (je commente en terminal)</div>
+    </div>
+  </div>
+</div>
+<script>
+  function pick(el) {
+    el.parentElement.querySelectorAll('.opt').forEach(o => o.classList.remove('selected'));
+    el.classList.add('selected');
+  }
+  function applyRecos() {
+    document.querySelectorAll('.q').forEach(q => {
+      const reco = [...q.querySelectorAll('.opt')].find(o => o.querySelector('.tag'));
+      if (reco) pick(reco);
+    });
+  }
+  function submitS(s) {
+    const answers = {};
+    document.querySelectorAll('.q').forEach((q, i) => {
+      const sel = q.querySelector('.opt.selected');
+      answers['q' + (i + 1)] = sel ? sel.dataset.choice : 'reco';
+    });
+    if (window.brainstorm) window.brainstorm.send({ type: 'answers', choice: s + '-submitted', answers });
+  }
+</script>
+</body>
+</html>
