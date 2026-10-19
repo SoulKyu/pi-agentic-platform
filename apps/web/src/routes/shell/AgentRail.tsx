@@ -6,7 +6,7 @@ import { agentTarget, railName } from "../../features/agents/rail.vm.ts";
 import { useAppearanceStore } from "../../features/appearance/index.ts";
 import { runCommand } from "../../features/commands/index.ts";
 import { itemFromPath, pathOfItem } from "../../features/workspace/index.ts";
-import "../../features/agents/register-agent-catalog.ts";
+import "../../features/agents/register-vm-catalog.ts";
 import { useT } from "../../i18n/index.ts";
 import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { useAgents } from "../../stores/agents-store.ts";
