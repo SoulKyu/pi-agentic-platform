@@ -160,4 +160,13 @@ describe("bwrapVmArgv", () => {
   it("refuses an egress socket: sub-project 1 has no network", () => {
     expect(() => argv({ egressSocket: "/run/egress.sock" })).toThrow(RangeError);
   });
+
+  it("refuses a bind source that is the layout root or is, or lies under, .pi", () => {
+    for (const home of ["/agent", "/agent/.pi", "/agent/.pi/sessions"])
+      expect(() => argv({ layout: { ...layout, home } })).toThrow(RangeError);
+    expect(() => argv({ layout: { ...layout, inbox: "/agent/.pi" } })).toThrow(RangeError);
+    expect(() => argv({ layout: { ...layout, knowledge: "/agent" } })).toThrow(RangeError);
+    // A sibling whose name only starts like .pi is fine.
+    expect(() => argv({ layout: { ...layout, home: "/agent/.pi-notes" } })).not.toThrow();
+  });
 });

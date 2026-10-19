@@ -27,6 +27,9 @@ const SLOT = /^[0-9a-f]{32}$/;
 export function bwrapVmArgv(spec: VmShellSpec, command: string, seccompFd: number): string[] {
   const { layout } = spec;
   if (!SLOT.test(spec.slot) || spec.egressSocket !== null) throw new RangeError("vm shell spec");
+  const binds = [layout.home, layout.knowledge, layout.inbox];
+  if (binds.some((dir) => dir === layout.root || dir === layout.pi || dir.startsWith(`${layout.pi}/`)))
+    throw new RangeError("vm shell spec");
   const overlay = `${layout.shellOverlay}/${spec.slot}`;
   const root =
     spec.rootView === "overlay"
@@ -55,7 +58,7 @@ export function bwrapVmArgv(spec: VmShellSpec, command: string, seccompFd: numbe
     "/run",
     "--tmpfs",
     layout.root,
-    ...[layout.home, layout.knowledge, layout.inbox].flatMap((dir) => ["--bind", dir, dir]),
+    ...binds.flatMap((dir) => ["--bind", dir, dir]),
     "--seccomp",
     String(seccompFd),
     "--chdir",

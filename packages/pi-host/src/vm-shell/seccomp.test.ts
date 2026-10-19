@@ -17,6 +17,7 @@ import {
  *  - M4 change a denied number (ptrace 101 -> 102)        -> "refuses every number of DENIED_SYSCALLS"
  *  - M5 drop the namespace mask (JSET -> allow)           -> "refuses clone and unshare with any CLONE_NEW flag"
  *  - M6 allow clone3 (drop its jeq)                       -> "answers clone3 with ENOSYS"
+ *  - M7 drop open_tree_attr (467) / typo in any number    -> "refuses every number of DENIED_SYSCALLS"
  */
 
 const AUDIT_ARCH_X86_64 = 0xc000003e;
@@ -62,9 +63,9 @@ const CLONE_THREAD = 0x003d0f00n; // CLONE_VM|FS|FILES|SIGHAND|THREAD|SYSVSEM|SE
 const NEW_FLAGS = [0x80, 0x20000, 0x2000000, 0x4000000, 0x8000000, 0x10000000, 0x20000000, 0x40000000];
 
 describe("shellSeccompProgram", () => {
-  it("is 63 instructions and encodes to 8 bytes each", () => {
-    expect(program).toHaveLength(63);
-    expect(encodeSeccomp(program)).toHaveLength(504);
+  it("is 64 instructions and encodes to 8 bytes each", () => {
+    expect(program).toHaveLength(64);
+    expect(encodeSeccomp(program)).toHaveLength(512);
     expect(encodeSeccomp([])).toHaveLength(0);
   });
 
@@ -133,21 +134,52 @@ describe("shellSeccompProgram", () => {
 
   it("refuses every number of DENIED_SYSCALLS", () => {
     const entries = Object.entries(DENIED_SYSCALLS);
-    expect(entries).toHaveLength(38);
+    expect(entries).toHaveLength(39);
     expect(new Set(Object.values(DENIED_SYSCALLS)).size).toBe(entries.length);
     for (const [name, nr] of entries) expect(verdict(nr), name).toBe(EPERM);
-    // Pinned numbers (syscall_64.tbl) for the ones R18 names.
-    expect(DENIED_SYSCALLS).toMatchObject({
+    // The whole table pinned (asm/unistd_64.h): a typo in any number is caught here (mutant M7).
+    expect(DENIED_SYSCALLS).toEqual({
       ptrace: 101,
+      syslog: 103,
+      pivot_root: 155,
+      acct: 163,
       mount: 165,
+      umount2: 166,
+      swapon: 167,
+      swapoff: 168,
+      init_module: 175,
+      delete_module: 176,
+      quotactl: 179,
+      kexec_load: 246,
+      add_key: 248,
+      request_key: 249,
+      keyctl: 250,
+      perf_event_open: 298,
+      name_to_handle_at: 303,
+      open_by_handle_at: 304,
       setns: 308,
       process_vm_readv: 310,
+      process_vm_writev: 311,
+      kcmp: 312,
+      finit_module: 313,
+      kexec_file_load: 320,
       bpf: 321,
       userfaultfd: 323,
       io_uring_setup: 425,
+      io_uring_enter: 426,
+      io_uring_register: 427,
+      open_tree: 428,
+      move_mount: 429,
       fsopen: 430,
+      fsconfig: 431,
+      fsmount: 432,
+      fspick: 433,
       pidfd_getfd: 438,
+      mount_setattr: 442,
+      quotactl_fd: 443,
+      open_tree_attr: 467,
     });
+    expect(ARG_SYSCALLS).toEqual({ socket: 41, socketpair: 53, clone: 56, unshare: 272, clone3: 435 });
   });
 
   it("kills aarch64 and i386, whatever the number", () => {

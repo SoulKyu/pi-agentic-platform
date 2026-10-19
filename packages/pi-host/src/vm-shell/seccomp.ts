@@ -61,6 +61,7 @@ export const DENIED_SYSCALLS = Object.freeze({
   pidfd_getfd: 438,
   mount_setattr: 442,
   quotactl_fd: 443,
+  open_tree_attr: 467,
 });
 /** Judged on their first argument: a family, or namespace flags. clone3 hides its flags in memory: ENOSYS (libc falls back to clone). */
 export const ARG_SYSCALLS = Object.freeze({
