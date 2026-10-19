@@ -73,6 +73,8 @@ export type PiEvent = z.infer<typeof PiEvent>;
 export const TranscriptRow = z.object({
   entryId: z.string().min(1).max(128).nullable(),
   message: z.unknown(),
+  /** A user entry of a VM session that pap did not send (R32): shown as such. */
+  unverified: z.literal(true).optional(),
 });
 export type TranscriptRow = z.infer<typeof TranscriptRow>;
 

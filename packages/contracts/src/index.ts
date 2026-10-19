@@ -1,4 +1,11 @@
 export * from "./agents.ts";
+export * from "./agents-net.ts";
+export * from "./agents-resources.ts";
+// Both frames.ts (the WebSocket) and agents-vm.ts (the gateway) define MAX_FRAME_BYTES: the bare name stays the WebSocket one.
+export { MAX_FRAME_BYTES } from "./frames.ts";
+export { MAX_FRAME_BYTES as AGENT_VM_MAX_FRAME_BYTES } from "./agents-vm.ts";
+export * from "./agents-vm.ts";
+export * from "./agents-vm-methods.ts";
 export * from "./agents-methods.ts";
 export * from "./agents-safety.ts";
 export * from "./audit.ts";
@@ -47,6 +54,7 @@ export * from "./pi-host-init.ts";
 export * from "./protected-paths.ts";
 export * from "./push.ts";
 export * from "./push-methods.ts";
+export * from "./relay-ipc.ts";
 export * from "./rrule.ts";
 export * from "./rrule-next.ts";
 export * from "./sandbox.ts";
@@ -68,3 +76,4 @@ export * from "./source.ts";
 export * from "./trust-methods.ts";
 export * from "./usage.ts";
 export * from "./vcs.ts";
+export * from "./vmd.ts";

@@ -9,6 +9,7 @@ describe("sensitiveParams", () => {
       .map((def) => def.name)
       .sort();
     expect(marked).toEqual([
+      "agents.vm.setClaudeToken",
       "automation.fire",
       "automation.triggers.create",
       "automation.triggers.update",
@@ -26,6 +27,7 @@ describe("sensitiveParams", () => {
 
   it("names selector fields that exist in the params and are not the secret", () => {
     const secret: Record<string, string> = {
+      "agents.vm.setClaudeToken": "token",
       "automation.fire": "payload",
       "automation.triggers.create": "input",
       "automation.triggers.update": "input",
@@ -41,8 +43,9 @@ describe("sensitiveParams", () => {
     for (const def of Object.values(methods)) {
       if (!def.sensitiveParams) continue;
       const shape = (def.params as unknown as { shape: Record<string, unknown> }).shape;
-      // A create has no non-secret field to name: its receipt hashes no param at all.
-      if (def.name !== "automation.triggers.create") expect(def.sensitiveParams.length).toBeGreaterThan(0);
+      // A create (or the Claude token) has no non-secret field to name: its receipt hashes no param at all.
+      if (def.name !== "automation.triggers.create" && def.name !== "agents.vm.setClaudeToken")
+        expect(def.sensitiveParams.length).toBeGreaterThan(0);
       for (const field of def.sensitiveParams) {
         expect(Object.keys(shape), def.name).toContain(field);
         expect(field, def.name).not.toBe(secret[def.name]);

@@ -7,8 +7,9 @@ import { ToolPreset } from "./session-loadout.ts";
 
 // Task 21: quarantine, the permissions sheet and the prompt chips. Its own file keeps lane A's additions to `agents.ts` apart.
 
-/** The steps of a quarantine after the first, by name (M11R115); an `errors` entry names the one that failed. */
+/** The steps of a quarantine after the first, by name (M11R115; `vm` runs first after the pause, RT-41); an `errors` entry names the one that failed. */
 export const QUARANTINE_STEPS = [
+  "vm",
   "tasks",
   "subagents",
   "thread",

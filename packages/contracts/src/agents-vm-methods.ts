@@ -1,0 +1,63 @@
+import { z } from "zod";
+import { defineMethod } from "./define.ts";
+import { AgentId } from "./platform.ts";
+
+const Params = <T extends z.ZodRawShape>(shape: T) => z.object(shape).strict();
+const Ok = z.object({ ok: z.literal(true) }).strict();
+
+/** The phases `agents.vmStatus` reports for an agent's VM. */
+export const VM_PHASES = ["stopped", "starting", "running", "paused", "stopping"] as const;
+
+/** `agents.vmStatus`: Settings › Agents and the agent screen read it (R6: "run `sudo pap vm setup`" when not usable). */
+export const VmStatusView = z
+  .object({
+    runtime: z.enum(["host", "vm"]),
+    usable: z.boolean(),
+    reason: z.string().max(256).nullable(),
+    vmdVersion: z.string().max(64).nullable(),
+    claudeToken: z.enum(["set", "missing"]),
+    agents: z
+      .array(z.object({ id: AgentId, phase: z.enum(VM_PHASES), migrated: z.boolean() }).strict())
+      .max(32),
+  })
+  .strict();
+export type VmStatusView = z.infer<typeof VmStatusView>;
+
+export const agentsVmMethods = {
+  // Browser only like `models.setApiKey` (pi:admin is outside the token permissions); the token is a secret, so the
+  // receipt hashes no params (`sensitiveParams: []`, like a trigger create: the only field is the secret, MC30). `sandbox_unavailable` is the brief's `unavailable` (no such code exists): the VM runtime is off. timeout: whether the token was stored is unknown.
+  "agents.vm.setClaudeToken": defineMethod({
+    name: "agents.vm.setClaudeToken",
+    permission: "pi:admin",
+    idempotent: false,
+    sensitiveParams: [],
+    params: Params({ token: z.string().min(1).max(512) }),
+    result: Ok,
+    errors: ["step_up_required", "sandbox_unavailable"],
+  }),
+  "agents.vm.clearClaudeToken": defineMethod({
+    name: "agents.vm.clearClaudeToken",
+    permission: "pi:admin",
+    idempotent: false,
+    params: Params({}),
+    result: Ok,
+    errors: ["step_up_required", "sandbox_unavailable"],
+  }),
+  "agents.vmStatus": defineMethod({
+    name: "agents.vmStatus",
+    permission: "agents:read",
+    idempotent: true,
+    params: Params({}),
+    result: VmStatusView,
+    errors: [],
+  }),
+  // RT-40: "Purge now" empties that agent's trash entries at once.
+  "agents.purgeTrash": defineMethod({
+    name: "agents.purgeTrash",
+    permission: "agents:admin",
+    idempotent: false,
+    params: Params({ agentId: AgentId }),
+    result: Ok,
+    errors: ["step_up_required", "not_found", "sandbox_unavailable"],
+  }),
+};

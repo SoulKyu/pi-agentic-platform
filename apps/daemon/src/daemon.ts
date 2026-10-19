@@ -1,6 +1,7 @@
 import type { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { HandlerTable } from "@pap/contracts";
+import { agentsVmRpcStub } from "./agents-vm-rpc-stub.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createWsProbe } from "./compose-ws-probe.ts";
 import { composeFonts, type Fetcher } from "./compose-fonts.ts";
@@ -288,6 +289,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...lanes.rpc,
       ...m10Late.rpc,
       ...m11.rpc,
+      ...agentsVmRpcStub,
       ...push.rpc,
       ...fonts.rpc,
     };

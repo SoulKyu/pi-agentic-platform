@@ -169,6 +169,10 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
       case "custom_cancel":
         ui.panelCancel(record.id);
         return;
+      case "session_resync":
+      case "file_put":
+        // VM-only records (R1, R33): a worker outside a VM never receives them; the VM tasks give them a handler.
+        return;
       default: {
         // Compile-time guard (M2R81): a command added to the contract without a case here fails the build.
         const unhandled: never = record;

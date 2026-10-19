@@ -22,6 +22,9 @@ describe("AgentInput defaults and shape", () => {
       budget: { usdPerDay: null, tokensPerDay: null },
       acceptsDelegation: false,
       memory: null,
+      resources: { memoryMb: 1024, cpus: 1, diskMb: 4096 },
+      systemPackages: [],
+      packages: null,
     });
   });
 
