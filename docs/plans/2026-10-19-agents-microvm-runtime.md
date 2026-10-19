@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Status (2026-10-19):** fixed from the Opus red-team and the owner's answers (decision 113); ready for SDD execution. T0a done (record `docs/research/agents-vm-risk-checks.md`, applied to R2, R5, R27 and T16b by the controller). 32 tasks (T0a, T0b, T1 to T21 with T8, T9, T10, T11, T13, T14, T16 and T20 split, and the join task J1). Rulings R1 to R9 approved (decision 112) and corrected from the red-team's §8; R10 to R22 are the owner's answers (decision 113); R23 to R38 are the fix's own rulings. Red-team: `.superpowers/redteam-agents-vm-1.md` (5 Critical, 23 Important, 20 Minor; every Critical and Important fixed; 18 Minors fixed, RT-37 fixed in part and RT-31 deferred, see "Deferred minors").
+**Status (2026-10-19):** fixed from the Opus red-team and the owner's answers (decision 113); ready for SDD execution once the owner gives the go (decision 114: model table final, Opus escalation at fix rounds 4 and 5 approved). T0a done (record `docs/research/agents-vm-risk-checks.md`, applied to R2, R5, R27 and T16b by the controller). 32 tasks (T0a, T0b, T1 to T21 with T8, T9, T10, T11, T13, T14, T16 and T20 split, and the join task J1). Rulings R1 to R9 approved (decision 112) and corrected from the red-team's §8; R10 to R22 are the owner's answers (decision 113); R23 to R38 are the fix's own rulings. Red-team: `.superpowers/redteam-agents-vm-1.md` (5 Critical, 23 Important, 20 Minor; every Critical and Important fixed; 18 Minors fixed, RT-37 fixed in part and RT-31 deferred, see "Deferred minors").
 
 **Goal:** an agent runs in its own Kata Containers microVM (Cloud Hypervisor) with its own block disk, CPU and memory. It reaches pap only through an authenticated gateway, and its model providers only through a host relay that checks a per-launch key, the agent's own models and its budget before it injects the credentials. Nothing inside the VM needs a question, and a compromised agent is deleted without touching the rest of the platform: no credential in the VM, no way to another VM. Shipped behind `PAP_AGENTS_RUNTIME=vm`; the host-bwrap agents stay the default until sub-project 3.
 
@@ -46,7 +46,7 @@
 - **R17 (owner Q8, RT-32): pi-mem0 stays out of VM images** until sub-project 5; a VM session gets no `init.memory`; Settings › Memory says so. (T14a, T8b, T19)
 - **R18 (owner Q9, RT-23, RT-25): R2's root shell, with the stronger seccomp.** The filter refuses (EPERM) `clone`/`unshare` with any `CLONE_NEW*` flag, `setns`, `mount`, `umount2`, `pivot_root`, the new mount API, `userfaultfd`, `process_vm_readv/writev`, `pidfd_getfd`, `kcmp`, handle opens, `syslog`, `acct`, `quotactl`, `swapon/off`, modules, keys, `ptrace`, `perf_event_open`, `bpf`, `io_uring`; answers `clone3` with ENOSYS; allows `socket` and `socketpair` only for the families the shell needs. The apt check moves to sub-project 2. (T11a)
 - **R19 (owner Q10, RT-22): `sudo pap vm setup` installs pap-vmd and Node from pinned release artefacts** (SHA-256 in `vm-assets.json`), never from pap's user-writable tree. A checkout or a dev build has no such artefact: `--dev-from-tree` (tests, CI, the owner's try at the end of sub-project 1) copies the built bundle and the running Node and prints the residual ("code your user can change will run as root"). (T16b)
-- **R20 (owner Q11): the model table below.** Opus reviewers for T1, T2, T6, T8 (T8a and T8b), T9 (T9a and T9b), T11a, T11b, T12 (with its daemon half in J1), T13a, T14a, T15, T16a, T17; Sonnet for the rest.
+- **R20 (owner Q11): the model table below.** Opus reviewers for T1, T2, T6, T8 (T8a and T8b), T9b (T9a moved to Sonnet, decision 114), T11a, T11b, T12 (with its daemon half in J1), T13a, T14a, T15, T16a, T17; Sonnet for the rest.
 - **R21 (owner Q12, RT-48): T0 is split.** T0a runs now on a GitHub runner through a throwaway workflow on a branch (deleted with its runs after); T0b runs locally without KVM after T12.
 - **R22 (owner Q13, RT-04): anti-spoofing on the bridge**, amending decision 110 Q3. pap-vmd gives each VM its address and MAC (`--ip`, `--mac-address`), adds `{port . mac . ip}` to the `ports` set at `vm.start` from the CNI result and removes it at stop, and pins a permanent neighbour entry. The bridge table drops a frame from a VM port whose MAC, IPv4 or ARP sender is not that port's own, and all IPv6; `disable_ipv6` is set on `pap0`. The channel stays plain TCP. Run in the fix's scratch (a rootless privileged podman network namespace, two veth "VMs"): with the old ruleset a gratuitous ARP from VM a re-pointed the host's entry for VM b and a local process reached the relay; with this one both are dropped. (T1, T16a, T0a)
 
@@ -121,17 +121,17 @@ Phase 5                              T21 -> final review
 
 **Critical path (honest, RT-48):** T1 → T2 → lane B → J1 → T15 → T17 → T18 → *(the owner enables nested virtualization)* → T20a → T20b → T21 → final review: about 9 working days of SDD wall time, plus the KVM lead time, which only the owner controls. The red-team estimated about 6 days before this fix; the fix adds about 3 (the policy and init integration of RT-01, RT-02 and RT-06, the relay key and gate, anti-spoofing, the safe tree, the token scrub, transcript provenance). If T11b's review drags, lane B may take T14a and T14b once T16b is done (they touch no lane A file).
 
-## Model table (R20, owner Q11; amends decision 112)
+## Model table (R20, owner Q11; amends decision 112; final per decision 114)
 
 | Task | Implementer | Reviewer |
 |---|---|---|
 | T0a, T0b | controller | owner |
-| T1, T2, T6, T8a, T8b, T9a, T9b, T11a, T11b, T12, J1, T13a, T14a, T15, T16a, T17 | Sonnet | **Opus** |
-| T3, T4, T5, T7, T10a, T10b, T13b, T14b, T16b, T18, T19, T20a, T20b, T21 | Sonnet | Sonnet |
+| T1, T2, T6, T8a, T8b, T9b, T11a, T11b, T12, J1, T13a, T14a, T15, T16a, T17 | Sonnet | **Opus** |
+| T3, T4, T5, T7, T9a, T10a, T10b, T13b, T14b, T16b, T18, T19, T20a, T20b, T21 | Sonnet | Sonnet |
 | Plan red-team and plan fix | Opus | controller |
 | Final whole-branch review | Opus | |
 
-T8 and T9 were split by this fix (T8 for RT-06's size, T9 by lane); each half keeps T8's or T9's Opus reviewer, and J1 carries T12's daemon half (the relay link), so it keeps T12's. That is three Opus reviews more than the 13 tasks the owner named; the owner may move T9a (the worker half, untrusted input by design) to Sonnet. No Haiku (decision 73). Opus escalation at fix rounds 4 and 5 only with the owner's explicit OK for this run.
+T8 and T9 were split by this fix (T8 for RT-06's size, T9 by lane); each half keeps T8's or T9's Opus reviewer, and J1 carries T12's daemon half (the relay link), so it keeps T12's. Decision 114: T9a (the worker half; the daemon checks every line again in T9b) moved to Sonnet, so 15 Opus reviews. No Haiku (decision 73). Opus escalation at fix rounds 4 and 5 is approved for this run (decision 114): only for a task still blocked after three Sonnet fix rounds, and each one is reported to the owner.
 
 ## Seams for sub-projects 2 to 5 (red-team §4)
 
@@ -1047,7 +1047,7 @@ New task from RT-06 (red-team §1: "a real policy and init integration ... may b
 
 ### Task T9a: The transcript mirror, worker half (lane A)
 
-T9 is split by lane (red-team §3); both halves keep T9's Opus reviewer.
+T9 is split by lane (red-team §3); T9b keeps T9's Opus reviewer, T9a has a Sonnet reviewer (decision 114).
 
 **Files:**
 - Create: `packages/pi-host/src/session-mirror.ts`, `session-mirror.test.ts`

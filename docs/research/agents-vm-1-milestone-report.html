@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agents microVM · Rapport</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#110F18; --surface:#1A1724; --surface2:#241F33; --border:#2D2840; --border-strong:#3D3657; --text:#F2EFFA; --muted:#9C95B5;
+          --ai:#A78BFA; --human:#FB923C; --attn:#EC4899; --ok:#34D399; --err:#F87171; --r:3px; --mono:'JetBrains Mono',monospace; --ui:'Manrope',sans-serif; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.55 var(--ui); padding: 32px 28px 80px;
+         background-image: linear-gradient(#ffffff06 1px, transparent 1px), linear-gradient(90deg, #ffffff06 1px, transparent 1px); background-size: 24px 24px; }
+  .page { max-width: 1280px; margin: 0 auto; }
+  .kicker { font: 600 11px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  h1 { font: 800 26px/1.2 var(--ui); margin-top: 6px; letter-spacing: -.01em; }
+  .lead { color: var(--muted); max-width: 980px; margin-top: 6px; }
+  h2 { font: 600 12px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--ai); margin: 34px 0 12px; }
+  h3 { font: 700 15px var(--ui); margin-bottom: 4px; }
+  code { font: 12px var(--mono); background: var(--surface2); padding: 1px 5px; border-radius: var(--r); overflow-wrap: anywhere; }
+  .small { font-size: 12.5px; color: var(--muted); }
+  .box { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 12px 14px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 18px; }
+  .stat b { display: block; font: 800 26px/1.1 var(--ui); }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .stat.ok b { color: var(--ok); } .stat.ai b { color: var(--ai); } .stat.hu b { color: var(--human); }
+  ul.tight { list-style: none; display: grid; gap: 6px; margin-top: 4px; }
+  ul.tight li { font-size: 13px; padding-left: 14px; position: relative; }
+  ul.tight li::before { content: ""; position: absolute; left: 0; top: 9px; width: 6px; height: 2px; background: var(--ai); }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .1em; color: var(--muted); border-bottom: 1px solid var(--border-strong); padding: 8px 10px; }
+  td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; }
+  td:first-child { white-space: nowrap; }
+  .v { font: 600 10.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; padding: 1px 6px; border-radius: var(--r); white-space: nowrap; }
+  .v.ok { color: var(--ok); border: 1px solid #34D39966; }
+  .v.risk { color: var(--human); border: 1px solid #FB923C88; }
+  .v.new { color: var(--ai); border: 1px solid #A78BFA88; }
+  .v.err { color: var(--err); border: 1px solid #F8717188; }
+  /* timeline */
+  .tl { display: grid; gap: 0; border-left: 2px solid var(--border-strong); margin-left: 6px; }
+  .tl > div { position: relative; padding: 0 0 12px 18px; font-size: 13px; }
+  .tl > div::before { content: ""; position: absolute; left: -6px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: var(--ai); }
+  .tl > div.now::before { background: var(--human); box-shadow: 0 0 0 4px #FB923C33; }
+  .tl b { font-weight: 700; }
+  /* diagram */
+  .zone { border: 1px dashed var(--border-strong); border-radius: var(--r); padding: 18px 14px 14px; position: relative; }
+  .zone > .zl { position: absolute; top: -9px; left: 12px; background: var(--bg); padding: 0 6px; font: 600 10.5px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .zone.host { border-color: #34D39955; } .zone.host > .zl { color: var(--ok); }
+  .zone.vm { border-color: #EC489988; border-style: solid; background: #EC48990A; } .zone.vm > .zl { color: var(--attn); }
+  .zone.sh { border-color: #FB923C88; margin-top: 10px; } .zone.sh > .zl { color: var(--human); }
+  .nodes { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; }
+  .node { border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--r); padding: 8px 10px; font-size: 12.5px; }
+  .node b { display: block; font: 600 11.5px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .node.root { border-color: var(--err); } .node.root b { color: var(--err); }
+  .flow { font: 11px var(--mono); color: var(--muted); text-align: center; padding: 8px 0; }
+  .flow b { color: var(--ai); }
+  /* lanes */
+  .lane { display: grid; grid-template-columns: 170px 1fr; gap: 10px; align-items: start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .lane .ln { font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding-top: 4px; }
+  .lane .ln small { display: block; text-transform: none; letter-spacing: 0; font: 500 11.5px var(--ui); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { border: 1px solid var(--border-strong); background: var(--surface2); border-radius: var(--r); padding: 3px 8px; font-size: 12px; }
+  .chip b { font: 600 11px var(--mono); margin-right: 4px; }
+  .chip.opus { border-color: var(--ai); box-shadow: inset 3px 0 0 var(--ai); }
+  .chip.done { border-color: var(--ok); color: var(--ok); }
+  .chip.wait { border-style: dashed; color: var(--muted); }
+  .arrow { color: var(--muted); font: 11px var(--mono); }
+  .go { margin-top: 36px; border: 1px solid var(--human); background: #FB923C14; border-radius: var(--r); padding: 16px 18px; }
+  .go h3 { color: var(--human); }
+  @media (max-width: 860px) { body { padding: 20px 16px 60px; } .grid2 { grid-template-columns: 1fr; } .stats { grid-template-columns: 1fr 1fr; } .lane { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="kicker">Agents en microVM · Sous-projet 1 · Rapport de milestone · 2026-10-19</div>
+  <h1>Prêt pour l'exécution : spec, plan, red-team, T0a</h1>
+  <p class="lead">Du bug CyberLooker à un plan exécutable et vérifié : l'agent tourne dans sa propre microVM Kata + Cloud Hypervisor. Il n'y a aucun credential dans la VM, chaque agent a son propre disque bloc et la VM n'a pas de chemin vers l'hôte ni vers une autre VM. Ce rapport couvre tout ce qui a été fait avant le code. Il attend ton Go pour lancer l'exécution SDD.</p>
+
+  <div class="stats">
+    <div class="box stat ai"><b>32</b><span>tâches au plan (8 découpées, plus la jonction J1)</span></div>
+    <div class="box stat ok"><b>47 / 48</b><span>constats du red-team corrigés (5 critiques et 23 importants : tous)</span></div>
+    <div class="box stat ok"><b>10 / 10</b><span>checks T0a sur KVM réel : 2 adaptés au plan, 1 à surveiller</span></div>
+    <div class="box stat hu"><b>~9 j</b><span>d'exécution SDD + le délai pour avoir KVM ici</span></div>
+    <div class="box stat ai"><b>15</b><span>revues Opus ; implémenteurs tous en Sonnet, aucun Haiku</span></div>
+  </div>
+
+  <h2>1 · Le parcours</h2>
+  <div class="tl">
+    <div><b>Bug.</b> CyberLooker demande une approbation à chaque appel, alors qu'il est réglé en Approvals Full Access et Tools Full.</div>
+    <div><b>Cause racine.</b> Le profil d'agent plafonne le mode de la session (W5-R23), et le premier <code>web_search</code> marque le fil comme non sûr (ADR 0020). Sans liste d'hôtes propre à l'agent, l'exception d'autonomie ne s'applique jamais. Et pi-web-access appelle <code>fetch()</code> depuis le worker, hors sandbox, si bien que le proxy ne peut rien borner. Le problème vient du design, pas d'un réglage.</div>
+    <div><b>Refonte, décision 106.</b> L'agent devient une boîte fermée : une microVM qui <b>remplace</b> les agents bwrap sur l'hôte. Les agents sont off par défaut. Le travail est découpé en 6 sous-projets.</div>
+    <div><b>Spike 0.</b> pi-claude-bridge fonctionne sans credential dans la VM : le proxy injecte le bearer et l'appel renvoie 200 sur Haiku et sur Sonnet. Il ne contacte qu'un seul hôte et sa télémétrie est coupée.</div>
+    <div><b>Design en 5 sections, décisions 107 à 111.</b> Architecture, image, disque et ressources, canal et transcript, installation et rollout. Pages archivées dans <code>docs/architecture/agents-vm/</code>.</div>
+    <div><b>Spec</b> (<code>4029a03c</code>), puis <b>plan</b> de 22 tâches avec ses règles R1 à R9 et le tableau des modèles (décision 112).</div>
+    <div><b>Red-team Opus</b> (lecture contre <code>main</code>, code exécuté en scratch) : 5 critiques, 23 importants, 20 mineurs. Verdict : prêt après corrections, aucun re-plan.</div>
+    <div><b>Tes réponses Q1 à Q13</b> (décision 113), puis la <b>correction Opus du plan</b> (<code>21f4ce1d</code>) : 32 tâches, 47 constats corrigés sur 48.</div>
+    <div><b>T0a sur un runner GitHub avec KVM</b> (<code>40afdde3</code>), reporté dans le plan (<code>d9a9f5f2</code>).</div>
+    <div class="now"><b>Décision 114 (maintenant).</b> Tableau des modèles final, escalade aux tours 4 et 5 approuvée. Il ne manque que ton <b>Go</b>.</div>
+  </div>
+
+  <h2>2 · Architecture cible</h2>
+  <div class="zone host"><span class="zl">Hôte · utilisateur pap</span>
+    <div class="nodes">
+      <div class="node"><b>Daemon pap</b>Les sessions, la politique et le miroir des transcripts. Il ne lance jamais une commande ou un Dockerfile lui-même.</div>
+      <div class="node"><b>Gateway agents</b>TCP sur <code>pap0</code>, trames bornées (4 KiB avant le hello, 4 MiB ensuite), un jeton par lancement.</div>
+      <div class="node"><b>Relay providers</b><code>llm.internal</code> et <code>claude.internal</code>. Il vérifie la clé du lancement, les modèles de l'agent et son budget, puis il injecte le credential.</div>
+      <div class="node root"><b>pap-vmd (root)</b>API JSON étroite et validée. Seul appelant de containerd, Kata et BuildKit. Il construit lui-même chaque argv et chaque Dockerfile.</div>
+    </div>
+    <div class="flow">pont <b>pap0</b> · nftables : la VM ne joint que la gateway et le proxy · garde anti-spoofing (MAC/IP/ARP, IPv6 coupé) · pas de trafic VM→VM</div>
+    <div class="zone vm"><span class="zl">MicroVM Kata + Cloud Hypervisor · une par agent · mémoire, CPU et disque réglés par agent</span>
+      <div class="nodes">
+        <div class="node"><b>pap-guest</b>Superviseur. Il efface le jeton de son environnement, puis lance et signale les workers.</div>
+        <div class="node"><b>Workers pi-host</b>Le fil, les sous-agents et les tâches du fil, dans la même VM.</div>
+        <div class="node"><b>Disque /agent</b>Un ext4 en volume direct, jamais monté sur l'hôte. Contient <code>home/</code>, <code>knowledge/</code>, <code>inbox/</code> et <code>.pi/</code> (caché au shell).</div>
+      </div>
+      <div class="zone sh"><span class="zl">Shell de l'agent · bwrap + seccomp</span>
+        <div class="small">Racine en lecture seule. Le shell garde 7 capacités, n'a pas de vsock et passe par un filtre seccomp de 63 instructions. Il n'a pas de réseau en dehors du proxy. Il voit seulement les trois dossiers de <code>/agent</code>, jamais <code>.pi</code>, le jeton ou la gateway.</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>3 · Tes décisions</h2>
+  <div class="box scroll"><table>
+    <tr><th>#</th><th>Sujet</th><th>En bref</th></tr>
+    <tr><td>106</td><td>Refonte</td><td>MicroVM Kata + CLH à la place de bwrap sur l'hôte. Zéro credential dans la VM. Un disque bloc par agent. Mémoire, CPU et disque par agent. Sauvegardes (S3 plus tard). OKF à la place de mem0.</td></tr>
+    <tr><td>107</td><td>Architecture</td><td>pap-vmd en root avec une API étroite ; un port <code>AgentRuntime</code> avec un backend Kata et un backend de test ; une gateway avec un jeton par lancement ; pas de trafic VM→VM.</td></tr>
+    <tr><td>108</td><td>Image</td><td>Construite par allowlist depuis <code>~/.pi/agent</code>, sans aucun secret. Trois couches (base, profil Pi, agent) et un rebuild automatique.</td></tr>
+    <tr><td>109</td><td>Disque et ressources</td><td>Par défaut 1024 MiB de mémoire, 1 CPU et 4 GiB de disque (sparse). Le disque peut seulement grandir. Les tâches isolées tournent dans une VM jetable. Corbeille de 7 jours.</td></tr>
+    <tr><td>110</td><td>Canal et transcript</td><td>Le premier message est un <code>hello</code> avec le jeton. Un miroir du transcript est tenu sur l'hôte et chaque ligne est vérifiée. Le fichier dans la VM fait foi.</td></tr>
+    <tr><td>111</td><td>Installation et rollout</td><td><code>sudo pap vm setup</code> avec des versions épinglées ; des checks dans <code>pap doctor</code> ; une migration vers le disque ; le tout derrière <code>PAP_AGENTS_RUNTIME=vm</code>.</td></tr>
+    <tr><td>112</td><td>Plan</td><td>Règles R1 à R9 et le premier tableau des modèles.</td></tr>
+    <tr><td>113</td><td>Après le red-team</td><td>Q1 à Q13 : KVM sur ce VPS, pas de vault dans la VM avant le SP2, anti-spoofing sur le pont, T0 sur un runner GitHub, etc.</td></tr>
+    <tr><td>114</td><td>Final</td><td>T9a passe en revue Sonnet (15 revues Opus en tout). Escalade vers Opus aux tours 4 et 5 approuvée et signalée chaque fois.</td></tr>
+  </table></div>
+
+  <h2>4 · Red-team : les 5 critiques et leur correction</h2>
+  <div class="box scroll"><table>
+    <tr><th>Id</th><th>Attaque</th><th>Correction</th><th>Preuve</th></tr>
+    <tr><td>RT-01</td><td>La règle de fichiers de la VM se contourne avec <code>@</code>, <code>~</code>, <code>file:</code> ou un lien pendant. L'agent peut alors lire le jeton de la gateway ou réécrire le transcript.</td><td>T11b réutilise <code>asPiResolves</code> et ouvre le chemin composant par composant, en <code>O_NOFOLLOW</code>.</td><td><span class="v ok">scratch</span></td></tr>
+    <tr><td>RT-02</td><td>Avec la sandbox active dans le profil, l'agent n'a aucun shell. Sans elle, il a le bash de Pi en root, qui voit le jeton et la gateway.</td><td>Le shell pap-sandbox est toujours enregistré en VM, sans réseau (T8b, T11b).</td><td><span class="v new">testé en J1</span></td></tr>
+    <tr><td>RT-03</td><td>Le relay n'a pas d'authentification : un conteneur Docker ou une machine du LAN peut dépenser les clés et le token Claude.</td><td>Les ports 7841 et 7842 sont fermés en dehors de <code>pap0</code>, et chaque lancement reçoit une clé de relay liée à l'IP de la VM.</td><td><span class="v ok">T0a</span></td></tr>
+    <tr><td>RT-04</td><td>ARP spoofing d'une VM vers une autre : l'agent peut lire ou injecter dans le canal d'une autre VM, donc se déplacer latéralement.</td><td>Garde sur le pont (MAC/IP/ARP par port), IPv6 coupé, voisins statiques et <code>NET_RAW</code> retiré.</td><td><span class="v ok">attaque reproduite, puis bloquée</span></td></tr>
+    <tr><td>RT-05</td><td>Une tâche isolée peut monter ou supprimer le disque de l'agent.</td><td>Une clé de tâche est exigée sur chaque opération disque ; le disque de tâche appartient à pap-vmd.</td><td><span class="v new">T13b, T15</span></td></tr>
+  </table></div>
+  <p class="small" style="margin-top:8px">Les 23 importants sont tous corrigés : intégration de la politique et de l'init (RT-06), scrub du jeton, copie d'arbre sûre, garde de budget du relay, provenance du transcript, etc. Sur les mineurs, 18 sont corrigés, RT-37 l'est en partie (confiner les sous-processus MCP et extensions va au SP3) et RT-31 est reporté (la recherche n'indexe pas les miroirs, c'est une limite connue documentée en T21).</p>
+
+  <h2>5 · T0a : les risques vérifiés sur KVM réel</h2>
+  <div class="box scroll"><table>
+    <tr><th>Check</th><th>Résultat</th><th></th></tr>
+    <tr><td>KVM sur les runners GitHub</td><td><code>/dev/kvm</code> est présent sur <code>ubuntu-24.04</code>. Le job CI Kata (T20b) tournera sur des runners standard.</td><td><span class="v ok">OK</span></td></tr>
+    <tr><td>Stack épinglée</td><td>Kata 4.2.0, nerdctl-full 2.4.1 et l'image de base node 24.14.1 trixie-slim, épinglés par SHA-256.</td><td><span class="v ok">OK</span></td></tr>
+    <tr><td>Runtime Kata 4.2</td><td>L'archive ne contient que runtime-rs. La config va dans <code>/etc/kata-containers/runtime-rs/</code>, et setup refuse d'écraser un fichier qu'il n'a pas écrit.</td><td><span class="v risk">adapté</span></td></tr>
+    <tr><td>containerd de pap à côté de Docker</td><td>Socket, racine et namespace séparés ; BuildKit construit dans le namespace de pap ; Docker n'est pas touché.</td><td><span class="v ok">OK</span></td></tr>
+    <tr><td>Démarrage à froid</td><td>Médiane de 6,3 s, mesurée en virtualisation imbriquée, pour une cible de 5 s. Les timeouts (boot 60 s, hello 30 s) couvrent ce délai. À mesurer de nouveau ici en T20a.</td><td><span class="v risk">à surveiller</span></td></tr>
+    <tr><td>Disque bloc en volume direct</td><td><code>directvol</code> fonctionne sur un fichier simple, sans loop ni montage sur l'hôte. Une deuxième VM relit bien les données.</td><td><span class="v ok">OK</span></td></tr>
+    <tr><td>Réseau de l'agent</td><td>La gateway répond. Le port 22, l'autre VM et Internet en direct sont injoignables.</td><td><span class="v ok">OK</span></td></tr>
+    <tr><td>RT-03 depuis l'extérieur</td><td>Le loopback de l'hôte et un conteneur Docker sont bloqués (le compteur nft le confirme).</td><td><span class="v ok">bloqué</span></td></tr>
+    <tr><td>RT-04 ARP spoofing</td><td>L'attaque réussit sans la garde et échoue avec elle. Avec <code>--cap-drop NET_RAW</code>, la VM ne peut même pas ouvrir le socket raw.</td><td><span class="v ok">bloqué</span></td></tr>
+    <tr><td>Shell bwrap dans la VM</td><td>Il faut <code>SYS_ADMIN</code> et <code>NET_ADMIN</code> sur le conteneur. virtio-fs refuse l'overlay, donc la racine passe en lecture seule. Les 7 capacités sont exactes et vsock est refusé (EPERM).</td><td><span class="v risk">adapté</span></td></tr>
+  </table></div>
+
+  <h2>6 · Code de sécurité déjà exécuté (pendant la correction du plan, dans un dossier jetable)</h2>
+  <div class="grid2">
+    <ul class="tight box">
+      <li><b>Seccomp (T11a)</b> : chaque cas autorisé ou refusé passé à l'interpréteur BPF, 6 mutants tués. Chargé réellement avec bwrap : <code>unshare</code>, io_uring, mount, setns, <code>process_vm_readv</code>, vsock et raw sont refusés (EPERM) ; Node, Python, git et rg fonctionnent.</li>
+      <li><b>Règle de fichiers (T11b)</b> : tous les cas du red-team (dont un lien échangé pendant l'écriture) sont refusés ; 3 mutants tués.</li>
+      <li><b>Relay (T12)</b> : 22 lignes de requête refusées, des clés liées à l'adresse de la VM, aucun chemin par <code>__proto__</code>.</li>
+    </ul>
+    <ul class="tight box">
+      <li><b>Codec de trames (T2)</b> : la borne s'applique avant de lire le corps, y compris quand les trames arrivent octet par octet.</li>
+      <li><b>Copie d'arbre sûre (T13a)</b> : liens, setuid, FIFO et fichier qui grossit pendant la copie ; la limite de taille tient.</li>
+      <li><b>Ruleset (T1)</b> : rejoué dans un namespace réseau podman, sans changement sur l'hôte. L'ancien ruleset sert de contrôle négatif : l'attaque y passe.</li>
+    </ul>
+  </div>
+
+  <h2>7 · Le plan : lanes, revues, ETA</h2>
+  <p class="small">Contour violet : revue Opus. Gris : revue Sonnet. Les implémenteurs sont tous en Sonnet. Il y a deux lanes au plus, elles ne modifient aucun fichier en commun, et les contrats sont figés après T2.</p>
+  <div class="box" style="margin-top:10px">
+    <div class="lane"><div class="ln">Phase 0<small>contrôleur</small></div><div class="chips"><span class="chip done"><b>T0a</b>checks KVM ✓</span><span class="chip wait"><b>T0b</b>token Claude + OAuth (après T12)</span></div></div>
+    <div class="lane"><div class="ln">Phase 1<small>contrats · 0,75 j</small></div><div class="chips"><span class="chip opus"><b>T1</b>contrats + ADR 0078</span><span class="arrow">→</span><span class="chip opus"><b>T2</b>codec de trames</span></div></div>
+    <div class="lane"><div class="ln">Phase 2 · lane A<small>pi-host, image · ~29 h</small></div><div class="chips"><span class="chip"><b>T4</b>pi-host sur socket</span><span class="chip"><b>T5</b>pap-guest</span><span class="chip"><b>T9a</b>miroir worker</span><span class="chip"><b>T10a</b>inbox worker</span><span class="chip opus"><b>T11a</b>shell + seccomp</span><span class="chip opus"><b>T11b</b>règle fichiers + politique</span><span class="chip opus"><b>T12</b>relay</span><span class="chip opus"><b>T14a</b>entrées image</span><span class="chip"><b>T14b</b>bundle + rebuild</span></div></div>
+    <div class="lane"><div class="ln">Phase 2 · lane B<small>daemon, pap-vmd · ~34 h</small></div><div class="chips"><span class="chip"><b>T3</b>cœur des records</span><span class="chip opus"><b>T6</b>gateway + jetons</span><span class="chip"><b>T7</b>AgentRuntime</span><span class="chip opus"><b>T8b</b>règles + init VM</span><span class="chip opus"><b>T8a</b>sessions via runtime</span><span class="chip opus"><b>T9b</b>miroir daemon</span><span class="chip"><b>T10b</b>inbox daemon</span><span class="chip opus"><b>T13a</b>pap-vmd cœur</span><span class="chip"><b>T13b</b>pap-vmd ops</span><span class="chip opus"><b>T16a</b>réseau agents</span><span class="chip"><b>T16b</b>pap vm setup</span></div></div>
+    <div class="lane"><div class="ln">Phase 3<small>jonction · 2 j</small></div><div class="chips"><span class="chip opus"><b>J1</b>tests croisés + lien relay</span><span class="arrow">→</span><span class="chip opus"><b>T15</b>backend Kata</span><span class="chip opus"><b>T17</b>migration</span><span class="chip"><b>T18</b>doctor</span><span class="arrow">∥</span><span class="chip"><b>T19</b>web : formulaire + statut</span></div></div>
+    <div class="lane"><div class="ln">Phase 4<small>KVM ici · 1,5 j</small></div><div class="chips"><span class="chip wait"><b>⏸</b>virtualisation imbriquée (toi)</span><span class="arrow">→</span><span class="chip"><b>T20a</b>stack réelle sur ce VPS</span><span class="chip"><b>T20b</b>tests d'isolation + CI Kata</span></div></div>
+    <div class="lane" style="border-bottom:0"><div class="ln">Phase 5<small>0,75 j</small></div><div class="chips"><span class="chip"><b>T21</b>docs + rulings</span><span class="arrow">→</span><span class="chip opus"><b>Final</b>revue de la branche entière</span></div></div>
+  </div>
+  <p class="small" style="margin-top:8px"><b>Chemin critique :</b> T1 → T2 → lane B → J1 → T15 → T17 → T18 → <i>KVM ici</i> → T20a → T20b → T21 → revue finale, soit environ 9 jours ouvrés. Le red-team estimait 6 jours ; la correction a ajouté environ 3 jours (politique et init, clé et budget du relay, anti-spoofing, copie sûre, scrub du jeton, provenance du transcript).</p>
+
+  <h2>8 · Risques et points ouverts</h2>
+  <div class="box scroll"><table>
+    <tr><th>Point</th><th>Impact</th><th>Traitement</th></tr>
+    <tr><td><span class="v err">toi</span> KVM sur ce VPS</td><td>Bloque T20a et T20b, donc la fin du chemin critique.</td><td>Sur l'hôte Hyper-V, VM éteinte : <code>Set-VMProcessor -VMName &lt;vm&gt; -ExposeVirtualizationExtensions $true</code>, puis vérifier <code>/dev/kvm</code>. Les phases 1 à 3 n'en ont pas besoin.</td></tr>
+    <tr><td><span class="v err">toi</span> <code>claude setup-token</code></td><td>Nécessaire pour T0b : le token Claude via le relay et les providers OAuth.</td><td>Je te préviens une fois T12 terminé.</td></tr>
+    <tr><td>Remplacement des outils Pi (R26)</td><td>Que l'extension remplace bien read, write, edit et ls n'est prouvé que par la doc de Pi, pas par son code.</td><td>Un test d'intégration en T11b le vérifie. Si c'est faux, la tâche s'arrête en BLOCKED et je te remonte le problème.</td></tr>
+    <tr><td>Démarrage à froid</td><td>6,3 s en imbriqué, pour une cible de 5 s.</td><td>Nouvelle mesure en T20a. Les timeouts couvrent ce délai.</td></tr>
+    <tr><td>Racine du shell en lecture seule</td><td>Pas d'<code>apt install</code> dans le shell pendant le SP1.</td><td>Conforme à Q9 : les outils passent par <code>systemPackages</code>, apt arrive au SP2.</td></tr>
+    <tr><td>Encore à mesurer</td><td><code>VM_OVERHEAD_MB</code>, l'agrandissement du disque à chaud, les liens avec <code>mkfs.ext4 -d</code> et BuildKit, <code>static_sandbox_resource_mgmt</code>.</td><td>T20a. En attendant, les tâches utilisent les valeurs provisoires nommées dans le plan.</td></tr>
+    <tr><td>Piste non planifiée</td><td><code>disable_guest_seccomp = false</code> dans la config Kata (défense en profondeur).</td><td>Non testée. À trancher en T20a si le coût est nul.</td></tr>
+    <tr><td>Coût</td><td>15 revues Opus, 30 tâches en Sonnet, aucun Haiku.</td><td>L'escalade aux tours 4 et 5 n'arrive qu'après 3 échecs en Sonnet, et je la signale à chaque fois.</td></tr>
+  </table></div>
+
+  <h2>9 · Hors périmètre (prochains sous-projets)</h2>
+  <ul class="tight">
+    <li><b>SP2, proxy v2 :</b> le vault et les valeurs à usage unique dans la VM, <code>apt</code> dans le shell, le proxy avec ses règles par hôte.</li>
+    <li><b>SP3, politique d'agent :</b> le mode VM par défaut, la suppression du code bwrap de l'hôte, le confinement de MCP et des extensions, les prechecks et les chips.</li>
+    <li><b>SP4, sauvegardes :</b> activation, fréquence et rétention par agent, puis S3.</li>
+    <li><b>SP5, mémoire OKF :</b> le dossier <code>knowledge/</code>, la conversion des mémoires mem0 et le retrait de pi-mem0.</li>
+  </ul>
+
+  <div class="go">
+    <h3>Ce que déclenche ton Go</h3>
+    <ul class="tight">
+      <li>Une branche de feature et des worktrees, avec un ledger dans <code>.superpowers/</code>. Chaque tâche suit le même cycle : un implémenteur Sonnet, puis un reviewer selon le tableau, puis des corrections sur les points critiques et importants seulement.</li>
+      <li>Phase 1, puis les lanes A et B en parallèle (verrou <code>flock</code> sur les gates lourdes), puis la jonction J1. Tu ne reçois que « étape fini » entre les étapes, et un rapport détaillé à la fin ou dès qu'il y a un BLOCKED, une escalade ou une action à faire de ton côté.</li>
+      <li>Rien n'est poussé sur GitHub avant un merge approuvé. Une PR en draft sur la jonction sert à faire tourner la CI.</li>
+      <li>Arrêt naturel avant T20a si <code>/dev/kvm</code> est absent.</li>
+    </ul>
+    <p class="small" style="margin-top:10px">Sources : spec <code>docs/specs/2026-10-19-agents-microvm-runtime-design.md</code> · plan <code>docs/plans/2026-10-19-agents-microvm-runtime.md</code> · T0a <code>docs/research/agents-vm-risk-checks.md</code> · décisions 106 à 114 dans <code>docs/research/decisions-log.md</code> · red-team et correction dans <code>.superpowers/</code>.</p>
+  </div>
+</div>
+</body>
+</html>
