@@ -25,32 +25,25 @@ const ONCE = new Set([
   "x-goog-api-key",
   "content-type",
 ]);
-const HOP_BY_HOP = new Set([
-  "connection",
-  "keep-alive",
-  "proxy-authenticate",
-  "proxy-authorization",
-  "te",
-  "trailer",
-  "transfer-encoding",
-  "upgrade",
-  "set-cookie",
-  "location",
-]);
+/** What an upstream answer may carry to a VM: content framing, retry and rate-limit hints, request ids. Nothing else. */
+const ANSWER_HEADERS =
+  /^(?:content-[a-z-]+|retry-after(?:-ms)?|x-ratelimit-[a-z-]+|anthropic-ratelimit-[a-z-]+|request-id|x-request-id|x-should-retry)$/;
+/** Most connections one source address may hold open (a VM needs a handful: 8 requests at once plus keep-alives). */
+export const MAX_CONNECTIONS_PER_ADDRESS = 32;
+export const HEADERS_TIMEOUT_MS = 10_000;
+export const REQUEST_TIMEOUT_MS = 120_000;
 
 export interface RelayServerDeps {
   readonly keys: RelayKeys;
   readonly policy: RelayPolicy;
   readonly usage: RelayUsage;
-  resolveProvider(provider: string): Promise<ResolvedProvider | null>;
+  resolveProvider(provider: string, model: string): Promise<ResolvedProvider | null>;
   /** The owner's `claude setup-token` value, or null (answered 503 on `claude.internal`). */
   claudeToken(): string | null;
   /** One log line; callers never put a key, token, path or host in it. */
   log(line: string): void;
   readonly claudeUpstream?: string;
   readonly upstreamIdleMs?: number;
-  /** Extra trusted CAs for the upstream TLS connection (tests only). */
-  readonly upstreamCa?: string | Buffer;
 }
 
 type Reason =
@@ -179,7 +172,8 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
       headers: { ...headers, "content-length": String(body.length) },
       timeout: idleMs,
       agent: false,
-      ...(deps.upstreamCa !== undefined ? { ca: deps.upstreamCa } : {}),
+      // Explicit: an inherited NODE_TLS_REJECT_UNAUTHORIZED=0 must not turn certificate checks off.
+      rejectUnauthorized: true,
     });
     const failed = (): void => {
       deps.log(`agent_relay_failed ${JSON.stringify({ agentId, reason: "upstream" })}`);
@@ -193,7 +187,7 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
       upstream.on("error", () => res.destroy());
       const out: http.OutgoingHttpHeaders = {};
       for (const [name, value] of Object.entries(incoming.headers))
-        if (!HOP_BY_HOP.has(name) && value !== undefined) out[name] = value;
+        if (ANSWER_HEADERS.test(name) && value !== undefined) out[name] = value;
       res.writeHead(incoming.statusCode ?? 502, out);
       let bytes = 0;
       const counter = new Transform({
@@ -233,12 +227,18 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
       res.once("finish", () => req.socket.destroy());
       return refuse(res, "too_large", agentId);
     }
+    // A key revoked or rotated while the body arrived is not served.
+    if (deps.keys.agentOf(presentedKey(req.headers), req.socket.remoteAddress) !== agentId)
+      return refuse(res, "key", null);
     deps.usage.request(agentId, { bytesIn: body.length });
+    const model = modelOf(modelSourceOf(route.path), route.path, body);
     const verdict = deps.policy.check(agentId, {
       provider: route.kind === "provider" ? route.provider : null,
-      model: modelOf(modelSourceOf(route.path), route.path, body),
+      model,
     });
     if (!verdict.ok) return refuse(res, verdict.reason, agentId);
+    // The policy never allows a missing model; this keeps the type honest and fails closed.
+    if (model === null) return refuse(res, "model", agentId);
     if (route.kind === "claude") {
       const token = deps.claudeToken();
       if (token === null) return refuse(res, "no_claude_token", agentId);
@@ -253,7 +253,7 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
     }
     let resolved: ResolvedProvider | null;
     try {
-      resolved = await deps.resolveProvider(route.provider);
+      resolved = await deps.resolveProvider(route.provider, model);
     } catch {
       resolved = null;
     }
@@ -274,7 +274,26 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
       answer(res, "upstream");
     });
   });
-  server.on("clientError", (_error, socket) => {
+  server.headersTimeout = HEADERS_TIMEOUT_MS;
+  server.requestTimeout = REQUEST_TIMEOUT_MS;
+  const sockets = new Map<string, number>();
+  server.on("connection", (socket) => {
+    const address = socket.remoteAddress ?? "";
+    const open = sockets.get(address) ?? 0;
+    if (open >= MAX_CONNECTIONS_PER_ADDRESS) {
+      deps.log(`agent_relay_refused ${JSON.stringify({ agentId: null, reason: "busy" })}`);
+      return void socket.destroy();
+    }
+    sockets.set(address, open + 1);
+    socket.once("close", () => {
+      const left = (sockets.get(address) ?? 1) - 1;
+      if (left <= 0) sockets.delete(address);
+      else sockets.set(address, left);
+    });
+  });
+  server.on("clientError", (error: NodeJS.ErrnoException, socket) => {
+    // A client that reset its connection is not a refusal.
+    if (error.code === "ECONNRESET") return void socket.destroy();
     deps.log(`agent_relay_refused ${JSON.stringify({ agentId: null, reason: "request" })}`);
     if (socket.writable)
       socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\ncontent-length: 0\r\n\r\n");

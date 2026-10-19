@@ -23,6 +23,7 @@ const fail = (code: number, message: string): never => {
 
 const flag = process.argv.indexOf("--listen");
 let listen: { host: string; port: number };
+if (flag < 0) fail(64, "usage: --listen <bridge address or 127.0.0.1>:<port> (never a wildcard address)");
 try {
   listen = parseListen(process.argv[flag + 1] ?? "");
 } catch {

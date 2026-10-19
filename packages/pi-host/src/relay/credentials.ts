@@ -33,7 +33,9 @@ export function authHeaderEntries(
 /** The part of Pi's runtime the relay uses: the tests hand in a stand-in. */
 export interface RelayModelRuntime {
   getProvider(id: string): { readonly headers?: Readonly<Record<string, string | null>> } | undefined;
-  getModels(id: string): ReadonlyArray<{ readonly api: string; readonly baseUrl?: string }>;
+  getModels(
+    id: string,
+  ): ReadonlyArray<{ readonly id: string; readonly api: string; readonly baseUrl?: string }>;
   checkAuth(id: string): Promise<{ readonly type: "api_key" | "oauth" } | undefined>;
   getAuth(id: string): Promise<
     | {
@@ -99,8 +101,9 @@ function safeBaseUrl(raw: string | undefined, testLoopback: boolean): string | n
 }
 
 /**
- * `resolveProvider(provider)` (R9): the api, base URL and credential Pi's auth storage holds for an API-key provider of
- * the owner's enabled models, or null. An OAuth credential, an `http:` base URL, an unknown api, no key and any failure of
+ * `resolveProvider(provider, model)` (R9): the api, base URL and credential Pi's auth storage holds for an API-key provider of
+ * the owner's enabled models, with the api and base URL of that model (providers such as openrouter mix both per model), or
+ * null (also when the host catalog has no such model). An OAuth credential, an `http:` base URL, an unknown api, no key and any failure of
  * Pi's files all answer null (the caller refuses; nothing of the failure is kept). Answers are kept 60 seconds.
  */
 export function createProviderResolver(deps: {
@@ -108,19 +111,19 @@ export function createProviderResolver(deps: {
   readonly clock: { now(): number };
   /** True when `PAP_TEST_PROVIDER_SCRIPT` is set: loopback `http:` base URLs are then allowed. */
   readonly testLoopback: boolean;
-}): (provider: string) => Promise<ResolvedProvider | null> {
+}): (provider: string, model: string) => Promise<ResolvedProvider | null> {
   const cache = new Map<string, { at: number; value: ResolvedProvider }>();
-  async function load(provider: string): Promise<ResolvedProvider | null> {
+  async function load(provider: string, modelId: string): Promise<ResolvedProvider | null> {
     const { runtime, enabled } = await deps.open();
     if (enabled !== null && !enabled.has(provider)) return null;
     const configured = runtime.getProvider(provider);
-    const [model] = runtime.getModels(provider);
+    const model = runtime.getModels(provider).find((candidate) => candidate.id === modelId);
     if (configured === undefined || model === undefined || !APIS.has(model.api)) return null;
     if ((await runtime.checkAuth(provider))?.type !== "api_key") return null;
     const resolved = await runtime.getAuth(provider);
     const apiKey = resolved?.auth.apiKey;
     if (resolved === undefined || apiKey === undefined || apiKey === "") return null;
-    const baseUrl = safeBaseUrl(resolved.auth.baseUrl ?? model.baseUrl, deps.testLoopback);
+    const baseUrl = safeBaseUrl(model.baseUrl ?? resolved.auth.baseUrl, deps.testLoopback);
     if (baseUrl === null) return null;
     const headers: Record<string, string> = {};
     for (const [name, value] of [
@@ -130,17 +133,19 @@ export function createProviderResolver(deps: {
       headers[name] = value;
     return { api: model.api as ApiKind, baseUrl, credential: { value: apiKey, headers } };
   }
-  return async (provider) => {
-    const hit = cache.get(provider);
+  return async (provider, model) => {
+    // A NUL cannot occur in either name (route and policy checked them), so the pair key is unambiguous.
+    const key = `${provider}\u0000${model}`;
+    const hit = cache.get(key);
     if (hit !== undefined && deps.clock.now() - hit.at < CREDENTIAL_CACHE_MS) return hit.value;
-    cache.delete(provider);
+    cache.delete(key);
     let value: ResolvedProvider | null;
     try {
-      value = await load(provider);
+      value = await load(provider, model);
     } catch {
       return null;
     }
-    if (value !== null) cache.set(provider, { at: deps.clock.now(), value });
+    if (value !== null) cache.set(key, { at: deps.clock.now(), value });
     return value;
   };
 }

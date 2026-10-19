@@ -40,6 +40,7 @@ function source(
           id === "zai"
             ? [
                 {
+                  id: "glm-4.6",
                   api: over.api ?? "openai-completions",
                   baseUrl: over.baseUrl ?? "https://api.z.ai/api/paas/v4/",
                 },
@@ -61,7 +62,7 @@ function source(
 describe("createProviderResolver", () => {
   it("resolves an API-key provider: api, base URL, credential and the provider's literal headers", async () => {
     const resolve = createProviderResolver({ open: source().open, clock, testLoopback: false });
-    expect(await resolve("zai")).toEqual({
+    expect(await resolve("zai", "glm-4.6")).toEqual({
       api: "openai-completions",
       baseUrl: "https://api.z.ai/api/paas/v4",
       credential: { value: "REAL-KEY", headers: { "x-org": "acme", "x-extra": "1" } },
@@ -71,7 +72,7 @@ describe("createProviderResolver", () => {
   it("refuses an OAuth credential (R9) before it is resolved (M-oauth)", async () => {
     const bed = source({ type: "oauth" });
     const resolve = createProviderResolver({ open: bed.open, clock, testLoopback: false });
-    expect(await resolve("zai")).toBeNull();
+    expect(await resolve("zai", "glm-4.6")).toBeNull();
     expect(bed.calls.getAuth).toBe(0);
   });
 
@@ -86,7 +87,7 @@ describe("createProviderResolver", () => {
       "not a url",
     ]) {
       const resolve = createProviderResolver({ open: source({ baseUrl }).open, clock, testLoopback: false });
-      expect(await resolve("zai"), baseUrl).toBeNull();
+      expect(await resolve("zai", "glm-4.6"), baseUrl).toBeNull();
     }
   });
 
@@ -96,13 +97,13 @@ describe("createProviderResolver", () => {
       clock,
       testLoopback: true,
     });
-    expect((await resolve("zai"))?.baseUrl).toBe("http://127.0.0.1:9/v4");
+    expect((await resolve("zai", "glm-4.6"))?.baseUrl).toBe("http://127.0.0.1:9/v4");
     const other = createProviderResolver({
       open: source({ baseUrl: "http://api.z.ai/v4" }).open,
       clock,
       testLoopback: true,
     });
-    expect(await other("zai")).toBeNull();
+    expect(await other("zai", "glm-4.6")).toBeNull();
   });
 
   it("refuses a provider outside the owner's enabled models (M-enabled)", async () => {
@@ -111,22 +112,25 @@ describe("createProviderResolver", () => {
       clock,
       testLoopback: false,
     });
-    expect(await resolve("zai")).toBeNull();
+    expect(await resolve("zai", "glm-4.6")).toBeNull();
     const allowed = createProviderResolver({
       open: source({ enabled: ["zai"] }).open,
       clock,
       testLoopback: false,
     });
-    expect(await allowed("zai")).not.toBeNull();
+    expect(await allowed("zai", "glm-4.6")).not.toBeNull();
   });
 
   it("refuses an unknown provider, an unknown api, no key and an empty key", async () => {
     const resolve = createProviderResolver({ open: source().open, clock, testLoopback: false });
-    expect(await resolve("nobody")).toBeNull();
-    expect(await resolve("__proto__")).toBeNull();
+    expect(await resolve("nobody", "glm-4.6")).toBeNull();
+    expect(await resolve("__proto__", "glm-4.6")).toBeNull();
     for (const over of [{ api: "bedrock-converse-stream" }, { apiKey: undefined }, { apiKey: "" }])
       expect(
-        await createProviderResolver({ open: source(over).open, clock, testLoopback: false })("zai"),
+        await createProviderResolver({ open: source(over).open, clock, testLoopback: false })(
+          "zai",
+          "glm-4.6",
+        ),
       ).toBeNull();
   });
 
@@ -138,22 +142,45 @@ describe("createProviderResolver", () => {
       clock,
       testLoopback: false,
     });
-    expect(await resolve("zai")).toBeNull();
+    expect(await resolve("zai", "glm-4.6")).toBeNull();
+  });
+
+  it("resolves each model with its own api and base URL, and refuses a model the catalog lacks", async () => {
+    const open: RelaySource = async () => ({
+      enabled: null,
+      runtime: {
+        getProvider: () => ({}),
+        getModels: () => [
+          { id: "claude-x", api: "anthropic-messages", baseUrl: "https://gw.example/anthropic" },
+          { id: "gpt-x", api: "openai-responses", baseUrl: "https://gw.example/openai/v1/" },
+        ],
+        checkAuth: async () => ({ type: "api_key" }),
+        getAuth: async () => ({ auth: { apiKey: "K", baseUrl: "https://gw.example/provider-level" } }),
+      },
+    });
+    const resolve = createProviderResolver({ open, clock, testLoopback: false });
+    const first = await resolve("mixed", "claude-x");
+    const second = await resolve("mixed", "gpt-x");
+    expect([first?.api, first?.baseUrl]).toEqual(["anthropic-messages", "https://gw.example/anthropic"]);
+    expect([second?.api, second?.baseUrl]).toEqual(["openai-responses", "https://gw.example/openai/v1"]);
+    expect(await resolve("mixed", "unknown-model")).toBeNull();
+    // Cached by the pair: asking for the first again does not hand back the second's answer.
+    expect((await resolve("mixed", "claude-x"))?.api).toBe("anthropic-messages");
   });
 
   it("caches an answer for 60 seconds, never a refusal", async () => {
     const bed = source();
     const resolve = createProviderResolver({ open: bed.open, clock, testLoopback: false });
     now.value = 1_000;
-    await resolve("zai");
+    await resolve("zai", "glm-4.6");
     now.value = 60_999;
-    await resolve("zai");
+    await resolve("zai", "glm-4.6");
     expect(bed.calls.open).toBe(1);
     now.value = 61_000;
-    await resolve("zai");
+    await resolve("zai", "glm-4.6");
     expect(bed.calls.open).toBe(2);
-    await resolve("nobody");
-    await resolve("nobody");
+    await resolve("nobody", "glm-4.6");
+    await resolve("nobody", "glm-4.6");
     expect(bed.calls.open).toBe(4);
   });
 });
@@ -199,7 +226,7 @@ describe("openRelaySource over Pi's real files", () => {
       clock,
       testLoopback: false,
     });
-    const got = await resolve("zai");
+    const got = await resolve("zai", "glm-4.6");
     expect(got?.api).toBe("openai-completions");
     expect(got?.baseUrl).toBe("https://api.z.ai/api/paas/v4");
     expect(got?.credential.value).toBe("models-json-key");
@@ -213,7 +240,7 @@ describe("openRelaySource over Pi's real files", () => {
       clock,
       testLoopback: false,
     });
-    expect(await resolve("zai")).toBeNull();
+    expect(await resolve("zai", "glm-4.6")).toBeNull();
   });
 
   it("resolves the key of auth.json", async () => {
@@ -226,7 +253,7 @@ describe("openRelaySource over Pi's real files", () => {
       clock,
       testLoopback: false,
     });
-    expect((await resolve("zai"))?.credential.value).toBe("auth-json-key");
+    expect((await resolve("zai", "glm-4.6"))?.credential.value).toBe("auth-json-key");
   });
 
   it("refuses an OAuth credential of auth.json (R9)", async () => {
@@ -239,6 +266,6 @@ describe("openRelaySource over Pi's real files", () => {
       clock,
       testLoopback: false,
     });
-    expect(await resolve("zai")).toBeNull();
+    expect(await resolve("zai", "glm-4.6")).toBeNull();
   });
 });

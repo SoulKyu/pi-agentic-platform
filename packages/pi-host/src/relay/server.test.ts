@@ -24,7 +24,7 @@ describe("the relay server: a request that speaks for an agent", () => {
     expect(reply.headers["content-type"]).toBe("text/event-stream");
     expect(reply.headers["x-request-id"]).toBe("req-1");
     expect(reply.headers["set-cookie"]).toBeUndefined();
-    expect(resolveProvider).toHaveBeenCalledExactlyOnceWith("zai");
+    expect(resolveProvider).toHaveBeenCalledExactlyOnceWith("zai", "glm-4.6");
     expect(seen).toHaveLength(1);
     const [got] = seen;
     expect(got?.method).toBe("POST");
@@ -36,6 +36,47 @@ describe("the relay server: a request that speaks for an agent", () => {
     expect(got?.headers.cookie).toBeUndefined();
     expect(JSON.stringify(got?.headers)).not.toContain(KEY);
     expect(got?.body.toString("utf8")).toBe(chat());
+  });
+
+  it("lets only an allow-list of upstream headers reach the VM", async () => {
+    const { port } = await bed({
+      upstream: (_req, res) => {
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "retry-after": "3",
+          "x-ratelimit-remaining-requests": "9",
+          "anthropic-ratelimit-tokens-limit": "100",
+          "request-id": "r-1",
+          "x-request-id": "r-2",
+          "x-should-retry": "false",
+          "x-api-key": REAL,
+          authorization: `Bearer ${REAL}`,
+          "openai-organization": "org-secret",
+          "openai-project": "proj-secret",
+          "set-cookie": "a=b",
+          location: "http://elsewhere.example/",
+          "x-extra": "nope",
+        });
+        res.end("{}");
+      },
+    });
+    const reply = await send(port, { path: "/zai/chat/completions", headers: asAgent, body: chat() });
+    expect(reply.status).toBe(200);
+    const got = Object.keys(reply.headers).filter(
+      (name) => !["date", "connection", "keep-alive", "transfer-encoding"].includes(name),
+    );
+    expect(got.sort()).toEqual(
+      [
+        "anthropic-ratelimit-tokens-limit",
+        "content-type",
+        "request-id",
+        "retry-after",
+        "x-ratelimit-remaining-requests",
+        "x-request-id",
+        "x-should-retry",
+      ].sort(),
+    );
+    expect(JSON.stringify(reply.headers)).not.toContain(REAL);
   });
 
   it("passes the query through and reads a Google model from the path", async () => {

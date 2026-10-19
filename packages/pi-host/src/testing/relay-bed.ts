@@ -121,7 +121,7 @@ export async function bed(
     upstream.closeAllConnections();
     await new Promise<void>((resolve) => upstream.close(() => resolve()));
   });
-  return { port, seen, keys, policy, usage, clock, reports, resolveProvider, logs, upstreamPort };
+  return { server, port, seen, keys, policy, usage, clock, reports, resolveProvider, logs, upstreamPort };
 }
 
 export interface Reply {

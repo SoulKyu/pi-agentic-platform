@@ -108,7 +108,10 @@ interface Bed {
 }
 
 /** The real `pap-relay` process: Pi's files in a temp agent folder, an HTTPS upstream on loopback that only this test trusts. */
-async function startRelay(listen = "127.0.0.1:0"): Promise<Bed> {
+async function startRelay(
+  listen = "127.0.0.1:0",
+  tls: { trust: boolean; env?: Record<string, string> } = { trust: true },
+): Promise<Bed> {
   const dir = await fs.mkdtemp(join(tmpdir(), "relay-int-"));
   tmp.push(dir);
   const { cert, key } = loopbackCertificate(dir);
@@ -148,7 +151,8 @@ async function startRelay(listen = "127.0.0.1:0"): Promise<Bed> {
       HOME: dir,
       LANG: "C.UTF-8",
       PI_CODING_AGENT_DIR: agentDir,
-      NODE_EXTRA_CA_CERTS: cert,
+      ...(tls.trust ? { NODE_EXTRA_CA_CERTS: cert } : {}),
+      ...tls.env,
     },
     execArgv: ["--conditions=development", "--disable-warning=ExperimentalWarning"],
     stdio: ["ignore", "pipe", "pipe", "ipc"],
@@ -281,6 +285,21 @@ describe("the relay process", () => {
     expect(bed.stderr()).not.toContain(OTHER);
   });
 
+  // Mutant M-tls: `rejectUnauthorized: true` dropped from the upstream request -> this case reaches the upstream.
+  it("does not trust an upstream certificate whatever the inherited environment says", async () => {
+    const bed = await startRelay("127.0.0.1:0", { trust: false, env: { NODE_TLS_REJECT_UNAUTHORIZED: "0" } });
+    const port = await ready(bed);
+    grant(bed);
+    policy(bed);
+    const reply = await until(
+      () => post(port, JSON.stringify({ model: MODEL, messages: [] })),
+      (answer) => answer.status !== 403,
+    );
+    expect(reply.status).toBe(502);
+    expect(JSON.parse(reply.text)).toEqual({ error: "upstream" });
+    expect(bed.upstream).toEqual([]);
+  });
+
   it("drops a command that does not parse and logs its type only", async () => {
     const bed = await startRelay();
     await ready(bed);
@@ -306,6 +325,13 @@ describe("the relay process", () => {
       expect(code, listen).toBe(64);
       expect(bed.records).toEqual([]);
     }
+  });
+
+  it("refuses a --listen with no value", async () => {
+    const bed = await startRelay("");
+    expect(
+      await new Promise<number | null>((resolve) => bed.child.once("exit", (code) => resolve(code))),
+    ).toBe(64);
   });
 
   it("refuses to start without --listen", async () => {
