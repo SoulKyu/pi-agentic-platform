@@ -3,7 +3,7 @@ import { CONFIG_PATH, loadVmdConfig } from "./config.ts";
 import { createExec } from "./exec.ts";
 import { createLocks, createRoomCheck } from "./locks.ts";
 import { createStderrLogger } from "./log.ts";
-import { unavailableNet } from "./net-unavailable.ts";
+import { createRestoredNet } from "./net.ts";
 import { BUNDLE_ROOT, createOps, VMD_VERSION, VOLUME_ROOT } from "./ops.ts";
 import { createVmdServer } from "./server.ts";
 import { createState } from "./state.ts";
@@ -16,16 +16,20 @@ function minFreeMb(): number {
   return Number.isInteger(value) && value >= 0 ? value : DEFAULT_MIN_FREE_MB;
 }
 
-/** pap-vmd's entry (root): the state folder, the operations, the server. T16a replaces `unavailableNet` and calls `restore()`. */
+/** pap-vmd's entry (root): the state folder, the operations, the server. The net restores its guards before anything is served. */
 async function main(): Promise<void> {
   const config = loadVmdConfig(CONFIG_PATH);
   const clock = createSystemClock();
   const log = createStderrLogger();
   const state = createState({ root: `/var/lib/pap-vm/${config.papUid}`, clock, log });
   state.ensure();
+  const exec = createExec();
+  // AVM-P11: the unit reloaded the ruleset (an empty `ports` set); the guards of the VMs that run come back before the
+  // server accepts a request. If they cannot, pap-vmd does not start (main's catch exits 1).
+  const net = await createRestoredNet({ exec, state, clock, log });
   const ops = createOps({
-    exec: createExec(),
-    net: unavailableNet,
+    exec,
+    net,
     state,
     locks: createLocks(),
     room: createRoomCheck({ freeMb: () => state.freeMb(), minFreeMb: minFreeMb() }),
