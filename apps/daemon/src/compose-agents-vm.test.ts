@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { connect } from "node:net";
 import { tmpdir } from "node:os";
@@ -26,12 +27,24 @@ const config = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore["conf
   testProviderScript: "/script.json",
   workerIdleMs: 0,
   minFreeDiskMb: 0,
+  piHostEntry: "/x/pi-host/src/main.ts",
+  piHostExecArgv: [],
+  piAgentDir: "/pi-agent",
   ...extra,
 });
 const core = (extra: Partial<AgentsVmCore["config"]> = {}): AgentsVmCore => ({
   config: config(extra),
   clock: createFakeClock(),
   logger: silentLogger,
+  env: {},
+  readOnly: false,
+  claudeToken: {
+    status: () => "missing",
+    set: () => {},
+    clear: () => {},
+    load: () => null,
+    onChange: () => {},
+  },
 });
 const PROCESS = { guestEntry: "/guest.js", execArgv: [], imageAgentSource: "/image" };
 const row = (extra: Partial<SessionRow> = {}): SessionRow =>
@@ -47,7 +60,8 @@ const closers: Array<{ name: string; close(): void | Promise<void> }> = [];
 afterEach(async () => {
   for (const closer of closers.splice(0).reverse()) await closer.close();
 });
-const compose = (c: AgentsVmCore, seams: AgentsVmSeams = {}) => composeAgentsVm(c, closers, seams);
+const compose = (c: AgentsVmCore, seams: AgentsVmSeams = {}) =>
+  composeAgentsVm(c, closers, { relay: "off", ...seams });
 
 describe("composeAgentsVm in host mode", () => {
   it("composes nothing: no gateway, no closer", async () => {
@@ -153,6 +167,69 @@ describe("composeAgentsVm in vm mode", () => {
     await vi.waitFor(() => expect(vm.runtime.phase(ID)).toBe("running"));
     await Promise.all(closers.splice(0).map((closer) => closer.close()));
     await spawning;
+  });
+});
+
+describe("composeAgentsVm's relay (J1, T12's daemon half)", () => {
+  const idle = (): AgentRuntimeBackend => ({
+    start: vi.fn(async () => ({ address: "127.0.0.1" })),
+    stop: vi.fn(async () => {}),
+    list: vi.fn(async () => []),
+  });
+  const fakeChild = () =>
+    Object.assign(new EventEmitter(), {
+      sent: [] as unknown[],
+      killed: false,
+      send(message: unknown) {
+        this.sent.push(message);
+        return true;
+      },
+      kill() {
+        this.killed = true;
+        return true;
+      },
+    });
+  // Mutants: the link not created (or `relay` left null) -> "starts the relay child"; the closer missing -> "stops it".
+  it("starts the relay child at compose, hands the Claude token to it, and stops it with the daemon", async () => {
+    const child = fakeChild();
+    let stored: string | null = "sk-ant-oat01-STORED";
+    const listeners: Array<(token: string | null) => void> = [];
+    const claudeToken = {
+      status: () => "set" as const,
+      set: () => {},
+      clear: () => {},
+      load: () => stored,
+      onChange: (listener: (token: string | null) => void) => void listeners.push(listener),
+    };
+    const vm = (await composeAgentsVm({ ...core(), claudeToken }, closers, {
+      backend: () => idle(),
+      relay: { fork: () => child as never },
+    })) as AgentsVm;
+    await vi.waitFor(() => expect(vm.relay).not.toBeNull());
+    child.emit("message", { type: "relay_ready", port: 1234 });
+    // A relay that starts (or restarts) is told the stored token.
+    expect(child.sent).toContainEqual({ type: "claude_token", token: "sk-ant-oat01-STORED" });
+    stored = null;
+    listeners[0]?.(null);
+    expect(child.sent.at(-1)).toEqual({ type: "claude_token", token: null });
+    expect(closers.map((closer) => closer.name)).toContain("agent_relay");
+    for (const closer of closers.splice(0).reverse()) await closer.close();
+    expect(child.killed).toBe(true);
+  });
+
+  it("composes no relay when the seam says off", async () => {
+    const vm = (await compose(core(), { backend: () => idle() })) as AgentsVm;
+    expect(vm.relay).toBeNull();
+    expect(closers.map((closer) => closer.name)).not.toContain("agent_relay");
+  });
+
+  it("hands the composition to a test that asks (expose)", async () => {
+    const seen: AgentsVm[] = [];
+    const vm = (await compose(core(), {
+      backend: () => idle(),
+      expose: (composed) => void seen.push(composed),
+    })) as AgentsVm;
+    expect(seen).toEqual([vm]);
   });
 });
 

@@ -64,6 +64,8 @@ export interface ModelsServiceDeps {
   readonly settings: Pick<SettingsPort, "models">;
   /** The daemon's one Pi write queue; a service built alone (a test) gets a queue of its own. */
   readonly writes?: PiWriteQueue;
+  /** After each write of Pi's files, when `models.available` was cleared (ADR 0068): the VM relay's allowed models follow. */
+  readonly onWrote?: () => void;
 }
 
 export function createModelsService(deps: ModelsServiceDeps) {
@@ -81,6 +83,7 @@ export function createModelsService(deps: ModelsServiceDeps) {
   const wrote = (): void => {
     availableCache.clear();
     extensionProviders.invalidate();
+    deps.onWrote?.();
   };
   const clearedAfter = async <T>(task: Promise<T>): Promise<T> => {
     try {

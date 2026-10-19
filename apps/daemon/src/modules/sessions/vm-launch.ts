@@ -52,6 +52,11 @@ export interface VmLaunchDeps {
   imageTagOf(agentId: string): string;
   readonly mirrors: MirrorInputs;
   readonly logger: Pick<Logger, "warn">;
+  /**
+   * Process backend only (AVM-E15, tests): copies the scripted provider into the VM's folder and answers its VM path, which the
+   * init carries as `testProviderScript`. Kata never runs a test script, so it is left out there.
+   */
+  copyProviderScript?(layout: VmLayout): string;
 }
 
 /** An isolated task's key in its VM's name: its session id without dashes; null for every other session. */
@@ -94,7 +99,9 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
           try {
             const composed = compose();
             const vm = { layout: started.layout, ...fixed, relayKey: started.relayKey, slot: started.slot };
-            return { ...composed, init: vmInitOf(composed.init, vm, file) };
+            const init = vmInitOf(composed.init, vm, file);
+            if (deps.copyProviderScript) init.testProviderScript = deps.copyProviderScript(started.layout);
+            return { ...composed, init };
           } catch (error) {
             void handle.stop();
             throw error;

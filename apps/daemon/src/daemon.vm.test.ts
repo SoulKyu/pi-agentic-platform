@@ -34,7 +34,7 @@ describe("the daemon's agents VM wiring (T8a, fail closed)", () => {
       { steps: [] },
       {
         config: { agentsRuntime: "vm", testAgentRuntime: "process" },
-        deps: { agentsVm: { backend: () => fake } },
+        deps: { agentsVm: { backend: () => fake, relay: "off" } },
       },
     );
     started.push(daemon);

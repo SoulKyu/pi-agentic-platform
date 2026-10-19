@@ -89,6 +89,9 @@ describe("process backend", () => {
       PAP_IMAGE_TAG: spec().image,
       PAP_GUEST_RUN_DIR: join(layout.root, "run"),
       PAP_TEST_PROVIDER_SCRIPT: "/script.json",
+      // What the scripted provider's worker needs (ADR 0001), so the VM's init may name the script (AVM-E15).
+      PAP_TEST_PROVIDER: "1",
+      PI_OFFLINE: "1",
     });
     expect(JSON.parse(env.PAP_GUEST_LAYOUT ?? "")).toEqual(layout);
     expect(cwd).toBe(layout.home);

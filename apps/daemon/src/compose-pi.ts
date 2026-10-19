@@ -34,6 +34,8 @@ export interface ComposedPi {
   readonly rpc: ModelsModule["rpc"] & McpModule["rpc"] & TrustModule["rpc"] & SkillsModule["rpc"];
   /** What lanes ask of trust: a worktree inherits its project's decision (M9R39). */
   readonly trust: TrustModule["port"];
+  /** The models Pi offers, for the VM relay's per-agent policy (R13). */
+  readonly models: ModelsModule["port"];
   /** The pool every Pi module runs its configuration work in (ADR 0023): for the modules composed here and for tests. */
   readonly helpers: HelperPool;
   /** The Pi modules answer for the owner's non-archived lane folders as for a project root (final review I1); bound by `lanes.bind`. */
@@ -102,6 +104,7 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
   return {
     rpc: { ...models.rpc, ...mcp.rpc, ...trust.rpc, ...skills.rpc },
     trust: trust.port,
+    models: models.port,
     helpers,
     useLaneRoots: (roots) => void (laneRoots = roots),
     stopAll: () => helpers.stopAll(),

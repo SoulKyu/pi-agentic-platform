@@ -78,7 +78,10 @@ const hostInit = (r: SessionRow, wired = true): InitRecord => ({
   vault: { TOKEN: "s3cret" },
 });
 
-function setup(layoutForRuntime?: (r: SessionRow) => VmLayout) {
+function setup(
+  layoutForRuntime?: (r: SessionRow) => VmLayout,
+  copyProviderScript?: (layout: VmLayout) => string,
+) {
   const worker = createFakeWorker({});
   const specs: VmSpec[] = [];
   const inputs: unknown[] = [];
@@ -110,6 +113,7 @@ function setup(layoutForRuntime?: (r: SessionRow) => VmLayout) {
     imageTagOf: () => IMAGE,
     mirrors: { inputFor },
     logger: silentLogger,
+    ...(copyProviderScript ? { copyProviderScript } : {}),
   });
   return {
     vmLaunch,
@@ -127,6 +131,32 @@ describe("VM_BWRAP and VM_ROOT_VIEW", () => {
   it("are the image's bwrap and AVM-P3's read-only root", () => {
     expect(VM_BWRAP).toBe("/usr/bin/bwrap");
     expect(VM_ROOT_VIEW).toBe("read-only");
+  });
+});
+
+describe("the scripted provider in a process-backend VM (AVM-E15)", () => {
+  // Mutants: the init keeps the host's path (vmInitOf drops it, the copy is not named) -> "names the copy's VM path"; the
+  // copier called at the dry run (before the spawn) -> "copies at the bind, not before the spawn".
+  it("names the copy's VM path in the init, copied when the worker is bound", async () => {
+    const copied: VmLayout[] = [];
+    const bed = setup(undefined, (layout) => {
+      copied.push(layout);
+      return `${layout.root}/run/provider-script.json`;
+    });
+    const r = bed.use(row());
+    const started = await bed.vmLaunch.spawn(r, launch(), hostInit(r));
+    expect(copied).toEqual([]);
+    const out = started.bind(() => ({ init: { ...hostInit(r), testProviderScript: "/host/script.json" } }));
+    expect(copied).toEqual([vmLayout(r)]);
+    expect(out.init.testProviderScript).toBe(`${vmLayout(r).root}/run/provider-script.json`);
+  });
+
+  it("leaves the field out when the backend is not the process backend (Kata never runs a test script)", async () => {
+    const bed = setup();
+    const r = bed.use(row());
+    const started = await bed.vmLaunch.spawn(r, launch(), hostInit(r));
+    const out = started.bind(() => ({ init: { ...hostInit(r), testProviderScript: "/host/script.json" } }));
+    expect(out.init).not.toHaveProperty("testProviderScript");
   });
 });
 

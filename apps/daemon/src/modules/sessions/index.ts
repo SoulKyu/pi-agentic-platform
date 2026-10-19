@@ -119,6 +119,11 @@ export interface SessionsModule {
   restartFolder(ownerId: string, folder: string): number;
   /** Stops the worker of the owner's quiet session (M9R113): `released`, `busy` (left alone) or `cold` (no worker). */
   releaseIdle(ownerId: string, sessionId: string): "released" | "busy" | "cold";
+  /**
+   * What a VM mirror says to a session (R14, AVM-E21): a notice in its thread and the taint of ADR 0074's outside-write
+   * detection (a session whose file the VM rewrote may hold content pap never fenced).
+   */
+  readonly mirror: { notice(sessionId: string, text: string): void; taint(sessionId: string): void };
   /** The only way lanes touch sessions (M9R37). */
   readonly lanes: SessionsLanePort;
   /** The lanes module fills the hooks around a prompt and a run's end (M9R114). */
@@ -166,6 +171,12 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     logger,
     infoOf: (sessionId) => laneInfoOf(store, service.laneProbe, sessionId),
   });
+  const taintOutside = outsideToolResultsTaint({
+    store,
+    policy: deps.policy,
+    audit: deps.audit,
+    logger,
+  });
   const service = createSessionsService({
     laneHooks,
     store,
@@ -189,12 +200,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     newId,
     ownerId: deps.ownerId,
     ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
-    onOutsideToolResults: outsideToolResultsTaint({
-      store,
-      policy: deps.policy,
-      audit: deps.audit,
-      logger,
-    }),
+    onOutsideToolResults: taintOutside,
     loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
     loadWriter: () => loadPiWriter(forkTmpDir, { logger }),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
@@ -250,6 +256,10 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     isAgentSession: (sessionId) => store.get(sessionId)?.agentId !== undefined,
     inspect: (sessionId) => service.inspect(sessionId),
+    mirror: {
+      notice: (sessionId, text) => service.laneProbe.live.get(sessionId)?.notice({ level: "warning", text }),
+      taint: taintOutside,
+    },
     restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),
     releaseIdle: (ownerId, sessionId) => service.releaseIdle(ownerId, sessionId),
     lanes: createSessionsLanePort({

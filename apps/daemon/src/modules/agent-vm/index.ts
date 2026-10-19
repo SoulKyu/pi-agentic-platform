@@ -9,3 +9,7 @@ export { vmInitOf } from "./vm-init.ts";
 export type { GuestLink } from "./guest-link.ts";
 export { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
 export type { MirrorPort, VmWorkerHandle, WorkerSpawnInput } from "./vm-worker.ts";
+export { agentsVmTokenRpc } from "./rpc.ts";
+export { type ClaudeTokenStore, createClaudeTokenStore } from "./claude-token.ts";
+export { forkRelay, relayEnv, relayListenOf } from "./relay-fork.ts";
+export { createRelayLink, type PolicyView, type RelayChild, type RelayLink } from "./relay-link.ts";

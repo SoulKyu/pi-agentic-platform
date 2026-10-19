@@ -1,7 +1,7 @@
 import type { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { HandlerTable } from "@pap/contracts";
-import { agentsVmRpcStub } from "./agents-vm-rpc-stub.ts";
+import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
 import { type AgentsVmSeams, composeAgentsVm } from "./compose-agents-vm.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createWsProbe } from "./compose-ws-probe.ts";
@@ -159,7 +159,8 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     closers.push({ name: "receipt_purge", close: () => purge.stop() });
     const hub = createStreamHub(undefined, clock);
     const env = deps.env ?? process.env;
-    const core = { db, clock, logger, config, readOnly, hub, env };
+    const vmRpc = composeAgentsVmRpc(config, logger, clock);
+    const core = { db, clock, logger, config, readOnly, hub, env, claudeToken: vmRpc.claudeToken };
     const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
@@ -274,6 +275,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         vm: agentsVm,
       },
     );
+    agentsVm?.bindLate({ sessions, pi, agents: m11.agents, runs: m10.runs, automation: m10Late.automation });
     const agents = { port: m11.agents };
     const push = composePush(
       { ...core, closers, m10, inbox: m10Late.inbox, auth, settings, sessions, audit, agents },
@@ -294,7 +296,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...lanes.rpc,
       ...m10Late.rpc,
       ...m11.rpc,
-      ...agentsVmRpcStub,
+      ...vmRpc.rpc,
       ...push.rpc,
       ...fonts.rpc,
     };

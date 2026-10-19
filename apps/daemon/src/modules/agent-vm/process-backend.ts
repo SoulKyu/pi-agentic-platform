@@ -104,6 +104,9 @@ export function createProcessBackend(options: ProcessBackendOptions): AgentRunti
           PAP_GUEST_LAYOUT: JSON.stringify(layout),
           PAP_GUEST_RUN_DIR: run,
           PAP_TEST_PROVIDER_SCRIPT: options.providerScript,
+          // The scripted provider's worker needs these (ADR 0001); the init names the script's VM path (AVM-E15).
+          PAP_TEST_PROVIDER: "1",
+          PI_OFFLINE: "1",
         },
       });
       child.stdout?.resume();

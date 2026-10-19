@@ -74,7 +74,7 @@ export function createInbox(inbox: string): { put(chunk: FilePut): FilePutResult
     }
   };
 
-  const write = (chunk: FilePut): FilePutResult | null => {
+  const write = (chunk: FilePut): FilePutResult => {
     const known = transfers.get(chunk.id);
     if (known === undefined && chunk.offset !== 0) return result(chunk.id, "order");
     if (known !== undefined && chunk.offset !== known.written) {
