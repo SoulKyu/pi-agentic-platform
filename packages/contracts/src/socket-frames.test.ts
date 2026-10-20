@@ -10,6 +10,7 @@ import { createFrameDecoder, encodeFrame, type FrameError } from "./socket-frame
 // - NaN bound accepted (`length > bound` refuses, NaN passes): "refuses when the bound is NaN".
 // - a throwing `maxBytes()` leaves the decoder advanced (no try/catch): "fails closed when maxBytes throws".
 // - body decoded with lossy `toString("utf8")`: "reports invalid UTF-8 as bad_json".
+// - decoder without `ignoreBOM: true` (a leading BOM is stripped, `EF BB BF 31` parses as 1): "reports a leading BOM as bad_json".
 // - `if (failed) return` removed from `push` (with `for (;;)` the loop then delivers): "reports invalid JSON once and stops".
 // - `close` setting the flag without clearing `parts`/`size` (the rest of the chunk is still decoded after `stop()` in
 //   `onFrame`): "stop() inside onFrame delivers exactly one frame ...". `stop()` a no-op: that case and "delivers nothing
@@ -195,6 +196,14 @@ describe("createFrameDecoder", () => {
   it("reports invalid UTF-8 as bad_json", () => {
     const { decoder, frames, errors } = collect(() => 1024);
     const body = Buffer.from([0x22, 0xff, 0x22]);
+    decoder.push(Buffer.concat([header(body.length), body]));
+    expect(errors).toEqual(["bad_json"]);
+    expect(frames).toEqual([]);
+  });
+
+  it("reports a leading BOM as bad_json, never strips it", () => {
+    const { decoder, frames, errors } = collect(() => 1024);
+    const body = Buffer.from([0xef, 0xbb, 0xbf, 0x31]);
     decoder.push(Buffer.concat([header(body.length), body]));
     expect(errors).toEqual(["bad_json"]);
     expect(frames).toEqual([]);

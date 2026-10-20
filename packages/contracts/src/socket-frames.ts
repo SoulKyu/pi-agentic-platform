@@ -15,7 +15,7 @@ export interface FrameDecoder {
   stop(): void;
 }
 
-const utf8 = new TextDecoder("utf-8", { fatal: true });
+const utf8 = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
 
 /**
  * Length-prefixed JSON frames. A declared length over `maxBytes()` fails on the header, before any body byte is kept (the
