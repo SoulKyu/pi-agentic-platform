@@ -164,6 +164,9 @@ export function makeBed(
     },
     readMounts: () => live.mounts,
     nodePath: join(root, "running-node"),
+    codePaths: () => ["/code/main.js", "/code", "/code/vm-assets.json", "/code/node"],
+    statCode: () => ({ uid: 0, mode: 0o100755 }),
+    readUserUnit: () => null,
     treeRoot: overrides.noTree ? undefined : tree,
   };
   const { io, stdout } = cliIo();

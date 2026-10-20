@@ -1,5 +1,6 @@
 import type { Download, OpenFile, VmAssets } from "./assets.ts";
 import { PATHS } from "./configs.ts";
+import type { StatCode } from "./trusted-code.ts";
 
 /** Where setup writes. Real runs use `PATHS`; tests inject temp folders, so no test touches /etc, /opt or /var/lib. */
 export interface VmRoots {
@@ -52,6 +53,11 @@ export interface VmDeps {
   /** The text of /proc/self/mountinfo (uninstall refuses while a mount is left under pap's folders). */
   readonly readMounts: () => string;
   readonly nodePath: string;
+  /** I3: what setup runs as root besides the pins: this program's entry and its folder, `vm-assets.json`, the running Node. */
+  readonly codePaths: () => readonly string[];
+  readonly statCode: StatCode;
+  /** M11: the text of the user's `pap.service` (under `<user home>/.config/systemd/user`), or null when there is none. */
+  readonly readUserUnit: (userHome: string) => string | null;
   /** The checkout this pap runs from, or undefined when it is not one. */
   readonly treeRoot: string | undefined;
 }

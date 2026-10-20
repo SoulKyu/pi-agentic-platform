@@ -14,6 +14,7 @@ import {
 import { dirname, isAbsolute, join } from "node:path";
 import type { Command } from "../run-cli.ts";
 import { CliError, type CliIo } from "../open-home.ts";
+import { parseUnit } from "../service/unit-read.ts";
 import { UsageError } from "../usage.ts";
 import {
   applyOverrides,
@@ -35,6 +36,7 @@ import {
 } from "./configs.ts";
 import type { VmDeps } from "./deps.ts";
 import { realDeps } from "./real-deps.ts";
+import { assertRootOwnedCode } from "./trusted-code.ts";
 import { UNIT_FILES, UNIT_NAMES } from "./units.ts";
 
 export const SETUP_MARKER = ".pap-vm-setup";
@@ -215,13 +217,16 @@ const groups = (dev: boolean): Group[] =>
 
 export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): Promise<number> {
   if (!deps.isRoot) throw new CliError("pap vm setup must run as root: run with sudo");
+  if (!options.devFromTree) assertRootOwnedCode(deps.codePaths(), deps.statCode);
   if (options.user === undefined)
     throw new UsageError("vm setup needs --user <name> (the user that runs pap)");
   const user = deps.lookupUser(options.user);
   if (user === undefined) throw new CliError(`no such user: ${options.user}`);
   const uid = checkId("uid", user.uid);
   const gid = checkId("gid", user.gid);
-  const papHome = options.home ?? join(user.home, ".pap");
+  // M11: the daemon's own home (the unit's PAP_HOME) unless --home says otherwise, so pap-vmd reads the folders pap writes.
+  const unitText = deps.readUserUnit(user.home);
+  const papHome = options.home ?? (unitText === null ? null : parseUnit(unitText)?.home) ?? join(user.home, ".pap");
   if (!isAbsolute(papHome)) throw new CliError("--home must be an absolute path");
   const { roots } = deps;
   let assets: VmAssets = deps.compiled;

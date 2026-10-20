@@ -6,15 +6,17 @@ import {
   existsSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   statSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { CliError } from "../open-home.ts";
+import { UNIT } from "../service/common.ts";
 import { bundledAssets, openNoFollow, type VmAsset } from "./assets.ts";
 import { REAL_ROOTS, type Exec, type VmDeps, type VmUser } from "./deps.ts";
 
@@ -117,6 +119,17 @@ async function deployVmd(tree: string, dest: string): Promise<void> {
   }
 }
 
+/** I3: the files `sudo pap vm setup` trusts as root, resolved through links. */
+export function codePaths(entry: string | undefined = process.argv[1]): string[] {
+  const main = realpathSync(entry ?? "");
+  return [
+    main,
+    dirname(main),
+    realpathSync(fileURLToPath(new URL("./vm-assets.json", import.meta.url))),
+    realpathSync(process.execPath),
+  ];
+}
+
 export function realDeps(): VmDeps {
   return {
     roots: REAL_ROOTS,
@@ -131,6 +144,15 @@ export function realDeps(): VmDeps {
     download,
     readMounts: () => readFileSync("/proc/self/mountinfo", "utf8"),
     nodePath: process.execPath,
+    codePaths: () => codePaths(),
+    statCode: (path) => statSync(path),
+    readUserUnit: (userHome) => {
+      try {
+        return readFileSync(join(userHome, ".config/systemd/user", UNIT), "utf8");
+      } catch {
+        return null;
+      }
+    },
     treeRoot: findTree(),
   };
 }
