@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -133,20 +133,30 @@ describe("judgeVmPath: links and folders", () => {
     }
   });
 
-  // S1 round 2 (I1 remainder). Mutant: the lexical reading back to an unbounded `realpath` walk (`kernelResolve(cwd, lexical)` without `reachable`) -> the live pid
-  // answers ok, the dead one outside.
+  // S1 round 2 (I1 remainder; AVM-E60 m1/m2). Mutant: the lexical reading back to an unbounded `realpath` walk
+  // (`kernelResolve(cwd, lexical)` without `reachable`) -> a live pid answers ok, a dead one outside. `cwd/z.txt` shows it
+  // only for a pid whose cwd is the home (a spawned child), `root<home>/z.txt` for any live pid. Heads: `m` does not exist
+  // (the first spelling of AVM-E59), `x` and `L` dangle.
   it("a missing component or a dangling link before `..` does not let the rest be resolved outside", async () => {
     symlinkSync("/", join(home, "r"));
     symlinkSync("nowhere/x", join(home, "L"));
     const outside = refused("outside this agent's folders");
     const dead = spawnSync(process.execPath, ["-e", ""]).pid;
-    for (const pid of [process.pid, dead, 4_194_303])
-      for (const head of ["x", "L"])
-        for (const tail of [`root${join(home, "z.txt")}`, "cwd/z.txt", `cwd/../${join(home, "z.txt")}`]) {
-          const raw = `${head}/../r/proc/${pid}/${tail}`;
-          for (const write of [false, true])
-            expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
-        }
+    const child = spawn(process.execPath, ["-e", "setTimeout(() => {}, 60000)"], {
+      cwd: home,
+      stdio: "ignore",
+    });
+    try {
+      for (const pid of [child.pid, process.pid, dead, 4_194_303])
+        for (const head of ["m", "x", "L"])
+          for (const tail of [`root${join(home, "z.txt")}`, "cwd/z.txt"]) {
+            const raw = `${head}/../r/proc/${pid}/${tail}`;
+            for (const write of [false, true])
+              expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
+          }
+    } finally {
+      child.kill();
+    }
   });
 
   it("still allows a link inside the home to elsewhere in the home, `..` back into it, and `..` into the skills folder", async () => {
