@@ -86,8 +86,12 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
   const open = new Set<() => void>();
   let stopped = false;
 
+  /** A guest can refuse as fast as it can connect: each reason logs its 1st, 2nd, 4th, 8th... refusal, with the count. */
+  const refusals = new Map<Refusal, number>();
   const refusedLog = (agentId: string | null, reason: Refusal): void => {
-    logger.warn("agent_gateway_refused", { agentId, reason });
+    const count = (refusals.get(reason) ?? 0) + 1;
+    refusals.set(reason, count);
+    if ((count & (count - 1)) === 0) logger.warn("agent_gateway_refused", { agentId, reason, count });
   };
 
   function accept(socket: GatewaySocket): void {

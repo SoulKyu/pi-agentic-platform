@@ -104,3 +104,21 @@ describe("a peer that never reads", () => {
     expect(worker.handle.send({ type: "get_state", id: "q" })).toBe(true);
   });
 });
+
+// Mutant "log throttle removed" (every refusal logged): the 3rd bad hello logs. Mutant "one counter for all reasons": the
+// first "token" refusal after 3 bad hellos is not logged.
+describe("the refusal log", () => {
+  it("logs the 1st, 2nd, 4th and 8th refusal of a reason with its count, and counts each reason alone", () => {
+    for (let n = 0; n < 9; n++) h.connect(`10.213.3.${n}`).feed({ type: "nonsense" });
+    const logged = h.lines.filter((line) => line.msg === "agent_gateway_refused");
+    expect(logged.map((line) => [line.reason, line.count])).toEqual([
+      ["bad_hello", 1],
+      ["bad_hello", 2],
+      ["bad_hello", 4],
+      ["bad_hello", 8],
+    ]);
+    const launch = h.launch();
+    h.connect("10.213.3.50").feed(guestHello(launch, { token: "0".repeat(64) }));
+    expect(h.refusals().at(-1)).toEqual({ agentId: launch.agentId, reason: "token" });
+  });
+});

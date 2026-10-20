@@ -49,7 +49,7 @@ describe("the first frame", () => {
       socket.feed(first);
       expect(socket.destroyed).toBe(true);
     }
-    expect(h.refusals()).toEqual(Array(6).fill({ agentId: null, reason: "bad_hello" }));
+    expect(h.refusals()).toEqual(Array(3).fill({ agentId: null, reason: "bad_hello" })); // the 1st, 2nd and 4th of 6 (log throttle)
   });
 
   it("refuses bytes that are not JSON, and invalid UTF-8", () => {
@@ -133,7 +133,7 @@ describe("who is speaking", () => {
       socket.feed(hello);
       expect(socket.destroyed).toBe(true);
     }
-    expect(h.refusals().map((entry) => entry.reason)).toEqual(["token", "token", "token"]);
+    expect(h.refusals().map((entry) => entry.reason)).toEqual(["token", "token"]); // the 1st and 2nd of 3 (log throttle)
   });
 
   // Mutant "image check dropped": a hello with another image gets in.
