@@ -126,7 +126,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
 
   const loadout = createLoadoutView({ logger, limiter, publish });
   const queue = createQueueGuard();
-  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish, onCardShown, vm: init.vm !== undefined });
+  const vm = init.vm !== undefined;
+  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish, onCardShown, vm });
   const commands = createLiveCommands({ handle, logger });
   const run = createLiveRun({
     handle,
