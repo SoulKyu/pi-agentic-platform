@@ -7,6 +7,8 @@ const MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 const CHILD_ENV = Object.freeze({
   PATH: "/opt/pap-vm/bin:/opt/kata/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
   LANG: "C",
+  /** T20a: buildctl creates its config folder; its default (under root's home) is read-only under the unit's ProtectSystem=strict. */
+  DOCKER_CONFIG: "/run/pap-vm/docker-config",
 });
 
 /**

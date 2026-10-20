@@ -64,4 +64,12 @@ export const shimWrapper = (): string => `#!/bin/sh\nexec ${PATHS.kataShim} "$@"
 export const vmdConfig = (user: { uid: number; gid: number; home: string }): string =>
   `${JSON.stringify({ papUid: user.uid, papGid: user.gid, papHome: user.home }, null, 2)}\n`;
 
-export const conflist = (): string => `${cniConflist()}\n`;
+/**
+ * The contract's conflist with host-local's reservations kept under /run (T20a): its default folder (/var/lib/cni) outlives a
+ * reboot while no VM does, and a reservation left by a failed start made that address "not available" for good.
+ */
+export function conflist(): string {
+  const document = JSON.parse(cniConflist()) as { plugins: Array<{ ipam: Record<string, unknown> }> };
+  for (const plugin of document.plugins) plugin.ipam.dataDir = `${PATHS.run}/cni-ipam`;
+  return `${JSON.stringify(document, null, 2)}\n`;
+}

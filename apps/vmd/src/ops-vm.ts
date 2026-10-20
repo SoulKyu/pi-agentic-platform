@@ -1,4 +1,5 @@
-import { mkdirSync, rmSync } from "node:fs";
+import { lstatSync, mkdirSync, rmSync } from "node:fs";
+import path from "node:path";
 import { AGENT_NET, AgentId, TaskKey, VM_IPV4, type VmState } from "@pap/contracts";
 import {
   directVolumeAddArgv,
@@ -30,7 +31,9 @@ type Named = { agentId: string };
 type Status = { agentId: string; taskKey: string | null };
 
 const NAME = /^pap-(.+?)(?:-([0-9a-f]{32}))?$/;
+/** nerdctl 2.4.1, recorded on the real stack (T20a): `rm --force` and `pause` say "no such container: x", `inspect` says "no such object x". */
 const NO_SUCH_CONTAINER = /no such container/i;
+const NO_SUCH_INSPECTED = /no such (?:container|object)/i;
 /** Values that reach the env file: one visible token each, so no line break can enter (R8). */
 const ENV_VALUE = /^[A-Za-z0-9._:-]+$/;
 
@@ -130,6 +133,22 @@ export function createVmOps(deps: OpsDeps) {
     }
   }
 
+  /**
+   * T20a: pap-vmd's lease table decides each VM's address, and CNI's host-local only mirrors it in one file per address. A file
+   * a teardown left behind makes `nerdctl run --ip` fail ("requested IP address is not available") for good, so the file of the
+   * address just allocated is removed first. Inside the start lock: no other start is running.
+   */
+  function clearReservation(ip: string): void {
+    const file = path.join(deps.ipamRoot, ip);
+    try {
+      lstatSync(file);
+    } catch {
+      return;
+    }
+    rmSync(file, { force: true });
+    log.info("vmd_ipam_reservation_cleared", {});
+  }
+
   async function removeVolume(volume: string): Promise<void> {
     const result = await exec(directVolumeRemoveArgv(volume));
     if (result.code !== 0) log.info("vmd_volume_remove", { code: result.code });
@@ -186,6 +205,7 @@ export function createVmOps(deps: OpsDeps) {
         try {
           // AVM-E37: the bridge's ports before this run; the VM's port is the one that is new afterwards.
           await net.prepare(name);
+          clearReservation(address.ip);
           try {
             const placement = {
               ip: address.ip,
@@ -257,7 +277,7 @@ export function createVmOps(deps: OpsDeps) {
     const result = await exec(inspectArgv(vmName(request.agentId, request.taskKey)));
     if (result.code === 0) return { state: stateOfInspect(result.stdout) };
     // Only "no such container" is absent: a containerd or nerdctl failure says nothing about the VM (S1, fail closed).
-    if (NO_SUCH_CONTAINER.test(result.stderr)) return { state: "absent" };
+    if (NO_SUCH_INSPECTED.test(result.stderr)) return { state: "absent" };
     throw new VmdFailure("failed");
   }
 

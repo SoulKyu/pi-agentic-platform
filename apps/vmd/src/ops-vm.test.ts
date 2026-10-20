@@ -101,6 +101,8 @@ describe("vm.start", () => {
         "SYS_ADMIN",
         "--cap-add",
         "NET_ADMIN",
+        "--cap-add",
+        "SYS_RESOURCE",
         "--cap-drop",
         "NET_RAW",
         "--network",

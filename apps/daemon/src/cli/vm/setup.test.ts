@@ -1,4 +1,4 @@
-import { agentNetRuleset, cniConflist } from "@pap/contracts";
+import { agentNetRuleset } from "@pap/contracts";
 import {
   existsSync,
   lstatSync,
@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CliError } from "../open-home.ts";
 import { UsageError } from "../usage.ts";
 import { DEV_RESIDUAL, SETUP_MARKER, runSetup, type SetupOptions } from "./setup.ts";
-import { KATA_MARKER } from "./configs.ts";
+import { conflist, KATA_MARKER } from "./configs.ts";
 import { makeBed, payload, snapshot } from "./testing/bed.ts";
 
 /*
@@ -206,7 +206,7 @@ describe("pap vm setup: install", () => {
     const b = bed();
     await runSetup(opts(), b.deps, b.io);
     expect(readFileSync(join(b.roots.etc, "agents.nft"), "utf8")).toBe(agentNetRuleset());
-    expect(readFileSync(join(b.roots.etc, "cni/pap-agents.conflist"), "utf8")).toBe(`${cniConflist()}\n`);
+    expect(readFileSync(join(b.roots.etc, "cni/pap-agents.conflist"), "utf8")).toBe(conflist());
     expect(readFileSync(join(b.roots.etc, "containerd.toml"), "utf8")).toContain(
       'address = "/run/pap-vm/containerd.sock"',
     );

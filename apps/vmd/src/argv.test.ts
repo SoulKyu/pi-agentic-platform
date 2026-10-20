@@ -56,6 +56,8 @@ const placement: VmPlacement = {
     "SYS_ADMIN",
     "--cap-add",
     "NET_ADMIN",
+    "--cap-add",
+    "SYS_RESOURCE",
     "--cap-drop",
     "NET_RAW",
   ],
@@ -89,6 +91,8 @@ describe("nerdctl command lines", () => {
       "SYS_ADMIN",
       "--cap-add",
       "NET_ADMIN",
+      "--cap-add",
+      "SYS_RESOURCE",
       "--cap-drop",
       "NET_RAW",
       "--network",
@@ -122,7 +126,11 @@ describe("nerdctl command lines", () => {
     const argv = runArgv(request, placement);
     expect(argv.filter((part) => part.includes(TOKEN))).toEqual([]);
     expect(argv).not.toContain("--privileged");
-    expect(argv.filter((part) => part.startsWith("--cap-add"))).toEqual(["--cap-add", "--cap-add"]);
+    expect(argv.filter((part) => part.startsWith("--cap-add"))).toEqual([
+      "--cap-add",
+      "--cap-add",
+      "--cap-add",
+    ]);
   });
 
   it("an isolated VM is named by its task key", () => {

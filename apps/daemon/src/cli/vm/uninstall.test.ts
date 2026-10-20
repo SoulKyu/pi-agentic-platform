@@ -39,6 +39,33 @@ describe("pap vm uninstall", () => {
     expect(b.stdout()).toContain("is kept");
   });
 
+  // T20a: what the real stack left behind after an uninstall: nerdctl's lock and default network in the config folder, containerd's
+  // runtime folder, CNI's cached results of pap's network, and the units in the "failed" list.
+  // Mutants: the config folder kept (removeIfEmpty only) -> "the files nerdctl made"; reset-failed dropped -> same case; another
+  // network's CNI results removed -> "keeps another network's".
+  it("also removes the files nerdctl, containerd and CNI made, and only those of pap's network", async () => {
+    const b = bed();
+    await setup(b);
+    writeFileSync(join(b.roots.etc, "cni/.nerdctl.lock"), "");
+    writeFileSync(join(b.roots.etc, "cni/nerdctl-bridge.conflist"), "{}");
+    mkdirSync(join(b.roots.etc, "cni/pap"), { recursive: true });
+    mkdirSync(join(b.roots.run, "containerd"), { recursive: true });
+    mkdirSync(join(b.roots.cniState, "results"), { recursive: true });
+    mkdirSync(join(b.roots.cniState, "networks/pap-agents"), { recursive: true });
+    writeFileSync(join(b.roots.cniState, "results/pap-agents-pap-x-eth0"), "{}");
+    writeFileSync(join(b.roots.cniState, "results/other-net-abc-eth0"), "{}");
+    await runUninstall({ purge: false }, b.deps, b.io);
+    expect(existsSync(b.roots.etc)).toBe(false);
+    expect(existsSync(b.roots.run)).toBe(false);
+    expect(existsSync(join(b.roots.cniState, "results/pap-agents-pap-x-eth0"))).toBe(false);
+    expect(existsSync(join(b.roots.cniState, "networks"))).toBe(false);
+    // Keeps another network's.
+    expect(existsSync(join(b.roots.cniState, "results/other-net-abc-eth0"))).toBe(true);
+    expect(b.calls).toContain(
+      "systemctl reset-failed pap-vm-containerd.service pap-vm-buildkit.service pap-vmd.service",
+    );
+  });
+
   it("deletes the state only with --purge", async () => {
     const b = bed();
     await setup(b);

@@ -36,6 +36,9 @@ export const KATA_RUNTIME: readonly string[] = [
   "SYS_ADMIN",
   "--cap-add",
   "NET_ADMIN",
+  // T20a: the guest grows its mounted file system with the kernel's online resize (EXT4_IOC_RESIZE_FS needs CAP_SYS_RESOURCE).
+  "--cap-add",
+  "SYS_RESOURCE",
   "--cap-drop",
   "NET_RAW",
 ];

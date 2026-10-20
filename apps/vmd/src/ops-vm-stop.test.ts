@@ -39,7 +39,9 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
   });
 
   it("stopping a task deletes its disk (R30); a container already gone is not an error", async () => {
-    use((argv) => (isRm(argv) ? { code: 1, stderr: "Error: No such container: x" } : undefined));
+    use((argv) =>
+      isRm(argv) ? { code: 1, stderr: 'level=error msg="1 errors:\\nno such container: x"' } : undefined,
+    );
     const file = fx.state.diskPath(AGENT, TASK);
     await fx.ops.handle(startRequest({ kind: "isolated", taskKey: TASK }));
     expect(existsSync(file)).toBe(true);
@@ -92,8 +94,12 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
         state,
       });
     }
+    // T20a (S1 n2): nerdctl 2.4.1's own words for an inspect of a missing name (recorded on the real stack): "no such OBJECT".
+    // Mutant: the match back to /no such container/ only -> a stopped VM's status is `failed`, not `absent`.
     use((argv) =>
-      argv.includes("inspect") ? { code: 1, stderr: "Error: No such container: x" } : undefined,
+      argv.includes("inspect")
+        ? { code: 1, stderr: 'level=fatal msg="1 errors: [no such object pap-helper-1a2b]"\n' }
+        : undefined,
     );
     await expect(fx.ops.handle({ op: "vm.status", agentId: AGENT, taskKey: TASK })).resolves.toEqual({
       state: "absent",

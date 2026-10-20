@@ -20,6 +20,20 @@ const removeIfEmpty = (dir: string): void => {
   }
 };
 
+/** /var/lib/cni is shared with other CNI users: only the results and reservations of pap's own network go. */
+function removeCniState(dir: string): void {
+  const prefix = `${AGENT_NET.network}-`;
+  try {
+    for (const name of readdirSync(join(dir, "results")))
+      if (name.startsWith(prefix)) rmSync(join(dir, "results", name), { force: true });
+  } catch {
+    // no results folder
+  }
+  rmSync(join(dir, "networks", AGENT_NET.network), { recursive: true, force: true });
+  for (const sub of ["results", "networks"]) removeIfEmpty(join(dir, sub));
+  removeIfEmpty(dir);
+}
+
 const ownedBySetup = (dir: string): boolean => existsSync(join(dir, SETUP_MARKER));
 
 /** Removes exactly what `runSetup` wrote. A stop or delete that fails because the thing is already gone is not an error. */
@@ -33,14 +47,19 @@ export async function runUninstall(
   await deps.exec("systemctl", ["disable", "--now", ...[...UNIT_NAMES].reverse()]);
   for (const name of UNIT_NAMES) rmSync(join(roots.units, name), { force: true });
   await deps.exec("systemctl", ["daemon-reload"]);
+  // A unit that failed while it was stopped stays in `systemctl --failed` after its file is gone.
+  await deps.exec("systemctl", ["reset-failed", ...UNIT_NAMES]);
   await deps.exec("ip", ["link", "delete", AGENT_NET.bridge]);
   await deps.exec("nft", ["delete", "table", "inet", "pap_agents"]);
   await deps.exec("nft", ["delete", "table", "bridge", "pap_agents"]);
 
   for (const file of ETC_FILES) rmSync(join(roots.etc, file), { force: true });
   rmSync(join(roots.etc, "cni", `${AGENT_NET.network}.conflist`), { force: true });
-  removeIfEmpty(join(roots.etc, "cni"));
-  removeIfEmpty(roots.etc);
+  // T20a: nerdctl keeps its lock and a default network in the config folder, so /etc/pap-vm holds more than setup wrote: it is pap's.
+  rmSync(roots.etc, { recursive: true, force: true });
+  // The units are stopped: containerd's runtime state, the IPAM reservations and the docker config in /run/pap-vm are not in use.
+  rmSync(roots.run, { recursive: true, force: true });
+  removeCniState(roots.cniState);
 
   let kataKept = false;
   try {

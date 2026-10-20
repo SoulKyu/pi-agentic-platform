@@ -72,12 +72,14 @@ export const vmdUnit = (): string =>
     "StateDirectory=pap-vm",
     ...bridgeSteps(),
     `ExecStart=${PATHS.opt}/node/bin/node ${PATHS.opt}/vmd/dist/main.js`,
+    // T20a validated this hardening on the real stack: nerdctl needs its network config folder writable (it locks it at every run).
     "ProtectSystem=strict",
     "ProtectHome=read-only",
     "PrivateTmp=yes",
     "NoNewPrivileges=yes",
-    `ReadWritePaths=${PATHS.state} ${PATHS.run} -/run/netns -/run/kata-containers -/var/lib/cni`,
+    `ReadWritePaths=${PATHS.state} ${PATHS.run} ${PATHS.etc}/cni -/run/netns -/run/kata-containers -/var/lib/cni`,
     "Restart=on-failure",
+    "RestartSec=3",
     "",
     ...INSTALL,
   ]);

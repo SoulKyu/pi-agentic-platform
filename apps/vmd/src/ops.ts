@@ -16,6 +16,8 @@ export const VMD_VERSION = "1.0.0";
 export const BUNDLE_ROOT = "/opt/pap-vm/agent-bundle";
 /** AVM-P13: each VM's direct-assigned volume is registered with Kata under this folder. */
 export const VOLUME_ROOT = "/run/pap-vm/vol";
+/** T20a: host-local's reservations (one file per address); `pap vm setup` points the conflist's `dataDir` at this folder's parent. */
+export const IPAM_ROOT = "/run/pap-vm/cni-ipam/pap-agents";
 
 export interface ExecResult {
   readonly code: number;
@@ -56,6 +58,8 @@ export interface OpsDeps {
   readonly bundleRoot: string;
   readonly bundleUid: number;
   readonly volumeRoot: string;
+  /** CNI's reservation folder for the agent network: pap-vmd's own address table is the authority (see `vm.start`). */
+  readonly ipamRoot: string;
   readonly version: string;
   /** Running containers without a lease at restore (`net.restore`): listed like a failed removal, so no start runs beside them. */
   readonly unleased?: readonly string[];

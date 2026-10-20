@@ -29,6 +29,8 @@ export interface Fixture {
   readonly papHome: string;
   readonly bundle: string;
   readonly volumeRoot: string;
+  /** Where CNI's host-local keeps one file per reserved address (a temp folder). */
+  readonly ipamRoot: string;
   readonly state: VmdState;
   readonly ops: FixtureOps;
   readonly exec: FakeExec;
@@ -80,6 +82,8 @@ export function createFixture(
   const papHome = path.join(work, "pap-home");
   const bundle = path.join(work, "bundle");
   const volumeRoot = path.join(work, "vol");
+  const ipamRoot = path.join(work, "ipam");
+  mkdirSync(ipamRoot);
   mkdirSync(papHome);
   mkdirSync(bundle);
   const order: string[] = [];
@@ -89,6 +93,7 @@ export function createFixture(
     papHome,
     bundle,
     volumeRoot,
+    ipamRoot,
     state,
     net,
     order,
@@ -128,6 +133,7 @@ export function createFixture(
     bundleRoot: bundle,
     bundleUid: uid,
     volumeRoot,
+    ipamRoot,
     version: "1.2.3",
     unleased: options.unleased ?? [],
   });

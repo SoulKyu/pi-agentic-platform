@@ -76,6 +76,8 @@ export function makeBed(
     kataConfig: join(root, "etc/kata-containers/runtime-rs/configuration.toml"),
     units: join(root, "etc/systemd/system"),
     work: join(root, "work"),
+    run: join(root, "run/pap-vm"),
+    cniState: join(root, "var/lib/cni"),
   };
   for (const dir of [join(root, "opt"), roots.units, roots.work, roots.state])
     mkdirSync(dir, { recursive: true });

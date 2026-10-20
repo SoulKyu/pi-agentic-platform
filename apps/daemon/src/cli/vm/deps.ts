@@ -10,6 +10,10 @@ export interface VmRoots {
   readonly kataConfig: string;
   readonly units: string;
   readonly work: string;
+  /** `/run/pap-vm`: containerd's runtime state, the IPAM reservations, the docker config (units stopped = nothing in use). */
+  readonly run: string;
+  /** `/var/lib/cni`: shared with other CNI users, so only the entries of pap's own network are removed. */
+  readonly cniState: string;
 }
 
 export const REAL_ROOTS: VmRoots = Object.freeze({
@@ -20,6 +24,8 @@ export const REAL_ROOTS: VmRoots = Object.freeze({
   kataConfig: PATHS.kataConfig,
   units: PATHS.units,
   work: "/var/tmp",
+  run: PATHS.run,
+  cniState: "/var/lib/cni",
 });
 
 export type Exec = (cmd: string, args: readonly string[]) => Promise<{ code: number; stdout: string }>;

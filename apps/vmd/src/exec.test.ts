@@ -18,7 +18,9 @@ describe("createExec", () => {
     await expect(exec(["/nonexistent/pap-vmd-test"])).resolves.toMatchObject({ code: -1, stdout: "" });
   });
 
-  it("passes the child a fixed environment, not pap-vmd's", async () => {
+  // T20a: buildctl writes its config under $DOCKER_CONFIG (default: root's home, read-only under ProtectSystem=strict).
+  // Mutant: the variable dropped from the child's environment -> the real image.build fails with a "read-only file system" error.
+  it("passes the child a fixed environment, not pap-vmd's, with a writable docker config folder", async () => {
     process.env.PAP_VMD_TEST_SECRET = "s3cret";
     try {
       const result = await exec([
@@ -26,7 +28,9 @@ describe("createExec", () => {
         "-e",
         "process.stdout.write(JSON.stringify(Object.keys(process.env).sort()))",
       ]);
-      expect(JSON.parse(result.stdout)).toEqual(["LANG", "PATH"]);
+      expect(JSON.parse(result.stdout)).toEqual(["DOCKER_CONFIG", "LANG", "PATH"]);
+      const config = await exec([process.execPath, "-e", "process.stdout.write(process.env.DOCKER_CONFIG)"]);
+      expect(config.stdout).toBe("/run/pap-vm/docker-config");
     } finally {
       delete process.env.PAP_VMD_TEST_SECRET;
     }

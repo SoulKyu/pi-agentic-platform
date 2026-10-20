@@ -4,7 +4,7 @@ import { createExec } from "./exec.ts";
 import { createLocks, createRoomCheck } from "./locks.ts";
 import { createStderrLogger } from "./log.ts";
 import { createRestoredNet } from "./net.ts";
-import { BUNDLE_ROOT, createOps, VMD_VERSION, VOLUME_ROOT } from "./ops.ts";
+import { BUNDLE_ROOT, createOps, IPAM_ROOT, VMD_VERSION, VOLUME_ROOT } from "./ops.ts";
 import { createVmdServer } from "./server.ts";
 import { createState } from "./state.ts";
 
@@ -40,6 +40,7 @@ async function main(): Promise<void> {
     bundleRoot: BUNDLE_ROOT,
     bundleUid: 0,
     volumeRoot: VOLUME_ROOT,
+    ipamRoot: IPAM_ROOT,
     version: VMD_VERSION,
     unleased,
   });

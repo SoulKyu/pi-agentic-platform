@@ -27,14 +27,24 @@ describe("units", () => {
     ])
       expect(text).toContain(`${line}\n`);
     expect(text).toContain("ip link add pap0 type bridge");
+    // T20a: nerdctl locks and makes folders in its network config path at every `run` (the real stack failed "read-only file system").
+    // Mutant: /etc/pap-vm/cni dropped from ReadWritePaths -> every `vm.start` fails.
     const rw = /^ReadWritePaths=(.*)$/m.exec(text)?.[1]?.split(" ");
     expect(rw).toEqual([
       "/var/lib/pap-vm",
       "/run/pap-vm",
+      "/etc/pap-vm/cni",
       "-/run/netns",
       "-/run/kata-containers",
       "-/var/lib/cni",
     ]);
+  });
+
+  // T20a: `After=` waits for containerd to be started, not ready (about 2 s on a fresh state). With systemd's 100 ms restart delay the
+  // five tries of the start limit were over before the socket answered, and pap-vmd stayed failed after every setup.
+  // Mutant: RestartSec dropped -> this case fails.
+  it("pap-vmd.service waits between restarts for longer than containerd takes to answer", () => {
+    expect(UNIT_FILES["pap-vmd.service"]()).toContain("Restart=on-failure\nRestartSec=3\n");
   });
 
   it("containerd and buildkitd run from /opt/pap-vm/bin", () => {
