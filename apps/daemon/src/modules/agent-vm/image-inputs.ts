@@ -271,8 +271,8 @@ function readModels(agentDir: string): ModelsSource {
   return raw ?? { providers: {} };
 }
 
-function derivedProviders(settings: Record<string, unknown>): string[] {
-  const names: string[] = [];
+function derivedProviders(settings: Record<string, unknown>, authOnly: readonly string[]): string[] {
+  const names: string[] = [...authOnly];
   if (typeof settings.defaultProvider === "string") names.push(settings.defaultProvider);
   if (Array.isArray(settings.enabledModels))
     for (const item of settings.enabledModels)
@@ -316,6 +316,7 @@ function build(
   secrets: KnownSecrets,
   papHome: string,
   baseTag: string,
+  authOnly: readonly string[],
 ): { tag: string; skipped: string[]; written: WrittenEntry[] } {
   const b = new Build(agentDir, out, papHome);
   const settings = readSettings(agentDir);
@@ -333,7 +334,7 @@ function build(
   if (packages.length > 0) profile.packages = packages;
   if (skills.length > 0) profile.skills = skills;
   writeJson(out, "settings.json", profile);
-  writeJson(out, "models.json", modelsFile(models, derivedProviders(settings), b.run.skipped));
+  writeJson(out, "models.json", modelsFile(models, derivedProviders(settings, authOnly), b.run.skipped));
   const known = [...secrets, ...literalValuesOf(models), ...adapterSecrets(agentDir)];
   const input: AdapterInput = {
     agentDir: realpathSync(agentDir),
@@ -352,8 +353,9 @@ function build(
 
 /**
  * RT-18: writes the Pi profile the image gets, by allowlist (`out` is replaced). Every file written is scanned for
- * every known secret before the tag is computed; a hit, or any other failure, removes `out` and throws. The base tag
- * enters the profile tag, so a new bundle, digest or weekly rebuild of the base reaches the profile and the agent images.
+ * every known secret before the tag is computed; a hit, or any other failure, removes `out` and throws. `authProviders` (T15b)
+ * get a relay entry like the settings' own. The base tag enters the profile tag, so a new bundle, digest or weekly rebuild of
+ * the base reaches the profile and the agent images.
  */
 export function prepareProfileContext(
   agentDir: string,
@@ -361,6 +363,7 @@ export function prepareProfileContext(
   secrets: KnownSecrets,
   papHome: string,
   baseTag: string,
+  authProviders: readonly string[] = [],
 ): { tag: string; skipped: string[]; written: WrittenEntry[] } {
   if (!BASE_TAG.test(baseTag)) throw new Error("profile base tag is not a base tag");
   if (
@@ -374,7 +377,7 @@ export function prepareProfileContext(
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   try {
-    return build(agentDir, out, secrets, papHome, baseTag);
+    return build(agentDir, out, secrets, papHome, baseTag, authProviders);
   } catch (error) {
     rmSync(out, { recursive: true, force: true });
     throw error;

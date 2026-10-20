@@ -8,6 +8,8 @@ import {
   type PolicyView,
   relayEnv,
   relayListenOf,
+  type OwnerSecretsCollector,
+  createStderrRedactor,
   type RelayChild,
   type RelayLink,
 } from "./modules/agent-vm/index.ts";
@@ -24,6 +26,8 @@ export interface RelayContext {
   readonly piAgentDir: string;
   readonly testProviderScript: string | null;
   readonly claudeToken: ClaudeTokenStore;
+  /** The owner's values the relay's stderr is masked with (T15b). */
+  readonly ownerSecrets: OwnerSecretsCollector;
   /** Under Kata the relay listens on the bridge's host address; under the process backend and test backends on loopback. */
   readonly bridgeAddress: boolean;
   /** `"off"`: no relay child; a `fork`: the test's own child, told where the relay would listen. Default: the real `pap-relay`. */
@@ -54,6 +58,7 @@ export function composeRelay(ctx: RelayContext): RelayLink | null {
             env: relayEnv(ctx.env, ctx.piAgentDir, ctx.testProviderScript),
             clock: ctx.clock,
             logger: ctx.logger,
+            redact: createStderrRedactor({ clock: ctx.clock, collect: ctx.ownerSecrets }),
           }),
     clock: ctx.clock,
     logger: ctx.logger,

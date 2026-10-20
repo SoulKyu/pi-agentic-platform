@@ -24,5 +24,8 @@ export {
   type VmdErrorCode,
 } from "./vmd-client.ts";
 export { disposeAgent, purgeAgent, startTrashSweep, type TrashDeps } from "./trash.ts";
+export { createOwnerSecrets, type OwnerSecretsCollector } from "./owner-secrets.ts";
+export { readPiAuth } from "./pi-auth-values.ts";
+export { createStderrRedactor } from "./stderr-redactor.ts";
 export { forkRelay, relayEnv, relayListenOf } from "./relay-fork.ts";
 export { createRelayLink, type PolicyView, type RelayChild, type RelayLink } from "./relay-link.ts";

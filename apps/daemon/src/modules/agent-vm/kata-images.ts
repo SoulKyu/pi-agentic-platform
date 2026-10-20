@@ -7,6 +7,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import { agentLayerTag, prepareProfileContext, treeDigest } from "./image-inputs.ts";
 import { createImagePolicy, type ImagePolicy, type RunningImage } from "./image-policy.ts";
 import type { ImageEntries, WrittenEntry } from "./pick-map.ts";
+import type { OwnerSecrets } from "./owner-secrets.ts";
 import { type KnownSecrets, PROFILE_SECRET_NOTICE, ProfileSecretError } from "./secret-scan.ts";
 import { papErrorOf, type VmdClient, VmdError } from "./vmd-client.ts";
 
@@ -35,7 +36,8 @@ export interface KataImagesDeps {
   /** The ISO week of the last successful base rebuild, kept across restarts. */
   readonly weekFile: string;
   /** T15b collects them; the profile build refuses when this throws. */
-  readonly secrets: () => KnownSecrets;
+  /** The owner's secrets, collected at each build (T15b); a plain list names no auth.json-only provider. A rejection refuses the build. */
+  readonly secrets: () => KnownSecrets | OwnerSecrets | Promise<KnownSecrets | OwnerSecrets>;
   readonly entries: Pick<ImageEntries, "record" | "forget">;
   /** Posts once into the agent's thread (a late binding: the sessions come after this). */
   readonly notice: (agentId: string, text: string) => void;
@@ -148,12 +150,14 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   }
 
   /** Under `exclusive`: the profile as the allowlist cuts it now (the tree on disk is always the last one made here). */
-  function prepare(baseTag: string, agentId: string): Prepared {
+  async function prepare(baseTag: string, agentId: string): Promise<Prepared> {
     const key = policy.baseKey(baseTag);
     prepared = null;
     mkdirSync(dirname(profileOut), { recursive: true, mode: 0o700 });
     try {
-      const made = prepareProfileContext(deps.agentDir, profileOut, deps.secrets(), deps.papHome, key);
+      const owned = await deps.secrets();
+      const { secrets, providers } = "secrets" in owned ? owned : { secrets: owned, providers: [] };
+      const made = prepareProfileContext(deps.agentDir, profileOut, secrets, deps.papHome, key, providers);
       if (made.skipped.length > 0) logger.info("agent_profile_skipped", { count: made.skipped.length });
       prepared = { key, tag: made.tag, written: made.written, at: clock.now() };
       return prepared;
@@ -178,7 +182,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
         : null;
     const now = usable(false) ?? (busy > 0 ? usable(true) : null);
     if (now !== null) return Promise.resolve(now);
-    return exclusive(() => Promise.resolve(usable(false) ?? prepare(baseTag, agentId)));
+    return exclusive(async () => usable(false) ?? (await prepare(baseTag, agentId)));
   }
 
   /** Under `exclusive`, with the tree of `profile` on disk: the layers of `wanted` that pap-vmd does not hold yet. */

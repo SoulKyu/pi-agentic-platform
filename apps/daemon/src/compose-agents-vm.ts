@@ -6,6 +6,7 @@ import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
 import { composeRelay } from "./compose-agents-vm-relay.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
 import { composeKata, type KataSeams } from "./compose-agents-vm-kata.ts";
+import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
 import type { Logger } from "./kernel/logger.ts";
@@ -156,6 +157,12 @@ export async function composeAgentsVm(
       throw new Error("PAP_TEST_AGENT_RUNTIME needs the provider script");
   }
   const agentsLogger = logger.child({ module: "agent-vm" });
+  const ownerSecrets = composeOwnerSecrets({
+    home: config.home,
+    piAgentDir: config.piAgentDir,
+    logger: agentsLogger,
+    claudeToken: core.claudeToken,
+  });
   const lateHolder: { late: AgentsVmDerived | null } = { late: null };
   const notice = (agentId: string, text: string): void =>
     lateHolder.late
@@ -164,7 +171,7 @@ export async function composeAgentsVm(
   const kata =
     seams.backend === undefined && config.testAgentRuntime !== "process"
       ? composeKata(
-          { home: config.home, piAgentDir: config.piAgentDir, clock, logger: agentsLogger },
+          { home: config.home, piAgentDir: config.piAgentDir, clock, logger: agentsLogger, ownerSecrets },
           seams.kata ?? {},
           notice,
         )
@@ -231,6 +238,7 @@ export async function composeAgentsVm(
       piAgentDir: config.piAgentDir,
       testProviderScript: config.testProviderScript,
       claudeToken: core.claudeToken,
+      ownerSecrets,
       bridgeAddress: kata !== null,
       relay: seams.relay,
       relayExecArgv: seams.relayExecArgv,

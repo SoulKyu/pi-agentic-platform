@@ -12,6 +12,7 @@ import {
   type ImageEntries,
   type KataImages,
   type KnownSecrets,
+  type OwnerSecretsCollector,
   VMD_SOCKET,
   type VmdClient,
 } from "./modules/agent-vm/index.ts";
@@ -30,7 +31,7 @@ export interface KataSeams {
   readonly socket?: string;
   readonly bundleRoot?: string;
   readonly nodeImage?: string;
-  /** T15b collects the owner's secrets. Until then the profile build refuses (fail closed) rather than scan for nothing. */
+  /** Tests: replaces the collector of the owner's secrets (T15b) with a plain list. */
   readonly knownSecrets?: () => KnownSecrets;
   /** T17: the agent's disk is being made from its old home, so `disk.create` is not ours. */
   readonly migrating?: (agentId: string) => boolean;
@@ -52,8 +53,8 @@ export interface KataParts {
   startUpgrades(): () => void;
 }
 
-const refusedSecrets = (): never => {
-  throw new Error("the owner's secrets are not collected yet (T15b)");
+const refusedSecrets = async (): Promise<never> => {
+  throw new Error("no collector of the owner's secrets");
 };
 
 /**
@@ -66,6 +67,8 @@ export function composeKata(
     readonly piAgentDir: string;
     readonly clock: Clock;
     readonly logger: Logger;
+    /** The collector the profile build calls each time (`compose-agents-vm-secrets.ts`); without one the build refuses. */
+    readonly ownerSecrets?: OwnerSecretsCollector;
   },
   seams: KataSeams,
   notice: (agentId: string, text: string) => void,
@@ -85,7 +88,7 @@ export function composeKata(
     bundleRoot: seams.bundleRoot ?? BUNDLE_ROOT,
     nodeImage: seams.nodeImage ?? nodeBaseImage(),
     weekFile: join(core.home, "vm", "base-week"),
-    secrets: seams.knownSecrets ?? refusedSecrets,
+    secrets: seams.knownSecrets ?? core.ownerSecrets ?? refusedSecrets,
     entries,
     notice,
   });
