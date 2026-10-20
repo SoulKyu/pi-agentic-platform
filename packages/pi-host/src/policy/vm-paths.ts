@@ -28,23 +28,6 @@ async function lstatOrNull(p: string) {
     throw error;
   }
 }
-/** The real path of the nearest existing ancestor joined with the rest: where a new file would land. */
-async function realOrNearest(p: string): Promise<string> {
-  const rest: string[] = [];
-  let current = p;
-  for (;;) {
-    try {
-      return path.join(await realpath(current), ...rest);
-    } catch (error) {
-      if (!isMissing(error)) throw error;
-      const parent = path.dirname(current);
-      if (parent === current) throw error;
-      rest.unshift(path.basename(current));
-      current = parent;
-    }
-  }
-}
-
 /** The folders a VM agent's file tools reach (spec §5): its own three, and Pi's skill and package folders read-only (R26). */
 export const vmFileFolders = (layout: {
   home: string;
@@ -96,7 +79,9 @@ export async function judgeVmPath(
     if (!within(lexical)) return refuse("outside this agent's folders");
     // The real-path checks come first: a planted `home/r -> /` must not let the leaf verdicts tell apart what exists outside.
     const landing = await Promise.all([
-      realOrNearest(lexical),
+      // Where a new file would land: the walk of the lexical path, bounded like the kernel's reading (a missing component or a
+      // dangling link must not let the rest be resolved through links outside the folders).
+      kernelResolve(cwd, lexical, reachable),
       kernelResolve(cwd, spelling, reachable),
     ]).catch(() => null);
     if (landing === null || !landing.every(within)) return refuse("outside this agent's folders");

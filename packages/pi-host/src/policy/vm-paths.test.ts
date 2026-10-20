@@ -9,7 +9,7 @@ import { judgeVmPath, realVmRoots, vmFileFolders, type VmFileRoots } from "./vm-
 //  - M1 the judge without the rewrite refusal (`REWRITTEN`/`UNICODE_SPACE` line removed): "refuses what Pi would rewrite"
 //    (the `@`, `~`, `file:` and U+00A0 cases expect `rewritten path`; a NBSP name inside home would be judged as itself).
 //  - M2 the judge without the leaf `link` refusal: "refuses a link as `link`" (dangling and live links).
-//  - M3a the judge without `realOrNearest`: killed by `a/../dl/sessions/s.jsonl` (kernelResolve appends what follows the
+//  - M3a the judge without the lexical walk (`kernelResolve(cwd, lexical, reachable)`): killed by `a/../dl/sessions/s.jsonl` (the kernel reading appends what follows the
 //    first missing component lexically, so only the real-path check sees through `a/..` then the folder link).
 //  - M3b the judge without `kernelResolve`: killed by `dl/../new.txt` (`..` applied to the link's target).
 //  - M5 (S1 item 1) the leaf verdicts (`link`, `missing`, `not a file`) back before the real-path checks: "a planted link to /
@@ -131,6 +131,41 @@ describe("judgeVmPath: links and folders", () => {
       symlinkSync(via, join(home, "w"));
       for (const write of [false, true]) expect(await verdict("w", write)).toEqual(outside);
     }
+  });
+
+  // S1 round 2 (I1 remainder). Mutant: the lexical reading back to an unbounded `realpath` walk (`kernelResolve(cwd, lexical)` without `reachable`) -> the live pid
+  // answers ok, the dead one outside.
+  it("a missing component or a dangling link before `..` does not let the rest be resolved outside", async () => {
+    symlinkSync("/", join(home, "r"));
+    symlinkSync("nowhere/x", join(home, "L"));
+    const outside = refused("outside this agent's folders");
+    const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+    for (const pid of [process.pid, dead, 4_194_303])
+      for (const head of ["x", "L"])
+        for (const tail of [`root${join(home, "z.txt")}`, "cwd/z.txt", `cwd/../${join(home, "z.txt")}`]) {
+          const raw = `${head}/../r/proc/${pid}/${tail}`;
+          for (const write of [false, true])
+            expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
+        }
+  });
+
+  it("still allows a link inside the home to elsewhere in the home, `..` back into it, and `..` into the skills folder", async () => {
+    mkdirSync(join(home, "sub"));
+    writeFileSync(join(home, "sub", "f.txt"), "f");
+    symlinkSync(join(home, "sub"), join(home, "in"));
+    symlinkSync("sub", join(home, "in2"));
+    for (const raw of [
+      "in/f.txt",
+      "in2/f.txt",
+      "sub/../z.txt",
+      "in/../z.txt",
+      "in2/../z.txt",
+      join(home, "z.txt"),
+    ])
+      for (const write of [false, true])
+        expect(await verdict(raw, write), `${raw} ${write}`).toEqual({ ok: true });
+    expect(await verdict("../.pi/agent/skills/k.md")).toEqual({ ok: true });
+    expect(await verdict("../.pi/agent/skills/k.md", true)).toEqual(refused("outside this agent's folders"));
   });
 
   it("a read names an existing path: a missing one is `missing`", async () => {
