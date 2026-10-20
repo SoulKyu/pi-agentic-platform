@@ -23,15 +23,19 @@ async function readCapped(handle: FileHandle): Promise<Uint8Array | null> {
   return filled > MAX_PROMPT_IMAGE_BYTES ? null : new Uint8Array(buffer.buffer, buffer.byteOffset, filled);
 }
 
-/** An image the daemon claimed for this prompt, read only from pap's pending uploads (M8R41). Null when refused. */
+/**
+ * An image the daemon claimed for this prompt, read only from pap's pending uploads (M8R41), or in a VM only from the
+ * agent's inbox (RT-06: the host's folder is not in the guest). Null when refused.
+ */
 export async function readPromptImage(
   papHome: string,
   image: { readonly path: string; readonly mimeType: string },
+  inbox?: string,
 ): Promise<PromptImage | null> {
   let pending: string;
   let real: string;
   try {
-    pending = await realpath(join(papHome, "attachments", "pending"));
+    pending = await realpath(inbox ?? join(papHome, "attachments", "pending"));
     real = await realpath(image.path);
   } catch {
     return null;
@@ -64,10 +68,11 @@ export async function readPromptImage(
 export async function readPromptImages(
   papHome: string,
   images: readonly { readonly path: string; readonly mimeType: string }[],
+  inbox?: string,
 ): Promise<PromptImage[] | null> {
   const read: PromptImage[] = [];
   for (const image of images) {
-    const one = await readPromptImage(papHome, image);
+    const one = await readPromptImage(papHome, image, inbox);
     if (one === null) return null;
     read.push(one);
   }

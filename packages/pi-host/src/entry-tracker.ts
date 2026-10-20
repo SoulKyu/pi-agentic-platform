@@ -29,6 +29,8 @@ export interface EntryTrackerDeps {
   /** Runs the task on the next macrotask; `setImmediate` in the worker. */
   defer(task: () => void): void;
   onError(error: unknown): void;
+  /** Called after each look at the leaf, an error included: the transcript mirror reads Pi's file then. */
+  afterWalk?(): void;
 }
 
 export interface EntryTracker {
@@ -111,6 +113,8 @@ export function createEntryTracker(deps: EntryTrackerDeps): EntryTracker {
       pending = [];
       dirty = false;
       deps.onError(error);
+    } finally {
+      deps.afterWalk?.();
     }
   }
 

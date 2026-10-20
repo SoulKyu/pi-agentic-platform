@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { agentsMethods } from "./agents-methods.ts";
+import { agentsVmMethods } from "./agents-vm-methods.ts";
 import { auditMethods } from "./audit.ts";
 import { authMethods } from "./auth.ts";
 import { automationTaskMethods, automationTriggerMethods } from "./automation-methods.ts";
@@ -75,6 +76,7 @@ export const methods = catalogue({
   ...usageMethods,
   ...inboxMethods,
   ...agentsMethods,
+  ...agentsVmMethods,
   ...secretsMethods,
   ...subagentsMethods,
   ...memoryMethods,

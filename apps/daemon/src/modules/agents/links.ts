@@ -1,5 +1,17 @@
 import type { AgentInput, Caller, SecretEntry, TaskView, TriggerView } from "@pap/contracts";
 
+/** What the agents module asks of the VM runtime (`PAP_AGENTS_RUNTIME=vm`; absent in host mode). */
+export interface AgentVmLink {
+  /** Stops every VM of the agent (its own and its isolated tasks'), revoking their launches; the disk stays (RT-41). */
+  stop(agentId: string): Promise<void>;
+  /** A delete: the disk to pap-vmd's trash and the mirrors to the daemon's, named by `stamp` (7 days, RT-40). Safe to repeat. */
+  dispose(agentId: string, stamp: number): Promise<void>;
+  /** "Purge now": the agent's entries leave pap-vmd's trash and the mirrors' trash at once. */
+  purge(agentId: string): Promise<void>;
+  /** The owner's Resume: the VM runtime forgets the agent's crashes (T7: only this caller). */
+  resume(agentId: string): void;
+}
+
 /**
  * What the agents module asks of the modules around it, bound late (`setLinks`) because they are built after it or by
  * later tasks. Every link is optional: an absent one is a step that has nothing to do yet (Task 9's thread, Task 10's
@@ -86,4 +98,6 @@ export interface AgentLinks {
   readonly memory?: { moveStaged(ownerId: string, agentId: string): number };
   /** The "use once" values still waiting for the agent (Task 18). */
   readonly onceValues?: { drop(ownerId: string, agentId: string): void };
+  /** The VM runtime (T15): given to `createAgents` in `vm` mode. */
+  readonly vm?: AgentVmLink;
 }

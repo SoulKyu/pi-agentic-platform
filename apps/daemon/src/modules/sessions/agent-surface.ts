@@ -9,6 +9,7 @@ import {
   type SandboxSpec,
   type ToolPreset,
   VaultUpdateRecord,
+  type VmLayout,
 } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
@@ -34,6 +35,7 @@ import { createHostGrants, type HostGrants } from "./host-grants.ts";
 import type { LiveSession } from "./live-session.ts";
 import { type SessionKind, sessionKind } from "./session-kind.ts";
 import type { SessionRow, SessionsStore } from "./store.ts";
+import type { VmLaunch } from "./vm-launch.ts";
 
 const TOKEN_ANSWERS: ReadonlySet<string> = new Set(["deny", "once"]);
 
@@ -72,6 +74,8 @@ export interface AgentSurface {
   ended(sessionId: string): void;
   /** The worker of this session started with the sandbox on (its start-time profile requires it): the only workers a vault reaches. */
   sandboxed(sessionId: string): boolean;
+  /** R38: the worker's shell is sandboxed: `sandboxed`, or a live VM session (its shell is pap's bwrap in the VM, whatever the profile says). */
+  shellSandboxed(sessionId: string): boolean;
   /** Owner a5 (M11R213): an agent thread whose sandbox is on in the registry now and, while a worker runs, at that worker's start. */
   sandboxedThread(ownerId: string, sessionId: string): boolean;
   /** The mode of the profile in force for an agent thread (the start-time one while it runs); null for any other session. */
@@ -90,6 +94,8 @@ export interface AgentSurface {
   egressScope(row: SessionRow, rules: PolicyRules, spec: SandboxSpec | undefined): EgressScope | null;
   /** The egress proxy, once bound. */
   egress(): EgressPort | undefined;
+  /** The row runs in a VM (R15, R37): its layout, else null. */
+  vmLayoutOf(row: SessionRow): VmLayout | null;
   /** The agent's part of the session's rules (M11R52); nothing for a session without an agent. */
   rulesOf(row: SessionRow, owner: OwnerLists): AgentRuleParts;
   readonly approvedCalls: ApprovedCalls;
@@ -116,6 +122,8 @@ export function createAgentSurface(deps: {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly worker: { readonly papHome: string; readonly agentDir: string };
+  /** Present under `PAP_AGENTS_RUNTIME=vm`: the agents ports must then carry the VM predicates (T8a). */
+  readonly vmLaunch?: VmLaunch | undefined;
 }): AgentSurface {
   const ports: SessionsAgentPorts = {};
   const profileOf = (ownerId: string, agentId: string): AgentProfile | null =>
@@ -124,12 +132,15 @@ export function createAgentSurface(deps: {
   const startTime = new Map<string, AgentProfile>();
   const profileFor = (ownerId: string, agentId: string, sessionId: string): AgentProfile | null =>
     startTime.get(sessionId) ?? profileOf(ownerId, agentId);
+  const vmLayoutOf = (row: SessionRow): VmLayout | null => ports.agents?.vmLayoutOf?.(row) ?? null;
+  const vmMode = deps.vmLaunch !== undefined;
   const hostGrants = createHostGrants(deps.logger);
   const agentRules = createAgentRules({
     papHome: deps.worker.papHome,
     profileOf: profileFor,
     hostGrants: hostGrants.of,
     logger: deps.logger,
+    vmLayoutOf,
   });
   const gateDeps = (agents: SessionsAgentDeps): AgentGateDeps => ({
     ...agents,
@@ -158,7 +169,15 @@ export function createAgentSurface(deps: {
   };
   return {
     hostGrants,
-    setAgentPorts: (next) => void Object.assign(ports, next),
+    setAgentPorts(next) {
+      // Fail closed at the hand-over: `agents` replaces the whole object, and an agent row would run on the host without these.
+      const { agents } = next;
+      if (vmMode && agents && !(agents.vmLayoutOf && agents.agentRunsInVm))
+        throw new Error(
+          `PAP_AGENTS_RUNTIME=vm: the agents ports lack ${agents.vmLayoutOf ? "agentRunsInVm" : "vmLayoutOf"}`,
+        );
+      Object.assign(ports, next);
+    },
     kindOfRow: (row) => sessionKind(row, kindDeps),
     kindOf(sessionId) {
       const row = deps.store.get(sessionId);
@@ -171,8 +190,10 @@ export function createAgentSurface(deps: {
       try {
         // A thread started without the sandbox has no vault to ask for (ADR 0047): the tool would only refuse (review M5).
         const unsandboxed = startTime.has(row.id) && startTime.get(row.id)?.input.sandbox.required !== true;
+        // R11: a VM session has no vault, so no tool to ask for a secret.
+        const noVault = unsandboxed || vmLayoutOf(row) !== null;
         return opsFor(sessionKind(row, kindDeps).type).filter(
-          (op) => platform.available(op, row.ownerId) && !(unsandboxed && op === "secret.request"),
+          (op) => platform.available(op, row.ownerId) && !(noVault && op === "secret.request"),
         );
       } catch (error) {
         // Fail closed: a worker whose type cannot be read starts without platform tools.
@@ -182,7 +203,8 @@ export function createAgentSurface(deps: {
     },
     platform: () => ports.platform,
     vaultDrift(row, launch) {
-      if (!launch.vault || row.agentId === undefined) return null;
+      // R11: nothing of the vault reaches a VM session.
+      if (!launch.vault || row.agentId === undefined || vmLayoutOf(row) !== null) return null;
       const now = ports.agents?.vaultOf?.(row.ownerId, row.agentId) ?? {};
       const sent = launch.vault;
       const same =
@@ -215,9 +237,18 @@ export function createAgentSurface(deps: {
     started: (sessionId, profile) => void startTime.set(sessionId, profile),
     ended: (sessionId) => void startTime.delete(sessionId),
     sandboxed: (sessionId) => startTime.get(sessionId)?.input.sandbox.required === true,
+    shellSandboxed(sessionId) {
+      const row = startTime.has(sessionId) ? deps.store.get(sessionId) : undefined;
+      return (
+        startTime.get(sessionId)?.input.sandbox.required === true ||
+        (row !== undefined && vmLayoutOf(row) !== null)
+      );
+    },
     sandboxedThread(ownerId, sessionId) {
       const row = deps.store.get(sessionId);
       if (row?.ownerId !== ownerId || row.agentRole !== "thread" || row.agentId === undefined) return false;
+      // RT-10, R15: a VM thread's shell is always sandboxed, whatever its profile's host-sandbox switch says.
+      if (vmLayoutOf(row) !== null) return true;
       const started = startTime.get(sessionId);
       if (started !== undefined && started.input.sandbox.required !== true) return false;
       return profileOf(ownerId, row.agentId)?.input.sandbox.required === true;
@@ -272,8 +303,11 @@ export function createAgentSurface(deps: {
         release: async () => void (await egress.closeCommand(scope, opened.id)),
       };
     },
-    egressScope: (row, rules, spec) => (spec?.egress ? egressScopeOf(row, rules, hostGrants) : null),
+    // A VM row has no host egress socket, whatever its profile or a raw `egress_open` says (T8a).
+    egressScope: (row, rules, spec) =>
+      spec?.egress && vmLayoutOf(row) === null ? egressScopeOf(row, rules, hostGrants) : null,
     egress: () => ports.agents?.egress,
+    vmLayoutOf,
     rulesOf: (row, owner) => agentRules(row, owner),
     approvedCalls,
     guardAnswer(session, dialogId, caller, response, sessionId) {

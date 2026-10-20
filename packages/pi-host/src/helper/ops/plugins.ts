@@ -22,6 +22,7 @@ import {
   sourceOf,
   stateOf,
 } from "../plugin-entries.ts";
+import { pluginIdKey, pluginIdOf } from "../plugin-id.ts";
 import { pluginSource } from "../plugin-source.ts";
 import { withInstallEnv } from "./install-env.ts";
 import { commit } from "./models-defaults.ts";
@@ -267,7 +268,8 @@ export async function updatePlugins(
  * Every configured package with whether it is installed, switched on and hand-filtered. Offline (MC52): a package that
  * is not there is listed with no path and nothing is fetched. A project's packages only while Pi's trust store says `true`.
  */
-export async function listPlugins(ctx: Ctx): Promise<PluginsListResult> {
+export async function listPlugins(ctx: Ctx & Pick<HelperContext, "papHome">): Promise<PluginsListResult> {
+  const idKey = pluginIdKey(ctx.papHome);
   let project: string | null = null;
   if (ctx.cwd !== undefined) {
     const real = await fs.realpath(ctx.cwd).catch(() => null);
@@ -316,7 +318,13 @@ export async function listPlugins(ctx: Ctx): Promise<PluginsListResult> {
               !path.includes("\0")
                 ? path
                 : null;
-            plugins.push({ source, scope, installedPath, ...stateOf(entry) });
+            plugins.push({
+              id: pluginIdOf(idKey, scope, sourceOf(entry)),
+              source,
+              scope,
+              installedPath,
+              ...stateOf(entry),
+            });
           }
         return { plugins, truncated };
       }),

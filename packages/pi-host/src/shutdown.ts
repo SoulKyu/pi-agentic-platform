@@ -24,6 +24,8 @@ export async function closeSession(
   graceMs: number,
   timers: ShutdownTimers = REAL,
   log: (line: string) => void = (line) => void process.stderr.write(line),
+  /** The last look at Pi's session file before the worker exits (the transcript mirror). */
+  flushMirror: () => void = () => {},
 ): Promise<void> {
   const deadline = timers.now() + graceMs;
   const within = (step: string, work: () => Promise<unknown>) =>
@@ -50,4 +52,9 @@ export async function closeSession(
   await within("session_shutdown", () =>
     session.extensionRunner.emit({ type: "session_shutdown", reason: "quit" }),
   );
+  try {
+    flushMirror();
+  } catch (error) {
+    log(`pi-host: session mirror flush failed during shutdown: ${logLineOf(error)}\n`);
+  }
 }

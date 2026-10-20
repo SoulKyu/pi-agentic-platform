@@ -2,6 +2,7 @@ import { type Caller, PapError } from "@pap/contracts";
 import type { LiveSession } from "./live-session.ts";
 import type { MemoryRelease } from "./memory-trust.ts";
 import { createPromptAttachments, plainPrompt } from "./prompt-attachments.ts";
+import { vmTargets } from "./vm-attachments.ts";
 import type { PromptInput, SessionsService, SessionsServiceDeps } from "./service-types.ts";
 import type { SessionRow } from "./store.ts";
 
@@ -33,6 +34,9 @@ export function createPromptFlow(ctx: PromptFlowContext) {
         ? plainPrompt(input.text)
         : await attachments.prepare(caller.userId, row.id, input.text, ids);
     const session = await ctx.ensureLive(row);
+    const target = vmTargets.get(session);
+    // R33: a VM agent cannot read host files; its attachments go into its inbox first and the prompt names the VM paths.
+    const sent = target && prepared.vm ? await prepared.vm(target) : prepared;
     ctx.deps.store.touch(row.id, ctx.deps.clock.now());
     ctx.organiser.activity(row.id);
     ctx.publisher.changed(row.id);
@@ -43,7 +47,7 @@ export function createPromptFlow(ctx: PromptFlowContext) {
     const worker = renewal ? await renewal : session;
     // Asked and sent in one step: nothing is awaited between the answer and the worker's request.
     if (input.stillWanted && !input.stillWanted()) return { disposition: "handled" };
-    const result = await worker.prompt(prepared.text, input.streamingBehavior, prepared.images);
+    const result = await worker.prompt(sent.text, input.streamingBehavior, sent.images);
     prepared.accepted();
     return result;
   };

@@ -1,9 +1,12 @@
+import "./register-agent-catalog.ts";
 import "./register-space-catalog.ts";
 import { Button, toast, usePendingAction } from "@pap/ui";
 import { Dialog } from "@pap/ui/overlays";
 import { useState } from "react";
 import { errorKey, type MessageKey, useT } from "../../i18n/index.ts";
 import { useStepUpRunner } from "../../lib/step-up-context.tsx";
+import { useVmStatus } from "../../lib/use-vm-status.ts";
+import { usePurgeTrash } from "./use-purge-trash.ts";
 import { getRuntime, RpcError } from "../../runtime/index.ts";
 
 export interface DeleteAgentDialogProps {
@@ -25,8 +28,12 @@ export function DeleteAgentDialog({ agent, onClose }: DeleteAgentDialogProps) {
   const t = useT();
   const stepUp = useStepUpRunner();
   const pending = usePendingAction();
+  const vm = useVmStatus().status?.runtime === "vm";
   const [problem, setProblem] = useState<MessageKey | null>(null);
   const name = agent.name;
+
+  const purgeTrash = usePurgeTrash();
+  const purge = () => void purgeTrash(agent.id, name);
 
   const remove = () =>
     void pending.run(async () => {
@@ -43,7 +50,13 @@ export function DeleteAgentDialog({ agent, onClose }: DeleteAgentDialogProps) {
       }
       setProblem(failed);
       if (done) {
-        toast({ message: t("agentSafety.d.done", { name }) });
+        // A VM agent's trash is kept 7 days (RT-40): the note offers to empty it now.
+        toast({
+          message: t("agentSafety.d.done", { name }),
+          ...(vm
+            ? { action: { label: t("agentVm.purge"), altText: t("agentVm.purge.altText"), run: purge } }
+            : {}),
+        });
         onClose();
       }
     });

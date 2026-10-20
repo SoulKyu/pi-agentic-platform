@@ -2,6 +2,8 @@ pnpm-lock.yaml
 docs/
 spikes/
 **/dist/
+packages/pi-host/dist-agent/
+packages/pi-host/.dist-agent-building/
 coverage/
 playwright-report/
 test-results/

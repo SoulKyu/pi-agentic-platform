@@ -18,6 +18,7 @@ import {
 const READ_BY_THE_PINS = [
   "package.json",
   "apps/daemon/package.json",
+  "apps/vmd/package.json",
   ".release-please-manifest.json",
   "release-please-config.json",
   ".github/workflows",

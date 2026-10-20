@@ -58,6 +58,8 @@ export interface SessionsAgentPort {
   activeTools(ownerId: string, sessionId: string): { tools: readonly string[]; truncated: boolean } | null;
   /** The session's worker started with the sandbox on (its start-time profile requires it); false for any other, or not the owner's. */
   sandboxed(ownerId: string, sessionId: string): boolean;
+  /** The session is the owner's and runs in a VM: no vault, no one-use value, no secret request (R11). */
+  runsInVm(ownerId: string, sessionId: string): boolean;
 }
 
 export interface AgentPortContext {
@@ -169,6 +171,10 @@ export function createAgentPort(ctx: AgentPortContext): SessionsAgentPort {
       const row = deps.store.get(sessionId);
       return row?.ownerId === ownerId && row.agentId !== undefined && ctx.agent.sandboxed(sessionId);
     },
+    runsInVm(ownerId, sessionId) {
+      const row = deps.store.get(sessionId);
+      return row?.ownerId === ownerId && ctx.agent.vmLayoutOf(row) !== null;
+    },
     sendToAgent(ownerId, agentId, record, sessionId) {
       let told = 0;
       for (const [id, session] of [...live]) {
@@ -177,6 +183,8 @@ export function createAgentPort(ctx: AgentPortContext): SessionsAgentPort {
         const mine = row?.ownerId === ownerId && row.agentId === agentId;
         if (!mine || (row.agentRole !== "thread" && row.agentRole !== "task") || !ctx.agent.sandboxed(id))
           continue;
+        // R11 (RT-11): a VM session never gets a vault value or a one-use value, whatever its profile's switch says.
+        if (ctx.agent.vmLayoutOf(row) !== null) continue;
         if (session.status() === "cold" || session.stopping()) continue;
         // Every record carries the session's full once list (W5-R37); a targeted send was built for that session already.
         const own = sessionId === undefined ? { ...record, once: [...ctx.agent.onceOf(id)] } : record;

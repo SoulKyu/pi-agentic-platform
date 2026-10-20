@@ -1,9 +1,25 @@
-import { AgentId, type AgentView, type Caller, type ResultOf } from "@pap/contracts";
+import {
+  AgentId,
+  type AgentInput,
+  type AgentView,
+  type Caller,
+  PapError,
+  type ResultOf,
+} from "@pap/contracts";
 import { PAGE_BYTES, sizeOf } from "../../kernel/json-bytes.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AgentRecord } from "./store.ts";
 
 const VIEW_ENVELOPE_BYTES = sizeOf({ agents: [], truncated: true });
+
+const PROFILE_MAX_CHARS = 32_768;
+
+/** The profile as stored: the input as JSON, refused `bad_request` past the column's cap. */
+export function profileOf(input: AgentInput): string {
+  const profile = JSON.stringify(input);
+  if (profile.length > PROFILE_MAX_CHARS) throw new PapError("bad_request");
+  return profile;
+}
 
 export function viewOf(record: AgentRecord): AgentView {
   const state =

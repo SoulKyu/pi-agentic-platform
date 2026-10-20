@@ -6,6 +6,7 @@ import type {
   PolicyAuditEntry,
   PolicyRules,
   ToolCategory,
+  VmLayout,
 } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { errorClass } from "../bounded.ts";
@@ -29,6 +30,7 @@ import { readsAgentHome, readsRunsFolder } from "./read-target.ts";
 import { withRestored } from "./restore.ts";
 import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
 import type { ExternalRoots, Taint } from "./taint.ts";
+import type { VmFileRoots } from "./vm-paths.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
 import { clipUnits, createTrail, MAX_ID_LENGTH as MAX_FIELD } from "./trail.ts";
@@ -130,6 +132,8 @@ export interface PipelineDeps {
   /** Redacts a reason, whatever its case, before a verdict or an entry clips it. */
   redactReason(text: string): string;
   readonly stages?: Partial<Stages>;
+  /** A worker in an agent's VM: no host agent folder, runs folder or protected root exists there; the VM file rule decides (spec §5). */
+  readonly vm?: { readonly layout: VmLayout; readonly roots: VmFileRoots };
 }
 
 const PASS_THROUGH: Omit<Stages, "approval"> = {
@@ -200,7 +204,7 @@ export async function evaluateToolCall(
     };
     // The label of the fence: a runs folder's output, or another agent's home (W5-R45).
     const agentRead =
-      kind.builtin && kind.category === "read"
+      deps.vm === undefined && kind.builtin && kind.category === "read"
         ? (await readsRunsFolder(event.toolName, event.input, readDirs))
           ? "agent-run"
           : (await readsAgentHome(event.toolName, event.input, readDirs))

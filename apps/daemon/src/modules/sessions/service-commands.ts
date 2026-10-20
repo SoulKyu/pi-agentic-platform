@@ -9,6 +9,7 @@ import type { LiveSession } from "./live-types.ts";
 import { nameOf } from "./names.ts";
 import { clipJsonText, type SessionReads } from "./service-reads.ts";
 import type { SessionRow } from "./store.ts";
+import { VM_REFUSALS } from "./vm-rules.ts";
 import { clip } from "./worker-text.ts";
 
 /** An editor text is sent whole in the answer; once JSON-encoded it must stay well inside the 1 MiB frame. */
@@ -23,6 +24,8 @@ export interface SessionCommandsDeps {
   readonly reads: Pick<SessionReads, "ensureReader" | "snapshot">;
   readonly hub: Pick<StreamHub, "publish">;
   readonly exports: Pick<Exports, "prepare" | "discard">;
+  /** The row runs in a VM (R37). */
+  runsInVm?(row: SessionRow): boolean;
   readonly logger: Logger;
 }
 
@@ -121,6 +124,11 @@ export function createSessionCommands(deps: SessionCommandsDeps): SessionCommand
   return {
     async exportHtml(sessionId, caller) {
       const row = deps.owned(sessionId, caller);
+      // R37: the VM would write a host path.
+      if (deps.runsInVm?.(row)) {
+        logger.warn("export_refused", { sessionId, reason: VM_REFUSALS.export });
+        throw new PapError("sandbox_unavailable");
+      }
       // Before the worker is brought up: a full table refuses without starting one.
       const { token, path } = deps.exports.prepare(row.id, caller.userId, row.name);
       let sent = false;

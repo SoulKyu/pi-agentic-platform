@@ -22,6 +22,8 @@ import {
   agentDir,
 } from "./plugins-bed.ts";
 
+const ID = expect.stringMatching(/^[0-9a-f]{32}$/);
+
 describe("plugins.install / list / setEnabled / remove, local package, user scope (M7R114)", () => {
   it("installs a local folder into settings.json, lists it enabled, switches it off and on, removes it", async () => {
     expect(await installPlugin({ source: pkg, scope: "user" }, ctxFor(null))).toEqual({ ok: true });
@@ -31,7 +33,7 @@ describe("plugins.install / list / setEnabled / remove, local package, user scop
     expect(PluginsListResult.safeParse(listed).success).toBe(true);
     expect(listed).toEqual({
       plugins: [
-        { source: local("tools"), scope: "user", installedPath: pkg, enabled: true, filtered: false },
+        { id: ID, source: local("tools"), scope: "user", installedPath: pkg, enabled: true, filtered: false },
       ],
       truncated: false,
     });
@@ -180,6 +182,7 @@ describe("project scope (M7R116, M7R140)", () => {
     const listed = await listPlugins(ctxFor());
     expect(listed.plugins).toEqual([
       {
+        id: ID,
         source: join("..", "..", "..", "pkgs", "tools"),
         scope: "project",
         installedPath: pkg,

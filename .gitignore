@@ -11,3 +11,6 @@ e2e/.state/
 /.pap-archive/
 /.pap-npm/
 /.pap-release/
+/packages/pi-host/dist-agent/
+/packages/pi-host/.dist-agent-building/
+/apps/vmd/.release-building/

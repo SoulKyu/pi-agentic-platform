@@ -6,6 +6,7 @@ import { type Command, createDispatch } from "./dispatch.ts";
 import { createEntryTracker, type EntryTracker } from "./entry-tracker.ts";
 import { countAgentProcesses, killDetachedDescendants, TOKEN_VAR, UNIT_VAR } from "./descendants.ts";
 import { pinBareRepositoryExplicit } from "./git-env.ts";
+import { createInbox } from "./inbox-put.ts";
 import type { Ipc } from "./ipc.ts";
 import { loadoutRecord } from "./loadout.ts";
 import { createOnceSecrets, createVaultSink, withOnceSecrets } from "./once-secrets.ts";
@@ -25,6 +26,7 @@ import { createSandboxEnvironment } from "./sandbox-env.ts";
 import { SYSTEM_TIMERS } from "./sandbox-ops.ts";
 import { createIsBuiltin } from "./policy/builtin-lookup.ts";
 import { createSessionEntries } from "./policy/session-entry.ts";
+import { createSessionMirror, openUnderRoot, type SessionMirror } from "./session-mirror.ts";
 import { closeSession } from "./shutdown.ts";
 import { createUiBridge } from "./ui-bridge.ts";
 import { logLineOf } from "./bounded.ts";
@@ -72,6 +74,8 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   const early: Command[] = [];
   // Created once the session exists; what Pi emits while it opens is before the leaf `ready` reports.
   let tracker: EntryTracker | null = null;
+  // Only a worker in a VM mirrors its session file to the daemon (T9a).
+  let mirror: SessionMirror | null = null;
   const ui = createUiBridge((record) => ipc.send(record));
   const approvals = createApprovals((record) => ipc.send(record));
   const platform = createPlatformPort((record) => ipc.send(record));
@@ -93,7 +97,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     const current = session;
     if (!current) exit(null, 0);
     const finish = () => exit(current, 0);
-    void closeSession(current, graceMs).then(finish, finish);
+    void closeSession(current, graceMs, undefined, undefined, () => mirror?.close()).then(finish, finish);
   };
   // One listener from the first record on, so nothing sent while the session opens is lost: records after
   // `init` wait here until the session is ready, then run in order.
@@ -178,6 +182,9 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
         process.stderr.write("pi-host: secret_used not sent\n");
     },
   });
+  // Fail closed: a VM session's shell is pap's VM shell only; a host sandbox next to it would build an environment and an egress client for nothing.
+  if (initial.vm && initial.sandbox)
+    throw new Error("pi-host: an init record with `vm` must not carry `sandbox`: refusing to start");
   const sandboxEnvironment = initial.sandbox
     ? withOnceSecrets(createSandboxEnvironment(process.env, initial.sandbox, initial.vault ?? {}), once)
     : undefined;
@@ -216,16 +223,33 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
   session = opened;
   if (noteWanted) noteMidRun();
   entries.opened(opened.getActiveToolNames(), first.data.approvalMode);
+  const vm = initial.vm;
+  if (vm) {
+    mirror = createSessionMirror({
+      file: () => opened.sessionFile ?? null,
+      send: (record) => ipc.send(record),
+      open: openUnderRoot(vm.layout.root),
+      clock: {
+        setTimeout: (fn, ms) => setTimeout(fn, ms).unref(),
+        clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
+      },
+      log: (line) => void process.stderr.write(line),
+    });
+  }
   tracker = createEntryTracker({
     manager: opened.sessionManager,
     send: (record) => ipc.send(record),
     defer: (task) => void setImmediate(task),
     onError: (error) => process.stderr.write(`pi-host: entry tracking failed: ${logLineOf(error)}\n`),
+    afterWalk: () => mirror?.flush(),
   });
   dispatch = createDispatch({
     papHome: initial.papHome,
     session: opened,
     leafMayHaveMoved: () => tracker?.leafMayHaveMoved(),
+    ...(mirror ? { mirror } : {}),
+    ...(vm ? { vm: true } : {}),
+    ...(vm ? { inbox: createInbox(vm.layout.inbox), inboxDir: vm.layout.inbox } : {}),
     ipc,
     ui,
     approvals,
@@ -250,6 +274,7 @@ export async function runHost(rawIpc: Ipc): Promise<void> {
     sessionName: opened.sessionName ?? null,
   });
   ipc.send(loadoutRecord(opened));
+  mirror?.flush();
   for (const record of early.splice(0)) dispatch(record);
   const health = () =>
     ipc.send({

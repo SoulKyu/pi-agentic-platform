@@ -10,6 +10,7 @@ import type { agentSpaceEn } from "./catalog/agent-space.ts";
 import type { agentStatusEn } from "./catalog/agent-status.ts";
 import type { agentComposeEn } from "./catalog/agent-compose.ts";
 import type { agentSettingsEn } from "./catalog/agent-settings.ts";
+import type { agentVmEn } from "./catalog/agent-vm.ts";
 import type { addProjectEn } from "./catalog/add-project.ts";
 import type { automationEn } from "./catalog/automation.ts";
 import type { automationAgentsEn } from "./catalog/automation-agents.ts";
@@ -102,6 +103,7 @@ export type MessageKey =
   | keyof typeof usageEn
   | keyof typeof modelsUsageEn
   | keyof typeof agentSettingsEn
+  | keyof typeof agentVmEn
   | keyof typeof agentSpaceEn
   | keyof typeof agentSafetyEn
   | keyof typeof memoryEn

@@ -16,6 +16,8 @@ export interface MessageItem {
   readonly entryId: string | null;
   /** When the message was written (ms); a thread that interleaves cards reads it. */
   readonly at?: number | null;
+  /** A user entry pap did not send (R32). */
+  readonly unverified?: true;
 }
 
 export interface ToolItem {
@@ -162,6 +164,7 @@ export function transcriptItems(view: SessionView, translate: Translate): Transc
         thinking: message.thinking,
         entryId: message.entryId,
         at: message.at,
+        ...(message.unverified ? { unverified: true as const } : {}),
       });
     }
     // The owner moves from the message key to the entry id when Pi writes the entry: the row remounts once, before any result exists.

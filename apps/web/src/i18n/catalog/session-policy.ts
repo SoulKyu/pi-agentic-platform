@@ -49,6 +49,7 @@ export const sessionPolicyEn = {
   "sessionPolicy.cd.badge": "in the session folder",
   "sessionPolicy.cd.showFull": "Show full command",
   "sessionPolicy.cd.hideFull": "Hide full command",
+  "sessionPolicy.unverified": "not sent from pap",
 } as const;
 
 export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: string } = {
@@ -102,4 +103,5 @@ export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: st
   "sessionPolicy.cd.badge": "dans le dossier de la session",
   "sessionPolicy.cd.showFull": "Voir la commande complète",
   "sessionPolicy.cd.hideFull": "Masquer la commande complète",
+  "sessionPolicy.unverified": "pas envoyé depuis pap",
 };

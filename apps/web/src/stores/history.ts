@@ -15,7 +15,7 @@ export function prependHistory(
   const known = new Set(view.messages.flatMap((message) => (message.entryId ? [message.entryId] : [])));
   const older = page.rows.flatMap((row) => {
     if (row.entryId !== null && known.has(row.entryId)) return [];
-    const message = toMessageView(row.message, row.entryId);
+    const message = toMessageView(row.message, row.entryId, row.unverified === true);
     return message ? [message] : [];
   });
   // Keys are made again from the top, so the older rows cannot take a key a later one has.

@@ -8,7 +8,10 @@
     ".": {
       "package-name": "pap",
       "changelog-path": "CHANGELOG.md",
-      "extra-files": [{ "type": "json", "path": "apps/daemon/package.json", "jsonpath": "$.version" }]
+      "extra-files": [
+        { "type": "json", "path": "apps/daemon/package.json", "jsonpath": "$.version" },
+        { "type": "json", "path": "apps/vmd/package.json", "jsonpath": "$.version" }
+      ]
     }
   }
 }

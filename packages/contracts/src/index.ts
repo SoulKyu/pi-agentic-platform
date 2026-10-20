@@ -1,4 +1,14 @@
 export * from "./agents.ts";
+export * from "./agents-net.ts";
+export * from "./agents-resources.ts";
+export * from "./agents-vm.ts";
+export * from "./agents-vm-methods.ts";
+export {
+  createFrameDecoder,
+  encodeFrame as encodeSocketFrame,
+  type FrameDecoder,
+  type FrameError,
+} from "./socket-frames.ts";
 export * from "./agents-methods.ts";
 export * from "./agents-safety.ts";
 export * from "./audit.ts";
@@ -47,6 +57,7 @@ export * from "./pi-host-init.ts";
 export * from "./protected-paths.ts";
 export * from "./push.ts";
 export * from "./push-methods.ts";
+export * from "./relay-ipc.ts";
 export * from "./rrule.ts";
 export * from "./rrule-next.ts";
 export * from "./sandbox.ts";
@@ -68,3 +79,4 @@ export * from "./source.ts";
 export * from "./trust-methods.ts";
 export * from "./usage.ts";
 export * from "./vcs.ts";
+export * from "./vmd.ts";

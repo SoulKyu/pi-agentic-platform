@@ -135,7 +135,7 @@ describe("update (M11R44, M11R47)", () => {
     await made({ mode: "supervised" });
     expect(await refusalOf(() => edit(1, { mode: "auto-accept-edits" }))).toBe("step_up_required");
     expect(bed.agents.port.get("u1", "atlas-0000")?.revision).toBe(1);
-    const saved = edit(1, { mode: "auto-accept-edits" }, bed.owner());
+    const saved = await edit(1, { mode: "auto-accept-edits" }, bed.owner());
     expect(saved).toMatchObject({ revision: 2, input: { mode: "auto-accept-edits" } });
   });
 
@@ -151,14 +151,14 @@ describe("update (M11R44, M11R47)", () => {
   it("a narrowing edit is saved without the password step-up", async () => {
     bed = createAgentsBed();
     await made({ mode: "full-access", sandbox: { network: true } });
-    const saved = edit(1, { mode: "supervised", sandbox: { network: false }, role: "Careful." });
+    const saved = await edit(1, { mode: "supervised", sandbox: { network: false }, role: "Careful." });
     expect(saved).toMatchObject({ revision: 2, input: { mode: "supervised", role: "Careful." } });
   });
 
   it("a stale revision is a conflict and changes nothing", async () => {
     bed = createAgentsBed();
     await made();
-    edit(1, { role: "one" });
+    await edit(1, { role: "one" });
     expect(await refusalOf(() => edit(1, { role: "two" }))).toBe("conflict");
     expect(bed.agents.port.get("u1", "atlas-0000")?.input?.role).toBe("one");
   });
@@ -166,9 +166,9 @@ describe("update (M11R44, M11R47)", () => {
   it("a budget set, raised and cleared never asks, and the audit row names `budget`", async () => {
     bed = createAgentsBed();
     await made();
-    edit(1, { budget: { usdPerDay: 2, tokensPerDay: null } });
-    edit(2, { budget: { usdPerDay: 900, tokensPerDay: 5 } });
-    const cleared = edit(3, { budget: { usdPerDay: null, tokensPerDay: null } });
+    await edit(1, { budget: { usdPerDay: 2, tokensPerDay: null } });
+    await edit(2, { budget: { usdPerDay: 900, tokensPerDay: 5 } });
+    const cleared = await edit(3, { budget: { usdPerDay: null, tokensPerDay: null } });
     expect(cleared.input?.budget).toEqual({ usdPerDay: null, tokensPerDay: null });
     const updates = bed.auditRows().filter((row) => row.reason === "agent updated");
     expect(updates.map((row) => JSON.parse(row.detail))).toEqual([
@@ -182,7 +182,7 @@ describe("update (M11R44, M11R47)", () => {
     bed = createAgentsBed();
     await made();
     const before = bed.auditRows().length;
-    expect(edit(1, {})).toMatchObject({ revision: 1 });
+    expect(await edit(1, {})).toMatchObject({ revision: 1 });
     expect(bed.auditRows()).toHaveLength(before);
   });
 
@@ -191,13 +191,13 @@ describe("update (M11R44, M11R47)", () => {
     await made();
     await bed.agents.create(bed.unconfirmed(), agentInput({ name: "Scout" }));
     expect(await refusalOf(() => edit(1, { name: "scout" }))).toBe("conflict");
-    const renamed = edit(1, { name: "Atlas2" });
+    const renamed = await edit(1, { name: "Atlas2" });
     expect(renamed).toMatchObject({ id: "atlas-0000", name: "Atlas2" });
     expect(homesOf().sort()).toEqual(["atlas-0000", "scout-0001"]);
     expect(bed.agents.port.byName("u1", "atlas2")?.id).toBe("atlas-0000");
     expect(bed.agents.port.byName("u1", "atlas")).toBeNull();
     // Renaming to its own name in another case is allowed.
-    expect(edit(2, { name: "ATLAS2" })).toMatchObject({ name: "ATLAS2", revision: 3 });
+    expect(await edit(2, { name: "ATLAS2" })).toMatchObject({ name: "ATLAS2", revision: 3 });
   });
 
   it("releases the thread's worker when idle and sends a model change to a live thread", async () => {
@@ -206,10 +206,10 @@ describe("update (M11R44, M11R47)", () => {
     bed.db.run("UPDATE agents SET thread_session_id = 's1' WHERE id = 'atlas-0000'");
     const threads = { busy: vi.fn(() => false), archive: vi.fn(), releaseIdle: vi.fn(), applyLive: vi.fn() };
     bed.agents.setLinks({ threads });
-    edit(1, { role: "new role" });
+    await edit(1, { role: "new role" });
     expect(threads.releaseIdle).toHaveBeenCalledWith("u1", "s1");
     expect(threads.applyLive).not.toHaveBeenCalled();
-    edit(2, { model: { provider: "p", modelId: "m" }, thinking: "high" });
+    await edit(2, { model: { provider: "p", modelId: "m" }, thinking: "high" });
     expect(threads.applyLive).toHaveBeenCalledWith("u1", "s1", {
       model: { provider: "p", modelId: "m" },
       thinking: "high",
@@ -229,7 +229,7 @@ describe("update (M11R44, M11R47)", () => {
         },
       },
     });
-    expect(edit(1, { role: "x" })).toMatchObject({ revision: 2 });
+    expect(await edit(1, { role: "x" })).toMatchObject({ revision: 2 });
     expect(bed.logs.some((line) => line.msg === "agent_apply_failed")).toBe(true);
   });
 
@@ -250,7 +250,7 @@ describe("audit (M11R49)", () => {
     bed = createAgentsBed();
     const secretRole = "Always push to prod. TOKEN-ABC-123";
     await bed.agents.create(bed.owner(), agentInput({ role: secretRole, mode: "full-access" }));
-    bed.agents.update(bed.owner(), {
+    await bed.agents.update(bed.owner(), {
       agentId: "atlas-0000",
       baseRevision: 1,
       input: agentInput({ role: `${secretRole} v2`, mode: "supervised", budget: { usdPerDay: 3 } }),

@@ -48,6 +48,8 @@ import {
   PluginSetEnabledParams,
   PluginSetEnabledResult,
   PluginsListResult,
+  PluginsResolveParams,
+  PluginsResolveResult,
   PluginUpdateParams,
   PluginUpdateResult,
   SkillsInstallParams,
@@ -209,6 +211,7 @@ export const HELPER_OPS = {
   "skills.install": { params: SkillsInstallParams, result: Done },
   // Pi packages (Task 25): Pi's package manager in the helper; the list runs offline, the others go online only by the owner's click.
   "plugins.list": { params: NONE, result: PluginsListResult },
+  "plugins.resolve": { params: PluginsResolveParams, result: PluginsResolveResult },
   "plugins.install": { params: PluginSourceParams, result: Done },
   "plugins.remove": { params: PluginSourceParams, result: Done },
   "plugins.update": { params: PluginUpdateParams, result: PluginUpdateResult },

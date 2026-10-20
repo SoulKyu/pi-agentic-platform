@@ -17,6 +17,8 @@ import type { AgentStore } from "./store.ts";
 export interface PromptsDeps {
   readonly store: Pick<AgentStore, "get">;
   readonly papHome: string;
+  /** The agent runs in a VM: its chips are not read from the host home (R16). */
+  agentRunsInVm?(ownerId: string, agentId: string): boolean;
 }
 
 /** Entries of the prompts folder looked at by one list; the rest are not chips. */
@@ -48,6 +50,8 @@ export function createPrompts(deps: PromptsDeps) {
 
   return {
     list(caller: Caller, agentId: string): { names: string[] } {
+      // A VM agent's chips are not read from the host home, which may not even exist (R16).
+      if (deps.agentRunsInVm?.(caller.userId, agentId)) return { names: [] };
       const { prompts } = folderOf(caller.userId, agentId);
       if (prompts === null) return { names: [] };
       // At most PROMPT_SCAN_MAX entries are looked at: a folder an agent filled cannot make the read long.
@@ -83,6 +87,7 @@ export function createPrompts(deps: PromptsDeps) {
     },
 
     read(caller: Caller, agentId: string, name: string): { text: string } {
+      if (deps.agentRunsInVm?.(caller.userId, agentId)) throw new PapError("not_found");
       const { prompts } = folderOf(caller.userId, agentId);
       if (!AgentPromptName.safeParse(name).success) throw new PapError("bad_request");
       if (prompts === null) throw new PapError("not_found");

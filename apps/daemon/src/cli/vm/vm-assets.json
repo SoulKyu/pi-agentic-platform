@@ -1,0 +1,52 @@
+{
+  "assets": [
+    {
+      "name": "kata-static",
+      "version": "4.2.0",
+      "url": "https://github.com/kata-containers/kata-containers/releases/download/4.2.0/kata-static-4.2.0-amd64.tar.zst",
+      "sha256": "b828904fa3f1e49ddd7dc799c72cb1503cd1e772d354c3987c8d4189b2a623a8"
+    },
+    {
+      "name": "kata-tools-static",
+      "version": "4.2.0",
+      "url": "https://github.com/kata-containers/kata-containers/releases/download/4.2.0/kata-tools-static-4.2.0-amd64.tar.zst",
+      "sha256": "a4f8e1b6ee500b6e94d3925249e741c75bb4a89bf275b5d5066d6275c68e29ef"
+    },
+    {
+      "name": "nerdctl-full",
+      "version": "2.4.1",
+      "url": "https://github.com/containerd/nerdctl/releases/download/v2.4.1/nerdctl-full-2.4.1-linux-amd64.tar.gz",
+      "sha256": "ff018f11ac2f1354bf7b3aaaca6e0b52d81139c746a89134744d0b7be3a0e62f"
+    },
+    {
+      "name": "node",
+      "version": "24.14.1",
+      "url": "https://nodejs.org/dist/v24.14.1/node-v24.14.1-linux-x64.tar.xz",
+      "sha256": "84d38715d449447117d05c3e71acd78daa49d5b1bfa8aacf610303920c3322be"
+    },
+    {
+      "name": "pap-vmd",
+      "version": "0.0.0",
+      "url": "https://github.com/SoulKyu/pi-agentic-platform/releases/latest/download/pap-vmd.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "pap-agent-bundle",
+      "version": "0.0.0",
+      "url": "https://github.com/SoulKyu/pi-agentic-platform/releases/latest/download/pap-agent-bundle.tar.gz",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "baseImages": [
+    {
+      "name": "node",
+      "ref": "docker.io/library/node:24.14.1-trixie-slim",
+      "digest": "sha256:9707cd4542f400df5078df04f9652a272429112f15202d22b5b8bdd148df494f"
+    },
+    {
+      "name": "debian",
+      "ref": "docker.io/library/debian:trixie-slim",
+      "digest": "sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f"
+    }
+  ]
+}

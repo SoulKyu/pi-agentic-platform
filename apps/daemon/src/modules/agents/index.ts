@@ -31,3 +31,6 @@ export { createNotify } from "./ops-notify.ts";
 export { createApprove } from "./ops-approve.ts";
 export { createNetworkRequest } from "./ops-network.ts";
 export { createInboxLink } from "./inbox-link.ts";
+export { createCrashPause } from "./vm-crash.ts";
+export type { AgentVmLink } from "./links.ts";
+export { removeTree } from "./homes.ts";

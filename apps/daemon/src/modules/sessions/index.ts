@@ -24,6 +24,7 @@ import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { createLaneHooks, type LaneRunHooks } from "./lane-hooks.ts";
 import { createSessionsLanePort, laneInfoOf, type SessionsLanePort } from "./lane-port.ts";
+import { createHeldNotices } from "./held-notices.ts";
 import { outsideToolResultsTaint } from "./outside-taint.ts";
 import { createAdmission, DEFAULT_MIN_FREE_DISK_MB } from "./fork-quota.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
@@ -36,6 +37,7 @@ import type { SessionsChildPort } from "./child-port.ts";
 import type { SessionsAutomationPort } from "./automation-port.ts";
 import { createSessionsStore } from "./store.ts";
 import { loadTranscriptReader } from "./transcript.ts";
+import type { VmLaunch } from "./vm-launch.ts";
 
 export { agentHomeOf } from "./agent-home.ts";
 export { resolveSessionCwd } from "./cwd.ts";
@@ -46,6 +48,8 @@ export type { ChildProfile, SessionsChildPort } from "./child-port.ts";
 export type { Admission } from "./fork-quota.ts";
 export { loadPiWriter, type PiWriter } from "./pi-writer.ts";
 export type { SessionsScanPort } from "./scan-port.ts";
+export type { SessionRow } from "./store.ts";
+export { createVmLaunch, type MirrorInputs, taskKeyOf, type VmLaunch } from "./vm-launch.ts";
 export type { LaneRunHooks, LaneRunInfo } from "./lane-hooks.ts";
 export type { SessionsLanePort } from "./lane-port.ts";
 
@@ -83,6 +87,8 @@ export interface SessionsModuleDeps {
   readonly workerUmask: number;
   readonly env: NodeJS.ProcessEnv;
   readonly scopes: WorkerScopes;
+  /** `PAP_AGENTS_RUNTIME=vm` only (T8a): the agents' sessions start in their VMs through it. */
+  readonly vmLaunch?: VmLaunch | undefined;
   /** The instance owner, whom adopted sessions belong to (M4R61); null before setup. */
   ownerId(): string | null;
   /** Once per adopted row, after its insert (agreement 8); M5 wires it to the taint of adopted sessions. */
@@ -114,6 +120,14 @@ export interface SessionsModule {
   restartFolder(ownerId: string, folder: string): number;
   /** Stops the worker of the owner's quiet session (M9R113): `released`, `busy` (left alone) or `cold` (no worker). */
   releaseIdle(ownerId: string, sessionId: string): "released" | "busy" | "cold";
+  /**
+   * What a VM mirror says to a session (R14, AVM-E21): a notice in its thread and the taint of ADR 0074's outside-write
+   * detection (a session whose file the VM rewrote may hold content pap never fenced).
+   */
+  readonly mirror: {
+    notice(sessionId: string, text: string, now?: true): void;
+    taint(sessionId: string): void;
+  };
   /** The only way lanes touch sessions (M9R37). */
   readonly lanes: SessionsLanePort;
   /** The lanes module fills the hooks around a prompt and a run's end (M9R114). */
@@ -161,8 +175,22 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     logger,
     infoOf: (sessionId) => laneInfoOf(store, service.laneProbe, sessionId),
   });
+  // A mirror notice (R14, AVM-E29) can come before the session is live: it waits and is posted when the session is.
+  const noticeLive = (sessionId: string, text: string): boolean => {
+    const session = service.laneProbe.live.get(sessionId);
+    session?.notice({ level: "warning", text });
+    return session !== undefined;
+  };
+  const taintOutside = outsideToolResultsTaint({
+    store,
+    policy: deps.policy,
+    audit: deps.audit,
+    logger,
+  });
+  const held = createHeldNotices({ post: (id, text) => noticeLive(id, text), logger });
   const service = createSessionsService({
     laneHooks,
+    onSessionStarted: held.flush,
     store,
     exports,
     clock: deps.clock,
@@ -184,12 +212,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     newId,
     ownerId: deps.ownerId,
     ...(deps.onAdopted ? { onAdopted: deps.onAdopted } : {}),
-    onOutsideToolResults: outsideToolResultsTaint({
-      store,
-      policy: deps.policy,
-      audit: deps.audit,
-      logger,
-    }),
+    onOutsideToolResults: taintOutside,
     loadTranscript: () => loadTranscriptReader({ logger, clock: deps.clock }),
     loadWriter: () => loadPiWriter(forkTmpDir, { logger }),
     freeMemMb: () => Math.floor(freemem() / 1_048_576),
@@ -207,6 +230,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     ...(deps.runs ? { runs: deps.runs } : {}),
+    ...(deps.vmLaunch ? { vmLaunch: deps.vmLaunch } : {}),
     admission: createAdmission({
       clock: deps.clock,
       logger,
@@ -244,6 +268,15 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     },
     isAgentSession: (sessionId) => store.get(sessionId)?.agentId !== undefined,
     inspect: (sessionId) => service.inspect(sessionId),
+    mirror: {
+      notice: (sessionId, text, now) => {
+        if (noticeLive(sessionId, text)) return;
+        // `now`: no start follows (J1b M1), so whoever watches the session is told directly; otherwise it waits for the next start.
+        if (now) deps.hub.publish("session", sessionId, { kind: "notice", level: "warning", text });
+        else held.hold(sessionId, text);
+      },
+      taint: taintOutside,
+    },
     restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),
     releaseIdle: (ownerId, sessionId) => service.releaseIdle(ownerId, sessionId),
     lanes: createSessionsLanePort({

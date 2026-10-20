@@ -16,7 +16,7 @@
     "test:unit": "vitest run --project unit",
     "test:int": "vitest run --project integration",
     "test:budget": "PAP_BUDGET_RUN=1 vitest run --project integration apps/daemon/src/modules/search/search.budget.int.test.ts apps/daemon/src/modules/search/scanner.exit.int.test.ts",
-    "build": "pnpm -r run build",
+    "build": "pnpm -r run build && node --disable-warning=ExperimentalWarning scripts/build-agent-bundle.ts",
     "budgets": "node --disable-warning=ExperimentalWarning scripts/check-budgets.ts",
     "build:archive": "node --disable-warning=ExperimentalWarning scripts/build-archive.ts",
     "build:npm": "node --disable-warning=ExperimentalWarning scripts/build-npm.ts",

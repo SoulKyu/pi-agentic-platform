@@ -22,7 +22,7 @@ import { onToolResult } from "./results.ts";
 import { createRunGuard, guardStages } from "./run-guard.ts";
 import type { SecretReader } from "./secrets.ts";
 import { createExternalRoots, type Taint } from "./taint.ts";
-import { classifyTool, SANDBOX_SOURCE, type ToolFacts } from "./tool-kind.ts";
+import { classifyTool, SANDBOX_SOURCE, type ToolFacts, VM_FILES_SOURCE } from "./tool-kind.ts";
 import { clipUnits, MAX_ID_LENGTH } from "./trail.ts";
 
 export { createPolicyGrants, MAX_SESSION_GRANTS } from "./grants.ts";
@@ -56,6 +56,8 @@ export interface PolicyConfig {
   redact?: PipelineDeps["redact"];
   /** The session's sandbox (`init.sandbox`): its network decides whether the sandboxed `bash` taints (M11R25). */
   sandbox?: { readonly network: boolean };
+  /** A worker in an agent's VM: its layout and real file roots (`init.vm`). The VM file stage and the facts of `VM_FILES_SOURCE` tools read it. */
+  vm?: PipelineDeps["vm"];
   /** The proxy's reports by tool call id (M11R233), taken once by the result hook; absent: a networked shell's result is external. */
   egress?: { take(toolCallId: string): EgressReport | null | undefined };
   /** The clock of a call's duration (decision 117, A4); `Date.now` by default. */
@@ -85,6 +87,7 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
               ...(info.sourceInfo.path === SANDBOX_SOURCE && config.sandbox
                 ? { sandboxNetwork: config.sandbox.network }
                 : {}),
+              ...(info.sourceInfo.path === VM_FILES_SOURCE && config.vm ? { vm: true } : {}),
             }
           : undefined;
       };

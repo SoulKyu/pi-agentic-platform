@@ -243,10 +243,12 @@ export interface VaultStore {
   remove(ownerId: string, scope: VaultScope, name: string): boolean;
   /** An agent deleted or quarantined: its whole file goes. */
   drop(ownerId: string, scope: VaultScope): void;
+  /** Every value of every owner and scope, for the daemon's own secret scans only (T15b). Never logged, never sent. */
+  everyValue(): string[];
 }
 
-export function createVaultStore(root: string): VaultStore {
-  sweepTemps(root);
+export function createVaultStore(root: string, options: { sweep?: boolean } = {}): VaultStore {
+  if (options.sweep !== false) sweepTemps(root);
   let cached: { readonly key: Buffer; readonly stamp: string | null } | null = null;
   const keyPath = join(root, "key");
   const keyOf = (): Buffer => {
@@ -354,6 +356,27 @@ export function createVaultStore(root: string): VaultStore {
     },
     drop(ownerId, scope) {
       rmSync(join(dirOf(ownerId), `${scopeName(scope)}.json`), { force: true });
+    },
+    everyValue() {
+      const values: string[] = [];
+      let owners: Dirent[];
+      try {
+        owners = readdirSync(root, { withFileTypes: true });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return values;
+        throw new VaultError("unreadable");
+      }
+      for (const owner of owners) {
+        if (!owner.isDirectory() || !OWNER_ID.test(owner.name)) continue;
+        for (const file of readdirSync(join(root, owner.name))) {
+          const scope = /^(user|agent-[a-z0-9][a-z0-9-]{0,47})\.json$/.exec(file)?.[1];
+          if (scope === undefined) continue;
+          const doc = load(owner.name, scope);
+          for (const [name, sealed] of Object.entries(doc.entries))
+            if (isVaultName(name)) values.push(open(owner.name, scope, name, sealed));
+        }
+      }
+      return values;
     },
   };
 }

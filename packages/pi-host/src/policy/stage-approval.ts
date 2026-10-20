@@ -15,6 +15,7 @@ import { networkRequestPlan } from "./network-request-plan.ts";
 import { checkReadTarget } from "./read-target.ts";
 import { READ_ONLY_REASON } from "./reasons.ts";
 import { checkEditTarget, type EditReview } from "./target-path.ts";
+import { vmFileRefusal } from "./vm-stage.ts";
 
 const READ_FILE_TOOLS: ReadonlySet<string> = new Set(["read", "grep", "find", "ls"]);
 
@@ -53,6 +54,8 @@ async function reviewOf(
   ctx: PolicyContext,
   deps: PipelineDeps,
 ): Promise<{ review?: EditReview; protectedRead?: EditReview }> {
+  // No host protected root exists in a VM: the VM file rule decided (stage 03 ran `vmFileRefusal` first).
+  if (deps.vm) return {};
   const { category } = judgedAs(call);
   if (category === "edit") {
     // pap's sandboxed shell names no path: bwrap confines it to its one writable folder (M11R30).
@@ -154,6 +157,10 @@ export async function approvalStage(
   deps: PipelineDeps,
 ): Promise<ApprovalPlan> {
   const { profile } = call.rules;
+  if (deps.vm) {
+    const refusal = await vmFileRefusal(call, ctx, deps.vm);
+    if (refusal) return refusal;
+  }
   // An isolated task is unattended: its own table, nothing a grant or a person's habit can loosen (M11R32).
   if (profile === "isolated-task") return isolatedPlan(call, ctx, deps);
   const { category, external } = judgedAs(call);
@@ -165,6 +172,7 @@ export async function approvalStage(
       modelReason: "pap-policy blocked this shell call.",
     };
   const attended = profile === "interactive" || profile === "agent-thread";
+  // AVM-E20: kept for pap's VM shell too: it runs in bwrap with no network and `.pi` out of view, like the host sandboxed shell.
   if (attended && (await readOnlyCommand(call, ctx, deps))) {
     // M7R12: a read, never external: taint asks only for what can carry data out.
     const verdict = decide({

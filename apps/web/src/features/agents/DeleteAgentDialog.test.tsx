@@ -107,4 +107,32 @@ describe("deleting an agent (M11R126)", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(bed.called("agents.delete")).toEqual([]);
   });
+
+  describe("in VM mode (RT-40)", () => {
+    const vm = { runtime: "vm", usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
+
+    it("offers 'Purge now' on the done note, which empties that agent's trash through the step-up", async () => {
+      bed.handlers["agents.vmStatus"] = () => vm;
+      bed.handlers["agents.purgeTrash"] = () => ({ ok: true });
+      await show();
+      await click(button(document.body, "Delete Atlas"));
+      await settle();
+      const input = toasts.mock.calls[0]?.[0] as { action?: { label: string; run(): void } };
+      expect(input.action?.label).toBe("Purge now");
+      input.action?.run();
+      await settle();
+      expect(stepUp).toHaveBeenCalledTimes(2);
+      expect(bed.called("agents.purgeTrash")).toEqual([
+        expect.objectContaining({ params: { agentId: "atlas-1a2b" } }),
+      ]);
+    });
+
+    it("offers nothing to purge in host mode", async () => {
+      bed.handlers["agents.vmStatus"] = () => ({ ...vm, runtime: "host" });
+      await show();
+      await click(button(document.body, "Delete Atlas"));
+      await settle();
+      expect((toasts.mock.calls[0]?.[0] as { action?: unknown }).action).toBeUndefined();
+    });
+  });
 });

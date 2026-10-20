@@ -5,6 +5,7 @@ import type { AuditPort } from "../audit/index.ts";
 import { withDeadline } from "./deadline.ts";
 import type { AgentLinks } from "./links.ts";
 import type { AgentStore } from "./store.ts";
+import { quarantineVmStep } from "./vm-steps.ts";
 import type { AgentGuard } from "./threads.ts";
 import { actorOf } from "./view.ts";
 
@@ -73,6 +74,9 @@ export function createQuarantine(deps: QuarantineDeps) {
         fail(step, error);
       }
     };
+
+    // The VMs stop first (RT-41): nothing the agent runs there outlives the pause. The disk stays as evidence.
+    await run("vm", () => bounded(() => quarantineVmStep(links.vm, agentId)));
 
     // Step 2: its running and queued tasks are cancelled, then its running children.
     await run("tasks", async () => {

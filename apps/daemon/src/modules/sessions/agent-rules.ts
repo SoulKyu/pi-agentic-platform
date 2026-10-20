@@ -1,9 +1,10 @@
-import type { ApprovalMode, PolicyRules } from "@pap/contracts";
+import type { ApprovalMode, PolicyRules, VmLayout } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AgentProfile } from "./agent-gate.ts";
 import { agentHomePath } from "./agent-home.ts";
 import { childModeOf } from "./child-port.ts";
 import type { SessionRow } from "./store.ts";
+import { vmRuleParts } from "./vm-rules.ts";
 
 /** What the owner's settings contribute, merged with the agent's. */
 export interface OwnerLists {
@@ -47,6 +48,9 @@ export type AgentRuleParts = Partial<
     | "autonomy"
     | "trustedSources"
     | "hostGrants"
+    | "alwaysAllow"
+    | "alwaysPrefixes"
+    | "alwaysTools"
   >
 >;
 
@@ -57,6 +61,8 @@ export interface AgentRulesDeps {
   /** The hosts the owner allowed for this thread's session (owner a2): the daemon's own record. */
   hostGrants(sessionId: string): readonly string[];
   readonly logger: Logger;
+  /** The VM layout of a row that runs in a VM (pure, the runtime's `layoutOf`); null for a host row (R15). */
+  vmLayoutOf?(row: SessionRow): VmLayout | null;
 }
 
 const MAX_DENYLIST = 128;
@@ -69,7 +75,7 @@ const MAX_REMEMBERED = 256;
  */
 export function createAgentRules(deps: AgentRulesDeps) {
   const reported = new Set<string>();
-  return function agentRules(row: SessionRow, owner: OwnerLists): AgentRuleParts {
+  function hostRules(row: SessionRow, owner: OwnerLists): AgentRuleParts {
     const { agentId } = row;
     if (agentId === undefined) return {};
     const isTask = row.agentRole === "task";
@@ -108,5 +114,10 @@ export function createAgentRules(deps: AgentRulesDeps) {
       trustedSources: isTask || isThread || isChild ? [...input.trustedSources] : [],
       hostGrants: isThread ? [...deps.hostGrants(row.id)] : [],
     };
+  }
+  return function agentRules(row: SessionRow, owner: OwnerLists): AgentRuleParts {
+    const parts = hostRules(row, owner);
+    const layout = row.agentId === undefined ? null : (deps.vmLayoutOf?.(row) ?? null);
+    return layout === null ? parts : vmRuleParts(parts, layout, row.agentRole === "task");
   };
 }

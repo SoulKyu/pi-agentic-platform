@@ -1,0 +1,34 @@
+table inet pap_agents
+delete table inet pap_agents
+table inet pap_agents {
+  chain input {
+    type filter hook input priority filter; policy accept;
+    ip daddr 10.213.0.1 tcp dport { 7841, 7842 } iifname != "pap0" counter drop
+    iifname "pap0" ip saddr 10.213.0.0/24 ip daddr 10.213.0.1 tcp dport { 7841, 7842 } accept
+    iifname "pap0" counter drop
+  }
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+    iifname "pap0" counter drop
+    oifname "pap0" counter drop
+  }
+}
+table bridge pap_agents
+delete table bridge pap_agents
+table bridge pap_agents {
+  set ports {
+    type ifname . ether_addr . ipv4_addr
+  }
+  chain prerouting {
+    type filter hook prerouting priority -300; policy accept;
+    meta ibrname != "pap0" accept
+    ether type ip6 counter drop
+    ether type arp iifname . ether saddr . arp saddr ip @ports iifname . arp saddr ether . arp saddr ip @ports accept
+    ether type ip iifname . ether saddr . ip saddr @ports accept
+    counter drop
+  }
+  chain forward {
+    type filter hook forward priority filter; policy accept;
+    meta ibrname "pap0" counter drop
+  }
+}

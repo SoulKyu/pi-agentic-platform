@@ -17,17 +17,20 @@ export function createWorkerRoom(deps: {
   const keepFreeFor = new Set<string>();
   /** Ids whose cold launch must come up sandboxed (owner a5, M11R214): held by the automation port until its prompt settles. */
   const sandboxedOnly = new Set<string>();
+  /** Sessions whose VM worker is being spawned (the VM may take a while to boot): they count as workers (R29). */
+  const booting = new Set<string>();
   const keepOneFree = (): void => {
-    const used = deps.live.size + deps.starting.size;
+    const used = deps.live.size + deps.starting.size + booting.size;
     if (used + 2 > deps.limits.maxWorkers)
       throw new PapError("capacity", { workers: { used, max: deps.limits.maxWorkers } });
   };
-  /** A new worker would not take the cap or the free-memory floor (R9). */
-  const checkCapacity = (): void => {
-    const used = deps.live.size + deps.starting.size;
-    if (deps.closing() || used >= deps.limits.maxWorkers || deps.freeMemMb() < deps.limits.minFreeMemMb)
+  /** A new worker would not take the cap or the free-memory floor (R9); a VM worker's memory is the VM's, counted by its own cap (R29). */
+  const checkCapacity = (vm = false): void => {
+    const used = deps.live.size + deps.starting.size + booting.size;
+    const floor = !vm && deps.freeMemMb() < deps.limits.minFreeMemMb;
+    if (deps.closing() || used >= deps.limits.maxWorkers || floor)
       throw new PapError("capacity", { workers: { used, max: deps.limits.maxWorkers } });
   };
-  return { keepFreeFor, sandboxedOnly, keepOneFree, checkCapacity };
+  return { keepFreeFor, sandboxedOnly, keepOneFree, checkCapacity, booting, closing: deps.closing };
 }
 export type WorkerRoom = ReturnType<typeof createWorkerRoom>;

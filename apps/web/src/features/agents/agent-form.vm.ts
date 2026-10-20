@@ -35,6 +35,15 @@ export interface Draft {
   readonly memoryHint: string;
   readonly recallLimit: string;
   readonly recallThreshold: string;
+  /** VM resources as typed; whole numbers, judged by `AgentInput` (memory and disk in MiB). */
+  readonly memoryMb: string;
+  readonly cpus: string;
+  readonly diskMb: string;
+  /** The disk the saved profile has: the disk can only be enlarged (0 for a new agent). */
+  readonly savedDiskMb: number;
+  readonly systemPackages: readonly string[];
+  /** null: every package of the Pi profile (decision 108 Q4). */
+  readonly packages: readonly string[] | null;
 }
 
 export type FormErrors = Readonly<Partial<Record<string, MessageKey>>>;
@@ -95,16 +104,22 @@ export function draftFromInput(input: AgentInput | null): Draft {
     memoryHint: base.memory?.hint ?? "",
     recallLimit: text(base.memory?.recallLimit),
     recallThreshold: text(base.memory?.recallThreshold),
+    memoryMb: String(base.resources.memoryMb),
+    cpus: String(base.resources.cpus),
+    diskMb: String(base.resources.diskMb),
+    savedDiskMb: input === null ? 0 : input.resources.diskMb,
+    systemPackages: base.systemPackages,
+    packages: base.packages,
   };
 }
 
 /** Clears one half of the budget (owner m14): the field goes back to "No budget". */
 export const clearBudget = (draft: Draft, which: "usd" | "tokens"): Draft => ({ ...draft, [which]: "" });
 
-/** The field a schema issue belongs to: its path, two levels deep inside `budget` and `memory`. */
+/** The field a schema issue belongs to: its path, two levels deep inside `budget`, `memory` and `resources`. */
 const fieldOf = (path: ReadonlyArray<PropertyKey>): string =>
   path
-    .slice(0, path[0] === "budget" || path[0] === "memory" ? 2 : 1)
+    .slice(0, path[0] === "budget" || path[0] === "memory" || path[0] === "resources" ? 2 : 1)
     .map(String)
     .join(".");
 
@@ -120,6 +135,9 @@ const ERROR_KEYS: Readonly<Record<string, MessageKey>> = {
   "memory.hint": "agentForm.error.memory.hint",
   "memory.recallLimit": "agentForm.error.memory.recallLimit",
   "memory.recallThreshold": "agentForm.error.memory.recallThreshold",
+  "resources.memoryMb": "agentVm.error.number",
+  "resources.cpus": "agentVm.error.number",
+  "resources.diskMb": "agentVm.error.number",
 };
 
 /** The profile the draft describes, judged by `AgentInput` itself: no second copy of its rules lives here. */
@@ -150,7 +168,17 @@ export function toInput(draft: Draft): Built {
           ...optional("recallThreshold", draft.recallThreshold),
         }
       : null,
+    resources: {
+      memoryMb: numberOrNull(draft.memoryMb),
+      cpus: numberOrNull(draft.cpus),
+      diskMb: numberOrNull(draft.diskMb),
+    },
+    systemPackages: draft.systemPackages,
+    packages: draft.packages,
   });
+  if (parsed.success && parsed.data.resources.diskMb < draft.savedDiskMb) {
+    return { ok: false, errors: { "resources.diskMb": "agentVm.error.diskShrink" } };
+  }
   if (parsed.success) return { ok: true, input: parsed.data };
   const errors: Partial<Record<string, MessageKey>> = {};
   for (const issue of parsed.error.issues) {

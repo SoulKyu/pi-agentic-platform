@@ -27,8 +27,12 @@ const BODY_LIMITS = { lines: 200, chars: 4000 } as const;
 const HEADER_LIMITS = { lines: 2, chars: 400 } as const;
 const QUESTION_LIMITS = { lines: 3, chars: 300 } as const;
 
-const uiAnswers = (answers: Dialog["answers"]): UiApprovalAnswer[] =>
-  answers !== undefined && answers.length > 0 ? [...answers] : ["deny"];
+/** A VM session's "always" has no host rule to write (AVM-E18): the card does not offer it. */
+const uiAnswers = (dialog: Dialog): UiApprovalAnswer[] => {
+  const answers =
+    dialog.vm === true ? dialog.answers?.filter((answer) => answer !== "always") : dialog.answers;
+  return answers !== undefined && answers.length > 0 ? [...answers] : ["deny"];
+};
 
 /** A clipped text that has been expanded can scroll: it becomes a named region the keyboard can reach. */
 const scrollArea = (expanded: boolean, name: string) =>
@@ -64,7 +68,7 @@ export function ApprovalCardFor(props: {
         )?.triggerName ?? null),
   );
   const [scope, setScope] = useState<AlwaysScope>("exact");
-  const scopes = scopesOffered(dialog);
+  const scopes = dialog.vm === true ? [] : scopesOffered(dialog);
   const question = useClipped(dialog.title, QUESTION_LIMITS);
   const { header, body } = splitApproval(plain(dialog.message ?? ""));
   const headerText = useClipped(header ?? "", HEADER_LIMITS);
@@ -163,7 +167,7 @@ export function ApprovalCardFor(props: {
         ) : undefined
       }
       // The daemon refuses an approval without answers; the owner still gets a way to refuse if one arrives.
-      answers={uiAnswers(dialog.answers)}
+      answers={uiAnswers(dialog)}
       labels={{
         deny: t("dialog.answer.deny"),
         session: t("dialog.answer.session"),

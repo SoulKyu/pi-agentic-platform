@@ -25,3 +25,59 @@ T0a of `docs/plans/2026-10-19-agents-microvm-runtime.md`, run by the controller 
 4. T7: `HELLO_TIMEOUT_MS` 30 s (cold start measured at 6.3 s nested).
 5. T16a: the ruleset and guard exactly as tested (sections above), with the veth discovered at `vm.start`.
 6. Consider `disable_guest_seccomp = false` in pap's Kata config (defence in depth: the container's own seccomp in the guest); not tested.
+
+## T0b: the Claude token and OAuth providers through the relay (2026-10-20, this VPS)
+
+Run by the controller with a throwaway harness outside the repository. The harness:
+- forked `packages/pi-host/dist/relay/main.js --listen 127.0.0.1:0` (feat/agents-vm-1 at ff497413) with an empty `PI_CODING_AGENT_DIR`;
+- sent the relay its IPC commands: `claude_token`, a `relay_grant` for `127.0.0.1` and an `agent_policy` with `claude: true`;
+- ran pi-claude-bridge's bundled `claude` 2.1.289 as `claude -p "say ok"`. It ran inside `bwrap --unshare-user --dev-bind / / --ro-bind <hosts> /etc/hosts`, with an empty HOME, `ANTHROPIC_BASE_URL=http://claude.internal:<port>` and `ANTHROPIC_AUTH_TOKEN=<relay key>`.
+
+A logging hop in front of the relay recorded the path, the `model` field and the `anthropic-*` headers, but never `authorization`. The token file was deleted afterwards (`shred -u`).
+
+| Check | Result | Gates |
+|---|---|---|
+| Claude token (`claude setup-token`) through `claude.internal` (spec risk 6) | **Works.** Exit 0, answer `ok`. The relay forwarded `POST /v1/messages?beta=true` upstream with `authorization: Bearer <token>`; Anthropic answered 200. The incoming `anthropic-beta` header carried Claude Code's own list (`claude-code-20250219,interleaved-thinking-2025-05-14,…`), and no extra `oauth-2025-04-20` beta was needed. `anthropic-version: 2023-06-01`. | J1's Claude route stands as built (Bearer only, `anthropic-beta` forwarded). |
+| Model the bridge's `claude` sends | `claude-opus-5-5`, the CLI's default. The relay's `CLAUDE_MODEL` rule (`^claude-[a-z0-9.-]{1,64}$`) admits it. | T19 copy; the Claude-route model check (any `claude-` id) stays. |
+| Other requests | `HEAD /api/hello` (Claude Code's connectivity probe) was refused `route` (403); the CLI went on. | None; the refusal log line is expected noise. |
+| OAuth providers in the owner's `auth.json` (R9) | **None to test.** The owner's `auth.json` holds one provider, `zai`, of type `api_key`, and there is no `models.json`. The OAuth header rule stays unverified on a real login. | The relay's provider table: OAuth providers keep T12's header rule. Check it the first time an OAuth login exists (T21 note). |
+
+## T20a: the real stack on this VPS (2026-10-20)
+
+Host: Linux 7.0.0-38-generic, 14 vCPUs (`svm`), 19.5 GiB, `/dev/kvm` (660 root:kvm, the user is in `kvm`), Kata 4.2.0 runtime-rs with Cloud Hypervisor, nerdctl-full 2.4.1, installed by `sudo pap vm setup --user ubuntu --home /home/ubuntu/.pap-kata --dev-from-tree`. Measured with `nerdctl --address /run/pap-vm/containerd.sock --namespace pap-t20 ...` on `debian:trixie-slim` (index digest `a29215f6...`) so pap-vmd's namespace stayed untouched. Logs: `.superpowers/sdd/2026-10-19-agents-microvm-runtime/t20a/`.
+
+| Check | This host | T0a (runner) | Code that uses it |
+|---|---|---|---|
+| Cold start, `run --rm --net none --runtime io.containerd.kata-clh.v2 <image> uname -r`, median of 10 | **6.2 s** (6.12 to 6.24 s) | 6.3 s (6.2 to 7.0 s) | None changes. `GUEST_BOOT_TIMEOUT_MS` (60 s) covers it; `HELLO_TIMEOUT_MS` (10 s) counts from the connection, not the boot. |
+| `vm.start` call, then first dial of the guest to the gateway (real base image) | 1.0 to 1.5 s for the call, **2.1 s** to the guest's first dial | | |
+| `--memory 512m / 1024m / 2048m`: guest `MemTotal` | 520 824 / 1 036 152 / 2 066 808 kB | 1 036 152 kB at 1024m | |
+| Host RSS beside the guest (idle): cloud-hypervisor 145 / 154 / 177 MB, two virtiofsd 8 MB, containerd-shim 24 MB | **about 180 to 210 MB** | not measured | `VM_OVERHEAD_MB` = 512 stays (it also has to cover page cache the guest touches). |
+| Direct-assigned volume `kata-ctl direct-volume add <dir> '{"volume-type":"directvol","device":<file>,"fstype":"ext4",...}'` + `-v <dir>:/agent` | Works: `/dev/vdb on /agent type ext4 (rw,relatime)`. The volume folder must exist first. | same | `directVolumeAddArgv` unchanged. |
+| `vm.stop` of a running thread VM (vmd call) / `runtime.stop` with a live worker (kill ladder + vmd) | **0.36 s** / **0.46 to 0.50 s** | not measured | Quarantine's step (`QUARANTINE_STEP_MS`, 10 s) holds with a 20x margin. |
+| Disk space of an agent disk: `mkfs.ext4 -q -F` of a 4 GiB sparse file | 4 MiB at mkfs; about 330 MB after the first boot (the guest kernel's lazy inode and journal initialisation) | | FinOps: a 4 GiB agent disk costs about a third of a GiB at once. Tests delete their agents' disks. |
+| Online grow | The guest cannot open the disk: **the container's /dev has no node for it** (`findmnt` says `/dev/vdb`, `blockdev` fails), and a node made with `mknod` is refused by the guest's device cgroup. The mounted file system is grown with the kernel's `EXT4_IOC_RESIZE_FS` on `/agent` instead (needs `CAP_SYS_RESOURCE`), sized from `/sys/class/block/vdb/size`. A 1 GiB disk grown to 2 GiB while stopped is 2 GiB after the next boot and a marker file written before is still there. | not tested | `packages/pi-host/src/guest/grow.ts`; `KATA_RUNTIME` adds `--cap-add SYS_RESOURCE` (the shell drops it again). |
+
+### Reachability and spoofing (installed stack, two agent VMs on `pap0`, probes run in the VM as the worker)
+
+| Check | Result |
+|---|---|
+| VM to `10.213.0.1:7841` and `:7842` | connected |
+| VM to `10.213.0.1:22` | timed out (dropped) |
+| VM to the other VM (`:7841`, `:22`) | `No route to host` (its ARP is dropped by the bridge guard) |
+| VM to `1.1.1.1:443` | `Network is unreachable` |
+| `socket(AF_PACKET)` in the VM | `Operation not permitted` (`NET_RAW` dropped) |
+| Host to `10.213.0.1:7841` and `:7842` | timed out (the `input` rule drops what does not come from `pap0`); `127.0.0.1:7841` refused (nothing listens there) |
+| Forged gratuitous ARP claiming VM B's address and a spoofed-source UDP packet to the gateway, 5 each, sent from a container with `NET_RAW` that is not in the guard's set | the host's neighbour entry for B stayed `PERMANENT` with B's MAC; the final `counter drop` of the bridge `prerouting` went from 11 to 21 packets; B still reached the gateway |
+
+Not done: a connection from another machine (none here; the rule is the same `iifname != pap0` drop the host test hit), and a forger that is itself in the guard's set (pap-vmd drops `NET_RAW`, so no VM can send the frames; T20b's network test).
+
+### What the real stack broke (all fixed in this task)
+
+1. `buildctl` writes `/root/.docker`, read-only under `ProtectSystem=strict`: `image.build` failed at once. pap-vmd's children get `DOCKER_CONFIG=/run/pap-vm/docker-config`.
+2. nerdctl locks and makes folders in its network config path at every `run`: `/etc/pap-vm/cni` is now in `ReadWritePaths` (AVM-P15 otherwise validated: the rest of the hardening, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, `/var/lib/cni`, `/run/netns`, does not block CNI).
+3. `nerdctl inspect` of a missing name says `no such object`, `rm --force` and `pause` say `no such container` (rm exits 0 for it): `vm.status` answered `failed` instead of `absent`.
+4. host-local's reservations (`/var/lib/cni/networks`) outlive a reboot and a failed start left one behind: its address was `not available` for good and every start of pap-vmd's first address failed. The conflist keeps them under `/run/pap-vm/cni-ipam`, and `vm.start` clears the file of the address it just allocated.
+5. The file system never grew (above).
+6. `nerdctl run` with the CNI plugins leaves one `cnitest-<uuid>` network namespace per VM in `/run/netns` (about 100 after this task's runs, none removed by `rm`). Not fixed here: see the report.
+7. After a fresh `pap vm setup` pap-vmd stayed failed: `After=` waits for containerd to start, not to answer (about 2 s on a new state), and systemd's 100 ms restart delay used up the five tries of its start limit first. The unit has `RestartSec=3`.
+8. `pap vm uninstall --purge` left `/etc/pap-vm/cni` (nerdctl's lock and default network), `/run/pap-vm`, pap's results under `/var/lib/cni` and a `failed` unit record. It removes them now (only the `pap-agents` entries of `/var/lib/cni`). Checked after the fix: no unit, nft table, `pap0`, socket, `/opt/pap-vm`, `/opt/kata`, `/var/lib/pap-vm` or `/etc/pap-vm` is left; setup again then ran the whole Kata suite green. The `cnitest-*` namespaces of item 6 stay.

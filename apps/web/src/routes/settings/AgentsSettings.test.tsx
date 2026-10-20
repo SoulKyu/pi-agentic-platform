@@ -290,3 +290,31 @@ describe("Settings › Agents: one agent", () => {
     expect(body()).toContain("Au repos");
   });
 });
+
+describe("Settings › Agents: the trash entry (J1b)", () => {
+  const vm = { runtime: "vm", usable: true, reason: null, vmdVersion: "1", claudeToken: "set", agents: [] };
+  const trashed = { agents: [{ agentId: "atlas-1a2b", name: "Atlas", deletedAt: 1 }] };
+
+  it("shows a deleted agent's 'Purge now' in VM mode, after the delete note is gone", async () => {
+    const bed = fakeRuntime();
+    current.runtime = bed.runtime;
+    bed.handlers["agents.sandboxStatus"] = () => usable;
+    bed.handlers["agents.vmStatus"] = () => vm;
+    bed.handlers["agents.trash"] = () => trashed;
+    snapshot([]);
+    await mount(
+      <TooltipProvider>
+        <StepUpContext.Provider value={vi.fn() as unknown as StepUpRunner}>
+          <AgentsSettings />
+        </StepUpContext.Provider>
+      </TooltipProvider>,
+    );
+    await settle();
+    expect(hasButton(document.body, "Purge Atlas's trash now")).toBe(true);
+  });
+
+  it("reads no trash in host mode", async () => {
+    const { bed } = await open([]);
+    expect(bed.called("agents.trash")).toEqual([]);
+  });
+});

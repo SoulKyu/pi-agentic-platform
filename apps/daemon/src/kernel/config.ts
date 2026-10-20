@@ -3,6 +3,7 @@ import { readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { createSecureContext } from "node:tls";
 import { parseArgs } from "node:util";
+import { type AgentsVmEnv, parseAgentsVm } from "./config-agents-vm.ts";
 import { type OtlpConfig, parseOtlp } from "./config-otlp.ts";
 import { parsePush, type PushEnv } from "./config-push.ts";
 import type { LogLevel } from "./logger.ts";
@@ -30,7 +31,7 @@ export class ConfigError extends Error {
   override name = "ConfigError";
 }
 
-export interface Config extends PushEnv {
+export interface Config extends PushEnv, AgentsVmEnv {
   readonly home: string;
   readonly host: string;
   readonly port: number;
@@ -213,6 +214,12 @@ export function loadConfig(input: ConfigInput): Config {
     metricsToken: parseMetricsToken(input.env.PAP_METRICS_TOKEN),
     otlp: parseOtlp(input.env, (message) => new ConfigError(message)),
     ...parsePush(input.env, script !== undefined, (message) => new ConfigError(message)),
+    ...parseAgentsVm(
+      input.env,
+      input.totalMemMb,
+      script !== undefined,
+      (message) => new ConfigError(message),
+    ),
     bwrapOverride: parseBwrap(input.env.PAP_BWRAP),
     staticRoot: input.staticRoot,
     logLevel: parseLevel(input.env.PAP_LOG_LEVEL),

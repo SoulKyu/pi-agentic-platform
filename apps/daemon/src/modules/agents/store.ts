@@ -1,6 +1,9 @@
 import { AgentInput } from "@pap/contracts";
 import type { Db } from "../../kernel/db/database.ts";
 
+/** How long a deleted agent stays in the trash (RT-40: pap-vmd keeps its disk that long). */
+const TRASH_KEEP_MS = 7 * 86_400_000;
+
 /** An agent as the other modules read it. `input` is null when the stored profile no longer parses (M11R43). */
 export interface AgentRecord {
   readonly id: string;
@@ -74,6 +77,9 @@ function recordOf(row: AgentRow): AgentRecord {
 export function createAgentStore(db: Db) {
   const one = (ownerId: string, id: string): AgentRow | undefined =>
     db.get<AgentRow>("SELECT * FROM agents WHERE id = $id AND owner_id = $ownerId", { id, ownerId });
+  /** AVM-E42 M1: a trash row older than the keep time is gone for every owner, at a delete and at a listing. */
+  const pruneTrash = (now: number): void =>
+    void db.run("DELETE FROM agent_trash WHERE deleted_at <= $since", { since: now - TRASH_KEEP_MS });
   return {
     get(ownerId: string, id: string): AgentRecord | null {
       const row = one(ownerId, id);
@@ -195,8 +201,43 @@ export function createAgentStore(db: Db) {
         at,
       }).changes === 1,
 
-    remove: (ownerId: string, id: string): boolean =>
-      db.run("DELETE FROM agents WHERE id = $id AND owner_id = $ownerId", { id, ownerId }).changes === 1,
+    /** Deletes the row and, in the same transaction, leaves the trash row the owner's trash entry lists (J1b). */
+    remove: (ownerId: string, id: string, at: number): boolean =>
+      db.transaction(() => {
+        pruneTrash(at);
+        db.run(
+          `INSERT OR REPLACE INTO agent_trash (agent_id, owner_id, name, deleted_at)
+           SELECT id, owner_id, name, $at FROM agents WHERE id = $id AND owner_id = $ownerId`,
+          { id, ownerId, at },
+        );
+        return (
+          db.run("DELETE FROM agents WHERE id = $id AND owner_id = $ownerId", { id, ownerId }).changes === 1
+        );
+      }),
+
+    /** The owner's deleted agents still in the trash (newest first): a VM agent's disk is kept 7 days (RT-40). */
+    trashed(ownerId: string, now: number): Array<{ agentId: string; name: string; deletedAt: number }> {
+      pruneTrash(now);
+      return db
+        .all<{ agent_id: string; name: string; deleted_at: number }>(
+          `SELECT agent_id, name, deleted_at FROM agent_trash
+           WHERE owner_id = $ownerId ORDER BY deleted_at DESC, agent_id LIMIT 32`,
+          { ownerId },
+        )
+        .map((row) => ({ agentId: row.agent_id, name: row.name, deletedAt: row.deleted_at }));
+    },
+
+    /** Whether the owner has this deleted agent in the trash (the entry is the proof "Purge now" is theirs to ask). */
+    inTrash: (ownerId: string, id: string): boolean =>
+      db.get("SELECT 1 AS n FROM agent_trash WHERE agent_id = $id AND owner_id = $ownerId", {
+        id,
+        ownerId,
+      }) !== undefined,
+
+    /** The entry goes once its disk and mirrors have (or after 7 days, at a delete or a listing). */
+    dropTrash: (ownerId: string, id: string): boolean =>
+      db.run("DELETE FROM agent_trash WHERE agent_id = $id AND owner_id = $ownerId", { id, ownerId })
+        .changes === 1,
 
     transaction: <T>(fn: () => T): T => db.transaction(fn),
   };

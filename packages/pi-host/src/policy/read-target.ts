@@ -196,8 +196,8 @@ export async function checkReadTarget(
   return undefined;
 }
 
-const UNICODE_SPACE = /[\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]/;
-const REWRITTEN = /^(?:~|@|file:)/;
+export const UNICODE_SPACE = /[\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]/;
+export const REWRITTEN = /^(?:~|@|file:)/;
 
 async function exists(path: string): Promise<boolean> {
   try {

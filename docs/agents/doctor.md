@@ -56,6 +56,23 @@ They read the home, never write it. The order of the whole list is the order of 
 
 `update_available` is `skip` when no check has run or the record is unreadable, `ok` otherwise ("<latest> is available on <channel>: pap update install" or "up to date").
 
+## Agent VM checks
+
+They apply only when the unit (else the shell) sets `PAP_AGENTS_RUNTIME=vm`; otherwise each is `skip` ("the agents run on the host"). They run last. The root-only facts (the ruleset, pap0, the state folder's free space) come from pap-vmd's `vmd.health`, because doctor runs as pap's user. When pap-vmd does not answer, `vm.vmd` fails and the checks that need it are `skip` ("pap-vmd does not answer"). The sentences of `vm.vmd`, `vm.stack` and `vm.network` are the ones `agents.vmStatus` returns, and a launch is refused `sandbox_unavailable` while one of them fails.
+
+| id | what it looks at | `fail` | `warn` | `info` |
+|---|---|---|---|---|
+| `vm.kvm` | `/dev/kvm` exists | missing: enable nested virtualization on the host (`install.md`, Agent VMs) | | |
+| `vm.vmd` | pap-vmd answers and its version equals pap's (R6) | no answer, or another version: `sudo pap vm setup` | | |
+| `vm.stack` | pap-vmd has loaded pap's nftables table | not loaded: `sudo pap vm setup` | | |
+| `vm.network` | the bridge `pap0` is up | down: `sudo pap vm setup` | | |
+| `vm.images` | `image.list` holds a `pap-agent-base-` image | | the list could not be read | none built yet: the first agent start builds it |
+| `vm.disk` | the state folder's free space against the agents' disks (4096 MB for a profile that names none) plus the kept mirrors (`agents/.mirrors/*/replaced`) plus `PAP_MIN_FREE_DISK_MB` | | less free space than that sum (disks are sparse: it is the worst case) | |
+| `vm.listeners` | who holds the sockets on 10.213.0.1:7841 and :7842 (`/proc/net/tcp` and `tcp6`, then the fd tables of the user's processes): the relay's holder must be a child of the gateway's | held by a process that is not pap's (the daemon refuses launches too: `relay_listener_foreign`) | only the gateway listens, or pap runs and nothing listens | pap is not running |
+| `vm.firewall` | `ufw` (`/etc/ufw/ufw.conf`) or `firewalld` (its pid file) is active | | active: it can drop ports 7841 and 7842 on `pap0` (the fix lists the allow rule) | |
+
+`vm.listeners` is `info` (not a warning) while another daemon holds the home's lock and only your shell sets `PAP_AGENTS_RUNTIME=vm` (no unit says so: the preview server running beside a shell that forces vm mode, for one). With a unit that sets it, nothing on the sockets while pap runs is a warning, and it shows for a moment at boot before the relay binds: run doctor again. Topic note: `agents-vm.md`.
+
 The `bwrap` probe starts bubblewrap, and makes and removes one temporary folder in `os.tmpdir()`; it is the only thing doctor creates, and nothing under the home.
 
 `https` and `push` read where pap says it is reached from the unit (`listenFacts`): `PAP_PUBLIC_ORIGIN` of the unit's environment (the shell's only when no unit is installed), else `scheme://host:port` with `localhost` for a loopback or wildcard `--host`, the unit's port (7777 by default), `https` with `--tls-cert`, and `--insecure-http`. The fix names `docs/agents/notifications.md#https` and the routes in order: the ngrok origin, `tailscale serve`, a reverse proxy through `PAP_PUBLIC_ORIGIN`, then `--tls-cert`; each is printed once (`push` points at the anchor). When the unit is installed but pap cannot parse it (a hand-written `ExecStart`, for example with a relative main path), both lines are `info`: "cannot read the listen flags of <unit>", with the flags to check by hand; they never claim localhost.

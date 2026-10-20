@@ -76,6 +76,7 @@ describe("skills methods", () => {
 
 describe("plugins methods (Task 25)", () => {
   const view = {
+    id: "a".repeat(32),
     source: "npm:@example/pi-tools@1.0.0",
     scope: "user",
     installedPath: "/h/.pi/agent/npm/node_modules/@example/pi-tools",

@@ -1,6 +1,7 @@
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { StreamHub } from "../../kernel/ws/stream-hub.ts";
+import { mirrorFileOf } from "../agent-vm/index.ts";
 import type { LiveSession } from "./live-session.ts";
 import { fileSizeOrZero, isPiSessionFile } from "./pi-files.ts";
 import type { PreReadyBuffer } from "./pre-ready-buffer.ts";
@@ -12,6 +13,8 @@ export interface StoreSyncDeps {
   readonly logger: Logger;
   readonly hub: Pick<StreamHub, "publish">;
   readonly agentDir: string;
+  /** A VM row's Pi file is its mirror under `<papHome>/agents/.mirrors/<agent id>/` (R23). */
+  readonly papHome: string;
   /** A worker's policy record (an audit entry, as unknown): it goes to the audit module, not to `session_events`. */
   onPolicyRecord(row: SessionRow, raw: unknown): void;
   /** The worker reports its taint, with the taint epoch it holds (M5R60): the daemon stores it, not `session_events`. */
@@ -26,7 +29,8 @@ export function createStoreSync(deps: StoreSyncDeps) {
     const file = session.piFile();
     const piSessionId = session.piSessionId();
     if (!file || !piSessionId || fileSizeOrZero(file) === 0) return false;
-    if (!isPiSessionFile(deps.agentDir, file)) {
+    const mirror = mirrorFileOf(deps.papHome, { piPath: file, agentId: row.agentId }) !== null;
+    if (!mirror && !isPiSessionFile(deps.agentDir, file)) {
       deps.logger.warn("session_file_refused", { sessionId: row.id });
       return true;
     }

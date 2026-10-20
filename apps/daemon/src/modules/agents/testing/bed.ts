@@ -12,7 +12,13 @@ import { requireStepUp } from "../../auth/index.ts";
 import { AGENTS_MIGRATIONS, createAgentGuard, createAgents } from "../index.ts";
 
 /** A real database through `migrate`, a fake clock, a temporary `$PAP_HOME` and the real git runner behind a spy. */
-export function createAgentsBed(options: { startAt?: number; migrations?: readonly MigrationSource[] } = {}) {
+export function createAgentsBed(
+  options: {
+    startAt?: number;
+    migrations?: readonly MigrationSource[];
+    extra?: Partial<Parameters<typeof createAgents>[0]>;
+  } = {},
+) {
   const dir = mkdtempSync(join(tmpdir(), "pap-agents-"));
   const clock = createFakeClock(options.startAt ?? 1_700_000_000_000);
   const logs: Array<Record<string, unknown>> = [];
@@ -55,6 +61,7 @@ export function createAgentsBed(options: { startAt?: number; migrations?: readon
     papHome,
     requireStepUp,
     randomHex: () => (next++).toString(16).padStart(4, "0"),
+    ...options.extra,
   });
   return {
     dir,

@@ -13,13 +13,20 @@
     },
     "packages/pi-host": {
       "entry": ["src/testing/*.ts", "src/testing/mcp-fixture.mjs", "src/testing/bridge-like-extension.mjs"],
-      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run", "mkfifo"]
+      "ignoreBinaries": ["pgrep", "pkill", "rg", "fd", "systemd-run", "mkfifo", "openssl"]
     },
     "apps/web": {
       "entry": ["src/features/appearance/boot-script.js", "vite/*.ts", "sw/sw.ts"]
     },
+    "apps/vmd": {
+      "ignoreBinaries": ["mkfifo"]
+    },
     "apps/daemon": {
-      "entry": ["src/modules/search/search-thread.ts"],
+      "entry": [
+        "src/modules/search/search-thread.ts",
+        "src/modules/agent-vm/mirror-parse-thread.ts",
+        "src/modules/agent-vm/profile-thread.ts"
+      ],
       "ignoreBinaries": ["openssl", "loginctl", "systemd-run", "mkfifo"]
     }
   }

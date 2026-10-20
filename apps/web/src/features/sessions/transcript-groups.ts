@@ -22,6 +22,9 @@ function authorOf(item: TranscriptItem): "agent" | "you" | null {
   return null;
 }
 
+const marked = (item: TranscriptItem | undefined): boolean =>
+  item?.kind === "message" && item.unverified === true;
+
 /**
  * Consecutive rows of one author become one run, under one header; summaries, failures and tool-authored messages stand
  * alone. A row named in `breaks` starts a run of its own (a card, a day or a pause stands before it).
@@ -35,7 +38,9 @@ export function groupItems(
     const author = authorOf(item);
     const last = groups.at(-1);
     if (author !== null && (item.kind === "message" || item.kind === "partial" || item.kind === "tool")) {
-      if (last?.kind === "run" && last.author === author && !breaks?.has(item.key)) {
+      // A row pap did not send stands alone, so its author line can say so.
+      const mixed = marked(item) || (last?.kind === "run" && marked(last.items[0]));
+      if (last?.kind === "run" && last.author === author && !breaks?.has(item.key) && !mixed) {
         groups[groups.length - 1] = { ...last, items: [...last.items, item] };
       } else {
         groups.push({ kind: "run", author, key: item.key, items: [item] });

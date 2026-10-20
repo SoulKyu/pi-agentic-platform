@@ -33,12 +33,20 @@ describe("ALL_CHECKS", () => {
       "bwrap",
       "python3",
       "update_available",
+      "vm.kvm",
+      "vm.vmd",
+      "vm.stack",
+      "vm.network",
+      "vm.images",
+      "vm.disk",
+      "vm.listeners",
+      "vm.firewall",
     ]);
   });
 
   it("every id has a row in the table of docs/agents/doctor.md", () => {
     const doc = readFileSync(new URL("../../../../../docs/agents/doctor.md", import.meta.url), "utf8");
-    const rows = new Set([...doc.matchAll(/^\| `([a-z0-9_]+)` \|/gm)].map((m) => m[1]));
+    const rows = new Set([...doc.matchAll(/^\| `([a-z0-9_.]+)` \|/gm)].map((m) => m[1]));
     const missing = ALL_CHECKS.map((c) => c.id).filter((id) => !rows.has(id));
     expect(missing).toEqual([]);
   });

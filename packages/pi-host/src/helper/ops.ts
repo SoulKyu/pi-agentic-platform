@@ -33,6 +33,7 @@ import {
   pluginsSetEnabledOp,
   pluginsUpdateOp,
 } from "./ops/plugins.ts";
+import { pluginsResolveOp } from "./ops/plugins-resolve.ts";
 import { skillsInstallOp } from "./ops/skills-install.ts";
 import { skillsSearchOp } from "./ops/skills-search.ts";
 import { skillsListOp, skillsSetInvocationOp } from "./ops/skills.ts";
@@ -116,6 +117,7 @@ export const opsFor = (env: NodeJS.ProcessEnv): OpTable => ({
   "skills.search": skillsSearchOp,
   "skills.install": skillsInstallOp,
   "plugins.list": pluginsListOp,
+  "plugins.resolve": pluginsResolveOp,
   "plugins.install": pluginsInstallOp,
   "plugins.remove": pluginsRemoveOp,
   "plugins.update": pluginsUpdateOp,

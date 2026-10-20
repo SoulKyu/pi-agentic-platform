@@ -14,6 +14,7 @@ import { resolveSessionCwd } from "./cwd.ts";
 import type { LiveSession } from "./live-session.ts";
 import type { WorkerRoom } from "./worker-room.ts";
 import type { MarksStore } from "./marks-store.ts";
+import { mirrorFileOf, removeMirrorFiles } from "../agent-vm/index.ts";
 import { isPiSessionFile } from "./pi-files.ts";
 import type { SessionsServiceDeps, SessionsService } from "./service-types.ts";
 import type { ShellPublisher } from "./shell-publisher.ts";
@@ -328,13 +329,17 @@ export function createAutomationPort(
       ctx.publisher.countsChanged(ownerId);
       ctx.publisher.projectChanged(ownerId, projectId);
       ctx.removed(row);
-      // Only a file under Pi's sessions folder, and only that path: a link is unlinked, never followed (M10R155).
-      if (row.piPath && isPiSessionFile(deps.worker.agentDir, row.piPath)) {
-        try {
-          rmSync(row.piPath, { force: true });
-        } catch (error) {
-          deps.logger.warn("task_session_file_not_removed", { sessionId, err: error });
-        }
+      // Only a file under Pi's sessions folder, or a VM session's mirror (RT-45, with its unverified list), and only that
+      // path: a link is unlinked, never followed (M10R155).
+      const file = row.piPath;
+      let remove: (() => void) | null = null;
+      if (file && isPiSessionFile(deps.worker.agentDir, file)) remove = () => rmSync(file, { force: true });
+      else if (file && mirrorFileOf(deps.worker.papHome, row) !== null)
+        remove = () => removeMirrorFiles(file);
+      try {
+        remove?.();
+      } catch (error) {
+        deps.logger.warn("task_session_file_not_removed", { sessionId, err: error });
       }
       return "deleted";
     },

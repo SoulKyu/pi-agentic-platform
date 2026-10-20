@@ -1,0 +1,56 @@
+import type { RelayCommand } from "@pap/contracts";
+
+type AgentPolicy = Omit<Extract<RelayCommand, { type: "agent_policy" }>, "type">;
+export type PolicyVerdict =
+  { readonly ok: true } | { readonly ok: false; readonly reason: "model" | "paused" | "budget" };
+export interface PolicyQuery {
+  /** The provider of a `llm.internal` route; null for the bridge. */
+  readonly provider: string | null;
+  readonly model: string | null;
+}
+export type RelayPolicy = ReturnType<typeof createRelayPolicy>;
+
+/** Until T0b records the bridge's exact model ids, any `claude-` id is the bridge's (R13). */
+const CLAUDE_MODEL = /^claude-[a-z0-9.-]{1,64}$/;
+const MAX_AGENTS = 4096;
+
+interface Entry {
+  readonly pairs: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly claude: boolean;
+  readonly blocked: AgentPolicy["blocked"];
+}
+
+/**
+ * R13: what each agent may ask (the pairs its picker offers, and the bridge), and whether it may ask now. The daemon pushes
+ * a policy at every launch and at every pause or budget change. An agent nobody told about may use nothing (fail closed).
+ * Maps, never objects; at most 4096 agents are kept, the oldest pushed first to go.
+ */
+export function createRelayPolicy() {
+  const agents = new Map<string, Entry>();
+  return {
+    set(policy: AgentPolicy): void {
+      const pairs = new Map<string, Set<string>>();
+      for (const { provider, id } of policy.models) {
+        const models = pairs.get(provider) ?? new Set<string>();
+        models.add(id);
+        pairs.set(provider, models);
+      }
+      agents.delete(policy.agentId);
+      agents.set(policy.agentId, { pairs, claude: policy.claude, blocked: policy.blocked });
+      if (agents.size > MAX_AGENTS) {
+        const oldest = agents.keys().next().value;
+        if (oldest !== undefined) agents.delete(oldest);
+      }
+    },
+    check(agentId: string, query: PolicyQuery): PolicyVerdict {
+      const entry = agents.get(agentId);
+      if (entry === undefined || query.model === null) return { ok: false, reason: "model" };
+      const allowed =
+        query.provider === null
+          ? entry.claude && CLAUDE_MODEL.test(query.model)
+          : entry.pairs.get(query.provider)?.has(query.model) === true;
+      if (!allowed) return { ok: false, reason: "model" };
+      return entry.blocked === null ? { ok: true } : { ok: false, reason: entry.blocked };
+    },
+  };
+}

@@ -1,0 +1,17 @@
+{
+  "name": "@pap/vmd",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "pap-vmd": "./dist/main.js"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json"
+  },
+  "dependencies": {
+    "@pap/contracts": "workspace:*"
+  }
+}

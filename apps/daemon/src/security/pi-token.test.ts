@@ -72,6 +72,8 @@ const SAMPLES: Record<string, unknown> = {
   "subscribe.login": { flowId: "f1" },
   "models.setApiKey": { provider: "anthropic", key: "sk-1" },
   "models.logout": { provider: "anthropic" },
+  "agents.vm.setClaudeToken": { token: "t" },
+  "agents.vm.clearClaudeToken": {},
 };
 
 const tokenCaller = (): Caller =>

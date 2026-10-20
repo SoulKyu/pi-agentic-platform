@@ -22,6 +22,7 @@ import { createMemoryRelease } from "./memory-trust.ts";
 import { createSessionReads } from "./service-reads.ts";
 import { createShellView } from "./service-shell.ts";
 import { createShellPublisher } from "./shell-publisher.ts";
+import { filedOf, openWorkerOf } from "./service-helpers.ts";
 import { fitSummaries } from "./shell.ts";
 import { type SessionRow, storedPresetOf } from "./store.ts";
 import type { SessionsService, SessionsServiceDeps, SessionsServiceWithAutomation } from "./service-types.ts";
@@ -158,6 +159,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
     },
     ...adoption.launchHooks,
+    onStarted: (id) => (adoption.launchHooks.onStarted?.(id), deps.onSessionStarted?.(id)),
   });
   const owned = (sessionId: string, caller: Caller): SessionRow => {
     const row = deps.store.get(sessionId);
@@ -166,23 +168,18 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
   };
 
   const sendPrompt = createPromptFlow({ deps, memory, ensureLive, organiser, publisher, owned });
-
   // A fork would be a second thread, or a plain session in the agent's home (M11R179).
   const notAgent = (row: SessionRow): SessionRow => {
     if (row.agentId !== undefined) throw new PapError("bad_request");
     return row;
   };
 
-  // The worker a dialog or a panel answer may go to: none once it is being released, whose dialogs closed with it.
-  const openWorker = (id: string): LiveSession => {
-    const session = live.get(id);
-    if (!session || session.stopping()) throw new PapError("not_found");
-    return session;
-  };
+  const openWorker = openWorkerOf(live);
 
   const reads = createSessionReads({
     store: deps.store,
     agentDir: deps.worker.agentDir,
+    papHome: deps.worker.papHome,
     loadTranscript: deps.loadTranscript,
     live,
     statusOf,
@@ -201,6 +198,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     hub: deps.hub,
     exports: deps.exports,
     logger: deps.logger,
+    runsInVm: (row) => agent.vmLayoutOf(row) !== null,
   });
   const modelCommands = createSessionModels({
     owned,
@@ -242,12 +240,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
     },
   });
 
-  const filed = <T extends { sessionId: string }>(source: SessionRow, result: T): T => {
-    const projectId = link.copy(source.id, result.sessionId);
-    publisher.changed(result.sessionId);
-    publisher.projectChanged(source.ownerId, projectId);
-    return result;
-  };
+  const filed = filedOf(link, publisher);
 
   const automation = createAutomationPort(
     {
@@ -260,7 +253,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       publisher,
       marks,
       room,
-      sandboxed: agent.sandboxed,
+      sandboxed: agent.shellSandboxed,
       removed: (row) => child.removed(row),
     },
     () => self,

@@ -38,6 +38,7 @@ import type { SessionCommands } from "./service-commands.ts";
 import type { SessionModels } from "./service-models.ts";
 import type { SessionsStore } from "./store.ts";
 import type { TranscriptReader } from "./transcript.ts";
+import type { VmLaunch } from "./vm-launch.ts";
 
 export interface SessionsServiceDeps {
   readonly store: SessionsStore;
@@ -81,11 +82,15 @@ export interface SessionsServiceDeps {
   /** `env`: variables for this worker only, over the daemon's (memory trust, M11R142). */
   spawn(cwd: string, env?: Readonly<Record<string, string>>): WorkerHandle;
   freeMemMb(): number;
+  /** After a session's start ended (it is live, or it failed): what waited for a live session is posted now. */
+  onSessionStarted?(sessionId: string): void;
   onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
   /** The runs registry: sees each run start and end and every raw Pi event of the session (M10R84). */
   readonly runs?: RunObserver;
   /** The fork cap and the free-disk floor (M10R100, M10R101); the daemon always gives it. */
   readonly admission?: Admission;
+  /** Present under `PAP_AGENTS_RUNTIME=vm` only (T8a): the agents' sessions start in their VMs through it. */
+  readonly vmLaunch?: VmLaunch;
 }
 
 export interface PromptInput {

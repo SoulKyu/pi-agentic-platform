@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { LINE_HIDDEN } from "./text-rules.ts";
+import { AgentResources, DEFAULT_AGENT_RESOURCES, PluginPicks, SystemPackages } from "./agents-resources.ts";
 import { ApprovalMode, DenyPattern, HostPattern, MAX_TRUSTED_SOURCES, TrustedHost } from "./policy.ts";
 import { AgentId, AgentName } from "./platform.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
@@ -16,7 +18,6 @@ export const AGENT_LIMITS = {
 // Control characters except tab and new line, then format, line and paragraph separators (bidi, zero-width, U+2028/9).
 const TEXT_HIDDEN = /(?![\t\n])\p{Cc}|[\p{Cf}\p{Zl}\p{Zp}]/u;
 /** One-line identifiers: the same, tabs and new lines included. */
-const LINE_HIDDEN = /\p{Cc}|[\p{Cf}\p{Zl}\p{Zp}]/u;
 const visibleLine = (text: string): boolean => !LINE_HIDDEN.test(text);
 /** The agent's role: the owner's text appended to its system prompt at each worker start. Tabs and new lines only. */
 export const AgentRole = z
@@ -101,6 +102,9 @@ export const AgentInput = z
       .max(AGENT_LIMITS.trustedSources)
       .refine((hosts) => new Set(hosts).size === hosts.length, "each host once")
       .default([]),
+    resources: AgentResources.default(DEFAULT_AGENT_RESOURCES),
+    systemPackages: SystemPackages.default([]),
+    packages: PluginPicks.default(null),
   })
   .strict();
 export type AgentInput = z.output<typeof AgentInput>;

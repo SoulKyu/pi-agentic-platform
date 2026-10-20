@@ -21,13 +21,16 @@ export interface Sent {
   readonly sessionId: string | undefined;
 }
 
-export async function setup(options: { sandboxed?: boolean; usable?: boolean; auditFails?: boolean } = {}) {
+export async function setup(
+  options: { sandboxed?: boolean; usable?: boolean; auditFails?: boolean; vm?: boolean } = {},
+) {
   const t = await createRequestsBed();
   beds.push(t);
   const sent: Sent[] = [];
   const warnings: unknown[] = [];
   const sessions = {
     sandboxed: vi.fn(() => options.sandboxed ?? true),
+    runsInVm: vi.fn(() => options.vm ?? false),
     sendToAgent: vi.fn((_owner: string, agentId: string, record: VaultUpdateRecord, sessionId?: string) => {
       sent.push({ agentId, record, sessionId });
       return 1;

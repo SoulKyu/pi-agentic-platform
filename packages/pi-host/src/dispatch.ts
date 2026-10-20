@@ -14,6 +14,8 @@ import { errorClass, logLineOf } from "./bounded.ts";
 import { handleAutoName } from "./auto-name.ts";
 import { handleAbort, handleGetState, queuePrompt } from "./commands.ts";
 import type { Ipc } from "./ipc.ts";
+import type { FilePutResult } from "./inbox-put.ts";
+import { readPromptImages } from "./prompt-images.ts";
 import { createPromptQueue } from "./prompt-queue.ts";
 import { loadoutRecord } from "./loadout.ts";
 import { handleGetAvailableModels, handleSetModel, handleSetThinking } from "./model-commands.ts";
@@ -47,16 +49,35 @@ export interface DispatchDeps {
   readonly platform?: { resolve(record: PlatformResultRecord): void };
   /** Takes a `vault_update` (the redactor and the sandboxed shell's environment); absent, the record is ignored (M11R26). */
   readonly vault?: { update(record: VaultUpdateRecord): void };
+  /** A VM session (`init.vm`): R11, no vault value ever enters a VM, so a `vault_update` is dropped. */
+  readonly vm?: boolean;
   /** Takes the daemon's answers to `egress_open` / `egress_close` (M11R232); absent, they are dropped. */
   readonly egress?: { opened(record: EgressOpened): void; report(record: EgressReport): void };
   /** The taint of a valid update: a newer epoch replaces the state, the same epoch only raises it (M5R6). */
   applyTaint(taint: TaintState): void;
+  /** The transcript mirror of a worker in a VM (T9a): flushed after every response, resent on `session_resync`. */
+  /** A worker in a VM takes attachments into its inbox (T10a, R33); absent: `file_put` is ignored. */
+  readonly inbox?: { put(chunk: Extract<DaemonToWorker, { type: "file_put" }>): FilePutResult | null };
+  /** The real inbox folder of a worker in a VM: where its prompt images are read from (RT-06). */
+  readonly inboxDir?: string;
+  readonly mirror?: {
+    flush(): void;
+    resync(request: Extract<DaemonToWorker, { type: "session_resync" }>): void;
+  };
 }
 
 /** One record, one handler. Long commands are not awaited: the next record must not wait behind a compaction. */
 export function createDispatch(deps: DispatchDeps): (record: Command) => void {
   const { session, ipc, ui } = deps;
-  const send = (record: Parameters<Ipc["send"]>[0]) => ipc.send(record);
+  let vaultDropLogged = false;
+  // AVM-E14: the lines Pi appended go out before the response that refers to them.
+  const send = (record: Parameters<Ipc["send"]>[0]) => {
+    if (record.type === "response") deps.mirror?.flush();
+    return ipc.send(record);
+  };
+  const readImages: typeof readPromptImages | undefined = deps.inboxDir
+    ? (home, images) => readPromptImages(home, images, deps.inboxDir)
+    : undefined;
   // The handlers answer their own failures; this only catches a failure after the answer (a throwing `send`).
   const background = (command: string, work: Promise<void>): void => {
     work.catch((error: unknown) =>
@@ -67,7 +88,7 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
   return (record) => {
     switch (record.type) {
       case "prompt":
-        queuePrompt(prompts, session, deps.papHome, record, send);
+        queuePrompt(prompts, session, deps.papHome, record, send, readImages);
         return;
       case "abort":
         prompts.dropWaiting();
@@ -150,6 +171,12 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         deps.platform?.resolve(record);
         return;
       case "vault_update":
+        if (deps.vm) {
+          // Type only, once: the payload holds values.
+          if (!vaultDropLogged) process.stderr.write("pi-host: vault_update dropped in a VM session\n");
+          vaultDropLogged = true;
+          return;
+        }
         try {
           deps.vault?.update(record);
         } catch (error) {
@@ -168,6 +195,15 @@ export function createDispatch(deps: DispatchDeps): (record: Command) => void {
         return;
       case "custom_cancel":
         ui.panelCancel(record.id);
+        return;
+      case "session_resync":
+        deps.mirror?.resync(record);
+        return;
+      case "file_put":
+        {
+          const answer = deps.inbox?.put(record);
+          if (answer) send(answer);
+        }
         return;
       default: {
         // Compile-time guard (M2R81): a command added to the contract without a case here fails the build.

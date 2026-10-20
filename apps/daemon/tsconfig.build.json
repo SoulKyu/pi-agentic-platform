@@ -2,5 +2,10 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "rootDir": "src", "outDir": "dist" },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/**/testing/**"]
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/**/testing/**",
+    "src/modules/agent-vm/mirror-fixtures.ts",
+    "src/modules/agent-vm/mirror-harness.ts"
+  ]
 }

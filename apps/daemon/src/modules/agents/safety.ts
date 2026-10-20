@@ -5,6 +5,7 @@ import { createPrompts } from "./prompts.ts";
 import { createQuarantine, type QuarantineDeps } from "./quarantine.ts";
 import type { AgentSafetyServices } from "./rpc.ts";
 import type { AgentStore } from "./store.ts";
+import { createTrashPurge } from "./trash-purge.ts";
 
 export interface AgentSafetyDeps {
   readonly store: AgentStore;
@@ -24,9 +25,11 @@ export interface AgentSafetyDeps {
   ): { readonly allowHosts: readonly string[] | null; readonly denylist: readonly unknown[] } | undefined;
   readonly liveTools: PermissionsDeps["liveTools"];
   readonly hostGrants: PermissionsDeps["hostGrants"];
+  /** The agent runs in a VM (R16): no prompt chips. */
+  agentRunsInVm?(ownerId: string, agentId: string): boolean;
 }
 
-/** Task 21's three services behind `agents.quarantine`, `agents.permissions` and `agents.prompts`. */
+/** Task 21's three services behind `agents.quarantine`, `agents.permissions` and `agents.prompts`, and T15's `agents.purgeTrash`. */
 export function createAgentSafety(deps: AgentSafetyDeps): AgentSafetyServices {
   return {
     quarantine: createQuarantine(deps),
@@ -38,5 +41,6 @@ export function createAgentSafety(deps: AgentSafetyDeps): AgentSafetyServices {
       },
     }),
     prompts: createPrompts(deps),
+    trash: createTrashPurge(deps),
   };
 }

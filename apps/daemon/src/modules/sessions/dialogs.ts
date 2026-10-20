@@ -165,7 +165,7 @@ function labelOf(message: string): string {
 }
 
 /** The card must show the whole call, so a request is the dialog as it is or no dialog (R86). */
-function approvalDialog(record: ApprovalRequestRecord): Built {
+function approvalDialog(record: ApprovalRequestRecord, vm: boolean): Built {
   if (!record.answers?.length || !record.category) return { reason: "malformed" };
   const parsed = Dialog.safeParse({
     id: record.id,
@@ -180,6 +180,7 @@ function approvalDialog(record: ApprovalRequestRecord): Built {
     tool: record.tool,
     ...(record.alwaysScopes ? { alwaysScopes: record.alwaysScopes } : {}),
     ...(record.host === undefined ? {} : { host: record.host }),
+    ...(vm ? { vm: true } : {}),
   });
   if (!parsed.success) {
     const longer = (text: unknown, max: number) => typeof text === "string" && text.length > max;
@@ -189,7 +190,8 @@ function approvalDialog(record: ApprovalRequestRecord): Built {
   return sizeOf(parsed.data) > DIALOG_FRAME_BYTES ? { reason: "too_large" } : { dialog: parsed.data };
 }
 
-export function createDialogRegistry(): DialogRegistry {
+/** `vm`: the session's own row says it runs in a VM, so its cards are marked (never read from the worker's record). */
+export function createDialogRegistry(vm = false): DialogRegistry {
   const open = new Map<string, { dialog: Dialog; bytes: number; grant: Grant | null }>();
   let bytes = 0;
   function place(dialog: Dialog, grant: Grant | null): DialogVerdict {
@@ -221,7 +223,7 @@ export function createDialogRegistry(): DialogRegistry {
       return dialog ? place(dialog, null) : cancel("too_large");
     },
     offerApproval(record) {
-      const built = approvalDialog(record);
+      const built = approvalDialog(record, vm);
       if ("reason" in built) return cancel(built.reason);
       return place(built.dialog, {
         tool: record.tool,

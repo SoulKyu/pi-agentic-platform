@@ -1,4 +1,5 @@
 import { type InitRecord, PapError, type SessionStreamEvent } from "@pap/contracts";
+import type { WorkerHandle } from "../../kernel/supervisor/worker.ts";
 import { initTools, storeNewSession } from "./automation-port.ts";
 import { storeChildPolicy } from "./child-port.ts";
 import { type AgentLaunch, applyProfileModel, initFieldsOf, refusedModelNotice } from "./agent-gate.ts";
@@ -13,6 +14,8 @@ import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
 import { type SessionRow, type StoredPreset, storedPresetOf } from "./store.ts";
+import { vmTargets } from "./vm-attachments.ts";
+import { vmBranchOf, type VmStarted } from "./vm-launch.ts";
 
 /** What starting a worker needs of the service: its deps and the maps it shares with it (M4R27). */
 export interface LaunchContext {
@@ -27,7 +30,12 @@ export interface LaunchContext {
   readonly agent: AgentSurface;
   /** Which workers started untainted: a taint releases them once their run settles (M11R143). */
   readonly memory: MemoryRelease;
-  checkCapacity(): void;
+  /** `vm`: a VM worker, whose memory the VM cap counts: the free-memory floor does not apply (R29). */
+  checkCapacity(vm?: boolean): void;
+  /** Sessions whose VM worker is being spawned: they count against `PAP_MAX_WORKERS` (R29). */
+  readonly booting: Set<string>;
+  /** The service is shutting down: no worker starts. */
+  closing(): boolean;
   /** The profile prompt of a child made by this daemon, for a start after the first (M11R136); none otherwise. */
   childPrompt?(row: SessionRow): string | undefined;
   /** The owner's last worker stays free (M10R154): `capacity` when one more worker would take it. */
@@ -68,6 +76,7 @@ export function createLaunch(ctx: LaunchContext) {
     logger: deps.logger,
     hub: deps.hub,
     agentDir: deps.worker.agentDir,
+    papHome: deps.worker.papHome,
     onPolicyRecord: (row, raw) => policyLink.audited(row, raw),
     onTaint: (row, epoch) => policyLink.tainted(row, epoch),
   });
@@ -76,7 +85,8 @@ export function createLaunch(ctx: LaunchContext) {
   // stored when a cold session is reopened. What a new session's worker says before its row exists is held in a
   // small bounded buffer and replayed once the row is stored; a start that fails drops it with the rest.
   async function launch(row: SessionRow, isNew: boolean): Promise<LiveSession> {
-    // The gate of every agent session, first of all (M11R53): the one await before the spawn, so no check can fall between.
+    // The gate of every agent session, first of all (M11R53): for a host row the one await before the spawn, so no check
+    // can fall between; a VM row awaits its VM too, and `start` reads again what the boot may have changed.
     const gating = ctx.agent.gate(row);
     const agentLaunch = gating ? await gating : null;
     // An agent thread runs with its profile's preset narrowed by the owner's choice, read at each start (M11R47, W5-R28).
@@ -97,8 +107,9 @@ export function createLaunch(ctx: LaunchContext) {
         ),
       );
     try {
-      // Owner a5, M11R214: an unattended continuation of a full-access agent never starts a worker without its sandbox.
-      if (ctx.sandboxedOnly.has(row.id) && agentLaunch?.sandbox === undefined)
+      // Owner a5, M11R214: an unattended continuation of a full-access agent never starts a worker without its sandbox
+      // (R38: a VM worker is one).
+      if (ctx.sandboxedOnly.has(row.id) && agentLaunch?.sandbox === undefined && agentLaunch?.vm !== true)
         throw new PapError("sandbox_unavailable");
       return await start(row, isNew, agentLaunch);
     } catch (error) {
@@ -115,13 +126,14 @@ export function createLaunch(ctx: LaunchContext) {
     agentLaunch: AgentLaunch | null,
   ): Promise<LiveSession> {
     deps.laneHooks?.assertOwn(row.ownerId, row.cwd);
-    ctx.checkCapacity();
+    // The one VM predicate (`vmLayoutOf(row) !== null`), checked against the gate's answer: a mismatch refuses the launch.
+    const vmLaunch = vmBranchOf(ctx.agent.vmLayoutOf(row) !== null, agentLaunch, deps.vmLaunch);
+    ctx.checkCapacity(vmLaunch !== null);
     if (ctx.keepFreeFor.delete(row.id)) ctx.keepOneFree();
     if (!isNew) ctx.beforeStart?.(row);
     let stored = !isNew;
     const preReady = isNew ? createPreReadyBuffer() : null;
     let bound = row.piPath !== null;
-    const scope = grants.scopeOf(row.cwd);
     // From here to the worker's exit every compose reads the profile this start used (W5-R26).
     if (agentLaunch)
       ctx.agent.started(row.id, {
@@ -129,29 +141,36 @@ export function createLaunch(ctx: LaunchContext) {
         name: agentLaunch.agent.name,
         quarantined: false,
       });
-    const rules = policyLink.compose(row, scope);
-    const childPrompt = ctx.childPrompt?.(row);
-    // Read in the same step as the rules: the taint the worker starts with is the taint this decision is made on.
-    const kind = ctx.agent.kindOfRow(row);
-    const trust = memoryTrustOf(kind, agentLaunch);
-    ctx.memory.started(row.id, trust);
-    const init: InitRecord = {
-      type: "init",
-      cwd: row.cwd,
-      agentDir: deps.worker.agentDir,
-      papHome: deps.worker.papHome,
-      umask: deps.worker.umask,
-      papSessionId: row.id,
-      policy: rules,
-      tools: initTools(ctx.toolPreset(row), rules),
-      platform: { ops: ctx.agent.platformOps(row) },
-      ...(agentLaunch ? initFieldsOf(agentLaunch) : {}),
-      ...(childPrompt ? { child: { prompt: childPrompt } } : {}),
-      ...(trust.memory ? { memory: trust.memory } : {}),
-      // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
-      ...(row.piPath ? { sessionFile: row.piPath } : {}),
-      ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
+    // The scope, the rules and `init` are composed in one synchronous step; a VM start composes them again after its wait.
+    const compose = () => {
+      const scope = grants.scopeOf(row.cwd);
+      const rules = policyLink.compose(row, scope);
+      const childPrompt = ctx.childPrompt?.(row);
+      // Read in the same step as the rules: the taint the worker starts with is the taint this decision is made on.
+      const kind = ctx.agent.kindOfRow(row);
+      const trust = memoryTrustOf(kind, agentLaunch);
+      // A VM worker has no pi-mem0: no trusted memory decision is recorded for it (T8a).
+      if (!vmLaunch) ctx.memory.started(row.id, trust);
+      const init: InitRecord = {
+        type: "init",
+        cwd: row.cwd,
+        agentDir: deps.worker.agentDir,
+        papHome: deps.worker.papHome,
+        umask: deps.worker.umask,
+        papSessionId: row.id,
+        policy: rules,
+        tools: initTools(ctx.toolPreset(row), rules),
+        platform: { ops: ctx.agent.platformOps(row) },
+        ...(agentLaunch ? initFieldsOf(agentLaunch) : {}),
+        ...(childPrompt ? { child: { prompt: childPrompt } } : {}),
+        ...(trust.memory ? { memory: trust.memory } : {}),
+        // Only a file this session has recorded is reopened. A draft has none: Pi starts a new session for it.
+        ...(row.piPath ? { sessionFile: row.piPath } : {}),
+        ...(deps.worker.testProviderScript ? { testProviderScript: deps.worker.testProviderScript } : {}),
+      };
+      return { scope, rules, trust, init };
     };
+    let composed = compose();
     const logger = deps.logger.child({ component: "session", sessionId: row.id });
     // A reopened session has subscribers who last saw it cold; a new one has none yet (R112).
     if (!isNew) {
@@ -159,7 +178,30 @@ export function createLaunch(ctx: LaunchContext) {
       deps.hub.publish("session", row.id, starting);
       ctx.onPublished?.(row.id, starting);
     }
-    const handle = Object.keys(trust.env).length > 0 ? deps.spawn(row.cwd, trust.env) : deps.spawn(row.cwd);
+    let handle: WorkerHandle;
+    if (vmLaunch && agentLaunch) {
+      // The VM may take a while to boot: it counts as a worker meanwhile (R29).
+      ctx.booting.add(row.id);
+      let started: VmStarted;
+      try {
+        started = await vmLaunch.spawn(row, agentLaunch, composed.init);
+      } finally {
+        ctx.booting.delete(row.id);
+      }
+      // The gate's facts and the capacity check are older than the boot: read again, and a refusal stops the worker.
+      composed = started.bind(() => {
+        const profile = ctx.agent.profileOf(row.ownerId, agentLaunch.agent.id);
+        if (profile === null) throw new PapError("not_found");
+        if (profile.quarantined) throw new PapError("agent_paused");
+        if (ctx.closing()) throw new PapError("capacity");
+        return compose();
+      });
+      handle = started.handle;
+    } else {
+      const { env } = composed.trust;
+      handle = Object.keys(env).length > 0 ? deps.spawn(row.cwd, env) : deps.spawn(row.cwd);
+    }
+    const { scope, rules, init } = composed;
     const session: LiveSession = startLiveSession(
       {
         handle,
@@ -202,6 +244,7 @@ export function createLaunch(ctx: LaunchContext) {
       },
       init,
     );
+    if (init.vm) vmTargets.set(session, { handle, inbox: init.vm.layout.inbox, clock: deps.clock, logger });
     bridgePlatform(handle, row, ctx.agent, logger);
     // The scope is the start-time snapshot of the rules this worker got (W5-R26); an owner session has none and is refused.
     bridgeEgress(

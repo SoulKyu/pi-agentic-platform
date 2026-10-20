@@ -11,6 +11,14 @@
     "./helper": {
       "development": "./src/helper/main.ts",
       "default": "./dist/helper/main.js"
+    },
+    "./guest": {
+      "development": "./src/guest/main.ts",
+      "default": "./dist/guest/main.js"
+    },
+    "./relay": {
+      "development": "./src/relay/main.ts",
+      "default": "./dist/relay/main.js"
     }
   },
   "scripts": {

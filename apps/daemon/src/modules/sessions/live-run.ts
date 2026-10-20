@@ -184,7 +184,8 @@ export function createLiveRun(deps: LiveRunDeps): LiveRun {
     tracker,
     onPiEvent(event) {
       tracker.onEvent(event);
-      if (!isSystemMessage(event) && event.type === "message_end") view.push(event.message);
+      if (!isSystemMessage(event) && event.type === "message_end")
+        view.push(event.message, event.unverified === true);
     },
     async prompt(text, streamingBehavior, images) {
       // Before anything is counted or sent.

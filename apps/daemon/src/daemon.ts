@@ -1,6 +1,8 @@
 import type { spawn } from "node:child_process";
 import { join } from "node:path";
 import type { HandlerTable } from "@pap/contracts";
+import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
+import { type AgentsVmSeams, composeAgentsVm } from "./compose-agents-vm.ts";
 import { createWorkspaceModules } from "./compose-workspace.ts";
 import { createWsProbe } from "./compose-ws-probe.ts";
 import { composeFonts, type Fetcher } from "./compose-fonts.ts";
@@ -76,6 +78,7 @@ export interface DaemonDeps {
   readonly sandboxSpawn?: typeof spawn;
   readonly push?: PushSeams; // tests only: replaces the transport side
   readonly fontsFetcher?: Fetcher; // tests only: replaces the Google Fonts fetcher
+  readonly agentsVm?: AgentsVmSeams; // PAP_AGENTS_RUNTIME=vm: the guest seam, T9b's mirrors (J1)
 }
 
 /**
@@ -115,7 +118,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     createLogger({ level: config.logLevel, clock, write: (line) => process.stdout.write(line) });
   const workerUmask = prepareHome(config.home);
   const lock = acquireInstanceLock(config.home);
-
   // Undone in reverse order, by `stop()` and by a start that fails half-way.
   const closers: Array<{ readonly name: string; close(): void | Promise<void> }> = [
     { name: "instance_lock", close: () => lock.release() },
@@ -129,7 +131,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       }
     }
   };
-
   try {
     const { db, readOnly } = migrate({
       dbPath: join(config.home, "state.db"),
@@ -156,10 +157,12 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     closers.push({ name: "receipt_purge", close: () => purge.stop() });
     const hub = createStreamHub(undefined, clock);
     const env = deps.env ?? process.env;
-    const core = { db, clock, logger, config, readOnly, hub, env };
+    const vmRpc = composeAgentsVmRpc(config, logger, clock, audit.port);
+    const core = { db, clock, logger, config, readOnly, hub, env, claudeToken: vmRpc.claudeToken };
+    const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
+    vmRpc.bindStatus(agentsVm?.status.view);
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
-
     const onOriginRefused = createOriginRefusalLog(logger, clock);
     const auth = createAuthModule({
       db,
@@ -236,6 +239,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       workerUmask,
       env,
       scopes,
+      vmLaunch: agentsVm?.launch,
       ...(deps.onWorkerExit ? { onWorkerExit: deps.onWorkerExit } : {}),
     });
     ownerOf = sessions.ownerOf;
@@ -266,8 +270,10 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
         inbox: m10Late.inbox,
         settings,
         subagents: { pi, sessions },
+        vm: agentsVm,
       },
     );
+    agentsVm?.bindLate({ sessions, pi, agents: m11.agents, runs: m10.runs, automation: m10Late.automation });
     const agents = { port: m11.agents };
     const push = composePush(
       { ...core, closers, m10, inbox: m10Late.inbox, auth, settings, sessions, audit, agents },
@@ -288,6 +294,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       ...lanes.rpc,
       ...m10Late.rpc,
       ...m11.rpc,
+      ...vmRpc.rpc,
       ...push.rpc,
       ...fonts.rpc,
     };
@@ -335,7 +342,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     // Pushed once the server is up: closing goes ws first, then http, then the entries above.
     closers.push({ name: "http", close: () => server.close() }, { name: "ws", close: () => ws.close() });
-
     const setupUrl = openableSetupUrl(config, auth.setupUrl());
     if (setupUrl) {
       const fields = { url: setupUrl, hint: "Open this URL once to create the owner account." };

@@ -1,13 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { AgentSettingsView } from "../../features/agents/AgentSettingsView.tsx";
+import { AgentTrash } from "../../features/agents/AgentTrash.tsx";
 import { AgentsList } from "../../features/agents/AgentsList.tsx";
 import { NewAgentDialog } from "../../features/agents/NewAgentDialog.tsx";
 import { SandboxStatus } from "../../features/agents/SandboxStatus.tsx";
 import { SubagentsSettings } from "../../features/agents/SubagentsSettings.tsx";
+import { VmStatus } from "../../features/agents/VmStatus.tsx";
 import { useSandboxStatus } from "../../features/agents/use-sandbox-status.ts";
 import { useAppearanceStore } from "../../features/appearance/appearance-store.ts";
+import { ClaudeToken } from "../../features/settings/ClaudeToken.tsx";
 import PresetPicker from "../../features/sessions/PresetPicker.tsx";
 import { useT } from "../../i18n/index.ts";
+import { useVmStatus } from "../../lib/use-vm-status.ts";
 import { useAgents } from "../../stores/agents-store.ts";
 
 /**
@@ -17,6 +21,7 @@ import { useAgents } from "../../stores/agents-store.ts";
 export function AgentsSettings() {
   const t = useT();
   const sandbox = useSandboxStatus();
+  const { status: vm, reload } = useVmStatus();
   const view = useAgents((agents) => agents);
   const avatarStyle = useAppearanceStore((state) => state.account.avatarStyle);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -44,7 +49,15 @@ export function AgentsSettings() {
             onOpen={setOpenId}
             onNew={() => setCreating(true)}
           />
-          <SandboxStatus sandbox={sandbox} />
+          {vm?.runtime === "vm" ? (
+            <>
+              <VmStatus status={vm} reload={reload} />
+              <AgentTrash />
+              <ClaudeToken state={vm.claudeToken} onChanged={reload} />
+            </>
+          ) : (
+            <SandboxStatus sandbox={sandbox} />
+          )}
           <SubagentsSettings />
         </>
       ) : (

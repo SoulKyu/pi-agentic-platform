@@ -20,6 +20,7 @@ import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import type { IdleState } from "./idle-release.ts";
 import { createLiveCommands } from "./live-commands.ts";
 import { createLiveIdle } from "./live-idle.ts";
+import { markUnsent } from "./live-marks.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createLoadoutView } from "./loadout-view.ts";
@@ -46,7 +47,9 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   const { handle, logger, onCardShown } = deps;
   let status: SessionStatus = "starting";
   let rss: number | null = null;
-  let piFile: string | undefined;
+  let reportedFile: string | undefined;
+  // A VM worker reports a path inside its VM: the session's file is its mirror on the host (R23), null until it is open.
+  const piFile = (): string | undefined => (handle.piFile ? (handle.piFile() ?? undefined) : reportedFile);
   let piSessionId: string | undefined;
   let leafId: string | null = null;
   let name: string | null = null;
@@ -57,15 +60,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   const notices = createNoticeRing();
   // Every notice is kept for the snapshot, whoever says it (M2R85).
   const emit = (event: SessionStreamEvent): void => {
-    if (event.kind === "notice") {
-      notices.add({
-        level: event.level,
-        text: event.text,
-        ...(event.source ? { source: event.source } : {}),
-        ...(event.code ? { code: event.code } : {}),
-        ...(event.params ? { params: event.params } : {}),
-      });
-    }
+    if (event.kind === "notice") notices.add(event); // the ring keeps level, text, source, code and params only
     deps.publish(event);
   };
   // Every event this session publishes sends the pending deltas first, so text never arrives after what follows it.
@@ -131,7 +126,8 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
 
   const loadout = createLoadoutView({ logger, limiter, publish });
   const queue = createQueueGuard();
-  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish, onCardShown });
+  const vm = init.vm !== undefined;
+  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish, onCardShown, vm });
   const commands = createLiveCommands({ handle, logger });
   const run = createLiveRun({
     handle,
@@ -140,7 +136,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     setStatus,
     record: deps.record,
     onActivity: deps.onActivity,
-    piFile: () => piFile,
+    piFile,
     leafId: () => leafId,
     getState,
     queue,
@@ -183,7 +179,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       if (record.type !== "ready") return;
       off();
       deps.clock.clearTimeout(timer);
-      piFile = record.sessionFile;
+      reportedFile = record.sessionFile;
       piSessionId = record.sessionId;
       leafId = knownId(record.leafId);
       setName(nameOf(record.sessionName), false);
@@ -270,7 +266,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       }
       case "pi_event": {
         idle.touch();
-        const event = record.event;
+        const event = markUnsent(record.event, handle);
         // The raw event is never forwarded: the stream carries the guard's bounded view of it.
         // Never forwarded raw: a name is text an extension or the model wrote (M2R92).
         if (event.type === "session_info_changed") {
@@ -344,7 +340,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
     status: () => status,
     rssMb: () => rss,
     pid: () => handle.pid,
-    piFile: () => piFile,
+    piFile,
     piSessionId: () => piSessionId,
     name: () => name,
     dialogs: () => ui.dialogs(),

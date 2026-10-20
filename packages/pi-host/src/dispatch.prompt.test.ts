@@ -120,3 +120,66 @@ describe("dispatch prompt FIFO: Pi's own steps (M8R107)", () => {
     expect(prompt.mock.calls.map((call) => call[0])).toEqual(["a", "b"]);
   });
 });
+
+describe("dispatch file_put (R33)", () => {
+  const put = {
+    type: "file_put" as const,
+    id: "0123456789abcdef0123456789abcdef",
+    name: "a.png",
+    offset: 0,
+    data: "",
+    last: true,
+  };
+  const make = (inbox?: { put: (chunk: unknown) => unknown }) => {
+    const sent: Array<Record<string, unknown>> = [];
+    const dispatch = createDispatch({
+      papHome: "/pap",
+      session: {} as unknown as AgentSession,
+      ipc: { send: (record: Record<string, unknown>) => void sent.push(record) } as unknown as Ipc,
+      ui: {} as UiBridge,
+      approvals: {} as Approvals,
+      leafMayHaveMoved: () => {},
+      setRules: () => {},
+      applyTaint: () => {},
+      ...(inbox ? { inbox: inbox as never } : {}),
+    });
+    return { sent, dispatch };
+  };
+
+  it("sends the inbox's answer for every chunk (the daemon waits for each one, J1)", () => {
+    const answer = { type: "file_put_result", id: put.id, ok: true };
+    const { sent, dispatch } = make({ put: () => answer });
+    dispatch({ ...put, last: false });
+    expect(sent).toEqual([answer]);
+    dispatch(put);
+    expect(sent).toEqual([answer, answer]);
+  });
+
+  it("ignores a file_put outside a VM", () => {
+    const { sent, dispatch } = make();
+    dispatch(put);
+    expect(sent).toEqual([]);
+  });
+
+  it("reads a VM prompt's images from the inbox", async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    const prompt = vi.fn(async (_t: string, o?: { preflightResult?: (d: string) => void }) =>
+      o?.preflightResult?.("s"),
+    );
+    const dispatch = createDispatch({
+      papHome: "/pap",
+      session: { prompt } as unknown as AgentSession,
+      ipc: { send: (record: Record<string, unknown>) => void sent.push(record) } as unknown as Ipc,
+      ui: {} as UiBridge,
+      approvals: {} as Approvals,
+      leafMayHaveMoved: () => {},
+      setRules: () => {},
+      applyTaint: () => {},
+      inboxDir: "/agent/inbox",
+    });
+    read.mockResolvedValue([image]);
+    dispatch({ type: "prompt", id: "p1", message: "a", images: [withImage] });
+    await settle();
+    expect(read).toHaveBeenCalledWith("/pap", [withImage], "/agent/inbox");
+  });
+});
