@@ -21,6 +21,7 @@ import {
   layoutOf,
   type MirrorHooks,
   createMirrorInputs,
+  relayListenOf,
   type RelayChild,
   type RelayLink,
   type VmSpec,
@@ -185,7 +186,14 @@ export async function composeAgentsVm(
   // AVM-P8: the gateway reads the image of a launch through the runtime, which exists after it (no cycle).
   let imageOf: AgentRuntime["imageOf"] = () => null;
   const gateway = createGateway({ tokens, clock, logger: agentsLogger, imageOf: (id) => imageOf(id) });
-  const { port } = await gateway.listen(bind.host, bind.port);
+  const { port } = await gateway.listen(bind.host, bind.port).catch((error: unknown) => {
+    if (kata === null) throw error;
+    // M9a: the bridge address belongs to pap0, which pap-vmd makes; another process may also hold the port.
+    throw new Error(
+      `the gateway cannot listen on ${bind.host}:${bind.port} (pap0 is made by pap-vmd: run \`sudo pap vm setup\`, start pap-vmd; or another process holds the port)`,
+      { cause: error },
+    );
+  });
   const address = () => ({ host: bind.host, port });
   try {
     const guest = seams.process;
@@ -285,7 +293,17 @@ export async function composeAgentsVm(
     if (own) closers.push({ name: "agent_mirrors", close: () => own.close() });
     if (relay) {
       closers.push({ name: "agent_relay", close: () => relay.stop() });
-      void relay.start().catch((error: unknown) => agentsLogger.error("relay_start_failed", { err: error }));
+      void relay.start().catch((error: unknown) =>
+        agentsLogger.error("relay_start_failed", {
+          err: error,
+          ...(kata
+            ? {
+                listen: relayListenOf(false),
+                hint: "the relay listens on the bridge address that pap-vmd makes (pap0): check pap-vmd and its bridge",
+              }
+            : {}),
+        }),
+      );
     }
     closers.push({
       name: "agent_vm",

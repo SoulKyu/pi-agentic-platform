@@ -49,7 +49,11 @@ export interface VmLaunchDeps {
   /** The shared VM predicate: the row's layout, null for a host row. */
   layoutOf(row: SessionRow): VmLayout | null;
   /** The image tag the agent's VM starts with (Kata: built first when it must be, so it may take minutes). */
-  imageTagOf(agentId: string, input: AgentLaunch["input"]): string | Promise<string>;
+  imageTagOf(
+    agentId: string,
+    input: AgentLaunch["input"],
+    kind: "thread" | "isolated",
+  ): string | Promise<string>;
   readonly mirrors: MirrorInputs;
   readonly logger: Pick<Logger, "warn">;
   /** The exact sources of the agent's package picks (it holds ids, AVM-E33); `null` stays `null` (every package). */
@@ -96,7 +100,7 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
       const who = whoOf(row);
       const spec: VmSpec = {
         ...who,
-        image: await deps.imageTagOf(row.agentId, launch.input),
+        image: await deps.imageTagOf(row.agentId, launch.input, who.kind),
         resources: launch.input.resources,
       };
       const worker = { ...deps.mirrors.inputFor(row, launch.input.resources), sessionsDir: layout.sessions };

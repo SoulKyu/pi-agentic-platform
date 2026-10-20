@@ -43,10 +43,11 @@ export interface KataImagesDeps {
 
 export interface KataImages {
   /**
-   * The image tag an agent's VM starts with, built first when it must be (spec §6): a running agent keeps its image while a
-   * new one builds, an agent with none waits for it. The agent's package picks follow the image it gets (AVM-E44).
+   * The image tag an agent's VM starts with, built first when it must be (spec §6): a VM that runs keeps its image while a
+   * new one builds, an agent with none waits for it. The agent's package picks follow the image it gets (AVM-E44). A `thread`
+   * spawn into a thread VM that already runs answers that VM's tag at once, with no preparation and no new pairs (M4).
    */
-  resolve(agentId: string, systemPackages: readonly string[]): Promise<string>;
+  resolve(agentId: string, systemPackages: readonly string[], kind: "thread" | "isolated"): Promise<string>;
   /** The agent's thread VM runs on `tag`. */
   started(agentId: string, tag: string, protocol?: number): void;
   stopped(agentId: string): void;
@@ -55,7 +56,8 @@ export interface KataImages {
   /**
    * Once a week (the caller ticks): rebuilds the base with `apt-get upgrade`. A success is on disk before it is used (a restart
    * does not rebuild every image twice). A failure is logged and retried after an hour by the policy's `retryAt`, which is in
-   * memory: a restarted daemon tries again at once, once per boot, and the profile and agent images wait behind pap-vmd's build queue.
+   * memory: a restarted daemon has no wait left, so the first tick after boot (one hour after it; the start of an agent builds
+   * a missing base on its own) tries again. The profile and agent images wait behind pap-vmd's build queue.
    */
   upgradeBaseIfDue(): Promise<void>;
 }
@@ -262,7 +264,9 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   }
 
   return {
-    async resolve(agentId, systemPackages) {
+    async resolve(agentId, systemPackages, kind) {
+      const live = kind === "thread" ? running.get(agentId) : undefined;
+      if (live !== undefined) return live.tag;
       try {
         const baseTag = baseTagNow();
         await ensureBase(baseTag);

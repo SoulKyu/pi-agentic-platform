@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { Clock } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import {
@@ -6,9 +7,39 @@ import {
   purgeAgent,
   startTrashSweep,
   type TrashDeps,
+  papErrorOf,
   type VmdClient,
+  VmdError,
 } from "./modules/agent-vm/index.ts";
 import { type AgentVmLink, removeTree } from "./modules/agents/index.ts";
+
+const Listing = z.object({
+  vms: z.array(z.object({ agentId: z.string(), taskKey: z.string().nullable(), state: z.string() })),
+});
+
+/**
+ * I1: the runtime forgets a VM even when pap-vmd failed to stop it (its stop is logged, not thrown). Quarantine and delete must
+ * not: pap-vmd is asked for the agent's VMs and each one that is not stopped is stopped, and any failure is thrown, after every
+ * VM was tried, so a second ask finishes what the first could not.
+ */
+async function stopListed(client: VmdClient, agentId: string): Promise<void> {
+  try {
+    const listed = Listing.safeParse(await client.request({ op: "vm.list" }));
+    if (!listed.success) throw new VmdError("protocol");
+    let failed: unknown;
+    for (const vm of listed.data.vms) {
+      if (vm.agentId !== agentId || vm.state === "stopped") continue;
+      try {
+        await client.request({ op: "vm.stop", agentId, taskKey: vm.taskKey });
+      } catch (error) {
+        failed ??= error;
+      }
+    }
+    if (failed !== undefined) throw failed;
+  } catch (error) {
+    throw papErrorOf(error);
+  }
+}
 
 export interface AgentsLinkContext {
   readonly runtime: Pick<AgentRuntime, "stop" | "resume">;
@@ -35,7 +66,10 @@ export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; 
   };
   return {
     link: {
-      stop: (agentId) => ctx.runtime.stop(agentId),
+      async stop(agentId) {
+        await ctx.runtime.stop(agentId);
+        if (ctx.client !== null) await stopListed(ctx.client, agentId);
+      },
       async dispose(agentId, stamp) {
         await disposeAgent(trash, agentId, stamp);
         ctx.forget(agentId);

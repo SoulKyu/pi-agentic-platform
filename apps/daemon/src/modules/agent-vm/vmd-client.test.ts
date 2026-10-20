@@ -139,6 +139,11 @@ describe("vmd client", () => {
     expect(clock.pending()).toBe(0);
   });
 
+  it("waits for a build as long as pap-vmd does (its 30 minutes and a minute more, AVM-E47)", () => {
+    expect(BUILD_DEADLINE_MS).toBe(31 * 60_000);
+    expect(DEFAULT_DEADLINE_MS).toBe(60_000);
+  });
+
   it("never puts the request, and so the launch token, in an error", async () => {
     answer = (_text, conn) => void conn.end(`${JSON.stringify({ ok: false, code: "failed" })}\n`);
     const error = await client()

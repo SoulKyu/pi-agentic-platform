@@ -82,7 +82,7 @@ describe("resolve: builds the layers the first start needs", () => {
       fake.images.add(request.tag);
       return { tag: request.tag };
     });
-    const tag = await make().resolve("scout-0001", ["git", "curl"]);
+    const tag = await make().resolve("scout-0001", ["git", "curl"], "thread");
     const [base, profile, agent] = builds();
     expect(builds().map((b) => b.layer)).toEqual(["base", "profile", "agent"]);
     expect(base).toMatchObject({ from: NODE, upgrade: true, aptPackages: [] });
@@ -95,27 +95,30 @@ describe("resolve: builds the layers the first start needs", () => {
   });
 
   it("an agent with no system package runs on the profile image", async () => {
-    const tag = await make().resolve("scout-0001", []);
+    const tag = await make().resolve("scout-0001", [], "thread");
     expect(builds().map((b) => b.layer)).toEqual(["base", "profile"]);
     expect(tag).toBe(tagOf("profile"));
   });
 
   it("builds nothing when every layer exists, and answers the same tag", async () => {
     const images = make();
-    const first = await images.resolve("scout-0001", ["git"]);
+    const first = await images.resolve("scout-0001", ["git"], "thread");
     fake.requests.length = 0;
-    await expect(images.resolve("scout-0001", ["git"])).resolves.toBe(first);
+    await expect(images.resolve("scout-0001", ["git"], "thread")).resolves.toBe(first);
     expect(fake.ops()).toEqual(["image.list", "image.list"]);
   });
 
   it("records the profile build's pairs for the agent, by the profile tag (AVM-E44)", async () => {
-    await make().resolve("scout-0001", ["git"]);
+    await make().resolve("scout-0001", ["git"], "thread");
     expect(entries.record).toHaveBeenCalledWith("scout-0001", expect.any(Array), tagOf("profile"));
   });
 
   it("two agents starting together share one build of each layer", async () => {
     const images = make();
-    const [a, b] = await Promise.all([images.resolve("a-0001", ["git"]), images.resolve("b-0002", ["git"])]);
+    const [a, b] = await Promise.all([
+      images.resolve("a-0001", ["git"], "thread"),
+      images.resolve("b-0002", ["git"], "thread"),
+    ]);
     expect(a).toBe(b);
     expect(builds().map((one) => one.layer)).toEqual(["base", "profile", "agent"]);
   });
@@ -124,7 +127,7 @@ describe("resolve: builds the layers the first start needs", () => {
 describe("resolve: the policy decides", () => {
   it("keeps a running agent on its image while the new one builds, with the notice once", async () => {
     const images = make();
-    const old = await images.resolve("scout-0001", []);
+    const old = await images.resolve("scout-0001", [], "isolated");
     images.started("scout-0001", old);
     writeFileSync(join(paths().agentDir, "settings.json"), JSON.stringify({ defaultThinkingLevel: "low" }));
     await clock.advance(31_000);
@@ -136,42 +139,61 @@ describe("resolve: the policy decides", () => {
       return {};
     });
     entries.record.mockClear();
-    await expect(images.resolve("scout-0001", [])).resolves.toBe(old);
-    await expect(images.resolve("scout-0001", [])).resolves.toBe(old);
+    await expect(images.resolve("scout-0001", [], "isolated")).resolves.toBe(old);
+    await expect(images.resolve("scout-0001", [], "isolated")).resolves.toBe(old);
     expect(notices).toEqual([["scout-0001", BUILD_NOTICE]]);
     // The build holds the profile's tree for minutes: a start later than the cache still answers, from the last profile.
     await clock.advance(31_000);
-    await expect(images.resolve("scout-0001", [])).resolves.toBe(old);
+    await expect(images.resolve("scout-0001", [], "isolated")).resolves.toBe(old);
     // The agent still runs the old image: its pairs are not replaced by the new image's.
     expect(entries.record).not.toHaveBeenCalled();
     release();
     await expect.poll(() => fake.images.size).toBe(3);
-    const next = await images.resolve("scout-0001", []);
+    const next = await images.resolve("scout-0001", [], "isolated");
     expect(next).not.toBe(old);
     expect(entries.record).toHaveBeenCalledWith("scout-0001", expect.any(Array), next);
   });
 
+  // M4: the VM of the agent's thread runs; a worker spawned into it needs no image, no preparation, no new pairs.
+  it("answers a thread spawn the running image at once: no listing, no preparation, no pairs recorded", async () => {
+    const images = make();
+    const old = await images.resolve("scout-0001", [], "thread");
+    images.started("scout-0001", old);
+    writeFileSync(join(paths().agentDir, "settings.json"), JSON.stringify({ defaultThinkingLevel: "low" }));
+    await clock.advance(31_000);
+    fake.requests.length = 0;
+    entries.record.mockClear();
+    const prepared = secretCalls;
+    await expect(images.resolve("scout-0001", [], "thread")).resolves.toBe(old);
+    expect(fake.requests).toEqual([]);
+    expect(secretCalls).toBe(prepared);
+    expect(entries.record).not.toHaveBeenCalled();
+    expect(notices).toEqual([]);
+  });
+
   it("refuses an agent whose running image speaks another protocol, and builds the new one", async () => {
     const images = make();
-    const old = await images.resolve("scout-0001", []);
+    const old = await images.resolve("scout-0001", [], "isolated");
     images.started("scout-0001", old, AGENT_VM_PROTOCOL + 1);
     writeFileSync(join(paths().agentDir, "settings.json"), JSON.stringify({ defaultThinkingLevel: "low" }));
     await clock.advance(31_000);
-    await expect(images.resolve("scout-0001", [])).rejects.toMatchObject({ code: "sandbox_unavailable" });
+    await expect(images.resolve("scout-0001", [], "isolated")).rejects.toMatchObject({
+      code: "sandbox_unavailable",
+    });
     await expect.poll(() => fake.images.size).toBe(3);
     expect(notices).toHaveLength(1);
-    await expect(images.resolve("scout-0001", [])).resolves.not.toBe(old);
+    await expect(images.resolve("scout-0001", [], "isolated")).resolves.not.toBe(old);
   });
 });
 
 describe("the profile", () => {
   it("is prepared once within 30 s and again after", async () => {
     const images = make();
-    await images.resolve("a-0001", []);
-    await images.resolve("b-0002", []);
+    await images.resolve("a-0001", [], "thread");
+    await images.resolve("b-0002", [], "thread");
     expect(secretCalls).toBe(1);
     await clock.advance(30_001);
-    await images.resolve("c-0003", []);
+    await images.resolve("c-0003", [], "thread");
     expect(secretCalls).toBe(2);
   });
 
@@ -179,29 +201,33 @@ describe("the profile", () => {
     mkdirSync(join(paths().agentDir, "skills", "x"), { recursive: true });
     writeFileSync(join(paths().agentDir, "skills", "x", "SKILL.md"), "key=sk-live-0123456789abcdef");
     secrets = ["sk-live-0123456789abcdef"];
-    await expect(make().resolve("scout-0001", [])).rejects.toMatchObject({ code: "config_invalid" });
+    await expect(make().resolve("scout-0001", [], "thread")).rejects.toMatchObject({
+      code: "config_invalid",
+    });
     expect(notices).toEqual([["scout-0001", PROFILE_SECRET_NOTICE]]);
     expect(builds().map((b) => b.layer)).not.toContain("profile");
   });
 
   it("answers sandbox_unavailable, not a path, when the root-owned bundle is missing", async () => {
     rmSync(paths().bundle, { recursive: true });
-    await expect(make().resolve("scout-0001", [])).rejects.toMatchObject({ code: "sandbox_unavailable" });
+    await expect(make().resolve("scout-0001", [], "thread")).rejects.toMatchObject({
+      code: "sandbox_unavailable",
+    });
   });
 });
 
 describe("the base image: the week is persisted before the new key is used (ledger 215)", () => {
   it("a restart finds the same tags and rebuilds nothing", async () => {
-    const first = await make().resolve("scout-0001", ["git"]);
+    const first = await make().resolve("scout-0001", ["git"], "thread");
     expect(readFileSync(paths().weekFile, "utf8").trim()).toBe(isoWeek(clock.now()));
     fake.requests.length = 0;
-    await expect(make().resolve("scout-0001", ["git"])).resolves.toBe(first);
+    await expect(make().resolve("scout-0001", ["git"], "thread")).resolves.toBe(first);
     expect(fake.of("image.build")).toEqual([]);
   });
 
   it("writes the week before the key it feeds goes live, and only after the build worked", async () => {
     const images = make();
-    await images.resolve("scout-0001", []);
+    await images.resolve("scout-0001", [], "thread");
     const before = tagOf("profile");
     clock = createFakeClock(clock.now() + 8 * 86_400_000);
     const second = make({ clock });
@@ -219,19 +245,19 @@ describe("the base image: the week is persisted before the new key is used (ledg
     const rebuilt = builds().filter((b) => b.layer === "base");
     expect(rebuilt).toHaveLength(2);
     expect(rebuilt[1]).toMatchObject({ upgrade: true, tag: rebuilt[0]?.tag });
-    await second.resolve("scout-0001", []);
+    await second.resolve("scout-0001", [], "thread");
     expect(tagOf("profile")).toBeDefined();
     expect(builds().filter((b) => b.layer === "profile")).toHaveLength(2);
     expect(builds().filter((b) => b.layer === "profile")[1]?.tag).not.toBe(before);
     // A restart after the upgrade keeps the new key.
     fake.requests.length = 0;
-    await make({ clock }).resolve("scout-0001", []);
+    await make({ clock }).resolve("scout-0001", [], "thread");
     expect(fake.of("image.build")).toEqual([]);
   });
 
-  it("does nothing twice in a week, and retries a failure after an hour (in memory: a restart retries at once)", async () => {
+  it("does nothing twice in a week, and retries a failure after an hour (in memory: a new instance has no wait left)", async () => {
     const images = make();
-    await images.resolve("scout-0001", []);
+    await images.resolve("scout-0001", [], "thread");
     clock = createFakeClock(clock.now() + 8 * 86_400_000);
     const next = make({ clock });
     fake.failNext("image.build", "failed");
@@ -255,7 +281,7 @@ describe("the base image: the week is persisted before the new key is used (ledg
 
   it("does not count a week whose file could not be written", async () => {
     const images = make();
-    await images.resolve("scout-0001", []);
+    await images.resolve("scout-0001", [], "thread");
     clock = createFakeClock(clock.now() + 8 * 86_400_000);
     mkdirSync(`${paths().weekFile}.tmp`);
     const next = make({ clock });
@@ -264,7 +290,7 @@ describe("the base image: the week is persisted before the new key is used (ledg
     await next.upgradeBaseIfDue();
     expect(builds()).toHaveLength(count);
     // The new key is not live: the profile and agent images of the old key are still the ones a start finds.
-    await next.resolve("scout-0001", []);
+    await next.resolve("scout-0001", [], "thread");
     expect(builds()).toHaveLength(count);
     rmSync(`${paths().weekFile}.tmp`, { recursive: true });
     await clock.advance(3_600_001);
@@ -277,13 +303,13 @@ describe("the base image: the week is persisted before the new key is used (ledg
 describe("the base tag", () => {
   it("follows the bundle's bytes, recomputed at most once an hour", async () => {
     const images = make();
-    await images.resolve("scout-0001", []);
+    await images.resolve("scout-0001", [], "thread");
     const first = tagOf("base");
     writeFileSync(join(paths().bundle, "package.json"), '{"v":2}');
-    await images.resolve("scout-0001", []);
+    await images.resolve("scout-0001", [], "thread");
     expect(builds().filter((b) => b.layer === "base")).toHaveLength(1);
     await clock.advance(3_600_001);
-    await images.resolve("scout-0001", []);
+    await images.resolve("scout-0001", [], "thread");
     const bases = builds().filter((b) => b.layer === "base");
     expect(bases).toHaveLength(2);
     expect(bases[1]?.tag).not.toBe(first);

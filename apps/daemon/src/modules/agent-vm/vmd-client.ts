@@ -5,8 +5,8 @@ import type { Clock } from "../../kernel/clock.ts";
 /** R36: owned by pap's uid, mode 0600; the daemon is the only client. */
 export const VMD_SOCKET = "/run/pap-vm/vmd.sock";
 export const DEFAULT_DEADLINE_MS = 60_000;
-/** `image.build` and `disk.populate` copy trees and run `apt` or `mkfs`: minutes, not seconds. */
-export const BUILD_DEADLINE_MS = 10 * 60_000;
+/** `image.build` and `disk.populate` copy trees and run `apt` or `mkfs`: pap-vmd's own build timeout (30 minutes) and a minute more (AVM-E47). */
+export const BUILD_DEADLINE_MS = 31 * 60_000;
 
 /** What pap-vmd answered (`VmdResponse`), or why no answer came: `timeout`, `protocol` (not one valid frame). */
 export type VmdErrorCode =

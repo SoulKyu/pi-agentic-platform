@@ -68,7 +68,8 @@ export function createKataBackend(deps: KataBackendDeps): AgentRuntimeBackend {
       await client.request({ op: "disk.grow", agentId, taskKey: null, diskMb: wanted });
     } catch (error) {
       if (error instanceof VmdError && error.code === "conflict") {
-        deps.notice(agentId, GROW_NOTICE);
+        // Only a growth that was asked for: after a restart the size is not known, and nothing says it changed.
+        if (known !== undefined) deps.notice(agentId, GROW_NOTICE);
         return;
       }
       // pap-vmd never shrinks a file: the disk is larger than the profile says, which is fine.
@@ -101,7 +102,7 @@ export function createKataBackend(deps: KataBackendDeps): AgentRuntimeBackend {
           if (spec.kind === "thread") deps.images.started(spec.agentId, spec.image);
           return { address: started.data.address };
         } catch (error) {
-          if (current.get(key) === launch.launchId) current.delete(key);
+          // `current` stays this launch's: the runtime's cleanup stop for it must go out, whatever pap-vmd made before it failed.
           // pap-vmd has no such disk any more (deleted elsewhere): what was known of it is stale.
           if (error instanceof VmdError && error.code === "not_found") disks.delete(spec.agentId);
           throw papErrorOf(error);

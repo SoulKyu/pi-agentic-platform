@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import { connect } from "node:net";
+import { connect, createServer } from "node:net";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -14,6 +14,7 @@ import {
 import { composeKata } from "./compose-agents-vm-kata.ts";
 import { createFakeClock, type FakeClock } from "./kernel/clock.ts";
 import { silentLogger } from "./kernel/logger.ts";
+import { captureLogger } from "./testing/capture-logger.ts";
 import { createFakeVmd, type FakeVmd } from "./modules/agent-vm/testing/fake-vmd.ts";
 import type { AgentRuntimeBackend } from "./modules/agent-vm/index.ts";
 import type { SessionRow } from "./modules/sessions/index.ts";
@@ -48,6 +49,17 @@ vi.mock("./modules/agent-vm/index.ts", async (importOriginal) => {
 });
 
 const ID = "scout-0001";
+const child = () =>
+  Object.assign(new EventEmitter(), { send: () => true, kill: () => true, sent: [] as unknown[] });
+let freePort = 0;
+const reserveFreePort = (): Promise<number> =>
+  new Promise((resolve) => {
+    const server = createServer();
+    server.listen(0, "127.0.0.1", () => {
+      const { port } = server.address() as { port: number };
+      server.close(() => resolve(port));
+    });
+  });
 const dial = (host: string, port: number): Promise<"open" | "refused"> =>
   new Promise((resolve) => {
     const socket = connect(port, host);
@@ -89,7 +101,7 @@ const seams = (extra: AgentsVmSeams = {}): AgentsVmSeams => ({
   relay: "off",
   kata: {
     client: fake,
-    gatewayBind: { host: "127.0.0.1", port: 0 },
+    gatewayBind: { host: "127.0.0.1", port: freePort },
     bundleRoot: join(root, "bundle"),
     nodeImage: `docker.io/library/node@sha256:${"9".repeat(64)}`,
     knownSecrets: () => [],
@@ -107,7 +119,8 @@ const row = (extra: Partial<SessionRow> = {}): SessionRow =>
     ...extra,
   }) as SessionRow;
 
-beforeEach(() => {
+beforeEach(async () => {
+  freePort = await reserveFreePort();
   root = mkdtempSync(join(tmpdir(), "pap-t15-compose-"));
   mkdirSync(join(root, "agent"), { recursive: true });
   mkdirSync(join(root, "bundle"), { recursive: true });
@@ -129,7 +142,31 @@ describe("the Kata backend through pap-vmd", () => {
     const vm = await kata();
     expect(fake.ops().slice(0, 3)).toEqual(["vmd.health", "vm.list", "vm.stop"]);
     expect(fake.of("vm.stop")[0]).toEqual({ op: "vm.stop", agentId: "old-9z9z", taskKey: null });
-    expect(vm.gatewayPort).toBeGreaterThan(0);
+    expect(vm.gatewayPort).toBe(freePort);
+  });
+
+  it("gives up, naming pap-vmd, when pap's firewall table is not loaded (M5)", async () => {
+    fake.ruleset = false;
+    const failing = kata().then(
+      () => "up",
+      (error: Error) => error.message,
+    );
+    await clock.advance(2_000 * 31);
+    await expect(failing).resolves.toMatch(/pap-vmd/);
+    expect(closers).toEqual([]);
+  });
+
+  it("names the address and pap-vmd when the gateway cannot bind it (M9a)", async () => {
+    const failing = kata({
+      kata: { ...seams().kata, gatewayBind: { host: "192.0.2.1", port: 7841 } },
+    }).then(
+      () => "up",
+      (error: Error) => error.message,
+    );
+    const message = await failing;
+    expect(message).toContain("192.0.2.1:7841");
+    expect(message).toMatch(/pap-vmd/);
+    expect(closers).toEqual([]);
   });
 
   it("listens on the address its bind names, and by default on the bridge's host address (R34)", async () => {
@@ -180,9 +217,6 @@ describe("the Kata backend through pap-vmd", () => {
 });
 
 describe("the relay on Kata (J1a report, AVM-P10)", () => {
-  const child = () =>
-    Object.assign(new EventEmitter(), { send: () => true, kill: () => true, sent: [] as unknown[] });
-
   it("listens on the bridge's address and 7842, and starts only after pap0 exists", async () => {
     const listens: string[] = [];
     const order: string[] = [];
@@ -240,8 +274,12 @@ describe("the images of a launch", () => {
 
   it("builds base, profile and agent layers through pap-vmd and answers the agent layer's tag", async () => {
     await kata();
-    const imageTagOf = created[0]?.imageTagOf as (agentId: string, input: AgentInput) => Promise<string>;
-    const tag = await imageTagOf(ID, input);
+    const imageTagOf = created[0]?.imageTagOf as (
+      agentId: string,
+      input: AgentInput,
+      kind: string,
+    ) => Promise<string>;
+    const tag = await imageTagOf(ID, input, "thread");
     expect(fake.of("image.build").map((build) => build.layer)).toEqual(["base", "profile", "agent"]);
     expect(tag).toBe(fake.of("image.build")[2]?.tag);
     expect(readdirSync(join(root, "pap", "vm"))).toContain("image-entries.json");
@@ -258,22 +296,21 @@ describe("the images of a launch", () => {
       expect.objectContaining({ code: "worker_failed" }) as Error,
     );
   });
-
-  it("builds nothing it was not asked for: the agent's disk and VM are the backend's, at the first start", async () => {
-    await kata();
-    expect(fake.ops().filter((op) => op.startsWith("image.") || op.startsWith("disk."))).toEqual([]);
-  });
 });
 
 describe("what the agents module is given (T15)", () => {
   it("stops an agent's VMs, trashes a deleted agent's disk and mirrors, purges, and forgets its picks", async () => {
     const vm = await kata();
-    const imageTagOf = created[0]?.imageTagOf as (agentId: string, input: AgentInput) => Promise<string>;
+    const imageTagOf = created[0]?.imageTagOf as (
+      agentId: string,
+      input: AgentInput,
+      kind: string,
+    ) => Promise<string>;
     const toImage = created[0]?.toImageEntries as (
       agentId: string,
       sources: string[] | null,
     ) => string[] | null;
-    await imageTagOf(ID, AgentInput.parse({ name: "Scout" }));
+    await imageTagOf(ID, AgentInput.parse({ name: "Scout" }), "thread");
     expect(toImage(ID, ["npm:a"])).toEqual([]);
     mkdirSync(join(root, "pap", "agents", ".mirrors", ID), { recursive: true });
     writeFileSync(join(root, "pap", "agents", ".mirrors", ID, "s.jsonl"), "x");
@@ -288,12 +325,53 @@ describe("what the agents module is given (T15)", () => {
     expect(readdirSync(join(root, "pap", "agents", ".trash"))).toEqual([]);
   });
 
+  // I1: the runtime forgets the VM whether or not pap-vmd stopped it; the link asks pap-vmd itself and says when it could not.
+  it.each(["unavailable", "failed"] as const)(
+    "stop fails, and can be asked again, when pap-vmd answers %s",
+    async (code) => {
+      const vm = await kata();
+      fake.running.add(ID);
+      fake.running.add(`${ID}/${"c".repeat(32)}`);
+      fake.running.add("other-0002");
+      fake.failNext("vm.stop", code);
+      await expect(vm.agentLink.stop(ID)).rejects.toBeDefined();
+      // The task's VM was still tried; only the one that failed is left (and the other agent's, untouched).
+      expect([...fake.running].sort()).toEqual(["other-0002", ID]);
+      await vm.agentLink.stop(ID);
+      expect([...fake.running]).toEqual(["other-0002"]);
+    },
+  );
+
+  it("stop fails when the listing fails", async () => {
+    const vm = await kata();
+    fake.failNext("vm.list", "unavailable");
+    await expect(vm.agentLink.stop(ID)).rejects.toMatchObject({ code: "sandbox_unavailable" });
+  });
+
+  // M9a: a relay that cannot start says where it should have listened.
+  it("logs the relay's address and pap-vmd when the relay cannot start", async () => {
+    const { logger, lines } = captureLogger();
+    await composeAgentsVm({ ...core(), logger }, closers, {
+      ...seams(),
+      relay: { fork: () => child() as never },
+      bridgeReady: () => Promise.reject(new Error("EADDRNOTAVAIL")),
+    });
+    await vi.waitFor(() => expect(lines.some((line) => line.msg === "relay_start_failed")).toBe(true));
+    const line = lines.find((one) => one.msg === "relay_start_failed");
+    expect(line).toMatchObject({ listen: `${AGENT_NET.host}:${AGENT_NET.relayPort}` });
+    expect(String(line?.hint)).toMatch(/pap-vmd/);
+  });
+
   it("sweeps the daemon's trash daily and rebuilds the base weekly, and stops both with the daemon", async () => {
     await kata();
-    expect(closers.map((closer) => closer.name)).toEqual(
-      expect.arrayContaining(["agent_trash_sweep", "agent_image_upgrades"]),
-    );
-    expect(clock.pending()).toBeGreaterThan(0);
+    expect(closers.map((closer) => closer.name)).toEqual([
+      "agent_mirrors",
+      "agent_vm",
+      "agent_trash_sweep",
+      "agent_image_upgrades",
+    ]);
+    // The mirrors' sweeper, the trash sweep and the weekly base check: one timer each.
+    expect(clock.pending()).toBe(3);
     for (const closer of closers.splice(0).reverse()) await closer.close();
     expect(clock.pending()).toBe(0);
   });

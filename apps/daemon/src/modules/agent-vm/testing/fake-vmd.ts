@@ -23,6 +23,8 @@ export interface FakeVmd extends VmdClient {
   /** The address `vm.start` answers (VM_IPV4 shape). */
   address: string;
   bridge: boolean;
+  /** `vmd.health.ruleset`: pap's nftables table is loaded. */
+  ruleset: boolean;
 }
 
 /** A pap-vmd in memory, with the refusals the real one makes (conflict on a duplicate disk, a grow under a running VM). */
@@ -37,6 +39,7 @@ export function createFakeVmd(): FakeVmd {
     running: new Set(),
     address: "10.213.0.2",
     bridge: true,
+    ruleset: true,
     ops: () => requests.map((request) => request.op),
     of: (op) => requests.filter((request) => request.op === op) as never,
     failNext: (op, code) => void failures.push({ op, code }),
@@ -98,7 +101,7 @@ export function createFakeVmd(): FakeVmd {
       case "trash.purge":
         return { removed: 0 };
       case "vmd.health":
-        return { version: "0.0.0", ruleset: true, bridge: fake.bridge, stateFreeMb: 100_000 };
+        return { version: "0.0.0", ruleset: fake.ruleset, bridge: fake.bridge, stateFreeMb: 100_000 };
       default:
         throw new VmdError("bad_request");
     }

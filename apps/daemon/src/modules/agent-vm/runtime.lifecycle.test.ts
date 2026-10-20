@@ -132,6 +132,16 @@ describe("crash (RT-40)", () => {
     expect(b.starts).toHaveLength(before);
   });
 
+  // M2: one Inbox item per pause. Mutant: onCrashPause called for every crash past the third.
+  it("tells the pause once: a VM of the agent that crashes after it is a crash, not another pause", async () => {
+    await b.runtime.spawn(specOf("a1", { kind: "isolated", taskKey: "t1" }), workerInput(), null);
+    for (let i = 0; i < CRASH_LIMIT; i++) await crashOnce();
+    expect(b.crashPauses).toEqual(["a1"]);
+    b.guestAt(0).crash();
+    await settle();
+    expect(b.crashPauses).toEqual(["a1"]);
+  });
+
   it("does not pause when the crashes are spread over more than ten minutes", async () => {
     await crashOnce();
     await crashOnce();

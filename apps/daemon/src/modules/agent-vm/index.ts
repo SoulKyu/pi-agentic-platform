@@ -15,7 +15,14 @@ export { createImageEntries, type ImageEntries } from "./pick-map.ts";
 export { createKataBackend } from "./kata-backend.ts";
 export { createKataImages, type KataImages } from "./kata-images.ts";
 export type { KnownSecrets } from "./secret-scan.ts";
-export { createVmdClient, VMD_SOCKET, type VmdClient, VmdError, type VmdErrorCode } from "./vmd-client.ts";
+export {
+  createVmdClient,
+  papErrorOf,
+  VMD_SOCKET,
+  type VmdClient,
+  VmdError,
+  type VmdErrorCode,
+} from "./vmd-client.ts";
 export { disposeAgent, purgeAgent, startTrashSweep, type TrashDeps } from "./trash.ts";
 export { forkRelay, relayEnv, relayListenOf } from "./relay-fork.ts";
 export { createRelayLink, type PolicyView, type RelayChild, type RelayLink } from "./relay-link.ts";

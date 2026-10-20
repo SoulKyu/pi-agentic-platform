@@ -44,10 +44,10 @@ export interface KataParts {
   readonly entries: ImageEntries;
   readonly backend: AgentRuntimeBackend;
   readonly gatewayBind: { readonly host: string; readonly port: number };
-  /** Resolves when pap0 is up (pap-vmd has made the bridge); rejects when pap-vmd is not there or the bridge never comes. */
+  /** Resolves when pap0 is up and pap's firewall table is loaded; rejects when pap-vmd is not there or either never comes. */
   bridgeReady(): Promise<void>;
   /** The image tag an agent's VM starts with, built first when it must be. */
-  imageTagOf(agentId: string, input: AgentInput): Promise<string>;
+  imageTagOf(agentId: string, input: AgentInput, kind: "thread" | "isolated"): Promise<string>;
   /** The weekly rebuild of the base: told hourly, builds once a week. Returns the way to stop. */
   startUpgrades(): () => void;
 }
@@ -94,7 +94,7 @@ export function composeKata(
     for (let attempt = 1; ; attempt += 1) {
       // A pap-vmd that is not there fails the boot at once (`unavailable`); only a bridge still being made is waited for.
       const health = VmdHealth.safeParse(await client.request({ op: "vmd.health" }));
-      if (health.success && health.data.bridge) return;
+      if (health.success && health.data.bridge && health.data.ruleset) return;
       if (attempt >= BRIDGE_TRIES) throw new PapError("sandbox_unavailable");
       await clock.sleep(BRIDGE_RETRY_MS);
     }
@@ -118,7 +118,7 @@ export function composeKata(
       });
       return ready;
     },
-    imageTagOf: (agentId, input) => images.resolve(agentId, input.systemPackages),
+    imageTagOf: (agentId, input, kind) => images.resolve(agentId, input.systemPackages, kind),
     startUpgrades() {
       let timer: TimerHandle | null = null;
       const tick = (): void => {

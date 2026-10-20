@@ -4,6 +4,7 @@ import { silentLogger } from "../../kernel/logger.ts";
 import { createKataBackend, GROW_NOTICE } from "./kata-backend.ts";
 import type { AgentRuntimeBackend, VmSpec } from "./runtime.ts";
 import { createFakeVmd, type FakeVmd } from "./testing/fake-vmd.ts";
+import { VmdError } from "./vmd-client.ts";
 
 /*
  * Mutants (RT-43), run for real in the T15a report: "disk ops for a task" (the isolated cases), "create when migrating"
@@ -222,6 +223,49 @@ describe("a stop names its launch", () => {
     await backend.start(spec(), launch());
     await backend.stop("scout-0001", null);
     expect(fake.running.size).toBe(0);
+  });
+});
+
+describe("a start that fails (I2)", () => {
+  // pap-vmd may have made the VM before the answer was lost (a timeout, an unparseable answer): the cleanup stop must go out.
+  const lose = (code: "timeout" | "protocol" | "failed") =>
+    fake.handle("vm.start", (request) => {
+      if (request.op === "vm.start") fake.running.add("scout-0001");
+      throw new VmdError(code);
+    });
+
+  it.each(["timeout", "protocol", "failed"] as const)(
+    "a %s on vm.start is followed by its cleanup stop",
+    async (code) => {
+      lose(code);
+      const l = launch();
+      await expect(backend.start(spec(), l)).rejects.toBeDefined();
+      await backend.stop("scout-0001", null, l.launchId);
+      expect(fake.of("vm.stop")).toHaveLength(1);
+      expect(fake.running.size).toBe(0);
+    },
+  );
+
+  it("a fresh start after it replaces it: the late cleanup stop does not reach the fresh VM", async () => {
+    lose("timeout");
+    const failed = launch();
+    await backend.start(spec(), failed).catch(() => {});
+    fake.handle("vm.start", () => (fake.running.add("scout-0001"), { address: fake.address }));
+    const fresh = launch();
+    await backend.start(spec(), fresh);
+    await backend.stop("scout-0001", null, failed.launchId);
+    expect(fake.of("vm.stop")).toEqual([]);
+    expect(fake.running.has("scout-0001")).toBe(true);
+  });
+});
+
+describe("the grow notice (M7)", () => {
+  it("is not posted after a restart when the size never changed: create and grow both answer conflict", async () => {
+    fake.disks.set("scout-0001", DEFAULT_AGENT_RESOURCES.diskMb);
+    await backend.start(task(), launch());
+    await backend.start(spec(), launch());
+    expect(fake.ops()).toEqual(["vm.start", "disk.create", "disk.grow", "vm.start"]);
+    expect(notices).toEqual([]);
   });
 });
 

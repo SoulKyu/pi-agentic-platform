@@ -147,7 +147,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     const hadWorkers = entry.idle.live > 0;
     const agentId = entry.spec.agentId;
     logger.warn("agent_vm_exited", { agentId, withWorkers: hadWorkers });
-    if (hadWorkers && crashes.record(agentId)) {
+    if (hadWorkers && crashes.record(agentId) && !paused.has(agentId)) {
       paused.add(agentId);
       try {
         deps.onCrashPause(agentId);
