@@ -196,7 +196,7 @@ describe("an agent's policy (R13)", () => {
   // the read never refreshes after the models changed -> "reads again after the models changed" fails.
   describe("the bridge declaration (I2)", () => {
     const withReads = (reads: Array<string[] | Error>) => {
-      const { derived, late, listeners } = bed({
+      const { derived, late, listeners, clock } = bed({
         token: true,
         input: { model: null, packages: ["f".repeat(32)] },
       });
@@ -206,7 +206,7 @@ describe("an agent's policy (R13)", () => {
         if (next instanceof Error) throw next;
         return next;
       };
-      return { derived, listeners, calls };
+      return { derived, listeners, calls, clock };
     };
 
     it("reads the picks once, not at every evaluation", async () => {
@@ -231,6 +231,26 @@ describe("an agent's policy (R13)", () => {
       expect((await derived.policyOf(AGENT)).claude).toBe(true);
       for (const listener of listeners.models) listener();
       expect((await derived.policyOf(AGENT)).claude).toBe(false);
+    });
+
+    // AVM-E45 N1. Mutants: the `at` bound dropped -> "a profile that lost the bridge" fails; the agent-change mark dropped -> the next case fails.
+    it("a profile that lost the bridge gets claude false within a minute, with no models or picks change", async () => {
+      const { derived, calls, clock } = withReads([["npm:pi-claude-bridge"], ["npm:left-pad"]]);
+      expect((await derived.policyOf(AGENT)).claude).toBe(true);
+      await clock.advance(POLICY_RECHECK_MS - 1);
+      expect((await derived.policyOf(AGENT)).claude).toBe(true);
+      expect(calls.n).toBe(1);
+      await clock.advance(1);
+      expect((await derived.policyOf(AGENT)).claude).toBe(false);
+      expect(calls.n).toBe(2);
+    });
+
+    it("reads again at once when the agent changed", async () => {
+      const { derived, listeners, calls } = withReads([["npm:pi-claude-bridge"], ["npm:left-pad"]]);
+      expect((await derived.policyOf(AGENT)).claude).toBe(true);
+      for (const listener of listeners.agent) listener({ agentId: AGENT });
+      expect((await derived.policyOf(AGENT)).claude).toBe(false);
+      expect(calls.n).toBe(2);
     });
 
     it("fails closed when no declaration was ever read", async () => {
@@ -299,7 +319,7 @@ describe("what makes the relay hear of a change (M-trigger-*)", () => {
 
   it("refreshes the agent that was edited, paused or deleted", () => {
     const { listeners, relay } = bed();
-    listeners.agent[0]?.({ agentId: AGENT });
+    for (const listener of listeners.agent) listener({ agentId: AGENT });
     expect(relay.refresh).toHaveBeenCalledExactlyOnceWith(AGENT);
   });
 

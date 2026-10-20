@@ -92,11 +92,16 @@ export function bindAgentsVmLate(
   // M2: the last list of models read for an agent. A helper that is busy or slow must not empty a running agent's policy.
   const lastModels = new Map<string, Array<{ provider: string; id: string }>>();
   // AVM-E42 I2: the last bridge declaration read for an agent, like `lastModels`. It is read again only when the models list
-  // refreshes (`onChanged` marks it stale) or the picks change, never at every evaluation; a failed or busy read keeps the last
-  // value, and with none ever read the bridge stays off.
-  const lastBridge = new Map<string, { declared: boolean; key: string; stale: boolean }>();
+  // refreshes (`onChanged` marks it stale), the agent changes (`agents.onChange`), the picks change, or a minute has passed (a
+  // profile edit that removed the bridge raises no event the daemon sees, AVM-E45): at most one helper read per agent per minute.
+  // A failed or busy read keeps the last value, and with none ever read the bridge stays off.
+  const lastBridge = new Map<string, { declared: boolean; key: string; stale: boolean; at: number }>();
   late.pi.models.onChanged(() => {
     for (const known of lastBridge.values()) known.stale = true;
+  });
+  late.agents.onChange(({ agentId }) => {
+    const known = lastBridge.get(agentId);
+    if (known !== undefined) known.stale = true;
   });
   const declaresBridge = async (
     agentId: string,
@@ -106,10 +111,16 @@ export function bindAgentsVmLate(
     if (input.model?.provider === CLAUDE_BRIDGE_PROVIDER) return true;
     const key = JSON.stringify(input.packages);
     const known = lastBridge.get(agentId);
-    if (known !== undefined && known.key === key && !known.stale) return known.declared;
+    if (
+      known !== undefined &&
+      known.key === key &&
+      !known.stale &&
+      clock.now() - known.at < POLICY_RECHECK_MS
+    )
+      return known.declared;
     try {
       const declared = ((await late.pi.plugins.sourcesOf(input.packages)) ?? []).some(isClaudeBridgeSource);
-      lastBridge.set(agentId, { declared, key, stale: false });
+      lastBridge.set(agentId, { declared, key, stale: false, at: clock.now() });
       return declared;
     } catch (error) {
       // The models of the policy are still sent; the bridge keeps what was last known (off when nothing was).
