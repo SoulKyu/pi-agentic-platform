@@ -1,5 +1,13 @@
 import type { AlwaysScope, Dialog, DialogResponse } from "@pap/contracts";
-import { type ApprovalAnswer as UiApprovalAnswer, ApprovalCard, cn, FOCUS_RING, useIsPhone } from "@pap/ui";
+import {
+  type ApprovalAnswer as UiApprovalAnswer,
+  ApprovalCard,
+  Button,
+  Chip,
+  cn,
+  FOCUS_RING,
+  useIsPhone,
+} from "@pap/ui";
 import { useState } from "react";
 import { useT } from "../../../i18n/index.ts";
 import { splitApproval } from "../approval-detail.ts";
@@ -8,6 +16,9 @@ import { visibleName } from "../../../lib/visible-name.ts";
 import { useInboxStore } from "../../../stores/inbox-store.ts";
 import "../register-policy-catalog.ts";
 import { AlwaysScopeChoice, scopesOffered } from "./AlwaysScopeChoice.tsx";
+import { MarkLocal } from "./MarkLocal.tsx";
+import { TaintCauseLine } from "./TaintCauseLine.tsx";
+import { withoutSessionCd } from "./session-cd.ts";
 import { timeoutLine } from "./request-frame.tsx";
 import { plain } from "./untrusted.ts";
 import { ExpandToggle, useClipped } from "./use-clipped.tsx";
@@ -32,6 +43,8 @@ export function ApprovalCardFor(props: {
   readonly dialog: Dialog;
   /** The session the card belongs to: a task's session names the trigger that started it. */
   readonly sessionId?: string;
+  /** The session's folder: a bash command that starts with `cd` into it shows without that prefix (display only). */
+  readonly cwd?: string;
   onAnswer(response: DialogResponse): void;
 }) {
   const { dialog } = props;
@@ -55,7 +68,18 @@ export function ApprovalCardFor(props: {
   const question = useClipped(dialog.title, QUESTION_LIMITS);
   const { header, body } = splitApproval(plain(dialog.message ?? ""));
   const headerText = useClipped(header ?? "", HEADER_LIMITS);
-  const bodyText = useClipped(body, BODY_LIMITS);
+  // Display only (decision 117, A3): the answer, the policy and the audit always see the full command.
+  const [fullCommand, setFullCommand] = useState(false);
+  const withoutCd = dialog.tool === "bash" ? withoutSessionCd(body, props.cwd) : null;
+  const bodyText = useClipped(withoutCd === null || fullCommand ? body : withoutCd, BODY_LIMITS);
+  const causes = dialog.tainted ? dialog.taintCauses : undefined;
+  const markable =
+    props.sessionId !== undefined &&
+    props.sessionId !== "" &&
+    causes !== undefined &&
+    causes.older === 0 &&
+    causes.list.length > 0 &&
+    causes.list.every((c) => c.markable);
   // The card splits the header off the first line itself; a message of one line has no header and is all body.
   const category = t(`dialog.category.${dialog.category ?? "unknown"}`);
   const bodyLines = bodyText.shown.split("\n").length;
@@ -80,6 +104,12 @@ export function ApprovalCardFor(props: {
           {trigger === null ? null : (
             <p data-approval-trigger className="mt-s1 line-clamp-3 break-words text-ui text-muted">
               {t("inbox.startedBy", { name: visibleName(trigger) })}
+            </p>
+          )}
+          {causes === undefined ? null : <TaintCauseLine causes={causes} />}
+          {withoutCd === null ? null : (
+            <p data-approval-cd className="mt-s1">
+              <Chip tone="mut" label={t("sessionPolicy.cd.badge")} />
             </p>
           )}
           {dialog.guard ? (
@@ -108,11 +138,24 @@ export function ApprovalCardFor(props: {
             }
       }
       controls={
-        question.clipped || headerText.clipped || bodyText.clipped || scopes.length > 0 ? (
+        question.clipped ||
+        headerText.clipped ||
+        bodyText.clipped ||
+        scopes.length > 0 ||
+        markable ||
+        withoutCd !== null ? (
           <>
             <ExpandToggle {...question} />
             <ExpandToggle {...headerText} />
             <ExpandToggle {...bodyText} />
+            {withoutCd === null ? null : (
+              <Button size="sm" aria-expanded={fullCommand} onClick={() => setFullCommand((full) => !full)}>
+                {t(fullCommand ? "sessionPolicy.cd.hideFull" : "sessionPolicy.cd.showFull")}
+              </Button>
+            )}
+            {markable && props.sessionId !== undefined ? (
+              <MarkLocal sessionId={props.sessionId} causes={causes?.list ?? []} />
+            ) : null}
             {scopes.length > 0 ? (
               <AlwaysScopeChoice dialog={dialog} scopes={scopes} value={scope} onChange={setScope} />
             ) : null}

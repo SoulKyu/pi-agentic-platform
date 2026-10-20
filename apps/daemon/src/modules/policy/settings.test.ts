@@ -136,7 +136,18 @@ describe("owner policy settings", () => {
       denylist: [],
       allowHosts: [],
       readOnlyCommands: false,
+      localTools: [],
     });
+  });
+
+  it("stores the owner's local tools, hands them to the engine, and reads an older document without them (A2)", () => {
+    const { service, db } = bed();
+    const localTools = [{ tool: "todo", source: "/x/ext/todo.ts" }];
+    service.setSettings(caller, { localTools }, 0);
+    expect(service.settings("u1").localTools).toEqual(localTools);
+    expect(service.getSettings(caller).value).toMatchObject({ localTools });
+    db.run("UPDATE policy_settings SET value = '{\"defaultMode\":\"supervised\"}' WHERE owner_id = 'u1'");
+    expect(service.settings("u1").localTools).toEqual([]);
   });
 
   it("reads a stored document without the read-only switch as on", () => {

@@ -135,11 +135,21 @@ describe("a networked sandboxed shell's result (M11R233)", () => {
     expect(b.taken).toEqual(["c2", "c1", "c1"]);
   });
 
-  it("leaves a network-off shell unchanged: never external, no report asked, no row", () => {
+  it("leaves a network-off shell unchanged: never external, no report asked, a row that says nothing acted", () => {
     const b = bed({}, false);
     expect(onToolResult(result(), b.deps)).toBeUndefined();
     expect(b.taken).toEqual([]);
-    expect(b.audits).toEqual([]);
+    expect(b.audits).toEqual([
+      expect.objectContaining({
+        kind: "result",
+        redactions: 0,
+        external: false,
+        stages: [
+          { stage: "06", outcome: "pass" },
+          { stage: "07", outcome: "pass" },
+        ],
+      }),
+    ]);
     expect(b.taint.current()).toBe(false);
   });
 

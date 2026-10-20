@@ -164,8 +164,12 @@ export async function evaluateOnce(
     }
   }
   const host = plan.outcome === "ask" && !trip && answers.includes("host") ? plan.host : undefined;
-  const scopes = grantable && answers.includes("always") ? alwaysScopesOf(call) : undefined;
+  const scopes =
+    grantable && answers.includes("always")
+      ? alwaysScopesOf(call, { cwd: ctx.cwd, cdPath: deps.shell().cdPath })
+      : undefined;
   const askedAt = deps.grants.version();
+  const causes = call.tainted ? deps.taint.causes?.() : undefined;
   const outcome = await deps.ask(
     {
       category: kind.category,
@@ -183,6 +187,9 @@ export async function evaluateOnce(
       ...(scopes ? { alwaysScopes: scopes } : {}),
       ...(host === undefined ? {} : { host }),
       tainted: call.tainted,
+      ...(causes !== undefined && (causes.list.length > 0 || causes.older > 0)
+        ? { taintCauses: causes }
+        : {}),
       ...(trip ? { guard: trip.rule } : {}),
     },
     ctx.signal,

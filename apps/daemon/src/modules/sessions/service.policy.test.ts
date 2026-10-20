@@ -26,6 +26,7 @@ describe("the policy in every worker", () => {
       denylist: ["sudo *"],
       allowHosts: ["example.com"],
       readOnlyCommands: true,
+      localTools: [{ tool: "todo", source: "/x/ext/todo.ts" }],
     });
     open({ policy });
     const { sessionId } = await bed.service.create(bed.work, OWNER);
@@ -41,6 +42,7 @@ describe("the policy in every worker", () => {
       builtinDenylist: false,
       denylist: ["sudo *"],
       allowHosts: ["example.com"],
+      localTools: [{ tool: "todo", source: "/x/ext/todo.ts" }],
       guard: DEFAULT_GUARD,
       taint: { tainted: false, epoch: 0 },
       readOnlyCommands: true,
@@ -82,6 +84,15 @@ describe("the policy in every worker", () => {
     policy.setSettings(OWNER.userId, { ...DEFAULT_POLICY_SETTINGS, denylist: ["x *"] });
     expect([0, 1, 2].map((i) => policyUpdatesOf(bed.spawned[i]).length)).toEqual([1, 1, 0]);
     expect(policyUpdatesOf(bed.spawned[0]).at(-1)).toMatchObject({ rules: { denylist: ["x *"] } });
+  });
+
+  it("pushes the owner's local tools to a running worker when the settings change (decision 117, A2)", async () => {
+    const policy = fakePolicyPort();
+    open({ policy });
+    await bed.service.create(bed.work, OWNER);
+    const localTools = [{ tool: "todo", source: "/x/ext/todo.ts" }];
+    policy.setSettings(OWNER.userId, { ...DEFAULT_POLICY_SETTINGS, localTools });
+    expect(policyUpdatesOf(bed.spawned[0]).at(-1)).toMatchObject({ rules: { localTools } });
   });
 
   it("sends read-only rules, and says so, when the composed rules are invalid (M5R58)", async () => {

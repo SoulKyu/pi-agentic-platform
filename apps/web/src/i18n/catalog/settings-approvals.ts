@@ -30,6 +30,22 @@ export const settingsApprovalsEn = {
   "approvals.readOnly.list": "Commands that count as read-only",
   "approvals.readOnly.forms":
     "git, find, sort, date and grep run unasked only in their read-only forms. A form that writes or deletes still asks.",
+  "approvals.local.title": "Local tools",
+  "approvals.local.hint":
+    "A local tool reads nothing from outside this machine, sends nothing outside and does not modify your files. Its results do not mark the session, and its calls run without asking, in every mode including Read only, even after external content. Add only tools you know. The source is the tool's exact registration path.",
+  "approvals.local.limits":
+    "A rule that names a built-in, MCP or pap tool has no effect: those keep their own classification.",
+  "approvals.local.empty": "No local tool declared.",
+  "approvals.local.tool": "Tool name",
+  "approvals.local.source": "Source path",
+  "approvals.local.add": "Add local tool",
+  "approvals.local.remove": "Remove {tool}",
+  "approvals.local.removeShort": "Remove",
+  "approvals.local.invalidTool": "A tool name is letters, digits and _ . : - (64 characters at most).",
+  "approvals.local.invalidSource": "The source is one line of visible characters (1024 at most).",
+  "approvals.local.pending": "Add the local tool you typed, or clear its fields, to save.",
+  "approvals.local.duplicate": "This tool and source are already listed.",
+  "approvals.local.full": "The list is full ({max} local tools).",
   "approvals.blocked.title": "Blocked commands",
   "approvals.blocked.label": "Blocked commands",
   "approvals.blocked.hint":
@@ -159,6 +175,24 @@ export const settingsApprovalsFr: { readonly [K in keyof typeof settingsApproval
   "approvals.readOnly.list": "Commandes considérées en lecture seule",
   "approvals.readOnly.forms":
     "git, find, sort, date et grep s'exécutent sans demander seulement dans leurs formes en lecture seule. Une forme qui écrit ou supprime demande toujours.",
+  "approvals.local.title": "Outils locaux",
+  "approvals.local.hint":
+    "Un outil local ne lit rien hors de cette machine, n'envoie rien à l'extérieur et ne modifie pas vos fichiers. Ses résultats ne marquent pas la session, et ses appels s'exécutent sans demander, dans tous les modes, y compris Lecture seule, même après du contenu externe. N'ajoutez que des outils que vous connaissez. La source est le chemin d'enregistrement exact de l'outil.",
+  "approvals.local.limits":
+    "Une règle qui nomme un outil intégré, MCP ou de pap n'a aucun effet : ces outils gardent leur propre classification.",
+  "approvals.local.empty": "Aucun outil local déclaré.",
+  "approvals.local.tool": "Nom de l'outil",
+  "approvals.local.source": "Chemin de la source",
+  "approvals.local.add": "Ajouter l'outil local",
+  "approvals.local.remove": "Retirer {tool}",
+  "approvals.local.removeShort": "Retirer",
+  "approvals.local.invalidTool":
+    "Un nom d'outil se compose de lettres, chiffres et _ . : - (64 caractères au plus).",
+  "approvals.local.invalidSource": "La source tient sur une ligne de caractères visibles (1024 au plus).",
+  "approvals.local.pending":
+    "Ajoutez l'outil local que vous avez saisi, ou videz ses champs, pour enregistrer.",
+  "approvals.local.duplicate": "Cet outil et cette source figurent déjà dans la liste.",
+  "approvals.local.full": "La liste est pleine ({max} outils locaux).",
   "approvals.blocked.title": "Commandes bloquées",
   "approvals.blocked.label": "Commandes bloquées",
   "approvals.blocked.hint":

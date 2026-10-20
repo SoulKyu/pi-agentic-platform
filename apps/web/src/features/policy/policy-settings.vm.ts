@@ -3,6 +3,7 @@ import {
   DenyPattern,
   MAX_SETTINGS_BYTES,
   HostPattern,
+  type LocalToolRule,
   MAX_ALLOW_HOSTS,
   MAX_DENY_PATTERNS,
   PolicySettings,
@@ -42,6 +43,9 @@ export interface SettingsForm {
   readonly denylistText: string;
   readonly hostsOn: boolean;
   readonly hostsText: string;
+  readonly localTools: readonly LocalToolRule[];
+  /** The local tool being typed, not added yet. */
+  readonly localDraft: { readonly tool: string; readonly source: string };
 }
 
 /** The document as the wire types it: a field the daemon left out is its default. */
@@ -56,6 +60,8 @@ export function formOf(stored: StoredSettings): SettingsForm {
     denylistText: settings.denylist.join("\n"),
     hostsOn: settings.allowHosts !== null,
     hostsText: (settings.allowHosts ?? []).join("\n"),
+    localTools: settings.localTools,
+    localDraft: { tool: "", source: "" },
   };
 }
 
@@ -64,6 +70,8 @@ export interface FormCheck {
   /** Empty while the switch is off: a list that is not in force cannot block a save. */
   readonly hosts: ParsedLines;
   readonly tooLarge: boolean;
+  /** A local tool is typed and not added: Save waits, so the draft is never dropped silently. */
+  readonly draftPending: boolean;
   readonly valid: boolean;
   /** What Save sends; null while the form is not valid. */
   readonly settings: PolicySettings | null;
@@ -80,11 +88,21 @@ export function checkForm(form: SettingsForm): FormCheck {
     readOnlyCommands: form.readOnlyCommands,
     denylist: deny.values,
     allowHosts: form.hostsOn ? hosts.values : null,
+    localTools: form.localTools,
   });
   const tooLarge =
     candidate.success && new TextEncoder().encode(JSON.stringify(candidate.data)).length > MAX_SETTINGS_BYTES;
-  const valid = candidate.success && !tooLarge && deny.errors.length === 0 && hosts.errors.length === 0;
-  return { deny, hosts, tooLarge, valid, settings: valid && candidate.success ? candidate.data : null };
+  const draftPending = form.localDraft.tool.trim() !== "" || form.localDraft.source.trim() !== "";
+  const valid =
+    candidate.success && !tooLarge && !draftPending && deny.errors.length === 0 && hosts.errors.length === 0;
+  return {
+    deny,
+    hosts,
+    tooLarge,
+    draftPending,
+    valid,
+    settings: valid && candidate.success ? candidate.data : null,
+  };
 }
 
 const canon = (stored: StoredSettings): string => {
@@ -95,6 +113,7 @@ const canon = (stored: StoredSettings): string => {
     settings.denylist,
     settings.allowHosts,
     settings.readOnlyCommands,
+    settings.localTools,
   ]);
 };
 

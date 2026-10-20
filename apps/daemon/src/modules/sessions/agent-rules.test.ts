@@ -60,6 +60,11 @@ describe("the agent's rules (M11R52)", () => {
     });
   });
 
+  it("leaves the owner's local tools alone, so threads, tasks and children compose with the owner's list (decision 117, A2)", () => {
+    for (const agentRole of ["thread", "task", "child"] as const)
+      expect(build({})(row({ agentRole }), OWNER)).not.toHaveProperty("localTools");
+  });
+
   it("an agent list of null follows the owner's list; an empty list stays empty", () => {
     expect(build({})(row(), OWNER)).toMatchObject({ allowHosts: ["owner.example"] });
     expect(build({ allowHosts: [] })(row(), OWNER)).toMatchObject({ allowHosts: [] });

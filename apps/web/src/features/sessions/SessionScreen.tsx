@@ -112,6 +112,7 @@ export function SessionScreen({
         sessionId={sessionId}
         dialogs={view.dialogs}
         hidden={view.hiddenDialogs}
+        cwd={view.cwd}
       />
       <ChildApprovals subagents={view.children} />
     </>

@@ -50,6 +50,8 @@ export interface LiveUiDeps {
   readonly logger: Logger;
   readonly limiter: RateLimiter;
   publish(event: SessionStreamEvent): void;
+  /** An approval card was sent to the UI (decision 117, A4): the call it is about, the answers it offers and when. */
+  onCardShown?(toolCallId: string, answers: readonly ApprovalAnswer[], at: number): void;
 }
 
 export interface LiveUi {
@@ -209,8 +211,11 @@ export function createLiveUi(deps: LiveUiDeps): LiveUi {
       // the open one is withdrawn and answered closed, then the new one opens.
       withdrawOpenApproval(record.id, "collision");
       const verdict = dialogs.offerApproval(record);
-      if (verdict.kind === "opened") deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
-      else if (verdict.kind === "cancel") refuseApproval(record.id, verdict.reason);
+      if (verdict.kind === "opened") {
+        deps.publish({ kind: "dialog_open", dialog: verdict.dialog });
+        if (record.toolCallId !== undefined)
+          deps.onCardShown?.(record.toolCallId, record.answers, deps.clock.now());
+      } else if (verdict.kind === "cancel") refuseApproval(record.id, verdict.reason);
     },
     onApprovalInvalid(record) {
       // The id is the policy's waiter too: a card left open under it could be answered a second time, after the

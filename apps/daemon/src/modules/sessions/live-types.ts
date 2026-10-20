@@ -1,5 +1,6 @@
 import type {
   Activity,
+  ApprovalAnswer,
   CommandInput,
   DaemonToWorker,
   Dialog,
@@ -44,6 +45,8 @@ export interface LiveSessionDeps {
   onWorkerExit?(info: { exit: WorkerExit; outputTail: string }): void;
   /** The worker's policy extension refused a `policy_update`: it blocks every call from then on (M5R11). */
   onPolicyRefused?(): void;
+  /** An approval card was sent to the UI: the call it is about, the answers it offers and the clock's time (decision 117, A4). */
+  onCardShown?(toolCallId: string, answers: readonly ApprovalAnswer[], at: number): void;
   observe?(event: PiEvent): void;
 }
 

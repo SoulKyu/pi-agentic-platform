@@ -9,6 +9,7 @@ import {
   type ShellFacts,
   judged,
   judgeWith,
+  wildcardSafe,
   tilde,
 } from "./command-cover-judge.ts";
 import { gitGuard } from "./git-config-guard.ts";
@@ -45,6 +46,8 @@ interface Parsed {
   readonly argv: readonly string[];
   /** Files read through `<`. */
   readonly inputs: readonly string[];
+  /** argv index to the index of the word's first unquoted wildcard (APR-5). */
+  readonly globs: ReadonlyMap<number, number>;
 }
 
 /** Whether every simple command of `command` is read-only or starts with an allowed prefix. Never throws (M7R8). */
@@ -85,9 +88,13 @@ async function cover(command: string, ctx: CoverContext): Promise<Cover> {
       if (why !== null) return NOT(why);
     }
     if (segment.argv[0] === "cd") continue;
-    if (ctx.prefixes?.some((prefix) => startsWith(segment.argv, prefix))) continue;
+    if (ctx.prefixes?.some((prefix) => startsWith(segment.argv, prefix))) {
+      // A prefix rule never follows a `cd` out of the session folder (decision 117): the rule was granted for this folder.
+      if (!(await insideSessionFolder(bases, ctx))) return NOT("cd outside the session folder");
+      continue;
+    }
     if (!ctx.readOnly) return NOT("not allowed");
-    const why = await judgeSegment(segment.argv, judge);
+    const why = await judgeSegment(segment.argv, segment.globs, judge);
     if (why !== null) return NOT(why);
   }
   return { covered: true };
@@ -95,6 +102,13 @@ async function cover(command: string, ctx: CoverContext): Promise<Cover> {
 
 const startsWith = (argv: readonly string[], prefix: readonly string[]): boolean =>
   prefix.length > 0 && prefix.length <= argv.length && prefix.every((word, at) => argv[at] === word);
+
+/** Whether every folder a command may run in is the session folder or below it, symbolic links followed. */
+async function insideSessionFolder(bases: readonly string[], ctx: CoverContext): Promise<boolean> {
+  const root = await realTarget(resolve(ctx.cwd));
+  for (const base of bases) if (!within(root, await realTarget(base))) return false;
+  return true;
+}
 
 /** M7R5. */
 async function shellRefusal(ctx: CoverContext): Promise<string | null> {
@@ -117,10 +131,13 @@ async function shellRefusal(ctx: CoverContext): Promise<string | null> {
 /** M7R1: what stands around the command word, and its redirections. */
 function parseSegment(segment: Segment): Parsed | string {
   const plain: string[] = [];
+  const globs = new Map<number, number>();
   const inputs: string[] = [];
   for (let at = 0; at < segment.words.length; at++) {
     const word = segment.words[at] as string;
     if (!segment.operators.has(at)) {
+      const wild = segment.wildcards?.get(at);
+      if (wild !== undefined) globs.set(plain.length, wild);
       plain.push(word);
       continue;
     }
@@ -134,7 +151,7 @@ function parseSegment(segment: Segment): Parsed | string {
   if (argv.length === 0 || argv.length !== plain.length || argv[0] !== plain[0])
     return "wrapper, assignment or keyword";
   for (const word of [...plain, ...inputs]) if (!literal(word)) return "expansion";
-  return { argv, inputs };
+  return { argv, inputs, globs };
 }
 
 const literal = (word: string): boolean =>
@@ -168,8 +185,14 @@ function basesOf(parsed: readonly Parsed[], ctx: CoverContext): string[] | strin
   return bases;
 }
 
-async function judgeSegment(argv: readonly string[], judge: Judge): Promise<string | null> {
+async function judgeSegment(
+  argv: readonly string[],
+  globs: ReadonlyMap<number, number>,
+  judge: Judge,
+): Promise<string | null> {
   const [name, ...args] = argv as [string, ...string[]];
+  for (const [at, wildAt] of globs)
+    if (at > 0 && !wildcardSafe(argv[at] as string, wildAt)) return "glob operand";
   if (name === "git") return judgeGit(args, judge);
   if (name === "rg" && judge.ctx.shell.rgConfig) return "ripgrep config";
   const rule = READ_ONLY_COMMANDS.get(name);

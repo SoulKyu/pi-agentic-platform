@@ -39,6 +39,7 @@ export * from "./models-usage.ts";
 export * from "./permissions.ts";
 export * from "./platform.ts";
 export * from "./policy.ts";
+export * from "./taint-cause.ts";
 export * from "./policy-methods.ts";
 export * from "./pi-helper.ts";
 export * from "./pi-host.ts";

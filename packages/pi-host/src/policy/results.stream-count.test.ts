@@ -52,7 +52,17 @@ describe("stage 06 and the stream redaction of a sandboxed command", () => {
     expect(audits[0]).toMatchObject({ redactions: 3 });
   });
 
-  it("writes no row for a command whose stream replaced nothing", () => {
-    expect(run("plain\n", "call-3").audits).toEqual([]);
+  it("writes a row without redactions for a command whose stream replaced nothing (a shell result always leaves one, A4)", () => {
+    expect(run("plain\n", "call-3").audits).toEqual([
+      expect.objectContaining({
+        kind: "result",
+        redactions: 0,
+        external: false,
+        stages: [
+          { stage: "06", outcome: "pass" },
+          { stage: "07", outcome: "pass" },
+        ],
+      }),
+    ]);
   });
 });

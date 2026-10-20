@@ -28,7 +28,7 @@ import type { MessageMix } from "./message-mix.ts";
 import { readsAgentHome, readsRunsFolder } from "./read-target.ts";
 import { withRestored } from "./restore.ts";
 import { approvalStage, readOnlyRefusal } from "./stage-approval.ts";
-import type { ExternalRoots } from "./taint.ts";
+import type { ExternalRoots, Taint } from "./taint.ts";
 import type { EditReview } from "./target-path.ts";
 import { classifyTool, type ToolFacts, type ToolKind } from "./tool-kind.ts";
 import { clipUnits, createTrail, MAX_ID_LENGTH as MAX_FIELD } from "./trail.ts";
@@ -120,7 +120,8 @@ export interface PipelineDeps {
   /** The shell facts read-only commands depend on, read at each evaluation (M7R15). */
   shell(): ShellFacts;
   toolFacts(toolName: string): ToolFacts | undefined;
-  readonly taint: { current(): boolean };
+  /** `causes` names what tainted the session on the card (decision 117, A3); a bed without it shows none. */
+  readonly taint: Pick<Taint, "current"> & Partial<Pick<Taint, "causes">>;
   /** The set stage 07 reads (M5R39): a call that reads an agent's runs folder is put in it before it runs (M11R181). */
   readonly externalRoots?: ExternalRoots;
   /** Keeps a sandboxed shell and Pi's path tools out of one assistant message (W5-R11). */
@@ -170,7 +171,8 @@ export async function evaluateToolCall(
     return { kind: "call", ...ids, ...audited, decision: "block", reason, stages: trail.list() };
   };
   try {
-    const kind = classifyTool(event.toolName, deps.toolFacts(event.toolName));
+    const rules = deps.rules();
+    const kind = classifyTool(event.toolName, deps.toolFacts(event.toolName), rules?.localTools);
     audited = { category: kind.category, args: UNREADABLE_INPUT };
     // Pi's own shell and pap's sandboxed one: the command is judged, keyed and audited as a command (M11R25).
     const exec = kind.category === "exec" && (kind.builtin || kind.sandboxed === true);
@@ -189,7 +191,6 @@ export async function evaluateToolCall(
       key: grantKey(event.toolName, grantPayload(event.input, exec)),
     };
     // M11R181: what an agent's runs folders hold was written by runs nobody watched: its result is external content.
-    const rules = deps.rules();
     const readDirs = {
       cwd: ctx.cwd,
       papHome: deps.papHome,

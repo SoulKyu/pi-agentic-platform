@@ -1,4 +1,10 @@
-import { PLATFORM_OPS, type PlatformOp, type ToolCategory, type WhenTainted } from "@pap/contracts";
+import {
+  type LocalToolRule,
+  PLATFORM_OPS,
+  type PlatformOp,
+  type ToolCategory,
+  type WhenTainted,
+} from "@pap/contracts";
 
 /** What Pi records about a registered tool (`ToolInfo.sourceInfo.path` and the tool's own hints). */
 export interface ToolFacts {
@@ -59,8 +65,19 @@ const MCP_RESOURCE_TOOLS: ReadonlySet<string> = new Set([
 const MCP_TOOL_NAME = /^mcp__\w+?__\w+$/;
 const URL_BEARING = new Set<ToolCategory>(["exec", "network"]);
 
+/**
+ * Whether a registered source can be declared local (decision 117, A2): `builtin:*` (Pi's own tools, MCP, codemode,
+ * tool search) and `<inline:*>` (pap's platform and sandbox extensions) are reserved, whatever name a rule gives them.
+ */
+export const isMarkableSource = (path: string): boolean =>
+  !path.startsWith("builtin:") && !path.startsWith("<inline:");
+
 /** M5R116. Names are matched exactly; the registration decides whether the name is Pi's own. */
-export function classifyTool(name: string, facts: ToolFacts | undefined): ToolKind {
+export function classifyTool(
+  name: string,
+  facts: ToolFacts | undefined,
+  localTools: readonly LocalToolRule[] = [],
+): ToolKind {
   const category = Object.hasOwn(BUILTIN_CATEGORY, name) ? BUILTIN_CATEGORY[name] : undefined;
   if (category !== undefined && facts?.path === `builtin:${name}`)
     return {
@@ -72,6 +89,14 @@ export function classifyTool(name: string, facts: ToolFacts | undefined): ToolKi
     };
   const extension = extensionKind(name, facts);
   if (extension) return extension;
+  // Last, and never from a reserved source, so a rule cannot reclassify a built-in, MCP, platform, sandbox, codemode or
+  // tool-search tool, nor a name those sources left unknown (decision 117, A2).
+  if (
+    facts &&
+    isMarkableSource(facts.path) &&
+    localTools.some((rule) => rule.tool === name && rule.source === facts.path)
+  )
+    return { category: "read", external: false, urlBearing: false, mcp: false, builtin: false };
   return {
     category: "unknown",
     external: facts?.openWorldHint !== false,

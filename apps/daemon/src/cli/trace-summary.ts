@@ -1,8 +1,12 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { homeFrom } from "../kernel/config.ts";
+import { openDatabase } from "../kernel/db/database.ts";
 import { traceFilePaths } from "../kernel/observability/trace-file.ts";
 import { CliError } from "./open-home.ts";
+import { percentile } from "./percentile.ts";
 import type { Command } from "./run-cli.ts";
+import { renderApprovals, summarizeApprovals } from "./trace-approvals.ts";
 import { UsageError } from "./usage.ts";
 
 const SINCE = /^([1-9]\d{0,3})([mhd])$/;
@@ -41,10 +45,6 @@ function parseSpan(line: string): Span | null {
   if (typeof durationMs !== "number" || !Number.isFinite(durationMs) || durationMs < 0) return null;
   return { name, start, durationMs, ok: outcome === "ok" };
 }
-
-/** Nearest rank: the smallest value with at least `p` percent of the values at or below it. `sorted` is not empty. */
-const percentile = (sorted: readonly number[], p: number): number =>
-  sorted[Math.max(0, Math.ceil((p / 100) * sorted.length) - 1)] ?? 0;
 
 /**
  * Per span name: count, rate per minute, p50/p90/p99/max and failures. A line that is not a span (a torn write, a
@@ -137,8 +137,26 @@ function readIfThere(path: string): string | null {
 }
 
 /**
- * `pap trace summary [--since <15m|2h|1d>]` (M10R94): reads `logs/trace.jsonl` and `.1` … `.9`. It takes no instance
- * lock and opens no database, so it works while the daemon runs or is stopped.
+ * The approvals block (decision 117, A4): read from the audit of `state.db`, opened read-only, so it works while the
+ * daemon runs. Null when there is no database, or one from before the card timing columns.
+ */
+function approvalsBlock(home: string, now: number, sinceMs: number | undefined): string | null {
+  const path = join(home, "state.db");
+  if (!existsSync(path)) return null;
+  let db;
+  try {
+    db = openDatabase(path, { readOnly: true });
+    return renderApprovals(summarizeApprovals(db, { now, ...(sinceMs === undefined ? {} : { sinceMs }) }));
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
+}
+
+/**
+ * `pap trace summary [--since <15m|2h|1d>]` (M10R94): reads `logs/trace.jsonl` and `.1` … `.9`, then the approvals of
+ * the audit. It takes no instance lock and opens the database read-only, so it works while the daemon runs or is stopped.
  */
 export const traceSummary: Command = {
   options: { since: { type: "string" } },
@@ -148,15 +166,17 @@ export const traceSummary: Command = {
     const match = since === undefined ? null : SINCE.exec(since);
     if (since !== undefined && !match) throw new UsageError("--since must look like 15m, 2h or 1d");
     const sinceMs = match ? Number(match[1]) * UNIT_MS[match[2] as keyof typeof UNIT_MS] : undefined;
-    const files = traceFilePaths(homeFrom(io.env, io.homedir)).flatMap((path) => readIfThere(path) ?? []);
-    if (files.length === 0) {
-      io.stdout.write("no trace yet\n");
-      return 0;
+    const home = homeFrom(io.env, io.homedir);
+    const files = traceFilePaths(home).flatMap((path) => readIfThere(path) ?? []);
+    if (files.length === 0) io.stdout.write("no trace yet\n");
+    else {
+      const { rows, skipped } = summarizeTrace(files, { now: io.clock.now(), sinceMs });
+      if (rows.length === 0) io.stdout.write(`no spans in the last ${since ?? "window"}\n`);
+      else io.stdout.write(`${renderTable(rows)}\n`);
+      io.stdout.write(`skipped lines: ${skipped}\n`);
     }
-    const { rows, skipped } = summarizeTrace(files, { now: io.clock.now(), sinceMs });
-    if (rows.length === 0) io.stdout.write(`no spans in the last ${since ?? "window"}\n`);
-    else io.stdout.write(`${renderTable(rows)}\n`);
-    io.stdout.write(`skipped lines: ${skipped}\n`);
+    const approvals = approvalsBlock(home, io.clock.now(), sinceMs);
+    if (approvals !== null) io.stdout.write(`\n${approvals}\n`);
     return 0;
   },
 };

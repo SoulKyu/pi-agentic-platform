@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineMethod } from "./define.ts";
-import { StageVerdict, STAGE_IDS } from "./policy.ts";
+import { ApprovalAnswer, StageVerdict, STAGE_IDS } from "./policy.ts";
 
 export const AUDIT_ACTORS = ["worker", "user", "token", "cli", "system"] as const;
 export const AUDIT_KINDS = ["call", "result", "session", "invalid", "auth", "policy", "audit"] as const;
@@ -45,6 +45,15 @@ export const AuditView = z.object({
   stages: z.array(StageVerdict).max(STAGE_IDS.length),
   args: z.string().max(8192).nullable(),
   detail: z.record(z.string(), z.unknown()).nullable(),
+  /** A call that asked (decision 117, A4): when the card was sent to the UI, the answers it offered, when it was answered (null: never). */
+  askedAt: z.number().int().nullish(),
+  answers: z.array(ApprovalAnswer).max(5).nullish(),
+  answeredAt: z.number().int().nullish(),
+  /** What the owner chose on the card (null: nobody answered), whatever the worker then did with it. */
+  answer: ApprovalAnswer.nullish(),
+  /** A shell call's result: the exit code, and how long the call ran once it was allowed to (any result row). Never the output. */
+  exitCode: z.number().int().nullish(),
+  durationMs: z.number().int().nonnegative().nullish(),
 });
 export type AuditView = z.infer<typeof AuditView>;
 

@@ -2,7 +2,7 @@ import type { AlwaysScope, AlwaysScopes, ToolRule } from "@pap/contracts";
 import { coverCommand } from "./command-cover.ts";
 import type { PolicyGrants } from "./grants.ts";
 import type { CallFacts, PipelineDeps, PolicyContext } from "./pipeline.ts";
-import { proposePrefix } from "./prefix-proposal.ts";
+import { proposePrefix, type SessionFolder } from "./prefix-proposal.ts";
 import { READ_ONLY_COMMAND_MODES } from "./stage-approval.ts";
 
 /** M7R19: the source kind a tool rule may name, or null when the tool can never get one. */
@@ -51,9 +51,9 @@ export async function patternGrant(
 }
 
 /** What the card of a grantable question offers for "always" besides the exact call (M7R18, M7R19). */
-export function alwaysScopesOf(call: CallFacts): AlwaysScopes | undefined {
+export function alwaysScopesOf(call: CallFacts, folder?: SessionFolder): AlwaysScopes | undefined {
   const command = commandOf(call);
-  const prefix = command === null ? null : proposePrefix(command);
+  const prefix = command === null ? null : proposePrefix(command, folder);
   const tool = !call.exec && toolRuleSource(call) !== null;
   if (prefix === null && !tool) return undefined;
   const source = toolRuleSource(call);

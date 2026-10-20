@@ -1,4 +1,7 @@
+import { realpathSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import { argvOf, readCommandsWithDoubt } from "./shell-words.ts";
+import { within } from "./target-path.ts";
 
 const NEVER_FIRST: ReadonlySet<string> = new Set([
   "bash",
@@ -42,8 +45,37 @@ const FIRST = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
 const SUB = /^[a-z][a-z0-9:._-]{0,63}$/;
 const RUNNERS: ReadonlySet<string> = new Set(["run", "exec", "x", "dlx"]);
 
-/** M7R18: the prefix a bash card offers for "always", or null when only the exact command may be remembered. */
-export function proposePrefix(command: string): readonly string[] | null {
+/** What judges the folder of `cd <folder> && <command>`: the session folder, and whether CDPATH is set. */
+export interface SessionFolder {
+  readonly cwd: string;
+  readonly cdPath: boolean;
+}
+
+/** `cd <plain folder word> && <rest>`: the folder word has no quote, expansion or operator, so the first `&&` is the join. */
+const CD_AND = /^cd[ \t]+([A-Za-z0-9._+@%/][A-Za-z0-9._+@%/-]*)[ \t]+&&[ \t]+([^\n]+)$/;
+
+function insideFolder(word: string, folder: SessionFolder): boolean {
+  try {
+    const root = realpathSync(folder.cwd);
+    const target = realpathSync(resolve(folder.cwd, word));
+    return statSync(target).isDirectory() && within(root, target);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * M7R18: the prefix a bash card offers for "always", or null when only the exact command may be remembered. With the
+ * session `folder`, `cd <folder inside it> && <one simple command>` offers the command's prefix (decision 117).
+ */
+export function proposePrefix(command: string, folder?: SessionFolder): readonly string[] | null {
+  const dev = CD_AND.exec(command);
+  if (dev === null) return simplePrefix(command);
+  if (folder === undefined || folder.cdPath || !insideFolder(dev[1] as string, folder)) return null;
+  return simplePrefix(dev[2] as string);
+}
+
+function simplePrefix(command: string): readonly string[] | null {
   let reading: ReturnType<typeof readCommandsWithDoubt>;
   try {
     reading = readCommandsWithDoubt(command);

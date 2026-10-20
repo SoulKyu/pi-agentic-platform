@@ -197,6 +197,7 @@ export function createLaunch(ctx: LaunchContext) {
         },
         onWorkerExit: (info) => deps.onWorkerExit?.(row.id, info),
         onPolicyRefused: () => policyLink.refused(row, session),
+        onCardShown: (toolCallId, answers, at) => policyLink.cardShown(row, toolCallId, answers, at),
         observe: (event) => deps.runs?.onEvent(row.id, event),
       },
       init,

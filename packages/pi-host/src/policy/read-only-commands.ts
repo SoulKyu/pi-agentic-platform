@@ -34,10 +34,33 @@ export interface CommandRule {
   /** find: operands are the words before the first expression word; the rest is an expression, not paths. */
   readonly expression?: true;
   /** An option that makes a name lister walk a tree (`ls -R`): its operands are then judged like `find`'s. */
-  readonly recursive?: { readonly short: string; readonly long: string };
+  readonly recursive?: { readonly short: string; readonly long: readonly string[] };
+  /** Only these option words are allowed, in exactly this spelling: every other one refuses (`sed`: its other options write or run). */
+  readonly only?: readonly string[];
+  /** At least one of these option words must be present, before any `--` (`sed -n`: without it the script prints twice). */
+  readonly needs?: readonly string[];
+  /** The first operand is a script that must match this pattern, and is not a path (`sed`). */
+  readonly script?: RegExp;
+  /** The first operand is a pattern, text and not a path; the others are paths (`fd`). */
+  readonly pattern?: true;
 }
 
 const FILES0 = "--files0-from";
+/** sed as a line printer: `Np`, `N,Mp`, `N,$p`, `$p`. No blank, `;`, second command or write/read/execute command can match. */
+const SED_PRINT = /^(?:\$|\d{1,9}(?:,(?:\d{1,9}|\$))?)p$/;
+/**
+ * fd runs programs with `-x`/`--exec`, `-X`/`--exec-batch` and `-l`/`--list-details` (an alias of `--exec-batch ls -l`), changes its folder with `--base-directory`, names paths by
+ * option with `--search-path` and reads a file with `--ignore-file` (its value is a separate word that no rule judges).
+ */
+const FD: CommandRule = {
+  operands: "find",
+  root: "bare",
+  pattern: true,
+  refuse: {
+    short: "xXl",
+    long: ["--exec", "--exec-batch", "--list-details", "--base-directory", "--search-path", "--ignore-file"],
+  },
+};
 const reads = (refuse?: Refusals, more: Partial<CommandRule> = {}): CommandRule => ({
   operands: "read",
   ...(refuse ? { refuse } : {}),
@@ -120,7 +143,19 @@ export const READ_ONLY_COMMANDS: ReadonlyMap<string, CommandRule> = new Map<stri
   ],
   ["realpath", { operands: "ls" }],
   ["readlink", { operands: "ls" }],
-  ["ls", { operands: "ls", root: "bare", recursive: { short: "R", long: "--recursive" } }],
+  ["ls", { operands: "ls", root: "bare", recursive: { short: "R", long: ["--recursive"] } }],
+  ["eza", { operands: "ls", root: "bare", recursive: { short: "RT", long: ["--recursive", "--tree"] } }],
+  ["fd", FD],
+  ["fdfind", FD],
+  [
+    "sed",
+    {
+      operands: "read",
+      only: ["-n", "--quiet", "--silent"],
+      needs: ["-n", "--quiet", "--silent"],
+      script: SED_PRINT,
+    },
+  ],
   ["tree", { operands: "find", root: "always", refuse: { short: "oR", long: ["--fromfile"] } }],
   ["du", { operands: "find", root: "always", refuse: { long: [FILES0] } }],
   ["find", { operands: "find", root: "bare", expression: true, refuse: { exact: FIND_ACTIONS } }],

@@ -41,11 +41,13 @@ export function DialogList(props: {
   readonly dialogs: readonly Dialog[];
   /** Open dialogs the snapshot could not carry (Task 16). */
   readonly hidden: number;
+  /** The session's folder, for the display of a leading `cd` into it. */
+  readonly cwd?: string;
 }) {
   const runtime = getRuntime();
   const t = useT();
   const locale = useLocale();
-  const { sessionId, dialogs } = props;
+  const { sessionId, dialogs, cwd } = props;
   const [slots, setSlots] = useState<Slots>({});
   const inFlight = useRef(new Set<string>());
 
@@ -93,7 +95,13 @@ export function DialogList(props: {
         return (
           <div key={dialog.id} data-dialog className="flex flex-col gap-s2">
             {dialog.method === "approval" ? (
-              <ApprovalCardFor key={key} dialog={dialog} sessionId={sessionId} onAnswer={onAnswer} />
+              <ApprovalCardFor
+                key={key}
+                dialog={dialog}
+                sessionId={sessionId}
+                {...(cwd === undefined ? {} : { cwd })}
+                onAnswer={onAnswer}
+              />
             ) : dialog.method === "select" ? (
               <SelectDialog key={key} dialog={dialog} onAnswer={onAnswer} />
             ) : dialog.method === "confirm" ? (

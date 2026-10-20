@@ -92,7 +92,7 @@ Project triggers keep everything above (ADR 0041). A trigger that runs as an age
 - The draft Pi file adopted after a crash: a task session's row is inserted once its worker is ready; a crash before the commit can leave a Pi file the scanner adopts as an ordinary owner session (tainted, no list).
 - The deleted session's file re-adopted after a crash: deleting a done task session removes the row, then the file; a crash between the two leaves a file the scanner adopts as an outside session.
 - The `setsid` job of the precheck (above).
-- An extension tool with no annotations cannot run in a trigger (blocked while unattended).
+- An extension tool with no annotations cannot run in a trigger (blocked while unattended), unless the owner declared it a local tool (Settings › Approvals, decision 117): it is then a read, and it runs unattended only when the trigger's tool list names it (the allowlist still blocks any tool it does not name, by name). What declaring it allows: the owner vouches that the tool reads nothing from outside the machine, sends nothing outside and does not modify their files, and its calls then run without asking in every mode, read-only included, even after external content. An agent trigger's isolated task blocks a local tool even when the trigger lists it: a non-built-in read is never inside an isolated task's reach.
 - A project trigger that lists `bash` can push to a remote; the question mode (`supervised`) is the only guard. M11's sandbox covers agent triggers and their prechecks, not project triggers (ADR 0041).
 
 ## Log lines and test seams

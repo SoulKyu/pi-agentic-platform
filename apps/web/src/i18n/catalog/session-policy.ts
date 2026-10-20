@@ -34,6 +34,21 @@ export const sessionPolicyEn = {
   "sessionPolicy.always.prefix": "Commands starting with {prefix}",
   "sessionPolicy.always.tool": "Any input to {tool}",
   "sessionPolicy.rule.anyInput": "any input",
+  "sessionPolicy.cause.lead": "This session read external content:",
+  "sessionPolicy.cause.item": "{tool} ({time})",
+  "sessionPolicy.cause.itemMany": "{tool} ({time}, {count} times)",
+  "sessionPolicy.cause.more.one": "and {count} other",
+  "sessionPolicy.cause.more.other": "and {count} others",
+  "sessionPolicy.markLocal.button": "Mark as local tool",
+  "sessionPolicy.markLocal.confirm": "Mark as local",
+  "sessionPolicy.markLocal.question": "Mark as local tool?",
+  "sessionPolicy.markLocal.item": "{tool} · source {source}",
+  "sessionPolicy.markLocal.body":
+    "Results of {tools} will no longer mark any session. Only do this if the tool reads nothing from outside this machine, sends nothing outside and does not modify your files. Its calls will then run without asking, in every mode including Read only, even after external content. This session's mark will be cleared.",
+  "sessionPolicy.markLocal.done": "Marked as local. This question still needs your answer.",
+  "sessionPolicy.cd.badge": "in the session folder",
+  "sessionPolicy.cd.showFull": "Show full command",
+  "sessionPolicy.cd.hideFull": "Hide full command",
 } as const;
 
 export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: string } = {
@@ -72,4 +87,19 @@ export const sessionPolicyFr: { readonly [K in keyof typeof sessionPolicyEn]: st
   "sessionPolicy.always.prefix": "Les commandes qui commencent par {prefix}",
   "sessionPolicy.always.tool": "Toute entrée de {tool}",
   "sessionPolicy.rule.anyInput": "toute entrée",
+  "sessionPolicy.cause.lead": "Cette session a lu du contenu externe :",
+  "sessionPolicy.cause.item": "{tool} ({time})",
+  "sessionPolicy.cause.itemMany": "{tool} ({time}, {count} fois)",
+  "sessionPolicy.cause.more.one": "et {count} autre",
+  "sessionPolicy.cause.more.other": "et {count} autres",
+  "sessionPolicy.markLocal.button": "Marquer comme outil local",
+  "sessionPolicy.markLocal.confirm": "Marquer comme local",
+  "sessionPolicy.markLocal.question": "Marquer comme outil local ?",
+  "sessionPolicy.markLocal.item": "{tool} · source {source}",
+  "sessionPolicy.markLocal.body":
+    "Les résultats de {tools} ne marqueront plus aucune session. Ne le faites que si cet outil ne lit rien hors de cette machine, n'envoie rien à l'extérieur et ne modifie pas vos fichiers. Ses appels s'exécuteront ensuite sans demander, dans tous les modes, y compris Lecture seule, même après du contenu externe. La marque de cette session sera levée.",
+  "sessionPolicy.markLocal.done": "Marqué comme local. Cette question attend toujours votre réponse.",
+  "sessionPolicy.cd.badge": "dans le dossier de la session",
+  "sessionPolicy.cd.showFull": "Voir la commande complète",
+  "sessionPolicy.cd.hideFull": "Masquer la commande complète",
 };

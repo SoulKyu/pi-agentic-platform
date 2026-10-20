@@ -43,7 +43,7 @@ const knownId = (id: unknown): string | null =>
 export type { LiveSession, LiveSessionDeps } from "./live-types.ts";
 
 export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveSession {
-  const { handle, logger } = deps;
+  const { handle, logger, onCardShown } = deps;
   let status: SessionStatus = "starting";
   let rss: number | null = null;
   let piFile: string | undefined;
@@ -131,7 +131,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
 
   const loadout = createLoadoutView({ logger, limiter, publish });
   const queue = createQueueGuard();
-  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish });
+  const ui = createLiveUi({ handle, clock: deps.clock, logger, limiter, publish, onCardShown });
   const commands = createLiveCommands({ handle, logger });
   const run = createLiveRun({
     handle,

@@ -99,10 +99,21 @@ describe("tool_result hook", () => {
     expect(mixed?.content).toEqual([image, { type: "text", text: "a [SECRET:GH]" }]);
   });
 
-  it("changes nothing and writes no result entry when no stage acted (M5R10, MQ9)", () => {
+  it("changes nothing and writes no stage-acted entry when no stage acted: only the shell's clean row (M5R10, MQ9, A4)", () => {
     const audits: PolicyAuditEntry[] = [];
     expect(onToolResult(resultEvent("plain"), deps({ audits }))).toBeUndefined();
-    expect(audits).toEqual([]);
+    // The row is the shell's own (decision 117, A4): no stage acted, nothing was redacted.
+    expect(audits).toEqual([
+      expect.objectContaining({
+        kind: "result",
+        redactions: 0,
+        external: false,
+        stages: [
+          { stage: "06", outcome: "pass" },
+          { stage: "07", outcome: "pass" },
+        ],
+      }),
+    ]);
   });
 
   it("leaves a placeholder value alone: the word postgres is not a secret (MQ5)", () => {
@@ -111,7 +122,17 @@ describe("tool_result hook", () => {
     expect(
       onToolResult(resultEvent("connect to postgres as postgres"), deps({ audits, secrets })),
     ).toBeUndefined();
-    expect(audits).toEqual([]);
+    expect(audits).toEqual([
+      expect.objectContaining({
+        kind: "result",
+        redactions: 0,
+        external: false,
+        stages: [
+          { stage: "06", outcome: "pass" },
+          { stage: "07", outcome: "pass" },
+        ],
+      }),
+    ]);
   });
 
   it("withholds the result when redaction throws, and when its audit record cannot leave (M5R37, M5R114)", () => {

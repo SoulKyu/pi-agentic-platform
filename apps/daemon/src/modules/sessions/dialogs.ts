@@ -175,6 +175,7 @@ function approvalDialog(record: ApprovalRequestRecord): Built {
     category: record.category,
     answers: record.answers,
     ...(record.tainted ? { tainted: true } : {}),
+    ...(record.tainted && record.taintCauses ? { taintCauses: record.taintCauses } : {}),
     ...(record.guard ? { guard: record.guard } : {}),
     tool: record.tool,
     ...(record.alwaysScopes ? { alwaysScopes: record.alwaysScopes } : {}),

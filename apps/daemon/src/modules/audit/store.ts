@@ -1,4 +1,4 @@
-import { type AuditView, STAGE_IDS, StageVerdict } from "@pap/contracts";
+import { ApprovalAnswer, type AuditView, STAGE_IDS, StageVerdict } from "@pap/contracts";
 import { z } from "zod";
 import type { Db } from "../../kernel/db/database.ts";
 
@@ -22,6 +22,13 @@ export interface AuditInsert {
   readonly stages?: readonly StageVerdict[] | undefined;
   readonly args?: string | undefined;
   readonly detail?: Record<string, unknown> | undefined;
+  /** A call that asked (decision 117, A4): see the contract's `AuditView`. */
+  readonly askedAt?: number | undefined;
+  readonly answers?: readonly ApprovalAnswer[] | undefined;
+  readonly answeredAt?: number | null | undefined;
+  readonly answer?: ApprovalAnswer | null | undefined;
+  readonly exitCode?: number | undefined;
+  readonly durationMs?: number | undefined;
 }
 
 export interface AuditPageQuery {
@@ -59,11 +66,18 @@ interface RawRow {
   stages: string | null;
   args: string | null;
   detail: string | null;
+  askedAt: number | null;
+  answers: string | null;
+  answeredAt: number | null;
+  answer: ApprovalAnswer | null;
+  exitCode: number | null;
+  durationMs: number | null;
 }
 
 const COLUMNS =
   "id, at, owner_id AS ownerId, actor, actor_id AS actorId, kind, session_id AS sessionId, tool_call_id AS toolCallId, " +
-  "parent_tool_call_id AS parentToolCallId, tool, category, decision, reason, stages, args, detail";
+  "parent_tool_call_id AS parentToolCallId, tool, category, decision, reason, stages, args, detail, " +
+  "asked_at AS askedAt, answers, answered_at AS answeredAt, answer, exit_code AS exitCode, duration_ms AS durationMs";
 
 function parseJson(text: string | null): unknown {
   if (text === null) return null;
@@ -75,13 +89,16 @@ function parseJson(text: string | null): unknown {
 }
 
 const Stages = z.array(StageVerdict).max(STAGE_IDS.length);
+const Answers = z.array(ApprovalAnswer).max(5);
 
 function toRow(raw: RawRow): AuditRow {
   // Valid JSON of the wrong shape (`[1]`) would fail the whole page at the contract: it reads as no stages.
   const stages = Stages.safeParse(parseJson(raw.stages));
   const detail = parseJson(raw.detail);
+  const answers = raw.answers === null ? null : Answers.safeParse(parseJson(raw.answers));
   return {
     ...raw,
+    answers: answers?.success ? answers.data : null,
     stages: stages.success ? stages.data : [],
     detail:
       typeof detail === "object" && detail !== null && !Array.isArray(detail)
@@ -94,9 +111,9 @@ export function createAuditStore(db: Db): AuditStore {
   function append(row: AuditInsert): void {
     db.run(
       "INSERT INTO audit (at, month, owner_id, actor, actor_id, kind, session_id, tool_call_id, parent_tool_call_id, " +
-        "tool, category, decision, reason, stages, args, detail) VALUES ($at, strftime('%Y-%m', $at / 1000, 'unixepoch'), " +
+        "tool, category, decision, reason, stages, args, detail, asked_at, answers, answered_at, answer, exit_code, duration_ms) VALUES ($at, strftime('%Y-%m', $at / 1000, 'unixepoch'), " +
         "$ownerId, $actor, $actorId, $kind, $sessionId, $toolCallId, $parentToolCallId, $tool, $category, $decision, " +
-        "$reason, $stages, $args, $detail)",
+        "$reason, $stages, $args, $detail, $askedAt, $answers, $answeredAt, $answer, $exitCode, $durationMs)",
       {
         at: row.at,
         ownerId: row.ownerId,
@@ -113,6 +130,12 @@ export function createAuditStore(db: Db): AuditStore {
         stages: row.stages ? JSON.stringify(row.stages) : null,
         args: row.args ?? null,
         detail: row.detail ? JSON.stringify(row.detail) : null,
+        askedAt: row.askedAt ?? null,
+        answers: row.answers ? JSON.stringify(row.answers) : null,
+        answeredAt: row.answeredAt ?? null,
+        answer: row.answer ?? null,
+        exitCode: row.exitCode ?? null,
+        durationMs: row.durationMs ?? null,
       },
     );
   }

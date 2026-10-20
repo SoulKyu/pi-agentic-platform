@@ -95,6 +95,7 @@ describe("compose", () => {
       denylist: ["sudo *"],
       allowHosts: [],
       readOnlyCommands: false,
+      localTools: [{ tool: "todo", source: "/x/ext/todo.ts" }],
     });
     policy.markTainted("u1", "s1");
     expect(link.compose(ROW, "/work")).toEqual({
@@ -109,6 +110,7 @@ describe("compose", () => {
       builtinDenylist: false,
       denylist: ["sudo *"],
       allowHosts: [],
+      localTools: [{ tool: "todo", source: "/x/ext/todo.ts" }],
       guard: DEFAULT_GUARD,
       taint: { tainted: true, epoch: 0 },
       readOnlyCommands: false,
@@ -136,6 +138,7 @@ describe("compose", () => {
       denylist: RESTRICTIVE_SETTINGS.denylist,
       allowHosts: RESTRICTIVE_SETTINGS.allowHosts,
       readOnlyCommands: false,
+      localTools: [],
     });
     expect(lines.filter((line) => line.msg === "policy_settings_failed")).toHaveLength(1);
   });

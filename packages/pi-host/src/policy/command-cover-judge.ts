@@ -126,7 +126,10 @@ export async function judgeWith(
   let operands = 0;
   let options = true;
   let expression = false;
-  const recursive = rule.recursive && { short: rule.recursive.short, long: [rule.recursive.long] };
+  let patterns = 0;
+  let scripted = false;
+  let needed = rule.needs === undefined;
+  const recursive = rule.recursive;
   const walks = recursive !== undefined && args.some((word) => refused(word, recursive));
   const reach: Reach | null = walks ? "find" : rule.operands;
   for (const word of args) {
@@ -135,7 +138,8 @@ export async function judgeWith(
       continue;
     }
     if (options && word.length > 1 && word.startsWith("-")) {
-      if (refused(word, rule.refuse)) return "refused option";
+      if (refused(word, rule.refuse) || (rule.only && !rule.only.includes(word))) return "refused option";
+      if (rule.needs?.includes(word)) needed = true;
       for (const value of optionValues(word)) {
         const why = await judged(value, "read", judge);
         if (why !== null) return why;
@@ -146,6 +150,15 @@ export async function judgeWith(
     }
     if (rule.expression && (word === "(" || word === "!" || word === ")")) expression = true;
     if (expression || word === "-") continue;
+    if (rule.pattern && patterns === 0) {
+      patterns++;
+      continue;
+    }
+    if (rule.script && !scripted) {
+      scripted = true;
+      if (!rule.script.test(word)) return "script not allowed";
+      continue;
+    }
     operands++;
     if (rule.maxOperands !== undefined && operands > rule.maxOperands) return "too many operands";
     if (reach !== null) {
@@ -153,10 +166,24 @@ export async function judgeWith(
       if (why !== null) return why;
     }
   }
+  if (!needed) return "option required";
   if (rule.root === "always" || (rule.root === "bare" && operands === 0))
     for (const root of roots) {
       const why = await judged(root, reach ?? "read", judge);
       if (why !== null) return why;
     }
   return null;
+}
+
+/**
+ * APR-5: a word with an unquoted, unescaped wildcard (`wildAt`: its index in the word as the command sees it, quotes
+ * removed) is expanded by the shell before the command runs, and a file named like an option becomes an option. It is
+ * safe only when its literal prefix is not empty and does not start with `-` (`src/*.go`, `a*`), or when it is a long
+ * option `--name=value` whose first wildcard comes after the `=` (expansion yields more `--name=...` words).
+ */
+export function wildcardSafe(word: string, wildAt: number): boolean {
+  const prefix = word.slice(0, wildAt);
+  if (prefix !== "" && !prefix.startsWith("-")) return true;
+  const equals = word.indexOf("=");
+  return word.startsWith("--") && equals > 2 && equals < wildAt;
 }

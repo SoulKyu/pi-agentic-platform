@@ -23,11 +23,13 @@ import { createRunGuard, guardStages } from "./run-guard.ts";
 import type { SecretReader } from "./secrets.ts";
 import { createExternalRoots, type Taint } from "./taint.ts";
 import { classifyTool, SANDBOX_SOURCE, type ToolFacts } from "./tool-kind.ts";
+import { clipUnits, MAX_ID_LENGTH } from "./trail.ts";
 
 export { createPolicyGrants, MAX_SESSION_GRANTS } from "./grants.ts";
 export { DENIED_REASON, evaluateToolCall, FAIL_CLOSED_REASON, TOO_LONG_REASON } from "./pipeline.ts";
 
 export const POLICY_EXTENSION_NAME = "pap-policy";
+const MAX_TIMED_CALLS = 4_096;
 
 export interface PolicyConfig {
   rules(): PolicyRules | null;
@@ -56,6 +58,8 @@ export interface PolicyConfig {
   sandbox?: { readonly network: boolean };
   /** The proxy's reports by tool call id (M11R233), taken once by the result hook; absent: a networked shell's result is external. */
   egress?: { take(toolCallId: string): EgressReport | null | undefined };
+  /** The clock of a call's duration (decision 117, A4); `Date.now` by default. */
+  now?: () => number;
   /** Told the tools declared to the model at each `agent_start`; a throw is logged, never raised into the run. */
   onAgentStart?(activeToolNames: string[]): void;
 }
@@ -84,6 +88,10 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
             }
           : undefined;
       };
+      const now = config.now ?? Date.now;
+      // When each allowed call started to run; a result takes its entry. A run that never returns a result leaves one
+      // behind until the next `agent_start`, so the map is bounded.
+      const startedAt = new Map<string, number>();
       const guard = createRunGuard();
       const roots = createExternalRoots();
       const mix = createMessageMix();
@@ -111,7 +119,13 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
           taint: config.taint,
           roots,
           audit: config.audit,
-          classify: (name) => classifyTool(name, toolFacts(name)),
+          took: (id) => {
+            const started = startedAt.get(id);
+            startedAt.delete(id);
+            return started === undefined ? undefined : now() - started;
+          },
+          classify: (name) => classifyTool(name, toolFacts(name), config.rules()?.localTools),
+          facts: toolFacts,
           ...(config.egress
             ? {
                 egress: {
@@ -123,9 +137,18 @@ export function createPapPolicyExtension(config: PolicyConfig): NamedInlineExten
             : {}),
         }),
       );
-      pi.on("tool_call", (event, ctx) => evaluateToolCall(event, ctx, deps));
+      pi.on("tool_call", async (event, ctx) => {
+        const verdict = await evaluateToolCall(event, ctx, deps);
+        // Only a call that runs has a duration; the wait for an answer is not part of it.
+        if (verdict === undefined) {
+          if (startedAt.size >= MAX_TIMED_CALLS) startedAt.clear();
+          startedAt.set(clipUnits(event.toolCallId, MAX_ID_LENGTH), now());
+        }
+        return verdict;
+      });
       pi.on("agent_start", () => {
         roots.clear();
+        startedAt.clear();
         mix.reset();
         try {
           guard.onRunStart();

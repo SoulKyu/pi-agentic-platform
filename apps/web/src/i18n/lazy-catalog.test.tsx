@@ -101,6 +101,7 @@ describe("lazy catalog (Settings)", () => {
       "features/policy/AuditRow.tsx",
       "features/policy/use-audit-log.ts",
       "features/policy/BuiltinPreset.tsx",
+      "features/policy/LocalToolsField.tsx",
       "features/policy/ModeField.tsx",
       "features/policy/ReadOnlyCommands.tsx",
       "features/policy/PatternField.tsx",

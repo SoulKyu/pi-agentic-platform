@@ -94,7 +94,18 @@ describe("security: taint then exfiltration (daemon)", () => {
         ["bash", "approved"],
       ]);
       const rows = rowsOf(await client.call("audit.list", { sessionId, limit: 200 }));
-      expect(stagesSeen(rows)).toMatchObject({ "07": ["acted"] });
+      // Every card was shown and answered, in that order, and says what it offered (decision 117, A4).
+      for (const row of calls) {
+        expect(row.askedAt).toEqual(expect.any(Number));
+        expect(row.answeredAt).toBeGreaterThanOrEqual(row.askedAt ?? Infinity);
+        expect(row.answers).toContain("deny");
+      }
+      // What the owner clicked is stored with the row, from the real answer path (newest first, as `calls` is).
+      expect(calls.map((row) => row.answer)).toEqual(["deny", "deny", "once", "always"]);
+      const echoResult = rows.find((row) => row.kind === "result" && row.tool === "bash");
+      expect(echoResult).toMatchObject({ exitCode: 0, durationMs: expect.any(Number) });
+      // Only the lookup's result acted; the shell's result that ran clean has its own row (decision 117, A4).
+      expect(stagesSeen(rows)).toMatchObject({ "07": ["acted", "pass"] });
       expect(stagesSeen(calls)["03"]).toEqual(["ask", "ask", "ask", "ask"]);
     } finally {
       await t.stop();

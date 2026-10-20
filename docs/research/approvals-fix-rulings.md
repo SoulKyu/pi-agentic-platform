@@ -1,0 +1,23 @@
+# Approvals fix: controller rulings (decision 117, 2026-10-19)
+
+Branch `fix/approvals-devex` (tasks A1 to A4). Evidence: the read-only analysis of 94 asks on the owner's instance (kept outside the repository; it quotes the owner's commands). Each ruling: what was decided, why, what it costs if wrong.
+
+## Rulings
+
+- Ruling APR-1: C2+T split into A2 (local tools: contracts, classification, settings, Settings list; Opus review) and A3 (taint cause on the card + "Mark as local"; Sonnet review). — The UI half is not security logic. — Cost if wrong: none (same two Opus reviews as approved).
+- Ruling APR-2 (owner 2026-10-19, "uniquement" item 2 of the cd proposal): the card hides a leading `cd <session cwd> &&` and shows a badge "in the session folder" instead — display only, the policy judges the full command; folded into A3 (same card component, Sonnet review). No system-prompt line (owner kept only item 2). — Cost if wrong: none.
+- Ruling APR-3: read-only coverage refuses an unquoted glob operand whose first character is a wildcard (*, ?, [) unless it follows `--` in that segment; globs starting with a literal path component (src/*.go, ./*.go) stay covered. One check in command-cover-judge.ts for every rule; docs/agents/policy.md says why. — Closes a pre-existing v1 hole (rg/sort/cat via option-named files from a cloned repo), static (no TOCTOU), fails closed. — Cost if wrong: `rg foo *`-style reads ask again (devex), agents can write `./*` or `--`.
+- Ruling APR-4: the glob check reads the RAW word (segment.words keeps quotes): only an unquoted leading wildcard refuses (also for an option value given as a separate word); quoted/escaped wildcards are literal and judged as before. — Quoted text never expands; `rg -g '*.ts'` is the agents' common form. — Cost if wrong: a parser edge where raw text misleads (tests pin quotes, double quotes, escapes).
+- Ruling APR-5 (replaces APR-3/APR-4): every word of a read-only segment (operand, option, option value, find expression, git -C value) refuses coverage when it holds an unquoted unescaped wildcard anywhere, unless its literal prefix (before the first unquoted wildcard, after quote removal) is non-empty and does not start with `-`, or it is `--name=value` with the wildcard after `=`; no `--` exception. Lexer gives each word its first-unquoted-wildcard index and literal prefix. — Uniform, closes all three proven bypasses and the pre-existing git -C * / find -name x * cases. — Cost if wrong: `cat -- *`-style reads ask (agents can write ./*).
+- Ruling APR-6: the three unpinned lexer cases (`$""*`, `''\<newline>*`, `$'-'*` → not covered) are added as tests by A2's implementer (test-only, in command-cover.readers.test.ts) instead of a 4th A1 round (rounds 4-5 would escalate to Opus, not pre-approved for this fix). — Cost if wrong: none (code already refuses them).
+- Ruling APR-7: a trigger's toolAllowlist still blocks an unnamed local tool by name; a local tool is a read and runs unattended only when the run's allowlist names it; automation.md and policy.md say so. — Keeps decision 34's closed list. — Cost if wrong: a trigger must list `todo` to use it.
+- Ruling APR-8: causes deduped by (tool, source) with a count; a sticky per-epoch "not markable seen or cause dropped" bit makes every sent cause non-markable (no button); the dropped count reaches the card through the smallest additive contract change in taint-cause.ts (pi-host.ts ≤ 397); "et N autres" counts everything. — Keeps clearTaint only when every cause is local. — Cost if wrong: the button shows less often.
+- Ruling APR-9: a nullable `answer` column (deny/once/session/always/host) in the same undeployed migration, filled at respondDialog; trace summary reads it; sum(byAnswer) == answered; a real-writer test. — Cost if wrong: none.
+
+## Deferred minors (for a later sweep)
+
+- A1: minor (deferred): sed `$` end-of-file addresses ask ("expansion" in literal() even single-quoted) — devex only, fails closed.
+- A1: minor (deferred): `fd -el` (extension "l") now asks (cluster refusal side effect).
+- A1: minor (deferred): exception (b) `--name=*` expands to filenames never judged as paths (no path-taking long option is covered today: fd --ignore-file, sort --files0-from, file --magic-file are refused); sed `$` addresses ask; `fd -el` asks.
+- A3: minor (deferred): causes lost after a worker restart (fails closed: card names nothing); child approval cards get no cd badge (no cwd in ChildView); a parallel tool result after the card snapshot could be cleared by a stale card (same trust as the existing Clear chip).
+- A4: minor (deferred): no index on asked_at for the summary query (one-shot CLI; revisit if audit volume grows).

@@ -4,6 +4,8 @@ import {
   DEFAULT_GUARD,
   DenyPattern,
   HostPattern,
+  LocalToolRule,
+  MAX_LOCAL_TOOLS,
   PolicyAuditEntry,
   PolicyRules,
   PolicySettings,
@@ -27,6 +29,7 @@ describe("PolicyRules v2", () => {
       builtinDenylist: true,
       denylist: [],
       allowHosts: null,
+      localTools: [],
       guard: DEFAULT_GUARD,
       taint: { tainted: false, epoch: 0 },
       readOnlyCommands: true,
@@ -131,6 +134,7 @@ describe("taint, settings, views and verdicts", () => {
       denylist: [],
       allowHosts: null,
       readOnlyCommands: true,
+      localTools: [],
     });
     expect(PolicySettings.parse({}).readOnlyCommands).toBe(true);
     expect(PolicySettings.safeParse({ readOnlyCommands: 1 }).success).toBe(false);
@@ -228,5 +232,46 @@ describe("PolicyAuditEntry", () => {
     expect(PolicyAuditEntry.safeParse({ ...result, external: false }).success).toBe(false);
     expect(PolicyAuditEntry.safeParse({ ...result, redactions: 1 }).success).toBe(false);
     expect(PolicyAuditEntry.safeParse({ ...result, redactions: 1, external: false }).success).toBe(true);
+  });
+});
+
+describe("LocalToolRule (decision 117, A2)", () => {
+  const rule = { tool: "todo", source: "/x/ext/todo.ts" };
+  const rules = (count: number) => Array.from({ length: count }, (_, i) => ({ ...rule, tool: `todo_${i}` }));
+
+  it("reads a name with its registered source and refuses anything else", () => {
+    expect(LocalToolRule.parse(rule)).toEqual(rule);
+    expect(LocalToolRule.safeParse({ ...rule, extra: 1 }).success).toBe(false);
+    expect(LocalToolRule.safeParse({ ...rule, tool: "to do" }).success).toBe(false);
+    expect(LocalToolRule.safeParse({ ...rule, source: "" }).success).toBe(false);
+    expect(LocalToolRule.safeParse({ ...rule, source: "x".repeat(1025) }).success).toBe(false);
+    expect(LocalToolRule.safeParse({ tool: "todo" }).success).toBe(false);
+  });
+
+  it("refuses control, bidi and NUL characters in the source", () => {
+    for (const bad of ["\0", "\n", "\u202e", "\u200b", "\u2028"])
+      expect(LocalToolRule.safeParse({ ...rule, source: `/x/${bad}/todo.ts` }).success).toBe(false);
+  });
+
+  it("bounds the list in the settings and in the rules a worker gets", () => {
+    expect(MAX_LOCAL_TOOLS).toBe(64);
+    expect(PolicySettings.safeParse({ localTools: rules(64) }).success).toBe(true);
+    expect(PolicySettings.safeParse({ localTools: rules(65) }).success).toBe(false);
+    expect(PolicyRules.safeParse({ ...M2_RULES, localTools: rules(64) }).success).toBe(true);
+    expect(PolicyRules.safeParse({ ...M2_RULES, localTools: rules(65) }).success).toBe(false);
+  });
+
+  it("refuses the same tool and source twice, in the settings and in the rules", () => {
+    expect(PolicySettings.safeParse({ localTools: [rule, rule] }).success).toBe(false);
+    expect(PolicyRules.safeParse({ ...M2_RULES, localTools: [rule, rule] }).success).toBe(false);
+    expect(PolicySettings.safeParse({ localTools: [rule, { ...rule, source: "/y/todo.ts" }] }).success).toBe(
+      true,
+    );
+  });
+
+  it("reads an older stored settings value without the field", () => {
+    const older = { defaultMode: "supervised", builtinDenylist: true, denylist: [], allowHosts: null };
+    expect(PolicySettings.parse(older).localTools).toEqual([]);
+    expect(PolicySettings.parse({}).localTools).toEqual([]);
   });
 });

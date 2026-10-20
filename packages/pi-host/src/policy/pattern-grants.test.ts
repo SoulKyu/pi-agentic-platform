@@ -1,4 +1,6 @@
 import { type PolicyRules, PolicyRules as Rules } from "@pap/contracts";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PipelineDeps } from "./pipeline.ts";
 import { createPipelineBed, interactiveRules } from "../testing/pipeline-bed.ts";
@@ -11,6 +13,7 @@ let bed: Awaited<ReturnType<typeof createPipelineBed>>;
 beforeAll(async () => {
   bed = await createPipelineBed();
   handRepo(bed.cwd, CLEAN);
+  mkdirSync(join(bed.cwd, "sub"), { recursive: true });
 });
 afterAll(() => bed.dispose());
 
@@ -243,6 +246,42 @@ describe("what the card offers", () => {
     await run("tool0 sub", "again0");
     await run("tool1000 sub", "again1000");
     expect(h.asks).toHaveLength(1002);
+  });
+});
+
+describe("the dev loop: cd <folder> && <command> (decision 117)", () => {
+  const always = [{ answer: "always", scope: "prefix", closed: false }] as const;
+
+  it("offers the prefix of the command after a cd inside the session folder, and nothing for a cd outside", async () => {
+    const inside = bed.harness({ shell: SAFE_SHELL });
+    await inside.run("bash", { command: "cd sub && go test ./..." });
+    const outside = bed.harness({ shell: SAFE_SHELL });
+    await outside.run("bash", { command: "cd /tmp && go test ./..." });
+    expect(inside.asks[0]?.alwaysScopes).toEqual({ prefix: ["go", "test"] });
+    expect(outside.asks[0]?.alwaysScopes).toBeUndefined();
+  });
+
+  it("remembers it, and the rule runs the same loop again but not a cd elsewhere nor a tainted session", async () => {
+    const h = bed.harness({ shell: SAFE_SHELL, answers: [...always] });
+    await h.run("bash", { command: "cd sub && go test ./..." });
+    expect(h.entries.at(-1)).toMatchObject({ reason: "answer: always (prefix)" });
+    expect(await h.run("bash", { command: "cd sub && go test ./x" }, "c2")).toBeUndefined();
+    expect(await h.run("bash", { command: "go test" }, "c3")).toBeUndefined();
+    expect(h.asks).toHaveLength(1);
+    expect(h.entries.at(-1)).toMatchObject({ decision: "allow", reason: "prefix rule" });
+    await h.run("bash", { command: "cd /tmp && go test" }, "c4");
+    expect(h.asks).toHaveLength(2);
+  });
+
+  it("never counts the rule while tainted", async () => {
+    const h = bed.harness({
+      rules: rulesWith({ alwaysPrefixes: [{ prefix: ["go", "test"] }] }),
+      shell: SAFE_SHELL,
+      taint: true,
+    });
+    await h.run("bash", { command: "cd sub && go test" });
+    expect(h.asks).toHaveLength(1);
+    expect(h.asks[0]?.answers).toEqual(["deny", "once"]);
   });
 });
 

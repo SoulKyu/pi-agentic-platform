@@ -82,7 +82,12 @@ describe("pi-host worker: secret redaction", () => {
     await bed.start(bashScript("echo postgres"), { env: { POSTGRES_PASSWORD: "postgres" } });
     const host = bed.host();
     await run(host);
-    expect(resultAudits(host.records)).toEqual([]);
+    // The shell's result leaves a row whatever happened (decision 117, A4): nothing was redacted, it exited 0.
+    expect(resultAudits(host.records)).toEqual([
+      expect.objectContaining({
+        entry: expect.objectContaining({ redactions: 0, external: false, exitCode: 0 }),
+      }),
+    ]);
   });
 
   it("the call entry's arguments hold the marker when the command carries the value itself", async () => {

@@ -363,7 +363,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (approved?.answer === "host") grants.pushWhere((tracked) => tracked.id === row.id);
       grants.answered(session, approved);
       if (approved?.grant.toolCallId !== undefined)
-        policyLink.answeredBy(row, approved.grant.toolCallId, caller);
+        policyLink.answeredBy(row, approved.grant.toolCallId, caller, approved.answer);
     },
     panelInput(input, caller) {
       owned(input.sessionId, caller);

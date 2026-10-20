@@ -23,6 +23,7 @@ import {
 } from "./platform.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
 import { SessionName } from "./streams.ts";
+import { TaintCauses } from "./taint-cause.ts";
 
 // daemon → worker
 // pap targets Linux, so an absolute path starts with "/". A relative path would be resolved against the
@@ -250,6 +251,7 @@ export const ApprovalRequestRecord = z
     tool: z.string().min(1).max(256),
     key: GrantKey,
     tainted: z.boolean().default(false),
+    taintCauses: TaintCauses.optional(),
     guard: GuardRule.optional(),
     /** What "always" may cover besides the exact call (Task 2a). */
     alwaysScopes: AlwaysScopes.optional(),

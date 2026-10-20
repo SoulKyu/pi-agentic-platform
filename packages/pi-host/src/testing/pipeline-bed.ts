@@ -5,7 +5,7 @@ import { NO_TAINT, type PolicyAuditEntry, PolicyRules } from "@pap/contracts";
 import type { ApprovalAsk, ApprovalOutcome } from "../approvals.ts";
 import { type ShellFacts, UNKNOWN_SHELL } from "../policy/command-cover.ts";
 import type { MessageMix } from "../policy/message-mix.ts";
-import { type ExternalRoots, createTaint } from "../policy/taint.ts";
+import { type ExternalRoots, type Taint, createTaint } from "../policy/taint.ts";
 import { createPolicyGrants } from "../policy/grants.ts";
 import { evaluateToolCall, type Stages } from "../policy/pipeline.ts";
 import { NO_REDACTOR } from "../policy/redact.ts";
@@ -48,7 +48,7 @@ export interface PipelineHarnessOptions {
   signal?: AbortSignal;
   /** Registrations by tool name; a name not listed is the built-in of that name. */
   tools?: Readonly<Record<string, ToolFacts>>;
-  taint?: boolean | { current(): boolean };
+  taint?: boolean | (Pick<Taint, "current"> & Partial<Pick<Taint, "causes">>);
   stages?: Partial<Stages>;
   redact?: (text: string) => string;
   /** Redacts the reason of a stage verdict and of the entry (case-folded in production). */

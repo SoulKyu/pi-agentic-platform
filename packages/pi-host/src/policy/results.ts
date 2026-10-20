@@ -7,7 +7,8 @@ import { EDGE_BUDGET, isHeadCut, maskCuts, maskTruncationCopy } from "./edges.ts
 import type { Redactor } from "./redact.ts";
 import type { SecretReader } from "./secrets.ts";
 import type { ExternalRoots, Taint } from "./taint.ts";
-import type { ToolKind } from "./tool-kind.ts";
+import { taintCauseOf } from "./taint-cause.ts";
+import type { ToolFacts, ToolKind } from "./tool-kind.ts";
 import { takeStreamCount } from "../redact-stream.ts";
 import { clipUnits, MAX_ID_LENGTH as MAX_ID } from "./trail.ts";
 
@@ -23,8 +24,12 @@ export interface ResultDeps {
   audit(entry: PolicyAuditEntry): void;
   /** Used by stage 07. */
   classify(name: string): ToolKind;
+  /** The registered facts of a tool: its source names a taint cause (decision 117, A3). */
+  facts?(name: string): ToolFacts | undefined;
   readonly taint: Taint;
   readonly roots: ExternalRoots;
+  /** Milliseconds since the call was allowed to run, taken once (decision 117, A4); absent: the row has no duration. */
+  took?(toolCallId: string): number | undefined;
   /** What the proxy saw of a networked sandboxed shell's call, taken once (M11R233); absent: such a result is external. */
   readonly egress?: { check(toolCallId: string): { readonly taints: boolean; readonly reason: string } };
   /** Tests only: the real ones by default. */
@@ -32,11 +37,46 @@ export interface ResultDeps {
   fence?(text: string, source: string, id: string): string;
 }
 
+/** What a result says of the run itself (decision 117, A4): never output, only the exit code of a shell and the time. */
+interface RunFacts {
+  readonly shell: boolean;
+  readonly exitCode?: number;
+  readonly durationMs?: number;
+}
+
+/** Pi's `bash` (and pap's sandboxed shell, which runs Pi's tool) report `structuredContent.exit_code`; no other tool has one. */
+function runFacts(event: ToolResultEvent, deps: ResultDeps): RunFacts {
+  const id = clipUnits(event.toolCallId, MAX_ID);
+  let durationMs: number | undefined;
+  try {
+    const took = deps.took?.(id);
+    if (took !== undefined && Number.isFinite(took)) durationMs = Math.max(0, Math.round(took));
+  } catch {
+    // A row without a duration is better than a result that is not checked.
+  }
+  let shell = false;
+  try {
+    const kind = deps.classify(event.toolName);
+    shell = kind.category === "exec" && (kind.builtin || kind.sandboxed === true);
+  } catch {
+    // An unknown tool is not a shell here; its result is judged external elsewhere.
+  }
+  const code = shell
+    ? (event.structuredContent as { exit_code?: unknown } | undefined)?.exit_code
+    : undefined;
+  return {
+    shell,
+    ...(typeof code === "number" && Number.isInteger(code) ? { exitCode: code } : {}),
+    ...(durationMs === undefined ? {} : { durationMs }),
+  };
+}
+
 function resultEntry(
   event: ToolResultEvent,
   redactions: number,
   stage06: StageVerdict,
   stage07: StageVerdict = STAGE_07_PASS,
+  run: RunFacts = { shell: false },
 ): ResultAuditEntry {
   return {
     kind: "result",
@@ -48,6 +88,8 @@ function resultEntry(
     stages: [stage06, stage07],
     redactions,
     external: stage07.outcome === "acted" || stage07.outcome === "block",
+    ...(run.exitCode === undefined ? {} : { exitCode: run.exitCode }),
+    ...(run.durationMs === undefined ? {} : { durationMs: run.durationMs }),
   };
 }
 
@@ -60,11 +102,12 @@ function withheld(
   deps: ResultDeps,
   error: unknown,
   external: boolean,
+  run: RunFacts,
 ): ToolResultEventResult {
   // Never the message: it can quote the value that was being looked for.
   process.stderr.write(`pi-host: tool result withheld (${errorClass(error)})\n`);
   const stage07: StageVerdict = external
-    ? raiseVerdict(deps, "session tainted (result withheld)")
+    ? raiseVerdict(deps, "session tainted (result withheld)", event)
     : STAGE_07_PASS;
   try {
     deps.audit(
@@ -73,6 +116,7 @@ function withheld(
         0,
         { stage: "06", outcome: "block", reason: "redaction failed: result withheld" },
         stage07,
+        run,
       ),
     );
   } catch {
@@ -82,9 +126,9 @@ function withheld(
 }
 
 /** Raises the taint of a result that is external. `raise()` sets the flag before it reports, so a throw after that is a failed report. */
-function raiseVerdict(deps: ResultDeps, reason: string): StageVerdict {
+function raiseVerdict(deps: ResultDeps, reason: string, event: ToolResultEvent): StageVerdict {
   try {
-    deps.taint.raise();
+    deps.taint.raise(taintCauseOf(event.toolName, deps.classify, deps.facts));
     return { stage: "07", outcome: "acted", reason };
   } catch (error) {
     process.stderr.write(`pi-host: taint not raised or not reported (${errorClass(error)})\n`);
@@ -207,7 +251,7 @@ function fenceResult(
   reason = "fenced; session tainted",
 ): { result: ToolResultEventResult; verdict: StageVerdict } {
   try {
-    const verdict = raiseVerdict(deps, reason);
+    const verdict = raiseVerdict(deps, reason, event);
     const hasText = done.content.some((part) => part.type === "text");
     if (!hasText)
       return { result: unfenced(done), verdict: { ...verdict, reason: "session tainted (no text)" } };
@@ -221,7 +265,7 @@ function fenceResult(
     // Fail closed: never an unfenced external result (M5R43).
     process.stderr.write(`pi-host: result fencing failed (${errorClass(error)})\n`);
     try {
-      deps.taint.raise();
+      deps.taint.raise(taintCauseOf(event.toolName, deps.classify, deps.facts));
     } catch {
       // The line above says so; the placeholder is the only safe answer.
     }
@@ -255,11 +299,12 @@ export function onToolResult(event: ToolResultEvent, deps: ResultDeps): ToolResu
   const source = deps.roots.source?.(clipUnits(event.toolCallId, MAX_ID)) ?? event.toolName;
   const clean: Clean = {};
   const external = isExternal(event, deps, clean);
+  const run = runFacts(event, deps);
   let done: Redacted;
   try {
     done = redactResult(event, deps);
   } catch (error) {
-    return withheld(event, deps, error, external);
+    return withheld(event, deps, error, external, run);
   }
   // A sandboxed command's output was redacted as it streamed (Pi writes it to a file first): that count is part of this row.
   const redactions = done.count + takeStreamCount(clipUnits(event.toolCallId, MAX_ID));
@@ -273,19 +318,27 @@ export function onToolResult(event: ToolResultEvent, deps: ResultDeps): ToolResu
         };
   try {
     if (!external) {
-      // A clean networked result is audited whatever it held: the row says why it was not fenced.
+      // A clean networked result is audited whatever it held: the row says why it was not fenced. A shell call's
+      // result always is: the journal says what ran and whether it worked (decision 117, A4).
       if (clean.reason !== undefined)
         deps.audit(
-          resultEntry(event, redactions, stage06, { stage: "07", outcome: "pass", reason: clean.reason }),
+          resultEntry(
+            event,
+            redactions,
+            stage06,
+            { stage: "07", outcome: "pass", reason: clean.reason },
+            run,
+          ),
         );
-      else if (redactions > 0) deps.audit(resultEntry(event, redactions, stage06));
+      else if (redactions > 0 || run.shell)
+        deps.audit(resultEntry(event, redactions, stage06, STAGE_07_PASS, run));
       return done.count === 0 ? undefined : unfenced(done);
     }
     const fenced = fenceResult(event, done, deps, source, clean.fenced);
-    deps.audit(resultEntry(event, redactions, stage06, fenced.verdict));
+    deps.audit(resultEntry(event, redactions, stage06, fenced.verdict, run));
     return fenced.result;
   } catch (error) {
-    return withheld(event, deps, error, external);
+    return withheld(event, deps, error, external, run);
   }
 }
 

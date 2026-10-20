@@ -174,6 +174,21 @@ const approval = (id: string, fields: Record<string, unknown> = {}) => ({
 });
 
 describe("approvals", () => {
+  it("the causes of a taint reach the dialog of a tainted approval only (decision 117, A3)", () => {
+    const causes = {
+      list: [{ tool: "todo", source: "/x/ext/todo.ts", at: 5, count: 1, markable: true }],
+      older: 0,
+    };
+    const shown = createDialogRegistry().offerApproval({
+      ...approval("a3"),
+      tainted: true,
+      taintCauses: causes,
+    });
+    expect(shown.kind === "opened" && shown.dialog).toMatchObject({ taintCauses: causes });
+    const clean = createDialogRegistry().offerApproval({ ...approval("a4"), taintCauses: causes });
+    expect(clean.kind === "opened" && clean.dialog).not.toHaveProperty("taintCauses");
+  });
+
   it("a tainted approval and its guard rule reach the dialog", () => {
     const dialogs = createDialogRegistry();
     const result = dialogs.offerApproval({ ...approval("a1"), tainted: true, guard: "tool-calls" });

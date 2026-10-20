@@ -153,6 +153,10 @@ const SHELL_READ_ONLY = [
   "egrep",
   "fgrep",
   "rg",
+  "eza",
+  "fd",
+  "fdfind",
+  "sed",
 ];
 const GIT_READ_ONLY_SUBCOMMANDS = [
   "status",
@@ -210,6 +214,32 @@ export const NO_TAINT: TaintState = { tainted: false, epoch: 0 };
 /** A tool's registered name as Pi lists it: coding tools, MCP tools (`server__tool`) and extension tools. */
 export const ToolName = z.string().regex(/^[A-Za-z0-9_][A-Za-z0-9_.:-]{0,63}$/);
 
+/**
+ * A tool the owner vouches for as local (decision 117, A2): its name and the registered source path exactly as Pi reports
+ * it (`ToolInfo.sourceInfo.path`), so another extension cannot pose as it. Only an extension tool that would otherwise be
+ * unknown can become local: a rule naming a built-in, MCP, platform, sandbox, codemode or tool-search source has no effect.
+ */
+export const LocalToolRule = z
+  .object({
+    tool: ToolName,
+    source: z
+      .string()
+      .min(1)
+      .max(1024)
+      .refine((source) => !INVISIBLE.test(source), "a source is one line of visible characters"),
+  })
+  .strict();
+export type LocalToolRule = z.infer<typeof LocalToolRule>;
+export const MAX_LOCAL_TOOLS = 64;
+const LocalTools = z
+  .array(LocalToolRule)
+  .max(MAX_LOCAL_TOOLS)
+  .refine(
+    (rules) => new Set(rules.map((rule) => `${rule.tool}\n${rule.source}`)).size === rules.length,
+    "each tool and source at most once",
+  )
+  .default([]);
+
 /** Who the session is to the policy (M11R7): the owner's own sessions, an agent's pinned thread, or an isolated agent task. */
 export const POLICY_PROFILES = ["interactive", "agent-thread", "isolated-task"] as const;
 export const PolicyProfile = z.enum(POLICY_PROFILES);
@@ -241,6 +271,8 @@ export const PolicyRules = z
       .default([]),
     /** null: no egress list, the stage is skipped. A list (even empty): only these hosts (Task 5a). */
     allowHosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS).nullable().default(null),
+    /** The owner's local tools (A2): extension tools whose results never taint. */
+    localTools: LocalTools,
     guard: GuardLimits.default(DEFAULT_GUARD),
     taint: TaintState.default(NO_TAINT),
     /** Read-only shell commands run as reads in supervised and auto-accept-edits (decision 75 Q6, Task 1c). */
@@ -279,6 +311,8 @@ export const PolicySettings = z
     allowHosts: z.array(HostPattern).max(MAX_ALLOW_HOSTS).nullable().default(null),
     /** Read-only shell commands run as reads in supervised and auto-accept-edits (decision 75 Q6, Task 1c). */
     readOnlyCommands: z.boolean().default(true),
+    /** Extension tools the owner vouches for as local, by name and registered source (decision 117, A2). */
+    localTools: LocalTools,
   })
   .strict();
 export type PolicySettings = z.infer<typeof PolicySettings>;
@@ -339,6 +373,10 @@ export const ResultAudit = z.object({
   redactions: z.number().int().nonnegative().max(1_000_000),
   /** The result came from outside (stage 07): it was fenced and the session is tainted. */
   external: z.boolean(),
+  /** A shell call's exit code (Pi's `structuredContent.exit_code`); absent for any other tool. */
+  exitCode: z.number().int().optional(),
+  /** Milliseconds from the moment the call was allowed to run to its result. */
+  durationMs: z.number().int().nonnegative().optional(),
 });
 export const SessionAudit = z.object({
   kind: z.literal("session"),

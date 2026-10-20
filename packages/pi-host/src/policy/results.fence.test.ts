@@ -108,7 +108,18 @@ describe("stage 07 on a tool result", () => {
   it("says nothing for a result that is neither redacted nor external", () => {
     const audits: PolicyAuditEntry[] = [];
     expect(onToolResult(resultEvent("plain"), deps({ audits }))).toBeUndefined();
-    expect(audits).toEqual([]);
+    // Only the shell's row (decision 117, A4): no stage acted.
+    expect(audits).toEqual([
+      expect.objectContaining({
+        kind: "result",
+        redactions: 0,
+        external: false,
+        stages: [
+          { stage: "06", outcome: "pass" },
+          { stage: "07", outcome: "pass" },
+        ],
+      }),
+    ]);
   });
 
   it("keeps the fence id and the tags out of the redaction, and redacts a secret inside the fence", () => {

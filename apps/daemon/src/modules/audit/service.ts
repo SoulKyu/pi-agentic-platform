@@ -1,6 +1,7 @@
 import {
   AUDIT_RATE_LIMIT_REASON,
   AuditView as AuditViewSchema,
+  type ApprovalAnswer,
   type AuditView,
   type Caller,
   type PolicyAuditEntry,
@@ -50,6 +51,13 @@ export interface AuditPort {
       readonly containment: "scope" | "none";
       /** Who answered the question of this call (a call row only): the row names the credential instead of the worker. */
       readonly answeredBy?: { readonly actor: "user" | "token" | "system"; readonly actorId: string };
+      /** When the call's card was shown, what it offered, and when it was answered (null: it never was); a call row only. */
+      readonly card?: {
+        readonly askedAt: number;
+        readonly answers: readonly ApprovalAnswer[];
+        readonly answeredAt: number | null;
+        readonly answer: ApprovalAnswer | null;
+      };
     },
   ): PolicyAuditEntry | null;
 }
@@ -96,6 +104,12 @@ const viewOf = (row: AuditRow): AuditView => ({
   stages: row.stages,
   args: row.args,
   detail: row.detail,
+  askedAt: row.askedAt ?? null,
+  answers: row.answers ?? null,
+  answeredAt: row.answeredAt ?? null,
+  answer: row.answer ?? null,
+  exitCode: row.exitCode ?? null,
+  durationMs: row.durationMs ?? null,
 });
 
 const nullable = (text: string | null, max: number): string | null =>
@@ -236,6 +250,8 @@ export function createAuditService(deps: {
           decision: "info",
           stages: entry.stages,
           detail: { redactions: entry.redactions, external: entry.external },
+          ...(entry.exitCode === undefined ? {} : { exitCode: entry.exitCode }),
+          ...(entry.durationMs === undefined ? {} : { durationMs: entry.durationMs }),
         };
       case "session": {
         const fitted = fitToolNames(entry.tools, entry.tools.length, { mode: entry.mode });
@@ -301,10 +317,20 @@ export function createAuditService(deps: {
           : { ...clean, stages };
       const row = rowOf(session, entry);
       const answered = entry.kind === "call" ? context.answeredBy : undefined;
+      const card = entry.kind === "call" ? context.card : undefined;
       if (budget.take(session))
-        tryAppend(
-          answered ? { ...row, actor: answered.actor, actorId: answered.actorId.slice(0, 128) } : row,
-        );
+        tryAppend({
+          ...row,
+          ...(answered ? { actor: answered.actor, actorId: answered.actorId.slice(0, 128) } : {}),
+          ...(card
+            ? {
+                askedAt: card.askedAt,
+                answers: card.answers,
+                answeredAt: card.answeredAt,
+                answer: card.answer,
+              }
+            : {}),
+        });
       return entry;
     },
     list(caller, params) {

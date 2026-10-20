@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TaintCauses } from "./taint-cause.ts";
 import { AlwaysScopes, ApprovalAnswers, GuardRule, TOOL_CATEGORIES, TrustedHost } from "./policy.ts";
 
 /** One open question of a session: an extension's dialog or the policy's approval card. */
@@ -17,6 +18,8 @@ export const Dialog = z
     answers: ApprovalAnswers.optional(),
     /** Untrusted content reached the session, or the run guard asks: why the card exists (DESIGN §9.2). */
     tainted: z.boolean().optional(),
+    /** Approval dialogs only: what tainted the session, newest last (decision 117, A3). */
+    taintCauses: TaintCauses.optional(),
     guard: GuardRule.optional(),
     /** Approval dialogs only: the tool the question is about (the scope choice names it, Task 2b). */
     tool: z.string().min(1).max(256).optional(),

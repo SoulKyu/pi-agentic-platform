@@ -5,6 +5,7 @@ import {
   type ApprovalAnswer,
   ApprovalRequestRecord,
   type GuardRule,
+  type TaintCauses,
   type ToolCategory,
 } from "@pap/contracts";
 
@@ -17,6 +18,8 @@ export interface ApprovalAsk {
   readonly answers: readonly ApprovalAnswer[];
   /** Untrusted content reached the session before this call (stage 07). */
   readonly tainted: boolean;
+  /** What tainted the session, newest last (decision 117, A3); absent when the worker cannot name every cause. */
+  readonly taintCauses?: TaintCauses | undefined;
   /** The stage-04 rule that raised this question, if the guard did. */
   readonly guard?: GuardRule | undefined;
   /** What "always" may cover besides the exact call; absent when the card offers the exact call only. */

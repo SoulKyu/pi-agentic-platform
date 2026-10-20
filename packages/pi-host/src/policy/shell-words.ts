@@ -98,6 +98,8 @@ function lex(text: string, depth: number, reading: Reading, comments = true): vo
   if (depth > MAX_NESTING) throw new CommandTooComplex("nested too deep");
   let words: string[] = [];
   let operators = new Set<number>();
+  let wildcards = new Map<number, number>();
+  let wildcardAt = -1;
   let current = "";
   let inWord = false;
   /** Whether a `#` here starts a word: set by blanks, separators and operators, cleared by `$IFS`, kept by `\`+newline. */
@@ -115,16 +117,21 @@ function lex(text: string, depth: number, reading: Reading, comments = true): vo
   const arithmetic = (): boolean => parens.length > arithmeticAt;
 
   const endWord = (): void => {
-    if (inWord) words.push(current);
+    if (inWord) {
+      if (wildcardAt !== -1) wildcards.set(words.length, wildcardAt);
+      words.push(current);
+    }
+    wildcardAt = -1;
     current = "";
     inWord = false;
   };
   const endCommand = (): void => {
     endWord();
     if (words.length === 0) return;
-    const segment: Segment = { words, depth, operators };
+    const segment: Segment = { words, depth, operators, wildcards };
     words = [];
     operators = new Set();
+    wildcards = new Map();
     if (reading.out.length >= MAX_SEGMENTS) throw new CommandTooComplex("too many commands");
     reading.out.push(segment);
     const argv = argvOf(segment);
@@ -150,6 +157,7 @@ function lex(text: string, depth: number, reading: Reading, comments = true): vo
     else {
       current = "";
       inWord = false;
+      wildcardAt = -1;
     }
     const end = operatorEnd(text, i);
     const op = fd + text.slice(i, end);
@@ -291,6 +299,7 @@ function lex(text: string, depth: number, reading: Reading, comments = true): vo
       i += c === "|" && next === "|" ? 2 : 1;
     } else {
       trackCloser(expansions, c);
+      if (wildcardAt === -1 && (c === "*" || c === "?" || c === "[")) wildcardAt = current.length;
       current += c;
       inWord = true;
       i++;

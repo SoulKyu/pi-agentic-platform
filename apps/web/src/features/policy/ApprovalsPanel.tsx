@@ -2,6 +2,7 @@ import { MAX_ALLOW_HOSTS, MAX_DENY_PATTERNS } from "@pap/contracts";
 import { Button, Switch } from "@pap/ui";
 import { useT } from "../../i18n/index.ts";
 import { BuiltinPreset } from "./BuiltinPreset.tsx";
+import { LocalToolsField } from "./LocalToolsField.tsx";
 import { ModeField } from "./ModeField.tsx";
 import { PatternField } from "./PatternField.tsx";
 import { ReadOnlyCommands } from "./ReadOnlyCommands.tsx";
@@ -86,13 +87,25 @@ export function ApprovalsPanel() {
             </PatternField>
           ) : null}
         </section>
+        <section className="flex flex-col gap-s3">
+          <h3 className={HEADING}>{t("approvals.local.title")}</h3>
+          <LocalToolsField
+            rules={form.localTools}
+            draft={form.localDraft}
+            onRules={(localTools) => state.edit({ localTools })}
+            onDraft={(localDraft) => state.edit({ localDraft })}
+          />
+        </section>
         <div className="flex flex-col items-start gap-s2">
           {check.tooLarge ? (
             <p role="alert" className="text-ui text-attn">
               {t("approvals.error.tooLarge")}
             </p>
           ) : null}
-          {!check.valid && !check.tooLarge ? <p className={NOTE}>{t("approvals.invalid")}</p> : null}
+          {check.draftPending ? <p className={NOTE}>{t("approvals.local.pending")}</p> : null}
+          {check.deny.errors.length > 0 || check.hosts.errors.length > 0 ? (
+            <p className={NOTE}>{t("approvals.invalid")}</p>
+          ) : null}
           {state.notice === "conflict" ? (
             <p role="status" className="text-ui text-attn">
               {t("approvals.conflict")}

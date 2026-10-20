@@ -1,4 +1,5 @@
 import {
+  type ApprovalAnswer,
   type ApprovalMode,
   type Caller,
   DEFAULT_GUARD,
@@ -24,6 +25,17 @@ const SAY_EVERY_MS = 60_000;
 const MAX_WINDOWS = 1_024;
 /** Answers whose audit row has not come yet; the oldest is forgotten past this (a row that never comes must not pile up). */
 const MAX_ANSWERERS = 1_024;
+/** Cards whose call row has not come yet (a call's row comes when its question is closed): bounded the same way. */
+const MAX_CARDS = 1_024;
+
+/** How a card went (decision 117, A4): shown at `askedAt`, offering `answers`, answered at `answeredAt` (null: never). */
+interface Card {
+  readonly askedAt: number;
+  readonly answers: readonly ApprovalAnswer[];
+  answeredAt: number | null;
+  /** What the owner chose, whatever the worker did with it (a policy that moved can still refuse the call). */
+  answer: ApprovalAnswer | null;
+}
 
 /** Who answered a question: a browser session (`user`) or a token. */
 export interface Answerer {
@@ -37,10 +49,11 @@ export interface Answerer {
  * safeguard for external content a worker reads between a Clear and the new epoch reaching it. A late entry that
  * re-taints is a nuisance, never unsafe. Never add an epoch check to this path: that would turn it into a fail-open.
  */
+// No decision here: a call approved by the owner and then refused (the rules moved while the card was open) is a
+// `block` row, and it still names who answered and how (decision 117, A4).
 const CallDecision = z.object({
   kind: z.literal("call"),
   toolCallId: z.string().max(256),
-  decision: z.enum(["approved", "denied"]),
 });
 export const TaintFact = z.object({ kind: z.literal("result"), external: z.literal(true) });
 
@@ -71,7 +84,9 @@ export interface PolicyLink {
   /** A worker's audit record (as unknown) goes to the audit module; one that says `external` taints the session first. */
   audited(row: SessionRow, raw: unknown): void;
   /** The credential that answered the question about `toolCallId`: the call's audit row, when it comes, names it once. */
-  answeredBy(row: SessionRow, toolCallId: string, caller: Caller): void;
+  answeredBy(row: SessionRow, toolCallId: string, caller: Caller, answer: ApprovalAnswer): void;
+  /** A card of `toolCallId` was sent to the UI at `at`: the call's audit row, when it comes, records the timing once. */
+  cardShown(row: SessionRow, toolCallId: string, answers: readonly ApprovalAnswer[], at: number): void;
   /** The worker's own taint report with its epoch (M5R60): stored unless a clear came after it. The port's listener pushes and publishes. */
   tainted(row: SessionRow, epoch: number): void;
   /** A fork or clone takes its source's mode and taint (owner Q15). A throw is the caller's to handle. */
@@ -89,13 +104,21 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
   let limiter = createRateLimiter(deps.clock, SAY_EVERY_MS);
   const windows = new Set<string>();
   const answerers = new Map<string, Answerer>();
-  const takeAnswerer = (row: SessionRow, raw: unknown): Answerer | undefined => {
+  const cards = new Map<string, Card>();
+  const takeAnswerer = (row: SessionRow, raw: unknown): { answerer?: Answerer; card?: Card } => {
     const entry = CallDecision.safeParse(raw);
-    if (!entry.success) return undefined;
+    if (!entry.success) return {};
     const key = `${row.id}:${entry.data.toolCallId}`;
-    const found = answerers.get(key);
+    const answerer = answerers.get(key);
+    const card = cards.get(key);
     answerers.delete(key);
-    return found;
+    cards.delete(key);
+    return { ...(answerer ? { answerer } : {}), ...(card ? { card } : {}) };
+  };
+  const keepBounded = (map: Map<string, unknown>, max: number): void => {
+    if (map.size < max) return;
+    const oldest = map.keys().next();
+    if (!oldest.done) map.delete(oldest.value);
   };
   // One window per code and session, so every session is named. The windows start over when MAX_WINDOWS are held.
   const say = (code: string, fields: Record<string, unknown>) => {
@@ -138,6 +161,7 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
       builtinDenylist: settings.builtinDenylist,
       denylist: settings.denylist,
       allowHosts: settings.allowHosts,
+      localTools: settings.localTools,
       guard: DEFAULT_GUARD,
       taint,
       readOnlyCommands: settings.readOnlyCommands,
@@ -200,21 +224,26 @@ export function createPolicyLink(deps: PolicyLinkDeps): PolicyLink {
     viewOf: (row) => viewOfId(row.ownerId, row.id),
     audited(row, raw) {
       if (TaintFact.safeParse(raw).success) markTainted(row);
-      const answeredBy = takeAnswerer(row, raw);
+      const { answerer, card } = takeAnswerer(row, raw);
       void deps.audit.fromWorker(row, raw, {
         containment: deps.containment,
-        ...(answeredBy ? { answeredBy } : {}),
+        ...(answerer ? { answeredBy: answerer } : {}),
+        ...(card ? { card } : {}),
       });
     },
-    answeredBy(row, toolCallId, caller) {
-      if (answerers.size >= MAX_ANSWERERS) {
-        const oldest = answerers.keys().next();
-        if (!oldest.done) answerers.delete(oldest.value);
+    answeredBy(row, toolCallId, caller, answer) {
+      keepBounded(answerers, MAX_ANSWERERS);
+      const key = `${row.id}:${toolCallId}`;
+      answerers.set(key, { actor: auditActorOf(caller), actorId: caller.credentialId ?? "" });
+      const card = cards.get(key);
+      if (card) {
+        card.answeredAt = deps.clock.now();
+        card.answer = answer;
       }
-      answerers.set(`${row.id}:${toolCallId}`, {
-        actor: auditActorOf(caller),
-        actorId: caller.credentialId ?? "",
-      });
+    },
+    cardShown(row, toolCallId, answers, at) {
+      keepBounded(cards, MAX_CARDS);
+      cards.set(`${row.id}:${toolCallId}`, { askedAt: at, answers, answeredAt: null, answer: null });
     },
     tainted: (row, epoch) => markTainted(row, epoch),
     inherit: (source, targetId) => deps.policy.inherit(source.ownerId, source.id, targetId),

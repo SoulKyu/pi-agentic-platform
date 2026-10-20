@@ -6,6 +6,8 @@ export interface Segment {
   readonly depth: number;
   /** Indexes of the words that are redirection operators (the word after each one is its target). */
   readonly operators: ReadonlySet<number>;
+  /** Word index to the index, in the word with its quotes removed, of its first unquoted, unescaped `*`, `?` or `[`. */
+  readonly wildcards?: ReadonlyMap<number, number>;
 }
 
 const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh", "fish", "ash", "mksh", "tcsh", "csh"]);
