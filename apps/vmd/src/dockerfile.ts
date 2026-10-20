@@ -1,6 +1,12 @@
 import { imageRef } from "./argv.ts";
 import type { ImageBuildRequest } from "./ops.ts";
 
+/**
+ * Where the agent bundle lands in the image. The base layer's build context IS the bundle (`BUNDLE_ROOT`: pi-host's `dist`,
+ * a flat `node_modules` and `package.json`), so the whole context goes here and the guest starts from `dist/guest/main.js`.
+ */
+export const BASE_BUNDLE_DIR = "/opt/pap/pi-host";
+
 const NODE_DIGEST = /^docker\.io\/library\/node@sha256:[0-9a-f]{64}$/;
 
 /** R7, RT-14 (e2fsprogs: the guest grows its own disk), RT-06/RT-37 (worker environment). */
@@ -26,11 +32,11 @@ export function renderDockerfile(request: ImageBuildRequest): string {
     lines.push(apt(BASE_PACKAGES, request.upgrade));
     // Debian names fd `fdfind`; Pi looks for `fd` and, offline, never downloads one.
     lines.push("RUN ln -s /usr/bin/fdfind /usr/local/bin/fd");
-    lines.push("COPY pap/ /opt/pap/");
+    lines.push(`COPY . ${BASE_BUNDLE_DIR}/`);
     lines.push(
       "ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 PI_OFFLINE=1 PI_CODING_AGENT_DIR=/agent/.pi/agent GIT_CEILING_DIRECTORIES=/agent",
     );
-    lines.push('ENTRYPOINT ["/usr/local/bin/node", "/opt/pap/pi-host/dist/guest/main.js"]');
+    lines.push(`ENTRYPOINT ["/usr/local/bin/node", "${BASE_BUNDLE_DIR}/dist/guest/main.js"]`);
   } else if (request.layer === "profile") {
     lines.push("COPY pi-agent/ /opt/pap/pi-agent/");
   } else if (request.aptPackages.length > 0) {
