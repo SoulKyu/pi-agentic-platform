@@ -118,6 +118,7 @@ export function realDeps(): VmDeps {
     openFile: openNoFollow,
     deployVmd,
     download,
+    readMounts: () => readFileSync("/proc/self/mountinfo", "utf8"),
     nodePath: process.execPath,
     treeRoot: findTree(),
   };

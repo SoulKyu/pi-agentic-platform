@@ -100,6 +100,8 @@ export function makeBed(
   const copies: Array<[string, string]> = [];
   const deploys: Array<[string, string]> = [];
   let failNextChmod = false;
+  /** What `nerdctl ps -a -q` prints (one container id per line) and what /proc/self/mountinfo holds, for the uninstall cases. */
+  const live = { containers: "", mounts: "" };
   const exec: Exec = (cmd, args) => {
     calls.push([cmd, ...args].join(" "));
     if (cmd === "chmod" && failNextChmod) {
@@ -123,6 +125,8 @@ export function makeBed(
           if (!stat.isSymbolicLink()) chmodSync(entry, stat.mode & 0o7777 & ~0o6022);
         }
     }
+    if (cmd.endsWith("/nerdctl") && args.includes("ps"))
+      return Promise.resolve({ code: 0, stdout: live.containers });
     if (cmd === "ufw")
       return Promise.resolve({ code: overrides.ufw === undefined ? 127 : 0, stdout: overrides.ufw ?? "" });
     return Promise.resolve({ code: cmd === "firewall-cmd" ? 127 : 0, stdout: "" });
@@ -156,6 +160,7 @@ export function makeBed(
       writeFileSync(dest, asset.name === overrides.tamper ? "tampered" : payload(asset.name));
       return Promise.resolve();
     },
+    readMounts: () => live.mounts,
     nodePath: join(root, "running-node"),
     treeRoot: overrides.noTree ? undefined : tree,
   };
@@ -163,6 +168,7 @@ export function makeBed(
   return {
     root,
     roots,
+    live,
     deps,
     io,
     stdout,

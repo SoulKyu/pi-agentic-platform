@@ -49,6 +49,8 @@ export interface VmDeps {
   /** Deploys pap-vmd with its production dependencies from the checkout into `dest` (the release step's code). */
   readonly deployVmd: (tree: string, dest: string) => Promise<void>;
   readonly download: Download;
+  /** The text of /proc/self/mountinfo (uninstall refuses while a mount is left under pap's folders). */
+  readonly readMounts: () => string;
   readonly nodePath: string;
   /** The checkout this pap runs from, or undefined when it is not one. */
   readonly treeRoot: string | undefined;

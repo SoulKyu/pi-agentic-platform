@@ -4,6 +4,9 @@ import { CliError } from "../open-home.ts";
 /** First line of the one host-global file pap writes; uninstall removes that file only while it still starts with it. */
 export const KATA_MARKER = "# written by pap vm setup";
 
+/** The namespace pap-vmd's nerdctl runs in (`apps/vmd/src/argv.ts`). */
+export const NERDCTL_NAMESPACE = "pap";
+
 export const PATHS = Object.freeze({
   opt: "/opt/pap-vm",
   kata: "/opt/kata",
