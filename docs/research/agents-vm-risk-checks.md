@@ -25,3 +25,19 @@ T0a of `docs/plans/2026-10-19-agents-microvm-runtime.md`, run by the controller 
 4. T7: `HELLO_TIMEOUT_MS` 30 s (cold start measured at 6.3 s nested).
 5. T16a: the ruleset and guard exactly as tested (sections above), with the veth discovered at `vm.start`.
 6. Consider `disable_guest_seccomp = false` in pap's Kata config (defence in depth: the container's own seccomp in the guest); not tested.
+
+## T0b: the Claude token and OAuth providers through the relay (2026-10-20, this VPS)
+
+Run by the controller with a throwaway harness outside the repository. The harness:
+- forked `packages/pi-host/dist/relay/main.js --listen 127.0.0.1:0` (feat/agents-vm-1 at ff497413) with an empty `PI_CODING_AGENT_DIR`;
+- sent the relay its IPC commands: `claude_token`, a `relay_grant` for `127.0.0.1` and an `agent_policy` with `claude: true`;
+- ran pi-claude-bridge's bundled `claude` 2.1.289 as `claude -p "say ok"`. It ran inside `bwrap --unshare-user --dev-bind / / --ro-bind <hosts> /etc/hosts`, with an empty HOME, `ANTHROPIC_BASE_URL=http://claude.internal:<port>` and `ANTHROPIC_AUTH_TOKEN=<relay key>`.
+
+A logging hop in front of the relay recorded the path, the `model` field and the `anthropic-*` headers, but never `authorization`. The token file was deleted afterwards (`shred -u`).
+
+| Check | Result | Gates |
+|---|---|---|
+| Claude token (`claude setup-token`) through `claude.internal` (spec risk 6) | **Works.** Exit 0, answer `ok`. The relay forwarded `POST /v1/messages?beta=true` upstream with `authorization: Bearer <token>`; Anthropic answered 200. The incoming `anthropic-beta` header carried Claude Code's own list (`claude-code-20250219,interleaved-thinking-2025-05-14,…`), and no extra `oauth-2025-04-20` beta was needed. `anthropic-version: 2023-06-01`. | J1's Claude route stands as built (Bearer only, `anthropic-beta` forwarded). |
+| Model the bridge's `claude` sends | `claude-opus-5-5`, the CLI's default. The relay's `CLAUDE_MODEL` rule (`^claude-[a-z0-9.-]{1,64}$`) admits it. | T19 copy; the Claude-route model check (any `claude-` id) stays. |
+| Other requests | `HEAD /api/hello` (Claude Code's connectivity probe) was refused `route` (403); the CLI went on. | None; the refusal log line is expected noise. |
+| OAuth providers in the owner's `auth.json` (R9) | **None to test.** The owner's `auth.json` holds one provider, `zai`, of type `api_key`, and there is no `models.json`. The OAuth header rule stays unverified on a real login. | The relay's provider table: OAuth providers keep T12's header rule. Check it the first time an OAuth login exists (T21 note). |
