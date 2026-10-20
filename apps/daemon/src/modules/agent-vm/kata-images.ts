@@ -5,9 +5,11 @@ import { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { keepSet, MAX_KEEP } from "./image-prune.ts";
-import { agentLayerTag, prepareProfileContext, treeDigest } from "./image-inputs.ts";
+import { agentLayerTag, treeDigest } from "./image-inputs.ts";
 import { createImagePolicy, type ImagePolicy, type RunningImage } from "./image-policy.ts";
 import type { ImageEntries, WrittenEntry } from "./pick-map.ts";
+import type { Inputs } from "./profile-job.ts";
+import { type ProfileRunner, threadProfileRunner } from "./profile-runner.ts";
 import { OWNER_SECRETS_CAP_NOTICE, OwnerSecretsError, type OwnerSecrets } from "./owner-secrets.ts";
 import { type KnownSecrets, PROFILE_SECRET_NOTICE, ProfileSecretError } from "./secret-scan.ts";
 import { papErrorOf, type VmdClient, VmdError } from "./vmd-client.ts";
@@ -39,6 +41,8 @@ export interface KataImagesDeps {
   /** The owner's secrets, collected at each build (T15b); a plain list names no auth.json-only provider. A rejection refuses the build. */
   readonly secrets: () => KnownSecrets | OwnerSecrets | Promise<KnownSecrets | OwnerSecrets>;
   readonly entries: Pick<ImageEntries, "record" | "forget" | "held">;
+  /** Runs one profile preparation; the default is a worker thread (I4), tests run it in process. */
+  readonly profileRunner?: ProfileRunner;
   /** Posts once into the agent's thread (a late binding: the sessions come after this). */
   readonly notice: (agentId: string, text: string) => void;
 }
@@ -80,6 +84,8 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   let baseCache: { tag: string; at: number } | null = null;
   let baseFlight: Promise<void> | null = null;
   let prepared: Prepared | null = null;
+  /** The last preparation that finished with its inputs fingerprinted (I4): an unchanged profile is not prepared again. */
+  let lastGood: { prepared: Prepared; inputs: Inputs } | null = null;
   /** The newest image each agent was asked for since this boot (the prune keeps it). */
   const latest = new Map<string, string>();
   let tail: Promise<unknown> = Promise.resolve();
@@ -154,14 +160,35 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   /** Under `exclusive`: the profile as the allowlist cuts it now (the tree on disk is always the last one made here). */
   async function prepare(baseTag: string, agentId: string): Promise<Prepared> {
     const key = policy.baseKey(baseTag);
+    const last = lastGood;
     prepared = null;
+    lastGood = null;
     mkdirSync(dirname(profileOut), { recursive: true, mode: 0o700 });
     try {
       const owned = await deps.secrets();
       const { secrets, providers } = "secrets" in owned ? owned : { secrets: owned, providers: [] };
-      const made = prepareProfileContext(deps.agentDir, profileOut, secrets, deps.papHome, key, providers);
+      const outcome = await (deps.profileRunner ?? threadProfileRunner)({
+        agentDir: deps.agentDir,
+        out: profileOut,
+        secrets,
+        papHome: deps.papHome,
+        baseTag: key,
+        providers,
+        nowMs: clock.now(),
+        previous: last?.inputs ?? null,
+      });
+      if (outcome.kind === "secret") throw new ProfileSecretError(outcome.file);
+      if (outcome.kind === "failed") throw new Error(outcome.message);
+      if (outcome.kind === "unchanged" && last !== null) {
+        prepared = { ...last.prepared, at: clock.now() };
+        lastGood = last;
+        return prepared;
+      }
+      if (outcome.kind !== "made") throw new Error("the profile preparation answered nothing usable");
+      const { made } = outcome;
       if (made.skipped.length > 0) logger.info("agent_profile_skipped", { count: made.skipped.length });
       prepared = { key, tag: made.tag, written: made.written, at: clock.now() };
+      lastGood = outcome.inputs === null ? null : { prepared, inputs: outcome.inputs };
       return prepared;
     } catch (error) {
       if (error instanceof ProfileSecretError) {

@@ -310,6 +310,9 @@ export function treeDigest(out: string, format = FORMAT): string {
   return hash.digest("hex");
 }
 
+/** `roots` are the real folders copied: what the next start fingerprints to know whether anything changed (I4). */
+export type ProfileMade = { tag: string; skipped: string[]; written: WrittenEntry[]; roots: string[] };
+
 function build(
   agentDir: string,
   out: string,
@@ -317,7 +320,7 @@ function build(
   papHome: string,
   baseTag: string,
   authOnly: readonly string[],
-): { tag: string; skipped: string[]; written: WrittenEntry[] } {
+): ProfileMade {
   const b = new Build(agentDir, out, papHome);
   const settings = readSettings(agentDir);
   const models = readModels(agentDir);
@@ -348,6 +351,7 @@ function build(
     tag: `pap-agent-profile-${treeDigest(out, `${FORMAT}\0${baseTag}`)}`,
     skipped: safeNotes(b.run.skipped, known),
     written: b.written,
+    roots: b.roots.map((root) => root.src),
   };
 }
 
@@ -363,7 +367,7 @@ export function prepareProfileContext(
   papHome: string,
   baseTag: string,
   authProviders: readonly string[] = [],
-): { tag: string; skipped: string[]; written: WrittenEntry[] } {
+): ProfileMade {
   if (!BASE_TAG.test(baseTag)) throw new Error("profile base tag is not a base tag");
   if (
     !isAbsolute(agentDir) ||

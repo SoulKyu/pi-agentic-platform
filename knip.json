@@ -22,7 +22,7 @@
       "ignoreBinaries": ["mkfifo"]
     },
     "apps/daemon": {
-      "entry": ["src/modules/search/search-thread.ts", "src/modules/agent-vm/mirror-parse-thread.ts"],
+      "entry": ["src/modules/search/search-thread.ts", "src/modules/agent-vm/mirror-parse-thread.ts", "src/modules/agent-vm/profile-thread.ts"],
       "ignoreBinaries": ["openssl", "loginctl", "systemd-run", "mkfifo"]
     }
   }

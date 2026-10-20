@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { createKataImages, type KataImages } from "./kata-images.ts";
+import { runProfileJob } from "./profile-job.ts";
 import { createFakeVmd, type FakeVmd } from "./testing/fake-vmd.ts";
 
 /*
@@ -127,6 +128,7 @@ function configOf(): Parameters<typeof createKataImages>[0] {
     weekFile: join(root, "pap", "vm", "base-week"),
     secrets: () => [],
     entries: { record: vi.fn(), forget: vi.fn(), held: () => held },
+    profileRunner: (job) => Promise.resolve(runProfileJob(job)),
     notice: () => {},
   };
 }

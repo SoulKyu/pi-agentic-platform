@@ -7,6 +7,7 @@ import { createFakeClock, type FakeClock } from "../../kernel/clock.ts";
 import { silentLogger } from "../../kernel/logger.ts";
 import { BUILD_NOTICE, isoWeek } from "./image-policy.ts";
 import { createKataImages, type KataImages } from "./kata-images.ts";
+import { runProfileJob } from "./profile-job.ts";
 import { PROFILE_SECRET_NOTICE } from "./secret-scan.ts";
 import { createFakeVmd, type FakeVmd } from "./testing/fake-vmd.ts";
 
@@ -45,6 +46,7 @@ function make(overrides: Partial<Parameters<typeof createKataImages>[0]> = {}): 
     weekFile: p.weekFile,
     secrets: () => (secretCalls++, secrets),
     entries,
+    profileRunner: (job) => Promise.resolve(runProfileJob(job)),
     notice: (agentId, text) => void notices.push([agentId, text]),
     ...overrides,
   });
