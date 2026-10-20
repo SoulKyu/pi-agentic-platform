@@ -24,7 +24,7 @@ describe("launch end", () => {
     expect(b.ended).toEqual([launch.launchId]);
     expect(b.guestAt(0).shutdown).toHaveBeenCalled();
     expect(b.guestAt(0).handles.at(0)?.stop).toHaveBeenCalled();
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null);
+    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
     expect(b.runtime.phase("a1")).toBe("stopped");
   });
 
@@ -55,7 +55,7 @@ describe("launch end", () => {
     const launch = b.launchAt(0);
     expect(revoked("a1", launch)).toBe(true);
     expect(b.ended).toEqual([launch.launchId]);
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null);
+    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
   });
 
   it("lets a later spawn start a new VM after a failed start", async () => {
@@ -76,7 +76,7 @@ describe("idle stop", () => {
     await b.clock.advance(IDLE_MS - 1);
     expect(b.backend.stop).not.toHaveBeenCalled();
     await b.clock.advance(1);
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null);
+    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
     expect(guest.shutdown).toHaveBeenCalled();
     expect(b.runtime.phase("a1")).toBe("stopped");
   });
@@ -110,7 +110,7 @@ describe("crash (RT-40)", () => {
     guest.crash();
     await expect(out.handle.exited).resolves.toBeDefined();
     expect(b.runtime.phase("a1")).toBe("stopped");
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null);
+    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
   });
 
   const crashOnce = async (): Promise<void> => {

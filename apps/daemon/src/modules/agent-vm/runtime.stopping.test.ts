@@ -72,6 +72,40 @@ describe("a stop in the middle of a start (review I1)", () => {
   });
 });
 
+describe("a late stop names its launch (AVM-E46, ledger T7 minor)", () => {
+  // Mutant "stopLate by key": stopLate calls backend.stop without the launch id, so a backend that matches by key kills a fresh VM.
+  it("both stops of a launch started and stopped in the middle carry its launch id", async () => {
+    const start = deferred<{ address: string }>();
+    b.backend.start.mockImplementationOnce(() => start.promise);
+    const spawning = b.runtime.spawn(specOf("a1"), workerInput(), null).catch((error: unknown) => error);
+    await settle();
+    await b.runtime.stop("a1");
+    start.resolve({ address: "10.213.0.9" });
+    await spawning;
+    const launchId = (b.backend.start.mock.calls[0]?.[1] as { launchId: string }).launchId;
+    expect(b.backend.stop.mock.calls.filter(([id]) => id === "a1")).toEqual([
+      ["a1", null, launchId],
+      ["a1", null, launchId],
+    ]);
+  });
+
+  it("a guest wait stopped late names its launch too, and the boot stops name none", async () => {
+    const hello = deferred<ReturnType<typeof fakeGuest>["link"]>();
+    b.gateway.awaitGuest.mockImplementationOnce(() => hello.promise);
+    const spawning = b.runtime.spawn(specOf("a1"), workerInput(), null).catch((error: unknown) => error);
+    await settle();
+    await b.runtime.stop("a1");
+    hello.resolve(fakeGuest(b.order).link);
+    await spawning;
+    const launchId = b.launchAt(0).launchId;
+    expect(b.backend.stop.mock.calls.map((call) => call[2])).toEqual([launchId, launchId]);
+    b.listed.push({ agentId: "x", taskKey: null });
+    b.backend.stop.mockClear();
+    await b.runtime.stopAll();
+    expect(b.backend.stop.mock.calls).toEqual([["x", null]]);
+  });
+});
+
 describe("no idle timer on a stopped VM (review I2)", () => {
   // Mutant "workerEnded guard dropped": the worker's exit re-arms a timer after teardown.
   it("leaves no pending timer after stop, and never stops the VM a second time", async () => {

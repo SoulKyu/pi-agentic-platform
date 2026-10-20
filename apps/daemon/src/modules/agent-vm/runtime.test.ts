@@ -41,8 +41,8 @@ describe("spawn", () => {
     ]);
     await b.runtime.stop("a1");
     expect(b.backend.stop.mock.calls).toEqual([
-      ["a1", null],
-      ["a1", "t1"],
+      ["a1", null, expect.any(String)],
+      ["a1", "t1", expect.any(String)],
     ]);
   });
 
@@ -165,7 +165,7 @@ describe("boot (RT-42)", () => {
     await b.runtime.spawn(specOf("a1"), workerInput(), null);
     b.listed.push({ agentId: "a1", taskKey: null });
     await b.runtime.stopAll();
-    expect(b.backend.stop).toHaveBeenCalledWith("a1", null);
+    expect(b.backend.stop).toHaveBeenCalledWith("a1", null, expect.any(String));
     expect(b.runtime.phase("a1")).toBe("stopped");
     expect(b.ended).toEqual([b.launchAt(0).launchId]);
   });

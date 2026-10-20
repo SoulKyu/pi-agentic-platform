@@ -45,6 +45,15 @@ export function parseAssets(raw: unknown): VmAssets {
 
 export const bundledAssets = (): VmAssets => parseAssets(bundled);
 
+/** The pinned Node image the agent base is built from (`FROM`, by digest): `docker.io/library/node@sha256:...`. */
+export function nodeBaseImage(raw: unknown = bundled): string {
+  const parsed = FileSchema.safeParse(raw);
+  const node = parsed.success ? parsed.data.baseImages.find((image) => image.name === "node") : undefined;
+  if (node === undefined || !/^sha256:[0-9a-f]{64}$/.test(node.digest))
+    throw new CliError("vm-assets.json lacks a pinned node base image");
+  return `docker.io/library/node@${node.digest}`;
+}
+
 /** An entry nobody pinned yet (the file in the repository, before `release-assets` or T0a filled it). */
 export const isPlaceholder = (asset: VmAsset): boolean => asset.sha256 === PLACEHOLDER;
 

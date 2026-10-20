@@ -29,7 +29,11 @@ export interface LaunchGrant {
 export interface AgentRuntimeBackend {
   /** Starts the VM; `address` is where the relay sees it. The backend may not answer for a guest that never dials. */
   start(spec: VmSpec, launch: { launchId: string; token: string }): Promise<{ address: string }>;
-  stop(agentId: string, taskKey: string | null): Promise<void>;
+  /**
+   * `launchId` names the launch this stop is for: a backend that knows its launches ignores a stop for one that is no longer
+   * the current VM of the key (a late stop must never hit a fresh VM of the same key, AVM-E46). The boot's stops name none.
+   */
+  stop(agentId: string, taskKey: string | null, launchId?: string): Promise<void>;
   list(): Promise<Array<{ agentId: string; taskKey: string | null }>>;
 }
 
@@ -116,11 +120,7 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
       entry.idle.cancel();
       await Promise.allSettled([...entry.workers].map((handle) => handle.stop()));
       entry.link?.shutdown();
-      try {
-        await backend.stop(entry.spec.agentId, taskKeyOf(entry.spec));
-      } catch (error) {
-        logger.warn("agent_vm_stop_failed", { agentId: entry.spec.agentId, err: error });
-      }
+      await stopLate(entry);
       tokens.revoke(entry.launchId);
       images.delete(entry.launchId);
       try {
@@ -133,9 +133,10 @@ export function createAgentRuntime(deps: AgentRuntimeDeps): AgentRuntime {
     return entry.teardown;
   }
 
+  /** Stops by launch, not by key: see `AgentRuntimeBackend.stop`. */
   async function stopLate(entry: Entry): Promise<void> {
     try {
-      await backend.stop(entry.spec.agentId, taskKeyOf(entry.spec));
+      await backend.stop(entry.spec.agentId, taskKeyOf(entry.spec), entry.launchId);
     } catch (error) {
       logger.warn("agent_vm_stop_failed", { agentId: entry.spec.agentId, err: error });
     }

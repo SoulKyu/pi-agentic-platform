@@ -9,6 +9,7 @@ import {
   bundledAssets,
   fetchVerified,
   isPlaceholder,
+  nodeBaseImage,
   openNoFollow,
   parseAssets,
   type OpenFile,
@@ -30,6 +31,18 @@ const entry = (name: string, extra: object = {}) => ({
 const file = (extra: object[] = []) => ({
   assets: [...ASSET_NAMES.map((n) => entry(n)), ...extra],
   baseImages: [],
+});
+
+describe("nodeBaseImage (T15a)", () => {
+  // Mutant: the digest not checked (a tag in its place reaches `image.build`'s `from`, which pap-vmd refuses).
+  it("is the pinned Node image by digest, which pap-vmd accepts as a base", () => {
+    expect(nodeBaseImage()).toMatch(/^docker\.io\/library\/node@sha256:[0-9a-f]{64}$/);
+  });
+  it("refuses a file with no pinned node image", () => {
+    expect(() => nodeBaseImage(file())).toThrow(/node base image/);
+    const unpinned = { ...file(), baseImages: [{ name: "node", ref: "node:24", digest: "latest" }] };
+    expect(() => nodeBaseImage(unpinned)).toThrow(/node base image/);
+  });
 });
 
 describe("vm-assets.json", () => {
