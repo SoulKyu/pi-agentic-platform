@@ -7,7 +7,7 @@ import type { GitRunner } from "./kernel/git/runner.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import { bootAgentEgress, bootSandboxProbe } from "./compose-m11-probe.ts";
-import { type AgentsVm, sessionAgentsOf, vmPortsOf } from "./compose-m11-vm.ts";
+import { type AgentsVm, bindVmCrash, sessionAgentsOf, vmPortsOf } from "./compose-m11-vm.ts";
 import {
   AGENTS_MIGRATIONS,
   type AgentsRpc,
@@ -260,6 +260,7 @@ export function composeM11(core: M11Core, modules: M11Modules): M11 {
   });
   const spend = createAgentSpend({ db: core.db, clock: core.clock });
   const items = modules.inbox.agentItems;
+  bindVmCrash(modules.vm, agentsLogger, { agents, events, items });
   const delegations = createDelegationBack({
     agents: agents.port,
     events,

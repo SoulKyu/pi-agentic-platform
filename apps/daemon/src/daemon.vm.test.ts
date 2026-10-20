@@ -44,9 +44,16 @@ describe("the daemon's agents VM wiring (T8a, fail closed)", () => {
     expect(fake.list).toHaveBeenCalledTimes(2);
   });
 
-  it("refuses to boot in vm mode with no backend to start a VM", async () => {
+  // Without the test switch the backend is Kata, through pap-vmd's socket (a path that is not there, never the real one).
+  it("refuses to boot in vm mode with no pap-vmd to start a VM", async () => {
     await expect(
-      startTestDaemon({ steps: [] }, { config: { agentsRuntime: "vm", testAgentRuntime: null } }),
-    ).rejects.toThrow(/Kata/);
+      startTestDaemon(
+        { steps: [] },
+        {
+          config: { agentsRuntime: "vm", testAgentRuntime: null },
+          deps: { agentsVm: { kata: { socket: "/nonexistent/pap-vm/vmd.sock" } } },
+        },
+      ),
+    ).rejects.toThrow(/pap-vmd/);
   });
 });

@@ -48,8 +48,8 @@ export interface VmLaunchDeps {
   readonly papHome: string;
   /** The shared VM predicate: the row's layout, null for a host row. */
   layoutOf(row: SessionRow): VmLayout | null;
-  /** The image tag the agent's VM starts with. */
-  imageTagOf(agentId: string): string;
+  /** The image tag the agent's VM starts with (Kata: built first when it must be, so it may take minutes). */
+  imageTagOf(agentId: string, input: AgentLaunch["input"]): string | Promise<string>;
   readonly mirrors: MirrorInputs;
   readonly logger: Pick<Logger, "warn">;
   /** The exact sources of the agent's package picks (it holds ids, AVM-E33); `null` stays `null` (every package). */
@@ -67,15 +67,15 @@ export interface VmLaunchDeps {
 export const taskKeyOf = (row: Pick<SessionRow, "agentRole" | "id">): string | null =>
   row.agentRole === "task" ? row.id.replaceAll("-", "") : null;
 
-function specOf(row: SessionRow, launch: AgentLaunch, image: string): VmSpec {
+/** Which VM the row runs in; refused before anything is built for it. */
+function whoOf(row: SessionRow): Pick<VmSpec, "agentId" | "kind" | "taskKey"> {
   const { agentId } = row;
   if (agentId === undefined) throw new PapError("internal");
-  const { resources } = launch.input;
   const key = taskKeyOf(row);
-  if (key === null) return { agentId, kind: "thread", taskKey: null, image, resources };
+  if (key === null) return { agentId, kind: "thread", taskKey: null };
   const taskKey = TaskKey.safeParse(key);
   if (!taskKey.success) throw new PapError("bad_request");
-  return { agentId, kind: "isolated", taskKey: taskKey.data, image, resources };
+  return { agentId, kind: "isolated", taskKey: taskKey.data };
 }
 
 export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
@@ -93,7 +93,12 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
         deps.logger.warn("agent_vm_init_refused", { agentId: row.agentId });
         throw error;
       }
-      const spec = specOf(row, launch, deps.imageTagOf(row.agentId));
+      const who = whoOf(row);
+      const spec: VmSpec = {
+        ...who,
+        image: await deps.imageTagOf(row.agentId, launch.input),
+        resources: launch.input.resources,
+      };
       const worker = { ...deps.mirrors.inputFor(row, launch.input.resources), sessionsDir: layout.sessions };
       const packages = deps.toImageEntries(row.agentId, await deps.packageSources(launch.input.packages));
       const started = await deps.runtime.spawn(spec, worker, packages);

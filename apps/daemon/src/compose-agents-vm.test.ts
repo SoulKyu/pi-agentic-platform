@@ -72,8 +72,11 @@ describe("composeAgentsVm in host mode", () => {
 });
 
 describe("composeAgentsVm in vm mode refuses to boot without a backend", () => {
-  it("Kata arrives with T15: without the test switch the boot stops", async () => {
-    await expect(compose(core({ testAgentRuntime: null }), { process: PROCESS })).rejects.toThrow(/Kata/);
+  it("without the test switch the backend is Kata: no pap-vmd, no boot (T15a)", async () => {
+    const kata = { socket: "/nonexistent/pap-vm/vmd.sock" };
+    await expect(compose(core({ testAgentRuntime: null }), { process: PROCESS, kata })).rejects.toThrow(
+      /pap-vmd/,
+    );
     expect(closers).toEqual([]);
   });
   it("the process backend needs its guest seam and the scripted provider", async () => {
@@ -366,6 +369,7 @@ describe("vmPortsOf (the M11 wiring is not optional in vm mode)", () => {
     agentRunsInVm: () => true,
     resourceHost: () => ({ memoryCapMb: 1, cores: 1 }),
     checkPackages: async () => {},
+    agentLink: { stop: async () => {}, dispose: async () => {}, purge: async () => {}, resume: () => {} },
   } as unknown as AgentsVm;
   it("host mode adds nothing", () => {
     expect(vmPortsOf(undefined)).toEqual({ sessions: {}, agents: {}, safety: {} });
@@ -374,10 +378,14 @@ describe("vmPortsOf (the M11 wiring is not optional in vm mode)", () => {
     const ports = vmPortsOf(vm);
     expect(ports.sessions).toEqual({ vmLayoutOf: vm.vmLayoutOf, agentRunsInVm: vm.agentRunsInVm });
     expect(ports.safety).toEqual({ agentRunsInVm: vm.agentRunsInVm });
-    expect(ports.agents).toEqual({ resourceHost: vm.resourceHost, checkPackages: vm.checkPackages });
+    expect(ports.agents).toEqual({
+      resourceHost: vm.resourceHost,
+      checkPackages: vm.checkPackages,
+      vm: vm.agentLink,
+    });
   });
   it("stops the boot when a predicate is unwired", () => {
-    for (const missing of ["vmLayoutOf", "agentRunsInVm", "resourceHost", "checkPackages"])
+    for (const missing of ["vmLayoutOf", "agentRunsInVm", "resourceHost", "checkPackages", "agentLink"])
       expect(() => vmPortsOf({ ...vm, [missing]: undefined } as unknown as AgentsVm)).toThrow(
         new RegExp(missing),
       );

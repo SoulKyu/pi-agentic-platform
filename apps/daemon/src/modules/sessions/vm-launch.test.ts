@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentInput, type InitRecord, PolicyRules, type VmLayout } from "@pap/contracts";
+import { AgentInput, type InitRecord, PapError, PolicyRules, type VmLayout } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../../kernel/logger.ts";
 import { createFakeWorker } from "../../kernel/testing/fake-worker.ts";
@@ -84,6 +84,7 @@ const hostInit = (r: SessionRow, wired = true): InitRecord => ({
 function setup(
   layoutForRuntime?: (r: SessionRow) => VmLayout,
   copyProviderScript?: (layout: VmLayout) => string,
+  imageTagOf: (agentId: string, input: AgentLaunch["input"]) => string | Promise<string> = () => IMAGE,
 ) {
   const worker = createFakeWorker({});
   const specs: VmSpec[] = [];
@@ -114,7 +115,7 @@ function setup(
     runtime: { spawn } as never,
     papHome: home,
     layoutOf: (r) => (r.agentId === undefined ? null : vmLayout(r)),
-    imageTagOf: () => IMAGE,
+    imageTagOf,
     mirrors: { inputFor },
     logger: silentLogger,
     // Mutant: the ids go to the runtime as they are -> "hands the runtime the sources, never the ids" fails.
@@ -168,6 +169,35 @@ describe("the scripted provider in a process-backend VM (AVM-E15)", () => {
     const started = await bed.vmLaunch.spawn(r, launch(), hostInit(r));
     const out = started.bind(() => ({ init: { ...hostInit(r), testProviderScript: "/host/script.json" } }));
     expect(out.init).not.toHaveProperty("testProviderScript");
+  });
+});
+
+describe("the image tag of a launch (T15a: Kata builds it first)", () => {
+  // Mutants: the tag read without await (a Promise reaches the spec), the tag asked before a bad task key is refused.
+  const OTHER = `pap-agent-agent-${"d".repeat(64)}`;
+  it("waits for the tag, handing the resolver the agent and the launch's profile", async () => {
+    const asked: unknown[] = [];
+    const bed = setup(undefined, undefined, async (agentId, launchInput) => {
+      asked.push([agentId, launchInput]);
+      return OTHER;
+    });
+    const r = bed.use(row());
+    await bed.vmLaunch.spawn(r, launch(), hostInit(r));
+    expect(asked).toEqual([[ID, input]]);
+    expect(bed.specs[0]?.image).toBe(OTHER);
+  });
+  it("does not ask for a tag (a build) for a launch it refuses", async () => {
+    const asked = vi.fn(() => IMAGE);
+    const bed = setup(undefined, undefined, asked);
+    const r = bed.use(row({ id: "not-a-uuid", agentRole: "task" }));
+    expect(await codeOf(bed.vmLaunch.spawn(r, launch({ role: "task" }), hostInit(r)))).toBe("bad_request");
+    expect(asked).not.toHaveBeenCalled();
+  });
+  it("passes a refusal of the resolver on, with nothing spawned", async () => {
+    const bed = setup(undefined, undefined, () => Promise.reject(new PapError("sandbox_unavailable")));
+    const r = bed.use(row());
+    expect(await codeOf(bed.vmLaunch.spawn(r, launch(), hostInit(r)))).toBe("sandbox_unavailable");
+    expect(bed.spawn).not.toHaveBeenCalled();
   });
 });
 

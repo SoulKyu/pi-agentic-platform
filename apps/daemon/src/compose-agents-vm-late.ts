@@ -54,6 +54,8 @@ export interface AgentsVmDerived {
   turnsOf(agentId: string): number;
   /** The relay reported: the next window's counts start from zero. */
   windowEnded(): void;
+  /** Posts a notice into the agent's thread (the image being rebuilt, a disk that grows later); logged when it has none yet. */
+  notify(agentId: string, text: string): void;
 }
 
 const NOTHING: PolicyView = { models: [], claude: false, blocked: null };
@@ -163,6 +165,13 @@ export function bindAgentsVmLate(
     },
     turnsOf: (agentId) => turns.get(agentId) ?? 0,
     windowEnded: () => turns.clear(),
+    notify(agentId, text) {
+      const ownerId = late.agents.ownerOf(agentId);
+      const sessionId =
+        ownerId === null ? null : (late.agents.get(ownerId, agentId)?.threadSessionId ?? null);
+      if (sessionId === null) ctx.logger.warn("agent_vm_notice_no_thread", { agentId });
+      else late.sessions.mirror.notice(sessionId, text);
+    },
   };
   if (relay === null) return derived;
 
