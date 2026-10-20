@@ -96,9 +96,25 @@ describe("createImageEntries on disk (AVM-E44)", () => {
     entries.record("scout-0001", TAG_B, [{ source: "npm:a", written: "npm:a@2.0.0" }]);
     expect(entries.toImage("scout-0001", TAG_A, ["npm:a"])).toEqual(["npm:a@1.0.0"]);
     expect(entries.toImage("scout-0001", TAG_B, ["npm:a"])).toEqual(["npm:a@2.0.0"]);
-    // Both survive a restart, and another agent's launch on that image has no record of its own.
+    // Both survive a restart.
     expect(persisted().toImage("scout-0001", TAG_A, ["npm:a"])).toEqual(["npm:a@1.0.0"]);
-    expect(() => persisted().toImage("other-0002", TAG_A, ["npm:a"])).toThrow();
+  });
+
+  // I2. Mutant: one owning agent per image (`record` of B replaces A's pairs for T, `forget(B)` drops T) -> this case fails.
+  it("two agents sharing an image keep their own pairs: B launching or being deleted leaves A's picks mapping", () => {
+    const entries = persisted();
+    entries.record("scout-0001", TAG_A, WRITTEN);
+    entries.record("other-0002", TAG_A, WRITTEN);
+    expect(entries.toImage("scout-0001", TAG_A, ["npm:a"])).toEqual(["npm:a@1.0.0"]);
+    expect(entries.toImage("other-0002", TAG_A, ["../b"])).toEqual(["local/b"]);
+    entries.forget("other-0002");
+    expect(entries.toImage("scout-0001", TAG_A, ["npm:a"])).toEqual(["npm:a@1.0.0"]);
+    expect(() => entries.toImage("other-0002", TAG_A, ["npm:a"])).toThrow();
+    expect(persisted().toImage("scout-0001", TAG_A, ["npm:a"])).toEqual(["npm:a@1.0.0"]);
+    const saved = JSON.parse(readFileSync(file, "utf8")) as {
+      images: Record<string, Record<string, unknown>>;
+    };
+    expect(Object.keys(saved.images[TAG_A] ?? {})).toEqual(["scout-0001"]);
   });
 
   it("forget drops every image of the agent and none of another's", () => {
