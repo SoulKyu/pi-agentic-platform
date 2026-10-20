@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { AgentSettingsView } from "../../features/agents/AgentSettingsView.tsx";
+import { AgentTrash } from "../../features/agents/AgentTrash.tsx";
 import { AgentsList } from "../../features/agents/AgentsList.tsx";
 import { NewAgentDialog } from "../../features/agents/NewAgentDialog.tsx";
 import { SandboxStatus } from "../../features/agents/SandboxStatus.tsx";
@@ -51,6 +52,7 @@ export function AgentsSettings() {
           {vm?.runtime === "vm" ? (
             <>
               <VmStatus status={vm} reload={reload} />
+              <AgentTrash />
               <ClaudeToken state={vm.claudeToken} onChanged={reload} />
             </>
           ) : (

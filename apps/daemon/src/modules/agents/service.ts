@@ -207,7 +207,7 @@ export function createAgents(deps: AgentsDeps) {
     }
     try {
       links.onceValues?.drop(ownerId, id);
-      store.remove(ownerId, id);
+      store.remove(ownerId, id, clock.now());
       // Its Inbox items (a reply, notifications, delegation results) go with it; the link logs its own failure.
       links.inbox?.removeAgentItems(ownerId, id);
     } catch (error) {
@@ -279,6 +279,11 @@ export function createAgents(deps: AgentsDeps) {
     list: (caller: Caller): ResultOf<"agents.list"> => pageOf(store.list(caller.userId), logger),
 
     view: (caller: Caller, agentId: string): AgentView => viewOf(owned(caller.userId, agentId)),
+
+    /** The caller's deleted agents still in the trash (J1b): the entry that outlives the delete toast. */
+    trash: (caller: Caller): ResultOf<"agents.trash"> => ({
+      agents: store.trashed(caller.userId, clock.now()),
+    }),
 
     async create(caller: Caller, input: AgentInput): Promise<AgentView> {
       stepUpIfWider(deps, caller, null, input, clock.now());

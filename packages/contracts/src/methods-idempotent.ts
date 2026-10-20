@@ -25,6 +25,7 @@ export const METHOD_IDEMPOTENT: Readonly<Record<MethodName, boolean>> = {
   "agents.sandboxStatus": true,
   "agents.setPaused": false,
   "agents.status": true,
+  "agents.trash": true,
   "agents.update": false,
   "agents.vm.clearClaudeToken": false,
   "agents.vm.setClaudeToken": false,

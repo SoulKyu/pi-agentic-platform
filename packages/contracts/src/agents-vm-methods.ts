@@ -54,6 +54,25 @@ export const agentsVmMethods = {
     result: VmStatusView,
     errors: [],
   }),
+  // J1b: the owner's deleted agents still in the trash, so "Purge now" outlives the delete toast.
+  "agents.trash": defineMethod({
+    name: "agents.trash",
+    permission: "agents:read",
+    idempotent: true,
+    params: Params({}),
+    result: z
+      .object({
+        agents: z
+          .array(
+            z
+              .object({ agentId: AgentId, name: z.string().min(1).max(32), deletedAt: z.number().int() })
+              .strict(),
+          )
+          .max(32),
+      })
+      .strict(),
+    errors: [],
+  }),
   // RT-40: "Purge now" empties that agent's trash entries at once.
   "agents.purgeTrash": defineMethod({
     name: "agents.purgeTrash",

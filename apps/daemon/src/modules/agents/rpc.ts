@@ -14,6 +14,7 @@ export type AgentsRpc = Pick<
   HandlerTable,
   | "agents.list"
   | "agents.get"
+  | "agents.trash"
   | "agents.create"
   | "agents.update"
   | "agents.delete"
@@ -43,7 +44,7 @@ export interface AgentSafetyServices {
 
 /** Each handler decodes (the dispatcher did), calls one service method and lets typed errors through (C §1.4.3). */
 export function agentsRpc(
-  agents: Pick<Agents, "list" | "view" | "create" | "update" | "remove" | "pause">,
+  agents: Pick<Agents, "list" | "view" | "trash" | "create" | "update" | "remove" | "pause">,
   sandbox: SandboxMethods,
   threads: Threads,
   unread: Pick<Unread, "markRead">,
@@ -55,6 +56,7 @@ export function agentsRpc(
   return {
     "agents.list": async (_params, ctx) => agents.list(ctx.caller),
     "agents.get": async ({ agentId }, ctx) => agents.view(ctx.caller, agentId),
+    "agents.trash": async (_params, ctx) => agents.trash(ctx.caller),
     "agents.create": async ({ input }, ctx) => agents.create(ctx.caller, input),
     "agents.update": async (params, ctx) => agents.update(ctx.caller, params),
     "agents.delete": async ({ agentId }, ctx) => agents.remove(ctx.caller, agentId),

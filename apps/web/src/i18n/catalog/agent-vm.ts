@@ -57,6 +57,9 @@ export const agentVmEn = {
   "agentVm.purge": "Purge now",
   "agentVm.purge.altText": "Empty this agent's trash now",
   "agentVm.purged": "{name}'s trash is empty.",
+  "agentVm.trash.title": "Deleted agents",
+  "agentVm.trash.hint": "A deleted VM agent's disk is kept for 7 days. Purge now frees it at once.",
+  "agentVm.trash.purgeOne": "Purge {name}'s trash now",
 } as const;
 
 export const agentVmFr: Record<keyof typeof agentVmEn, string> = {
@@ -116,4 +119,8 @@ export const agentVmFr: Record<keyof typeof agentVmEn, string> = {
   "agentVm.purge": "Purger maintenant",
   "agentVm.purge.altText": "Vider la corbeille de cet agent maintenant",
   "agentVm.purged": "La corbeille de {name} est vide.",
+  "agentVm.trash.title": "Agents supprimés",
+  "agentVm.trash.hint":
+    "Le disque d'un agent en VM supprimé est gardé 7 jours. « Purger maintenant » le libère aussitôt.",
+  "agentVm.trash.purgeOne": "Vider maintenant la corbeille de {name}",
 };

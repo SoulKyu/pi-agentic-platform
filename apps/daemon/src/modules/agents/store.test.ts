@@ -65,7 +65,8 @@ describe("the agent store", () => {
     expect(store.byName("u1", "ATLAS")?.id).toBe("atlas-1a2b");
     expect(store.list("u2")).toEqual([]);
     expect(store.count("u1")).toBe(1);
-    expect(store.remove("u2", "atlas-1a2b")).toBe(false);
+    expect(store.remove("u2", "atlas-1a2b", 1)).toBe(false);
+    expect(store.trashed("u2", 2)).toEqual([]);
     expect(store.get("u1", "atlas-1a2b")).not.toBeNull();
   });
 
@@ -86,5 +87,54 @@ describe("the agent store", () => {
     expect(store.get("u1", "atlas-1a2b")?.revision).toBe(2);
     expect(store.quarantine("u1", "atlas-1a2b", 3)).toBe(true);
     expect(store.get("u1", "atlas-1a2b")).toMatchObject({ paused: true, quarantinedAt: 3 });
+  });
+});
+
+describe("the trash of deleted agents (J1b)", () => {
+  const DAY = 86_400_000;
+  const seed = (db: Db, id: string, name: string, ownerId = "u1") =>
+    insert(db, id, JSON.stringify(AgentInput.parse({ name })), name, ownerId);
+
+  // Mutants (RT-43), run for real: `remove` leaves no trash row -> "keeps a row for the deleted agent" fails;
+  // the listing drops the owner filter -> "lists only the caller's" fails; the 7-day cutoff is dropped -> "stops listing" fails.
+  it("keeps a row for the deleted agent, with its name and when, newest first", () => {
+    const db = open();
+    const store = createAgentStore(db);
+    seed(db, "atlas-1a2b", "Atlas");
+    seed(db, "borea-3c4d", "Borea");
+    expect(store.remove("u1", "atlas-1a2b", 1000)).toBe(true);
+    expect(store.remove("u1", "borea-3c4d", 2000)).toBe(true);
+    expect(store.get("u1", "atlas-1a2b")).toBeNull();
+    expect(store.trashed("u1", 3000)).toEqual([
+      { agentId: "borea-3c4d", name: "Borea", deletedAt: 2000 },
+      { agentId: "atlas-1a2b", name: "Atlas", deletedAt: 1000 },
+    ]);
+  });
+
+  it("lists only the caller's", () => {
+    const db = open();
+    const store = createAgentStore(db);
+    seed(db, "atlas-1a2b", "Atlas", "u1");
+    seed(db, "borea-3c4d", "Borea", "u2");
+    store.remove("u1", "atlas-1a2b", 1000);
+    store.remove("u2", "borea-3c4d", 1000);
+    expect(store.trashed("u1", 2000).map((one) => one.agentId)).toEqual(["atlas-1a2b"]);
+    expect(store.trashed("u3", 2000)).toEqual([]);
+  });
+
+  it("stops listing an entry after the 7 days the trash is kept", () => {
+    const db = open();
+    const store = createAgentStore(db);
+    seed(db, "atlas-1a2b", "Atlas");
+    store.remove("u1", "atlas-1a2b", 1000);
+    expect(store.trashed("u1", 1000 + 7 * DAY - 1)).toHaveLength(1);
+    expect(store.trashed("u1", 1000 + 7 * DAY)).toEqual([]);
+  });
+
+  it("a remove that finds no row leaves no trash row", () => {
+    const db = open();
+    const store = createAgentStore(db);
+    expect(store.remove("u1", "nobody-0000", 1000)).toBe(false);
+    expect(store.trashed("u1", 2000)).toEqual([]);
   });
 });

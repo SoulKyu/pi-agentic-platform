@@ -51,6 +51,19 @@ describe("agentsVmMethods", () => {
     expect(METHOD_IDEMPOTENT["agents.vmStatus"]).toBe(true);
   });
 
+  it("lists the owner's trashed agents with a read (J1b: the entry that outlives the delete toast)", () => {
+    const def = agentsVmMethods["agents.trash"];
+    expect(def.permission).toBe("agents:read");
+    expect(def.idempotent).toBe(true);
+    expect(METHOD_IDEMPOTENT["agents.trash"]).toBe(true);
+    expect(def.params.safeParse({}).success).toBe(true);
+    expect(def.params.safeParse({ all: true }).success).toBe(false);
+    const entry = { agentId: "atlas-0001", name: "Atlas", deletedAt: 1 };
+    expect(def.result.safeParse({ agents: [entry] }).success).toBe(true);
+    expect(def.result.safeParse({ agents: [{ ...entry, path: "/x" }] }).success).toBe(false);
+    expect(def.result.safeParse({ agents: Array.from({ length: 33 }, () => entry) }).success).toBe(false);
+  });
+
   it("answers the VM status", () => {
     const result = agentsVmMethods["agents.vmStatus"].result;
     const view = {
