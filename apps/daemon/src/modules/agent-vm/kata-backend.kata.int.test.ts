@@ -177,6 +177,60 @@ describe.skipIf(skip)("the Kata backend on the real stack", () => {
     LONG_MS,
   );
 
+  it(
+    "gives an isolated task VM a blank disk that goes with its stop, and the agent's own VM keeps its marker",
+    async () => {
+      bed = await startKataBed({ workerIdleMs: 20_000 });
+      const scout = await bed.createAgent({ name: "Scout", acceptsDelegation: true });
+      const atlas = await bed.createAgent({ name: "Atlas" });
+      const scoutSession = await bed.openThread(scout);
+      await bed.probe(scout, scoutSession, "echo scout-marker > /agent/home/marker && sync");
+      const atlasSession = await bed.openThread(atlas);
+      // Atlas reads an extension tool's result (the probe), which taints it: its delegation then runs in an isolated task VM.
+      bed.llm.pushFor(
+        "ATLAS-GO",
+        { tool: "probe", args: { cmd: "echo external" } },
+        { tool: "agent_delegate", args: { agent: "Scout", task: "TASKCHECK list your home" } },
+        { text: "Delegated." },
+      );
+      bed.llm.pushFor(
+        "TASKCHECK",
+        { tool: "ls", args: { path: "/agent/home" } },
+        { tool: "read", args: { path: "/agent/home/marker" } },
+        { text: "TASK-FINISHED" },
+      );
+      await bed.prompt(atlasSession, "ATLAS-GO");
+      const deadline = Date.now() + 240_000;
+      let sawTaskVm = false;
+      for (;;) {
+        const vms = await vmsOf(bed.vmd, scout);
+        sawTaskVm ||= vms.some((vm) => vm.taskKey !== null);
+        const done = JSON.stringify(bed.transcript(scout)).includes("TASK-FINISHED");
+        if (sawTaskVm && done && vms.every((vm) => vm.taskKey === null)) break;
+        if (Date.now() > deadline)
+          throw new Error(`the task did not end: ${JSON.stringify(vms)} done=${done}`);
+        await sleep(1_000);
+      }
+      const results = bed
+        .transcript(scout)
+        .filter((entry) => (entry.message as { role?: string } | undefined)?.role === "toolResult")
+        .map((entry) => JSON.stringify(entry.message));
+      // The task's `ls` of its own /agent/home found nothing, and reading the marker failed.
+      const ls = results.find((text) => text.includes('"toolName":"ls"')) ?? "";
+      const read = results.find((text) => text.includes('"toolName":"read"')) ?? "";
+      expect(ls).toContain('"toolName":"ls"');
+      expect(ls).not.toContain("marker");
+      expect(read).toContain('"isError":true');
+      expect(read).not.toContain("scout-marker");
+      // The task VM (stopped by the idle timer, with its disk) is gone; Scout's own disk still holds its marker, whether its VM
+      // stayed up or was stopped by the same timer and started again by this probe.
+      expect((await vmsOf(bed.vmd, scout)).filter((vm) => vm.taskKey !== null)).toEqual([]);
+      await bed.call("sessions.reopen", { sessionId: scoutSession });
+      expect(await bed.probe(scout, scoutSession, "cat /agent/home/marker")).toContain("scout-marker");
+    },
+    LONG_MS,
+  );
+
   it("grows the file system at the next boot after the disk file grew", async () => {
     bed = await startKataBed();
     const agentId = await bed.createAgent({ resources: { memoryMb: 1024, cpus: 1, diskMb: 1024 } });

@@ -8,6 +8,11 @@ export interface KataLlm {
   readonly baseUrl: string;
   /** Appends answers; each model request takes the next one, and `ok` once the queue is empty (a tool call never repeats). */
   push(...replies: KataReply[]): void;
+  /**
+   * Answers for the requests whose body holds `match` (an agent's own prompt text): several agents share one model server, and
+   * their requests interleave. Taken before the plain queue; each request takes the next of the first matching list that has any.
+   */
+  pushFor(match: string, ...replies: KataReply[]): void;
   /** The number of model requests served. */
   readonly served: () => number;
   close(): Promise<void>;
@@ -42,12 +47,16 @@ function stream(reply: KataReply, call: number): string {
  */
 export async function startKataLlm(): Promise<KataLlm> {
   const queue: KataReply[] = [];
+  const keyed: Array<{ match: string; replies: KataReply[] }> = [];
   let served = 0;
   const sockets = new Set<import("node:net").Socket>();
   const server = http.createServer((request, response) => {
-    request.resume();
+    const chunks: Buffer[] = [];
+    request.on("data", (chunk: Buffer) => chunks.push(chunk));
     request.on("end", () => {
-      const next = queue.shift() ?? { text: "ok" };
+      const body = Buffer.concat(chunks).toString("utf8");
+      const own = keyed.find((entry) => entry.replies.length > 0 && body.includes(entry.match));
+      const next = own?.replies.shift() ?? queue.shift() ?? { text: "ok" };
       served += 1;
       response.writeHead(200, { "content-type": "text/event-stream" });
       response.end(stream(next, served));
@@ -62,6 +71,7 @@ export async function startKataLlm(): Promise<KataLlm> {
   return {
     baseUrl: `http://127.0.0.1:${port}/v1`,
     push: (...replies) => void queue.push(...replies),
+    pushFor: (match, ...replies) => void keyed.push({ match, replies }),
     served: () => served,
     close: () =>
       new Promise<void>((resolve) => {

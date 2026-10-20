@@ -263,14 +263,18 @@ export async function startKataBed(
       }
     },
     async probe(agentId, sessionId, cmd) {
-      const before = bed.transcript(agentId).length;
+      // The scripted model names each tool call `call_<n>` by the request it answers: that id finds this call's result among the
+      // entries of every session of the agent (a thread and its tasks mirror into one folder).
+      const callId = `call_${llm.served() + 1}`;
       llm.push({ tool: "probe", args: { cmd } } satisfies KataReply, { text: "probed" });
       await bed.prompt(sessionId, `probe: ${cmd.slice(0, 40)}`);
-      const results = bed
+      const last = bed
         .transcript(agentId)
-        .slice(before)
-        .filter((entry) => (entry.message as { role?: string } | undefined)?.role === "toolResult");
-      const last = results.at(-1);
+        .find(
+          (entry) =>
+            (entry.message as { role?: string; toolCallId?: string } | undefined)?.role === "toolResult" &&
+            (entry.message as { toolCallId?: string }).toolCallId === callId,
+        );
       if (last === undefined) throw new Error("the probe tool answered nothing");
       // Pi wraps a tool's text as untrusted content: the command's own output is what lies between the tags.
       return textOfResult(last).replace(/<\/?untrusted[^>]*>\n?/g, "");
