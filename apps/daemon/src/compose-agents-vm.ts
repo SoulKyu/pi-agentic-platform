@@ -352,7 +352,13 @@ export async function composeAgentsVm(
       launch: guardedLaunch(
         baseLaunch,
         vmStatus.status,
-        kata && relay ? () => relay.port() === AGENT_NET.relayPort : undefined,
+        kata && relay
+          ? {
+              ready: () => relay.port() === AGENT_NET.relayPort,
+              whenReady: () => relay.whenReady(),
+              clock,
+            }
+          : undefined,
       ),
       vmLayoutOf,
       mirrors,

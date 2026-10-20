@@ -53,18 +53,43 @@ export function composeVmStatus(
   return { status, bindAgents: (port) => void (agents = port) };
 }
 
+/** M3: a launch right after boot waits this long for the relay to report ready, then is refused. */
+export const RELAY_READY_WAIT_MS = 30_000;
+
+export interface RelayGate {
+  /** The relay reported ready on the bridge's own port. */
+  readonly ready: () => boolean;
+  readonly whenReady: () => Promise<void>;
+  readonly clock: Pick<Clock, "setTimeout" | "clearTimeout">;
+}
+
+async function relayIsReady(gate: RelayGate): Promise<boolean> {
+  if (gate.ready()) return true;
+  let timer: ReturnType<Clock["setTimeout"]> | null = null;
+  const timedOut = new Promise<void>(
+    (resolve) => void (timer = gate.clock.setTimeout(resolve, RELAY_READY_WAIT_MS)),
+  );
+  try {
+    await Promise.race([gate.whenReady(), timedOut]);
+  } finally {
+    if (timer !== null) gate.clock.clearTimeout(timer);
+  }
+  return gate.ready();
+}
+
 /**
  * A launch of an unusable stack is refused `sandbox_unavailable` before anything is built or spawned. So is one while the relay
  * has not reported ready (S1, AVM-E49 M9b): a relay that could not bind the bridge's port (another process holds it) never
- * becomes ready, and a VM started meanwhile would talk to whoever does listen there. `relayReady` is absent without a relay.
+ * becomes ready, and a VM started meanwhile would talk to whoever does listen there. A launch in the seconds after boot waits
+ * for the relay, bounded by `RELAY_READY_WAIT_MS`. `relay` is absent without a relay.
  */
 export const guardedLaunch = (
   launch: VmLaunch,
   status: Pick<VmStatus, "require">,
-  relayReady?: () => boolean,
+  relay?: RelayGate,
 ): VmLaunch => ({
   async spawn(row, agentLaunch, init) {
-    if (relayReady !== undefined && !relayReady()) throw new PapError("sandbox_unavailable");
+    if (relay !== undefined && !(await relayIsReady(relay))) throw new PapError("sandbox_unavailable");
     await status.require();
     return launch.spawn(row, agentLaunch, init);
   },

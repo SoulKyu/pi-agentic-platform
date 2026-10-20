@@ -6,7 +6,7 @@ import { AGENT_NET, PapError, VmStatusView } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { composeAgentsVm, type AgentsVmCore } from "./compose-agents-vm.ts";
 import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
-import { composeVmStatus, guardedLaunch } from "./compose-agents-vm-status.ts";
+import { composeVmStatus, guardedLaunch, RELAY_READY_WAIT_MS } from "./compose-agents-vm-status.ts";
 import { createFakeClock, type FakeClock } from "./kernel/clock.ts";
 import { silentLogger } from "./kernel/logger.ts";
 import { VERSION } from "./kernel/version.ts";
@@ -138,13 +138,17 @@ describe("the relay gates the launches on Kata (S1)", () => {
     const before = fake.ops().length;
     // The child exits at once: it could not bind (the port is held by another process). It never becomes ready.
     children[0]?.emit("exit");
-    expect(((await spawnOnce(vm)) as PapError).code).toBe("sandbox_unavailable");
+    const refusedAfterWait = async (): Promise<unknown> => {
+      const result = spawnOnce(vm);
+      await clock.advance(RELAY_READY_WAIT_MS);
+      return result;
+    };
+    expect(((await refusedAfterWait()) as PapError).code).toBe("sandbox_unavailable");
     expect(fake.ops().slice(before)).toEqual([]);
     // A relay that listens elsewhere than the bridge's port is not the one the VMs are told about.
-    await clock.advance(1_000);
     await vi.waitFor(() => expect(children).toHaveLength(2));
     children[1]?.emit("message", { type: "relay_ready", port: AGENT_NET.relayPort + 1 });
-    expect(((await spawnOnce(vm)) as PapError).code).toBe("sandbox_unavailable");
+    expect(((await refusedAfterWait()) as PapError).code).toBe("sandbox_unavailable");
     // Ready on 7842: the launch goes on past the gate (and stops later, at the empty init of this test).
     children[1]?.emit("message", { type: "relay_ready", port: AGENT_NET.relayPort });
     expect(((await spawnOnce(vm)) as { code?: string }).code).not.toBe("sandbox_unavailable");
@@ -152,16 +156,71 @@ describe("the relay gates the launches on Kata (S1)", () => {
 });
 
 describe("guardedLaunch", () => {
-  it("refuses sandbox_unavailable without calling the launch while the relay is not ready", async () => {
+  const gate = (state: { ready: boolean }, whenReady: () => Promise<void> = () => new Promise(() => {})) => ({
+    ready: () => state.ready,
+    whenReady,
+    clock,
+  });
+
+  it("refuses sandbox_unavailable without calling the launch when the relay is still not ready after the wait", async () => {
     const spawn = vi.fn(async () => ({ handle: "h" }));
-    let ready = false;
-    const launch = guardedLaunch({ spawn } as unknown as VmLaunch, { require: async () => {} }, () => ready);
-    await expect(launch.spawn(agentRow, {} as never, {} as never)).rejects.toMatchObject({
-      code: "sandbox_unavailable",
-    });
+    const state = { ready: false };
+    const launch = guardedLaunch({ spawn } as unknown as VmLaunch, { require: async () => {} }, gate(state));
+    const refused = launch.spawn(agentRow, {} as never, {} as never).catch((error: unknown) => error);
+    await clock.advance(RELAY_READY_WAIT_MS);
+    expect(await refused).toMatchObject({ code: "sandbox_unavailable" });
     expect(spawn).not.toHaveBeenCalled();
-    ready = true;
+    state.ready = true;
     await launch.spawn(agentRow, {} as never, {} as never);
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+
+  // M3. Mutant: refuse at once instead of waiting -> this case fails (the launch is refused before the relay is ready).
+  it("waits for the relay to be ready (a launch right after boot) and then goes on", async () => {
+    const spawn = vi.fn(async () => ({ handle: "h" }));
+    const state = { ready: false };
+    let ready: () => void = () => {};
+    const launch = guardedLaunch(
+      { spawn } as unknown as VmLaunch,
+      { require: async () => {} },
+      gate(state, () => new Promise<void>((resolve) => (ready = resolve))),
+    );
+    const started = launch.spawn(agentRow, {} as never, {} as never);
+    await clock.advance(5_000);
+    expect(spawn).not.toHaveBeenCalled();
+    state.ready = true;
+    ready();
+    await started;
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+
+  // Mutant: the wait is not bounded -> the refused promise never settles and this case times out.
+  it("refuses exactly when the bound is reached, not before", async () => {
+    const spawn = vi.fn(async () => ({ handle: "h" }));
+    const launch = guardedLaunch(
+      { spawn } as unknown as VmLaunch,
+      { require: async () => {} },
+      gate({ ready: false }),
+    );
+    let settled = false;
+    const result = launch.spawn(agentRow, {} as never, {} as never).catch(() => (settled = true));
+    await clock.advance(RELAY_READY_WAIT_MS - 1);
+    expect(settled).toBe(false);
+    await clock.advance(1);
+    await result;
+    expect(settled).toBe(true);
+  });
+
+  it("a ready relay costs no wait and no timer", async () => {
+    const spawn = vi.fn(async () => ({ handle: "h" }));
+    const whenReady = vi.fn(() => Promise.resolve());
+    const launch = guardedLaunch(
+      { spawn } as unknown as VmLaunch,
+      { require: async () => {} },
+      gate({ ready: true }, whenReady),
+    );
+    await launch.spawn(agentRow, {} as never, {} as never);
+    expect(whenReady).not.toHaveBeenCalled();
     expect(spawn).toHaveBeenCalledTimes(1);
   });
 
