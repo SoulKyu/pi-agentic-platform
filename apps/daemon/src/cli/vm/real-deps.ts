@@ -1,5 +1,15 @@
 import { execFile } from "node:child_process";
-import { cpSync, createWriteStream, existsSync, readFileSync } from "node:fs";
+import {
+  chownSync,
+  cpSync,
+  createWriteStream,
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Readable } from "node:stream";
 import { pathToFileURL } from "node:url";
@@ -43,7 +53,11 @@ function findTree(): string | undefined {
   return undefined;
 }
 
-/** Dev only: the release step's own deploy and pruning, loaded from the checkout, run as root (the residual setup prints). */
+/**
+ * Dev only: the release step's own deploy and pruning, loaded from the checkout. pnpm runs as the checkout's owner, never
+ * root: root has no pnpm on its PATH, and a root pnpm would leave root-owned files in the owner's store. Root then copies
+ * the result into place (pap-vmd itself still runs code the owner can change: the residual setup prints).
+ */
 async function deployVmd(tree: string, dest: string): Promise<void> {
   const mod = (await import(pathToFileURL(join(tree, "scripts/release-vm-assets.ts")).href)) as {
     buildVmdFolder: (
@@ -55,20 +69,41 @@ async function deployVmd(tree: string, dest: string): Promise<void> {
       dest: string,
     ) => Promise<void>;
   };
+  const { uid, gid } = statSync(tree);
+  const home = readFileSync("/etc/passwd", "utf8")
+    .split("\n")
+    .map((line) => line.split(":"))
+    .find((fields) => Number(fields[2]) === uid)?.[5];
+  if (home === undefined) throw new CliError(`the checkout's owner (uid ${uid}) has no passwd entry`);
+  const corepack = join(dirname(process.execPath), "corepack");
+  // ponytail: Node's own corepack runs the checkout's pinned pnpm; a Node without corepack falls back to pnpm on PATH.
+  const command = (cmd: string, args: readonly string[]): [string, string[]] =>
+    cmd === "pnpm" && existsSync(corepack) ? [corepack, ["pnpm", ...args]] : [cmd, [...args]];
+  const asOwner = { uid, gid, env: { ...process.env, HOME: home, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" } };
   const run = async (cmd: string, args: readonly string[], cwd: string): Promise<void> => {
+    const [file, argv] = command(cmd, args);
     const result = await new Promise<number>((done) =>
-      execFile(cmd, [...args], { cwd, timeout: 600_000, maxBuffer: 64 * 1024 * 1024 }, (error) =>
+      execFile(file, argv, { cwd, timeout: 600_000, maxBuffer: 64 * 1024 * 1024, ...asOwner }, (error) =>
         done(error === null ? 0 : typeof error.code === "number" ? error.code : 127),
       ),
     );
     if (result !== 0) throw new CliError(`${cmd} ${args[0] ?? ""} failed (exit code ${result})`);
   };
+  const [storeFile, storeArgs] = command("pnpm", ["store", "path"]);
   const storeDir = await new Promise<string>((done, fail) =>
-    execFile("pnpm", ["store", "path"], { cwd: tree, timeout: 30_000 }, (error, stdout) =>
+    execFile(storeFile, storeArgs, { cwd: tree, timeout: 30_000, ...asOwner }, (error, stdout) =>
       error === null ? done(String(stdout).trim()) : fail(new CliError("pnpm store path failed")),
     ),
   );
-  await mod.buildVmdFolder({ repo: tree, run, storeDir }, dest);
+  const building = mkdtempSync(join(tmpdir(), "pap-vmd-"));
+  try {
+    chownSync(building, uid, gid);
+    await mod.buildVmdFolder({ repo: tree, run, storeDir }, join(building, "vmd"));
+    rmSync(dest, { recursive: true, force: true });
+    cpSync(join(building, "vmd"), dest, { recursive: true, verbatimSymlinks: true });
+  } finally {
+    rmSync(building, { recursive: true, force: true });
+  }
 }
 
 export function realDeps(): VmDeps {
