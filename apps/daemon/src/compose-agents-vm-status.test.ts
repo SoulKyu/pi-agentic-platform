@@ -1,7 +1,8 @@
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PapError, VmStatusView } from "@pap/contracts";
+import { AGENT_NET, PapError, VmStatusView } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { composeAgentsVm, type AgentsVmCore } from "./compose-agents-vm.ts";
 import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
@@ -110,7 +111,60 @@ describe("vm mode (the Kata composition)", () => {
   });
 });
 
+/*
+ * S1 item 11 mutants, each run for real: M-no-relay-gate (`guardedLaunch` ignores `relayReady`): "refuses until the relay reported
+ * ready" fails; M-any-port (a ready relay on another port counts): the wrong-port case fails; M-gate-after-status (the relay is
+ * checked after pap-vmd's health): the "asks pap-vmd nothing" assertion fails.
+ */
+describe("the relay gates the launches on Kata (S1)", () => {
+  const relayChild = () => Object.assign(new EventEmitter(), { send: () => true, kill: () => true });
+  const spawnOnce = (vm: Awaited<ReturnType<typeof vmMode>>) =>
+    vm.launch.spawn(agentRow, { vm: true, input: {} } as never, {} as never).catch((error: unknown) => error);
+
+  it("refuses until the relay reported ready on its own port, asking pap-vmd nothing meanwhile", async () => {
+    const children: Array<ReturnType<typeof relayChild>> = [];
+    const vm = await composeAgentsVm(core(), closers, {
+      relay: { fork: () => (children.push(relayChild()), children.at(-1) as never) },
+      kata: {
+        client: fake,
+        gatewayBind: { host: "127.0.0.1", port: 0 },
+        bundleRoot: join(root, "bundle"),
+        nodeImage: `docker.io/library/node@sha256:${"9".repeat(64)}`,
+        knownSecrets: () => [],
+      },
+    });
+    if (vm === null) throw new Error("no vm composition");
+    await vi.waitFor(() => expect(children).toHaveLength(1));
+    const before = fake.ops().length;
+    // The child exits at once: it could not bind (the port is held by another process). It never becomes ready.
+    children[0]?.emit("exit");
+    expect(((await spawnOnce(vm)) as PapError).code).toBe("sandbox_unavailable");
+    expect(fake.ops().slice(before)).toEqual([]);
+    // A relay that listens elsewhere than the bridge's port is not the one the VMs are told about.
+    await clock.advance(1_000);
+    await vi.waitFor(() => expect(children).toHaveLength(2));
+    children[1]?.emit("message", { type: "relay_ready", port: AGENT_NET.relayPort + 1 });
+    expect(((await spawnOnce(vm)) as PapError).code).toBe("sandbox_unavailable");
+    // Ready on 7842: the launch goes on past the gate (and stops later, at the empty init of this test).
+    children[1]?.emit("message", { type: "relay_ready", port: AGENT_NET.relayPort });
+    expect(((await spawnOnce(vm)) as { code?: string }).code).not.toBe("sandbox_unavailable");
+  });
+});
+
 describe("guardedLaunch", () => {
+  it("refuses sandbox_unavailable without calling the launch while the relay is not ready", async () => {
+    const spawn = vi.fn(async () => ({ handle: "h" }));
+    let ready = false;
+    const launch = guardedLaunch({ spawn } as unknown as VmLaunch, { require: async () => {} }, () => ready);
+    await expect(launch.spawn(agentRow, {} as never, {} as never)).rejects.toMatchObject({
+      code: "sandbox_unavailable",
+    });
+    expect(spawn).not.toHaveBeenCalled();
+    ready = true;
+    await launch.spawn(agentRow, {} as never, {} as never);
+    expect(spawn).toHaveBeenCalledTimes(1);
+  });
+
   it("passes the arguments and the result of a launch the status lets through", async () => {
     const started = { handle: "h" };
     const spawn = vi.fn(async () => started);

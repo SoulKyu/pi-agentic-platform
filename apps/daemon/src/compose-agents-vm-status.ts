@@ -1,3 +1,4 @@
+import { PapError } from "@pap/contracts";
 import type { VmLaunch } from "./modules/sessions/index.ts";
 import { availableParallelism } from "node:os";
 import { VERSION } from "./kernel/version.ts";
@@ -52,9 +53,18 @@ export function composeVmStatus(
   return { status, bindAgents: (port) => void (agents = port) };
 }
 
-/** A launch of an unusable stack is refused `sandbox_unavailable` before anything is built or spawned. */
-export const guardedLaunch = (launch: VmLaunch, status: Pick<VmStatus, "require">): VmLaunch => ({
+/**
+ * A launch of an unusable stack is refused `sandbox_unavailable` before anything is built or spawned. So is one while the relay
+ * has not reported ready (S1, AVM-E49 M9b): a relay that could not bind the bridge's port (another process holds it) never
+ * becomes ready, and a VM started meanwhile would talk to whoever does listen there. `relayReady` is absent without a relay.
+ */
+export const guardedLaunch = (
+  launch: VmLaunch,
+  status: Pick<VmStatus, "require">,
+  relayReady?: () => boolean,
+): VmLaunch => ({
   async spawn(row, agentLaunch, init) {
+    if (relayReady !== undefined && !relayReady()) throw new PapError("sandbox_unavailable");
     await status.require();
     return launch.spawn(row, agentLaunch, init);
   },

@@ -1,6 +1,6 @@
 import { copyFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { PapError, type VmLayout } from "@pap/contracts";
+import { AGENT_NET, PapError, type VmLayout } from "@pap/contracts";
 import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
 import { composeRelay } from "./compose-agents-vm-relay.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
@@ -349,7 +349,11 @@ export async function composeAgentsVm(
     });
     const composed: AgentsVm = {
       runtime,
-      launch: guardedLaunch(baseLaunch, vmStatus.status),
+      launch: guardedLaunch(
+        baseLaunch,
+        vmStatus.status,
+        kata && relay ? () => relay.port() === AGENT_NET.relayPort : undefined,
+      ),
       vmLayoutOf,
       mirrors,
       bindMirrorHooks: bindHooks,

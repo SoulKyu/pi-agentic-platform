@@ -98,6 +98,11 @@ try {
   const port = await listenOn(server, listen.host, listen.port);
   usage.start();
   report({ type: "relay_ready", port });
-} catch {
-  fail(70, "could not listen");
+} catch (error) {
+  // The class only (EADDRINUSE, EADDRNOTAVAIL...): the daemon logs this line, and it names no address, path or key.
+  const code = (error as { code?: unknown } | null)?.code;
+  fail(
+    70,
+    `could not listen (${typeof code === "string" && /^[A-Z0-9_]{1,24}$/.test(code) ? code : "error"})`,
+  );
 }
