@@ -217,3 +217,51 @@ describe("the owner's secrets (AVM-E46)", () => {
     expect((await collect()).secrets).toEqual([ACCESS]);
   });
 });
+
+// S1 item 9 mutants: M-partial-fails-whole (partial rethrows like the collector) and M-partial-no-caps (partial skips the caps).
+describe("the partial read for the relay's redactor (S1)", () => {
+  it("keeps the values of the sources that read when one fails, and says which one failed", async () => {
+    writeAuth(authFile);
+    store.set("owner1", { kind: "user" }, "FORGE", VAULT_VALUE, 1);
+    for (const broken of ["auth", "vault", "claude"] as const) {
+      const { collect, log } = collector({
+        ...(broken === "vault"
+          ? {
+              vault: () => {
+                throw new Error("boom");
+              },
+            }
+          : {}),
+        ...(broken === "claude"
+          ? {
+              claude: () => {
+                throw new Error("boom");
+              },
+            }
+          : {}),
+      });
+      if (broken === "auth") writeAuth("{ not json");
+      await expect(collect()).rejects.toBeInstanceOf(OwnerSecretsError);
+      const partial = await collect.partial?.();
+      const expected = {
+        auth: [VAULT_VALUE, CLAUDE],
+        vault: [KEY, ACCESS, REFRESH, NESTED, CLAUDE],
+        claude: [KEY, ACCESS, REFRESH, NESTED, VAULT_VALUE],
+      }[broken];
+      expect([...(partial?.secrets ?? [])].sort()).toEqual([...expected].sort());
+      expect(
+        log.lines.some((line) => line.msg === "owner_secrets_unreadable" && line.source === broken),
+      ).toBe(true);
+      writeAuth(authFile);
+    }
+  });
+
+  it("still refuses past the caps", async () => {
+    const many = Array.from(
+      { length: MAX_OWNER_SECRETS + 1 },
+      (_, i) => `value-${String(i).padStart(8, "0")}`,
+    );
+    const { collect } = collector({ vault: () => many, claude: () => null });
+    await expect(collect.partial?.()).rejects.toMatchObject({ reason: "too_many" });
+  });
+});

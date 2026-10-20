@@ -1,10 +1,10 @@
-import { join } from "node:path";
 import type { Logger } from "./kernel/logger.ts";
 import {
   createOwnerSecrets,
   loadClaudeTokenStrict,
   type OwnerSecretsCollector,
   readPiAuth,
+  secretsDirOf,
 } from "./modules/agent-vm/index.ts";
 import { createVaultStore, vaultRootOf } from "./modules/secrets/index.ts";
 
@@ -24,6 +24,6 @@ export function composeOwnerSecrets(core: {
     logger: core.logger,
     auth: () => readPiAuth(core.piAgentDir),
     vault: () => vault.everyValue(),
-    claudeToken: () => loadClaudeTokenStrict(join(core.home, "secrets")),
+    claudeToken: () => loadClaudeTokenStrict(secretsDirOf(core.home)),
   });
 }

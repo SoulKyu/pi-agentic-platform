@@ -20,6 +20,8 @@ import type { Logger } from "../../kernel/logger.ts";
 /** The most a token file holds: a `claude setup-token` value is a few hundred characters. */
 const MAX_FILE_BYTES = 1024;
 export const CLAUDE_TOKEN_FILE = "claude-token";
+/** The folder of the Claude token under `$PAP_HOME`: the store and the secrets collector both name it through here (S1). */
+export const secretsDirOf = (home: string): string => join(home, "secrets");
 /** Only the class of a failure is logged (its code), never its message: a path or a value could be in it. */
 const errorClass = (error: unknown): string => (error as NodeJS.ErrnoException | null)?.code ?? "error";
 

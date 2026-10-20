@@ -19,7 +19,17 @@ export interface OwnerSecrets {
   /** The providers `auth.json` knows: they get a relay entry in the image's models.json whatever the settings say. */
   readonly providers: readonly string[];
 }
-export type OwnerSecretsCollector = () => Promise<OwnerSecrets>;
+export type OwnerSecretsCollector = (() => Promise<OwnerSecrets>) & {
+  /**
+   * S1: the values of the sources that read. A source that fails is logged and left out, where the collector itself fails; for
+   * the relay's stderr redactor, which must keep masking what it can while one source is broken.
+   */
+  readonly partial?: () => Promise<Pick<OwnerSecrets, "secrets">>;
+};
+/** What a redactor collects from: the partial read when the collector has one. */
+export const redactionSource = (
+  collector: OwnerSecretsCollector,
+): (() => Promise<Pick<OwnerSecrets, "secrets">>) => collector.partial ?? collector;
 
 /** Fixed words only: Pi's, the vault's and the filesystem's own messages can quote a value or a path. */
 export class OwnerSecretsError extends Error {
@@ -64,10 +74,10 @@ export function createOwnerSecrets(deps: OwnerSecretsDeps): OwnerSecretsCollecto
       throw new OwnerSecretsError("unreadable");
     }
   }
-  return async () => {
-    const auth = await source("auth", deps.auth);
-    const vault = await source("vault", deps.vault);
-    const claude = await source("claude", deps.claudeToken);
+  const tolerant = <T>(name: string, read: () => T | Promise<T>, empty: T): Promise<T> =>
+    source(name, read).catch(() => empty);
+  /** The distinct values of 8 characters or more, within the caps. */
+  function distinctOf(auth: AuthValues, vault: readonly string[], claude: string | null): string[] {
     const distinct = new Set<string>();
     for (const value of [...auth.values, ...vault, ...(claude === null ? [] : [claude])])
       if (value.length >= MIN_SECRET_LENGTH) distinct.add(value);
@@ -77,6 +87,21 @@ export function createOwnerSecrets(deps: OwnerSecretsDeps): OwnerSecretsCollecto
       logger.warn("owner_secrets_capped", { count: distinct.size, bytes });
       throw new OwnerSecretsError("too_many");
     }
-    return { secrets: [...distinct], providers: [...new Set(auth.providers)] };
+    return [...distinct];
+  }
+  const collect: OwnerSecretsCollector = async () => {
+    const auth = await source("auth", deps.auth);
+    const vault = await source("vault", deps.vault);
+    const claude = await source("claude", deps.claudeToken);
+    return { secrets: distinctOf(auth, vault, claude), providers: [...new Set(auth.providers)] };
   };
+  return Object.assign(collect, {
+    partial: async () => ({
+      secrets: distinctOf(
+        await tolerant("auth", deps.auth, { values: [], providers: [] }),
+        await tolerant("vault", deps.vault, []),
+        await tolerant("claude", deps.claudeToken, null),
+      ),
+    }),
+  });
 }

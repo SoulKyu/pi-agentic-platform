@@ -11,11 +11,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentInput } from "@pap/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { composeAgentsVmRpc } from "./compose-agents-vm-rpc.ts";
 import { composeKata } from "./compose-agents-vm-kata.ts";
 import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
 import { createFakeClock } from "./kernel/clock.ts";
 import { createFakeVmd, type FakeVmd } from "./modules/agent-vm/testing/fake-vmd.ts";
-import { createClaudeTokenStore } from "./modules/agent-vm/index.ts";
+import {
+  createClaudeTokenStore,
+  createStderrRedactor,
+  redactionSource,
+  secretsDirOf,
+} from "./modules/agent-vm/index.ts";
 import { OWNER_SECRETS_CAP_NOTICE, OwnerSecretsError } from "./modules/agent-vm/index.ts";
 import { createVaultStore, vaultRootOf } from "./modules/secrets/index.ts";
 import { captureLogger } from "./testing/capture-logger.ts";
@@ -87,6 +93,43 @@ beforeEach(() => {
   notices = [];
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+// S1 item 8: one folder for the token. Mutant: the RPC's store reads another spelling of the folder -> this case fails.
+describe("the Claude token's folder is computed once", () => {
+  it("the RPC's store writes where the collector reads", async () => {
+    const home = paths().home;
+    expect(secretsDirOf(home)).toBe(join(home, "secrets"));
+    const { claudeToken } = composeAgentsVmRpc({ home }, captureLogger().logger, createFakeClock(), {
+      append: () => {},
+    } as never);
+    const NEW = `claude-token-${"G".repeat(16)}`;
+    claudeToken.set(NEW);
+    const collected = await composeOwnerSecrets({
+      home,
+      piAgentDir: paths().agent,
+      logger: captureLogger().logger,
+    })();
+    expect(collected.secrets).toContain(NEW);
+  });
+});
+
+// S1 item 9. Mutant: the redactor reads the all-or-nothing collector again -> "keeps the values of the sources that read" fails.
+describe("the relay's stderr redactor with a broken source", () => {
+  it("keeps the values of the sources that read, while the build still refuses", async () => {
+    writeFileSync(join(paths().home, "secrets", "claude-token"), "bad\u0001token");
+    const collector = composeOwnerSecrets({
+      home: paths().home,
+      piAgentDir: paths().agent,
+      logger: captureLogger().logger,
+    });
+    await expect(collector()).rejects.toBeInstanceOf(OwnerSecretsError);
+    const redact = createStderrRedactor({ clock: createFakeClock(), collect: redactionSource(collector) });
+    const masked = await redact(`a ${VAULT_VALUE} b ${AUTH_KEY} c`);
+    expect(masked).not.toContain(VAULT_VALUE);
+    expect(masked).not.toContain(AUTH_KEY);
+    expect(masked).toBe("a [REDACTED] b [REDACTED] c");
+  });
+});
 
 describe("the profile scan knows the owner's secrets (AVM-E46)", () => {
   // I1: the real store over a temp folder; every failure but "no file" refuses the build.

@@ -1,4 +1,3 @@
-import { join } from "node:path";
 import type { HandlerTable, VmStatusView } from "@pap/contracts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
@@ -10,6 +9,7 @@ import {
   type ClaudeTokenStore,
   createClaudeTokenStore,
   createHostStatus,
+  secretsDirOf,
 } from "./modules/agent-vm/index.ts";
 
 export type AgentsVmRpc = Pick<
@@ -33,7 +33,7 @@ export function composeAgentsVmRpc(
   bindStatus(view: ((ownerId: string) => Promise<VmStatusView>) | undefined): void;
 } {
   const claudeToken = createClaudeTokenStore({
-    secretsDir: join(config.home, "secrets"),
+    secretsDir: secretsDirOf(config.home),
     logger: logger.child({ module: "agent-vm" }),
   });
   const hostView = createHostStatus(claudeToken);

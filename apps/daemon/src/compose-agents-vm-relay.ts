@@ -10,6 +10,7 @@ import {
   relayListenOf,
   type OwnerSecretsCollector,
   createStderrRedactor,
+  redactionSource,
   type RelayChild,
   type RelayLink,
 } from "./modules/agent-vm/index.ts";
@@ -58,7 +59,7 @@ export function composeRelay(ctx: RelayContext): RelayLink | null {
             env: relayEnv(ctx.env, ctx.piAgentDir, ctx.testProviderScript),
             clock: ctx.clock,
             logger: ctx.logger,
-            redact: createStderrRedactor({ clock: ctx.clock, collect: ctx.ownerSecrets }),
+            redact: createStderrRedactor({ clock: ctx.clock, collect: redactionSource(ctx.ownerSecrets) }),
           }),
     clock: ctx.clock,
     logger: ctx.logger,
