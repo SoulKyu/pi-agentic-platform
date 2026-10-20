@@ -33,9 +33,7 @@ export const VmStatusView = z
       .strict()
       .nullable()
       .optional(),
-    agents: z
-      .array(z.object({ id: AgentId, phase: z.enum(VM_PHASES) }).strict())
-      .max(32),
+    agents: z.array(z.object({ id: AgentId, phase: z.enum(VM_PHASES) }).strict()).max(32),
   })
   .strict();
 export type VmStatusView = z.infer<typeof VmStatusView>;

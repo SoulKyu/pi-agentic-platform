@@ -85,11 +85,10 @@ describe("agentsVmMethods", () => {
     expect(result.safeParse({ ...view, runtime: "kata" }).success).toBe(false);
     // AVM-E53: no agent is migrated, so the view has no such field (the entry is strict).
     expect(
-      result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "running", migrated: false }] }).success,
+      result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "running", migrated: false }] })
+        .success,
     ).toBe(false);
-    expect(
-      result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "gone" }] }).success,
-    ).toBe(false);
+    expect(result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "gone" }] }).success).toBe(false);
     const many = Array.from({ length: 33 }, () => ({ id: "helper-1a2b", phase: "stopped" }));
     expect(result.safeParse({ ...view, agents: many }).success).toBe(false);
   });
