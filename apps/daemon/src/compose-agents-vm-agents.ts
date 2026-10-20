@@ -22,7 +22,11 @@ const Listing = z.object({
  * not: pap-vmd is asked for the agent's VMs and each one that is not stopped is stopped, and any failure is thrown, after every
  * VM was tried, so a second ask finishes what the first could not.
  */
-async function stopListed(client: VmdClient, agentId: string): Promise<void> {
+async function stopListed(
+  client: VmdClient,
+  stopVm: AgentsLinkContext["stopVm"],
+  agentId: string,
+): Promise<void> {
   try {
     const listed = Listing.safeParse(await client.request({ op: "vm.list" }));
     if (!listed.success) throw new VmdError("protocol");
@@ -30,7 +34,7 @@ async function stopListed(client: VmdClient, agentId: string): Promise<void> {
     for (const vm of listed.data.vms) {
       if (vm.agentId !== agentId || vm.state === "stopped") continue;
       try {
-        await client.request({ op: "vm.stop", agentId, taskKey: vm.taskKey });
+        await stopVm(agentId, vm.taskKey);
       } catch (error) {
         failed ??= error;
       }
@@ -45,6 +49,11 @@ export interface AgentsLinkContext {
   readonly runtime: Pick<AgentRuntime, "stop" | "resume">;
   /** pap-vmd; null under the process backend, which has no disk of its own. */
   readonly client: VmdClient | null;
+  /**
+   * Stops one VM through the Kata backend (S1): queued with its starts and stops, and it clears the image policy's record of the
+   * thread VM, so the next thread VM takes the image that is current, not the one the stopped VM ran on.
+   */
+  stopVm(agentId: string, taskKey: string | null): Promise<void>;
   readonly papHome: string;
   readonly clock: Pick<Clock, "now" | "setTimeout" | "clearTimeout">;
   readonly logger: Pick<Logger, "warn" | "info">;
@@ -68,7 +77,7 @@ export function composeAgentsLink(ctx: AgentsLinkContext): { link: AgentVmLink; 
     link: {
       async stop(agentId) {
         await ctx.runtime.stop(agentId);
-        if (ctx.client !== null) await stopListed(ctx.client, agentId);
+        if (ctx.client !== null) await stopListed(ctx.client, ctx.stopVm, agentId);
       },
       async dispose(agentId, stamp) {
         await disposeAgent(trash, agentId, stamp);

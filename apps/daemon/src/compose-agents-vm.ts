@@ -319,6 +319,7 @@ export async function composeAgentsVm(
     const agentLink = composeAgentsLink({
       runtime,
       client: kata?.client ?? null,
+      stopVm: (agentId, taskKey) => (kata ? kata.backend.stop(agentId, taskKey) : Promise.resolve()),
       papHome: config.home,
       clock,
       logger: agentsLogger,
