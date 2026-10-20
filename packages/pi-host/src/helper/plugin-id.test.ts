@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -25,12 +26,12 @@ beforeEach(() => {
   mkdirSync(join(root, "secrets"), { recursive: true, mode: 0o700 });
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
+// The winner's temp is renamed over the file: rename keeps the temp's inode, which is allocated while the damaged file still
+// exists, so the test cannot depend on a filesystem reusing a freed inode number (ext4 does, tmpfs does not).
 const plantWinner = (): void => {
   const temp = `${file()}.winner`;
   writeFileSync(temp, WINNER, { mode: 0o600 });
-  rmSync(file(), { force: true });
-  writeFileSync(file(), readFileSync(temp), { mode: 0o600 });
-  rmSync(temp);
+  renameSync(temp, file());
 };
 
 describe("pluginIdKey", () => {

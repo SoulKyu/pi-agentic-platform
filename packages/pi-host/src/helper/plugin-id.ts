@@ -64,16 +64,18 @@ export function pluginIdKey(papHome: string, hooks: { afterRead?: () => void } =
   for (let attempt = 0; attempt < 3; attempt++) {
     const seen = readKey(file);
     if ("key" in seen) return seen.key;
-    hooks.afterRead?.();
-    if ("damaged" in seen) {
-      const now = lstatOrNull(file);
-      if (now !== null && now.dev === seen.damaged.dev && now.ino === seen.damaged.ino)
-        rmSync(file, { force: true });
-    }
+    // The fresh key is written BEFORE the damaged file is judged and removed: its inode is allocated while that file still
+    // exists, so it can never be the number the identity check compares (inode reuse, ABA, on ext4).
     const fresh = randomBytes(KEY_BYTES);
     const temp = `${file}.${process.pid}.${randomBytes(4).toString("hex")}.tmp`;
     try {
       writeFileSync(temp, fresh, { flag: "wx", mode: 0o600 });
+      hooks.afterRead?.();
+      if ("damaged" in seen) {
+        const now = lstatOrNull(file);
+        if (now !== null && now.dev === seen.damaged.dev && now.ino === seen.damaged.ino)
+          rmSync(file, { force: true });
+      }
       linkSync(temp, file);
       return fresh;
     } catch (error) {
