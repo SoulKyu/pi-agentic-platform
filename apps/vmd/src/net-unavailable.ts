@@ -9,5 +9,5 @@ export const unavailableNet: NetPort = {
   prepare: () => Promise.reject(new VmdFailure("unavailable")),
   attach: () => Promise.reject(new VmdFailure("unavailable")),
   detach: () => Promise.resolve(),
-  restore: () => Promise.resolve(),
+  restore: () => Promise.resolve([]),
 };
