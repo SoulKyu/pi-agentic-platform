@@ -1,6 +1,7 @@
 import {
   accessSync,
   constants,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -58,8 +59,15 @@ export function emptyKataHome(): void {
     .papHome;
   if (configured !== KATA_HOME || basename(KATA_HOME) !== ".pap-kata")
     throw new Error(`pap-vmd was set up with ${configured}, not ${KATA_HOME}: refusing to empty anything`);
-  mkdirSync(KATA_HOME, { recursive: true, mode: 0o700 });
-  for (const name of readdirSync(KATA_HOME)) rmSync(join(KATA_HOME, name), { recursive: true, force: true });
+  emptyFolder(KATA_HOME);
+}
+
+/** Removes everything inside `folder`; a link is refused (its target's contents would go), never followed. */
+export function emptyFolder(folder: string): void {
+  if (lstatSync(folder, { throwIfNoEntry: false })?.isSymbolicLink() === true)
+    throw new Error(`${folder} is a link: refusing to empty what it points to`);
+  mkdirSync(folder, { recursive: true, mode: 0o700 });
+  for (const name of readdirSync(folder)) rmSync(join(folder, name), { recursive: true, force: true });
 }
 
 export interface KataBed {
@@ -323,10 +331,25 @@ export async function vmsOf(
 }
 
 /** Stops whatever VM of these agents is left and deletes their disks for good (a test's agents are never worth keeping). */
-async function removeAgents(vmd: VmdClient, agentIds: readonly string[]): Promise<void> {
+export async function removeAgents(
+  vmd: VmdClient,
+  agentIds: readonly string[],
+  say: (line: string) => void = (line) => void process.stderr.write(`${line}\n`),
+): Promise<void> {
+  const tolerate = async (op: string, agentId: string, call: Promise<unknown>): Promise<void> => {
+    try {
+      await call;
+    } catch (error) {
+      say(`kata bed: ${op} of ${agentId} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
   for (const agentId of agentIds) {
     for (const vm of await vmsOf(vmd, agentId))
-      await vmd.request({ op: "vm.stop", agentId, taskKey: vm.taskKey }).catch(() => undefined);
-    await vmd.request({ op: "disk.delete", agentId, taskKey: null, purge: true }).catch(() => undefined);
+      await tolerate("vm.stop", agentId, vmd.request({ op: "vm.stop", agentId, taskKey: vm.taskKey }));
+    await tolerate(
+      "disk.delete",
+      agentId,
+      vmd.request({ op: "disk.delete", agentId, taskKey: null, purge: true }),
+    );
   }
 }
