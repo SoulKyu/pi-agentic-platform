@@ -29,7 +29,7 @@ describe("the daemon's M11 entry", () => {
   it("keeps the migrations in stamp order, M11's after every earlier one", () => {
     const ids = discoverMigrations(MIGRATION_SOURCES).map((migration) => migration.id);
     // The agent tasks' migration (1120), the runs' (1130) and the thread tasks' (1131) sort between the agents' (1110) and the Inbox's (1140).
-    expect(ids.slice(-10, -2)).toEqual([
+    expect(ids.slice(-11, -3)).toEqual([
       "automation/202610151120_agent_tasks.sql",
       "runs/202610151130_run_agents.sql",
       "automation/202610151131_thread_tasks.sql",
