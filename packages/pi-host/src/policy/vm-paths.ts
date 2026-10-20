@@ -93,12 +93,13 @@ export async function judgeVmPath(
   for (const spelling of new Set([asPiResolves(raw), raw])) {
     const lexical = path.resolve(cwd, spelling);
     if (!within(lexical)) return refuse("outside this agent's folders");
+    // The real-path checks come first: a planted `home/r -> /` must not let the leaf verdicts tell apart what exists outside.
+    const landing = await Promise.all([realOrNearest(lexical), kernelResolve(cwd, spelling)]).catch(() => null);
+    if (landing === null || !landing.every(within)) return refuse("outside this agent's folders");
     const leaf = await lstatOrNull(lexical);
     if (leaf?.isSymbolicLink()) return refuse("link");
     if (!write && leaf === null) return refuse("missing");
     if (write && leaf !== null && !leaf.isFile()) return refuse("not a file");
-    if (!within(await realOrNearest(lexical))) return refuse("outside this agent's folders");
-    if (!within(await kernelResolve(cwd, spelling))) return refuse("outside this agent's folders");
   }
   return { ok: true };
 }

@@ -11,6 +11,8 @@ import { judgeVmPath, realVmRoots, vmFileFolders, type VmFileRoots } from "./vm-
 //  - M3a the judge without `realOrNearest`: killed by `a/../dl/sessions/s.jsonl` (kernelResolve appends what follows the
 //    first missing component lexically, so only the real-path check sees through `a/..` then the folder link).
 //  - M3b the judge without `kernelResolve`: killed by `dl/../new.txt` (`..` applied to the link's target).
+//  - M5 (S1 item 1) the leaf verdicts (`link`, `missing`, `not a file`) back before the real-path checks: "a planted link to /
+//    gives no existence or type oracle" (an existing file, a missing one, a folder and an unreadable one all answer `outside`).
 //  - M4 a write allowed under the read-only roots: "a write under the read-only roots is outside".
 
 let world: ReturnType<typeof makeVmWorld>;
@@ -82,6 +84,13 @@ describe("judgeVmPath: links and folders", () => {
     const outside = refused("outside this agent's folders");
     for (const raw of ["../.pi/sessions/s.jsonl", "/proc/self/environ", world.transcript, "..", "/"])
       for (const write of [false, true]) expect(await verdict(raw, write), raw).toEqual(outside);
+  });
+
+  it("a planted link to / is no existence or type oracle: every probe outside the layout answers the same", async () => {
+    symlinkSync("/", join(home, "r"));
+    const outside = refused("outside this agent's folders");
+    for (const raw of ["r/etc/hostname", "r/etc/pap-no-such-file", "r/etc", "r/proc/1/environ", "r/root/x/y", "r/tmp"])
+      for (const write of [false, true]) expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
   });
 
   it("a read names an existing path: a missing one is `missing`", async () => {
