@@ -8,7 +8,8 @@ const source = readFileSync(fileURLToPath(new URL("./daemon.ts", import.meta.url
 
 describe("the daemon's agents VM wiring (T8a, fail closed)", () => {
   // Mutants: each of the three lines removed from daemon.ts. The boot below stops without `vm: agentsVm` (setAgentPorts
-  // refuses), and these assertions stop the other two, which would leave the sessions module in host mode silently.
+  // refuses), and these assertions stop the other two. Without `vmLaunch` every agent launch fails `internal` (closed, never
+  // in host mode); without the order, the sessions module is built before the VM exists.
   it("composes the VM before the sessions module and hands it to the sessions and to M11", () => {
     const composed = source.indexOf("composeAgentsVm(");
     expect(composed).toBeGreaterThan(0);
