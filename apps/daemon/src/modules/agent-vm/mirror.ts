@@ -29,6 +29,9 @@ import type { AppendResult, MirrorPort } from "./vm-worker.ts";
 /** R14: said to the thread when the VM rewrote a conversation. */
 export const REPLACED_NOTICE = "La VM a réécrit cette conversation ; l'ancienne copie est gardée 7 jours.";
 
+/** AVM-E40: said to the owner when a recorded VM session's file is not the one the VM now has (the VM deleted it); the copy stays. */
+export const FILE_LOST_NOTICE = "La VM a perdu le fichier de cette conversation ; la copie est conservée.";
+
 const NEWLINE = 0x0a;
 const NEWLINE_BYTE = Buffer.from([NEWLINE]);
 const READ_WRITE = constants.O_RDWR | constants.O_CREAT | constants.O_APPEND;

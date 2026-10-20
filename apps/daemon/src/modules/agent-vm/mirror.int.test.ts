@@ -5,7 +5,7 @@ import { writeScript } from "../../security/testing/agent-bed.ts";
 import { rows } from "../../security/testing/automation-bed.ts";
 import { markOf, waitIdle } from "../../security/testing/fixtures.ts";
 import { startVmBed, type VmBed } from "../../testing/vm-bed.ts";
-import { REPLACED_NOTICE } from "./mirror.ts";
+import { FILE_LOST_NOTICE, REPLACED_NOTICE } from "./mirror.ts";
 
 /*
  * T9 through a whole daemon, a real guest and a real worker (J1). Mutants (RT-43), each run for real:
@@ -203,6 +203,10 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
     rmSync(join(vmDir(b, agentId), name));
     const answer = await b.owner.client.call("sessions.prompt", { sessionId, text: "Second question" });
     expect(answer).toMatchObject({ ok: false, error: { code: "worker_failed" } });
+    // AVM-E40 M1: it still fails closed, and the owner is told why.
+    await vi.waitFor(() =>
+      expect(JSON.stringify(b.owner.client.events).includes(FILE_LOST_NOTICE)).toBe(true),
+    );
     expect(readFileSync(mirror).equals(before)).toBe(true);
     expect(existsSync(join(mirrorDir(b, agentId), "replaced"))).toBe(false);
     expect(taintedAt(b, sessionId)).toBeNull();

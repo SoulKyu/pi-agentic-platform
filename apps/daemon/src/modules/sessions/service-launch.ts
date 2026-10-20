@@ -14,6 +14,7 @@ import { createPreReadyBuffer } from "./pre-ready-buffer.ts";
 import type { SessionsServiceDeps } from "./service.ts";
 import { createStoreSync } from "./service-sync.ts";
 import { type SessionRow, type StoredPreset, storedPresetOf } from "./store.ts";
+import { FILE_LOST_NOTICE } from "../agent-vm/index.ts";
 import { vmTargets } from "./vm-attachments.ts";
 import { vmBranchOf, type VmStarted } from "./vm-launch.ts";
 
@@ -259,8 +260,13 @@ export function createLaunch(ctx: LaunchContext) {
     try {
       await session.ready;
       // The file of a recorded session says who it is. Another id means the file was replaced under us.
-      if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId)
+      if (row.piSessionId !== null && session.piSessionId() !== row.piSessionId) {
+        // AVM-E40: the launch still fails closed; the owner is told why. The session is not live (its start failed), so the
+        // notice goes to whoever watches it now; nothing is held, a later start would never be this one.
+        if (init.vm)
+          deps.hub.publish("session", row.id, { kind: "notice", level: "warning", text: FILE_LOST_NOTICE });
         throw new PapError("worker_failed");
+      }
       if (isNew)
         deps.store.transaction(() => {
           storeNewSession(deps, row, ctx.projectFor?.(row) ?? null);
