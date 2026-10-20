@@ -1,35 +1,12 @@
-import type { Caller, HandlerTable } from "@pap/contracts";
-import type { AuditPort } from "../audit/index.ts";
-import type { ClaudeTokenStore } from "./claude-token.ts";
+import type { HandlerTable } from "@pap/contracts";
+import type { ClaudeTokenService } from "./claude-token-service.ts";
 
 export type AgentsVmTokenRpc = Pick<HandlerTable, "agents.vm.setClaudeToken" | "agents.vm.clearClaudeToken">;
 
-/**
- * The two Claude-token methods of `agents-vm-methods.ts` (RT-46): decode (the contract trims and bounds the token), the
- * step-up the contract promises, one call on the store, nothing else. Registered in host and vm modes alike: the token is kept whatever runtime is on, and the
- * relay link (vm mode) hears of it through the store's listener. The result never carries the value.
- */
-export function agentsVmTokenRpc(
-  store: Pick<ClaudeTokenStore, "set" | "clear">,
-  /** The owner's password was confirmed lately (`step_up_required` otherwise): like `models.setApiKey`, the browser only. */
-  requireStepUp: (caller: Caller) => void,
-  /** A credential change leaves a row, like `models.setApiKey`'s `provider_key_set`; never the value (M7). */
-  audit: Pick<AuditPort, "append">,
-): AgentsVmTokenRpc {
-  const record = (caller: Caller, reason: "claude_token_set" | "claude_token_cleared"): void =>
-    audit.append({ ownerId: caller.userId, actor: "user", kind: "auth", reason });
+/** The two Claude-token methods of `agents-vm-methods.ts`: decode (the contract trims and bounds the token), one service call. */
+export function agentsVmTokenRpc(service: ClaudeTokenService): AgentsVmTokenRpc {
   return {
-    "agents.vm.setClaudeToken": async ({ token }, ctx) => {
-      requireStepUp(ctx.caller);
-      store.set(token);
-      record(ctx.caller, "claude_token_set");
-      return { ok: true };
-    },
-    "agents.vm.clearClaudeToken": async (_params, ctx) => {
-      requireStepUp(ctx.caller);
-      store.clear();
-      record(ctx.caller, "claude_token_cleared");
-      return { ok: true };
-    },
+    "agents.vm.setClaudeToken": async ({ token }, ctx) => service.set(ctx.caller, token),
+    "agents.vm.clearClaudeToken": async (_params, ctx) => service.clear(ctx.caller),
   };
 }

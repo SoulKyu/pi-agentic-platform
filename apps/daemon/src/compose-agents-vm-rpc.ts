@@ -7,6 +7,7 @@ import { requireStepUp } from "./modules/auth/index.ts";
 import {
   agentsVmTokenRpc,
   type ClaudeTokenStore,
+  createClaudeTokenService,
   createClaudeTokenStore,
   createHostStatus,
   secretsDirOf,
@@ -43,7 +44,9 @@ export function composeAgentsVmRpc(
     bindStatus: (view) => void (vmView = view),
     rpc: {
       "agents.vmStatus": async (_params, ctx) => (vmView ? vmView(ctx.caller.userId) : hostView()),
-      ...agentsVmTokenRpc(claudeToken, (caller) => requireStepUp(caller, clock.now()), audit),
+      ...agentsVmTokenRpc(
+        createClaudeTokenService(claudeToken, (caller) => requireStepUp(caller, clock.now()), audit),
+      ),
     },
   };
 }

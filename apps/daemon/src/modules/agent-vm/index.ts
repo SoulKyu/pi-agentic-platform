@@ -10,6 +10,7 @@ export type { GuestLink } from "./guest-link.ts";
 export { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
 export type { MirrorPort, VmWorkerHandle, WorkerSpawnInput } from "./vm-worker.ts";
 export { agentsVmTokenRpc } from "./rpc.ts";
+export { createClaudeTokenService } from "./claude-token-service.ts";
 export {
   type ClaudeTokenStore,
   createClaudeTokenStore,
