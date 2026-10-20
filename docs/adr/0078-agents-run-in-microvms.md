@@ -1,6 +1,6 @@
 # ADR 0078: agents run in microVMs
 
-Status: accepted, sub-project 1 · Date: 2026-10-19 · Spec: `docs/specs/2026-10-19-agents-microvm-runtime-design.md` (§3 to §13). Amends the spec (R23, R25). Rulings: R1 to R38 of `docs/plans/2026-10-19-agents-microvm-runtime.md`; decisions 106 to 113.
+Status: accepted, sub-project 1 (final) · Date: 2026-10-19 · Spec: `docs/specs/2026-10-19-agents-microvm-runtime-design.md` (§3 to §13). Amends the spec (R23, R25). Rulings: R1 to R38 of `docs/plans/2026-10-19-agents-microvm-runtime.md`; decisions 106 to 113. Topic note: `docs/agents/agents-vm.md`; measurements: `docs/research/agents-vm-risk-checks.md`.
 
 ## Context
 
@@ -18,6 +18,8 @@ The CyberLooker report (spec §2) showed that an agent's shell, bubblewrap and e
 ## Consequences
 
 - Agents in VMs need KVM on the host and a root service (`pap-vmd`, installed by `sudo pap vm setup` from pinned artefacts, R19). A host without KVM keeps the host runtime.
-- A migrated agent is refused in host mode (R12). The vault, one-use values, pi-mem0, prechecks and HTML export are not available in a VM until later sub-projects (R11, R16, R17, R37).
+- There is no migration (owner, AVM-E53): R12 and its host-mode refusal were dropped. Agents made in host mode are deleted and created again in VM mode; a VM agent gets a fresh disk at its first start. The vault, one-use values, pi-mem0, prechecks and HTML export are not available in a VM until later sub-projects (R11, R16, R17, R37).
 - A VM-written transcript is untrusted: the mirror checks it line by line, and a user entry pap did not send is shown as such (R32).
+- The Kata path is tested locally only (`CI=1 pnpm vitest run --project kata` on a KVM host); a CI job was tried and dropped (owner, AVM-E66) and is a backlog item, with an end-to-end test of the firewall's forward chain (it needs a host with `net.ipv4.ip_forward=1`).
+- Known limits (KVM boundary, x86_64, no shell network, OAuth providers, pap-vmd lagging `pap update`, `--dev-from-tree`, MCP stdio outside bwrap, search not indexing mirrors, tainted-by-the-VM reports and others) are listed in `docs/agents/agents-vm.md`.
 - Cost if wrong: a root service with a wider surface than the host sandbox had. The mitigation is its closed request surface (no path, command or Dockerfile text from the daemon).

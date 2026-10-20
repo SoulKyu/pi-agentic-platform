@@ -55,6 +55,14 @@ Self-hosted agentic platform on the Pi SDK. Specs: `docs/specs/` (C = architectu
 - pap does not replace pi-web (ADR 0075): both share `~/.pi/agent`. Never resume one session in both apps; pap warns when a live session's file changes outside it (ADR 0074) and never reads pi-web's files.
 - Licence: AGPL-3.0-or-later (ADR 0077); the two derived vercel/ai-elements files (`Message.tsx`, `Reasoning.tsx`) stay Apache-2.0 (`LICENSES/`).
 
+## Agents in microVMs (sub-project 1)
+
+- Each agent can run in its own Kata/Cloud Hypervisor microVM with bwrap inside it and no credential in the VM: `docs/agents/agents-vm.md` (runtime, gateway, mirror, relay, pap-vmd, network, setup, tests, known limits); ADR 0078; install: `docs/agents/install.md` ("Agent VMs"); checks: `docs/agents/doctor.md` ("Agent VM checks"); measurements: `docs/research/agents-vm-risk-checks.md`.
+- Env: `PAP_AGENTS_RUNTIME` (`host` default | `vm`), `PAP_AGENTS_MEMORY_MAX_MB` (cap on all running VMs together, each counts `memoryMb` + 512; default max(1024, half the RAM), at least 1024), `PAP_TEST_AGENT_RUNTIME=process` (tests only; needs `PAP_TEST_PROVIDER_SCRIPT`, stops the boot without it; never set it elsewhere).
+- Needs KVM (`/dev/kvm`, x86_64) and a root service: `sudo pap vm setup --user <name>` (pinned artefacts), `sudo pap vm uninstall [--purge]`. A host without KVM keeps `host`. After `pap update`, run `sudo pap vm setup` again: pap-vmd does not follow the update.
+- No migration: agents made in host mode are deleted and created again in VM mode. In a VM the shell has no network, and the vault, one-use values, pi-mem0, prechecks and `export_html` are unavailable (sub-projects 2 to 5).
+- Kata tests (`*.kata.int.test.ts`, project `kata`) run locally only, on a KVM host with `pap vm setup` done: `CI=1 pnpm vitest run --project kata`. Without `CI=1` they skip with one warning when `/dev/kvm` or `/run/pap-vm/vmd.sock` is missing; no CI job runs them.
+
 ## Rules (CI-enforced)
 
 - 400 lines per file at most. No baseline, no exceptions.
