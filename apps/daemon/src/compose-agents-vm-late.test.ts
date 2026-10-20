@@ -47,6 +47,7 @@ function bed(
     over: over.over ?? false,
     fail: false,
     token: over.token ?? false,
+    quarantinedAt: null as number | null,
   };
   const late: AgentsVmLate = {
     sessions: { mirror, kindOf: (id) => (id === "s1" ? { agentId: AGENT } : null) },
@@ -75,7 +76,11 @@ function bed(
       ownerOf: (id) => (id === AGENT ? OWNER : null),
       get: (_owner, id) =>
         id === AGENT
-          ? ({ paused: state.paused, input: over.input ?? { model: null, packages: null } } as never)
+          ? ({
+              paused: state.paused,
+              quarantinedAt: state.quarantinedAt,
+              input: over.input ?? { model: null, packages: null },
+            } as never)
           : null,
       onChange: (listener) => (listeners.agent.push(listener as never), () => {}),
     },
@@ -370,5 +375,20 @@ describe("what makes the relay hear of a change (M-trigger-*)", () => {
     );
     expect(closers).toEqual([]);
     expect((await derived.policyOf(AGENT)).blocked).toBeNull();
+  });
+});
+
+// S1 item 5. Mutants: `agentOpen` ignoring the quarantine, or the missing agent -> its case fails.
+describe("agentOpen: the check a launch repeats after its image wait", () => {
+  it("lets an agent through, refuses a quarantined one agent_paused and a missing one not_found", () => {
+    const { derived, state } = bed();
+    expect(() => derived.agentOpen(OWNER, AGENT)).not.toThrow();
+    state.quarantinedAt = 1_760_000_000_000;
+    expect(() => derived.agentOpen(OWNER, AGENT)).toThrow(
+      expect.objectContaining({ code: "agent_paused" }) as Error,
+    );
+    expect(() => derived.agentOpen(OWNER, "gone-0009")).toThrow(
+      expect.objectContaining({ code: "not_found" }) as Error,
+    );
   });
 });

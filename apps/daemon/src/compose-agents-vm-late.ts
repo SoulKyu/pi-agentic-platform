@@ -1,4 +1,4 @@
-import type { Caller } from "@pap/contracts";
+import { type Caller, PapError } from "@pap/contracts";
 import type { Clock, TimerHandle } from "./kernel/clock.ts";
 import type { Logger } from "./kernel/logger.ts";
 import type { ClaudeTokenStore, MirrorHooks, PolicyView, RelayLink } from "./modules/agent-vm/index.ts";
@@ -54,6 +54,8 @@ export interface AgentsVmDerived {
   turnsOf(agentId: string): number;
   /** The relay reported: the next window's counts start from zero. */
   windowEnded(): void;
+  /** S1: `agent_paused` for an agent quarantined since the launch passed its gate, `not_found` for one deleted. */
+  agentOpen(ownerId: string, agentId: string): void;
   /** Posts a notice into the agent's thread (the image being rebuilt, a disk that grows later); logged when it has none yet. */
   notify(agentId: string, text: string): void;
 }
@@ -162,6 +164,11 @@ export function bindAgentsVmLate(
             ? "budget"
             : null,
       };
+    },
+    agentOpen(ownerId, agentId) {
+      const record = late.agents.get(ownerId, agentId);
+      if (record === null) throw new PapError("not_found");
+      if (record.quarantinedAt !== null) throw new PapError("agent_paused");
     },
     turnsOf: (agentId) => turns.get(agentId) ?? 0,
     windowEnded: () => turns.clear(),

@@ -54,6 +54,11 @@ export interface VmLaunchDeps {
     input: AgentLaunch["input"],
     kind: "thread" | "isolated",
   ): string | Promise<string>;
+  /**
+   * Called after the image wait (a first build takes minutes) and before anything starts: throws when the agent was quarantined
+   * or deleted meanwhile, so the launch ends with no VM instead of a VM nobody uses (S1).
+   */
+  recheck?(ownerId: string, agentId: string): void;
   readonly mirrors: MirrorInputs;
   readonly logger: Pick<Logger, "warn">;
   /** The exact sources of the agent's package picks (it holds ids, AVM-E33); `null` stays `null` (every package). */
@@ -98,11 +103,9 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
         throw error;
       }
       const who = whoOf(row);
-      const spec: VmSpec = {
-        ...who,
-        image: await deps.imageTagOf(row.agentId, launch.input, who.kind),
-        resources: launch.input.resources,
-      };
+      const image = await deps.imageTagOf(row.agentId, launch.input, who.kind);
+      deps.recheck?.(row.ownerId, row.agentId);
+      const spec: VmSpec = { ...who, image, resources: launch.input.resources };
       const worker = { ...deps.mirrors.inputFor(row, launch.input.resources), sessionsDir: layout.sessions };
       const packages = deps.toImageEntries(row.agentId, await deps.packageSources(launch.input.packages));
       const started = await deps.runtime.spawn(spec, worker, packages);

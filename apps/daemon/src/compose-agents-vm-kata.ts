@@ -133,3 +133,16 @@ export function composeKata(
     },
   };
 }
+
+/** The boot waits for pap0 and pap's firewall table; a pap-vmd that is not there or never gets them ends it, naming the fix. */
+export async function awaitBridge(kata: Pick<KataParts, "bridgeReady">, logger: Logger): Promise<void> {
+  try {
+    await kata.bridgeReady();
+  } catch (error) {
+    logger.error("agent_vm_bridge_unavailable", { err: error });
+    throw new Error(
+      "PAP_AGENTS_RUNTIME=vm needs pap-vmd and its bridge: run `sudo pap vm setup`, then start pap-vmd",
+      { cause: error },
+    );
+  }
+}

@@ -85,6 +85,7 @@ function setup(
   layoutForRuntime?: (r: SessionRow) => VmLayout,
   copyProviderScript?: (layout: VmLayout) => string,
   imageTagOf: (agentId: string, input: AgentLaunch["input"]) => string | Promise<string> = () => IMAGE,
+  recheck?: () => void,
 ) {
   const worker = createFakeWorker({});
   const specs: VmSpec[] = [];
@@ -116,6 +117,7 @@ function setup(
     papHome: home,
     layoutOf: (r) => (r.agentId === undefined ? null : vmLayout(r)),
     imageTagOf,
+    ...(recheck ? { recheck } : {}),
     mirrors: { inputFor },
     logger: silentLogger,
     // Mutant: the ids go to the runtime as they are -> "hands the runtime the sources, never the ids" fails.
@@ -192,6 +194,24 @@ describe("the image tag of a launch (T15a: Kata builds it first)", () => {
     const r = bed.use(row({ id: "not-a-uuid", agentRole: "task" }));
     expect(await codeOf(bed.vmLaunch.spawn(r, launch({ role: "task" }), hostInit(r)))).toBe("bad_request");
     expect(asked).not.toHaveBeenCalled();
+  });
+  // S1 item 5. Mutant: the check removed (or made before the tag wait) -> a quarantine during the build still spawns the VM.
+  it("asks the agent's state again after the wait, and a quarantine meanwhile spawns nothing", async () => {
+    let quarantined = false;
+    const bed = setup(
+      undefined,
+      undefined,
+      async () => {
+        quarantined = true; // the owner quarantines the agent while its image builds
+        return IMAGE;
+      },
+      () => {
+        if (quarantined) throw new PapError("agent_paused");
+      },
+    );
+    const r = bed.use(row());
+    expect(await codeOf(bed.vmLaunch.spawn(r, launch(), hostInit(r)))).toBe("agent_paused");
+    expect(bed.spawn).not.toHaveBeenCalled();
   });
   it("passes a refusal of the resolver on, with nothing spawned", async () => {
     const bed = setup(undefined, undefined, () => Promise.reject(new PapError("sandbox_unavailable")));

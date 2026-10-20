@@ -4,7 +4,7 @@ import { PapError, type VmLayout } from "@pap/contracts";
 import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
 import { composeRelay } from "./compose-agents-vm-relay.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
-import { composeKata, type KataSeams } from "./compose-agents-vm-kata.ts";
+import { awaitBridge, composeKata, type KataSeams } from "./compose-agents-vm-kata.ts";
 import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
 import { composeVmStatus, guardedLaunch, resourceHostOf } from "./compose-agents-vm-status.ts";
 import type { Clock } from "./kernel/clock.ts";
@@ -179,17 +179,7 @@ export async function composeAgentsVm(
         )
       : null;
   // R34: the gateway listens on the bridge's host address, which exists once pap-vmd has made pap0. No pap-vmd, no boot.
-  if (kata) {
-    try {
-      await kata.bridgeReady();
-    } catch (error) {
-      agentsLogger.error("agent_vm_bridge_unavailable", { err: error });
-      throw new Error(
-        "PAP_AGENTS_RUNTIME=vm needs pap-vmd and its bridge: run `sudo pap vm setup`, then start pap-vmd",
-        { cause: error },
-      );
-    }
-  }
+  if (kata) await awaitBridge(kata, agentsLogger);
   const bind = kata?.gatewayBind ?? { host: "127.0.0.1", port: 0 };
   const tokens = createLaunchTokens();
   // AVM-P8: the gateway reads the image of a launch through the runtime, which exists after it (no cycle).
@@ -346,6 +336,8 @@ export async function composeAgentsVm(
       layoutOf: vmLayoutOf,
       imageTagOf: seams.imageTagOf ?? (kata ? kata.imageTagOf : () => TEST_IMAGE_TAG),
       mirrors,
+      recheck: (ownerId, agentId) =>
+        lateHolder.late ? lateHolder.late.agentOpen(ownerId, agentId) : notBound(),
       logger: agentsLogger,
       toImageEntries: (agentId, sources) => imageEntries.toImage(agentId, sources),
       packageSources: (ids) => (lateHolder.late ? lateHolder.late.sourcesOf(ids) : notBound()),
