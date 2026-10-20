@@ -56,4 +56,56 @@ describe("growFilesystem", () => {
     const garbled: Run = (file) => Promise.resolve(file === "findmnt" ? "/dev/vda\n" : "nothing useful");
     await expect(growFilesystem({ root: "/agent", run: garbled })).rejects.toThrow(/unreadable/);
   });
+
+  /*
+   * T20a: under Kata the container's /dev has no usable node for the disk (`findmnt` says /dev/vdb; the file is not there, and a node
+   * made with mknod is refused by the guest's device cgroup), so the file system never grew. The kernel's own online resize
+   * (EXT4_IOC_RESIZE_FS on the mount point, CAP_SYS_RESOURCE) needs no node: the size comes from /sys/class/block.
+   * Mutants: ioctl never run -> "grows through the mount point"; sectors not validated -> "refuses"; run when it fits -> "does nothing".
+   */
+  describe("a disk without a node in /dev", () => {
+    const fs = (sectors: string) => ({ exists: () => false, sectors: () => sectors });
+    function runner(statOut: string) {
+      const calls: Array<[string, string[]]> = [];
+      const run: Run = (file, args) => {
+        calls.push([file, args]);
+        return Promise.resolve(file === "findmnt" ? "/dev/vdb\n" : file === "stat" ? statOut : "");
+      };
+      return { run, calls };
+    }
+
+    it("grows through the mount point to the device's size in file system blocks", async () => {
+      const { run, calls } = runner("4096 262144\n");
+      // 2 GiB device = 4194304 sectors = 524288 blocks of 4096.
+      await expect(growFilesystem({ root: "/agent", run, node: fs("4194304\n") })).resolves.toBe(true);
+      expect(calls).toContainEqual(["stat", ["-f", "-c", "%S %b", "/agent"]]);
+      const last = calls.at(-1) as [string, string[]];
+      expect(last[0]).toBe("python3");
+      expect(last[1].slice(-2)).toEqual(["/agent", "524288"]);
+      expect(calls.some(([file]) => file === "resize2fs" || file === "mknod")).toBe(false);
+    });
+
+    it("does nothing when the file system fills the device", async () => {
+      const { run, calls } = runner("4096 524288\n");
+      await expect(growFilesystem({ root: "/agent", run, node: fs("4194304") })).resolves.toBe(false);
+      expect(calls.some(([file]) => file === "python3")).toBe(false);
+    });
+
+    it("refuses a sector count that is not a number, and a tool that fails", async () => {
+      for (const sectors of ["", "abc", "-5", "0", "1e9"]) {
+        const { run, calls } = runner("4096 262144\n");
+        await expect(growFilesystem({ root: "/agent", run, node: fs(sectors) })).rejects.toThrow(
+          /unreadable/,
+        );
+        expect(calls.some(([file]) => file === "python3")).toBe(false);
+      }
+      const failing: Run = (file) =>
+        file === "python3"
+          ? Promise.reject(new Error("EPERM"))
+          : Promise.resolve(file === "findmnt" ? "/dev/vdb\n" : "4096 262144\n");
+      await expect(growFilesystem({ root: "/agent", run: failing, node: fs("4194304") })).rejects.toThrow(
+        /EPERM/,
+      );
+    });
+  });
 });

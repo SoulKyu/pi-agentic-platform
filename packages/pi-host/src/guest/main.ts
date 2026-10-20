@@ -1,4 +1,5 @@
 import { execFile, spawn } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
 import net from "node:net";
 import { fileURLToPath } from "node:url";
 import { VmLayout } from "@pap/contracts";
@@ -89,7 +90,14 @@ await runGuest({
   seed: () => seedAgentFolder(layout),
   pick: (packages) => pickPackages(layout, packages),
   grow: async () => {
-    await growFilesystem({ root: layout.root, run: execFileText });
+    await growFilesystem({
+      root: layout.root,
+      run: execFileText,
+      node: {
+        exists: existsSync,
+        sectors: (name) => readFileSync(`/sys/class/block/${name}/size`, "utf8"),
+      },
+    });
   },
   exit: (code) => {
     process.exitCode = code;
