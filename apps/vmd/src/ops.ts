@@ -36,7 +36,8 @@ export interface NetPort {
   prepare(name: string): Promise<void>;
   attach(name: string, address: { ip: string; mac: string }): Promise<void>;
   detach(name: string): Promise<void>;
-  restore(): Promise<void>;
+  /** Re-adds the guards of the VMs that run; resolves with the names of running containers that hold no lease. */
+  restore(): Promise<readonly string[]>;
 }
 
 export interface OpsDeps {
@@ -56,6 +57,8 @@ export interface OpsDeps {
   readonly bundleUid: number;
   readonly volumeRoot: string;
   readonly version: string;
+  /** Running containers without a lease at restore (`net.restore`): listed like a failed removal, so no start runs beside them. */
+  readonly unleased?: readonly string[];
 }
 
 export interface Ops {

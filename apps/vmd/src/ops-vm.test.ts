@@ -70,6 +70,8 @@ describe("vm.start", () => {
     ];
     const volume = VOLUME(fx, "pap-helper-1a2b");
     expect(fx.exec.calls).toEqual([
+      ["/usr/sbin/nft", "list", "table", "bridge", "pap_agents"],
+      ["/usr/sbin/ip", "-o", "link", "show", "pap0"],
       [...nerdctl, "rm", "--force", "pap-helper-1a2b"],
       ["/opt/kata/bin/kata-ctl", "direct-volume", "remove", volume],
       [

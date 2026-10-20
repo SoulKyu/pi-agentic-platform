@@ -40,7 +40,7 @@ export function createFakeNet(order: string[] = []): FakeNet {
       events.push(`detach ${name}`);
       return Promise.resolve();
     },
-    restore: () => Promise.resolve(),
+    restore: () => Promise.resolve([]),
   };
   return net;
 }

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createLocks, type Locks } from "../locks.ts";
 import type { Logger } from "../log.ts";
-import { createOps, type NetPort, type Ops } from "../ops.ts";
+import { createOps, type ExecResult, type NetPort, type Ops } from "../ops.ts";
 import { createState, type VmdState } from "../state.ts";
 import { createFakeClock, type FakeClock } from "./fake-clock.ts";
 import { createFakeExec, type ExecHandler, type FakeExec } from "./fake-exec.ts";
@@ -60,9 +60,16 @@ export function startRequest(extra: Record<string, unknown> = {}): Record<string
   };
 }
 
+function healthyHost(argv: readonly string[]): Partial<ExecResult> | undefined {
+  if (argv[0] === "/usr/sbin/nft") return { stdout: "table bridge pap_agents {}\n" };
+  if (argv[0] === "/usr/sbin/ip" && argv.includes("link"))
+    return { stdout: "7: pap0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 state UP\n" };
+  return undefined;
+}
+
 export function createFixture(
   handler: ExecHandler = () => undefined,
-  options: { locks?: Locks; net?: NetPort } = {},
+  options: { locks?: Locks; net?: NetPort; unleased?: readonly string[] } = {},
 ): Fixture {
   const work = mkdtempSync(path.join(tmpdir(), "pap-vmd-ops-"));
   const clock = createFakeClock();
@@ -101,7 +108,8 @@ export function createFixture(
       return { code: fixture.psCode, stdout: fixture.ps.map((line) => `${line}\n`).join("") };
     if (argv.includes("run")) order.push("run");
     if (argv.includes("rm")) order.push(`rm ${argv.at(-1) ?? ""}`);
-    return handler(argv);
+    // The ruleset and the bridge are there unless a test says otherwise (vm.start checks both, AVM-E49).
+    return Promise.resolve(handler(argv)).then((answer) => answer ?? healthyHost(argv));
   });
   const uid = process.getuid?.() ?? 0;
   const ops = createOps({
@@ -121,6 +129,7 @@ export function createFixture(
     bundleUid: uid,
     volumeRoot,
     version: "1.2.3",
+    unleased: options.unleased ?? [],
   });
   Object.assign(fixture, {
     exec,

@@ -7,6 +7,8 @@ import { AGENT, createFixture, seedDisk, startRequest, TASK, type Fixture } from
 /*
  * Mutants (RT-43) killed here, run for real:
  *  - M-task-disk-kept-at-stop: `vm.stop` of a task leaves its disk: killed by "stopping a task deletes its disk".
+ *  - M-inspect-unknown-absent (S1 item 10): an unknown or empty inspect text answers `absent`: killed by "reports a VM's state
+ *    from nerdctl inspect".
  *  - M-task-disk-deleted-while-held: `vm.stop` deletes the task disk although `rm --force` failed: killed by "a rm that really
  *    fails is reported ... and keeps the task disk".
  */
@@ -80,7 +82,9 @@ describe("vm.stop, vm.pause, vm.resume, vm.status, vm.list", () => {
       ["paused", "paused"],
       ["created", "starting"],
       ["exited", "stopped"],
-      ["weird", "absent"],
+      ["weird", "running"], // S1 item 10: an unknown or empty state may still hold the disk
+      ["", "running"],
+      ["removing", "running"],
     ];
     for (const [text, state] of states) {
       use((argv) => (argv.includes("inspect") ? { stdout: `${text}\n` } : undefined));

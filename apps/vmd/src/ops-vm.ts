@@ -14,6 +14,7 @@ import {
   volumePath,
 } from "./argv.ts";
 import { VmdFailure } from "./errors.ts";
+import { readNetFacts } from "./net-facts.ts";
 import { fileExists, makeBlankDisk, removeTaskDir } from "./ops-disk.ts";
 import type { OpsDeps, VmStartRequest } from "./ops.ts";
 
@@ -54,7 +55,8 @@ const stateOfInspect = (text: string): VmStateName => {
     case "stopped":
       return "stopped";
     default:
-      return "absent";
+      // S1: an unknown or empty state may still hold the disk, like an unknown `ps` status (never "absent").
+      return "running";
   }
 };
 
@@ -100,9 +102,32 @@ export function createVmOps(deps: OpsDeps) {
     }
   }
 
+  /**
+   * AVM-P16 (S1): a container whose `rm --force` failed may still bring up its veth, late, and bind the next VM's guard.
+   * Its name stays listed until a removal works or `inspect` says it is stopped; the head of every start retries them.
+   * Containers running without a lease at restore are listed from the start.
+   */
+  const unremoved = new Set<string>(deps.unleased ?? []);
+
   async function removeContainer(name: string): Promise<boolean> {
     const result = await exec(rmArgv(name));
-    return result.code === 0 || NO_SUCH_CONTAINER.test(result.stderr);
+    const removed = result.code === 0 || NO_SUCH_CONTAINER.test(result.stderr);
+    if (removed) unremoved.delete(name);
+    else unremoved.add(name);
+    return removed;
+  }
+
+  /** Inside the start lock: retries each listed removal; a name that stays and is not stopped refuses the start. */
+  async function retryUnremoved(): Promise<void> {
+    for (const name of [...unremoved]) {
+      if (await removeContainer(name)) continue;
+      const inspected = await exec(inspectArgv(name));
+      if (inspected.code === 0 && stateOfInspect(inspected.stdout) === "stopped") unremoved.delete(name);
+      else {
+        log.info("vmd_start_refused", { reason: "container_not_removed" });
+        throw new VmdFailure("unavailable");
+      }
+    }
   }
 
   async function removeVolume(volume: string): Promise<void> {
@@ -130,6 +155,12 @@ export function createVmOps(deps: OpsDeps) {
     if (!Object.values(env).every((value) => ENV_VALUE.test(value))) throw new VmdFailure("bad_request");
     if (isolated) await deps.room(request.resources.diskMb);
     else if (!fileExists(disk)) throw new VmdFailure("not_found");
+    // AVM-E49: a VM without its ruleset and bridge would have the whole network to itself.
+    const facts = await readNetFacts(exec);
+    if (!facts.ruleset || !facts.bridge) {
+      log.info("vmd_start_refused", { reason: facts.ruleset ? "no_bridge" : "no_ruleset" });
+      throw new VmdFailure("unavailable");
+    }
     let diskMade = false;
     /** Set by the cleanup inside the start lock: whether `rm --force` succeeded. The outer cleanup then does not repeat it. */
     let cleaned = null as boolean | null;
@@ -151,6 +182,7 @@ export function createVmOps(deps: OpsDeps) {
           .join("\n")}\n`,
       );
       await locks.withStart(async () => {
+        await retryUnremoved();
         try {
           // AVM-E37: the bridge's ports before this run; the VM's port is the one that is new afterwards.
           await net.prepare(name);

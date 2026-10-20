@@ -6,6 +6,7 @@ import { renderDockerfile } from "./dockerfile.ts";
 import { VmdFailure } from "./errors.ts";
 import type { ImageBuildRequest, OpsDeps } from "./ops.ts";
 import { copyTreeSafely, type SafeTreeLimits } from "./safe-tree.ts";
+import { readNetFacts } from "./net-facts.ts";
 
 const BUILD_TIMEOUT_MS = 30 * 60_000;
 /** A build context needs room for its copy and BuildKit's layers. */
@@ -93,16 +94,14 @@ export function createImageOps(deps: OpsDeps) {
   }
 
   async function health(): Promise<unknown> {
-    const ruleset = (await exec(["/usr/sbin/nft", "list", "table", "bridge", "pap_agents"])).code === 0;
-    const link = await exec(["/usr/sbin/ip", "-o", "link", "show", "pap0"]);
-    const flags = /<([^>]*)>/.exec(link.stdout)?.[1]?.split(",") ?? [];
+    const facts = await readNetFacts(exec);
     let stateFreeMb = 0;
     try {
       stateFreeMb = await state.freeMb();
     } catch {
       log.info("vmd_health_statfs_failed", {});
     }
-    return { version: deps.version, ruleset, bridge: link.code === 0 && flags.includes("UP"), stateFreeMb };
+    return { version: deps.version, ruleset: facts.ruleset, bridge: facts.bridge, stateFreeMb };
   }
 
   return { build, list, prune, health };

@@ -26,7 +26,7 @@ async function main(): Promise<void> {
   const exec = createExec();
   // AVM-P11: the unit reloaded the ruleset (an empty `ports` set); the guards of the VMs that run come back before the
   // server accepts a request. If they cannot, pap-vmd does not start (main's catch exits 1).
-  const net = await createRestoredNet({ exec, state, clock, log });
+  const { net, unleased } = await createRestoredNet({ exec, state, clock, log });
   const ops = createOps({
     exec,
     net,
@@ -41,6 +41,7 @@ async function main(): Promise<void> {
     bundleUid: 0,
     volumeRoot: VOLUME_ROOT,
     version: VMD_VERSION,
+    unleased,
   });
   // Task disks of VMs that no longer exist are swept; if nerdctl cannot say which exist, none is touched (fails closed).
   state.sweepAtStart(await ops.runningTasks().catch(() => null));

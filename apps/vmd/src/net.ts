@@ -297,7 +297,7 @@ export function createNet(deps: NetDeps): NetPort {
     if (failed) throw new Error("net: detach failed");
   }
 
-  async function restore(): Promise<void> {
+  async function restore(): Promise<readonly string[]> {
     const listed = await exec(psArgv());
     if (listed.code !== 0) throw new Error("net: restore cannot list the VMs");
     // Same rule as vm.list: only an explicit stop counts as stopped, so an unknown status keeps its guard.
@@ -328,16 +328,19 @@ export function createNet(deps: NetDeps): NetPort {
       await guard(lease);
     }
     const known = new Set(keep.map((lease) => lease.name));
-    for (const name of running) if (!known.has(name)) log.info("vmd_net_unknown_vm", { vm: name });
+    const unleased = [...running].filter((name) => !known.has(name));
+    for (const name of unleased) log.info("vmd_net_unknown_vm", { vm: name });
     log.info("vmd_net_restored", { vms: keep.length });
+    return unleased;
   }
 
   return { allocate, prepare, attach, detach, restore };
 }
 
 /** pap-vmd's start: the net with its guards back in place. It rejects when they cannot be restored, so nothing is served. */
-export async function createRestoredNet(deps: NetDeps): Promise<NetPort> {
+export async function createRestoredNet(
+  deps: NetDeps,
+): Promise<{ net: NetPort; unleased: readonly string[] }> {
   const net = createNet(deps);
-  await net.restore();
-  return net;
+  return { net, unleased: await net.restore() };
 }

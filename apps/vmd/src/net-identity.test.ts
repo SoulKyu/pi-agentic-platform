@@ -175,7 +175,8 @@ describe("restore", () => {
     const net = rig.make();
     net.allocate(HELPER);
     rig.ps = `${HELPER} Up\npap-other-9f9f Up\n`;
-    await rig.make().restore();
+    // S1 item 3: the running container without a lease is handed back, for the start guard's list.
+    expect(await rig.make().restore()).toEqual(["pap-other-9f9f"]);
     expect(rig.logs.some((entry) => entry.startsWith("vmd_net_unbound_vm"))).toBe(true);
     expect(rig.logs.some((entry) => entry.startsWith("vmd_net_unknown_vm"))).toBe(true);
     expect(rig.make().allocate(WRITER).ip).toBe("10.213.0.3");
