@@ -7,8 +7,8 @@ import { createFakeVmd, type FakeVmd } from "./testing/fake-vmd.ts";
 import { VmdError } from "./vmd-client.ts";
 
 /*
- * Mutants (RT-43), run for real in the T15a report: "disk ops for a task" (the isolated cases), "create when migrating"
- * (the migration case), "grow always" / "grow never" (the grow cases), "grow conflict thrown" (the notice case), "stop by key"
+ * Mutants (RT-43), run for real in the T15a report: "disk ops for a task" (the isolated cases),
+ * "grow always" / "grow never" (the grow cases), "grow conflict thrown" (the notice case), "stop by key"
  * (the late-stop cases), "known size not kept" (the second start), "list drops stopped VMs" (the list case), "error text
  * carries the request" (the token case), "current launch set after the await" (the queued case).
  */
@@ -18,7 +18,6 @@ const TOKEN = "ab".repeat(32);
 let fake: FakeVmd;
 let notices: Array<[string, string]>;
 const images = { started: vi.fn(), stopped: vi.fn() };
-let migrating = false;
 let backend: AgentRuntimeBackend;
 
 const spec = (extra: Partial<VmSpec> = {}): VmSpec => ({
@@ -41,13 +40,11 @@ beforeEach(() => {
   notices = [];
   images.started.mockClear();
   images.stopped.mockClear();
-  migrating = false;
   backend = createKataBackend({
     client: fake,
     images,
     logger: silentLogger,
     notice: (agentId, text) => void notices.push([agentId, text]),
-    migrating: () => migrating,
   });
 });
 
@@ -73,13 +70,6 @@ describe("a first start", () => {
       token: TOKEN,
     });
     expect(images.started).toHaveBeenCalledWith("scout-0001", IMAGE);
-  });
-
-  it("makes no disk while the agent is being migrated (T17 populates it)", async () => {
-    migrating = true;
-    fake.disks.set("scout-0001", 4096);
-    await backend.start(spec(), launch());
-    expect(fake.ops()).toEqual(["vm.start"]);
   });
 
   it("starts the VM of an agent whose disk pap-vmd already holds, growing it to the profile's size", async () => {

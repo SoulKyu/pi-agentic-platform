@@ -33,8 +33,6 @@ export interface KataSeams {
   readonly nodeImage?: string;
   /** Tests: replaces the collector of the owner's secrets (T15b) with a plain list. */
   readonly knownSecrets?: () => KnownSecrets;
-  /** T17: the agent's disk is being made from its old home, so `disk.create` is not ours. */
-  readonly migrating?: (agentId: string) => boolean;
   /** Where the gateway listens (tests: loopback). Default: the bridge's host address (R34). */
   readonly gatewayBind?: { readonly host: string; readonly port: number };
 }
@@ -111,7 +109,6 @@ export function composeKata(
       images,
       logger,
       notice,
-      ...(seams.migrating ? { migrating: seams.migrating } : {}),
     }),
     gatewayBind: seams.gatewayBind ?? { host: AGENT_NET.host, port: AGENT_NET.gatewayPort },
     bridgeReady() {

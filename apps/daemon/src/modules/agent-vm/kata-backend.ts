@@ -19,8 +19,6 @@ export interface KataBackendDeps {
   readonly logger: Logger;
   /** Posts once into the agent's thread. */
   readonly notice: (agentId: string, text: string) => void;
-  /** The agent's disk is being made from its old home (T17): `disk.create` is not ours then. */
-  readonly migrating?: (agentId: string) => boolean;
 }
 
 const keyOf = (agentId: string, taskKey: string | null): string =>
@@ -85,7 +83,7 @@ export function createKataBackend(deps: KataBackendDeps): AgentRuntimeBackend {
       return inOrder(key, async () => {
         current.set(key, launch.launchId);
         try {
-          if (spec.kind === "thread" && deps.migrating?.(spec.agentId) !== true) await ensureDisk(spec);
+          if (spec.kind === "thread") await ensureDisk(spec);
           const started = VmStartResult.safeParse(
             await client.request({
               op: "vm.start",
