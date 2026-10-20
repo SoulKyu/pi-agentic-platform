@@ -153,6 +153,17 @@ export function createState(deps: StateDeps): VmdState {
       return Math.floor((bavail * bsize) / MIB);
     },
     sweepAtStart(running) {
+      // A crash mid-build leaves build/<layer>/<tag> and dockerfiles/<layer>/<tag>; no build runs while vmd starts.
+      let buildFolders = 0;
+      for (const top of ["build", "dockerfiles"]) {
+        for (const layer of LAYERS) {
+          for (const tag of names(dir(top, layer))) {
+            rmSync(dir(top, layer, tag), { recursive: true, force: true });
+            buildFolders += 1;
+          }
+        }
+      }
+      if (buildFolders > 0) log.info("vmd_build_sweep", { folders: buildFolders });
       let envFiles = 0;
       for (const name of names(dir("run"))) {
         if (!name.endsWith(".env")) continue;

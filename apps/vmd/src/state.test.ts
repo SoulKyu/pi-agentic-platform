@@ -128,6 +128,27 @@ describe("start sweep (RT-33, R30)", () => {
     expect(records.map((r) => r.event)).toContain("vmd_sweep_skipped");
   });
 
+  // Mutant "sweep of build/ dropped": the leftover context stays. Mutant "sweep of dockerfiles/ dropped": the leftover
+  // Dockerfile folder stays. Mutant "sweep after the null return": the case with an unknown list keeps them.
+  it("clears the build contexts and Dockerfile folders a crash left, with or without the list of running VMs", () => {
+    const left = ["build", "dockerfiles"].map((top) => path.join(root, top, "agent", `pap-agent-${top}`));
+    for (const folder of left) {
+      mkdirSync(folder, { recursive: true });
+      writeFileSync(path.join(folder, "x"), "left over");
+    }
+    const outside = path.join(work, "outside");
+    mkdirSync(outside);
+    mkdirSync(path.join(root, "build", "base"));
+    symlinkSync(outside, path.join(root, "build", "base", "pap-base-link"));
+    state.sweepAtStart(null);
+    for (const folder of left) expect(existsSync(folder)).toBe(false);
+    expect(existsSync(path.join(root, "build", "base", "pap-base-link"))).toBe(false);
+    expect(existsSync(outside)).toBe(true);
+    expect(records.filter((r) => r.event === "vmd_build_sweep")).toEqual([
+      { event: "vmd_build_sweep", fields: { folders: 3 } },
+    ]);
+  });
+
   it("leaves a folder whose name is not an agent id or a task key alone", () => {
     mkdirSync(path.join(root, "agents", "weird name", "tasks", "zz"), { recursive: true });
     mkdirSync(path.join(root, "agents", agent, "tasks", "not-a-key"), { recursive: true });
