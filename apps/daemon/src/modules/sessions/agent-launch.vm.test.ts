@@ -66,7 +66,7 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
               } as never,
               papHome,
               packageSources: async () => null,
-              toImageEntries: (_agentId, sources) => (sources === null ? null : [...sources]),
+              toImageEntries: (_agentId, _image, sources) => (sources === null ? null : [...sources]),
               layoutOf: (row) =>
                 row.agentId === undefined
                   ? null

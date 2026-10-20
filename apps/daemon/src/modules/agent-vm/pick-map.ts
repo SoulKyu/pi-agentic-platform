@@ -31,14 +31,17 @@ export function imageEntriesOf(
   return { entries, missing };
 }
 
-/** 64 pairs of two 512-character spellings per profile tag, one tag per agent at most. */
+/** 64 pairs of two 512-character spellings per image, 16 images per agent at most. */
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
+const MAX_IMAGES_PER_AGENT = 16;
 const Entry = z.object({ source: z.string().max(512), written: z.string().max(512) }).strict();
 const FileShape = z
   .object({
     version: z.literal(1),
-    profiles: z.record(z.string().regex(IMAGE_TAG), z.array(Entry).max(64)),
-    agents: z.record(AgentId, z.string().regex(IMAGE_TAG)),
+    images: z.record(
+      z.string().regex(IMAGE_TAG),
+      z.object({ agentId: AgentId, written: z.array(Entry).max(64) }).strict(),
+    ),
   })
   .strict();
 
@@ -54,7 +57,7 @@ export interface ImageEntriesOptions {
 }
 
 interface Held {
-  readonly tag: string | null;
+  readonly agentId: string;
   readonly written: readonly WrittenEntry[];
 }
 
@@ -63,50 +66,49 @@ function load(file: string, logger: Logger): Map<string, Held> {
   const read = readJsonBounded(file, FileShape, MAX_FILE_BYTES);
   if (read === "damaged") logger.warn("agent_image_entries_damaged", {});
   if (read === null || read === "damaged") return held;
-  for (const [agentId, tag] of Object.entries(read.agents)) {
-    const written = read.profiles[tag];
-    if (written !== undefined) held.set(agentId, { tag, written });
-  }
+  for (const [image, one] of Object.entries(read.images)) held.set(image, one);
   return held;
 }
 
 /**
- * The entries each agent's profile build wrote, kept for the launch (the build records them, the launch maps its picks through
- * them). With a `file` the pairs are kept by the profile image tag and loaded at boot; without, in memory (the process backend).
+ * The entries each image's profile build wrote, kept for the launch (the build records them, the launch maps its picks through
+ * them). They are keyed by the image tag the VM runs on (S1): a thread VM on an older image keeps mapping through that image's
+ * pairs while a task records those of a newer one. With a `file` they are loaded at boot; without, in memory (the process backend).
  */
 export function createImageEntries(logger: Logger, options: ImageEntriesOptions = {}) {
   const { file, strict = false } = options;
-  const byAgent = file === undefined ? new Map<string, Held>() : load(file, logger);
+  const byImage = file === undefined ? new Map<string, Held>() : load(file, logger);
   /** Atomic: the new file is complete or the old one stays. */
   function save(): void {
     if (file === undefined) return;
-    const profiles: Record<string, readonly WrittenEntry[]> = {};
-    const agents: Record<string, string> = {};
-    for (const [agentId, held] of byAgent)
-      if (held.tag !== null) {
-        profiles[held.tag] = held.written;
-        agents[agentId] = held.tag;
-      }
+    const images: Record<string, Held> = {};
+    for (const [image, held] of byImage) images[image] = held;
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
     const next = `${file}.tmp`;
-    writeFileSync(next, JSON.stringify({ version: 1, profiles, agents }), { mode: 0o600 });
+    writeFileSync(next, JSON.stringify({ version: 1, images }), { mode: 0o600 });
     renameSync(next, file);
   }
   return {
-    /** `profileTag` (the profile image the pairs belong to) makes them durable; without it they live until the process ends. */
-    record(agentId: string, written: readonly WrittenEntry[], profileTag?: string): void {
-      byAgent.set(agentId, { tag: profileTag ?? null, written });
+    /** The pairs the build of `image` wrote; the agent keeps its 16 newest images. */
+    record(agentId: string, image: string, written: readonly WrittenEntry[]): void {
+      byImage.delete(image);
+      byImage.set(image, { agentId, written });
+      const mine = [...byImage].filter(([, held]) => held.agentId === agentId);
+      for (const [old] of mine.slice(0, Math.max(0, mine.length - MAX_IMAGES_PER_AGENT))) byImage.delete(old);
       save();
     },
-    /** The agent was deleted, or its image was replaced: its pairs go, and a tag nobody else uses goes with them. */
+    /** The agent was deleted: the pairs of all its images go. */
     forget(agentId: string): void {
-      if (byAgent.delete(agentId)) save();
+      let dropped = false;
+      for (const [image, held] of byImage)
+        if (held.agentId === agentId) dropped = byImage.delete(image) || dropped;
+      if (dropped) save();
     },
     /** `null` stays `null` (every package). Without a recorded build the picks go on as they are (or are refused when `strict`). */
-    toImage(agentId: string, sources: readonly string[] | null): string[] | null {
+    toImage(agentId: string, image: string, sources: readonly string[] | null): string[] | null {
       if (sources === null) return null;
-      const held = byAgent.get(agentId);
-      if (held === undefined) {
+      const held = byImage.get(image);
+      if (held === undefined || held.agentId !== agentId) {
         logger.warn("agent_pick_image_unknown", { agentId, picks: sources.length });
         if (strict) throw new PapError("worker_failed");
         return [...sources];

@@ -339,7 +339,7 @@ export async function composeAgentsVm(
       recheck: (ownerId, agentId) =>
         lateHolder.late ? lateHolder.late.agentOpen(ownerId, agentId) : notBound(),
       logger: agentsLogger,
-      toImageEntries: (agentId, sources) => imageEntries.toImage(agentId, sources),
+      toImageEntries: (agentId, image, sources) => imageEntries.toImage(agentId, image, sources),
       packageSources: (ids) => (lateHolder.late ? lateHolder.late.sourcesOf(ids) : notBound()),
       // AVM-E15, process backend only: the scripted provider is copied into the VM's folder and the init names that path.
       ...(kata === null && seams.backend === undefined && config.testProviderScript !== null

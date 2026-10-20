@@ -265,8 +265,8 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
       });
       if (!done) return null;
     }
-    // The agent now runs the image just chosen: its package picks map through that profile's pairs.
-    deps.entries.record(agentId, profile.written, profile.tag);
+    // The launch gets this image: its package picks map through the pairs recorded for it.
+    deps.entries.record(agentId, tag, profile.written);
     return tag;
   }
 

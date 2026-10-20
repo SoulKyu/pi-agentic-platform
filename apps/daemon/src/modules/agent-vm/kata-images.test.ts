@@ -108,9 +108,9 @@ describe("resolve: builds the layers the first start needs", () => {
     expect(fake.ops()).toEqual(["image.list", "image.list"]);
   });
 
-  it("records the profile build's pairs for the agent, by the profile tag (AVM-E44)", async () => {
-    await make().resolve("scout-0001", ["git"], "thread");
-    expect(entries.record).toHaveBeenCalledWith("scout-0001", expect.any(Array), tagOf("profile"));
+  it("records the profile build's pairs for the image the launch gets (AVM-E44, S1)", async () => {
+    const tag = await make().resolve("scout-0001", ["git"], "thread");
+    expect(entries.record).toHaveBeenCalledWith("scout-0001", tag, expect.any(Array));
   });
 
   it("two agents starting together share one build of each layer", async () => {
@@ -151,7 +151,7 @@ describe("resolve: the policy decides", () => {
     await expect.poll(() => fake.images.size).toBe(3);
     const next = await images.resolve("scout-0001", [], "isolated");
     expect(next).not.toBe(old);
-    expect(entries.record).toHaveBeenCalledWith("scout-0001", expect.any(Array), next);
+    expect(entries.record).toHaveBeenCalledWith("scout-0001", next, expect.any(Array));
   });
 
   // M4: the VM of the agent's thread runs; a worker spawned into it needs no image, no preparation, no new pairs.

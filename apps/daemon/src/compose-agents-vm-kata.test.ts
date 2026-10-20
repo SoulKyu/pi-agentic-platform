@@ -48,6 +48,7 @@ vi.mock("./modules/agent-vm/index.ts", async (importOriginal) => {
   };
 });
 
+type ToImage = (agentId: string, image: string, sources: string[] | null) => string[] | null;
 const ID = "scout-0001";
 const child = () =>
   Object.assign(new EventEmitter(), { send: () => true, kill: () => true, sent: [] as unknown[] });
@@ -287,12 +288,9 @@ describe("the images of a launch", () => {
 
   it("refuses the picks of an agent whose profile image was never built (AVM-E44)", async () => {
     await kata();
-    const toImage = created[0]?.toImageEntries as (
-      agentId: string,
-      sources: string[] | null,
-    ) => string[] | null;
-    expect(toImage(ID, null)).toBeNull();
-    expect(() => toImage(ID, ["npm:left-pad@1.0.0"])).toThrow(
+    const toImage = created[0]?.toImageEntries as ToImage;
+    expect(toImage(ID, "pap-agent-agent-x", null)).toBeNull();
+    expect(() => toImage(ID, "pap-agent-agent-x", ["npm:left-pad@1.0.0"])).toThrow(
       expect.objectContaining({ code: "worker_failed" }) as Error,
     );
   });
@@ -306,18 +304,17 @@ describe("what the agents module is given (T15)", () => {
       input: AgentInput,
       kind: string,
     ) => Promise<string>;
-    const toImage = created[0]?.toImageEntries as (
-      agentId: string,
-      sources: string[] | null,
-    ) => string[] | null;
-    await imageTagOf(ID, AgentInput.parse({ name: "Scout" }), "thread");
-    expect(toImage(ID, ["npm:a"])).toEqual([]);
+    const toImage = created[0]?.toImageEntries as ToImage;
+    const tag = await imageTagOf(ID, AgentInput.parse({ name: "Scout" }), "thread");
+    expect(toImage(ID, tag, ["npm:a"])).toEqual([]);
     mkdirSync(join(root, "pap", "agents", ".mirrors", ID), { recursive: true });
     writeFileSync(join(root, "pap", "agents", ".mirrors", ID, "s.jsonl"), "x");
     fake.disks.set(ID, 4096);
     await vm.agentLink.stop(ID);
     await vm.agentLink.dispose(ID, 1_760_000_000_000);
-    expect(() => toImage(ID, ["npm:a"])).toThrow(expect.objectContaining({ code: "worker_failed" }) as Error);
+    expect(() => toImage(ID, tag, ["npm:a"])).toThrow(
+      expect.objectContaining({ code: "worker_failed" }) as Error,
+    );
     expect(fake.of("disk.delete")).toEqual([{ op: "disk.delete", agentId: ID, taskKey: null, purge: false }]);
     expect(readdirSync(join(root, "pap", "agents", ".trash"))).toEqual([`${ID}-1760000000000.mirrors`]);
     await vm.agentLink.purge(ID);

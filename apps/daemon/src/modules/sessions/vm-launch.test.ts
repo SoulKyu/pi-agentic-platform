@@ -121,7 +121,7 @@ function setup(
     mirrors: { inputFor },
     logger: silentLogger,
     // Mutant: the ids go to the runtime as they are -> "hands the runtime the sources, never the ids" fails.
-    toImageEntries: (_agentId, sources) =>
+    toImageEntries: (_agentId, _image, sources) =>
       sources === null
         ? null
         : sources.map((source) => (source === PICK_SOURCE ? `${PICK_SOURCE}#written` : source)),
