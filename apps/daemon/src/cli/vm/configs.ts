@@ -1,4 +1,4 @@
-import { cniConflist } from "@pap/contracts";
+import { CNI_IPAM_DIR, cniConflist } from "@pap/contracts";
 import { CliError } from "../open-home.ts";
 
 /** First line of the one host-global file pap writes; uninstall removes that file only while it still starts with it. */
@@ -73,6 +73,6 @@ export const vmdConfig = (user: { uid: number; gid: number; home: string }): str
  */
 export function conflist(): string {
   const document = JSON.parse(cniConflist()) as { plugins: Array<{ ipam: Record<string, unknown> }> };
-  for (const plugin of document.plugins) plugin.ipam.dataDir = `${PATHS.run}/cni-ipam`;
+  for (const plugin of document.plugins) plugin.ipam.dataDir = CNI_IPAM_DIR;
   return `${JSON.stringify(document, null, 2)}\n`;
 }

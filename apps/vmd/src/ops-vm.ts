@@ -142,11 +142,13 @@ export function createVmOps(deps: OpsDeps) {
     const file = path.join(deps.ipamRoot, ip);
     try {
       lstatSync(file);
-    } catch {
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT") log.info("vmd_ipam_reservation_unreadable", { ip, code: code ?? "unknown" });
       return;
     }
     rmSync(file, { force: true });
-    log.info("vmd_ipam_reservation_cleared", {});
+    log.info("vmd_ipam_reservation_cleared", { ip });
   }
 
   async function removeVolume(volume: string): Promise<void> {

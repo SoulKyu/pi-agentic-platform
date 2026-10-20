@@ -12,6 +12,8 @@ export const AGENT_NET = Object.freeze({
   gatewayPort: 7841,
   relayPort: 7842,
 });
+/** Where host-local keeps its reservations (the conflist's `dataDir`, under /run: no VM outlives a reboot); one folder per network below it. */
+export const CNI_IPAM_DIR = "/run/pap-vm/cni-ipam";
 export const AGENT_VM_PROTOCOL = 1;
 /** The gateway frame bound. `frames.ts` has the WebSocket's `MAX_FRAME_BYTES` (1 MiB): a different bound. */
 export const AGENT_VM_MAX_FRAME_BYTES = 4 * 1024 * 1024;

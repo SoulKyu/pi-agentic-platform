@@ -1,4 +1,4 @@
-import type { VmdRequest } from "@pap/contracts";
+import { AGENT_NET, CNI_IPAM_DIR, type VmdRequest } from "@pap/contracts";
 import type { Clock } from "./clock.ts";
 import { VmdFailure } from "./errors.ts";
 import type { Locks } from "./locks.ts";
@@ -17,7 +17,7 @@ export const BUNDLE_ROOT = "/opt/pap-vm/agent-bundle";
 /** AVM-P13: each VM's direct-assigned volume is registered with Kata under this folder. */
 export const VOLUME_ROOT = "/run/pap-vm/vol";
 /** T20a: host-local's reservations (one file per address); `pap vm setup` points the conflist's `dataDir` at this folder's parent. */
-export const IPAM_ROOT = "/run/pap-vm/cni-ipam/pap-agents";
+export const IPAM_ROOT = `${CNI_IPAM_DIR}/${AGENT_NET.network}`;
 
 export interface ExecResult {
   readonly code: number;
