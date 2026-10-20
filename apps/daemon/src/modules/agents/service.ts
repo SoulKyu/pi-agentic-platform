@@ -41,8 +41,7 @@ export interface AgentsDeps extends ReachDeps {
   readonly guard?: AgentGuard;
   /** The host's ceilings for an agent VM (RT-30); missing: no VM runtime, nothing to check. */
   readonly resourceHost?: () => { memoryCapMb: number; cores: number };
-  /** Every picked package id must be one the owner's Pi packages hold (AVM-E33); a refusal is the typed error it throws. */
-  readonly checkPackages?: (ids: readonly string[]) => Promise<void>;
+  readonly checkPackages?: (ids: readonly string[]) => Promise<void>; // AVM-E33: an unknown id throws the refusal
 }
 
 export interface AgentChanged {
@@ -280,11 +279,7 @@ export function createAgents(deps: AgentsDeps) {
 
     view: (caller: Caller, agentId: string): AgentView => viewOf(owned(caller.userId, agentId)),
 
-    /** The caller's deleted agents still in the trash (J1b): the entry that outlives the delete toast. */
-    trash: (caller: Caller): ResultOf<"agents.trash"> => ({
-      agents: store.trashed(caller.userId, clock.now()),
-    }),
-
+    trash: (caller: Caller) => ({ agents: store.trashed(caller.userId, clock.now()) }),
     async create(caller: Caller, input: AgentInput): Promise<AgentView> {
       stepUpIfWider(deps, caller, null, input, clock.now());
       const ownerId = caller.userId;
