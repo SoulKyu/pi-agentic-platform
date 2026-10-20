@@ -1,5 +1,6 @@
 import { AGENT_VM_MAX_FRAME_BYTES, GATEWAY_LIMITS, encodeSocketFrame } from "@pap/contracts";
 import { beforeEach, describe, expect, it } from "vitest";
+import { REFUSAL_QUIET_MS } from "./gateway.ts";
 import { guestHello, guestOf, type Harness, harness, spawnInput, workerOf } from "./gateway-fixtures.ts";
 
 let h: Harness;
@@ -120,5 +121,19 @@ describe("the refusal log", () => {
     const launch = h.launch();
     h.connect("10.213.3.50").feed(guestHello(launch, { token: "0".repeat(64) }));
     expect(h.refusals().at(-1)).toEqual({ agentId: launch.agentId, reason: "token" });
+  });
+
+  // S2 m2. Mutant: the count never resets -> after a burst, a later refusal of the reason is not logged until the next power of two.
+  it("starts a reason's count again after a quiet hour, and not before", async () => {
+    for (let n = 0; n < 5; n++) h.connect(`10.213.4.${n}`).feed({ type: "nonsense" });
+    const counts = () =>
+      h.lines.filter((line) => line.msg === "agent_gateway_refused").map((line) => line.count);
+    expect(counts()).toEqual([1, 2, 4]);
+    await h.clock.advance(REFUSAL_QUIET_MS - 1);
+    h.connect("10.213.4.20").feed({ type: "nonsense" });
+    expect(counts()).toEqual([1, 2, 4]);
+    await h.clock.advance(REFUSAL_QUIET_MS);
+    h.connect("10.213.4.21").feed({ type: "nonsense" });
+    expect(counts()).toEqual([1, 2, 4, 1]);
   });
 });

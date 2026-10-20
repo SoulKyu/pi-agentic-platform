@@ -55,6 +55,9 @@ export interface GatewayDeps {
   imageOf(launchId: string): string | null;
 }
 
+/** S2 m2: a refusal reason quiet for this long starts its log count again. */
+export const REFUSAL_QUIET_MS = 3_600_000;
+
 type Refusal =
   "bad_hello" | "too_large" | "timeout" | "token" | "protocol" | "image" | "slot" | "duplicate" | "busy";
 
@@ -86,11 +89,16 @@ export function createGatewayCore(deps: GatewayDeps): Gateway & { accept(socket:
   const open = new Set<() => void>();
   let stopped = false;
 
-  /** A guest can refuse as fast as it can connect: each reason logs its 1st, 2nd, 4th, 8th... refusal, with the count. */
-  const refusals = new Map<Refusal, number>();
+  /**
+   * A guest can refuse as fast as it can connect: each reason logs its 1st, 2nd, 4th, 8th... refusal, with the count. A reason
+   * with no refusal for `REFUSAL_QUIET_MS` counts from 1 again (S2 m2), so a later burst is not hidden behind an old count.
+   */
+  const refusals = new Map<Refusal, { count: number; at: number }>();
   const refusedLog = (agentId: string | null, reason: Refusal): void => {
-    const count = (refusals.get(reason) ?? 0) + 1;
-    refusals.set(reason, count);
+    const last = refusals.get(reason);
+    const now = clock.now();
+    const count = last !== undefined && now - last.at < REFUSAL_QUIET_MS ? last.count + 1 : 1;
+    refusals.set(reason, { count, at: now });
     if ((count & (count - 1)) === 0) logger.warn("agent_gateway_refused", { agentId, reason, count });
   };
 
