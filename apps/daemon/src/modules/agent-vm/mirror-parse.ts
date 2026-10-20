@@ -23,9 +23,18 @@ export type SpawnParseThread = () => ParseThread;
 export const parseThreadEntry = (moduleUrl: string): URL =>
   new URL(moduleUrl.endsWith(".ts") ? "./mirror-parse-thread.ts" : "./mirror-parse-thread.js", moduleUrl);
 
+/**
+ * A worker's `execArgv` replaces the parent's: from the sources (`.ts`) the thread needs `--conditions=development` to resolve
+ * `@pap/contracts` to its sources too, else it loads `packages/contracts/dist`, which a fresh checkout does not have.
+ */
+export const parseThreadExecArgv = (moduleUrl: string): string[] =>
+  moduleUrl.endsWith(".ts")
+    ? ["--disable-warning=ExperimentalWarning", "--conditions=development"]
+    : ["--disable-warning=ExperimentalWarning"];
+
 const spawnParseThread: SpawnParseThread = () =>
   new Worker(parseThreadEntry(import.meta.url), {
-    execArgv: ["--disable-warning=ExperimentalWarning"],
+    execArgv: parseThreadExecArgv(import.meta.url),
     resourceLimits: { maxOldGenerationSizeMb: THREAD_OLD_GENERATION_MB },
   });
 

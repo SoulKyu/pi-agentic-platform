@@ -202,9 +202,9 @@ describe("a VM worker: Pi's file tools run pap's operations (R26, RT-01)", () =>
     const blocked = (id: string) => textOf(host.records.find(endOf(id)));
     expect(blocked("a")).toContain("pap-policy blocked this call: rewritten path.");
     expect(blocked("b")).toContain("pap-policy blocked this call: rewritten path.");
-    expect(blocked("c")).toContain("pap-policy blocked this call: link.");
+    expect(blocked("c")).toContain("pap-policy blocked this call: outside this agent's folders");
     expect(blocked("d")).toContain("outside this agent's folders");
-    expect(blocked("e")).toContain("pap-policy blocked this call: link.");
+    expect(blocked("e")).toContain("pap-policy blocked this call: outside this agent's folders");
     expect(host.records.filter(isApproval)).toEqual([]);
     expect(readFileSync(world.transcript, "utf8")).toBe("TRANSCRIPT\n");
     expect(existsSync(join(world.layout.sessions, "new.jsonl"))).toBe(false);

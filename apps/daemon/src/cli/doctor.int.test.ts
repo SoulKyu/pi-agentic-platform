@@ -91,11 +91,12 @@ describe("pap doctor (spawned CLI, fake systemd, temporary home)", () => {
       "vm.network",
       "vm.images",
       "vm.disk",
+      "vm.listeners",
       "vm.firewall",
     ]);
     // Host mode (no PAP_AGENTS_RUNTIME=vm): the agent VM checks do not apply and never reach for pap-vmd (T18).
     expect(report.results.filter((x) => x.id.startsWith("vm.")).map((x) => x.status)).toEqual(
-      Array(7).fill("skip"),
+      Array(8).fill("skip"),
     );
   });
 

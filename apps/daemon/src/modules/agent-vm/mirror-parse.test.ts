@@ -10,6 +10,7 @@ import {
   type LineParser,
   type ParseThread,
   parseThreadEntry,
+  parseThreadExecArgv,
 } from "./mirror-parse.ts";
 
 const MiB = 1024 * 1024;
@@ -163,6 +164,9 @@ describe("the parse thread's protocol", () => {
 
   it("picks the .ts thread next to a .ts module and the .js one next to a .js module", () => {
     expect(parseThreadEntry("file:///m/mirror-parse.ts").pathname).toMatch(/\/m\/mirror-parse-thread\.ts$/);
+    // Mutant: no development condition for .ts -> the thread loads contracts' dist, absent on a fresh checkout.
+    expect(parseThreadExecArgv("file:///m/mirror-parse.ts")).toContain("--conditions=development");
+    expect(parseThreadExecArgv("file:///m/mirror-parse.js")).not.toContain("--conditions=development");
     expect(parseThreadEntry("file:///m/mirror-parse.js").pathname).toMatch(/\/m\/mirror-parse-thread\.js$/);
   });
 });
