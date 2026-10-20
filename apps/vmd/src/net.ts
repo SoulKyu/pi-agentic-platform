@@ -1,10 +1,20 @@
-import { closeSync, constants, openSync, readFileSync, renameSync, rmSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  constants,
+  fsyncSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeSync,
+} from "node:fs";
 import path from "node:path";
 import { AGENT_NET, portElement, VM_IPV4 } from "@pap/contracts";
 import type { Clock } from "./clock.ts";
 import { VmdFailure } from "./errors.ts";
 import type { Logger } from "./log.ts";
 import type { Exec, NetPort } from "./ops.ts";
+import { NET_CALL_TIMEOUT_MS } from "./net-facts.ts";
 import { psArgv, vmName } from "./argv.ts";
 import { parseVmList } from "./ops-vm.ts";
 import type { VmdState } from "./state.ts";
@@ -95,7 +105,9 @@ function parseLeases(text: string): Lease[] {
  * Every program is run by absolute path through `exec` (no shell); every value in an argv is checked first.
  */
 export function createNet(deps: NetDeps): NetPort {
-  const { exec, state, clock, log } = deps;
+  const { state, clock, log } = deps;
+  /** M6: an `ip` or `nft` call that hangs must not hold the start lock for the 120 s exec default. */
+  const exec: Exec = (argv, options) => deps.exec(argv, { timeoutMs: NET_CALL_TIMEOUT_MS, ...options });
   const file = path.join(state.root, "run", "addresses.json");
   let leases: Lease[] = load();
   /** The bridge ports seen by `prepare`, per VM name; memory only (a restart of pap-vmd fails a start in flight). */
@@ -128,6 +140,7 @@ export function createNet(deps: NetDeps): NetPort {
     );
     try {
       writeSync(fd, JSON.stringify({ leases }));
+      fsyncSync(fd);
     } finally {
       closeSync(fd);
     }
@@ -298,7 +311,7 @@ export function createNet(deps: NetDeps): NetPort {
   }
 
   async function restore(): Promise<readonly string[]> {
-    const listed = await exec(psArgv());
+    const listed = await deps.exec(psArgv());
     if (listed.code !== 0) throw new Error("net: restore cannot list the VMs");
     // Same rule as vm.list: only an explicit stop counts as stopped, so an unknown status keeps its guard.
     const running = new Set(
