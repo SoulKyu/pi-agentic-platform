@@ -55,7 +55,7 @@ export interface VmLaunchDeps {
     kind: "thread" | "isolated",
   ): string | Promise<string>;
   /**
-   * Called after the image wait (a first build takes minutes) and before anything starts: throws when the agent was quarantined
+   * Called after the image wait (a first build takes minutes) and the package helper, just before the VM starts: throws when the agent was quarantined
    * or deleted meanwhile, so the launch ends with no VM instead of a VM nobody uses (S1).
    */
   recheck?(ownerId: string, agentId: string): void;
@@ -104,7 +104,6 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
       }
       const who = whoOf(row);
       const image = await deps.imageTagOf(row.agentId, launch.input, who.kind);
-      deps.recheck?.(row.ownerId, row.agentId);
       const spec: VmSpec = { ...who, image, resources: launch.input.resources };
       const worker = { ...deps.mirrors.inputFor(row, launch.input.resources), sessionsDir: layout.sessions };
       const packages = deps.toImageEntries(
@@ -112,6 +111,8 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
         image,
         await deps.packageSources(launch.input.packages),
       );
+      // Nothing awaits between this check and the runtime's own entry for the VM, so a quarantine after it finds a VM to stop.
+      deps.recheck?.(row.ownerId, row.agentId);
       const started = await deps.runtime.spawn(spec, worker, packages);
       const { handle } = started;
       return {

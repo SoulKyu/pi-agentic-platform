@@ -86,6 +86,7 @@ function setup(
   copyProviderScript?: (layout: VmLayout) => string,
   imageTagOf: (agentId: string, input: AgentLaunch["input"]) => string | Promise<string> = () => IMAGE,
   recheck?: () => void,
+  sources?: (ids: readonly string[] | null) => Promise<string[] | null>,
 ) {
   const worker = createFakeWorker({});
   const specs: VmSpec[] = [];
@@ -125,8 +126,9 @@ function setup(
       sources === null
         ? null
         : sources.map((source) => (source === PICK_SOURCE ? `${PICK_SOURCE}#written` : source)),
-    packageSources: async (ids) =>
-      ids === null ? null : ids.map((id) => (id === PICK_ID ? PICK_SOURCE : id)),
+    packageSources:
+      sources ??
+      (async (ids) => (ids === null ? null : ids.map((id) => (id === PICK_ID ? PICK_SOURCE : id)))),
     ...(copyProviderScript ? { copyProviderScript } : {}),
   });
   return {
@@ -207,6 +209,25 @@ describe("the image tag of a launch (T15a: Kata builds it first)", () => {
       },
       () => {
         if (quarantined) throw new PapError("agent_paused");
+      },
+    );
+    const r = bed.use(row());
+    expect(await codeOf(bed.vmLaunch.spawn(r, launch(), hostInit(r)))).toBe("agent_paused");
+    expect(bed.spawn).not.toHaveBeenCalled();
+  });
+  // S1 round 1 (M1). Mutant: the check back before the package helper -> a quarantine during the helper still spawns the VM.
+  it("asks again after the package helper too: a quarantine during it spawns nothing", async () => {
+    let quarantined = false;
+    const bed = setup(
+      undefined,
+      undefined,
+      undefined,
+      () => {
+        if (quarantined) throw new PapError("agent_paused");
+      },
+      async () => {
+        quarantined = true;
+        return [];
       },
     );
     const r = bed.use(row());
