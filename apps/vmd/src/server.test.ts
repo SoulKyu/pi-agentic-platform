@@ -195,6 +195,14 @@ describe("one request per connection", () => {
     expect(handled).toEqual([]);
   });
 
+  // S2 m6. Mutant: the decoder without `ignoreBOM: true` strips a leading BOM, so a request that does not start with `{` runs.
+  it("a request that starts with a byte-order mark is bad_request, not stripped and run", async () => {
+    const bom = Buffer.from([0xef, 0xbb, 0xbf]);
+    const payload = Buffer.concat([bom, Buffer.from(JSON.stringify({ op: "vm.list" }))]);
+    expect(JSON.parse(await exchange(payload, "end"))).toEqual({ ok: false, code: "bad_request" });
+    expect(handled).toEqual([]);
+  });
+
   it("a typed refusal keeps its code; any other error is `failed` and its message never reaches the client", async () => {
     handler = () => Promise.reject(new VmdFailure("conflict"));
     expect(await call({ op: "vm.list" })).toEqual({ ok: false, code: "conflict" });

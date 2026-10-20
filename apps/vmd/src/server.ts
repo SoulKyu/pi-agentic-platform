@@ -44,7 +44,7 @@ export function createVmdServer(deps: VmdServerDeps): VmdServer {
   const chown = deps.chown ?? chownSync;
   const open = new Set<net.Socket>();
   let bound = false;
-  const decoder = new TextDecoder("utf-8", { fatal: true });
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }); // a leading BOM is not stripped: it fails the JSON parse
   const server = net.createServer({ allowHalfOpen: true }, onConnection);
 
   function encode(response: VmdResponseBody): Buffer {
