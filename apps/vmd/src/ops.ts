@@ -11,7 +11,6 @@ import type { RunningTask, VmdState } from "./state.ts";
 export type VmStartRequest = Extract<VmdRequest, { op: "vm.start" }>;
 export type ImageBuildRequest = Extract<VmdRequest, { op: "image.build" }>;
 
-export const VMD_VERSION = "1.0.0";
 /** AVM-E31: `pap vm setup` installs the pinned agent bundle here, root-owned; the base image is built from it. */
 export const BUNDLE_ROOT = "/opt/pap-vm/agent-bundle";
 /** AVM-P13: each VM's direct-assigned volume is registered with Kata under this folder. */

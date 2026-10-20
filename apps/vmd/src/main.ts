@@ -5,9 +5,10 @@ import { createLocks, createRoomCheck } from "./locks.ts";
 import { createStderrLogger } from "./log.ts";
 import { createRestoredNet } from "./net.ts";
 import { realNetnsSweep } from "./netns-sweep.ts";
-import { BUNDLE_ROOT, createOps, IPAM_ROOT, VMD_VERSION, VOLUME_ROOT } from "./ops.ts";
+import { BUNDLE_ROOT, createOps, IPAM_ROOT, VOLUME_ROOT } from "./ops.ts";
 import { createVmdServer } from "./server.ts";
 import { createState } from "./state.ts";
+import { VMD_VERSION } from "./version.ts";
 
 const SOCKET_PATH = "/run/pap-vm/vmd.sock";
 const DEFAULT_MIN_FREE_MB = 1024;

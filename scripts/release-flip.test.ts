@@ -21,6 +21,7 @@ const PI_COMPAT = PI_COMPAT_YML;
 const CHECKED = [
   "package.json",
   "apps/daemon/package.json",
+  "apps/vmd/package.json",
   ".release-please-manifest.json",
   "release-please-config.json",
   RELEASE_YML,

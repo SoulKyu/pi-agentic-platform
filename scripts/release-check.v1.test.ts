@@ -8,6 +8,7 @@ import { checkRelease } from "./release-check.ts";
 const FILES = [
   "package.json",
   "apps/daemon/package.json",
+  "apps/vmd/package.json",
   ".release-please-manifest.json",
   "release-please-config.json",
   ".github/workflows/release.yml",

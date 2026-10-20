@@ -49,7 +49,10 @@ export const EXPECTED_CONFIG = {
     ".": {
       "package-name": "pap",
       "changelog-path": "CHANGELOG.md",
-      "extra-files": [{ type: "json", path: "apps/daemon/package.json", jsonpath: "$.version" }],
+      "extra-files": [
+        { type: "json", path: "apps/daemon/package.json", jsonpath: "$.version" },
+        { type: "json", path: "apps/vmd/package.json", jsonpath: "$.version" },
+      ],
     },
   },
 };
@@ -71,6 +74,7 @@ const versions = (root: string, problems: string[]): void => {
   const sources: [string, unknown][] = [
     ["package.json", record(readJson(root, "package.json")).version],
     ["apps/daemon/package.json", record(readJson(root, "apps/daemon/package.json")).version],
+    ["apps/vmd/package.json", record(readJson(root, "apps/vmd/package.json")).version],
     [".release-please-manifest.json", record(readJson(root, ".release-please-manifest.json"))["."]],
   ];
   for (const [file, version] of sources)
@@ -224,7 +228,7 @@ const piCompat = (root: string, problems: string[]): void => {
 export function checkRelease(root: string): string[] {
   const problems: string[] = [];
   const checks: [string, (root: string, problems: string[]) => void][] = [
-    ["package.json, apps/daemon/package.json, .release-please-manifest.json", versions],
+    ["package.json, apps/daemon/package.json, apps/vmd/package.json, .release-please-manifest.json", versions],
     ["release-please-config.json", config],
     [WORKFLOW, workflow],
     [`${PI_COMPAT} and ${WORKFLOW}`, piCompat],

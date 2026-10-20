@@ -8,6 +8,7 @@ import { copyPreFlip, REPO } from "./release-bed.ts";
 const FILES = [
   "package.json",
   "apps/daemon/package.json",
+  "apps/vmd/package.json",
   ".release-please-manifest.json",
   "release-please-config.json",
   ".github/workflows/release.yml",
@@ -23,7 +24,10 @@ const EXPECTED_CONFIG = {
     ".": {
       "package-name": "pap",
       "changelog-path": "CHANGELOG.md",
-      "extra-files": [{ type: "json", path: "apps/daemon/package.json", jsonpath: "$.version" }],
+      "extra-files": [
+        { type: "json", path: "apps/daemon/package.json", jsonpath: "$.version" },
+        { type: "json", path: "apps/vmd/package.json", jsonpath: "$.version" },
+      ],
     },
   },
 };
@@ -75,6 +79,7 @@ describe("version triple", () => {
     ["package.json", (t: string) => t.replace(`"version": "${VERSION}"`, '"version": "9.9.1"')],
     ["apps/daemon/package.json", (t: string) => t.replace(`"version": "${VERSION}"`, '"version": "9.9.2"')],
     [".release-please-manifest.json", (t: string) => t.replace(VERSION, "9.9.3")],
+    ["apps/vmd/package.json", (t: string) => t.replace(`"version": "${VERSION}"`, '"version": "9.9.4"')],
   ])("fails naming %s when it is the one that differs", (file, change) => {
     edit(file, change);
     const problems = checkRelease(copy);
