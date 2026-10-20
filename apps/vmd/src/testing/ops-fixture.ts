@@ -71,7 +71,7 @@ function healthyHost(argv: readonly string[]): Partial<ExecResult> | undefined {
 
 export function createFixture(
   handler: ExecHandler = () => undefined,
-  options: { locks?: Locks; net?: NetPort; unleased?: readonly string[] } = {},
+  options: { locks?: Locks; net?: NetPort; unleased?: readonly string[]; sweepNetns?: () => number } = {},
 ): Fixture {
   const work = mkdtempSync(path.join(tmpdir(), "pap-vmd-ops-"));
   const clock = createFakeClock();
@@ -136,6 +136,7 @@ export function createFixture(
     ipamRoot,
     version: "1.2.3",
     unleased: options.unleased ?? [],
+    ...(options.sweepNetns ? { sweepNetns: options.sweepNetns } : {}),
   });
   Object.assign(fixture, {
     exec,

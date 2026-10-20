@@ -258,6 +258,8 @@ export function createVmOps(deps: OpsDeps) {
       const removed = await removeContainer(name);
       const detached = await step("detach", () => net.detach(name));
       await step("volume", () => removeVolume(volume));
+      // AVM-E62: no `nerdctl run` may be creating a namespace file meanwhile, so the start lock is held.
+      await step("netns", () => locks.withStart(async () => deps.sweepNetns?.()));
       // R30: a task's disk goes with its VM, but never while the container may still hold it.
       if (removed && request.taskKey !== null) {
         removeTaskDir(state.diskPath(request.agentId, request.taskKey));

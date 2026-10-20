@@ -4,6 +4,7 @@ import { createExec } from "./exec.ts";
 import { createLocks, createRoomCheck } from "./locks.ts";
 import { createStderrLogger } from "./log.ts";
 import { createRestoredNet } from "./net.ts";
+import { realNetnsSweep } from "./netns-sweep.ts";
 import { BUNDLE_ROOT, createOps, IPAM_ROOT, VMD_VERSION, VOLUME_ROOT } from "./ops.ts";
 import { createVmdServer } from "./server.ts";
 import { createState } from "./state.ts";
@@ -27,6 +28,7 @@ async function main(): Promise<void> {
   // AVM-P11: the unit reloaded the ruleset (an empty `ports` set); the guards of the VMs that run come back before the
   // server accepts a request. If they cannot, pap-vmd does not start (main's catch exits 1).
   const { net, unleased } = await createRestoredNet({ exec, state, clock, log });
+  const sweepNetns = realNetnsSweep(log);
   const ops = createOps({
     exec,
     net,
@@ -43,8 +45,10 @@ async function main(): Promise<void> {
     ipamRoot: IPAM_ROOT,
     version: VMD_VERSION,
     unleased,
+    sweepNetns,
   });
   // Task disks of VMs that no longer exist are swept; if nerdctl cannot say which exist, none is touched (fails closed).
+  sweepNetns();
   state.sweepAtStart(await ops.runningTasks().catch(() => null));
   const stopPurge = state.startDailyPurge();
   const server = createVmdServer({

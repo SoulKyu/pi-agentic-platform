@@ -63,6 +63,8 @@ export interface OpsDeps {
   readonly version: string;
   /** Running containers without a lease at restore (`net.restore`): listed like a failed removal, so no start runs beside them. */
   readonly unleased?: readonly string[];
+  /** AVM-E62: removes the `cnitest-*` namespace files nobody mounts; run under the start lock after each `vm.stop`. */
+  readonly sweepNetns?: () => number;
 }
 
 export interface Ops {
