@@ -11,6 +11,13 @@ describe("agentsVmMethods", () => {
     expect(agentsVmMethods["agents.purgeTrash"].permission).toBe("agents:admin");
   });
 
+  // M8. The service throws command_failed when pap-vmd's purge fails (trash-purge.ts); a code not declared is not mapped for clients.
+  it("declares every error agents.purgeTrash can throw", () => {
+    expect(agentsVmMethods["agents.purgeTrash"].errors).toEqual(
+      expect.arrayContaining(["step_up_required", "not_found", "sandbox_unavailable", "command_failed"]),
+    );
+  });
+
   it("asks for the password step-up on the token and the purge", () => {
     for (const name of [
       "agents.vm.setClaudeToken",

@@ -92,6 +92,6 @@ export const agentsVmMethods = {
     idempotent: false,
     params: Params({ agentId: AgentId }),
     result: Ok,
-    errors: ["step_up_required", "not_found", "sandbox_unavailable"],
+    errors: ["step_up_required", "not_found", "sandbox_unavailable", "command_failed"],
   }),
 };

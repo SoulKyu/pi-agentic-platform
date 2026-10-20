@@ -172,7 +172,7 @@ describe("putAttachments (R33)", () => {
       "../../etc/passwd",
       "-rf",
       "",
-      "a‮b.txt",
+      "a" + String.fromCharCode(0x202e) + "b.txt",
       "x".repeat(300) + ".md",
       "dir/file",
     ];
