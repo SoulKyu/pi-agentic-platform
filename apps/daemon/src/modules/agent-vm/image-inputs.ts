@@ -352,10 +352,9 @@ function build(
 }
 
 /**
- * RT-18: writes the Pi profile the image gets, by allowlist (`out` is replaced). Every file written is scanned for
- * every known secret before the tag is computed; a hit, or any other failure, removes `out` and throws. `authProviders` (T15b)
- * get a relay entry like the settings' own. The base tag enters the profile tag, so a new bundle, digest or weekly rebuild of
- * the base reaches the profile and the agent images.
+ * RT-18: writes the Pi profile the image gets, by allowlist (`out` is replaced). Every file written is scanned for every
+ * known secret before the tag is computed; a hit or any other failure removes `out` and throws. `authProviders` (T15b) get a
+ * relay entry like the settings' own. The base tag enters the profile tag: a new bundle, digest or weekly rebuild reaches it.
  */
 export function prepareProfileContext(
   agentDir: string,

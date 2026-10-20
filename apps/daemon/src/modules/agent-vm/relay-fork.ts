@@ -5,12 +5,11 @@ import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import { scrubKnownSecrets } from "../audit/index.ts";
 import type { RelayChild } from "./relay-link.ts";
+import { createLineSplitter } from "./stderr-lines.ts";
 
 /** Lines of the relay's stderr the daemon logs per minute; the rest is counted. */
 const LOG_LINES_PER_MINUTE = 30;
 const LOG_LINE_CHARS = 300;
-/** A line that long without a newline is cut here and logged as a line (its start is not kept, so no value half-hides). */
-const PARTIAL_MAX_CHARS = 16_384;
 
 /**
  * Where `pap-relay` listens (R34, AVM-P10): the bridge's host address under Kata, an ephemeral loopback port under the
@@ -83,17 +82,8 @@ export function forkRelay(options: RelayForkOptions): RelayChild {
       .catch(() => "[line withheld]")
       .then((text) => logger.warn("relay_log", { line: text.slice(0, LOG_LINE_CHARS) }));
   };
-  let partial = "";
-  child.stderr?.on("data", (chunk: Buffer) => {
-    partial += chunk.toString("utf8");
-    const parts = partial.split("\n");
-    partial = parts.pop() ?? "";
-    if (partial.length > PARTIAL_MAX_CHARS) {
-      parts.push(partial);
-      partial = "";
-    }
-    for (const text of parts) if (text !== "") line(text);
-  });
+  const feed = createLineSplitter(line);
+  child.stderr?.on("data", (chunk: Buffer) => feed(chunk.toString("utf8")));
   child.stderr?.on("error", () => {});
   child.stdout?.resume();
   child.stdout?.on("error", () => {});

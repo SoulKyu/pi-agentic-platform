@@ -10,7 +10,7 @@ export type { GuestLink } from "./guest-link.ts";
 export { createLaunchTokens, type LaunchTokens } from "./tokens.ts";
 export type { MirrorPort, VmWorkerHandle, WorkerSpawnInput } from "./vm-worker.ts";
 export { agentsVmTokenRpc } from "./rpc.ts";
-export { type ClaudeTokenStore, createClaudeTokenStore } from "./claude-token.ts";
+export { type ClaudeTokenStore, createClaudeTokenStore, loadClaudeTokenStrict } from "./claude-token.ts";
 export { createImageEntries, type ImageEntries } from "./pick-map.ts";
 export { createKataBackend } from "./kata-backend.ts";
 export { createKataImages, type KataImages } from "./kata-images.ts";
@@ -24,7 +24,12 @@ export {
   type VmdErrorCode,
 } from "./vmd-client.ts";
 export { disposeAgent, purgeAgent, startTrashSweep, type TrashDeps } from "./trash.ts";
-export { createOwnerSecrets, type OwnerSecretsCollector } from "./owner-secrets.ts";
+export {
+  createOwnerSecrets,
+  OWNER_SECRETS_CAP_NOTICE,
+  OwnerSecretsError,
+  type OwnerSecretsCollector,
+} from "./owner-secrets.ts";
 export { readPiAuth } from "./pi-auth-values.ts";
 export { createStderrRedactor } from "./stderr-redactor.ts";
 export { forkRelay, relayEnv, relayListenOf } from "./relay-fork.ts";

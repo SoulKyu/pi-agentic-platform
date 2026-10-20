@@ -7,7 +7,7 @@ import type { Logger } from "../../kernel/logger.ts";
 import { agentLayerTag, prepareProfileContext, treeDigest } from "./image-inputs.ts";
 import { createImagePolicy, type ImagePolicy, type RunningImage } from "./image-policy.ts";
 import type { ImageEntries, WrittenEntry } from "./pick-map.ts";
-import type { OwnerSecrets } from "./owner-secrets.ts";
+import { OWNER_SECRETS_CAP_NOTICE, OwnerSecretsError, type OwnerSecrets } from "./owner-secrets.ts";
 import { type KnownSecrets, PROFILE_SECRET_NOTICE, ProfileSecretError } from "./secret-scan.ts";
 import { papErrorOf, type VmdClient, VmdError } from "./vmd-client.ts";
 
@@ -35,7 +35,6 @@ export interface KataImagesDeps {
   readonly nodeImage: string;
   /** The ISO week of the last successful base rebuild, kept across restarts. */
   readonly weekFile: string;
-  /** T15b collects them; the profile build refuses when this throws. */
   /** The owner's secrets, collected at each build (T15b); a plain list names no auth.json-only provider. A rejection refuses the build. */
   readonly secrets: () => KnownSecrets | OwnerSecrets | Promise<KnownSecrets | OwnerSecrets>;
   readonly entries: Pick<ImageEntries, "record" | "forget">;
@@ -165,7 +164,11 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
       if (error instanceof ProfileSecretError) {
         logger.warn("agent_profile_secret", { file: error.file });
         deps.notice(agentId, PROFILE_SECRET_NOTICE);
-      } else logger.warn("agent_profile_refused", { err: error });
+      } else {
+        logger.warn("agent_profile_refused", { err: error });
+        if (error instanceof OwnerSecretsError && error.reason === "too_many")
+          deps.notice(agentId, OWNER_SECRETS_CAP_NOTICE);
+      }
       throw new PapError("config_invalid");
     }
   }

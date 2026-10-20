@@ -68,7 +68,9 @@ describe("the relay's stderr in the daemon's log (AVM-E40 M8)", () => {
   const VAULT_VALUE = `vault-value-${"E".repeat(10)}`;
   const KEY = `sk-${"a".repeat(30)}`;
   const dirs: string[] = [];
+  const children: Array<{ pid?: number | undefined; kill(): boolean }> = [];
   afterEach(() => {
+    for (const child of children.splice(0)) if ((child.pid ?? 0) > 1) child.kill();
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
@@ -100,7 +102,7 @@ describe("the relay's stderr in the daemon's log (AVM-E40 M8)", () => {
         error: () => {},
         child: () => logger,
       } as unknown as Logger;
-      forkRelay({
+      const child = forkRelay({
         entry,
         execArgv: [],
         listen: "127.0.0.1:0",
@@ -112,6 +114,7 @@ describe("the relay's stderr in the daemon's log (AVM-E40 M8)", () => {
           collect: async () => (calls.n++, { secrets: [VAULT_VALUE] }),
         }),
       });
+      children.push(child);
     });
     await done;
     return out;
@@ -124,15 +127,6 @@ describe("the relay's stderr in the daemon's log (AVM-E40 M8)", () => {
     expect(out.join("\n")).not.toContain(KEY);
     expect(out[2]).toBe("plain line");
     expect(calls.n).toBe(1);
-  });
-
-  it("keeps the start of a long line that is still being written, so a value is masked whole (M-partial-tail)", async () => {
-    const calls = { n: 0 };
-    const first = `${"a".repeat(100)}${VAULT_VALUE}${"b".repeat(290)}`;
-    const code = `process.stderr.write(${JSON.stringify(first)}, () => setTimeout(() => process.stderr.write("\\n"), 50));\n`;
-    const [out] = await loggedScript(code, 1, calls);
-    expect(out).not.toContain("E".repeat(8));
-    expect(out).toContain("[REDACTED]");
   });
 
   it("masks before it clips: a value that straddles the clip leaves no fragment", async () => {

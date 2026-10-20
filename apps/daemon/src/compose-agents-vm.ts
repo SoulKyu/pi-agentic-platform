@@ -161,7 +161,6 @@ export async function composeAgentsVm(
     home: config.home,
     piAgentDir: config.piAgentDir,
     logger: agentsLogger,
-    claudeToken: core.claudeToken,
   });
   const lateHolder: { late: AgentsVmDerived | null } = { late: null };
   const notice = (agentId: string, text: string): void =>

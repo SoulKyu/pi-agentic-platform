@@ -23,6 +23,53 @@ export const CLAUDE_TOKEN_FILE = "claude-token";
 /** Only the class of a failure is logged (its code), never its message: a path or a value could be in it. */
 const errorClass = (error: unknown): string => (error as NodeJS.ErrnoException | null)?.code ?? "error";
 
+/**
+ * The token file read whole without following a link. `null` only when the file is absent; any other failure goes to `fail`
+ * with a fixed word or an error code (never a message or the content), and `fail`'s answer is returned.
+ */
+function readTokenFile(path: string, fail: (reason: string) => null): string | null {
+  let fd: number;
+  try {
+    fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch (error) {
+    // A missing file is the normal "no token"; a link (ELOOP) or anything else is said, by class only.
+    return (error as NodeJS.ErrnoException).code === "ENOENT" ? null : fail(errorClass(error));
+  }
+  let token: string | null = null;
+  let reason: string | null = null;
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.size > MAX_FILE_BYTES) reason = "not_a_token_file";
+    else {
+      const buffer = Buffer.alloc(stat.size);
+      let read = 0;
+      while (read < stat.size) {
+        const count = readSync(fd, buffer, read, stat.size - read, read);
+        if (count === 0) break;
+        read += count;
+      }
+      const parsed = ClaudeToken.safeParse(buffer.subarray(0, read).toString("utf8"));
+      if (parsed.success) token = parsed.data;
+      else reason = "not_a_token";
+    }
+  } catch (error) {
+    reason = errorClass(error);
+  } finally {
+    closeSync(fd);
+  }
+  return reason === null ? token : fail(reason);
+}
+
+/**
+ * For the image scan (T15b): the stored token, or `null` only when no token file exists. A link, an unreadable or odd file,
+ * an oversized or invalid one throws a fixed-word error, so a build never goes ahead without a value it should have scanned for.
+ */
+export function loadClaudeTokenStrict(secretsDir: string): string | null {
+  return readTokenFile(join(secretsDir, CLAUDE_TOKEN_FILE), (reason) => {
+    throw new Error(`claude token unreadable (${reason})`);
+  });
+}
+
 export interface ClaudeTokenStore {
   /** `set` or `missing`, never the value (RT-46). */
   status(): "set" | "missing";
@@ -72,42 +119,11 @@ export function createClaudeTokenStore(deps: {
     if ((stat.mode & 0o077) !== 0) chmodSync(secretsDir, 0o700);
   }
 
-  function load(): string | null {
-    let fd: number;
-    try {
-      fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
-    } catch (error) {
-      // A missing file is the normal "no token"; a link (ELOOP) or anything else is said, by class only.
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT")
-        logger.warn("claude_token_unreadable", { err: errorClass(error) });
+  const load = (): string | null =>
+    readTokenFile(path, (reason) => {
+      logger.warn("claude_token_unreadable", { err: reason });
       return null;
-    }
-    try {
-      const stat = fstatSync(fd);
-      if (!stat.isFile() || stat.size > MAX_FILE_BYTES) {
-        logger.warn("claude_token_unreadable", { err: "not_a_token_file" });
-        return null;
-      }
-      const buffer = Buffer.alloc(stat.size);
-      let read = 0;
-      while (read < stat.size) {
-        const count = readSync(fd, buffer, read, stat.size - read, read);
-        if (count === 0) break;
-        read += count;
-      }
-      const parsed = ClaudeToken.safeParse(buffer.subarray(0, read).toString("utf8"));
-      if (!parsed.success) {
-        logger.warn("claude_token_unreadable", { err: "not_a_token" });
-        return null;
-      }
-      return parsed.data;
-    } catch (error) {
-      logger.warn("claude_token_unreadable", { err: errorClass(error) });
-      return null;
-    } finally {
-      closeSync(fd);
-    }
-  }
+    });
 
   return {
     status: () => (load() === null ? "missing" : "set"),

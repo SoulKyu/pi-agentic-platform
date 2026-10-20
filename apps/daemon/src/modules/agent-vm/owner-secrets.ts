@@ -1,10 +1,18 @@
+import { AGENT_LIMITS, VAULT_CAPS } from "@pap/contracts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuthValues } from "./pi-auth-values.ts";
 import { type KnownSecrets, MIN_SECRET_LENGTH } from "./secret-scan.ts";
 
-/** The most distinct values and the most bytes one collection holds: past either the build is refused, not truncated. */
-export const MAX_OWNER_SECRETS = 1024;
-export const MAX_OWNER_SECRET_BYTES = 256 * 1024;
+/**
+ * The most distinct values and the most bytes one collection holds: past either the build is refused, not truncated. Sized so a
+ * full vault fits: an owner's 32 agents and the user scope hold 50 names of 4096 characters each, plus room for auth.json.
+ */
+const SCOPES = AGENT_LIMITS.perOwner + 1;
+export const MAX_OWNER_SECRETS = SCOPES * VAULT_CAPS.names + 256;
+export const MAX_OWNER_SECRET_BYTES = SCOPES * VAULT_CAPS.names * VAULT_CAPS.valueChars + 1024 * 1024;
+/** Posted in the agent's thread when a cap refuses the build: the reason, not the values. */
+export const OWNER_SECRETS_CAP_NOTICE =
+  "Les secrets du coffre et de Pi sont trop nombreux pour être vérifiés ; l'image de l'agent n'est pas construite.";
 
 export interface OwnerSecrets {
   readonly secrets: KnownSecrets;

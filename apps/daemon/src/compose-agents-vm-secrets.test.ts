@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { AgentInput } from "@pap/contracts";
@@ -7,6 +15,8 @@ import { composeKata } from "./compose-agents-vm-kata.ts";
 import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
 import { createFakeClock } from "./kernel/clock.ts";
 import { createFakeVmd, type FakeVmd } from "./modules/agent-vm/testing/fake-vmd.ts";
+import { createClaudeTokenStore } from "./modules/agent-vm/index.ts";
+import { OWNER_SECRETS_CAP_NOTICE, OwnerSecretsError } from "./modules/agent-vm/index.ts";
 import { createVaultStore, vaultRootOf } from "./modules/secrets/index.ts";
 import { captureLogger } from "./testing/capture-logger.ts";
 
@@ -22,7 +32,6 @@ const CLAUDE = `claude-token-${"F".repeat(16)}`;
 const NODE = `docker.io/library/node@sha256:${"9".repeat(64)}`;
 let root: string;
 let fake: FakeVmd;
-let token: string | null;
 let notices: Array<[string, string]>;
 
 const paths = () => ({ home: join(root, "pap"), agent: join(root, "agent"), bundle: join(root, "bundle") });
@@ -30,18 +39,10 @@ function parts() {
   const p = paths();
   const log = captureLogger();
   const clock = createFakeClock();
-  const claudeToken = {
-    status: () => (token === null ? ("missing" as const) : ("set" as const)),
-    set: () => {},
-    clear: () => {},
-    load: () => token,
-    onChange: () => {},
-  };
   const ownerSecrets = composeOwnerSecrets({
     home: p.home,
     piAgentDir: p.agent,
     logger: log.logger,
-    claudeToken,
   });
   const kata = composeKata(
     { home: p.home, piAgentDir: p.agent, clock, logger: log.logger, ownerSecrets },
@@ -52,6 +53,8 @@ function parts() {
 }
 const build = (kata: ReturnType<typeof parts>["kata"]) =>
   kata.imageTagOf(ID, AgentInput.parse({ name: "Scout" }), "thread");
+const claudeStore = () =>
+  createClaudeTokenStore({ secretsDir: join(paths().home, "secrets"), logger: captureLogger().logger });
 const plant = (rel: string, text: string): void => {
   const file = join(paths().agent, rel);
   mkdirSync(join(file, ".."), { recursive: true });
@@ -79,13 +82,81 @@ beforeEach(() => {
     VAULT_VALUE,
     1,
   );
-  token = CLAUDE;
+  claudeStore().set(CLAUDE);
   fake = createFakeVmd();
   notices = [];
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 describe("the profile scan knows the owner's secrets (AVM-E46)", () => {
+  // I1: the real store over a temp folder; every failure but "no file" refuses the build.
+  it.each([
+    ["a link", (file: string) => (rmSync(file), symlinkSync(join(root, "elsewhere"), file))],
+    ["an invalid token", (file: string) => writeFileSync(file, "bad\u0001token")],
+    ["a folder", (file: string) => (rmSync(file), mkdirSync(file))],
+    ["a file past the size limit", (file: string) => writeFileSync(file, "x".repeat(4096))],
+  ])(
+    "refuses the build when the Claude token file is %s, with no value in the log",
+    async (_name, damage) => {
+      damage(join(paths().home, "secrets", "claude-token"));
+      const { kata, log } = parts();
+      await expect(build(kata)).rejects.toMatchObject({ code: "config_invalid" });
+      expect(JSON.stringify(log.lines)).not.toContain(CLAUDE);
+      expect(log.lines.find((line) => line.msg === "owner_secrets_unreadable")).toMatchObject({
+        source: "claude",
+      });
+    },
+  );
+
+  it("builds when there is no Claude token file at all", async () => {
+    rmSync(join(paths().home, "secrets", "claude-token"));
+    const { kata } = parts();
+    await expect(build(kata)).resolves.toMatch(/^pap-agent-/);
+  });
+
+  // AVM-E50: a README naming the reference is not a leak.
+  it("builds a profile whose README names $OPENAI_API_KEY when auth.json holds that reference", async () => {
+    writeFileSync(
+      join(paths().agent, "auth.json"),
+      JSON.stringify({
+        openai: { type: "api_key", key: "$OPENAI_API_KEY" },
+        cmd: { type: "api_key", key: "!pass show openai/key" },
+      }),
+    );
+    plant("skills/hello/SKILL.md", "set $OPENAI_API_KEY, or use !pass show openai/key");
+    const { kata } = parts();
+    await expect(build(kata)).resolves.toMatch(/^pap-agent-/);
+  });
+
+  // m6: a cap refusal tells the owner why, in the thread.
+  it("posts a notice naming the cause when the cap refuses", async () => {
+    const p = paths();
+    const log = captureLogger();
+    const kata = composeKata(
+      { home: p.home, piAgentDir: p.agent, clock: createFakeClock(), logger: log.logger },
+      {
+        client: fake,
+        bundleRoot: p.bundle,
+        nodeImage: NODE,
+        knownSecrets: () => {
+          throw new OwnerSecretsError("too_many");
+        },
+      },
+      (agentId, text) => void notices.push([agentId, text]),
+    );
+    await expect(build(kata)).rejects.toMatchObject({ code: "config_invalid" });
+    expect(notices).toEqual([[ID, OWNER_SECRETS_CAP_NOTICE]]);
+  });
+
+  // m8: the second vault reader must not sweep the daemon's own store's temporary files.
+  it("does not sweep the vault's temporary files (sweep:false)", async () => {
+    const temp = join(vaultRootOf(paths().home), "owner1", `user.json.${"a".repeat(12)}.tmp`);
+    writeFileSync(temp, "in flight");
+    const { kata } = parts();
+    await build(kata);
+    expect(existsSync(temp)).toBe(true);
+  });
+
   it("builds a clean profile", async () => {
     const { kata } = parts();
     await expect(build(kata)).resolves.toMatch(/^pap-agent-/);
