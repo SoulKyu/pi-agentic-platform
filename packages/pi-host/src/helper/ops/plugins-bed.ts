@@ -11,6 +11,7 @@ import { fakeInstallers } from "./offline-bed.ts";
 export let root: string;
 export let home: string;
 export let agentDir: string;
+export let papHome: string;
 export let cwd: string;
 export let pkg: string;
 export let bin: string;
@@ -19,6 +20,7 @@ beforeEach(() => {
   root = realpathSync(mkdtempSync(join(tmpdir(), "pap-plugins-")));
   home = join(root, "home");
   agentDir = join(home, ".pi", "agent");
+  papHome = join(root, "pap");
   cwd = join(home, "work", "proj");
   pkg = join(home, "pkgs", "tools");
   bin = join(root, "bin");
@@ -41,8 +43,10 @@ afterEach(() => {
 
 export const ctxFor = (
   target: string | null = cwd,
-): Pick<HelperContext, "agentDir" | "home" | "cwd" | "signal"> => ({
+  pap: string = papHome,
+): Pick<HelperContext, "agentDir" | "papHome" | "home" | "cwd" | "signal"> => ({
   agentDir,
+  papHome: pap,
   home,
   signal: new AbortController().signal,
   ...(target === null ? {} : { cwd: target }),

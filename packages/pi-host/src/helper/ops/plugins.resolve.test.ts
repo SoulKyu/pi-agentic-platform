@@ -1,13 +1,16 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { listPlugins } from "./plugins.ts";
-import { agentDir, ctxFor, cwd, trust } from "./plugins-bed.ts";
+import { agentDir, ctxFor, cwd, papHome, root, trust } from "./plugins-bed.ts";
 import { resolvePlugins } from "./plugins-resolve.ts";
 
 /*
  * Mutants (RT-43), run for real:
  * - the listed id is the hash of the masked source -> "two sources that mask alike have two ids" fails.
+ * - the id is an unkeyed sha256 of scope and source (the old form) -> "is keyed by a per-home secret" fails.
+ * - the key file is made with the default mode or reused when others can read it -> "makes the key 0600" fails.
  * - `resolvePlugins` answers the masked source -> "answers the exact spelling" fails.
  * - `resolvePlugins` reads the project scope instead of the owner's -> "answers the exact spelling" fails.
  */
@@ -31,6 +34,35 @@ describe("a plugin's id (AVM-E33)", () => {
     const { plugins } = await listPlugins(ctxFor(null));
     expect(plugins[0]?.source).toBe(plugins[1]?.source);
     expect(plugins[0]?.id).not.toBe(plugins[1]?.id);
+  });
+});
+
+describe("a plugin's id is keyed (AVM-E43 M4)", () => {
+  it("is keyed by a per-home secret: not the bare hash of the source, and another home gives another id", async () => {
+    settings([SECRET_A]);
+    const first = (await listPlugins(ctxFor(null))).plugins[0]?.id;
+    const bare = createHash("sha256").update(`pap-plugin\0user\0${SECRET_A}`).digest("hex").slice(0, 32);
+    expect(first).not.toBe(bare);
+    expect((await listPlugins(ctxFor(null))).plugins[0]?.id).toBe(first);
+    const elsewhere = (await listPlugins(ctxFor(null, join(root, "other-pap")))).plugins[0]?.id;
+    expect(elsewhere).not.toBe(first);
+  });
+
+  it("makes the key 0600 under secrets/ once, and keeps ids stable across calls", async () => {
+    settings([SECRET_A]);
+    await listPlugins(ctxFor(null));
+    const file = join(papHome, "secrets", "plugin-id.key");
+    expect(statSync(file).size).toBe(32);
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+  });
+
+  it("replaces a key that others can read", async () => {
+    settings([SECRET_A]);
+    mkdirSync(join(papHome, "secrets"), { recursive: true });
+    const file = join(papHome, "secrets", "plugin-id.key");
+    writeFileSync(file, Buffer.alloc(32, 7), { mode: 0o644 });
+    await listPlugins(ctxFor(null));
+    expect(statSync(file).mode & 0o777).toBe(0o600);
   });
 });
 

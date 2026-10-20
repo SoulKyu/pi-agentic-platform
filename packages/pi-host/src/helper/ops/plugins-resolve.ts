@@ -1,6 +1,6 @@
 import { HELPER_OPS, type PluginsResolveParams } from "@pap/contracts";
 import type { z } from "zod";
-import { pluginIdOf } from "../plugin-id.ts";
+import { pluginIdKey, pluginIdOf } from "../plugin-id.ts";
 import { sourceOf, type PackageEntry } from "../plugin-entries.ts";
 import { defineOp, type HelperContext, HelperOpError } from "../ops.ts";
 import { openSettings } from "./models-open.ts";
@@ -13,14 +13,15 @@ type Result = z.infer<(typeof HELPER_OPS)["plugins.resolve"]["result"]>;
  */
 export async function resolvePlugins(
   params: z.infer<typeof PluginsResolveParams>,
-  ctx: Pick<HelperContext, "agentDir" | "home">,
+  ctx: Pick<HelperContext, "agentDir" | "papHome" | "home">,
 ): Promise<Result> {
   const settings = await openSettings({ agentDir: ctx.agentDir, home: ctx.home });
   if (settings.unreadable.length > 0)
     throw new HelperOpError("config_invalid", settings.unreadable.join(","));
+  const key = pluginIdKey(ctx.papHome);
   const held = new Map<string, string>();
   for (const entry of (settings.manager.getGlobalSettings().packages ?? []) as PackageEntry[])
-    held.set(pluginIdOf("user", sourceOf(entry)), sourceOf(entry));
+    held.set(pluginIdOf(key, "user", sourceOf(entry)), sourceOf(entry));
   return { sources: params.ids.map((id) => held.get(id) ?? null) };
 }
 
