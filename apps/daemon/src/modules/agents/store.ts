@@ -77,6 +77,9 @@ function recordOf(row: AgentRow): AgentRecord {
 export function createAgentStore(db: Db) {
   const one = (ownerId: string, id: string): AgentRow | undefined =>
     db.get<AgentRow>("SELECT * FROM agents WHERE id = $id AND owner_id = $ownerId", { id, ownerId });
+  /** AVM-E42 M1: a trash row older than the keep time is gone for every owner, at a delete and at a listing. */
+  const pruneTrash = (now: number): void =>
+    void db.run("DELETE FROM agent_trash WHERE deleted_at <= $since", { since: now - TRASH_KEEP_MS });
   return {
     get(ownerId: string, id: string): AgentRecord | null {
       const row = one(ownerId, id);
@@ -201,6 +204,7 @@ export function createAgentStore(db: Db) {
     /** Deletes the row and, in the same transaction, leaves the trash row the owner's trash entry lists (J1b). */
     remove: (ownerId: string, id: string, at: number): boolean =>
       db.transaction(() => {
+        pruneTrash(at);
         db.run(
           `INSERT OR REPLACE INTO agent_trash (agent_id, owner_id, name, deleted_at)
            SELECT id, owner_id, name, $at FROM agents WHERE id = $id AND owner_id = $ownerId`,
@@ -212,14 +216,16 @@ export function createAgentStore(db: Db) {
       }),
 
     /** The owner's deleted agents still in the trash (newest first): a VM agent's disk is kept 7 days (RT-40). */
-    trashed: (ownerId: string, now: number): Array<{ agentId: string; name: string; deletedAt: number }> =>
-      db
+    trashed(ownerId: string, now: number): Array<{ agentId: string; name: string; deletedAt: number }> {
+      pruneTrash(now);
+      return db
         .all<{ agent_id: string; name: string; deleted_at: number }>(
           `SELECT agent_id, name, deleted_at FROM agent_trash
-           WHERE owner_id = $ownerId AND deleted_at > $since ORDER BY deleted_at DESC, agent_id LIMIT 32`,
-          { ownerId, since: now - TRASH_KEEP_MS },
+           WHERE owner_id = $ownerId ORDER BY deleted_at DESC, agent_id LIMIT 32`,
+          { ownerId },
         )
-        .map((row) => ({ agentId: row.agent_id, name: row.name, deletedAt: row.deleted_at })),
+        .map((row) => ({ agentId: row.agent_id, name: row.name, deletedAt: row.deleted_at }));
+    },
 
     transaction: <T>(fn: () => T): T => db.transaction(fn),
   };

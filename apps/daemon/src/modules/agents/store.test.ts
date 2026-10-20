@@ -137,4 +137,24 @@ describe("the trash of deleted agents (J1b)", () => {
     expect(store.remove("u1", "nobody-0000", 1000)).toBe(false);
     expect(store.trashed("u1", 2000)).toEqual([]);
   });
+
+  // AVM-E42 M1. Mutants: no prune at the delete -> the first case fails; no prune when listing -> the second fails.
+  it("deletes the trash rows older than 7 days, at a delete and when listing, for every owner", () => {
+    const db = open();
+    const store = createAgentStore(db);
+    const rows = () =>
+      db
+        .all<{ agent_id: string }>("SELECT agent_id FROM agent_trash ORDER BY agent_id")
+        .map((r) => r.agent_id);
+    seed(db, "atlas-1a2b", "Atlas", "u1");
+    seed(db, "borea-3c4d", "Borea", "u2");
+    seed(db, "cinna-5e6f", "Cinna", "u1");
+    store.remove("u1", "atlas-1a2b", 1000);
+    store.remove("u2", "borea-3c4d", 1000);
+    expect(rows()).toEqual(["atlas-1a2b", "borea-3c4d"]);
+    store.remove("u1", "cinna-5e6f", 1000 + 7 * DAY);
+    expect(rows()).toEqual(["cinna-5e6f"]);
+    store.trashed("u1", 1000 + 14 * DAY + 1);
+    expect(rows()).toEqual([]);
+  });
 });
