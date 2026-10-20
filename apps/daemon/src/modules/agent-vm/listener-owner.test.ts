@@ -15,6 +15,7 @@ import {
  * AVM-E49 M9b. Mutants (RT-43), each run for real:
  *  - `every` made `some` (one own socket among foreign ones counts) -> killed by "a foreign socket beside its own".
  *  - the inode match dropped (a socket on the port counts as owned) -> killed by "a foreign listener".
+ *  - the try/catch of bridgeListenerFault removed -> killed by "is a fault, not a throw".
  *  - the wildcard rows ignored -> killed by "a wildcard listener".
  */
 const GATEWAY: Endpoint = { host: "10.213.0.1", port: 7842 };
@@ -87,6 +88,15 @@ describe("bridgeListenerFault", () => {
   const rows = [row("0100D50A", "1EA1", "0A", 100), row("0100D50A", "1EA2", "0A", 200)];
   it("is null when the daemon holds the gateway and its child the relay", () => {
     expect(bridgeListenerFault(fake(rows, { 1: ["socket:[100]"], 2: ["socket:[200]"] }), 1, 2)).toBeNull();
+  });
+  it("is a fault, not a throw, when /proc cannot be read (M-throw)", () => {
+    const broken: ProcReader = {
+      ...fake(rows, { 1: ["socket:[100]"], 2: ["socket:[200]"] }),
+      tcp: () => {
+        throw new Error("EIO");
+      },
+    };
+    expect(bridgeListenerFault(broken, 1, 2)).toBe("the listening sockets could not be read from /proc");
   });
   it("names the gateway or the relay when a socket is not theirs, and a child without a pid", () => {
     expect(bridgeListenerFault(fake(rows, { 1: [], 2: ["socket:[200]"] }), 1, 2)).toContain("gateway");

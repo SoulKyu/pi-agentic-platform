@@ -134,9 +134,14 @@ export function bridgeListenerFault(
   daemonPid: number,
   relayPid: number | undefined,
 ): string | null {
-  const gateway = ownsListener(proc, daemonPid, GATEWAY_ENDPOINT);
-  if (!gateway.owned) return `gateway ${GATEWAY_ENDPOINT.host}:${GATEWAY_ENDPOINT.port}: ${gateway.reason}`;
-  if (relayPid === undefined) return "the relay child has no pid";
-  const relay = ownsListener(proc, relayPid, RELAY_ENDPOINT);
-  return relay.owned ? null : `relay ${RELAY_ENDPOINT.host}:${RELAY_ENDPOINT.port}: ${relay.reason}`;
+  try {
+    const gateway = ownsListener(proc, daemonPid, GATEWAY_ENDPOINT);
+    if (!gateway.owned) return `gateway ${GATEWAY_ENDPOINT.host}:${GATEWAY_ENDPOINT.port}: ${gateway.reason}`;
+    if (relayPid === undefined) return "the relay child has no pid";
+    const relay = ownsListener(proc, relayPid, RELAY_ENDPOINT);
+    return relay.owned ? null : `relay ${RELAY_ENDPOINT.host}:${RELAY_ENDPOINT.port}: ${relay.reason}`;
+  } catch {
+    // Fail closed: a /proc that cannot be read is a relay that is not ready, never an uncaught throw in a message handler.
+    return "the listening sockets could not be read from /proc";
+  }
 }

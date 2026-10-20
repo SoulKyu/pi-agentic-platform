@@ -76,23 +76,23 @@ describe.skipIf(skip)("pap's shell in a VM (real Kata)", () => {
       const script = [
         "import glob",
         "worker = 'dist/gu' + 'est/main.js'",
-        "seen = []",
+        "seen = {}",
         "for p in glob.glob('/proc/[0-9]*/cmdline'):",
-        "    try: seen.append(open(p, 'rb').read().replace(b'\\0', b' ').decode())",
+        "    try: seen[int(p.split('/')[2])] = open(p, 'rb').read().replace(b'\\0', b' ').decode()",
         "    except OSError: pass",
-        "print('PROCS', len(seen), 'WORKER', sum(1 for c in seen if worker in c))",
-        "print('NET', open('/proc/net/dev').read().split('\\n')[2:])",
+        "print('PROCS', len(seen), 'WORKER', sum(1 for c in seen.values() if worker in c))",
+        "print('NAMES', sorted(c.split(' ')[0].split('/')[-1] for c in seen.values()))",
+        "print('IFACES', sorted(l.split(':')[0].strip() for l in open('/proc/net/dev').read().split('\\n')[2:] if ':' in l))",
       ].join("\n");
       const encoded = Buffer.from(script).toString("base64");
-      const inGuest = await bed.python(agentId, sessionId, script.replace("/proc/net/dev", "/proc/net/dev"));
+      const inGuest = await bed.python(agentId, sessionId, script);
       expect(inGuest).toMatch(/WORKER [1-9]/);
-      expect(inGuest).toMatch(/eth0/);
+      expect(inGuest).toContain("IFACES ['eth0', 'lo']");
       const out = await bed.shell(agentId, sessionId, `echo ${encoded} | base64 -d | python3 -`);
-      const seen = /PROCS (\d+) WORKER (\d+)/.exec(out);
-      expect(Number(seen?.[2])).toBe(0);
-      expect(Number(seen?.[1])).toBeLessThan(10);
-      expect(out).toContain("lo:");
-      expect(out).not.toContain("eth0");
+      // The shell's pid namespace holds bwrap's init, the sh -c and the python3 reading it: exactly these three, from a clean run.
+      expect(out).toContain("PROCS 3 WORKER 0");
+      expect(out).toContain("NAMES ['bwrap', 'python3', 'sh']");
+      expect(out).toContain("IFACES ['lo']");
     },
     LONG_MS,
   );

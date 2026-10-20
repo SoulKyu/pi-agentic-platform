@@ -45,9 +45,10 @@ describe("sweepCniNetns", () => {
 
   it("goes on after a file that cannot be unlinked", () => {
     const seen: string[] = [];
+    const logs: Array<[string, Record<string, unknown>]> = [];
     const removed = sweepCniNetns({
       dir: DIR,
-      log: { info: () => {} },
+      log: { info: (event, fields) => void logs.push([event, fields]) },
       list: () => [A, B],
       mountinfo: () => "",
       unlink(file) {
@@ -57,6 +58,7 @@ describe("sweepCniNetns", () => {
     });
     expect(seen).toHaveLength(2);
     expect(removed).toBe(1);
+    expect(logs).toContainEqual(["vmd_netns_sweep_failed", { failed: 1 }]);
   });
 
   it("decodes the octal escapes of a mount point", () => {

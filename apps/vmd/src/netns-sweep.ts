@@ -35,6 +35,7 @@ export function mountPointsOf(mountinfo: string): Set<string> {
 export function sweepCniNetns(deps: NetnsSweepDeps): number {
   const mounted = mountPointsOf(deps.mountinfo());
   let removed = 0;
+  let failed = 0;
   for (const name of deps.list(deps.dir)) {
     const file = path.join(deps.dir, name);
     if (!CNI_TEST.test(name) || mounted.has(file)) continue;
@@ -43,8 +44,10 @@ export function sweepCniNetns(deps: NetnsSweepDeps): number {
       removed++;
     } catch {
       // gone already, or busy: the next sweep tries again
+      failed++;
     }
   }
+  if (failed > 0) deps.log.info("vmd_netns_sweep_failed", { failed });
   if (removed > 0) deps.log.info("vmd_netns_swept", { removed });
   return removed;
 }
