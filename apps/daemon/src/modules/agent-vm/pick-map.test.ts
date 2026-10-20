@@ -117,6 +117,20 @@ describe("createImageEntries on disk (AVM-E44)", () => {
     expect(Object.keys(saved.images[TAG_A] ?? {})).toEqual(["scout-0001"]);
   });
 
+  it("held lists every (agent, image) pair, across a reload, and none of a forgotten agent", () => {
+    const entries = persisted();
+    entries.record("scout-0001", TAG_A, WRITTEN);
+    entries.record("other-0002", TAG_C, WRITTEN);
+    entries.forget("other-0002");
+    entries.record("third-0003", TAG_B, WRITTEN);
+    const pairs = [
+      { agentId: "scout-0001", image: TAG_A },
+      { agentId: "third-0003", image: TAG_B },
+    ];
+    expect(entries.held()).toEqual(pairs);
+    expect(persisted().held()).toEqual(pairs);
+  });
+
   it("forget drops every image of the agent and none of another's", () => {
     const entries = persisted();
     entries.record("scout-0001", TAG_A, WRITTEN);

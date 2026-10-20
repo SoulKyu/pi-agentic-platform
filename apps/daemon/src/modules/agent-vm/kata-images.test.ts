@@ -21,7 +21,7 @@ let root: string;
 let clock: FakeClock;
 let fake: FakeVmd;
 const notices: Array<[string, string]> = [];
-const entries = { record: vi.fn(), forget: vi.fn() };
+const entries = { record: vi.fn(), forget: vi.fn(), held: () => [] };
 let secretCalls = 0;
 let secrets: string[] = [];
 

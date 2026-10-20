@@ -99,6 +99,10 @@ export function createImageEntries(logger: Logger, options: ImageEntriesOptions 
       for (const [old] of mine.slice(0, Math.max(0, mine.length - MAX_IMAGES_PER_AGENT))) byKey.delete(old);
       save();
     },
+    /** Every (agent, image) pair held: the images pap-vmd must keep for agents not started since the boot (I2). */
+    held(): ReadonlyArray<{ readonly agentId: string; readonly image: string }> {
+      return [...byKey.values()].map(({ agentId, image }) => ({ agentId, image }));
+    },
     /** The agent was deleted: the pairs of all its images go. */
     forget(agentId: string): void {
       let dropped = false;

@@ -4,6 +4,7 @@ import { AGENT_VM_PROTOCOL, PapError, type VmdRequest } from "@pap/contracts";
 import { z } from "zod";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Logger } from "../../kernel/logger.ts";
+import { keepSet, MAX_KEEP } from "./image-prune.ts";
 import { agentLayerTag, prepareProfileContext, treeDigest } from "./image-inputs.ts";
 import { createImagePolicy, type ImagePolicy, type RunningImage } from "./image-policy.ts";
 import type { ImageEntries, WrittenEntry } from "./pick-map.ts";
@@ -37,7 +38,7 @@ export interface KataImagesDeps {
   readonly weekFile: string;
   /** The owner's secrets, collected at each build (T15b); a plain list names no auth.json-only provider. A rejection refuses the build. */
   readonly secrets: () => KnownSecrets | OwnerSecrets | Promise<KnownSecrets | OwnerSecrets>;
-  readonly entries: Pick<ImageEntries, "record" | "forget">;
+  readonly entries: Pick<ImageEntries, "record" | "forget" | "held">;
   /** Posts once into the agent's thread (a late binding: the sessions come after this). */
   readonly notice: (agentId: string, text: string) => void;
 }
@@ -79,6 +80,8 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   let baseCache: { tag: string; at: number } | null = null;
   let baseFlight: Promise<void> | null = null;
   let prepared: Prepared | null = null;
+  /** The newest image each agent was asked for since this boot (the prune keeps it). */
+  const latest = new Map<string, string>();
   let tail: Promise<unknown> = Promise.resolve();
   const profileOut = join(deps.papHome, "vm", "build", "profile", "pi-agent");
 
@@ -188,6 +191,29 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     return exclusive(async () => usable(false) ?? (await prepare(baseTag, agentId)));
   }
 
+  /** Final review I2, under `exclusive`: removes the images nothing needs. A failure is logged, never thrown into a launch. */
+  async function prune(baseTag: string, built: readonly string[]): Promise<void> {
+    const keep = keepSet({
+      base: baseTag,
+      profile: prepared?.tag ?? null,
+      built,
+      latest,
+      running: [...running.values()].map((one) => one.tag),
+      held: deps.entries.held(),
+    });
+    if (keep.length > MAX_KEEP) {
+      logger.warn("agent_image_prune_skipped", { count: keep.length });
+      return;
+    }
+    try {
+      const answer = (await client.request({ op: "image.prune", keep })) as { removed?: unknown } | null;
+      const removed = Array.isArray(answer?.removed) ? answer.removed.length : 0;
+      logger.info("agent_image_pruned", { removed, kept: keep.length });
+    } catch (error) {
+      logger.warn("agent_image_prune_failed", { err: error });
+    }
+  }
+
   /** Under `exclusive`, with the tree of `profile` on disk: the layers of `wanted` that pap-vmd does not hold yet. */
   async function buildLayers(
     profile: Prepared,
@@ -196,6 +222,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     systemPackages: readonly string[],
     built: ReadonlySet<string>,
   ): Promise<void> {
+    const builds = [profile.tag, wanted].some((tag) => !built.has(tag));
     if (!built.has(profile.tag))
       await buildOnce({
         op: "image.build",
@@ -214,6 +241,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
         aptPackages: [...new Set(systemPackages)].sort(),
         upgrade: false,
       });
+    if (builds) await prune(baseTag, [profile.tag, wanted]);
   }
 
   /** The agent keeps running on its image: the build goes on behind, and a failure is only logged. */
@@ -239,6 +267,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
   ): Promise<string | null> {
     const profile = await profileNow(baseTag, agentId);
     const wanted = agentLayerTag(profile.tag, sys);
+    latest.set(agentId, wanted);
     const built = await listed();
     const decision = policy.decide({ agentId, wanted, running: running.get(agentId) ?? null, built });
     if (decision.action === "refuse") {
@@ -290,6 +319,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
     stopped: (agentId) => void running.delete(agentId),
     forget(agentId) {
       running.delete(agentId);
+      latest.delete(agentId);
       policy.forget(agentId);
       deps.entries.forget(agentId);
     },
@@ -305,6 +335,7 @@ export function createKataImages(deps: KataImagesDeps): KataImages {
         }
         baseFlight = buildBase(baseTag, week).finally(() => void (baseFlight = null));
         await baseFlight;
+        await exclusive(() => prune(baseTag, []));
       } catch (error) {
         logger.warn("agent_vm_base_upgrade_failed", { err: error });
       }

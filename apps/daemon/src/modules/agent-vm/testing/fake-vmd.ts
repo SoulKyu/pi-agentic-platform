@@ -98,6 +98,8 @@ export function createFakeVmd(): FakeVmd {
             return { agentId, taskKey, state: "running" };
           }),
         };
+      case "image.prune":
+        return { removed: [] };
       case "trash.purge":
         return { removed: 0 };
       case "vmd.health":
