@@ -39,6 +39,7 @@ describe("ALL_CHECKS", () => {
       "vm.network",
       "vm.images",
       "vm.disk",
+      "vm.listeners",
       "vm.firewall",
     ]);
   });

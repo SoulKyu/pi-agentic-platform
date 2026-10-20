@@ -5,6 +5,10 @@ import { VERSION } from "../../kernel/version.ts";
 import {
   assessStack,
   createVmdClient,
+  GATEWAY_ENDPOINT,
+  ownerOf,
+  realProcReader,
+  RELAY_ENDPOINT,
   STACK_REASONS,
   type StackAssessment,
   VMD_SOCKET,
@@ -24,8 +28,19 @@ export interface VmProbes {
   images(ctx: DoctorContext): Promise<readonly string[] | null>;
   /** The worst case the agents' disks can take, and what the kept mirrors take now. */
   reserved(ctx: DoctorContext): { agentDisksMb: number; keptMirrorsMb: number };
+  /** Who holds the gateway's and the relay's sockets on the bridge address (AVM-E49 M9b): the pid that holds each, and the relay's parent. */
+  listeners(): ListenerFacts;
   /** The host firewalls that are active: `ufw`, `firewalld`. */
   firewalls(): readonly string[];
+}
+
+export interface ListenerFacts {
+  readonly gateway: { readonly listening: boolean; readonly pid: number | null };
+  readonly relay: {
+    readonly listening: boolean;
+    readonly pid: number | null;
+    readonly parent: number | null;
+  };
 }
 
 const MIN_FREE_DEFAULT_MB = 1024;
@@ -110,6 +125,12 @@ export function defaultVmProbes(): VmProbes {
     stack: (ctx) => assessStack(createVmdClient(VMD_SOCKET, ctx.clock), VERSION),
     images: imagesOf,
     reserved: (ctx) => ({ agentDisksMb: agentDisksMb(ctx), keptMirrorsMb: keptMirrorsMb(ctx) }),
+    listeners: () => {
+      const proc = realProcReader();
+      const gateway = ownerOf(proc, GATEWAY_ENDPOINT);
+      const relay = ownerOf(proc, RELAY_ENDPOINT);
+      return { gateway, relay: { ...relay, parent: relay.pid === null ? null : proc.parentOf(relay.pid) } };
+    },
     firewalls: () => {
       const active: string[] = [];
       try {
@@ -234,6 +255,39 @@ export function makeVmChecks(probes: VmProbes): readonly Check[] {
             fix: "free space under /var/lib/pap-vm, or lower the agents' disk sizes",
           };
     }),
+    {
+      id: "vm.listeners",
+      title: "The sockets on the bridge address",
+      async run(ctx) {
+        if (!asVm(ctx)) return NOT_VM;
+        const { gateway, relay } = probes.listeners();
+        const where = `${AGENT_NET.host}:${AGENT_NET.gatewayPort} and :${AGENT_NET.relayPort}`;
+        if (!gateway.listening && !relay.listening)
+          return ctx.lockHeld
+            ? {
+                status: "warn",
+                detail: `pap runs but nothing listens on ${where}`,
+                fix: "journalctl --user -u pap -n 50",
+              }
+            : { status: "info", detail: `pap is not running: nothing listens on ${where}` };
+        const foreign = (what: string): CheckResult => ({
+          status: "fail",
+          detail: `${what} is held by a process that is not pap's: the agents' VMs would reach it, never pap`,
+          fix: `stop pap, find the holder (ss -ltnp 'sport = :${AGENT_NET.gatewayPort} or sport = :${AGENT_NET.relayPort}') and stop it`,
+        });
+        if (gateway.listening && gateway.pid === null)
+          return foreign(`the gateway port ${AGENT_NET.gatewayPort}`);
+        if (relay.listening && (relay.pid === null || relay.parent !== gateway.pid))
+          return foreign(`the relay port ${AGENT_NET.relayPort}`);
+        if (!relay.listening)
+          return {
+            status: "warn",
+            detail: `the gateway listens but nothing listens on the relay port ${AGENT_NET.relayPort}: the agents' VMs cannot start`,
+            fix: "journalctl --user -u pap -n 50 (relay_restart, relay_listener_foreign)",
+          };
+        return { status: "ok", detail: `${where} are held by pap's gateway and its relay` };
+      },
+    },
     {
       id: "vm.firewall",
       title: "Host firewall",

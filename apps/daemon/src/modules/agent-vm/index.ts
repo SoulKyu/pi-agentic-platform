@@ -48,3 +48,10 @@ export {
   type StackAssessment,
   type VmStatus,
 } from "./status.ts";
+export {
+  bridgeListenerFault,
+  GATEWAY_ENDPOINT,
+  ownerOf,
+  realProcReader,
+  RELAY_ENDPOINT,
+} from "./listener-owner.ts";

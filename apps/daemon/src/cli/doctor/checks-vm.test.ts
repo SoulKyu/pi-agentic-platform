@@ -34,6 +34,10 @@ function probes(over: Partial<VmProbes> = {}): VmProbes {
     stack: async () => usable,
     images: async () => [`pap-agent-base-${"a".repeat(64)}`],
     reserved: () => ({ agentDisksMb: 8192, keptMirrorsMb: 100 }),
+    listeners: () => ({
+      gateway: { listening: true, pid: 10 },
+      relay: { listening: true, pid: 11, parent: 10 },
+    }),
     firewalls: () => [],
     ...over,
   };
@@ -48,10 +52,19 @@ async function run(id: string, over: Partial<VmProbes> = {}, context = vmCtx()):
   return check.run(context);
 }
 
-const IDS = ["vm.kvm", "vm.vmd", "vm.stack", "vm.network", "vm.images", "vm.disk", "vm.firewall"];
+const IDS = [
+  "vm.kvm",
+  "vm.vmd",
+  "vm.stack",
+  "vm.network",
+  "vm.images",
+  "vm.disk",
+  "vm.listeners",
+  "vm.firewall",
+];
 
 describe("the agent VM checks", () => {
-  it("are the seven documented ids, in order, each with a title", () => {
+  it("are the eight documented ids, in order, each with a title", () => {
     const checks = makeVmChecks(probes());
     expect(checks.map((check) => check.id)).toEqual(IDS);
     expect(checks.every((check) => check.title.length > 0)).toBe(true);
@@ -65,6 +78,10 @@ describe("the agent VM checks", () => {
       images: async () => (asked++, []),
       reserved: () => (asked++, { agentDisksMb: 0, keptMirrorsMb: 0 }),
       firewalls: () => (asked++, []),
+      listeners: () => (
+        asked++,
+        { gateway: { listening: false, pid: null }, relay: { listening: false, pid: null, parent: null } }
+      ),
     });
     for (const check of makeVmChecks(counting)) {
       for (const context of [ctx(), ctx({ unit: unitWith({ env: { PAP_AGENTS_RUNTIME: "host" } }) })]) {
@@ -97,6 +114,15 @@ describe("the agent VM checks", () => {
       ["vm.images", { images: async () => [] }],
       ["vm.disk", { stack: async () => stackWith({ stateFreeMb: 10 }) }],
       ["vm.firewall", { firewalls: () => ["ufw"] }],
+      [
+        "vm.listeners",
+        {
+          listeners: () => ({
+            gateway: { listening: true, pid: 10 },
+            relay: { listening: true, pid: 99, parent: 5 },
+          }),
+        },
+      ],
     ];
     for (const [id, over] of broken) {
       const result = await run(id, over);
@@ -202,5 +228,47 @@ describe("the agent VM checks", () => {
     const context = vmCtx();
     for (const check of makeVmChecks(counting)) await check.run(context);
     expect(asked).toBe(1);
+  });
+
+  describe("vm.listeners (AVM-E49 M9b)", () => {
+    const gw = { listening: true, pid: 10 };
+    const none = { listening: false, pid: null };
+    const only = (
+      gateway: typeof gw | typeof none,
+      relay: { listening: boolean; pid: number | null; parent: number | null },
+    ) => ({
+      listeners: () => ({ gateway, relay }),
+    });
+    it("is ok when the relay is a child of the process that holds the gateway", async () => {
+      const result = await run("vm.listeners", only(gw, { listening: true, pid: 11, parent: 10 }));
+      expect(result.status).toBe("ok");
+    });
+    it("fails when the relay port is held by a process that is not the gateway holder's child (M-parent)", async () => {
+      const result = await run("vm.listeners", only(gw, { listening: true, pid: 99, parent: 5 }));
+      expect(result).toMatchObject({ status: "fail" });
+      expect(result.detail).toContain("not pap's");
+      expect(result.detail).toContain("7842");
+    });
+    it("fails when a listener's holder cannot be seen (another user's)", async () => {
+      expect(
+        (
+          await run(
+            "vm.listeners",
+            only({ listening: true, pid: null }, { listening: true, pid: 11, parent: 10 }),
+          )
+        ).detail,
+      ).toContain("7841");
+      expect((await run("vm.listeners", only(gw, { listening: true, pid: null, parent: null }))).status).toBe(
+        "fail",
+      );
+    });
+    it("warns when only the gateway listens, is info without pap, warns with a lock and no sockets", async () => {
+      expect(
+        (await run("vm.listeners", only(gw, { listening: false, pid: null, parent: null }))).status,
+      ).toBe("warn");
+      const idle = only(none, { listening: false, pid: null, parent: null });
+      expect((await run("vm.listeners", idle)).status).toBe("info");
+      expect((await run("vm.listeners", idle, vmCtx({ lockHeld: true }))).status).toBe("warn");
+    });
   });
 });

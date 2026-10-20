@@ -12,6 +12,8 @@ export const RELAY_MISMATCH_MARGIN = 10;
 
 /** What the daemon asks of the relay child (`child_process.fork` in production, a fake in the unit tests). */
 export interface RelayChild {
+  /** The child's pid (a real fork has one): the listener check asks which sockets are its own. */
+  readonly pid?: number | undefined;
   send(message: unknown): boolean;
   kill(signal?: NodeJS.Signals): boolean;
   on(event: "message", listener: (message: unknown) => void): unknown;
@@ -33,6 +35,11 @@ export interface RelayLinkDeps {
   readonly logger: Logger;
   /** Resolves once the address the relay binds exists (pap0 in vm mode); the process backend's is loopback. */
   bridgeReady?(): Promise<void>;
+  /**
+   * AVM-E49 M9b, run when a child reports ready (so after every restart): null when the sockets listening on the gateway and relay
+   * addresses are pap's own, else the reason. A reason makes the child not ready (launches stay refused) and it is restarted.
+   */
+  listenerFault?(child: RelayChild): string | null;
   /** The agent's allowed models and state now; a rejection makes the agent use nothing until the next push (fail closed). */
   policyOf(agentId: string): Promise<PolicyView>;
   /** The stored Claude token, replayed after a restart. */
@@ -140,6 +147,14 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
       return;
     }
     if (report.data.type === "relay_ready") {
+      const fault = child === null ? null : (deps.listenerFault?.(child) ?? null);
+      if (fault !== null) {
+        logger.error("relay_listener_foreign", { reason: fault });
+        ready = false;
+        port = null;
+        child?.kill("SIGTERM");
+        return;
+      }
       ready = true;
       port = report.data.port;
       readyAt = clock.now();

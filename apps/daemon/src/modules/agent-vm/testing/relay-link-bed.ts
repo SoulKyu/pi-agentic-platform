@@ -20,6 +20,7 @@ export const POLICY: PolicyView = { models: [{ provider: "acme", id: "m-1" }], c
 export class FakeChild extends EventEmitter implements RelayChild {
   readonly sent: unknown[] = [];
   killed = false;
+  pid: number | undefined = 4242;
   send(message: unknown): boolean {
     this.sent.push(message);
     return true;
@@ -46,6 +47,7 @@ export function bed(
     bridgeReady?: () => Promise<void>;
     turns?: (agentId: string) => number;
     windowEnded?: () => void;
+    listenerFault?: (child: RelayChild) => string | null;
   } = {},
 ) {
   const clock = createFakeClock();
@@ -64,6 +66,7 @@ export function bed(
     claudeToken: () => (over.token === undefined ? null : over.token),
     ...(over.bridgeReady ? { bridgeReady: over.bridgeReady } : {}),
     ...(over.turns ? { reportedTurns: over.turns } : {}),
+    ...(over.listenerFault ? { listenerFault: over.listenerFault } : {}),
     ...(over.windowEnded ? { windowEnded: over.windowEnded } : {}),
   });
   const settle = () => new Promise<void>((resolve) => setImmediate(resolve));

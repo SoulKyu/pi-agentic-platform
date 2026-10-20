@@ -13,6 +13,8 @@ import {
   redactionSource,
   type RelayChild,
   type RelayLink,
+  bridgeListenerFault,
+  realProcReader,
 } from "./modules/agent-vm/index.ts";
 
 /** Until the late binding the relay learns no model for any agent: it refuses every request (fail closed). */
@@ -63,6 +65,12 @@ export function composeRelay(ctx: RelayContext): RelayLink | null {
           }),
     clock: ctx.clock,
     logger: ctx.logger,
+    // AVM-E49 M9b: under Kata a socket that is not pap's own on the bridge's two ports keeps the relay from being ready.
+    ...(ctx.bridgeAddress && custom === undefined
+      ? {
+          listenerFault: (child: RelayChild) => bridgeListenerFault(realProcReader(), process.pid, child.pid),
+        }
+      : {}),
     ...(ctx.bridgeReady ? { bridgeReady: ctx.bridgeReady } : {}),
     policyOf: (agentId) => (ctx.late() ?? failClosed).policyOf(agentId),
     claudeToken: () => ctx.claudeToken.load(),
