@@ -1,8 +1,13 @@
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 
-/** One scripted model answer: text, or one tool call (`args` is sent as the call's JSON arguments). */
-export type KataReply = { text: string } | { tool: string; args: Record<string, unknown> };
+/** One scripted tool call (`args` is sent as the call's JSON arguments). */
+interface KataToolCall {
+  readonly tool: string;
+  readonly args: Record<string, unknown>;
+}
+/** One scripted model answer: text, one tool call, or several tool calls in one message (Pi runs them side by side). */
+export type KataReply = { text: string } | KataToolCall | { tools: readonly KataToolCall[] };
 
 export interface KataLlm {
   readonly baseUrl: string;
@@ -32,13 +37,14 @@ function stream(reply: KataReply, call: number): string {
   const usage = { prompt_tokens: 3, completion_tokens: 1, total_tokens: 4 };
   if ("text" in reply)
     return `${chunk({ role: "assistant", content: reply.text }, null)}${chunk({}, "stop", usage)}data: [DONE]\n\n`;
-  const toolCall = {
-    index: 0,
-    id: `call_${call}`,
+  const calls = "tools" in reply ? reply.tools : [reply];
+  const toolCalls = calls.map((one, index) => ({
+    index,
+    id: index === 0 ? `call_${call}` : `call_${call}_${index}`,
     type: "function",
-    function: { name: reply.tool, arguments: JSON.stringify(reply.args) },
-  };
-  return `${chunk({ role: "assistant", tool_calls: [toolCall] }, null)}${chunk({}, "tool_calls", usage)}data: [DONE]\n\n`;
+    function: { name: one.tool, arguments: JSON.stringify(one.args) },
+  }));
+  return `${chunk({ role: "assistant", tool_calls: toolCalls }, null)}${chunk({}, "tool_calls", usage)}data: [DONE]\n\n`;
 }
 
 /**

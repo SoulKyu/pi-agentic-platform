@@ -83,6 +83,8 @@ export interface KataBed {
   prompt(sessionId: string, text: string): Promise<void>;
   /** Runs `cmd` inside the VM as the worker (guest root) through the probe tool; resolves with its output. */
   probe(agentId: string, sessionId: string, cmd: string): Promise<string>;
+  /** Runs `command` through pap's own `bash` tool (the sandboxed shell in the VM); resolves with what the model was given. */
+  shell(agentId: string, sessionId: string, command: string): Promise<string>;
   /** Runs a Python 3 script inside the VM (the image has python3), passed encoded so no quoting or token text reaches an argv. */
   python(agentId: string, sessionId: string, script: string): Promise<string>;
   /** The agent's mirrored transcript, one parsed entry per line. */
@@ -102,7 +104,13 @@ const textOfResult = (entry: Record<string, unknown>): string => {
  * pap0's address in front of a scripted model on loopback. Nothing reaches a public host. One bed at a time (the ports are fixed).
  */
 export async function startKataBed(
-  options: { workerIdleMs?: number; probe?: boolean; modelFiles?: Readonly<Record<string, string>> } = {},
+  options: {
+    workerIdleMs?: number;
+    probe?: boolean;
+    modelFiles?: Readonly<Record<string, string>>;
+    /** `false`: do not wait for the relay (a test that holds its port first). Default: wait. */
+    awaitRelay?: boolean;
+  } = {},
 ): Promise<KataBed> {
   emptyKataHome();
   const root = mkdtempSync(join(tmpdir(), "pap-kata-"));
@@ -180,7 +188,7 @@ export async function startKataBed(
     result<T>(await owner.client.call(method, params as ParamsOf<typeof method>, LONG_MS));
   if (exposed === undefined) throw new Error("the VM composition was not exposed");
   // A launch is refused until the relay listens (AVM-E54): the real relay child starts after the bridge exists.
-  await exposed.relay?.whenReady();
+  if (options.awaitRelay !== false) await exposed.relay?.whenReady();
   /** Every agent this bed made: its VMs and its disk (4 GiB each, a third of it written at the first boot) go at the end. */
   const made: string[] = [];
   /** The subscription of each opened thread: sequence numbers are per subscription, so a wait looks at one only. */
@@ -203,6 +211,28 @@ export async function startKataBed(
         .filter((line) => line !== "")
         .map((line) => JSON.parse(line) as Record<string, unknown>),
     );
+  };
+  /** One scripted tool call, then its result from the mirrored transcript. */
+  const runTool = async (
+    agentId: string,
+    sessionId: string,
+    tool: string,
+    args: Record<string, unknown>,
+    label: string,
+  ): Promise<string> => {
+    // The scripted model names each tool call `call_<n>` by the request it answers: that id finds this call's result among the
+    // entries of every session of the agent (a thread and its tasks mirror into one folder).
+    const callId = `call_${llm.served() + 1}`;
+    llm.push({ tool, args } satisfies KataReply, { text: "done" });
+    await bed.prompt(sessionId, `${tool}: ${label.slice(0, 40)}`);
+    const found = transcript(agentId).find(
+      (entry) =>
+        (entry.message as { role?: string; toolCallId?: string } | undefined)?.role === "toolResult" &&
+        (entry.message as { toolCallId?: string }).toolCallId === callId,
+    );
+    if (found === undefined) throw new Error(`the ${tool} tool answered nothing`);
+    // Pi wraps a tool's text as untrusted content: the command's own output is what lies between the tags.
+    return textOfResult(found).replace(/<\/?untrusted[^>]*>\n?/g, "");
   };
   const bed: KataBed = {
     t: daemon,
@@ -262,23 +292,8 @@ export async function startKataBed(
         clearInterval(approver);
       }
     },
-    async probe(agentId, sessionId, cmd) {
-      // The scripted model names each tool call `call_<n>` by the request it answers: that id finds this call's result among the
-      // entries of every session of the agent (a thread and its tasks mirror into one folder).
-      const callId = `call_${llm.served() + 1}`;
-      llm.push({ tool: "probe", args: { cmd } } satisfies KataReply, { text: "probed" });
-      await bed.prompt(sessionId, `probe: ${cmd.slice(0, 40)}`);
-      const last = bed
-        .transcript(agentId)
-        .find(
-          (entry) =>
-            (entry.message as { role?: string; toolCallId?: string } | undefined)?.role === "toolResult" &&
-            (entry.message as { toolCallId?: string }).toolCallId === callId,
-        );
-      if (last === undefined) throw new Error("the probe tool answered nothing");
-      // Pi wraps a tool's text as untrusted content: the command's own output is what lies between the tags.
-      return textOfResult(last).replace(/<\/?untrusted[^>]*>\n?/g, "");
-    },
+    probe: (agentId, sessionId, cmd) => runTool(agentId, sessionId, "probe", { cmd }, cmd),
+    shell: (agentId, sessionId, command) => runTool(agentId, sessionId, "bash", { command }, command),
     python: (agentId, sessionId, script) =>
       bed.probe(agentId, sessionId, `echo ${Buffer.from(script).toString("base64")} | base64 -d | python3 -`),
     transcript,

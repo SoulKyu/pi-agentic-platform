@@ -2,7 +2,7 @@ name: ci
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, feat/agents-vm-1]
 permissions:
   contents: read
 concurrency:
@@ -125,4 +125,39 @@ jobs:
           path: |
             scripts/e2e/playwright-report
             scripts/e2e/test-results
+          retention-days: 7
+  # AVM-P18: the agents' VMs for real (Kata Containers, KVM). ubuntu-24.04 runners expose /dev/kvm (T0a); without it the job
+  # fails, it never skips. The only network use is what `pap vm setup` fetches (pinned archives) and the pinned base image.
+  kata:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      PI_OFFLINE: "1"
+      PI_TELEMETRY: "0"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+        with:
+          sandbox: "true"
+      - name: Check KVM
+        run: |
+          test -c /dev/kvm || { echo "::error::this runner has no /dev/kvm: the kata job cannot run"; exit 1; }
+          ls -l /dev/kvm
+      # `vm setup --dev-from-tree` installs pap-vmd and the agent bundle from this checkout (packages/pi-host/dist-agent is not in the dist artifact).
+      - run: pnpm build
+      - run: scripts/ci/kata-setup.sh
+      # T16a: the bridge guard against forged ARP and spoofed sources, in throwaway network namespaces (a private /run).
+      - run: sudo unshare --net --mount sh -c 'mount -t tmpfs tmpfs /run && sh scripts/ci/netns-spoof.sh'
+      - run: CI=1 pnpm vitest run --project kata
+      - name: Journal of the VM stack
+        if: failure()
+        run: sudo journalctl -u 'pap-vm*' --no-pager > "$RUNNER_TEMP/pap-vm-journal.txt" || true
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: failure()
+        with:
+          name: pap-vm-journal
+          path: ${{ runner.temp }}/pap-vm-journal.txt
           retention-days: 7
