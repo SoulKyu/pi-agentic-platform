@@ -16,8 +16,8 @@ import { Readable } from "node:stream";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { CliError } from "../open-home.ts";
-import { UNIT } from "../service/common.ts";
 import { bundledAssets, openNoFollow, type VmAsset } from "./assets.ts";
+import { readUserUnitText } from "./user-unit.ts";
 import { REAL_ROOTS, type Exec, type VmDeps, type VmUser } from "./deps.ts";
 
 const exec: Exec = (cmd, args) =>
@@ -146,13 +146,7 @@ export function realDeps(): VmDeps {
     nodePath: process.execPath,
     codePaths: () => codePaths(),
     statCode: (path) => statSync(path),
-    readUserUnit: (userHome) => {
-      try {
-        return readFileSync(join(userHome, ".config/systemd/user", UNIT), "utf8");
-      } catch {
-        return null;
-      }
-    },
+    readUserUnit: readUserUnitText,
     treeRoot: findTree(),
   };
 }
