@@ -90,13 +90,15 @@ export async function judgeVmPath(
   if (REWRITTEN.test(raw) || UNICODE_SPACE.test(raw)) return refuse("rewritten path");
   const allowed = write ? roots.writable : [...roots.writable, ...roots.readOnly];
   const within = (p: string) => allowed.some((root) => inside(p, root));
+  const reachable = (p: string) => allowed.some((root) => inside(p, root) || inside(root, p));
   for (const spelling of new Set([asPiResolves(raw), raw])) {
     const lexical = path.resolve(cwd, spelling);
     if (!within(lexical)) return refuse("outside this agent's folders");
     // The real-path checks come first: a planted `home/r -> /` must not let the leaf verdicts tell apart what exists outside.
-    const landing = await Promise.all([realOrNearest(lexical), kernelResolve(cwd, spelling)]).catch(
-      () => null,
-    );
+    const landing = await Promise.all([
+      realOrNearest(lexical),
+      kernelResolve(cwd, spelling, reachable),
+    ]).catch(() => null);
     if (landing === null || !landing.every(within)) return refuse("outside this agent's folders");
     const leaf = await lstatOrNull(lexical);
     if (leaf?.isSymbolicLink()) return refuse("link");

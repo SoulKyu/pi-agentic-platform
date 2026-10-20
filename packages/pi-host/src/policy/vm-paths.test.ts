@@ -1,5 +1,6 @@
-import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { spawnSync } from "node:child_process";
+import { chmodSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { makeVmWorld } from "../testing/vm-world.ts";
 import { judgeVmPath, realVmRoots, vmFileFolders, type VmFileRoots } from "./vm-paths.ts";
@@ -13,6 +14,8 @@ import { judgeVmPath, realVmRoots, vmFileFolders, type VmFileRoots } from "./vm-
 //  - M3b the judge without `kernelResolve`: killed by `dl/../new.txt` (`..` applied to the link's target).
 //  - M5 (S1 item 1) the leaf verdicts (`link`, `missing`, `not a file`) back before the real-path checks: "a planted link to /
 //    gives no existence or type oracle" (an existing file, a missing one, a folder and an unreadable one all answer `outside`).
+//  - M6 (S1 round 1, I1) the kernel walk not bounded to the layout (`reachable` dropped): "no probe through a link walked outside
+//    tells a live pid, a dead pid or a planted link target apart" (`r/proc/<pid>/exe/../..` answers ok or outside by the pid).
 //  - M4 a write allowed under the read-only roots: "a write under the read-only roots is outside".
 
 let world: ReturnType<typeof makeVmWorld>;
@@ -99,6 +102,35 @@ describe("judgeVmPath: links and folders", () => {
     ])
       for (const write of [false, true])
         expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
+  });
+
+  it("no probe through a link walked outside tells a live pid, a dead pid or a planted link target apart (I1)", async () => {
+    symlinkSync("/", join(home, "r"));
+    const outside = refused("outside this agent's folders");
+    const dead = spawnSync(process.execPath, ["-e", ""]).pid;
+    const target = join(home, "z.txt");
+    for (const pid of [process.pid, dead, 4_194_303])
+      for (let ups = 1; ups <= 5; ups += 1) {
+        const raw = `r/proc/${pid}/exe${"/..".repeat(ups)}${target}`;
+        for (const write of [false, true])
+          expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
+      }
+    // A link whose target walks through `<outside>/lnk/..` lands on a layout file whatever `lnk` is, yet is outside.
+    const out = join(world.base, "out");
+    mkdirSync(out);
+    const via = `${out}/lnk/../${relative(out, target)}`;
+    for (const make of [
+      () => {},
+      () => mkdirSync(join(out, "lnk")),
+      () => writeFileSync(join(out, "lnk"), "f"),
+      () => symlinkSync(out, join(out, "lnk")),
+    ]) {
+      rmSync(join(out, "lnk"), { recursive: true, force: true });
+      make();
+      rmSync(join(home, "w"), { force: true });
+      symlinkSync(via, join(home, "w"));
+      for (const write of [false, true]) expect(await verdict("w", write)).toEqual(outside);
+    }
   });
 
   it("a read names an existing path: a missing one is `missing`", async () => {
