@@ -118,6 +118,10 @@ function setup(
     mirrors: { inputFor },
     logger: silentLogger,
     // Mutant: the ids go to the runtime as they are -> "hands the runtime the sources, never the ids" fails.
+    toImageEntries: (_agentId, sources) =>
+      sources === null
+        ? null
+        : sources.map((source) => (source === PICK_SOURCE ? `${PICK_SOURCE}#written` : source)),
     packageSources: async (ids) =>
       ids === null ? null : ids.map((id) => (id === PICK_ID ? PICK_SOURCE : id)),
     ...(copyProviderScript ? { copyProviderScript } : {}),
@@ -200,7 +204,7 @@ describe("createVmLaunch (T8a)", () => {
       launch({ input: AgentInput.parse({ ...input, packages: null }) }),
       hostInit(r),
     );
-    expect(bed.packages).toEqual([[PICK_SOURCE], null]);
+    expect(bed.packages).toEqual([[`${PICK_SOURCE}#written`], null]);
   });
   it("hands the runtime the mirror input with the VM's sessions folder, and the profile's packages", async () => {
     const bed = setup();
@@ -209,7 +213,7 @@ describe("createVmLaunch (T8a)", () => {
     // The launch's resources go with the row: the mirror's quota is the agent's diskMb (R32).
     expect(bed.inputFor).toHaveBeenCalledWith(r, launch().input.resources);
     expect(bed.inputs[0]).toMatchObject({ marker: "s1", sessionsDir: vmLayout(r).sessions });
-    expect(bed.packages[0]).toEqual([PICK_SOURCE]);
+    expect(bed.packages[0]).toEqual([`${PICK_SOURCE}#written`]);
   });
   it("never sends the host init: bind returns the VM's init for startLiveSession to send", async () => {
     const bed = setup();

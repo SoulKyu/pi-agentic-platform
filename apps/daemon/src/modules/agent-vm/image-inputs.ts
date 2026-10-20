@@ -27,6 +27,7 @@ import {
   sanitizeSettings,
   skip,
 } from "./profile-allowlist.ts";
+import type { WrittenEntry } from "./pick-map.ts";
 import { type KnownSecrets, safeNotes, scanTree, walkTree } from "./secret-scan.ts";
 
 const FORMAT = "pap-profile-1";
@@ -92,6 +93,8 @@ class Build {
   private readonly realPapHome: string;
   readonly roots: CopiedRoot[] = [];
   readonly adapted = new Set<string>();
+  /** AVM-E42: the entry written for each source kept (an unpinned npm version is known only after the install is read). */
+  readonly written: WrittenEntry[] = [];
   readonly npm = new Set<string>();
   readonly localNames = new Set<string>();
   readonly agentDir: string;
@@ -193,6 +196,7 @@ class Build {
     }
     if (written === null) return null;
     this.adapted.add(name);
+    this.written.push({ source, written });
     if (typeof entry === "string") return written;
     const filters: Record<string, unknown> = {};
     for (const key of FILTER_KEYS) {
@@ -312,7 +316,7 @@ function build(
   secrets: KnownSecrets,
   papHome: string,
   baseTag: string,
-): { tag: string; skipped: string[] } {
+): { tag: string; skipped: string[]; written: WrittenEntry[] } {
   const b = new Build(agentDir, out, papHome);
   const settings = readSettings(agentDir);
   const models = readModels(agentDir);
@@ -342,6 +346,7 @@ function build(
   return {
     tag: `pap-agent-profile-${treeDigest(out, `${FORMAT}\0${baseTag}`)}`,
     skipped: safeNotes(b.run.skipped, known),
+    written: b.written,
   };
 }
 
@@ -356,7 +361,7 @@ export function prepareProfileContext(
   secrets: KnownSecrets,
   papHome: string,
   baseTag: string,
-): { tag: string; skipped: string[] } {
+): { tag: string; skipped: string[]; written: WrittenEntry[] } {
   if (!BASE_TAG.test(baseTag)) throw new Error("profile base tag is not a base tag");
   if (
     !isAbsolute(agentDir) ||

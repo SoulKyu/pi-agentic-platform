@@ -10,6 +10,7 @@ import {
   type AgentRuntime,
   type AgentRuntimeBackend,
   type ClaudeTokenStore,
+  createImageEntries,
   createAgentRuntime,
   createGateway,
   createLaunchTokens,
@@ -211,6 +212,7 @@ export async function composeAgentsVm(
           });
     // The bridge's policy follows the token too: set it and the agents with the bridge may use it at once.
     core.claudeToken.onChange((token) => (relay?.setClaudeToken(token), relay?.refreshAll()));
+    const imageEntries = createImageEntries(agentsLogger);
     const runtime = createAgentRuntime({
       backend,
       gateway,
@@ -288,6 +290,7 @@ export async function composeAgentsVm(
         imageTagOf: seams.imageTagOf ?? (() => TEST_IMAGE_TAG),
         mirrors,
         logger: agentsLogger,
+        toImageEntries: (agentId, sources) => imageEntries.toImage(agentId, sources),
         packageSources: (ids) => (lateHolder.late ? lateHolder.late.sourcesOf(ids) : notBound()),
         // AVM-E15, process backend only: the scripted provider is copied into the VM's folder and the init names that path.
         ...(config.testAgentRuntime === "process" &&
