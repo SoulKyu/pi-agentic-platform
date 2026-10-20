@@ -105,8 +105,12 @@ describe("the mirror hooks (AVM-E21, M-hooks)", () => {
   it("binds the mirror's notice and taint to the sessions, and canWrite to the database mode", () => {
     const { hooks, mirror } = bed();
     hooks.value?.notice("s1", "text");
+    hooks.value?.notice("s2", "now text", true);
     hooks.value?.taint("s1");
-    expect(mirror.notice).toHaveBeenCalledExactlyOnceWith("s1", "text");
+    expect(mirror.notice.mock.calls).toEqual([
+      ["s1", "text", undefined],
+      ["s2", "now text", true],
+    ]);
     expect(mirror.taint).toHaveBeenCalledExactlyOnceWith("s1");
     expect(hooks.value?.canWrite()).toBe(true);
   });

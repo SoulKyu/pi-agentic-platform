@@ -124,7 +124,10 @@ export interface SessionsModule {
    * What a VM mirror says to a session (R14, AVM-E21): a notice in its thread and the taint of ADR 0074's outside-write
    * detection (a session whose file the VM rewrote may hold content pap never fenced).
    */
-  readonly mirror: { notice(sessionId: string, text: string): void; taint(sessionId: string): void };
+  readonly mirror: {
+    notice(sessionId: string, text: string, now?: true): void;
+    taint(sessionId: string): void;
+  };
   /** The only way lanes touch sessions (M9R37). */
   readonly lanes: SessionsLanePort;
   /** The lanes module fills the hooks around a prompt and a run's end (M9R114). */
@@ -266,7 +269,12 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     isAgentSession: (sessionId) => store.get(sessionId)?.agentId !== undefined,
     inspect: (sessionId) => service.inspect(sessionId),
     mirror: {
-      notice: (sessionId, text) => (noticeLive(sessionId, text) ? undefined : held.hold(sessionId, text)),
+      notice: (sessionId, text, now) => {
+        if (noticeLive(sessionId, text)) return;
+        // `now`: no start follows (J1b M1), so whoever watches the session is told directly; otherwise it waits for the next start.
+        if (now) deps.hub.publish("session", sessionId, { kind: "notice", level: "warning", text });
+        else held.hold(sessionId, text);
+      },
       taint: taintOutside,
     },
     restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),

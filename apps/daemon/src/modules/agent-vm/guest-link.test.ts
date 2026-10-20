@@ -44,6 +44,27 @@ const signalsOf = (guest: { socket: { frames(): unknown[] } }, slot: string) =>
     );
 
 describe("a worker hello refused in acceptWorker burns the slot (AVM-E10, T6 minor 1)", () => {
+  // AVM-E40 M1. Mutant: `lost` is never called -> the first case fails; called for a new session's hello too -> the second fails.
+  it("tells the owner the VM lost the file when a reopened worker does not have the recorded one", async () => {
+    let told = 0;
+    const run = await spawnAndHello({
+      input: { sessionFile: "s.jsonl", lost: () => void told++ },
+      session: { file: null, lastEntryId: null, size: 0 },
+    });
+    expect(await run.settled).toEqual(new PapError("worker_failed"));
+    expect(told).toBe(1);
+  });
+
+  it("does not say so for a worker of a new session, nor for the file asked", async () => {
+    let told = 0;
+    const fresh = await spawnAndHello({
+      input: { sessionFile: null, lost: () => void told++ },
+      session: { file: "x.jsonl", lastEntryId: null, size: 0 },
+    });
+    expect(await fresh.settled).toEqual(new PapError("worker_failed"));
+    expect(told).toBe(0);
+  });
+
   it("a file that is not the one asked: SIGKILL, spawn fails worker_failed, and a correct hello after gets duplicate", async () => {
     const run = await spawnAndHello({
       input: { sessionFile: "s.jsonl" },

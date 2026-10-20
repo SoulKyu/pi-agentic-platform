@@ -7,7 +7,7 @@ import { createKeepSweeper } from "./mirror-keep.ts";
 import { createLineParser, type LineParser } from "./mirror-parse.ts";
 import { mirrorFileOf, type MirrorRow, mirrorPathOf } from "./mirror-paths.ts";
 import { createQuota, QUOTA_NOTICE } from "./mirror-quota.ts";
-import { openMirror, REPLACED_NOTICE } from "./mirror.ts";
+import { FILE_LOST_NOTICE, openMirror, REPLACED_NOTICE } from "./mirror.ts";
 import type { MirrorPort, WorkerSpawnInput } from "./vm-worker.ts";
 
 const MIB = 1024 * 1024;
@@ -17,7 +17,11 @@ const MAX_DEFERRED = 64;
 
 /** What a mirror says to a session: the notice, the taint, and whether the database may be written now (RT-42). */
 export interface MirrorHooks {
-  notice(sessionId: string, text: string): void;
+  /**
+   * `now`: no start of the session follows (its launch is failing), so a notice held for the next start would not come: it is shown
+   * to whoever watches the session at once.
+   */
+  notice(sessionId: string, text: string, now?: true): void;
   taint(sessionId: string): void;
   canWrite(): boolean;
 }
@@ -105,6 +109,8 @@ export function createMirrorInputs(deps: MirrorInputsDeps): MirrorInputs {
         sessionFile,
         sessionsDir: "",
         sent: (text) => provenance.sent(text),
+        // Its launch is failing, so there is no next start for the held-notice path to post at: the notice is shown now.
+        lost: () => post(() => deps.notice(row.id, FILE_LOST_NOTICE, true)),
         unsent: (message) => {
           const text = userTextOf(message);
           return text !== null && !provenance.peek(promptHash(text));

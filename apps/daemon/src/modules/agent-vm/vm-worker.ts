@@ -38,6 +38,8 @@ export interface WorkerSpawnInput {
   sent(text: string): void;
   /** Whether a user message of the worker's events is one pap did not send (R32), looked at without consuming the match. */
   unsent(message: unknown): boolean;
+  /** AVM-E40: a reopened session's worker came without the recorded file (the VM lost it): the owner is told. */
+  lost?(): void;
 }
 /** What the mirror says of one `session_append`: taken, the worker must send from elsewhere (RT-39), or the connection ends. */
 export type AppendResult = "ok" | { resync: SessionResync } | "refused";

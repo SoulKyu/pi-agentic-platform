@@ -130,6 +130,8 @@ export function createGuestLink(deps: {
       if (entry === USED || entry.state !== "asked") return "duplicate";
       // A reopen names its file; a new session names none (its file does not exist yet).
       if (hello.session.file !== entry.input.sessionFile) {
+        // A reopen whose worker lacks the recorded file: the launch fails closed, and the owner is told why (AVM-E40 M1).
+        if (entry.input.sessionFile !== null) entry.input.lost?.();
         burn(hello.slot, entry);
         return "protocol";
       }

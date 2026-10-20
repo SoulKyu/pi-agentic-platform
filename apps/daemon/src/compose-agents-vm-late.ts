@@ -83,7 +83,7 @@ export function bindAgentsVmLate(
   const { clock, relay } = ctx;
   // AVM-E21: a replacement of the VM's transcript posts the notice and taints through the sessions' own paths.
   ctx.bindMirrorHooks({
-    notice: (sessionId, text) => late.sessions.mirror.notice(sessionId, text),
+    notice: (sessionId, text, now) => late.sessions.mirror.notice(sessionId, text, now),
     taint: (sessionId) => late.sessions.mirror.taint(sessionId),
     canWrite: () => !ctx.readOnly,
   });

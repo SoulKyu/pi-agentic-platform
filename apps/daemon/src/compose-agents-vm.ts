@@ -240,7 +240,7 @@ export async function composeAgentsVm(
             clock,
             logger: agentsLogger,
             minFreeDiskMb: config.minFreeDiskMb,
-            notice: (sessionId, text) => hooks.notice(sessionId, text),
+            notice: (sessionId, text, now) => hooks.notice(sessionId, text, now),
             taint: (sessionId) => hooks.taint(sessionId),
             canWrite: () => hooks.canWrite(),
           })

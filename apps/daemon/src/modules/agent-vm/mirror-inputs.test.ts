@@ -7,14 +7,14 @@ import { AGENT, appendOf, type Bed, entry, FILE, HEADER, makeBed, userEntry } fr
 import { unverifiedIds } from "./mirror-facts.ts";
 import { createMirrorInputs, type MirrorInputsDeps } from "./mirror-inputs.ts";
 import { QUOTA_NOTICE } from "./mirror-quota.ts";
-import { REPLACED_NOTICE } from "./mirror.ts";
+import { FILE_LOST_NOTICE, REPLACED_NOTICE } from "./mirror.ts";
 import type { MirrorPort } from "./vm-worker.ts";
 
 const ROW = { id: "0f6c0f2e-1111-4222-8333-444455556666", agentId: AGENT, piPath: null as string | null };
 
 let bed: Bed;
 let clock: FakeClock;
-let notices: Array<[string, string]>;
+let notices: Array<[string, string] | [string, string, "now"]>;
 let taints: string[];
 let writable: boolean;
 let inputs: ReturnType<typeof createMirrorInputs>;
@@ -32,7 +32,7 @@ function make(extra: Partial<MirrorInputsDeps> = {}) {
     clock,
     logger: log.logger,
     minFreeDiskMb: 0,
-    notice: (sessionId, text) => void notices.push([sessionId, text]),
+    notice: (sessionId, text, now) => void notices.push(now ? [sessionId, text, "now"] : [sessionId, text]),
     taint: (sessionId) => void taints.push(sessionId),
     canWrite: () => writable,
     ...extra,
@@ -214,5 +214,25 @@ describe("the live verdict on a user message (R32, J1b)", () => {
     make();
     inputs.inputFor(ROW).sent("hello");
     expect(inputs.inputFor(ROW).unsent(user("hello"))).toBe(false);
+  });
+});
+
+// J1b M1 (AVM-E40). Mutant: `lost` posts nothing -> the first case fails; ignores `canWrite` -> the second fails.
+describe("the VM lost the recorded file (AVM-E40)", () => {
+  it("posts the notice to the session and taints nothing", () => {
+    make();
+    inputs.inputFor(ROW).lost?.();
+    expect(notices).toEqual([[ROW.id, FILE_LOST_NOTICE, "now"]]);
+    expect(taints).toEqual([]);
+  });
+
+  it("waits while the database is read-only and posts when it may be written", () => {
+    make();
+    writable = false;
+    inputs.inputFor(ROW).lost?.();
+    expect(notices).toEqual([]);
+    writable = true;
+    inputs.inputFor(ROW);
+    expect(notices).toEqual([[ROW.id, FILE_LOST_NOTICE, "now"]]);
   });
 });
