@@ -53,6 +53,47 @@ describe("pap vm setup runs only code that root owns (I3)", () => {
     await expect(runSetup(opts(), deps, b.io)).rejects.toThrow(/main\.js.*vm-assets\.json.*node/s);
   });
 
+  // N1. Mutant: the ancestors not walked -> a user-owned folder above a root-owned unpack passes.
+  describe("the folders above each path (N1)", () => {
+    const ROOT_OK = { uid: 0, mode: 0o040755 };
+    const check = (loose: Record<string, { uid: number; mode: number }>) => {
+      const seen: string[] = [];
+      assertRootOwnedCode(
+        ["/home/u/pap/dist/main.js", "/home/u/pap/dist"],
+        (p) => (seen.push(p), loose[p] ?? ROOT_OK),
+      );
+      return seen;
+    };
+
+    it.each([
+      ["a user-owned folder", "/home/u", { uid: 1001, mode: 0o040755 }],
+      ["a group-writable folder", "/home/u/pap", { uid: 0, mode: 0o040775 }],
+      ["the root folder when others can write it", "/", { uid: 0, mode: 0o040757 }],
+      ["a sticky world-writable folder (like --assets, no exemption)", "/home", { uid: 0, mode: 0o041777 }],
+    ])("refuses %s, naming it", (_label, path, facts) => {
+      expect(() => check({ [path]: facts })).toThrow(
+        new RegExp(`as root: ${path.replaceAll("/", "\\/")}\\.`),
+      );
+    });
+
+    it("looks at every folder once, from the path up to /", () => {
+      expect(check({}).sort()).toEqual(
+        ["/", "/home", "/home/u", "/home/u/pap", "/home/u/pap/dist", "/home/u/pap/dist/main.js"].sort(),
+      );
+    });
+
+    it("refuses through runSetup when only an ancestor is loose", async () => {
+      const b = bed();
+      const deps = {
+        ...b.deps,
+        codePaths: () => ["/code/a/main.js"],
+        statCode: (p: string) => (p === "/code" ? { uid: 1001, mode: 0o040755 } : { uid: 0, mode: 0o040755 }),
+      };
+      await expect(runSetup(opts(), deps, b.io)).rejects.toThrow(/as root: \/code\./);
+      expect(b.calls).toEqual([]);
+    });
+  });
+
   it("refuses a path it cannot inspect", () => {
     expect(() =>
       assertRootOwnedCode(["/x"], () => {
