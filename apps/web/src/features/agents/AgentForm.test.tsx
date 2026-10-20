@@ -293,6 +293,22 @@ describe("agent form: saving and the password", () => {
   });
 });
 
+describe("agent form: a pick the profile no longer holds (AVM-E42 M5)", () => {
+  // Mutant: `not_found` is not in SAVE_ERRORS -> the generic text shows and this fails.
+  it("says why the save is refused", async () => {
+    const { bed } = await open();
+    bed.handlers["agents.create"] = () => {
+      throw new RpcError("not_found");
+    };
+    await say("Name", "atlas");
+    await click(button(document.body, "Create agent"));
+    await settle();
+    expect(alerts(document.body)).toEqual([
+      "A package you picked is no longer in your Pi profile, or the agent was deleted. Untick the package and save again.",
+    ]);
+  });
+});
+
 describe("agent form: the fields", () => {
   it("offers the preset through the picker it is given, the folded role help and the memory note", async () => {
     await open();

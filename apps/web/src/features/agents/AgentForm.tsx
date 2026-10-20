@@ -42,6 +42,7 @@ const SAVE_ERRORS: Readonly<Record<string, MessageKey>> = {
   limit_reached: "agentForm.error.limit_reached",
   bad_request: "agentForm.error.bad_request",
   read_only: "agentForm.error.read_only",
+  not_found: "agentForm.error.not_found",
 };
 const saveFailure = (failure: unknown): MessageKey => {
   const code = failure instanceof RpcError ? failure.code : "internal";

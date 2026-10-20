@@ -123,6 +123,8 @@ export const agentSettingsEn = {
   "agentForm.error.limit_reached": "You already have 32 agents. Delete one first.",
   "agentForm.error.bad_request": "pap refused these values. Check the marked fields.",
   "agentForm.error.read_only": "The database was written by a newer pap and is read-only.",
+  "agentForm.error.not_found":
+    "A package you picked is no longer in your Pi profile, or the agent was deleted. Untick the package and save again.",
 } as const;
 
 export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
@@ -252,4 +254,6 @@ export const agentSettingsFr: Record<keyof typeof agentSettingsEn, string> = {
   "agentForm.error.limit_reached": "Vous avez déjà 32 agents. Supprimez-en un d'abord.",
   "agentForm.error.bad_request": "pap a refusé ces valeurs. Vérifiez les champs signalés.",
   "agentForm.error.read_only": "La base a été écrite par un pap plus récent et est en lecture seule.",
+  "agentForm.error.not_found":
+    "Un paquet choisi n'est plus dans votre profil Pi, ou l'agent a été supprimé. Décochez le paquet et enregistrez de nouveau.",
 };
