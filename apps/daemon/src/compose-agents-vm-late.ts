@@ -91,19 +91,32 @@ export function bindAgentsVmLate(
   const turns = new Map<string, number>();
   // M2: the last list of models read for an agent. A helper that is busy or slow must not empty a running agent's policy.
   const lastModels = new Map<string, Array<{ provider: string; id: string }>>();
+  // AVM-E42 I2: the last bridge declaration read for an agent, like `lastModels`. It is read again only when the models list
+  // refreshes (`onChanged` marks it stale) or the picks change, never at every evaluation; a failed or busy read keeps the last
+  // value, and with none ever read the bridge stays off.
+  const lastBridge = new Map<string, { declared: boolean; key: string; stale: boolean }>();
+  late.pi.models.onChanged(() => {
+    for (const known of lastBridge.values()) known.stale = true;
+  });
   const declaresBridge = async (
+    agentId: string,
     input: { model: { provider: string } | null; packages: readonly string[] | null } | null,
-  ): Promise<boolean> =>
-    input !== null &&
-    (input.model?.provider === CLAUDE_BRIDGE_PROVIDER ||
-      (await late.pi.plugins.sourcesOf(input.packages).then(
-        (sources) => (sources ?? []).some(isClaudeBridgeSource),
-        (error: unknown) => {
-          // Fail closed for the bridge alone: the models of the policy are still sent.
-          ctx.logger.warn("relay_policy_claude_unknown", { err: error });
-          return false;
-        },
-      )));
+  ): Promise<boolean> => {
+    if (input === null) return false;
+    if (input.model?.provider === CLAUDE_BRIDGE_PROVIDER) return true;
+    const key = JSON.stringify(input.packages);
+    const known = lastBridge.get(agentId);
+    if (known !== undefined && known.key === key && !known.stale) return known.declared;
+    try {
+      const declared = ((await late.pi.plugins.sourcesOf(input.packages)) ?? []).some(isClaudeBridgeSource);
+      lastBridge.set(agentId, { declared, key, stale: false });
+      return declared;
+    } catch (error) {
+      // The models of the policy are still sent; the bridge keeps what was last known (off when nothing was).
+      ctx.logger.warn("relay_policy_claude_kept", { agentId, err: error });
+      return known?.declared ?? false;
+    }
+  };
   const derived: AgentsVmDerived = {
     sourcesOf: (ids) => late.pi.plugins.sourcesOf(ids),
     checkPackages: (ids) => late.pi.plugins.check(ids),
@@ -129,7 +142,7 @@ export function bindAgentsVmLate(
       return {
         models: pairs,
         // `models.available` loads no extension, so it never lists the bridge: the profile says whether the agent has it.
-        claude: ctx.claudeToken.status() === "set" && (await declaresBridge(record.input)),
+        claude: ctx.claudeToken.status() === "set" && (await declaresBridge(agentId, record.input)),
         blocked: record.paused
           ? "paused"
           : late.automation.agentTasks.overBudget(ownerId, agentId)
@@ -148,7 +161,10 @@ export function bindAgentsVmLate(
   // (the budget moves), and a timer for the midnight reset.
   late.pi.models.onChanged(() => relay.refreshAll());
   late.agents.onChange(({ agentId, removed }) => {
-    if (removed) lastModels.delete(agentId);
+    if (removed) {
+      lastModels.delete(agentId);
+      lastBridge.delete(agentId);
+    }
     relay.refresh(agentId);
   });
   // After each assistant message and compaction (the runs observer's own hook): one provider request each.

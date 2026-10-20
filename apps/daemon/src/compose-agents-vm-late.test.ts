@@ -190,10 +190,53 @@ describe("an agent's policy (R13)", () => {
     const { derived, late } = bed({ token: true, input: { model: null, packages: ["f".repeat(32)] } });
     late.pi.plugins.sourcesOf = async () => ["npm:pi-claude-bridge"];
     expect((await derived.policyOf(AGENT)).claude).toBe(true);
-    late.pi.plugins.sourcesOf = async () => {
-      throw new Error("helper pool is full");
+  });
+
+  // AVM-E42 I2. Mutants: no last value -> "keeps the last known declaration" fails; a helper run per evaluation -> "reads the picks once" fails;
+  // the read never refreshes after the models changed -> "reads again after the models changed" fails.
+  describe("the bridge declaration (I2)", () => {
+    const withReads = (reads: Array<string[] | Error>) => {
+      const { derived, late, listeners } = bed({
+        token: true,
+        input: { model: null, packages: ["f".repeat(32)] },
+      });
+      const calls = { n: 0 };
+      late.pi.plugins.sourcesOf = async () => {
+        const next = reads[Math.min(calls.n++, reads.length - 1)] as string[] | Error;
+        if (next instanceof Error) throw next;
+        return next;
+      };
+      return { derived, listeners, calls };
     };
-    expect((await derived.policyOf(AGENT)).claude).toBe(false);
+
+    it("reads the picks once, not at every evaluation", async () => {
+      const { derived, calls } = withReads([["npm:pi-claude-bridge"]]);
+      for (let i = 0; i < 3; i++) expect((await derived.policyOf(AGENT)).claude).toBe(true);
+      expect(calls.n).toBe(1);
+    });
+
+    it("reads again after the models changed, and keeps the last known declaration when that read fails", async () => {
+      const { derived, listeners, calls } = withReads([
+        ["npm:pi-claude-bridge"],
+        new Error("helper pool is full"),
+      ]);
+      expect((await derived.policyOf(AGENT)).claude).toBe(true);
+      for (const listener of listeners.models) listener();
+      expect((await derived.policyOf(AGENT)).claude).toBe(true);
+      expect(calls.n).toBe(2);
+    });
+
+    it("takes the new value when the re-read works", async () => {
+      const { derived, listeners } = withReads([["npm:pi-claude-bridge"], ["npm:left-pad"]]);
+      expect((await derived.policyOf(AGENT)).claude).toBe(true);
+      for (const listener of listeners.models) listener();
+      expect((await derived.policyOf(AGENT)).claude).toBe(false);
+    });
+
+    it("fails closed when no declaration was ever read", async () => {
+      const { derived } = withReads([new Error("helper pool is full")]);
+      expect((await derived.policyOf(AGENT)).claude).toBe(false);
+    });
   });
 
   it("never lists a bridge model among the provider models", async () => {
@@ -250,7 +293,7 @@ describe("an agent's policy (R13)", () => {
 describe("what makes the relay hear of a change (M-trigger-*)", () => {
   it("refreshes every live agent when the models change", () => {
     const { listeners, relay } = bed();
-    listeners.models[0]?.();
+    for (const listener of listeners.models) listener();
     expect(relay.refreshAll).toHaveBeenCalledTimes(1);
   });
 
