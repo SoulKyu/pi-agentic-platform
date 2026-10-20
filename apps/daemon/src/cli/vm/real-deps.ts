@@ -82,12 +82,20 @@ async function deployVmd(tree: string, dest: string): Promise<void> {
   const asOwner = { uid, gid, env: { ...process.env, HOME: home, COREPACK_ENABLE_DOWNLOAD_PROMPT: "0" } };
   const run = async (cmd: string, args: readonly string[], cwd: string): Promise<void> => {
     const [file, argv] = command(cmd, args);
-    const result = await new Promise<number>((done) =>
-      execFile(file, argv, { cwd, timeout: 600_000, maxBuffer: 64 * 1024 * 1024, ...asOwner }, (error) =>
-        done(error === null ? 0 : typeof error.code === "number" ? error.code : 127),
+    const result = await new Promise<{ code: number; stderr: string }>((done) =>
+      execFile(
+        file,
+        argv,
+        { cwd, timeout: 600_000, maxBuffer: 64 * 1024 * 1024, ...asOwner },
+        (error, _stdout, stderr) =>
+          done({ code: error === null ? 0 : typeof error.code === "number" ? error.code : 127, stderr }),
       ),
     );
-    if (result !== 0) throw new CliError(`${cmd} ${args[0] ?? ""} failed (exit code ${result})`);
+    // The tail of the tool's stderr says why (a missing store, a pnpm that cannot start); a path in it is the owner's own.
+    if (result.code !== 0)
+      throw new CliError(
+        `${cmd} ${args[0] ?? ""} failed (exit code ${result.code})${result.stderr.trim() === "" ? "" : `: ${result.stderr.trim().slice(-400)}`}`,
+      );
   };
   const [storeFile, storeArgs] = command("pnpm", ["store", "path"]);
   const storeDir = await new Promise<string>((done, fail) =>
