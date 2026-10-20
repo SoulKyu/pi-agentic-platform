@@ -14,7 +14,8 @@ import type { MirrorHooks } from "./modules/agent-vm/index.ts";
  * Mutants (RT-43), each run for real:
  *  - M-hooks: the mirror hooks are not bound (or bound to log only) -> "binds the mirror's notice and taint" fails (AVM-E21);
  *  - M-paused: `blocked` ignores the agent's pause -> "blocks a paused agent" fails; M-budget: ignores the budget -> same;
- *  - M-bridge: the bridge's models stay in the list / do not make `claude` true -> "splits the bridge's models" fails;
+ *  - M-claude: `claude` derived from the models list, or without the token or the profile -> "is claude only when" fails;
+ *  - M2: a failed read empties the models -> "keeps the last good models" fails;
  *  - M-cut: more than 512 pairs are sent -> "cuts at 512" fails;
  *  - M-trigger-*: a trigger (models changed, an agent changed, a run ended, the timer) no longer refreshes -> its case fails.
  */
@@ -22,7 +23,13 @@ const OWNER = "u1";
 const AGENT = "scout-0001";
 
 function bed(
-  over: { paused?: boolean; over?: boolean; models?: Array<{ provider: string; id: string }> } = {},
+  over: {
+    paused?: boolean;
+    over?: boolean;
+    models?: Array<{ provider: string; id: string }>;
+    token?: boolean;
+    input?: { model: { provider: string } | null; packages: string[] | null };
+  } = {},
 ) {
   const clock = createFakeClock();
   const hooks: { value: MirrorHooks | null } = { value: null };
@@ -30,37 +37,48 @@ function bed(
   const listeners = {
     models: [] as Array<() => void>,
     agent: [] as Array<(change: { agentId: string }) => void>,
-    start: [] as Array<(event: { sessionId: string }) => void>,
+    start: [] as Array<(sessionId: string) => void>,
     end: [] as Array<(event: { sessionId: string }) => void>,
   };
   const relay = { refresh: vi.fn(), refreshAll: vi.fn() };
   const closers: Array<{ name: string; close(): void | Promise<void> }> = [];
-  const state = { paused: over.paused ?? false, over: over.over ?? false };
+  const state = {
+    paused: over.paused ?? false,
+    over: over.over ?? false,
+    fail: false,
+    token: over.token ?? false,
+  };
   const late: AgentsVmLate = {
     sessions: { mirror, kindOf: (id) => (id === "s1" ? { agentId: AGENT } : null) },
     pi: {
       models: {
-        available: vi.fn(async () => ({
-          models: (over.models ?? [{ provider: "acme", id: "m-1" }]).map((m) => ({
-            ...m,
-            name: m.id,
-            reasoning: false,
-          })),
-          providers: [],
-          origin: "signed-in" as const,
-          truncated: false,
-        })),
+        available: vi.fn(async () => {
+          if (state.fail) throw new Error("helper pool is full");
+          return {
+            models: (over.models ?? [{ provider: "acme", id: "m-1" }]).map((m) => ({
+              ...m,
+              name: m.id,
+              reasoning: false,
+            })),
+            providers: [],
+            origin: "signed-in" as const,
+            truncated: false,
+          };
+        }),
         onChanged: (listener) => void listeners.models.push(listener),
       },
     },
     agents: {
       ownerOf: (id) => (id === AGENT ? OWNER : null),
-      get: (_owner, id) => (id === AGENT ? ({ paused: state.paused } as never) : null),
+      get: (_owner, id) =>
+        id === AGENT
+          ? ({ paused: state.paused, input: over.input ?? { model: null, packages: null } } as never)
+          : null,
       onChange: (listener) => (listeners.agent.push(listener as never), () => {}),
     },
     runs: {
       port: {
-        onRunStart: (listener) => (listeners.start.push(listener as never), () => {}),
+        onLiveCost: (listener) => (listeners.start.push(listener as never), () => {}),
         onRunEnd: (listener) => (listeners.end.push(listener as never), () => {}),
       },
     },
@@ -72,6 +90,7 @@ function bed(
       logger: silentLogger,
       closers,
       relay: relay as never,
+      claudeToken: { status: () => (state.token ? "set" : "missing") },
       readOnly: false,
       bindMirrorHooks: (next) => void (hooks.value = next),
     },
@@ -98,6 +117,7 @@ describe("the mirror hooks (AVM-E21, M-hooks)", () => {
         logger: silentLogger,
         closers: [],
         relay: null,
+        claudeToken: { status: () => "missing" },
         readOnly: true,
         bindMirrorHooks: (next) => void (hooks.value = next),
       },
@@ -117,17 +137,45 @@ describe("an agent's policy (R13)", () => {
     });
   });
 
-  it("splits the bridge's models: they make claude true and are not listed (M-bridge)", async () => {
+  // I1: `models.available` loads no extension, so the bridge is read from the agent's profile and the owner's token.
+  it("is claude only when the token is set AND the profile declares the bridge (M-claude)", async () => {
+    const packaged = { model: null, packages: ["npm:pi-claude-bridge"] };
+    const modelled = { model: { provider: CLAUDE_BRIDGE_PROVIDER }, packages: null };
+    const plain = { model: { provider: "acme" }, packages: ["npm:left-pad"] };
+    for (const [input, token, expected] of [
+      [packaged, true, true],
+      [modelled, true, true],
+      [packaged, false, false],
+      [modelled, false, false],
+      [plain, true, false],
+    ] as const)
+      expect((await bed({ input, token }).derived.policyOf(AGENT)).claude).toBe(expected);
+  });
+
+  it("never lists a bridge model among the provider models", async () => {
     const { derived } = bed({
       models: [
         { provider: "acme", id: "m-1" },
         { provider: CLAUDE_BRIDGE_PROVIDER, id: "claude-sonnet-4-5" },
       ],
     });
-    expect(await derived.policyOf(AGENT)).toMatchObject({
+    expect((await derived.policyOf(AGENT)).models).toEqual([{ provider: "acme", id: "m-1" }]);
+  });
+
+  it("keeps the last good models when the read fails, and fails closed when there never was one (M2)", async () => {
+    const first = bed();
+    await first.derived.policyOf(AGENT);
+    first.state.fail = true;
+    first.state.paused = true;
+    // The models stay; the pause is local and still counts.
+    expect(await first.derived.policyOf(AGENT)).toEqual({
       models: [{ provider: "acme", id: "m-1" }],
-      claude: true,
+      claude: false,
+      blocked: "paused",
     });
+    const never = bed();
+    never.state.fail = true;
+    await expect(never.derived.policyOf(AGENT)).rejects.toThrow("helper pool is full");
   });
 
   it("blocks a paused agent, then an agent over its budget (M-paused, M-budget)", async () => {
@@ -175,13 +223,15 @@ describe("what makes the relay hear of a change (M-trigger-*)", () => {
     expect(relay.refresh).toHaveBeenCalledExactlyOnceWith(AGENT);
   });
 
-  it("counts the runs an agent started, and hands the count over once", () => {
+  it("counts the turns an agent's workers report in the window, and the window's end starts again (I4)", () => {
     const { listeners, derived } = bed();
-    listeners.start[0]?.({ sessionId: "s1" });
-    listeners.start[0]?.({ sessionId: "s1" });
-    listeners.start[0]?.({ sessionId: "stranger" });
-    expect(derived.takeRuns(AGENT)).toBe(2);
-    expect(derived.takeRuns(AGENT)).toBe(0);
+    listeners.start[0]?.("s1");
+    listeners.start[0]?.("s1");
+    listeners.start[0]?.("stranger");
+    expect(derived.turnsOf(AGENT)).toBe(2);
+    expect(derived.turnsOf(AGENT)).toBe(2);
+    derived.windowEnded();
+    expect(derived.turnsOf(AGENT)).toBe(0);
   });
 
   it("looks at every live agent again each minute (a budget resets at midnight), until it is closed", async () => {
@@ -204,6 +254,7 @@ describe("what makes the relay hear of a change (M-trigger-*)", () => {
         logger: silentLogger,
         closers,
         relay: null,
+        claudeToken: { status: () => "missing" },
         readOnly: false,
         bindMirrorHooks: () => {},
       },

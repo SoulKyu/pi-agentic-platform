@@ -1,4 +1,6 @@
 import { EventEmitter } from "node:events";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { startVmBed, type VmBed } from "../../testing/vm-bed.ts";
 import type { RelayChild } from "./relay-link.ts";
@@ -68,5 +70,45 @@ describe("the relay link inside the daemon (vm mode)", () => {
         expect(relay.sent.some((m) => m.type === "relay_revoke" && m.launchId === grant.launchId)).toBe(true),
       { timeout: 20_000 },
     );
+  }, 120_000);
+
+  // I1: `models.available` loads no extension, so the bridge is read from the agent's profile and the owner's token.
+  it("lets only an agent that declares the bridge use it, and only while the owner's token is set (I1)", async () => {
+    const relay = fakeRelay();
+    const BRIDGE = readFileSync(
+      fileURLToPath(
+        new URL("../../../../../packages/pi-host/src/testing/bridge-like-extension.mjs", import.meta.url),
+      ),
+      "utf8",
+    );
+    bed = await startVmBed(
+      { steps: [{ text: "ok" }] },
+      { seams: { relay: { fork: () => relay.child } }, imageFiles: { "extensions/bridge.mjs": BRIDGE } },
+    );
+    relay.ready();
+    const bridged = await bed.createAgent({
+      name: "Bridged",
+      model: { provider: "claude-bridge", modelId: "claude-sonnet-4-5" },
+    });
+    const plain = await bed.createAgent({ name: "Plain" });
+    await bed.openThread(bridged);
+    await bed.openThread(plain);
+    const claudeOf = (agentId: string) =>
+      (
+        policies(relay.sent)
+          .filter((m) => m.agentId === agentId)
+          .at(-1) as { claude?: boolean } | undefined
+      )?.claude;
+    await vi.waitFor(() => expect([claudeOf(bridged), claudeOf(plain)]).toEqual([false, false]), {
+      timeout: 20_000,
+    });
+    await bed.call("agents.vm.setClaudeToken", { token: "sk-ant-oat01-OWNER-SETUP-TOKEN-0123456789" });
+    await vi.waitFor(() => expect([claudeOf(bridged), claudeOf(plain)]).toEqual([true, false]), {
+      timeout: 20_000,
+    });
+    await bed.call("agents.vm.clearClaudeToken", {});
+    await vi.waitFor(() => expect([claudeOf(bridged), claudeOf(plain)]).toEqual([false, false]), {
+      timeout: 20_000,
+    });
   }, 120_000);
 });

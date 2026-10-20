@@ -14,6 +14,7 @@ import {
 import { vmPortsOf } from "./compose-m11-vm.ts";
 import { createFakeClock } from "./kernel/clock.ts";
 import { silentLogger } from "./kernel/logger.ts";
+import { captureLogger } from "./testing/capture-logger.ts";
 import type { AgentRuntimeBackend } from "./modules/agent-vm/index.ts";
 import type { SessionRow } from "./modules/sessions/index.ts";
 
@@ -215,6 +216,47 @@ describe("composeAgentsVm's relay (J1, T12's daemon half)", () => {
     expect(closers.map((closer) => closer.name)).toContain("agent_relay");
     for (const closer of closers.splice(0).reverse()) await closer.close();
     expect(child.killed).toBe(true);
+  });
+
+  // I4 through the composition: the relay's requests are compared with the turns the daemon heard in the same window.
+  // Mutants: `reportedTurns` bound to 0 -> "a long run logs nothing"; `windowEnded` not bound -> "counts start again".
+  it("compares the relay's requests with the turns of the window, and starts each window from zero (I4)", async () => {
+    const child = fakeChild();
+    const { logger, lines } = captureLogger();
+    const live: Array<(sessionId: string) => void> = [];
+    const vm = (await composeAgentsVm({ ...core(), logger }, closers, {
+      backend: () => idle(),
+      relay: { fork: () => child as never },
+    })) as AgentsVm;
+    vm.bindLate({
+      sessions: { mirror: { notice: () => {}, taint: () => {} }, kindOf: () => ({ agentId: ID }) },
+      pi: {
+        models: {
+          available: async () => ({ models: [], providers: [], origin: "signed-in", truncated: false }),
+          onChanged: () => {},
+        },
+      },
+      agents: { ownerOf: () => "u1", get: () => null, onChange: () => () => {} },
+      runs: {
+        port: {
+          onLiveCost: (listener: unknown) => (live.push(listener as never), () => {}),
+          onRunEnd: () => () => {},
+        },
+      },
+      automation: { agentTasks: { overBudget: () => false } },
+    } as never);
+    child.emit("message", { type: "relay_ready", port: 1 });
+    const usage = (requests: number) =>
+      child.emit("message", {
+        type: "relay_usage",
+        agents: [{ agentId: ID, requests, refused: 0, bytesIn: 1, bytesOut: 1 }],
+      });
+    for (let i = 0; i < 40; i++) live[0]?.("s1");
+    usage(40);
+    expect(lines.filter((line) => line.msg === "agent_relay_mismatch")).toEqual([]);
+    // The next window has no turns: the same agent's 40 requests are now unexplained.
+    usage(40);
+    expect(lines.filter((line) => line.msg === "agent_relay_mismatch")).toHaveLength(1);
   });
 
   it("composes no relay when the seam says off", async () => {

@@ -157,6 +157,38 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
     expect(taintedAt(b, sessionId)).not.toBeNull();
   }, 120_000);
 
+  // I2: the notice of a mirror that cannot be trusted is announced at the mirror's open, before the session is live again.
+  it("shows the owner the notice of a recovered mirror (AVM-E29): its index is gone, the copy is kept, the session is tainted", async () => {
+    const b = await start({ steps: [{ text: "First answer." }] });
+    const agentId = await b.createAgent();
+    const sessionId = await b.openThread(agentId);
+    await prompt(b, sessionId, "First question");
+    const name = fileOf(mirrorDir(b, agentId));
+    const mirror = join(mirrorDir(b, agentId), name);
+    const before = readFileSync(mirror);
+    await b.vm.runtime.stop(agentId);
+    rmSync(`${mirror}.ids`);
+    writeScript(b.t, { steps: [{ text: "Second answer." }] });
+    await prompt(b, sessionId, "Second question");
+    await vi.waitFor(
+      () => expect(JSON.stringify(b.owner.client.events).includes(REPLACED_NOTICE)).toBe(true),
+      {
+        timeout: 10_000,
+      },
+    );
+    const kept = join(mirrorDir(b, agentId), "replaced");
+    expect(readdirSync(kept).some((entry) => entry.startsWith(name))).toBe(true);
+    expect(
+      readFileSync(
+        join(
+          kept,
+          readdirSync(kept).find((entry) => entry.startsWith(name) && !entry.endsWith(".ids")) as string,
+        ),
+      ).equals(before),
+    ).toBe(true);
+    expect(taintedAt(b, sessionId)).not.toBeNull();
+  }, 120_000);
+
   // M4's own guard (service-launch): a recorded session's file says who it is. A VM that deleted its file and let Pi start
   // another session under the same name is refused before a single entry is taken: nothing is replaced, nothing is lost.
   it("refuses to continue on a file the VM deleted: the mirror stays whole and nothing is kept aside", async () => {
@@ -182,7 +214,7 @@ describe("the mirror of a VM session (T9, R14, R23, R32)", () => {
   pi.on("agent_end", async () => {
     if (done) return;
     done = true;
-    setTimeout(() => { void pi.sendUserMessage("Injected by an extension."); }, 200);
+    setImmediate(() => { void pi.sendUserMessage("Injected by an extension."); });
   });
 }
 `;

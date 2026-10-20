@@ -92,9 +92,14 @@ describe("the Claude token store", () => {
   it("refuses a secrets folder that is a link", () => {
     mkdirSync(join(root, "elsewhere"), { mode: 0o700 });
     symlinkSync(join(root, "elsewhere"), secrets);
-    const { store: tokens } = store();
+    const { store: tokens, lines } = store();
     expect(() => tokens.set(TOKEN)).toThrow();
     expect(readdirSync(join(root, "elsewhere"))).toEqual([]);
+    // M12: the refusal leaves a line, by class only.
+    expect(lines.filter((line) => line.msg === "claude_token_folder_refused")).toEqual([
+      expect.objectContaining({ level: "error", err: "link" }),
+    ]);
+    expect(JSON.stringify(lines)).not.toContain(TOKEN);
   });
 
   it("status is set or missing, never the value (M-value)", () => {

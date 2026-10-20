@@ -1,0 +1,79 @@
+import { EventEmitter } from "node:events";
+import { vi } from "vitest";
+import { createFakeClock } from "../../../kernel/clock.ts";
+import { captureLogger } from "../../../testing/capture-logger.ts";
+import { createRelayLink, type PolicyView, type RelayChild } from "../index.ts";
+
+export const KEY = "ab".repeat(32);
+export const TOKEN = "sk-ant-oat01-OWNER-TOKEN-0123456789";
+export const grant = (n: number, agentId = "scout-0001") => ({
+  launchId: String(n).repeat(32).slice(0, 32),
+  agentId,
+  relayKey: String(n)
+    .repeat(64)
+    .slice(0, 64)
+    .replace(/[^0-9a-f]/g, "a"),
+  address: "10.213.0.2",
+});
+export const POLICY: PolicyView = { models: [{ provider: "acme", id: "m-1" }], claude: false, blocked: null };
+
+export class FakeChild extends EventEmitter implements RelayChild {
+  readonly sent: unknown[] = [];
+  killed = false;
+  send(message: unknown): boolean {
+    this.sent.push(message);
+    return true;
+  }
+  kill(): boolean {
+    this.killed = true;
+    return true;
+  }
+  ready(): void {
+    this.emit("message", { type: "relay_ready", port: 7842 });
+  }
+  die(): void {
+    this.emit("exit", 1, null);
+  }
+  types(): string[] {
+    return this.sent.map((message) => (message as { type: string }).type);
+  }
+}
+
+export function bed(
+  over: {
+    policyOf?: (agentId: string) => Promise<PolicyView>;
+    token?: string | null;
+    bridgeReady?: () => Promise<void>;
+    turns?: (agentId: string) => number;
+    windowEnded?: () => void;
+  } = {},
+) {
+  const clock = createFakeClock();
+  const { logger, lines } = captureLogger();
+  const children: FakeChild[] = [];
+  const forks = vi.fn(() => {
+    const child = new FakeChild();
+    children.push(child);
+    return child;
+  });
+  const link = createRelayLink({
+    fork: forks,
+    clock,
+    logger,
+    policyOf: over.policyOf ?? (async () => POLICY),
+    claudeToken: () => (over.token === undefined ? null : over.token),
+    ...(over.bridgeReady ? { bridgeReady: over.bridgeReady } : {}),
+    ...(over.turns ? { reportedTurns: over.turns } : {}),
+    ...(over.windowEnded ? { windowEnded: over.windowEnded } : {}),
+  });
+  const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
+  return {
+    clock,
+    lines,
+    children,
+    forks,
+    link,
+    settle,
+    last: () => children[children.length - 1] as FakeChild,
+  };
+}

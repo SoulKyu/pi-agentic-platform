@@ -201,9 +201,11 @@ export async function composeAgentsVm(
             ...(seams.bridgeReady ? { bridgeReady: seams.bridgeReady } : {}),
             policyOf: (agentId) => (lateHolder.late ?? failClosed).policyOf(agentId),
             claudeToken: () => core.claudeToken.load(),
-            reportedRuns: (agentId) => lateHolder.late?.takeRuns(agentId) ?? 0,
+            reportedTurns: (agentId) => lateHolder.late?.turnsOf(agentId) ?? 0,
+            windowEnded: () => lateHolder.late?.windowEnded(),
           });
-    core.claudeToken.onChange((token) => relay?.setClaudeToken(token));
+    // The bridge's policy follows the token too: set it and the agents with the bridge may use it at once.
+    core.claudeToken.onChange((token) => (relay?.setClaudeToken(token), relay?.refreshAll()));
     const runtime = createAgentRuntime({
       backend,
       gateway,
@@ -282,7 +284,9 @@ export async function composeAgentsVm(
         mirrors,
         logger: agentsLogger,
         // AVM-E15, process backend only: the scripted provider is copied into the VM's folder and the init names that path.
-        ...(seams.backend === undefined && config.testProviderScript !== null
+        ...(config.testAgentRuntime === "process" &&
+        seams.backend === undefined &&
+        config.testProviderScript !== null
           ? { copyProviderScript: scriptCopier(config.testProviderScript) }
           : {}),
       }),
@@ -296,6 +300,7 @@ export async function composeAgentsVm(
             logger: agentsLogger,
             closers,
             relay,
+            claudeToken: core.claudeToken,
             readOnly: core.readOnly,
             bindMirrorHooks: bindHooks,
           },

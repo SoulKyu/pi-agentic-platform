@@ -160,16 +160,16 @@ const grant = (bed: Bed, over: { address?: string; key?: string; launchId?: stri
     relayKey: over.key ?? KEY,
     address: over.address ?? "127.0.0.1",
   });
-/** Polls one attempt at a time until `done`: the relay handles its IPC commands in order, on its own schedule. */
-const until = async <T>(attempt: () => Promise<T>, done: (value: T) => boolean): Promise<T> => {
-  const started = Date.now();
-  for (;;) {
-    const value = await attempt();
-    if (done(value)) return value;
-    if (Date.now() - started > 20_000) throw new Error("timed out");
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-};
+/** Tries until `done` (the relay handles its IPC commands in order, on its own schedule): a condition wait with a deadline. */
+const until = <T>(attempt: () => Promise<T>, done: (value: T) => boolean): Promise<T> =>
+  vi.waitFor(
+    async () => {
+      const value = await attempt();
+      if (!done(value)) throw new Error("not yet");
+      return value;
+    },
+    { timeout: 20_000, interval: 20 },
+  );
 const port = (bed: Bed): number => {
   const found = bed.link.port();
   if (found === null) throw new Error("the relay is not ready");
@@ -199,17 +199,27 @@ describe("the relay child the daemon forks", () => {
     expect(bed.upstream).toHaveLength(1);
   }, 60_000);
 
-  it("refuses a key granted to another address", async () => {
+  it("refuses a key granted to another address, and accepts it from the address it was granted to", async () => {
     const bed = await start();
+    const OTHER = "cd".repeat(32);
     grant(bed, { address: "10.213.0.9" });
+    // The relay handles its commands in order: once this second launch is served, the first grant has been taken.
+    grant(bed, { launchId: "b".repeat(32), key: OTHER, address: "127.0.0.1" });
     await until(
-      async () => bed.lines.some((line) => line.msg === "relay_ready"),
-      (done) => done,
+      () => post(port(bed), chat(), OTHER),
+      (answer) => answer.status === 200,
     );
     const reply = await post(port(bed), chat());
     expect(reply.status).toBe(403);
     expect(JSON.parse(reply.text)).toEqual({ error: "key" });
-    expect(bed.upstream).toEqual([]);
+    expect(bed.upstream).toHaveLength(1);
+    // The positive control: the same launch granted again from the caller's own address is served with the same key.
+    grant(bed, { address: "127.0.0.1" });
+    await until(
+      () => post(port(bed), chat()),
+      (answer) => answer.status === 200,
+    );
+    expect(bed.upstream).toHaveLength(2);
   }, 60_000);
 
   it("refuses the key after a revoke, and a revoke ends a stream that is running (T12 carry)", async () => {

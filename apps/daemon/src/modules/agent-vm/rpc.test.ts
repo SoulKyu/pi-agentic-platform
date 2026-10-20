@@ -10,6 +10,7 @@ const caller = { userId: "u1", kind: "session", stepUpUntil: 0 } as unknown as C
 const ctx = { caller } as never;
 const TOKEN = "sk-ant-oat01-OWNER-TOKEN-0123456789";
 const allowed = () => {};
+const noAudit = { append: vi.fn() };
 const refused = () => {
   throw new PapError("step_up_required");
 };
@@ -17,7 +18,7 @@ const refused = () => {
 describe("the Claude token handlers", () => {
   it("decode, call the store once and answer ok without the value", async () => {
     const store = { set: vi.fn(), clear: vi.fn() };
-    const rpc = agentsVmTokenRpc(store, allowed);
+    const rpc = agentsVmTokenRpc(store, allowed, noAudit);
     const answer = await rpc["agents.vm.setClaudeToken"]({ token: TOKEN }, ctx);
     expect(answer).toEqual({ ok: true });
     expect(store.set).toHaveBeenCalledExactlyOnceWith(TOKEN);
@@ -26,9 +27,32 @@ describe("the Claude token handlers", () => {
     expect(store.clear).toHaveBeenCalledTimes(1);
   });
 
+  it("audits a set and a clear, never the value (M-audit)", async () => {
+    const audit = { append: vi.fn() };
+    const rpc = agentsVmTokenRpc({ set: vi.fn(), clear: vi.fn() }, allowed, audit);
+    await rpc["agents.vm.setClaudeToken"]({ token: TOKEN }, ctx);
+    await rpc["agents.vm.clearClaudeToken"]({}, ctx);
+    expect(audit.append.mock.calls.map(([line]) => line)).toEqual([
+      { ownerId: "u1", actor: "user", kind: "auth", reason: "claude_token_set" },
+      { ownerId: "u1", actor: "user", kind: "auth", reason: "claude_token_cleared" },
+    ]);
+    expect(JSON.stringify(audit.append.mock.calls)).not.toContain(TOKEN);
+  });
+
+  it("writes no row when the step-up refuses", async () => {
+    const audit = { append: vi.fn() };
+    await expect(
+      agentsVmTokenRpc({ set: vi.fn(), clear: vi.fn() }, refused, audit)["agents.vm.setClaudeToken"](
+        { token: TOKEN },
+        ctx,
+      ),
+    ).rejects.toThrow();
+    expect(audit.append).not.toHaveBeenCalled();
+  });
+
   it("asks for the step-up first: a refused guard leaves the store untouched", async () => {
     const store = { set: vi.fn(), clear: vi.fn() };
-    const rpc = agentsVmTokenRpc(store, refused);
+    const rpc = agentsVmTokenRpc(store, refused, noAudit);
     await expect(rpc["agents.vm.setClaudeToken"]({ token: TOKEN }, ctx)).rejects.toMatchObject({
       code: "step_up_required",
     });
@@ -41,7 +65,10 @@ describe("the Claude token handlers", () => {
 
   it("gives the guard the caller of the call", async () => {
     const guard = vi.fn();
-    await agentsVmTokenRpc({ set: vi.fn(), clear: vi.fn() }, guard)["agents.vm.clearClaudeToken"]({}, ctx);
+    await agentsVmTokenRpc({ set: vi.fn(), clear: vi.fn() }, guard, noAudit)["agents.vm.clearClaudeToken"](
+      {},
+      ctx,
+    );
     expect(guard).toHaveBeenCalledExactlyOnceWith(caller);
   });
 
@@ -53,7 +80,7 @@ describe("the Claude token handlers", () => {
       clear: vi.fn(),
     };
     await expect(
-      agentsVmTokenRpc(store, allowed)["agents.vm.setClaudeToken"]({ token: TOKEN }, ctx),
+      agentsVmTokenRpc(store, allowed, noAudit)["agents.vm.setClaudeToken"]({ token: TOKEN }, ctx),
     ).rejects.toThrow(PapError);
   });
 });

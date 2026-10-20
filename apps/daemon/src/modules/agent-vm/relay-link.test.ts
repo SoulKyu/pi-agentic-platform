@@ -1,8 +1,6 @@
-import { EventEmitter } from "node:events";
 import { describe, expect, it, vi } from "vitest";
-import { createFakeClock } from "../../kernel/clock.ts";
-import { captureLogger } from "../../testing/capture-logger.ts";
-import { createRelayLink, type PolicyView, type RelayChild } from "./relay-link.ts";
+import type { PolicyView } from "./relay-link.ts";
+import { bed, grant, POLICY, TOKEN } from "./testing/relay-link-bed.ts";
 
 /*
  * Mutants (RT-43), each run for real:
@@ -14,78 +12,6 @@ import { createRelayLink, type PolicyView, type RelayChild } from "./relay-link.
  *  - M-early-fork: the child is forked before the bridge is up -> "starts after the bridge" fails.
  *  - M-mismatch: the threshold is dropped -> "logs a mismatch only when" fails.
  */
-const KEY = "ab".repeat(32);
-const TOKEN = "sk-ant-oat01-OWNER-TOKEN-0123456789";
-const grant = (n: number, agentId = "scout-0001") => ({
-  launchId: String(n).repeat(32).slice(0, 32),
-  agentId,
-  relayKey: String(n)
-    .repeat(64)
-    .slice(0, 64)
-    .replace(/[^0-9a-f]/g, "a"),
-  address: "10.213.0.2",
-});
-const POLICY: PolicyView = { models: [{ provider: "acme", id: "m-1" }], claude: false, blocked: null };
-
-class FakeChild extends EventEmitter implements RelayChild {
-  readonly sent: unknown[] = [];
-  killed = false;
-  send(message: unknown): boolean {
-    this.sent.push(message);
-    return true;
-  }
-  kill(): boolean {
-    this.killed = true;
-    return true;
-  }
-  ready(): void {
-    this.emit("message", { type: "relay_ready", port: 7842 });
-  }
-  die(): void {
-    this.emit("exit", 1, null);
-  }
-  types(): string[] {
-    return this.sent.map((message) => (message as { type: string }).type);
-  }
-}
-
-function bed(
-  over: {
-    policyOf?: (agentId: string) => Promise<PolicyView>;
-    token?: string | null;
-    bridgeReady?: () => Promise<void>;
-    runs?: (agentId: string) => number;
-  } = {},
-) {
-  const clock = createFakeClock();
-  const { logger, lines } = captureLogger();
-  const children: FakeChild[] = [];
-  const forks = vi.fn(() => {
-    const child = new FakeChild();
-    children.push(child);
-    return child;
-  });
-  const link = createRelayLink({
-    fork: forks,
-    clock,
-    logger,
-    policyOf: over.policyOf ?? (async () => POLICY),
-    claudeToken: () => (over.token === undefined ? null : over.token),
-    ...(over.bridgeReady ? { bridgeReady: over.bridgeReady } : {}),
-    ...(over.runs ? { reportedRuns: over.runs } : {}),
-  });
-  const settle = () => new Promise<void>((resolve) => setImmediate(resolve));
-  return {
-    clock,
-    lines,
-    children,
-    forks,
-    link,
-    settle,
-    last: () => children[children.length - 1] as FakeChild,
-  };
-}
-
 describe("the relay link: grants and policy", () => {
   it("sends a grant and then the agent's policy once the child is ready", async () => {
     const { link, last, settle } = bed();
@@ -114,6 +40,45 @@ describe("the relay link: grants and policy", () => {
     await settle();
     link.revoke(grant(1).launchId);
     expect(last().sent.at(-1)).toEqual({ type: "relay_revoke", launchId: grant(1).launchId });
+  });
+
+  it("pushes the empty policy at the agent's last revoke, not at another launch's (M3)", async () => {
+    const { link, last, settle } = bed();
+    await link.start();
+    last().ready();
+    link.grant(grant(1));
+    link.grant(grant(2));
+    await settle();
+    link.revoke(grant(1).launchId);
+    expect(last().sent.at(-1)).toMatchObject({ type: "relay_revoke" });
+    link.revoke(grant(2).launchId);
+    expect(last().sent.slice(-2)).toEqual([
+      { type: "relay_revoke", launchId: grant(2).launchId },
+      { type: "agent_policy", agentId: "scout-0001", models: [], claude: false, blocked: null },
+    ]);
+  });
+
+  it("drops an answer from before the last revoke, even after the agent launched again (M3, monotonic counter)", async () => {
+    const slow: Array<(view: PolicyView) => void> = [];
+    const policyOf = vi.fn(() => new Promise<PolicyView>((resolve) => slow.push(resolve)));
+    const { link, last, settle } = bed({ policyOf });
+    await link.start();
+    last().ready();
+    link.grant(grant(1));
+    await settle();
+    link.revoke(grant(1).launchId);
+    link.grant(grant(2));
+    await settle();
+    slow[1]?.({ ...POLICY, blocked: "budget" });
+    await settle();
+    slow[0]?.({ ...POLICY, blocked: null });
+    await settle();
+    const policies = last().sent.filter(
+      (m) =>
+        (m as { type: string; models?: unknown[] }).type === "agent_policy" &&
+        (m as { models: unknown[] }).models.length > 0,
+    );
+    expect(policies).toEqual([{ type: "agent_policy", agentId: "scout-0001", ...POLICY, blocked: "budget" }]);
   });
 
   it("pushes the policy again on each trigger: refresh, refresh of all, a token change (agent_policy per live agent)", async () => {
@@ -301,51 +266,5 @@ describe("the relay link: when it starts (AVM-P10)", () => {
     up();
     await started;
     expect(forks).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("the relay link: what it logs", () => {
-  it("logs each relay_usage and a mismatch only when the relay's requests exceed the runs by more than 10 (M-mismatch)", async () => {
-    const runs = new Map([
-      ["scout-0001", 5],
-      ["busy-0002", 5],
-    ]);
-    const { link, last, lines } = bed({ runs: (agentId) => runs.get(agentId) ?? 0 });
-    await link.start();
-    last().ready();
-    last().emit("message", {
-      type: "relay_usage",
-      agents: [
-        { agentId: "scout-0001", requests: 15, refused: 1, bytesIn: 10, bytesOut: 20 },
-        { agentId: "busy-0002", requests: 16, refused: 0, bytesIn: 1, bytesOut: 2 },
-      ],
-    });
-    const usage = lines.filter((line) => line.msg === "agent_relay_usage");
-    expect(usage).toHaveLength(2);
-    expect(usage[0]).toMatchObject({ agentId: "scout-0001", requests: 15, refused: 1 });
-    const mismatches = lines.filter((line) => line.msg === "agent_relay_mismatch");
-    expect(mismatches).toHaveLength(1);
-    expect(mismatches[0]).toMatchObject({ agentId: "busy-0002" });
-  });
-
-  it("no secret in a log line (M-log-secret)", async () => {
-    const { link, last, lines, children, clock, settle } = bed({ token: TOKEN });
-    await link.start();
-    last().ready();
-    link.grant(grant(1));
-    link.setClaudeToken(TOKEN);
-    await settle();
-    // A malformed report and a child that prints a key on stderr never reach the log.
-    last().emit("message", { type: "relay_usage", agents: "no", key: KEY });
-    last().emit("message", { token: TOKEN });
-    children[0]?.die();
-    await clock.advance(1000);
-    last().ready();
-    await settle();
-    const text = JSON.stringify(lines);
-    expect(text).not.toContain(grant(1).relayKey);
-    expect(text).not.toContain(TOKEN);
-    expect(text).not.toContain(KEY);
-    expect(lines.length).toBeGreaterThan(0);
   });
 });

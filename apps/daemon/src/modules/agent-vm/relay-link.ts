@@ -7,7 +7,7 @@ import type { LaunchGrant } from "./runtime.ts";
 export const RELAY_RESTART_MIN_MS = 1000;
 export const RELAY_RESTART_MAX_MS = 30_000;
 export const RELAY_STABLE_MS = 60_000;
-/** RT-17: more relay requests than reported runs by this many in a window is logged as a mismatch. */
+/** RT-17: more relay requests than the turns the workers reported, by this many, in one window is logged as a mismatch. */
 export const RELAY_MISMATCH_MARGIN = 10;
 
 /** What the daemon asks of the relay child (`child_process.fork` in production, a fake in the unit tests). */
@@ -37,8 +37,10 @@ export interface RelayLinkDeps {
   policyOf(agentId: string): Promise<PolicyView>;
   /** The stored Claude token, replayed after a restart. */
   claudeToken(): string | null;
-  /** The runs the agent's workers reported since the last call (and reset): the attribution check of RT-17. */
-  reportedRuns?(agentId: string): number;
+  /** The turns (assistant messages) the agent's workers reported in the window just ended (RT-17): each is one provider request. */
+  reportedTurns?(agentId: string): number;
+  /** A relay report was handled: the window's counts start again. */
+  windowEnded?(): void;
 }
 
 export interface RelayLink {
@@ -150,10 +152,11 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
     }
     for (const usage of report.data.agents) {
       logger.info("agent_relay_usage", { ...usage });
-      const runs = deps.reportedRuns?.(usage.agentId) ?? 0;
-      if (deps.reportedRuns && usage.requests - runs > RELAY_MISMATCH_MARGIN)
-        logger.warn("agent_relay_mismatch", { agentId: usage.agentId, requests: usage.requests, runs });
+      const turns = deps.reportedTurns?.(usage.agentId) ?? 0;
+      if (deps.reportedTurns && usage.requests - turns > RELAY_MISMATCH_MARGIN)
+        logger.warn("agent_relay_mismatch", { agentId: usage.agentId, requests: usage.requests, turns });
     }
+    deps.windowEnded?.();
   }
 
   function fork(): void {
@@ -219,7 +222,11 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
       if (grant === undefined) return;
       grants.delete(launchId);
       send({ type: "relay_revoke", launchId });
-      if (!liveAgents().has(grant.agentId)) seq.delete(grant.agentId);
+      if (liveAgents().has(grant.agentId)) return;
+      // The agent's last launch is over: the relay keeps nothing it could allow at the next launch before a fresh policy
+      // arrives, and an answer still in flight is stale (the counter only grows).
+      seq.set(grant.agentId, (seq.get(grant.agentId) ?? 0) + 1);
+      send({ type: "agent_policy", agentId: grant.agentId, models: [], claude: false, blocked: null });
     },
     refresh: (agentId) => void pushPolicy(agentId),
     refreshAll() {

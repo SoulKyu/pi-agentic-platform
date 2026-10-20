@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { captureLogger } from "../../testing/capture-logger.ts";
 import { startTestDaemon, type TestDaemon } from "../../testing/harness.ts";
 import { startVmBed, type VmBed } from "../../testing/vm-bed.ts";
-import { openOwner, type Owner } from "../../security/testing/automation-bed.ts";
+import { openOwner, rows, type Owner } from "../../security/testing/automation-bed.ts";
 import type { RelayChild } from "./relay-link.ts";
 
 /*
@@ -40,6 +40,16 @@ describe("the Claude token methods", () => {
     expect(statSync(join(t.home, "secrets")).mode & 0o777).toBe(0o700);
     expect(await owner.client.call("agents.vm.clearClaudeToken", {})).toMatchObject({ ok: true });
     expect(existsSync(file)).toBe(false);
+    // M7: both changes are in the audit, without the value.
+    const audited = rows<{ reason: string; kind: string; detail: string | null }>(
+      t.home,
+      "SELECT reason, kind, detail FROM audit WHERE reason LIKE 'claude_token_%' ORDER BY id",
+    );
+    expect(audited.map((row) => [row.kind, row.reason])).toEqual([
+      ["auth", "claude_token_set"],
+      ["auth", "claude_token_cleared"],
+    ]);
+    expect(JSON.stringify(audited).includes(TOKEN)).toBe(false);
     expect(JSON.stringify(lines).includes(TOKEN)).toBe(false);
     // The two methods that still have their placeholder (T15, T18) keep answering it.
     expect(await owner.client.call("agents.purgeTrash", { agentId: "scout-0001" })).toMatchObject({

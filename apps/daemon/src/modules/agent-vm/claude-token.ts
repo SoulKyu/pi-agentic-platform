@@ -62,7 +62,13 @@ export function createClaudeTokenStore(deps: {
   function ensureFolder(): void {
     mkdirSync(secretsDir, { recursive: true, mode: 0o700 });
     const stat = lstatSync(secretsDir);
-    if (!stat.isDirectory()) throw new PapError("internal");
+    if (!stat.isDirectory()) {
+      // A link or a file where the folder should be: said by class, then refused.
+      logger.error("claude_token_folder_refused", {
+        err: stat.isSymbolicLink() ? "link" : "not_a_directory",
+      });
+      throw new PapError("internal");
+    }
     if ((stat.mode & 0o077) !== 0) chmodSync(secretsDir, 0o700);
   }
 
