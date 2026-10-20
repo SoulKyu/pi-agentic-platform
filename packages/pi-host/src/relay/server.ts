@@ -271,6 +271,14 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
     } catch {
       resolved = null;
     }
+    // The wait above can last seconds (a `!command` key, an OAuth refresh): a revoke, a pause or a budget reached meanwhile counts.
+    if (
+      res.destroyed ||
+      deps.keys.grantOf(presentedKey(req.headers), req.socket.remoteAddress)?.launchId !== launchId
+    )
+      return;
+    const again = deps.policy.check(agentId, { provider: route.provider, model });
+    if (!again.ok) return refuse(res, again.reason, agentId);
     if (resolved === null) return refuse(res, "provider", agentId);
     if (!pathAllowed(resolved.api, route.path)) return refuse(res, "route", agentId);
     forward(

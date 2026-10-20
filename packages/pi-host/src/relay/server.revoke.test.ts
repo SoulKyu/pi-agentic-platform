@@ -49,6 +49,25 @@ function openStream(port: number, key: string, path = "/zai/chat/completions"): 
   return { first, ended };
 }
 
+/** A request to the upstream itself: whatever the relay sent it before has been taken by the time this is answered. */
+const probeUpstream = (port: number): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const req = http.request({ host: "127.0.0.1", port, method: "POST", path: "/probe" }, (res) => {
+      res.resume();
+      res.on("end", () => resolve());
+    });
+    req.on("error", reject);
+    req.end("{}");
+  });
+
+/** True when `ended` has not settled after many turns of the event loop and a round trip to the relay. */
+async function stillRunning(ended: Promise<unknown>): Promise<boolean> {
+  let settled = false;
+  void ended.then(() => (settled = true));
+  for (let turn = 0; turn < 50; turn++) await new Promise<void>((resolve) => setImmediate(resolve));
+  return !settled;
+}
+
 const holding = (_req: http.IncomingMessage, res: http.ServerResponse): void => {
   res.writeHead(200, { "content-type": "text/event-stream" });
   res.write("data: one\n\n");
@@ -87,11 +106,8 @@ describe("revoking a launch's key (T12 carry: relay_revoke ends running streams)
     await Promise.all([mine.first, theirs.first]);
     keys.remove("c".repeat(32));
     expect(await theirs.ended).toBe("error");
-    const state = await Promise.race([
-      mine.ended,
-      new Promise<"running">((resolve) => setTimeout(() => resolve("running"), 150)),
-    ]);
-    expect(state).toBe("running");
+    // Several turns of the event loop, not a delay: a stream the revoke wrongly ended has settled by now.
+    expect(await stillRunning(mine.ended)).toBe(true);
     keys.remove(LAUNCH_A);
     expect(await mine.ended).toBe("error");
   });
@@ -106,11 +122,7 @@ describe("revoking a launch's key (T12 carry: relay_revoke ends running streams)
       key: Buffer.from(KEY, "hex"),
       address: "127.0.0.1",
     });
-    const state = await Promise.race([
-      stream.ended,
-      new Promise<"running">((resolve) => setTimeout(() => resolve("running"), 150)),
-    ]);
-    expect(state).toBe("running");
+    expect(await stillRunning(stream.ended)).toBe(true);
     keys.remove(LAUNCH_A);
     expect(await stream.ended).toBe("error");
   });
@@ -133,5 +145,82 @@ describe("a duplicate model key (T12 carry)", () => {
     });
     expect(JSON.parse(swapped.body)).toEqual({ error: "model" });
     expect(seen).toEqual([]);
+  });
+});
+
+// I3 / ledger line 177: the window of `resolveProvider` (a `!command` key, an OAuth refresh) is not a place to forget a revoke.
+describe("a request that waits for its credential (I3)", () => {
+  /** A `resolveProvider` the test releases; the request is sent and waits inside it. */
+  async function waiting(over: Parameters<typeof bed>[0] = {}) {
+    const context = await bed(over);
+    let release: (value: unknown) => void = () => {};
+    const gate = new Promise((resolve) => {
+      release = resolve;
+    });
+    let entered: () => void = () => {};
+    const inside = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    context.resolveProvider.mockImplementation((async () => {
+      entered();
+      await gate;
+      return {
+        api: "openai-completions" as const,
+        baseUrl: `http://127.0.0.1:${context.upstreamPort}/v4/`,
+        credential: { value: "REAL-PROVIDER-SECRET", headers: {} },
+      };
+    }) as never);
+    const reply = send(context.port, { path: "/zai/chat/completions", headers: asAgent, body: chat() }).catch(
+      () => null,
+    );
+    await inside;
+    return { ...context, release: () => release(undefined), reply };
+  }
+
+  // Mutant M-after-wait: the checks after the await dropped -> the credential goes upstream.
+  it("is not forwarded when its launch was revoked meanwhile", async () => {
+    const { keys, seen, release, reply, upstreamPort } = await waiting();
+    keys.remove(LAUNCH_A);
+    // The response's close has fired by the time the credential arrives (the real wait is seconds, not a microtask).
+    await stillRunning(new Promise(() => {}));
+    release();
+    await reply;
+    await probeUpstream(upstreamPort);
+    await stillRunning(new Promise(() => {}));
+    expect(seen.filter((got) => got.url !== "/probe")).toEqual([]);
+  });
+
+  it("is refused when the agent was paused meanwhile", async () => {
+    const { policy, seen, release, reply } = await waiting();
+    policy.set({
+      agentId: "scout-0001",
+      models: [{ provider: "zai", id: "glm-4.6" }],
+      claude: true,
+      blocked: "paused",
+    });
+    release();
+    const answer = await reply;
+    expect(JSON.parse(answer?.body ?? "{}")).toEqual({ error: "paused" });
+    expect(seen).toEqual([]);
+  });
+
+  it("is refused when the agent's budget was reached meanwhile", async () => {
+    const { policy, seen, release, reply } = await waiting();
+    policy.set({
+      agentId: "scout-0001",
+      models: [{ provider: "zai", id: "glm-4.6" }],
+      claude: true,
+      blocked: "budget",
+    });
+    release();
+    expect(JSON.parse((await reply)?.body ?? "{}")).toEqual({ error: "budget" });
+    expect(seen).toEqual([]);
+  });
+
+  it("is forwarded when nothing changed", async () => {
+    const { seen, release, reply } = await waiting();
+    release();
+    expect((await reply)?.status).toBe(200);
+    expect(seen).toHaveLength(1);
   });
 });
