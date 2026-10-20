@@ -97,8 +97,13 @@ export function makeBed(
   const downloads: string[] = [];
   const copies: Array<[string, string]> = [];
   const deploys: Array<[string, string]> = [];
+  let failNextChmod = false;
   const exec: Exec = (cmd, args) => {
     calls.push([cmd, ...args].join(" "));
+    if (cmd === "chmod" && failNextChmod) {
+      failNextChmod = false;
+      return Promise.resolve({ code: 1, stdout: "" });
+    }
     if (cmd === "tar") {
       const into = args[args.indexOf("-C") + 1] as string;
       const name = basename(args[1] as string) as AssetName;
@@ -165,6 +170,9 @@ export function makeBed(
     deploys,
     tree,
     assets,
+    failNextChmod: () => {
+      failNextChmod = true;
+    },
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }

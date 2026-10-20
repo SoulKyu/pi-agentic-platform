@@ -89,8 +89,16 @@ describe("judgeVmPath: links and folders", () => {
   it("a planted link to / is no existence or type oracle: every probe outside the layout answers the same", async () => {
     symlinkSync("/", join(home, "r"));
     const outside = refused("outside this agent's folders");
-    for (const raw of ["r/etc/hostname", "r/etc/pap-no-such-file", "r/etc", "r/proc/1/environ", "r/root/x/y", "r/tmp"])
-      for (const write of [false, true]) expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
+    for (const raw of [
+      "r/etc/hostname",
+      "r/etc/pap-no-such-file",
+      "r/etc",
+      "r/proc/1/environ",
+      "r/root/x/y",
+      "r/tmp",
+    ])
+      for (const write of [false, true])
+        expect(await verdict(raw, write), `${raw} ${write}`).toEqual(outside);
   });
 
   it("a read names an existing path: a missing one is `missing`", async () => {

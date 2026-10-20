@@ -9,12 +9,13 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
 import { afterEach, describe, expect, it } from "vitest";
 import { CliError } from "../open-home.ts";
 import { UsageError } from "../usage.ts";
 import { DEV_RESIDUAL, SETUP_MARKER, runSetup, type SetupOptions } from "./setup.ts";
 import { KATA_MARKER } from "./configs.ts";
-import { makeBed, snapshot } from "./testing/bed.ts";
+import { makeBed, payload, snapshot } from "./testing/bed.ts";
 
 /*
  * Fix round 1 mutants: the chmod step removed ("makes everything root-owned...", "strips setuid..."); the owner check of
@@ -46,6 +47,8 @@ const opts = (extra: Partial<SetupOptions> = {}): SetupOptions => ({
   ...extra,
 });
 
+// S1 item 2 mutants: M-a chown/chmod only inside `if (changed)` (the old shape): "retries a failed chmod on the next run";
+// M-b the opt marker written before chown/chmod: same case (the marker would list node after the failed run).
 describe("pap vm setup: refusals", () => {
   it("refuses a non-root caller with the sudo hint", async () => {
     const b = bed();
@@ -233,6 +236,42 @@ describe("pap vm setup: install", () => {
     }
   });
 
+  it("retries a failed chmod on the next run, and writes the marker only after it", async () => {
+    const b = bed({ setuid: true });
+    await runSetup(opts(), b.deps, b.io);
+    // A new Kata pin alone: the Kata marker is written with the staged folder, the opt marker is not stale.
+    const next = {
+      ...b.deps,
+      compiled: {
+        ...b.assets,
+        "kata-static": {
+          ...b.assets["kata-static"],
+          sha256: createHash("sha256").update("v2").digest("hex"),
+        },
+      },
+      download: (asset: { name: string }, dest: string) => {
+        writeFileSync(dest, asset.name === "kata-static" ? "v2" : payload(asset.name));
+        return Promise.resolve();
+      },
+    };
+    b.failNextChmod();
+    await expect(runSetup(opts(), next as never, b.io)).rejects.toThrow(/chmod/);
+    b.calls.length = 0;
+    await runSetup(opts(), next as never, b.io);
+    // The Kata marker already names the new pin, yet its folder is made safe now.
+    expect(b.calls.filter((c) => c.startsWith("chmod"))).toEqual([
+      `chmod -R u-s,g-s,go-w ${b.roots.opt} ${b.roots.kata}`,
+    ]);
+    expect(statSync(join(b.roots.kata, "bin/kata-ctl")).mode & 0o7022).toBe(0);
+  });
+
+  it("lists nothing in the opt marker when chmod failed on the first run", async () => {
+    const b = bed();
+    b.failNextChmod();
+    await expect(runSetup(opts(), b.deps, b.io)).rejects.toThrow(/chmod/);
+    expect(JSON.parse(readFileSync(join(b.roots.opt, SETUP_MARKER), "utf8")).installed).toEqual({});
+  });
+
   it("does nothing on a second run: no download, no tar, no systemctl, no rewrite", async () => {
     const b = bed();
     await runSetup(opts(), b.deps, b.io);
@@ -242,7 +281,7 @@ describe("pap vm setup: install", () => {
     b.downloads.length = 0;
     await runSetup(opts(), b.deps, b.io);
     expect(b.downloads).toEqual([]);
-    expect(b.calls.filter((c) => !/^(ufw|firewall-cmd)/.test(c))).toEqual([]);
+    expect(b.calls.filter((c) => !/^(ufw|firewall-cmd|chown|chmod)/.test(c))).toEqual([]);
     expect(snapshot(b.root)).toEqual(before);
     expect(statSync(join(b.roots.etc, "config.json")).mtimeMs).toBe(mtime);
     expect(b.stdout()).toContain("nothing to change");

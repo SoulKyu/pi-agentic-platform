@@ -294,11 +294,12 @@ export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): 
       installedOpt["dev-from-tree"] = "tree";
       changed = true;
     }
+    // Root ownership and no setuid, setgid or group/other write bit on EVERY run (the Kata marker travels with its folder, so
+    // a failed step would otherwise never be retried), then the opt marker: it never names a folder that was not made safe.
+    await must(deps, "chown", ["-R", "0:0", roots.opt, roots.kata]);
+    await must(deps, "chmod", ["-R", "u-s,g-s,go-w", roots.opt, roots.kata]);
     if (changed) {
       if (!options.devFromTree) Reflect.deleteProperty(installedOpt, "dev-from-tree");
-      // Root ownership and no setuid, setgid or group/other write bit, then the marker: a failed step is retried by the next run.
-      await must(deps, "chown", ["-R", "0:0", roots.opt, roots.kata]);
-      await must(deps, "chmod", ["-R", "u-s,g-s,go-w", roots.opt, roots.kata]);
       writeFileSync(join(roots.opt, SETUP_MARKER), `${JSON.stringify({ installed: installedOpt })}\n`);
     }
 
