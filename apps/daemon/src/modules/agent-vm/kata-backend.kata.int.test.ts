@@ -218,11 +218,12 @@ describe.skipIf(skip)("the Kata backend on the real stack", () => {
       // The task's `ls` of its own /agent/home found nothing, and reading the marker failed.
       const ls = results.find((text) => text.includes('"toolName":"ls"')) ?? "";
       const read = results.find((text) => text.includes('"toolName":"read"')) ?? "";
-      expect(ls).toContain('"toolName":"ls"');
-      expect(ls).not.toContain("marker");
+      expect(ls).toContain('"isError":false');
+      expect(ls).toContain("(empty directory)");
       expect(read).toContain('"isError":true');
+      expect(read).toContain("missing");
       expect(read).not.toContain("scout-marker");
-      // The task VM (stopped by the idle timer, with its disk) is gone; Scout's own disk still holds its marker, whether its VM
+      // The task VM (stopped by the idle timer, with its disk) is gone; vmd has no op that lists disks, so the VM list is the proof; Scout's own disk still holds its marker, whether its VM
       // stayed up or was stopped by the same timer and started again by this probe.
       expect((await vmsOf(bed.vmd, scout)).filter((vm) => vm.taskKey !== null)).toEqual([]);
       await bed.call("sessions.reopen", { sessionId: scoutSession });

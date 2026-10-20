@@ -101,7 +101,7 @@ export function makeBed(
   const deploys: Array<[string, string]> = [];
   let failNextChmod = false;
   /** What `nerdctl ps -a -q` prints (one container id per line) and what /proc/self/mountinfo holds, for the uninstall cases. */
-  const live = { containers: "", mounts: "" };
+  const live = { containers: "", mounts: "", psCode: 0, rmCode: 0 };
   const exec: Exec = (cmd, args) => {
     calls.push([cmd, ...args].join(" "));
     if (cmd === "chmod" && failNextChmod) {
@@ -126,7 +126,9 @@ export function makeBed(
         }
     }
     if (cmd.endsWith("/nerdctl") && args.includes("ps"))
-      return Promise.resolve({ code: 0, stdout: live.containers });
+      return Promise.resolve({ code: live.psCode, stdout: live.containers });
+    if (cmd.endsWith("/nerdctl") && args.includes("rm"))
+      return Promise.resolve({ code: live.rmCode, stdout: "" });
     if (cmd === "ufw")
       return Promise.resolve({ code: overrides.ufw === undefined ? 127 : 0, stdout: overrides.ufw ?? "" });
     return Promise.resolve({ code: cmd === "firewall-cmd" ? 127 : 0, stdout: "" });

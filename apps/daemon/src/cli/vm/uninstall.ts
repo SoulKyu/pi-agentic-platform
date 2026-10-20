@@ -69,20 +69,30 @@ export async function runUninstall(
     "--cni-netconfpath",
     `${roots.etc}/cni`,
   ];
-  const listed = await deps.exec(`${roots.opt}/bin/nerdctl`, [...nerdctl, "ps", "-a", "-q"]);
-  const containers = listed.stdout.split("\n").filter((id) => /^[0-9a-f]{12,64}$/.test(id.trim()));
-  if (containers.length > 0)
-    await deps.exec(`${roots.opt}/bin/nerdctl`, [
-      ...nerdctl,
-      "rm",
-      "--force",
-      ...containers.map((id) => id.trim()),
-    ]);
+  const nerdctlBin = `${roots.opt}/bin/nerdctl`;
+  // Fail closed: a listing or removal that failed leaves VMs running, so nothing is stopped or removed. Without containerd's
+  // socket (a broken install) there is nothing to ask; the mount check below is then the only backstop.
+  if (existsSync(`${roots.run}/containerd.sock`)) {
+    const listed = await deps.exec(nerdctlBin, [...nerdctl, "ps", "-a", "-q"]);
+    if (listed.code !== 0)
+      throw new CliError(`nerdctl ps -a -q failed (exit ${listed.code}): nothing was stopped or removed`);
+    const containers = listed.stdout
+      .split("\n")
+      .map((id) => id.trim())
+      .filter((id) => /^[0-9a-f]{12,64}$/.test(id));
+    if (containers.length > 0) {
+      const removed = await deps.exec(nerdctlBin, [...nerdctl, "rm", "--force", ...containers]);
+      if (removed.code !== 0)
+        throw new CliError(
+          `nerdctl rm --force failed (exit ${removed.code}): nothing was stopped or removed`,
+        );
+    }
+  }
   await deps.exec("systemctl", ["disable", "--now", ...[...UNIT_NAMES].reverse()]);
   const left = mountedUnder(deps.readMounts(), [roots.run, roots.state]);
   if (left !== undefined)
     throw new CliError(
-      `${left} is still mounted: a VM or container of pap is still running; nothing was removed. Stop it, then run pap vm uninstall again`,
+      `${left} is still mounted: a VM or container of pap is still running; the units are stopped but no file was removed. Stop it, then run pap vm uninstall again`,
     );
   for (const name of UNIT_NAMES) rmSync(join(roots.units, name), { force: true });
   await deps.exec("systemctl", ["daemon-reload"]);

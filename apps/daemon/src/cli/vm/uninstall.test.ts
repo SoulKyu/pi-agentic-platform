@@ -72,6 +72,8 @@ describe("pap vm uninstall", () => {
   it("removes the containers of pap's namespace before it stops the units", async () => {
     const b = bed();
     await setup(b);
+    mkdirSync(b.roots.run, { recursive: true });
+    writeFileSync(`${b.roots.run}/containerd.sock`, "");
     b.live.containers = "aaa111aaa111\nbbb222bbb222\n";
     await runUninstall({ purge: false }, b.deps, b.io);
     const rm = b.calls.findIndex((call) => call.endsWith("rm --force aaa111aaa111 bbb222bbb222"));
@@ -81,6 +83,27 @@ describe("pap vm uninstall", () => {
     expect(b.calls[rm]).toContain("--namespace pap ");
     expect(b.calls[rm]).toContain(`--address ${b.roots.run}/containerd.sock`);
   });
+
+  // T20a fix 2 (N1). Mutant: the exit code of ps (or rm) ignored -> "fails closed ...".
+  it.each([
+    ["ps", "nerdctl ps -a -q failed"],
+    ["rm", "nerdctl rm --force failed"],
+  ])(
+    "fails closed when nerdctl %s exits non-zero: no unit stopped, nothing removed",
+    async (which, message) => {
+      const b = bed();
+      await setup(b);
+      mkdirSync(b.roots.run, { recursive: true });
+      writeFileSync(`${b.roots.run}/containerd.sock`, "");
+      b.live.containers = "aaa111aaa111\n";
+      if (which === "ps") b.live.psCode = 1;
+      else b.live.rmCode = 1;
+      const before = snapshot(b.root);
+      await expect(runUninstall({ purge: false }, b.deps, b.io)).rejects.toThrow(message);
+      expect(b.calls.some((call) => call.startsWith("systemctl disable"))).toBe(false);
+      expect(snapshot(b.root)).toEqual(before);
+    },
+  );
 
   it("refuses while a mount is left under pap's folders and removes nothing", async () => {
     const b = bed();
