@@ -76,6 +76,7 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
                   sessionFile: null,
                   sessionsDir: "/ignored",
                   mirrorFor: () => "refused",
+                  unsent: () => false,
                   sent: () => {},
                 }),
               },

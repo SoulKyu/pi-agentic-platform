@@ -57,6 +57,8 @@ export interface WorkerHandle {
   stats(): WorkerStats;
   /** A VM worker only (R23): where the daemon keeps its session file, the mirror; null until it is open. */
   piFile?(): string | null;
+  /** A VM worker only (R32): whether a user message of its events is one pap did not send; the live view marks it. */
+  unsentUserMessage?(message: unknown): boolean;
 }
 
 export function spawnWorker(options: SpawnWorkerOptions): WorkerHandle {

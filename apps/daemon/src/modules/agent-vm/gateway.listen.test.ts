@@ -59,7 +59,13 @@ describe("the TCP listener", () => {
     );
     const link: GuestLink = await gateway.awaitGuest(launch.launchId);
     const mirrorFor = (): MirrorPort | "refused" => "refused";
-    const input: WorkerSpawnInput = { sessionFile: null, sessionsDir: "/s", mirrorFor, sent: () => {} };
+    const input: WorkerSpawnInput = {
+      sessionFile: null,
+      sessionsDir: "/s",
+      mirrorFor,
+      unsent: () => false,
+      sent: () => {},
+    };
     const spawning: Promise<VmWorkerHandle> = link.spawnWorker(input, null);
     spawning.catch(() => {});
     expect(await frames).toMatchObject({ type: "spawn", sessionFile: null, packages: null });

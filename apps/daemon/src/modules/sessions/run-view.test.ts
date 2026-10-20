@@ -134,4 +134,23 @@ describe("binding entry ids", () => {
     view.bind({ id: "e9", parentId: null, type: "message", role: "compactionSummary" });
     expect(ids(view)).toEqual([null, "c1"]);
   });
+
+  // J1b. Mutant: `push` drops the mark -> "keeps the mark of a forged user message on its row" fails.
+  it("keeps the mark of a forged user message on its row, and on its placeholder", () => {
+    const view = createRunView();
+    view.begin(0, null);
+    view.push({ role: "user", content: "forged" }, true);
+    view.push({ role: "user", content: "mine" });
+    view.push({ role: "user", timestamp: 3, content: "x".repeat(ROW_BYTES + 1) }, true);
+    const rows = view.state()?.rows ?? [];
+    expect(rows[0]).toEqual({
+      entryId: null,
+      message: { role: "user", content: "forged" },
+      unverified: true,
+    });
+    expect(rows[1]).toEqual(unbound({ role: "user", content: "mine" }));
+    expect(rows[2]).toMatchObject({ unverified: true });
+    view.bind({ id: "e1", parentId: null, type: "message", role: "user" });
+    expect(view.state()?.rows[0]).toMatchObject({ unverified: true });
+  });
 });

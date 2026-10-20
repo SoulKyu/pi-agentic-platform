@@ -391,3 +391,11 @@ it("keeps the session's policy view from the snapshot and from policy events", (
   const next = reduceSession(first, { kind: "policy", policy: { ...policyView, tainted: true } });
   expect(next.policy.tainted).toBe(true);
 });
+
+// J1b. Mutant: `message_end` ignores the daemon's mark -> "shows a user message the daemon marked as not sent" fails.
+it("shows a user message the daemon marked as not sent from pap, while the run is live", () => {
+  const view = reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: user, unverified: true }));
+  expect(view.messages.map((message) => message.unverified)).toEqual([true]);
+  const plain = reduceSession(EMPTY_VIEW, pi({ type: "message_end", message: user }));
+  expect(plain.messages[0]).not.toHaveProperty("unverified");
+});

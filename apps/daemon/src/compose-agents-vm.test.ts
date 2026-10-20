@@ -161,7 +161,13 @@ describe("composeAgentsVm in vm mode", () => {
     const spawning = vm.runtime
       .spawn(
         { agentId: ID, kind: "thread", taskKey: null, image: IMAGE, resources: DEFAULT_AGENT_RESOURCES },
-        { sessionFile: null, sessionsDir: "/x", mirrorFor: () => "refused", sent: () => {} },
+        {
+          sessionFile: null,
+          sessionsDir: "/x",
+          mirrorFor: () => "refused",
+          unsent: () => false,
+          sent: () => {},
+        },
         null,
       )
       .catch(() => undefined);
@@ -359,6 +365,7 @@ describe("vmPortsOf (the M11 wiring is not optional in vm mode)", () => {
     vmLayoutOf: () => null,
     agentRunsInVm: () => true,
     resourceHost: () => ({ memoryCapMb: 1, cores: 1 }),
+    checkPackages: async () => {},
   } as unknown as AgentsVm;
   it("host mode adds nothing", () => {
     expect(vmPortsOf(undefined)).toEqual({ sessions: {}, agents: {}, safety: {} });
@@ -367,10 +374,10 @@ describe("vmPortsOf (the M11 wiring is not optional in vm mode)", () => {
     const ports = vmPortsOf(vm);
     expect(ports.sessions).toEqual({ vmLayoutOf: vm.vmLayoutOf, agentRunsInVm: vm.agentRunsInVm });
     expect(ports.safety).toEqual({ agentRunsInVm: vm.agentRunsInVm });
-    expect(ports.agents).toEqual({ resourceHost: vm.resourceHost });
+    expect(ports.agents).toEqual({ resourceHost: vm.resourceHost, checkPackages: vm.checkPackages });
   });
   it("stops the boot when a predicate is unwired", () => {
-    for (const missing of ["vmLayoutOf", "agentRunsInVm", "resourceHost"])
+    for (const missing of ["vmLayoutOf", "agentRunsInVm", "resourceHost", "checkPackages"])
       expect(() => vmPortsOf({ ...vm, [missing]: undefined } as unknown as AgentsVm)).toThrow(
         new RegExp(missing),
       );

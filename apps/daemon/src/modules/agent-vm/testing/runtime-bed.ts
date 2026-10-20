@@ -155,6 +155,7 @@ export async function startRuntimeBed(
     sessionFile: null,
     sessionsDir: "",
     mirrorFor: () => "refused",
+    unsent: () => false,
     sent: () => {},
   };
   async function spawn(agentId: string, input: Partial<WorkerSpawnInput> = {}) {

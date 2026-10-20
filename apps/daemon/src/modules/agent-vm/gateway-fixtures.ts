@@ -157,6 +157,7 @@ export const spawnInput = (overrides: Partial<WorkerSpawnInput> = {}): WorkerSpa
   sessionFile: null,
   sessionsDir: "/agent/.pi/sessions",
   mirrorFor: () => mirrorStub(),
+  unsent: () => false,
   sent: () => {},
   ...overrides,
 });

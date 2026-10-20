@@ -33,6 +33,7 @@ export const workerInput = (): WorkerSpawnInput => ({
   sessionFile: null,
   sessionsDir: "/ignored",
   mirrorFor: () => "refused",
+  unsent: () => false,
   sent: () => {},
 });
 

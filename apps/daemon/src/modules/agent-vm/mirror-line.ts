@@ -93,6 +93,10 @@ export function createProvenance(limit = 256) {
         if (sent.length > limit) sent.shift();
       }
     },
+    /** Whether `verify` would say pap sent it, consuming nothing (the live view marks a forged row before the mirror's verdict). */
+    peek(userText: string): boolean {
+      return sent.includes(userText) || expansions > 0;
+    },
     /** True: pap sent it. Consumes the match. */
     verify(userText: string): boolean {
       const at = sent.indexOf(userText);

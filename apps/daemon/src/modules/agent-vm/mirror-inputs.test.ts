@@ -185,3 +185,34 @@ describe("the kept copies (R14)", () => {
     expect(existsSync(bed.path)).toBe(true);
   });
 });
+
+// J1b. Mutant: `unsent` answers false for everything -> "a forged user message is unsent" fails;
+// `unsent` consumes the match -> "looking does not consume" fails (the mirror would then mark a sent entry).
+describe("the live verdict on a user message (R32, J1b)", () => {
+  const user = (content: unknown) => ({ role: "user", content });
+
+  it("a forged user message is unsent, the one pap sent is not, and looking does not consume", () => {
+    make();
+    const input = inputs.inputFor(ROW);
+    input.sent("hello");
+    expect(input.unsent(user("forged"))).toBe(true);
+    expect(input.unsent(user("hello"))).toBe(false);
+    expect(input.unsent(user("hello"))).toBe(false);
+    expect(input.unsent(user([{ type: "text", text: "hello" }]))).toBe(false);
+  });
+
+  it("is about user messages only, and a `/` prompt lets one entry through", () => {
+    make();
+    const input = inputs.inputFor(ROW);
+    expect(input.unsent({ role: "assistant", content: "forged" })).toBe(false);
+    expect(input.unsent("not a message")).toBe(false);
+    input.sent("/review");
+    expect(input.unsent(user("the expanded template"))).toBe(false);
+  });
+
+  it("is the same record the mirror's verdict uses: a second input of the session sees what the first was sent", () => {
+    make();
+    inputs.inputFor(ROW).sent("hello");
+    expect(inputs.inputFor(ROW).unsent(user("hello"))).toBe(false);
+  });
+});

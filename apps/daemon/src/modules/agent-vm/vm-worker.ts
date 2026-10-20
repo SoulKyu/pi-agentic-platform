@@ -36,6 +36,8 @@ export interface WorkerSpawnInput {
   mirrorFor(file: string): MirrorPort | "refused";
   /** Every prompt, steer and follow-up text sent to this worker (R32). */
   sent(text: string): void;
+  /** Whether a user message of the worker's events is one pap did not send (R32), looked at without consuming the match. */
+  unsent(message: unknown): boolean;
 }
 /** What the mirror says of one `session_append`: taken, the worker must send from elsewhere (RT-39), or the connection ends. */
 export type AppendResult = "ok" | { resync: SessionResync } | "refused";
@@ -54,6 +56,8 @@ export interface VmWorkerHandle extends WorkerHandle {
   readonly slot: string;
   /** The mirror's path once it is open. */
   piFile(): string | null;
+  /** R32, live: the message is a user message pap did not send (an extension's or a forged one). */
+  unsentUserMessage(message: unknown): boolean;
 }
 
 export interface VmWorker {
@@ -216,6 +220,7 @@ export function createVmWorker(deps: {
     stats: core.stats,
     slot: deps.slot,
     piFile: () => mirror?.path ?? null,
+    unsentUserMessage: (message) => input.unsent(message),
   };
 
   return {

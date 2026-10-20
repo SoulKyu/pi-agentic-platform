@@ -156,3 +156,25 @@ describe("createProvenance (RT-26, R32)", () => {
     expect(provenance.verify(sha("text 256"))).toBe(true);
   });
 });
+
+// J1b (forged-row live mark). Mutant: `peek` consumes the match -> "peek does not consume" fails (the file would then mark a sent entry).
+describe("createProvenance.peek (J1b)", () => {
+  it("answers the same as verify and consumes nothing", () => {
+    const provenance = createProvenance();
+    provenance.sent("hello");
+    expect(provenance.peek(sha("hello"))).toBe(true);
+    expect(provenance.peek(sha("hello"))).toBe(true);
+    expect(provenance.peek(sha("forged"))).toBe(false);
+    expect(provenance.verify(sha("hello"))).toBe(true);
+    expect(provenance.peek(sha("hello"))).toBe(false);
+  });
+
+  it("a `/` prompt lets one entry through, whatever its text, until it is consumed", () => {
+    const provenance = createProvenance();
+    expect(provenance.peek(sha("expanded"))).toBe(false);
+    provenance.sent("/review");
+    expect(provenance.peek(sha("expanded"))).toBe(true);
+    expect(provenance.verify(sha("expanded"))).toBe(true);
+    expect(provenance.peek(sha("expanded"))).toBe(false);
+  });
+});

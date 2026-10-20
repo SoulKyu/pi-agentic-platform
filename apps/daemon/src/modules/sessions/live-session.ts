@@ -20,6 +20,7 @@ import { slimEntryRef, summaryRow } from "./entry-events.ts";
 import type { IdleState } from "./idle-release.ts";
 import { createLiveCommands } from "./live-commands.ts";
 import { createLiveIdle } from "./live-idle.ts";
+import { markUnsent } from "./live-marks.ts";
 import { createLiveRun, isSystemMessage } from "./live-run.ts";
 import { createLiveUi } from "./live-ui.ts";
 import { createLoadoutView } from "./loadout-view.ts";
@@ -264,7 +265,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
       }
       case "pi_event": {
         idle.touch();
-        const event = record.event;
+        const event = markUnsent(record.event, handle);
         // The raw event is never forwarded: the stream carries the guard's bounded view of it.
         // Never forwarded raw: a name is text an extension or the model wrote (M2R92).
         if (event.type === "session_info_changed") {

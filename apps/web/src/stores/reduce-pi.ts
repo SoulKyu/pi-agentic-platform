@@ -52,7 +52,7 @@ export function reducePi(view: SessionView, event: { type: string } & Record<str
       return { ...next, partialKey: uniqueKeyOf(view.messages, `assistant:${stamp}`) };
     }
     case "message_end": {
-      const message = toMessageView(event.message);
+      const message = toMessageView(event.message, null, event.unverified === true);
       // The reply is written: its row now carries the key the partial had.
       const written =
         (event.message as { role?: unknown } | undefined)?.role === "assistant"

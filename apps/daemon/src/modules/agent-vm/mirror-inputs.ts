@@ -2,7 +2,7 @@ import { DEFAULT_AGENT_RESOURCES } from "@pap/contracts";
 import type { Clock } from "../../kernel/clock.ts";
 import type { Statfs } from "../../kernel/disk.ts";
 import type { Logger } from "../../kernel/logger.ts";
-import { createProvenance, type Provenance } from "./mirror-line.ts";
+import { createProvenance, promptHash, type Provenance, userTextOf } from "./mirror-line.ts";
 import { createKeepSweeper } from "./mirror-keep.ts";
 import { createLineParser, type LineParser } from "./mirror-parse.ts";
 import { mirrorFileOf, type MirrorRow, mirrorPathOf } from "./mirror-paths.ts";
@@ -105,6 +105,10 @@ export function createMirrorInputs(deps: MirrorInputsDeps): MirrorInputs {
         sessionFile,
         sessionsDir: "",
         sent: (text) => provenance.sent(text),
+        unsent: (message) => {
+          const text = userTextOf(message);
+          return text !== null && !provenance.peek(promptHash(text));
+        },
         mirrorFor(file): MirrorPort | "refused" {
           try {
             if (agentId === undefined || (sessionFile !== null && file !== sessionFile))

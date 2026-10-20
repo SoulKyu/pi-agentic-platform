@@ -22,7 +22,7 @@ export interface RunViewState {
  */
 export interface RunView {
   begin(baselineBytes: number, leafAtStart: string | null): void;
-  push(message: unknown): void;
+  push(message: unknown, unverified?: boolean): void;
   /** Gives `entry.id` to the newest row without an id that is the message of that entry. */
   bind(entry: EntryRef): void;
   /** A row the daemon builds from an entry (a compaction or a branch summary): it has its id already. */
@@ -40,6 +40,8 @@ interface RowKey {
 
 interface Held {
   entryId: string | null;
+  /** A user message of a VM session that pap did not send (R32). */
+  readonly unverified: boolean;
   readonly message: unknown;
   readonly size: number;
   readonly key: RowKey | null;
@@ -69,11 +71,11 @@ export function createRunView(): RunView {
     begin(baselineBytes, leafAtStart) {
       current ??= { baselineBytes, leafAtStart, held: [], bytes: 0 };
     },
-    push(message) {
+    push(message, unverified = false) {
       if (!current) return;
       // Measured before it is kept: a row over the per-row budget is only ever kept as its placeholder (R109).
       const { row, size } = boundedRow(message);
-      current.held.push({ entryId: null, message: row, size: size + 1, key: keyOf(message) });
+      current.held.push({ entryId: null, unverified, message: row, size: size + 1, key: keyOf(message) });
       current.bytes += size + 1;
       trim(current);
     },
@@ -96,7 +98,13 @@ export function createRunView(): RunView {
     add(row) {
       if (!current) return;
       const { row: kept, size } = boundedRow(row.message);
-      current.held.push({ entryId: row.entryId, message: kept, size: size + 1, key: null });
+      current.held.push({
+        entryId: row.entryId,
+        unverified: row.unverified === true,
+        message: kept,
+        size: size + 1,
+        key: null,
+      });
       current.bytes += size + 1;
       trim(current);
     },
@@ -108,7 +116,11 @@ export function createRunView(): RunView {
         ? {
             baselineBytes: current.baselineBytes,
             leafAtStart: current.leafAtStart,
-            rows: current.held.map(({ entryId, message }) => ({ entryId, message })),
+            rows: current.held.map(({ entryId, message, unverified }) => ({
+              entryId,
+              message,
+              ...(unverified ? { unverified: true as const } : {}),
+            })),
           }
         : null,
   };

@@ -106,6 +106,7 @@ function setup(
     sessionFile: null,
     sessionsDir: "/ignored",
     mirrorFor: () => "refused" as const,
+    unsent: () => false,
     sent: () => {},
     marker: r.id,
   }));

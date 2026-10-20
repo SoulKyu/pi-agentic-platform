@@ -56,6 +56,7 @@ function make(
     sessionFile: null,
     sessionsDir: "/agent/.pi/sessions",
     mirrorFor: vi.fn((): MirrorPort | "refused" => mirror),
+    unsent: () => false,
     sent: (text: string) => void sentTexts.push(text),
   };
   worker = createVmWorker({
