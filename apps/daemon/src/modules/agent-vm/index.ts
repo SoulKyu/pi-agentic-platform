@@ -34,3 +34,11 @@ export { readPiAuth } from "./pi-auth-values.ts";
 export { createStderrRedactor } from "./stderr-redactor.ts";
 export { forkRelay, relayEnv, relayListenOf } from "./relay-fork.ts";
 export { createRelayLink, type PolicyView, type RelayChild, type RelayLink } from "./relay-link.ts";
+export {
+  assessStack,
+  createHostStatus,
+  createVmStatus,
+  STACK_REASONS,
+  type StackAssessment,
+  type VmStatus,
+} from "./status.ts";

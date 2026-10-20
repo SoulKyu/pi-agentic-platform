@@ -71,6 +71,7 @@ function bed(
       },
     },
     agents: {
+      list: () => [],
       ownerOf: (id) => (id === AGENT ? OWNER : null),
       get: (_owner, id) =>
         id === AGENT

@@ -19,6 +19,20 @@ export const VmStatusView = z
     reason: z.string().max(256).nullable(),
     vmdVersion: z.string().max(64).nullable(),
     claudeToken: z.enum(["set", "missing"]),
+    /**
+     * What the host can give ONE agent (AVM-E33, the agent form's ceilings): the memory a VM may ask for (the cap less the VM's own
+     * overhead), the host's cores, and the disk the state folder can add (its free space less `PAP_MIN_FREE_DISK_MB`; null when
+     * pap-vmd did not say). Null or absent in host mode, or when pap-vmd does not answer.
+     */
+    host: z
+      .object({
+        memoryMb: z.number().int().min(0),
+        cpus: z.number().int().min(1),
+        diskMb: z.number().int().min(0).nullable(),
+      })
+      .strict()
+      .nullable()
+      .optional(),
     agents: z
       .array(z.object({ id: AgentId, phase: z.enum(VM_PHASES), migrated: z.boolean() }).strict())
       .max(32),

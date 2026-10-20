@@ -85,7 +85,18 @@ describe("pap doctor (spawned CLI, fake systemd, temporary home)", () => {
       "bwrap",
       "python3",
       "update_available",
+      "vm.kvm",
+      "vm.vmd",
+      "vm.stack",
+      "vm.network",
+      "vm.images",
+      "vm.disk",
+      "vm.firewall",
     ]);
+    // Host mode (no PAP_AGENTS_RUNTIME=vm): the agent VM checks do not apply and never reach for pap-vmd (T18).
+    expect(report.results.filter((x) => x.id.startsWith("vm.")).map((x) => x.status)).toEqual(
+      Array(7).fill("skip"),
+    );
   });
 
   it("a healthy default install exits 0 for the state checks: no backup yet is info, never warn", () => {

@@ -37,7 +37,7 @@ export interface AgentsVmLate {
     /** The agent form's package ids, resolved by the helper (AVM-E33). */
     readonly plugins: PluginPicks;
   };
-  readonly agents: Pick<AgentsPort, "get" | "ownerOf" | "onChange">;
+  readonly agents: Pick<AgentsPort, "get" | "list" | "ownerOf" | "onChange">;
   readonly runs: { readonly port: Pick<RunsPort, "onLiveCost" | "onRunEnd"> };
   /** The automation module: the agent's own daily budget (M11R74) is `agentTasks.overBudget`. */
   readonly automation: { readonly agentTasks: { overBudget(ownerId: string, agentId: string): boolean } };

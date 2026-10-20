@@ -160,6 +160,7 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     const vmRpc = composeAgentsVmRpc(config, logger, clock, audit.port);
     const core = { db, clock, logger, config, readOnly, hub, env, claudeToken: vmRpc.claudeToken };
     const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
+    vmRpc.bindStatus(agentsVm?.status.view);
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
     const onOriginRefused = createOriginRefusalLog(logger, clock);

@@ -75,6 +75,13 @@ describe("agentsVmMethods", () => {
       agents: [{ id: "helper-1a2b", phase: "running", migrated: false }],
     };
     expect(result.safeParse(view).success).toBe(true);
+    // AVM-E33: the host's ceilings for one agent; absent or null in host mode.
+    const host = { memoryMb: 7680, cpus: 4, diskMb: 20480 };
+    expect(result.safeParse({ ...view, host }).success).toBe(true);
+    expect(result.safeParse({ ...view, host: { ...host, diskMb: null } }).success).toBe(true);
+    expect(result.safeParse({ ...view, host: null }).success).toBe(true);
+    expect(result.safeParse({ ...view, host: { ...host, cpus: 0 } }).success).toBe(false);
+    expect(result.safeParse({ ...view, host: { ...host, path: "/x" } }).success).toBe(false);
     expect(result.safeParse({ ...view, runtime: "kata" }).success).toBe(false);
     expect(
       result.safeParse({ ...view, agents: [{ id: "helper-1a2b", phase: "gone", migrated: false }] }).success,

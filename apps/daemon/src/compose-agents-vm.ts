@@ -1,5 +1,4 @@
 import { copyFileSync, mkdirSync } from "node:fs";
-import { availableParallelism } from "node:os";
 import { join } from "node:path";
 import { PapError, type VmLayout } from "@pap/contracts";
 import { composeAgentsLink } from "./compose-agents-vm-agents.ts";
@@ -7,6 +6,7 @@ import { composeRelay } from "./compose-agents-vm-relay.ts";
 import { type AgentsVmDerived, type AgentsVmLate, bindAgentsVmLate } from "./compose-agents-vm-late.ts";
 import { composeKata, type KataSeams } from "./compose-agents-vm-kata.ts";
 import { composeOwnerSecrets } from "./compose-agents-vm-secrets.ts";
+import { composeVmStatus, guardedLaunch, resourceHostOf } from "./compose-agents-vm-status.ts";
 import type { Clock } from "./kernel/clock.ts";
 import type { Config } from "./kernel/config.ts";
 import type { Logger } from "./kernel/logger.ts";
@@ -26,6 +26,7 @@ import {
   type RelayChild,
   type RelayLink,
   type VmSpec,
+  type VmStatus,
 } from "./modules/agent-vm/index.ts";
 import type { AgentVmLink } from "./modules/agents/index.ts";
 import {
@@ -111,6 +112,8 @@ export interface AgentsVm {
   bindLate(late: AgentsVmLate): void;
   /** The relay link, or null when the composition runs without one (`relay: "off"`). Tests wait on `whenReady`. */
   readonly relay: RelayLink | null;
+  /** `agents.vmStatus` and the launch refusal of an unusable stack (T18). */
+  readonly status: VmStatus;
   /** The host's ceilings for an agent's resources (RT-30). */
   resourceHost(): { memoryCapMb: number; cores: number };
   /** At save, an agent's package picks (ids) must be ones the owner's Pi packages hold (AVM-E33); fails closed before the late binding. */
@@ -264,6 +267,7 @@ export async function composeAgentsVm(
       notifyCapacity: () => {},
     });
     imageOf = runtime.imageOf;
+    const vmStatus = composeVmStatus(core, kata?.client ?? null, runtime);
     await runtime.stopAll();
     let hooks: MirrorHooks = {
       notice: (sessionId) => agentsLogger.warn("agent_mirror_notice_unbound", { sessionId }),
@@ -336,26 +340,28 @@ export async function composeAgentsVm(
       row.agentId === undefined
         ? null
         : layoutOf(layoutBackend, config.home, { agentId: row.agentId, taskKey: taskKeyOf(row) });
+    const baseLaunch = createVmLaunch({
+      runtime,
+      papHome: config.home,
+      layoutOf: vmLayoutOf,
+      imageTagOf: seams.imageTagOf ?? (kata ? kata.imageTagOf : () => TEST_IMAGE_TAG),
+      mirrors,
+      logger: agentsLogger,
+      toImageEntries: (agentId, sources) => imageEntries.toImage(agentId, sources),
+      packageSources: (ids) => (lateHolder.late ? lateHolder.late.sourcesOf(ids) : notBound()),
+      // AVM-E15, process backend only: the scripted provider is copied into the VM's folder and the init names that path.
+      ...(kata === null && seams.backend === undefined && config.testProviderScript !== null
+        ? { copyProviderScript: scriptCopier(config.testProviderScript) }
+        : {}),
+    });
     const composed: AgentsVm = {
       runtime,
-      launch: createVmLaunch({
-        runtime,
-        papHome: config.home,
-        layoutOf: vmLayoutOf,
-        imageTagOf: seams.imageTagOf ?? (kata ? kata.imageTagOf : () => TEST_IMAGE_TAG),
-        mirrors,
-        logger: agentsLogger,
-        toImageEntries: (agentId, sources) => imageEntries.toImage(agentId, sources),
-        packageSources: (ids) => (lateHolder.late ? lateHolder.late.sourcesOf(ids) : notBound()),
-        // AVM-E15, process backend only: the scripted provider is copied into the VM's folder and the init names that path.
-        ...(kata === null && seams.backend === undefined && config.testProviderScript !== null
-          ? { copyProviderScript: scriptCopier(config.testProviderScript) }
-          : {}),
-      }),
+      launch: guardedLaunch(baseLaunch, vmStatus.status),
       vmLayoutOf,
       mirrors,
       bindMirrorHooks: bindHooks,
       bindLate(late) {
+        vmStatus.bindAgents(late.agents);
         lateHolder.late = bindAgentsVmLate(
           {
             clock,
@@ -371,7 +377,8 @@ export async function composeAgentsVm(
       },
       relay,
       agentRunsInVm: () => true,
-      resourceHost: () => ({ memoryCapMb: config.agentsMemoryMaxMb, cores: availableParallelism() }),
+      status: vmStatus.status,
+      resourceHost: resourceHostOf(config),
       checkPackages: (ids) => (lateHolder.late ? lateHolder.late.checkPackages(ids) : notBound()),
       gatewayPort: port,
       agentLink: agentLink.link,
