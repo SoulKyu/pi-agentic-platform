@@ -87,11 +87,14 @@ async function deployVmd(tree: string, dest: string): Promise<void> {
         file,
         argv,
         { cwd, timeout: 600_000, maxBuffer: 64 * 1024 * 1024, ...asOwner },
-        (error, _stdout, stderr) =>
-          done({ code: error === null ? 0 : typeof error.code === "number" ? error.code : 127, stderr }),
+        (error, stdout, stderr) =>
+          done({
+            code: error === null ? 0 : typeof error.code === "number" ? error.code : 127,
+            stderr: `${stderr}${stdout}`,
+          }),
       ),
     );
-    // The tail of the tool's stderr says why (a missing store, a pnpm that cannot start); a path in it is the owner's own.
+    // The tail of the tool's output says why (a missing store, a pnpm that cannot start); a path in it is the owner's own.
     if (result.code !== 0)
       throw new CliError(
         `${cmd} ${args[0] ?? ""} failed (exit code ${result.code})${result.stderr.trim() === "" ? "" : `: ${result.stderr.trim().slice(-400)}`}`,
