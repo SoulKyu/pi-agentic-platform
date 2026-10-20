@@ -137,6 +137,15 @@ describe("createImageEntries on disk (AVM-E44)", () => {
     expect(Object.keys(saved.images)).toEqual(tags.slice(1));
   });
 
+  // n3. Mutant: the cap counts every agent's images (`mine` not filtered by agent) -> B's record evicts A's oldest image.
+  it("the cap is per agent: another agent's images do not count against it", () => {
+    const entries = persisted();
+    const tags = Array.from({ length: 16 }, (_, i) => `pap-agent-agent-${i.toString(16).padStart(64, "0")}`);
+    for (const tag of tags) entries.record("scout-0001", tag, WRITTEN);
+    entries.record("other-0002", TAG_C, WRITTEN);
+    for (const tag of tags) expect(entries.toImage("scout-0001", tag, ["npm:a"])).toEqual(["npm:a@1.0.0"]);
+  });
+
   it("starts empty, and says so, when the file is damaged", () => {
     persisted().record("scout-0001", TAG_A, WRITTEN);
     writeFileSync(

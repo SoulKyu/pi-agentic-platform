@@ -111,7 +111,8 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
         image,
         await deps.packageSources(launch.input.packages),
       );
-      // Nothing awaits between this check and the runtime's own entry for the VM, so a quarantine after it finds a VM to stop.
+      // Just before the runtime starts. `runtime.spawn` can still await (the boot, or the teardown of this key's previous VM) before
+      // it has an entry a quarantine could stop: that residual leaves a VM up until its idle stop (resources only), and is accepted.
       deps.recheck?.(row.ownerId, row.agentId);
       const started = await deps.runtime.spawn(spec, worker, packages);
       const { handle } = started;
