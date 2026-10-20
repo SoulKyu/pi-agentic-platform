@@ -12,18 +12,22 @@ interface Props {
   set(patch: Partial<Pick<Draft, "systemPackages" | "packages">>): void;
 }
 
+/** A package of the owner's Pi profile: its id (what the agent saves) and its masked source (only a label). */
+interface PiPackage {
+  readonly id: string;
+  readonly source: string;
+}
 type PiSources =
   | { readonly state: "loading" | "failed"; retry(): void }
-  | { readonly state: "ready"; readonly sources: readonly string[]; retry(): void };
+  | { readonly state: "ready"; readonly packages: readonly PiPackage[]; retry(): void };
 
-/** The helper masks credentials in a source (`user:secret@` becomes `\u2022\u2022\u2022@`): such a spelling is not the one settings.json holds. */
-const MASK = "\u2022\u2022\u2022";
-const isMasked = (source: string): boolean => source.includes(MASK);
-
-/** The sources of the owner's Pi packages (user scope), as `plugins.list` spells them; loading and failed stay distinct from an empty profile. */
+/**
+ * The owner's Pi packages (user scope) as `plugins.list` gives them; loading and failed stay distinct from an empty profile.
+ * The source is masked and is only shown: the agent saves the package's id, which the daemon resolves (AVM-E33).
+ */
 function usePiSources(): PiSources {
   const [result, setResult] = useState<
-    { state: "loading" | "failed" } | { state: "ready"; sources: readonly string[] }
+    { state: "loading" | "failed" } | { state: "ready"; packages: readonly PiPackage[] }
   >({
     state: "loading",
   });
@@ -37,10 +41,12 @@ function usePiSources(): PiSources {
           if (live)
             setResult({
               state: "ready",
-              sources: [
-                ...new Set(
-                  answer.plugins.filter((plugin) => plugin.scope === "user").map((plugin) => plugin.source),
-                ),
+              packages: [
+                ...new Map(
+                  answer.plugins
+                    .filter((plugin) => plugin.scope === "user")
+                    .map((plugin) => [plugin.id, { id: plugin.id, source: plugin.source }] as const),
+                ).values(),
               ],
             });
         },
@@ -68,7 +74,7 @@ function usePiSources(): PiSources {
 export function AgentPackages({ systemPackages, packages, set }: Props) {
   const t = useT();
   const pi = usePiSources();
-  const sources = pi.state === "ready" ? pi.sources : [];
+  const known = pi.state === "ready" ? pi.packages : [];
   const [typed, setTyped] = useState("");
   const [problem, setProblem] = useState<MessageKey | null>(null);
 
@@ -90,11 +96,10 @@ export function AgentPackages({ systemPackages, packages, set }: Props) {
   };
 
   // A saved pick the profile no longer lists stays on the list, ticked, so saving does not drop it silently.
-  const listed = [...new Set([...sources, ...(packages ?? [])])];
-  const toggle = (source: string, on: boolean) =>
-    set({
-      packages: on ? [...(packages ?? []), source] : (packages ?? []).filter((pick) => pick !== source),
-    });
+  // A saved pick the profile no longer holds stays in the list (ticked, labelled gone), so the owner can drop it.
+  const gone = (packages ?? []).filter((id) => !known.some((one) => one.id === id));
+  const toggle = (id: string, on: boolean) =>
+    set({ packages: on ? [...(packages ?? []), id] : (packages ?? []).filter((pick) => pick !== id) });
 
   return (
     <>
@@ -141,7 +146,7 @@ export function AgentPackages({ systemPackages, packages, set }: Props) {
           label={t("agentVm.pi.all")}
           checked={packages === null}
           disabled={pi.state !== "ready"}
-          onChange={(all) => set({ packages: all ? null : sources.filter((source) => !isMasked(source)) })}
+          onChange={(all) => set({ packages: all ? null : known.map((one) => one.id) })}
         />
         {pi.state === "loading" ? <p className="text-ui text-muted">{t("agentVm.pi.loading")}</p> : null}
         {pi.state === "failed" ? (
@@ -154,20 +159,22 @@ export function AgentPackages({ systemPackages, packages, set }: Props) {
         ) : null}
         {packages === null ? (
           <p className="text-ui text-muted">{t("agentVm.pi.hint")}</p>
-        ) : pi.state !== "ready" ? null : listed.length === 0 ? (
+        ) : pi.state !== "ready" ? null : known.length + gone.length === 0 ? (
           <p className="text-ui text-muted">{t("agentVm.pi.none")}</p>
         ) : (
-          listed.map((source) => (
-            <div key={source} className="flex flex-col gap-s1">
+          <>
+            {known.map((one) => (
               <Checkbox
-                label={source}
-                checked={packages.includes(source)}
-                disabled={isMasked(source)}
-                onChange={(on) => toggle(source, on)}
+                key={one.id}
+                label={one.source}
+                checked={packages.includes(one.id)}
+                onChange={(on) => toggle(one.id, on)}
               />
-              {isMasked(source) ? <p className="text-ui text-muted">{t("agentVm.pi.masked")}</p> : null}
-            </div>
-          ))
+            ))}
+            {gone.map((id) => (
+              <Checkbox key={id} label={t("agentVm.pi.gone")} checked onChange={(on) => toggle(id, on)} />
+            ))}
+          </>
         )}
       </fieldset>
     </>

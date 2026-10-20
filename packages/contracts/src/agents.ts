@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { LINE_HIDDEN } from "./text-rules.ts";
-import { AgentResources, DEFAULT_AGENT_RESOURCES, PackagePicks, SystemPackages } from "./agents-resources.ts";
+import { AgentResources, DEFAULT_AGENT_RESOURCES, PluginPicks, SystemPackages } from "./agents-resources.ts";
 import { ApprovalMode, DenyPattern, HostPattern, MAX_TRUSTED_SOURCES, TrustedHost } from "./policy.ts";
 import { AgentId, AgentName } from "./platform.ts";
 import { ThinkingLevel, ToolPreset } from "./session-loadout.ts";
@@ -104,7 +104,7 @@ export const AgentInput = z
       .default([]),
     resources: AgentResources.default(DEFAULT_AGENT_RESOURCES),
     systemPackages: SystemPackages.default([]),
-    packages: PackagePicks.default(null),
+    packages: PluginPicks.default(null),
   })
   .strict();
 export type AgentInput = z.output<typeof AgentInput>;

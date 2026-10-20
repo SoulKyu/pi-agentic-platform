@@ -139,11 +139,17 @@ const PLUGIN_WRITE_ERRORS = [
 const PluginScope = z.enum(["user", "project"]);
 /** A package source as the owner typed it or as Pi's settings hold it: the helper validates it (M7R115). */
 const PluginSourceText = z.string().min(1).max(PLUGIN_LIMITS.source);
+/**
+ * A package's id (AVM-E33): 32 hex characters the helper makes from the scope and the exact source. It names the package without
+ * the source, which may hold a secret, and tells apart two sources that mask alike. The daemon resolves it; a browser never does.
+ */
+export const PluginId = z.string().regex(/^[0-9a-f]{32}$/);
 const PluginRef = z.object({ source: PluginSourceText, scope: PluginScope }).strict();
 
 /** One package of `settings.json`. `source` is masked; `enabled` is false when its four resource lists are empty (M7R114). */
 export const PluginView = z
   .object({
+    id: PluginId,
     source: PluginSourceText,
     scope: PluginScope,
     installedPath: AbsolutePath.nullable(),
@@ -157,6 +163,12 @@ export const PluginsListResult = z
   .object({ plugins: z.array(PluginView).max(PLUGIN_LIMITS.list), truncated: z.boolean() })
   .strict();
 export type PluginsListResult = z.infer<typeof PluginsListResult>;
+
+/** The daemon's own question to the helper: the exact spellings of the owner's Pi packages (user scope), `null` for an id nothing holds. Not an RPC method. */
+export const PluginsResolveParams = z.object({ ids: z.array(PluginId).max(PLUGIN_LIMITS.items) }).strict();
+export const PluginsResolveResult = z
+  .object({ sources: z.array(PluginSourceText.nullable()).max(PLUGIN_LIMITS.items) })
+  .strict();
 
 /** The params the plugin writes share with their helper operations: the helper gets `cwd` from the run, not from here. */
 export const PluginSourceParams = z

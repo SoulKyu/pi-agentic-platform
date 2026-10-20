@@ -52,6 +52,8 @@ export interface VmLaunchDeps {
   imageTagOf(agentId: string): string;
   readonly mirrors: MirrorInputs;
   readonly logger: Pick<Logger, "warn">;
+  /** The exact sources of the agent's package picks (it holds ids, AVM-E33); `null` stays `null` (every package). */
+  packageSources(ids: readonly string[] | null): Promise<string[] | null>;
   /**
    * Process backend only (AVM-E15, tests): copies the scripted provider into the VM's folder and answers its VM path, which the
    * init carries as `testProviderScript`. Kata never runs a test script, so it is left out there.
@@ -91,7 +93,8 @@ export function createVmLaunch(deps: VmLaunchDeps): VmLaunch {
       }
       const spec = specOf(row, launch, deps.imageTagOf(row.agentId));
       const worker = { ...deps.mirrors.inputFor(row, launch.input.resources), sessionsDir: layout.sessions };
-      const started = await deps.runtime.spawn(spec, worker, launch.input.packages);
+      const packages = await deps.packageSources(launch.input.packages);
+      const started = await deps.runtime.spawn(spec, worker, packages);
       const { handle } = started;
       return {
         handle,

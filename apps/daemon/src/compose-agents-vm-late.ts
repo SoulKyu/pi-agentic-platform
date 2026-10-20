@@ -6,11 +6,21 @@ import type { AgentsPort } from "./modules/agents/index.ts";
 import type { ModelsPort } from "./modules/models/index.ts";
 import type { RunsPort } from "./modules/runs/index.ts";
 import type { SessionsModule } from "./modules/sessions/index.ts";
+import type { PluginPicks } from "./plugin-picks.ts";
 
 /** The provider id pi-claude-bridge registers (R13). */
 export const CLAUDE_BRIDGE_PROVIDER = "claude-bridge";
-/** The package that brings the bridge to an agent (its sources are `npm:pi-claude-bridge`, a git URL, a path...). */
-const CLAUDE_BRIDGE_PACKAGE = /pi-claude-bridge/;
+/** The package that brings the bridge to an agent. */
+const CLAUDE_BRIDGE_NAME = "pi-claude-bridge";
+/**
+ * Whether a source (as `settings.json` spells it) is the bridge package itself (AVM-E41 m6): the npm package of that name, or a
+ * git or local folder whose last segment is that name. A package whose name only contains it (`pi-claude-bridge-fork`) is not.
+ */
+export function isClaudeBridgeSource(source: string): boolean {
+  if (source.startsWith("npm:")) return source.slice(4).replace(/@[^/@]*$/, "") === CLAUDE_BRIDGE_NAME;
+  const last = source.replace(/\/+$/, "").split(/[/:]/).at(-1) ?? "";
+  return last.replace(/@[^@]*$/, "").replace(/\.git$/, "") === CLAUDE_BRIDGE_NAME;
+}
 /** The relay holds at most 512 model pairs per agent (`RelayCommand`). */
 export const POLICY_MAX_MODELS = 512;
 /** Budgets reset at local midnight and a run in flight spends before it ends: every live agent is looked at again this often. */
@@ -22,7 +32,11 @@ export interface AgentsVmLate {
     kindOf(sessionId: string): { readonly agentId: string | null } | null;
   };
   /** `composePi`'s result: the models Pi offers. */
-  readonly pi: { readonly models: Pick<ModelsPort, "available" | "onChanged"> };
+  readonly pi: {
+    readonly models: Pick<ModelsPort, "available" | "onChanged">;
+    /** The agent form's package ids, resolved by the helper (AVM-E33). */
+    readonly plugins: PluginPicks;
+  };
   readonly agents: Pick<AgentsPort, "get" | "ownerOf" | "onChange">;
   readonly runs: { readonly port: Pick<RunsPort, "onLiveCost" | "onRunEnd"> };
   /** The automation module: the agent's own daily budget (M11R74) is `agentTasks.overBudget`. */
@@ -32,6 +46,10 @@ export interface AgentsVmLate {
 /** What the relay link reads of the late binding. */
 export interface AgentsVmDerived {
   policyOf(agentId: string): Promise<PolicyView>;
+  /** The exact sources of an agent's package picks (`null`: every package); an id nothing holds is dropped. */
+  sourcesOf: PluginPicks["sourcesOf"];
+  /** At save: every picked id must be one the owner's Pi packages hold. */
+  checkPackages: PluginPicks["check"];
   /** The turns the agent's workers reported in this relay window (RT-17): one assistant message is one provider request. */
   turnsOf(agentId: string): number;
   /** The relay reported: the next window's counts start from zero. */
@@ -73,13 +91,22 @@ export function bindAgentsVmLate(
   const turns = new Map<string, number>();
   // M2: the last list of models read for an agent. A helper that is busy or slow must not empty a running agent's policy.
   const lastModels = new Map<string, Array<{ provider: string; id: string }>>();
-  const declaresBridge = (
+  const declaresBridge = async (
     input: { model: { provider: string } | null; packages: readonly string[] | null } | null,
-  ) =>
+  ): Promise<boolean> =>
     input !== null &&
     (input.model?.provider === CLAUDE_BRIDGE_PROVIDER ||
-      (input.packages ?? []).some((source) => CLAUDE_BRIDGE_PACKAGE.test(source)));
+      (await late.pi.plugins.sourcesOf(input.packages).then(
+        (sources) => (sources ?? []).some(isClaudeBridgeSource),
+        (error: unknown) => {
+          // Fail closed for the bridge alone: the models of the policy are still sent.
+          ctx.logger.warn("relay_policy_claude_unknown", { err: error });
+          return false;
+        },
+      )));
   const derived: AgentsVmDerived = {
+    sourcesOf: (ids) => late.pi.plugins.sourcesOf(ids),
+    checkPackages: (ids) => late.pi.plugins.check(ids),
     async policyOf(agentId) {
       const ownerId = late.agents.ownerOf(agentId);
       if (ownerId === null) return NOTHING;
@@ -102,7 +129,7 @@ export function bindAgentsVmLate(
       return {
         models: pairs,
         // `models.available` loads no extension, so it never lists the bridge: the profile says whether the agent has it.
-        claude: ctx.claudeToken.status() === "set" && declaresBridge(record.input),
+        claude: ctx.claudeToken.status() === "set" && (await declaresBridge(record.input)),
         blocked: record.paused
           ? "paused"
           : late.automation.agentTasks.overBudget(ownerId, agentId)

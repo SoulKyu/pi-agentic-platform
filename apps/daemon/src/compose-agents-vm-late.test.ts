@@ -51,6 +51,8 @@ function bed(
   const late: AgentsVmLate = {
     sessions: { mirror, kindOf: (id) => (id === "s1" ? { agentId: AGENT } : null) },
     pi: {
+      // The tests give the picks as the sources themselves: the identity stands for the helper's resolution.
+      plugins: { sourcesOf: async (ids) => (ids === null ? null : [...ids]), check: async () => {} },
       models: {
         available: vi.fn(async () => {
           if (state.fail) throw new Error("helper pool is full");
@@ -150,6 +152,44 @@ describe("an agent's policy (R13)", () => {
       [plain, true, false],
     ] as const)
       expect((await bed({ input, token }).derived.policyOf(AGENT)).claude).toBe(expected);
+  });
+
+  // AVM-E41 m6. Mutant: the match is `/pi-claude-bridge/.test(source)` again -> "a package whose name only contains it" fails.
+  it("takes the bridge package by its exact name, not by a substring (m6)", async () => {
+    const claudeFor = async (source: string) =>
+      (await bed({ token: true, input: { model: null, packages: [source] } }).derived.policyOf(AGENT)).claude;
+    for (const source of [
+      "npm:pi-claude-bridge",
+      "npm:pi-claude-bridge@1.2.0",
+      "git:github.com/acme/pi-claude-bridge",
+      "git:github.com/acme/pi-claude-bridge@v1",
+      "git@github.com:acme/pi-claude-bridge.git",
+      "https://github.com/acme/pi-claude-bridge.git",
+      "/home/me/pkgs/pi-claude-bridge",
+      "../pkgs/pi-claude-bridge/",
+    ])
+      expect(await claudeFor(source), source).toBe(true);
+    for (const source of [
+      "npm:not-pi-claude-bridge",
+      "npm:pi-claude-bridge-fork",
+      "npm:pi-claude-bridge-extra@1.0.0",
+      "npm:@acme/pi-claude-bridge",
+      "git:github.com/acme/pi-claude-bridge-fork",
+      "git:github.com/pi-claude-bridge/other",
+      "/home/me/pi-claude-bridge/tools",
+      "npm:left-pad",
+    ])
+      expect(await claudeFor(source), source).toBe(false);
+  });
+
+  it("reads the bridge from the sources the picks resolve to, not from the ids (AVM-E33)", async () => {
+    const { derived, late } = bed({ token: true, input: { model: null, packages: ["f".repeat(32)] } });
+    late.pi.plugins.sourcesOf = async () => ["npm:pi-claude-bridge"];
+    expect((await derived.policyOf(AGENT)).claude).toBe(true);
+    late.pi.plugins.sourcesOf = async () => {
+      throw new Error("helper pool is full");
+    };
+    expect((await derived.policyOf(AGENT)).claude).toBe(false);
   });
 
   it("never lists a bridge model among the provider models", async () => {

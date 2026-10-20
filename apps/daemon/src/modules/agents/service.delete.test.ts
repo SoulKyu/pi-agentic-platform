@@ -248,7 +248,7 @@ describe("pause and the port", () => {
     const stop = bed.agents.port.onChange((change) => heard.push(change));
     expect(bed.agents.setPaused("u1", "atlas-0000", true)).toMatchObject({ paused: true, revision: 1 });
     expect(bed.agents.view(bed.unconfirmed(), "atlas-0000").state).toBe("paused");
-    bed.agents.update(bed.unconfirmed(), {
+    await bed.agents.update(bed.unconfirmed(), {
       agentId: "atlas-0000",
       baseRevision: 1,
       input: agentInput({ role: "x" }),

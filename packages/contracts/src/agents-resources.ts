@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PluginId } from "./skills-methods.ts";
 import { LINE_HIDDEN } from "./text-rules.ts";
 
 /** Decision 109. Host-dependent ceilings (the memory cap, the host's cores) are checked by the agents service at save (RT-30). */
@@ -26,7 +27,7 @@ export const SystemPackages = z
   .max(AGENT_VM_LIMITS.systemPackages)
   .refine(unique, "each package once");
 
-/** Package sources exactly as `settings.json` spells them; null: every package of the Pi profile (decision 108 Q4). */
+/** Package sources exactly as `settings.json` spells them, as the daemon hands them to the guest; null: every package of the Pi profile (decision 108 Q4). */
 export const PackagePicks = z
   .array(
     z
@@ -35,6 +36,13 @@ export const PackagePicks = z
       .max(512)
       .refine((text) => !LINE_HIDDEN.test(text), "visible text on one line"),
   )
+  .max(AGENT_VM_LIMITS.packages)
+  .refine(unique, "each package once")
+  .nullable();
+
+/** The agent form's picks (AVM-E33): ids of the owner's Pi packages (`plugins.list`). The daemon resolves them to `PackagePicks` at launch; no source reaches a browser. */
+export const PluginPicks = z
+  .array(PluginId)
   .max(AGENT_VM_LIMITS.packages)
   .refine(unique, "each package once")
   .nullable();

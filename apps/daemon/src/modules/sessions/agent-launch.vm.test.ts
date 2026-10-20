@@ -65,6 +65,7 @@ function setup(options: BedOptions = {}, vm = true): { papHome: string } {
                 },
               } as never,
               papHome,
+              packageSources: async () => null,
               layoutOf: (row) =>
                 row.agentId === undefined
                   ? null

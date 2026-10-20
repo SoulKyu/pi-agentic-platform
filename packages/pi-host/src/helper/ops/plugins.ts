@@ -22,6 +22,7 @@ import {
   sourceOf,
   stateOf,
 } from "../plugin-entries.ts";
+import { pluginIdOf } from "../plugin-id.ts";
 import { pluginSource } from "../plugin-source.ts";
 import { withInstallEnv } from "./install-env.ts";
 import { commit } from "./models-defaults.ts";
@@ -316,7 +317,13 @@ export async function listPlugins(ctx: Ctx): Promise<PluginsListResult> {
               !path.includes("\0")
                 ? path
                 : null;
-            plugins.push({ source, scope, installedPath, ...stateOf(entry) });
+            plugins.push({
+              id: pluginIdOf(scope, sourceOf(entry)),
+              source,
+              scope,
+              installedPath,
+              ...stateOf(entry),
+            });
           }
         return { plugins, truncated };
       }),

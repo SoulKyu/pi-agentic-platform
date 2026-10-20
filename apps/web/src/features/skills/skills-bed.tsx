@@ -26,7 +26,19 @@ export const SKILLS: readonly SkillView[] = [
   skillOf({ name: "deploy", path: "/work/app/.pi/skills/deploy/SKILL.md", scope: "project" }),
 ];
 
+/** A stable 32-hex id per source, as the helper makes one (the test needs only that two sources have two ids). */
+export const idOf = (source: string): string => {
+  let hash = 7;
+  const parts: string[] = [];
+  for (let round = 0; round < 4; round++) {
+    for (const char of `${round}${source}`) hash = (Math.imul(hash, 31) + char.charCodeAt(0)) >>> 0;
+    parts.push(hash.toString(16).padStart(8, "0"));
+  }
+  return parts.join("");
+};
+
 export const pluginOf = (over: Partial<PluginView> = {}): PluginView => ({
+  id: idOf(over.source ?? "npm:@acme/tools"),
   source: "npm:@acme/tools",
   scope: "user",
   installedPath: "/home/a/.pi/agent/npm/tools",

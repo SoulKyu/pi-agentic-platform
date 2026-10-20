@@ -13,7 +13,11 @@ vi.mock("../../runtime/index.ts", async (importOriginal) => ({
 }));
 const current: { runtime: Runtime | undefined } = { runtime: undefined };
 
-const plugin = (source: string, scope: "user" | "project" = "user") => ({
+/** The id the helper makes: 32 hex characters, one per package (here from the source, so a test can name it). */
+const idOf = (source: string, scope = "user"): string =>
+  Buffer.from(`${scope}|${source}`).toString("hex").padEnd(32, "0").slice(-32);
+const plugin = (source: string, scope: "user" | "project" = "user", id = idOf(source, scope)) => ({
+  id,
   source,
   scope,
   installedPath: null,
@@ -126,10 +130,10 @@ describe("Pi packages", () => {
     expect(seen.picks).toBeNull();
   });
 
-  it("lists the user's sources once All is unticked, every one ticked", async () => {
+  it("lists the user's packages once All is unticked, every one ticked, and picks their ids", async () => {
     await open();
     await click(tick("All") as HTMLElement);
-    expect(seen.picks).toEqual(["npm:pi-mem0", "git:github.com/acme/pi-tools"]);
+    expect(seen.picks).toEqual([idOf("npm:pi-mem0"), idOf("git:github.com/acme/pi-tools")]);
     expect(body()).not.toContain("project-only");
     expect(tick("npm:pi-mem0")?.getAttribute("aria-checked")).toBe("true");
   });
@@ -138,14 +142,19 @@ describe("Pi packages", () => {
     await open();
     await click(tick("All") as HTMLElement);
     await click(tick("npm:pi-mem0") as HTMLElement);
-    expect(seen.picks).toEqual(["git:github.com/acme/pi-tools"]);
+    expect(seen.picks).toEqual([idOf("git:github.com/acme/pi-tools")]);
     await click(tick("All") as HTMLElement);
     expect(seen.picks).toBeNull();
   });
 
-  it("keeps a saved pick the profile no longer lists, ticked", async () => {
-    await open([], ["npm:gone"]);
-    expect(tick("npm:gone")?.getAttribute("aria-checked")).toBe("true");
+  it("shows a saved pick the profile no longer lists as gone, ticked, and drops it when unticked", async () => {
+    const gone = "e".repeat(32);
+    await open([], [gone]);
+    expect(body()).toContain("A package that is no longer in your Pi profile");
+    const row = tick("A package that is no longer in your Pi profile");
+    expect(row?.getAttribute("aria-checked")).toBe("true");
+    await click(row as HTMLElement);
+    expect(seen.picks).toEqual([]);
     expect(hasButton(document.body, "Add")).toBe(true);
   });
 
@@ -154,7 +163,6 @@ describe("Pi packages", () => {
     expect(body()).toContain("Your Pi profile has no package.");
   });
 
-  // Mutant "failed read treated as empty": usePiSources answers ready with [] on a rejection. The two tests below fail.
   it("shows an error and a retry when the read fails, never the empty-profile message, and All cannot be unticked", async () => {
     const bed = await open([], null, () => {
       throw new Error("no");
@@ -169,7 +177,7 @@ describe("Pi packages", () => {
     await settle();
     expect(body()).not.toContain("could not be read");
     await click(tick("All") as HTMLElement);
-    expect(seen.picks).toEqual(["npm:pi-mem0"]);
+    expect(seen.picks).toEqual([idOf("npm:pi-mem0")]);
   });
 
   it("keeps All locked and says nothing about an empty profile while the read is pending", async () => {
@@ -179,31 +187,34 @@ describe("Pi packages", () => {
     expect((tick("All") as HTMLButtonElement).disabled).toBe(true);
   });
 
-  // Mutant "masked source tickable": drop `disabled={isMasked(source)}` and the isMasked guards in toggle and in the All
-  // handler. The next test fails (the masked source is ticked and sent).
-  it("never offers a masked source: it is disabled with a note, left out of All's picks, and sent nowhere", async () => {
+  // AVM-E33. Mutant: the form sends `plugin.source` -> the masked spelling is saved and the next case fails.
+  it("picks a package whose source is masked by its id: the masked text is only a label, never sent", async () => {
     const masked = "git:https://\u2022\u2022\u2022@github.com/acme/private";
     await open([], null, () => ({
       plugins: [plugin(masked), plugin("npm:pi-mem0")],
       truncated: false,
     }));
     await click(tick("All") as HTMLElement);
-    expect(seen.picks).toEqual(["npm:pi-mem0"]);
-    expect((tick(masked) as HTMLButtonElement).disabled).toBe(true);
-    expect(tick(masked)?.getAttribute("aria-checked")).toBe("false");
-    expect(body()).toContain("Masked source (credentials in the address)");
+    expect(seen.picks).toEqual([idOf(masked), idOf("npm:pi-mem0")]);
+    expect(JSON.stringify(seen.picks)).not.toContain("\u2022");
+    expect((tick(masked) as HTMLButtonElement).disabled).toBe(false);
     await click(tick(masked) as HTMLElement);
-    expect(seen.picks).toEqual(["npm:pi-mem0"]);
+    expect(seen.picks).toEqual([idOf("npm:pi-mem0")]);
   });
 
-  it("renders two sources that mask alike once, with no duplicate key", async () => {
+  it("lists two packages that mask alike as two rows, each picked on its own id, with no duplicate key", async () => {
     const masked = "git:https://\u2022\u2022\u2022@github.com/acme/private";
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    await open([], null, () => ({ plugins: [plugin(masked), plugin(masked)], truncated: false }));
+    await open([], null, () => ({
+      plugins: [plugin(masked, "user", "1".repeat(32)), plugin(masked, "user", "2".repeat(32))],
+      truncated: false,
+    }));
     await click(tick("All") as HTMLElement);
-    expect([...document.querySelectorAll("label")].filter((one) => one.textContent === masked)).toHaveLength(
-      1,
-    );
+    const rows = [...document.querySelectorAll("label")].filter((one) => one.textContent === masked);
+    expect(rows).toHaveLength(2);
+    expect(seen.picks).toEqual(["1".repeat(32), "2".repeat(32)]);
+    await click(document.getElementById(rows[0]?.htmlFor ?? "") as HTMLElement);
+    expect(seen.picks).toEqual(["2".repeat(32)]);
     expect(errors).not.toHaveBeenCalled();
     errors.mockRestore();
   });

@@ -18,7 +18,7 @@ import type { GitRunner } from "../../kernel/git/runner.ts";
 import type { Logger } from "../../kernel/logger.ts";
 import type { AuditPort } from "../audit/index.ts";
 import { withDeadline } from "./deadline.ts";
-import { checkAgentResources } from "./resources-check.ts";
+import { checkAgentSave } from "./resources-check.ts";
 import { homeExists, HomeMovedRunsLeft, homePath, initHome, makeHome, trashHomeOrFind } from "./homes.ts";
 import { changedFields, type ReachDeps, stepUpIfWider } from "./reach.ts";
 import type { AgentLinks } from "./links.ts";
@@ -41,6 +41,8 @@ export interface AgentsDeps extends ReachDeps {
   readonly guard?: AgentGuard;
   /** The host's ceilings for an agent VM (RT-30); missing: no VM runtime, nothing to check. */
   readonly resourceHost?: () => { memoryCapMb: number; cores: number };
+  /** Every picked package id must be one the owner's Pi packages hold (AVM-E33); a refusal is the typed error it throws. */
+  readonly checkPackages?: (ids: readonly string[]) => Promise<void>;
 }
 
 export interface AgentChanged {
@@ -282,7 +284,7 @@ export function createAgents(deps: AgentsDeps) {
       stepUpIfWider(deps, caller, null, input, clock.now());
       const ownerId = caller.userId;
       const profile = profileOf(input);
-      if (deps.resourceHost) checkAgentResources(input.resources, null, deps.resourceHost(), logger);
+      await checkAgentSave(deps, input, null, logger);
       if (store.count(ownerId) >= AGENT_LIMITS.perOwner) throw new PapError("limit_reached");
       if (store.byName(ownerId, input.name)) throw new PapError("conflict");
       const { id, home } = newHome(input.name);
@@ -304,15 +306,13 @@ export function createAgents(deps: AgentsDeps) {
       return viewOf(owned(ownerId, id));
     },
 
-    update(caller: Caller, params: ParamsOf<"agents.update">): AgentView {
+    async update(caller: Caller, params: ParamsOf<"agents.update">): Promise<AgentView> {
       const { agentId, baseRevision, input } = params;
       const before = owned(caller.userId, agentId);
       stepUpIfWider(deps, caller, before.input, input, clock.now());
       if (before.revision !== baseRevision) throw new PapError("conflict");
       const profile = profileOf(input);
-      // Only a save that changes `resources`: a rename must not fail because the host's cap dropped (AVM-E17).
-      if (deps.resourceHost && JSON.stringify(input.resources) !== JSON.stringify(before.input?.resources))
-        checkAgentResources(input.resources, before.input?.resources ?? null, deps.resourceHost(), logger);
+      await checkAgentSave(deps, input, before.input, logger);
       const taken = store.byName(caller.userId, input.name);
       if (taken && taken.id !== agentId) throw new PapError("conflict");
       const fields = changedFields(before.input, input);

@@ -107,6 +107,8 @@ export interface AgentsVm {
   readonly relay: ReturnType<typeof createRelayLink> | null;
   /** The host's ceilings for an agent's resources (RT-30). */
   resourceHost(): { memoryCapMb: number; cores: number };
+  /** At save, an agent's package picks (ids) must be ones the owner's Pi packages hold (AVM-E33); fails closed before the late binding. */
+  checkPackages(ids: readonly string[]): Promise<void>;
   /** Where the gateway listens (the process backend's loopback port). */
   readonly gatewayPort: number;
 }
@@ -115,6 +117,9 @@ const TEST_IMAGE_TAG = `pap-agent-agent-${"0".repeat(64)}`;
 
 /** Until the late binding the relay learns no model for any agent: it refuses every request (fail closed). */
 const failClosed = { policyOf: async () => ({ models: [], claude: false, blocked: null }) } as const;
+const notBound = (): never => {
+  throw new PapError("internal");
+};
 
 /** The scripted provider copied into the VM's folder at each worker start (a test may rewrite it between starts). */
 const scriptCopier = (source: string) => (layout: VmLayout) => {
@@ -283,6 +288,7 @@ export async function composeAgentsVm(
         imageTagOf: seams.imageTagOf ?? (() => TEST_IMAGE_TAG),
         mirrors,
         logger: agentsLogger,
+        packageSources: (ids) => (lateHolder.late ? lateHolder.late.sourcesOf(ids) : notBound()),
         // AVM-E15, process backend only: the scripted provider is copied into the VM's folder and the init names that path.
         ...(config.testAgentRuntime === "process" &&
         seams.backend === undefined &&
@@ -310,6 +316,7 @@ export async function composeAgentsVm(
       relay,
       agentRunsInVm: () => true,
       resourceHost: () => ({ memoryCapMb: config.agentsMemoryMaxMb, cores: availableParallelism() }),
+      checkPackages: (ids) => (lateHolder.late ? lateHolder.late.checkPackages(ids) : notBound()),
       gatewayPort: port,
     };
     seams.expose?.(composed);

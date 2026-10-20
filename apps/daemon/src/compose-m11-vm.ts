@@ -7,8 +7,8 @@ export type { AgentsVm };
 export interface VmPorts {
   /** Into the one `agents` object of `setAgentPorts`: it replaces the whole object, so it cannot be set apart. */
   readonly sessions: Partial<Pick<AgentsVm, "vmLayoutOf" | "agentRunsInVm">>;
-  /** Into `createAgents`: the host's resource ceilings. */
-  readonly agents: Partial<Pick<AgentsVm, "resourceHost">>;
+  /** Into `createAgents`: the host's resource ceilings and the check of the package picks. */
+  readonly agents: Partial<Pick<AgentsVm, "resourceHost" | "checkPackages">>;
   /** Into `createAgentSafety`: no prompt chips from a host home. */
   readonly safety: Partial<Pick<AgentsVm, "agentRunsInVm">>;
 }
@@ -22,10 +22,14 @@ const NONE: VmPorts = { sessions: {}, agents: {}, safety: {} };
  */
 export function vmPortsOf(vm: AgentsVm | undefined): VmPorts {
   if (vm === undefined) return NONE;
-  for (const name of ["vmLayoutOf", "agentRunsInVm", "resourceHost"] as const)
+  for (const name of ["vmLayoutOf", "agentRunsInVm", "resourceHost", "checkPackages"] as const)
     if (typeof vm[name] !== "function") throw new Error(`PAP_AGENTS_RUNTIME=vm: ${name} is not wired`);
-  const { vmLayoutOf, agentRunsInVm, resourceHost } = vm;
-  return { sessions: { vmLayoutOf, agentRunsInVm }, agents: { resourceHost }, safety: { agentRunsInVm } };
+  const { vmLayoutOf, agentRunsInVm, resourceHost, checkPackages } = vm;
+  return {
+    sessions: { vmLayoutOf, agentRunsInVm },
+    agents: { resourceHost, checkPackages },
+    safety: { agentRunsInVm },
+  };
 }
 
 /** The sessions' view of the agents registry: the profile of an owner's agent, null when there is none or it does not parse. */

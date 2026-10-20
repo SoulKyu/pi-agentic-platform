@@ -6,6 +6,7 @@ import type { Logger } from "./kernel/logger.ts";
 import type { StreamHub } from "./kernel/ws/stream-hub.ts";
 import { createPiWriteQueue } from "./kernel/pi-write-queue.ts";
 import { withLaneRoots } from "./lane-covers.ts";
+import { createPluginPicks, type PluginPicks } from "./plugin-picks.ts";
 import { createMcpModule, type McpModule } from "./modules/mcp/index.ts";
 import { createModelsModule, type ModelsModule, sweepValidationCopies } from "./modules/models/index.ts";
 import { createSkillsModule, type SkillsModule } from "./modules/skills/index.ts";
@@ -36,6 +37,8 @@ export interface ComposedPi {
   readonly trust: TrustModule["port"];
   /** The models Pi offers, for the VM relay's per-agent policy (R13). */
   readonly models: ModelsModule["port"];
+  /** The agent form's package ids, resolved to the exact sources in the helper (AVM-E33). */
+  readonly plugins: PluginPicks;
   /** The pool every Pi module runs its configuration work in (ADR 0023): for the modules composed here and for tests. */
   readonly helpers: HelperPool;
   /** The Pi modules answer for the owner's non-archived lane folders as for a project root (final review I1); bound by `lanes.bind`. */
@@ -105,6 +108,7 @@ export function composePi(deps: ComposePiDeps): ComposedPi {
     rpc: { ...models.rpc, ...mcp.rpc, ...trust.rpc, ...skills.rpc },
     trust: trust.port,
     models: models.port,
+    plugins: createPluginPicks({ helpers, logger: deps.logger }),
     helpers,
     useLaneRoots: (roots) => void (laneRoots = roots),
     stopAll: () => helpers.stopAll(),

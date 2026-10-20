@@ -34,10 +34,13 @@ const row = (extra: Partial<SessionRow> = {}): SessionRow =>
     piPath: null,
     ...extra,
   }) as SessionRow;
+/** The id the agent form sent (AVM-E33) and the source the helper resolves it to: the runtime must get the source. */
+const PICK_ID = "c".repeat(32);
+const PICK_SOURCE = "npm:left-pad@1.0.0";
 const input = AgentInput.parse({
   name: "Atlas",
   resources: { memoryMb: 2048, cpus: 2, diskMb: 8192 },
-  packages: ["npm:left-pad"],
+  packages: [PICK_ID],
 });
 const launch = (extra: Partial<AgentLaunch> = {}): AgentLaunch => ({
   agent: { id: ID, name: "Atlas", role: "r" },
@@ -113,6 +116,9 @@ function setup(
     imageTagOf: () => IMAGE,
     mirrors: { inputFor },
     logger: silentLogger,
+    // Mutant: the ids go to the runtime as they are -> "hands the runtime the sources, never the ids" fails.
+    packageSources: async (ids) =>
+      ids === null ? null : ids.map((id) => (id === PICK_ID ? PICK_SOURCE : id)),
     ...(copyProviderScript ? { copyProviderScript } : {}),
   });
   return {
@@ -184,6 +190,17 @@ describe("createVmLaunch (T8a)", () => {
     expect(await codeOf(bed.vmLaunch.spawn(r, launch({ role: "task" }), hostInit(r)))).toBe("bad_request");
     expect(bed.spawn).not.toHaveBeenCalled();
   });
+  it("hands the runtime the sources of the picks, never the ids, and null stays null (AVM-E33)", async () => {
+    const bed = setup();
+    const r = bed.use(row());
+    await bed.vmLaunch.spawn(r, launch(), hostInit(r));
+    await bed.vmLaunch.spawn(
+      r,
+      launch({ input: AgentInput.parse({ ...input, packages: null }) }),
+      hostInit(r),
+    );
+    expect(bed.packages).toEqual([[PICK_SOURCE], null]);
+  });
   it("hands the runtime the mirror input with the VM's sessions folder, and the profile's packages", async () => {
     const bed = setup();
     const r = bed.use(row());
@@ -191,7 +208,7 @@ describe("createVmLaunch (T8a)", () => {
     // The launch's resources go with the row: the mirror's quota is the agent's diskMb (R32).
     expect(bed.inputFor).toHaveBeenCalledWith(r, launch().input.resources);
     expect(bed.inputs[0]).toMatchObject({ marker: "s1", sessionsDir: vmLayout(r).sessions });
-    expect(bed.packages[0]).toEqual(["npm:left-pad"]);
+    expect(bed.packages[0]).toEqual([PICK_SOURCE]);
   });
   it("never sends the host init: bind returns the VM's init for startLiveSession to send", async () => {
     const bed = setup();
