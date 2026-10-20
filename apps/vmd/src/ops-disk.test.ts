@@ -5,7 +5,6 @@ import {
   openSync,
   readdirSync,
   readFileSync,
-  readlinkSync,
   readSync,
   statSync,
   symlinkSync,
@@ -35,9 +34,6 @@ import {
  *  - M-delete-running: `disk.delete` of the agent's disk without the running check: killed by "disk.delete of the agent's disk
  *    is conflict while a VM of the agent runs" (thread VM, task VM).
  *  - M-create-overwrites: `disk.create` on an existing disk: killed by "disk.create refuses an existing disk".
- *  - M-populate-no-safe-tree: the staging is not copied (mkfs -d on the user's own folder): killed by "disk.populate formats
- *    from pap-vmd's own copy".
- *  - M-staging-copy-kept: the staging copy stays after populate: killed by "the staging copy is gone".
  */
 let fx: Fixture;
 const use = (handler?: ExecHandler): void => {
@@ -229,81 +225,6 @@ describe("disk.delete (R30)", () => {
   });
 });
 
-describe("disk.populate (R31)", () => {
-  const staging = (): string => path.join(fx.papHome, "vm", "staging", AGENT);
-  const stage = (): void => {
-    mkdirSync(path.join(staging(), "home", "docs"), { recursive: true });
-    writeFileSync(path.join(staging(), "home", "docs", "a.txt"), "hello");
-    symlinkSync("docs/a.txt", path.join(staging(), "home", "link"));
-  };
-  const populate = { op: "disk.populate", agentId: AGENT, taskKey: null, staging: "migration" };
-
-  it("disk.populate formats from pap-vmd's own copy of the staging, never from the user's folder", async () => {
-    let listing: string[] = [];
-    let linkText = "";
-    use((argv) => {
-      const copy = argv[4];
-      if (mkfs(argv) && copy !== undefined) {
-        listing = readdirSync(copy);
-        linkText = readlinkTarget(path.join(copy, "home", "link"));
-      }
-      return undefined;
-    });
-    stage();
-    await fx.ops.handle(populate);
-    const disk = stateDir("agents", AGENT, "disk.img");
-    expect(fx.exec.calls).toEqual([
-      ["/usr/sbin/mkfs.ext4", "-q", "-F", "-d", stateDir("staging", AGENT), disk],
-    ]);
-    expect(listing).toEqual(["home"]);
-    expect(linkText).toBe("docs/a.txt");
-    expect(statSync(disk).size).toBe(1024 * MIB);
-  });
-
-  it("the staging copy is gone afterwards, whatever mkfs did", async () => {
-    use();
-    stage();
-    await fx.ops.handle(populate);
-    expect(existsSync(stateDir("staging", AGENT))).toBe(false);
-    use((argv) => (mkfs(argv) ? { code: 1 } : undefined));
-    stage();
-    await expect(fx.ops.handle(populate)).rejects.toMatchObject({ code: "failed" });
-    expect(existsSync(stateDir("staging", AGENT))).toBe(false);
-    expect(existsSync(stateDir("agents", AGENT, "disk.img"))).toBe(false);
-  });
-
-  it("refuses an existing disk, a missing staging and a staging that is a link", async () => {
-    use();
-    stage();
-    seedDisk(fx);
-    await expect(fx.ops.handle(populate)).rejects.toMatchObject({ code: "conflict" });
-    use();
-    await expect(fx.ops.handle(populate)).rejects.toMatchObject({ code: "not_found" });
-    mkdirSync(path.join(fx.papHome, "vm", "staging"), { recursive: true });
-    symlinkSync(fx.work, staging());
-    await expect(fx.ops.handle(populate)).rejects.toMatchObject({ code: "bad_request" });
-    expect(fx.exec.calls).toEqual([]);
-  });
-
-  it("checks the free space before it copies anything", async () => {
-    use();
-    stage();
-    fx.room = () => Promise.reject(new VmdFailure("disk_low"));
-    await expect(fx.ops.handle(populate)).rejects.toMatchObject({ code: "disk_low" });
-    expect(existsSync(stateDir("staging", AGENT))).toBe(false);
-    expect(fx.roomAsked).toEqual([1024]);
-    expect(fx.exec.calls).toEqual([]);
-  });
-
-  it("two populates of one agent at once run one mkfs", async () => {
-    use();
-    stage();
-    const results = await Promise.all([fx.ops.handle(populate), fx.ops.handle(populate)]);
-    expect(results[0]).toEqual(results[1]);
-    expect(fx.exec.calls.filter(mkfs)).toHaveLength(1);
-  });
-});
-
 describe("trash.purge (RT-40)", () => {
   it("purges one agent's entries now, or the old ones for null", async () => {
     use();
@@ -314,5 +235,3 @@ describe("trash.purge (RT-40)", () => {
     await expect(fx.ops.handle({ op: "trash.purge", agentId: null })).resolves.toEqual({ removed: 0 });
   });
 });
-
-const readlinkTarget = (file: string): string => readlinkSync(file);

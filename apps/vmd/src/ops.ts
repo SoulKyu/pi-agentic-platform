@@ -99,8 +99,6 @@ export function createOps(deps: OpsDeps): Ops {
         return disk.grow(request);
       case "disk.delete":
         return disk.remove(request);
-      case "disk.populate":
-        return disk.populate(request);
       case "trash.purge": {
         const purge = (): Promise<unknown> => Promise.resolve({ removed: state.purgeTrash(request.agentId) });
         return request.agentId === null ? purge() : locks.withAgent(request.agentId, purge);

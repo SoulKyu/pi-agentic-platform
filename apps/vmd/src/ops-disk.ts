@@ -6,7 +6,6 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
-  readdirSync,
   renameSync,
   rmSync,
 } from "node:fs";
@@ -15,14 +14,10 @@ import { mkfsArgv } from "./argv.ts";
 import { VmdFailure } from "./errors.ts";
 import type { Exec, OpsDeps } from "./ops.ts";
 import type { VmEntry } from "./ops-vm.ts";
-import { copyTreeSafely } from "./safe-tree.ts";
 
 const MIB = 1024 * 1024;
 const MKFS_TIMEOUT_MS = 10 * 60_000;
 /** The most a home can be (AgentResources' ceiling), and the floor of a new disk. */
-const POPULATE_MAX_MB = 65_536;
-const POPULATE_MIN_MB = 1024;
-const POPULATE_MAX_ENTRIES = 500_000;
 
 type AgentDisk = { agentId: string; taskKey: null };
 type Sized = AgentDisk & { diskMb: number };
@@ -69,30 +64,15 @@ function createSparse(file: string, mb: number): void {
 }
 
 /** R31: `mkfs.ext4` runs only on a file pap-vmd has just made. On any failure the file is removed. */
-export async function makeBlankDisk(
-  exec: Exec,
-  file: string,
-  mb: number,
-  populateFrom?: string,
-): Promise<void> {
+export async function makeBlankDisk(exec: Exec, file: string, mb: number): Promise<void> {
   try {
     createSparse(file, mb);
-    const result = await exec(mkfsArgv(file, populateFrom), { timeoutMs: MKFS_TIMEOUT_MS });
+    const result = await exec(mkfsArgv(file), { timeoutMs: MKFS_TIMEOUT_MS });
     if (result.code !== 0) throw new VmdFailure("failed");
   } catch (error) {
     rmSync(file, { force: true });
     throw error instanceof VmdFailure ? error : new VmdFailure("failed");
   }
-}
-
-function treeMiB(folder: string): number {
-  let bytes = 0;
-  for (const name of readdirSync(folder)) {
-    const entry = lstatSync(path.join(folder, name));
-    if (entry.isDirectory()) bytes += treeMiB(path.join(folder, name)) * MIB;
-    else bytes += entry.size;
-  }
-  return Math.ceil(bytes / MIB);
 }
 
 export function createDiskOps(deps: OpsDeps, list: () => Promise<VmEntry[]>) {
@@ -163,34 +143,5 @@ export function createDiskOps(deps: OpsDeps, list: () => Promise<VmEntry[]>) {
     });
   }
 
-  /** R31: a staging copy of the user's tree becomes a new disk; the result is never mounted, the staging copy never kept. */
-  function populate(request: AgentDisk): Promise<unknown> {
-    return locks.joinPopulate(request.agentId, async () => {
-      const file = state.diskPath(request.agentId, null);
-      if (fileExists(file)) throw new VmdFailure("conflict");
-      // Minor 1: room for at least the smallest disk is checked before anything is copied into root's state.
-      await room(POPULATE_MIN_MB);
-      const copy = state.stagingDir(request.agentId);
-      const source = path.join(deps.papHome, "vm", "staging", request.agentId);
-      try {
-        const refused = copyTreeSafely(source, copy, deps.papUid, {
-          maxBytes: POPULATE_MAX_MB * MIB,
-          maxEntries: POPULATE_MAX_ENTRIES,
-        });
-        if (refused === "missing") throw new VmdFailure("not_found");
-        if (refused !== null) throw new VmdFailure("bad_request");
-        const diskMb = Math.min(
-          POPULATE_MAX_MB,
-          Math.max(POPULATE_MIN_MB, Math.ceil(treeMiB(copy) * 1.25) + 256),
-        );
-        await room(diskMb);
-        await makeBlankDisk(exec, file, diskMb, copy);
-        return { diskMb };
-      } finally {
-        rmSync(copy, { recursive: true, force: true });
-      }
-    });
-  }
-
-  return { create, grow, remove, populate };
+  return { create, grow, remove };
 }

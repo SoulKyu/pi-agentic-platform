@@ -110,29 +110,6 @@ describe("joining", () => {
     expect(runs).toBe(1);
     await expect(locks.joinBuild("t", async () => "again")).resolves.toBe("again");
   });
-
-  it("two populates of one agent run once, under the agent's lock", async () => {
-    const locks = createLocks();
-    const hold = gate();
-    const events: string[] = [];
-    let runs = 0;
-    const populate = async (): Promise<void> => {
-      runs += 1;
-      events.push("populate");
-      await hold.promise;
-    };
-    const first = locks.joinPopulate("helper-1a2b", populate);
-    const second = locks.joinPopulate("helper-1a2b", populate);
-    const grow = locks.withAgent("helper-1a2b", async () => {
-      events.push("grow");
-    });
-    await tick();
-    expect(events).toEqual(["populate"]);
-    hold.open();
-    await Promise.all([first, second, grow]);
-    expect(runs).toBe(1);
-    expect(events).toEqual(["populate", "grow"]);
-  });
 });
 
 describe("start mutex (AVM-P12)", () => {

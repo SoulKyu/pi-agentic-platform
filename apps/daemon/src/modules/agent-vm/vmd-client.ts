@@ -5,7 +5,7 @@ import type { Clock } from "../../kernel/clock.ts";
 /** R36: owned by pap's uid, mode 0600; the daemon is the only client. */
 export const VMD_SOCKET = "/run/pap-vm/vmd.sock";
 export const DEFAULT_DEADLINE_MS = 60_000;
-/** `image.build` and `disk.populate` copy trees and run `apt` or `mkfs`: pap-vmd's own build timeout (30 minutes) and a minute more (AVM-E47). */
+/** `image.build` copies trees and runs `apt`: pap-vmd's own build timeout (30 minutes) and a minute more (AVM-E47). */
 export const BUILD_DEADLINE_MS = 31 * 60_000;
 
 /** What pap-vmd answered (`VmdResponse`), or why no answer came: `timeout`, `protocol` (not one valid frame). */
@@ -91,7 +91,7 @@ export function createVmdClient(socketPath: string, clock: Clock): VmdClient {
       const line = parsed.success ? JSON.stringify(parsed.data) : "";
       if (!parsed.success || Buffer.byteLength(line) > VMD_MAX_FRAME_BYTES)
         return Promise.reject(new VmdError("bad_request"));
-      const slow = parsed.data.op === "image.build" || parsed.data.op === "disk.populate";
+      const slow = parsed.data.op === "image.build";
       return new Promise<unknown>((resolve, reject) => {
         const frames: Buffer[] = [];
         let size = 0;

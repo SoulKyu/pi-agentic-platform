@@ -27,7 +27,6 @@ const valid: Record<string, unknown> = {
   "disk.create": { op: "disk.create", agentId, taskKey: null, diskMb: 4096 },
   "disk.grow": { op: "disk.grow", agentId, taskKey: null, diskMb: 8192 },
   "disk.delete": { op: "disk.delete", agentId, taskKey: key, purge: false },
-  "disk.populate": { op: "disk.populate", agentId, taskKey: null, staging: "migration" },
   "trash.purge": { op: "trash.purge", agentId: null },
   "image.build": {
     op: "image.build",
@@ -66,8 +65,14 @@ describe("VmdRequest", () => {
       expect(VmdRequest.safeParse({ ...start, ...patch }).success, JSON.stringify(patch)).toBe(false);
   });
 
-  it("gives disk.create, disk.grow and disk.populate the agent's disk only", () => {
-    for (const name of ["disk.create", "disk.grow", "disk.populate"]) {
+  // M5: the root API has no disk populate any more (no caller since AVM-E53). Mutant: the schema line back -> this fails.
+  it("refuses disk.populate: pap-vmd no longer copies a user folder into a disk", () => {
+    const request = { op: "disk.populate", agentId, taskKey: null, staging: "migration" };
+    expect(VmdRequest.safeParse(request).success).toBe(false);
+  });
+
+  it("gives disk.create and disk.grow the agent's disk only", () => {
+    for (const name of ["disk.create", "disk.grow"]) {
       const request = valid[name] as Record<string, unknown>;
       expect(VmdRequest.safeParse({ ...request, taskKey: key }).success, `${name} with a key`).toBe(false);
       const without: Record<string, unknown> = { ...request };

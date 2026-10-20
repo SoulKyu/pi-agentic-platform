@@ -20,7 +20,7 @@ const BOOT_MS = 90_000;
 let baseTag = "";
 let imageTag = "";
 const digestOf = (name: string): string => createHash("sha256").update(name).digest("hex");
-/** The home pap-vmd was set up with: its staging and build folders live there (AVM-E56). */
+/** The home pap-vmd was set up with: its build folder lives there (AVM-E56). */
 const papHome = (): string =>
   (JSON.parse(readFileSync("/etc/pap-vm/config.json", "utf8")) as { papHome: string }).papHome;
 let gateway: Awaited<ReturnType<typeof listenGateway>>;

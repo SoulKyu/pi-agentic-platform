@@ -53,7 +53,6 @@ describe("state folder", () => {
     expect(state.diskPath(agent, key)).toBe(path.join(root, "agents", agent, "tasks", key, "disk.img"));
     expect(state.envFile("a".repeat(32))).toBe(path.join(root, "run", `${"a".repeat(32)}.env`));
     expect(state.buildDir("base")).toBe(path.join(root, "build", "base"));
-    expect(state.stagingDir(agent)).toBe(path.join(root, "staging", agent));
     expect(state.dockerfileDir("agent")).toBe(path.join(root, "dockerfiles", "agent"));
   });
 
@@ -61,12 +60,11 @@ describe("state folder", () => {
     expect(() => state.diskPath("../x", null)).toThrow();
     expect(() => state.diskPath(agent, "../..")).toThrow();
     expect(() => state.envFile("../../etc/passwd")).toThrow();
-    expect(() => state.stagingDir("a/b-1a2b")).toThrow();
     expect(() => state.buildDir("../base" as "base")).toThrow();
   });
 
   it("creates its folders 0700 and refuses a folder that is a link", () => {
-    for (const dir of ["", "agents", "trash", "run", "build", "staging", "dockerfiles"]) {
+    for (const dir of ["", "agents", "trash", "run", "build", "dockerfiles"]) {
       expect(mode(path.join(root, dir))).toBe(0o700);
     }
     const planted = path.join(work, "planted");

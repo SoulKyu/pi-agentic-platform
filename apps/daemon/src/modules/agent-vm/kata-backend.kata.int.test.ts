@@ -1,8 +1,5 @@
-import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
-import { hostname } from "node:os";
-import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { KATA_HOME, type KataBed, LONG_MS, skipKata, startKataBed, vmsOf } from "../../testing/kata-bed.ts";
+import { type KataBed, LONG_MS, skipKata, startKataBed, vmsOf } from "../../testing/kata-bed.ts";
 
 /*
  * T20a: a whole daemon on the real Kata stack (KVM, pap-vmd, the real relay, a scripted model on loopback). Skips with one
@@ -145,34 +142,6 @@ describe.skipIf(skip)("the Kata backend on the real stack", () => {
       expect(out).toContain("alias=index.js");
       expect(out).toContain("index.js");
       expect(out).not.toContain("outside");
-    },
-    LONG_MS,
-  );
-
-  it(
-    "keeps the links of a populated disk as the staging tree wrote them (AVM-P19)",
-    async () => {
-      bed = await startKataBed();
-      const agentId = await bed.createAgent();
-      const staging = join(KATA_HOME, "vm", "staging", agentId, "home");
-      mkdirSync(staging, { recursive: true, mode: 0o700 });
-      writeFileSync(join(staging, "hello.txt"), "hi from staging\n");
-      symlinkSync("hello.txt", join(staging, "rel"));
-      symlinkSync("/etc/hostname", join(staging, "abs"));
-      symlinkSync("../../outside", join(staging, "up"));
-      await bed.vmd.request({ op: "disk.populate", agentId, taskKey: null, staging: "migration" });
-      const sessionId = await bed.openThread(agentId);
-      const out = await bed.probe(
-        agentId,
-        sessionId,
-        'cd /agent/home && for f in rel abs up; do echo "$f=$(readlink $f)"; done; cat rel; cat abs',
-      );
-      expect(out).toContain("rel=hello.txt");
-      expect(out).toContain("abs=/etc/hostname");
-      expect(out).toContain("up=../../outside");
-      expect(out).toContain("hi from staging");
-      // An absolute link in the disk names the guest's own file, never the host's.
-      expect(out).not.toContain(hostname());
     },
     LONG_MS,
   );

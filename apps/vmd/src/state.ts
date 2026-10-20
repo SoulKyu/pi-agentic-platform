@@ -51,7 +51,6 @@ export interface VmdState {
   diskPath(agentId: string, taskKey: string | null): string;
   envFile(launchId: string): string;
   buildDir(layer: ImageLayer): string;
-  stagingDir(agentId: string): string;
   /** The folder holding `Dockerfile`, outside every build context (RT-33). */
   dockerfileDir(layer: ImageLayer): string;
   writeEnvFile(launchId: string, text: string): string;
@@ -114,7 +113,7 @@ export function createState(deps: StateDeps): VmdState {
     root,
     agentDir,
     ensure() {
-      for (const sub of ["agents", "trash", "run", "build", "staging", "dockerfiles"]) ensureDir(dir(sub));
+      for (const sub of ["agents", "trash", "run", "build", "dockerfiles"]) ensureDir(dir(sub));
       ensureDir(root);
     },
     diskPath: (agentId, taskKey) =>
@@ -126,7 +125,6 @@ export function createState(deps: StateDeps): VmdState {
       if (!LAYERS.includes(layer)) throw new Error("state: unknown layer");
       return dir("build", layer);
     },
-    stagingDir: (agentId) => dir("staging", AgentId.parse(agentId)),
     dockerfileDir(layer) {
       if (!LAYERS.includes(layer)) throw new Error("state: unknown layer");
       return dir("dockerfiles", layer);

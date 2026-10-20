@@ -120,9 +120,8 @@ export const directVolumeRemoveArgv = (volume: string): string[] => [
   volume,
 ];
 
-/** R31: only ever on a file pap-vmd just made; `-d` populates it from pap-vmd's own copy (never mounted). */
-export const mkfsArgv = (image: string, populateFrom?: string): string[] =>
-  populateFrom === undefined ? [MKFS, "-q", "-F", image] : [MKFS, "-q", "-F", "-d", populateFrom, image];
+/** R31: only ever on a file pap-vmd just made. */
+export const mkfsArgv = (image: string): string[] => [MKFS, "-q", "-F", image];
 
 /** R7, RT-19, RT-33: the Dockerfile lives outside the context; a base build never reuses a cached `apt-get upgrade`. */
 export function buildArgv(request: ImageBuildRequest, contextDir: string, dockerfileDir: string): string[] {

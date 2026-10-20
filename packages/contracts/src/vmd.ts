@@ -18,8 +18,8 @@ const agentDisk = { agentId: AgentId, taskKey: z.null() };
 /**
  * The whole request surface of pap-vmd (R3, R7, R8, R30). No path, command, Dockerfile text or environment comes from the
  * daemon: pap-vmd derives every path from these fields and its own config. `kind: "isolated"` gets a blank disk pap-vmd
- * creates at `vm.start` and deletes at its `vm.stop`; `isolated` and `taskKey` go together. `disk.create`, `disk.grow` and
- * `disk.populate` take the agent's disk only; `disk.delete` with a task key removes a task disk a crash left behind.
+ * creates at `vm.start` and deletes at its `vm.stop`; `isolated` and `taskKey` go together. `disk.create` and `disk.grow` take
+ * the agent's disk only; `disk.delete` with a task key removes a task disk a crash left behind.
  */
 export const VmdRequest = z.discriminatedUnion("op", [
   z
@@ -49,7 +49,6 @@ export const VmdRequest = z.discriminatedUnion("op", [
   z
     .object({ op: z.literal("disk.delete"), ...agent, taskKey: TaskKey.nullable(), purge: z.boolean() })
     .strict(),
-  z.object({ op: z.literal("disk.populate"), ...agentDisk, staging: z.literal("migration") }).strict(),
   /** RT-40: `agentId` null purges every trash entry older than 7 days; an id purges that agent's entries now ("Purge now"). */
   z.object({ op: z.literal("trash.purge"), agentId: AgentId.nullable() }).strict(),
   z

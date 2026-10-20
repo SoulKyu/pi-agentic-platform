@@ -13,8 +13,6 @@ export interface Locks {
   withStart<T>(run: () => Promise<T>): Promise<T>;
   /** A second `image.build` of a tag already building joins the running one and gets its result. */
   joinBuild<T>(tag: string, run: () => Promise<T>): Promise<T>;
-  /** A second `disk.populate` of an agent already populating joins the running one; the run holds the agent's lock. */
-  joinPopulate<T>(agentId: string, run: () => Promise<T>): Promise<T>;
 }
 
 interface Queue {
@@ -58,7 +56,6 @@ export function createLocks(): Locks {
     withAgent,
     withStart: (run) => enqueue(starts, "start", MAX_QUEUED_STARTS, run),
     joinBuild: (tag, run) => join(`build:${tag}`, run),
-    joinPopulate: (agentId, run) => join(`populate:${agentId}`, () => withAgent(agentId, run)),
   };
 }
 

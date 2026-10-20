@@ -161,16 +161,8 @@ describe("kata-ctl and mkfs command lines", () => {
     ]);
   });
 
-  it("mkfs.ext4 runs on a file, with -d only for a staging copy", () => {
+  it("mkfs.ext4 runs on a file and never populates it from a folder", () => {
     expect(mkfsArgv("/s/disk.img")).toEqual(["/usr/sbin/mkfs.ext4", "-q", "-F", "/s/disk.img"]);
-    expect(mkfsArgv("/s/disk.img", "/s/staging/x")).toEqual([
-      "/usr/sbin/mkfs.ext4",
-      "-q",
-      "-F",
-      "-d",
-      "/s/staging/x",
-      "/s/disk.img",
-    ]);
   });
 });
 
