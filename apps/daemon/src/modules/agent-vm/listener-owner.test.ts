@@ -83,7 +83,12 @@ describe("the listeners of /proc/net/tcp6 (T20b M6)", () => {
     expect(ownerOf(proc, GATEWAY)).toEqual({ listening: true, pid: 41 });
     const noV6: ProcReader = { ...proc, tcp6: () => "" };
     expect(ownerOf(noV6, GATEWAY)).toEqual({ listening: false, pid: null });
-    const { tcp6: _unused, ...bare } = proc;
+    const bare: ProcReader = {
+      tcp: proc.tcp,
+      fdTargets: proc.fdTargets,
+      pids: proc.pids,
+      parentOf: proc.parentOf,
+    };
     expect(ownerOf(bare, GATEWAY)).toEqual({ listening: false, pid: null });
   });
 });
