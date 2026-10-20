@@ -118,7 +118,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     createLogger({ level: config.logLevel, clock, write: (line) => process.stdout.write(line) });
   const workerUmask = prepareHome(config.home);
   const lock = acquireInstanceLock(config.home);
-
   // Undone in reverse order, by `stop()` and by a start that fails half-way.
   const closers: Array<{ readonly name: string; close(): void | Promise<void> }> = [
     { name: "instance_lock", close: () => lock.release() },
@@ -132,7 +131,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
       }
     }
   };
-
   try {
     const { db, readOnly } = migrate({
       dbPath: join(config.home, "state.db"),
@@ -159,12 +157,11 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     closers.push({ name: "receipt_purge", close: () => purge.stop() });
     const hub = createStreamHub(undefined, clock);
     const env = deps.env ?? process.env;
-    const vmRpc = composeAgentsVmRpc(config, logger, clock);
+    const vmRpc = composeAgentsVmRpc(config, logger, clock, audit.port);
     const core = { db, clock, logger, config, readOnly, hub, env, claudeToken: vmRpc.claudeToken };
     const agentsVm = (await composeAgentsVm(core, closers, deps.agentsVm)) ?? undefined;
     // The outbox is recovered before any module is built (M10R11).
     const m10 = composeM10Early(core, closers);
-
     const onOriginRefused = createOriginRefusalLog(logger, clock);
     const auth = createAuthModule({
       db,
@@ -344,7 +341,6 @@ export async function createDaemon(config: Config, deps: DaemonDeps = {}): Promi
     });
     // Pushed once the server is up: closing goes ws first, then http, then the entries above.
     closers.push({ name: "http", close: () => server.close() }, { name: "ws", close: () => ws.close() });
-
     const setupUrl = openableSetupUrl(config, auth.setupUrl());
     if (setupUrl) {
       const fields = { url: setupUrl, hint: "Open this URL once to create the owner account." };

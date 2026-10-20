@@ -24,6 +24,7 @@ import { mountExportRoute } from "./export-http.ts";
 import { createExports } from "./exports.ts";
 import { createLaneHooks, type LaneRunHooks } from "./lane-hooks.ts";
 import { createSessionsLanePort, laneInfoOf, type SessionsLanePort } from "./lane-port.ts";
+import { createHeldNotices } from "./held-notices.ts";
 import { outsideToolResultsTaint } from "./outside-taint.ts";
 import { createAdmission, DEFAULT_MIN_FREE_DISK_MB } from "./fork-quota.ts";
 import { loadPiWriter, purgeForkTmp } from "./pi-writer.ts";
@@ -171,14 +172,22 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     logger,
     infoOf: (sessionId) => laneInfoOf(store, service.laneProbe, sessionId),
   });
+  // A mirror notice (R14, AVM-E29) can come before the session is live: it waits and is posted when the session is.
+  const noticeLive = (sessionId: string, text: string): boolean => {
+    const session = service.laneProbe.live.get(sessionId);
+    session?.notice({ level: "warning", text });
+    return session !== undefined;
+  };
   const taintOutside = outsideToolResultsTaint({
     store,
     policy: deps.policy,
     audit: deps.audit,
     logger,
   });
+  const held = createHeldNotices({ post: (id, text) => noticeLive(id, text), logger });
   const service = createSessionsService({
     laneHooks,
+    onSessionStarted: held.flush,
     store,
     exports,
     clock: deps.clock,
@@ -257,7 +266,7 @@ export function createSessionsModule(deps: SessionsModuleDeps): SessionsModule {
     isAgentSession: (sessionId) => store.get(sessionId)?.agentId !== undefined,
     inspect: (sessionId) => service.inspect(sessionId),
     mirror: {
-      notice: (sessionId, text) => service.laneProbe.live.get(sessionId)?.notice({ level: "warning", text }),
+      notice: (sessionId, text) => (noticeLive(sessionId, text) ? undefined : held.hold(sessionId, text)),
       taint: taintOutside,
     },
     restartFolder: (ownerId, folder) => service.restartFolder(ownerId, folder),

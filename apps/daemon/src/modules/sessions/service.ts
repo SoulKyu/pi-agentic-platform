@@ -159,6 +159,7 @@ export function createSessionsService(deps: SessionsServiceDeps): SessionsServic
       if (SUMMARY_EVENTS.has(event.kind)) publisher.changed(sessionId);
     },
     ...adoption.launchHooks,
+    onStarted: (id) => (adoption.launchHooks.onStarted?.(id), deps.onSessionStarted?.(id)),
   });
   const owned = (sessionId: string, caller: Caller): SessionRow => {
     const row = deps.store.get(sessionId);

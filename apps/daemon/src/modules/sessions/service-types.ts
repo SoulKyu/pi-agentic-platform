@@ -82,6 +82,8 @@ export interface SessionsServiceDeps {
   /** `env`: variables for this worker only, over the daemon's (memory trust, M11R142). */
   spawn(cwd: string, env?: Readonly<Record<string, string>>): WorkerHandle;
   freeMemMb(): number;
+  /** After a session's start ended (it is live, or it failed): what waited for a live session is posted now. */
+  onSessionStarted?(sessionId: string): void;
   onWorkerExit?(sessionId: string, info: { exit: WorkerExit; outputTail: string }): void;
   /** The runs registry: sees each run start and end and every raw Pi event of the session (M10R84). */
   readonly runs?: RunObserver;

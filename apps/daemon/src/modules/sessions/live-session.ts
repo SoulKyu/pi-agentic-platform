@@ -59,15 +59,7 @@ export function startLiveSession(deps: LiveSessionDeps, init: InitRecord): LiveS
   const notices = createNoticeRing();
   // Every notice is kept for the snapshot, whoever says it (M2R85).
   const emit = (event: SessionStreamEvent): void => {
-    if (event.kind === "notice") {
-      notices.add({
-        level: event.level,
-        text: event.text,
-        ...(event.source ? { source: event.source } : {}),
-        ...(event.code ? { code: event.code } : {}),
-        ...(event.params ? { params: event.params } : {}),
-      });
-    }
+    if (event.kind === "notice") notices.add(event); // the ring keeps level, text, source, code and params only
     deps.publish(event);
   };
   // Every event this session publishes sends the pending deltas first, so text never arrives after what follows it.
