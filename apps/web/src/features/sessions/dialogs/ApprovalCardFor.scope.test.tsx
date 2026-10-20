@@ -123,3 +123,19 @@ describe("the scope of an Always answer (M7R26)", () => {
     expect(page.querySelector("img, b")).toBeNull();
   });
 });
+
+describe("the card of a VM session (AVM-E33, AVM-E18)", () => {
+  // Mutant: the card ignores `vm` -> "hides Always" fails.
+  it("hides Always and its scope choice, and keeps the other answers", async () => {
+    const page = await show(card({ vm: true }));
+    const names = [...page.querySelectorAll("button")].map((el) => el.textContent?.trim());
+    expect(names).not.toContain("Always");
+    expect(names).toEqual(expect.arrayContaining(["Allow once"]));
+    expect(radios(page)).toEqual([]);
+  });
+
+  it("still shows Always when the record has no vm flag (it reads as false)", async () => {
+    const page = await show(card());
+    expect([...page.querySelectorAll("button")].map((el) => el.textContent?.trim())).toContain("Always");
+  });
+});

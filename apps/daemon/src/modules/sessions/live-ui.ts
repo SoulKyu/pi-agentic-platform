@@ -49,6 +49,8 @@ export interface LiveUiDeps {
   readonly clock: Clock;
   readonly logger: Logger;
   readonly limiter: RateLimiter;
+  /** The session runs in a VM (the daemon's own init says so): its cards offer no "always" (AVM-E18). */
+  readonly vm?: boolean;
   publish(event: SessionStreamEvent): void;
   /** An approval card was sent to the UI (decision 117, A4): the call it is about, the answers it offers and when. */
   onCardShown?(toolCallId: string, answers: readonly ApprovalAnswer[], at: number): void;
@@ -102,7 +104,9 @@ function approvalAnswerOf(
   response: DialogResponse,
 ): { answer: ApprovalAnswer; scope?: AlwaysScope } {
   const offered = (answer: ApprovalAnswer): ApprovalAnswer => {
-    if (!dialog.answers?.includes(answer)) throw new PapError("bad_request");
+    if (!dialog.answers?.includes(answer) || (dialog.vm === true && answer === "always")) {
+      throw new PapError("bad_request");
+    }
     return answer;
   };
   if ("answer" in response) {
@@ -119,7 +123,7 @@ function approvalAnswerOf(
 
 export function createLiveUi(deps: LiveUiDeps): LiveUi {
   const { handle, logger, limiter } = deps;
-  const dialogs = createDialogRegistry();
+  const dialogs = createDialogRegistry(deps.vm === true);
   const decorations = createDecorations();
   const throttle = createKeyedThrottle({ clock: deps.clock, publish: deps.publish });
   const extensionNotices = createNoticeLimiter({ clock: deps.clock, publish: deps.publish });

@@ -27,6 +27,8 @@ export const Dialog = z
     alwaysScopes: AlwaysScopes.optional(),
     /** Approval dialogs only: the host the `host` answer allows, present exactly when `answers` holds `host` (owner a2). */
     host: TrustedHost.optional(),
+    /** Approval dialogs only: the session runs in a VM, which has no host rule to write, so the card offers no "always" (AVM-E18). */
+    vm: z.boolean().optional(),
   })
   .superRefine((dialog, ctx) => {
     if ((dialog.host !== undefined) !== (dialog.answers?.includes("host") ?? false)) {
