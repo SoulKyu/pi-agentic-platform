@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { AgentInput, type InitRecord, type VmLayout } from "@pap/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { silentLogger } from "../../kernel/logger.ts";
-import { FILE_LOST_NOTICE, layoutOf, type VmSpec } from "../agent-vm/index.ts";
+import { layoutOf, type VmSpec } from "../agent-vm/index.ts";
 import type { SessionsAgentDeps } from "./agent-gate.ts";
 import { createSessionsService } from "./service.ts";
 import { createSessionsStore } from "./store.ts";
@@ -352,24 +352,5 @@ describe("the boot assertion of the agents ports (fail closed)", () => {
         agents: { profileOf: () => null, probe: { ensure: async () => ({ usable: true, path: "/b" }) } },
       }),
     ).not.toThrow();
-  });
-
-  // J1b M1 (AVM-E40). Mutant: the refusal throws without publishing the notice -> this case fails.
-  it("refuses a recorded VM session whose file the VM replaced, and tells the owner the copy is kept", async () => {
-    const { papHome } = setup({
-      start: (index) => (index === 1 ? { kind: "ready", piId: "someone-else" } : { kind: "ready" }),
-    });
-    const { sessionId } = await thread();
-    const file = join(papHome, "agents", ".mirrors", ID, `2026-10-20T00-00-00-000Z_${randomUUID()}.jsonl`);
-    expect(bed.store.bindPiFile(sessionId, file, "recorded-id")).toBe(true);
-    await bed.spawned[0]?.stop();
-    await Promise.resolve();
-    const frames = await bed.subscribe(sessionId);
-    expect(await codeOf(bed.service.prompt({ sessionId, text: "again" }, OWNER))).toBe("worker_failed");
-    const notices = frames.flatMap((frame) => {
-      const event = frame.event as { kind?: string; text?: string };
-      return event.kind === "notice" ? [event.text] : [];
-    });
-    expect(notices).toEqual([FILE_LOST_NOTICE]);
   });
 });

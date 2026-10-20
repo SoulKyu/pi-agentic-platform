@@ -1,5 +1,5 @@
 import http from "node:http";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { KEY, asAgent, bed, chat, send } from "../testing/relay-bed.ts";
 
 /*
@@ -201,13 +201,13 @@ describe("a request that waits for its credential (I3)", () => {
       key: Buffer.from(KEY, "hex"),
       address: "127.0.0.1",
     });
+    let answered = false;
+    void reply.then(() => (answered = true));
     release();
-    const answer = await Promise.race([
-      reply,
-      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 2_000)),
-    ]);
-    expect(answer).not.toBe("hung");
-    expect(JSON.parse((answer as { body: string }).body)).toEqual({ error: "key" });
+    // The old code never answered: the condition below then times out instead of the test sleeping.
+    await vi.waitFor(() => expect(answered).toBe(true), { timeout: 2_000 });
+    const answer = await reply;
+    expect(JSON.parse(answer?.body ?? "{}")).toEqual({ error: "key" });
     await probeUpstream(upstreamPort);
     expect(seen.filter((got) => got.url !== "/probe")).toEqual([]);
   });
