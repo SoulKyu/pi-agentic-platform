@@ -190,6 +190,28 @@ describe("a request that waits for its credential (I3)", () => {
     expect(seen.filter((got) => got.url !== "/probe")).toEqual([]);
   });
 
+  // AVM-E41 m1. Mutant: the handler returns with no answer when the grant changed (and the response is open) -> the reply never
+  // comes and the address keeps its slot.
+  it("is refused `key`, not left hanging, when its grant was replaced meanwhile (the slot is freed)", async () => {
+    const { keys, seen, release, reply, upstreamPort } = await waiting();
+    // A key rotation or a re-grant to the same address by another launch: the response is still open, the grant is not its own.
+    keys.add({
+      launchId: "c".repeat(32),
+      agentId: "scout-0001",
+      key: Buffer.from(KEY, "hex"),
+      address: "127.0.0.1",
+    });
+    release();
+    const answer = await Promise.race([
+      reply,
+      new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 2_000)),
+    ]);
+    expect(answer).not.toBe("hung");
+    expect(JSON.parse((answer as { body: string }).body)).toEqual({ error: "key" });
+    await probeUpstream(upstreamPort);
+    expect(seen.filter((got) => got.url !== "/probe")).toEqual([]);
+  });
+
   it("is refused when the agent was paused meanwhile", async () => {
     const { policy, seen, release, reply } = await waiting();
     policy.set({

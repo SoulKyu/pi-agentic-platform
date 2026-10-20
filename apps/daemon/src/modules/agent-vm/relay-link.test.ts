@@ -8,9 +8,8 @@ import { bed, grant, POLICY, TOKEN } from "./testing/relay-link-bed.ts";
  *  - M-replay-revoked: `revoke` keeps the grant -> "does not replay a revoked grant" fails.
  *  - M-backoff: the delay stays 1 s (no doubling) / has no ceiling -> "restarts with 1 s doubling to 30 s" fails.
  *  - M-stale-policy: an older policy answer is sent after a newer one -> "sends the newest policy" fails.
- *  - M-log-secret: a log line carries the relay key or the Claude token -> "no secret in a log line" fails.
  *  - M-early-fork: the child is forked before the bridge is up -> "starts after the bridge" fails.
- *  - M-mismatch: the threshold is dropped -> "logs a mismatch only when" fails.
+ * (M-log-secret and M-mismatch moved with their tests to relay-link.log.test.ts.)
  */
 describe("the relay link: grants and policy", () => {
   it("sends a grant and then the agent's policy once the child is ready", async () => {

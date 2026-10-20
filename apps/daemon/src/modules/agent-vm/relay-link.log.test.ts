@@ -2,6 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { bed, grant, KEY, TOKEN } from "./testing/relay-link-bed.ts";
 
 /*
+ * Mutants (RT-43), run for real: M-mismatch (the 10-request margin dropped, or judged on the first agent only), M-window (`windowEnded`
+ * not told), M-log-secret (a log line carries the relay key or the Claude token).
+ */
+
+/*
  * Mutants (RT-43), each run for real:
  *  - M-mismatch: the threshold is dropped -> "logs a mismatch once when" fails; the turns not read -> "no mismatch while" fails.
  *  - M-window: the window's end is not told -> "tells the composition each window ended" fails.
@@ -21,6 +26,44 @@ describe("the relay link: what it logs", () => {
     last().emit("message", usage("scout-0001", 40));
     expect(lines.filter((line) => line.msg === "agent_relay_usage")).toHaveLength(1);
     expect(lines.filter((line) => line.msg === "agent_relay_mismatch")).toEqual([]);
+  });
+
+  // AVM-E41 m4 (the assertions the split dropped). Mutant: the log line leaves out `refused` -> the first expect fails;
+  // the mismatch is judged on the report's first agent only -> the mismatch expect fails.
+  it("logs the fields of every agent of one report, and a mismatch for the one that is over the margin only (M-mismatch)", async () => {
+    const turns = new Map([
+      ["scout-0001", 5],
+      ["busy-0002", 5],
+    ]);
+    const { link, last, lines } = bed({ turns: (agentId) => turns.get(agentId) ?? 0 });
+    await link.start();
+    last().ready();
+    last().emit("message", {
+      type: "relay_usage",
+      agents: [
+        { agentId: "scout-0001", requests: 15, refused: 1, bytesIn: 10, bytesOut: 20 },
+        { agentId: "busy-0002", requests: 16, refused: 0, bytesIn: 1, bytesOut: 2 },
+      ],
+    });
+    const logged = lines.filter((line) => line.msg === "agent_relay_usage");
+    expect(logged).toHaveLength(2);
+    expect(logged[0]).toMatchObject({
+      agentId: "scout-0001",
+      requests: 15,
+      refused: 1,
+      bytesIn: 10,
+      bytesOut: 20,
+    });
+    expect(logged[1]).toMatchObject({
+      agentId: "busy-0002",
+      requests: 16,
+      refused: 0,
+      bytesIn: 1,
+      bytesOut: 2,
+    });
+    const mismatches = lines.filter((line) => line.msg === "agent_relay_mismatch");
+    expect(mismatches).toHaveLength(1);
+    expect(mismatches[0]).toMatchObject({ agentId: "busy-0002", requests: 16, turns: 5 });
   });
 
   it("logs a mismatch once when requests exceed the reported turns by more than 10 (M-mismatch)", async () => {

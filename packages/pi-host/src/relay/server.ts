@@ -272,11 +272,11 @@ export function createRelayServer(deps: RelayServerDeps): http.Server {
       resolved = null;
     }
     // The wait above can last seconds (a `!command` key, an OAuth refresh): a revoke, a pause or a budget reached meanwhile counts.
-    if (
-      res.destroyed ||
-      deps.keys.grantOf(presentedKey(req.headers), req.socket.remoteAddress)?.launchId !== launchId
-    )
-      return;
+    if (res.destroyed) return;
+    // The response is open but the grant is not its own any more (a rotation, a re-grant): it is refused like the body-read
+    // check does, so the address's slot is freed and nothing reaches the upstream (AVM-E41 m1).
+    if (deps.keys.grantOf(presentedKey(req.headers), req.socket.remoteAddress)?.launchId !== launchId)
+      return refuse(res, "key", null);
     const again = deps.policy.check(agentId, { provider: route.provider, model });
     if (!again.ok) return refuse(res, again.reason, agentId);
     if (resolved === null) return refuse(res, "provider", agentId);
