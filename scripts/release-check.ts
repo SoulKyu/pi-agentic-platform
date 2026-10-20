@@ -228,7 +228,10 @@ const piCompat = (root: string, problems: string[]): void => {
 export function checkRelease(root: string): string[] {
   const problems: string[] = [];
   const checks: [string, (root: string, problems: string[]) => void][] = [
-    ["package.json, apps/daemon/package.json, apps/vmd/package.json, .release-please-manifest.json", versions],
+    [
+      "package.json, apps/daemon/package.json, apps/vmd/package.json, .release-please-manifest.json",
+      versions,
+    ],
     ["release-please-config.json", config],
     [WORKFLOW, workflow],
     [`${PI_COMPAT} and ${WORKFLOW}`, piCompat],

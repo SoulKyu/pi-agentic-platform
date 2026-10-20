@@ -57,7 +57,13 @@ beforeEach(() => {
   writeFileSync(join(agent, "settings.json"), "{}");
   writeFileSync(skill(), "a skill");
   // Every input is older than the fake clock by far, as a profile edited long ago is.
-  for (const path of [agent, join(agent, "skills"), join(agent, "skills", "x"), join(agent, "settings.json"), skill()])
+  for (const path of [
+    agent,
+    join(agent, "skills"),
+    join(agent, "skills", "x"),
+    join(agent, "settings.json"),
+    skill(),
+  ])
     setMtime(path, Date.UTC(2026, 0, 1));
   clock = createFakeClock(Date.UTC(2026, 9, 20));
   secrets = [];
@@ -92,7 +98,11 @@ describe("the profile is prepared again only when its inputs changed (final revi
   // The folder's own mtime is put back: only the new file's entry can tell.
   it.each([
     ["the agent folder's top level", () => join(dirs().agent, "web-search.json"), () => dirs().agent],
-    ["a copied package folder", () => join(dirs().agent, "skills", "x", "more.md"), () => join(dirs().agent, "skills", "x")],
+    [
+      "a copied package folder",
+      () => join(dirs().agent, "skills", "x", "more.md"),
+      () => join(dirs().agent, "skills", "x"),
+    ],
   ])("prepares again after a file is added to %s, then settles", async (_label, file, folder) => {
     const images = make();
     await images.resolve("a-0001", [], "thread");

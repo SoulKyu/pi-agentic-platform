@@ -31,5 +31,7 @@ export const threadProfileRunner: ProfileRunner = (job) =>
     });
     thread.on("message", (message: unknown) => finish(outcomeOf(message)));
     thread.on("error", (error) => finish({ kind: "failed", message: error.message }));
-    thread.on("exit", () => finish({ kind: "failed", message: "the profile thread ended without an answer" }));
+    thread.on("exit", () =>
+      finish({ kind: "failed", message: "the profile thread ended without an answer" }),
+    );
   });

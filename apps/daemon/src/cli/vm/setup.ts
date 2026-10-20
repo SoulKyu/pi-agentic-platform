@@ -226,7 +226,8 @@ export async function runSetup(options: SetupOptions, deps: VmDeps, io: CliIo): 
   const gid = checkId("gid", user.gid);
   // M11: the daemon's own home (the unit's PAP_HOME) unless --home says otherwise, so pap-vmd reads the folders pap writes.
   const unitText = deps.readUserUnit(user.home);
-  const papHome = options.home ?? (unitText === null ? null : parseUnit(unitText)?.home) ?? join(user.home, ".pap");
+  const papHome =
+    options.home ?? (unitText === null ? null : parseUnit(unitText)?.home) ?? join(user.home, ".pap");
   if (!isAbsolute(papHome)) throw new CliError("--home must be an absolute path");
   const { roots } = deps;
   let assets: VmAssets = deps.compiled;
