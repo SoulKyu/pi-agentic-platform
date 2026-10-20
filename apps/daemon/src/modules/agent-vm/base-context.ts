@@ -7,7 +7,10 @@ import { walkTree } from "./secret-scan.ts";
 const FORMAT = "pap-base-1";
 /** The Node image digest as `vm-assets.json` pins it, bare or as the full `docker.io/library/node@sha256:...` reference. */
 const NODE_DIGEST = /^(?:docker\.io\/library\/node@)?(sha256:[0-9a-f]{64})$/;
-/** The Dockerfile's `COPY pap/ /opt/pap/` finds the bundle at `pap/pi-host/` (entrypoint `/opt/pap/pi-host/dist/guest/main.js`). */
+/**
+ * T13a's context layout. pap-vmd no longer builds from it (AVM-E31): its base context is the root-owned bundle folder itself and
+ * the Dockerfile COPYs `.` to `/opt/pap/pi-host/` (J1b), so only the tree digest below is still meaningful.
+ */
 const BUNDLE_AT = "pap/pi-host";
 const REQUIRED = ["dist/guest/main.js", "dist/relay/main.js", "package.json"] as const;
 
