@@ -26,10 +26,8 @@ import type { LineParser } from "./mirror-parse.ts";
 import type { Quota } from "./mirror-quota.ts";
 import type { AppendResult, MirrorPort } from "./vm-worker.ts";
 
-/** R14: said to the thread when the VM rewrote a conversation. */
+/** R14: said to the thread when the VM rewrote a conversation. AVM-E40: when the VM lost the file (the copy stays). */
 export const REPLACED_NOTICE = "La VM a réécrit cette conversation ; l'ancienne copie est gardée 7 jours.";
-
-/** AVM-E40: said to the owner when a recorded VM session's file is not the one the VM now has (the VM deleted it); the copy stays. */
 export const FILE_LOST_NOTICE = "La VM a perdu le fichier de cette conversation ; la copie est conservée.";
 
 const NEWLINE = 0x0a;
