@@ -59,8 +59,10 @@ export interface RelayLink {
   refresh(agentId: string): void;
   refreshAll(): void;
   setClaudeToken(token: string | null): void;
-  /** Resolves when a child is ready to serve (it listens). */
-  whenReady(): Promise<void>;
+  /** Resolves when a child is ready to serve (it listens), or when `signal` aborts (the waiter is then removed, N6). */
+  whenReady(signal?: AbortSignal): Promise<void>;
+  /** How many callers wait for ready (a test aid: a given-up wait must not stay). */
+  pendingWaiters(): number;
   /** The port the ready child listens on (an ephemeral one under the process backend), or null while none is ready. */
   port(): number | null;
   stop(): void;
@@ -251,7 +253,21 @@ export function createRelayLink(deps: RelayLinkDeps): RelayLink {
       send({ type: "claude_token", token });
     },
     port: () => port,
-    whenReady: () => (ready ? Promise.resolve() : new Promise<void>((resolve) => readyWaiters.push(resolve))),
+    whenReady: (signal) =>
+      ready || signal?.aborted
+        ? Promise.resolve()
+        : new Promise<void>((resolve) => {
+            readyWaiters.push(resolve);
+            signal?.addEventListener(
+              "abort",
+              () => {
+                readyWaiters = readyWaiters.filter((waiter) => waiter !== resolve);
+                resolve();
+              },
+              { once: true },
+            );
+          }),
+    pendingWaiters: () => readyWaiters.length,
     stop() {
       stopped = true;
       if (timer !== undefined) clock.clearTimeout(timer);

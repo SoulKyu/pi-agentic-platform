@@ -355,7 +355,7 @@ export async function composeAgentsVm(
         kata && relay
           ? {
               ready: () => relay.port() === AGENT_NET.relayPort,
-              whenReady: () => relay.whenReady(),
+              whenReady: (signal) => relay.whenReady(signal),
               clock,
             }
           : undefined,

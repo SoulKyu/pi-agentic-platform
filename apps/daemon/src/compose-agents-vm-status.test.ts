@@ -156,7 +156,10 @@ describe("the relay gates the launches on Kata (S1)", () => {
 });
 
 describe("guardedLaunch", () => {
-  const gate = (state: { ready: boolean }, whenReady: () => Promise<void> = () => new Promise(() => {})) => ({
+  const gate = (
+    state: { ready: boolean },
+    whenReady: (signal: AbortSignal) => Promise<void> = () => new Promise(() => {}),
+  ) => ({
     ready: () => state.ready,
     whenReady,
     clock,
@@ -209,6 +212,36 @@ describe("guardedLaunch", () => {
     await clock.advance(1);
     await result;
     expect(settled).toBe(true);
+  });
+
+  // N6. Mutant: the wait is not aborted at the bound -> the relay keeps a waiter per refused launch.
+  it("aborts its wait on the relay when the bound is reached, and when the relay answers", async () => {
+    const signals: AbortSignal[] = [];
+    const state = { ready: false };
+    const launch = guardedLaunch(
+      { spawn: vi.fn(async () => ({ handle: "h" })) } as unknown as VmLaunch,
+      { require: async () => {} },
+      gate(state, (signal) => (signals.push(signal), new Promise(() => {}))),
+    );
+    const refused = launch.spawn(agentRow, {} as never, {} as never).catch((error: unknown) => error);
+    expect(signals[0]?.aborted).toBe(false);
+    await clock.advance(RELAY_READY_WAIT_MS);
+    await refused;
+    expect(signals[0]?.aborted).toBe(true);
+    state.ready = true;
+    let answer: () => void = () => {};
+    const second = guardedLaunch(
+      { spawn: vi.fn(async () => ({ handle: "h" })) } as unknown as VmLaunch,
+      { require: async () => {} },
+      gate(
+        { ready: false },
+        (signal) => (signals.push(signal), new Promise<void>((resolve) => (answer = resolve))),
+      ),
+    );
+    const done = second.spawn(agentRow, {} as never, {} as never).catch(() => null);
+    answer();
+    await done;
+    expect(signals[1]?.aborted).toBe(true);
   });
 
   it("a ready relay costs no wait and no timer", async () => {

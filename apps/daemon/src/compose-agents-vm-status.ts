@@ -59,19 +59,21 @@ export const RELAY_READY_WAIT_MS = 30_000;
 export interface RelayGate {
   /** The relay reported ready on the bridge's own port. */
   readonly ready: () => boolean;
-  readonly whenReady: () => Promise<void>;
+  readonly whenReady: (signal: AbortSignal) => Promise<void>;
   readonly clock: Pick<Clock, "setTimeout" | "clearTimeout">;
 }
 
 async function relayIsReady(gate: RelayGate): Promise<boolean> {
   if (gate.ready()) return true;
+  const giveUp = new AbortController();
   let timer: ReturnType<Clock["setTimeout"]> | null = null;
   const timedOut = new Promise<void>(
     (resolve) => void (timer = gate.clock.setTimeout(resolve, RELAY_READY_WAIT_MS)),
   );
   try {
-    await Promise.race([gate.whenReady(), timedOut]);
+    await Promise.race([gate.whenReady(giveUp.signal), timedOut]);
   } finally {
+    giveUp.abort();
     if (timer !== null) gate.clock.clearTimeout(timer);
   }
   return gate.ready();

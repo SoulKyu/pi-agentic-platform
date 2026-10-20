@@ -34,4 +34,22 @@ describe("the relay link and the ownership of its listeners", () => {
     expect(link.port()).toBe(7842);
     expect(asked).toEqual([4242]);
   });
+
+  // N6. Mutant: the waiter stays after an abort -> `pendingWaiters()` keeps counting every refused launch.
+  it("removes a waiter whose wait was given up, and still wakes the others at ready", async () => {
+    const { link, last } = bed();
+    await link.start();
+    const gaveUp = Array.from({ length: 5 }, () => new AbortController());
+    const waits = gaveUp.map((one) => link.whenReady(one.signal));
+    let woken = false;
+    void link.whenReady().then(() => (woken = true));
+    expect(link.pendingWaiters()).toBe(6);
+    for (const one of gaveUp) one.abort();
+    await Promise.all(waits);
+    expect(link.pendingWaiters()).toBe(1);
+    last().ready();
+    await link.whenReady();
+    expect(woken).toBe(true);
+    expect(link.pendingWaiters()).toBe(0);
+  });
 });
